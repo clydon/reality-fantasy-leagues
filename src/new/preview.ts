@@ -29,8 +29,7 @@ export const PREVIEWS = {
   "hub.streaming": { step: "14", title: "Streaming on the couch", line: "Shows without an airtime, at your own pace." },
 
   // ---- a show space (ported in 0d; fixtures in src/new/fixtures/; Make it a game is real since step 10 part 2a, Start a game
-  // since part 2b; bingo and trivia since step 12 part 3; Watch along on your own time since step 13 part 1) ----
-  "show.watch-together": { step: "13", title: "Watching together", line: "One clock for everyone in it: anyone can pause for all." },
+  // since part 2b; bingo and trivia since step 12 part 3; Watch along on your own time since step 13 part 1, together since part 3) ----
   "show.notifications": { step: "15", title: "Notifications for this show", line: "Lineup reminders, results, chat." },
 
 

@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { useSearchParams } from "next/navigation";
-import { Crown, Eye, Flame, Grid3x3, Laugh, Pause, Play, Radio, Search, Star, Tv, X, Zap, type LucideIcon } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { Crown, Eye, Flame, Grid3x3, Laugh, Pause, Play, Radio, Search, Star, Tv, Users, X, Zap, type LucideIcon } from "lucide-react";
 import {
+  adoptClock,
   BEAT_MS,
+  changeLine,
   clockAt,
+  COUNTDOWN_MS,
   LATE_MS,
   leftLine,
   liveClock,
@@ -19,16 +22,39 @@ import {
   REACT_KINDS,
   runClock,
   runtimeText,
+  START_EARLY_MS,
   STREAM_BACK_MS,
   stopClock,
   TEXT_MAX,
+  TOGETHER_POLL_MS,
+  TOGETHER_SLOW_AFTER_MS,
+  TOGETHER_SLOW_MS,
+  TOGETHER_STOP_AFTER_MS,
   watcherAt,
   type Clock,
   type ReactKind,
+  type TogetherChange,
   type Watcher,
 } from "@/lib/game/watch-along";
 import { airTime } from "../clock";
-import { ratingsApi, useAfterRating, useAfterWatching, useWatchCard, watchApi, watching, type GifHit, type Reaction, type WatchRead } from "../data";
+import {
+  ratingsApi,
+  togetherApi,
+  useAfterRating,
+  useAfterWatching,
+  useRefreshBingo,
+  useWatchCard,
+  watchApi,
+  watching,
+  type GifHit,
+  type Reaction,
+  type Together,
+  type TogetherAnswer,
+  type WatchRead,
+} from "../data";
+import { useNav } from "../nav";
+import { paths } from "../routes";
+import { useMe } from "../session";
 import type { ShowData } from "../screens/show-space";
 import { Avatar, useNow } from "../ui/bars";
 import { usePushedPage } from "../ui/page";
@@ -50,12 +76,28 @@ import { useOpenReveal } from "./reveal";
 // Who's on now (part 2): its clock is kept on the server for the couch (written when it starts, pauses, moves or closes; the running
 // poll is its heartbeat, a paused one beats every 20 s for ten minutes), so who else on the couch is watching this episode along shows
 // as a mark on the bar and "riley is watching now · 40s ahead" with Catch up, and while it's on air the start offers Join the live
-// airing. Watching together with a shared clock comes with part 3.
+// airing. Watching together (part 3): a planned night's watch along (`&plan=`) is one clock for everyone in it: opening it once it's
+// due joins it, anyone in it starts it ("3, 2, 1" on every phone at once), pauses, moves it or starts an ad break for all ("riley
+// paused for everyone · Resume for everyone"), what the people in it say shows up as you reach it (the same clock: no 30 s wait),
+// their bingo ticks come to your card, and late arrivals join where it is or watch along from the start on their own. It asks
+// whether the session moved every few seconds while it's open (with the reactions while it runs), slower once it's sat still a
+// while (docs/HOSTING.md).
 
 /** Opening the watch along from inside the show space: your next episode, or `ep`. */
 export function useOpenWatch() {
-  const page = usePushedPage("watch", ["ep"]);
+  const page = usePushedPage("watch", ["ep", "plan"]);
   return (ep?: number | null) => page.showWith(ep ? { ep: String(ep) } : {});
+}
+
+/** Opening a planned night's watch along, together (step 13 part 3): over its show when you're in it, else the show with it open. */
+export function useOpenTogether() {
+  const page = usePushedPage("watch", ["ep", "plan"]);
+  const pathname = usePathname();
+  const nav = useNav();
+  return (p: { seasonId: string; episode: number; id: string }) => {
+    if (pathname.startsWith(`/show/${p.seasonId}/`)) page.showWith({ ep: String(p.episode), plan: p.id });
+    else nav.push(paths.watch(p.seasonId, p.episode, p.id));
+  };
 }
 
 // From anywhere else (the hub): paths.watch, the show's Tonight with its watch along open.
@@ -146,9 +188,10 @@ const noop = () => () => {};
 
 /** The watch along, over the show space while `?page=watch` (mounted in its frame). */
 export function WatchAlongPage({ show }: { show: ShowData }) {
-  const page = usePushedPage("watch", ["ep"]);
+  const page = usePushedPage("watch", ["ep", "plan"]);
   const params = useSearchParams();
   const asked = Number(params.get("ep")) || null;
+  const plan = (asked && params.get("plan")) || null;
   const seasonId = show.header?.seasonId ?? null;
   const couchId = show.couch?.id ?? null;
   const card = useWatchCard(seasonId, couchId, page.open && !asked);
@@ -157,7 +200,7 @@ export function WatchAlongPage({ show }: { show: ShowData }) {
   if (!mounted || !page.open || !show.header) return null;
   return createPortal(
     episode ? (
-      <WatchAlong key={`${seasonId}:${episode}`} show={show} episode={episode} onClose={page.close} />
+      <WatchAlong key={`${seasonId}:${episode}:${plan ?? ""}`} show={show} episode={episode} planId={plan} onClose={page.close} />
     ) : (
       <Layer>
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
@@ -243,12 +286,17 @@ function useWakeLock(on: boolean): boolean {
 
 type Float = { key: string; kind: ReactKind; userId: string; name: string; me: boolean; left: number; sway: number };
 
-function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: number; onClose: () => void }) {
+/** A planned night is due: the live airing has started, or a shared start is 15 minutes off (or past). */
+const nightDue = (night: { how: string; startsAt: string }, now: number) => Date.parse(night.startsAt) - (night.how === "live" ? 0 : START_EARLY_MS) <= now;
+
+function WatchAlong({ show, episode: n, planId: planAsked, onClose }: { show: ShowData; episode: number; planId: string | null; onClose: () => void }) {
   const header = show.header!;
   const seasonId = header.seasonId;
   const couchId = show.couch?.id ?? null;
   const label = rateLabel(show);
   const card = useWatchCard(seasonId, couchId);
+  const me = useMe().id;
+  const refreshBingo = useRefreshBingo();
   const [saved] = useState(() => readSaved(seasonId, n));
   const [phase, setPhase] = useState<"start" | "on" | "end">("start");
   const [mode, setMode] = useState<Mode>(saved?.mode ?? "stream");
@@ -275,17 +323,75 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
   const phaseRef = useRef(phase);
   const runtimeMs = (info?.runtimeMin ?? card.data?.runtimeMin ?? 60) * 60_000;
   const runtimeRef = useRef(runtimeMs);
+  const adRef = useRef(ad);
   useEffect(() => {
     clockRef.current = clock;
     phaseRef.current = phase;
     runtimeRef.current = runtimeMs;
+    adRef.current = ad;
   });
+
+  // Watching together (part 3): a planned night's session, one clock for everyone in it. No plan: your own watch along.
+  const [planId, setPlanId] = useState(couchId ? planAsked : null);
+  const [tg, setTg] = useState<Together | null>(null);
+  const [night, setNight] = useState<TogetherAnswer["night"]>(null);
+  // Someone else's start, resume, move or end of an ad break, said for a few seconds.
+  const [flash, setFlash] = useState<{ line: string; key: string } | null>(null);
+  const tgRef = useRef<Together | null>(null);
+  // A tap on its way to the server: polls' answers wait for it (else a stale one would undo the tap).
+  const writing = useRef(false);
+  const pending = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The last tap, version move or return to the tab: the poll slows, then stops, once the session's sat still a while.
+  const active = useRef(0);
+  const loadRef = useRef<(at: number, open: boolean) => Promise<void>>(async () => {});
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
+  const together = !!planId;
+  const joinedId = tg?.you ? tg.id : null;
 
   const seeWatchers = useCallback(
     (list: Watcher[] | undefined) => {
       if (list) setWatchers({ list: list.filter((w) => w.episode === n), at: Date.now() });
     },
     [n]
+  );
+
+  /** A together session as the server has it: its clock becomes yours (unless yours is within a beat of it), its change is said. */
+  const adopt = useCallback(
+    (t: Together | null, fresh: boolean) => {
+      if (!t) return;
+      const was = tgRef.current;
+      if (was && t.version < was.version) return;
+      if (!fresh && writing.current) return;
+      tgRef.current = t;
+      setTg(t);
+      const at = Date.now();
+      if (!was || t.version !== was.version) active.current = at;
+      if (!was) setMode(t.mode);
+      const before = clockAt(clockRef.current, at);
+      const c = adoptClock(phaseRef.current === "on" ? clockRef.current : null, t, at);
+      clockRef.current = c;
+      adRef.current = t.ad;
+      setClock(c);
+      setAd(t.ad);
+      setNow(at);
+      if (was && t.ticks !== was.ticks) refreshBingo(seasonId, couchId, n);
+      const ch = t.change;
+      if (was && ch && ch.at !== was.change?.at && ch.userId !== me && ch.by && !(ch.what === "pause" || ch.what === "ad")) {
+        const key = ch.at;
+        setFlash({ line: changeLine({ what: ch.what, by: ch.by, mine: false, at: t.at }), key });
+        setTimeout(() => setFlash((f) => (f?.key === key ? null : f)), 6000);
+      }
+      // Someone started the "3, 2, 1": everyone here is pulled in.
+      if (phaseRef.current === "start" && t.you && t.started && t.startsInMs > 0) {
+        phaseRef.current = "on";
+        setPhase("on");
+        void loadRef.current(c.at, true);
+      } else if (phaseRef.current === "on" && Math.abs(clockAt(c, at) - before) > 3000) void loadRef.current(clockAt(c, at), true);
+    },
+    [me, refreshBingo, seasonId, couchId, n]
   );
 
   const float = useCallback((r: { kind: ReactKind; userId: string; name: string; me: boolean }) => {
@@ -300,10 +406,13 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
       const id = ++loads.current;
       const from = open ? Math.max(-1, at - STREAM_BACK_MS) : since.current;
       try {
-        // The running poll is also the watch along's heartbeat for the couch (who's on now).
-        const r = await watchApi.read(seasonId, couchId, n, at, from, open, !open && !!couchId);
+        // The running poll is also the watch along's heartbeat for the couch (who's on now); watching together, it asks whether the
+        // session moved too, and what its people said comes without the wait.
+        const s = tgRef.current?.you ? tgRef.current : null;
+        const r = await watchApi.read(seasonId, couchId, n, at, from, open, !open && !!couchId, s ? { id: s.id, version: open ? null : s.version } : null);
         if (id !== loads.current) return;
         seeWatchers(r.now);
+        if (r.together?.state) adopt(r.together.state, false);
         setInfo((was) => (open || !was ? r : { ...was, through: r.through, at: r.at }));
         if (open) {
           seen.current = new Set(r.reactions.map((x) => x.id));
@@ -327,17 +436,20 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
         if (id === loads.current && open) toast((e as Error).message);
       }
     },
-    [seasonId, couchId, n, float, seeWatchers]
+    [seasonId, couchId, n, float, seeWatchers, adopt]
   );
-
-  // While the clock runs (and the tab's in front): what's new, every few seconds.
   useEffect(() => {
-    if (!running) return;
+    loadRef.current = load;
+  });
+
+  // While the clock runs (and the tab's in front): what's new, every few seconds. (Together, the session's own loop asks.)
+  useEffect(() => {
+    if (!running || together) return;
     const t = setInterval(() => {
       if (document.visibilityState === "visible") void load(clockAt(clockRef.current, Date.now()), false);
     }, POLL_MS);
     return () => clearInterval(t);
-  }, [running, load]);
+  }, [running, load, together]);
 
   // Remember where you are, so closing and coming back picks up there.
   useEffect(() => {
@@ -355,7 +467,7 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
   // Your clock, kept for the couch (who's on now): written whenever it starts, pauses, goes to an ad break or moves, a moment after
   // (so a few taps of +10s are one write). Alone, nothing's kept.
   useEffect(() => {
-    if (!couchId || phase !== "on") return;
+    if (!couchId || phase !== "on" || together) return;
     const t = setTimeout(() => {
       const c = clockRef.current;
       watchApi
@@ -364,12 +476,12 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
         .catch(() => {});
     }, 300);
     return () => clearTimeout(t);
-  }, [couchId, phase, clock, ad, mode, seasonId, n, seeWatchers]);
+  }, [couchId, phase, clock, ad, mode, seasonId, n, seeWatchers, together]);
 
   // Paused (or in an ad break), it says it's still open every 20 s for ten minutes, then drops out of who's on now until it runs.
   // Coming back to the tab (or the page back from the browser's cache, after closing it sent you off) says so at once.
   useEffect(() => {
-    if (!couchId || phase !== "on") return;
+    if (!couchId || phase !== "on" || together) return;
     const beat = () => watchApi.session(seasonId, couchId, n, { beat: true }).then((r) => seeWatchers(r.now), () => {});
     const onVisible = () => {
       if (document.visibilityState === "visible") void beat();
@@ -389,30 +501,165 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
       clearInterval(t);
       listen(false);
     };
-  }, [couchId, phase, clock.since, seasonId, n, seeWatchers]);
+  }, [couchId, phase, clock.since, seasonId, n, seeWatchers, together]);
 
-  // Closing it, or the page going away, takes you out of who's on now (else you'd drop out by your last heartbeat).
+  // Closing it, or the page going away, takes you out of who's on now (else you'd drop out by your last heartbeat); together, out
+  // of the session (its clock carries on for the rest).
   useEffect(() => {
     if (!couchId) return;
     const bye = () => {
-      if (phaseRef.current === "on") watchApi.leave(seasonId, couchId, n, clockAt(clockRef.current, Date.now()));
+      if (together) {
+        if (joinedId) togetherApi.leave(seasonId, couchId, n, joinedId);
+      } else if (phaseRef.current === "on") watchApi.leave(seasonId, couchId, n, clockAt(clockRef.current, Date.now()));
     };
     window.addEventListener("pagehide", bye);
     return () => {
       window.removeEventListener("pagehide", bye);
       bye();
     };
-  }, [couchId, seasonId, n]);
+  }, [couchId, seasonId, n, together, joinedId]);
+
+  // ---- watching together ----
+
+  /** Into the night's session (making it if nobody has): the answer's clock is yours. */
+  const join = useCallback(async (): Promise<Together | null> => {
+    if (!planId || !couchId) return null;
+    try {
+      const r = await togetherApi.join(seasonId, couchId, n, planId);
+      setNight(r.night);
+      if (r.now) seeWatchers(r.now);
+      adopt(r.together, true);
+      return r.together;
+    } catch (e) {
+      toast((e as Error).message);
+      return null;
+    }
+  }, [planId, couchId, seasonId, n, seeWatchers, adopt]);
+
+  // Opening a night's watch along: the night, and its session if anyone's opened it; once it's due, opening it is joining it.
+  useEffect(() => {
+    if (!planId || !couchId) return;
+    let gone = false;
+    togetherApi.read(seasonId, couchId, n, planId, null).then(
+      (r) => {
+        if (gone) return;
+        setNight(r.night);
+        if (r.now) seeWatchers(r.now);
+        adopt(r.together, true);
+        if (r.night && nightDue(r.night, Date.now())) void join();
+      },
+      (e) => {
+        if (gone) return;
+        toast((e as Error).message);
+        closeRef.current();
+      }
+    );
+    return () => {
+      gone = true;
+    };
+  }, [planId, couchId, seasonId, n, seeWatchers, adopt, join]);
+
+  // Open before it's due (a shared start's 15 minutes, the live airing's airtime): in it once it is.
+  const youIn = !!tg?.you;
+  useEffect(() => {
+    if (!night || youIn || phase !== "start") return;
+    const wait = Date.parse(night.startsAt) - (night.how === "live" ? 0 : START_EARLY_MS) - Date.now();
+    if (wait <= 0) return;
+    const t = setTimeout(() => void join(), Math.min(wait + 500, 2 ** 31 - 1));
+    return () => clearTimeout(t);
+  }, [night, youIn, phase, join]);
+
+  // While you're in it: has the session moved? Every few seconds while it's open and in front (with the reactions while its clock
+  // runs), every 30 s once it's sat still ten minutes, and not at all after an hour, until you tap something or come back to it.
+  useEffect(() => {
+    if (!planId || !couchId || !joinedId) return;
+    let stop = false;
+    let t: ReturnType<typeof setTimeout>;
+    const ask = async () => {
+      const s = tgRef.current;
+      const c = clockRef.current;
+      if (!s) return;
+      if (phaseRef.current === "on" && c.since !== null && c.since <= Date.now()) await loadRef.current(clockAt(c, Date.now()), false);
+      else {
+        const r = await togetherApi.read(seasonId, couchId, n, planId, s.version, true).catch(() => null);
+        if (r?.now) seeWatchers(r.now);
+        if (r?.night) setNight(r.night);
+        if (r?.together) adopt(r.together, false);
+      }
+    };
+    const tick = async () => {
+      if (stop) return;
+      const quiet = Date.now() - active.current;
+      const runs = phaseRef.current === "on" && clockRef.current.since !== null;
+      if (document.visibilityState === "visible" && (runs || quiet < TOGETHER_STOP_AFTER_MS)) await ask();
+      if (!stop) t = setTimeout(tick, runs || quiet < TOGETHER_SLOW_AFTER_MS ? TOGETHER_POLL_MS : TOGETHER_SLOW_MS);
+    };
+    t = setTimeout(tick, TOGETHER_POLL_MS);
+    // Back in front (or the page back from the browser's cache): still here, at once.
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      active.current = Date.now();
+      togetherApi.beat(seasonId, couchId, n, joinedId).then((r) => adopt(r.together, false), () => {});
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("pageshow", onVisible);
+    return () => {
+      stop = true;
+      clearTimeout(t);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("pageshow", onVisible);
+    };
+  }, [planId, couchId, joinedId, seasonId, n, seeWatchers, adopt]);
+
+  /**
+   * Your tap, for everyone in it: written a moment after the last tap (a few +10s are one write), the kind the last tap's; a start
+   * at once. Polls' answers wait until it's written.
+   */
+  const forAll = useCallback(
+    (change: TogetherChange, clockNow?: { at: number; running: boolean; ad: boolean }) => {
+      const s = tgRef.current;
+      if (!s || !couchId) return;
+      active.current = Date.now();
+      writing.current = true;
+      if (pending.current) clearTimeout(pending.current);
+      pending.current = setTimeout(
+        async () => {
+          pending.current = null;
+          const c = clockRef.current;
+          const at = Date.now();
+          const body = clockNow ?? { at: clockAt(c, at), running: c.since !== null, ad: adRef.current };
+          try {
+            const r = await togetherApi.move(seasonId, couchId, n, s.id, { change, mode: s.mode, ...body });
+            writing.current = pending.current !== null;
+            adopt(r.together, true);
+          } catch (e) {
+            writing.current = false;
+            toast((e as Error).message);
+          }
+        },
+        change === "start" ? 0 : 300
+      );
+    },
+    [couchId, seasonId, n, adopt]
+  );
 
   // End: the clock stops and asks how it was (and there's nothing to pick up any more).
   const finish = useCallback(() => {
-    if (couchId && phaseRef.current === "on") watchApi.leave(seasonId, couchId, n, clockAt(clockRef.current, Date.now()));
+    if (couchId && together) {
+      // Out of the session (its clock carries on for the rest).
+      const s = tgRef.current;
+      if (s?.you) togetherApi.leave(seasonId, couchId, n, s.id);
+      if (s) {
+        tgRef.current = { ...s, you: false };
+        setTg(tgRef.current);
+      }
+    } else if (couchId && phaseRef.current === "on") watchApi.leave(seasonId, couchId, n, clockAt(clockRef.current, Date.now()));
     setClock((c) => stopClock(c, Date.now()));
     setAd(false);
     phaseRef.current = "end";
     setPhase("end");
     writeSaved(seasonId, n, null);
-  }, [seasonId, couchId, n]);
+  }, [seasonId, couchId, n, together]);
 
   // While it runs (or someone else's does): the face and their marks move on, and at the end of the episode as the schedule has
   // it, it ends.
@@ -444,16 +691,19 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
     setNow(t);
     setClock(c);
     void load(c.at, true);
+    if (together) forAll("move");
   };
 
   const pause = () => {
     const t = Date.now();
     setNow(t);
-    if (clock.since === null && !ad) setClock(runClock(clock, t));
+    const resuming = clock.since === null && !ad;
+    if (resuming) setClock(runClock(clock, t));
     else {
       setAd(false);
       setClock(stopClock(clock, t));
     }
+    if (together) forAll(resuming ? "resume" : "pause");
   };
 
   const adBreak = () => {
@@ -466,6 +716,43 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
       setAd(true);
       setClock(stopClock(clock, t));
     }
+    if (together) forAll(ad ? "show" : "ad");
+  };
+
+  // The start, together: "3, 2, 1" for everyone in it; joining them where it is; or from the start on your own.
+  const startTogether = async (how: "start" | "join" | "own") => {
+    if (how === "own") {
+      const s = tgRef.current;
+      if (couchId && s?.you) togetherApi.leave(seasonId, couchId, n, s.id);
+      tgRef.current = null;
+      setTg(null);
+      setPlanId(null);
+      start("stream", 0);
+      return;
+    }
+    const s = tgRef.current?.you ? tgRef.current : await join();
+    if (!s) return;
+    if (how === "start" && !s.started) {
+      const t = Date.now();
+      const c = { at: 0, since: t + COUNTDOWN_MS };
+      clockRef.current = c;
+      setNow(t);
+      setClock(c);
+      setAd(false);
+      phaseRef.current = "on";
+      setPhase("on");
+      forAll("start", { at: 0, running: true, ad: false });
+      void load(0, true);
+      return;
+    }
+    const t = Date.now();
+    const c = adoptClock(null, s, t);
+    clockRef.current = c;
+    setNow(t);
+    setClock(c);
+    phaseRef.current = "on";
+    setPhase("on");
+    void load(clockAt(c, t), true);
   };
 
   const close = () => onClose();
@@ -511,6 +798,8 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
   };
 
   const paused = phase === "on" && clock.since === null;
+  // A "3, 2, 1" counting down: the clock starts for everyone in it at the same moment.
+  const counting = phase === "on" && clock.since !== null && clock.since > now;
   const scopeLine = !info
     ? null
     : info.you.private
@@ -523,14 +812,22 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
             : "Just you here: what you say stays yours"
           : null;
   const pct = (ms: number) => `${Math.min(100, (ms / runtimeMs) * 100)}%`;
-  // Who else is on it, each where their clock has got to since it was read; the one furthest ahead leads the line.
-  const others = phase === "start" ? [] : watchers.list.map((w) => ({ ...w, pos: watcherAt(w, Math.max(0, now - watchers.at)) }));
+  // Who else is on it, each where their clock has got to since it was read; the one furthest ahead leads the line. Together, the
+  // people in it are with you (they're on its clock): the line names them, and the marks are everyone else's.
+  const inIt = new Set((tg?.people ?? []).map((p) => p.userId));
+  const others = phase === "start" ? [] : watchers.list.filter((w) => !together || !inIt.has(w.userId)).map((w) => ({ ...w, pos: watcherAt(w, Math.max(0, now - watchers.at)) }));
   const lead = others.length ? others.reduce((a, b) => (b.pos > a.pos ? b : a)) : null;
   const gap = lead ? lead.pos - pos : 0;
   const nearLine = lead
     ? `${nowLine(others.map((o) => o.name))} · ${others.length > 1 ? `${lead.name} ` : ""}${lead.ad ? "in an ad break" : `${lead.running ? "" : "paused, "}${offsetText(gap)}`}`
     : null;
-  const catchUp = lead && gap > CATCH_UP_MS ? lead : null;
+  const catchUp = lead && gap > CATCH_UP_MS && !together ? lead : null;
+  // Together: who's here with you, and what the last change to the clock says (a pause or an ad break stays until it's undone).
+  const here = (tg?.people ?? []).filter((p) => p.here && p.userId !== me).map((p) => p.name);
+  const nightIn = (night?.in ?? []).filter((p) => p.userId !== me).map((p) => p.name);
+  const withLine = here.length ? namesLine(here) : nightIn.length ? namesLine(nightIn) : "";
+  const hold = tg?.change && (paused || ad) && (tg.change.what === "pause" || tg.change.what === "ad") ? tg.change : null;
+  const holdLine = hold ? changeLine({ what: hold.what, by: hold.by, mine: hold.userId === me, at: pos }) : null;
 
   return (
     <Layer className={paused || ad ? "nd-wa-paused" : ""}>
@@ -539,8 +836,8 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
           <b className="type-caption block truncate text-[18px]">
             {label} · Episode {n}
           </b>
-          <small className="mt-[3px] block text-xs font-medium text-muted-foreground">
-            {Math.round(runtimeMs / 60_000)} min{show.plays ? " · your games come with you" : ""}
+          <small className="mt-[3px] block truncate text-xs font-medium text-muted-foreground" data-watch-top>
+            {together ? (withLine ? `Watch along · ${withLine}` : "Watching together") : `${Math.round(runtimeMs / 60_000)} min${show.plays ? " · your games come with you" : ""}`}
           </small>
           {held && (
             <span data-wake-lock className="mt-[3px] inline-flex items-center gap-1 text-[11px] font-bold text-good">
@@ -585,13 +882,35 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
       </div>
 
       <div className="mx-4 mt-2.5 flex items-end gap-2.5 rounded-[3px] bg-card px-3.5 pb-3 pt-3.5">
-        <span data-watch-clock={Math.floor(pos / 1000)} className={`type-num text-[64px] leading-[.85] tabular-nums transition-opacity ${paused || ad ? "opacity-35" : ""}`}>
-          {runtimeText(pos)}
-        </span>
-        <span className="pb-1 text-[15px] text-muted-foreground">
-          {ad ? "Ad break" : paused ? "Paused" : `of ${runtimeText(runtimeMs)}`}
-        </span>
+        {counting ? (
+          <>
+            <span data-watch-countdown={Math.ceil((clock.since! - now) / 1000)} className="type-num text-[64px] leading-[.85] text-chyron tabular-nums">
+              {Math.ceil((clock.since! - now) / 1000)}
+            </span>
+            <span className="pb-1 text-[15px] text-muted-foreground">Press play at zero · everyone starts together</span>
+          </>
+        ) : (
+          <>
+            <span data-watch-clock={Math.floor(pos / 1000)} className={`type-num text-[64px] leading-[.85] tabular-nums transition-opacity ${paused || ad ? "opacity-35" : ""}`}>
+              {runtimeText(pos)}
+            </span>
+            <span className="pb-1 text-[15px] text-muted-foreground">
+              {ad ? "Ad break" : paused ? "Paused" : `of ${runtimeText(runtimeMs)}`}
+            </span>
+          </>
+        )}
       </div>
+      {together && phase === "on" && (holdLine || flash) && (
+        <div data-watch-together-bar={hold ? hold.what : "said"} className="mx-4 mt-2 flex min-h-11 items-center gap-2 rounded-[3px] bg-plate py-1.5 pl-3 pr-1.5 text-[13px] font-bold text-plate-foreground">
+          {hold?.what === "ad" ? <Tv className="size-4 flex-none" aria-hidden /> : hold ? <Pause className="size-4 flex-none" aria-hidden /> : <Users className="size-4 flex-none" aria-hidden />}
+          <span className="min-w-0 flex-1">{holdLine ?? flash?.line}</span>
+          {hold && hold.userId !== me && (
+            <button type="button" data-watch-resume-all onClick={hold.what === "ad" ? adBreak : pause} className="h-8 flex-none rounded-[2px] bg-plate-foreground px-2.5 text-xs font-bold text-plate">
+              {hold.what === "ad" ? "Back to the show" : "Resume for everyone"}
+            </button>
+          )}
+        </div>
+      )}
 
       <div className="relative mx-4 mt-3 h-7" aria-hidden>
         <span className="absolute inset-x-0 top-3 h-1 rounded-sm bg-border" />
@@ -609,6 +928,14 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
         <span className="absolute top-1 -ml-2.5 size-5 rounded-full bg-foreground shadow-[0_0_0_4px_rgba(244,242,248,.15)]" style={{ left: pct(pos) }} />
       </div>
 
+      {together && phase === "on" && (
+        <div data-watch-together={here.length} className="mx-4 mt-1 flex min-h-8 items-center gap-2 text-[13px] text-muted-foreground">
+          <Users className="size-3.5 flex-none text-good" aria-hidden />
+          <span className="min-w-0 flex-1 truncate">
+            {here.length ? `Watching together · ${namesLine(here)} ${here.length === 1 ? "is" : "are"} here` : `Watching together · just you so far${nightIn.length ? ` · ${namesLine(nightIn)} ${nightIn.length === 1 ? "is" : "are"} in` : ""}`}
+          </span>
+        </div>
+      )}
       {nearLine && (
         <div data-watch-near className="mx-4 mt-1 flex min-h-8 items-center gap-2 text-[13px] text-muted-foreground">
           <i className="size-[7px] flex-none animate-pulse rounded-full bg-good" aria-hidden />
@@ -631,7 +958,7 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
 
       <p className="mx-4 mt-1.5 flex items-start gap-1.5 text-xs leading-snug text-muted-foreground">
         <Eye className="mt-px size-3.5 flex-none text-good" aria-hidden />
-        <span>Comments and reactions arrive 30 s after the moment, never before it</span>
+        <span>{together ? "What the people here say shows up as you reach it; the rest of the couch's, 30 s after the moment" : "Comments and reactions arrive 30 s after the moment, never before it"}</span>
       </p>
       {scopeLine && (
         <p data-watch-scope className="mx-4 mt-1 text-xs text-muted-foreground">
@@ -723,9 +1050,16 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
         <button type="button" data-watch-back onClick={() => jump({ byMs: -10_000 })} className="nd-press h-[58px] rounded-[4px] bg-card text-sm font-bold">
           −10s
         </button>
-        <button type="button" data-watch-pause onClick={pause} className="nd-press flex h-[58px] flex-col items-center justify-center gap-0.5 rounded-[4px] bg-foreground text-base font-bold text-background">
+        <button
+          type="button"
+          data-watch-pause
+          onClick={pause}
+          disabled={counting}
+          className="nd-press flex h-[58px] flex-col items-center justify-center gap-0.5 rounded-[4px] bg-foreground text-base font-bold leading-none text-background disabled:opacity-50"
+        >
           {paused || ad ? <Play className="size-4" aria-hidden /> : <Pause className="size-4" aria-hidden />}
           {paused || ad ? "Resume" : "Pause"}
+          {together && <small className="text-[11px] font-semibold opacity-70">for everyone</small>}
         </button>
         {mode === "live" ? (
           <button
@@ -776,8 +1110,21 @@ function WatchAlong({ show, episode: n, onClose }: { show: ShowData; episode: nu
         </button>
       </form>
 
-      {phase === "start" && <StartPanel show={show} episode={n} saved={saved} onStart={start} onClose={close} />}
-      {phase === "end" && <EndPanel show={show} episode={n} info={info} onBack={close} onKeepWatching={() => setPhase("on")} />}
+      {phase === "start" &&
+        (together ? (
+          <TogetherStart show={show} episode={n} night={night} tg={tg} me={me} onStart={startTogether} onClose={close} />
+        ) : (
+          <StartPanel show={show} episode={n} saved={saved} onStart={start} onClose={close} />
+        ))}
+      {phase === "end" && (
+        <EndPanel
+          show={show}
+          episode={n}
+          info={info}
+          onBack={close}
+          onKeepWatching={() => (together ? void startTogether("join") : setPhase("on"))}
+        />
+      )}
 
       <GifSheet
         open={sheet === "gif"}
@@ -902,6 +1249,99 @@ function Choice({ first, icon: Icon, title, line, disabled, onClick, ...rest }: 
         <small className="mt-[3px] block text-[13px] font-normal text-muted-foreground">{line}</small>
       </span>
     </button>
+  );
+}
+
+// ---------- the start, together ----------
+
+/**
+ * A planned night's start (the mock's "Watching together"): who's in, then one choice: Join the live airing, or Start at the same
+ * time ("3, 2, 1 for everyone in it"); once it's going, Join them where it is, or watch along from the start on your own. Before
+ * it's due, when it opens.
+ */
+function TogetherStart({ show, episode: n, night, tg, me, onStart, onClose }: { show: ShowData; episode: number; night: TogetherAnswer["night"]; tg: Together | null; me: string; onStart: (how: "start" | "join" | "own") => void; onClose: () => void }) {
+  const header = show.header!;
+  const at = night ? Date.parse(night.startsAt) : null;
+  const now = useNow(at != null);
+  const due = night ? nightDue(night, now) : false;
+  const live = night?.how === "live";
+  const opensAt = at != null ? at - (live ? 0 : START_EARLY_MS) : null;
+  const ins = (night?.in ?? []).filter((p) => p.userId !== me);
+  const here = (tg?.people ?? []).filter((p) => p.here && p.userId !== me);
+  const going = !!tg?.started;
+  // Where it's got to (the session's clock, read when it came).
+  const [readAt] = useState(() => Date.now());
+  const pos = tg ? (tg.running && tg.startsInMs <= 0 ? tg.at + Math.max(0, now - readAt) : tg.at) : 0;
+  const faces = here.length ? here : ins;
+  return (
+    <div data-watch-start data-together-start={night ? (due ? (going ? "going" : "ready") : "early") : "loading"} className="absolute inset-0 z-[2] isolate flex flex-col justify-end gap-2.5 bg-[#0b0a10] px-4 pb-6" style={{ paddingBottom: "calc(24px + env(safe-area-inset-bottom, 0px))" }}>
+      <ShowArt seasonId={header.seasonId} artUrl={header.show.artUrl} name={header.show.name} className="absolute inset-0 -z-[2] size-full opacity-55" />
+      <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(11,10,16,.2),rgba(11,10,16,.85)_50%,#0b0a10)]" />
+      <button type="button" aria-label="Close" onClick={onClose} className="absolute right-2.5 top-3 grid size-10 place-items-center rounded-[3px] bg-[rgba(16,14,21,.6)]">
+        <X className="size-5" aria-hidden />
+      </button>
+      <h3 className="type-caption text-[42px] leading-[.92]">
+        Watching
+        <br />
+        together
+      </h3>
+      <p className="mb-1.5 text-[15px] leading-normal text-white/80">
+        {going && here.length
+          ? `${namesLine(here.map((p) => p.name))} ${here.length === 1 ? "is" : "are"} watching. `
+          : ins.length
+            ? `${namesLine(ins.map((p) => p.name))} ${live ? `${ins.length === 1 ? "is" : "are"} on the live airing` : "start with you"}. `
+            : `Episode ${n} · ${live ? "the live airing" : "starting together"}${at != null ? `, ${airTime(at)}` : ""}. `}
+        Anyone can pause for everyone, and late arrivals watch along after.
+      </p>
+      {!night ? (
+        <div aria-busy className="h-[70px] animate-pulse rounded-[4px] bg-card" />
+      ) : live ? (
+        <Choice
+          first
+          data-start="together-live"
+          icon={Tv}
+          title="Join the live airing"
+          line={!due && at != null ? `Opens ${airTime(at)}` : going ? `In step with the couch · ${runtimeText(pos)} in` : "Tap Ad break when the ads start, so everyone stays in step"}
+          disabled={!due}
+          onClick={() => onStart("join")}
+        />
+      ) : going ? (
+        <>
+          <Choice first data-start="together-join" icon={Users} title={`Join them · ${runtimeText(pos)} in`} line="In step with everyone in it" onClick={() => onStart("join")} />
+          <Choice data-start="together-own" icon={Play} title="From the start, on your own" line="What they said shows up as you reach it" onClick={() => onStart("own")} />
+        </>
+      ) : (
+        <Choice
+          first
+          data-start="together-start"
+          icon={Play}
+          title="Start at the same time"
+          line={!due && opensAt != null ? `Opens ${airTime(opensAt)} · it starts ${airTime(at!)}` : "3, 2, 1 for everyone in it"}
+          disabled={!due}
+          onClick={() => onStart("start")}
+        />
+      )}
+      {night && (
+        <div data-watch-here className="mt-1 flex items-center gap-2.5 text-[13px] text-white/80">
+          {!!faces.length && (
+            <span className="flex">
+              {faces.slice(0, 4).map((p) => (
+                <span key={p.userId} className="-mr-1.5 rounded-[3px] ring-2 ring-[#0b0a10]">
+                  <Avatar id={p.userId} name={p.name} size={22} />
+                </span>
+              ))}
+            </span>
+          )}
+          <span className={faces.length ? "ml-1.5" : ""}>
+            {here.length
+              ? `${namesLine(here.map((p) => p.name))} ${here.length === 1 ? "is" : "are"} here`
+              : ins.length
+                ? `Nobody's here yet · ${namesLine(ins.map((p) => p.name))} ${ins.length === 1 ? "is" : "are"} in`
+                : "Just you so far"}
+          </span>
+        </div>
+      )}
+    </div>
   );
 }
 

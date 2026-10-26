@@ -1,15 +1,20 @@
 import {
   isReactKind,
   LATE_MS,
+  liveClock,
   MAX_RUNTIME_MS,
   mayWatch,
   type Watcher,
   othersThrough,
+  START_EARLY_MS,
   TEXT_MAX,
+  TOGETHER_CHANGES,
   watchEpisode,
   cleanText,
   type Gif,
   type ReactionKind,
+  type TogetherChange,
+  type WatchMode,
 } from "@/lib/game/watch-along";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { requireCouch } from "./couches";
@@ -18,7 +23,22 @@ import { gifFrom, type GifSource } from "./gifs";
 import { EVERYTHING, seenThrough } from "./guard";
 import { DEFAULT_RUNTIME_MIN, latestAired, seasonSchedules, upNext, type SeasonSchedule } from "./schedule";
 import { seasonHeaders, type SeasonHeader } from "./show-space";
-import { asWatcher, beatOwnSession, leaveOwnSession, watchersOn, writeOwnSession } from "./watch-sessions";
+import { planById, inPlan, type PlanHow, type WatchPlan } from "./watch-plans";
+import {
+  asWatcher,
+  beatOwnSession,
+  beatTogether,
+  joinTogether,
+  leaveOwnSession,
+  leaveTogether,
+  moveTogether,
+  togetherLook,
+  togetherOf,
+  togetherVersion,
+  watchersOn,
+  writeOwnSession,
+  type TogetherRow,
+} from "./watch-sessions";
 
 // Watch along (docs/PLAN-new-design.md step 13 part 1; migration 0131 watch_reactions; the pure rules are watch-along.ts):
 //   GET    /api/seasons/[id]/watch?couch=                 Tonight's card: which episode you'd watch along, and who on the couch
@@ -43,6 +63,18 @@ import { asWatcher, beatOwnSession, leaveOwnSession, watchersOn, writeOwnSession
 // (the card's on the season, the read's on its episode): who, which episode, where their clock is and how it runs. As reactions are
 // heard, only from people on the couch who follow the show openly, and only on the couch they opened it on (watch-sessions.ts); the
 // poll (`beat`) is the running watch along's heartbeat. It says how far someone is, never what happens.
+//
+// Watching together (step 13 part 3): a planned night's watch along is one clock for everyone in it (watch-sessions.ts):
+//   GET  /api/seasons/[id]/watch/[n]/together?couch=&plan=&v=&beat=1   the night's session: just its version when `v` is still it
+//        (the open watch along asks every few seconds), else who's in it, its clock and its last change ("riley paused for everyone")
+//   POST /api/seasons/[id]/watch/[n]/together?couch=   { plan, join: true } open it (making it if nobody has: the live airing's
+//        clock, or a shared start waiting for someone to start it), which says you're in and leaves your own; { id, change, at, mode,
+//        running, ad } anyone in it starts it ("3, 2, 1"), pauses, moves or starts an ad break for everyone; { id, beat: true };
+//        { id, leave: true }
+// and the read's `together=<id>&sv=<version>`: while it runs the one poll carries the session's version too, and what the people in
+// it say while in it reaches the rest of them as they reach that moment (the same clock: no 30 s wait), everyone else's as before.
+// A together session is on the plan's couch only, for whoever there may watch that episode along (mayWatch); who's in it is shown
+// to the couch's people who open it (joining shows you there, as saying I'm in does), and on now to the couch as part 2 has it.
 
 export interface WatchFace {
   userId: string;
@@ -97,6 +129,8 @@ export interface WatchRead {
   gifs: boolean;
   /** Who else on the couch is watching this episode along right now, and where their clock is (read at `at`'s moment). */
   now: Watcher[];
+  /** With `together`: your together session's version, and the session when it's moved on from `sv` (step 13 part 3). */
+  together?: { version: number | null; state: Together | null };
 }
 
 /** Someone on the couch watching along right now, for the hub's On now (any of the couch's shows). */
@@ -111,6 +145,42 @@ export interface SessionWrite {
   /** Your watch along's session (null alone: nobody else would see it, so nothing's kept). */
   session: { id: string; version: number } | null;
   now: Watcher[];
+}
+
+/** A planned night's together session as its people see it (step 13 part 3). */
+export interface Together {
+  id: string;
+  planId: string;
+  version: number;
+  /** The plan's: the live airing, or a shared start; and when (the live airing's time as the schedule has it now). */
+  how: PlanHow;
+  startsAt: string;
+  mode: WatchMode;
+  /** Its clock where it is now (ms); while a "3, 2, 1" counts, where it starts, `startsInMs` from now. */
+  at: number;
+  running: boolean;
+  ad: boolean;
+  startsInMs: number;
+  /** Someone has started it (a shared start waits for a tap; the live airing starts as it's opened). */
+  started: boolean;
+  /** Who last did what to the clock (by null: it stopped when everyone left). */
+  change: { what: TogetherChange; by: string | null; userId: string | null; at: string } | null;
+  /** Who's opened it, first in first, and whether they're here now. */
+  people: { userId: string; name: string; here: boolean }[];
+  /** You're in it (opened and not left). */
+  you: boolean;
+  /** Bingo squares its people have ticked since it began. */
+  ticks: number;
+}
+
+/** The night's session: its version, and the session itself when it's moved on from the version you have (or you asked without one). */
+export interface TogetherAnswer {
+  version: number | null;
+  together: Together | null;
+  /** The night itself (with the session, or before anyone's opened it): how, when, and who's said they're in. */
+  night: { how: PlanHow; startsAt: string; in: { userId: string; name: string }[] } | null;
+  /** Who else on the couch is watching the episode along now (with the session, when it's sent). */
+  now: Watcher[] | null;
 }
 
 /** At most this many a read, and on an episode from one person. */
@@ -208,6 +278,10 @@ const FROM_COUCH = (couch: string, me: string) => `r.couch_id = ${couch} AND r.u
   AND r.user_id IN (SELECT user_id FROM couch_members WHERE couch_id = ${couch})
   AND EXISTS (SELECT 1 FROM show_follows f WHERE f.user_id = r.user_id AND f.season_id = r.season_id AND f.following AND NOT f.private)`;
 
+/** Said in together session $s by someone in it now, since it began (a condition on `r`). */
+const SAID_TOGETHER = (s: string) => `${s} IS NOT NULL AND r.created_at >= (SELECT created_at FROM watch_sessions WHERE id = ${s})
+  AND EXISTS (SELECT 1 FROM watch_session_people p WHERE p.session_id = ${s} AND p.user_id = r.user_id AND p.left_at IS NULL)`;
+
 /** The couch's reactions on an episode: how many, and who (most first). */
 async function couchCount(seasonId: string, n: number, ctx: Context, me: string): Promise<{ count: number; people: WatchFace[] }> {
   if (!ctx.couch || !ctx.others) return { count: 0, people: [] };
@@ -259,7 +333,7 @@ export async function watchRead(
   seasonId: string,
   couchId: string | null,
   nIn: unknown,
-  q: { at?: unknown; since?: unknown; open?: boolean; beat?: boolean },
+  q: { at?: unknown; since?: unknown; open?: boolean; beat?: boolean; together?: string | null; sv?: unknown },
   gifs: boolean,
   now = new Date()
 ): Promise<WatchRead> {
@@ -270,9 +344,12 @@ export async function watchRead(
   const ctx = await context(user, seasonId, couchId, now, !!q.open);
   const may = mayWatch(n, { mark: ctx.mark, latestAired: ctx.latest, next: ctx.next, live: ctx.live });
   if (!may.ok) throw new HttpError(may.status, may.error);
+  // Watching together: the session must be this episode's on this couch, with you in it; else the read is your own watch along's.
+  const mate = q.together ? await sessionYoureIn(user, q.together, seasonId, n, ctx) : null;
   // The running watch along's poll is its heartbeat (written now and then: watch-sessions.ts), then who else is on it.
-  if (q.beat && ctx.couch) await beatOwnSession(user.id, seasonId, n, ctx.couch, false);
+  if (q.beat && ctx.couch) await (mate ? beatTogether(user.id, mate.id, false) : beatOwnSession(user.id, seasonId, n, ctx.couch, false));
   const others = nowOn(user, seasonId, ctx, n);
+  const together = q.together ? togetherFor(user, mate, q.sv) : undefined;
   const aired = airedFor(ctx.schedule, n, now);
   const through = ctx.others ? othersThrough(at, aired) : -1;
   // Your own come back through where you are, without the wait (you said them); never past what's aired either.
@@ -290,14 +367,16 @@ export async function watchRead(
     you,
     gifs,
     now: await others,
+    ...(together ? { together: await together } : {}),
   };
   if (mineThrough < 0) return { ...base, through: -1, reactions: [], pins: q.open ? [] : null, count: q.open ? 0 : null, people: q.open ? [] : null };
 
-  // Yours on this couch (or on none, alone), and the couch's people's; each through its own moment.
-  const params: unknown[] = [seasonId, n, user.id, ctx.couch, since, mineThrough, through];
+  // Yours on this couch (or on none, alone), and the couch's people's; each through its own moment. Watching together, what the
+  // session's people said in it (since it began, while they're in it) comes through your clock, as yours does: the same clock.
+  const params: unknown[] = [seasonId, n, user.id, ctx.couch, since, mineThrough, through, mate?.id ?? null];
   const scope = `r.season_id = $1 AND r.episode = $2 AND (
       (r.user_id = $3 AND r.couch_id IS NOT DISTINCT FROM $4::uuid AND r.runtime_ms <= $6)
-      OR (${FROM_COUCH("$4::uuid", "$3")} AND r.runtime_ms <= $7)) AND r.runtime_ms > $5`;
+      OR (${FROM_COUCH("$4::uuid", "$3")} AND (r.runtime_ms <= $7 OR (r.runtime_ms <= $6 AND ${SAID_TOGETHER("$8::uuid")})))) AND r.runtime_ms > $5`;
   const [{ rows }, pins, left] = await Promise.all([
     pool.query(
       `SELECT * FROM (
@@ -318,6 +397,7 @@ export async function watchRead(
             -1,
             mineThrough,
             through,
+            mate?.id ?? null,
           ])
           .then((r) => r.rows.map((x) => x.runtime_ms as number).reverse())
       : Promise.resolve(null),
@@ -415,6 +495,139 @@ export async function sessionWrite(
     session = await writeOwnSession(user.id, seasonId, n, ctx.couch, { at, mode: body.mode, running: body.running === true, ad: body.ad === true });
   }
   return { session, now: await nowOn(user, seasonId, ctx, n) };
+}
+
+// ---------- watching together (step 13 part 3) ----------
+
+/** A together session of this episode on this couch with you in it (not left): its id, version and night (one small query), or null. */
+async function sessionYoureIn(user: SessionUser, id: string, seasonId: string, n: number, ctx: Context): Promise<{ id: string; version: number; planId: string } | null> {
+  if (!isUuid(id) || !ctx.couch) return null;
+  return togetherLook(user.id, { id }, { seasonId, episode: n, couchId: ctx.couch });
+}
+
+const sameVersion = (v: unknown, version: number) => v !== undefined && v !== null && v !== "" && Number(v) === version;
+
+/** The read's `together`: the session's version, and the session when it's moved on from `sv` (a number, or nothing for it all). */
+async function togetherFor(user: SessionUser, mate: { id: string; version: number; planId: string } | null, sv: unknown): Promise<{ version: number | null; state: Together | null }> {
+  if (!mate) return { version: null, state: null };
+  if (sameVersion(sv, mate.version)) return { version: mate.version, state: null };
+  const [s, { plan }] = await Promise.all([togetherOf({ id: mate.id }), planById(user, mate.planId, new Date())]);
+  return s ? { version: s.version, state: asTogether(s, plan, user.id) } : { version: null, state: null };
+}
+
+function asTogether(s: TogetherRow, plan: { how: PlanHow; startsAt: string }, me: string): Together {
+  return {
+    id: s.id,
+    planId: s.planId,
+    version: s.version,
+    how: plan.how,
+    startsAt: plan.startsAt,
+    mode: s.mode,
+    at: s.at,
+    running: s.running,
+    ad: s.ad,
+    startsInMs: s.startsInMs,
+    started: s.change !== null,
+    change: s.change && s.changedAt ? { what: s.change, by: s.changedBy?.name ?? null, userId: s.changedBy?.userId ?? null, at: s.changedAt } : null,
+    people: s.people,
+    you: s.people.some((p) => p.userId === me && p.here),
+    ticks: s.ticks,
+  };
+}
+
+/** The night (a plan on this couch, for this episode, not called off) and what this viewer may do with it. */
+async function nightOf(user: SessionUser, seasonId: string, couchId: string | null, n: number, planId: unknown, now: Date) {
+  if (typeof planId !== "string" || !isUuid(planId)) throw new HttpError(400, "Which watch along?");
+  const ctx = await context(user, seasonId, couchId, now, true);
+  if (!ctx.couch || !ctx.member) throw new HttpError(403, "Watching together is the couch's: join it first");
+  const { row, plan } = await planById(user, planId, now);
+  if (row.couch_id !== ctx.couch || row.season_id !== seasonId || row.episode !== n) throw new HttpError(404, "Watch along not found");
+  if (row.cancelled_at) throw new HttpError(409, "That watch along was called off");
+  const may = mayWatch(n, { mark: ctx.mark, latestAired: ctx.latest, next: ctx.next, live: ctx.live });
+  if (!may.ok) throw new HttpError(may.status, may.error);
+  return { ctx, plan, aired: airedFor(ctx.schedule, n, now) };
+}
+
+const togetherAnswer = async (user: SessionUser, s: TogetherRow | null, plan: WatchPlan, now: Promise<Watcher[]>): Promise<TogetherAnswer> => ({
+  version: s?.version ?? null,
+  together: s ? asTogether(s, plan, user.id) : null,
+  night: { how: plan.how, startsAt: plan.startsAt, in: plan.people.filter((x) => x.answer === "in").map((x) => ({ userId: x.userId, name: x.name })) },
+  now: await now,
+});
+
+/**
+ * A planned night's together session (GET .../watch/[n]/together?plan=&v=&beat=1): only its version when `v` is still it, else the
+ * session (null before anyone's opened it) and who else on the couch is on the episode. `beat`: the open watch along's heartbeat.
+ */
+export async function togetherRead(user: SessionUser, seasonId: string, couchId: string | null, nIn: unknown, q: { plan?: unknown; v?: unknown; beat?: boolean }, now = new Date()): Promise<TogetherAnswer> {
+  const n = episodeNumber(nIn);
+  // The poll's look: you're in it and it hasn't moved, in one small query (and the heartbeat now and then). Anything else, in full.
+  if (q.v !== undefined && q.v !== null && q.v !== "" && typeof q.plan === "string" && isUuid(q.plan) && isUuid(seasonId) && couchId && isUuid(couchId)) {
+    const look = await togetherLook(user.id, { planId: q.plan }, { seasonId, episode: n, couchId });
+    if (look && sameVersion(q.v, look.version)) {
+      if (q.beat) await beatTogether(user.id, look.id, false);
+      return { version: look.version, together: null, night: null, now: null };
+    }
+  }
+  const { ctx, plan } = await nightOf(user, seasonId, couchId, n, q.plan, now);
+  let s = await togetherOf({ planId: plan.id });
+  if (s && q.beat && (await beatTogether(user.id, s.id, false))) s = await togetherOf({ id: s.id });
+  if (s && sameVersion(q.v, s.version)) return { version: s.version, together: null, night: null, now: null };
+  return togetherAnswer(user, s, plan, nowOn(user, seasonId, ctx, n));
+}
+
+/**
+ * Watching together (POST .../watch/[n]/together): `{ plan, join: true }` opens the night's session (making it if nobody has),
+ * `{ id, change, at, mode, running, ad }` moves its clock for everyone in it, `{ id, beat: true }` says you're still here, `{ id,
+ * leave: true }` you've closed it. Answers with the session and who else is on the episode.
+ */
+export async function togetherWrite(
+  user: SessionUser,
+  seasonId: string,
+  couchId: string | null,
+  nIn: unknown,
+  body: { plan?: unknown; join?: unknown; id?: unknown; change?: unknown; at?: unknown; mode?: unknown; running?: unknown; ad?: unknown; beat?: unknown; leave?: unknown },
+  now = new Date()
+): Promise<TogetherAnswer> {
+  const n = episodeNumber(nIn);
+  if (body.join === true) {
+    const { ctx, plan, aired } = await nightOf(user, seasonId, couchId, n, body.plan, now);
+    if (aired === null) throw new HttpError(409, `Episode ${n} hasn't aired yet: open it at airtime`);
+    // The live airing starts as it's opened, in step with someone on the couch watching it live (else from airtime, a touch
+    // behind); a shared start waits for someone in it to start it.
+    let first: Parameters<typeof joinTogether>[2] = { at: 0, mode: "stream", running: false, ad: false, change: null };
+    if (plan.how === "live" && !(await togetherOf({ planId: plan.id }))) {
+      const live = liveClock(aired, await nowOn(user, seasonId, ctx, n));
+      if (live) first = { at: live.at, mode: "live", running: !live.ad, ad: live.ad, change: "start" };
+    }
+    const id = await joinTogether(user.id, { id: plan.id, couchId: ctx.couch!, seasonId, episode: n }, first);
+    await inPlan(plan.id, user.id);
+    return togetherAnswer(user, await togetherOf({ id }), plan, nowOn(user, seasonId, ctx, n));
+  }
+  if (typeof body.id !== "string" || !isUuid(body.id)) throw new HttpError(400, "Which watch along?");
+  const was = await togetherOf({ id: body.id });
+  if (!was || was.seasonId !== seasonId || was.episode !== n || was.couchId !== couchId) throw new HttpError(404, "Watch along not found");
+  // Leaving always works (a night called off while you watch too); the rest is for whoever may still watch it along.
+  if (body.leave === true) {
+    await leaveTogether(user.id, was.id);
+    return { version: await togetherVersion(was.id), together: null, night: null, now: null };
+  }
+  const { ctx, plan } = await nightOf(user, seasonId, couchId, n, was.planId, now);
+  if (body.beat === true) {
+    await beatTogether(user.id, was.id, true);
+  } else {
+    const change = body.change as TogetherChange;
+    if (!TOGETHER_CHANGES.includes(change)) throw new HttpError(400, `change must be one of ${TOGETHER_CHANGES.join(", ")}`);
+    const at = body.at === undefined || body.at === null ? null : msParam(body.at, "at");
+    if (at === null) throw new HttpError(400, "at must be a moment of the episode, in ms");
+    if (body.mode !== "stream" && body.mode !== "live") throw new HttpError(400, "mode must be stream or live");
+    if (change === "start" && Date.parse(plan.startsAt) - now.getTime() > START_EARLY_MS) {
+      throw new HttpError(409, "Not yet: it can be started from 15 minutes before its time");
+    }
+    const moved = await moveTogether(user.id, was.id, { at, mode: body.mode, running: body.running === true, ad: body.ad === true }, change);
+    if (!moved) throw new HttpError(409, "You've left this watch along: open it again to join in");
+  }
+  return togetherAnswer(user, await togetherOf({ id: was.id }), plan, nowOn(user, seasonId, ctx, n));
 }
 
 /**

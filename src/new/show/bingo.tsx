@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Check, ChevronRight, Grid3x3, Send, X } from "lucide-react";
+import { Check, ChevronRight, Grid3x3, Send, Users, X } from "lucide-react";
 import { airTime, dayOf } from "../clock";
 import { bingoApi, postToCouch, useAfterBingo, useEpisodeBingo, type EpisodeBingo, type Truth } from "../data";
 import { useMe } from "../session";
@@ -148,11 +148,26 @@ function Card({ target, b }: { target: BingoTarget; b: EpisodeBingo }) {
     }
   };
   const until = b.airAt ? airTime(Date.parse(b.airAt)) : "it airs";
+  // Watching it together (step 13 part 3): who's here with you, on the squares they've ticked (they're where you are).
+  const mates = b.together ?? [];
+  const matesOn = (key: string) => mates.filter((m) => m.keys.includes(key));
   return (
     <div data-bingo-sheet={b.episode} data-bingo-status={b.truth ? "seen" : b.status}>
       <div className="relative grid grid-cols-3 gap-1.5" role="group" aria-label={`Episode ${b.episode} bingo card`} data-bingo-card>
         {b.squares.map((s, i) => (
-          <Square key={i} i={i} label={s.label} free={s.key === "free"} on={ticked.has(i)} truth={b.truth?.[i] ?? null} seen={!!b.truth} pop={popped.includes(i) && banner > 0} live={live} onTap={() => void tap(i)} />
+          <Square
+            key={i}
+            i={i}
+            label={s.label}
+            free={s.key === "free"}
+            on={ticked.has(i)}
+            truth={b.truth?.[i] ?? null}
+            seen={!!b.truth}
+            pop={popped.includes(i) && banner > 0}
+            live={live}
+            mates={s.key === "free" ? [] : matesOn(s.key)}
+            onTap={() => void tap(i)}
+          />
         ))}
         {banner > 0 && (
           <div key={banner} className="nd-banner pointer-events-none absolute inset-0 grid place-items-center" data-bingo-banner aria-live="polite">
@@ -162,6 +177,12 @@ function Card({ target, b }: { target: BingoTarget; b: EpisodeBingo }) {
           </div>
         )}
       </div>
+      {mates.length > 0 && (
+        <p data-bingo-together className="mt-2.5 flex items-center gap-1.5 text-[13px] font-semibold text-good">
+          <Users className="size-4 flex-none" aria-hidden />
+          Watching together · {mates.map((m) => `${m.name} ticked ${m.keys.length}`).join(" · ")}
+        </p>
+      )}
       {b.truth ? (
         <HowItWent target={target} b={b} me={me.id} />
       ) : (
@@ -199,8 +220,30 @@ const LINES = [
   [2, 4, 6],
 ];
 
-/** One square: free (the centre), ticked (a stamp), and once you've seen it, whether it happened. */
-function Square({ i, label, free, on, truth, seen, pop, live, onTap }: { i: number; label: string; free: boolean; on: boolean; truth: Truth; seen: boolean; pop: boolean; live: boolean; onTap: () => void }) {
+/** One square: free (the centre), ticked (a stamp), and once you've seen it, whether it happened; watching together, who else ticked it. */
+function Square({
+  i,
+  label,
+  free,
+  on,
+  truth,
+  seen,
+  pop,
+  live,
+  mates,
+  onTap,
+}: {
+  i: number;
+  label: string;
+  free: boolean;
+  on: boolean;
+  truth: Truth;
+  seen: boolean;
+  pop: boolean;
+  live: boolean;
+  mates: { userId: string; name: string }[];
+  onTap: () => void;
+}) {
   const missed = seen && !free && !on && truth === "yes";
   const wrong = seen && on && truth === "no";
   const tone = free
@@ -222,6 +265,15 @@ function Square({ i, label, free, on, truth, seen, pop, live, onTap }: { i: numb
       className={`relative grid aspect-square place-items-center overflow-hidden rounded-[3px] p-1.5 text-center text-[13px] font-semibold leading-[1.15] [overflow-wrap:anywhere] transition-[transform,background] duration-200 disabled:opacity-100 ${tone} ${on && !seen ? "nd-stamp" : ""} ${pop ? "nd-line" : ""} ${missed ? "outline-2 -outline-offset-2 outline-dashed outline-good" : ""}`}
     >
       {free ? <span className="type-caption text-[18px]">Free</span> : label}
+      {mates.length > 0 && (
+        <span data-square-mates={mates.map((m) => m.name).join(",")} className="absolute bottom-1 left-1 flex" aria-label={`${mates.map((m) => m.name).join(" and ")} ticked it too`}>
+          {mates.slice(0, 3).map((m, k) => (
+            <span key={m.userId} className={`rounded-[2px] shadow-[0_0_0_1.5px_var(--secondary)] ${k ? "-ml-1" : ""}`}>
+              <Avatar id={m.userId} name={m.name} size={14} />
+            </span>
+          ))}
+        </span>
+      )}
       {seen && !free && (on || missed) && truth && (
         <span className={`absolute right-1 top-1 grid size-[18px] place-items-center rounded-full ${truth === "yes" ? "bg-good text-good-foreground" : "bg-live text-live-foreground"}`} aria-label={truth === "yes" ? "it happened" : "it didn't happen"}>
           {truth === "yes" ? <Check className="size-3" strokeWidth={3} aria-hidden /> : <X className="size-3" strokeWidth={3} aria-hidden />}

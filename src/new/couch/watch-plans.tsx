@@ -9,20 +9,20 @@ import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { Avatar } from "../ui/bars";
 import { Btn, Chip } from "../ui/parts";
-import { Preview } from "../ui/preview";
 import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { namesOf } from "../hub/sections";
+import { useOpenTogether } from "../show/watch-along";
 import { openCouchSheet } from "./couch-sheets";
 
 // Planned nights (docs/PLAN-new-design.md step 11 part 3; the mock's watching.js inviteWatch and wTonight's w-plan / w-inv,
 // streaming.js's plans), opened from anywhere signed in with openPlan:
-//   new   Plan a watch along: which episode (your next by default), the live airing or a shared start (a day and a time; a
-//         streaming season or an episode that's aired is always a shared start), who on the couch to invite (those who watch
-//         it, by default), Send invites (one push to each).
-//   plan  One planned night: when, who's in, I'm in / Can't make it, and for whoever planned it Call it off (Undo). Opening
-//         it together (one clock for everyone in it) is step 13 part 3's (Preview); on your own time it's Tonight's Watch along.
+//   new   Plan a watch along: which episode (your next by default), the live airing or a shared start (a day and a time, any
+//         you like since step 13 part 3; a streaming season or an episode that's aired is always a shared start), who on the
+//         couch to invite (those who watch it, by default), Send invites (one push to each).
+//   plan  One planned night: when, who's in, I'm in / Can't make it, for whoever planned it Call it off (Undo), and Open the
+//         watch along: together, one clock for everyone in it (step 13 part 3, watch-along.tsx useOpenTogether).
 // Also the plate a show's Tonight and a couch show's sheet carry for each plan (PlanPlates), and the row that plans one
 // (PlanInvite). The plans come with the home read (watch-plans.ts); a write puts the answer's list back in it.
 
@@ -95,6 +95,7 @@ export function whoLine(p: WatchPlan, me: string): string {
 /** The plate for each planned night here (the mock's w-plan): when, who's in, and I'm in for whoever hasn't said. */
 export function PlanPlates({ plans, me }: { plans: WatchPlan[]; me: string }) {
   const setPlans = useSetPlans();
+  const openTogether = useOpenTogether();
   const [busy, setBusy] = useState<string | null>(null);
   if (!plans.length) return null;
   const answer = async (p: WatchPlan) => {
@@ -128,10 +129,10 @@ export function PlanPlates({ plans, me }: { plans: WatchPlan[]; me: string }) {
             </button>
             <span className="flex flex-none items-center pr-3">
               {yours ? (
-                // Opening it together (one clock for everyone in it) is step 13 part 3.
-                <Preview id="show.watch-together" tag={false}>
-                  <span className="grid h-11 place-items-center rounded-[3px] bg-plate-foreground px-4 text-[15px] font-bold text-plate">Open</span>
-                </Preview>
+                // The night's watch along, together: one clock for everyone in it (step 13 part 3).
+                <button type="button" data-plan-together onClick={() => openTogether(p)} className="nd-press h-11 rounded-[3px] bg-plate-foreground px-4 text-[15px] font-bold text-plate">
+                  Open
+                </button>
               ) : p.you === "out" ? (
                 <button type="button" onClick={() => openPlan({ kind: "plan", planId: p.id })} className="h-11 rounded-[3px] px-3 text-[13px] font-bold text-plate-muted outline-1 -outline-offset-1 outline-plate-muted/40">
                   Can&rsquo;t make it
@@ -179,9 +180,13 @@ const TIMES: [number, number][] = [
   [22, 0],
 ];
 const DAYS_OFFERED = 4;
+/** A shared start can be planned this far ahead (the server's two months, less a day for time zones). */
+const LATEST_DAYS = 59;
 /** A row of chips that scrolls sideways rather than wrapping (the sheet stays short enough to reach Send). */
 const ROW = "-mx-4 flex gap-1.5 overflow-x-auto px-4 pb-0.5 [scrollbar-width:none]";
 const timeLabel = ([h, m]: [number, number]) => `${h % 12 || 12}:${String(m).padStart(2, "0")} PM`;
+/** Any time of day: "2:30 PM", "11:00 AM". */
+const clockWords = ([h, m]: [number, number]) => `${h % 12 || 12}:${String(m).padStart(2, "0")} ${h < 12 ? "AM" : "PM"}`;
 
 /** The days a shared start can be on: from the day the episode's out (or today), four in a row, at local midnight. */
 function startDays(out: number, now: number): number[] {
@@ -198,6 +203,21 @@ const momentOf = (day: number, [h, m]: [number, number]) => {
   const d = new Date(day);
   d.setHours(h, m, 0, 0);
   return d.getTime();
+};
+
+/** A local midnight as an <input type="date"> says it ("2026-11-05"), and back. */
+const dateInput = (t: number) => {
+  const d = new Date(t);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+const fromDateInput = (v: string): number | null => {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime() : null;
+};
+/** "21:30" (an <input type="time">) as [21, 30]. */
+const fromTimeInput = (v: string): [number, number] | null => {
+  const m = /^(\d{2}):(\d{2})/.exec(v);
+  return m && Number(m[1]) < 24 && Number(m[2]) < 60 ? [Number(m[1]), Number(m[2])] : null;
 };
 
 /** "Nov 5". */
@@ -273,9 +293,17 @@ function PlanForm({ o, episode: asked }: { o: PlanOptions; episode: number | nul
   const firstDay = days.findIndex((d) => TIMES.some((tm) => ok(d, tm)));
   const [pickedDay, setDay] = useState<number | null>(null);
   const [pickedTime, setTime] = useState<number | null>(null);
+  // Any day and time of your own (step 13 part 3): a weekend afternoon, next week.
+  const [ownDay, setOwnDay] = useState<number | null>(null);
+  const [ownTime, setOwnTime] = useState<[number, number] | null>(null);
+  const [askDay, setAskDay] = useState(false);
+  const [askTime, setAskTime] = useState(false);
   const di = pickedDay ?? Math.max(0, firstDay);
-  const ti = pickedTime != null && ok(days[di], TIMES[pickedTime]) ? pickedTime : ok(days[di], TIMES[2]) ? 2 : TIMES.findIndex((tm) => ok(days[di], tm));
-  const at = how === "live" ? out : ti >= 0 ? momentOf(days[di], TIMES[ti]) : null;
+  const day = ownDay ?? days[di];
+  const ti = pickedTime != null && ok(day, TIMES[pickedTime]) ? pickedTime : ok(day, TIMES[2]) ? 2 : TIMES.findIndex((tm) => ok(day, tm));
+  const time: [number, number] | null = ownTime ?? (ti >= 0 ? TIMES[ti] : null);
+  const latest = now + LATEST_DAYS * 86_400_000;
+  const at = how === "live" ? out : time && ok(day, time) && momentOf(day, time) <= latest ? momentOf(day, time) : null;
   const [picked, setPicked] = useState<Set<string> | null>(null);
   const invited = picked ?? new Set(o.people.filter((p) => p.watches).map((p) => p.userId));
   const [busy, setBusy] = useState(false);
@@ -347,19 +375,86 @@ function PlanForm({ o, episode: asked }: { o: PlanOptions; episode: number | nul
               <span className={label}>Day</span>
               <div className={ROW} data-plan-days>
                 {days.map((d, i) => (
-                  <Chip key={d} on={i === di} disabled={!TIMES.some((tm) => ok(d, tm))} data-plan-day={i} onClick={() => setDay(i)} className="flex-none whitespace-nowrap disabled:opacity-40">
+                  <Chip
+                    key={d}
+                    on={i === di && ownDay == null}
+                    disabled={!TIMES.some((tm) => ok(d, tm))}
+                    data-plan-day={i}
+                    onClick={() => {
+                      setDay(i);
+                      setOwnDay(null);
+                      setAskDay(false);
+                    }}
+                    className="flex-none whitespace-nowrap disabled:opacity-40"
+                  >
                     {dayWord(d, now)}
                   </Chip>
                 ))}
+                <Chip on={ownDay != null || askDay} data-plan-day="own" onClick={() => setAskDay(true)} className="flex-none whitespace-nowrap">
+                  {ownDay != null ? dayWord(ownDay, now) : "Another day"}
+                </Chip>
               </div>
+              {askDay && (
+                <input
+                  type="date"
+                  data-plan-date
+                  aria-label="Another day"
+                  min={dateInput(Math.max(out, now))}
+                  max={dateInput(latest)}
+                  value={ownDay != null ? dateInput(ownDay) : ""}
+                  onChange={(ev) => {
+                    // One of the days offered is that chip, not a second of it.
+                    const d = fromDateInput(ev.target.value);
+                    const i = d == null ? -1 : days.indexOf(d);
+                    if (i >= 0) setDay(i);
+                    setOwnDay(i >= 0 ? null : d);
+                  }}
+                  className="mt-2 h-11 w-full rounded-[3px] border border-input bg-background px-3 text-base outline-0 focus:border-chyron"
+                />
+              )}
               <span className={label}>Start at</span>
               <div className={ROW} data-plan-times>
                 {TIMES.map((tm, i) => (
-                  <Chip key={i} on={i === ti} disabled={!ok(days[di], tm)} data-plan-time={timeLabel(tm)} onClick={() => setTime(i)} className="flex-none whitespace-nowrap disabled:opacity-40">
+                  <Chip
+                    key={i}
+                    on={i === ti && ownTime == null}
+                    disabled={!ok(day, tm)}
+                    data-plan-time={timeLabel(tm)}
+                    onClick={() => {
+                      setTime(i);
+                      setOwnTime(null);
+                      setAskTime(false);
+                    }}
+                    className="flex-none whitespace-nowrap disabled:opacity-40"
+                  >
                     {timeLabel(tm)}
                   </Chip>
                 ))}
+                <Chip on={ownTime != null || askTime} data-plan-time="own" onClick={() => setAskTime(true)} className="flex-none whitespace-nowrap">
+                  {ownTime ? clockWords(ownTime) : "Another time"}
+                </Chip>
               </div>
+              {askTime && (
+                <input
+                  type="time"
+                  data-plan-clock
+                  aria-label="Another time"
+                  step={300}
+                  value={ownTime ? `${String(ownTime[0]).padStart(2, "0")}:${String(ownTime[1]).padStart(2, "0")}` : ""}
+                  onChange={(ev) => {
+                    const tm = fromTimeInput(ev.target.value);
+                    const i = tm ? TIMES.findIndex(([h, m]) => h === tm[0] && m === tm[1]) : -1;
+                    if (i >= 0) setTime(i);
+                    setOwnTime(i >= 0 ? null : tm);
+                  }}
+                  className="mt-2 h-11 w-full rounded-[3px] border border-input bg-background px-3 text-base outline-0 focus:border-chyron"
+                />
+              )}
+              {at == null && (
+                <p data-plan-when-bad className="mt-2 text-[13px] text-muted-foreground">
+                  {time && momentOf(day, time) > latest ? "Plan it within two months" : `Pick a time still to come${out > now ? `, once Episode ${e.number} is out` : ""}`}
+                </p>
+              )}
             </>
           )}
           <span className={label}>Invite</span>
@@ -416,6 +511,7 @@ const ANSWER_WORD = { in: "In", invited: "Invited", out: "Can't make it" } as co
 function PlanSheet({ planId, onOpenChange }: { planId: string | null; onOpenChange: (o: boolean) => void }) {
   const home = useHome().data;
   const setPlans = useSetPlans();
+  const openTogether = useOpenTogether();
   const pathname = usePathname();
   const [busy, setBusy] = useState(false);
   const [shownId] = useState(planId);
@@ -469,12 +565,18 @@ function PlanSheet({ planId, onOpenChange }: { planId: string | null; onOpenChan
           </div>
           <div className="mt-3 flex flex-col gap-2.5">
             {p.you === "host" || p.you === "in" ? (
-              <Preview id="show.watch-together" tag={false}>
-                <Btn tone="ink" wide>
-                  <Tv className="size-5" aria-hidden />
-                  Open the watch along
-                </Btn>
-              </Preview>
+              <Btn
+                tone="ink"
+                wide
+                data-plan-watch
+                onClick={() => {
+                  close();
+                  openTogether(p);
+                }}
+              >
+                <Tv className="size-5" aria-hidden />
+                Open the watch along
+              </Btn>
             ) : (
               <Btn tone="ink" wide data-plan-yes disabled={busy} onClick={() => run(() => plansApi.answer(p.id, "in"), `You're in · ${p.label} Episode ${p.episode}`)}>
                 <Check className="size-5" aria-hidden />

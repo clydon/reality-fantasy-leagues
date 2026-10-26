@@ -223,18 +223,44 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
   };
 }
 
-/** By the numbers' couch accolades: what people share (open follows), how much they've said this month, the games. */
+/**
+ * By the numbers' couch accolades: what people share (open follows), how much they've said this month, the games; and the watch
+ * along's (step 13 part 3): reactions said to the couch and episodes watched along on it this month, only on shows each follows
+ * openly (as their reactions and who's on now are heard), counted, never which.
+ */
 async function accoladesFor(user: SessionUser, couchId: string, people: Person[], list: Game[], standings: GameStanding[]): Promise<Accolade[]> {
   const follows = (await followsOf(user.id, people.map((p) => p.userId))).filter((f) => f.following && !f.private);
-  const headers = await seasonHeaders(follows.map((f) => f.seasonId));
-  const { rows } = await pool.query(
-    `SELECT user_id, count(*)::int AS n FROM chat_messages
-      WHERE type = 'message' AND created_at > now() - interval '30 days'
-        AND (league_id = ANY($1::uuid[]) OR (league_id IS NULL AND couch_id = $2))
-      GROUP BY user_id`,
-    [list.map((g) => g.leagueId), couchId]
-  );
+  const OPENLY = (who: string, season: string) =>
+    `EXISTS (SELECT 1 FROM show_follows f WHERE f.user_id = ${who} AND f.season_id = ${season} AND f.following AND NOT f.private)`;
+  const [headers, { rows }, { rows: reacted }, { rows: along }] = await Promise.all([
+    seasonHeaders(follows.map((f) => f.seasonId)),
+    pool.query(
+      `SELECT user_id, count(*)::int AS n FROM chat_messages
+        WHERE type = 'message' AND created_at > now() - interval '30 days'
+          AND (league_id = ANY($1::uuid[]) OR (league_id IS NULL AND couch_id = $2))
+        GROUP BY user_id`,
+      [list.map((g) => g.leagueId), couchId]
+    ),
+    pool.query(
+      `SELECT r.user_id, count(*)::int AS n FROM watch_reactions r
+        WHERE r.couch_id = $1 AND r.created_at > now() - interval '30 days' AND ${OPENLY("r.user_id", "r.season_id")}
+        GROUP BY r.user_id`,
+      [couchId]
+    ),
+    // A watch along counts once its clock has run a minute (opening one and closing it isn't watching along).
+    pool.query(
+      `SELECT p.user_id, count(DISTINCT (s.season_id, s.episode))::int AS n
+         FROM watch_session_people p JOIN watch_sessions s ON s.id = p.session_id
+        WHERE s.couch_id = $1 AND p.joined_at > now() - interval '30 days' AND ${OPENLY("p.user_id", "s.season_id")}
+          AND s.clock_ms + CASE WHEN s.running_since IS NULL OR s.running_since > now() THEN 0
+                ELSE EXTRACT(EPOCH FROM (now() - s.running_since)) * 1000 END >= 60000
+        GROUP BY p.user_id`,
+      [couchId]
+    ),
+  ]);
   return accoladesOf({
+    reactions: new Map(reacted.map((r) => [r.user_id as string, r.n as number])),
+    watchAlongs: new Map(along.map((r) => [r.user_id as string, r.n as number])),
     people,
     follows: follows.flatMap((f) => {
       const h = headers.get(f.seasonId);

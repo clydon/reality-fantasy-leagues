@@ -1,6 +1,7 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import { bingoMoments, countLines, dealCard, firstLineAt, truthOf, FREE_KEY, MIN_MOMENTS, SQUARES, type BingoSquare, type LineCount, type Truth } from "@/lib/game/bingo";
 import { settleSays, type CallBook, type EpisodeFacts } from "@/lib/game/calls";
+import { PRESENT_MS } from "@/lib/game/watch-along";
 import { kindOf } from "@/lib/game/formats/rulebook-schema.js";
 import type { BingoMove, GameCalls } from "@/lib/game/game-view";
 import type { LeagueState } from "@/lib/game/types";
@@ -22,7 +23,9 @@ import { seasonHeaders, type SeasonHeader } from "./show-space";
 // so a rulebook change can't reshuffle it under you. Its squares are the show's moments, never a name or anything about the
 // episode, so anyone may see their own card for any episode that's aired or is next. Ticks are private: nobody else's card, tick,
 // line or count of ticks leaves the server until you've seen the episode (guard.ts seenThrough), and only from the couch's people
-// who share the show (guard.ts visibleFollows), as calls are. A square counts once it happened: the season's results say so (every
+// who share the show (guard.ts visibleFollows), as calls are; watching it together (step 13 part 3), the people here in your together
+// session are at the same moment as you, so what they tick from then on shows on your card as they do. A square counts once it
+// happened: the season's results say so (every
 // result in), or on a talk show the couch does (calls.ts settleSays: two agreeing; a tick from someone who's seen the episode is
 // their say, so bingo settles a talk show's calls too). Read when a sheet or row opens; nothing polls (docs/HOSTING.md).
 
@@ -33,6 +36,13 @@ export interface BingoPerson {
   lines: number;
   waiting: number;
   ticked: number;
+}
+
+/** Someone watching this episode together with you, and the moments they've ticked since it began (step 13 part 3). */
+export interface BingoMate {
+  userId: string;
+  name: string;
+  keys: string[];
 }
 
 export interface EpisodeBingo {
@@ -58,6 +68,8 @@ export interface EpisodeBingo {
   catchUp: number | null;
   scope: "couch" | "solo";
   alone: boolean;
+  /** Watching it together: who's here in your together session with a tick since it began (they're where you are). */
+  together: BingoMate[];
 }
 
 function episodeNumber(n: unknown): number {
@@ -156,6 +168,7 @@ async function readBingo(user: SessionUser, seasonId: string, n: number, ctx: Co
     catchUp: aired && !seen ? n : null,
     scope: couch ? "couch" : "solo",
     alone: ctx.alone,
+    together: couch && aired ? await togetherTicks(user.id, seasonId, n, couch) : [],
   };
   if (!seen || !settled) return out;
 
@@ -185,6 +198,35 @@ async function readBingo(user: SessionUser, seasonId: string, n: number, ctx: Co
   return out;
 }
 
+/**
+ * Watching an episode together (step 13 part 3): the people here with you in your together session of it on the couch (who share the
+ * show, as everywhere), each with the moments they've ticked since it began. They're at your moment, so this is never ahead of you;
+ * ticks from before it began (someone who'd watched it already) stay theirs.
+ */
+async function togetherTicks(userId: string, seasonId: string, n: number, couchId: string): Promise<BingoMate[]> {
+  const here = (p: string) => `${p}.left_at IS NULL AND ${p}.seen_at > now() - interval '${PRESENT_MS} milliseconds'`;
+  const { rows } = await pool.query(
+    `SELECT c.user_id, COALESCE(u.username, u.name) AS name, c.squares, array_agg(m.square) AS ticked
+       FROM watch_sessions s
+       JOIN watch_session_people me ON me.session_id = s.id AND me.user_id = $1 AND ${here("me")}
+       JOIN watch_session_people p ON p.session_id = s.id AND p.user_id <> $1 AND ${here("p")}
+       JOIN bingo_cards c ON c.user_id = p.user_id AND c.season_id = s.season_id AND c.episode = s.episode
+       JOIN bingo_marks m ON m.card_id = c.id AND m.marked_at >= s.created_at
+       JOIN "user" u ON u.id = c.user_id
+      WHERE s.together AND s.season_id = $2 AND s.episode = $3 AND s.couch_id = $4 AND ${SHARED("$1", "$4")}
+      GROUP BY c.id, c.user_id, u.username, u.name`,
+    [userId, seasonId, n, couchId]
+  );
+  return rows
+    .map((r) => {
+      const squares = r.squares as BingoSquare[];
+      const keys = (r.ticked as number[]).map((i) => squares[Number(i)]?.key).filter((k): k is string => !!k && k !== FREE_KEY);
+      return { userId: r.user_id as string, name: r.name as string, keys };
+    })
+    .filter((m) => m.keys.length)
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /** Tick a square of your card (or untick it), from the episode's airtime on. The card is kept as dealt from your first tick. */
 export async function tickBingo(user: SessionUser, seasonId: string, couchId: string | null, nIn: unknown, body: { square?: unknown; ticked?: unknown }, now = new Date()): Promise<EpisodeBingo> {
   const n = episodeNumber(nIn);
@@ -207,6 +249,15 @@ export async function tickBingo(user: SessionUser, seasonId: string, couchId: st
   }
   if (body.ticked) await pool.query("INSERT INTO bingo_marks (card_id, square) VALUES ($1, $2) ON CONFLICT DO NOTHING", [card!.id, square]);
   else await pool.query("DELETE FROM bingo_marks WHERE card_id = $1 AND square = $2", [card!.id, square]);
+  // Watching it together: the session moves on, so the others' open cards read again (step 13 part 3).
+  if (ctx.couch) {
+    await pool.query(
+      `UPDATE watch_sessions s SET version = s.version + 1, updated_at = now()
+        WHERE s.together AND s.season_id = $2 AND s.episode = $3 AND s.couch_id = $4
+          AND EXISTS (SELECT 1 FROM watch_session_people p WHERE p.session_id = s.id AND p.user_id = $1 AND p.left_at IS NULL)`,
+      [user.id, seasonId, n, ctx.couch]
+    );
+  }
   return readBingo(user, seasonId, n, ctx);
 }
 

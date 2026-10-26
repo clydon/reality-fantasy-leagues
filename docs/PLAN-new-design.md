@@ -38,7 +38,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **done** 2026-10-26 on the branch, in three parts (part 2 split in two): watching (migration 0121; TV listings from TVmaze on demand), Make it a game to a set-up show with its rulebook and cast (0122), Start a game that fits and archive or delete a game (0123), rulebooks phase 8: the library, the desk's New show, Fits these games, Take it over and Looks right to us (0124); all ship with 0b's | Opus · xhigh |
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | **done** 2026-10-26 on the branch, in three parts: the guide on the couch's shows and Hide from guide (migration 0125), all of TV in the guide and the daily listings job on the bot clock's calls (0126), planned nights (0127); all ship with 0b's | Opus · xhigh |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | **done** 2026-10-26 on the branch, in three parts: Rate it and couch verdicts (migration 0128), Call it, polls and Weekly Calls (0129), bingo, trivia and Weekly Bingo (0130); all ship with 0b's | Opus · xhigh |
-| 13 | Watch along: pinned reactions, GIFs, together sessions | in progress on the branch, in three parts (written 2026-10-26): watch along on your own time (reactions pinned to runtime, GIFs behind config; migration 0131), who's on now and the live airing (each open watch along's clock kept on the server; migration 0132), together sessions and planned nights (next); 0131 and 0132 ship with 0b's | Opus · xhigh |
+| 13 | Watch along: pinned reactions, GIFs, together sessions | **done** 2026-10-26 on the branch, in three parts: watch along on your own time (reactions pinned to runtime, GIFs behind config; migration 0131), who's on now and the live airing (each open watch along's clock kept on the server; 0132), together sessions and planned nights (one clock for everyone in a planned night's watch along, Up next's planned night, a shared start's own time, bingo ticks and the two accolades; 0133); all ship with 0b's | Opus · xhigh |
 | 14 | Streaming shows and the rail | not started | Opus · high |
 | 15 | Notifications by moment, account settings, What your couch sees | not started | Opus · xhigh |
 | — | **Merge, deploy and switch the couch to the new design** | after 15 (the user, 2026-10-25): backup, Neon rehearsal, merge, `ui='new'` for the couch | — |
@@ -250,13 +250,11 @@ step's As built.
 - **No "Biggest comeback" record** (step 8; for a later polish). The mock's trophy shelf has it ("8th to 1st · Traitors
   4"); it needs each finished game's standings episode by episode (a table per episode, read once a season ends and kept),
   which nothing keeps. The records are most titles, ran it back, longest pool streak and best average finish.
-- **Couch accolades are what today's data can say** (step 8; ratings' since step 12 part 1; for 13 part 3 and 14). The mock's By the
-  numbers also has most reactions and most watch alongs (13 part 3: `watch_reactions` has the first since part 1, and `watch_sessions` one
-  row per person, episode and couch watched along since part 2) and first to finish
-  (14's streaming drops), and Called it most (calls
-  since step 12 part 2: `calls.ts callRights` per season, as the profile's "Called it" still counts only league predictions). `couch-standings.ts
-  accoladesOf` is where they'd go (the ratings' are `ratings.ts ratingAccolades`: taste twins, the contrarian, never misses a
-  rating).
+- **Couch accolades are what today's data can say** (step 8; ratings' since step 12 part 1, the watch along's since step 13 part 3; for 14
+  and a later polish). The mock's By the numbers also has first to finish (14's streaming drops) and Called it most from calls (since step
+  12 part 2: `calls.ts callRights` per season, as the profile's "Called it" still counts only league predictions). `couch-standings.ts
+  accoladesOf` is where they'd go (the ratings' are `ratings.ts ratingAccolades`: taste twins, the contrarian, never misses a rating; most
+  reactions and most watch alongs are `accoladesOf`'s since 13 part 3).
 - **A rating can't be taken back** (step 12 part 1; for a later polish). Rating an episode again changes your stars, and a take can
   be removed, but nothing removes the rating itself (`episode_ratings` has no delete). A "Clear my rating" on the sheet would be
   one DELETE.
@@ -285,9 +283,6 @@ step's As built.
   move) would make it one read.
 - **Bingo doesn't notify** (step 12 part 3; for 15). "riley got a line" pushes nobody; Tell the couch (a chat message whoever got it
   chooses to send) is the only word of it.
-- **Bingo in a watch along** (step 12 part 3; for 13 part 3). Others' ticks wait until you've seen the episode, so watching live together
-  each of you sees only your own card; a watch along knows who's at the same moment and could show the couch's ticks to them. Since
-  step 13 part 1 the watch along opens your card (Bingo), still only yours.
 - **A past season counts for trivia only if it's marked** (step 12 part 3; for 15 or a later polish). Trivia asks about a finished
   season only when your follow says you've seen it to the end (the seasons classic leagues played were backfilled into follows in
   0b); a season someone watched before joining is nobody's mark, and first run asks where you are only in current seasons.
@@ -352,7 +347,9 @@ step's As built.
   follows the show openly, on the couch they opened it on (its As built says what it reveals and to whom).
 - **Who's on now can't be turned off** (step 13 part 2; for 15). Watching along a show you follow openly tells the couch you're on
   and which episode, as reactions are heard; Watch privately is the only way out today. The mock's What your couch sees has When I'm
-  watching (share.js's `now`, on in Everything, off in Just my games and Only what games need): `watchersOn` is where it'd apply.
+  watching (share.js's `now`, on in Everything, off in Just my games and Only what games need): `watchersOn` is where it'd apply. Since
+  step 13 part 3, opening a planned night's watch along shows you in it to whoever on the couch opens it, private or not (joining is your
+  choice, as saying I'm in is); When I'm watching wouldn't change that.
 - **A show added by name has no schedule until it airs in the US listings** (step 10 part 1; since 11 part 2 the daily job links it;
   for a desk step). A show the listings don't have is a name and an empty first season: no episodes or air times, so where you are
   can't be set and nothing's "up next". The daily listings job links it once the next eight days' schedule has one show of that
@@ -407,12 +404,16 @@ step's As built.
 - **A plan's push says the show's time zone** (step 11 part 3; for 15). The server can't know the phone's zone, so the invite reads
   "Thu 8:00 PM EDT" in the season's own zone (as the waiver pushes do); the app shows the phone's. A zone kept per person (step
   15's settings) would let pushes say the reader's time.
-- **A shared start is an evening on four days** (step 11 part 3, the mock's chips; for 13 part 3 or a later polish). The plan sheet offers
-  8 to 10 PM on the four days from when the episode's out; a weekend afternoon or a later week needs a time picker. Two people
-  wanting different nights for the same episode can't both plan it (one going per couch and episode): the second sees the first
-  and says I'm in.
-- **Up next doesn't mention a planned night** (step 11 part 3; for 13 part 3). The hub's Up next has Watch along (real since step 13
-  part 1, on your own time); a night planned for its episode could show there ("Watch along · 3 going"), with part 3's Join.
+- **One night per couch and episode** (step 11 part 3; for a later polish). Two people wanting different nights for the same episode can't
+  both plan it (one going per couch and episode): the second sees the first and says I'm in. (Since step 13 part 3 a shared start can be
+  any day and time, so the one night can be the one that suits.)
+- **Watching together needs a planned night** (step 13 part 3; for a later polish). There's no "watch together" from someone on now: their
+  mark on your bar and Catch up put you in step once, but each of you keeps your own clock. Planning a shared start a few minutes from now
+  (Another time) is the way to one clock today; On now or the near line could offer "Watch together" (a night planned there and then, with
+  them invited).
+- **Everyone in a together session can move it** (step 13 part 3, as the mock has it: "anyone can pause for everyone"). Nothing stops one
+  person tapping +10s or Set the time for all; whoever did it is named on the plate under the clock. A night's planner keeping the clock
+  would be a setting nothing reads yet.
 - **Network times are the East's** (step 11 part 2; for a later polish). TVmaze's US schedule gives a network show's Eastern airing,
   and Also on shows that moment in the phone's zone, so on the West Coast an 8 PM network show reads 5 PM, though most networks
   air it at 8 PM Pacific on tape delay (a live event doesn't). Shows here are right (a season's air time is in its own zone);
@@ -435,7 +436,8 @@ step's As built.
 - **A watch along's clock is the watcher's word** (step 13 part 1, as designed). The couch's reactions are held 30 s behind the moment
   the phone says its clock is at, and never past what has aired since airtime; End, +10s or Set the time move it on, and the server
   sends what was said up to there, as where you are on Episodes is yours to say. Nothing past your next episode leaves the server.
-  Since part 2 the same goes for who's on now: "40s ahead" is two phones' word, and Catch up moves yours to theirs.
+  Since part 2 the same goes for who's on now: "40s ahead" is two phones' word, and Catch up moves yours to theirs. Since part 3 a
+  together session's clock is everyone's in it, and what they say there comes through it without the 30 s: one person's word for all.
 - **Joining the live airing from airtime is a guess** (step 13 part 2; for a later polish). With nobody on the couch watching it live,
   Join the live airing starts the clock 70% of the way from airtime (`LIVE_SHOW_SHARE`: US TV runs 13 to 18 minutes of ads an hour),
   behind the show for most, so the couch's reactions come late rather than early; a show with fewer ads (premium cable, a live final)
@@ -451,7 +453,9 @@ step's As built.
   likelier cause is another write to the same league state racing it (a read that tidies a league and saves it back outside
   `withLeagueLock`, from a page the check has open); worth a look at whatever writes `leagues.state` without the lock.
 - **Two phones, one session** (step 13 part 2; for a later polish). Your own watch along of an episode on a couch is one session, so
-  the same person with it open on two phones has one clock on the server, whichever wrote last; the couch sees one of them.
+  the same person with it open on two phones has one clock on the server, whichever wrote last; the couch sees one of them. In a together
+  session (part 3) you're one person in it either way: closing it on one phone leaves it, so the other stops hearing it and its next tap
+  says to open it again.
 - **What you said is taken back only from the stream** (step 13 part 1; for a later polish). The × is on your own lines while they're
   among the six shown; once they've scrolled away, or you've closed it, nothing lists what you said on an episode.
 - **The watch along's length is the slot's** (step 13 part 1; for a later polish). The bar and the automatic End come from the
@@ -3638,6 +3642,106 @@ session write each answer with `now`: the rest of the couch's open watch alongs 
   (`show.watch-together`, `couch/watch-plans.tsx`) starts or joins one (the live airing's clock is `liveClock`; a shared start's "3, 2,
   1"). Up next's planned night, a shared start's own time, bingo ticks to whoever's watching together and the two accolades are in
   Noticed with part 3's name on them.
+
+### As built, step 13 part 3 (2026-10-26, on `new-design`): together sessions and planned nights
+
+Migration **0133** (ships with 0b's, same rehearsal): `watch_sessions` gains `plan_id` (a planned night's; one together session a
+night by a partial unique index; it goes with its night), `changed_by`, `change` and `changed_at` (who last did what to the clock), and
+a check that a together session is a night's, on a couch. **One new poll, only while a together watch along is open and in front**
+(HOSTING.md); nothing on a schedule, no pushes. New: the together half of `src/lib/server/watch-sessions.ts` (`togetherOf`,
+`togetherVersion`, `joinTogether`, `moveTogether`, `beatTogether`, `leaveTogether`), `togetherRead`/`togetherWrite` and the read's
+`together`/`sv` in `src/lib/server/watch-along.ts`, `GET/POST /api/seasons/[id]/watch/[n]/together?couch=`, `planById` (shared) and
+`inPlan` in watch-plans.ts, the pure side in `src/lib/game/watch-along.ts` (`TOGETHER_POLL_MS` 3 s, `TOGETHER_SLOW_AFTER_MS` ten
+minutes, `TOGETHER_SLOW_MS` 30 s, `TOGETHER_STOP_AFTER_MS` an hour, `COUNTDOWN_MS` 5 s, `START_EARLY_MS` 15 minutes, `TogetherChange`,
+`changeLine`, `adoptClock`), `togetherApi` and `useRefreshBingo` in data.ts, `useOpenTogether` and `TogetherStart` in watch-along.tsx,
+`paths.watch(seasonId, ep, plan)`.
+- **A together session (decided)** is a planned night's watch along (`?page=watch&ep=N&plan=<id>`), on the night's couch, for anyone on
+  it who may watch that episode along (mayWatch: 403 past your next; 404 for another couch or episode; 409 once it's called off). Every
+  together session comes from a planned night (Noticed); since a shared start can now be any day and time (below), watching together
+  soon is planning a night a few minutes off.
+- **Opening it is joining it, once it's due** (the live airing from its airtime, a shared start from 15 minutes before its time): you're
+  in it, in the night ("I'm in", `inPlan`), and out of your own watch along of that episode on the couch (and any other together one of
+  it there). Opened earlier, its start says when it opens, and joins you then if you're still on it. Whoever opens it first makes it: the
+  live airing's runs at once on `liveClock` (someone on the couch watching it live, else 70% from airtime), a shared start waits for
+  someone in it to start it.
+- **One clock for everyone in it:** anyone in it starts it (a shared start's **"3, 2, 1"**: `running_since` five seconds ahead, so every
+  phone counts down to the same moment, and everyone on the start is pulled into the countdown), pauses or resumes it, moves it (±10s, Set
+  the time), or starts an ad break and ends it, for all: one write 300 ms after the last tap (a start at once), its version bumped, who and
+  what kept. The others' watch alongs pick it up on their next look (3 s) and their clocks follow it (one within 1.5 s of the session's is
+  left alone, so a look doesn't nudge it for nothing). A pause or an ad break stays on a plate under the clock (the mock's: "riley paused
+  for everyone · Resume for everyone", "You paused for everyone", "riley started an ad break for everyone · Back to the show"); a start,
+  resume, move or end of an ad break shows there for six seconds. Pause and Resume say "for everyone"; Catch up isn't offered (everyone in
+  it is in step), and the marks on the bar are everyone else on the couch. Starting a shared start more than 15 minutes early is refused
+  (409), and so is moving a clock you're not in or have left.
+- **Leaving:** Close, End or the page going away leaves it (a keepalive request); its clock carries on for the rest. The last one out stops
+  it where it is ("It stopped when everyone left"), so opening it again picks up there. A late arrival's start says who's watching and
+  offers **Join them · 12:31 in** or **From the start, on your own** (your own watch along: what they said shows up as you reach it), the
+  mock's "late arrivals watch along after"; Keep watching on the end joins it again.
+- **The poll (HOSTING.md):** while you're in one and it's in front, every 3 s. While its clock runs, the reactions read carries
+  `together=<id>&sv=<version>` (so that read comes every 3 s instead of 5); stopped, `GET .../together?plan=&v=` answers `{ version }` from
+  one small query (`togetherLook`: you're in it, on this couch's episode, the night not called off) until it moves, then the session in full
+  with every check. It's the heartbeat too (written every 15 s, as part 2's). Ten still minutes and it asks every 30 s; after an hour, nothing
+  until a tap or coming back to the tab. A start opened before the night's due doesn't poll.
+- **What the people in it say (decided; changed from the mock):** what someone in the session says while in it (since it began) reaches
+  the rest of them through their clock, at once (a look's wait), not 30 s late. It's one clock, so it's never ahead of anyone in it, and
+  watching together half a minute behind each other's words isn't watching together. Everyone else's, and what they said on their own time
+  before it began, is 30 s late as ever, and a private watcher's words stay theirs here too (FROM_COUCH). The screen says "What the people
+  here say shows up as you reach it; the rest of the couch's, 30 s after the moment".
+- **Bingo (from Noticed):** your card for the episode shows the people here in your together session (who share the show) and the moments
+  they've ticked since it began: their face on the same moment of your card and "Watching together · riley ticked 3" (`EpisodeBingo.together`,
+  bingo.ts `togetherTicks`). They're at your moment, so it's never ahead of you; ticks from before it began (someone who'd seen it) stay
+  theirs. A tick moves the session's version on (its `ticks`), so an open card in the others' watch alongs reads again: no poll of its own.
+- **What it reveals, and to whom (decided):** who's in a night's watch along (names, here or not), its clock and its last change go to the
+  couch's people who may watch that episode along, when they open it. A night's people and answers are the couch's to see already, and
+  joining is your choice as saying I'm in is, so someone watching the show privately who joins is shown in it (to the couch, by their own
+  hand); On now and the near line keep part 2's rule (open followers only). Never what happens in the episode, and nothing about an episode
+  past your next leaves the server.
+- **Where it opens:** a planned night's plate on Tonight (Open, for whoever's in; `show.watch-together` is gone, and with it step 13's last
+  Preview), the plan's sheet (Open the watch along), the hub's **Up next** (from Noticed: a night the couch planned on its show that you can
+  watch, in Watch along's place: "Watch along · 3 going · Ep 6 · Thu 8:00 PM · the live airing" with **Join** (you're in, and once it's
+  due, its watch along) or **Open**), and a link.
+- **A shared start's own time (from Noticed):** the plan sheet's Day row ends with **Another day** (a date from when the episode's out to
+  two months on) and Start at with **Another time** (any time of day); a moment gone by, or past two months, says so and Send waits.
+- **Couch accolades (from Noticed):** By the numbers' **Most reactions this month** (reactions said to the couch in the last 30 days, five
+  at least) and **Most watch alongs** (episodes watched along on the couch in 30 days whose clock ran a minute, two at least: "9 this
+  month"), each only on shows that person follows openly, counted, never which (couch-hub.ts `accoladesFor`, couch-standings.ts
+  `accoladesOf`).
+- **Backups still leave sessions out (decided):** a session is a clock and a heartbeat; the one lasting thing read from them is Most watch
+  alongs' last 30 days, so a restore costs at most a month of one accolade, and old sessions brought back would show nobody. A together
+  session goes with its night (`plan_id` cascades from `watch_plans`, which is backed up), so a restore that replaces a group's nights
+  clears their sessions.
+- **Changed from the mock:** the people in it hear each other at once (above); a late arrival gets a start of their own (Join them, or from
+  the start on your own); Pause "for everyone" on two lines (one didn't fit at 390); the plate under the clock also says an ad break; the
+  "3, 2, 1" is five seconds, so a look every 3 s reaches everyone in time to see it.
+- **Checks:** `check-new-watch-along.js` grows with part 3 (276 PASS at 390; 162 of them the API half): a night before anyone's opened it,
+  the refusals (off the couch, another couch, another episode, not a plan, called off, the live airing before it airs, behind, a shared
+  start an hour early, a clock you're not in or have left), opening it (one session, both in it, your own closed, "I'm in"), the look (a
+  few bytes while the version's the same), the "3, 2, 1", a move, a pause and resume, an ad break and back, each for everyone with who did
+  it; riley's 2:10 reaching sam at 2:11 together while what she said before it began, and anyone else's, still waits 30 s; bingo ticks
+  (sam's on riley's card, not one from before it began, nobody's for jordan, the session moving on); leaving (on for the rest, the last one
+  out stops it, opening it again picks up there); On now; the live airing's night (70% from airtime, alex in step, his ad break for
+  everyone, sam refused); By the numbers. Then three browsers at once on Episode 4: sam opens his plate's Open (Watching together, Start at
+  the same time), riley says I'm in on her plate and opens it, jordan joins from the hub's Up next ("Watch along · 2 going"); sam's "3, 2,
+  1" pulls them both in and their clocks run together; riley pauses for everyone (sam's and jordan's stop, the plate names her), jordan
+  resumes it from the plate; riley's comment reaches sam within a look or two; sam's tick shows on riley's open card; riley closes it and
+  sam's line says so; alex, late, says I'm in on the plan's sheet and joins them where it is. `check-new-plans.js` (the plate's Open is the
+  night's watch along; a shared start five days after it airs at 2:30 PM, a day gone by refused; 104) and `check-new-show.js` (no Preview
+  left elsewhere) updated. `tests/watch-along.test.js` (11: the change lines, adopting the session's clock). The rest pass, one at a time:
+  check-new-episode-games (285), -listings (75), -guide (57), -library (91), -start-game (75), -make-it (81), -watching (114), -solo (92),
+  -way-in (85), -couches (114), -hub (77), -draft (90), -settling (96), -results-ways (89), -ours (89), -desk (100 alone; in the batch its
+  castaway Override assertion missed once, as Noticed has it), -community (82), -backstage (67), -backstage-ii (116), -show (69), -shell
+  (46), -reveal (49), -stats (57), -chat (52), check-foundation, check-preview (step 13 done, nothing of it left) and check-backup-restore;
+  `npm test` 619 of 619; type-check clean; lint (src) as before (the old error in classic's `use-sheet-swipe.ts` and the old warning in
+  `episode-results.ts`). Seen at 390 in the browser: the together start (waiting, who's here, a late arrival's), the countdown, three in it,
+  the pause plate, bingo with sam's tick on riley's card, Up next's planned night, the plan sheet's own day and time, and By the numbers'
+  two new accolades.
+- **Noticed, left as is:** watching together needs a planned night, and everyone in a together session can move it (both in Noticed, not
+  fixed). From Noticed, fixed: Up next's planned night, a shared start's own time (its "one night per episode" half stays), bingo in a
+  watch along, and the accolades most reactions and most watch alongs; two phones in one session and who's on now's off switch now say
+  what part 3 adds.
+- **Step 13 is done.** For step 14 (streaming shows and the rail): a streaming season's nights are always a shared start (watch-plans.ts),
+  so a binge night's watch along is a together session like any other; the fold still goes by airtime (Noticed), and daily streaming shows
+  are still in every day's Also on (Noticed). Migration 0134 is next.
 
 ## Step C: cutover
 

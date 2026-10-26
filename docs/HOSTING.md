@@ -105,6 +105,7 @@ measured; measure from Neon's usage a week after a change):
 | New design, Make it a game while our bot asks (`/api/seasons/[id]/make?poll=1`) | 3 s, only while the bot asks (~2-4 min, once per show set up) | under 200 bytes (a version: one small row); the page reads the whole review (~10-20 KB) only when it moves |
 | New design, a watch along while its clock runs (`/api/seasons/[id]/watch/[n]?at=&since=&beat=1`) | 5 s, only while its clock runs and the tab is in front (not paused, not in an ad break, not before you start) | under 1 KB when nobody said anything new (a few small queries: your mark, the couch, the reactions since the runtime it has, through 30 s behind your clock, and since step 13 part 2 who else is on it now, a few rows by the heartbeats' index; its heartbeat is written only every 15 s or so, a small UPDATE); ~200 bytes a new comment, more for a GIF's link, ~150 bytes a person on it |
 | New design, a paused watch along's beat (`POST /api/seasons/[id]/watch/[n]/session` `{ beat }`, step 13 part 2) | 20 s, only while it's paused or in an ad break and in front, and for ten minutes at most after it stopped | a small UPDATE (the heartbeat) and who's on it now: under 1 KB |
+| New design, a together watch along's look (`GET /api/seasons/[id]/watch/[n]/together?plan=&v=&beat=1`; while its clock runs, the reactions read above with `together=&sv=` instead, step 13 part 3) | 3 s while you're in one and it's in front (the running read's 5 s becomes 3 s together); 30 s once it's sat stopped and unchanged ten minutes; nothing after an hour (until a tap or coming back to the tab) | a few bytes (its version) while nothing has moved: one small row by its key, and the heartbeat written every 15 s or so; ~1-2 KB when it has (who's in it, its clock, its last change, who else is on the episode) |
 | New design, the open draft room (`/api/seasons/[id]/draft?v=`) | 4 s while a turn-based draft is live; 15 s while a draft waits to start or people lock in a blind draft; not once it's done | ~1-2 KB (a hash check per game, a few small reads: your seat, queue and mark); the answer is 16 characters when nothing changed, else the draft (~10-20 KB) |
 
 **The way in (new design, step 9 part 2)** polls nothing. First run's catalog (`/api/catalog`, open signed out: every
@@ -272,10 +273,26 @@ the heartbeat), with Tonight's card (when the show opens) and from `/api/couches
 (and when you come back to it after 30 s), never polled, under 1 KB (the last minute's heartbeats on the couch, and each show's header).
 Not backed up: a session is a clock and a heartbeat, true for a minute.
 
+**Watching together (new design, step 13 part 3)** adds one poll, only while someone is in a together watch along with it open and in
+front. A planned night's watch along is one session for everyone in it (`watch_sessions` with `plan_id`, migration 0133: four small
+columns more on a row that already existed, one session a night); each person in it is a `watch_session_people` row as before. Anyone in it
+moving the clock (the "3, 2, 1", a pause, a move, an ad break) is one small UPDATE, 300 ms after their last tap; joining and leaving one
+each; a bingo tick by someone in it moves its version on (one more small UPDATE). **The poll:** every 3 s each phone in it asks whether the
+session moved: while its clock runs, the reactions read part 1 already makes carries the question (`together=&sv=`), so that read comes every
+3 s rather than 5 s; stopped (paused, an ad break, before the "3, 2, 1", the start), a look that answers a few bytes (`{ version }`) until
+it has moved, then the session (~1-2 KB). It's the heartbeat too (written every 15 s or so, as part 2's). Stopped and unchanged for ten
+minutes it asks every 30 s, and after an hour not at all until someone taps something or comes back to the tab, so a together watch along
+left paused with the screen on keeps Neon awake an hour at most, never more. A couch of four watching an hour's episode together is ~1,200
+looks each (Vercel invocations) and a megabyte or two from Neon all told (a few hundred bytes a look). A start screen opened before the night is due (15 minutes before a
+shared start, the live airing's airtime) doesn't poll. Hearing the people in it at once (rather than 30 s late) is a condition in the
+reactions read, not another read. By the numbers' two new accolades (most reactions, most watch alongs) are two small grouped queries
+more in the hub's read. Not backed up: as part 2's sessions (a session goes with its night when a restore replaces the night).
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
 none on the hub, 14 in a watch along while its clock runs (its own 12, and the 2 of the show space's Chat badge under it), 5 while
-it's paused (a beat every 20 s, for ten minutes at most, and the badge's 2).
+it's paused (a beat every 20 s, for ten minutes at most, and the badge's 2); 22 in a together watch along while it's open (its look
+every 3 s, carrying the reactions while the clock runs, and the badge's 2), 4 once it's sat stopped ten minutes, 2 after an hour.
 
 **Rough scale, so the first wall is visible:** 100 couches of 4, each person with a screen open 3 hours a week,
 is about 5,200 screen-hours a month: ~5 GB of Neon transfer (the free limit) and ~3M Vercel invocations (three
@@ -632,3 +649,9 @@ never handles it: the user does the reset and the pasting.
   not backed up). Each open watch along writes its clock when it starts, pauses or moves, and a heartbeat: on the running 5 s read
   (written every 15 s or so), or every 20 s while paused for ten minutes at most (a paused watch along used to ask nothing). Who else is
   on it comes back with those reads, Tonight's card, and the hub's On now (`/api/couches/[id]/now`, read when the hub opens). No pushes.
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 13 part 3, watching together. **One new poll, only while someone is in a
+  together watch along with it open and in front** (every 3 s: a few bytes while nothing moved; while its clock runs it's the reactions
+  read, now every 3 s instead of 5; 30 s after ten still minutes, nothing after an hour); nothing on a schedule, no pushes. Migration 0133:
+  four columns on `watch_sessions` (`plan_id`, who last changed the clock, how, when) and an index; still not backed up. The hub's read
+  gains two small grouped queries (By the numbers' most reactions and most watch alongs). Bingo's read gains one small query while you're
+  in a together session (who's in it and what they've ticked since it began).

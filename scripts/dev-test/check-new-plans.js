@@ -283,7 +283,7 @@ function check(ok, what, detail = "") {
       await pg.waitForTimeout(800);
       const plateText = await plate.innerText();
       check(/Episode 6/.test(plateText) && /live airing/i.test(plateText) && (await plate.getAttribute("data-plan-you")) === "host", "Tonight: his plan's plate (Episode 6, the live airing)", plateText);
-      check((await plate.locator("[data-preview='show.watch-together']").count()) === 1, "its Open is Preview (watching together is step 13 part 3's)");
+      check((await plate.locator("[data-plan-together]").count()) === 1 && (await pg.locator("[data-preview='show.watch-together']").count()) === 0, "its Open is the night's watch along, together (step 13 part 3: no Preview)");
       check((await pg.locator("[data-plan-invite]").count()) === 0, "no Plan a watch along row: Episode 6 has one");
       await plate.scrollIntoViewIfNeeded();
       await A.shot("tonight-plate");
@@ -305,6 +305,27 @@ function check(ok, what, detail = "") {
       await pg.locator("[data-plan-times]").waitFor();
       const picked = await pg.locator("[data-plan-time][aria-pressed='true']").getAttribute("data-plan-time");
       check(picked === "9:00 PM", "a shared start: 9:00 PM by default", picked);
+      // A day and a time of his own (step 13 part 3): five days after it airs (past the four offered), at 2:30 in the afternoon.
+      const own7 = new Date(Date.parse(ep7At));
+      own7.setHours(0, 0, 0, 0);
+      own7.setDate(own7.getDate() + 5);
+      const ymd = `${own7.getFullYear()}-${String(own7.getMonth() + 1).padStart(2, "0")}-${String(own7.getDate()).padStart(2, "0")}`;
+      await pg.locator("[data-plan-day='own']").click();
+      await pg.locator("[data-plan-date]").fill(ymd);
+      await pg.locator("[data-plan-time='own']").click();
+      await pg.locator("[data-plan-clock]").fill("14:30");
+      await pg.waitForTimeout(300);
+      check(
+        (await pg.locator("[data-plan-day='own']").getAttribute("aria-pressed")) === "true" && /2:30 PM/.test(await pg.locator("[data-plan-time='own']").innerText()) && (await pg.locator("[data-plan-time][aria-pressed='true']").count()) === 1,
+        "Another day and Another time: his own, the chips say so",
+        await pg.locator("[data-plan-time='own']").innerText()
+      );
+      await pg.locator("[data-plan-clock]").fill("23:59");
+      await pg.locator("[data-plan-date]").fill("2020-01-01");
+      await pg.waitForTimeout(200);
+      check((await pg.locator("[data-plan-send]").isDisabled()) && (await pg.locator("[data-plan-when-bad]").count()) === 1, "a day gone by: Send waits, and says why");
+      await pg.locator("[data-plan-date]").fill(ymd);
+      await pg.locator("[data-plan-clock]").fill("14:30");
       await pg.locator(`[data-plan-person="${fixture.username("sam")}"]`).click();
       await pg.waitForTimeout(300);
       await A.shot("plan-sheet-start");
@@ -314,9 +335,9 @@ function check(ok, what, detail = "") {
       await pg.waitForFunction(() => [...document.querySelectorAll("[role=status]")].some((x) => /Invites sent/.test(x.textContent)), null, { timeout: 10_000 }).catch(() => {});
       check(/Invites sent · ZT Survivor 51 Episode 7/.test(await statuses(pg)), "Send invites: the toast says so", await statuses(pg));
       const p7 = (await pool.query("SELECT * FROM watch_plans WHERE couch_id = $1 AND season_id = $2 AND episode = 7 AND cancelled_at IS NULL", [fx.couchId, sid])).rows[0];
-      const want7 = new Date(Date.parse(ep7At));
-      want7.setHours(21, 0, 0, 0);
-      check(!!p7 && p7.how === "start" && new Date(p7.starts_at).getTime() === want7.getTime(), "saved: Episode 7 together at 9:00 PM on its airing day", p7 && new Date(p7.starts_at).toISOString());
+      const want7 = new Date(own7);
+      want7.setHours(14, 30, 0, 0);
+      check(!!p7 && p7.how === "start" && new Date(p7.starts_at).getTime() === want7.getTime(), "saved: Episode 7 together at 2:30 PM, five days after it airs", p7 && new Date(p7.starts_at).toISOString());
       const invited7 = (await pool.query("SELECT user_id, answer FROM watch_plan_people WHERE plan_id = $1", [p7?.id])).rows;
       check(invited7.length === 3 && !invited7.some((x) => x.user_id === U.sam), "riley and jordan invited, not sam (he took sam off)", JSON.stringify(invited7));
       await pg.locator(`[data-plan="${p7?.id}"]`).waitFor({ timeout: 10_000 }).catch(() => {});

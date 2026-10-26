@@ -207,3 +207,54 @@ export function leftLine(people: string[], count: number): string {
 export function nowLine(names: string[]): string {
   return names.length ? `${namesLine(names)} ${names.length === 1 ? "is" : "are"} watching now` : "";
 }
+
+// ---------- watching together (step 13 part 3) ----------
+
+/** An open together watch along asks whether its clock moved this often (with the reactions, while it runs). */
+export const TOGETHER_POLL_MS = 3000;
+/** Stopped and unchanged this long (everyone's gone for snacks), it asks only every TOGETHER_SLOW_MS... */
+export const TOGETHER_SLOW_AFTER_MS = 10 * 60_000;
+export const TOGETHER_SLOW_MS = 30_000;
+/** ...and after this long, not at all (you drop out of who's on now) until you tap something or come back to the tab. */
+export const TOGETHER_STOP_AFTER_MS = 60 * 60_000;
+/** "3, 2, 1": a shared start's clock begins this long after the tap, the same moment on every phone in it. */
+export const COUNTDOWN_MS = 5000;
+/** A shared start can be started this long before its planned time (and the live airing at its airtime). */
+export const START_EARLY_MS = 15 * 60_000;
+
+export type TogetherChange = "start" | "pause" | "resume" | "ad" | "show" | "move";
+export const TOGETHER_CHANGES: readonly TogetherChange[] = ["start", "pause", "resume", "ad", "show", "move"];
+
+/**
+ * What the last change to a together session's clock says (the mock's pause bar): "riley paused for everyone", "You started an ad
+ * break for everyone". `by` null: nobody did, it stopped when everyone had left.
+ */
+export function changeLine(c: { what: TogetherChange; by: string | null; mine: boolean; at: number }): string {
+  const who = c.mine ? "You" : (c.by ?? "");
+  if (!c.mine && !c.by) return c.what === "pause" ? "It stopped when everyone left" : "";
+  switch (c.what) {
+    case "start":
+      return `${who} started it for everyone`;
+    case "pause":
+      return `${who} paused for everyone`;
+    case "resume":
+      return `${who} resumed it for everyone`;
+    case "ad":
+      return `${who} started an ad break for everyone`;
+    case "show":
+      return `${who} ended the ad break for everyone`;
+    case "move":
+      return `${who} moved everyone to ${runtimeText(c.at)}`;
+  }
+}
+
+/**
+ * A together session's clock (read by the server at `at`, running or not, starting in `startsInMs` for a "3, 2, 1") as this phone's
+ * Clock, read `now`. Kept as the phone has it when both run within `slackMs` of each other, so a poll doesn't nudge it for nothing.
+ */
+export function adoptClock(local: Clock | null, remote: { at: number; running: boolean; startsInMs: number }, now: number, slackMs = 1500): Clock {
+  if (!remote.running) return { at: remote.at, since: null };
+  if (remote.startsInMs > 0) return { at: remote.at, since: now + remote.startsInMs };
+  if (local && local.since !== null && local.since <= now && Math.abs(clockAt(local, now) - remote.at) <= slackMs) return local;
+  return { at: remote.at, since: now };
+}

@@ -124,3 +124,28 @@ test("joining the live airing: someone's live clock, else airtime's, a little be
   assert.equal(W.liveClock(tenMin, [w({ name: "riley", at: 60_000, running: false })]).with, null, "nor a live clock that's paused (on a recording)");
   assert.equal(W.liveClock(null, []), null, "not aired yet: nothing to join");
 });
+
+test("watching together: what the last change says, for everyone in it", () => {
+  assert.equal(W.changeLine({ what: "pause", by: "riley", mine: false, at: 0 }), "riley paused for everyone");
+  assert.equal(W.changeLine({ what: "pause", by: "riley", mine: true, at: 0 }), "You paused for everyone");
+  assert.equal(W.changeLine({ what: "start", by: "sam", mine: false, at: 0 }), "sam started it for everyone");
+  assert.equal(W.changeLine({ what: "resume", by: "jordan", mine: false, at: 0 }), "jordan resumed it for everyone");
+  assert.equal(W.changeLine({ what: "ad", by: "alex", mine: false, at: 0 }), "alex started an ad break for everyone");
+  assert.equal(W.changeLine({ what: "show", by: "alex", mine: false, at: 0 }), "alex ended the ad break for everyone");
+  assert.equal(W.changeLine({ what: "move", by: "riley", mine: false, at: 750_000 }), "riley moved everyone to 12:30");
+  assert.equal(W.changeLine({ what: "pause", by: null, mine: false, at: 0 }), "It stopped when everyone left", "the last one out stopped it");
+  assert.deepEqual(W.TOGETHER_CHANGES, ["start", "pause", "resume", "ad", "show", "move"]);
+});
+
+test("watching together: the session's clock becomes yours, unless yours is within a beat of it", () => {
+  const now = 1_000_000;
+  assert.deepEqual(W.adoptClock(null, { at: 90_000, running: false, startsInMs: 0 }, now), { at: 90_000, since: null }, "stopped: where it stopped");
+  assert.deepEqual(W.adoptClock(null, { at: 0, running: true, startsInMs: 4_000 }, now), { at: 0, since: now + 4_000 }, "a 3, 2, 1: it starts when it ends");
+  assert.equal(W.clockAt(W.adoptClock(null, { at: 0, running: true, startsInMs: 4_000 }, now), now + 2_000), 0, "and holds at 0:00 until then");
+  const mine = { at: 60_000, since: now - 30_000 };
+  assert.equal(W.adoptClock(mine, { at: 91_000, running: true, startsInMs: 0 }, now), mine, "running within a second and a half of it: yours stays (no nudge for nothing)");
+  assert.deepEqual(W.adoptClock(mine, { at: 95_000, running: true, startsInMs: 0 }, now), { at: 95_000, since: now }, "further apart: the session's");
+  assert.deepEqual(W.adoptClock({ at: 60_000, since: null }, { at: 61_000, running: true, startsInMs: 0 }, now), { at: 61_000, since: now }, "paused here, running there: running");
+  assert.ok(W.COUNTDOWN_MS >= 3_000 && W.START_EARLY_MS === 15 * 60_000, "a countdown long enough to see; a shared start opens 15 minutes early");
+  assert.ok(W.TOGETHER_POLL_MS <= 5_000 && W.TOGETHER_SLOW_MS > W.TOGETHER_POLL_MS && W.TOGETHER_STOP_AFTER_MS > W.TOGETHER_SLOW_AFTER_MS, "it asks often, then slower, then not at all");
+});

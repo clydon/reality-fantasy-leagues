@@ -3,7 +3,25 @@
 import { useState } from "react";
 import { ChartColumn, ChevronRight, Crown, Link2, Plus, RotateCcw, Tv, Trophy } from "lucide-react";
 import { airTime, calmWhen, ticks } from "../clock";
-import { useAfterWatching, useInviteCode, useOnNow, watching, type Couch, type CouchHub, type CouchShow, type FeedItem, type Home, type HomeShow, type Move, type PlayingGame, type WeekProgress } from "../data";
+import { START_EARLY_MS } from "@/lib/game/watch-along";
+import {
+  plansApi,
+  useAfterWatching,
+  useInviteCode,
+  useOnNow,
+  useSetPlans,
+  watching,
+  type Couch,
+  type CouchHub,
+  type CouchShow,
+  type FeedItem,
+  type Home,
+  type HomeShow,
+  type Move,
+  type PlayingGame,
+  type WatchPlan,
+  type WeekProgress,
+} from "../data";
 import { openCouchSheet } from "../couch/couch-sheets";
 import { openStartGame } from "../couch/start-game";
 import { ordinal } from "../games";
@@ -15,11 +33,12 @@ import { Btn, SectionHead } from "../ui/parts";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { openWatching } from "../watching/sheets";
+import { useOpenTogether } from "../show/watch-along";
 
 // The hub's sections (the mock's index.html hub, refine.js wireHub, hubplus.js, watching.js, fresh.js), in the order
 // screens/home.tsx lays them out. Real (step 8): the status line and Up next (results to reveal first, then what's due,
 // then the soonest airing), your shows (each poster's best place, flipping to your games), On the couch (the feed) and
-// what the grows-with-you hub promises; who's on now since step 13 part 2.
+// what the grows-with-you hub promises; who's on now since step 13 part 2, Up next's planned night since part 3.
 
 const showName = (s: HomeShow) => s.show.name.replace(/^The /, "");
 
@@ -166,6 +185,9 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
   const name = showName(show);
   const href = paths.show(show.seasonId);
   const kind = reveal ? "reveal" : move ? "move" : final ? "final" : "set";
+  // A night the couch planned on this show (the soonest you can watch: never past your next episode) takes Watch along's place.
+  const next = show.seenThrough == null ? Number.POSITIVE_INFINITY : show.seenThrough + 1;
+  const night = couch ? ((home.plans ?? []).find((p) => p.seasonId === show.seasonId && p.couchId === couch.id && p.episode <= next) ?? null) : null;
   const plate = {
     reveal: {
       tag: "Reveal",
@@ -230,19 +252,74 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
             <ChevronRight className="size-5" aria-hidden />
           </span>
         </NavLink>
+        {night && <PlannedNight plan={night} me={home.user.id} />}
         <div className="flex items-center justify-between gap-2.5">
           {progress && !reveal ? <WhoIsSet progress={progress} /> : <span />}
-          <NavLink
-            href={paths.watch(show.seasonId)}
-            data-upnext-watch
-            className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[3px] bg-[rgba(16,14,21,.7)] px-3 text-[13px] font-bold text-white outline-1 -outline-offset-1 outline-white/25 backdrop-blur-sm"
-          >
-            <Tv className="size-4" aria-hidden />
-            Watch along
-          </NavLink>
+          {!night && (
+            <NavLink
+              href={paths.watch(show.seasonId)}
+              data-upnext-watch
+              className="flex h-9 items-center gap-1.5 whitespace-nowrap rounded-[3px] bg-[rgba(16,14,21,.7)] px-3 text-[13px] font-bold text-white outline-1 -outline-offset-1 outline-white/25 backdrop-blur-sm"
+            >
+              <Tv className="size-4" aria-hidden />
+              Watch along
+            </NavLink>
+          )}
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * Up next's planned night (step 13 part 3, from Noticed): "Watch along · 3 going", when and how, and Join (you're in, and once it's
+ * due, its watch along together) or Open once you're in.
+ */
+/** The wall clock, read when Join is tapped (never while drawing). */
+const wallClock = () => Date.now();
+
+function PlannedNight({ plan, me }: { plan: WatchPlan; me: string }) {
+  const setPlans = useSetPlans();
+  const openTogether = useOpenTogether();
+  const [busy, setBusy] = useState(false);
+  const at = Date.parse(plan.startsAt);
+  const going = plan.people.filter((x) => x.answer === "in").length;
+  const yours = plan.you === "host" || plan.you === "in";
+  const join = async () => {
+    if (yours) return openTogether(plan);
+    setBusy(true);
+    try {
+      setPlans((await plansApi.answer(plan.id, "in")).plans);
+      if (at - (plan.how === "live" ? 0 : START_EARLY_MS) <= wallClock()) openTogether(plan);
+      else toast(`You're in · Episode ${plan.episode}, ${airTime(at)}`);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div data-upnext-plan={plan.id} data-plan-you={plan.you ?? "none"} className="flex min-h-12 items-center gap-2.5 rounded-[3px] bg-[rgba(16,14,21,.72)] py-1.5 pl-3 pr-1.5 outline-1 -outline-offset-1 outline-good/50 backdrop-blur-sm">
+      <Tv className="size-4 flex-none text-good" aria-hidden />
+      <span className="min-w-0 flex-1">
+        <b className="block text-[13px] font-bold text-white">
+          Watch along · {going} going
+        </b>
+        <small className="block truncate text-xs text-white/75">
+          Ep {plan.episode} · {airTime(at)} · {plan.how === "live" ? "the live airing" : "starting together"}
+          {plan.you === "invited" ? ` · ${plan.host.userId === me ? "you" : plan.host.name} asked you` : ""}
+        </small>
+      </span>
+      <button
+        type="button"
+        data-upnext-join={yours ? "open" : "join"}
+        disabled={busy}
+        onClick={() => void join()}
+        className="nd-press h-9 flex-none rounded-[3px] bg-good px-3.5 text-[13px] font-bold text-good-foreground disabled:opacity-50"
+      >
+        {yours ? "Open" : "Join"}
+      </button>
+    </div>
   );
 }
 

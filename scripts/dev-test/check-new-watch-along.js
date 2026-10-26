@@ -35,6 +35,22 @@
 //   reaching his line on his next poll, her closing taking her off it; Join the live airing for alex from airtime (a touch
 //   behind), then riley joining it in step with alex; the hub's On now (Live · Episode 6) opening his watch along to join her;
 //   riley on the Traitors: On now's Have a look and The couch is watching's "riley is on".
+// Part 3 is watching together (a planned night's session, one clock for everyone in it; migration 0133):
+//   API: a night before anyone's opened it (no session, the night); the refusals (not on the couch, another couch, another episode,
+//   not a plan, called off, the live airing before it airs, behind, starting a shared start an hour early, moving a clock you've
+//   left or aren't in); opening it (making the session, joining it, leaving your own, saying you're in), the poll's look (just
+//   the version while it's still it), the "3, 2, 1", a move, a pause and resume, an ad break and back, each for everyone, with who
+//   did it; what the people in it say reaching the rest of them as they reach it (riley's 2:10 at sam's 2:11) while anything said
+//   before it began, and everyone else's, still comes 30 s late; their bingo ticks on each other's cards (never one from before it
+//   began, never to someone not in it), a tick moving the session on; leaving (the clock runs on for the rest; the last one out
+//   stops it, and opening it again picks up there); who's on now; the live airing's night (its clock 70% from airtime, alex
+//   joining in step, his ad break for everyone); By the numbers' most reactions and most watch alongs.
+//   Browser: three at once on Episode 4, sam's shared start: sam opens it from his plate ("Watching together", Start at the same
+//   time), riley says I'm in and opens it from hers, jordan joins from the hub's Up next ("Watch along · 2 going"); sam's "3, 2, 1"
+//   pulls them both in, their clocks together; riley pauses for everyone (sam's and jordan's stop: "riley paused for everyone ·
+//   Resume for everyone"), jordan resumes it for everyone; riley says something and sam has it at once; sam ticks a bingo square
+//   and it shows on riley's card; riley closes it and sam's line says so; alex, late, says I'm in on the plan's sheet and joins
+//   them where it is.
 //
 //   npm run dev                                                  (in another terminal)
 //   node scripts/dev-test/check-new-watch-along.js <outDir> [--width=390] [--keep] [--api]
@@ -385,6 +401,186 @@ const MIN = 60_000;
     check(r.status === 409 && /hasn't aired/.test(r.body.error), "Episode 6 before it airs: nothing to keep (409)", JSON.stringify(r.body));
     await onAir();
     check(!(await sessions("riley")).some((x) => x.together), "every session so far is someone's own (together ones are part 3's)");
+    await pool.query("DELETE FROM watch_sessions WHERE season_id = ANY($1::uuid[])", [[sid, tsid]]);
+
+    // ---------- part 3: watching together (a planned night's session, one clock for everyone in it) ----------
+    const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
+    const planNight = (who, body) => as[who].call("POST", `/api/seasons/${sid}/plans${q(A)}`, body);
+    const tget = (who, n, plan, extra = {}, couch = A) => as[who].call("GET", `/api/seasons/${sid}/watch/${n}/together${q(couch, { plan, ...extra })}`);
+    const tpost = (who, n, body, couch = A) => as[who].call("POST", `/api/seasons/${sid}/watch/${n}/together${q(couch)}`, body);
+    const tmove = (who, n, id, change, at, extra = {}) => tpost(who, n, { id, change, at, mode: "stream", running: change !== "pause", ad: false, ...extra });
+    const here = (t) => (t?.people ?? []).filter((x) => x.here).map((x) => x.name.replace(/^zt_nd_/, "")).join();
+    const readTogether = (who, n, at, since, id, extra = {}) =>
+      as[who].call("GET", `/api/seasons/${sid}/watch/${n}${q(A, { at: String(at), since: String(since), ...(id ? { together: id } : {}), ...extra })}`);
+
+    // sam (on 3) plans Episode 4 together, a shared start ten minutes from now, with riley and jordan (both on 5).
+    r = await planNight("sam", { episode: 4, how: "start", startsAt: new Date(Date.now() + 10 * MIN).toISOString(), invite: [U.riley, U.jordan] });
+    check(r.status === 200 && !!r.body.plan?.id, "sam plans Episode 4 together, ten minutes from now", JSON.stringify(r.body).slice(0, 200));
+    const night = r.body.plan;
+    r = await tget("sam", 4, night.id);
+    check(r.status === 200 && r.body.version === null && r.body.together === null && r.body.night?.how === "start" && names(r.body.night.in) === "sam", "before anyone's opened it: no session, just the night (a shared start, sam in)", JSON.stringify(r.body));
+    r = await tget("casey", 4, night.id);
+    check(r.status === 404, "someone not on the couch: 404");
+    r = await tget("casey", 4, night.id, {}, X);
+    check(r.status === 404, "asked on another couch: 404");
+    r = await tget("riley", 5, night.id);
+    check(r.status === 404, "the night asked on another episode: 404");
+    r = await tget("sam", 4, "not-a-plan");
+    check(r.status === 400, "not a plan: 400");
+
+    // Opening it (it's due: a shared start ten minutes off) joins it; riley had her own watch along of Episode 4 open.
+    await session("riley", 4, go(2 * MIN));
+    r = await tpost("sam", 4, { plan: night.id, join: true });
+    let t = r.body.together;
+    check(r.status === 200 && !!t && !t.started && !t.running && t.at === 0 && t.you && here(t) === "sam" && t.how === "start" && t.startsAt === night.startsAt, "sam opens it: a session, waiting for someone to start it, him in it", JSON.stringify(t));
+    const tid = t.id;
+    let v = t.version;
+    r = await tpost("riley", 4, { plan: night.id, join: true });
+    t = r.body.together;
+    check(t?.id === tid && t.version > v && here(t) === "sam,riley", "riley opens it: the same session, its version moved on, both here", JSON.stringify(t));
+    const ownEp4 = (await sessions("riley")).find((x) => !x.together && x.episode === 4);
+    check(!!ownEp4?.left_at && !ownEp4.running_since, "and her own watch along of Episode 4 is closed (joining one leaves your own)", JSON.stringify(ownEp4));
+    check((await pool.query("SELECT answer FROM watch_plan_people WHERE plan_id = $1 AND user_id = $2", [night.id, U.riley])).rows[0]?.answer === "in", "opening it says she's in");
+    check((await pool.query("SELECT count(*)::int AS n FROM watch_sessions WHERE plan_id = $1 AND together", [night.id])).rows[0].n === 1, "one session for the night");
+    on = await onNow("alex");
+    check(names(on.filter((w) => w.episode === 4)) === "riley,sam", "alex's On now: riley and sam on Episode 4 (in it, each with its clock)", JSON.stringify(on));
+
+    // The open watch along's look: just the version while it's still it.
+    v = t.version;
+    r = await tget("sam", 4, night.id, { v: String(v), beat: "1" });
+    check(r.status === 200 && r.body.version === v && r.body.together === null && r.body.night === null && r.body.now === null && JSON.stringify(r.body).length < 80, "the poll's look with the version it has: just the version, a few bytes", JSON.stringify(r.body));
+    r = await tget("sam", 4, night.id, { v: String(v - 1) });
+    check(r.body.together?.version === v && Array.isArray(r.body.now), "with an older one: the session, and who's on the episode");
+
+    // Starting a shared start an hour early is refused; a night called off is closed (leaving still works).
+    r = await planNight("riley", { episode: 3, how: "start", startsAt: new Date(Date.now() + 60 * MIN).toISOString(), invite: [U.sam] });
+    const later = r.body.plan;
+    r = await tpost("riley", 3, { plan: later.id, join: true });
+    const laterId = r.body.together?.id;
+    check(r.status === 200 && !!laterId, "an hour off, its watch along can be opened", JSON.stringify(r.body).slice(0, 200));
+    r = await tmove("riley", 3, laterId, "start", 0);
+    check(r.status === 409 && /15 minutes/.test(r.body.error), "but not started an hour early: 409", JSON.stringify(r.body));
+    await as.riley.call("POST", `/api/plans/${later.id}`, { cancel: true });
+    r = await tget("riley", 3, later.id);
+    check(r.status === 409 && /called off/.test(r.body.error), "a night called off: 409", JSON.stringify(r.body));
+    r = await tpost("riley", 3, { id: laterId, leave: true });
+    check(r.status === 200, "leaving still works once it's called off");
+
+    // The "3, 2, 1".
+    r = await tmove("sam", 4, tid, "start", 0);
+    t = r.body.together;
+    check(r.status === 200 && t.started && t.running && t.startsInMs > 3500 && t.startsInMs <= 5000 && t.at === 0 && t.change?.what === "start" && t.change.by === u("sam"), "sam starts it: a five-second 3, 2, 1 for everyone in it", JSON.stringify(t));
+    r = await tget("riley", 4, night.id, { v: String(v) });
+    check(r.body.together?.startsInMs > 0 && r.body.together.change.what === "start", "riley's next look: the countdown, sam started it", JSON.stringify(r.body.together));
+    await sleep(5300);
+    t = (await tget("riley", 4, night.id)).body.together;
+    check(t.running && t.startsInMs === 0 && t.at >= 0 && t.at < 3000, "five seconds on: the clock runs from 0:00", JSON.stringify(t));
+    r = await tmove("riley", 4, tid, "move", 2 * MIN);
+    t = r.body.together;
+    check(t.change.what === "move" && t.change.by === u("riley") && t.at >= 2 * MIN && t.at < 2 * MIN + 2000 && t.running, "riley moves it to 2:00, for everyone, running on", JSON.stringify(t));
+    r = await tmove("riley", 4, tid, "pause", 125_000, { running: false });
+    t = r.body.together;
+    check(!t.running && t.at === 125_000 && t.change.what === "pause" && t.change.by === u("riley"), "she pauses it at 2:05: stopped for everyone", JSON.stringify(t));
+    t = (await tget("sam", 4, night.id)).body.together;
+    await sleep(1100);
+    const t2 = (await tget("sam", 4, night.id)).body.together;
+    check(!t.running && t.at === 125_000 && t2.at === 125_000 && t.change.by === u("riley"), "sam's looks: stopped at 2:05, riley paused it");
+    r = await tmove("jordan", 4, tid, "resume", 125_000);
+    check(r.status === 409, "jordan (not in it) can't move it: 409", JSON.stringify(r.body));
+    r = await tmove("sam", 4, tid, "rewind", 125_000);
+    check(r.status === 400 && /change must be/.test(r.body.error), "a change that isn't one: 400");
+    r = await tmove("sam", 4, tid, "resume", 125_000, { mode: "tv" });
+    check(r.status === 400 && /mode/.test(r.body.error), "a mode that isn't one: 400");
+    r = await tmove("sam", 4, tid, "ad", 125_000, { running: false, ad: true, mode: "live" });
+    check(r.body.together.ad && !r.body.together.running && r.body.together.change.what === "ad", "an ad break, for everyone");
+    r = await tmove("sam", 4, tid, "show", 125_000, { mode: "live" });
+    check(!r.body.together.ad && r.body.together.running && r.body.together.change.what === "show", "and back to the show");
+    r = await tmove("sam", 4, tid, "resume", 125_000);
+    check(r.body.together.running && r.body.together.change.by === u("sam"), "sam resumes it for everyone at 2:05");
+
+    // What the people in it say comes as you reach it (the same clock); before it began, and everyone else's, 30 s late.
+    r = await say("riley", 4, { at: 130_000, kind: "text", text: "zt: together now" });
+    check(r.status === 200, "riley says something at 2:10, in it");
+    r = await readTogether("sam", 4, 131_000, 125_000, tid);
+    check(texts(r).some((x) => /together now/.test(x)), "sam at 2:11, together: riley's 2:10 at once", JSON.stringify(texts(r)));
+    check(r.body.together?.version >= 1 && r.body.through === 101_000, "the read carries the session's version (and the couch's 30 s line as ever)", JSON.stringify(r.body.together));
+    r = await readTogether("sam", 4, 131_000, 125_000, null);
+    check(!texts(r).some((x) => /together now/.test(x)), "the same read on his own time: not yet (30 s late)");
+    r = await readTogether("jordan", 4, 131_000, 125_000, tid);
+    check(!texts(r).some((x) => /together now/.test(x)) && !r.body.together?.state && r.body.together?.version === null, "jordan (not in it), even naming it: not yet, and no session for him");
+    r = await readTogether("sam", 4, 70_000, -1, tid);
+    check(!texts(r).some((x) => /Kristin/.test(x)), "riley's 1:00 from before it began: still 30 s late at sam's 1:10");
+    r = await readTogether("sam", 4, 140_000, 125_000, tid, { sv: String((await tget("sam", 4, night.id)).body.together.version) });
+    check(r.body.together?.state === null && typeof r.body.together?.version === "number", "with the version it has: no session in the answer");
+
+    // Bingo: what the people in it tick shows on each other's cards, from when it began.
+    const bingoOf = async (who, n = 4) => (await as[who].call("GET", `/api/seasons/${sid}/bingo/${n}${q(A)}`)).body;
+    let bcard = await bingoOf("sam");
+    const sq = bcard.squares.map((s, i) => [s, i]).filter(([s]) => s.key !== "free").map(([, i]) => i);
+    check(sq.length >= 2, "sam's Episode 4 card", JSON.stringify(bcard).slice(0, 200));
+    const vBefore = (await tget("sam", 4, night.id)).body.together;
+    await as.sam.call("POST", `/api/seasons/${sid}/bingo/4${q(A)}`, { square: sq[0], ticked: true });
+    await as.sam.call("POST", `/api/seasons/${sid}/bingo/4${q(A)}`, { square: sq[1], ticked: true });
+    const vAfter = (await tget("sam", 4, night.id)).body.together;
+    check(vAfter.version >= vBefore.version + 2 && vAfter.ticks === vBefore.ticks + 2, "two ticks: the session moves on, its tick count with it", `${vBefore.version}->${vAfter.version} ${vBefore.ticks}->${vAfter.ticks}`);
+    await pool.query(
+      "UPDATE bingo_marks SET marked_at = now() - interval '1 day' WHERE square = $1 AND card_id = (SELECT id FROM bingo_cards WHERE user_id = $2 AND season_id = $3 AND episode = 4)",
+      [sq[1], U.sam, sid]
+    );
+    bcard = await bingoOf("riley");
+    const samSquares = (await bingoOf("sam")).squares;
+    check(bcard.together?.length === 1 && bcard.together[0].name === u("sam") && JSON.stringify(bcard.together[0].keys) === JSON.stringify([samSquares[sq[0]].key]), "riley's card: sam's tick from in it (not the one from before it began)", JSON.stringify(bcard.together));
+    check((await bingoOf("jordan")).together.length === 0, "jordan's (not in it): nobody's");
+
+    // Leaving: the clock runs on for the rest; the last one out stops it; opening it again picks up there.
+    await tpost("riley", 4, { id: tid, leave: true });
+    t = (await tget("sam", 4, night.id)).body.together;
+    check(here(t) === "sam" && t.running, "riley closes it: she's out, the clock runs on for sam", JSON.stringify(t));
+    r = await tmove("riley", 4, tid, "pause", 150_000, { running: false });
+    check(r.status === 409 && /left/.test(r.body.error), "moving a clock you've left: 409", JSON.stringify(r.body));
+    await tpost("sam", 4, { id: tid, leave: true });
+    t = (await tget("sam", 4, night.id)).body.together;
+    check(!t.running && here(t) === "" && t.change.what === "pause" && t.change.by === null && !t.you && t.at >= 125_000, "sam, the last, closes it: it stops where it is, a pause nobody made", JSON.stringify(t));
+    r = await tpost("sam", 4, { plan: night.id, join: true });
+    check(r.body.together.id === tid && r.body.together.you && r.body.together.at === t.at && !r.body.together.running, "opening it again: back in it, where it stopped", JSON.stringify(r.body.together));
+    await tpost("sam", 4, { id: tid, leave: true });
+
+    // The live airing's night: alex plans Episode 6's (three days off), then it airs.
+    await pool.query("UPDATE show_seasons SET premiere_date = current_date + 3 - 35, air_time = '20:00' WHERE id = $1", [sid]);
+    r = await planNight("alex", { episode: 6, how: "live", invite: [U.riley] });
+    const liveNight = r.body.plan;
+    check(r.status === 200 && liveNight?.how === "live", "alex plans Episode 6's live airing with riley");
+    r = await tpost("riley", 6, { plan: liveNight.id, join: true });
+    check(r.status === 409 && /hasn't aired/.test(r.body.error), "opening it before it airs: 409", JSON.stringify(r.body));
+    r = await tget("riley", 6, liveNight.id);
+    check(r.status === 200 && r.body.together === null && r.body.night?.how === "live", "its night can be read meanwhile (the start says when it opens)");
+    await onAir();
+    r = await tpost("riley", 6, { plan: liveNight.id, join: true });
+    t = r.body.together;
+    check(t?.started && t.running && t.mode === "live" && t.change?.what === "start" && t.at >= 6.5 * MIN && t.at <= 8 * MIN, "on air: riley opens it, its clock the live airing's (70% from airtime: nobody to follow)", JSON.stringify(t));
+    r = await tpost("alex", 6, { plan: liveNight.id, join: true });
+    const ta = r.body.together;
+    check(ta?.id === t.id && Math.abs(ta.at - t.at) < 3000 && here(ta) === "riley,alex", "alex opens it: the same clock", JSON.stringify(ta));
+    r = await tmove("alex", 6, ta.id, "ad", ta.at, { mode: "live", running: false, ad: true });
+    check(r.body.together.ad && !r.body.together.running, "alex: an ad break, for everyone");
+    t = (await tget("riley", 6, liveNight.id)).body.together;
+    check(t.ad && t.change.what === "ad" && t.change.by === u("alex"), "riley's look: in an ad break, alex started it", JSON.stringify(t));
+    r = await tpost("sam", 6, { plan: liveNight.id, join: true });
+    check(r.status === 403, "sam (behind) can't open it: 403");
+    await tpost("riley", 6, { id: ta.id, leave: true });
+    await tpost("alex", 6, { id: ta.id, leave: true });
+
+    // By the numbers: most reactions this month and most watch alongs (riley's: Episode 4 and the live airing).
+    const hubRead = (await as.alex.call("GET", `/api/couches/${A}/hub`)).body;
+    const acc = (k) => (hubRead.accolades ?? []).find((a) => a.key === k);
+    check(acc("reactions")?.who === u("riley") && /^\d+ reactions$/.test(acc("reactions").line) && acc("reactions").stat === "Most reactions this month", "By the numbers: most reactions this month, riley", JSON.stringify(hubRead.accolades));
+    check(acc("watch-alongs")?.who === u("riley") && acc("watch-alongs").line === "2 this month" && acc("watch-alongs").stat === "Most watch alongs", "and most watch alongs: riley, 2 this month", JSON.stringify(acc("watch-alongs")));
+    check(!/Episode|Ep \d/.test(JSON.stringify([acc("reactions"), acc("watch-alongs")])), "counted, never which episode");
+
+    // Tidy for the browser (part 1's counts expect Episode 4's reactions as they were).
+    await pool.query("DELETE FROM watch_reactions WHERE user_id = $1 AND text = 'zt: together now'", [U.riley]);
+    await pool.query("DELETE FROM bingo_cards WHERE season_id = $1", [sid]);
+    await pool.query("DELETE FROM watch_plans WHERE couch_id = $1", [A]);
     await pool.query("DELETE FROM watch_sessions WHERE season_id = ANY($1::uuid[])", [[sid, tsid]]);
 
     // ---------- the browser ----------
@@ -773,6 +969,170 @@ const MIN = 60_000;
       await rp.locator(`${layer} button[aria-label="Close"]`).first().click();
       check(R.errors().length === 0, "riley (part 2): no page errors", R.errors().join(" | "));
       check(X1.errors().length === 0, "alex: no page errors", X1.errors().join(" | "));
+
+      // ---------- part 3: three at once in one together session (sam's shared start of Episode 4) ----------
+      await pool.query("UPDATE show_follows SET seen_through = 3 WHERE user_id = $1 AND season_id = $2", [U.sam, sid]);
+      await pool.query("UPDATE show_follows SET seen_through = 5 WHERE user_id = ANY($1::text[]) AND season_id = $2", [[U.riley, U.jordan, U.alex], sid]);
+      await pool.query("DELETE FROM watch_plans WHERE couch_id = $1", [A]);
+      await pool.query("DELETE FROM watch_sessions WHERE season_id = ANY($1::uuid[])", [[sid, tsid]]);
+      r = await planNight("sam", { episode: 4, how: "start", startsAt: new Date(Date.now() + 5 * MIN).toISOString(), invite: [U.riley, U.jordan] });
+      const bn = r.body.plan;
+      check(r.status === 200 && !!bn?.id, "sam plans Episode 4 together, five minutes from now");
+      const sessionNow = async () => (await pool.query("SELECT * FROM watch_sessions WHERE plan_id = $1", [bn.id])).rows[0];
+
+      // sam: his plate's Open.
+      await pg.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "load" });
+      const sPlate = pg.locator(`[data-plan="${bn.id}"]`);
+      await sPlate.waitFor({ timeout: 30_000 });
+      await pg.waitForTimeout(800);
+      check((await sPlate.locator("[data-plan-together]").count()) === 1 && (await pg.locator('[data-preview="show.watch-together"]').count()) === 0, "sam's plate: Open (real: no Preview)");
+      await sPlate.locator("[data-plan-together]").click();
+      const sStart = pg.locator("[data-together-start='ready']");
+      await sStart.waitFor({ timeout: 20_000 });
+      check(/plan=/.test(pg.url()) && /ep=4/.test(pg.url()), "it opens the night's watch along (?page=watch&ep=4&plan=)", pg.url());
+      const sStartText = await sStart.innerText();
+      check(/Watching\s+together/i.test(sStartText) && /Start at the same time/.test(sStartText) && /3, 2, 1 for everyone in it/.test(sStartText) && /Anyone can pause for everyone/.test(sStartText), "the start: Watching together, Start at the same time · 3, 2, 1", sStartText);
+      check(await until(async () => !!(await sessionNow())), "opening it (due) joined it: a session");
+      await S.shot("together-start");
+      await S.wide("the together start");
+
+      // riley: I'm in on her plate, then Open.
+      const RT = R;
+      const rp3 = rp;
+      await rp3.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "load" });
+      const rPlate = rp3.locator(`[data-plan="${bn.id}"]`);
+      await rPlate.waitFor({ timeout: 30_000 });
+      await rp3.waitForTimeout(800);
+      await rPlate.locator("[data-plan-in]").click();
+      await rPlate.locator("[data-plan-together]").waitFor({ timeout: 10_000 });
+      await rPlate.locator("[data-plan-together]").click();
+      await rp3.locator("[data-together-start='ready']").waitFor({ timeout: 20_000 });
+      await rp3.locator("[data-watch-here]").waitFor();
+      check(await until(async () => /zt_nd_sam is here/.test(await rp3.locator("[data-watch-here]").innerText())), "riley: I'm in, then Open: zt_nd_sam is here", await rp3.locator("[data-watch-here]").innerText());
+
+      // jordan: the hub's Up next, Watch along · 2 going, Join.
+      const JT = await browse(u("jordan"), "jordan3");
+      const jp = JT.pg;
+      await jp.goto(`${BASE}/home?hub=focus`, { waitUntil: "load" });
+      const upPlan = jp.locator(`[data-upnext-plan="${bn.id}"]`);
+      await upPlan.waitFor({ timeout: 30_000 }).catch(() => {});
+      await jp.waitForTimeout(800);
+      const upText = (await upPlan.count()) ? await upPlan.innerText() : "";
+      check(/Watch along · 2 going/.test(upText) && /Ep 4/.test(upText) && /starting together/.test(upText) && (await jp.locator("[data-upnext-watch]").count()) === 0, "jordan's Up next: Watch along · 2 going (Episode 4, starting together) in Watch along's place", upText);
+      check((await upPlan.locator("[data-upnext-join='join']").count()) === 1, "with Join (he hasn't said)");
+      if (await upPlan.count()) {
+        await upPlan.scrollIntoViewIfNeeded();
+        await JT.shot("upnext-planned");
+        await JT.wide("Up next with a planned night");
+        await upPlan.locator("[data-upnext-join]").click();
+      }
+      await jp.locator("[data-together-start='ready']").waitFor({ timeout: 30_000 });
+      check(/plan=/.test(jp.url()) && (await pool.query("SELECT answer FROM watch_plan_people WHERE plan_id = $1 AND user_id = $2", [bn.id, U.jordan])).rows[0]?.answer === "in", "Join: he's in, and the night's watch along opens (it's due)", jp.url());
+      check(await until(async () => /zt_nd_sam and zt_nd_riley are here/.test(await pg.locator("[data-watch-here]").innerText()) || /zt_nd_riley and zt_nd_jordan are here/.test(await pg.locator("[data-watch-here]").innerText()), 15_000), "sam's start: the others are here", await pg.locator("[data-watch-here]").innerText());
+      await S.shot("together-start-here");
+
+      // sam starts it: 3, 2, 1 for all three.
+      await pg.locator('[data-start="together-start"]').click();
+      await pg.locator("[data-watch-countdown]").waitFor({ timeout: 5000 }).catch(() => {});
+      check((await pg.locator("[data-watch-countdown]").count()) === 1, "sam: the countdown");
+      await S.shot("countdown");
+      const pulled = await until(async () => (await rp3.locator("[data-together-start]").count()) === 0 && (await jp.locator("[data-together-start]").count()) === 0, 8000);
+      check(pulled, "riley's and jordan's starts give way: pulled into the countdown");
+      check(await until(async () => (await clockOf(pg)) >= 2 && (await clockOf(rp3)) >= 1 && (await clockOf(jp)) >= 1, 15_000), "the clocks run");
+      const spread = async () => {
+        const cs = [await clockOf(pg), await clockOf(rp3), await clockOf(jp)];
+        return Math.max(...cs) - Math.min(...cs);
+      };
+      check((await spread()) <= 2, "all three together, within a couple of seconds", String(await spread()));
+      check(/Watch along · zt_nd_riley and zt_nd_jordan/.test(await pg.locator("[data-watch-top]").innerText()) || /Watch along · zt_nd_jordan and zt_nd_riley/.test(await pg.locator("[data-watch-top]").innerText()), "sam's top line: Watch along · riley and jordan", await pg.locator("[data-watch-top]").innerText());
+      check(/Pause\s+for everyone/.test(await pg.locator("[data-watch-pause]").innerText()), "Pause for everyone");
+      await pg.waitForFunction(() => /are here/.test(document.querySelector("[data-watch-together]")?.textContent ?? ""), null, { timeout: 10_000 }).catch(() => {});
+      check(/Watching together · zt_nd_\w+ and zt_nd_\w+ are here/.test(await pg.locator("[data-watch-together]").innerText()), "the line: Watching together · riley and jordan are here", await pg.locator("[data-watch-together]").innerText());
+      await S.shot("together-on");
+      await S.wide("watching together");
+
+      // riley pauses for everyone.
+      await rp3.locator("[data-watch-pause]").click();
+      const stoppedFor = async (page) => {
+        const a = await clockOf(page);
+        await page.waitForTimeout(1200);
+        return (await clockOf(page)) === a && (await page.locator("[data-watch-together-bar='pause']").count()) === 1;
+      };
+      check(await until(() => stoppedFor(pg), 12_000), "sam's clock stops (riley paused it)");
+      check(await until(() => stoppedFor(jp), 12_000), "and jordan's");
+      const bar = await pg.locator("[data-watch-together-bar]").innerText();
+      check(/zt_nd_riley paused for everyone/.test(bar) && /Resume for everyone/.test(bar), "sam's bar: riley paused for everyone · Resume for everyone", bar);
+      check(/You paused for everyone/.test(await rp3.locator("[data-watch-together-bar]").innerText()) && (await rp3.locator("[data-watch-resume-all]").count()) === 0, "riley's own: You paused for everyone");
+      check(Math.abs((await clockOf(pg)) - (await clockOf(rp3))) <= 1, "stopped where she stopped it", `${await clockOf(pg)} ${await clockOf(rp3)}`);
+      await S.shot("paused-for-everyone");
+      // jordan resumes it for everyone, from the bar.
+      await jp.locator("[data-watch-resume-all]").click();
+      const runsOn = async (page) => {
+        const a = await clockOf(page);
+        await page.waitForTimeout(1500);
+        return (await clockOf(page)) > a;
+      };
+      check(await until(() => runsOn(pg), 12_000) && (await until(() => runsOn(rp3), 12_000)), "jordan resumes it: sam's and riley's clocks run again");
+      check(await until(async () => /zt_nd_jordan resumed it for everyone/.test((await pg.locator("[data-watch-together-bar]").count()) ? await pg.locator("[data-watch-together-bar]").innerText() : ""), 8000), "sam's bar says who");
+
+      // riley says something: sam has it at once (not 30 s later).
+      const saidAt = Date.now();
+      await rp3.locator("[data-watch-say]").fill("zt: right here with you");
+      await rp3.locator("[data-watch-say]").press("Enter");
+      const heard = await pg.waitForFunction(() => /right here with you/.test(document.querySelector("[data-watch-stream]")?.textContent ?? ""), null, { timeout: 20_000 }).then(() => true, () => false);
+      check(heard && Date.now() - saidAt < 15_000, "riley says something: sam has it within a poll or two", `${Date.now() - saidAt} ms`);
+      check(/What the people here say shows up as you reach it/.test(await pg.locator(layer).innerText()), "and the screen says so");
+
+      // Bingo: sam's tick on riley's card.
+      await rp3.locator("[data-watch-bingo]").click();
+      await RT.sheet().locator("[data-bingo-card]").waitFor({ timeout: 15_000 });
+      await pg.locator("[data-watch-bingo]").click();
+      await S.sheet().locator("[data-bingo-card]").waitFor({ timeout: 15_000 });
+      // Cards are dealt each their own: sam ticks a moment riley's card has too (if any), so his face lands on one of hers.
+      const rileyLabels = await RT.sheet().locator("[data-square]:not([disabled])").allInnerTexts();
+      const samSquaresEl = S.sheet().locator("[data-square]:not([disabled])");
+      const samLabels = await samSquaresEl.allInnerTexts();
+      const shared = samLabels.findIndex((l) => rileyLabels.includes(l));
+      const tickEl = samSquaresEl.nth(Math.max(0, shared));
+      const tickLabel = await tickEl.innerText();
+      await tickEl.click();
+      const onRiley = await until(async () => (await RT.sheet().locator("[data-bingo-together]").count()) === 1, 15_000);
+      check(onRiley && /zt_nd_sam ticked 1/.test(await RT.sheet().locator("[data-bingo-together]").innerText()), "sam ticks a square: riley's open card says so (sam ticked 1)", tickLabel);
+      if (shared >= 0) check((await RT.sheet().locator('[data-square-mates*="zt_nd_sam"]').count()) === 1, "his face on the same moment of her card", tickLabel);
+      await RT.sheet().locator("[data-bingo-card]").scrollIntoViewIfNeeded();
+      await RT.shot("bingo-together");
+      await rp3.keyboard.press("Escape");
+      await pg.keyboard.press("Escape");
+      await RT.sheet().waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
+      await S.sheet().waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
+
+      // riley closes it: sam's line says so.
+      await rp3.locator(`${layer} button[aria-label="Close"]`).first().click();
+      check(await until(async () => /Watching together · zt_nd_jordan is here/.test(await pg.locator("[data-watch-together]").innerText()), 12_000), "riley closes it: sam's line, jordan is here", await pg.locator("[data-watch-together]").innerText());
+      const people = (await pool.query("SELECT user_id, left_at FROM watch_session_people WHERE session_id = $1", [(await sessionNow()).id])).rows;
+      check(people.length === 3 && !!people.find((x) => x.user_id === U.riley)?.left_at && (await sessionNow()).running_since, "on the server: riley left, the clock runs on", JSON.stringify(people));
+
+      // alex, late: the plan's sheet, I'm in, Open the watch along, Join them where it is.
+      await xp.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "load" });
+      const aPlate = xp.locator(`[data-plan="${bn.id}"]`);
+      await aPlate.waitFor({ timeout: 30_000 });
+      await xp.waitForTimeout(800);
+      await aPlate.locator("[data-plan-open]").click();
+      await X1.sheet().locator("[data-plan-yes]").click();
+      await X1.sheet().locator("[data-plan-watch]").waitFor({ timeout: 10_000 });
+      await X1.sheet().locator("[data-plan-watch]").click();
+      const going = xp.locator("[data-together-start='going']");
+      await going.waitFor({ timeout: 20_000 });
+      const lateText = await xp.locator('[data-start="together-join"]').innerText();
+      check(/Join them · \d+:\d\d in/.test(lateText) && (await xp.locator('[data-start="together-own"]').count()) === 1, "alex, late: Join them where it is, or from the start on his own", lateText);
+      check(/zt_nd_sam and zt_nd_jordan are watching/.test(await going.innerText()), "the start says who's watching", await going.innerText());
+      await X1.shot("together-late");
+      await xp.locator('[data-start="together-join"]').click();
+      await xp.locator("[data-watch-start]").waitFor({ state: "detached", timeout: 5000 });
+      check(await until(async () => Math.abs((await clockOf(xp)) - (await clockOf(pg))) <= 2, 8000), "joined: his clock with sam's", `${await clockOf(xp)} ${await clockOf(pg)}`);
+      for (const [b, who] of [[S, "sam (part 3)"], [RT, "riley (part 3)"], [JT, "jordan"], [X1, "alex (part 3)"]]) check(b.errors().length === 0, `${who}: no page errors`, b.errors().join(" | "));
+      for (const page of [pg, jp, xp]) await page.locator(`${layer} button[aria-label="Close"]`).first().click().catch(() => {});
+      await pool.query("DELETE FROM watch_plans WHERE couch_id = $1", [A]);
 
       // ---------- zt_so_sam (on 3, no couch): the solo hub ----------
       const SO = await browse(soloFixture.username("sam"), "solo");

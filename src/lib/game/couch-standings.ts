@@ -323,8 +323,8 @@ export interface Accolade {
 
 /**
  * The couch's own accolades: who follows the most shows (only what they share), the show the most people watch, who's
- * called the most predictions, who talks most this month, who's on the longest Survival Pool run now. Each only when
- * it says something (a count worth naming).
+ * called the most predictions, who talks most this month, who reacts most in watch alongs and who watches along most this
+ * month (step 13 part 3), who's on the longest Survival Pool run now. Each only when it says something (a count worth naming).
  */
 export function accoladesOf(opts: {
   people: Person[];
@@ -333,6 +333,10 @@ export function accoladesOf(opts: {
   /** Messages in the couch's chats in the last 30 days, by person. */
   messages: Map<string, number>;
   games: GameStanding[];
+  /** Watch along reactions said to the couch in the last 30 days, by person (on shows they follow openly). */
+  reactions?: Map<string, number>;
+  /** Episodes watched along on the couch in the last 30 days, by person (on shows they follow openly). */
+  watchAlongs?: Map<string, number>;
 }): Accolade[] {
   const { people, follows, messages, games } = opts;
   const member = new Map(people.map((p) => [p.userId, p]));
@@ -366,6 +370,11 @@ export function accoladesOf(opts: {
 
   const talker = leader(messages, 3);
   if (talker) out.push({ key: "chat", stat: "Says the most", who: member.get(talker[0])!.name, userId: talker[0], line: `${talker[1]} messages this month` });
+
+  const reactor = leader(opts.reactions ?? new Map(), 5);
+  if (reactor) out.push({ key: "reactions", stat: "Most reactions this month", who: member.get(reactor[0])!.name, userId: reactor[0], line: `${reactor[1]} reactions` });
+  const along = leader(opts.watchAlongs ?? new Map(), 2);
+  if (along) out.push({ key: "watch-alongs", stat: "Most watch alongs", who: member.get(along[0])!.name, userId: along[0], line: `${along[1]} this month` });
 
   let run: { who: string; n: number; label: string } | null = null;
   for (const g of games) if (!g.ended && g.through > 0) for (const r of g.rows) if (r.userId && member.has(r.userId) && (r.streak ?? 0) > (run?.n ?? 1)) run = { who: r.userId, n: r.streak!, label: g.label };

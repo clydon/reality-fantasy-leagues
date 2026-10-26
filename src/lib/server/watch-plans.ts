@@ -10,7 +10,8 @@ import { followsOf, games, seasonHeaders, type SeasonHeader } from "./show-space
 // db/migrations/0127): someone on a couch plans a watch along for an episode, the live airing or a shared start at a time
 // they pick, and invites people on the couch. Each says I'm in or Can't make it (anyone else on the couch can join it too),
 // and whoever planned it can call it off (with Undo). The invited get one push; the hub's feed has a line; the guide tags the
-// airing or shows the night as a card of its own (the pure src/lib/game/guide.ts). Watch along itself is step 13's.
+// airing or shows the night as a card of its own (the pure src/lib/game/guide.ts). Its watch along, one clock for everyone in it,
+// is step 13 part 3's (watch-along.ts togetherRead/togetherWrite): opening it says you're in.
 //
 //   GET  /api/seasons/[id]/plans?couch=   what can be planned: the episodes, who's on the couch, the plans already made
 //   POST /api/seasons/[id]/plans?couch=   plan one: { episode, how, startsAt?, invite }
@@ -353,8 +354,8 @@ export async function planNight(
   return { plan, plans, told: invite.length };
 }
 
-/** A plan you can see (on your couch), for a write: its row and the plan as you see it. */
-async function planById(user: SessionUser, planId: string, now: Date): Promise<{ row: PlanRow; plan: WatchPlan }> {
+/** A plan you can see (on your couch): its row and the plan as you see it (a night that's over too). */
+export async function planById(user: SessionUser, planId: string, now: Date): Promise<{ row: PlanRow; plan: WatchPlan }> {
   if (!isUuid(planId)) throw new HttpError(404, "Watch along not found");
   const [row] = await planRows("p.id = $1", [planId]);
   if (!row) throw new HttpError(404, "Watch along not found");
@@ -379,6 +380,15 @@ export async function answerPlan(user: SessionUser, planId: string, answer: unkn
     [planId, user.id, answer]
   );
   return answered(user, planId, now);
+}
+
+/** Opening a night's watch along together (step 13 part 3) says you're in, if you hadn't (whoever planned it is already). */
+export async function inPlan(planId: string, userId: string): Promise<void> {
+  await pool.query(
+    `INSERT INTO watch_plan_people (plan_id, user_id, answer, invited, answered_at) VALUES ($1, $2, 'in', false, now())
+     ON CONFLICT (plan_id, user_id) DO UPDATE SET answer = 'in', answered_at = now() WHERE watch_plan_people.answer <> 'in'`,
+    [planId, userId]
+  );
 }
 
 /** Call it off, or bring it back (Undo) (POST /api/plans/[id] { cancel }): whoever planned it. */
