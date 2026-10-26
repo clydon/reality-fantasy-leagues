@@ -39,9 +39,9 @@ import type { EpisodeCalls } from "@/lib/server/calls";
 import type { Poll, SeasonPolls, ThisWeekShow } from "@/lib/server/polls";
 import type { EpisodeBingo } from "@/lib/server/bingo";
 import type { TriviaCard, TriviaRound } from "@/lib/server/trivia";
-import type { Reaction, WatchCard, WatchRead } from "@/lib/server/watch-along";
+import type { OnNow, Reaction, SessionWrite, WatchCard, WatchRead } from "@/lib/server/watch-along";
 import type { GifHit } from "@/lib/server/gifs";
-import type { Gif } from "@/lib/game/watch-along";
+import type { Gif, WatchMode } from "@/lib/game/watch-along";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -85,9 +85,9 @@ export type { BingoSquare, LineCount, Truth } from "@/lib/game/bingo";
 export type { BingoMove } from "@/lib/game/game-view";
 export type { TriviaCard, TriviaRound } from "@/lib/server/trivia";
 export type { TriviaOption, TriviaQuestion } from "@/lib/game/trivia";
-export type { Reaction, WatchCard, WatchFace, WatchRead, WatchStatus } from "@/lib/server/watch-along";
+export type { OnNow, Reaction, SessionWrite, WatchCard, WatchFace, WatchRead, WatchStatus } from "@/lib/server/watch-along";
 export type { GifHit } from "@/lib/server/gifs";
-export type { Gif, ReactKind, ReactionKind } from "@/lib/game/watch-along";
+export type { Gif, ReactKind, ReactionKind, Watcher, WatchMode } from "@/lib/game/watch-along";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -1276,22 +1276,55 @@ export function useAfterTrivia() {
 }
 
 // ---- Watch along (step 13 part 1; watch-along.ts). Tonight's card reads when the show opens; the watch along reads the reactions
-// between two moments when it opens or its clock jumps, and polls the ones since while its clock runs (watch-along.tsx). ----
+// between two moments when it opens or its clock jumps, and polls the ones since while its clock runs (watch-along.tsx). Who's on
+// now (part 2) rides on those reads; the clock is written when it starts, pauses or moves; the hub's On now reads once. ----
 
 /** Tonight's Watch along card: the episode you'd watch along, and who on the couch left reactions on it (a count). */
-export function useWatchCard(seasonId: string | null, couchId: string | null, enabled = true) {
+export function useWatchCard(seasonId: string | null, couchId: string | null, enabled = true, fresh = false) {
   return useQuery({
     queryKey: ["new-design", "watch-card", seasonId, couchId],
     queryFn: () => get<WatchCard>(seasonUrl(seasonId!, "/watch", couchQuery(couchId))),
     enabled: enabled && !!seasonId,
     staleTime: 60_000,
+    // The watch along's start reads it again as it opens: who's on now has moved since the show opened.
+    ...(fresh ? { refetchOnMount: "always" as const } : {}),
+  });
+}
+
+/** The hub's On now (step 13 part 2): who else on the couch is watching along right now. Read when the hub opens, never polled. */
+export function useOnNow(couchId: string | null) {
+  return useQuery({
+    queryKey: ["new-design", "on-now", couchId],
+    queryFn: () => get<{ now: OnNow[] }>(`/api/couches/${couchId}/now`),
+    enabled: !!couchId,
+    staleTime: 30_000,
   });
 }
 
 export const watchApi = {
   /** The reactions on an episode after `since` (ms; -1 from the start) through your clock's `at`; `open` adds pins and the count. */
-  read: (seasonId: string, couchId: string | null, episode: number, at: number, since: number, open = false) =>
-    get<WatchRead>(seasonUrl(seasonId, `/watch/${episode}`, { ...couchQuery(couchId), at: String(Math.floor(at)), since: String(Math.floor(since)), ...(open ? { open: "1" } : {}) })),
+  read: (seasonId: string, couchId: string | null, episode: number, at: number, since: number, open = false, beat = false) =>
+    get<WatchRead>(
+      seasonUrl(seasonId, `/watch/${episode}`, {
+        ...couchQuery(couchId),
+        at: String(Math.floor(at)),
+        since: String(Math.floor(since)),
+        ...(open ? { open: "1" } : {}),
+        ...(beat ? { beat: "1" } : {}),
+      })
+    ),
+  /** Your watch along's clock for the couch (who's on now): when it starts, pauses or moves; a paused one's beat; closing it. */
+  session: (seasonId: string, couchId: string | null, episode: number, body: { at: number; mode: WatchMode; running: boolean; ad: boolean } | { beat: true } | { at: number; leave: true }) =>
+    post<SessionWrite>(seasonUrl(seasonId, `/watch/${episode}/session`, couchQuery(couchId)), "at" in body ? { ...body, at: Math.floor(body.at) } : body),
+  /** Closing (or the page going away): sent even as the page unloads. */
+  leave: (seasonId: string, couchId: string | null, episode: number, at: number) => {
+    void fetch(seasonUrl(seasonId, `/watch/${episode}/session`, couchQuery(couchId)), {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ at: Math.floor(at), leave: true }),
+      keepalive: true,
+    }).catch(() => {});
+  },
   say: (seasonId: string, couchId: string | null, episode: number, body: { at: number; kind: string; text?: string; gif?: Gif }) =>
     post<{ reaction: Reaction }>(seasonUrl(seasonId, `/watch/${episode}`, couchQuery(couchId)), { ...body, at: Math.floor(body.at) }),
   unsay: async (seasonId: string, episode: number, id: string) => {

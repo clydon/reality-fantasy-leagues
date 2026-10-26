@@ -95,3 +95,32 @@ test("the card's line: who left reactions and how many, never what", () => {
   assert.equal(W.leftLine(["riley", "sam", "jordan", "casey"], 9), "riley, sam and 2 more left 9 reactions · they show up as you reach them");
   assert.match(W.leftLine([], 0), /^Be the first/);
 });
+
+// ---------- who's on now (step 13 part 2) ----------
+
+test("someone else's clock: where it's got to since it was read, and how far from yours", () => {
+  assert.equal(W.watcherAt({ at: 60_000, running: true }, 4_000), 64_000);
+  assert.equal(W.watcherAt({ at: 60_000, running: false }, 4_000), 60_000, "paused: it stays");
+  assert.equal(W.watcherAt({ at: 60_000, running: true }, -500), 60_000, "never backwards");
+  assert.equal(W.offsetText(40_000), "40s ahead");
+  assert.equal(W.offsetText(-80_000), "1:20 behind");
+  assert.equal(W.offsetText(2_400), "with you");
+  assert.equal(W.offsetText(-3_000), "with you");
+  assert.equal(W.offsetText(3_600_000), "1:00:00 ahead");
+  assert.equal(W.nowLine(["riley"]), "riley is watching now");
+  assert.equal(W.nowLine(["riley", "sam"]), "riley and sam are watching now");
+  assert.equal(W.nowLine([]), "");
+});
+
+test("joining the live airing: someone's live clock, else airtime's, a little behind, never past what's aired", () => {
+  const w = (o) => ({ userId: o.name, episode: 6, mode: "live", running: true, ad: false, ...o });
+  const tenMin = 10 * 60_000;
+  assert.deepEqual(W.liveClock(tenMin, []), { at: Math.floor(tenMin * W.LIVE_SHOW_SHARE), ad: false, with: null }, "nobody on: from airtime, less the ads");
+  assert.ok(W.liveClock(tenMin, []).at < tenMin, "behind, never ahead");
+  assert.deepEqual(W.liveClock(tenMin, [w({ name: "riley", at: 8 * 60_000 })]), { at: 8 * 60_000, ad: false, with: "riley" });
+  assert.deepEqual(W.liveClock(tenMin, [w({ name: "riley", at: 8 * 60_000 }), w({ name: "sam", at: 7 * 60_000, running: false, ad: true })]), { at: 7 * 60_000, ad: true, with: "sam" }, "the one furthest behind, ad break and all");
+  assert.equal(W.liveClock(tenMin, [w({ name: "riley", at: 20 * 60_000 })]).at, tenMin, "a clock ahead of the airing is held to it");
+  assert.equal(W.liveClock(tenMin, [w({ name: "riley", at: 60_000, mode: "stream" })]).with, null, "streaming isn't the live airing");
+  assert.equal(W.liveClock(tenMin, [w({ name: "riley", at: 60_000, running: false })]).with, null, "nor a live clock that's paused (on a recording)");
+  assert.equal(W.liveClock(null, []), null, "not aired yet: nothing to join");
+});

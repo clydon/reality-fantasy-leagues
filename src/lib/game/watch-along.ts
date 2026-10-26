@@ -139,6 +139,58 @@ export const moveClock = (c: Clock, now: number, to: { byMs: number } | { toMs: 
   return { at, since: c.since === null ? null : now };
 };
 
+// ---------- who's on now (step 13 part 2) ----------
+
+/** Someone is watching now while their open watch along's heartbeat is this recent (it sends one at least every BEAT_MS). */
+export const PRESENT_MS = 45_000;
+/** A running watch along's poll is its heartbeat; a paused one (or in an ad break) says it's still open this often... */
+export const BEAT_MS = 20_000;
+/** ...for this long after it stopped, then it drops out of who's on now until its clock runs again. */
+export const PAUSED_BEAT_FOR_MS = 10 * 60_000;
+/** The running poll writes its heartbeat only when the last is older than this (a read otherwise). */
+export const BEAT_WRITE_MS = 15_000;
+/**
+ * About how much of a live airing is the show itself (US TV runs 13 to 18 minutes of ads an hour): joining the live airing with
+ * nobody on the couch to follow starts the clock this share of the way from airtime, a little behind the show rather than ahead of
+ * it. Behind is safe (what the couch said only comes later); ahead would bring their reactions before the moment.
+ */
+export const LIVE_SHOW_SHARE = 0.7;
+
+export type WatchMode = "stream" | "live";
+
+/** Someone else's open watch along, as the server read it: where their clock was (`at`, ms into the episode) and how it runs. */
+export interface Watcher {
+  userId: string;
+  name: string;
+  episode: number;
+  mode: WatchMode;
+  at: number;
+  running: boolean;
+  ad: boolean;
+}
+
+/** Where a watcher's clock is `sinceMs` after it was read. */
+export const watcherAt = (w: { at: number; running: boolean }, sinceMs: number): number => Math.min(MAX_RUNTIME_MS, w.running ? w.at + Math.max(0, sinceMs) : w.at);
+
+/** How far someone's clock is from yours: "40s ahead", "1:20 behind", or "with you" within a few seconds. */
+export function offsetText(diffMs: number): string {
+  const s = Math.round(Math.abs(diffMs) / 1000);
+  if (s <= 3) return "with you";
+  return `${s < 60 ? `${s}s` : runtimeText(s * 1000)} ${diffMs > 0 ? "ahead" : "behind"}`;
+}
+
+/**
+ * Join the live airing: the clock of someone on the couch watching it live (running, or in an ad break; the one furthest behind,
+ * never past what's aired), else airtime's, LIVE_SHOW_SHARE of the way from it. Null before it's aired.
+ */
+export function liveClock(airedForMs: number | null, watchers: Watcher[]): { at: number; ad: boolean; with: string | null } | null {
+  if (airedForMs === null || airedForMs < 0) return null;
+  const cap = Math.min(airedForMs, MAX_RUNTIME_MS);
+  const live = watchers.filter((w) => w.mode === "live" && (w.running || w.ad)).sort((a, b) => a.at - b.at)[0];
+  if (live) return { at: Math.min(live.at, cap), ad: live.ad, with: live.name };
+  return { at: Math.floor(cap * LIVE_SHOW_SHARE), ad: false, with: null };
+}
+
 /** "riley and sam", "riley, sam and 2 more". */
 export function namesLine(names: string[]): string {
   if (names.length <= 2) return names.join(" and ");
@@ -149,4 +201,9 @@ export function namesLine(names: string[]): string {
 export function leftLine(people: string[], count: number): string {
   if (!count || !people.length) return "Be the first. Your reactions wait for whoever watches next.";
   return `${namesLine(people)} left ${count} ${count === 1 ? "reaction" : "reactions"} · they show up as you reach them`;
+}
+
+/** "riley is watching now", "riley and sam are watching now" (who on the couch has this episode's watch along open). */
+export function nowLine(names: string[]): string {
+  return names.length ? `${namesLine(names)} ${names.length === 1 ? "is" : "are"} watching now` : "";
 }

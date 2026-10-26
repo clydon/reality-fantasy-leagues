@@ -213,6 +213,20 @@ const placePoints = (place, of) => (of < 2 ? 0 : Math.round(1 + (9 * (of - Math.
       await fits(`hub (${shape})`);
       await shoot(`hub-${shape}`);
     }
+    // On now is real since step 13 part 2 (check-new-watch-along.js covers it): riley with Episode 4 open, as her watch along keeps it.
+    const ws = (
+      await pool.query(
+        "INSERT INTO watch_sessions (season_id, episode, couch_id, started_by, mode, clock_ms, running_since) VALUES ($1, 4, $2, $3, 'stream', 60000, now()) RETURNING id",
+        [sid, fx.couchId, fx.users.riley]
+      )
+    ).rows[0].id;
+    await pool.query("INSERT INTO watch_session_people (session_id, user_id) VALUES ($1, $2)", [ws, fx.users.riley]);
+    await hubReady();
+    const onNowText = await text('[data-on-now="zt_nd_riley"]');
+    check(/zt_nd_riley is watching ZT Survivor/.test(onNowText) && /Episode 4/.test(onNowText) && (await page.locator('[data-preview="hub.on-now"]').count()) === 0, "On now is real: riley is watching ZT Survivor, Episode 4 (no Preview)", onNowText);
+    await pool.query("DELETE FROM watch_sessions WHERE id = $1", [ws]);
+    await hubReady();
+    check((await page.locator("[data-on-now]").count()) === 0, "with nobody on, no On now");
     // Get the couch going is real since step 9 (check-new-couches.js covers it).
     // The guide is real since step 11 part 1 (check-new-guide.js), its Also on since part 2 (check-new-listings.js).
     check((await page.locator("[data-guide]").count()) === 1 && !seen.has("hub.all-of-tv") && going, "the guide is on the hub (no Preview left in it), and a new couch gets Get the couch going");

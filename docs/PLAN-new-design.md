@@ -38,8 +38,8 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **done** 2026-10-26 on the branch, in three parts (part 2 split in two): watching (migration 0121; TV listings from TVmaze on demand), Make it a game to a set-up show with its rulebook and cast (0122), Start a game that fits and archive or delete a game (0123), rulebooks phase 8: the library, the desk's New show, Fits these games, Take it over and Looks right to us (0124); all ship with 0b's | Opus · xhigh |
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | **done** 2026-10-26 on the branch, in three parts: the guide on the couch's shows and Hide from guide (migration 0125), all of TV in the guide and the daily listings job on the bot clock's calls (0126), planned nights (0127); all ship with 0b's | Opus · xhigh |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | **done** 2026-10-26 on the branch, in three parts: Rate it and couch verdicts (migration 0128), Call it, polls and Weekly Calls (0129), bingo, trivia and Weekly Bingo (0130); all ship with 0b's | Opus · xhigh |
-| 13 | Watch along: pinned reactions, GIFs, together sessions | in progress on the branch, in three parts (written 2026-10-26): watch along on your own time (reactions pinned to runtime, GIFs behind config; migration 0131), who's on now and the live airing, together sessions and planned nights | Opus · xhigh |
-| 14 | Streaming shows and the rail | not started | Opus · xhigh |
+| 13 | Watch along: pinned reactions, GIFs, together sessions | in progress on the branch, in three parts (written 2026-10-26): watch along on your own time (reactions pinned to runtime, GIFs behind config; migration 0131), who's on now and the live airing (each open watch along's clock kept on the server; migration 0132), together sessions and planned nights (next); 0131 and 0132 ship with 0b's | Opus · xhigh |
+| 14 | Streaming shows and the rail | not started | Opus · high |
 | 15 | Notifications by moment, account settings, What your couch sees | not started | Opus · xhigh |
 | — | **Merge, deploy and switch the couch to the new design** | after 15 (the user, 2026-10-25): backup, Neon rehearsal, merge, `ui='new'` for the couch | — |
 | C | Cutover: new design for everyone, classic removed, cleanup; rulebooks phase 9 | not started | Opus · xhigh |
@@ -251,7 +251,8 @@ step's As built.
   4"); it needs each finished game's standings episode by episode (a table per episode, read once a season ends and kept),
   which nothing keeps. The records are most titles, ran it back, longest pool streak and best average finish.
 - **Couch accolades are what today's data can say** (step 8; ratings' since step 12 part 1; for 13 part 3 and 14). The mock's By the
-  numbers also has most reactions and most watch alongs (13 part 3: `watch_reactions` has the first since part 1) and first to finish
+  numbers also has most reactions and most watch alongs (13 part 3: `watch_reactions` has the first since part 1, and `watch_sessions` one
+  row per person, episode and couch watched along since part 2) and first to finish
   (14's streaming drops), and Called it most (calls
   since step 12 part 2: `calls.ts callRights` per season, as the profile's "Called it" still counts only league predictions). `couch-standings.ts
   accoladesOf` is where they'd go (the ratings' are `ratings.ts ratingAccolades`: taste twins, the contrarian, never misses a
@@ -346,7 +347,12 @@ step's As built.
   left out of classic's list. C removes the list.
 - **Nobody's progress on a show you watch** (step 10 part 1, the guard's rule since 0b; for 15). The mock's Who's watching and
   The couch is watching say "caught up", "On Episode 5", "2 ahead"; the new design sends nobody else's progress, so they list
-  who watches and what they play. Step 15's What your couch sees could let people share how far they are.
+  who watches and what they play. Step 15's What your couch sees could let people share how far they are. The one exception since
+  step 13 part 2 is who's watching along right now ("riley is watching Episode 7 now", her clock on your bar): only someone who
+  follows the show openly, on the couch they opened it on (its As built says what it reveals and to whom).
+- **Who's on now can't be turned off** (step 13 part 2; for 15). Watching along a show you follow openly tells the couch you're on
+  and which episode, as reactions are heard; Watch privately is the only way out today. The mock's What your couch sees has When I'm
+  watching (share.js's `now`, on in Everything, off in Just my games and Only what games need): `watchersOn` is where it'd apply.
 - **A show added by name has no schedule until it airs in the US listings** (step 10 part 1; since 11 part 2 the daily job links it;
   for a desk step). A show the listings don't have is a name and an empty first season: no episodes or air times, so where you are
   can't be set and nothing's "up next". The daily listings job links it once the next eight days' schedule has one show of that
@@ -429,9 +435,23 @@ step's As built.
 - **A watch along's clock is the watcher's word** (step 13 part 1, as designed). The couch's reactions are held 30 s behind the moment
   the phone says its clock is at, and never past what has aired since airtime; End, +10s or Set the time move it on, and the server
   sends what was said up to there, as where you are on Episodes is yours to say. Nothing past your next episode leaves the server.
-- **Live on TV starts at 0:00** (step 13 part 1; for part 2). The clock starts when you tap it, so joining a live airing late means
-  Set the time or +10s (behind is safe: reactions only come later). Part 2's Join the live airing could start it from airtime, or
-  from someone on the couch already watching.
+  Since part 2 the same goes for who's on now: "40s ahead" is two phones' word, and Catch up moves yours to theirs.
+- **Joining the live airing from airtime is a guess** (step 13 part 2; for a later polish). With nobody on the couch watching it live,
+  Join the live airing starts the clock 70% of the way from airtime (`LIVE_SHOW_SHARE`: US TV runs 13 to 18 minutes of ads an hour),
+  behind the show for most, so the couch's reactions come late rather than early; a show with fewer ads (premium cable, a live final)
+  starts further behind, until +10s or Set the time. A share per network or show, or the first on the couch to tap Live on TV at
+  airtime setting it for the rest (they already do once they're on: Join follows them), would get closer.
+- **A watch along behind another app drops out** (step 13 part 2, as designed). Its heartbeat comes only from an open, visible watch
+  along (nothing polls from a hidden tab), so someone streaming on the same phone, the watch along behind the player, leaves who's on
+  now 45 s later and comes back when they return to it; a paused one stops saying it's open after ten minutes. The screen-on lock is
+  there to keep it in front.
+- **The desk's castaway Override is sometimes not in every league when the check reads it** (seen in step 13 part 2; for a desk step or
+  a later polish). `check-new-desk.js`'s "every league renames him (no one added)" failed in two runs of four on 2026-10-26 and passed
+  in the others, with nothing of the desk's changed. `overrideCastaway` awaits `applyApprovedCastToLeagues` before it answers, so the
+  likelier cause is another write to the same league state racing it (a read that tidies a league and saves it back outside
+  `withLeagueLock`, from a page the check has open); worth a look at whatever writes `leagues.state` without the lock.
+- **Two phones, one session** (step 13 part 2; for a later polish). Your own watch along of an episode on a couch is one session, so
+  the same person with it open on two phones has one clock on the server, whichever wrote last; the couch sees one of them.
 - **What you said is taken back only from the stream** (step 13 part 1; for a later polish). The × is on your own lines while they're
   among the six shown; once they've scrolled away, or you've closed it, nothing lists what you said on an episode.
 - **The watch along's length is the slot's** (step 13 part 1; for a later polish). The bar and the automatic End come from the
@@ -3534,6 +3554,90 @@ pushes. New: `src/lib/game/watch-along.ts` (pure: `watchEpisode`, `mayWatch`, `o
   where presence can ride (an answer could carry who's watching that episode now) rather than a second poll; `Clock` and its
   run/stop/move are what a session keeps on the server; Live on TV's start (`start("live", 0)`) is where "Join the live airing" goes;
   the card's live line (`WatchAlongCard`) and the hub's `OnNow` (sections.tsx, on `fixtures/watch-along.ts`) wait for it.
+
+### As built, step 13 part 2 (2026-10-26, on `new-design`): who's on now and the live airing
+
+Migration **0132** (ships with 0b's, same rehearsal): `watch_sessions` (season, episode, the couch it's watched with or none, who
+started it, `together` (always false until part 3), `mode`, the clock: `clock_ms` and `running_since` (the server's time; NULL while
+paused or in an ad break, `ad` saying which), `version`) and `watch_session_people` (session, person, `joined_at`, `seen_at` (the
+heartbeat), `left_at`). Your own watch along of an episode on a couch is one session (`watch_sessions_own`, a partial unique index on
+who, season, episode and couch where not together): opening it again carries on in it. **No new poll and nothing on a schedule**
+(HOSTING.md): presence rides on the reads part 1 already makes, plus a paused watch along's beat. New: `src/lib/server/
+watch-sessions.ts` (the SQL: `writeOwnSession`, `leaveOwnSession`, `beatOwnSession`, `watchersOn`), `POST /api/seasons/[id]/watch/
+[n]/session?couch=` (`sessionWrite`), `GET /api/couches/[id]/now` (`couchOnNow`), the pure side in `src/lib/game/watch-along.ts`
+(`PRESENT_MS` 45 s, `BEAT_MS` 20 s, `PAUSED_BEAT_FOR_MS` ten minutes, `BEAT_WRITE_MS` 15 s, `LIVE_SHOW_SHARE` 0.7, `Watcher`,
+`watcherAt`, `offsetText`, `liveClock`, `nowLine`), `useOnNow` and `watchApi.session`/`leave` in data.ts. The card, the read and a
+session write each answer with `now`: the rest of the couch's open watch alongs (the card's on the season, the others' on the episode).
+- **The clock on the server:** written when it starts, pauses, goes to an ad break or moves (±10s, Set the time, Catch up, Streaming /
+  Live TV), 300 ms after the last tap so a few taps are one write; the server keeps where it stood and since when by its own clock, so
+  anyone's is read where it has got to. **The heartbeat:** the running watch along's 5 s read carries `beat=1` and writes it only when
+  the last is 15 s old (most polls just look); paused or in an ad break, a beat every 20 s for ten minutes, then nothing (you drop out
+  until it runs again); coming back to the tab, or the page back from the browser's cache, beats at once. Closing it, End, or the page
+  going away (`pagehide`, a keepalive fetch) leaves at once; a hidden tab or a phone asleep drops out 45 s after its last heartbeat,
+  worked out when read (nothing sweeps them). A poll still on its way as you close never brings you back; only a beat does. Alone (no
+  couch) nothing's kept.
+- **What it reveals, and to whom (decided):** presence is progress ("riley is watching Episode 7 now" says how far she is, and her
+  clock where she is in it), so it follows the reactions' rule: only someone who follows the show openly (never a private watcher's,
+  nor someone's who doesn't follow it), only on the couch they opened it on (ZT Extra never sees the main couch's), never alone, never
+  yourself, each person once (their freshest session), and shown to the rest of that couch's people (a site admin looking in sees
+  none). That includes people on the couch who don't follow the show: the hub's On now and The couch is watching are how a couch finds
+  shows, as the mock has them. It says which episode and where their clock is, never what happens in it; nothing else about an episode
+  past your mark leaves the server (the read and a session are refused past your next episode, as in part 1). It's the one exception to
+  "nobody's progress" (Noticed) until step 15's When I'm watching can turn it off (Noticed).
+- **In the watch along:** "riley is watching now · 43s ahead" under the bar (the mock's .near line), "paused, 1:20 behind", "in an ad
+  break", "with you" within 3 s, "riley and sam are watching now · riley 40s ahead" with several (the one furthest ahead leads); each
+  one's mark on the bar (their square, up to four, moving on between reads); **Catch up** once someone's 5 s or more ahead (your
+  clock to theirs, written too). The start: "riley is on now · 1 watched earlier" with their faces (the mock's crowd line).
+- **The live airing:** while your episode is on air, the start leads with **Join the live airing**: the clock of someone on the couch
+  watching it live (running or in an ad break, the one furthest behind, never past what's aired: "In step with riley · 4:42 in"), else
+  from airtime, 70% of the way ("About 7:23 in, from airtime · a touch behind, to be safe": US TV runs 13 to 18 minutes of ads an hour,
+  so that's a little behind the show for most; behind is safe, ahead would bring the couch's reactions early; Noticed). It starts on
+  Live TV, in an ad break if theirs is. Live on TV reads "Live on TV, from the start" then (a recording, or from the top). "Live on TV
+  starts at 0:00" is out of Noticed.
+- **Tonight:** the Watch along card says who's on its episode now ("riley and sam are watching · your bingo card comes with you" on air,
+  as the mock's during card; "riley is watching now · join in: what they say shows up as you reach it" else), and Who's watching (a
+  show you don't play) has "Watching now · Episode 7": both from the card's one read when the show opens (not polled). The start reads
+  the card again as it opens, so its line and the live clock are fresh.
+- **The hub:** **On now** is real (`hub.on-now` and `fixtures/watch-along.ts` gone): the first of the couch's people watching along (on
+  one of your shows first), "riley is watching Survivor", "Live · Episode 6 · and 1 more · Watch along ›"; on your show it opens your
+  watch along of it (their episode when you're that far, else your next: never past it), on one you don't follow "Have a look" opens
+  the show. **The couch is watching** marks a show someone's on ("riley is on" on its picture, "riley · now" by her name: the mock's
+  watching.js). One read when the hub opens (`/api/couches/[id]/now`, kept 30 s; coming back to the tab after that reads it again): no
+  poll. Nobody on, nothing there.
+- **Changed from the mock:** On now's "Watch along ›" moved under the name (the mock's one row cut the show's name off at 390, "riley
+  is watching Be…"); a show's Who's watching says only "Watching now · Episode 7" (no "2 ahead": other progress stays unsent).
+- **Shaped for part 3:** a session is the clock and people are in it (`watch_session_people`), `together` and `version` are there for one
+  clock anyone in it can pause (its version polled), and `watchersOn` reads people, not sessions, so several in one session each show.
+- **Backups leave sessions out (decided):** a session is a clock and a heartbeat, nobody's choice, true for a minute; a restore bringing
+  old ones back would show nobody (their heartbeats are old) and the next watch along writes its own. If part 3's "most watch alongs"
+  counts sessions (one own row per person, episode and couch is a fair count), it adds them to the backups then.
+- **Checks:** `check-new-watch-along.js` grows with part 2 (180 PASS at 390): the clock kept as it starts, pauses, goes to an ad break and
+  closes (one session, its version moving on); who's on it in the read, the card and On now, each clock where it has got to; leaving at
+  once, a beat bringing it back, a heartbeat 50 s old dropping out with no job, a late poll not bringing it back; the poll writing its
+  heartbeat only every 15 s or so; never yourself, another couch, a private watcher or someone not following; once each, their
+  freshest; the live airing; the refusals; then two browsers at once (riley's mark on sam's bar, "riley is watching now · 43s ahead",
+  Catch up, her pause and her closing reaching his line on his next poll), Join the live airing from airtime for alex and in step with
+  alex for riley, the hub's On now (Live · Episode 6) opening a watch along to join her, and riley on the Traitors (On now's Have a look,
+  The couch is watching's "riley is on"). `check-new-hub.js` asserts On now is real (a session for riley shows the strip; none, none).
+  `tests/watch-along.test.js` (9: the offsets, `liveClock`). Fixed on the way: part 1's "a clock ahead of the airing" assertion
+  allowed only under 10:00, but the schedule keeps airtime to the minute, so it failed whenever the check ran past the 30 s mark.
+  The rest pass, one at a time: check-new-episode-games (285), -plans (102), -listings (75), -guide (57), -library (91), -start-game
+  (75), -make-it (81), -watching (114), -solo (92), -way-in (85), -couches (114), -hub (77), -draft (90), -settling (96), -results-ways
+  (89), -ours (89), -desk (100; one of its assertions misses now and then, Noticed), -community (82), -backstage (67), -backstage-ii
+  (116), -show (69), -shell (46), -reveal (49), -stats (57), -chat (52), check-foundation, check-preview (step 13 in progress:
+  `show.watch-together` left) and check-backup-restore; `npm test` 617 of 617; type-check clean; lint (src) as before (the old error in
+  classic's `use-sheet-swipe.ts` and the old warning in `episode-results.ts`). Seen at 390 in the browser: riley's mark on sam's bar with
+  "43s ahead" and Catch up, a paused riley with sam on hers, the start's "riley is on now · 1 watched earlier", Join the live airing
+  from airtime and in step with alex, the hub's On now, and The couch is watching's "riley is on".
+- **Noticed, left as is:** five, now in Noticed, not fixed: who's on now can't be turned off (15), joining the live airing from airtime
+  is a guess, a watch along behind another app drops out, two phones share one session, and check-new-desk's castaway Override
+  sometimes not in every league when it's read. "Live on TV starts at 0:00" is fixed.
+- **For part 3:** together sessions. A session with `together` true is several people's: `writeOwnSession` has a sibling that lets
+  anyone in it move the clock (bumping `version`), joining puts a person row in it (and leaves your own), the watch along polls its
+  version every few seconds while open (the plan's), the near line says "watching together", and a planned night's Open/Join
+  (`show.watch-together`, `couch/watch-plans.tsx`) starts or joins one (the live airing's clock is `liveClock`; a shared start's "3, 2,
+  1"). Up next's planned night, a shared start's own time, bingo ticks to whoever's watching together and the two accolades are in
+  Noticed with part 3's name on them.
 
 ## Step C: cutover
 

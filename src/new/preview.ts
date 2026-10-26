@@ -24,9 +24,8 @@ export const PREVIEWS = {
   // step 9; Add a show, the "you both watch" nudge and The couch is watching since step 10; Start a game since 10 part 2b; the
 // TV guide on the couch's shows since step 11 part 1, all of TV in it since part 2; Couch verdicts and the taste twin since step
 // 12 part 1; Call it and the couch's polls in Commercial break's This week only since part 2, its bingo and trivia since part 3;
-// Watch along from Up next, Previously on and the solo hub since step 13 part 1) ----
+// Watch along from Up next, Previously on and the solo hub since step 13 part 1, On now since part 2) ----
   "hub.notifications": { step: "15", title: "Notifications", line: "What's happened on your couch since you last looked." },
-  "hub.on-now": { step: "13", title: "On now", line: "Who's watching right now, and joining them." },
   "hub.streaming": { step: "14", title: "Streaming on the couch", line: "Shows without an airtime, at your own pace." },
 
   // ---- a show space (ported in 0d; fixtures in src/new/fixtures/; Make it a game is real since step 10 part 2a, Start a game

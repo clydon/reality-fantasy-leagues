@@ -3,18 +3,15 @@
 import { useState } from "react";
 import { ChartColumn, ChevronRight, Crown, Link2, Plus, RotateCcw, Tv, Trophy } from "lucide-react";
 import { airTime, calmWhen, ticks } from "../clock";
-import { useAfterWatching, useInviteCode, watching, type Couch, type CouchHub, type CouchShow, type FeedItem, type Home, type HomeShow, type Move, type PlayingGame, type WeekProgress } from "../data";
+import { useAfterWatching, useInviteCode, useOnNow, watching, type Couch, type CouchHub, type CouchShow, type FeedItem, type Home, type HomeShow, type Move, type PlayingGame, type WeekProgress } from "../data";
 import { openCouchSheet } from "../couch/couch-sheets";
 import { openStartGame } from "../couch/start-game";
-import { ON_NOW } from "../fixtures/watch-along";
-import { PEOPLE, type Demo } from "../fixtures/people";
 import { ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { Avatar, useNow } from "../ui/bars";
 import { usePushedPage } from "../ui/page";
 import { Btn, SectionHead } from "../ui/parts";
-import { Preview } from "../ui/preview";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { openWatching } from "../watching/sheets";
@@ -22,12 +19,7 @@ import { openWatching } from "../watching/sheets";
 // The hub's sections (the mock's index.html hub, refine.js wireHub, hubplus.js, watching.js, fresh.js), in the order
 // screens/home.tsx lays them out. Real (step 8): the status line and Up next (results to reveal first, then what's due,
 // then the soonest airing), your shows (each poster's best place, flipping to your games), On the couch (the feed) and
-// what the grows-with-you hub promises. The rest on fixtures inside <Preview>, each with the step that makes it real.
-
-/** A demo person's square, in the mock's colour (the fixtures' people). */
-export function DemoAvatar({ who, size = 24 }: { who: Demo; size?: number }) {
-  return <Avatar id={who} name={who} size={size} colour={PEOPLE[who]} />;
-}
+// what the grows-with-you hub promises; who's on now since step 13 part 2.
 
 const showName = (s: HomeShow) => s.show.name.replace(/^The /, "");
 
@@ -256,29 +248,48 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
 
 // ---------- On now ----------
 
-export function OnNow() {
+/**
+ * Who else on the couch is watching along right now (step 13 part 2; the mock's hubplus.js nowHTML, its Watch along moved under the
+ * name, where the mock's cut the show's name off at 390): the first of them (on one of
+ * your shows first), which show and episode, and how many more. On a show of yours it opens your watch along of it (their episode
+ * when you're that far, else your next: never past it); on one you don't follow, the show. Read once when the hub opens
+ * (watch-along.ts couchOnNow), never polled; with nobody on, nothing here.
+ */
+export function OnNow({ home, couch }: { home: Home; couch: Couch | null }) {
+  const { data } = useOnNow(couch?.id ?? null);
+  const list = data?.now ?? [];
+  if (!list.length) return null;
+  const mine = (seasonId: string) => home.shows.find((s) => s.seasonId === seasonId && (s.following || s.games.length > 0));
+  const w = [...list].sort((a, b) => Number(!!mine(b.seasonId)) - Number(!!mine(a.seasonId)))[0];
+  const yours = mine(w.seasonId);
+  const next = yours ? (yours.seenThrough == null ? Number.POSITIVE_INFINITY : yours.seenThrough + 1) : 0;
+  const href = yours ? paths.watch(w.seasonId, w.episode <= next ? w.episode : null) : paths.show(w.seasonId);
   return (
-    <Preview id="hub.on-now" tag={false} className="mx-4 mb-3.5 mt-3.5">
-      <button
-        type="button"
-        className="flex w-full items-center gap-2.5 rounded-[4px] bg-good/10 px-2.5 py-2 text-left outline-1 -outline-offset-1 outline-good/45"
-      >
-        <span className="type-caption flex flex-none items-center gap-[5px] text-[10px] tracking-[0.06em] text-good">
-          <i className="size-[7px] animate-pulse rounded-full bg-good" aria-hidden />
-          On now
-        </span>
-        <DemoAvatar who={ON_NOW.who} size={26} />
-        <span className="min-w-0 flex-1">
-          <b className="block truncate text-sm">
-            {ON_NOW.who} is watching {ON_NOW.show}
-          </b>
-          <small className="text-xs text-muted-foreground">Episode {ON_NOW.episode}</small>
-        </span>
-        <span className="flex flex-none items-center gap-0.5 text-[13px] font-bold text-good">
-          Watch along <ChevronRight className="size-3.5" aria-hidden />
-        </span>
-      </button>
-    </Preview>
+    <NavLink
+      href={href}
+      data-on-now={w.name}
+      data-on-now-season={w.seasonId}
+      className="nd-press mx-4 mb-3.5 mt-3.5 flex items-center gap-2.5 rounded-[4px] bg-good/10 px-2.5 py-2 text-left outline-1 -outline-offset-1 outline-good/45"
+    >
+      <span className="type-caption flex flex-none items-center gap-[5px] text-[10px] tracking-[0.06em] text-good">
+        <i className="size-[7px] animate-pulse rounded-full bg-good" aria-hidden />
+        On now
+      </span>
+      <Avatar id={w.userId} name={w.name} size={26} />
+      <span className="min-w-0 flex-1">
+        <b className="block truncate text-sm">
+          {w.name} is watching {plainName(w.header.show.name)}
+        </b>
+        <small className="flex items-center whitespace-nowrap text-xs text-muted-foreground">
+          {w.live ? "Live · " : ""}Episode {w.episode}
+          {list.length > 1 ? ` · and ${list.length - 1} more` : ""}
+          {" · "}
+          <span className="ml-1 inline-flex items-center gap-0.5 font-bold text-good">
+            {yours ? "Watch along" : "Have a look"} <ChevronRight className="size-3.5" aria-hidden />
+          </span>
+        </small>
+      </span>
+    </NavLink>
   );
 }
 
@@ -520,6 +531,9 @@ const labelOf = (s: { show: { name: string }; seasonNumber: number | null }) => 
 
 export function CouchWatching({ home, couch }: { home: Home; couch: Couch | null }) {
   const list = couchWatching(home, couch);
+  // Who's watching along right now (step 13 part 2: the hub's one read of it, shared with On now).
+  const { data: on } = useOnNow(couch?.id ?? null);
+  const onNow = (seasonId: string) => (on?.now ?? []).filter((w) => w.seasonId === seasonId);
   if (!list.length) return null;
   return (
     <section className="mt-8" data-couch-watching>
@@ -535,6 +549,15 @@ export function CouchWatching({ home, couch }: { home: Home; couch: Couch | null
                     Not on your list
                   </span>
                 )}
+                {onNow(s.seasonId).length > 0 && (
+                  <span
+                    data-watched-on={onNow(s.seasonId)[0].name}
+                    className="type-caption absolute bottom-2 left-2 flex items-center gap-[5px] rounded-[2px] bg-good px-[7px] py-[3px] text-[10px] tracking-[0.05em] text-good-foreground"
+                  >
+                    <i className="size-1.5 animate-pulse rounded-full bg-current" aria-hidden />
+                    {onNow(s.seasonId)[0].name} is on
+                  </span>
+                )}
               </span>
               <b className="type-caption px-3 pb-1 pt-2.5 text-[18px] leading-none">{labelOf(s)}</b>
               <span className="flex flex-col gap-[5px] px-3 pb-3 text-xs text-muted-foreground">
@@ -542,6 +565,7 @@ export function CouchWatching({ home, couch }: { home: Home; couch: Couch | null
                   <span key={m.userId} className="flex items-center gap-1.5">
                     <Avatar id={m.userId} name={m.name} size={20} />
                     {m.name}
+                    {onNow(s.seasonId).some((w) => w.userId === m.userId) ? " · now" : ""}
                   </span>
                 ))}
                 {who.length > 3 && <span>+{who.length - 3} more</span>}

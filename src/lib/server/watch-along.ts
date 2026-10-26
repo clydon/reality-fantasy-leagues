@@ -3,6 +3,7 @@ import {
   LATE_MS,
   MAX_RUNTIME_MS,
   mayWatch,
+  type Watcher,
   othersThrough,
   TEXT_MAX,
   watchEpisode,
@@ -16,6 +17,8 @@ import { HttpError, pool } from "./db";
 import { gifFrom, type GifSource } from "./gifs";
 import { EVERYTHING, seenThrough } from "./guard";
 import { DEFAULT_RUNTIME_MIN, latestAired, seasonSchedules, upNext, type SeasonSchedule } from "./schedule";
+import { seasonHeaders, type SeasonHeader } from "./show-space";
+import { asWatcher, beatOwnSession, leaveOwnSession, watchersOn, writeOwnSession } from "./watch-sessions";
 
 // Watch along (docs/PLAN-new-design.md step 13 part 1; migration 0131 watch_reactions; the pure rules are watch-along.ts):
 //   GET    /api/seasons/[id]/watch?couch=                 Tonight's card: which episode you'd watch along, and who on the couch
@@ -26,6 +29,8 @@ import { DEFAULT_RUNTIME_MIN, latestAired, seasonSchedules, upNext, type SeasonS
 //          comments and GIFs you've passed) and the couch's count
 //   POST   /api/seasons/[id]/watch/[n]?couch=             { at, kind, text?, gif? } say something at a moment
 //   DELETE /api/seasons/[id]/watch/[n]/[reactionId]       take back something you said
+//   POST   /api/seasons/[id]/watch/[n]/session?couch=     { at, mode, running, ad } your watch along's clock, when it starts, pauses
+//          or moves; { beat: true } it's still open (paused); { at, leave: true } closed (step 13 part 2, watch-sessions.ts)
 //
 // Spoiler-safe on the server: you watch along an episode you've seen or your next one (guard.ts seenThrough), once it's aired
 // (the next to air opens as "soon", with nothing in it); the couch's reactions reach you only once your clock is 30 s past their
@@ -33,6 +38,11 @@ import { DEFAULT_RUNTIME_MIN, latestAired, seasonSchedules, upNext, type SeasonS
 // (guard.ts visibleFollows: a private watcher's stay theirs), said to this couch. Alone (no couch, or a couch of one) it's just
 // yours. A reaction is a moment of an episode, so it says what that person was watching, as a rating says they've seen it. The
 // screen polls the read while its clock runs (docs/HOSTING.md), so a season's air times are kept a little while per server.
+//
+// Who's on now (step 13 part 2): the card, the read and a session write each carry `now`, the rest of the couch's open watch alongs
+// (the card's on the season, the read's on its episode): who, which episode, where their clock is and how it runs. As reactions are
+// heard, only from people on the couch who follow the show openly, and only on the couch they opened it on (watch-sessions.ts); the
+// poll (`beat`) is the running watch along's heartbeat. It says how far someone is, never what happens.
 
 export interface WatchFace {
   userId: string;
@@ -62,6 +72,8 @@ export interface WatchCard {
   /** The couch's reactions on it (not yours): how many, and who, most first. */
   count: number;
   people: WatchFace[];
+  /** Who else on the couch has a watch along of this season open right now (any episode), and where their clock is. */
+  now: Watcher[];
 }
 
 export interface WatchRead {
@@ -83,6 +95,22 @@ export interface WatchRead {
   scope: "couch" | "solo";
   you: { following: boolean; private: boolean; seen: boolean };
   gifs: boolean;
+  /** Who else on the couch is watching this episode along right now, and where their clock is (read at `at`'s moment). */
+  now: Watcher[];
+}
+
+/** Someone on the couch watching along right now, for the hub's On now (any of the couch's shows). */
+export interface OnNow extends Watcher {
+  seasonId: string;
+  header: SeasonHeader;
+  /** Their episode is on air right now (the live airing). */
+  live: boolean;
+}
+
+export interface SessionWrite {
+  /** Your watch along's session (null alone: nobody else would see it, so nothing's kept). */
+  session: { id: string; version: number } | null;
+  now: Watcher[];
 }
 
 /** At most this many a read, and on an episode from one person. */
@@ -130,6 +158,8 @@ interface Context {
   /** The couch said to (validated), and whether its other people's reactions come (a couch of one: no). */
   couch: string | null;
   others: boolean;
+  /** On the couch (not a site admin looking in): who's on now is only for its own people. */
+  member: boolean;
 }
 
 async function context(user: SessionUser, seasonId: string, couchId: string | null, now: Date, fresh: boolean): Promise<Context> {
@@ -145,14 +175,21 @@ async function context(user: SessionUser, seasonId: string, couchId: string | nu
     live: up?.live ? up.number : null,
     couch: couch.id,
     others: couch.others,
+    member: couch.member,
   };
 }
 
-async function couchOf(user: SessionUser, couchId: string | null): Promise<{ id: string | null; others: boolean }> {
-  if (!couchId) return { id: null, others: false };
-  await requireCouch(user, couchId);
+async function couchOf(user: SessionUser, couchId: string | null): Promise<{ id: string | null; others: boolean; member: boolean }> {
+  if (!couchId) return { id: null, others: false, member: false };
+  const role = await requireCouch(user, couchId);
   const { rows } = await pool.query("SELECT count(*)::int AS n FROM couch_members WHERE couch_id = $1", [couchId]);
-  return { id: couchId, others: rows[0].n > 1 };
+  return { id: couchId, others: rows[0].n > 1, member: role !== "viewer" };
+}
+
+/** Who else on the couch is watching along right now (on the season, or one episode of it), as this viewer may be told. */
+async function nowOn(user: SessionUser, seasonId: string, ctx: Context, episode?: number): Promise<Watcher[]> {
+  if (!ctx.couch || !ctx.others || !ctx.member) return [];
+  return (await watchersOn(user.id, ctx.couch, { seasonId, episode })).map(asWatcher);
 }
 
 const runtimeOf = (schedule: SeasonSchedule, n: number) => schedule.episodes.find((e) => e.number === n)?.runtimeMin ?? DEFAULT_RUNTIME_MIN;
@@ -188,8 +225,11 @@ async function couchCount(seasonId: string, n: number, ctx: Context, me: string)
 export async function watchCard(user: SessionUser, seasonId: string, couchId: string | null, now = new Date()): Promise<WatchCard> {
   const ctx = await context(user, seasonId, couchId, now, true);
   const pick = watchEpisode({ mark: ctx.mark, latestAired: ctx.latest, next: ctx.next, live: ctx.live });
-  if (!pick) return { seasonId, episode: null, status: null, airAt: null, runtimeMin: DEFAULT_RUNTIME_MIN, count: 0, people: [] };
-  const left = pick.status === "soon" ? { count: 0, people: [] } : await couchCount(seasonId, pick.episode, ctx, user.id);
+  const [watching, left] = await Promise.all([
+    nowOn(user, seasonId, ctx),
+    !pick || pick.status === "soon" ? { count: 0, people: [] } : couchCount(seasonId, pick.episode, ctx, user.id),
+  ]);
+  if (!pick) return { seasonId, episode: null, status: null, airAt: null, runtimeMin: DEFAULT_RUNTIME_MIN, count: 0, people: [], now: watching };
   return {
     seasonId,
     episode: pick.episode,
@@ -197,6 +237,7 @@ export async function watchCard(user: SessionUser, seasonId: string, couchId: st
     airAt: airAtOf(ctx.schedule, pick.episode),
     runtimeMin: runtimeOf(ctx.schedule, pick.episode),
     ...left,
+    now: watching,
   };
 }
 
@@ -218,7 +259,7 @@ export async function watchRead(
   seasonId: string,
   couchId: string | null,
   nIn: unknown,
-  q: { at?: unknown; since?: unknown; open?: boolean },
+  q: { at?: unknown; since?: unknown; open?: boolean; beat?: boolean },
   gifs: boolean,
   now = new Date()
 ): Promise<WatchRead> {
@@ -229,6 +270,9 @@ export async function watchRead(
   const ctx = await context(user, seasonId, couchId, now, !!q.open);
   const may = mayWatch(n, { mark: ctx.mark, latestAired: ctx.latest, next: ctx.next, live: ctx.live });
   if (!may.ok) throw new HttpError(may.status, may.error);
+  // The running watch along's poll is its heartbeat (written now and then: watch-sessions.ts), then who else is on it.
+  if (q.beat && ctx.couch) await beatOwnSession(user.id, seasonId, n, ctx.couch, false);
+  const others = nowOn(user, seasonId, ctx, n);
   const aired = airedFor(ctx.schedule, n, now);
   const through = ctx.others ? othersThrough(at, aired) : -1;
   // Your own come back through where you are, without the wait (you said them); never past what's aired either.
@@ -245,6 +289,7 @@ export async function watchRead(
     scope: (ctx.others ? "couch" : "solo") as "couch" | "solo",
     you,
     gifs,
+    now: await others,
   };
   if (mineThrough < 0) return { ...base, through: -1, reactions: [], pins: q.open ? [] : null, count: q.open ? 0 : null, people: q.open ? [] : null };
 
@@ -335,6 +380,62 @@ export async function sayAt(
   );
   const name = (user as SessionUser & { username?: string | null }).username || user.name;
   return asReaction({ ...(rows[0] as Row), name }, user.id);
+}
+
+/**
+ * Your watch along's clock, kept for the couch (who's on now): written when it starts, pauses or moves (`at`, `mode`, `running`,
+ * `ad`), a beat while it's open and paused (`beat`), and closing it (`leave`, with where it stopped). Only on an episode you may watch
+ * along that has aired; alone (no couch) nothing's kept. Answers with who else on the couch is on that episode now.
+ */
+export async function sessionWrite(
+  user: SessionUser,
+  seasonId: string,
+  couchId: string | null,
+  nIn: unknown,
+  body: { at?: unknown; mode?: unknown; running?: unknown; ad?: unknown; beat?: unknown; leave?: unknown },
+  now = new Date()
+): Promise<SessionWrite> {
+  const n = episodeNumber(nIn);
+  const at = body.at === undefined || body.at === null ? null : msParam(body.at, "at");
+  // A beat (every 20 s while paused) may use the schedule kept for half a minute; a clock write reads it afresh, as saying something does.
+  const ctx = await context(user, seasonId, couchId, now, body.beat !== true);
+  const may = mayWatch(n, { mark: ctx.mark, latestAired: ctx.latest, next: ctx.next, live: ctx.live });
+  if (!may.ok) throw new HttpError(may.status, may.error);
+  if (may.status === "soon" || airedFor(ctx.schedule, n, now) === null) throw new HttpError(409, `Episode ${n} hasn't aired yet`);
+  if (!ctx.couch) return { session: null, now: [] };
+  if (body.leave === true) {
+    await leaveOwnSession(user.id, seasonId, n, ctx.couch, at);
+    return { session: null, now: await nowOn(user, seasonId, ctx, n) };
+  }
+  let session: SessionWrite["session"] = null;
+  if (body.beat === true) await beatOwnSession(user.id, seasonId, n, ctx.couch, true);
+  else {
+    if (at === null) throw new HttpError(400, "at must be a moment of the episode, in ms");
+    if (body.mode !== "stream" && body.mode !== "live") throw new HttpError(400, "mode must be stream or live");
+    session = await writeOwnSession(user.id, seasonId, n, ctx.couch, { at, mode: body.mode, running: body.running === true, ad: body.ad === true });
+  }
+  return { session, now: await nowOn(user, seasonId, ctx, n) };
+}
+
+/**
+ * The hub's On now: who else on the couch has a watch along open right now, on which show and episode (never what happens in it).
+ * Only for the couch's own people; as everywhere, only someone who follows the show openly, on the couch they opened it on.
+ */
+export async function couchOnNow(user: SessionUser, couchId: string, now = new Date()): Promise<{ now: OnNow[] }> {
+  if ((await requireCouch(user, couchId)) === "viewer") return { now: [] };
+  const rows = await watchersOn(user.id, couchId);
+  if (!rows.length) return { now: [] };
+  const seasons = [...new Set(rows.map((r) => r.seasonId))];
+  const [headers, schedules] = await Promise.all([seasonHeaders(seasons), Promise.all(seasons.map((id) => scheduleOf(id, false)))]);
+  const onAir = new Map(seasons.map((id, i) => [id, upNext(schedules[i], now)]));
+  return {
+    now: rows
+      .filter((r) => headers.has(r.seasonId))
+      .map((r) => {
+        const up = onAir.get(r.seasonId);
+        return { ...asWatcher(r), seasonId: r.seasonId, header: headers.get(r.seasonId)!, live: !!up?.live && up.number === r.episode };
+      }),
+  };
 }
 
 /** Take back something you said at a moment. */

@@ -103,7 +103,8 @@ measured; measure from Neon's usage a week after a change):
 | New design, Backstage › Results while a One tap runs (`/backstage/ways`) | 4 s, only while one runs | ~1 KB |
 | New design, an episode page while the bot adds a show change (`/api/seasons/[id]/show-changes/[n]`) | 4 s, only while it's added (~1-3 min) | under 1 KB |
 | New design, Make it a game while our bot asks (`/api/seasons/[id]/make?poll=1`) | 3 s, only while the bot asks (~2-4 min, once per show set up) | under 200 bytes (a version: one small row); the page reads the whole review (~10-20 KB) only when it moves |
-| New design, a watch along while its clock runs (`/api/seasons/[id]/watch/[n]?at=&since=`) | 5 s, only while its clock runs and the tab is in front (not paused, not in an ad break, not before you start) | under 1 KB when nobody said anything new (a few small queries: your mark, the couch, the reactions since the runtime it has, through 30 s behind your clock); ~200 bytes a new comment, more for a GIF's link |
+| New design, a watch along while its clock runs (`/api/seasons/[id]/watch/[n]?at=&since=&beat=1`) | 5 s, only while its clock runs and the tab is in front (not paused, not in an ad break, not before you start) | under 1 KB when nobody said anything new (a few small queries: your mark, the couch, the reactions since the runtime it has, through 30 s behind your clock, and since step 13 part 2 who else is on it now, a few rows by the heartbeats' index; its heartbeat is written only every 15 s or so, a small UPDATE); ~200 bytes a new comment, more for a GIF's link, ~150 bytes a person on it |
+| New design, a paused watch along's beat (`POST /api/seasons/[id]/watch/[n]/session` `{ beat }`, step 13 part 2) | 20 s, only while it's paused or in an ad break and in front, and for ten minutes at most after it stopped | a small UPDATE (the heartbeat) and who's on it now: under 1 KB |
 | New design, the open draft room (`/api/seasons/[id]/draft?v=`) | 4 s while a turn-based draft is live; 15 s while a draft waits to start or people lock in a blind draft; not once it's done | ~1-2 KB (a hash check per game, a few small reads: your seat, queue and mark); the answer is 16 characters when nothing changed, else the draft (~10-20 KB) |
 
 **The way in (new design, step 9 part 2)** polls nothing. First run's catalog (`/api/catalog`, open signed out: every
@@ -259,9 +260,22 @@ type, 350 ms after you stop), which our server asks GIPHY once per search an hou
 load from GIPHY's CDN in the browser (not through us: no Vercel bandwidth). No push, nothing on a schedule. Backed up with the
 couch's games (`backup-leagues.js`).
 
+**Who's on now (new design, step 13 part 2)** adds no poll of its own. Each open watch along's clock is kept in `watch_sessions` (migration
+0132; ~250 bytes) with whoever's in it in `watch_session_people` (~120 bytes): one row each per person, episode and couch watched along,
+reused when it's opened again, so a couch of four watching every episode of five weekly shows is ~1,000 of each a year (~400 KB). It's
+written when the clock starts, pauses, goes to an ad break, moves or closes (a handful of small writes a watch along, a moment after the
+last tap), and its heartbeat rides on the running watch along's 5 s read (written only every 15 s or so: most polls just look); paused or
+in an ad break, it beats every 20 s for ten minutes at most, then stops, so a phone left paused with its screen kept on can keep Neon
+awake ten minutes longer than part 1's nothing, never more. Someone's gone 45 s after their last heartbeat, worked out when read: nothing
+sweeps the table and nothing runs on a schedule. Who else is on it now comes back with each of those reads (a few rows, by an index on
+the heartbeat), with Tonight's card (when the show opens) and from `/api/couches/[id]/now`, the hub's On now: read when the hub opens
+(and when you come back to it after 30 s), never polled, under 1 KB (the last minute's heartbeats on the couch, and each show's header).
+Not backed up: a session is a clock and a heartbeat, true for a minute.
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
-none on the hub, 14 in a watch along while its clock runs (its own 12, and the 2 of the show space's Chat badge under it).
+none on the hub, 14 in a watch along while its clock runs (its own 12, and the 2 of the show space's Chat badge under it), 5 while
+it's paused (a beat every 20 s, for ten minutes at most, and the badge's 2).
 
 **Rough scale, so the first wall is visible:** 100 couches of 4, each person with a screen open 3 hours a week,
 is about 5,200 screen-hours a month: ~5 GB of Neon transfer (the free limit) and ~3M Vercel invocations (three
@@ -613,3 +627,8 @@ never handles it: the user does the reset and the pasting.
   (`GIPHY_API_KEY`; no key, no GIFs): searches asked by our server and kept at the edge an hour, pictures loaded from GIPHY's CDN in
   the browser; a beta key allows 100 calls an hour. Tonight reads one more small thing when a show opens (its Watch along card). No
   pushes.
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 13 part 2, who's on now and the live airing. **No new poll, nothing on a
+  schedule.** Migration 0132: `watch_sessions` and `watch_session_people` (one small row each per person, episode and couch watched along;
+  not backed up). Each open watch along writes its clock when it starts, pauses or moves, and a heartbeat: on the running 5 s read
+  (written every 15 s or so), or every 20 s while paused for ten minutes at most (a paused watch along used to ask nothing). Who else is
+  on it comes back with those reads, Tonight's card, and the hub's On now (`/api/couches/[id]/now`, read when the hub opens). No pushes.

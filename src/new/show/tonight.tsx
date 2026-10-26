@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { Check, ChevronRight, Eye, EyeOff, Grid3x3, Lock, MessageCircle, Plus } from "lucide-react";
 import { airTime, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
 import { AskAiSheet, checkFull } from "../backstage/ask-ai";
-import { backstage, chatCouch, useAfterResults, useChatBadge, type GameView, type PasteResult } from "../data";
+import { backstage, chatCouch, useAfterResults, useChatBadge, useWatchCard, type GameView, type PasteResult } from "../data";
 import { gameColour, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
@@ -158,10 +158,12 @@ function Following({ show }: { show: ShowData }) {
   );
 }
 
-/** Who on the couch watches it (openly) or plays a game on it, you first. Never how far anyone is: the guard shares
- *  nobody's progress. */
+/** Who on the couch watches it (openly) or plays a game on it, you first. Never how far anyone is (the guard shares nobody's
+ *  progress), except who's watching along right now, which says the episode (step 13 part 2: the Watch along card's read). */
 function WhosWatching({ show }: { show: ShowData }) {
   const me = useMe();
+  const card = useWatchCard(show.header?.seasonId ?? null, show.couch?.id ?? null, !!show.header);
+  const nowOf = (userId: string) => (card.data?.now ?? []).find((w) => w.userId === userId);
   const people = (show.people ?? []).filter((p) => p.watching || p.playing.length || p.userId === me.id);
   const list = [...people.filter((p) => p.userId === me.id && (show.following || p.playing.length)), ...people.filter((p) => p.userId !== me.id)];
   if (!list.length || show.solo) return null;
@@ -173,6 +175,7 @@ function WhosWatching({ show }: { show: ShowData }) {
         {list.map((p) => {
           const you = p.userId === me.id;
           const plays = p.playing.map(gameOf).filter(Boolean);
+          const on = you ? null : nowOf(p.userId);
           return (
             <div key={p.userId} data-watcher={p.name} className="flex min-h-[60px] items-center gap-3 border-t border-border py-2 first:border-t-0">
               <Avatar id={p.userId} name={p.name} size={34} />
@@ -182,7 +185,17 @@ function WhosWatching({ show }: { show: ShowData }) {
                   {you && <span className="type-caption rounded-[2px] bg-foreground px-1.5 py-px text-[10px] tracking-[0.05em] text-background">You</span>}
                 </b>
                 <small className="block text-[13px] text-muted-foreground">
-                  {plays.length ? `Plays ${plays.join(" and ")}` : you && show.watchingPrivately ? "Watching privately" : "Watches it"}
+                  {on ? (
+                    <span data-watching-now className="font-semibold text-good">
+                      Watching now · Episode {on.episode}
+                    </span>
+                  ) : plays.length ? (
+                    `Plays ${plays.join(" and ")}`
+                  ) : you && show.watchingPrivately ? (
+                    "Watching privately"
+                  ) : (
+                    "Watches it"
+                  )}
                 </small>
               </span>
             </div>
