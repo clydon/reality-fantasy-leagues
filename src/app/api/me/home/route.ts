@@ -7,7 +7,7 @@ import { couchMembers, healCouches } from "@/lib/server/couches";
 import { dueMoves } from "@/lib/server/due-moves";
 import { seenThrough } from "@/lib/server/guard";
 import { followsOf, games, seasonHeaders, type Game } from "@/lib/server/show-space";
-import { latestAired, seasonSchedules, upNext } from "@/lib/server/schedule";
+import { latestAired, seasonSchedules, titledFor, upNext } from "@/lib/server/schedule";
 import { progressOf } from "@/lib/server/season-games";
 import { leagueStates } from "@/lib/server/league-states";
 import { resultsDue } from "@/lib/game/results-due";
@@ -15,7 +15,8 @@ import { resultsDue } from "@/lib/game/results-due";
 // The new design's home (docs/PLAN-new-design.md step 0b; the hub, step 8): your couches with their people and
 // games, the shows you follow or play with where you are in each and what's on next (and who's set for it, step 1),
 // and the moves due across your leagues (due-moves.ts, the same items as the classic action bar), and per show what
-// its results ask of you (step 8: results in to reveal, or the morning update's final scores; results-due.ts).
+// its results ask of you (step 8: results in to reveal, or the morning update's final scores; results-due.ts), and the
+// couches' shows you don't follow (step 10: The couch is watching).
 //
 // Spoiler-safe through guard.ts: it says nothing about results beyond that they're in (and at which stage), only when
 // episodes air and how far you are.
@@ -40,13 +41,24 @@ export const GET = apiRoute(async (req) => {
   const seasonIds = [...new Set([...mine.filter((f) => f.following).map((f) => f.seasonId), ...myGames.map((g) => g.seasonId).filter((id): id is string => !!id)])];
   // The couches' seasons too, for each couch's line in the switcher ("Survivor 51 · Traitors 5 · 4 people").
   const couchSeasonIds = couchGames.map((g) => g.seasonId).filter((id): id is string => !!id);
-  const [headers, schedules, moves] = await Promise.all([seasonHeaders([...seasonIds, ...couchSeasonIds]), seasonSchedules(seasonIds), dueMoves(user.id)]);
+  // What the couches' people watch openly that you don't follow (step 10: The couch is watching, Add to my shows).
+  const theirs = [...new Set(follows.filter((f) => f.userId !== user.id && f.following && !f.private).map((f) => f.seasonId))].filter(
+    (id) => !seasonIds.includes(id)
+  );
+  const [headers, schedules, moves] = await Promise.all([
+    seasonHeaders([...seasonIds, ...couchSeasonIds, ...theirs]),
+    seasonSchedules([...seasonIds, ...theirs]),
+    dueMoves(user.id),
+  ]);
   // Who's set this week in your games with a weekly move, read after the moves so each state costs a hash; and each
   // game's state again (a hash each) for what its results ask of you.
   const [progress, states, early, seats] = await Promise.all([
     progressOf(user, myGames),
     leagueStates(myGames.filter((g) => g.seasonId).map((g) => g.leagueId)),
-    pool.query("SELECT season_id, early_seen FROM show_follows WHERE user_id = $1 AND early_seen IS NOT NULL", [user.id]),
+    pool.query(
+      "SELECT season_id, early_seen, nudge_off_at IS NOT NULL AS nudge_off FROM show_follows WHERE user_id = $1 AND (early_seen IS NOT NULL OR nudge_off_at IS NOT NULL)",
+      [user.id]
+    ),
     pool.query("SELECT league_id, player_id FROM league_memberships WHERE user_id = $1", [user.id]),
   ]);
   // A game you're catching up in (step 9) reveals from its own strip, not the hub's "Results are in".
@@ -55,7 +67,8 @@ export const GET = apiRoute(async (req) => {
     const st = states.get(g.leagueId);
     return !!st && !StateLogic.GhostLogic.isCatchingUp(st, seatIn.get(g.leagueId) ?? null);
   };
-  const earlySeen = new Map(early.rows.map((r) => [r.season_id as string, r.early_seen as number]));
+  const earlySeen = new Map(early.rows.filter((r) => r.early_seen != null).map((r) => [r.season_id as string, r.early_seen as number]));
+  const nudged = new Set(early.rows.filter((r) => r.nudge_off).map((r) => r.season_id as string));
   const now = new Date();
   const shows = [];
   for (const id of seasonIds) {
@@ -68,9 +81,11 @@ export const GET = apiRoute(async (req) => {
       ...header,
       following: follow?.following ?? false,
       private: follow?.private ?? false,
+      // The hub's "you both watch" nudge was answered for this show (step 10).
+      nudgeOff: nudged.has(id),
       // null: they see results straight away (spoiler protection off in Account settings).
       seenThrough: Number.isFinite(seen) ? seen : null,
-      upNext: upNext(schedule, now),
+      upNext: ((u) => (u ? titledFor(u, seen) : null))(upNext(schedule, now)),
       latestAired: latestAired(schedule, now),
       games: myGames.filter((g) => g.seasonId === id).map(gameOut),
       // Who's set for the next episode, per game with a weekly move (Up next shows the current couch's).
@@ -99,6 +114,12 @@ export const GET = apiRoute(async (req) => {
         .map((h) => ({ seasonId: h.seasonId, label: `${h.show.name.replace(/^The /, "")}${h.seasonNumber ? ` ${h.seasonNumber}` : ""}`, status: h.status })),
     })),
     shows,
+    // The couches' shows you don't follow (step 10's The couch is watching): who watches each is in the couch's members.
+    couchShows: theirs
+      .map((id) => headers.get(id))
+      .filter((h) => !!h)
+      // Not yours: nothing seen, so no episode's title.
+      .map((h) => ({ ...h, upNext: ((u) => (u ? titledFor(u, 0) : null))(upNext(schedules.get(h.seasonId), now)), latestAired: latestAired(schedules.get(h.seasonId), now) })),
     // Leagues with no season in the catalog (a league still being set up), so they're not lost.
     unscheduled: myGames.filter((g) => !g.seasonId).map(gameOut),
     moves: moves.items,

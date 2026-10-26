@@ -10,7 +10,7 @@ import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { AccountForm, CheckEmail, GoogleButton, OrLine, UsernameSheet } from "./account";
-import { WhereRow } from "./first-run";
+import { WhereRow } from "../watching/where";
 
 // An invite for someone new (docs/PLAN-new-design.md step 9 part 2; the mock's landing.js joinRoute, joinAccount and
 // joinWhereSheet): the couch is on the page first (JoinScreen), then joining asks for an account (a sheet: Google when

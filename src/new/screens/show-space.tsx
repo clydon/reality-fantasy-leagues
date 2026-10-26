@@ -2,9 +2,9 @@
 
 import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { BookOpen, Ellipsis, Eye, KeyRound, Bell, LogOut, Plus, RotateCcw, Tv, UserPlus, Users } from "lucide-react";
+import { BookOpen, CalendarDays, Ellipsis, EyeOff, Eye, KeyRound, Bell, LogOut, Plus, RotateCcw, Tv, UserPlus, Users, X } from "lucide-react";
 import { airTime, calm, justAired, ticks } from "../clock";
-import { chatCouch, gameAdmin, useAfterReveal, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type UpNext } from "../data";
+import { chatCouch, gameAdmin, useAfterReveal, useAfterWatching, watching, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type UpNext } from "../data";
 import { movesByDue } from "../hub/sections";
 import { useNav } from "../nav";
 import { isShowTab, paths, SHOW_TABS, type ShowTab } from "../routes";
@@ -29,6 +29,7 @@ import { ShowBar, TabBar } from "../ui/show-bar";
 import type { PreviewId } from "../preview";
 import { openCouchSheet } from "../couch/couch-sheets";
 import { PoolPage } from "../show/solo";
+import { openWatching, type WhereTarget } from "../watching/sheets";
 
 // A show space (/show/[seasonId]/[tab]): the show bar (the show's art, where the next episode is, the ⋯ menu), the
 // five tabs (Tonight · Episodes · Games · Cast · Chat; solo drops Chat; each in src/new/show/), the moves dock above
@@ -64,6 +65,14 @@ export function useShow(seasonId: string) {
     // From the couch the home already has, so the tab bar doesn't change once the space comes back.
     solo: !couch || couch.members.length <= 1,
     seenThrough: space.data ? space.data.you.seenThrough : (cached?.seenThrough ?? 0),
+    /** You follow it (step 10): on your shows, openly or privately. */
+    following: space.data ? space.data.you.following : (cached?.following ?? false),
+    /** Watched privately: the couch doesn't see it on your list. */
+    watchingPrivately: space.data ? space.data.you.private : (cached?.private ?? false),
+    /** You play this season (here or elsewhere): where you are moves with your games' reveals. */
+    plays: space.data ? !!space.data.you.plays : !!cached?.games.length,
+    /** Set up as a game (step 10): false is "Not a game yet". */
+    ready: (space.data ?? cached)?.ready !== false,
     upNext: space.data?.schedule?.upNext ?? cached?.upNext ?? null,
     latestAired: space.data?.schedule?.latestAired ?? cached?.latestAired ?? 0,
     moves,
@@ -78,6 +87,35 @@ export function useShow(seasonId: string) {
 }
 
 export type ShowData = ReturnType<typeof useShow>;
+
+/** As people say a show: "The Traitors", not "The Traitors (US)". */
+const plainName = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
+
+/** Where you are in this show, for the where sheet (step 10: watching/sheets.tsx). */
+export function whereTarget(show: ShowData): WhereTarget | null {
+  const h = show.header;
+  if (!h) return null;
+  const name = plainName(h.show.name);
+  return {
+    seasonId: h.seasonId,
+    label: `${name}${h.seasonNumber ? ` ${h.seasonNumber}` : ""}`,
+    show: name,
+    artUrl: h.show.artUrl,
+    artPosition: "center",
+    aired: show.latestAired,
+    status: h.status === "upcoming" || h.status === "completed" ? h.status : "airing",
+    premiere: h.premiereDate,
+    seen: show.seenThrough ?? show.latestAired,
+    following: show.following,
+    plays: show.plays,
+  };
+}
+
+/** Open where you are (or Add to my shows, on a show you don't follow). */
+export function openWhere(show: ShowData) {
+  const target = whereTarget(show);
+  if (target) openWatching({ kind: "where", target });
+}
 
 /** Is this path one of this show's tabs? (Back from a page pushed over the show goes to whichever tab you left.) */
 export const isTabOf = (seasonId: string) => (prev: string) => prev.startsWith(`/show/${seasonId}/`) && isShowTab(prev.split("/")[3] ?? "");
@@ -157,21 +195,35 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
   );
 }
 
-/** Tonight's couch line: who's on this show with you, and how many games. */
+/** Tonight's couch line: who's on this show with you, and how many games; on a show with no game here, who on the couch
+ *  watches it (the mock's "2 on the couch watch"), and "Not a game yet" on a show nobody's set up. */
 function CouchLine({ show }: { show: ShowData }) {
   const games = show.games.length;
+  const watchers = games ? null : (show.people ?? []).filter((p) => p.watching || p.playing.length);
+  const faces = watchers ?? show.people;
   return (
-    <div className="flex items-center gap-2.5 px-2 pt-2.5 text-[13px] font-semibold">
-      {show.people && (
+    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 px-2 pt-2.5 text-[13px] font-semibold" data-couch-line>
+      {faces && faces.length > 0 && (
         <span className="flex">
-          {show.people.slice(0, 6).map((p, i) => (
+          {faces.slice(0, 6).map((p, i) => (
             <span key={p.userId} className={`rounded-[3px] shadow-[0_0_0_2px_var(--background)] ${i ? "-ml-1.5" : ""}`}>
               <Avatar id={p.userId} name={p.name} size={24} />
             </span>
           ))}
         </span>
       )}
-      {show.solo ? "Watching solo" : `${show.couch?.name ?? "Your couch"}${games ? ` · ${games} ${games === 1 ? "game" : "games"}` : ""}`}
+      {show.solo
+        ? "Watching solo"
+        : watchers
+          ? watchers.length
+            ? `${watchers.length} on the couch ${watchers.length === 1 ? "watches" : "watch"}`
+            : (show.couch?.name ?? "Your couch")
+          : `${show.couch?.name ?? "Your couch"} · ${games} ${games === 1 ? "game" : "games"}`}
+      {!show.ready && (
+        <span data-not-a-game className="type-caption rounded-[2px] px-[7px] py-[2px] text-[11px] tracking-[0.05em] outline-1 -outline-offset-1 outline-dashed outline-white/60">
+          Not a game yet
+        </span>
+      )}
     </div>
   );
 }
@@ -244,15 +296,18 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
               dot={needs.length > 0}
             />
           )}
-          <Row
-            icon={BookOpen}
-            title="How it works"
-            detail="The show, the games and what scores, in plain words"
-            onClick={() => {
-              setOpen(false);
-              how.show();
-            }}
-          />
+          {show.ready && (
+            <Row
+              icon={BookOpen}
+              title="How it works"
+              detail="The show, the games and what scores, in plain words"
+              onClick={() => {
+                setOpen(false);
+                how.show();
+              }}
+            />
+          )}
+          <WatchingRows show={show} onDone={() => setOpen(false)} />
           {show.couch && show.games.length > 0 && (
             <Row href={paths.backstage(seasonId, "history")} icon={RotateCcw} title="Recent changes" detail="What's changed in these games, and who changed it" />
           )}
@@ -317,16 +372,99 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   );
 }
 
+/** The ⋯ menu's watching rows (step 10; the mock's watching.js wMenu): on your shows, watch privately and where you are, and
+ *  Remove from my shows (a show you play stays: your games keep it); not on them, Add to my shows. */
+function WatchingRows({ show, onDone }: { show: ShowData; onDone: () => void }) {
+  const refresh = useAfterWatching();
+  const nav = useNav();
+  const h = show.header;
+  if (!h) return null;
+  const name = plainName(h.show.name);
+  if (!show.following && !show.plays) {
+    return (
+      <Row
+        icon={Plus}
+        title="Add to my shows"
+        detail="Then where you are: nothing past it shows"
+        onClick={() => {
+          onDone();
+          openWhere(show);
+        }}
+      />
+    );
+  }
+  return (
+    <>
+      {/* A switch, not a row that goes somewhere (the desk's SwitchRow, in the menu's row shape). */}
+      <button
+        type="button"
+        role="switch"
+        aria-checked={show.watchingPrivately}
+        data-private-switch={show.watchingPrivately ? "on" : "off"}
+        onClick={async () => {
+          const on = !show.watchingPrivately;
+          onDone();
+          try {
+            await watching.follow(h.seasonId, { following: true, private: on });
+            await refresh();
+            toast(on ? "Watching privately · only you see it" : "The couch can see you watch it again");
+          } catch (e) {
+            toast((e as Error).message);
+          }
+        }}
+        className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0"
+      >
+        <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary">
+          {show.watchingPrivately ? <EyeOff className="size-5" aria-hidden /> : <Eye className="size-5" aria-hidden />}
+        </span>
+        <span className="min-w-0 flex-1">
+          <b className="block text-[15px] font-semibold">Watch privately</b>
+          <small className="mt-0.5 block text-[13px] text-muted-foreground">Only you see this on your list. Chat and the games still work.</small>
+        </span>
+        <span aria-hidden className={`relative h-[30px] w-[52px] flex-none rounded-full transition-colors ${show.watchingPrivately ? "bg-foreground" : "bg-secondary"}`}>
+          <i className={`absolute top-[3px] size-6 rounded-full transition-[left] ${show.watchingPrivately ? "left-[25px] bg-background" : "left-[3px] bg-muted-foreground"}`} />
+        </span>
+      </button>
+      <Row
+        icon={CalendarDays}
+        title="Where you are"
+        detail={show.plays ? "Moves as you reveal each episode" : show.seenThrough ? `Episode ${show.seenThrough}` : "Not started"}
+        onClick={() => {
+          onDone();
+          openWhere(show);
+        }}
+      />
+      {!show.plays && show.following && (
+        <Row
+          icon={X}
+          title="Remove from my shows"
+          detail="Where you are is kept if you add it again"
+          onClick={async () => {
+            onDone();
+            try {
+              await watching.follow(h.seasonId, { following: false });
+              await refresh();
+              toast(`${name} removed from your shows`);
+              nav.push(paths.home);
+            } catch (e) {
+              toast((e as Error).message);
+            }
+          }}
+        />
+      )}
+    </>
+  );
+}
+
 /** One tab's content. Everything past Tonight is spoiler-guarded, so it carries the one spoiler chip. */
 export function TabScreen({ seasonId, tab }: { seasonId: string; tab: ShowTab }) {
   const show = useShow(seasonId);
-  const [where, setWhere] = useState(false);
   if (!show.header) return <TabSkeleton />;
   return (
     <div data-tab={tab}>
       {tab !== "tonight" && (
         <div className="px-4 pt-4">
-          <GuardChip seenThrough={show.seenThrough} onChange={() => setWhere(true)} />
+          <GuardChip seenThrough={show.seenThrough} onChange={() => openWhere(show)} />
         </div>
       )}
       {tab === "tonight" && <Tonight seasonId={seasonId} show={show} />}
@@ -334,9 +472,6 @@ export function TabScreen({ seasonId, tab }: { seasonId: string; tab: ShowTab })
       {tab === "games" && <Games show={show} />}
       {tab === "cast" && <Cast seasonId={seasonId} show={show} />}
       {tab === "chat" && <Chat seasonId={seasonId} show={show} />}
-      <Sheet open={where} onOpenChange={setWhere} title="Where you are" subtitle={show.header.show.name}>
-        <Preview id="show.where" />
-      </Sheet>
     </div>
   );
 }

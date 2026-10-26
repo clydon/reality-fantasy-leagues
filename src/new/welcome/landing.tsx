@@ -288,7 +288,8 @@ function Wall() {
 
 function ThreeTaps({ catalog, onStart }: { catalog: CatalogSeason[] | null; onStart: (seasonId?: string) => void }) {
   // The first three shows first run would show (on now first), one season each.
-  const tiles = (catalog ?? []).filter((s, i, all) => all.findIndex((x) => x.show === s.show) === i).slice(0, 3);
+  // The curated shows set up as games (the catalog has every show people added too since step 10).
+  const tiles = (catalog ?? []).filter((s) => s.curated && s.ready).filter((s, i, all) => all.findIndex((x) => x.show === s.show) === i).slice(0, 3);
   const team = some(S51, ["Kristin", "Mike", "Brady"]);
   return (
     <section className="lp-sec" aria-labelledby="lpHow">

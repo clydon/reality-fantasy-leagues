@@ -5,7 +5,8 @@ import { pool, HttpError } from "@/lib/server/db";
 import { couchMembers, healCouches, requireCouch } from "@/lib/server/couches";
 import { seenThrough } from "@/lib/server/guard";
 import { followsOf, games, playersOf, seasonHeaders } from "@/lib/server/show-space";
-import { latestAired, seasonSchedules, upNext } from "@/lib/server/schedule";
+import { latestAired, seasonSchedules, titledFor, upNext } from "@/lib/server/schedule";
+import { LEAGUE_SEASON_JOIN } from "@/lib/server/league-season";
 
 // A show space's frame (docs/PLAN-new-design.md step 0b; the screens are steps 0d and 1): the show bar's
 // header, the schedule (Up next, the episodes and when they air), where you are, and the games on it, with
@@ -28,7 +29,12 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
   const [schedules, seen, { rows: follow }] = await Promise.all([
     seasonSchedules([seasonId]),
     seenThrough(user.id, seasonId),
-    pool.query("SELECT following, private FROM show_follows WHERE user_id = $1 AND season_id = $2", [user.id, seasonId]),
+    pool.query(
+      `SELECT following, private,
+              EXISTS (SELECT 1 FROM league_memberships m JOIN leagues l ON l.id = m.league_id ${LEAGUE_SEASON_JOIN} WHERE m.user_id = $1 AND ss.id = $2) AS plays
+         FROM (SELECT 1) one LEFT JOIN show_follows f ON f.user_id = $1 AND f.season_id = $2`,
+      [user.id, seasonId]
+    ),
   ]);
   const schedule = schedules.get(seasonId);
 
@@ -52,11 +58,21 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
     you: {
       following: follow[0]?.following ?? false,
       private: follow[0]?.private ?? false,
+      // You play this season (any couch, or solo): where you are moves with your games' reveals (step 10's Where you are).
+      plays: !!follow[0]?.plays,
       // null: they see results straight away (spoiler protection off in Account settings).
       seenThrough: Number.isFinite(seen) ? seen : null,
     },
     schedule: schedule
-      ? { release: schedule.release, dropAt: schedule.dropAt, airTz: schedule.airTz, upNext: upNext(schedule, now), latestAired: latestAired(schedule, now), episodes: schedule.episodes }
+      ? {
+          release: schedule.release,
+          dropAt: schedule.dropAt,
+          airTz: schedule.airTz,
+          upNext: ((u) => (u ? titledFor(u, seen) : null))(upNext(schedule, now)),
+          latestAired: latestAired(schedule, now),
+          // Titles only for what you've seen (step 10: a listing's title can give an episode away).
+          episodes: schedule.episodes.map((e) => titledFor(e, seen)),
+        }
       : null,
     games: gamesHere,
     people,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Check, ChevronRight, Eye, Lock, MessageCircle, Plus, Tv } from "lucide-react";
+import { Check, ChevronRight, Eye, EyeOff, Lock, MessageCircle, Plus, Tv } from "lucide-react";
 import { airTime, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
 import { BINGO_CARD } from "../fixtures/episode-games";
 import { AskAiSheet, checkFull } from "../backstage/ask-ai";
@@ -9,9 +9,12 @@ import { backstage, chatCouch, useAfterResults, useChatBadge, type GameView, typ
 import { gameColour, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
-import type { ShowData } from "../screens/show-space";
-import { useNow } from "../ui/bars";
-import { Btn, BtnLink } from "../ui/parts";
+import { openWhere, type ShowData } from "../screens/show-space";
+import { useMe } from "../session";
+import { namesOf } from "../hub/sections";
+import { PlayIt } from "./games";
+import { Avatar, useNow } from "../ui/bars";
+import { Btn, BtnLink, GuardChip } from "../ui/parts";
 import { toast } from "../ui/toast";
 import { Preview } from "../ui/preview";
 import { ShowArt } from "../ui/show-bar";
@@ -42,12 +45,15 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
       {playing && <CatchUpStrips show={show} onOpen={setCatchUp} />}
       <CatchUpSheet show={show} game={catchUp} onOpenChange={(o) => !o && setCatchUp(null)} />
       <PhaseHead show={show} />
+      {!playing && <Following show={show} />}
       {playing && <AfterEpisode seasonId={seasonId} show={show} />}
       {playing && <FillItIn seasonId={seasonId} show={show} />}
       {playing && <YourMoves seasonId={seasonId} show={show} />}
       {playing && <LastTime show={show} />}
       <Extras show={show} />
       <WatchAlongCard seasonId={seasonId} show={show} />
+      {!playing && <WhosWatching show={show} />}
+      {!playing && !show.solo && <PlayIt show={show} />}
       {playing && <YourGames seasonId={seasonId} show={show} />}
       <StatsCard seasonId={seasonId} show={show} />
     </>
@@ -88,6 +94,90 @@ function PhaseHead({ show }: { show: ShowData }) {
       <b className="type-caption flex items-center gap-2 text-[22px]">{title}</b>
       {aside && <span className="text-sm text-muted-foreground">{aside}</span>}
     </div>
+  );
+}
+
+// ---------- a show you don't play (step 10) ----------
+
+/** On your shows: the one spoiler chip (Change opens where you are) and, watching privately, a line saying so. Not on them:
+ *  who on the couch watches it, and Add to my shows. */
+function Following({ show }: { show: ShowData }) {
+  const me = useMe();
+  if (!show.following) {
+    const who = (show.people ?? []).filter((p) => p.userId !== me.id && (p.watching || p.playing.length)).map((p) => p.name);
+    return (
+      <section className="mt-[18px] px-4">
+        <div data-follow-card className="flex flex-col gap-2 rounded-[4px] bg-card p-4 outline-1 -outline-offset-1 outline-border">
+          {who.length > 0 && (
+            <span className="flex">
+              {(show.people ?? [])
+                .filter((p) => p.userId !== me.id && (p.watching || p.playing.length))
+                .slice(0, 6)
+                .map((p, i) => (
+                  <span key={p.userId} className={`rounded-[3px] shadow-[0_0_0_2px_var(--card)] ${i ? "-ml-1.5" : ""}`}>
+                    <Avatar id={p.userId} name={p.name} size={30} />
+                  </span>
+                ))}
+            </span>
+          )}
+          <b className="text-[17px] leading-tight">{who.length ? `${namesOf(who)} ${who.length === 1 ? "watches" : "watch"} this` : "Not on your shows"}</b>
+          <small className="text-[13.5px] leading-snug text-muted-foreground">
+            Add it and the couch sees you watch it (or watch privately). Nothing past your episode ever shows.
+          </small>
+          <Btn wide className="mt-1" data-follow-add onClick={() => openWhere(show)}>
+            <Plus className="size-5" aria-hidden />
+            Add to my shows
+          </Btn>
+        </div>
+      </section>
+    );
+  }
+  return (
+    <section className="mt-[18px] px-4" data-following>
+      <GuardChip seenThrough={show.seenThrough} onChange={() => openWhere(show)} />
+      {show.watchingPrivately && (
+        <p data-private-line className="mt-2 flex items-center gap-1.5 text-[13px] text-muted-foreground">
+          <EyeOff className="size-4 flex-none" aria-hidden />
+          Watching privately: the couch doesn&rsquo;t see this on your list
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** Who on the couch watches it (openly) or plays a game on it, you first. Never how far anyone is: the guard shares
+ *  nobody's progress. */
+function WhosWatching({ show }: { show: ShowData }) {
+  const me = useMe();
+  const people = (show.people ?? []).filter((p) => p.watching || p.playing.length || p.userId === me.id);
+  const list = [...people.filter((p) => p.userId === me.id && (show.following || p.playing.length)), ...people.filter((p) => p.userId !== me.id)];
+  if (!list.length || show.solo) return null;
+  const others = list.filter((p) => p.userId !== me.id).length;
+  const gameOf = (id: string) => show.games.find((g) => g.leagueId === id)?.gameName;
+  return (
+    <Block title="Who's watching" aside={`${list.length} on the couch`}>
+      <div data-whos-watching>
+        {list.map((p) => {
+          const you = p.userId === me.id;
+          const plays = p.playing.map(gameOf).filter(Boolean);
+          return (
+            <div key={p.userId} data-watcher={p.name} className="flex min-h-[60px] items-center gap-3 border-t border-border py-2 first:border-t-0">
+              <Avatar id={p.userId} name={p.name} size={34} />
+              <span className="min-w-0 flex-1">
+                <b className="flex items-center gap-2 text-[15px] font-semibold">
+                  {p.name}
+                  {you && <span className="type-caption rounded-[2px] bg-foreground px-1.5 py-px text-[10px] tracking-[0.05em] text-background">You</span>}
+                </b>
+                <small className="block text-[13px] text-muted-foreground">
+                  {plays.length ? `Plays ${plays.join(" and ")}` : you && show.watchingPrivately ? "Watching privately" : "Watches it"}
+                </small>
+              </span>
+            </div>
+          );
+        })}
+        {!others && <p className="mt-1 text-[13px] text-muted-foreground">Nobody else on the couch watches it yet.</p>}
+      </div>
+    </Block>
   );
 }
 

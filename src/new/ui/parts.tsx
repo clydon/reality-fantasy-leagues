@@ -2,7 +2,7 @@
 
 import type { ComponentProps, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
-import { ChevronRight, ShieldCheck } from "lucide-react";
+import { ChevronRight, Minus, Plus, ShieldCheck } from "lucide-react";
 import { NavLink } from "../nav";
 
 // The new design's small parts (the mock's .btn, .row, .sh, .chip, .gd-chip). Rules they carry (the critique,
@@ -134,5 +134,22 @@ export function GuardChip({ seenThrough, onChange, className = "" }: { seenThrou
       </span>
       {onChange && <b className="text-foreground">Change</b>}
     </button>
+  );
+}
+
+/** A number you step up or down (where you are in a season: never under 0 or past `max`). */
+export function Stepper({ value, max, label, onChange }: { value: number; max: number; label: string; onChange: (n: number) => void }) {
+  return (
+    <div className="flex flex-none items-center" data-stepper={label}>
+      <button type="button" aria-label={`Earlier in ${label}`} disabled={value <= 0} onClick={() => onChange(Math.max(0, value - 1))} className="grid size-11 place-items-center rounded-[3px] bg-card disabled:opacity-40">
+        <Minus className="size-5" aria-hidden />
+      </button>
+      <b className="type-num w-9 text-center text-[24px]" aria-live="polite">
+        {value}
+      </b>
+      <button type="button" aria-label={`Later in ${label}`} disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))} className="grid size-11 place-items-center rounded-[3px] bg-card disabled:opacity-40">
+        <Plus className="size-5" aria-hidden />
+      </button>
+    </div>
   );
 }

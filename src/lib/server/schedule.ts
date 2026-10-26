@@ -108,6 +108,14 @@ export function upNext(schedule: SeasonSchedule | undefined, now = new Date()): 
   return null;
 }
 
+/**
+ * An episode as someone may be told about it: its title only once they've seen it (step 10: the TV listings carry a title
+ * for every episode, and one that's aired can give it away). `seen` is guard.ts' seenThrough (Infinity: everything).
+ */
+export function titledFor<T extends { number: number; title: string | null }>(ep: T, seen: number): T {
+  return ep.number <= seen || !ep.title ? ep : { ...ep, title: null };
+}
+
 /** The latest episode that has aired (started), or 0. */
 export function latestAired(schedule: SeasonSchedule | undefined, now = new Date()): number {
   let n = 0;

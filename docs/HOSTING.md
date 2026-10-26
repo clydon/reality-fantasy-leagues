@@ -16,6 +16,7 @@ free plan stops being enough, choosing the cheapest fit is arithmetic, not resea
 | **GitHub** (`clydon/reality-fantasy-leagues`, **public since 2026-10-24**) | The code; Actions runs the hourly job (`auto-research.yml`: auto-research, reminders, waivers) and the nightly wiki sync | Free; Actions minutes unlimited while public | $0 |
 | healthchecks.io | Emails when the bot's daily self-test fails | Free | $0 |
 | Resend | Sign-up and password emails | not checked | $0? |
+| **TVmaze** API (`api.tvmaze.com`, new design step 10 part 1, on the branch) | TV listings for Add a show: the show search as you type, and a show's seasons and episode air times when someone adds it. Asked only then, never on a timer (step 11's daily schedule job is still to come) | Free, no key. Data is CC BY-SA (credited with a link back on Add a show); at least 20 calls every 10 seconds per IP, else HTTP 429; posters hotlinked from its image CDN (allowed) | $0 |
 | Google Cloud OAuth client (**not made yet**: the user's, step 9 part 2) | Continue with Google on the new design's way in. Off until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (no keys, no button) | Free (sign-in only: the email, profile and openid scopes, no verification review needed) | $0 |
 | Anthropic API | Paid auto-research (Claude), only for seasons switched on | Pay per use | per episode researched |
 | Domain `gameyourshow.com` | Bought 2026-10-12 | not recorded | yearly |
@@ -119,6 +120,20 @@ reads *send to the browser* stays small however big it gets: the top ten, you an
 count. A **practice couch** is an ordinary small league (you and three computer players, ~20-40 KB like any) per person
 per season; the computer players take their turns inside the writes and reads that already happen (a pick, results
 arriving, someone opening the game), so they wake nothing.
+
+**Watching (new design, step 10 part 1)** polls nothing and runs nothing on a schedule. **Add a show's search** asks
+`/api/listings/search?q=` once typing pauses (300 ms): one Vercel invocation per query, nothing from Neon, the answer kept
+at the edge for an hour per query (a minute when TVmaze didn't answer), and one TVmaze call when it isn't cached. Its other
+suggestions come from the catalog (`/api/catalog`, already cached at the edge for 5 minutes), which now lists **every**
+show's seasons, not only the curated ones: about 250 bytes a season from Neon per uncached read, so it grows with each
+show people add (fine at hundreds of seasons; past ~1,000, at most 12 uncached reads an hour, it would approach 1-2 GB of
+transfer a month, and the search should move to the server). **Adding a show** nobody has added before is two TVmaze calls
+(the show with its seasons, then one season's episodes) and a few small writes: a `shows` row (with its listing, ~1 KB), a
+`show_seasons` row and a `season_episodes` row per episode (~100 bytes each), at most 10 new shows per person a day
+(`NEW_SHOWS_A_DAY` in add-show.ts). Adding it again a day later reads that season's episodes again (the only refresh until
+step 11's job). A show's poster is TVmaze's medium image, hotlinked (~25 KB; its only other size is the upload itself, often
+over 1 MB, so it's never used). The hub's home read now also carries the couch's shows you don't follow (their headers and
+schedules: a few hundred bytes each), and the show space's read one more small query (whether you play the season).
 
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
@@ -393,3 +408,12 @@ never handles it: the user does the reset and the pasting.
   [id]/pool` and `/practice` (the Games tab and the pool's page). The computer players' moves happen inside writes and
   reads that already happen (bots.ts in withLeagueLock; league-read.ts readyLeague), so nothing new wakes the database.
   A pool's players get the usual results pushes from the season sync (as any league's do); nobody hears who joined.
+- **2026-10-25, on the `new-design` branch (not deployed).** Step 10 part 1, watching. **Nothing polls and nothing runs on
+  a schedule.** A new service: the **TVmaze API** (free, no key, CC BY-SA, credited on Add a show), asked through
+  `/api/listings/search` (edge-cached an hour per query, no Neon) and `/api/listings/[id]` (one show's season and how much
+  has aired, edge-cached an hour) and when someone adds a show (`POST /api/me/shows`: two TVmaze calls for a show nobody
+  has added). Migration 0121: `shows.set_up_at` (NULL = not a game yet), `shows.tvmaze_id` and `shows.listing`,
+  `show_seasons.listing_id` and `listing_fetched_at`, `season_episodes.source` may be 'listing', `show_follows.nudge_off_at`.
+  New stored data per added show: ~1 KB for the show, a season row and ~100 bytes per episode; at most 10 new shows per
+  person a day. The catalog now lists every show's seasons (it grows as people add shows; What uses each limit says when
+  that starts to matter). Posters are hotlinked from TVmaze's CDN at its medium size (~25 KB).

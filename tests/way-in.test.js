@@ -31,6 +31,27 @@ test("what first run saves never goes past what's aired", () => {
   ]);
 });
 
+test("first run's picks from the TV listings and by name (step 10): kept with their names, saved as listings and names", () => {
+  const now = Date.now();
+  const raw = {
+    picked: [A, "tv:990001", "name:ZT Typed Show", "tv:990002", "name:x"],
+    where: { [A]: 2, "tv:990001": 3 },
+    extra: { "tv:990001": { name: "ZT Love Shack", artUrl: "a.jpg" }, "name:ZT Typed Show": { name: "ZT Typed Show", artUrl: 7 } },
+    at: now,
+  };
+  const kept = W.parseFirstRun(JSON.stringify(raw), now);
+  // tv:990002 has no name kept, and "name:x" is too short: both let go.
+  assert.deepEqual(kept.picked, [A, "tv:990001", "name:ZT Typed Show"]);
+  assert.deepEqual(kept.extra, { "tv:990001": { name: "ZT Love Shack", artUrl: "a.jpg" }, "name:ZT Typed Show": { name: "ZT Typed Show", artUrl: null } });
+  assert.deepEqual(W.followsOf(kept, (k) => (k === A ? 1 : undefined)), [
+    { seasonId: A, seenThrough: 1 },
+    { listing: 990001, seenThrough: 3 },
+    { name: "ZT Typed Show", seenThrough: 0 },
+  ]);
+  assert.equal(W.listingKey(42), "tv:42");
+  assert.equal(W.nameKeyOf("  Some   Show "), "name:Some Show");
+});
+
 test("where you are, in words", () => {
   const on = { aired: 5, status: "airing", premiere: "2026-09-23" };
   assert.equal(W.whereLabel(on, 0), "Haven't started");

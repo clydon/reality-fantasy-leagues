@@ -28,13 +28,18 @@ import { seasonFactsFor } from "./season-stats";
 // Spoiler-safe through guard.ts: everything is read from your own copy of each league at your mark (game-view.ts,
 // episode-view.ts). A hidden episode says only that its results are in, and at which stage.
 
-export type EpisodeStatus = "seen" | "hidden" | "waiting";
+export type EpisodeStatus = "seen" | "hidden" | "waiting" | "aired";
 
 export interface EpisodeRow extends Partial<Omit<EpisodeSeen, "number" | "stage">> {
   number: number;
   airAt: string | null;
+  /** aired (step 10): a show you only watch, an episode that's aired with no results to show; `watched` says whether
+   *  you've seen it (by where you are). */
   status: EpisodeStatus;
   stage: "early" | "final" | null;
+  watched?: boolean;
+  /** Its title from the listings, once you've seen it (a title can give an episode away). */
+  title?: string | null;
 }
 
 export interface SeasonEpisodes {
@@ -101,6 +106,12 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   if (!here.length) for (const ep of await notPlaying(user, seasonId, couchId, mark)) seenRows.set(ep.number, ep);
 
   const rows: EpisodeRow[] = [...seenRows.values()].map((ep) => ({ ...ep, airAt: airAt(ep.number), status: "seen" as const }));
+  // A show you only watch (step 10): every episode that's aired is listed, with results or not, seen by you or not yet.
+  if (!here.length) {
+    for (const e of schedule?.episodes ?? []) {
+      if (finished(e.number) && !seenRows.has(e.number)) rows.push({ number: e.number, airAt: e.airAt, status: "aired", stage: null, watched: e.number <= mark, title: e.number <= mark ? e.title : null });
+    }
+  }
   const latest = latestIn(states);
   const hiddenFrom = Number.isFinite(mark) ? mark + 1 : latest + 1;
   for (let n = hiddenFrom; n <= latest; n++) {

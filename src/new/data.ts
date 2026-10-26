@@ -25,6 +25,9 @@ import type { CouchHub } from "@/lib/server/couch-hub";
 import type { ResultsDue } from "@/lib/game/results-due";
 import type { CouchInvite, CouchSeason, JoinGame, JoinOptions, LeaveCouch } from "@/lib/server/couch-joins";
 import type { CatchUpReveal } from "@/lib/server/season-episodes";
+import type { ListingHit } from "@/lib/game/listing";
+import type { AddedShow } from "@/lib/server/add-show";
+import type { ListingSeason } from "@/lib/server/listings";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -83,6 +86,10 @@ export interface SeasonHeader {
   status: string | null;
   episodeCount: number | null;
   premiereDate: string | null;
+  /** Weekly (or nightly), or a streaming drop (step 14). */
+  release?: "weekly" | "nightly" | "binge";
+  /** Set up as a game (step 10): false is "Not a game yet", a show someone added to follow. */
+  ready?: boolean;
   show: {
     id: string;
     slug: string;
@@ -124,6 +131,8 @@ export interface HomeShow extends SeasonHeader {
   progress: (WeekProgress & { leagueId: string })[];
   /** Results in past where you are, or the final scores of an episode you revealed early (step 8). */
   results: ResultsDue;
+  /** The hub's "you both watch" nudge was answered for this show (step 10). */
+  nudgeOff?: boolean;
 }
 
 export interface Couch {
@@ -136,10 +145,17 @@ export interface Couch {
   seasons: { seasonId: string; label: string; status: string | null }[];
 }
 
+export interface CouchShow extends SeasonHeader {
+  upNext: UpNext | null;
+  latestAired: number;
+}
+
 export interface Home {
   user: { id: string; name: string };
   couches: Couch[];
   shows: HomeShow[];
+  /** The couches' shows you don't follow (step 10: The couch is watching); who watches each is in the couches' members. */
+  couchShows: CouchShow[];
   unscheduled: GameRef[];
   moves: Move[];
   backstage: { leagueId: string; leagueName: string; text: string }[];
@@ -147,7 +163,7 @@ export interface Home {
 
 export interface Space extends SeasonHeader {
   couchId: string | null;
-  you: { following: boolean; private: boolean; seenThrough: number | null };
+  you: { following: boolean; private: boolean; seenThrough: number | null; plays?: boolean };
   schedule: { release: string; dropAt: string | null; airTz: string; upNext: UpNext | null; latestAired: number } | null;
   games: GameRef[];
   people: { userId: string; name: string; role: "owner" | "member"; watching: boolean; playing: string[] }[] | null;
@@ -806,8 +822,50 @@ export function useCatalog() {
   return useQuery({ queryKey: ["new-design", "catalog"], queryFn: () => get<{ seasons: CatalogSeason[] }>("/api/catalog"), staleTime: 300_000 });
 }
 
-/** First run's shows for the account just made (or signed into), and the new design as the one it opens on. */
-export const saveFirstRun = (follows: { seasonId: string; seenThrough: number }[]) => post<{ saved: number }>("/api/me/first-run", { follows, ui: "new" });
+/** First run's shows for the account just made (or signed into), and the new design as the one it opens on. A show from the
+ *  TV listings, or one added by name (step 10), is made if it has to be. */
+export const saveFirstRun = (follows: FirstRunFollow[]) => post<{ saved: number }>("/api/me/first-run", { follows, ui: "new" });
+export type FirstRunFollow = ({ seasonId: string } | { listing: number } | { name: string }) & { seenThrough: number };
+
+// ---- watching (step 10 part 1; add-show.ts, listings.ts, follows.ts): Add a show, where you are, watch privately. Read when
+// a sheet opens; nothing polls. ----
+
+export type { ListingHit } from "@/lib/game/listing";
+export type { AddedShow } from "@/lib/server/add-show";
+export type { ListingSeason } from "@/lib/server/listings";
+
+/** Shows in the TV listings whose names match (TVmaze, through our edge-cached proxy). */
+export function useListingSearch(q: string) {
+  const t = q.trim();
+  return useQuery({
+    queryKey: ["new-design", "listings", t.toLowerCase()],
+    queryFn: () => get<{ hits: ListingHit[]; unavailable?: boolean }>(`/api/listings/search?q=${encodeURIComponent(t)}`),
+    enabled: t.length >= 2,
+    staleTime: 3600_000,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** One listing's season: what adding it would follow, and how much of it has aired (for where you are). */
+export function useListingSeason(tvmazeId: number | null) {
+  return useQuery({
+    queryKey: ["new-design", "listing", tvmazeId],
+    queryFn: () => get<ListingSeason>(`/api/listings/${tvmazeId}`),
+    enabled: tvmazeId != null,
+    staleTime: 3600_000,
+  });
+}
+
+export const watching = {
+  /** Add a show from its listing or by name, at where you are. */
+  add: (body: { listing: number; seenThrough?: number } | { name: string; seenThrough?: number }) => post<AddedShow>("/api/me/shows", body),
+  /** Follow (or stop following) a season here, watch it privately, say where you are, or answer the nudge. */
+  follow: (seasonId: string, change: { following?: boolean; private?: boolean; seenThrough?: number; nudgeOff?: boolean }) =>
+    sendJson<{ seenThrough: number; following: boolean; private: boolean }>(`/api/me/follows/${seasonId}`, "PUT", change),
+};
+
+/** After adding, following or moving where you are: everything moves on (the hub, the show, what you can see). */
+export const useAfterWatching = useAfterReveal;
 
 // ---- playing solo (step 9 part 3; solo.ts): a season's public pool and your practice couch. Read when the hub, a show's
 // Games tab or the pool's page opens; nothing polls. The pool's pick goes through `moves.pick`, as every Survival Pool's. ----

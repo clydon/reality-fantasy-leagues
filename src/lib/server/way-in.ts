@@ -6,6 +6,7 @@ import { resolveArtStyle, type ArtStyle } from "@/lib/show-art-style";
 import { isApprovedUser, isSuperAdminUser, isUuid, type SessionUser } from "./auth-helpers";
 import { pool, HttpError } from "./db";
 import { setFollow } from "./follows";
+import { addShow } from "./add-show";
 import { latestAired, seasonSchedules, upNext } from "./schedule";
 
 // The way in (docs/PLAN-new-design.md step 9 part 2; the mock's landing.js): what the landing, first run, sign-in and a
@@ -84,23 +85,34 @@ export interface CatalogSeason {
   aired: number | null;
   /** The weekday it airs on next, in its own time zone ("Wed"). */
   airsOn: string | null;
-  /** First run's wall: seasons on now or coming up. The rest are found by searching. */
+  /** First run's wall: the curated seasons on now or coming up. The rest are found by searching. */
   wall: boolean;
+  /** Set up as a game (step 10): false is "Not a game yet", a show someone added to follow. */
+  ready: boolean;
+  /** An admin set the show up (shows.created_by NULL), rather than someone adding it. */
+  curated: boolean;
+  /** Its TVmaze id, when it came from (or was matched to) the TV listings: Add a show leaves that listing out. */
+  tvmazeId: number | null;
+  /** Where it airs and from which country, from its listing: two shows with one name told apart. */
+  network: string | null;
+  country: string | null;
 }
 
 /** A show's name as people say it: a trailing parenthetical ("(US)", "(American edition)") dropped. */
 export const plainShow = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
 
 /**
- * Every season someone can follow from first run: the curated shows' seasons (an admin set them up; a player's own
- * researched show stays theirs until step 10's Add a show), on now or coming up first, then the rest newest first.
+ * Every season someone can follow (first run, Add a show): every show's seasons, the curated ones (an admin set them up)
+ * and those someone added (step 10: from the TV listings or by name, "Not a game yet" until someone makes them one). On
+ * now or coming up first, then the rest newest first. First run's wall is only the curated ones on now or coming up.
  */
 export async function catalog(now = new Date()): Promise<CatalogSeason[]> {
   const { rows } = await pool.query(
     `SELECT ss.id, ss.season_number, ss.name, ss.status, to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere,
-            s.name AS show_name, s.art_url, s.art_style
+            s.name AS show_name, s.art_url, s.art_style, s.created_by IS NULL AS curated, s.set_up_at IS NOT NULL AS ready, s.tvmaze_id,
+            s.listing->>'network' AS network, s.listing->>'country' AS country
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
-      WHERE s.archived = false AND s.created_by IS NULL`
+      WHERE s.archived = false`
   );
   const schedules = await seasonSchedules(rows.map((r) => r.id as string), now);
   const list: CatalogSeason[] = rows.map((r) => {
@@ -121,7 +133,12 @@ export async function catalog(now = new Date()): Promise<CatalogSeason[]> {
       premiere: r.premiere,
       aired: done ? (aired || schedule?.episodeCount || schedule?.episodes.length || null) : aired,
       airsOn: next?.airAt && schedule ? new Date(next.airAt).toLocaleDateString("en-US", { weekday: "short", timeZone: schedule.airTz }) : null,
-      wall: !done,
+      wall: !done && r.curated && r.ready,
+      ready: r.ready,
+      curated: r.curated,
+      tvmazeId: r.tvmaze_id ?? null,
+      network: r.network ?? null,
+      country: r.country ?? null,
     };
   });
   const rank = (s: CatalogSeason) => (s.status === "airing" ? 0 : s.status === "upcoming" ? 1 : 2);
@@ -142,13 +159,26 @@ const MAX_FOLLOWS = 40;
  * design as the one this account opens on. Open to an account still waiting to get in (its own shows are all it
  * saves). A season you already play keeps its mark (it moves with your games' reveals).
  */
-export async function saveFirstRun(user: SessionUser, body: { follows?: unknown; ui?: unknown }): Promise<{ saved: number }> {
+export async function saveFirstRun(user: SessionUser, body: { follows?: unknown; ui?: unknown }, listings?: string): Promise<{ saved: number }> {
   const follows = Array.isArray(body.follows) ? body.follows : [];
   if (follows.length > MAX_FOLLOWS) throw new HttpError(400, `At most ${MAX_FOLLOWS} shows at once`);
   let saved = 0;
-  for (const f of follows as { seasonId?: unknown; seenThrough?: unknown }[]) {
+  for (const f of follows as { seasonId?: unknown; listing?: unknown; name?: unknown; seenThrough?: unknown }[]) {
+    const seen = Number.isInteger(f?.seenThrough) && (f.seenThrough as number) >= 0 ? (f.seenThrough as number) : 0;
+    // A show first run found in the TV listings, or added by name (step 10): made if it has to be, then followed.
+    // By name only once you're let in: a name nobody can check would be one more show in everyone's search.
+    const byName = typeof f?.name === "string" && (isSuperAdminUser(user) || isApprovedUser(user));
+    if (listings && (f?.listing !== undefined || byName)) {
+      try {
+        await addShow(user.id, { listing: f.listing, name: f.listing === undefined ? f.name : undefined, seenThrough: seen }, listings);
+        saved++;
+      } catch (e) {
+        if (!(e instanceof HttpError)) throw e;
+        console.error(`[first-run] ${user.id} couldn't add a show:`, e.message);
+      }
+      continue;
+    }
     if (typeof f?.seasonId !== "string" || !isUuid(f.seasonId)) continue;
-    const seen = Number.isInteger(f.seenThrough) && (f.seenThrough as number) >= 0 ? (f.seenThrough as number) : 0;
     try {
       await setFollow(user.id, f.seasonId, { following: true, seenThrough: seen });
       saved++;

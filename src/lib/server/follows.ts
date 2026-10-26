@@ -32,6 +32,8 @@ export interface FollowChange {
   seenThrough?: unknown;
   following?: unknown;
   private?: unknown;
+  /** The hub's "you both watch" nudge for this show: true once it's been answered (Not now), so it's never asked again. */
+  nudgeOff?: unknown;
 }
 
 /**
@@ -48,6 +50,11 @@ export async function setFollow(userId: string, seasonId: string, change: Follow
     if (typeof change[key] !== "boolean") throw new HttpError(400, `${key} must be true or false`);
     fields[key] = change[key] as boolean;
   }
+  const set: Record<string, string> = {};
+  if (change.nudgeOff !== undefined) {
+    if (typeof change.nudgeOff !== "boolean") throw new HttpError(400, "nudgeOff must be true or false");
+    set.nudge_off_at = change.nudgeOff ? "now()" : "NULL";
+  }
   if (change.seenThrough !== undefined) {
     const n = change.seenThrough;
     const max = (season[0].episode_count as number | null) ?? 200;
@@ -60,11 +67,23 @@ export async function setFollow(userId: string, seasonId: string, change: Follow
     if (plays.length) throw new HttpError(409, "You play this season: where you are moves with your games' reveals.");
     fields.seen_through = n as number;
   }
-  if (!Object.keys(fields).length) throw new HttpError(400, "Nothing to change");
+  if (!Object.keys(fields).length && !Object.keys(set).length) throw new HttpError(400, "Nothing to change");
   const cols = Object.keys(fields);
+  const fixed = Object.keys(set);
+  if (!cols.length) {
+    // Only the nudge: on a follow that's there (answering it never follows a show).
+    const { rows } = await pool.query(
+      `UPDATE show_follows SET ${fixed.map((c) => `${c} = ${set[c]}`).join(", ")}, updated_at = now() WHERE user_id = $1 AND season_id = $2
+       RETURNING seen_through AS "seenThrough", following, private`,
+      [userId, seasonId]
+    );
+    if (!rows.length) throw new HttpError(404, "You don't follow that show");
+    return rows[0] as { seenThrough: number; following: boolean; private: boolean };
+  }
   const { rows } = await pool.query(
-    `INSERT INTO show_follows (user_id, season_id, ${cols.join(", ")}) VALUES ($1, $2, ${cols.map((_, i) => `$${i + 3}`).join(", ")})
-     ON CONFLICT (user_id, season_id) DO UPDATE SET ${cols.map((c) => `${c} = EXCLUDED.${c}`).join(", ")}, updated_at = now()
+    `INSERT INTO show_follows (user_id, season_id${[...cols, ...fixed].map((c) => `, ${c}`).join("")})
+     VALUES ($1, $2${cols.map((_, i) => `, $${i + 3}`).join("")}${fixed.map((c) => `, ${set[c]}`).join("")})
+     ON CONFLICT (user_id, season_id) DO UPDATE SET ${[...cols.map((c) => `${c} = EXCLUDED.${c}`), ...fixed.map((c) => `${c} = ${set[c]}`)].join(", ")}, updated_at = now()
      RETURNING seen_through AS "seenThrough", following, private`,
     [userId, seasonId, ...cols.map((c) => fields[c])]
   );

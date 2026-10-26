@@ -36,6 +36,7 @@ const { Pool } = require("pg");
 const { open, api, BASE } = require("./browser");
 const fixture = require("./new-fixture");
 const { settle } = require("./motion");
+const fakeListings = require("./fake-listings");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("check-new-way-in runs against a local database only");
@@ -133,9 +134,15 @@ const toastText = (page) => page.getByRole("status").last().innerText().catch(()
     check(cat.status === 200 && /public/.test(cat.headers.get("cache-control") || ""), "the catalog answers signed out, cached at the edge", cat.headers.get("cache-control"));
     check(ours(on)?.label === "ZT Way In 7" && ours(on).aired === 5 && ours(on).wall && ours(on).status === "airing", "ZT Way In 7: on now, Episode 5 aired, on the wall", JSON.stringify(ours(on)));
     check(ours(soon)?.aired === 0 && ours(soon).wall && ours(soon).status === "upcoming", "ZT Way In 8: coming up, nothing aired", JSON.stringify(ours(soon)));
-    check(!seasons.some((s) => s.seasonId === fx.seasonId), "a player's own show (the fixture's ZT Survivor) isn't in it");
+    // Since step 10 the catalog has every show (Add a show and first run's search), first run's wall only the curated.
+    const own = seasons.find((s) => s.seasonId === fx.seasonId);
+    check(!!own && own.curated === false && own.wall === false, "a player's own show (the fixture's ZT Survivor) is in it, not on the wall", JSON.stringify(own));
     const keys = new Set(seasons.flatMap((s) => Object.keys(s)));
-    check([...keys].every((k) => ["seasonId", "show", "label", "season", "artUrl", "artPosition", "status", "premiere", "aired", "airsOn", "wall"].includes(k)), "nothing about any episode in it", [...keys].join());
+    check(
+      [...keys].every((k) => ["seasonId", "show", "label", "season", "artUrl", "artPosition", "status", "premiere", "aired", "airsOn", "wall", "ready", "curated", "tvmazeId", "network", "country"].includes(k)),
+      "nothing about any episode in it",
+      [...keys].join()
+    );
     const rank = (s) => (s.status === "airing" ? 0 : s.status === "upcoming" ? 1 : 2);
     check(seasons.every((s, i) => !i || rank(seasons[i - 1]) <= rank(s)), "on now first, then coming up, then finished");
 
@@ -190,8 +197,11 @@ const toastText = (page) => page.getByRole("status").last().innerText().catch(()
       const w = await page.evaluate(() => document.documentElement.scrollWidth);
       check(w <= width + 1, `${where}: nothing wider than the screen`, `${w}`);
     };
+    // First run's search asks the TV listings too (step 10): a stand-in for TVmaze (fake-listings.js), with nothing in it.
+    const tv = await fakeListings.start({ shows: [] });
+    closers.push(tv.close);
     const fresh = async () => {
-      const b = await open({ width, motion: "off" });
+      const b = await open({ width, motion: "off", headers: { "x-gys-listings": tv.url } });
       closers.push(b.close);
       // What failed to load, by address: a page error from a refusal the check asks for is expected, any other isn't.
       b.failed = [];
@@ -241,8 +251,8 @@ const toastText = (page) => page.getByRole("status").last().innerText().catch(()
     await dialog(p).locator("[data-hit='ZT Way In 8']").waitFor();
     check((await dialog(p).locator("[data-hit]").count()) === 2, "search finds both ZT Way In seasons");
     await dialog(p).locator("[data-search-input]").fill("Not A Real Show Zz");
-    await dialog(p).locator("[data-preview='start.add-show']").waitFor();
-    check(true, "no match: Add a show, a Preview for step 10");
+    await dialog(p).locator("[data-add-new]").waitFor();
+    check((await dialog(p).locator("[data-hit]").count()) === 0, "no match, here or in the listings: Add it as a new show (step 10)");
     await shot(p, "04-start-search");
     await dialog(p).locator("[data-search-input]").fill("way in 8");
     await dialog(p).locator("[data-hit='ZT Way In 8']").click();

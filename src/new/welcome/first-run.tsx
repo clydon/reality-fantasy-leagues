@@ -2,20 +2,21 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ChevronLeft, KeyRound, Minus, Plus, Search, Tv, Users } from "lucide-react";
+import { Check, ChevronLeft, KeyRound, Search, Tv, Users } from "lucide-react";
 import { logOutTo } from "@/lib/auth-client";
 import { invitesLetIn } from "@/lib/signups";
 import type { WayIn } from "@/lib/server/way-in";
-import { saveFirstRun, useCatalog, type CatalogSeason } from "../data";
+import { saveFirstRun, useCatalog, useListingSeason, type CatalogSeason } from "../data";
 import { JoinCouchSheet, NewCouchSheet } from "../couch/couch-sheets";
 import { useNav } from "../nav";
 import { paths, START_STEPS } from "../routes";
 import { Btn } from "../ui/parts";
-import { Preview } from "../ui/preview";
+import { WhereRow, type WhereSeason } from "../watching/where";
 import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
-import { followsOf, whereCap, whereLabel, writeFirstRun, type FirstRunPicks } from "../way-in";
+import { followsOf, listingKey, nameKeyOf, whereCap, writeFirstRun, type ExtraPick, type FirstRunPicks } from "../way-in";
+import { AddNewBlock, ListingsCredit, SearchNote, SearchRows, useShowSearch } from "../watching/search";
 import { AccountForm, CheckEmail, GoogleButton, OrLine, UsernameSheet } from "./account";
 import { firstRunChanged, forgetFirstRun, useFirstRun, useHydrated } from "./hooks";
 
@@ -45,12 +46,13 @@ export function StartScreen({ step, way, error }: { step: number; way: WayIn; er
   const catalog = useCatalog().data?.seasons ?? null;
   const picks = useFirstRun();
   const loaded = useHydrated();
+  // A change keeps the picks from the TV listings and by name (step 10) unless it says otherwise.
   const update = (p: Omit<FirstRunPicks, "at">) => {
-    writeFirstRun(p);
+    writeFirstRun({ extra: picks.extra, ...p });
     firstRunChanged();
   };
   const byId = useMemo(() => new Map((catalog ?? []).map((s) => [s.seasonId, s])), [catalog]);
-  const chosen = picks.picked.filter((id) => byId.has(id));
+  const chosen = picks.picked.filter((id) => byId.has(id) || !!picks.extra?.[id]);
 
   // Signed out, the last step is the account; signed in, there's no account step.
   useEffect(() => {
@@ -134,9 +136,15 @@ function PickShows({
     const picked = on.has(id) ? picks.picked.filter((x) => x !== id) : [...picks.picked, id];
     update({ picked, where: { ...picks.where, [id]: picks.where[id] ?? 0 } });
   };
+  // A show from the TV listings, or one typed in: picked with its name and art kept on the device (step 10).
+  const pickExtra = (key: string, e: ExtraPick) => {
+    if (on.has(key)) return;
+    update({ picked: [...picks.picked, key], where: { ...picks.where, [key]: 0 }, extra: { ...picks.extra, [key]: e } });
+  };
   // The wall, then anything found by searching that isn't on it.
   const shown = catalog ? [...catalog.filter((s) => s.wall), ...catalog.filter((s) => !s.wall && on.has(s.seasonId))] : null;
-  const n = catalog ? picks.picked.filter((id) => catalog.some((s) => s.seasonId === id)).length : 0;
+  const extras = picks.picked.filter((id) => picks.extra?.[id]);
+  const n = catalog ? picks.picked.filter((id) => catalog.some((s) => s.seasonId === id) || picks.extra?.[id]).length : 0;
   return (
     <>
       <Heading step={1} />
@@ -177,6 +185,25 @@ function PickShows({
                 </small>
               </button>
             ))}
+        {shown &&
+          extras.map((id) => (
+            <button
+              key={id}
+              type="button"
+              data-pick={picks.extra![id].name}
+              aria-pressed
+              onClick={() => toggle(id)}
+              className="relative isolate flex aspect-[3/4] scale-[.97] flex-col justify-end overflow-hidden rounded-[4px] p-2.5 text-left text-white shadow-[0_0_0_3px_var(--chyron)]"
+            >
+              <ShowArt seasonId={`extra-${id}`} artUrl={picks.extra![id].artUrl} name={picks.extra![id].name} className="absolute inset-0 -z-[2] size-full" />
+              <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,transparent_40%,rgba(10,8,14,.92))]" />
+              <span aria-hidden className="absolute right-2 top-2 grid size-[30px] scale-110 place-items-center rounded-full bg-chyron text-chyron-foreground">
+                <Check className="size-4" strokeWidth={3} />
+              </span>
+              <b className="type-caption text-[20px]">{picks.extra![id].name}</b>
+              <small className="text-[12px] opacity-85">{id.startsWith("tv:") ? "From the TV listings" : "Added by name"} · not a game yet</small>
+            </button>
+          ))}
         {shown && (
           <button
             type="button"
@@ -189,11 +216,22 @@ function PickShows({
           </button>
         )}
       </div>
-      <SearchSheet open={searching} onOpenChange={setSearching} catalog={catalog ?? []} picked={on} onPick={(s) => {
-        if (!on.has(s.seasonId)) toggle(s.seasonId);
-        setSearching(false);
-        toast(`${s.label} added`);
-      }} />
+      <SearchSheet
+        open={searching}
+        onOpenChange={setSearching}
+        catalog={catalog ?? []}
+        picked={on}
+        onPick={(s) => {
+          if (!on.has(s.seasonId)) toggle(s.seasonId);
+          setSearching(false);
+          toast(`${s.label} added`);
+        }}
+        onPickExtra={(key, e) => {
+          pickExtra(key, e);
+          setSearching(false);
+          toast(`${e.name} added`);
+        }}
+      />
       <Foot>
         <Btn tone="must" wide className="type-caption h-14 text-[20px]" disabled={!n} data-next onClick={onNext}>
           {n ? `Next · ${n} picked` : "Pick at least one"}
@@ -203,19 +241,21 @@ function PickShows({
   );
 }
 
-/** Search the catalog: every season set up so far, by show. Anything else is Add a show's (step 10). */
+/** Search every show (the catalog's seasons) and the TV listings, or add one by name (step 10's search: watching/search.tsx). */
 function SearchSheet({
   open,
   onOpenChange,
   catalog,
   picked,
   onPick,
+  onPickExtra,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   catalog: CatalogSeason[];
   picked: Set<string>;
   onPick: (s: CatalogSeason) => void;
+  onPickExtra: (key: string, e: ExtraPick) => void;
 }) {
   const [q, setQ] = useState("");
   const input = useRef<HTMLInputElement>(null);
@@ -225,78 +265,52 @@ function SearchSheet({
     return () => clearTimeout(t);
   }, [open]);
   const t = q.trim().toLowerCase();
-  const hits = t ? catalog.filter((s) => `${s.show} ${s.label}`.toLowerCase().includes(t)).slice(0, 12) : catalog.filter((s) => s.wall);
+  const none = useMemo(() => new Set<string>(), []);
+  const search = useShowSearch(q, catalog, none);
+  const wall = catalog.filter((s) => s.wall);
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Find a show" subtitle="Every show set up for games so far">
+    <Sheet open={open} onOpenChange={onOpenChange} title="Find a show" subtitle="Anything on TV. Playing is optional.">
       <label className="flex h-[50px] items-center gap-2.5 rounded-[3px] bg-background px-3 outline-2 -outline-offset-2 outline-chyron-line">
         <Search className="size-[18px] text-muted-foreground" aria-hidden />
-        <input ref={input} data-search-input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Show name" autoComplete="off" aria-label="Show name" className="h-full flex-1 bg-transparent text-[16px] outline-none" />
+        <input ref={input} data-search-input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search or add a show" autoComplete="off" aria-label="Search or add a show" className="h-full flex-1 bg-transparent text-[16px] outline-none" />
       </label>
-      {!t && <p className="type-caption mb-1 mt-4 text-[13px] tracking-[0.06em] text-muted-foreground">On now and coming up</p>}
-      <div className="mt-1" data-search-results>
-        {hits.map((s) => (
-          <button key={s.seasonId} type="button" data-hit={s.label} onClick={() => onPick(s)} className="nd-press flex min-h-16 w-full items-center gap-3 border-b border-border text-left">
-            <ShowArt seasonId={`search-${s.seasonId}`} artUrl={s.artUrl} name={s.show[0]} position={s.artPosition} className="size-12 flex-none rounded-[3px] text-[22px]" />
-            <span className="min-w-0 flex-1">
-              <b className="block truncate text-[16px]">{s.label}</b>
-              <small className="text-[12px] text-muted-foreground">
-                {s.season} · {status(s)}
-              </small>
-            </span>
-            {picked.has(s.seasonId) && <span className="type-caption flex-none rounded-[2px] bg-chyron px-[7px] py-[3px] text-[11px] tracking-[0.05em] text-chyron-foreground">Picked</span>}
-          </button>
-        ))}
-      </div>
-      {t && !hits.length && (
-        <Preview id="start.add-show" className="mt-3">
-          <div className="flex min-h-16 items-center gap-3 p-2">
-            <span className="grid size-12 flex-none place-items-center rounded-[3px] outline-2 -outline-offset-2 outline-dashed outline-input">
-              <Plus className="size-5" aria-hidden />
-            </span>
-            <span className="min-w-0 flex-1">
-              <b className="block truncate text-[16px]">Add &ldquo;{q.trim()}&rdquo;</b>
-              <small className="text-[12px] text-muted-foreground">Not set up yet? Add it by name and follow it</small>
-            </span>
+      {!t ? (
+        <>
+          <p className="type-caption mb-1 mt-4 text-[13px] tracking-[0.06em] text-muted-foreground">On now and coming up</p>
+          <div className="mt-1" data-search-results>
+            {wall.map((s) => (
+              <button key={s.seasonId} type="button" data-hit={s.label} onClick={() => onPick(s)} className="nd-press flex min-h-16 w-full items-center gap-3 border-b border-border text-left">
+                <ShowArt seasonId={`search-${s.seasonId}`} artUrl={s.artUrl} name={s.show[0]} position={s.artPosition} className="size-12 flex-none rounded-[3px] text-[22px]" />
+                <span className="min-w-0 flex-1">
+                  <b className="block truncate text-[16px]">{s.label}</b>
+                  <small className="text-[12px] text-muted-foreground">
+                    {s.season} · {status(s)}
+                  </small>
+                </span>
+                {picked.has(s.seasonId) && <span className="type-caption flex-none rounded-[2px] bg-chyron px-[7px] py-[3px] text-[11px] tracking-[0.05em] text-chyron-foreground">Picked</span>}
+              </button>
+            ))}
           </div>
-        </Preview>
+        </>
+      ) : (
+        <>
+          <SearchRows
+            rows={search.rows}
+            picked={picked}
+            onPick={(r) => (r.kind === "season" ? onPick(r.season) : onPickExtra(listingKey(r.hit.tvmazeId), { name: r.hit.name, artUrl: r.hit.thumb }))}
+          />
+          <SearchNote loading={search.loading} unavailable={search.unavailable} />
+          {!search.exact && !search.loading && t.length >= 2 && (
+            <AddNewBlock q={q} any={search.rows.length > 0} onPick={() => onPickExtra(nameKeyOf(q), { name: q.trim().replace(/\s+/g, " "), artUrl: null })} />
+          )}
+        </>
       )}
+      <ListingsCredit />
     </Sheet>
   );
 }
 
 // ---------- 2: where are you in them ----------
-
-function Stepper({ value, max, label, onChange }: { value: number; max: number; label: string; onChange: (n: number) => void }) {
-  return (
-    <div className="flex flex-none items-center" data-stepper={label}>
-      <button type="button" aria-label={`Earlier in ${label}`} disabled={value <= 0} onClick={() => onChange(Math.max(0, value - 1))} className="grid size-11 place-items-center rounded-[3px] bg-card disabled:opacity-40">
-        <Minus className="size-5" aria-hidden />
-      </button>
-      <b className="type-num w-9 text-center text-[24px]" aria-live="polite">
-        {value}
-      </b>
-      <button type="button" aria-label={`Later in ${label}`} disabled={value >= max} onClick={() => onChange(Math.min(max, value + 1))} className="grid size-11 place-items-center rounded-[3px] bg-card disabled:opacity-40">
-        <Plus className="size-5" aria-hidden />
-      </button>
-    </div>
-  );
-}
-
-/** One season's row: its art, where you are in words, and the stepper (none before its premiere). */
-export function WhereRow({ s, seen, onChange }: { s: Pick<CatalogSeason, "seasonId" | "label" | "show" | "artUrl" | "artPosition" | "aired" | "status" | "premiere">; seen: number; onChange: (n: number) => void }) {
-  return (
-    <div className="flex min-h-[76px] items-center gap-3 border-t border-border py-2 first:border-t-0" data-where={s.label}>
-      <ShowArt seasonId={`where-${s.seasonId}`} artUrl={s.artUrl} name={s.show[0]} position={s.artPosition} className="h-12 w-16 flex-none rounded-[3px] text-[22px]" />
-      <div className="min-w-0 flex-1">
-        <b className="type-caption block truncate text-[17px]">{s.label}</b>
-        <small className="block text-[12px] leading-snug text-muted-foreground" data-where-line>
-          {whereLabel(s, seen)}
-        </small>
-      </div>
-      {s.aired !== 0 && <Stepper value={seen} max={whereCap(s.aired)} label={s.label} onChange={onChange} />}
-    </div>
-  );
-}
 
 function WhereYouAre({
   catalog,
@@ -318,17 +332,21 @@ function WhereYouAre({
   const nav = useNav();
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  // Saved and on the way to your people: the picks are cleared, which mustn't send you back to the shows.
+  const saved = useRef(false);
   // Nothing picked (a reload on a new phone): back to the shows.
   useEffect(() => {
-    if (loaded && catalog && !chosen.length) router.replace(paths.start(1));
+    if (!saved.current && loaded && catalog && !chosen.length) router.replace(paths.start(1));
   }, [loaded, catalog, chosen.length, router]);
   return (
     <>
       <Heading step={2} />
       <div className="mt-[18px] border-t border-border">
         {chosen.map((id) => {
-          const s = byId.get(id)!;
-          return <WhereRow key={id} s={s} seen={Math.min(picks.where[id] ?? 0, whereCap(s.aired))} onChange={(n) => update({ picked: picks.picked, where: { ...picks.where, [id]: n } })} />;
+          const onChange = (n: number) => update({ picked: picks.picked, where: { ...picks.where, [id]: n } });
+          const s = byId.get(id);
+          if (!s) return <ExtraWhere key={id} id={id} e={picks.extra![id]} seen={picks.where[id] ?? 0} onChange={onChange} />;
+          return <WhereRow key={id} s={s} seen={Math.min(picks.where[id] ?? 0, whereCap(s.aired))} onChange={onChange} />;
         })}
       </div>
       <Foot>
@@ -344,6 +362,7 @@ function WhereYouAre({
             setBusy(true);
             try {
               await saveFirstRun(followsOf({ ...picks, picked: chosen }, (sid) => byId.get(sid)?.aired));
+              saved.current = true;
               forgetFirstRun();
               nav.push(paths.start(START_STEPS));
             } catch (e) {
@@ -359,6 +378,26 @@ function WhereYouAre({
   );
 }
 
+/** Where you are in a show from the TV listings (read from its listing: how much has aired), or one added by name (no
+ *  episodes yet, so nothing to set). */
+function ExtraWhere({ id, e, seen, onChange }: { id: string; e: ExtraPick; seen: number; onChange: (n: number) => void }) {
+  const tv = id.startsWith("tv:") ? Number(id.slice(3)) : null;
+  const { data } = useListingSeason(tv);
+  const season = data?.season ?? null;
+  const s: WhereSeason = {
+    seasonId: id,
+    label: season ? `${e.name} ${season.number}` : e.name,
+    show: e.name,
+    artUrl: e.artUrl,
+    artPosition: "center",
+    aired: tv == null || !data ? 0 : (season?.aired ?? 0),
+    status: season?.status ?? "upcoming",
+    premiere: season?.premiere ?? null,
+  };
+  if (tv != null && !data) return <div aria-busy className="my-2 h-[60px] animate-pulse rounded-[3px] bg-card" />;
+  return <WhereRow s={s} seen={Math.min(seen, whereCap(s.aired))} onChange={onChange} line={tv == null ? "Added by name: its episodes come later" : undefined} />;
+}
+
 // ---------- 3: save your shows (the account) ----------
 
 function SaveShows({ way, chosen, byId, picks, error }: { way: WayIn; chosen: string[]; byId: Map<string, CatalogSeason>; picks: FirstRunPicks; error: string | null }) {
@@ -369,7 +408,7 @@ function SaveShows({ way, chosen, byId, picks, error }: { way: WayIn; chosen: st
     if (way.me) router.replace(paths.start(START_STEPS));
   }, [way.me, router]);
   const n = chosen.length;
-  const art = chosen.slice(0, 4).map((id) => byId.get(id)!);
+  const art = chosen.slice(0, 4).map((id) => byId.get(id) ?? { seasonId: id, artUrl: picks.extra?.[id]?.artUrl ?? null, show: picks.extra?.[id]?.name ?? "?", artPosition: "center" });
   const next = paths.start(START_STEPS);
   return (
     <>

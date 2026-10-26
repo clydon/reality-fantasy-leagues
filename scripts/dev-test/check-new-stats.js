@@ -114,9 +114,12 @@ const same = (a, b) => JSON.stringify(Object.entries(a).sort()) === JSON.stringi
     const c0 = (await stats("casey", tid)).body;
     check(c0.through === 0 && c0.cast.every((c) => !Object.keys(c.counts).length && c.out === null), "casey (not following): nothing counted");
     check((await stats("casey", sid, `?couch=${fx.couchId}`)).status >= 400, "a couch you're not on is refused");
-    const eps = (await as.riley.call("GET", `/api/seasons/${tid}/episodes`)).body.episodes;
+    // Since step 10 a show you only watch also lists each aired episode past where you are, with nothing in it.
+    const all = (await as.riley.call("GET", `/api/seasons/${tid}/episodes`)).body.episodes;
+    const eps = all.filter((e) => e.status === "seen");
     const ep2 = eps.find((e) => e.number === 2);
     check(
+      all.filter((e) => e.status === "aired").every((e) => e.number > 2 && e.watched === false && !e.out && !e.title) &&
       eps.length === 2 && ep2.out.some((o) => o.name === "Ivo Petrov") && ep2.happened.some((h) => h.label === "Shield" && h.winners.some((w) => w.name === "Cal")),
       "a show you don't play: each episode's who went home and what happened",
       JSON.stringify(ep2)

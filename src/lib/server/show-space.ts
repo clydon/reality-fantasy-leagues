@@ -15,6 +15,10 @@ export interface SeasonHeader {
   status: "upcoming" | "airing" | "completed";
   episodeCount: number | null;
   premiereDate: string | null;
+  /** How it's released: weekly (or nightly), or a streaming drop (step 14). */
+  release: "weekly" | "nightly" | "binge";
+  /** Set up as a game (shows.set_up_at, step 10): false is "Not a game yet", a show someone added to follow. */
+  ready: boolean;
   show: { id: string; slug: string; name: string; kind: string; artUrl: string | null; terms: { castaway: string; tribe: string } };
 }
 
@@ -25,6 +29,7 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
   if (!ids.length) return out;
   const { rows } = await pool.query(
     `SELECT ss.id, ss.season_number, ss.name, ss.status, ss.episode_count, to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere_date,
+            ss.release, s.set_up_at IS NOT NULL AS ready,
             s.id AS show_id, s.slug, s.name AS show_name, s.kind, s.art_url, s.castaway_term, s.tribe_term
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
       WHERE ss.id = ANY($1::uuid[])`,
@@ -38,6 +43,8 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
       status: r.status,
       episodeCount: r.episode_count,
       premiereDate: r.premiere_date,
+      release: r.release,
+      ready: r.ready,
       show: { id: r.show_id, slug: r.slug, name: r.show_name, kind: r.kind, artUrl: r.art_url, terms: { castaway: r.castaway_term, tribe: r.tribe_term } },
     });
   }

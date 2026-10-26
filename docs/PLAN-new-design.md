@@ -35,7 +35,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 7 | Draft room and blind draft | **done** 2026-10-25 on the branch (migration 0117 ships with 0b's) | Opus · xhigh |
 | 8 | Hub I: focus-first hub, More on the couch and its six pages | **done** 2026-10-25 on the branch (migration 0118 ships with 0b's) | Opus · xhigh |
 | 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | **done** 2026-10-25 on the branch, in three parts: couches and joining their games (migration 0119), the way in (landing, first run, the invite signed out, sign-in, Google behind config; no migration), solo (public pools per season, the practice couch, the solo hub; migration 0120); 0119 and 0120 ship with 0b's | Opus · xhigh |
-| 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | not started | Opus · xhigh |
+| 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **in progress**, in three parts (the plan's step 10 section): part 1, watching, finished 2026-10-25 (migration 0121 ships with 0b's; TV listings from TVmaze on demand); then Make it a game (2), the library and the new-show flow (3) | Opus · xhigh |
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | not started | Opus · xhigh |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | not started | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | not started | Opus · xhigh |
@@ -159,7 +159,7 @@ step's As built.
 - **Chat pushes are still classic's** (step 4; for 15). A message in a game's chat pushes that game's players, linking to
   classic's `/chat` (also for someone on the new design); a show the couch only watches pushes nobody, and nor does anyone
   on the couch who isn't in the games. `couch-chat.ts postCouchChat` is where step 15's notifications by moment would go.
-- **A couch with two unlinked games on one season** (step 4; for 10, where a couch starts games: step 9's joins only join games that exist). The new design shows
+- **A couch with two unlinked games on one season** (step 4; for 10 part 2, where a couch starts games: step 9's joins only join games that exist). The new design shows
   the couch one conversation (both games' chats) and posts into the first; classic shows each game's chat on its own, so
   someone only in the second game wouldn't see what was posted from the new design. Linking them (or posting where you
   play) would settle it. Today every couch has one linked group per season, so it can't happen yet.
@@ -192,7 +192,7 @@ step's As built.
 - **The rulebooks flag's off-walk takes copies out too** (step 6b part 3; for C). `scripts/rulebooks-flag.js off` tells every
   league `on: false`, so a couch's own copy stops playing until its next change re-syncs it. Fine for an emergency switch;
   at cutover the flag goes and so does the walk.
-- **The repeat-moment check is loose** (R2's `reviewRulebook`; for step 10's new-show flow). A custom moment whose words are
+- **The repeat-moment check is loose** (R2's `reviewRulebook`; for step 10 part 2, Make it a game's first research of a show). A custom moment whose words are
   all in a built one's is left out as a repeat, so a first research of the Traitors would drop "As a Faithful, voted out a
   Faithful" (it reads as "…voted out a Traitor at Round Table"). Check for changes keeps the rulebook's own moments
   (part 2); a new show has none to keep. Telling the roles apart (a differing noun) would fix it.
@@ -217,7 +217,7 @@ step's As built.
   processing (a run it made is still taken back from Backstage › Waivers' Last run, which logs that) and a super-admin's
   membership edits in classic's `/admin` (the desk's Hand it on is logged). Classic's screens don't show the log (only the new design does) and its own Undo buttons don't
   mark lines undone.
-- **Backstage's setup jobs** (step 5; the draft's since 7, inviting since 9; the rest for 10 and C). Needs you has results
+- **Backstage's setup jobs** (step 5; the draft's since 7, inviting since 9; the cast import for 10 part 2, the rest for C). Needs you has results
   jobs, "Schedule the Outlast draft" (step 7), "Invite people to <game>" and join requests (step 9); classic's other
   commissioner items (Add the cast, a catch-up league's next reveal: `commissioner-items.ts`, the home's `backstage`) link to
   classic pages: step 10's cast import fixes the first, and the second is classic's RevealLogic catch-up mode (for C).
@@ -272,8 +272,8 @@ step's As built.
   never set) and shows the couch's name, its first six people's usernames and its games to whoever has it (never results);
   making a new code and retiring the old isn't built. A request waits until it's answered or taken back, and a quiet
   decline lets them ask again.
-- **Get the couch going names your soonest show** (step 9; for 10). A new couch has no shows of its own until step 10's Add a
-  show, so its first step's line ("It can start with Episode 6 on Wednesday") is the soonest show you follow anywhere.
+- **Get the couch going names your soonest show** (step 9; for 10 part 2, with Start a game). Add a show is real since step 10
+  part 1, but the line belongs with the step's Start a game, so its first step's line ("It can start with Episode 6 on Wednesday") is the soonest show you follow anywhere.
 - **An episode page can't open from a link** (step 8; for a later polish). Previously on's rows and Last time open the show's
   Episodes tab, a tap short of the episode: an episode page is a pushed page opened by a tap on Episodes, not from its URL
   (`?page=ep4` alone doesn't render it). Letting the page read its episode from the URL would let the hub, the feed and
@@ -301,7 +301,7 @@ step's As built.
   and calls sit in one row, read whole by anyone's next read after any pick (~2 KB a player), so a pool stops at 100
   ("The pool is full"; HOSTING.md). Past that, picks and calls in a table of their own (a row per person and episode) and
   the board as a SQL read of the top ten and you; or a second pool for the season.
-- **Solo games are for curated competition shows** (step 9 part 3; for 10). A pool and a practice couch need a show an admin
+- **Solo games are for curated competition shows** (step 9 part 3; for 10 part 2). A pool and a practice couch need a show an admin
   set up (`created_by` NULL), its cast approved and an episode still to air; a series, talk show or sport, or a show a
   player set up for their own league, gets neither (`soloBlocked`). Step 10's Start a game that fits is where they'd come.
 - **Only solo players are offered them** (step 9 part 3, the mock's; for a later step). The pool's card and the practice
@@ -311,9 +311,24 @@ step's As built.
 - **A practice couch is in classic's list** (step 9 part 3; for C). Classic's league menu shows it as an ordinary league with
   computer players (classic plays bots), where it works, though it says nothing about being practice; the public pool is
   left out of classic's list. C removes the list.
-- **First run lists the curated shows only** (step 9 part 2; for 10). The catalog is every season of a show an admin set up;
-  a show a player researched for their own league isn't offered to anyone else, and a show with no season yet (Big Brother,
-  Love Island... on the local copy) can't be followed: step 10's Add a show makes the season.
+- **A season made from its listing goes stale** (step 10 part 1; for 11). It's read from TVmaze when it's made, and again only
+  when someone adds the show a day or more later: its status (coming up, on now, finished), episode count and moved air times
+  otherwise stay as they were. Step 11's daily job is the place to keep listing seasons current.
+- **A listed show's next season isn't offered** (step 10 part 1; for 11). Once a show made from a listing is here, Add a show
+  hides that listing and offers the show's seasons here, so when its next season starts nobody can add it from the search
+  (tapping the finished one follows that). Step 11's job could make each listed show's new season as the listings announce it.
+- **Nobody's progress on a show you watch** (step 10 part 1, the guard's rule since 0b; for 15). The mock's Who's watching and
+  The couch is watching say "caught up", "On Episode 5", "2 ahead"; the new design sends nobody else's progress, so they list
+  who watches and what they play. Step 15's What your couch sees could let people share how far they are.
+- **A show added by name has no schedule** (step 10 part 1; for 11 or a desk step). A show the listings don't have is a name and
+  an empty first season: no episodes or air times, so where you are can't be set and nothing's "up next". The desk (Find › the
+  show) could fill it in or link it to a listing later.
+- **Anyone let in can make shows** (step 10 part 1; for part 3 or a desk step). Up to 10 a day each, in everyone's search; from a
+  listing they're real shows, by name they're only checked against the names already here. The desk's Find reaches them
+  (archive); an Inbox kind for shows added by name (part 3 adds Inbox kinds) would let the admin look them over.
+- **Posters are TVmaze's medium image** (step 10 part 1; for a later polish). 210 by 295, soft in the tall show bar; TVmaze's
+  other size is the upload itself, often over a megabyte. A resized copy we keep (or Vercel's image optimisation, which has
+  limits of its own) would sharpen it.
 
 ## What exists, what's needed
 
@@ -2333,6 +2348,144 @@ costs). New: `src/lib/server/solo.ts`, `src/lib/game/practice.ts` (pure), `/api/
   (49), -stats (57), -chat (52), check-foundation, check-preview and check-backup-restore; `npm test` 546 of 546;
   type-check clean, lint (src) as before (one classic error in `use-sheet-swipe.ts`, untouched). Someone on no couch now
   gets the solo hub where they got the grow hub with Get the couch going; no check depended on that.
+
+### Step 10, in three parts
+
+Too big for one session (written 2026-10-25, at its start). Each part ends with its As built, its Preview entries out and
+the checks passing; step 10 is marked done after part 3.
+
+1. **Watching** (Add a show, follow, where you are, watch privately, the show space for a show with no game, the both-watch
+   nudge, The couch is watching). **Add a show** ("Search or add a show", suggestions as you type, the "Add '<name>' as a new
+   show" block) from the hub's Add a show poster, Get the couch going's second step, the solo hub and first run's search
+   (`start.add-show`). Suggestions are the catalog (every show's seasons, not only the curated ones: Noticed's "First run
+   lists the curated shows only") plus **TV listings from TVmaze's show search**, asked on demand through a small proxy
+   (step 11's daily schedule job is still 11's; this part only looks a show up when someone searches or adds it). Adding a
+   show nobody has made one of before makes it from its listing (its art, kind guessed from the listing's type, the current
+   season and its episodes' air times as `season_episodes` rows, "Not a game yet"), or by name alone when the listings don't
+   have it; a show already here (by its TVmaze id, else its name) is followed, never made twice. Then where you are (capped
+   at what's aired), watch privately (the ⋯ menu, a line on Tonight), Remove from my shows, Add to my shows on a show you
+   don't follow. The show space for a show with no game of yours: the same tabs, Tonight with Add to my shows or where you
+   are, Who's watching (the couch's people who watch it openly; never how far), and the Make it a game / Play it plate
+   (still Preview: part 2). The hub's **You both watch** nudge (once per show, Not now remembered) and **The couch is
+   watching** (weekly shows the couch watches, Add to my shows asking where you are and staying on the hub). Preview out:
+   `hub.add-show`, `hub.nudge`, `hub.couch-watching`, `show.where`, `start.add-show` (and `fixtures/watching.ts`). Check:
+   `check-new-watching.js` with a stand-in for TVmaze.
+2. **Make it a game** for every kind of show: the kind inferred from the listing and ChatGPT's answer, shown on the review
+   as one line with Change (a series picks reality or scripted there); "Ask ChatGPT for me" free (our bot, setting up a
+   show is on us) with copy and paste behind it; the answer becomes the season's rulebook (the rulebook prompt with the
+   nearest template as its skeleton; the repeat-moment check made strict, from Noticed) and its cast (the cast import, from
+   Noticed's "Backstage's setup jobs"); the show set up for every couch, its first maker the parent. **Start a game that
+   fits** (`rulebook-fits.js gamesFor`): a competition gets Survival Pool, Weekly Lineup and Outlast; a series Weekly Lineup;
+   talk Weekly Bingo and Weekly Calls (shown, started with step 12); a sport the draft of athletes (shared ownership, start
+   some each race; "Race", not "Episode") and Survival Pool; linked to the couch's other games on the season (Noticed: "A
+   couch with two unlinked games"), Tell the couch. Get the couch going's Start a game (Noticed: it names your soonest show),
+   the hub's foot and Commercial break's Start a game, the nudge's button, Run it back, pools and practice couches for any
+   set-up competition (Noticed: "Solo games are for curated competition shows"). **Archive or delete a game** (Backstage ›
+   Game settings: archive keeps it on the trophy shelf and stops scoring; delete is tier 3, restorable 30 days). Preview
+   out: `hub.start-game`, `show.make-it-a-game`, `show.start-game`, `backstage.end-game`.
+3. **Rulebooks phase 8: the library and the new-show flow** (`PLAN-rulebooks-implementation.md` 7.9, 7.10, 7.12, 7.13 on the
+   desk): the library of starting templates by kind (Save as template, the proposed ones dashed until two real shows share
+   a shape), the desk's own New show flow, "Fits these games" on a rulebook's page, a player-made rulebook the desk can take
+   over (first creator is parent), the desk Inbox's new kinds; a series and a talk rulebook made end to end, each with a
+   game of a fitting type. Marks step 10 done.
+
+### As built, step 10 part 1 (2026-10-25, on `new-design`): watching
+
+Migration **0121** (ships with 0b's, same rehearsal): `shows.set_up_at` (NULL = "Not a game yet"; every show made before,
+and any made through the old routes, is set up), `shows.tvmaze_id` (one show per listing) and `shows.listing`,
+`show_seasons.listing_id` and `listing_fetched_at`, `season_episodes.source` may be 'listing', `show_follows.nudge_off_at`.
+Nothing polls and nothing runs on a schedule; **the TVmaze API is a new service** (HOSTING.md). New: `src/lib/game/listing.ts`
+(pure), `src/lib/server/listings.ts`, `src/lib/server/add-show.ts`, `/api/listings/search`, `/api/listings/[tvmazeId]`,
+`POST /api/me/shows`, `src/new/watching/` (search.tsx, where.tsx, sheets.tsx with `openWatching`, mounted in the signed-in
+layout beside the couch sheets).
+- **TV listings (decided: TVmaze, asked on demand).** Add a show's suggestions as you type come from TVmaze's show search
+  through our proxy (`/api/listings/search?q=`, asked once typing pauses for 300 ms, kept at the edge an hour per query, no
+  database read; a minute and `unavailable` when TVmaze doesn't answer), and one listing's season with how much has aired
+  through `/api/listings/[id]` (for where you are before adding). Adding a show reads its seasons and one season's episodes
+  from TVmaze. Step 11's daily schedule job (all of TV, kept current) is still 11's. A dev server can be pointed at a
+  check's stand-in with the `x-gys-listings` header (`listingsFor`, `next dev` and loopback only, like 6c's `x-gys-bot`).
+- **Adding a show** (`add-show.ts`, `POST /api/me/shows` with `{ listing }` or `{ name }` and where you are): the show is
+  found by its TVmaze id, else by name and country (`sameShow`: a name that doesn't say its country is American, so "Love
+  Island USA" is the American "Love Island" and "The Traitors (US)" isn't the BBC's; the show here gains the link and keeps
+  its name and art), else made from the listing: its name, TVmaze's medium poster, the kind guessed from its type (Reality
+  and Game Show a competition, Scripted / Animation / Documentary / News a series, Talk / Variety / Award / Panel talk,
+  Sports a sport; part 2's review shows it with Change), terms by kind (Contestant / Cast member / Athlete), its adder as
+  `created_by`, not set up. Its season: the listing's on now, else next, else latest (`pickSeason`); a show already here
+  follows its own season of that number, else its own on now (an admin's numbering wins), else one made from the listing
+  (status and dates, episode count, weekly or a streaming drop when every episode lands on one day, the air time and the
+  network country's zone, and every regular episode's start as a `'listing'` row: specials left out). A season that was
+  already here keeps its schedule (the couch's lineups lock by it); a season made from its listing is read again when
+  someone adds it a day after the last read, never over a row research reported on or an admin set. By name, when the
+  listings don't have it: a show of that name already here is followed, else one is made with a first season and nothing
+  known. Then it's followed openly with where you are, capped at what's aired (only followed, on a season you play). At most
+  10 new shows per person a day; an account still waiting to get in can't add shows (403), and its first run saves listing
+  shows but nothing by name. With the listings down, a show already here is still followed and a new one waits (503).
+- **The catalog lists every show's seasons now** (from Noticed: "First run lists the curated shows only"), each with
+  `ready`, `curated`, `tvmazeId`, `network` and `country`; first run's wall and the landing's show tiles are only the curated
+  shows set up as games; classic's show picker (`/api/shows`) leaves out shows that aren't a game yet, so no classic league
+  can start on one.
+- **Add a show** (the mock's refine.js addShowSheet; `hub.add-show` made real): "Search or add a show"; before you type, art
+  cards of what the couch watches that you don't, then what's on now; as you type, the shows here (On your list, Ready, Not a
+  game yet; a show that's here and watched by someone on the couch says so, with its network when the listing has one) and
+  the listings that aren't (Not a game yet, or Latest season for a show here by name whose seasons have all finished; a
+  listing is hidden once a show made from it is here); "Add '<name>' as a new show" when nothing's called that (added by
+  name); "Looking in the TV listings…" and the listings-down line; "TV listings from TVmaze" (the licence's credit). A tap asks
+  where you are when anything has aired (from the catalog, or the listing's season) and adds it; the sheet stays open, back
+  on the search. From the hub's Add a show poster (the solo hub's too) and Get the couch going's second step.
+- **First run's search** (`start.add-show` made real): the same results; a listing or a name is picked as `tv:<id>` /
+  `name:<name>` with its name and art kept on the device (`way-in.ts` `extra`), shown on the wall as picked, asked where you
+  are from its listing on step 2 (a name has nothing to set), and made by `POST /api/me/first-run` once there's an account.
+  Fixed on the way: for someone signed in, step 2's Next saved and then bounced back to step 1 (clearing the picks raced the
+  navigation).
+- **Where you are, follow, watch privately** (`show.where` made real): the one spoiler chip's Change opens the where sheet
+  everywhere (a stepper from Haven't started to what's aired; on a season you play it says where you are moves with your
+  reveals: `space.you.plays`); the show's ⋯ menu has Watch privately (a switch), Where you are and Remove from my shows
+  (where you are is kept), or Add to my shows on a show you don't follow; How it works only for a show that's a game.
+- **A show with no game of yours** (the same tabs): Tonight leads with Add to my shows (who on the couch watches it) or the
+  spoiler chip and "Watching privately: the couch doesn't see this on your list"; Who's watching (you, then the couch's open
+  followers and players: "Watches it" / "Plays Outlast", never how far); the play plate (Play it for a show that's set up,
+  Make it a game for one that isn't: still Preview, part 2's). The couch line says who watches it and "Not a game yet".
+  Episodes lists every aired episode of a show you only watch, newest first: "You've seen it" with its title, "Not seen
+  yet" with only its number (a title can give an episode away), from a new `aired` row.
+- **The hub**: **You both watch** (`nudgeShow`: a show you follow that someone else on the couch openly watches, airing or
+  coming up, with no game on the couch or of yours, not answered before; the most people, then the soonest; Not now is
+  `nudgeOff`, remembered; its button opens the show's Games tab, where Start a game / Make it a game are part 2's) and **The
+  couch is watching** (`couchWatching`: weekly shows others on the couch follow openly, the ones not on your list first, not
+  a show the couch plays (Your shows has it) nor a streaming drop (step 14's rail); Add to my shows asks where you are and
+  stays on the hub). Both in the focus hub and the grows-with-you hub (a new couch is where games start). The home read
+  carries `couchShows` and each show's `nudgeOff`; season headers carry `ready` and `release`.
+- **Fixtures and Preview:** deleted `fixtures/watching.ts` and the entries `hub.add-show`, `hub.nudge`, `hub.couch-watching`,
+  `show.where`, `start.add-show`. Left for part 2: `hub.start-game`, `show.make-it-a-game`, `show.start-game`,
+  `backstage.end-game`.
+- **Changed from the mock:** nobody's progress anywhere ("caught up", "On Episode 5", "2 ahead", "riley · Ep 13": 0b's guard
+  sends nobody else's progress; step 15's What your couch sees could choose to share it: Noticed), so Who's watching says what
+  each plays instead; no Rate it / Call it rows on Tonight (step 12; the existing Extras' bingo Preview stays); "Add '<name>'
+  as a new show" adds by name, since the listings' shows are the rows above it; suggestions are the couch's shows and the
+  catalog's on-now ones; posters are TVmaze's medium image; the follow card says the couch will see it (rating is 12's); the
+  Watch privately switch is in the ⋯ menu as the mock has it, plus the line on Tonight.
+- **Spoiler-safe titles:** a listing has a title for every episode, and one that's aired can give it away, so the space's
+  schedule, its Up next and the home's (`schedule.ts titledFor`) send a title only for an episode you've seen.
+- **Checks:** `scripts/dev-test/check-new-watching.js <outDir> [--width=390] [--keep] [--api]` (114 PASS at 390) on
+  new-fixture.js plus the new **`fake-listings.js`** (a stand-in TVmaze: ZT Love Shack in the US and the UK, ZT Traitors, a
+  streaming drop, an ended talk show; ids 990001 and up): the proxy, adding from a listing, made once, the UK show apart, a
+  show here linked by name with its schedule untouched, the drop, an ended show, by name, refusals and the listings down, the
+  daily cap, a day-old season read again (research's row kept), the catalog, the nudge's follow rules, the space, first
+  run's save (a waiting account's too); then the browser (The couch is watching and its Add, the nudge and Not now, Add a show
+  with suggestions, search, by name and a listing's where you are, a show with no game and its menu, Episodes' aired rows, a
+  show alex doesn't follow, a newcomer's first run with a listing and a name). `tests/listing.test.js` (7) and
+  `tests/way-in.test.js` (+1, the extra picks). `browser.js open({ headers })`; new-fixture's down also removes shows zt_nd
+  people added. check-new-way-in now runs first run's search against an empty stand-in listing and expects the Add block, and
+  expects the catalog's new fields and a player's own show (off the wall); check-new-shell taps the guide's Preview;
+  check-new-stats counts a watch-only show's seen episodes (its aired ones are listed too now). The rest pass, one at a time:
+  check-new-way-in (85), -shell (46), -solo (92), -couches (114), -hub (75), -draft (90), -settling (96), -results-ways (89),
+  -ours (89), -desk (100; its "every league renames him" read failed once in the batch and passed on its own: it reads the
+  leagues right after the toast), -community (82), -backstage (67), -backstage-ii (116), -show (69), -reveal (49), -stats
+  (57), -chat (52), check-foundation, check-preview and check-backup-restore; `npm test` 554 of 554; type-check clean, lint
+  (src) as before (one old warning in `episode-results.ts`).
+- **For part 2:** the nudge's button, the Games tab's play plate and Tonight's lead to Make it a game / Start a game
+  (`show.make-it-a-game`, `show.start-game`); a show made here has `shows.listing` (its TVmaze type, network, country) and a
+  guessed `shows.kind` for the review's one line; `set_up_at` is what Make it a game sets; the listings proxy and
+  `fake-listings.js` are there to reuse (TVmaze's `/shows/:id/cast` could seed the cast import).
 
 ## Step C: cutover
 

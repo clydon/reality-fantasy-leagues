@@ -51,7 +51,7 @@ export function Games({ show }: { show: ShowData }) {
           <div aria-busy className="mx-4 mt-4 h-72 animate-pulse rounded-[4px] bg-card" />
         )
       ) : others.length || show.solo ? null : (
-        <PlayIt name={name} />
+        <PlayIt show={show} />
       )}
       {/* On your own (step 9 part 3): the season's public pool and your practice couch, when you're solo. */}
       {show.solo && <SoloGames show={show} />}
@@ -65,7 +65,7 @@ export function Games({ show }: { show: ShowData }) {
           <JoinGameSheet couchId={show.couch.id} game={joining} onOpenChange={(o) => !o && setJoining(null)} />
         </Block>
       )}
-      <HowRow show={show} name={name} />
+      {show.ready && <HowRow show={show} name={name} />}
       <ThisWeek show={show} />
       {!show.solo && (
         <Preview id="show.start-game" className="mx-4 mt-[26px]">
@@ -346,17 +346,27 @@ function RulesSheet({ game, play, onGame, waivers }: { game: GameView | null; pl
 
 // ---------- a show you don't play ----------
 
-function PlayIt({ name }: { name: string }) {
+/** A show with no game of yours (the mock's playplate): Play it when it's set up as a game, else Make it a game. Both are
+ *  part 2's (still Preview). */
+export function PlayIt({ show }: { show: ShowData }) {
+  const h = show.header;
+  const name = (h?.show.name ?? "This show").replace(/\s*\([^)]*\)\s*$/, "").replace(/^The /, "");
+  const label = `${name}${h?.seasonNumber ? ` ${h.seasonNumber}` : ""}`;
+  const watchers = (show.people ?? []).filter((p) => p.watching).length;
   return (
     <Preview id="show.make-it-a-game" className="mx-4 mt-[26px]">
-      <div className="rounded-[4px] bg-plate p-4 text-plate-foreground shadow-plate">
+      <div data-play-it={show.ready ? "play" : "make"} className="rounded-[4px] bg-plate p-4 text-plate-foreground shadow-plate">
         <span className="type-caption inline-block bg-plate-foreground py-1 pl-[7px] pr-3.5 text-[11px] tracking-[0.06em] text-plate [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
-          Play it
+          {show.ready ? "Play it" : "Not a game yet"}
         </span>
-        <h3 className="type-caption mt-2 text-[28px]">{name} with your couch</h3>
-        <p className="mt-1 text-sm leading-snug text-plate-muted">Survival Pool starts from the next episode, no draft. Or draft a team from this cast.</p>
+        <h3 className="type-caption mt-2 text-[28px]">{show.ready ? `${label} with your couch` : `Make ${label} a game`}</h3>
+        <p className="mt-1 text-sm leading-snug text-plate-muted">
+          {show.ready
+            ? "Survival Pool starts from the next episode, no draft. Or draft a team from this cast."
+            : `One question to ChatGPT finds the cast and what scores. Then pick a game that fits.${watchers > 1 ? " Everyone who watches it can play." : " Every couch can play it after."}`}
+        </p>
         <button type="button" className="nd-press mt-3 flex h-[52px] items-center justify-center rounded-[3px] bg-plate-foreground px-4 text-[15px] font-bold text-plate">
-          Start a game
+          {show.ready ? "Start a game" : "Make it a game"}
         </button>
       </div>
     </Preview>

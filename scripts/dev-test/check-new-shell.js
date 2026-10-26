@@ -146,8 +146,8 @@ function recordTransitions() {
     await page.waitForTimeout(400);
     await page.evaluate(() => (window.__vt.length = 0));
     await snap("home");
-    await page.locator('[data-preview="hub.add-show"]').click();
-    check(await page.getByText("Coming soon: Add a show").isVisible(), "a Preview tap says Coming soon");
+    await page.locator('[data-preview="hub.guide"]').click();
+    check(await page.getByText("Coming soon: The TV guide").isVisible(), "a Preview tap says Coming soon");
 
     // ---- into the show: the channel change ----
     await card.click();

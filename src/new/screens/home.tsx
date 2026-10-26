@@ -14,7 +14,8 @@ import { Btn, EmptyState } from "../ui/parts";
 
 // The hub (/home; the mock's refine.js wireHub), in its two shapes, or solo (on no couch: hub/solo-hub.tsx, step 9 part 3):
 //   grows with you: a new member's first week, or a couch with no games yet. The status line, Get the couch going
-//     (a new couch), Up next, your shows, the guide, the feed, and a note of what shows up as the couch plays.
+//     (a new couch), Up next, your shows, the "you both watch" nudge, the guide, what the couch is watching (step 10: where
+//     games start), the feed, and a note of what shows up as the couch plays.
 //   focus first: the status line, Up next, who's on now, your shows, the "you both watch" nudge, the guide, the
 //     streaming rail, what the couch is watching, the feed, and More on the couch (six pages, one tap each).
 // The couch's own numbers (rankings, trophies, the feed, your numbers: couch-hub.ts) come in one read beside the home's.
@@ -66,10 +67,10 @@ function FocusHub({ home, couch, hub }: { home: Home; couch: Couch | null; hub: 
       {up && <UpNext home={home} show={up} couch={couch} />}
       <OnNow />
       <YourShows home={home} hub={hub} />
-      <BothWatch />
+      <BothWatch home={home} couch={couch} />
       <Guide />
       <StreamingRail />
-      <CouchWatching />
+      <CouchWatching home={home} couch={couch} />
       <Feed hub={hub} />
       <MoreOnTheCouch home={home} hub={hub} />
       <Foot />
@@ -85,7 +86,9 @@ function GrowHub({ home, couch, hub, newCouch }: { home: Home; couch: Couch | nu
       {newCouch && <GetGoing home={home} couch={couch} />}
       {up && <UpNext home={home} show={up} couch={couch} />}
       <YourShows home={home} hub={hub} />
+      <BothWatch home={home} couch={couch} />
       <Guide />
+      <CouchWatching home={home} couch={couch} />
       <Feed hub={hub} />
       <GrowNote home={home} hub={hub} />
       <Foot />

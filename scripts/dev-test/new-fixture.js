@@ -126,6 +126,8 @@ async function down(pool) {
   if (groups.length) await pool.query(`DELETE FROM league_groups WHERE id = ANY($1::uuid[])`, [groups.map((g) => g.group_id)]);
   if (couches.length) await pool.query(`DELETE FROM couches WHERE id = ANY($1::uuid[])`, [couches.map((c) => c.id)]);
   await pool.query(`DELETE FROM shows WHERE slug IN ($1, $2)`, [SHOW, TRAITORS]); // seasons and follows go with them
+  // Shows zt_nd people added (step 10's Add a show: from a check's stand-in listings, fake-listings.js, or by name).
+  await pool.query(`DELETE FROM shows WHERE slug LIKE 'zt-%' AND (created_by = ANY($1::text[]) OR (tvmaze_id >= 990000 AND tvmaze_id < 1000000))`, [userIds]);
   // A starting point the desk saved from one of its seasons' rulebooks lives in the library, with no season.
   await pool.query("DELETE FROM rulebooks WHERE owner_kind = 'library' AND (name LIKE 'ZT Survivor%' OR name LIKE 'ZT Traitors%')");
   await pool.query(`DELETE FROM "user" WHERE username LIKE 'zt\\_nd\\_%'`); // sessions, accounts, follows cascade

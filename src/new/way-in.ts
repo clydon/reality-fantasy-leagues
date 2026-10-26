@@ -3,13 +3,27 @@
 // account to save them to, and the words for where someone is in a season.
 
 /** First run's picks: the seasons, and where you are in each. Kept on the device through making an account (a
- *  Google sign-in and an emailed link both leave the page), then saved (POST /api/me/first-run) and cleared. */
+ *  Google sign-in and an emailed link both leave the page), then saved (POST /api/me/first-run) and cleared. A pick is a
+ *  season's id, or (step 10) a show from the TV listings (`tv:<TVmaze id>`) or one added by name (`name:<name>`), with
+ *  what to show for it in `extra` until the account makes it. */
 export interface FirstRunPicks {
   picked: string[];
   where: Record<string, number>;
+  extra?: Record<string, ExtraPick>;
   /** When they were last changed: picks a week old are let go. */
   at: number;
 }
+
+/** A pick that isn't a season here yet: its name and art, from the listing (or the name typed). */
+export interface ExtraPick {
+  name: string;
+  artUrl: string | null;
+}
+
+/** A pick's key for a show from the TV listings, or one added by name. */
+export const listingKey = (tvmazeId: number) => `tv:${tvmazeId}`;
+export const nameKeyOf = (name: string) => `name:${name.trim().replace(/\s+/g, " ")}`;
+const isExtra = (key: string) => /^tv:\d+$/.test(key) || /^name:.{2,80}$/.test(key);
 
 const KEY = "gys.firstRun";
 const KEEP_MS = 7 * 24 * 3600 * 1000;
@@ -21,13 +35,20 @@ export function parseFirstRun(raw: string | null, now = Date.now()): FirstRunPic
   try {
     const p = JSON.parse(raw) as Partial<FirstRunPicks>;
     if (!Array.isArray(p.picked) || typeof p.at !== "number" || now - p.at > KEEP_MS) return EMPTY();
-    const picked = p.picked.filter((id): id is string => typeof id === "string").slice(0, 40);
+    const ids = p.picked.filter((id): id is string => typeof id === "string");
+    // A listing or a name needs its name kept to show it; one without is let go.
+    const extra: Record<string, ExtraPick> = {};
+    for (const id of ids.filter(isExtra)) {
+      const e = p.extra?.[id];
+      if (e && typeof e.name === "string" && e.name.trim()) extra[id] = { name: e.name.slice(0, 120), artUrl: typeof e.artUrl === "string" ? e.artUrl : null };
+    }
+    const picked = ids.filter((id) => (/^(tv|name):/.test(id) ? !!extra[id] : true)).slice(0, 40);
     const where: Record<string, number> = {};
     for (const id of picked) {
       const n = p.where?.[id];
       where[id] = Number.isInteger(n) && (n as number) >= 0 ? (n as number) : 0;
     }
-    return { picked, where, at: p.at };
+    return Object.keys(extra).length ? { picked, where, extra, at: p.at } : { picked, where, at: p.at };
   } catch {
     return EMPTY();
   }
@@ -62,12 +83,18 @@ export function startWith(seasonIds: string[]) {
   writeFirstRun({ picked: seasonIds, where: Object.fromEntries(seasonIds.map((id) => [id, 0])) });
 }
 
-/** What first run saves: each picked season with where you are in it (never past what's aired). */
-export function followsOf(p: FirstRunPicks, aired: (seasonId: string) => number | null | undefined): { seasonId: string; seenThrough: number }[] {
-  return p.picked.map((seasonId) => {
-    const cap = aired(seasonId);
-    const seen = p.where[seasonId] ?? 0;
-    return { seasonId, seenThrough: cap == null ? seen : Math.min(seen, cap) };
+/** What first run saves: each pick with where you are in it (never past what's aired; the server caps a listing's). */
+export function followsOf(
+  p: FirstRunPicks,
+  aired: (key: string) => number | null | undefined
+): (({ seasonId: string } | { listing: number } | { name: string }) & { seenThrough: number })[] {
+  return p.picked.map((key) => {
+    const cap = aired(key);
+    const seen = p.where[key] ?? 0;
+    const seenThrough = cap == null ? seen : Math.min(seen, cap);
+    if (key.startsWith("tv:")) return { listing: Number(key.slice(3)), seenThrough };
+    if (key.startsWith("name:")) return { name: key.slice(5), seenThrough };
+    return { seasonId: key, seenThrough };
   });
 }
 

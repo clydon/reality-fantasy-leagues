@@ -35,7 +35,8 @@ function findChrome() {
   throw new Error("no Chromium under " + root);
 }
 
-async function open({ user, pass, width = 390, height = 844, motion = process.env.MOTION || "on", watch = !!process.env.MOTION_WATCH } = {}) {
+// `headers` go with every request the page makes (a check's stand-ins: { "x-gys-listings": tv.url }, fake-listings.js).
+async function open({ user, pass, width = 390, height = 844, motion = process.env.MOTION || "on", watch = !!process.env.MOTION_WATCH, headers } = {}) {
   const browser = await findPlaywright().chromium.launch({ executablePath: findChrome() });
   const context = await browser.newContext({
     viewport: { width, height },
@@ -45,6 +46,7 @@ async function open({ user, pass, width = 390, height = 844, motion = process.en
     reducedMotion: motion === "reduce" ? "reduce" : "no-preference",
   });
   await motionTools.install(context, { mode: motion, watch });
+  if (headers) await context.setExtraHTTPHeaders(headers);
   if (user) {
     const r = await context.request.post(BASE + "/api/auth/sign-in/username", { data: { username: user, password: pass }, headers: { origin: BASE } });
     if (!r.ok()) throw new Error("sign-in failed: " + r.status() + " " + (await r.text()));

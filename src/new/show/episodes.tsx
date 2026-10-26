@@ -111,6 +111,8 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                   <HiddenRow e={e} onReveal={() => openReveal(e.number)} />
                 ) : e.status === "waiting" ? (
                   <WaitingRow e={e} />
+                ) : e.status === "aired" ? (
+                  <AiredRow e={e} />
                 ) : (
                   <SeenRow e={e} />
                 )}
@@ -158,6 +160,22 @@ function HiddenRow({ e, onReveal }: { e: EpisodeRow; onReveal: () => void }) {
       </span>
       <span className="text-[15px] font-semibold text-chyron-line">Reveal</span>
     </button>
+  );
+}
+
+/** An episode of a show you only watch, with no results to show (step 10): when it aired, and whether you've seen it. */
+function AiredRow({ e }: { e: EpisodeRow }) {
+  return (
+    <div data-ep-aired={e.number} data-watched={e.watched ? "yes" : "no"} className="flex min-h-[68px] items-center gap-3 border-t border-border">
+      <span className={`type-num w-7 text-[28px] ${e.watched ? "" : "text-muted-foreground"}`}>{e.number}</span>
+      <span className="min-w-0 flex-1">
+        <b className="block text-base font-semibold">{e.title ?? `Episode ${e.number}`}</b>
+        <small className="mt-0.5 block text-[13px] text-muted-foreground">
+          {e.airAt ? `Aired ${airTime(Date.parse(e.airAt))} · ` : ""}
+          {e.watched ? "You've seen it" : "Not seen yet"}
+        </small>
+      </span>
+    </div>
   );
 }
 

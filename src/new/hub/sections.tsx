@@ -3,10 +3,9 @@
 import { useState } from "react";
 import { ChartColumn, ChevronRight, Crown, Link2, Plus, RotateCcw, Tv, Trophy } from "lucide-react";
 import { airTime, calmWhen, ticks } from "../clock";
-import { useInviteCode, type Couch, type CouchHub, type FeedItem, type Home, type HomeShow, type Move, type PlayingGame, type WeekProgress } from "../data";
+import { useAfterWatching, useInviteCode, watching, type Couch, type CouchHub, type CouchShow, type FeedItem, type Home, type HomeShow, type Move, type PlayingGame, type WeekProgress } from "../data";
 import { openCouchSheet } from "../couch/couch-sheets";
 import { ON_NOW } from "../fixtures/watch-along";
-import { COUCH_WATCHING, NUDGE } from "../fixtures/watching";
 import { PEOPLE, type Demo } from "../fixtures/people";
 import { ordinal } from "../games";
 import { NavLink } from "../nav";
@@ -16,6 +15,8 @@ import { usePushedPage } from "../ui/page";
 import { Btn, SectionHead } from "../ui/parts";
 import { Preview } from "../ui/preview";
 import { ShowArt } from "../ui/show-bar";
+import { toast } from "../ui/toast";
+import { openWatching } from "../watching/sheets";
 
 // The hub's sections (the mock's index.html hub, refine.js wireHub, hubplus.js, watching.js, fresh.js), in the order
 // screens/home.tsx lays them out. Real (step 8): the status line and Up next (results to reveal first, then what's due,
@@ -385,18 +386,18 @@ export function YourShows({ home, hub }: { home: Home; hub: CouchHub | undefined
         {shelfOrder(home.shows).map((s) => (
           <Poster key={s.seasonId} show={s} due={due.has(s.seasonId)} places={(hub?.games ?? []).filter((p) => p.seasonId === s.seasonId)} />
         ))}
-        <Preview id="hub.add-show" tag={false} className="flex-none">
-          <button
-            type="button"
-            className="flex h-[232px] w-[164px] snap-start flex-col items-center justify-center gap-2 rounded-[4px] p-3 text-center text-muted-foreground"
-          >
-            <span className="grid size-11 place-items-center rounded-[3px] bg-card text-foreground">
-              <Plus className="size-6" aria-hidden />
-            </span>
-            <b className="type-caption text-[22px] text-foreground">Add a show</b>
-            <small className="text-[13px] leading-snug">Tell the couch what you&rsquo;re watching.</small>
-          </button>
-        </Preview>
+        <button
+          type="button"
+          data-add-show-poster
+          onClick={() => openWatching({ kind: "add" })}
+          className="nd-press flex h-[232px] w-[164px] flex-none snap-start flex-col items-center justify-center gap-2 rounded-[4px] p-3 text-center text-muted-foreground outline-2 -outline-offset-2 outline-dashed outline-input"
+        >
+          <span className="grid size-11 place-items-center rounded-[3px] bg-card text-foreground">
+            <Plus className="size-6" aria-hidden />
+          </span>
+          <b className="type-caption text-[22px] text-foreground">Add a show</b>
+          <small className="text-[13px] leading-snug">Tell the couch what you&rsquo;re watching.</small>
+        </button>
       </div>
     </section>
   );
@@ -404,74 +405,166 @@ export function YourShows({ home, hub }: { home: Home; hub: CouchHub | undefined
 
 // ---------- You both watch ----------
 
-export function BothWatch() {
+/** "jordan", "riley and jordan", "riley, jordan and 2 more". */
+export function namesOf(who: string[]) {
+  if (who.length <= 2) return who.join(" and ");
+  return `${who.slice(0, 2).join(", ")} and ${who.length - 2} more`;
+}
+
+/** As people say a show: "The Traitors", not "The Traitors (US)". */
+const plainName = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
+
+/** Who else on the couch openly watches a season (never how far: guard.ts shares nobody's progress). */
+export const watchersOn = (couch: Couch | null, meId: string, seasonId: string) => (couch?.members ?? []).filter((m) => m.userId !== meId && m.watching.includes(seasonId));
+
+/**
+ * The one show to nudge about (the mock's watching.js nudgeHTML): one you follow that someone else on the couch watches too,
+ * still airing or coming up, with no game on the couch and none of yours, and not answered before. The most people first,
+ * then the soonest.
+ */
+export function nudgeShow(home: Home, couch: Couch | null): { show: HomeShow; with: string[] } | null {
+  if (!couch) return null;
+  const at = (s: HomeShow) => (s.upNext?.airAt ? Date.parse(s.upNext.airAt) : Infinity);
+  const list = home.shows
+    .filter((s) => s.following && !s.nudgeOff && !s.games.length && s.status !== "completed" && !couch.games.some((g) => g.seasonId === s.seasonId))
+    .map((s) => ({ show: s, with: watchersOn(couch, home.user.id, s.seasonId).map((m) => m.name) }))
+    .filter((x) => x.with.length > 0)
+    .sort((a, b) => b.with.length - a.with.length || at(a.show) - at(b.show));
+  return list[0] ?? null;
+}
+
+export function BothWatch({ home, couch }: { home: Home; couch: Couch | null }) {
+  const refresh = useAfterWatching();
+  const [gone, setGone] = useState<string | null>(null);
+  const n = nudgeShow(home, couch);
+  if (!n || gone === n.show.seasonId) return null;
+  const name = plainName(n.show.show.name);
+  const ready = n.show.ready !== false;
   return (
-    <Preview id="hub.nudge" className="mx-4 mt-6">
+    <section className="mx-4 mt-6" data-nudge={n.show.seasonId}>
       <div className="flex flex-col overflow-hidden rounded-[4px] bg-card">
-        {/* eslint-disable-next-line @next/next/no-img-element -- fixture art from the published mock */}
-        <img src={NUDGE.art} alt="" className="h-24 w-full object-cover" />
+        <ShowArt seasonId={`nudge-${n.show.seasonId}`} artUrl={n.show.show.artUrl} name={name} className="h-24 w-full" />
         <div className="flex flex-col gap-[5px] px-3.5 pb-3.5 pt-3">
           <span className="type-caption self-start bg-secondary py-1 pl-[7px] pr-3.5 text-[11px] tracking-[0.06em] [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
-            You both watch
+            {n.with.length > 1 ? "You all watch" : "You both watch"}
           </span>
           <b className="text-[17px] leading-tight">
-            You and {NUDGE.with.join(" and ")} both watch {NUDGE.show}
+            {n.with.length > 1 ? `You, ${namesOf(n.with)} all watch ${name}` : `You and ${n.with[0]} both watch ${name}`}
           </b>
           <small className="text-[13px] leading-snug text-muted-foreground">Nobody&rsquo;s playing it yet. Start a game and the couch hears about it once.</small>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <Btn className="h-11">Make it a game</Btn>
-            <Btn className="h-11">Not now</Btn>
+            <NavLink
+              href={paths.show(n.show.seasonId, "games")}
+              data-nudge-go
+              className="nd-press flex h-11 items-center justify-center rounded-[3px] bg-card text-[15px] font-bold outline-1 -outline-offset-1 outline-input"
+            >
+              {ready ? "Start a game" : "Make it a game"}
+            </NavLink>
+            <Btn
+              className="h-11"
+              data-nudge-no
+              onClick={async () => {
+                setGone(n.show.seasonId);
+                try {
+                  await watching.follow(n.show.seasonId, { nudgeOff: true });
+                  await refresh();
+                  toast("Got it. We won't ask about this one again");
+                } catch (e) {
+                  setGone(null);
+                  toast((e as Error).message);
+                }
+              }}
+            >
+              Not now
+            </Btn>
           </div>
         </div>
       </div>
-    </Preview>
+    </section>
   );
 }
 
 // ---------- The couch is watching ----------
 
-export function CouchWatching() {
+type Watched = { s: HomeShow | CouchShow; yours: boolean; who: { userId: string; name: string }[] };
+
+/** What the couch watches (the mock's watching.js couchWatchHTML): weekly shows someone else on the couch follows openly,
+ *  the ones not on your list first, then the most watched. A streaming drop is step 14's rail, and a show the couch plays
+ *  is already on Your shows with its games. */
+export function couchWatching(home: Home, couch: Couch | null): Watched[] {
+  if (!couch) return [];
+  const played = new Set(couch.games.map((g) => g.seasonId));
+  const all: Watched[] = [
+    ...(home.couchShows ?? []).map((s) => ({ s, yours: false, who: watchersOn(couch, home.user.id, s.seasonId) })),
+    ...home.shows.filter((s) => s.following || s.games.length).map((s) => ({ s, yours: true, who: watchersOn(couch, home.user.id, s.seasonId) })),
+  ];
+  return all
+    .filter((x) => x.who.length > 0 && x.s.release !== "binge" && !played.has(x.s.seasonId))
+    .sort((a, b) => Number(a.yours) - Number(b.yours) || b.who.length - a.who.length || a.s.show.name.localeCompare(b.s.show.name));
+}
+
+const labelOf = (s: { show: { name: string }; seasonNumber: number | null }) => `${plainName(s.show.name)}${s.seasonNumber ? ` ${s.seasonNumber}` : ""}`;
+
+export function CouchWatching({ home, couch }: { home: Home; couch: Couch | null }) {
+  const list = couchWatching(home, couch);
+  if (!list.length) return null;
   return (
-    <section className="mt-8">
-      <SectionHead title="The couch is watching" aside="Weekly shows" />
-      <Preview id="hub.couch-watching" className="mx-4">
-        <div className="-mx-0 flex gap-2.5 overflow-x-auto p-2 [scrollbar-width:none]">
-          {COUCH_WATCHING.map((c) => (
-            <div key={c.name} className="flex w-[200px] flex-none flex-col overflow-hidden rounded-[4px] bg-card">
+    <section className="mt-8" data-couch-watching>
+      <SectionHead title="The couch is watching" aside="Tap to check one out" />
+      <div className="flex gap-2.5 overflow-x-auto px-4 pb-2 [scrollbar-width:none]">
+        {list.map(({ s, yours, who }) => (
+          <div key={s.seasonId} data-watched={labelOf(s)} className="flex w-[200px] flex-none flex-col overflow-hidden rounded-[4px] bg-card">
+            <NavLink href={paths.show(s.seasonId)} className="nd-press flex flex-1 flex-col text-left">
               <span className="relative h-24">
-                {/* eslint-disable-next-line @next/next/no-img-element -- fixture art from the published mock */}
-                <img src={c.art} alt="" className="size-full object-cover" style={{ objectPosition: c.position }} />
-                {c.notYours && (
-                  <span className="type-caption absolute left-2 top-2 rounded-[2px] bg-[rgba(10,8,14,.75)] px-[7px] py-[3px] text-[10px] tracking-[0.05em] outline-1 -outline-offset-1 outline-dashed outline-white/50">
+                <ShowArt seasonId={`watched-${s.seasonId}`} artUrl={s.show.artUrl} name={plainName(s.show.name)} className="size-full" />
+                {!yours && (
+                  <span className="type-caption absolute left-2 top-2 rounded-[2px] bg-[rgba(10,8,14,.75)] px-[7px] py-[3px] text-[10px] tracking-[0.05em] text-white outline-1 -outline-offset-1 outline-dashed outline-white/50">
                     Not on your list
                   </span>
                 )}
-                {c.onNow && (
-                  <span className="type-caption absolute bottom-2 left-2 flex items-center gap-[5px] rounded-[2px] bg-good px-2 py-[3px] text-[11px] tracking-[0.04em] text-good-foreground">
-                    <i className="size-1.5 animate-pulse rounded-full bg-current" aria-hidden />
-                    {c.onNow} is on
-                  </span>
-                )}
               </span>
-              <b className="type-caption px-3 pb-1 pt-2.5 text-[18px]">{c.name}</b>
+              <b className="type-caption px-3 pb-1 pt-2.5 text-[18px] leading-none">{labelOf(s)}</b>
               <span className="flex flex-col gap-[5px] px-3 pb-3 text-xs text-muted-foreground">
-                {c.people.map(([who, where]) => (
-                  <span key={who} className="flex items-center gap-1.5">
-                    <DemoAvatar who={who} size={20} />
-                    {who} · {where}
+                {who.slice(0, 3).map((m) => (
+                  <span key={m.userId} className="flex items-center gap-1.5">
+                    <Avatar id={m.userId} name={m.name} size={20} />
+                    {m.name}
                   </span>
                 ))}
+                {who.length > 3 && <span>+{who.length - 3} more</span>}
               </span>
-              {c.notYours && (
-                <span className="mx-3 mb-3 flex h-10 items-center justify-center gap-1.5 rounded-[3px] text-sm font-bold outline-1 -outline-offset-1 outline-input">
-                  <Plus className="size-4" aria-hidden />
-                  Add to my shows
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      </Preview>
+            </NavLink>
+            {!yours && (
+              <button
+                type="button"
+                data-watch-add={labelOf(s)}
+                onClick={() =>
+                  openWatching({
+                    kind: "where",
+                    target: {
+                      seasonId: s.seasonId,
+                      label: labelOf(s),
+                      show: plainName(s.show.name),
+                      artUrl: s.show.artUrl,
+                      artPosition: "center",
+                      aired: s.latestAired,
+                      status: s.status === "upcoming" || s.status === "completed" ? s.status : "airing",
+                      premiere: s.premiereDate,
+                      seen: 0,
+                      following: false,
+                      plays: false,
+                    },
+                  })
+                }
+                className="nd-press mx-3 mb-3 flex h-10 items-center justify-center gap-1.5 rounded-[3px] text-sm font-bold outline-1 -outline-offset-1 outline-input"
+              >
+                <Plus className="size-4" aria-hidden />
+                Add to my shows
+              </button>
+            )}
+          </div>
+        ))}
+      </div>
     </section>
   );
 }
@@ -615,9 +708,7 @@ export function GetGoing({ home, couch }: { home: Home; couch: Couch | null }) {
         <Preview id="hub.start-game" tag={false}>
           <GoStep n={1} title="Start a game" line={startLine} />
         </Preview>
-        <Preview id="hub.add-show" tag={false}>
-          <GoStep n={2} title="Add the other shows you watch" line="The couch sees what everyone's watching. That's where games start." />
-        </Preview>
+        <GoStep n={2} title="Add the other shows you watch" line="The couch sees what everyone's watching. That's where games start." onClick={() => openWatching({ kind: "add" })} />
         {couch ? (
           <GoStep
             n={3}
