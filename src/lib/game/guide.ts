@@ -1,6 +1,7 @@
 // The TV guide, the pure half (docs/PLAN-new-design.md step 11; the mock's index.html guideDays and card, tvguide.js and
 // streaming.js's drop days): your shows' and the couch's episodes laid out over seven days from today, in the viewer's own
-// time zone (the browser's), each day in time order with the Now line, shows starting at the same moment side by side as
+// time zone (the browser's), each day running from 3 AM to 3 AM as TV listings do (a talk show at 12:37 AM is the night
+// before's: step 11 part 2, from Noticed), each in time order with the Now line, shows starting at the same moment side by side as
 // "Same time", and a streaming season that drops every episode at once as one card ("All 8 drop"). Only when things air:
 // never a title or a result (the home read sends neither for the guide). Checked by tests/guide.test.js.
 
@@ -54,7 +55,7 @@ export type GuideSlot = GuideCard | GuideCard[];
 export interface GuideDay {
   /** Days from today: 0 is today. */
   offset: number;
-  /** Its local midnight (ms). */
+  /** When it starts (ms): 3 AM local, the guide's day (DAY_STARTS_AT). */
   start: number;
   slots: GuideSlot[];
   /** Today only: the Now line goes before slots[nowAt] (slots.length: after them all). Null on other days. */
@@ -62,23 +63,32 @@ export interface GuideDay {
 }
 
 export const GUIDE_DAYS = 7;
+/** The hour the guide's day starts, as TV listings run theirs: what's on after midnight is the night before's. */
+export const DAY_STARTS_AT = 3;
 /** How long an episode is taken to run when nobody says (schedule.ts' DEFAULT_RUNTIME_MIN). */
 const RUNTIME_MIN = 60;
 const TIE_ORDER: Record<GuideTie, number> = { plays: 0, watches: 1, couch: 2 };
 
-/** Local midnight of the day `t` falls in. */
+/** When the guide's day that `t` falls in started: 3 AM local (before 3 AM, the day before's). */
 export function startOfLocalDay(t: number): number {
   const d = new Date(t);
-  d.setHours(0, 0, 0, 0);
+  if (d.getHours() < DAY_STARTS_AT) d.setDate(d.getDate() - 1);
+  d.setHours(DAY_STARTS_AT, 0, 0, 0);
   return d.getTime();
 }
 
-/** Local midnight `n` days after `start` (a calendar day, so a clock change doesn't shift it). */
+/** The guide's day `n` days after `start` (a calendar day, so a clock change doesn't shift it). */
 export function addLocalDays(start: number, n: number): number {
   const d = new Date(start);
   d.setDate(d.getDate() + n);
-  d.setHours(0, 0, 0, 0);
+  d.setHours(DAY_STARTS_AT, 0, 0, 0);
   return d.getTime();
+}
+
+/** The evening, as the guide names it: from 5 PM until its day ends at 3 AM ("Tonight", "Nothing tonight"). */
+export function eveningAt(t: number): boolean {
+  const h = new Date(t).getHours();
+  return h >= 17 || h < DAY_STARTS_AT;
 }
 
 /** Every show's episodes as cards: one per show and start time (a drop's episodes, or a double episode, are one card). */

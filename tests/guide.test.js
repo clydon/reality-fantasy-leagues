@@ -25,14 +25,14 @@ const show = (over) => ({
   dueEpisode: over.dueEpisode ?? null,
 });
 
-test("seven local days from today, each from its own midnight, across a clock change", () => {
+test("seven local days from today, each from 3 AM (TV listings' day), across a clock change", () => {
   const week = G.guideWeek([], NOW);
   assert.equal(week.length, 7);
   week.forEach((d, i) => {
     const start = new Date(d.start);
     assert.equal(d.offset, i);
     assert.equal(start.getDate(), 26 + i > 31 ? 26 + i - 31 : 26 + i, `day ${i}'s date`);
-    assert.equal(start.getHours(), 0, `day ${i} starts at midnight`);
+    assert.equal(start.getHours(), 3, `day ${i} starts at 3 AM`);
   });
   assert.ok(G.guideEmpty(week));
   assert.equal(week[0].nowAt, 0, "an empty today still has a place for the Now line");
@@ -105,11 +105,25 @@ test("the due dot is on the episode a move is for; nothing past the week; Next u
   assert.equal(G.episodeLine({ seasonNumber: null, numbers: [3], drop: null }), "Ep 3");
 });
 
-test("a Sunday after the clock change is still its own day (Nov 1, 2026)", () => {
-  const week = G.guideWeek([show({ seasonId: "sun", week: [{ number: 2, airAt: iso(32, 0, 30), runtimeMin: 30 }, { number: 1, airAt: iso(31, 23, 30), runtimeMin: 30 }] })], NOW);
-  // Oct 31 23:30 is Saturday (offset 5); Nov 1 00:30 is Sunday (offset 6).
-  assert.equal(week[5].slots.length, 1);
-  assert.equal(week[5].slots[0].numbers[0], 1);
-  assert.equal(week[6].slots.length, 1);
-  assert.equal(week[6].slots[0].numbers[0], 2);
+test("after midnight is the night before's; a Sunday after the clock change is still its own day (Nov 1, 2026)", () => {
+  const week = G.guideWeek(
+    [show({ seasonId: "sun", week: [{ number: 3, airAt: iso(32, 20), runtimeMin: 30 }, { number: 2, airAt: iso(32, 0, 30), runtimeMin: 30 }, { number: 1, airAt: iso(31, 23, 30), runtimeMin: 30 }] })],
+    NOW
+  );
+  // Oct 31 23:30 and Nov 1 00:30 are Saturday night (offset 5); Nov 1 at 8 PM is Sunday (offset 6), which starts at 3 AM.
+  assert.deepEqual(week[5].slots.map((s) => s.numbers[0]), [1, 2]);
+  assert.deepEqual(week[6].slots.map((s) => s.numbers[0]), [3]);
+  assert.equal(new Date(week[6].start).getDate(), 1);
+  assert.equal(new Date(week[6].start).getHours(), 3);
+});
+
+test("at 1:30 AM it's still last night: today is the day before's, its late show on it", () => {
+  const late = local(27, 1, 30).getTime();
+  const week = G.guideWeek([show({ seasonId: "talk", week: [{ number: 9, airAt: iso(27, 0, 35), runtimeMin: 60 }, { number: 10, airAt: iso(28, 0, 35), runtimeMin: 60 }] })], late);
+  assert.equal(new Date(week[0].start).getDate(), 26, "today is Monday's TV day");
+  assert.equal(week[0].slots[0].numbers[0], 9);
+  assert.equal(week[0].slots[0].live, true, "on now");
+  assert.equal(week[1].slots[0].numbers[0], 10, "Tuesday night's is tomorrow's");
+  assert.equal(G.eveningAt(late), true, "still the evening (Tonight)");
+  assert.equal(G.eveningAt(local(27, 9)), false);
 });

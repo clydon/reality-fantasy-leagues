@@ -22,12 +22,11 @@ export const PREVIEWS = {
   // ---- the hub (ported in 0d; fixtures in src/new/fixtures/; its status line, Up next, your shows, the feed, your
   // numbers and More on the couch's pages are real since step 8; the couch switcher, Get the couch going and the foot since
   // step 9; Add a show, the "you both watch" nudge and The couch is watching since step 10; Start a game since 10 part 2b; the
-// TV guide on the couch's shows since step 11 part 1) ----
+// TV guide on the couch's shows since step 11 part 1, all of TV in it since part 2) ----
   "hub.notifications": { step: "15", title: "Notifications", line: "What's happened on your couch since you last looked." },
   "hub.taste-twin": { step: "12", title: "Your taste twin", line: "Who on the couch rates episodes most like you." },
   "hub.watch-along": { step: "13", title: "Watch along", line: "Watch with the couch, live or on your own time." },
   "hub.on-now": { step: "13", title: "On now", line: "Who's watching right now, and joining them." },
-  "hub.all-of-tv": { step: "11", title: "All of TV in the guide", line: "What else is on each evening, under your shows." },
   "hub.streaming": { step: "14", title: "Streaming on the couch", line: "Shows without an airtime, at your own pace." },
   "hub.verdicts": { step: "12", title: "Couch verdicts", line: "How the couch rated each episode." },
   "hub.episode-games": { step: "12", title: "This week's games", line: "Bingo, Who goes home?, polls and trivia, one night each." },

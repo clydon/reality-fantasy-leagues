@@ -16,7 +16,7 @@ free plan stops being enough, choosing the cheapest fit is arithmetic, not resea
 | **GitHub** (`clydon/reality-fantasy-leagues`, **public since 2026-10-24**) | The code; Actions runs the hourly job (`auto-research.yml`: auto-research, reminders, waivers) and the nightly wiki sync | Free; Actions minutes unlimited while public | $0 |
 | healthchecks.io | Emails when the bot's daily self-test fails | Free | $0 |
 | Resend | Sign-up and password emails | not checked | $0? |
-| **TVmaze** API (`api.tvmaze.com`, new design step 10 part 1, on the branch) | TV listings for Add a show: the show search as you type, a show's seasons and episode air times when someone adds it, and its cast when someone makes a series or talk show a game (step 10 part 2a). Asked only then, never on a timer (step 11's daily schedule job is still to come) | Free, no key. Data is CC BY-SA (credited with a link back on Add a show); at least 20 calls every 10 seconds per IP, else HTTP 429; posters hotlinked from its image CDN (allowed) | $0 |
+| **TVmaze** API (`api.tvmaze.com`, new design step 10 part 1, on the branch) | TV listings for Add a show: the show search as you type, a show's seasons and episode air times when someone adds it, and its cast when someone makes a series or talk show a game (step 10 part 2a). Since step 11 part 2, also once a day by the listings job (the week's schedules for the guide's Also on, what changed, new seasons): about 17-20 calls a day, on the bot clock's calls, never on a timer of its own | Free, no key. Data is CC BY-SA (credited with a link back on Add a show, the guide and its sheets); at least 20 calls every 10 seconds per IP, else HTTP 429 (the job spaces its calls 0.7 s apart); posters hotlinked from its image CDN (allowed) | $0 |
 | Google Cloud OAuth client (**not made yet**: the user's, step 9 part 2) | Continue with Google on the new design's way in. Off until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (no keys, no button) | Free (sign-in only: the email, profile and openid scopes, no verification review needed) | $0 |
 | Anthropic API | Paid auto-research (Claude), only for seasons switched on | Pay per use | per episode researched |
 | Domain `gameyourshow.com` | Bought 2026-10-12 | not recorded | yearly |
@@ -80,6 +80,7 @@ scales up under load). So what matters is how often something wakes it, not how 
 | Hourly GitHub job (when it runs) | ~6 min an hour | ~18 |
 | Bot research clock, after 2026-10-24 | each episode night's runs, plus a check-in every 6 h | ~3 per show airing |
 | Tie-break runs (new design, step 6c; off until switched on in desk › Settings) | one call a day after a dispute, up to 3 tries | a few minutes per disputed episode |
+| The listings job (new design, step 11 part 2) | none of its own: it runs after a bot clock call that ran no bot job, which had woken the database already; ~10-30 s of queries once a day | ~0 (a backstop Vercel cron, if ever needed, ~0.6) |
 | Bot research clock, before (a call every 2 min) | around the clock | ~180 (over the allowance) |
 | People with the app open (classic, or a new-design show space: its Chat badge polls) | while they're on it, plus 5 minutes | the rest: ~20 in Oct 1-24 (35.4 total, less ~11 for the hourly job until it stopped and ~3 for the clock's first night) |
 | Admin bot-research runs panel | polls every 60 s while open | admin only |
@@ -132,8 +133,8 @@ show people add (fine at hundreds of seasons; past ~1,000, at most 12 uncached r
 transfer a month, and the search should move to the server). **Adding a show** nobody has added before is two TVmaze calls
 (the show with its seasons, then one season's episodes) and a few small writes: a `shows` row (with its listing, ~1 KB), a
 `show_seasons` row and a `season_episodes` row per episode (~100 bytes each), at most 10 new shows per person a day
-(`NEW_SHOWS_A_DAY` in add-show.ts). Adding it again a day later reads that season's episodes again (the only refresh until
-step 11's job). A show's poster is TVmaze's medium image, hotlinked (~25 KB; its only other size is the upload itself, often
+(`NEW_SHOWS_A_DAY` in add-show.ts). Adding it again a day later reads that season's episodes again (and since step 11 part 2 the
+daily listings job does whenever TVmaze says the show changed). A show's poster is TVmaze's medium image, hotlinked (~25 KB; its only other size is the upload itself, often
 over 1 MB, so it's never used). The hub's home read now also carries the couch's shows you don't follow (their headers and
 schedules: a few hundred bytes each), and the show space's read one more small query (whether you play the season).
 
@@ -162,7 +163,32 @@ that read already fetched for Up next, so nothing more from Neon but one tiny qu
 an episode more to the browser (a weekly show 1-2, a nightly one ~10, a streaming drop its episode count: a few hundred bytes to
 a couple of KB per open). The browser lays the week out and moves the clock on each minute without asking the server. **Hide
 from guide** is one small row per hidden show per person (`guide_hidden`, migration 0125, ~100 bytes), written when someone
-hides one. All of TV (part 2) and its daily job aren't built yet.
+hides one.
+
+**All of TV and the daily listings job (new design, step 11 part 2)** poll nothing and wake nothing of their own. **The job**
+(`src/lib/server/tv-listings.ts`) runs at most once an Eastern day, after the answer of a bot clock call
+(`/api/cron/bot-research`) that ran no bot job (`after()`, so it never holds up a run or the VM): the VM calls at least every
+six hours and each call has woken Neon already, so the job adds ~10-30 s of queries to a compute that's awake anyway (it
+stays up 5 minutes after the last query either way). Its TVmaze calls: 16 for the week (`/schedule?country=US` and
+`/schedule/web` for eight days), one `/updates/shows` (`since=day`, or `week` when its last upkeep was over 23 hours ago,
+keeping only shows changed since: runs are once an Eastern day on six-hourly calls, so up to ~30 hours apart), then one per listing show TVmaze says changed and one per
+season it reads again or makes (capped at 40 shows a run), and one per show here linked by name: ~20 a day today, spaced
+0.7 s apart. A failed day keeps its old rows and the job tries again an hour on (at the clock's next call); its last run is
+`app_settings 'listings'`. **`tv_listings`** (migration 0126) holds the evening (5 PM to 3 AM where it airs) and streaming
+drops, in English on a US or worldwide service, never the news: measured on a real day (2026-10-27), 55 rows from TVmaze's
+203 entries (12 drops), ~320 bytes each, so ~500 rows and ~150-200 KB with its indexes for the nine days it keeps (yesterday
+on); each day's rows are replaced when it's read again, so it doesn't grow. It's TV data fetched daily: **not in the
+backups**. **The read** (`/api/listings/week`, the guide's Also on) is the same for everyone with nobody's data in it, so
+Vercel's edge keeps it an hour (`s-maxage=3600`, served stale while it refreshes): at most one function call and one Neon
+read an hour per edge region, whoever opens the hub (~130 KB from Neon each: the nine days; at worst ~100 MB of transfer a
+month if someone opens the hub every hour, 2% of the allowance). Each phone reads it once a visit (cached an hour in the
+browser; ~25-30 KB gzipped) and leaves out its own shows, the couch's and what it hides. The same job keeps listing seasons
+current (a changed show's episodes and status, a new season when announced: a few small writes, a season's rulebook copied
+once for a show that's a game) and links shows by name (one `shows` row each). **If the VM stops calling**, the listings go
+stale (Also on empties a week later; seasons stop moving on). The backstop is a Vercel cron (Hobby allows one a day) on `GET
+/api/cron/listings?run=1`, which runs the job only when today's run hasn't happened: add `vercel.json` with `{"crons":
+[{"path": "/api/cron/listings?run=1", "schedule": "0 10 * * *"}]}` (Vercel sends `CRON_SECRET` itself when it's set). It wakes
+Neon once a day when nothing else has: ~5 minutes at 0.25 CU, about **0.6 CU-hours a month**. Not set up: the VM calls.
 
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
@@ -223,6 +249,9 @@ never handles it: the user does the reset and the pasting.
 - **GitHub**: `gh run list --workflow=auto-research.yml --limit 5` (green hourly; `gh workflow list --all` shows if one
   was disabled); Settings › Billing and plans for minutes once private.
 - **The bot clock**: on the VM, `journalctl -u llm-browser-tick -n 20` (one line per call; nothing between).
+- **The listings job** (new design, step 11 part 2): `GET /api/cron/listings` with `Authorization: Bearer <CRON_SECRET>` says its
+  last run (ok, days read, rows, seasons read again and made, shows linked) and how many listings each day has; `POST` runs it
+  now. Vercel's function logs have one `[listings]` line per run.
 
 ## Changelog
 
@@ -477,3 +506,11 @@ never handles it: the user does the reset and the pasting.
   more from Neon, ~60 bytes an episode to the browser) and what you've hidden (one tiny query). One read fewer everywhere:
   the catalog (`/api/catalog`) is asked only once Add a show opens, not by every signed-in page. Part 2 (all of TV, a
   `tv_listings` table and its daily refresh) and part 3 (planned nights) will add their own lines.
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 11 part 2, all of TV and the daily listings job. **Nothing
+  polls, and nothing wakes the database on its own.** Migration 0126: `tv_listings` (the week's evening airings and streaming
+  drops from TVmaze, ~500 rows and ~150-200 KB, replaced daily; not backed up). The job runs at most once a day after a bot
+  clock call that ran no bot job (`after()`; the VM is unchanged), ~20 TVmaze calls a day, and keeps listing seasons current,
+  makes a listed show's next season and links shows by name. A new open read, `/api/listings/week`, kept at the edge an hour
+  (at most one Neon read an hour, ~130 KB). `/api/cron/listings` (CRON_SECRET) for a run by hand, its status, and a backstop
+  Vercel cron should the VM stop calling (~0.6 CU-hours a month; not set up). The bot clock's answer gains `listings` (true
+  when it queued the job); the VM's tick ignores it.

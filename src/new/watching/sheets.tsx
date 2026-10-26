@@ -26,9 +26,11 @@ import { WhereAsk, type WhereSeason } from "./where";
 //          open for the next one.
 //   where  Where you are in a season (the show space's Change, Add to my shows, The couch is watching's Add): the stepper,
 //          then saved, following it if you weren't.
+//   listing  Add to my shows from a TV listing (the guide's Also on, step 11 part 2): where you are, read from the listing's
+//          season as Add a show does, then added.
 
 export type WhereTarget = WhereSeason & { seen: number; following: boolean; plays: boolean };
-type WatchingSheet = { kind: "add" } | { kind: "where"; target: WhereTarget };
+type WatchingSheet = { kind: "add" } | { kind: "where"; target: WhereTarget } | { kind: "listing"; hit: ListingHit };
 
 type Store = { sheet: WatchingSheet | null; n: number };
 let store: Store = { sheet: null, n: 0 };
@@ -69,6 +71,7 @@ export function WatchingSheets() {
     <>
       <AddShowSheet key={`add-${n}`} open={sheet?.kind === "add"} onOpenChange={onOpenChange} />
       <WhereSheet key={`where-${n}`} target={sheet?.kind === "where" ? sheet.target : null} onOpenChange={onOpenChange} />
+      <ListingSheet key={`listing-${n}`} hit={sheet?.kind === "listing" ? sheet.hit : null} onOpenChange={onOpenChange} />
     </>
   );
 }
@@ -109,6 +112,41 @@ function WhereSheet({ target, onOpenChange }: { target: WhereTarget | null; onOp
             }
           }}
         />
+      )}
+    </Sheet>
+  );
+}
+
+/** Add to my shows from a TV listing: where you are in the season adding it would follow, then it's yours. */
+function ListingSheet({ hit, onOpenChange }: { hit: ListingHit | null; onOpenChange: (o: boolean) => void }) {
+  const refresh = useAfterWatching();
+  const [busy, setBusy] = useState(false);
+  const [shown, setShown] = useState(hit);
+  if (hit && hit !== shown) setShown(hit);
+  const h = hit ?? shown;
+  return (
+    <Sheet open={!!hit} onOpenChange={onOpenChange} title="Add to my shows" subtitle={h ? `Where are you in ${h.name}?` : undefined}>
+      {h && (
+        <div data-add-listing={h.tvmazeId}>
+          <ListingWhere
+            hit={h}
+            busy={busy}
+            onSave={async (seen) => {
+              setBusy(true);
+              try {
+                const r = await watching.add({ listing: h.tvmazeId, seenThrough: seen });
+                await refresh();
+                toast(`${r.label} added to your shows${r.ready ? "" : " · not a game yet"}`);
+                close();
+              } catch (e) {
+                toast((e as Error).message);
+              } finally {
+                setBusy(false);
+              }
+            }}
+          />
+          <ListingsCredit />
+        </div>
       )}
     </Sheet>
   );

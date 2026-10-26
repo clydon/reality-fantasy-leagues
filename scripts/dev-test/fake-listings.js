@@ -1,14 +1,22 @@
 // Dev-only: a stand-in for TVmaze (src/lib/server/listings.ts), so a check can search and add shows from "the TV listings"
-// (docs/PLAN-new-design.md step 10 part 1) without the real one. It answers the three calls the app makes:
+// (docs/PLAN-new-design.md step 10 part 1) without the real one. It answers the calls the app makes:
 //   GET /search/shows?q=        every show whose name holds the words (case-insensitive), TVmaze's { score, show } rows
 //   GET /shows/:id?embed=seasons  the show with _embedded.seasons
 //   GET /seasons/:id/episodes   that season's episodes
 //   GET /shows/:id/cast         the show's main cast (people and the characters they play), for Make it a game
-// Shows are made relative to today, so "aired" stays true whenever the check runs.
+//   GET /schedule?country=US&date=   a day's network airings (step 11 part 2's listings job): every episode of a show on a
+//                               US network whose start falls on that date in the East, the show as `show`
+//   GET /schedule/web?date=     the day's streaming: every episode of a show on a web channel, the show as `_embedded.show`
+//                               (a drop has an empty airtime, as TVmaze's do)
+//   GET /updates/shows?since=day  { id: when } for every show, or only `tv.updated`'s ids when a check sets it; when is now,
+//                               or `tv.changedAt[id]` (seconds) when a check sets one
+// Shows are made relative to today, so "aired" stays true whenever the check runs. The schedules are worked out from the
+// shows (so a show a check pushes airs too); `oneNight` makes a show with one season airing at a given moment.
 //
 //   const tv = await require("./fake-listings").start();          // or start({ shows: [...] })
 //   // point the dev server at it: header  x-gys-listings: tv.url   (next dev only, loopback only)
-//   tv.asked (paths asked, in order);  tv.down = true (every call 503s);  await tv.close();
+//   tv.asked (paths asked, in order);  tv.down = true (every call 503s);  tv.updated = [ids] or null;  tv.changedAt = { id: s };
+//   await tv.close();
 //
 // No database and no app server: only the listings' side. Every show's name starts "ZT " and its id is 990001 and up, so
 // nothing it makes can be mistaken for a real show (check-new-watching.js removes what it made).
@@ -34,6 +42,66 @@ function weekly(seasonId, number, total, aired, now = Date.now()) {
       airdate: date(at(i + 1)), airtime: "21:00", airstamp: iso(at(i + 1)), runtime: 60,
     })),
   };
+}
+
+const ZONE = "America/New_York";
+/** A moment's date and clock time in the East, as TVmaze's US schedule lists them ("2026-10-27", "20:00"). */
+function eastern(t) {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", { timeZone: ZONE, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" })
+      .formatToParts(new Date(t))
+      .map((x) => [x.type, x.value])
+  );
+  return { date: `${parts.year}-${parts.month}-${parts.day}`, time: `${parts.hour}:${parts.minute}` };
+}
+
+/**
+ * A show with one season airing at `at` (a Date or ms): `episodes` of them at once (a streaming drop when `web` is set and
+ * `drop` is true), on a US network unless `web` names a streaming service ({ name, country: code or null }). Its season is
+ * `season` (1), its popularity `weight` (50), its language `language` ("English"), its type `type` ("Reality").
+ */
+function oneNight(id, name, at, o = {}) {
+  const t = new Date(at).getTime();
+  const seasonId = id * 10 + (o.season ?? 1);
+  const network = o.web ? null : { name: o.network ?? "ZT Network", country: { name: "United States", code: "US", timezone: ZONE } };
+  const webChannel = o.web ? { name: o.web.name, country: o.web.country ? { name: o.web.country, code: o.web.country, timezone: ZONE } : null } : null;
+  const n = o.episodes ?? 1;
+  const premiere = eastern(t).date;
+  return {
+    show: {
+      id, name, type: o.type ?? "Reality", language: o.language ?? "English", genres: [], status: "Running", premiered: premiere, weight: o.weight ?? 50,
+      network, webChannel, image: o.art ? { medium: o.art, original: o.art } : null, url: `https://www.tvmaze.com/shows/${id}`,
+      schedule: { time: o.drop ? "" : eastern(t).time, days: [] },
+    },
+    seasons: [
+      {
+        season: { id: seasonId, number: o.season ?? 1, name: "", episodeOrder: o.episodeOrder ?? n, premiereDate: premiere, endDate: o.drop || n === 1 ? premiere : null },
+        episodes: Array.from({ length: n }, (_, i) => ({
+          id: seasonId * 100 + (o.first ?? 1) + i, season: o.season ?? 1, number: (o.first ?? 1) + i, type: "regular", name: `Secret ${name} title ${i + 1}`,
+          airdate: premiere, airtime: o.drop ? "" : eastern(t).time, airstamp: new Date(t).toISOString(), runtime: o.drop ? null : (o.runtime ?? 60),
+        })),
+      },
+    ],
+  };
+}
+
+/** Every episode of the stand-in's shows as TVmaze's schedules list them on `date` (Eastern): the network's, or streaming. */
+function scheduleOf(list, date, streaming) {
+  const out = [];
+  for (const s of list) {
+    if (!!s.show.webChannel !== streaming || (!streaming && s.show.network?.country?.code !== "US")) continue;
+    const show = { weight: 50, language: "English", ...s.show };
+    for (const x of s.seasons) {
+      for (const e of x.episodes) {
+        if (!e.airstamp) continue;
+        const at = eastern(Date.parse(e.airstamp));
+        if (at.date !== date) continue;
+        const entry = { ...e, airdate: at.date, airtime: e.airtime === "" ? "" : at.time };
+        out.push(streaming ? { ...entry, _embedded: { show } } : { ...entry, show });
+      }
+    }
+  }
+  return out.sort((a, b) => a.airstamp.localeCompare(b.airstamp));
 }
 
 function shows(now = Date.now()) {
@@ -67,7 +135,7 @@ function shows(now = Date.now()) {
 }
 
 async function start(opts = {}) {
-  const tv = { asked: [], down: false, url: null, shows: opts.shows || shows() };
+  const tv = { asked: [], down: false, url: null, shows: opts.shows || shows(), updated: null, changedAt: {} };
   const server = http.createServer((req, res) => {
     const send = (status, body) => {
       res.writeHead(status, { "content-type": "application/json" });
@@ -92,6 +160,16 @@ async function start(opts = {}) {
       if (!s) return send(404, { name: "Not Found" });
       return send(200, s.cast || []);
     }
+    if (u.pathname === "/schedule" || u.pathname === "/schedule/web") {
+      const date = u.searchParams.get("date") || "";
+      if (u.pathname === "/schedule" && u.searchParams.get("country") !== "US") return send(200, []);
+      return send(200, scheduleOf(tv.shows, date, u.pathname === "/schedule/web"));
+    }
+    if (u.pathname === "/updates/shows") {
+      const at = Math.floor(Date.now() / 1000);
+      const ids = tv.updated ?? tv.shows.map((s) => s.show.id);
+      return send(200, Object.fromEntries(ids.map((id) => [String(id), tv.changedAt[id] ?? at])));
+    }
     if ((m = u.pathname.match(/^\/seasons\/(\d+)\/episodes$/))) {
       for (const s of tv.shows) for (const x of s.seasons) if (x.season.id === Number(m[1])) return send(200, x.episodes);
       return send(404, { name: "Not Found" });
@@ -104,4 +182,4 @@ async function start(opts = {}) {
   return tv;
 }
 
-module.exports = { start, shows };
+module.exports = { start, shows, oneNight, eastern };

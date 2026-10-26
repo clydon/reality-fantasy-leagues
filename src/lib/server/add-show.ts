@@ -28,7 +28,8 @@ import { ListingsUnavailable, seasonListing, showListing } from "./listings";
 // makes it one (step 10 part 2). Then it's followed, openly, with where you are (never past what's aired).
 //
 // A season that was already here keeps its schedule (the couch's games lock lineups by it); only a season made from its
-// listing reads its episodes again, when someone adds it a day or more after the last read.
+// listing reads its episodes again, when someone adds it a day or more after the last read, and when the daily listings
+// job sees its show change (step 11 part 2, tv-listings.ts, which also makes a listed show's next season with listedSeason).
 
 /** New shows one person can make in a day (each is one more in everyone's search). */
 export const NEW_SHOWS_A_DAY = 10;
@@ -49,7 +50,8 @@ export interface AddedShow {
 
 type Db = Pick<PoolClient, "query">;
 
-const terms = (kind: ShowKind) =>
+/** What a kind of show calls its people and their groups (shows.castaway_term, tribe_term). */
+export const termsOf = (kind: ShowKind) =>
   kind === "competition" ? { castaway: "Contestant", tribe: "Team" } : kind === "sport" ? { castaway: "Athlete", tribe: "Team" } : { castaway: "Cast member", tribe: "Group" };
 
 async function newSlug(db: Db, name: string): Promise<string> {
@@ -74,7 +76,7 @@ async function makeShow(
 ): Promise<string> {
   if (cap && (await madeToday(userId)) >= NEW_SHOWS_A_DAY) throw new HttpError(429, `You've added ${NEW_SHOWS_A_DAY} new shows today. Try again tomorrow.`);
   const kind = listing?.hit.kind ?? "competition";
-  const t = terms(kind);
+  const t = termsOf(kind);
   for (let attempt = 0; attempt < 3; attempt++) {
     const slug = await newSlug(db, name);
     const { rows } = await db.query(
@@ -150,8 +152,8 @@ async function writeEpisodes(db: Db, seasonId: string, episodes: ReturnType<type
   }
 }
 
-/** Make (or read again) a season from its listing. */
-async function listedSeason(showId: string, show: TvShow, season: TvSeason, base: string, now: Date, existing: string | null): Promise<string> {
+/** Make (or read again: `existing`) a season from its listing: the season's row and every regular episode's air time. */
+export async function listedSeason(showId: string, show: TvShow, season: TvSeason, base: string, now: Date, existing: string | null): Promise<string> {
   const raw = await seasonListing(season.id, base);
   const episodes = episodesOf(raw);
   const row = seasonRow(show, season, episodes, raw, now);

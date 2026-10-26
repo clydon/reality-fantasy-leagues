@@ -32,6 +32,7 @@ import type { MakeState } from "@/lib/server/make-game";
 import type { Started, StartOptions } from "@/lib/server/start-game";
 import type { DeletePreview, EndGame } from "@/lib/server/end-game";
 import type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
+import type { WeekListing } from "@/lib/game/tv-listings";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -891,6 +892,13 @@ export const watching = {
 export const useAfterWatching = useAfterReveal;
 
 // ---- the TV guide (step 11; guide.ts): Hide from guide. The guide itself comes with the home read; nothing polls. ----
+
+export type { WeekListing } from "@/lib/game/tv-listings";
+
+/** The week on TV for the guide's Also on (step 11 part 2): the same for everyone, kept at the edge an hour, read once a visit. */
+export function useListingsWeek() {
+  return useQuery({ queryKey: ["new-design", "listings-week"], queryFn: () => get<{ listings: WeekListing[] }>("/api/listings/week"), staleTime: 3600_000 });
+}
 
 export const guide = {
   /** Hide a show here (by one of its seasons, or itself) from your guide, or bring it back. Answers what's hidden now. */

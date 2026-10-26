@@ -196,7 +196,9 @@ const placePoints = (place, of) => (of < 2 ? 0 : Math.round(1 + (9 * (of - Math.
       await page.evaluate((s) => (s ? (document.querySelector(s).scrollTop = 0) : window.scrollTo(0, 0)), scroller);
     }
     const hubReady = async (q = "focus") => {
-      await page.goto(`${BASE}/home?hub=${q}`, { waitUntil: "networkidle" });
+      // 'load', not network idle: the guide's week (/api/listings/week, step 11 part 2) is stale-while-revalidate, so the
+      // browser answers from its cache and refreshes it in the background, a request Playwright never sees finish.
+      await page.goto(`${BASE}/home?hub=${q}`, { waitUntil: "load" });
       await page.locator("[data-hub]").waitFor({ timeout: 30_000 });
       await page.locator("[data-feed-list] [data-feed], [data-feed-list] p").first().waitFor({ timeout: 30_000 });
       await page.waitForTimeout(600);
@@ -212,8 +214,8 @@ const placePoints = (place, of) => (of < 2 ? 0 : Math.round(1 + (9 * (of - Math.
       await shoot(`hub-${shape}`);
     }
     // Get the couch going is real since step 9 (check-new-couches.js covers it).
-    // The guide is real since step 11 part 1 (check-new-guide.js); its Also on half is still Preview until part 2.
-    check((await page.locator("[data-guide]").count()) === 1 && seen.has("hub.all-of-tv") && going, "the guide is on the hub, and a new couch gets Get the couch going");
+    // The guide is real since step 11 part 1 (check-new-guide.js), its Also on since part 2 (check-new-listings.js).
+    check((await page.locator("[data-guide]").count()) === 1 && !seen.has("hub.all-of-tv") && going, "the guide is on the hub (no Preview left in it), and a new couch gets Get the couch going");
 
     // ---- the status line, Up next, posters and the feed ----
     await hubReady();

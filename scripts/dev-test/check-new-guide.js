@@ -9,7 +9,8 @@
 //     listing nobody has made a show of, a listing that's a show here hidden as that show, Show again by show and by
 //     listing, nobody else seeing it.
 //   In a real browser at --width (390 by default), as alex: seven days from today, the Now line, On now, Same time (yours
-//   first), the drop's one card, the due dot on Survivor, dashed and faded, Also on still Preview (part 2); the hub doesn't
+//   first), the drop's one card, the due dot on Survivor, dashed and faded, no Preview left (Also on is part 2's, real:
+//   check-new-listings.js); the hub doesn't
 //   read the catalog until Add a show opens (from Noticed); a couch show's sheet (who watches it), Hide from guide with
 //   the toast's Undo, "1 hidden" and Show again, Add to my shows (where you are, then it's yours: dashed, no longer faded), a
 //   card of yours opening its show. As casey (alex's other couch): hiding the Late Show leaves today with Nothing tonight /
@@ -159,7 +160,8 @@ function check(ok, what, detail = "") {
       await pg.waitForTimeout(800);
       check((await pg.locator("[data-guide-day]").count()) === 7, "seven days");
       const label = (await pg.locator("[data-guide-day='0'] b").first().textContent()).trim();
-      check(label === (new Date().getHours() >= 17 ? "Tonight" : "Today"), "today's label (Tonight after 5 PM)", label);
+      const hour = new Date().getHours();
+      check(label === (hour >= 17 || hour < 3 ? "Tonight" : "Today"), "today's label (Tonight from 5 PM until the guide's day ends at 3 AM)", label);
       check(/^Tomorrow$/.test((await pg.locator("[data-guide-day='1'] b").first().textContent()).trim()), "then Tomorrow");
       check((await pg.locator("[data-guide-day='0'] [data-guide-now]").count()) === 1 && (await pg.locator("[data-guide-now]").count()) === 1, "the Now line, on today only");
       const liveCard = A.card(live, 3);
@@ -186,11 +188,8 @@ function check(ok, what, detail = "") {
       await A.shot("guide-midweek");
       await A.reel(0);
 
-      // Also on is part 2's: still Preview.
-      const preview = pg.locator("[data-preview='hub.all-of-tv']").first();
-      check((await pg.locator("[data-preview='hub.all-of-tv']").count()) >= 1, "Also on: still a Preview (part 2)");
-      await preview.click();
-      check(await pg.getByText("Coming soon: All of TV in the guide").isVisible(), "its tap says Coming soon");
+      // Also on is real since part 2 (check-new-listings.js): nothing in the guide is Preview now.
+      check((await pg.locator("[data-guide] [data-preview]").count()) === 0, "nothing in the guide is Preview");
 
       // Add a show reads the catalog once it opens.
       await pg.locator("[data-guide-add]").click();

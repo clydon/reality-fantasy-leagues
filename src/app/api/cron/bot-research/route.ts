@@ -1,8 +1,11 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { pool, HttpError } from "@/lib/server/db";
 import { askBot, botFor } from "@/lib/server/ask-bot";
 import { botSend } from "@/lib/server/bot-results";
+import { requireCron } from "@/lib/server/cron";
+import { listingsFor } from "@/lib/server/listings";
+import { listingsDue, refreshListings } from "@/lib/server/tv-listings";
 import { runNext, planRuns } from "@db/bot-research.js";
 
 // The bot research clock (db/bot-research.js): the ask-AI bot's VM calls this, and each call runs at most
@@ -17,14 +20,12 @@ import { runNext, planRuns } from "@db/bot-research.js";
 // Each answer is a source like anyone's (step 6c, src/lib/server/bot-results.ts): what's trusted reaches every league on
 // the season on its own, and who went home that can't be trusted yet waits in Backstage and is asked again.
 //
+// The daily listings job rides on these calls (step 11 part 2, src/lib/server/tv-listings.ts): a call that ran no bot job,
+// when today's listings are still to read, reads them after its answer is sent (after()), so it wakes nothing the call
+// hadn't woken already and never holds up a bot run. `listings` in the answer says it did.
+//
 // Authorization: Bearer <CRON_SECRET>, the same value in Vercel and the VM's .env.
 export const maxDuration = 300;
-
-function requireCron(req: Request) {
-  const secret = process.env.CRON_SECRET;
-  if (!secret) throw new HttpError(503, "CRON_SECRET isn't set");
-  if (req.headers.get("authorization") !== `Bearer ${secret}`) throw new HttpError(401, "Bad cron secret");
-}
 
 // A test's clock, so a dev check can ask "what would be due at 8:10pm Wednesday?". Never in production.
 function nowFrom(req: Request): Date {
@@ -47,6 +48,9 @@ export const GET = apiRoute(async (req) => {
 export const POST = apiRoute(async (req) => {
   requireCron(req);
   const bot = botFor(req);
+  const base = listingsFor(req);
   const out = await runNext(pool, { ask: (prompt) => askBot(prompt, { bot }), send: botSend, now: nowFrom(req) });
-  return NextResponse.json(out);
+  const listings = !out.job && (await listingsDue());
+  if (listings) after(() => refreshListings(base, { how: "clock" }).catch((e) => console.error("[listings] the daily run:", e)));
+  return NextResponse.json({ ...out, listings });
 });

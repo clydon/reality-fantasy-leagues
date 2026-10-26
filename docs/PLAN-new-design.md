@@ -36,7 +36,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 8 | Hub I: focus-first hub, More on the couch and its six pages | **done** 2026-10-25 on the branch (migration 0118 ships with 0b's) | Opus · xhigh |
 | 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | **done** 2026-10-25 on the branch, in three parts: couches and joining their games (migration 0119), the way in (landing, first run, the invite signed out, sign-in, Google behind config; no migration), solo (public pools per season, the practice couch, the solo hub; migration 0120); 0119 and 0120 ship with 0b's | Opus · xhigh |
 | 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **done** 2026-10-26 on the branch, in three parts (part 2 split in two): watching (migration 0121; TV listings from TVmaze on demand), Make it a game to a set-up show with its rulebook and cast (0122), Start a game that fits and archive or delete a game (0123), rulebooks phase 8: the library, the desk's New show, Fits these games, Take it over and Looks right to us (0124); all ship with 0b's | Opus · xhigh |
-| 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | in three parts (the step 11 section): part 1 finished 2026-10-26 on the branch (the guide on the couch's shows and Hide from guide; migration 0125 ships with 0b's); part 2 (all of TV and the daily job) next, then part 3 (planned nights) | Opus · xhigh |
+| 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | in three parts (the step 11 section): part 1 finished 2026-10-26 on the branch (the guide on the couch's shows and Hide from guide; migration 0125 ships with 0b's); part 2 finished 2026-10-26 on the branch (all of TV in the guide and the daily listings job on the bot clock's calls; migration 0126 ships with 0b's); part 3 (planned nights) next | Opus · xhigh |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | not started | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | not started | Opus · xhigh |
 | 14 | Streaming shows and the rail | not started | Opus · xhigh |
@@ -305,18 +305,14 @@ step's As built.
 - **A practice couch is in classic's list** (step 9 part 3; for C). Classic's league menu shows it as an ordinary league with
   computer players (classic plays bots), where it works, though it says nothing about being practice; the public pool is
   left out of classic's list. C removes the list.
-- **A season made from its listing goes stale** (step 10 part 1; for 11 part 2). It's read from TVmaze when it's made, and again only
-  when someone adds the show a day or more later: its status (coming up, on now, finished), episode count and moved air times
-  otherwise stay as they were. Step 11's daily job is the place to keep listing seasons current.
-- **A listed show's next season isn't offered** (step 10 part 1; for 11 part 2). Once a show made from a listing is here, Add a show
-  hides that listing and offers the show's seasons here, so when its next season starts nobody can add it from the search
-  (tapping the finished one follows that). Step 11's job could make each listed show's new season as the listings announce it.
 - **Nobody's progress on a show you watch** (step 10 part 1, the guard's rule since 0b; for 15). The mock's Who's watching and
   The couch is watching say "caught up", "On Episode 5", "2 ahead"; the new design sends nobody else's progress, so they list
   who watches and what they play. Step 15's What your couch sees could let people share how far they are.
-- **A show added by name has no schedule** (step 10 part 1; for 11 part 2 or a desk step). A show the listings don't have is a name and
-  an empty first season: no episodes or air times, so where you are can't be set and nothing's "up next". The desk (Find › the
-  show) could fill it in or link it to a listing later.
+- **A show added by name has no schedule until it airs in the US listings** (step 10 part 1; since 11 part 2 the daily job links it;
+  for a desk step). A show the listings don't have is a name and an empty first season: no episodes or air times, so where you are
+  can't be set and nothing's "up next". The daily listings job links it once the next eight days' schedule has one show of that
+  name (its empty season then takes the listing's); one that never turns up there (a show abroad, a streaming show under another
+  name) stays a name until the desk can fill it in or link it (Find › the show has no tool for either yet).
 - **The review can't be edited** (step 10 part 2a; part 3 left it; for a later step). Make it a game's review changes only the
   kind; a wrong part, way out or points needs the desk's rulebook editor after it's set up (Fix a mistake) or a couch's Make it
   ours. The desk's New show lands on that editor straight after Looks right (part 3); a player's review could offer the
@@ -360,9 +356,23 @@ step's As built.
 - **Tell the couch uses the invite setting** (step 10 part 2b; for 15). "alex started a game for Survivor" goes to people who
   allow league invites (push-core's `invite`), linking to the show's Games tab; notifications by moment (step 15) could give it a
   moment of its own.
-- **After midnight is the next day** (step 11 part 1; for part 2 or a later polish). The guide puts an episode on the calendar day
-  it starts, in the phone's time zone, so a talk show at 12:37 AM sits at the top of the next day's column; TV listings put it
-  under the night before. Part 2's Also on (late-night listings) will show more of it: a day could run to 3 AM.
+- **Network times are the East's** (step 11 part 2; for a later polish). TVmaze's US schedule gives a network show's Eastern airing,
+  and Also on shows that moment in the phone's zone, so on the West Coast an 8 PM network show reads 5 PM, though most networks
+  air it at 8 PM Pacific on tape delay (a live event doesn't). Shows here are right (a season's air time is in its own zone);
+  only the listings are Eastern, and TVmaze has no Pacific schedule. A rule by network type (broadcast tape-delayed, cable and
+  sports live) would get most of it.
+- **"The most watched" is TVmaze's popularity** (step 11 part 2, as designed). Also on's few are the evening's highest TVmaze
+  `weight` (how many people follow a show there, worldwide), not ratings; nothing better is free.
+- **Daily streaming shows are on every day** (step 11 part 2; for 14). A streaming show with a new episode each weekday (Peacock's
+  soaps) has no air time, so it's a "Streaming" listing in each day's Also on, often among the few. Step 14's rail could take
+  streaming listings off the guide.
+- **The job's changes aren't in the desk's History** (step 11 part 2; for a later desk step). A season the listings job makes (a
+  listed show's next season), a season it reads again and a show it links by name aren't logged anywhere a person sees: the desk's
+  show page shows the result, not when it happened or why. Nor can the desk unlink a show linked to the wrong listing (Add a
+  show's linking by name has the same gap); the job only links when one listing of that name and country airs that week.
+- **No backstop if the VM stops calling** (step 11 part 2; the user's call). The listings job runs only on the bot clock's calls;
+  with the VM down, Also on empties within the week and listing seasons stop moving on. A Vercel daily cron on
+  `/api/cron/listings?run=1` is one file (`vercel.json`), about 0.6 CU-hours a month: written up in HOSTING.md, not set up.
 - **The guide says Paused under reduced motion** (step 0d's port, seen in step 11 part 1; for a later polish). With reduced motion
   the guide never rolls, but its status still reads "Paused" (grey dot), as if it would; it could say nothing then.
 - **Posters are TVmaze's medium image** (step 10 part 1; for a later polish). 210 by 295, soft in the tall show bar; TVmaze's
@@ -2878,6 +2888,101 @@ id when it has one, or a TV listing nobody has made a show of). Nothing polls an
   and the couch's (every season header now carries `show.tvmazeId`) and what's hidden (`guideHidden`'s listing rows;
   `guide.hideListing` and the endpoint's `{ tvmazeId, name }` are there). The foot's legend and "N hidden" already count
   listings.
+
+### As built, step 11 part 2 (2026-10-26, on `new-design`): all of TV, and the daily listings job
+
+Migration **0126** (ships with 0b's, same rehearsal): `tv_listings`, a row per evening airing or streaming drop for the week
+(the episode's TVmaze id, the day it was listed under, the show's id, name, type, network, country, art and popularity, when it
+starts and runs, its season and number, whether it's a drop; never a title). **Not in the backups:** it's TV data fetched again
+every day, not anyone's choice, so `backup-common.js`, `backup-leagues.js`' slices and `backup-fixture.js` are unchanged (a
+person's hidden listing is `guide_hidden`, which is backed up). Nothing polls and nothing wakes the database on its own
+(HOSTING.md). New: `src/lib/game/tv-listings.ts` (pure), `src/lib/server/tv-listings.ts` (the job and the read),
+`src/lib/server/cron.ts` (`requireCron`, now shared by both cron routes), `/api/cron/listings`, `/api/listings/week`;
+`listings.ts` gains `scheduleDay`, `webScheduleDay` and `updatedShows`; add-show.ts exports `listedSeason` and `termsOf`.
+- **The job** (`refreshListings`): once an Eastern day, after the answer of a bot clock call that ran no bot job (`after()` in
+  `/api/cron/bot-research`, whose answer gains `listings: true` when it queued it; the VM is unchanged and ignores the field).
+  The day is claimed in one statement on `app_settings 'listings'` (one run at a time; a run that failed or stopped is tried
+  again an hour on, at the clock's next call), and the row keeps the last run (days read, rows, seasons read again and made,
+  shows linked, errors). Each part goes on if another fails; a day TVmaze didn't answer keeps its old rows. Calls to TVmaze
+  itself are spaced 0.7 s apart. `/api/cron/listings` (CRON_SECRET): GET its status, `?run=1` runs it only if today's run hasn't
+  happened (a backstop cron's call: written up in HOSTING.md, not set up), POST runs it now (409 while one runs). Both cron
+  routes reach a check's stand-in through `x-gys-listings`, as the proxy does.
+- **What it keeps** (`scheduleRows`): eight days (today in the East and the seven after) of `/schedule?country=US` and
+  `/schedule/web`: the evening (an air time from 5 PM to 3 AM where it airs: daytime is never shown) and streaming drops (no air
+  time), never the news; streaming only in English on a US or worldwide service (a UK or New Zealand service's shows can't be
+  watched here: a refinement of "streaming in English only"). An episode on a network and its streaming service at once is one
+  row (the network's). Measured on a real day (2026-10-27): 55 rows of TVmaze's 203 entries, 12 of them drops. Days before
+  yesterday go.
+- **Listing seasons kept current** (from Noticed, "A season made from its listing goes stale"): every run moves a listing season's
+  status on by date (no TVmaze call), and a show TVmaze's `/updates/shows` says changed since the last upkeep (only shows with a
+  season made from a listing; at most 40 a run) has its seasons still going, or finished within a fortnight, read again with
+  add-show's `listedSeason`, which never writes over research's or an admin's rows. It asks `since=day`, or `week` when the last
+  upkeep (`keptAt` on the run) was over 23 hours ago (runs are once an Eastern day on six-hourly calls, so up to ~30 hours
+  apart), and keeps only shows changed since an hour before it.
+- **A listed show's next season** (from Noticed, "A listed show's next season isn't offered"): when a changed show's newest season
+  here came from its listing and the listing has a later season with a premiere date, the job makes it (Add a show then offers
+  it like any season here); a set-up show's plays by last season's rulebook (`ensureSeasonRulebook`, as the desk's New season
+  does). Seasons that come from the desk (the newest has no listing) are left to the desk.
+- **Linked by name** (from Noticed, "A show added by name has no schedule", which stays open for shows that never air here):
+  a show here with no listing whose name matches exactly one show in the week's schedules (`sameShow`: same name, same country;
+  any show of the day but the news, daytime too) gains the link (`tvmaze_id`, the listing, its art if it had none, and its kind
+  and terms while it isn't a game yet). A show added by name also gives its one empty season (no premiere, air time or episodes)
+  to the listing's: its number (unless a game is on it: leagues name a season by number) and every episode's air time.
+  **Decided on the way:** this links an admin's shows too (only the link, never their seasons), as Add a show's
+  `showForListing` already did on demand: otherwise a show set up before the listings (Survivor) has no TVmaze id, and Also on
+  would list it again under its own card. Also on also leaves out a listing named like one of your shows that has no link yet.
+- **The read** (`/api/listings/week`, `listingsWeek`): from yesterday on, a show's episodes starting together as one airing
+  (`weekListings`: a drop's, a double episode), the same for everyone, `s-maxage=3600` at the edge; read once a visit by the
+  hub (`useListingsWeek`, an hour in the browser).
+- **Also on** (the mock's tvguide.js; `AlsoOn` in guide.tsx on `alsoOn`): each guide day's evening (from 5 PM to the day's end at
+  3 AM, a drop all day), less your shows, the couch's and what you've hidden (by listing, or by name for a show with no link
+  yet); today without what's over. The three most watched (TVmaze's weight) in time order, faded a step more than a couch show,
+  each with its time (a drop's "Streaming") and a line ("S35 · ABC", "Netflix · 3 episodes", "Special · NBC"; a daily show's
+  year-numbered season left out); "N more on TV" opens the evening (**Tonight on TV**, Tomorrow, the weekday: every listing,
+  drops first then by time, each with Add to my shows and Hide from guide). A card opens the listing's sheet (the mock's
+  tvShowSheet: when, "Nobody on the couch watches it yet" (on the solo hub "it joins your guide"), Add to my shows, Hide from guide). **Add to my shows** opens the new
+  `listing` watching sheet: where you are, read from the listing's season (`/api/listings/[id]`), then `POST /api/me/shows
+  { listing }`, as Add a show does; the show then leaves Also on and joins your guide. **Hide** is `guide.hideListing` with
+  Undo, counted in "N hidden" and back with Show again. A day with only listings says "On TV" and drops its "Nothing on" (Next
+  up stays). The foot credits TVmaze (CC BY-SA), as do both sheets. Never a title: the read has none.
+- **After midnight is the night before's** (from Noticed): the guide's days now run from 3 AM to 3 AM (`DAY_STARTS_AT`,
+  `startOfLocalDay`, `addLocalDays`, `eveningAt`), so a 12:35 AM talk show sits at the bottom of the night before, and at 1:30
+  AM today is still last night ("Tonight", its date). A drop at 1 AM moves to the night before too; one at 3 AM (midnight
+  Pacific, Netflix's) stays on its day.
+- **Fixtures and Preview:** deleted `fixtures/guide.ts` and `hub.all-of-tv`; step 11 has no Preview entries left.
+- **Changed from the mock:** the most watched few and "N more on TV" with the evening in a sheet (the mock listed every listing
+  under each day, from a handful of fixtures); a drop's tag reads "Streaming"; the evening sheet is new; the credit line in the
+  foot.
+- **Checks:** `scripts/dev-test/check-new-listings.js <outDir> [--width=390] [--keep] [--api]` (75 PASS at 390) on new-fixture.js,
+  guide-fixture.js, `fake-listings.js` (now with `/schedule`, `/schedule/web`, `/updates/shows` worked out from its shows, and
+  `oneNight` for a show airing at a given moment) and `fake-bot.js`: the job never in a call that ran a bot job (a ZT season's
+  quick check made due), then queued by a call with nothing due and once a day, the cron route (the secret, status, by hand, 409
+  while running, `?run=1`, the listings down), the upkeep's window (the week's changes first, then the day's; a show changed
+  before the last upkeep not read again; `tv.changedAt` in the stand-in), what's kept and left out, no titles in the table or the read, the edge cache, a
+  drop as one airing, a changed season read again (research's row kept, status by date), a show not changed not asked about,
+  a next season made (with a rulebook for a game), linking by name (a show added by name takes the listing's season; a show with
+  a schedule and the couch's Traitors only gain the link); then the browser as alex (tomorrow's Also on, his and the couch's
+  shows left out, the drop's day, the credit, a listing's sheet, Hide with Undo, the evening sheet with 12:35 AM last, hiding
+  there and Show again, Add to my shows from it, the show added by name on his guide at its listing's time). It puts back any
+  real `tv_listings` rows and `app_settings 'listings'`, and refuses to call the bot clock when a real season could have a bot
+  job due (as check-new-settling). `tests/tv-listings.test.js` (6) and `tests/guide.test.js` (7: the 3 AM day). check-new-guide
+  (57) finds no Preview in the guide and knows Tonight runs to 3 AM; check-new-hub looks for no `hub.all-of-tv` and opens each
+  hub shape waiting for `load`, not network idle (the week's read is stale-while-revalidate, so the browser answers from its
+  cache and refreshes it in the background, a request Playwright never sees finish; harmless for people: a week up to an hour
+  old, refreshed quietly); check-new-shell taps Up next's Watch along Preview instead (in both hub shapes). The rest pass, one
+  at a time: check-new-library (91), -start-game (75), -make-it (81), -watching (114), -solo (92), -way-in (85), -couches (114),
+  -hub (75), -draft (90), -settling (96), -results-ways (89), -ours (89), -desk (100), -community (82), -backstage (67),
+  -backstage-ii (116), -show (69), -shell (46), -reveal (49), -stats (57), -chat (52), check-foundation, check-preview and
+  check-backup-restore; `npm test` 584 of 584; type-check clean; lint (src) as before (the old error in classic's
+  `use-sheet-swipe.ts` and the old warning in `episode-results.ts`). Seen at 390 in the browser: Also on under tomorrow, the
+  listing's sheet, the evening sheet, where you are from a listing, the added show on the guide (the mock's tvguide.js layout).
+- **Noticed, left as is:** five, now in Noticed, not fixed: network times are the East's, "the most watched" is TVmaze's
+  popularity, daily streaming shows are on every day, the job's changes aren't in the desk's History, and no backstop if the VM
+  stops calling. Taken out: a season made from its listing goes stale, a listed show's next season isn't offered, after
+  midnight is the next day (all fixed, above); a show added by name has no schedule narrowed to shows that never air here.
+- **For part 3:** a guide card of yours opens the show (part 1), so planning a night from the guide lives on the couch show's
+  sheet (`CouchShowSheet`) and a listing's (`ListingSheet`, which would need the show added first), besides the show's Tonight and
+  ⋯ menu. Migration 0127 is next. Nothing in step 11 is Preview now, so check-preview passes either way.
 
 ## Step C: cutover
 

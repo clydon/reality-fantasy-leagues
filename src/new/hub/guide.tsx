@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { EyeOff, Plus } from "lucide-react";
-import { episodeLine, guideWeek, nextUpAfter, type GuideCard, type GuideDay, type GuideShow } from "@/lib/game/guide";
-import { guide as guideApi, useSetGuideHidden, type Couch, type CouchShow, type HiddenShow, type Home } from "../data";
-import { ALSO_ON, type AlsoOnCard } from "../fixtures/guide";
+import { episodeLine, eveningAt, guideWeek, nextUpAfter, type GuideCard, type GuideDay, type GuideShow } from "@/lib/game/guide";
+import { alsoOn, hitOfListing, listingLine, type AlsoOnDay, type AlsoOnItem } from "@/lib/game/tv-listings";
+import { guide as guideApi, useListingsWeek, useSetGuideHidden, type Couch, type CouchShow, type HiddenShow, type Home } from "../data";
 import { PEOPLE } from "../fixtures/people";
 import { RAIL } from "../fixtures/streaming";
 import { NavLink } from "../nav";
@@ -16,16 +16,19 @@ import { Preview } from "../ui/preview";
 import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
+import { ListingsCredit } from "../watching/search";
 import { openWatching } from "../watching/sheets";
 import { namesOf, showOfMove } from "./sections";
 
 // "This week on the couch", the TV guide (the mock's index.html guideDays / card, tvguide.js, streaming.js's drop days), and
 // Streaming on the couch (streaming.js) under it. The guide is real since step 11 part 1: your shows and the couch's, from
 // the home read's `week` (when each episode airs, never a title), laid out by the pure src/lib/game/guide.ts in the phone's
-// own time zone; Hide from guide (guide.ts on the server). Also on, the rest of TV, is part 2's (still a fixture); the rail
-// is step 14's.
+// own time zone; Hide from guide (guide.ts on the server). Since part 2, Also on: the rest of TV each evening, from the
+// week's listings (/api/listings/week, the same for everyone; src/lib/game/tv-listings.ts leaves out your shows, the
+// couch's and what you've hidden), the most watched few and "N more on TV". The rail is step 14's.
 
 const DAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const DAY_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const plain = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
 
@@ -140,9 +143,9 @@ function hiddenNow(home: Home): HiddenShow[] {
   return (home.guideHidden ?? []).filter((h) => !mine.some((s) => hides(h, s)));
 }
 
-/** "Tonight" (after 5 PM) or "Today", "Tomorrow", then the weekday. */
+/** "Tonight" (from 5 PM until the guide's day ends at 3 AM) or "Today", "Tomorrow", then the weekday. */
 function dayLabel(d: GuideDay, now: number): string {
-  if (d.offset === 0) return new Date(now).getHours() >= 17 ? "Tonight" : "Today";
+  if (d.offset === 0) return eveningAt(now) ? "Tonight" : "Today";
   return d.offset === 1 ? "Tomorrow" : DAY[new Date(d.start).getDay()];
 }
 
@@ -251,38 +254,82 @@ function NextUpCard({ c, evening, onCouch }: { c: GuideCard; evening: boolean; o
   );
 }
 
-/** Also on, the rest of TV that evening: part 2's (a fixture until then). */
-function AlsoOn({ cards, tag }: { cards: AlsoOnCard[]; tag: boolean }) {
-  if (!cards.length) return null;
-  return (
-    <Preview id="hub.all-of-tv" tag={tag} className="-mx-[3px] flex flex-col gap-[7px] p-[3px]">
-      <div className="type-caption mt-0.5 flex h-3.5 items-center gap-1.5 text-[10px] tracking-[0.08em] text-muted-foreground after:h-px after:flex-1 after:bg-border">
-        Also on
-      </div>
-      {cards.map((c) => (
-        <span
-          key={c.name}
-          className="relative isolate flex h-[66px] flex-col justify-end overflow-hidden rounded-[3px] bg-card px-2 py-1.5 text-white opacity-80 outline-1 -outline-offset-1 outline-white/10 [filter:saturate(.3)_brightness(.78)]"
-        >
-          {c.art ? (
-            // eslint-disable-next-line @next/next/no-img-element -- fixture art from the published mock
-            <img src={c.art} alt="" className="absolute inset-0 -z-[2] size-full object-cover" />
-          ) : (
-            <span className="type-caption absolute inset-0 -z-[2] grid place-items-center bg-[linear-gradient(150deg,#3a3548,#16141d)] text-[34px] text-white/20">{c.name[0]}</span>
-          )}
-          <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(10,8,14,.15)_0%,rgba(10,8,14,.55)_48%,rgba(10,8,14,.92)_100%)]" />
-          <span className="mb-0.5 self-start rounded-[2px] bg-[rgba(10,8,14,.72)] px-[5px] py-0.5 text-[10px] font-extrabold">{c.time}</span>
-          <span className="type-caption text-sm leading-[.95]">{c.name}</span>
-          <span className="mt-px text-[10px] font-semibold opacity-85">{c.sub}</span>
-        </span>
-      ))}
-    </Preview>
+/** A listing's time ("8:00 PM"), or a drop's "Streaming" (it has no time). */
+const listingTime = (l: AlsoOnItem) => (l.binge ? "Streaming" : timeOf(l.at));
+
+/** A listing's art, or its first letter, faint. */
+function ListingArt({ l, className = "" }: { l: AlsoOnItem; className?: string }) {
+  return l.art ? (
+    // eslint-disable-next-line @next/next/no-img-element -- TVmaze's image CDN (hotlinking is allowed)
+    <img src={l.art} alt="" className={`object-cover ${className}`} />
+  ) : (
+    <span aria-hidden className={`type-caption grid place-items-center bg-[linear-gradient(150deg,#3a3548,#16141d)] text-[30px] text-white/20 ${className}`}>
+      {l.name.replace(/^the\s+/i, "")[0]?.toUpperCase()}
+    </span>
   );
 }
 
-function Day({ d, i, now, week, onCouch }: { d: GuideDay; i: number; now: number; week: GuideDay[]; onCouch: (c: GuideCard) => void }) {
+/** Also on (tvguide.js): the evening's most watched few on TV, shorter and faded a step more than a couch show, and "N more on
+ *  TV". "On TV" when none of your shows or the couch's are on that day. A card opens the listing's sheet. */
+function AlsoOn({ day, label, onOpen, onMore }: { day: AlsoOnDay; label: string; onOpen: (l: AlsoOnItem) => void; onMore: () => void }) {
+  if (!day.all.length) return null;
+  const more = day.all.length - day.few.length;
+  return (
+    <div data-also-on={day.offset} className="flex flex-col gap-[7px]">
+      <div className="type-caption mt-0.5 flex h-3.5 items-center gap-1.5 text-[10px] tracking-[0.08em] text-muted-foreground after:h-px after:flex-1 after:bg-border">{label}</div>
+      {day.few.map((l) => (
+        <button
+          key={l.key}
+          type="button"
+          data-listing={l.key}
+          data-tvmaze={l.tvmazeId}
+          onClick={() => onOpen(l)}
+          aria-label={`${l.name}, ${l.binge ? "streaming" : airTime(l.at)}, not on your shows`}
+          className={`relative isolate flex h-[66px] w-full flex-col justify-end overflow-hidden rounded-[3px] bg-card px-2 py-1.5 text-left text-white outline-1 -outline-offset-1 outline-white/10 transition-[transform,filter,opacity] duration-300 hover:opacity-100 hover:[filter:none] focus-visible:opacity-100 focus-visible:[filter:none] active:scale-[.97] ${FADED}`}
+        >
+          <ListingArt l={l} className="absolute inset-0 -z-[2] size-full" />
+          <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(10,8,14,.15)_0%,rgba(10,8,14,.55)_48%,rgba(10,8,14,.92)_100%)]" />
+          <span className="mb-0.5 self-start rounded-[2px] bg-[rgba(10,8,14,.72)] px-[5px] py-0.5 text-[10px] font-extrabold">{listingTime(l)}</span>
+          <span className="type-caption truncate text-sm leading-[.95]">{l.name}</span>
+          <span className="mt-px truncate text-[10px] font-semibold opacity-85">{listingLine(l)}</span>
+        </button>
+      ))}
+      {more > 0 && (
+        <button
+          type="button"
+          data-also-more={day.offset}
+          onClick={onMore}
+          className="nd-press flex h-11 items-center justify-center rounded-[3px] text-[12px] font-semibold text-muted-foreground outline-1 -outline-offset-1 outline-dashed outline-border"
+        >
+          {more} more on TV
+        </button>
+      )}
+    </div>
+  );
+}
+
+function Day({
+  d,
+  i,
+  now,
+  week,
+  also,
+  onCouch,
+  onListing,
+  onMore,
+}: {
+  d: GuideDay;
+  i: number;
+  now: number;
+  week: GuideDay[];
+  also: AlsoOnDay | undefined;
+  onCouch: (c: GuideCard) => void;
+  onListing: (l: AlsoOnItem) => void;
+  onMore: (d: GuideDay) => void;
+}) {
   const date = new Date(d.start);
-  const evening = new Date(now).getHours() >= 17;
+  const evening = eveningAt(now);
+  const onTv = !!also?.all.length;
   const next = d.offset === 0 && !d.slots.length ? nextUpAfter(week, 0) : null;
   const nowLine = (
     <div data-guide-now className="type-caption flex h-3.5 flex-none items-center gap-1.5 text-[11px] tracking-[0.06em] text-chyron-line after:h-0.5 after:flex-1 after:bg-chyron-line">
@@ -328,9 +375,10 @@ function Day({ d, i, now, week, onCouch }: { d: GuideDay; i: number; now: number
             <NextUpCard c={next} evening={evening} onCouch={onCouch} />
           </>
         ) : (
-          <div className="grid h-14 place-items-center rounded-[3px] border border-dashed border-border text-[13px] text-muted-foreground">Nothing on</div>
+          // A day with only the rest of TV drops its "Nothing on" (tvguide.js); "Next up" stays.
+          !onTv && <div className="grid h-14 place-items-center rounded-[3px] border border-dashed border-border text-[13px] text-muted-foreground">Nothing on</div>
         ))}
-      <AlsoOn cards={ALSO_ON[d.offset] ?? []} tag={i === 0} />
+      {also && <AlsoOn day={also} label={d.slots.length ? "Also on" : "On TV"} onOpen={onListing} onMore={() => onMore(d)} />}
     </div>
   );
 }
@@ -343,7 +391,22 @@ export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
   const shows = useMemo(() => guideShows(home, couch), [home, couch]);
   const week = useMemo(() => guideWeek(shows, now), [shows, now]);
   const hidden = hiddenNow(home);
+  const listings = useListingsWeek().data?.listings;
+  // Also on leaves out your shows, the couch's and what you've hidden: by their listing, or by name for a show here that
+  // hasn't one yet (the daily job links them).
+  const also = useMemo(() => {
+    if (!listings?.length) return [];
+    const ids = new Set<number>();
+    const names: string[] = [];
+    const leave = (show: { tvmazeId?: number | null; name: string }) => (show.tvmazeId ? ids.add(show.tvmazeId) : names.push(show.name));
+    for (const s of home.shows) if (s.following || s.games.length) leave(s.show);
+    for (const s of home.couchShows ?? []) leave(s.show);
+    for (const h of home.guideHidden ?? []) if (h.tvmazeId) ids.add(h.tvmazeId);
+    return alsoOn(listings, week, { ids, names }, now);
+  }, [listings, home, week, now]);
   const [couchCard, setCouchCard] = useState<GuideCard | null>(null);
+  const [listing, setListing] = useState<AlsoOnItem | null>(null);
+  const [evening, setEvening] = useState<GuideDay | null>(null);
   const [hiddenOpen, setHiddenOpen] = useState(false);
   const ties = new Set(week.flatMap((d) => d.slots.flatMap((sl) => (Array.isArray(sl) ? sl : [sl]).map((c) => c.tie))));
   const legend = [ties.has("watches") ? "Dashed: not playing yet" : null, ties.has("couch") ? "Faded: not on your shows" : null].filter(Boolean).join(" · ");
@@ -361,12 +424,20 @@ export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
         className="mx-2 flex overflow-x-auto pb-1.5 pt-2 [scrollbar-width:none] [mask-image:linear-gradient(90deg,transparent,#000_14px,#000_calc(100%_-_24px),transparent)]"
       >
         {week.map((d, i) => (
-          <Day key={d.offset} d={d} i={i} now={now} week={week} onCouch={setCouchCard} />
+          <Day key={d.offset} d={d} i={i} now={now} week={week} also={also[i]} onCouch={setCouchCard} onListing={setListing} onMore={setEvening} />
         ))}
       </div>
       <div data-guide-foot className="flex items-center justify-between gap-3 px-4 pt-1 text-[13px] text-muted-foreground">
         <span className="flex min-w-0 flex-col items-start">
           {legend && <span className="leading-snug">{legend}</span>}
+          {also.some((d) => d.all.length) && (
+            <span data-guide-credit className="text-[12px] leading-snug">
+              TV listings from{" "}
+              <a href="https://www.tvmaze.com" target="_blank" rel="noreferrer" className="font-semibold underline underline-offset-2">
+                TVmaze
+              </a>
+            </span>
+          )}
           {hidden.length > 0 && (
             <button type="button" data-guide-hidden onClick={() => setHiddenOpen(true)} className="flex h-9 items-center gap-1.5 font-bold text-foreground underline-offset-2 hover:underline">
               <EyeOff className="size-4" aria-hidden />
@@ -385,6 +456,8 @@ export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
         </button>
       </div>
       <CouchShowSheet home={home} couch={couch} card={couchCard} onOpenChange={(o) => !o && setCouchCard(null)} />
+      <ListingSheet l={listing} couch={!!couch} onOpenChange={(o) => !o && setListing(null)} />
+      <EveningSheet day={evening} also={evening ? also[evening.offset] : undefined} now={now} onOpenChange={(o) => !o && setEvening(null)} />
       <HiddenSheet open={hiddenOpen} onOpenChange={setHiddenOpen} hidden={hidden} />
     </section>
   );
@@ -479,6 +552,127 @@ function CouchShowSheet({ home, couch, card, onOpenChange }: { home: Home; couch
           </div>
         </div>
       )}
+    </Sheet>
+  );
+}
+
+/** Hide a TV listing from your guide (or bring it back), with Undo. */
+function useHideListing() {
+  const setHidden = useSetGuideHidden();
+  const run = async (l: { tvmazeId: number; name: string }, hidden: boolean) => {
+    try {
+      setHidden((await guideApi.hideListing(l.tvmazeId, l.name, hidden)).hidden);
+      toast(hidden ? `${l.name} is hidden from your guide` : `${l.name} is back on your guide`, hidden ? { undo: () => void run(l, false) } : {});
+    } catch (e) {
+      toast((e as Error).message);
+    }
+  };
+  return run;
+}
+
+/** Add a TV listing to your shows: where you are in its season (read from the listing), then it's yours. */
+const addListing = (l: AlsoOnItem) => openWatching({ kind: "listing", hit: hitOfListing(l) });
+
+/** A TV listing (the mock's tvShowSheet): when it's on, Add to my shows, Hide from guide. Nobody on the couch watches it. */
+function ListingSheet({ l, couch, onOpenChange }: { l: AlsoOnItem | null; couch: boolean; onOpenChange: (o: boolean) => void }) {
+  const hide = useHideListing();
+  const [shown, setShown] = useState(l);
+  if (l && l !== shown) setShown(l);
+  const c = l ?? shown;
+  const when = c ? `${c.binge ? `Streaming ${DAY[new Date(c.at).getDay()]}` : `On TV ${airTime(c.at)}`} · ${listingLine(c)}` : undefined;
+  return (
+    <Sheet open={!!l} onOpenChange={onOpenChange} title={c?.name ?? ""} subtitle={when}>
+      {c && (
+        <div data-listing-sheet={c.tvmazeId}>
+          <div className="relative isolate mb-3 flex h-[150px] items-end overflow-hidden rounded-[4px] p-3">
+            <ListingArt l={c} className="absolute inset-0 -z-[2] size-full" />
+            <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,rgba(16,14,21,.05),rgba(16,14,21,.85))]" />
+            <b className="type-caption text-[26px] text-white">{c.name}</b>
+          </div>
+          <p className="mb-3 text-[15px] leading-snug text-muted-foreground">
+            {couch ? <>Nobody on the couch watches it yet. Add it to your shows and they&rsquo;ll see you do.</> : <>Add it to your shows and it joins your guide.</>}
+          </p>
+          <div className="flex flex-col gap-2.5">
+            <Btn
+              tone="ink"
+              wide
+              data-listing-follow
+              onClick={() => {
+                onOpenChange(false);
+                addListing(c);
+              }}
+            >
+              <Plus className="size-5" aria-hidden />
+              Add to my shows
+            </Btn>
+            <Btn
+              wide
+              data-listing-hide
+              onClick={() => {
+                onOpenChange(false);
+                void hide(c, true);
+              }}
+            >
+              <EyeOff className="size-5" aria-hidden />
+              Hide from guide
+            </Btn>
+          </div>
+          <ListingsCredit />
+        </div>
+      )}
+    </Sheet>
+  );
+}
+
+/** "N more on TV": the whole evening on TV (drops first, then by time), each with Add to my shows and Hide from guide. */
+function EveningSheet({ day, also, now, onOpenChange }: { day: GuideDay | null; also: AlsoOnDay | undefined; now: number; onOpenChange: (o: boolean) => void }) {
+  const hide = useHideListing();
+  const [shown, setShown] = useState<{ day: GuideDay; also: AlsoOnDay | undefined } | null>(day ? { day, also } : null);
+  if (day && (day !== shown?.day || also !== shown?.also)) setShown({ day, also });
+  const d = day ?? shown?.day ?? null;
+  const rows = (day ? also : shown?.also)?.all ?? [];
+  useEffect(() => {
+    if (day && !rows.length) onOpenChange(false);
+  }, [day, rows.length, onOpenChange]);
+  const date = d ? new Date(d.start) : null;
+  const title = d ? `${d.offset === 0 ? (eveningAt(now) ? "Tonight" : "Today") : d.offset === 1 ? "Tomorrow" : DAY_LONG[date!.getDay()]} on TV` : "";
+  return (
+    <Sheet open={!!day} onOpenChange={onOpenChange} title={title} subtitle={date ? `${DAY[date.getDay()]} ${MON[date.getMonth()]} ${date.getDate()} · not on your shows` : undefined}>
+      <div data-evening-sheet={d?.offset}>
+        {rows.map((l) => (
+          <div key={l.key} data-evening-row={l.key} data-tvmaze={l.tvmazeId} className="flex min-h-[64px] items-center gap-3 border-b border-border py-1.5">
+            <ListingArt l={l} className="h-[54px] w-10 flex-none rounded-[3px]" />
+            <span className="min-w-0 flex-1">
+              <b className="block truncate text-[15px]">{l.name}</b>
+              <span className="block truncate text-[13px] text-muted-foreground">
+                {listingTime(l)} · {listingLine(l)}
+              </span>
+            </span>
+            <button
+              type="button"
+              data-evening-add
+              aria-label={`Add ${l.name} to my shows`}
+              onClick={() => {
+                onOpenChange(false);
+                addListing(l);
+              }}
+              className="nd-press grid size-11 flex-none place-items-center rounded-full bg-secondary"
+            >
+              <Plus className="size-[18px]" strokeWidth={2.6} aria-hidden />
+            </button>
+            <button
+              type="button"
+              data-evening-hide
+              aria-label={`Hide ${l.name} from your guide`}
+              onClick={() => void hide(l, true)}
+              className="nd-press grid size-11 flex-none place-items-center rounded-full text-muted-foreground outline-1 -outline-offset-1 outline-input"
+            >
+              <EyeOff className="size-[17px]" aria-hidden />
+            </button>
+          </div>
+        ))}
+        <ListingsCredit />
+      </div>
     </Sheet>
   );
 }
