@@ -28,7 +28,7 @@ export function ChangesPage({ seasonId, show }: { seasonId: string; show: ShowDa
       await refresh();
       toast(`Undone: ${l.text.charAt(0).toLowerCase()}${l.text.slice(1)}`);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
 
@@ -52,12 +52,12 @@ export function ChangesPage({ seasonId, show }: { seasonId: string; show: ShowDa
               )}
               <span className={`min-w-0 flex-1 ${l.undone ? "opacity-(--nd-dim)" : ""}`}>
                 <b className={`block text-[15px] font-semibold leading-snug ${l.undone ? "line-through decoration-1" : ""}`}>{l.text}</b>
-                <small className="mt-0.5 block text-[12px] leading-snug text-muted-foreground">
+                <small className={`mt-0.5 block text-[12px] leading-snug ${l.undone ? "text-foreground/85" : "text-muted-foreground"}`}>
                   {[l.who?.name ?? (l.kind === "results.correction" ? "From the shared check" : "On its own"), airTime(Date.parse(l.at)), l.tier === 2 ? "moved standings" : l.tier === 3 && l.undoUntil && !l.undone ? `restorable until ${new Date(l.undoUntil).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : null, show.games.length > 1 ? l.games.join(", ") : null]
                     .filter(Boolean)
                     .join(" · ")}
                 </small>
-                {l.undone && <small className="block text-[12px] text-muted-foreground">Undone by {l.undone.by ?? "someone"} · {airTime(Date.parse(l.undone.at))}</small>}
+                {l.undone && <small className="block text-[12px] text-foreground/85">Undone by {l.undone.by ?? "someone"} · {airTime(Date.parse(l.undone.at))}</small>}
               </span>
               {l.undoable && (
                 <Btn data-undo={l.batch} className="h-10 flex-none px-3 text-[14px]" onClick={() => undo(l)}>

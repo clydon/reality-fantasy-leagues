@@ -16,6 +16,7 @@ import { toast } from "../ui/toast";
 import { openPlan, PlanPlates } from "../couch/watch-plans";
 import { ListingsCredit } from "../watching/search";
 import { openWatching } from "../watching/sheets";
+import { useReducedMotion } from "../welcome/hooks";
 import { namesOf, showOfMove } from "./sections";
 
 // "This week on the couch", the TV guide (the mock's index.html guideDays / card, tvguide.js, streaming.js's drop days), and
@@ -436,6 +437,7 @@ function Day({
 export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
   const reel = useRef<HTMLDivElement>(null);
   const rolling = useRoll(reel);
+  const still = useReducedMotion();
   const now = useMinute();
   const shows = useMemo(() => guideShows(home, couch), [home, couch]);
   const plans = useMemo(() => guidePlans(home, couch), [home, couch]);
@@ -464,10 +466,13 @@ export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
     <section className="mt-8" data-guide>
       <div className="mb-2.5 flex items-baseline justify-between px-4">
         <h2 className="type-caption text-[24px]">{couch ? "This week on the couch" : "This week"}</h2>
-        <span className="flex h-8 items-center gap-1.5 text-xs font-semibold text-muted-foreground">
-          <i className={`size-[7px] rounded-full ${rolling ? "bg-good" : "bg-input"}`} aria-hidden />
-          {rolling ? "Rolling" : "Paused"}
-        </span>
+        {/* With reduced motion it never rolls, so it doesn't say Paused either. */}
+        {!still && (
+          <span data-guide-roll={rolling ? "on" : "off"} className="flex h-8 items-center gap-1.5 text-xs font-semibold text-muted-foreground">
+            <i className={`size-[7px] rounded-full ${rolling ? "bg-good" : "bg-input"}`} aria-hidden />
+            {rolling ? "Rolling" : "Paused"}
+          </span>
+        )}
       </div>
       <div
         ref={reel}
@@ -521,7 +526,7 @@ function useHide() {
       setHidden((await guideApi.hide(show, hidden)).hidden);
       toast(hidden ? `${name} is hidden from your guide` : `${name} is back on your guide`, hidden ? { undo: () => void run(show, name, false) } : {});
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   return run;
@@ -633,7 +638,7 @@ function useHideListing() {
       setHidden((await guideApi.hideListing(l.tvmazeId, l.name, hidden)).hidden);
       toast(hidden ? `${l.name} is hidden from your guide` : `${l.name} is back on your guide`, hidden ? { undo: () => void run(l, false) } : {});
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   return run;
@@ -786,7 +791,7 @@ function HiddenSheet({ open, onOpenChange, hidden }: { open: boolean; onOpenChan
                     setHidden(out.hidden);
                     toast(`${h.name} is back on your guide`);
                   } catch (e) {
-                    toast((e as Error).message);
+                    toast.quiet((e as Error).message);
                   } finally {
                     setBusy(null);
                   }

@@ -17,7 +17,8 @@
 //   - Earlier messages (step 15 part 4): with 520 more said since Episode 4 aired, a read sends the newest 300 and says there
 //     are more; `&before=` the 100 before a message, oldest first, folded for sam exactly as the rest (nothing of theirs leaves
 //     the server), refused for a message that isn't this chat's; `&since=` everything from a message on; in the browser, as
-//     alex, Earlier messages at the top adds 100 and keeps his place, and the open chat's poll asks `since` from then on;
+//     alex, Earlier messages at the top adds 100 and keeps his place, and the open chat's poll asks `since` from then on; that
+//     very message deleted while it's open: `since`/`before` with its time (`&at=`) read from where it was, and the page drops it;
 //   - nothing wider than the screen, no page errors.
 // Screenshots go to <outDir>.
 //
@@ -310,6 +311,29 @@ function check(ok, what, detail = "") {
     await page.waitForTimeout(6000);
     check(sinceAsked.length > 0, "the open chat asks since the earliest you've read from then on", `${sinceAsked.length}`);
     check((await page.locator("[data-msg]").count()) === after, "and keeps them all", `${await page.locator("[data-msg]").count()}`);
+
+    // The message the open chat reads from, deleted while it's open (whoever runs a game removes it): the read goes on from the next
+    // one, placed by the time the page sends with it, and the page drops it and keeps the rest.
+    const anchor = page1.messages[0];
+    const next = since.messages[1];
+    check((await as.alex.call("DELETE", `/api/seasons/${sid}/chat/${anchor.id}?couch=${fx.couchId}`)).status === 200, "alex removes the message his open chat reads from");
+    const at = encodeURIComponent(anchor.at);
+    const gone = (await chat("alex", sid, `&since=${anchor.id}&at=${at}`)).body;
+    check(
+      gone.messages.length === since.messages.length - 1 && gone.messages[0].id === next.id && !gone.messages.some((m) => m.id === anchor.id),
+      "&since= a deleted message, with its time: from the next one on (not the newest 300)",
+      `${gone.messages.length}, from the next ${gone.messages[0]?.id === next.id}`
+    );
+    const before = (await chat("alex", sid, `&before=${anchor.id}&at=${at}`)).body;
+    check(before.messages?.length > 0 && before.messages.every((m) => m.at <= anchor.at), "&before= a deleted message, with its time: the ones before where it was", `${before.messages?.length}`);
+    check((await chat("alex", sid, `&before=${anchor.id}`)).status === 404, "and without its time, 404 as before");
+    const asked = sinceAsked.length;
+    await page.waitForFunction((id) => !document.querySelector(`[data-msg="${id}"]`), anchor.id, { timeout: 15_000 }).catch(() => {});
+    await page.waitForTimeout(5500);
+    check(!(await page.locator(`[data-msg="${anchor.id}"]`).count()), "the open chat drops the deleted message");
+    check((await page.locator("[data-msg]").count()) === after - (anchor.type === "message" ? 1 : 0), "and keeps the rest it had read back to", `${after} → ${await page.locator("[data-msg]").count()}`);
+    check(sinceAsked.slice(asked).some((u) => u.includes(`since=${anchor.id}`) && /[?&]at=/.test(u)), "its poll still asks from there, with the time");
+    await shot("chat-earlier-deleted");
 
     const real = [...errors, ...sb.errors, ...rb.errors].filter((e) => !/Download the React DevTools|\[HMR\]|\[Fast Refresh\]/.test(e));
     check(real.length === 0, "no page errors", real.slice(0, 3).join(" | "));

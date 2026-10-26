@@ -12,7 +12,8 @@
 //      Waivers page after the run, a shared game's swap through the picker, free agency.
 //   5. Game settings (starters with the bench following after the draft, Reset to recommended, who can join with Undo,
 //      the end-a-game Preview, a Game admin refused), Lock it down (step 15 part 4: competitive mode for all three games in
-//      one batch with Undo, nobody new, the settings and the rules frozen and refused while it's on, a Game admin refused),
+//      one batch with Undo, nobody new, the settings and the rules frozen and refused while it's on, Recent changes' Undo of a
+//      settings or points line from before refused too and said in the quiet toast, a Game admin refused),
 //      Scoring rules' read side (the rulebook, How it works, the points, Make it ours opens its sheet: check-new-ours.js
 //      covers it, since step 6b part 3).
 //   6. Members & roles: named as the games name them, a game's sheet (share it), a role for all three games with Undo,
@@ -355,6 +356,12 @@ const first = (name) => name.split(" ")[0];
     const lockRow = page.locator("[data-lock-down]");
     await lockRow.scrollIntoViewIfNeeded();
     check((await lockRow.getAttribute("data-lock-down")) === "off" && /No late joins, no catch-up, rules frozen for the season/.test(await lockRow.innerText()), "Competitive mode: Lock it down, off, saying what it does");
+    // A points change just before it (Reset to recommended above is the settings one), for Recent changes' Undo below.
+    const pointsOf = async () => (await bs("alex", "rules")).body.games.find((g) => g.leagueId === L.lineup).points.flatMap((g) => g.items).filter((i) => typeof i.points === "number");
+    const { id: moment, points: pts0 } = (await pointsOf())[0];
+    const pointsNow = async () => (await pointsOf()).find((i) => i.id === moment)?.points;
+    const ptsBatch = (await bs("alex", "rules", "POST", { action: "points", leagueId: L.lineup, points: { [moment]: pts0 + 1 } })).body?.batch;
+    check(!!moment && !!ptsBatch, "a points change before the lock, with Undo", `${moment}: ${pts0} → ${pts0 + 1}`);
     await lockRow.locator("[data-setting=lock-down]").click();
     check(/Competitive mode on/.test(await toasted(/Competitive mode on/)), "on: Competitive mode on, with Undo");
     const locked = await Promise.all(["outlast", "lineup", "pool"].map(state));
@@ -374,7 +381,21 @@ const first = (name) => name.split(" ")[0];
     check(/Frozen for the season/i.test(await page.locator("[data-rules-frozen]").innerText()), "Scoring rules: frozen for the season");
     await page.locator("[data-make-ours]").click();
     check(/Locked down for the season/.test(await toasted(/Locked down/)), "Make it ours says why it can't");
+    check((await page.locator("[role=status] [data-toast]").getAttribute("data-toast")) === "quiet", "in the quiet toast (no tick: it isn't done)");
     await shot("rules-frozen");
+    // Recent changes' Undo is a change too: a settings or points line from before the lock is refused while it's on (Lock it down's own
+    // line isn't: the toast's Undo below takes it off).
+    const undoLine = (batch) => as.alex.call("POST", `/api/seasons/${sid}/changes/${batch}/undo${q}`);
+    const resetBatch = (await pool.query("SELECT batch FROM league_changes WHERE league_id = $1 AND text = 'Set the game back to recommended' AND undone_at IS NULL ORDER BY created_at DESC LIMIT 1", [L.lineup])).rows[0]?.batch;
+    const refusedReset = await undoLine(resetBatch);
+    check(refusedReset.status === 409 && /Locked down for the season/.test(refusedReset.body?.error ?? ""), "Undo of Reset to recommended is refused while locked down (409)", `${refusedReset.status} ${refusedReset.body?.error}`);
+    check((await state("lineup")).settings.activeSlots === 3, "and 3 still score each week");
+    const refusedPts = await undoLine(ptsBatch);
+    check(refusedPts.status === 409 && (await pointsNow()) === pts0 + 1, "so is Undo of the points change, and the points stay", `${refusedPts.status}`);
+    await page.goto(`${BASE}/show/${sid}/backstage/history`);
+    await page.locator(`[data-undo="${ptsBatch}"]`).click();
+    check(/Locked down for the season/.test(await toasted(/Locked down/)) && (await page.locator("[role=status] [data-toast]").getAttribute("data-toast")) === "quiet", "on the page: its Undo says why, in the quiet toast");
+    await shot("history-locked-undo");
     await page.goto(`${BASE}/show/${sid}/backstage/settings`);
     await page.locator("[data-lock-down=on]").waitFor({ timeout: 20000 });
     await page.locator("[data-lock-down] [data-setting=lock-down]").click();
@@ -384,6 +405,7 @@ const first = (name) => name.split(" ")[0];
     await page.waitForTimeout(1500);
     check((await Promise.all(["outlast", "lineup", "pool"].map(state))).every((x) => x.settings.lockedDown === true), "the toast's Undo locks them down again");
     check((await bs("alex", "settings", "PATCH", { lockDown: false })).status === 200 && (await Promise.all(["outlast", "lineup", "pool"].map(state))).every((x) => !x.settings.lockedDown), "and off once more (the rest of the check is casual)");
+    check((await undoLine(ptsBatch)).status === 200 && (await pointsNow()) === pts0, "off: the points change undoes, as before the lock");
 
     await page.goto(`${BASE}/show/${sid}/backstage/rules`);
     await page.locator("[data-rulebook]").waitFor({ timeout: 20000 });

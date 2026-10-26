@@ -83,8 +83,9 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const couchId = show.couch?.id ?? null;
   const unfoldKey = `${seasonId}:${couchId}`;
   const [unfold, setUnfold] = useState<number | null>(() => unfolds.get(unfoldKey) ?? null);
-  // Earlier messages: where the conversation's read from once you've read back, and the page that's shown until that read is in.
-  const [since, setSince] = useState<string | null>(null);
+  // Earlier messages: where the conversation's read from once you've read back, and the page that's shown until that read is in
+  // (the last read stands in meanwhile). Once it's in it starts at that message, or at the next one if it's been deleted.
+  const [since, setSince] = useState<Pick<ChatLine, "id" | "at"> | null>(null);
   const [page, setPage] = useState<{ messages: ChatLine[]; more: boolean } | null>(null);
   const [reading, setReading] = useState(false);
   const chat = useCouchChat(seasonId, couchId, unfold, since);
@@ -93,7 +94,7 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const [open, setOpen] = useState<ChatLine | null>(null);
   const data = chat.data && "messages" in chat.data ? chat.data : null;
   const read = data?.messages ?? [];
-  const waiting = !!page && read[0]?.id !== since;
+  const waiting = !!page && chat.isPlaceholderData && read[0]?.id !== since?.id;
   const messages = waiting ? [...page.messages, ...read.filter((m) => !page.messages.some((p) => p.id === m.id))] : read;
   const more = waiting ? page.more : !!data?.more;
   // Reading back keeps your place: the page grows above you.
@@ -108,14 +109,14 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
     if (!first || reading || !couchId) return;
     setReading(true);
     try {
-      const got = await chatEarlier(seasonId, couchId, first.id, unfold);
+      const got = await chatEarlier(seasonId, couchId, first, unfold);
       if ("messages" in got && got.messages.length) {
         keep.current = document.documentElement.scrollHeight - window.scrollY;
         setPage({ messages: [...got.messages, ...messages], more: got.more });
-        setSince(got.messages[0].id);
+        setSince(got.messages[0]);
       } else if ("messages" in got) setPage({ messages, more: false });
     } catch (e) {
-      toast(`Didn't load: ${(e as Error).message}`);
+      toast.quiet(`Didn't load: ${(e as Error).message}`);
     } finally {
       setReading(false);
     }
@@ -210,7 +211,7 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
           );
         }
         if (item.kind === "fold") return <Fold key={item.key} lines={item.lines} fold={data.fold} reveal={reveal} onShow={showThem} onReveal={openReveal} />;
-        return <Line key={item.m.id} item={item} me={data.you.userId} onOpen={() => setOpen(item.m)} onReact={(e) => actions.react(item.m.id, e).catch((err) => toast(`Not sent: ${err.message}`))} />;
+        return <Line key={item.m.id} item={item} me={data.you.userId} onOpen={() => setOpen(item.m)} onReact={(e) => actions.react(item.m.id, e).catch((err) => toast.quiet(`Not sent: ${err.message}`))} />;
       })}
       {data.you.canPost && <Composer placeholder={placeholder} onSend={async (text) => {
         atBottom.current = true;
@@ -371,7 +372,7 @@ function Composer({ placeholder, onSend }: { placeholder: string; onSend: (text:
       await onSend(text);
     } catch (e) {
       setDraft(text);
-      toast(`Not sent: ${(e as Error).message}`);
+      toast.quiet(`Not sent: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
@@ -434,7 +435,7 @@ function MessageSheet({ m, chat, onClose, actions }: { m: ChatLine | null; chat:
     onClose();
   };
   const run = (p: Promise<unknown>, done?: string) =>
-    p.then(() => done && toast(done)).catch((e) => toast(`Didn't work: ${(e as Error).message}`));
+    p.then(() => done && toast(done)).catch((e) => toast.quiet(`Didn't work: ${(e as Error).message}`));
   const isReveal = shown?.type === "reveal";
 
   return (

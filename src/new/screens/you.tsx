@@ -99,7 +99,7 @@ export function JoinScreen({ code, way, welcome }: { code: string; way: WayIn; w
                       await after();
                       toast(`You joined ${r.name}`);
                     } catch (e) {
-                      toast((e as Error).message);
+                      toast.quiet((e as Error).message);
                     } finally {
                       setBusy(false);
                     }

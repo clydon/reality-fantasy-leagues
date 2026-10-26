@@ -75,7 +75,7 @@ function useDraftWrite(seasonId: string, show: ShowData) {
                     await after();
                     toast("Undone");
                   } catch (e) {
-                    toast((e as Error).message);
+                    toast.quiet((e as Error).message);
                   }
                 },
               }
@@ -85,7 +85,7 @@ function useDraftWrite(seasonId: string, show: ShowData) {
       return true;
     } catch (e) {
       await after();
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
       return false;
     }
   };
@@ -427,8 +427,8 @@ function SnakeRoom({ seasonId, show, game, onSettings }: { seasonId: string; sho
   }
 
   const tap = (c: DraftFace) => {
-    if (!live) return toast("The draft hasn't started. Star castaways to queue them.");
-    if (!acting) return toast(`It's ${onClock}'s pick. Star castaways to queue them.`);
+    if (!live) return toast.quiet("The draft hasn't started. Star castaways to queue them.");
+    if (!acting) return toast.quiet(`It's ${onClock}'s pick. Star castaways to queue them.`);
     setSel(sel?.id === c.id ? null : { n: clock!.n, id: c.id });
   };
 
@@ -811,11 +811,11 @@ function BlindRoom({ seasonId, show, game, onSettings }: { seasonId: string; sho
   const forName = forWho ? (seatOf(game, forWho)?.name ?? "someone") : null;
 
   const toggle = (id: string) => {
-    if (!live) return toast("The draft hasn't started yet");
-    if (lockedHere) return toast("You're locked in. Change it to pick again.");
+    if (!live) return toast.quiet("The draft hasn't started yet");
+    if (lockedHere) return toast.quiet("You're locked in. Change it to pick again.");
     if (team.includes(id)) setTeam(team.filter((x) => x !== id));
     else if (team.length < game.size) setTeam([...team, id]);
-    else toast("Take someone out first");
+    else toast.quiet("Take someone out first");
   };
 
   async function lockIn() {

@@ -97,7 +97,7 @@ export function HowItWorksBody({
       await client.invalidateQueries({ queryKey: ["new-design", "how", seasonId] });
       toast("Thanks: it says checked by another couch now, for everyone");
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setChecking(false);
     }
@@ -412,7 +412,7 @@ function SuggestFixSheet({ seasonId, couchId, name, onClose }: { seasonId: strin
               toast("Sent. The admin checks it, then fixes it for every couch.");
               onClose();
             } catch (e) {
-              toast((e as Error).message);
+              toast.quiet((e as Error).message);
               setBusy(false);
             }
           }}

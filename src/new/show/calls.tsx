@@ -138,7 +138,7 @@ function OpenCalls({ target, d, onDone }: { target: CallTarget; d: EpisodeCalls;
       onDone();
       toast(`Called it · change until ${until}`);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setSaving(false);
     }
@@ -231,7 +231,7 @@ function HowItWent({ target, d }: { target: CallTarget; d: EpisodeCalls }) {
     try {
       after(await callsApi.say(target.seasonId, target.couchId, d.episode, { [key]: d.says?.[key]?.mine === said ? null : said }), target.couchId);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setSaying(false);
     }

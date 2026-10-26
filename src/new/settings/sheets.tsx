@@ -105,7 +105,7 @@ export function ProfileSheet({ open, onOpenChange }: { open: boolean; onOpenChan
         },
       });
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(null);
     }
@@ -134,7 +134,7 @@ export function ProfileSheet({ open, onOpenChange }: { open: boolean; onOpenChan
       await after();
       toast("Picture removed: your initial's back");
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(null);
     }

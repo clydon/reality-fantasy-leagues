@@ -67,7 +67,7 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
       await refresh();
       toast(`Undone: ${what}`);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
 
@@ -79,8 +79,8 @@ export function ResultsPage({ seasonId, show }: { seasonId: string; show: ShowDa
       if (r.applied) {
         const batch = r.applied.batch;
         toast(`Applied to ${r.applied.games} ${r.applied.games === 1 ? "game" : "games"} · nothing shown to you`, { undo: () => void undo(batch, "who went home") });
-      } else if (r.waiting?.doubt === "not-found") toast(r.waiting.line);
-      else toast("It couldn't be sure · it waits for you here");
+      } else if (r.waiting?.doubt === "not-found") toast.quiet(r.waiting.line);
+      else toast.quiet("It couldn't be sure · it waits for you here");
     } else {
       const batch = r.batch;
       const line = r.applied ? `${r.applied} ${r.applied === 1 ? "result" : "results"} applied to ${r.games} ${r.games === 1 ? "game" : "games"}` : "Nothing applied on its own";
@@ -561,7 +561,7 @@ function ResultsWays({ seasonId, couchId, ways, anyone, seasonName }: { seasonId
       await refresh();
       toast(`One tap unlocked for ${seasonName} · free during beta`);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -576,7 +576,7 @@ function ResultsWays({ seasonId, couchId, ways, anyone, seasonName }: { seasonId
           on={current === "paste"}
           tag={current === "paste" ? "How you do it now" : null}
           line={`${anyone ? "Anyone on the couch" : "Whoever runs a game here"} copies our question into ChatGPT and pastes the answer. About 2 minutes an episode.`}
-          onClick={() => ways.tap.unlocked && toast("One tap stays unlocked this season; copy and paste always works too")}
+          onClick={() => ways.tap.unlocked && toast.quiet("One tap stays unlocked this season; copy and paste always works too")}
         />
         <Way
           id="tap"
@@ -585,7 +585,7 @@ function ResultsWays({ seasonId, couchId, ways, anyone, seasonName }: { seasonId
           on={current === "tap"}
           tag={ways.tap.unlocked ? `Unlocked for this season${ways.tap.by ? ` by ${ways.tap.by}` : ""}` : null}
           line={`"Ask ChatGPT for me": our bot asks and sends it in. One tap an episode, for the whole couch.${ways.bot.available ? "" : " Our bot isn't answering right now."}`}
-          onClick={() => (ways.tap.unlocked ? undefined : ways.canUnlock ? setUnlocking(true) : toast("Whoever runs the games here can unlock it"))}
+          onClick={() => (ways.tap.unlocked ? undefined : ways.canUnlock ? setUnlocking(true) : toast.quiet("Whoever runs the games here can unlock it"))}
         />
         <Way
           id="autopilot"
@@ -595,7 +595,7 @@ function ResultsWays({ seasonId, couchId, ways, anyone, seasonName }: { seasonId
           soon={!auto}
           tag={auto ? "On for this season" : null}
           line={autoLine}
-          onClick={() => !auto && toast("Autopilot is coming soon · we'll tell you when it's ready")}
+          onClick={() => !auto && toast.quiet("Autopilot is coming soon · we'll tell you when it's ready")}
         />
       </div>
       <p className="mt-1 text-[12.5px] leading-snug text-muted-foreground">

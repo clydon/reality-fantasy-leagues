@@ -48,7 +48,7 @@ export function SettingsScreen() {
       await after(await profileApi.save(body));
       toast(said, undo ? { undo: async () => void (await after(await profileApi.save(undo))) } : {});
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
 
@@ -188,7 +188,7 @@ export function SettingsScreen() {
                       const r = await authClient.linkSocial({ provider: "google", callbackURL: paths.settings }).catch(() => null);
                       if (!r || r.error) {
                         setLinking(false);
-                        toast("Couldn't open Google. Try again.");
+                        toast.quiet("Couldn't open Google. Try again.");
                       }
                     }
               }
@@ -211,7 +211,7 @@ export function SettingsScreen() {
                 await switchDesign("classic");
               } catch {
                 setSwitching(false);
-                toast("Couldn't switch. Try again.");
+                toast.quiet("Couldn't switch. Try again.");
               }
             }}
           />

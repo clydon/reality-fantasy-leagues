@@ -35,7 +35,7 @@ export function RulesPage({ seasonId, show }: { seasonId: string; show: ShowData
   const ours = frozen ? { ...data.data.ours, canChange: false } : data.data.ours;
   const copy = ours.copy;
   const may = (open: () => void) => () =>
-    frozen ? toast("Locked down for the season: the rules are frozen") : data.data.ours.canChange ? open() : toast("Only a Commissioner changes the rules");
+    frozen ? toast.quiet("Locked down for the season: the rules are frozen") : data.data.ours.canChange ? open() : toast.quiet("Only a Commissioner changes the rules");
 
   /** A change made: its toast, with Undo through Recent changes. */
   const done = async (batch: string | null | undefined, said: string) => {
@@ -48,7 +48,7 @@ export function RulesPage({ seasonId, show }: { seasonId: string; show: ShowData
           await after();
           toast("Undone");
         } catch (e) {
-          toast((e as Error).message);
+          toast.quiet((e as Error).message);
         }
       },
     });
@@ -189,7 +189,7 @@ function OursSheet({ seasonId, couchId, name, onClose, done }: { seasonId: strin
             onClose();
             await done(r.batch, "It's yours now · undo from Recent changes");
           } catch (e) {
-            toast((e as Error).message);
+            toast.quiet((e as Error).message);
             setBusy(false);
           }
         }}
@@ -282,7 +282,7 @@ function Updates({ seasonId, couchId, ours, done }: { seasonId: string; couchId:
                         const r = await ourRules.update(seasonId, couchId, u.id, false);
                         await done(r.batch, "Skipped · your copy leaves it out");
                       } catch (e) {
-                        toast((e as Error).message);
+                        toast.quiet((e as Error).message);
                       }
                     }}
                   >
@@ -506,7 +506,7 @@ function AddMomentSheet({ seasonId, couchId, onClose, done }: { seasonId: string
               onClose();
               await done(r.batch, "Added · the couch answers it from the episode page");
             } catch (e) {
-              toast((e as Error).message);
+              toast.quiet((e as Error).message);
               setBusy(false);
             }
           }}

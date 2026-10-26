@@ -132,7 +132,7 @@ function Card({ target, b }: { target: BingoTarget; b: EpisodeBingo }) {
       after(await bingoApi.tick(target.seasonId, target.couchId, b.episode, i, on), target.couchId);
     } catch (e) {
       setMine([...ticked]);
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   const lines = linesOf(ticked).length;
@@ -144,7 +144,7 @@ function Card({ target, b }: { target: BingoTarget; b: EpisodeBingo }) {
       await postToCouch(target.seasonId, target.couchId, `Bingo! ${lineWord(lines)} on ${target.label} Episode ${b.episode}`);
       toast("Told the couch · in its chat");
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   const until = b.airAt ? airTime(Date.parse(b.airAt)) : "it airs";

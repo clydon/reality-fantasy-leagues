@@ -45,7 +45,7 @@ export function FillState({ seasonId, couchId, data }: { seasonId: string; couch
         },
       });
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   return (
@@ -137,7 +137,7 @@ export function Corrections({ seasonId, couchId, corrections }: { seasonId: stri
       await refresh();
       toast("Ruling dropped · the correction applies");
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   return (

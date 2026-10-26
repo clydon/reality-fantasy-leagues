@@ -90,7 +90,7 @@ function VoteSheet({ target, onOpenChange }: { target: Extract<PollTarget, { kin
       after(target.seasonId, target.couchId, await fn());
       if (done) toast(done);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -247,7 +247,7 @@ function StartSheet({ target, onOpenChange }: { target: Extract<PollTarget, { ki
       onOpenChange(false);
       toast(`Poll started · open until ${airTime(Date.parse(start.airAt))}`);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }

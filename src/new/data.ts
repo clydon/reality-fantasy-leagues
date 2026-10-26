@@ -342,10 +342,10 @@ export type ChatRead = CouchChat | { out: true };
  * every 5 s while it's on screen. Each poll sends the version it has, and an unchanged chat keeps what's here.
  */
 /** The open chat, polled. `since` (step 15 part 4): once you've read back (Earlier messages), everything from the message the
- *  first window started at, so it never slides away under what you've read. */
-export function useCouchChat(seasonId: string, couchId: string | null, unfold: number | null, since: string | null = null) {
+ *  first window started at, so it never slides away under what you've read; its time goes too, for when it's been deleted. */
+export function useCouchChat(seasonId: string, couchId: string | null, unfold: number | null, since: Pick<ChatLine, "id" | "at"> | null = null) {
   const client = useQueryClient();
-  const key = ["new-design", "chat", seasonId, couchId, unfold, since] as const;
+  const key = ["new-design", "chat", seasonId, couchId, unfold, since?.id ?? null] as const;
   return useQuery({
     queryKey: key,
     queryFn: async (): Promise<ChatRead> => {
@@ -353,7 +353,7 @@ export function useCouchChat(seasonId: string, couchId: string | null, unfold: n
       const v = have && "v" in have ? have.v : null;
       const query: Record<string, string> = {};
       if (unfold) query.unfold = String(unfold);
-      if (since) query.since = since;
+      if (since) Object.assign(query, { since: since.id, at: since.at });
       if (v) query.v = v;
       const body = await get<ChatRead | { unchanged: true; v: string }>(chatUrl(seasonId, couchId as string, "", query));
       return "unchanged" in body && have ? have : (body as ChatRead);
@@ -386,8 +386,10 @@ export function useChatBadge(seasonId: string, couchId: string | null, reveal: n
 export const chatCouch = (show: { solo: boolean; couch: { id: string } | null }) => (show.solo ? null : (show.couch?.id ?? null));
 
 /** Earlier messages (step 15 part 4): the 100 before a message, folded as the rest are; read on a tap, never polled. */
-export function chatEarlier(seasonId: string, couchId: string, before: string, unfold: number | null) {
-  return get<{ messages: ChatLine[]; more: boolean } | { out: true }>(chatUrl(seasonId, couchId, "", { before, ...(unfold ? { unfold: String(unfold) } : {}) }));
+export function chatEarlier(seasonId: string, couchId: string, before: Pick<ChatLine, "id" | "at">, unfold: number | null) {
+  return get<{ messages: ChatLine[]; more: boolean } | { out: true }>(
+    chatUrl(seasonId, couchId, "", { before: before.id, at: before.at, ...(unfold ? { unfold: String(unfold) } : {}) })
+  );
 }
 
 /** What you can do in the couch's chat; each refreshes the open chat (and the badge, for a read). */

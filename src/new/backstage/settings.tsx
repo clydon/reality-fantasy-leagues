@@ -40,7 +40,7 @@ export function SettingsPage({ seasonId, show }: { seasonId: string; show: ShowD
   if (!data.data || !couchId) return <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
 
   const write = async (g: GameSettings, body: Parameters<typeof gameAdmin.settings>[3], said: string) => {
-    if (!g.commissioner) return toast("Only a Commissioner changes these");
+    if (!g.commissioner) return toast.quiet("Only a Commissioner changes these");
     try {
       const r = await gameAdmin.settings(seasonId, couchId, g.leagueId, body);
       await after();
@@ -53,12 +53,12 @@ export function SettingsPage({ seasonId, show }: { seasonId: string; show: ShowD
             await after();
             toast("Undone");
           } catch (e) {
-            toast((e as Error).message);
+            toast.quiet((e as Error).message);
           }
         },
       });
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
 
@@ -252,14 +252,14 @@ function LockDown({ seasonId, couchId, games }: { seasonId: string; couchId: str
   const mine = games.filter((g) => g.commissioner);
   const on = mine.length ? mine.every((g) => g.lockedDown) : games.some((g) => g.lockedDown);
   const set = async (to: boolean, undo = true) => {
-    if (!mine.length) return toast("Only a Commissioner changes this");
+    if (!mine.length) return toast.quiet("Only a Commissioner changes this");
     setBusy(true);
     try {
       const r = await gameAdmin.lockDown(seasonId, couchId, to);
       await after();
       toast(to ? "Competitive mode on" : "Back to casual", undo && r.batch ? { undo: () => set(!to, false) } : {});
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -308,12 +308,12 @@ function EndGames({ seasonId, couchId }: { seasonId: string; couchId: string }) 
             await after();
             toast("Undone");
           } catch (e) {
-            toast((e as Error).message);
+            toast.quiet((e as Error).message);
           }
         },
       });
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   const unarchive = async (g: EndGame) => {
@@ -322,7 +322,7 @@ function EndGames({ seasonId, couchId }: { seasonId: string; couchId: string }) 
       await after();
       toast(`${g.gameName} is back: it scores again`);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   const askDelete = async (g: EndGame) => {
@@ -331,7 +331,7 @@ function EndGames({ seasonId, couchId }: { seasonId: string; couchId: string }) 
       setHold(await gamesApi.deletePreview(seasonId, couchId, g.leagueId));
     } catch (e) {
       setHold(false);
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   const choose = (action: EndAction) => {

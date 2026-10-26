@@ -139,7 +139,7 @@ export function History({ lines, emptyLine = "Nothing yet." }: { lines: DeskLine
         <div key={l.id ?? `${l.at}-${i}`} data-history-line={l.id ?? undefined} className="flex min-h-12 items-center gap-3 border-t border-border py-2 first:border-t-0">
           <span className={`min-w-0 flex-1 ${l.undone ? "opacity-(--nd-dim)" : ""}`}>
             <span className={`block text-[14px] leading-snug ${l.undone ? "line-through" : ""}`}>{l.text}</span>
-            <small className="block text-[12px] text-muted-foreground">
+            <small className={`block text-[12px] ${l.undone ? "text-foreground/85" : "text-muted-foreground"}`}>
               {[l.who, airTime(Date.parse(l.at)), l.undone ? "undone" : null].filter(Boolean).join(" · ")}
             </small>
           </span>
@@ -155,7 +155,7 @@ export function History({ lines, emptyLine = "Nothing yet." }: { lines: DeskLine
                   await after();
                   toast("Undone");
                 } catch (e) {
-                  toast((e as Error).message);
+                  toast.quiet((e as Error).message);
                 } finally {
                   setBusy(null);
                 }

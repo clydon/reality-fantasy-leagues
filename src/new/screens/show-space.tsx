@@ -419,7 +419,7 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
                   setLeave(await gameAdmin.leave(seasonId, show.couch!.id, true));
                 } catch (e) {
                   setLeave(false);
-                  toast((e as Error).message);
+                  toast.quiet((e as Error).message);
                 }
               }}
             />
@@ -487,7 +487,7 @@ function WatchingRows({ show, onDone }: { show: ShowData; onDone: () => void }) 
             await refresh();
             toast(on ? "Watching privately · only you see it" : "The couch can see you watch it again");
           } catch (e) {
-            toast((e as Error).message);
+            toast.quiet((e as Error).message);
           }
         }}
         className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0"
@@ -525,7 +525,7 @@ function WatchingRows({ show, onDone }: { show: ShowData; onDone: () => void }) 
               toast(`${name} removed from your shows`);
               nav.push(paths.home);
             } catch (e) {
-              toast((e as Error).message);
+              toast.quiet((e as Error).message);
             }
           }}
         />

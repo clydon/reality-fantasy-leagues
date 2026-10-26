@@ -75,7 +75,7 @@ function PhoneRow({ devices }: { devices: number }) {
     } catch (e) {
       if (notificationPermission() === "denied") setState("blocked");
       // Our own refusals are in plain words; the browser's (its push service unreachable, say) aren't.
-      toast(e instanceof DOMException || !(e as Error).message ? "Couldn't do that on this phone. Try again." : (e as Error).message);
+      toast.quiet(e instanceof DOMException || !(e as Error).message ? "Couldn't do that on this phone. Try again." : (e as Error).message);
     } finally {
       setBusy(false);
     }

@@ -366,7 +366,7 @@ function WhereYouAre({
               forgetFirstRun();
               nav.push(paths.start(START_STEPS));
             } catch (e) {
-              toast((e as Error).message);
+              toast.quiet((e as Error).message);
               setBusy(false);
             }
           }}

@@ -347,7 +347,7 @@ function AskAiBodyOf({ what, spoiler, check, onUse, tag, question: ask, empty }:
       await navigator.clipboard.writeText(question.prompt);
       toast("Question copied. Paste it into any AI chat that can search the web.");
     } catch {
-      toast("Couldn't copy here. Open it in ChatGPT instead.");
+      toast.quiet("Couldn't copy here. Open it in ChatGPT instead.");
     }
     setStep(2);
   };
@@ -356,9 +356,9 @@ function AskAiBodyOf({ what, spoiler, check, onUse, tag, question: ask, empty }:
     try {
       const text = await navigator.clipboard.readText();
       if (text.trim()) setAnswer(text);
-      else toast("Nothing copied yet. Copy the AI's whole answer first.");
+      else toast.quiet("Nothing copied yet. Copy the AI's whole answer first.");
     } catch {
-      toast("Paste it into the box below instead.");
+      toast.quiet("Paste it into the box below instead.");
     }
   };
 

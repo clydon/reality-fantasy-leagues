@@ -427,7 +427,7 @@ function ShareSheet({ open, onOpenChange, r, show }: { open: boolean; onOpenChan
       onOpenChange(false);
       toast("Posted to the couch chat");
     } catch (e) {
-      toast(`Not posted: ${(e as Error).message}`);
+      toast.quiet(`Not posted: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
@@ -446,7 +446,7 @@ function ShareSheet({ open, onOpenChange, r, show }: { open: boolean; onOpenChan
         toast("Saved the card");
       }
     } catch (e) {
-      if ((e as Error).name !== "AbortError") toast(`Couldn't make the card: ${(e as Error).message}`);
+      if ((e as Error).name !== "AbortError") toast.quiet(`Couldn't make the card: ${(e as Error).message}`);
     }
   };
   return (

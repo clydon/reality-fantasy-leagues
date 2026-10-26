@@ -385,7 +385,7 @@ function OpenWeek({ seasonId, show, week }: { seasonId: string; show: ShowData; 
                         {f.points} pts{f.group ? ` · ${f.group.name}` : ""}
                       </small>
                     )}
-                    {!out && f.tag && <span className="mt-1 inline-block rounded-[2px] bg-good/15 px-1.5 py-0.5 text-[12px] font-bold text-good">{f.tag}</span>}
+                    {!out && f.tag && <span className="mt-1 inline-block rounded-[2px] bg-good/15 px-1.5 py-0.5 text-[12px] font-bold text-(--nd-good)">{f.tag}</span>}
                   </span>
                   {adds.length && !out ? (
                     <span className="type-caption text-[13px] tracking-[0.06em] text-muted-foreground">Going</span>
@@ -665,7 +665,7 @@ function PickSheet({
       );
       onClose();
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -796,7 +796,7 @@ function FreeAgencySheet({ open, onOpenChange, week }: { open: boolean; onOpenCh
       setAdd(null);
       onOpenChange(false);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }

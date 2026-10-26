@@ -6,6 +6,7 @@ import type { ChangeUndo, GameUndo, MemberUndo, Tier } from "./change-log";
 import { isSuperAdminUser, type SessionUser } from "./auth-helpers";
 import { withdrawResults } from "./community-results";
 import { joinedLeague, requireCouch } from "./couches";
+import { anyLockedDown, FROZEN, FROZEN_FIELDS } from "./backstage-games";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { deletedHere, restoreGame } from "./end-game";
 import { undoRulebookChange } from "./ours";
@@ -185,6 +186,11 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
   // The rules are a Commissioner's (step 6b part 3): a Game admin runs results and waivers, not the rulebook.
   const commissioner = new Set(here.filter((g) => isSuperAdminUser(user) || g.yourRole === "commissioner").map((g) => g.leagueId));
   if (rows.some((r) => r.undo?.type === "rulebook" && !commissioner.has(r.league_id))) throw new HttpError(403, "Only a Commissioner changes the rules");
+  // Lock it down (step 15 part 4) freezes the rules for the season, and an undo is a change to them too (Lock it down's own line
+  // isn't: it's how it comes off). The couch's rulebook is frozen while any game here is locked, a setting while its own game is.
+  const frozen = rows.filter((r) => freezes(r.undo!));
+  const asks = frozen.some((r) => r.undo!.type === "rulebook") ? here.map((g) => g.leagueId) : frozen.map((r) => r.league_id);
+  if (asks.length && (await anyLockedDown(asks))) throw new HttpError(409, FROZEN);
 
   // An answer someone sent (step 6b): taken back once, for every league on the season, then its lines are marked.
   const first = rows[0].undo!;
@@ -227,6 +233,7 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
     }
     await withLeagueLock(r.league_id, async (s, client) => {
       const settings = s.settings as unknown as Record<string, unknown>;
+      if (freezes(undo) && StateLogic.GhostLogic.lockedDown(s)) throw new HttpError(409, FROZEN);
       if (undo.type === "results") undoResults(s, undo);
       else if (undo.type === "settings") {
         if (JSON.stringify(settings[undo.field] ?? null) !== JSON.stringify(undo.after)) throw new HttpError(409, "That setting has changed since");
@@ -261,6 +268,14 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
     if (undo.type === "member") await joinedLeague(r.league_id, undo.userId);
   }
   return { undone: rows.length, text: rows[0].text };
+}
+
+/** Whether putting this back changes what Lock it down freezes: the couch's rulebook, Game settings or the points. */
+function freezes(undo: ChangeUndo): boolean {
+  if (undo.type === "rulebook") return true;
+  if (undo.type === "settings") return FROZEN_FIELDS.has(undo.field);
+  if (undo.type === "settingsSet") return Object.keys(undo.after).some((k) => FROZEN_FIELDS.has(k));
+  return false;
 }
 
 /** Someone taken out of a game (or who left it) comes back: their seat (reclaimed, or a new one if it went before the draft) and membership. */

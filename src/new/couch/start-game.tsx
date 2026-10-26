@@ -174,7 +174,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
       const games = paths.show(o.seasonId, "games");
       if (pathname !== games) nav.push(games);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }

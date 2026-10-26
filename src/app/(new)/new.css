@@ -31,13 +31,17 @@ html:has(.nd) body {
 /* A bright colour as text (a game's, src/new/games.ts gameInk): itself on Night, mixed with the ink on Studio (62% of it), where the
    bright one is under 3:1. Anything carrying `dark` (art, the watch along, the reveal) is Night inside. */
 /* A row that's out of play (knocked out, undone, still to air) fades: less on Studio, where its muted words would drop under 3:1. */
+/* --nd-good: the good colour as small text on its own tint (`text-(--nd-good)` on `bg-good/15`), the same way: 3.9:1 on Studio
+   as itself. Set in both, so a `dark` piece inside Studio works it out from its own tokens. */
 :root {
   --nd-ink-mix: 62%;
   --nd-dim: 0.75;
+  --nd-good: color-mix(in oklab, var(--good) 62%, var(--foreground));
 }
 .dark {
   --nd-ink-mix: 100%;
   --nd-dim: 0.6;
+  --nd-good: var(--good);
 }
 .nd {
   min-height: 100dvh;

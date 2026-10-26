@@ -49,7 +49,7 @@ export function JoinGameRow({ couchId, g, strong, onJoin }: { couchId: string; g
       await after();
       toast(said);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -135,7 +135,7 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
       toast(r.catchingUp ? `You're in. Catch-up starts at Episode ${r.start}.` : `You're in ${game.gameName}.`);
       if (r.seasonId) nav.push(paths.show(r.seasonId));
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -396,7 +396,7 @@ export function CatchUpSheet({ show, game, onOpenChange }: { show: ShowData; gam
                 await after();
                 setDone(r);
               } catch (e) {
-                toast((e as Error).message);
+                toast.quiet((e as Error).message);
               } finally {
                 setBusy(false);
               }

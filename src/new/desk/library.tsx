@@ -131,7 +131,7 @@ function ProposedCard({ p }: { p: ProposedShape }) {
       toast(`${p.name} is a starting point now`);
       nav.push(paths.deskItem("rulebook", out.id));
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -147,8 +147,8 @@ function ProposedCard({ p }: { p: ProposedShape }) {
       data-earned={earned || undefined}
       role={earned ? undefined : "button"}
       tabIndex={earned ? undefined : 0}
-      onClick={earned ? undefined : () => toast("It earns a template once two real shows share its shape.")}
-      onKeyDown={earned ? undefined : (e) => (e.key === "Enter" || e.key === " ") && toast("It earns a template once two real shows share its shape.")}
+      onClick={earned ? undefined : () => toast.quiet("It earns a template once two real shows share its shape.")}
+      onKeyDown={earned ? undefined : (e) => (e.key === "Enter" || e.key === " ") && toast.quiet("It earns a template once two real shows share its shape.")}
       className={`rounded-[4px] p-3 ${earned ? "bg-card outline-2 -outline-offset-2 outline-chyron-line" : "cursor-pointer outline-1 -outline-offset-1 outline-dashed outline-input"}`}
     >
       <div className="flex items-start gap-2">

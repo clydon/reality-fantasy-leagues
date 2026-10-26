@@ -55,7 +55,7 @@ export function InviteWayIn({ code, inv, way, welcome }: { code: string; inv: Co
       await qc.invalidateQueries({ queryKey: ["new-design"] });
     } catch (e) {
       if ((e as { status?: number }).status === 403) setPhase("waiting");
-      else toast((e as Error).message);
+      else toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }

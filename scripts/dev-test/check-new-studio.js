@@ -9,7 +9,8 @@
 //   Settings as alex at --width (390 by default): Appearance's three, Studio drawn at once and saved with Undo, Match phone
 //   following the phone as it changes (no reload), a reload keeping it, a second device catching up on its first visit.
 //   The sweep: every screen of the new design (signed out, the hub's two shapes, a show's five tabs and its pages, Backstage's
-//   pages, the draft room, Settings, the desk, a few sheets) in Night and in Studio, screenshotted, and audited from the pixels
+//   pages, the draft room, Settings, the desk, a few sheets, the landing's guide reel scrolled to its end, a quiet toast) in Night
+//   and in Studio, screenshotted, and audited from the pixels
 //   behind each piece of text: yellow as text, an icon, a border or an outline on a light ground fails (the yellow rule:
 //   chyron-line, amber on Studio), and so does text under 3:1 against what's behind it (4.5:1 is listed, not failed). Nothing
 //   wider than the screen; no page errors.
@@ -18,7 +19,8 @@
 //   node scripts/dev-test/check-new-studio.js <outDir> [--width=390] [--keep] [--api] [--themes=night,studio] [--only=<re>]
 //
 // --api: the API and first-paint half only. --only: just the screens whose name matches. Brings the fixtures up and takes them
-// down (--keep leaves them); touches zt rows only; refuses a non-local database. Prints PASS/FAIL (and LOW for 3 to 4.5:1).
+// down (--keep leaves them); touches zt rows only; refuses a non-local database. Prints PASS/FAIL (and every LOW, 3 to 4.5:1).
+// A sideways reel is audited only as far as it shows (what's off screen isn't drawn): give a reel its own row, scrolled.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
 const path = require("path");
@@ -400,6 +402,17 @@ const AUDIT = async (shot) => {
       // [name, who, url, then?]
       const SCREENS = [
         ["welcome", null, "/welcome"],
+        // The landing's guide is a reel: its cards past the first two days are off screen (and skipped) until it's scrolled.
+        [
+          "welcome-guide-end",
+          null,
+          "/welcome",
+          async (pg) => {
+            const reel = pg.locator(".lp-guide");
+            await reel.scrollIntoViewIfNeeded();
+            await reel.evaluate((el) => (el.scrollLeft = el.scrollWidth));
+          },
+        ],
         ["signin", null, "/signin"],
         ["start-1", null, "/start/1"],
         ...(code ? [["join-invite", null, `/join/${code}`]] : []),
@@ -429,6 +442,26 @@ const AUDIT = async (shot) => {
         ["traitors-episodes", "riley", `/show/${tsid}/episodes`],
         ["reveal-sam", "sam", `/show/${sid}/tonight`, (pg) => tap(pg, pg.locator("button[data-dock='reveal'], button", { hasText: /^Reveal/ }))],
         ["draft-room", "dr-alex", `/show/${dfx.seasonId}/draft`],
+        // A refusal's toast is the quiet one (no tick): a castaway tapped before the draft starts.
+        [
+          "toast-quiet",
+          "dr-alex",
+          `/show/${dfx.seasonId}/draft`,
+          async (pg) => {
+            await pg.locator("[data-tile]:not([disabled])").first().click();
+            await pg.locator("[role=status] [data-toast=quiet]").waitFor({ timeout: 10000 });
+            // The page's words in the toast's shadow would be judged against the shadow: the row before audits them as they are.
+            await pg.evaluate(() => {
+              const host = document.querySelector("[role=status]");
+              const t = host.querySelector("[data-toast]").getBoundingClientRect();
+              for (const el of document.querySelectorAll("body *")) {
+                if (host.contains(el) || ![...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
+                const r = el.getBoundingClientRect();
+                if (r.top < t.bottom + 48 && r.bottom > t.top - 8) el.setAttribute("data-audit-skip", "");
+              }
+            });
+          },
+        ],
         ["settings", "alex", "/settings"],
         ["desk", "desk", "/desk"],
         ["desk-find", "desk", "/desk/find"],
@@ -509,7 +542,7 @@ const AUDIT = async (shot) => {
           }
           check(found.yellow.size === 0, `${theme} ${name}: the yellow rule (no yellow text, icon or line on a light ground)`, [...found.yellow].slice(0, 6).join(" ; "));
           check(found.poor.size === 0, `${theme} ${name}: text at 3:1 or better against what's behind it`, [...found.poor].slice(0, 6).join(" ; "));
-          for (const l of [...found.low].slice(0, 4)) console.log(`LOW   ${theme} ${name}: ${l}`);
+          for (const l of found.low) console.log(`LOW   ${theme} ${name}: ${l}`);
           check(over <= 1, `${theme} ${name}: fits ${width}px`, `${over}px over`);
           const errs = v.errors();
           check(errs.length === 0, `${theme} ${name}: no page errors`, errs.join(" | ").slice(0, 300));

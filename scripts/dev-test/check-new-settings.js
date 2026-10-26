@@ -289,6 +289,12 @@ function check(ok, what, detail = "") {
       await pg.waitForTimeout(500);
       await a.shot("profile");
       await pg.locator('[data-colour="#e86f9a"]').click();
+      // The saved row first (under a batch's load the PUT can answer slowly), then the toast it answers with.
+      let kept = false;
+      for (const t = Date.now(); !kept && Date.now() - t < 30000; await new Promise((r) => setTimeout(r, 250))) {
+        kept = (await pool.query("SELECT colour FROM user_settings WHERE user_id = $1", [A])).rows[0]?.colour === "#e86f9a";
+      }
+      check(kept, "Rose: kept on his account");
       check(await a.toasted(/Saved: your colour/), "Rose: saved");
       await pg.waitForFunction(() => getComputedStyle(document.querySelector("[data-me-card] [data-face]")).backgroundColor === "rgb(232, 111, 154)", null, { timeout: 15000 }).catch(() => {});
       check((await pg.locator("[data-me-card] [data-face]").evaluate((e) => getComputedStyle(e).backgroundColor)) === "rgb(232, 111, 154)", "his face on the me card is Rose at once");

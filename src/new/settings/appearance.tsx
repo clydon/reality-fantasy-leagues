@@ -30,7 +30,7 @@ export function AppearanceSection({ p }: { p: Profile | undefined }) {
       toast(`Saved: ${label}`, undo ? { undo: () => pick(before, false) } : {});
     } catch (e) {
       showTheme(before);
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
 

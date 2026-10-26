@@ -87,7 +87,7 @@ export function useShowSearch(q: string, catalog: CatalogSeason[], mine: Set<str
 }
 
 const PILL: Record<RowState, [string, string]> = {
-  yours: ["On your list", "bg-good/15 text-good"],
+  yours: ["On your list", "bg-good/15 text-(--nd-good)"],
   ready: ["Ready", "outline-1 -outline-offset-1 outline-input"],
   season: ["Latest season", "outline-1 -outline-offset-1 outline-dashed outline-input"],
   new: ["Not a game yet", "outline-1 -outline-offset-1 outline-dashed outline-input text-muted-foreground"],

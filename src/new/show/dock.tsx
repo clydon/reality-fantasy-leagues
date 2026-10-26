@@ -258,7 +258,7 @@ function MovesBody({
       toast(still ? "Saved. Something's still open." : until ? `All set. Change anything until ${until}.` : "All set.");
     } catch (e) {
       await after();
-      toast(`Not saved: ${(e as Error).message}`);
+      toast.quiet(`Not saved: ${(e as Error).message}`);
     } finally {
       setSaving(false);
     }
@@ -355,7 +355,7 @@ function LineupPanel({
   const stillIn = roster.filter((c) => !c.left).length;
   const toggle = (id: string) => {
     if (starters.includes(id)) return onStarters(starters.filter((x) => x !== id));
-    if (starters.length >= l.slots) return toast("Bench someone first");
+    if (starters.length >= l.slots) return toast.quiet("Bench someone first");
     onStarters([...starters, id]);
   };
   const tile = "relative isolate flex aspect-[3/4] flex-col justify-end overflow-hidden rounded-[3px] p-1.5 text-left text-white transition-shadow";
@@ -539,7 +539,7 @@ function OutlastPanel({ g, pickup, seasonId }: { g: GameView; pickup: Move | und
           <Face src={c.photo} name={c.name} out={c.knocked} className="size-10 rounded-[3px]" />
           <span className="min-w-0 flex-1">
             <b className="block text-[15px] font-semibold">{c.name}</b>
-            <small className="block text-[13px] text-muted-foreground">
+            <small className={`block text-[13px] ${c.knocked ? "text-foreground/85" : "text-muted-foreground"}`}>
               {c.left ? `Out${c.out ? ` · Episode ${c.out}` : ""}${c.place ? ` · finished ${ordinal(c.place)}` : ""}` : "Still in"}
             </small>
           </span>

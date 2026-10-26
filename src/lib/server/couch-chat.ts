@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { byAuthorMark, foldFor, isFolded, revealedBy, type AirTime } from "@/lib/game/chat-fold";
-import type { ChatReaction } from "@/lib/game/types";
+import type { ChatMessage, ChatReaction } from "@/lib/game/types";
 import { isSuperAdminUser, isUuid, type SessionUser } from "./auth-helpers";
 import { AUTHOR_SEEN, authorName, insertMessage, MESSAGE_COLUMNS, messageText, REVEAL_SHARED, withReactions } from "./chat";
 import { requireCouch, type CouchRole } from "./couches";
@@ -24,7 +24,8 @@ import { games } from "./show-space";
 //
 // Earlier messages (step 15 part 4): a read sends the newest 300 and says whether there are more; `before` reads the 100 before
 // a message, folded the same way, only when someone taps for them; and once they have, the open chat's poll asks `since` the
-// window it started from, so what they've read back to never slides away as new messages come in.
+// window it started from, so what they've read back to never slides away as new messages come in. Each of those carries the
+// message's time too (`at`), so a message deleted meanwhile still says where to read from: the next one on (or the ones before).
 
 /** The newest a read sends, and an earlier page's size. */
 export const CHAT_WINDOW = 300;
@@ -117,35 +118,43 @@ export interface CouchChat {
   v: string;
 }
 
-/** A message in this conversation, as a place to read from: when it was written. Null for one that isn't (or is gone). */
-async function anchorOf(scope: ChatScope, id: string | null | undefined): Promise<{ at: Date; id: string } | null> {
+/** A chat_messages row as these reads select it: MESSAGE_COLUMNS and AUTHOR_SEEN (never 'system': each read leaves those out). */
+type MessageRow = Omit<ChatMessage, "reactions" | "type"> & { type: ChatLine["type"]; author_seen: number | null };
+
+/**
+ * A message in this conversation, as a place to read from: when it was written. One that's gone (deleted while someone had it
+ * open) is its place still, from the time the reader had for it (`at`); null with neither.
+ */
+async function anchorOf(scope: ChatScope, id: string | null | undefined, at?: string | null): Promise<{ at: Date; id: string } | null> {
   if (!id || !isUuid(id)) return null;
   const [where, params] = inScope(scope, "", 2);
-  const { rows } = await pool.query(`SELECT created_at, id FROM chat_messages WHERE id = $1 AND ${where}`, [id, ...params]);
-  return rows[0] ? { at: rows[0].created_at as Date, id: rows[0].id as string } : null;
+  const { rows } = await pool.query<{ created_at: Date; id: string }>(`SELECT created_at, id FROM chat_messages WHERE id = $1 AND ${where}`, [id, ...params]);
+  if (rows[0]) return { at: rows[0].created_at, id: rows[0].id };
+  const was = at ? new Date(at) : null;
+  return was && !Number.isNaN(was.getTime()) ? { at: was, id } : null;
 }
 
 /** Rows as the reader may see them: folded ones without their words or reactions. */
-async function linesOf(rows: Record<string, unknown>[], fold: ReturnType<typeof foldFor>, userId: string) {
-  const shown = rows.filter((m) => !isFolded(m as never, fold, userId));
-  const reacted = new Map((await withReactions(shown as never)).map((m) => [m.id, m.reactions]));
+async function linesOf(rows: MessageRow[], fold: ReturnType<typeof foldFor>, userId: string) {
+  const shown = rows.filter((m) => !isFolded(m, fold, userId));
+  const reacted = new Map((await withReactions(shown)).map((m) => [m.id, m.reactions]));
   let count = 0;
   let byMark = true;
   const messages: ChatLine[] = rows.map((m) => {
-    const folded = isFolded(m as never, fold, userId);
+    const folded = isFolded(m, fold, userId);
     if (folded) {
       count++;
-      byMark &&= byAuthorMark(m as never);
+      byMark &&= byAuthorMark(m);
     }
     return {
-      id: m.id as string,
-      userId: m.user_id as string | null,
-      name: m.author_name as string,
-      type: m.type as ChatLine["type"],
-      text: folded ? null : (m.text as string),
-      at: new Date(m.created_at as string).toISOString(),
+      id: m.id,
+      userId: m.user_id,
+      name: m.author_name,
+      type: m.type,
+      text: folded ? null : m.text,
+      at: new Date(m.created_at).toISOString(),
       edited: !folded && !!m.edited_at,
-      reactions: folded ? {} : (reacted.get(m.id as string) ?? {}),
+      reactions: folded ? {} : (reacted.get(m.id) ?? {}),
       ...(folded ? { folded: true as const } : {}),
     };
   });
@@ -155,13 +164,13 @@ async function linesOf(rows: Record<string, unknown>[], fold: ReturnType<typeof 
 /**
  * The conversation as you may read it: folded past where you are (chat-fold.ts), unfolded through `unfold` when
  * you've asked. With `v`, just { unchanged } when nothing it's built from has changed. With `since` (a message of this
- * conversation), everything from it on rather than the newest 300 (step 15 part 4: once you've read back, the open chat
- * keeps what you read).
+ * conversation, and `at` its time), everything from it on rather than the newest 300 (step 15 part 4: once you've read back,
+ * the open chat keeps what you read); from the next one on once it's been deleted.
  */
 export async function readCouchChat(
   user: SessionUser,
   scope: ChatScope,
-  opts: { v?: string | null; unfold?: number | null; since?: string | null } = {}
+  opts: { v?: string | null; unfold?: number | null; since?: string | null; at?: string | null } = {}
 ): Promise<CouchChat | { unchanged: true; v: string } | { out: true }> {
   if (scope.out) return { out: true };
   const [where, params] = inScope(scope);
@@ -187,8 +196,8 @@ export async function readCouchChat(
 
   // author_seen decides the fold here and is never sent (ChatLine has no place for it); it, and a reveal line, only from someone who
   // shares Where I am (step 15 part 3: chat.ts AUTHOR_SEEN, REVEAL_SHARED). One more than the window says whether there are more.
-  const anchor = await anchorOf(scope, opts.since);
-  const { rows: got } = await pool.query(
+  const anchor = await anchorOf(scope, opts.since, opts.at);
+  const { rows: got } = await pool.query<MessageRow>(
     `SELECT * FROM (SELECT ${MESSAGE_COLUMNS}, ${AUTHOR_SEEN} FROM chat_messages WHERE ${where} AND type <> 'system' AND ${REVEAL_SHARED("$4")}
         ${anchor ? "AND (created_at, id) >= ($5, $6)" : ""}
         ORDER BY created_at DESC, id DESC LIMIT ${anchor ? CHAT_SINCE_MAX : CHAT_WINDOW + 1}) recent ORDER BY created_at ASC, id ASC`,
@@ -224,16 +233,16 @@ async function earlierThan(scope: ChatScope, userId: string, from: { at: Date; i
 export async function readEarlierChat(
   user: SessionUser,
   scope: ChatScope,
-  opts: { before: string | null; unfold?: number | null }
+  opts: { before: string | null; at?: string | null; unfold?: number | null }
 ): Promise<{ messages: ChatLine[]; more: boolean } | { out: true }> {
   if (scope.out) return { out: true };
-  const anchor = await anchorOf(scope, opts.before);
+  const anchor = await anchorOf(scope, opts.before, opts.at);
   if (!anchor) throw new HttpError(404, "That message isn't in this chat");
   const [where, params] = inScope(scope);
   const [seen, episodes, { rows: got }] = await Promise.all([
     seenThrough(user.id, scope.seasonId),
     airTimes(scope.seasonId),
-    pool.query(
+    pool.query<MessageRow>(
       `SELECT * FROM (SELECT ${MESSAGE_COLUMNS}, ${AUTHOR_SEEN} FROM chat_messages WHERE ${where} AND type <> 'system' AND ${REVEAL_SHARED("$4")}
           AND (created_at, id) < ($5, $6)
           ORDER BY created_at DESC, id DESC LIMIT ${CHAT_PAGE + 1}) page ORDER BY created_at ASC, id ASC`,

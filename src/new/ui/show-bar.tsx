@@ -159,7 +159,7 @@ export function TabBar({ seasonId, tabs, current, badges = {} }: { seasonId: str
             />
             {label}
             {!!badge && (
-              <span className="absolute left-[calc(50%+5px)] top-[7px] grid h-[18px] min-w-[18px] place-items-center rounded-[9px] bg-live px-[5px] text-[11px] font-extrabold text-white">
+              <span className="absolute left-[calc(50%+5px)] top-[7px] grid h-[18px] min-w-[18px] place-items-center rounded-[9px] bg-live px-[5px] text-[11px] font-extrabold text-live-foreground">
                 {badge}
               </span>
             )}

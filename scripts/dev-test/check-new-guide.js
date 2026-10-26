@@ -180,6 +180,12 @@ function check(ok, what, detail = "") {
       const legend = await pg.locator("[data-guide-foot]").textContent();
       check(/Dashed: not playing yet/.test(legend) && /Faded: not on your shows/.test(legend), "the foot says what dashed and faded mean", legend);
       check((await pg.locator("[data-guide-hidden]").count()) === 0, "nothing hidden: no hidden count");
+      // Reduced motion (this browser's): it never rolls, so it says neither Rolling nor Paused (from Noticed); with motion it does.
+      check((await pg.locator("[data-guide-roll]").count()) === 0, "reduced motion: no Rolling or Paused");
+      await pg.emulateMedia({ reducedMotion: "no-preference" });
+      await pg.locator("[data-guide-roll]").waitFor({ timeout: 10_000 }).catch(() => {});
+      check((await pg.locator("[data-guide-roll]").count()) === 1, "with motion, the guide's status is back");
+      await pg.emulateMedia({ reducedMotion: "reduce" });
       check(!A.asked.includes("/api/catalog"), "the hub didn't read the catalog (from Noticed)", A.asked.filter((p) => p.startsWith("/api/")).join(","));
       await A.toGuide();
       await A.shot("guide-today");

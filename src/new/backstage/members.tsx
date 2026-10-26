@@ -141,8 +141,8 @@ function GameSheet({ seasonId, couchId, game, members, onClose }: { seasonId: st
   const players = members.filter((m) => m.roles[game.leagueId]);
   const flip = async (m: Member) => {
     const role = m.roles[game.leagueId];
-    if (!game.yours) return toast("Only a Commissioner changes who runs it");
-    if (role === "commissioner") return toast(m.you ? "Hand it to someone else first" : `${m.name} is a Commissioner: change it from their row`);
+    if (!game.yours) return toast.quiet("Only a Commissioner changes who runs it");
+    if (role === "commissioner") return toast.quiet(m.you ? "Hand it to someone else first" : `${m.name} is a Commissioner: change it from their row`);
     setBusy(m.userId);
     try {
       const next: LeagueRole = role === "admin" ? "member" : "admin";
@@ -150,7 +150,7 @@ function GameSheet({ seasonId, couchId, game, members, onClose }: { seasonId: st
       await after();
       toast(`${m.name} ${next === "admin" ? `runs ${game.gameName} too` : `is a player in ${game.gameName}`}`, r.batch ? { undo: () => void undo(seasonId, couchId, r.batch, after) } : {});
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(null);
     }
@@ -188,7 +188,7 @@ async function undo(seasonId: string, couchId: string, batch: string, after: () 
     await after();
     toast("Undone");
   } catch (e) {
-    toast((e as Error).message);
+    toast.quiet((e as Error).message);
   }
 }
 
@@ -219,15 +219,15 @@ function MemberSheet({
   // The last Commissioner of a game they're in can't step down (roles.ts): said before they tap.
   const lastOf = theirs.filter((g) => member.roles[g.leagueId] === "commissioner" && members.filter((m) => m.roles[g.leagueId] === "commissioner").length < 2);
   const set = async (role: LeagueRole) => {
-    if (!yours.length) return toast("Only a Commissioner changes roles");
-    if (role !== "commissioner" && lastOf.length) return toast("Every game needs a Commissioner. Hand it to someone first.");
+    if (!yours.length) return toast.quiet("Only a Commissioner changes roles");
+    if (role !== "commissioner" && lastOf.length) return toast.quiet("Every game needs a Commissioner. Hand it to someone first.");
     try {
       const r = await gameAdmin.role(seasonId, couchId, member.userId, role, yours.map((g) => g.leagueId));
       await after();
       onClose();
       if (r.batch) toast(`${member.name} is now ${role === "commissioner" ? "a Commissioner" : role === "admin" ? "a Game admin" : "a player"}`, { undo: () => void undo(seasonId, couchId, r.batch, after) });
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   const askOut = async () => {
@@ -236,7 +236,7 @@ function MemberSheet({
       setHold(member.you ? await gameAdmin.leave(seasonId, couchId, true) : await gameAdmin.remove(seasonId, couchId, member.userId, true));
     } catch (e) {
       setHold(false);
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   const show_ = show.header?.show.name ?? "this show";

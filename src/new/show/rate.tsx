@@ -98,7 +98,7 @@ function RateSheet({ target, onOpenChange }: { target: RateTarget | null; onOpen
       afterRating(await ratingsApi.rate(target.seasonId, target.couchId, target.episode, { stars }), target.couchId);
     } catch (e) {
       setTapped(null);
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setSaving(false);
     }
@@ -236,7 +236,7 @@ function TakeField({ target, v }: { target: RateTarget; v: EpisodeVerdict }) {
       afterRating(await ratingsApi.rate(target.seasonId, target.couchId, target.episode, { stars: v.mine.stars, take: text }), target.couchId);
       toast(text.trim() ? "Your take is in" : "Take taken back");
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setSaving(false);
     }

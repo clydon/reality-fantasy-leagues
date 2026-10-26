@@ -190,7 +190,7 @@ function SettingsTab() {
       setSheet(null);
       toast(done);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   return (

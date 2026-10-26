@@ -31,7 +31,7 @@ export function Preview({ id, children, tag = true, className = "" }: { id: Prev
         if (near && near !== e.currentTarget) return;
         e.preventDefault();
         e.stopPropagation();
-        toast(`Coming soon: ${entry.title}`);
+        toast.quiet(`Coming soon: ${entry.title}`);
       }}
     >
       {tag && (

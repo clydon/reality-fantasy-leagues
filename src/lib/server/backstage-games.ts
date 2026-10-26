@@ -469,6 +469,12 @@ export interface GameSettings {
 /** A game locked down (step 15 part 4): its rules don't change for the season. */
 export const FROZEN = "Locked down for the season: the rules are frozen. Turn off Lock it down in Game settings first.";
 
+// What Game settings may change, and the limits (the bench and Outlast's team are set at the draft).
+const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode"];
+
+/** The settings Lock it down freezes: Game settings' and the points (waivers stay the week's business). Undo asks too. */
+export const FROZEN_FIELDS = new Set([...SETTING_FIELDS, "eventPoints"]);
+
 export async function gameSettings(scope: BackstageScope): Promise<{ games: GameSettings[] }> {
   const loaded = await load(scope);
   return {
@@ -498,9 +504,6 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
     }),
   };
 }
-
-// What Game settings may change, and the limits (the bench and Outlast's team are set at the draft).
-const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode"];
 
 /** A Game settings change (`set`), or `reset`: that section back to recommended. Commissioner only; one batch with Undo. */
 export async function settingsWrite(

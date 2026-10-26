@@ -155,8 +155,9 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                         ? `+ ${eps.toAir.to - eps.toAir.from + 1} still to air`
                         : "More to come"}
                   </b>
+                  {/* The row is dimmed already: muted on top of it fell under 4.5:1. */}
                   {eps.toAir.to && eps.toAir.to > eps.toAir.from && (
-                    <small className="mt-0.5 block text-[13px] text-muted-foreground">
+                    <small className="mt-0.5 block text-[13px] text-foreground/85">
                       Episodes {eps.toAir.from} to {eps.toAir.to}
                     </small>
                   )}

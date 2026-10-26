@@ -107,7 +107,7 @@ function ClaimFor({ seasonId, couchId, game, who, onClose }: { seasonId: string;
                   toast(`Sent ${first(who.name)}'s pick: it's in their waivers`);
                   onClose();
                 } catch (e) {
-                  toast((e as Error).message);
+                  toast.quiet((e as Error).message);
                 } finally {
                   setBusy(false);
                 }
@@ -188,7 +188,7 @@ function GameWaivers({ seasonId, couchId, g }: { seasonId: string; couchId: stri
       await after();
       toast(`Undone: ${what}`);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   const turnOff = async () => {
@@ -197,7 +197,7 @@ function GameWaivers({ seasonId, couchId, g }: { seasonId: string; couchId: stri
       await after();
       toast("Window off · the couch has been told");
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   const preview = async () => {
@@ -206,7 +206,7 @@ function GameWaivers({ seasonId, couchId, g }: { seasonId: string; couchId: stri
       setGuard(await gameAdmin.waivers<RunPreview>(seasonId, couchId, g.leagueId, { action: "preview" }));
     } catch (e) {
       setGuard(false);
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   return (
@@ -308,7 +308,7 @@ function GameWaivers({ seasonId, couchId, g }: { seasonId: string; couchId: stri
                       await after();
                       toast("Waiver run undone · picks are back");
                     } catch (e) {
-                      toast((e as Error).message);
+                      toast.quiet((e as Error).message);
                     }
                   }}
                 >
@@ -449,7 +449,7 @@ function OpenWindowSheet({ open, onOpenChange, seasonId, couchId, g }: { open: b
           : {}
       );
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -517,13 +517,13 @@ function SettingsSheet({
   const S = g.settings;
   const can = g.commissioner;
   const write = async (body: Parameters<typeof gameAdmin.waivers>[3], said: string) => {
-    if (!can) return toast("Only a Commissioner changes how waivers work");
+    if (!can) return toast.quiet("Only a Commissioner changes how waivers work");
     try {
       const r = await gameAdmin.waivers(seasonId, couchId, g.leagueId, body);
       await after();
       toast(said, r.batch ? { undo: () => void onUndo(r.batch!, "the waiver settings") } : {});
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   const set = (k: string, v: unknown) => write({ action: "set", set: { [k]: v } }, "Saved · the couch sees it in How it works");

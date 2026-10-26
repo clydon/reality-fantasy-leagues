@@ -2,6 +2,7 @@
 
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import showcase from "@/components/landing/showcase.json";
+import { colourTag } from "@/components/ui/caption-plate";
 import { useCatalog, type CatalogSeason } from "../data";
 import { GAME_STYLE } from "../games";
 import { NavLink, useNav } from "../nav";
@@ -618,7 +619,8 @@ function YourCouch({ reduce }: { reduce: boolean }) {
                 </div>
                 {items.length ? (
                   items.map(([tm, tt, ep, c, p]) => (
-                    <div key={tt} className={`lp-li${c ? "" : " watch"}`} style={c ? { background: c } : undefined}>
+                    // The ink each colour takes (a caption tag's rule): The Traitors' red wants white, the rest the plate's ink.
+                    <div key={tt} className={`lp-li${c ? "" : " watch"}`} style={c ? colourTag(c) : undefined}>
                       {p && <Photo c={p} />}
                       <span className="tm">{tm}</span>
                       <span className="tt">{tt}</span>

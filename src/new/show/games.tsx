@@ -310,7 +310,7 @@ function TeamList({ g, team, label = true }: { g: GameView; team: string[]; labe
             <Face src={c.photo} name={c.name} out={c.knocked} className="size-10 rounded-[3px]" />
             <span className="min-w-0 flex-1">
               <b className="block text-[15px] font-semibold">{c.name}</b>
-              <small className="block text-[13px] text-muted-foreground">
+              <small className={`block text-[13px] ${c.knocked ? "text-foreground/85" : "text-muted-foreground"}`}>
                 {c.left ? `Out${c.out ? ` · Episode ${c.out}` : ""}${c.place ? ` · finished ${ordinal(c.place)}` : ""}` : "Still in"}
               </small>
             </span>
@@ -464,7 +464,7 @@ function Archived({ g, scope: show }: { g: GameView; scope: Scope }) {
                 },
               });
             } catch (e) {
-              toast((e as Error).message);
+              toast.quiet((e as Error).message);
             }
           }}
         >

@@ -82,7 +82,7 @@ function AnswerSheet({ seasonId, couchId, episode, m, data, onClose }: { seasonI
       const now = view.moments.find((x) => x.id === m.id);
       toast(now?.by ? `Settled: ${pickLine(now.settled)} · every game on the couch counts it` : "Sent · it counts once someone else agrees");
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
       setBusy(false);
     }
   };

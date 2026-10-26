@@ -297,7 +297,7 @@ function PlannedNight({ plan, me }: { plan: WatchPlan; me: string }) {
       if (at - (plan.how === "live" ? 0 : START_EARLY_MS) <= wallClock()) openTogether(plan);
       else toast(`You're in · Episode ${plan.episode}, ${airTime(at)}`);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -585,7 +585,7 @@ export function BothWatch({ home, couch }: { home: Home; couch: Couch | null }) 
                   toast("Got it. We won't ask about this one again");
                 } catch (e) {
                   setGone(null);
-                  toast((e as Error).message);
+                  toast.quiet((e as Error).message);
                 }
               }}
             >

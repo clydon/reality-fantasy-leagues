@@ -89,14 +89,14 @@ function WhichShow({ onPick }: { onPick: (p: Picked) => void }) {
       const out = await deskSend<{ seasonId: string; showId: string; label: string; ready: boolean; made: boolean }>("/shows", body);
       await after();
       if (out.ready) {
-        toast(`${out.label} is a game already: here's its show`);
+        toast.quiet(`${out.label} is a game already: here's its show`);
         nav.push(paths.deskItem("show", out.showId));
         return;
       }
       if (out.made) toast(`Added ${out.label}`);
       onPick({ seasonId: out.seasonId, showId: out.showId, label: out.label, kind: "listing" in body ? (listings.data?.hits.find((h) => h.tvmazeId === body.listing)?.kind ?? null) : null });
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -170,7 +170,7 @@ function SeasonsOf({ showId, onBack, onPick }: { showId: string; onBack: () => v
         nav.push(paths.deskItem("rulebook", made.rulebookId));
       } else onPick({ seasonId: out.seasonId, showId, label: made?.name ?? out.name, kind: (out.kind as RulebookKind | null) ?? null });
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -230,7 +230,7 @@ function HowToStart({ picked, onBack }: { picked: Picked; onBack: () => void }) 
     try {
       await make.ask(picked.seasonId, null);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
     nav.push(makePage(picked.seasonId));
   };
@@ -240,7 +240,7 @@ function HowToStart({ picked, onBack }: { picked: Picked; onBack: () => void }) 
       await make.template(picked.seasonId, null, t.id);
       nav.push(makePage(picked.seasonId));
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
       setBusy(null);
     }
   };

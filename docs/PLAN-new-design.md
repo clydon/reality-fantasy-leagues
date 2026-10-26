@@ -40,7 +40,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | **done** 2026-10-26 on the branch, in three parts: Rate it and couch verdicts (migration 0128), Call it, polls and Weekly Calls (0129), bingo, trivia and Weekly Bingo (0130); all ship with 0b's | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | **done** 2026-10-26 on the branch, in three parts: watch along on your own time (reactions pinned to runtime, GIFs behind config; migration 0131), who's on now and the live airing (each open watch along's clock kept on the server; 0132), together sessions and planned nights (one clock for everyone in a planned night's watch along, Up next's planned night, a shared start's own time, bingo ticks and the two accolades; 0133); all ship with 0b's | Opus · xhigh |
 | 14 | Streaming shows and the rail | **done** 2026-10-26 on the branch, in two parts: streaming on the couch (the release model, the rail, the show space; no migration), the fold by progress, first to finish and daily streaming off Also on (migration 0134, which ships with 0b's) | Opus · high |
-| 15 | Notifications by moment, account settings, What your couch sees | **done** 2026-10-26 on the branch, in four parts: your settings and your profile (migration 0135), notifications by moment (0136), what your couch sees (0137), Studio and the rest (the light theme and Match phone, Earlier messages, Lock it down; 0138); all ship with 0b's. The Preview registry and `src/new/fixtures/` hold nothing | Opus · xhigh |
+| 15 | Notifications by moment, account settings, What your couch sees | **done** 2026-10-26 on the branch, in four parts: your settings and your profile (migration 0135), notifications by moment (0136), what your couch sees (0137), Studio and the rest (the light theme and Match phone, Earlier messages, Lock it down; 0138); all ship with 0b's. The Preview registry and `src/new/fixtures/` hold nothing. Then a polish before the merge (contrast, the quiet toast, Undo while locked down, a deleted chat anchor; no migration) | Opus · xhigh |
 | — | **Merge, deploy and switch the couch to the new design** | after 15 (the user, 2026-10-25): backup, Neon rehearsal, merge, `ui='new'` for the couch | — |
 | C | Cutover: new design for everyone, classic removed, cleanup; rulebooks phase 9 | not started | Opus · xhigh |
 
@@ -396,8 +396,6 @@ step's As built.
 - **No backstop if the VM stops calling** (step 11 part 2; the user's call). The listings job runs only on the bot clock's calls;
   with the VM down, Also on empties within the week and listing seasons stop moving on. A Vercel daily cron on
   `/api/cron/listings?run=1` is one file (`vercel.json`), about 0.6 CU-hours a month: written up in HOSTING.md, not set up.
-- **The guide says Paused under reduced motion** (step 0d's port, seen in step 11 part 1; for a later polish). With reduced motion
-  the guide never rolls, but its status still reads "Paused" (grey dot), as if it would; it could say nothing then.
 - **A watch along's clock is the watcher's word** (step 13 part 1, as designed). The couch's reactions are held 30 s behind the moment
   the phone says its clock is at, and never past what has aired since airtime; End, +10s or Set the time move it on, and the server
   sends what was said up to there, as where you are on Episodes is yours to say. Nothing past your next episode leaves the server.
@@ -465,29 +463,24 @@ step's As built.
 - **Posters are TVmaze's medium image** (step 10 part 1; for a later polish). 210 by 295, soft in the tall show bar; TVmaze's
   other size is the upload itself, often over a megabyte. A resized copy we keep (or Vercel's image optimisation, which has
   limits of its own) would sharpen it.
-- **Some small text sits between 3:1 and 4.5:1** (step 15 part 4; for a later polish). `check-new-studio.js` fails anything under 3:1
-  (none now, in either theme) and lists what's under 4.5:1 as LOW: in both themes the tab bar's badge count (white on live red, 3.4:1
-  on Night), a dimmed "Episodes 6 to 13" on Episodes (3.4:1), the landing's "S37 · Ep 7"; on Studio a few muted lines on a tinted
-  fill (3.1-4.1:1). Each is a small token or opacity change; run the check with `--themes=night,studio` and read its LOW lines.
-- **An undo can change a locked-down game's settings** (step 15 part 4; for a later polish). Lock it down refuses new changes to Game
-  settings, the points and Make it ours, but Recent changes' Undo of a change made before it was locked (a lineup size, a points
-  change) still applies: undo goes through the change log, not those writes. The undo could check `GhostLogic.lockedDown` for a
-  settings or rules batch.
 - **Classic's late-joiner switch doesn't know Lock it down** (step 15 part 4; for C). Classic's Let people join late reads
   `GhostLogic.allowed`, so it shows off while a game is locked down, and switching it on there changes nothing until Lock it down is
   off in the new design. Classic retires at C.
-- **A refusal's toast carries the check mark** (step 15 part 4, seen on Lock it down's "Locked down for the season: the rules are
-  frozen"; for a later polish). The new design's toast has one look, the green tick of something done, and every refusal and error
-  goes through it too ("Only a Commissioner changes this"). A quiet variant without the tick (or with the warning triangle) for
-  messages that aren't confirmations would read truer.
-- **check-new-settings' colour toast can miss in a batch** (step 15 part 4; for whoever next touches the check). "Saved: your colour"
-  wasn't seen within its 15 s once in the full batch, though the colour saved (the next assertion, the face, passed), then the check
-  passed alone; most likely the PUT answering slowly under the batch's load. Waiting on the saved row first, then the toast, would
-  steady it.
-- **Earlier messages and a deleted first message** (step 15 part 4; for a later polish). Once you've read back, the open chat polls
-  from the earliest message you loaded; if that very message is deleted (by its author or whoever runs a game) while you have it open,
-  the read falls back to the newest 300 and the page keeps showing the earlier ones as they were until you open the chat again. The
-  read could fall back to the next message on instead.
+- **Studio is plain** (the user, 2026-10-26, during the polish before the merge; for a design step of its own after the merge, the
+  user's call). Studio is classic's light tokens (a cool grey-white page, near-white cards), and the design's signature goes flat on it:
+  the white caption plate is a white box on a white page and yellow only a small fill, so only the show art has any character. The
+  user agrees a light mode is needed but wants one with personality. Recommended (Claude's, not yet decided): mock two or three light
+  directions in the site mock to pick from, e.g. a "daytime set" (a warm paper ground, the tab bar and top bars kept Night as a
+  broadcast frame, ink plates with white type on light, bolder yellow fills), then port the winner as tokens scoped to the new design
+  (`(new)/new.css`; globals.css `:root` is classic's light mode too). Not blocking: everyone starts on Night (memory studio-too-plain).
+- **The audit sees a reel's first screenful** (seen in the polish before the merge; for whoever next touches check-new-studio). The
+  sweep skips what's off screen in a sideways reel (rightly: it can't judge what isn't drawn), so the landing's Traitors card (dark ink
+  on its red, 2.9:1) was never audited until the sweep gained the landing's reel scrolled to its end. The hub's guide reel, the
+  streaming rail and a show's game chips are still audited only as far as they show at 390; a row per reel scrolled to its end would
+  cover them.
+- **Classic's white on live red** (seen in the polish before the merge; for C). Classic's draft board marks and waiver badge draw white
+  on `--live` (3.4:1 on Night's coral, whose ink is `--live-foreground`); the new design's tab badge now uses the ink. Classic retires
+  at C.
 
 ## What exists, what's needed
 
@@ -4307,6 +4300,63 @@ ports a piece before its data is real can still mark it; `check-preview.js` pass
 - **Step 15 is done, and with it every step before the merge.** What follows is the user's: the merge-and-deploy step (HANDOFF's Next
   says what to run, in order: a fresh backup, the Neon rehearsal of every branch migration 0100-0138, the merge and push, then `ui='new'`
   for the couch), a week's watch, then C. Desktop layouts come after (until then the new design is the phone column on a desktop).
+
+### As built, polish before the merge (2026-10-26, on `new-design`)
+
+The five things step 15 part 4 left in Noticed, a nit, and one more from Noticed's later polishes. No migration; nothing new reads,
+polls, runs or is stored (HOSTING.md unchanged).
+- **Small text under 4.5:1** (from Noticed): every LOW line `check-new-studio.js --themes=night,studio` printed, and the same patterns
+  where the sweep doesn't reach. Token or opacity changes; Night looks as it did except where it was LOW too. The tab bar's badge
+  count is `text-live-foreground` (Night's coral takes the dark ink, 5.4:1; Studio's red keeps white). A row dimmed by `--nd-dim`
+  with muted words under it was quietened twice (3.4-3.5:1 in both themes): its second lines are foreground at 85% now (5.0:1 in
+  both, still under the title): Episodes' "Episodes 6 to 13", and, which the sweep never showed, a knocked-out castaway's "Out ·
+  Episode 3" (Your moves, a game's team) and an undone line's details (Recent changes, the desk's History). The good colour as small
+  text on its own tint (Waivers' "Individual immunity win", Add a show's "On your list") is `text-(--nd-good)`, new.css's
+  `--nd-good`: itself on Night, mixed with the ink on Studio as `gameInk` is (3.9 to 7:1). The landing's guide cards take the ink
+  their colour wants (caption-plate's `colourTag`: The Traitors' red takes white; it was 2.9:1, under the fail line, but off screen
+  in the reel, so the sweep never drew it) and their time and episode lines are at 90% (4.5:1 or better). The check now prints every
+  LOW line (it printed four a screen) and gains two rows: the landing's guide reel scrolled to its end, and a quiet toast.
+- **Undo while locked down** (from Noticed): `league-changes.ts undoBatch` refuses (409, `FROZEN`) an undo of a settings line that
+  touches Game settings' fields or the points (`backstage-games.ts FROZEN_FIELDS`) while that game is locked down, and of a
+  rulebook line (Make it ours, what counts, a moment of the couch's, a show change taken or skipped) while any game here is; asked
+  before anything is put back, so a batch across three games is refused whole, and again under each game's lock. Lock it down's own
+  line (Undo is how it comes off), waivers' settings and an archive aren't frozen.
+- **A quiet toast** (from Noticed): `toast.quiet(text)` (ui/toast.tsx): the plate with the quiet tag (the design's informational tone)
+  and an info mark instead of the green tick, up 4 s instead of 2.6 (reasons run longer); `data-toast="done" | "quiet"` on the plate.
+  Every caught error shown as it is, and each refusal or failure said in words ("Only a Commissioner changes these", "Bench someone
+  first", "The draft hasn't started…", "Couldn't copy here", "Not sent: …", "Coming soon: …"), across 51 files; confirmations keep the
+  tick.
+- **check-new-settings' colour toast** (from Noticed): it waits up to 30 s for the saved row, then for the toast.
+- **A deleted first message** (from Noticed): the Chat tab sends the anchor message's time with it (`&since=<id>&at=`, and `&before=`
+  with `&at=` for Earlier messages), and `couch-chat.ts anchorOf` places a message deleted meanwhile by that time, so the read goes on
+  from the next one (and Earlier messages reads the ones before where it was); without a time, a message that isn't there is as before
+  (the newest 300, or 404). The tab stops showing the page it held once the `since` read itself is in (react-query's
+  `isPlaceholderData`), not only when that read starts at the same message, so the deleted one goes. The time is to the millisecond:
+  a message written in the same millisecond just before it can come along with the read.
+- **The nit:** `couch-chat.ts`'s rows are typed (`MessageRow`, `pool.query<MessageRow>`), with no `as never`.
+- **The guide says Paused under reduced motion** (from Noticed, "for a later polish"): with reduced motion the guide never rolls, so
+  its status (Rolling / Paused, now `data-guide-roll`) isn't shown (welcome/hooks.ts `useReducedMotion`, which follows the phone).
+- **Checks:** check-new-chat (72 PASS, 7 new: the anchor deleted through the real route while alex's chat is read back, `since` and
+  `before` with its time, 404 without, the open page dropping it and keeping the rest, its poll still asking with the time),
+  check-new-backstage-ii (141, 7 new: a points change before the lock; Undo of it and of Reset to recommended refused while locked,
+  the values kept; the Recent changes page's Undo saying why in the quiet toast; Make it ours' refusal quiet too; the points change
+  undone once it's off), check-new-settings (111), check-new-guide (59, 2 new: no status under reduced motion, back with motion),
+  check-new-studio (394 at 390, Night and Studio: no LOW line left in either theme). All of them pass in one batch, one at a time
+  (`gys15b/batch.sh`): check-new-studio (394), -sharing (87), -notify (125), -settings (111), -streaming (114), -watch-along (276),
+  -episode-games (285), -plans (104), -listings (77), -guide (59), -library (91), -start-game (75), -make-it (81), -watching (114),
+  -solo (92), -way-in (85), -couches (114), -hub (77), -draft (90), -settling (96), -results-ways (89), -ours (89), -desk (100; its
+  castaway Override flake didn't show), -community (82), -backstage (67), -backstage-ii (141), -show (69), -shell (46), -reveal (49),
+  -stats (57), -chat (72), classic's check-chat-polls --ui, check-foundation, check-preview and check-backup-restore.
+  `npm test` 647 of 647; type-check clean; lint (src) as before (the old error in classic's `use-sheet-swipe.ts` and the old warning in
+  `episode-results.ts`). Seen at 390 in both themes: the sweep's screens, the quiet toast (the draft room, Recent changes), Episodes'
+  still-to-air row, Waivers' tag, the landing's guide cards, the tab badge.
+- **Noticed, left as is:** three, now in Noticed, not fixed: Studio is plain (the user's note during this session: a design step of its
+  own), the audit sees a reel's first screenful, classic's white on live red. Taken out: some small text between 3:1 and 4.5:1, an undo
+  can change a locked-down game's settings, a refusal's toast carries the check mark, check-new-settings' colour toast can miss in a
+  batch, Earlier messages and a deleted first message, the guide says Paused under reduced motion. Left for later, as not small: Where
+  you are says "Premieres" before a drop (needs the drop and its count in the where sheet's data).
+- **Next:** the user's merge-and-deploy step (HANDOFF's Next, unchanged: a fresh backup, the Neon rehearsal of 0100-0138, the merge and
+  push, `ui='new'` for the couch).
 
 ## Step C: cutover
 

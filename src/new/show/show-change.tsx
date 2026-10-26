@@ -36,7 +36,7 @@ export function ShowChangeCard({ seasonId, couchId, episode, seasonName }: { sea
       else toast(isNew ? "Thanks · one more couch saying so adds it" : "Thanks · noted");
       if (now?.status === "added") await refresh();
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }

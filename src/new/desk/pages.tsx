@@ -30,7 +30,7 @@ function useAct<T>(path: string) {
       toast(done);
       return out;
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
       throw e;
     }
   };

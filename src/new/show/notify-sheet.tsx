@@ -21,7 +21,7 @@ export function ShowNotifySheet({ seasonId, open, onOpenChange }: { seasonId: st
       qc.setQueryData(["new-design", "show-notify", seasonId], await notesApi.show(seasonId, moment.id, on));
       if (undo) toast(`${moment.title}: ${on ? "on" : "off"} for ${data?.show ?? "this show"}`, { undo: () => set(moment, !on, false) });
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
   return (

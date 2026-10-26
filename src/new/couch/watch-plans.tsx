@@ -104,7 +104,7 @@ export function PlanPlates({ plans, me }: { plans: WatchPlan[]; me: string }) {
       setPlans((await plansApi.answer(p.id, "in")).plans);
       toast(`You're in · ${p.label} Episode ${p.episode}, ${airTime(Date.parse(p.startsAt))}`);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(null);
     }
@@ -326,7 +326,7 @@ function PlanForm({ o, episode: asked }: { o: PlanOptions; episode: number | nul
       toast(`Invites sent · ${o.label} Episode ${e.number}, ${airTime(Date.parse(r.plan.startsAt))}`);
       close();
     } catch (err) {
-      toast((err as Error).message);
+      toast.quiet((err as Error).message);
     } finally {
       setBusy(false);
     }
@@ -535,9 +535,9 @@ function PlanSheet({ planId, onOpenChange }: { planId: string | null; onOpenChan
     setBusy(true);
     try {
       setPlans((await what()).plans);
-      toast(said, undo ? { undo: () => void undo().then((r) => setPlans(r.plans)).catch((e) => toast((e as Error).message)) } : {});
+      toast(said, undo ? { undo: () => void undo().then((r) => setPlans(r.plans)).catch((e) => toast.quiet((e as Error).message)) } : {});
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }

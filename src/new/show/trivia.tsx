@@ -108,7 +108,7 @@ function Round({ target, r }: { target: TriviaTarget; r: TriviaRound }) {
         try {
           after(target.seasonId, target.couchId, await triviaApi.play(target.seasonId, target.couchId, next));
         } catch (e) {
-          toast((e as Error).message);
+          toast.quiet((e as Error).message);
         }
       }
     }, 1100);
@@ -202,7 +202,7 @@ function PastSeasons({ target, r }: { target: TriviaTarget; r: TriviaRound }) {
       toast(`${label}: seen to the end. Trivia can ask about it now`);
       setSure(null);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }

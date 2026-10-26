@@ -100,7 +100,7 @@ export function Cast({ seasonId, show }: { seasonId: string; show: ShowData }) {
         }
       }
     } catch (e) {
-      if ((e as Error).name !== "AbortError") toast(`Not shared: ${(e as Error).message}`);
+      if ((e as Error).name !== "AbortError") toast.quiet(`Not shared: ${(e as Error).message}`);
     }
   };
 
@@ -160,7 +160,7 @@ export function Cast({ seasonId, show }: { seasonId: string; show: ShowData }) {
                 data-compare
                 onClick={() => {
                   setPicking(picking ? null : []);
-                  if (!picking) toast("Tap two people to compare");
+                  if (!picking) toast.quiet("Tap two people to compare");
                 }}
                 className={`flex h-9 items-center gap-1.5 rounded-[3px] px-3 text-[13px] font-bold ${picking ? "bg-foreground text-background" : "outline-1 -outline-offset-1 outline-input"}`}
               >

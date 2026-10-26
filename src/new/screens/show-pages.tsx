@@ -186,7 +186,7 @@ function RequestJob({ couchId, need }: { couchId: string | null; need: Need }) {
       await after();
       toast(letIn ? `${r.name} can join now. They'll pick where they start.` : "Declined quietly");
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }

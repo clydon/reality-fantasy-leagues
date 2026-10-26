@@ -106,7 +106,7 @@ function WhereSheet({ target, onOpenChange }: { target: WhereTarget | null; onOp
               toast(savedLine(t.label, t.following, seen));
               close();
             } catch (e) {
-              toast((e as Error).message);
+              toast.quiet((e as Error).message);
             } finally {
               setBusy(false);
             }
@@ -140,7 +140,7 @@ function ListingSheet({ hit, then, onOpenChange }: { hit: ListingHit | null; the
                 close();
                 then?.(r.seasonId);
               } catch (e) {
-                toast((e as Error).message);
+                toast.quiet((e as Error).message);
               } finally {
                 setBusy(false);
               }
@@ -221,7 +221,7 @@ function AddShowSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
     try {
       await f();
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -238,7 +238,7 @@ function AddShowSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
       await done(s.label, ready);
     });
   const pickSeason = (s: WhereSeason, ready: boolean) => {
-    if (mine.has(s.seasonId)) return toast(`${s.label} is already on your list`);
+    if (mine.has(s.seasonId)) return toast.quiet(`${s.label} is already on your list`);
     // Nothing's aired yet: nothing to ask.
     if (s.aired === 0) return addSeason(s, ready, 0);
     setStep({ kind: "season", s, ready });

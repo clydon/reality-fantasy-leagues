@@ -83,7 +83,7 @@ export function RulebookPage({ id }: { id: string }) {
       toast(done);
       return out;
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
       throw e;
     }
   };
@@ -1038,7 +1038,7 @@ function CheckSheet({ id, onClose, onUse }: { id: string; onClose: () => void; o
                   await navigator.clipboard.writeText(prompt.data!.prompt);
                   toast("Question copied");
                 } catch {
-                  toast("Couldn't copy here");
+                  toast.quiet("Couldn't copy here");
                 }
               }}
             >

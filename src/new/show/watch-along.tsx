@@ -439,7 +439,7 @@ function WatchAlong({ show, episode: n, planId: planAsked, onClose }: { show: Sh
         }
         since.current = Math.max(from, r.through >= 0 ? r.through : r.at - LATE_MS);
       } catch (e) {
-        if (id === loads.current && open) toast((e as Error).message);
+        if (id === loads.current && open) toast.quiet((e as Error).message);
       }
     },
     [seasonId, couchId, n, float, seeWatchers, adopt]
@@ -537,7 +537,7 @@ function WatchAlong({ show, episode: n, planId: planAsked, onClose }: { show: Sh
       adopt(r.together, true);
       return r.together;
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
       return null;
     }
   }, [planId, couchId, seasonId, n, seeWatchers, adopt]);
@@ -556,7 +556,7 @@ function WatchAlong({ show, episode: n, planId: planAsked, onClose }: { show: Sh
       },
       (e) => {
         if (gone) return;
-        toast((e as Error).message);
+        toast.quiet((e as Error).message);
         closeRef.current();
       }
     );
@@ -640,7 +640,7 @@ function WatchAlong({ show, episode: n, planId: planAsked, onClose }: { show: Sh
             adopt(r.together, true);
           } catch (e) {
             writing.current = false;
-            toast((e as Error).message);
+            toast.quiet((e as Error).message);
           }
         },
         change === "start" ? 0 : 300
@@ -776,7 +776,7 @@ function WatchAlong({ show, episode: n, planId: planAsked, onClose }: { show: Sh
       }
       return true;
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
       return false;
     }
   };
@@ -799,7 +799,7 @@ function WatchAlong({ show, episode: n, planId: planAsked, onClose }: { show: Sh
       });
       toast("Taken back");
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     }
   };
 
@@ -1379,7 +1379,7 @@ function EndPanel({ show, episode: n, info, onBack, onKeepWatching }: { show: Sh
       openRate({ seasonId: header.seasonId, couchId, episode: n, label, solo: show.solo });
     } catch (e) {
       setTapped(0);
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }

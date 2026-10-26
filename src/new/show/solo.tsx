@@ -184,7 +184,7 @@ function PoolOut({ show, info }: { show: ShowData; info: PoolInfo }) {
       await after();
       toast(`You're in the ${info.label} pool${r.start > 1 ? ` from Episode ${r.start}` : ""}`);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Couldn't join");
+      toast.quiet(e instanceof Error ? e.message : "Couldn't join");
     } finally {
       setBusy(false);
     }
@@ -262,7 +262,7 @@ function PoolIn({ info, game: g }: { info: PoolInfo; game: GameView }) {
       const name = first(faceIn(g, id)?.name ?? "");
       toast(kind === "pick" ? `${name} locked in${you?.week ? ` · streak ${you.week} on the line` : ""}` : call?.call === id ? "Call taken back" : `You called ${name} going home`);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Couldn't save");
+      toast.quiet(e instanceof Error ? e.message : "Couldn't save");
     } finally {
       setBusy(null);
     }
@@ -395,7 +395,7 @@ function LeaveSheet({ open, onOpenChange, label, seasonId }: { open: boolean; on
       await after();
       toast(`You left the ${label} pool`);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Couldn't leave");
+      toast.quiet(e instanceof Error ? e.message : "Couldn't leave");
     } finally {
       setBusy(false);
     }
@@ -449,7 +449,7 @@ export function PracticeSheet({ open, onOpenChange, seasons }: { open: boolean; 
       onOpenChange(false);
       nav.push(`${paths.showPage(p.seasonId, "draft")}?game=${r.leagueId}`);
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Couldn't start it");
+      toast.quiet(e instanceof Error ? e.message : "Couldn't start it");
     } finally {
       setBusy(false);
     }
@@ -464,7 +464,7 @@ export function PracticeSheet({ open, onOpenChange, seasons }: { open: boolean; 
       await after();
       toast("Practice couch ended");
     } catch (e) {
-      toast(e instanceof Error ? e.message : "Couldn't end it");
+      toast.quiet(e instanceof Error ? e.message : "Couldn't end it");
     } finally {
       setBusy(false);
     }

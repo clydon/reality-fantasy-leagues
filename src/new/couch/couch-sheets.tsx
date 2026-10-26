@@ -164,7 +164,7 @@ export function InviteCode({ code, couchName }: { code: string | null; couchName
       await navigator.clipboard.writeText(text);
       toast(said);
     } catch {
-      toast(`Couldn't copy. The code is ${code}`);
+      toast.quiet(`Couldn't copy. The code is ${code}`);
     }
   };
   return (
@@ -244,7 +244,7 @@ function DetailsSheet({ couchId, onOpenChange }: { couchId: string | null; onOpe
       qc.setQueryData(["new-design", "couch", couch.id, "invite"], made);
       toast(`New code: ${made.code}. Your old one stopped working`);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setRenewing(null);
     }
@@ -376,7 +376,7 @@ export function NewCouchSheet({ open, onOpenChange }: { open: boolean; onOpenCha
               await after();
               setMade(c);
             } catch (err) {
-              toast((err as Error).message);
+              toast.quiet((err as Error).message);
             } finally {
               setBusy(false);
             }
@@ -516,7 +516,7 @@ function LeaveCouchSheet({ couchId, onOpenChange }: { couchId: string | null; on
       .then(setWhat)
       .catch((e) => {
         closeCouchSheet();
-        toast((e as Error).message);
+        toast.quiet((e as Error).message);
       });
   }, [couchId]);
   const sentence = what
@@ -634,7 +634,7 @@ function HandOnSheet({ couchId, onOpenChange }: { couchId: string | null; onOpen
       closeCouchSheet();
       toast(`${pick.name} runs ${couch.name} now`);
     } catch (e) {
-      toast((e as Error).message);
+      toast.quiet((e as Error).message);
     } finally {
       setBusy(false);
     }
