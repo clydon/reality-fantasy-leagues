@@ -307,6 +307,18 @@ moved (32 characters); when something has, its read carries one more small numbe
 gains one small query (First to finish: the couch's finishes on streaming seasons you've finished). Daily streaming shows leave Also on
 in the browser: the week's read and `tv_listings` are unchanged.
 
+**Your settings and your profile (new design, step 15 part 1)** poll nothing and run nothing on a schedule. Settings and the profile
+sheet read your profile when they open (`/api/me/profile`: one small query and one for "since", a few hundred bytes), and an Ask an AI
+sheet reads it once to know your AI (kept five minutes). Migration 0135: `user_settings.colour` and `user_settings.ai` (a few bytes each,
+backed up with `user_settings`), and **`user_pictures`**: one picture per person who chooses one, made 256 by 256 in the browser (~10-30
+KB as a JPEG, refused over 100 KB), so a couch of four with pictures is ~100 KB of Neon storage. **Not backed up** (a face, not the game:
+whoever chose it can choose it again). A picture leaves Neon only through `GET /api/people/[id]/picture?v=<version>`, which the browser
+keeps for good (`private, max-age=31536000, immutable`; a new picture is a new version): one read of ~10-30 KB per person, version and
+browser, and only for someone on a couch with them. The home read gains each couch member's chosen colour and picture version (two small
+columns from two LEFT JOINs on tables keyed by person) and one small query for your own. Saving a new name is rare and does a little:
+Better Auth's update, one league write per league you play (`withLeagueLock`, renaming your seat) and one UPDATE of your messages'
+signature. Rename, Hand it on and a new code are one or two small writes each.
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
 none on the hub, 14 in a watch along while its clock runs (its own 12, and the 2 of the show space's Chat badge under it), 5 while
@@ -682,3 +694,7 @@ never handles it: the user does the reset and the pasting.
   `show_follows.finished_at` (a number and a time; both backed up with their tables). Posting a chat message reads one to four small
   things more (the season, and on a streaming or finished season the author's mark and open watch along); the hub's read gains one small
   query (First to finish). Also on leaves daily streaming shows out in the browser.
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 15 part 1, your settings and your profile. **Nothing polls and
+  nothing runs on a schedule; no pushes.** Migration 0135: `user_settings.colour` and `.ai` (backed up) and `user_pictures` (~10-30 KB a
+  person who chooses a picture; not backed up), read through `/api/people/[id]/picture?v=`, which browsers keep for good. The home read
+  carries each couch member's colour and picture version; Settings reads your profile when it opens.

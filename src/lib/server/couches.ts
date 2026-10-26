@@ -282,6 +282,9 @@ export interface CouchMember {
   name: string;
   role: CouchRole;
   joinedAt: string;
+  /** Their face (step 15 part 1): the colour they chose (null: from their id) and their picture's version (null: none). */
+  colour: string | null;
+  picture: number | null;
 }
 
 /** Everyone on these couches, by couch, owners first then by when they joined. */
@@ -289,14 +292,23 @@ export async function couchMembers(couchIds: string[]): Promise<Map<string, Couc
   const out = new Map<string, CouchMember[]>(couchIds.map((id) => [id, []]));
   if (!couchIds.length) return out;
   const { rows } = await pool.query(
-    `SELECT cm.couch_id, cm.user_id, COALESCE(u.username, u.name) AS name, cm.role, cm.joined_at
+    `SELECT cm.couch_id, cm.user_id, COALESCE(u.username, u.name) AS name, cm.role, cm.joined_at, s.colour,
+            (EXTRACT(EPOCH FROM p.updated_at) * 1000)::bigint AS picture
        FROM couch_members cm JOIN "user" u ON u.id = cm.user_id
+       LEFT JOIN user_settings s ON s.user_id = cm.user_id LEFT JOIN user_pictures p ON p.user_id = cm.user_id
       WHERE cm.couch_id = ANY($1::uuid[])
       ORDER BY (cm.role = 'owner') DESC, cm.joined_at, cm.user_id`,
     [couchIds]
   );
   for (const r of rows) {
-    out.get(r.couch_id)?.push({ userId: r.user_id, name: r.name, role: r.role, joinedAt: new Date(r.joined_at).toISOString() });
+    out.get(r.couch_id)?.push({
+      userId: r.user_id,
+      name: r.name,
+      role: r.role,
+      joinedAt: new Date(r.joined_at).toISOString(),
+      colour: (r.colour as string | null) ?? null,
+      picture: r.picture == null ? null : Number(r.picture),
+    });
   }
   return out;
 }

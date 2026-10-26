@@ -8,7 +8,7 @@ import { guide as guideApi, useListingsWeek, useSetGuideHidden, type Couch, type
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { airTime, timeOf } from "../clock";
-import { avatarColour } from "../ui/bars";
+import { TinyFace } from "../ui/bars";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
@@ -183,13 +183,12 @@ function Faces({ faces }: { faces: GuideCard["faces"] }) {
   return (
     <span className="flex flex-none pl-[3px]" aria-label={`${namesOf(faces.map((f) => f.name))} watch it`}>
       {faces.slice(0, 4).map((f) => (
-        <span
+        <TinyFace
           key={f.userId}
+          id={f.userId}
+          name={f.name}
           className="-ml-[3px] grid size-3.5 place-items-center rounded-[2px] text-[8px] font-extrabold text-[#121018] shadow-[0_0_0_1.5px_rgba(10,8,14,.9)]"
-          style={{ background: avatarColour(f.userId) }}
-        >
-          {f.name[0]?.toUpperCase()}
-        </span>
+        />
       ))}
     </span>
   );

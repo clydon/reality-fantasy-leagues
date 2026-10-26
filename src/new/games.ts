@@ -14,6 +14,41 @@ export const GAME_STYLE = {
 
 export type GameName = keyof typeof GAME_STYLE;
 
+/**
+ * How each game works in plain words, for Settings' Help (the mock's rulesSheet; step 15 part 1): the same sentences each
+ * game's own Rules sheet says (game-rules.ts), without one game's numbers.
+ */
+export const HOW_EACH_GAME: Record<GameName, string[]> = {
+  Outlast: [
+    "Draft a team before the season: once someone picks a castaway, nobody else can have them.",
+    "Each castaway earns 1 point, plus 1 for every boot they outlast.",
+    "So they end on their place in the boot order: the last one standing carries you.",
+    "No lineups to set. Just watch.",
+  ],
+  "Weekly Lineup": [
+    "Draft a roster before the season.",
+    "Before each episode, pick who starts. Only starters score.",
+    "Points come from what happens in each episode: the show's How it works says what counts.",
+    "Lose someone? Pick who comes in on waivers.",
+  ],
+  "Survival Pool": [
+    "No draft. Before each episode, pick one castaway you think stays in.",
+    "Right: your streak grows. Wrong, or no pick: it resets. Your best streak still counts.",
+    "You can't pick the same castaway again until you've used everyone still in.",
+    "Longest streak wins; ties go to the most right picks.",
+  ],
+  "Weekly Calls": [
+    "For talk and variety shows. No draft, no team: before each show, make two calls about what will happen.",
+    "The couch says what happened as it watches: two of you agreeing settles a call.",
+    "Most right calls by the finale wins.",
+  ],
+  "Weekly Bingo": [
+    "For talk and variety shows. Every show you get a new card: nine of its moments, the middle one free.",
+    "Tick a square when it happens. Three in a row makes a line.",
+    "Most lines by the finale wins.",
+  ],
+};
+
 export const isGameName = (name: string): name is GameName => Object.prototype.hasOwnProperty.call(GAME_STYLE, name);
 
 /** A game's colour, or a quiet one for a game the new design doesn't know yet. */

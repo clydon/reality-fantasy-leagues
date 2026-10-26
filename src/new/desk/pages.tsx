@@ -556,7 +556,7 @@ export function PersonPage({ id }: { id: string }) {
         {p.email && <small className="mt-1 block text-[14px] text-muted-foreground">{p.email}</small>}
       </Section>
       <Section title="Couches">
-        {p.couches.length ? p.couches.map((c) => <ItemRow key={c.id} href={paths.deskItem("couch", c.id)} title={c.name} line={c.role === "owner" ? "Started it" : "On it"} />) : <p className="text-[14px] text-muted-foreground">None.</p>}
+        {p.couches.length ? p.couches.map((c) => <ItemRow key={c.id} href={paths.deskItem("couch", c.id)} title={c.name} line={c.role === "owner" ? "Runs it" : "On it"} />) : <p className="text-[14px] text-muted-foreground">None.</p>}
       </Section>
       <Section title="Games">
         {p.games.length ? p.games.map((g) => <FieldRow key={g.leagueId} label={g.role === "commissioner" ? "Runs it" : g.role === "admin" ? "Game admin" : "Plays"} value={g.name} />) : <p className="text-[14px] text-muted-foreground">None.</p>}

@@ -33,13 +33,19 @@ export const PREVIEWS = {
   "show.notifications": { step: "15", title: "Notifications for this show", line: "Lineup reminders, results, chat." },
 
 
-  // ---- you ----
-  "settings.profile": { step: "15", title: "Your profile", line: "Your name, picture and colour." },
-  "settings.account": {
+  // ---- Settings (real since step 15 part 1: your profile, spoilers, your AI, couches, help, your account; these three are
+  // parts 2, 3 and 4's) ----
+  "settings.notifications": {
     step: "15",
-    title: "Account settings",
-    line: "Notifications by moment, spoiler safety, your preferred AI, appearance and help.",
+    title: "Notifications by moment",
+    line: "Lineup reminders, early results, final scores, invites, and how much of the couch chat reaches you.",
   },
+  "settings.sharing": {
+    step: "15",
+    title: "What your couch sees",
+    line: "Everything, just your games, or only what games need: where you are, when you're watching, your ratings and reactions.",
+  },
+  "settings.appearance": { step: "15", title: "Appearance", line: "Night, Studio (light) or match your phone." },
 } satisfies Record<string, PreviewEntry>;
 
 export type PreviewId = keyof typeof PREVIEWS;

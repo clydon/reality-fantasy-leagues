@@ -42,6 +42,8 @@ import type { TriviaCard, TriviaRound } from "@/lib/server/trivia";
 import type { OnNow, Reaction, SessionWrite, TogetherAnswer, WatchCard, WatchRead } from "@/lib/server/watch-along";
 import type { GifHit } from "@/lib/server/gifs";
 import type { Gif, TogetherChange, WatchMode } from "@/lib/game/watch-along";
+import type { AiChoice, Profile } from "@/lib/server/profile";
+import type { Face as PersonFace } from "@/lib/people";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -88,6 +90,8 @@ export type { TriviaOption, TriviaQuestion } from "@/lib/game/trivia";
 export type { OnNow, Reaction, SessionWrite, Together, TogetherAnswer, WatchCard, WatchFace, WatchRead, WatchStatus } from "@/lib/server/watch-along";
 export type { GifHit } from "@/lib/server/gifs";
 export type { Gif, ReactKind, ReactionKind, TogetherChange, Watcher, WatchMode } from "@/lib/game/watch-along";
+export type { AiChoice, Profile } from "@/lib/server/profile";
+export type { Face as PersonFace } from "@/lib/people";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -181,7 +185,8 @@ export interface Couch {
   id: string;
   name: string;
   yourRole: "owner" | "member";
-  members: { userId: string; name: string; role: "owner" | "member"; joinedAt: string; watching: string[] }[];
+  /** Each person's face comes with them (step 15 part 1): the colour they chose and their picture's version. */
+  members: { userId: string; name: string; role: "owner" | "member"; joinedAt: string; colour: string | null; picture: number | null; watching: string[] }[];
   games: GameRef[];
   /** The seasons its games are on, newest first ("Survivor 51"), for its line in the switcher. */
   seasons: { seasonId: string; label: string; status: string | null }[];
@@ -194,7 +199,7 @@ export interface CouchShow extends SeasonHeader {
 }
 
 export interface Home {
-  user: { id: string; name: string };
+  user: { id: string; name: string; colour: string | null; picture: number | null };
   couches: Couch[];
   shows: HomeShow[];
   /** The couches' shows you don't follow (step 10: The couch is watching); who watches each is in the couches' members. */
@@ -860,7 +865,72 @@ export const couches = {
   answer: (couchId: string, requestId: string, letIn: boolean) => post<{ ok: true }>(`/api/couches/${couchId}/requests/${requestId}`, { letIn }),
   /** Catching up: reveal the next episode of your own season in a game you joined late. */
   catchUp: (seasonId: string, couchId: string | null, leagueId: string) => post<CatchUpReveal>(`/api/seasons/${seasonId}/catchup`, { leagueId, couch: couchId }),
+  /** Whoever started a couch renames it or hands it on (step 15 part 1). */
+  rename: (couchId: string, name: string) => post<{ name: string }>(`/api/couches/${couchId}`, { action: "rename", name }),
+  handOn: (couchId: string, to: string) => post<{ owner: string }>(`/api/couches/${couchId}`, { action: "handOn", to }),
+  /** A new invite code: yours is retired and stops working. */
+  newCode: (couchId: string) => post<{ code: string }>(`/api/couches/${couchId}/invite`),
 };
+
+// ---- your profile and settings (step 15 part 1; profile.ts). Read when Settings, the profile sheet or an Ask an AI sheet
+// first opens; nothing polls. A face is a person's colour and picture, which come with the home read (usePerson). ----
+
+const PROFILE_KEY = ["new-design", "profile"] as const;
+
+export function useProfile(enabled = true) {
+  return useQuery({ queryKey: PROFILE_KEY, queryFn: () => get<Profile>("/api/me/profile"), enabled, staleTime: 5 * 60_000 });
+}
+
+/** Your AI for results (Settings): what an Ask an AI sheet opens. ChatGPT until the profile's read. */
+export function useAiChoice(): AiChoice {
+  return useProfile().data?.ai ?? "chatgpt";
+}
+
+/** A face as the home read has it: you, or someone on one of your couches. Only watches the home that's been read. */
+export function usePerson(userId: string): PersonFace | null {
+  const { data } = useQuery({ queryKey: HOME_KEY, queryFn: () => get<Home>("/api/me/home"), enabled: false, select: (h: Home) => faceIn(h, userId) });
+  return data ?? null;
+}
+
+function faceIn(h: Home, userId: string): PersonFace | null {
+  if (h.user.id === userId) return { userId, name: h.user.name, colour: h.user.colour ?? null, picture: h.user.picture ?? null };
+  for (const c of h.couches) {
+    const m = c.members.find((x) => x.userId === userId);
+    if (m) return { userId, name: m.name, colour: m.colour ?? null, picture: m.picture ?? null };
+  }
+  return null;
+}
+
+export const profileApi = {
+  /** Any of your name, colour, AI or spoiler setting; answers the profile as it now is. */
+  save: (body: { name?: string; colour?: string | null; ai?: AiChoice; hideScores?: boolean }) => sendJson<Profile>("/api/me/profile", "PUT", body),
+  /** Your picture, already made small (256 by 256). Answers its version. */
+  picture: async (image: Blob): Promise<{ picture: number }> => {
+    const res = await fetch("/api/me/picture", { method: "PUT", headers: { "content-type": image.type }, body: image });
+    const out = await res.json().catch(() => ({}));
+    if (!res.ok) throw Object.assign(new Error(out.error || `Couldn't save (${res.status})`), { status: res.status });
+    return out;
+  },
+  removePicture: async (): Promise<void> => {
+    const res = await fetch("/api/me/picture", { method: "DELETE" });
+    if (!res.ok) throw new Error("Couldn't remove it. Try again.");
+  },
+};
+
+/**
+ * After a profile change: the profile as answered, and everything else read again in the background (your face and name on the
+ * home; your seats' names everywhere; with Hide scores, what the guard lets out). Not waited on: the toast says it's saved at once.
+ */
+export function useAfterProfile() {
+  const qc = useQueryClient();
+  return useCallback(
+    async (profile?: Profile) => {
+      if (profile) qc.setQueryData(PROFILE_KEY, profile);
+      void qc.invalidateQueries({ queryKey: ["new-design"], predicate: (q) => !(profile && q.queryKey[1] === "profile") });
+    },
+    [qc]
+  );
+}
 
 /** After joining or leaving a couch or a game: everything the new design reads moves on. */
 export const useAfterCouch = useAfterReveal;

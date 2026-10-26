@@ -2,7 +2,9 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
 import { pool } from "@/lib/server/db";
+import { handOnCouch, renameCouch } from "@/lib/server/couch-joins";
 import { couchMembers, requireCouch } from "@/lib/server/couches";
+import { HttpError } from "@/lib/server/http-error";
 import { games, seasonHeaders } from "@/lib/server/show-space";
 
 // One couch (docs/PLAN-new-design.md step 0b): its name, its people, and its games by season. For someone on
@@ -24,4 +26,14 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ couchId:
     seasons,
     unscheduled: couchGames.filter((g) => !g.seasonId),
   });
+});
+
+// Whoever started the couch (its owner, step 15 part 1): { action: "rename", name } | { action: "handOn", to: userId }.
+export const POST = apiRoute(async (req, { params }: { params: Promise<{ couchId: string }> }) => {
+  const { couchId } = await params;
+  const user = await requireAuth(req);
+  const body = (await req.json().catch(() => ({}))) as { action?: string; name?: unknown; to?: unknown };
+  if (body.action === "rename") return NextResponse.json(await renameCouch(user, couchId, body.name));
+  if (body.action === "handOn") return NextResponse.json(await handOnCouch(user, couchId, body.to));
+  throw new HttpError(400, "action must be rename or handOn");
 });

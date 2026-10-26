@@ -40,7 +40,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | **done** 2026-10-26 on the branch, in three parts: Rate it and couch verdicts (migration 0128), Call it, polls and Weekly Calls (0129), bingo, trivia and Weekly Bingo (0130); all ship with 0b's | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | **done** 2026-10-26 on the branch, in three parts: watch along on your own time (reactions pinned to runtime, GIFs behind config; migration 0131), who's on now and the live airing (each open watch along's clock kept on the server; 0132), together sessions and planned nights (one clock for everyone in a planned night's watch along, Up next's planned night, a shared start's own time, bingo ticks and the two accolades; 0133); all ship with 0b's | Opus · xhigh |
 | 14 | Streaming shows and the rail | **done** 2026-10-26 on the branch, in two parts: streaming on the couch (the release model, the rail, the show space; no migration), the fold by progress, first to finish and daily streaming off Also on (migration 0134, which ships with 0b's) | Opus · high |
-| 15 | Notifications by moment, account settings, What your couch sees | not started | Opus · xhigh |
+| 15 | Notifications by moment, account settings, What your couch sees | in progress on the branch, in four parts: your settings and your profile (part 1 finished 2026-10-26, migration 0135, ships with 0b's), notifications by moment, what your couch sees, Studio and the rest | Opus · xhigh |
 | — | **Merge, deploy and switch the couch to the new design** | after 15 (the user, 2026-10-25): backup, Neon rehearsal, merge, `ui='new'` for the couch | — |
 | C | Cutover: new design for everyone, classic removed, cleanup; rulebooks phase 9 | not started | Opus · xhigh |
 
@@ -147,12 +147,21 @@ step's As built.
   Steps 1–2's views read a league as it holds its results: a still-in Traitor's "As a Traitor, voted out a fellow Traitor"
   lifts their points on an episode's top scorers (`episode-view.ts scorersIn`) and names itself in a Weekly Lineup reveal's
   "why". `cast-stats.ts secretEvents` says which results give a role away, so those views could leave them out the same way.
-- **Two names for one person** (step 1; for 15). The tables and who's set show a league's player name (alex), the couch
-  line the account's (zt_nd_alex in the fixture), so a face can carry two initials. Step 15's profile (name, picture,
-  colour) is the place to make one name win everywhere. Chat signs a message with the account's username, as classic
-  always has (zt_nd_riley next to the fixture's seeded "riley"); so do Recent changes' lines ("Made zt_nd_jordan a Game
-  admin") and 6b's "filled in by zt_nd_jordan", flags and house rulings, while 6a's Members page uses the seat's name.
-  Step 8's power rankings, records and accolades use the account's name; its feed signs messages as chat does.
+- **A seat named before keeps its name** (step 15 part 1; for the merge-and-switch step or C). Saving your name in Settings renames your
+  seat in every league you play, so one name wins from then on; a seat whose name differs from its account's username today (one in
+  production's copy, every one in new-fixture.js: "alex" for zt_nd_alex) keeps it until its person saves their name. A one-off at the switch
+  could run `profile.ts renameSeats` for everyone whose seat differs.
+- **Stored lines keep the old name** (step 15 part 1; for a later polish). A new name reaches everything read by account and re-signs your
+  messages, but lines written once as text keep the name they were written with: a chat reveal line ("riley revealed episode 4") and Recent
+  changes' texts ("Made zt_nd_jordan a Game admin").
+- **No email can be added or changed** (step 15 part 1; for C or a later step). Your account shows your email, but a username-only account
+  can't add one (for resetting a password) and nobody can change theirs: Better Auth's update refuses an email, and changing one needs a
+  verification flow (`changeEmail` and its emailed link) the new design doesn't have. Link Google is the other way in.
+- **Classic's profile renames nothing** (step 15 part 1; for C). Classic's Account settings still edits a Display name and Username
+  separately, and saving there doesn't rename seats or re-sign messages (only the new design's profile does). Classic retires at C.
+- **No tour in the new design** (step 15 part 1; for C or a later step). The mock's Help has Take the tour again ("5 minutes on a practice
+  season"); classic's guided tour is classic's, so Settings has How each game works and Report a problem only. The practice couch (step 9
+  part 3) is the nearest thing.
 - **Chat pushes are still classic's** (step 4; for 15). A message in a game's chat pushes that game's players, linking to
   classic's `/chat` (also for someone on the new design); a show the couch only watches pushes nobody, and nor does anyone
   on the couch who isn't in the games. `couch-chat.ts postCouchChat` is where step 15's notifications by moment would go.
@@ -286,9 +295,6 @@ step's As built.
 - **Predictions guess their chips from their words** (step 12 part 2; for C). A prediction has no options of its own (classic's
   propose has none), so "Who …?" gets the cast still in and "Will …?" Yes / No (`game-view.ts predictionKind`); "Which tribe wins?"
   or a question about someone already out gets words. A propose flow in the new design could let its proposer choose.
-- **The verdict's faces are initials** (step 12 part 1; for 15). Everyone's stars on the rate sheet and Couch verdicts are an
-  avatar's letter and colour (the mock's faces), so two people with the same initial are told apart by colour only (every zt_nd_
-  person in the fixtures is a Z). Step 15's profile picture would put a face there; the takes say names.
 - **The sheet's taste twin comes from the hub** (step 12 part 1; for a later polish). "You agree with the couch · taste twin:
   riley" names the twin only when the couch's hub was read in this visit (it reads the cached `/api/couches/[id]/hub`); opened
   straight from a show, the sheet says "You agree with the couch".
@@ -297,12 +303,6 @@ step's As built.
   through classic's switch, kept in step). The new design's joins are seen at once; such a ghost stays out of the couch chat.
 - **Join pushes open the new design** (step 9; for 15). "kat asked to join Outlast" links to the show's Backstage and "You're
   in" to its Games tab, for someone on classic too (requests only come from the new design).
-- **No couch rename or hand-off** (step 9; for 15). Whoever started a couch owns it; nothing renames it or hands it on (the
-  mock has no screen for either). Leaving passes it to the next person (`ensureOwner`).
-- **Invite codes never expire** (step 9; for 15). Each person's code for a couch stays good (`couch_invites.expires_at` is
-  never set) and shows the couch's name, its first six people's usernames and its games to whoever has it (never results);
-  making a new code and retiring the old isn't built. A request waits until it's answered or taken back, and a quiet
-  decline lets them ask again.
 - **An episode page can't open from a link** (step 8; for a later polish). Previously on's rows and Last time open the show's
   Episodes tab, a tap short of the episode: an episode page is a pushed page opened by a tap on Episodes, not from its URL
   (`?page=ep4` alone doesn't render it). Letting the page read its episode from the URL would let the hub, the feed and
@@ -319,9 +319,6 @@ step's As built.
   them on the server against the new account (a short-lived row keyed by the sign-up) would carry them anywhere.
 - **The reset link opens classic's page** (step 9 part 2; for C). Forgot password's email links to classic's
   `/reset-password`, which then offers classic's sign-in; C gives it a new-design screen.
-- **A username-only account can't add Google later** (step 9 part 2; for 15). Linking a Google sign-in to an account goes by
-  a verified email the two share; an account made with a username alone has none. Account settings (step 15) could link one
-  from inside a signed-in account (Better Auth's `linkSocial`).
 - **A public pool is one league's state** (step 9 part 3; for growth, the user's call on paid hosting). Every player's picks
   and calls sit in one row, read whole by anyone's next read after any pick (~2 KB a player), so a pool stops at 100
   ("The pool is full"; HOSTING.md). Past that, picks and calls in a table of their own (a row per person and episode) and
@@ -468,7 +465,9 @@ step's As built.
   a later polish). `check-new-desk.js`'s "every league renames him (no one added)" failed in two runs of four on 2026-10-26 and passed
   in the others, with nothing of the desk's changed. `overrideCastaway` awaits `applyApprovedCastToLeagues` before it answers, so the
   likelier cause is another write to the same league state racing it (a read that tidies a league and saves it back outside
-  `withLeagueLock`, from a page the check has open); worth a look at whatever writes `leagues.state` without the lock.
+  `withLeagueLock`, from a page the check has open); worth a look at whatever writes `leagues.state` without the lock. Missed twice in a
+  row on 2026-10-26 (step 15 part 1's batch, then alone), then passed; since then a miss prints each zt league's Erics (and whether each
+  is linked to the season's cast), which should say which league and why.
 - **Two phones, one session** (step 13 part 2; for a later polish). Your own watch along of an episode on a couch is one session, so
   the same person with it open on two phones has one clock on the server, whichever wrote last; the couch sees one of them. In a together
   session (part 3) you're one person in it either way: closing it on one phone leaves it, so the other stops hearing it and its next tap
@@ -3925,6 +3924,119 @@ post reads a little more and the hub's read one small query more (HOSTING.md). S
 - **For step 15:** What your couch sees (share.js) is where First to finish and the fold by progress would answer to a sharing level
   (both say something about how far someone is); `watchersOn` is still where When I'm watching would apply. Chat pushes are still
   classic's (`couch-chat.ts postCouchChat`, now posting through `chat.ts insertMessage`). Migration 0135 is next.
+
+### Step 15, in four parts
+
+Too big for one session (written 2026-10-26, at its start). It's the last step before the one merge (the user, 2026-10-25). Each
+part ends with its As built and the checks passing; step 15 is marked done after part 4. Migrations from 0135. The Preview registry's
+`settings.account` is split in three (`settings.notifications` 2, `settings.sharing` 3, `settings.appearance` 4) so each part takes out
+what it makes real; at the end `src/new/preview.ts` and `src/new/fixtures/` hold nothing.
+
+1. **Your settings and your profile** (migration 0135; the mock's settings.js). `/settings` real in the mock's order: the me card (your
+   face, your name, your couches) with **Edit**, the profile sheet: your name (your username, the name your couch sees, checked as
+   sign-up checks it), your colour (the palette), your picture (chosen on the phone, cropped square and shrunk in the browser, kept on
+   our side; Remove). **Keeping you spoiler-free** (Hide scores until I reveal: the account's `show_results_immediately` turned round),
+   **Your AI for results** (ChatGPT · Grok · Ask each time · I'll copy and paste, per account; every Ask an AI sheet follows it),
+   **Your couches** (each couch's sheet gains Rename and Hand it on for whoever started it, and New code, retiring yours: from Noticed),
+   **Help** (How each game works, Report a problem), **Your account** (your sign-in name and email, Change password, Link Google once
+   it's set up: from Noticed), the new design (back to classic, sign out). **One name and one face** (from Noticed: two names for one
+   person, the verdict's faces are initials): saving your name renames your seat in every league you play and signs your old messages
+   with it, and every face in the new design is your colour and picture (your couches' people carry them on the home read; one picture
+   read per person and version, kept by the browser). What we notify you about, What your couch sees and Appearance stay Preview;
+   `settings.profile` goes. Check: `check-new-settings.js`.
+2. **Notifications by moment.** The mock's moments (Lineup reminders, Early results are in, Final scores are in, Invites and join
+   requests, Couch chat: Every message · Quiet on episode nights · Never) over every push both designs send, and the ones Noticed asked
+   for: the couch chat everywhere (a show the couch only watches, people on the couch who aren't in its games: `postCouchChat`), a poll,
+   a bingo line, a flag settled, a night called off (once its Undo has passed), Tell the couch's own moments (from Noticed: Tell the
+   couch uses the invite setting). Each push's words are what the guard lets out for its reader, its times in the reader's own zone (kept
+   from the phone), and it opens the design the reader is on (from Noticed: pushes open classic's pages, join pushes open the new
+   design). **The bell** (`hub.notifications`): what's happened on your couch since you last looked, the same moments kept as a list
+   whatever your pushes say; a show's Notifications in its ⋯ menu (`show.notifications`: that show's moments on or off). Tonight's
+   Waivers ran seen per account (from Noticed: the run's seen mark is per device). `settings.notifications`, `hub.notifications` and
+   `show.notifications` go. No real push from a check: a stand-in push service.
+3. **What your couch sees** (the mock's share.js). Everything (recommended) · Just my games · Only what games need, Customize (Where I am
+   in each show, When I'm watching, My episode ratings, My watch along reactions), and "What riley sees about you" from what each level
+   lets out. Enforced in guard.ts's rule 3 (`shares`): Where I am lets the couch see how far you are (from Noticed: nobody's progress on a
+   show you watch: Who's watching, the rail, The couch is watching), When I'm watching gates who's on now (`watchersOn`; from Noticed:
+   who's on now can't be turned off), ratings and reactions gate the verdict and the watch along's stream, and First to finish and the
+   fold by progress answer to Where I am. From Noticed too: a finished season marked seen to the end (a past season counts for trivia
+   only if it's marked). `settings.sharing` goes.
+4. **Studio, and the rest.** The Studio light theme and Match phone (Appearance), every screen looked at in both; from Noticed: the
+   newest 300 messages (Earlier messages), Lock it down. `settings.appearance` goes, the registry and the fixtures hold nothing, step 15
+   is done, and the merge-and-deploy step is the user's (the backup, the Neon rehearsal of every branch migration, the merge, `ui='new'`
+   for the couch).
+
+### As built, step 15 part 1 (2026-10-26, on `new-design`): your settings and your profile
+
+Migration **0135** (ships with 0b's, same rehearsal): `user_settings.colour` (a palette hex, checked) and `user_settings.ai`
+('chatgpt' | 'grok' | 'ask' | 'copy'), both backed up with `user_settings`; and `user_pictures` (one small picture a person, under 100
+KB), **not backed up** (decided: a face, not the game; its owner can choose it again). Nothing polls, runs on a schedule or pushes
+(HOSTING.md). New: `src/lib/people.ts` (pure: `PALETTE`, `colourOf`, `pictureUrl`), `src/lib/server/profile.ts`
+(`readProfile`, `saveSettings`, `rename`, `renameSeats`, `savePicture`, `pictureOf`), `GET/PUT /api/me/profile`, `PUT/DELETE
+/api/me/picture`, `GET /api/people/[id]/picture?v=`, `POST /api/couches/[id]` (rename, handOn), `POST /api/couches/[id]/invite` (a new
+code), `src/new/settings/` (settings.tsx, sheets.tsx), `scripts/dev-test/check-new-settings.js`, `tests/people.test.js`.
+- **Settings** (`/settings`, the mock's settings.js accountRoute in its order): the me card (your face, your name, "On ZT Extra and ZT
+  Survivor 51 · since ZT Survivor 51", Edit), What we notify you about (Preview, part 2), **Keeping you spoiler-free** (Hide scores until
+  I reveal: the account's `show_results_immediately` turned round, so it's the guard's own setting, with Undo), What your couch sees
+  (Preview, part 3), **Your AI for results** (ChatGPT recommended · Grok · Ask each time · I'll copy and paste), Appearance (Preview, part
+  4), Your couches (as step 9 had them), **Help** (How each game works: each season game in a few plain lines, `games.ts HOW_EACH_GAME`, the
+  game's own Rules sheet's sentences without one game's numbers; Report a problem into classic's `issue_reports`), **Your account** (signed
+  in as, your email, Change password through Better Auth's `changePassword`, Link Google once it's set up), the classic design and the
+  mock, Sign out. A switch or a choice saves as it's tapped; the switches are bone, not the mock's yellow (the yellow rule).
+- **The profile sheet** (the me card's Edit): your picture (chosen on the phone, its middle square drawn 256 by 256 into a canvas and sent
+  as a JPEG: the photo itself never leaves the phone; Change or Remove it), your name (Better Auth's username plugin checks it as sign-up
+  does and keeps it lower case; "That name's taken" under the field), your colour (eight: DESIGN.md's chart set and two more, with Undo).
+- **One name** (from Noticed, two names for one person): your username is the name your couch sees (step 9 part 2 decided so), so saving a
+  new one sets the username and the account's name, renames your seat in every league you play (a league write each, only where it
+  differs and nobody else in that league already goes by it: a seat whoever runs the game named, a computer player) and re-signs your
+  messages. Everything the new design reads by account (chat, Recent changes, filled in by, rankings, accolades, the feed, couch lines)
+  already said the username; the tables and draft said the seat, so after a save they all agree. A seat named before keeps its old name
+  until its person saves theirs (Noticed).
+- **One face** (from Noticed, the verdict's faces are initials): `Avatar` (and the guide's and rail's tiny faces, `TinyFace`) draws a
+  person's picture, else their initial on their chosen colour, else their id's colour as before (`colourOf` keeps every face's old colour
+  for anyone who hasn't chosen). The faces come with the home read (`usePerson` only watches the cached home: you and everyone on your
+  couches), so no new read; someone outside your couches (a public pool's table) is an initial. A picture is read only by someone on a
+  couch with its person (or themselves, or a site admin), and the browser keeps each version for good.
+- **Your AI** (the mock's AI.pref): every Ask an AI sheet leads with your choice: Open in ChatGPT or Grok, both side by side (Ask each
+  time), or Copy the question first with the apps as the rows under it (I'll copy and paste). It was remembered per device
+  (localStorage) before; now it's the account's, and "Use Grok instead" switches only that sheet.
+- **The couch** (from Noticed, no couch rename or hand-off, invite codes never expire): whoever runs a couch (its owner, now labelled "Runs
+  it", not "Started it", since it can be handed on) renames it (Undo) and hands it on (the new owner joins in their own right; whoever ran
+  each game still does); anyone on it gets a new code, which retires theirs (it stops opening the couch; asked first, naming the code).
+  Codes still don't time out on their own (decided: a new code is the way to stop one).
+- **Google** (from Noticed, a username-only account can't add Google later): Link Google (`authClient.linkSocial`) with `accountLinking:
+  { allowDifferentEmails: true }` in auth.ts, which only applies to linking from inside a signed-in account (a username-only account has no
+  real email to match). Not tried against Google: there's no OAuth app yet, so the row doesn't show (the user's, Waiting).
+- **Fixtures and Preview:** `settings.profile` is gone; `settings.account` is split into `settings.notifications` (part 2),
+  `settings.sharing` (part 3) and `settings.appearance` (part 4), which are the page's only Preview left (with `hub.notifications` and
+  `show.notifications`, part 2's).
+- **Changed from the mock:** one spoiler switch, not two (the mock's "No results in notifications" is part 2's to decide: a push's words
+  are the guard's, and this switch is the guard's); no Take the tour again (the new design has no tour: Noticed); Your account is new
+  (the mock had no password or email); "since" is the first season you played.
+- **Checks:** `scripts/dev-test/check-new-settings.js <outDir> [--width=390] [--keep] [--api]` (110 PASS at 390, 59 of them the API half)
+  on new-fixture.js: the profile and its refusals, colours on everyone's home, Hide scores as the guard's setting, a new name (taken, too
+  short, punctuation; lower case; seats in three leagues, not the pool where riley's seat had the name; messages re-signed; riley's table;
+  signing in with it), pictures (kinds, size, couch-mates only, cache headers, removed), the couch (rename, hand on and back, refusals, a
+  new code retiring the old one only); then the browser as alex (the page's order and its three Previews, Hide scores' Undo, each AI choice
+  leading Backstage's Ask an AI sheet, the profile sheet's colour with Undo, a picture shrunk to a 256-pixel JPEG and on the hub's top, a
+  taken name then a new one, the couch's sheet: a new code, Rename with Undo, Hand it on; How each game works; Report a problem kept; Change
+  password refused then changed and back) and riley (alex's picture on his face, no Rename). `browser.js api()` gains `raw()` for a body
+  that isn't JSON; new-fixture's down also deletes zt people's `issue_reports`. `tests/people.test.js` (3). Seen at 390: Settings, the
+  profile sheet before and after a picture, each Ask an AI lead, the couch's sheet and its new code, Hand it on, How each game works, Change
+  password, riley's couch sheet. The rest pass, one at a time: check-new-streaming (114; its "nobody's progress in the home read" now
+  expects each member's face too), -watch-along (276), -episode-games (285), -plans (104), -listings (77), -guide (57), -library (91),
+  -start-game (75), -make-it (81), -watching (114), -solo (92), -way-in (85), -couches (114), -hub (77), -draft (90), -settling (96),
+  -results-ways (89), -ours (89), -desk (100; its castaway Override assertion missed in the batch and once alone, then passed: Noticed's
+  flake, which now prints each league's Erics when it misses), -community (82), -backstage (67), -backstage-ii (116), -show (69), -shell
+  (46), -reveal (49), -stats (57), -chat (52), check-foundation, check-preview and check-backup-restore; `npm test` 635 of 635; type-check
+  clean; lint (src) as before (the old error in classic's `use-sheet-swipe.ts` and the old warning in `episode-results.ts`).
+- **Noticed, left as is:** five, now in Noticed, not fixed: a seat named before keeps its name, stored lines keep the old name, no email
+  added or changed, classic's profile renames nothing, no tour. Taken out: two names for one person, the verdict's faces are initials, no
+  couch rename or hand-off, invite codes never expire, a username-only account can't add Google later (all above).
+- **For part 2:** push-core.js' `NOTIFICATION_TYPES` and `notification_prefs` are where the moments go; `push-events.ts` builds each push's
+  words (classic's spoiler split is `splitBySpoilerProtection`, which part 2 replaces with the guard's words per reader); the settings
+  page's `settings.notifications` Preview is where its section goes, and the account's AI and spoiler switch show how a setting saves
+  (`profileApi.save`, `useAfterProfile`). Migration 0136 is next.
 
 ## Step C: cutover
 

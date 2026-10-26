@@ -109,6 +109,45 @@ export async function inviteCode(user: SessionUser, couchId: string): Promise<{ 
   return { code: await codeFor(pool, couchId, user.id) };
 }
 
+/**
+ * A new code for a couch you're on (step 15 part 1, from Noticed: invite codes never expire): your old one stops working (it's
+ * retired, kept for the record) and a new one is made. Anyone already on the couch stays; nobody else's code changes.
+ */
+export async function newInviteCode(user: SessionUser, couchId: string): Promise<{ code: string }> {
+  const role = await requireCouch(user, couchId);
+  if (role === "viewer") throw new HttpError(403, "Only people on the couch invite to it");
+  return tx(async (c) => {
+    await c.query("UPDATE couch_invites SET expires_at = now() WHERE couch_id = $1 AND created_by = $2 AND (expires_at IS NULL OR expires_at > now())", [
+      couchId,
+      user.id,
+    ]);
+    return { code: await codeFor(c, couchId, user.id) };
+  });
+}
+
+/** Whoever started a couch (its owner) renames it (step 15 part 1, from Noticed: no couch rename or hand-off). */
+export async function renameCouch(user: SessionUser, couchId: string, rawName: unknown): Promise<{ name: string }> {
+  if ((await requireCouch(user, couchId)) !== "owner") throw new HttpError(403, "Whoever started the couch names it");
+  const name = typeof rawName === "string" ? rawName.trim().replace(/\s+/g, " ") : "";
+  if (!name) throw new HttpError(400, "Give the couch a name");
+  if (name.length > NAME_MAX) throw new HttpError(400, `Keep it under ${NAME_MAX} characters`);
+  await pool.query("UPDATE couches SET name = $2 WHERE id = $1", [couchId, name]);
+  return { name };
+}
+
+/** The owner hands the couch on to someone else on it, who can rename it and hand it on again; the owner stays on it. */
+export async function handOnCouch(user: SessionUser, couchId: string, to: unknown): Promise<{ owner: string }> {
+  if ((await requireCouch(user, couchId)) !== "owner") throw new HttpError(403, "Only whoever started the couch hands it on");
+  if (typeof to !== "string" || to === user.id) throw new HttpError(400, "Hand it to someone else on the couch");
+  return tx(async (c) => {
+    const { rows } = await c.query("SELECT 1 FROM couch_members WHERE couch_id = $1 AND user_id = $2", [couchId, to]);
+    if (!rows.length) throw new HttpError(404, "They're not on the couch");
+    await c.query("UPDATE couch_members SET role = 'member' WHERE couch_id = $1 AND user_id = $2", [couchId, user.id]);
+    await c.query("UPDATE couch_members SET role = 'owner', via = 'couch' WHERE couch_id = $1 AND user_id = $2", [couchId, to]);
+    return { owner: to };
+  });
+}
+
 /** The couch a code leads to: a couch's invite, else (so the couch's old codes still work) a league's join code. */
 async function couchOfCode(code: string): Promise<{ couchId: string; from: string | null } | null> {
   if (!code) return null;

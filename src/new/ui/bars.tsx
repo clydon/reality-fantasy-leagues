@@ -2,28 +2,45 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { Bell, ChevronLeft } from "lucide-react";
+import { colourOf, pictureUrl } from "@/lib/people";
+import { usePerson } from "../data";
 import { useNav } from "../nav";
 import { Preview } from "./preview";
 
 // The new design's top bars: the hub's (the wordmark, notifications, you) and a pushed page's (back, a centred
 // title, an action on the right). A show's own bar is show-bar.tsx.
 
-/** Someone's square: their initial on their colour (the mock's .av). Colour from their id until people pick one. */
-const AV_COLOURS = ["#35b5a5", "#a76bb0", "#f2804b", "#5089c9", "#e0b23a", "#e86f9a"];
-/** Someone's colour, from their id (the guide's small faces use it too). */
-export function avatarColour(id: string): string {
-  let h = 0;
-  for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-  return AV_COLOURS[h % AV_COLOURS.length];
-}
+/**
+ * Someone's square (the mock's .av): their picture, else their initial on their colour (step 15 part 1: the colour and picture
+ * they chose in their profile, which come with the home read for you and everyone on your couches; anyone else, and anyone
+ * before the home is read, is on the colour their id picks). `colour` sets it outright (a computer player).
+ */
 export function Avatar({ id, name, size = 34, colour }: { id: string; name: string; size?: number; colour?: string }) {
+  const face = usePerson(id);
+  const [broken, setBroken] = useState<number | null>(null);
+  const picture = face?.picture != null && face.picture !== broken ? face.picture : null;
   return (
     <span
-      className="type-num grid flex-none place-items-center rounded-[3px] text-[#121018]"
-      style={{ width: size, height: size, fontSize: Math.round(size * 0.46), background: colour ?? avatarColour(id) }}
+      className="type-num relative grid flex-none place-items-center overflow-hidden rounded-[3px] text-[#121018]"
+      style={{ width: size, height: size, fontSize: Math.round(size * 0.46), background: colour ?? colourOf(id, face?.colour) }}
+      data-face={picture != null ? "picture" : "initial"}
       aria-hidden
     >
-      {name.slice(0, 1).toUpperCase()}
+      {(face?.name ?? name).slice(0, 1).toUpperCase()}
+      {picture != null && (
+        // eslint-disable-next-line @next/next/no-img-element -- a tiny private picture the browser keeps for good (?v=)
+        <img src={pictureUrl(id, picture)} alt="" draggable={false} onError={() => setBroken(picture)} className="absolute inset-0 size-full object-cover" />
+      )}
+    </span>
+  );
+}
+
+/** A face too small for a picture (the guide's and the rail's): their initial on their colour. `className` sizes it. */
+export function TinyFace({ id, name, className }: { id: string; name: string; className: string }) {
+  const face = usePerson(id);
+  return (
+    <span className={className} style={{ background: colourOf(id, face?.colour) }}>
+      {(face?.name ?? name)[0]?.toUpperCase()}
     </span>
   );
 }

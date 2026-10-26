@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { SettingsScreen } from "@/new/screens/you";
+import { SettingsScreen } from "@/new/settings/settings";
 
 export const metadata: Metadata = { title: "Settings" };
 

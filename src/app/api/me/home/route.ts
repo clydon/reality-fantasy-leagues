@@ -36,7 +36,17 @@ export const GET = apiRoute(async (req) => {
     [user.id]
   );
   const couchIds = couchRows.map((c) => c.id as string);
-  const [members, couchGames, myGames] = await Promise.all([couchMembers(couchIds), games(user.id, { couchIds }), games(user.id, { mine: true })]);
+  const [members, couchGames, myGames, face] = await Promise.all([
+    couchMembers(couchIds),
+    games(user.id, { couchIds }),
+    games(user.id, { mine: true }),
+    // Your own face (step 15 part 1): your colour and picture, for your avatar wherever it shows.
+    pool.query(
+      `SELECT s.colour, (EXTRACT(EPOCH FROM p.updated_at) * 1000)::bigint AS picture
+         FROM "user" u LEFT JOIN user_settings s ON s.user_id = u.id LEFT JOIN user_pictures p ON p.user_id = u.id WHERE u.id = $1`,
+      [user.id]
+    ),
+  ]);
   const people = [user.id, ...[...members.values()].flat().map((m) => m.userId)];
   const follows = await followsOf(user.id, people);
   const watching = (userId: string) => follows.filter((f) => f.userId === userId && f.following && !f.private).map((f) => f.seasonId);
@@ -111,12 +121,25 @@ export const GET = apiRoute(async (req) => {
   }
 
   return NextResponse.json({
-    user: { id: user.id, name: (user as { username?: string | null }).username || user.name },
+    user: {
+      id: user.id,
+      name: (user as { username?: string | null }).username || user.name,
+      colour: (face.rows[0]?.colour as string | null) ?? null,
+      picture: face.rows[0]?.picture == null ? null : Number(face.rows[0].picture),
+    },
     couches: couchRows.map((c) => ({
       id: c.id,
       name: c.name,
       yourRole: c.role,
-      members: (members.get(c.id) ?? []).map((m) => ({ userId: m.userId, name: m.name, role: m.role, joinedAt: m.joinedAt, watching: watching(m.userId) })),
+      members: (members.get(c.id) ?? []).map((m) => ({
+        userId: m.userId,
+        name: m.name,
+        role: m.role,
+        joinedAt: m.joinedAt,
+        colour: m.colour,
+        picture: m.picture,
+        watching: watching(m.userId),
+      })),
       games: couchGames.filter((g) => g.couchId === c.id).map(gameOut),
       seasons: [...new Set(couchGames.filter((g) => g.couchId === c.id && g.seasonId).map((g) => g.seasonId as string))]
         .map((id) => headers.get(id))

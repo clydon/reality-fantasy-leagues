@@ -307,7 +307,12 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     await d.page.locator("[data-override-save]").click();
     check(/Overridden/.test(await toasted(d.page, /Overridden/)), "Override saved");
     const named = async (name) => (await Promise.all(zt.map(async (k) => (await stateOf(L[k])).castaways.filter((c) => c.name === name).length))).every((x) => x === 1);
-    check((await named("Eric Macksoud Jr")) && (await Promise.all(zt.map(async (k) => (await stateOf(L[k])).castaways.some((c) => c.name === "Eric Macksoud")))).every((x) => !x), "every league renames him (no one added)");
+    const ericIn = async () => JSON.stringify(Object.fromEntries(await Promise.all(zt.map(async (k) => [k, (await stateOf(L[k])).castaways.filter((c) => /^Eric/.test(c.name)).map((c) => `${c.name}${c.seasonCastId ? "" : " (unlinked)"}`)]))));
+    check(
+      (await named("Eric Macksoud Jr")) && (await Promise.all(zt.map(async (k) => (await stateOf(L[k])).castaways.some((c) => c.name === "Eric Macksoud")))).every((x) => !x),
+      "every league renames him (no one added)",
+      await ericIn()
+    );
     await d.page.locator("[data-desk-castaway] [data-undo-desk]").first().click();
     await toasted(d.page, /Undone/);
     await d.page.waitForTimeout(600);

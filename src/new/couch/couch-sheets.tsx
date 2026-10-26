@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { Check, ChevronRight, Copy, KeyRound, LogOut, Plus, Share2, Users } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Check, ChevronRight, Copy, Crown, KeyRound, LogOut, PenLine, Plus, RefreshCw, Share2, Users } from "lucide-react";
 import { couches, setCouch, useAfterCouch, useCurrentCouch, useHome, useInviteCode, type Couch, type LeaveCouch } from "../data";
+import { useMe } from "../session";
 import { useNav } from "../nav";
 import { paths } from "../routes";
 import { Avatar } from "../ui/bars";
@@ -15,7 +17,8 @@ import { toast } from "../ui/toast";
 // joinSheet): the switcher (the hub shows one couch at a time; your profile's couch line opens it), a couch's details
 // (who's on it, your invite code, seasons together, leaving it), starting one, joining one with a code, and inviting
 // people (Get the couch going, a show's ⋯ menu, Backstage's Members). Any screen opens them with openCouchSheet; the
-// signed-in layout mounts the one host (CouchSheets).
+// signed-in layout mounts the one host (CouchSheets). Step 15 part 1: whoever runs a couch (its owner) renames it and hands
+// it on, and anyone on it gets a new code (their old one stops working).
 
 export type CouchSheet =
   | { kind: "switch" }
@@ -23,7 +26,9 @@ export type CouchSheet =
   | { kind: "invite"; couchId: string; show?: string }
   | { kind: "new" }
   | { kind: "join" }
-  | { kind: "leave"; couchId: string };
+  | { kind: "leave"; couchId: string }
+  | { kind: "rename"; couchId: string }
+  | { kind: "handOn"; couchId: string };
 
 // The open sheet, and how many times each kind has opened: a sheet is keyed by its count, so each opening starts fresh
 // (and a closing one keeps its key until it's gone).
@@ -93,6 +98,8 @@ export function CouchSheets() {
       <NewCouchSheet key={`new-${opened.new ?? 0}`} open={sheet?.kind === "new"} onOpenChange={close} />
       <JoinCouchSheet key={`join-${opened.join ?? 0}`} open={sheet?.kind === "join"} onOpenChange={close} />
       <LeaveCouchSheet key={`leave-${opened.leave ?? 0}`} couchId={sheet?.kind === "leave" ? sheet.couchId : null} onOpenChange={close} />
+      <RenameCouchSheet key={`rename-${opened.rename ?? 0}`} couchId={sheet?.kind === "rename" ? sheet.couchId : null} onOpenChange={close} />
+      <HandOnSheet key={`handOn-${opened.handOn ?? 0}`} couchId={sheet?.kind === "handOn" ? sheet.couchId : null} onOpenChange={close} />
     </>
   );
 }
@@ -227,6 +234,21 @@ function DetailsSheet({ couchId, onOpenChange }: { couchId: string | null; onOpe
   const couch = home?.couches.find((c) => c.id === couchId) ?? null;
   const code = useInviteCode(couchId, !!couchId).data?.code ?? null;
   const oldest = couch?.seasons.at(-1)?.label;
+  const qc = useQueryClient();
+  const [renewing, setRenewing] = useState<"ask" | "busy" | null>(null);
+  const renew = async () => {
+    if (!couch) return;
+    setRenewing("busy");
+    try {
+      const made = await couches.newCode(couch.id);
+      qc.setQueryData(["new-design", "couch", couch.id, "invite"], made);
+      toast(`New code: ${made.code}. Your old one stopped working`);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setRenewing(null);
+    }
+  };
   return (
     <Sheet
       open={!!couchId && !!couch}
@@ -241,7 +263,7 @@ function DetailsSheet({ couchId, onOpenChange }: { couchId: string | null; onOpe
               <div key={m.userId} className="flex min-w-0 flex-col items-center gap-1 text-center" data-member={m.name}>
                 <Avatar id={m.userId} name={m.name} size={52} />
                 <span className="w-full truncate text-[13px]">{m.name}</span>
-                {m.role === "owner" && <small className="-mt-1 text-[11px] text-muted-foreground">Started it</small>}
+                {m.role === "owner" && <small className="-mt-1 text-[11px] text-muted-foreground">Runs it</small>}
               </div>
             ))}
             <button type="button" data-invite-tile onClick={() => openCouchSheet({ kind: "invite", couchId: couch.id })} className="flex flex-col items-center gap-1 text-center">
@@ -253,6 +275,30 @@ function DetailsSheet({ couchId, onOpenChange }: { couchId: string | null; onOpe
           </div>
           <p className="type-caption mb-2 mt-5 text-xs tracking-[0.06em] text-muted-foreground">Your invite code</p>
           <InviteCode code={code} couchName={couch.name} />
+          {renewing === "ask" ? (
+            <div data-new-code="ask" className="mt-2 rounded-[3px] bg-background p-3 text-[13px] leading-snug">
+              {code} stops working, and anyone you sent it to needs the new one. Everyone already on the couch stays.
+              <div className="mt-2.5 flex gap-2">
+                <Btn className="h-11 flex-1" onClick={() => setRenewing(null)}>
+                  Keep it
+                </Btn>
+                <Btn tone="ink" className="h-11 flex-1" data-new-code-make onClick={renew}>
+                  Make a new code
+                </Btn>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              data-new-code
+              disabled={!code || renewing === "busy"}
+              onClick={() => setRenewing("ask")}
+              className="mt-1.5 flex h-11 items-center gap-2 text-[14px] font-semibold text-muted-foreground disabled:opacity-50"
+            >
+              <RefreshCw className="size-4" aria-hidden />
+              {renewing === "busy" ? "Making one…" : "Get a new code"}
+            </button>
+          )}
           {couch.seasons.length > 0 && (
             <>
               <p className="type-caption mb-2 mt-5 text-xs tracking-[0.06em] text-muted-foreground">Seasons together</p>
@@ -274,6 +320,14 @@ function DetailsSheet({ couchId, onOpenChange }: { couchId: string | null; onOpe
             </>
           )}
           <div className="mt-4 flex flex-col">
+            {couch.yourRole === "owner" && (
+              <>
+                <Row icon={PenLine} title="Rename the couch" detail={`It's ${couch.name} for everyone on it`} onClick={() => openCouchSheet({ kind: "rename", couchId: couch.id })} />
+                {couch.members.length > 1 && (
+                  <Row icon={Crown} title="Hand it on" detail="Someone else runs the couch: its name, and handing it on" onClick={() => openCouchSheet({ kind: "handOn", couchId: couch.id })} />
+                )}
+              </>
+            )}
             <Row icon={LogOut} title="Leave this couch" detail="Its games too. Come back any time with a code." onClick={() => openCouchSheet({ kind: "leave", couchId: couch.id })} />
           </div>
         </div>
@@ -493,5 +547,127 @@ function LeaveCouchSheet({ couchId, onOpenChange }: { couchId: string | null; on
         nav.push(paths.home);
       }}
     />
+  );
+}
+
+// ---- run the couch (step 15 part 1): its name, and handing it on ----
+
+/** Rename a couch (whoever runs it): everyone on it sees the new name. Undo puts the old one back. */
+function RenameCouchSheet({ couchId, onOpenChange }: { couchId: string | null; onOpenChange: (o: boolean) => void }) {
+  const { data: home } = useHome();
+  const couch = home?.couches.find((c) => c.id === couchId) ?? null;
+  const after = useAfterCouch();
+  const [name, setName] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const value = name ?? couch?.name ?? "";
+  const save = async () => {
+    if (!couch) return;
+    const was = couch.name;
+    setBusy(true);
+    setError(null);
+    try {
+      const r = await couches.rename(couch.id, value);
+      await after();
+      closeCouchSheet();
+      toast(`Renamed: ${r.name}`, {
+        undo: async () => {
+          await couches.rename(couch.id, was);
+          await after();
+        },
+      });
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet open={!!couchId && !!couch} onOpenChange={onOpenChange} title="Rename the couch" subtitle={couch ? `Everyone on ${couch.name} sees it` : undefined}>
+      <form
+        data-rename-couch
+        className="flex flex-col gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          void save();
+        }}
+      >
+        <label className="flex flex-col gap-1.5">
+          <span className="text-[14px] font-semibold">Its name</span>
+          <input
+            data-couch-rename
+            value={value}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={40}
+            className="h-[52px] w-full rounded-[3px] bg-background px-3.5 text-[16px] outline-1 -outline-offset-1 outline-input focus:outline-2 focus:outline-chyron-line"
+          />
+        </label>
+        {error && (
+          <p role="alert" className="text-[13px] font-semibold text-destructive">
+            {error}
+          </p>
+        )}
+        <Btn type="submit" tone="ink" wide disabled={busy || !value.trim() || value.trim() === couch?.name}>
+          {busy ? "Saving…" : "Save the name"}
+        </Btn>
+      </form>
+    </Sheet>
+  );
+}
+
+/** Hand a couch on (whoever runs it): pick who runs it next. They can rename it and hand it on; you stay on it. */
+function HandOnSheet({ couchId, onOpenChange }: { couchId: string | null; onOpenChange: (o: boolean) => void }) {
+  const me = useMe();
+  const { data: home } = useHome();
+  const couch = home?.couches.find((c) => c.id === couchId) ?? null;
+  const after = useAfterCouch();
+  const [to, setTo] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const others = couch?.members.filter((m) => m.userId !== me.id) ?? [];
+  const pick = others.find((m) => m.userId === to) ?? null;
+  const hand = async () => {
+    if (!couch || !pick) return;
+    setBusy(true);
+    try {
+      await couches.handOn(couch.id, pick.userId);
+      await after();
+      closeCouchSheet();
+      toast(`${pick.name} runs ${couch.name} now`);
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet open={!!couchId && !!couch} onOpenChange={onOpenChange} title="Hand it on" subtitle="Who runs the couch next">
+      <div data-hand-on className="flex flex-col">
+        <div role="radiogroup" aria-label="Who runs it next">
+          {others.map((m) => (
+            <button
+              key={m.userId}
+              type="button"
+              role="radio"
+              aria-checked={to === m.userId}
+              data-hand-to={m.name}
+              onClick={() => setTo(m.userId)}
+              className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0"
+            >
+              <Avatar id={m.userId} name={m.name} size={36} />
+              <b className="min-w-0 flex-1 truncate text-[15px] font-semibold">{m.name}</b>
+              <i className={`grid size-5 flex-none place-items-center rounded-full border-2 ${to === m.userId ? "border-foreground" : "border-input"}`} aria-hidden>
+                {to === m.userId && <i className="size-2.5 rounded-full bg-foreground" />}
+              </i>
+            </button>
+          ))}
+        </div>
+        <p className="mt-3 text-[13px] leading-snug text-muted-foreground">
+          They can rename the couch and hand it on again. You stay on it, and nothing changes in its games: whoever runs each game still does.
+        </p>
+        <Btn tone="ink" wide className="mt-3" data-hand-on-go disabled={!pick || busy} onClick={hand}>
+          {busy ? "Handing it on…" : pick ? `Hand it to ${pick.name}` : "Pick someone"}
+        </Btn>
+      </div>
+    </Sheet>
   );
 }

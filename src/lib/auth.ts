@@ -84,7 +84,10 @@ export const auth = betterAuth({
   },
   socialProviders: socialProviders(),
   // Sign-in only needs who you are: the provider's tokens are kept (Better Auth stores them) but encrypted.
-  account: { encryptOAuthTokens: true },
+  // allowDifferentEmails: Settings' Link Google (docs/PLAN-new-design.md step 15 part 1) links a Google sign-in to the
+  // account you're signed in to even when its email isn't the account's: a username-only account has no real email to
+  // match. It only applies to that signed-in link; signing in with Google still finds an account by its own Google link.
+  account: { encryptOAuthTokens: true, accountLinking: { allowDifferentEmails: true } },
   emailAndPassword: {
     enabled: true,
     minPasswordLength: 8,

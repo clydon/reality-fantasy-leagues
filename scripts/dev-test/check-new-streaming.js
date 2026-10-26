@@ -127,7 +127,12 @@ function check(ok, what, detail = "") {
     const hc = await home("casey");
     const extra = couchOf(hc, fx.extraCouchId);
     check(of(hc, S.severed) && of(hc, S.soon) && !of(hc, S.fresh) && !of(hc, S.wire) && !extra.members.some((m) => m.watching.includes(S.fresh)), "casey (alex's other couch): what alex streams, not what couch A's others do");
-    check(couch.members.every((m) => Object.keys(m).sort().join() === "joinedAt,name,role,userId,watching"), "nobody's progress in the home read (members carry what they watch, never how far)", JSON.stringify(couch.members[0]));
+    // Since step 15 part 1 each member's face comes too (their chosen colour and picture version): a face, not progress.
+    check(
+      couch.members.every((m) => Object.keys(m).sort().join() === "colour,joinedAt,name,picture,role,userId,watching"),
+      "nobody's progress in the home read (members carry what they watch and their face, never how far)",
+      JSON.stringify(couch.members[0])
+    );
     // On now: riley watching along Severed's Episode 6 right now.
     const ws = (
       await pool.query(

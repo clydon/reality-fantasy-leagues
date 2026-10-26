@@ -7,7 +7,7 @@ import { useOnNow, type Couch, type CouchShow, type Home } from "../data";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { airTime } from "../clock";
-import { avatarColour } from "../ui/bars";
+import { TinyFace } from "../ui/bars";
 import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { openWatching } from "../watching/sheets";
@@ -133,13 +133,12 @@ function Chip({ item, wide, onAdd }: { item: RailItem; wide?: boolean; onAdd: (i
             {faces.length > 0 && (
               <span className="flex flex-none">
                 {faces.map((p) => (
-                  <span
+                  <TinyFace
                     key={p.userId}
+                    id={p.userId}
+                    name={p.name}
                     className="-mr-1 grid size-4 place-items-center rounded-[2px] text-[9px] font-extrabold text-[#121018] shadow-[0_0_0_1.5px_var(--card)]"
-                    style={{ background: avatarColour(p.userId) }}
-                  >
-                    {p.name[0]?.toUpperCase()}
-                  </span>
+                  />
                 ))}
               </span>
             )}

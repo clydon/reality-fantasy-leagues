@@ -4,14 +4,15 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Check, ChevronRight, ClipboardPaste, Copy, EyeOff, CircleAlert, Zap } from "lucide-react";
 import { chatLink, type ChatApp } from "@/lib/ai-brief";
-import { backstage, useAfterResults, useAskRun, useWays, type AskRun, type PasteResult, type Ways } from "../data";
+import { backstage, useAfterResults, useAiChoice, useAskRun, useWays, type AskRun, type PasteResult, type Ways } from "../data";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 
 // Ask an AI (the mock's askai.js, docs/PLAN-new-design.md step 5): one sheet wherever a question needs answering by a
-// chat that can search the web. A three-step track (Open · It answers · Paste it back); one big Open in ChatGPT (your
-// last choice remembered on this device; Grok the other one that follows our links), and Another AI? Copy the question.
+// chat that can search the web. A three-step track (Open · It answers · Paste it back); one big Open in ChatGPT (or Grok, the
+// other one that follows our links), and Another AI? Copy the question. Which leads is your AI for results (Settings, step 15
+// part 1): ChatGPT, Grok, both side by side (Ask each time) or the copy (I'll copy and paste).
 // Back from the chat, Paste the answer, a check that it looks whole, then Use this answer. The question itself is parked
 // at /b/<code>.
 //
@@ -25,16 +26,6 @@ const APPS: Record<ChatApp, { name: string; colour: string; line: string }> = {
   chatgpt: { name: "ChatGPT", colour: "#10a37f", line: "Opens the ChatGPT app or chatgpt.com" },
   grok: { name: "Grok", colour: "#e8e8e8", line: "Opens Grok or grok.com" },
 };
-const PREF = "gys.ai";
-
-function readPref(): ChatApp {
-  try {
-    return localStorage.getItem(PREF) === "grok" ? "grok" : "chatgpt";
-  } catch {
-    return "chatgpt";
-  }
-}
-
 /** A pasted answer's self-check: whether it reads as the whole JSON answer, and a line saying so. */
 export type AnswerCheck = (text: string) => { ok: boolean; line: string };
 
@@ -258,7 +249,9 @@ function AskAiBody({ what, spoiler, seasonId, couchId, episode, kind, check, onU
 }
 
 function AskAiBodyOf({ what, spoiler, check, onUse, tag, question: ask, empty }: BodyProps) {
-  const [app, setApp] = useState<ChatApp>(readPref);
+  const choice = useAiChoice();
+  const [picked, setPicked] = useState<ChatApp | null>(null);
+  const app: ChatApp = picked ?? (choice === "grok" ? "grok" : "chatgpt");
   const [step, setStep] = useState<0 | 1 | 2>(0);
   const [answer, setAnswer] = useState("");
   const [sending, setSending] = useState(false);
@@ -285,9 +278,55 @@ function AskAiBodyOf({ what, spoiler, check, onUse, tag, question: ask, empty }:
     return () => document.removeEventListener("visibilitychange", back);
   }, [step]);
 
-  const href = question?.link ? chatLink(app, question.link, question.task) : undefined;
+  const hrefOf = (a: ChatApp) => (question?.link ? chatLink(a, question.link, question.task) : undefined);
   const verdict = answer.trim() ? check(answer) : null;
   const P = APPS[app];
+  // Ask each time: both apps as big links; I'll copy and paste: the copy leads and the apps are the smaller rows.
+  const big: ChatApp[] = choice === "copy" ? [] : choice === "ask" ? ["chatgpt", "grok"] : [app];
+
+  /** Open the question in a chat app: a big bone link, or one of the smaller rows under it. */
+  const openIn = (a: ChatApp, small?: boolean) => {
+    const href = hrefOf(a);
+    const A = APPS[a];
+    return (
+      <a
+        key={a}
+        data-ai-open={a}
+        href={href}
+        target="_blank"
+        rel="noreferrer"
+        aria-disabled={!href}
+        onClick={(e) => {
+          if (!href) return e.preventDefault();
+          setPicked(a);
+          setStep(1);
+        }}
+        className={
+          small
+            ? `flex min-h-11 items-center gap-2.5 text-left text-[14px] font-semibold ${href ? "" : "pointer-events-none opacity-50"}`
+            : `nd-press mt-2 flex min-h-[64px] items-center gap-3 rounded-[3px] bg-foreground px-3 text-background first:mt-4 ${href ? "" : "pointer-events-none opacity-60"}`
+        }
+      >
+        <span
+          className={`type-caption grid flex-none place-items-center text-[#0b0a10] ${small ? "size-6 rounded-[2px] text-[13px]" : "size-9 rounded-[3px] text-[18px]"}`}
+          style={{ background: A.colour }}
+        >
+          {A.name[0]}
+        </span>
+        {small ? (
+          `Open it in ${A.name} instead`
+        ) : (
+          <>
+            <span className="min-w-0 flex-1">
+              <b className="block text-[16px]">{href ? `Open in ${A.name}` : "Getting the question ready…"}</b>
+              <small className="block text-[13px] opacity-70">{A.line}</small>
+            </span>
+            <ChevronRight className="size-5" aria-hidden />
+          </>
+        )}
+      </a>
+    );
+  };
 
   const use = async (confirmed = false) => {
     setSending(true);
@@ -355,47 +394,49 @@ function AskAiBodyOf({ what, spoiler, check, onUse, tag, question: ask, empty }:
             <div className="mt-4 rounded-[3px] bg-background p-3 text-sm leading-snug">{empty ?? "There's nothing to ask about."}</div>
           ) : (
             <>
-              <a
-                data-ai-open={app}
-                href={href}
-                target="_blank"
-                rel="noreferrer"
-                aria-disabled={!href}
-                onClick={(e) => {
-                  if (!href) return e.preventDefault();
-                  try {
-                    localStorage.setItem(PREF, app);
-                  } catch {
-                    /* remembered next time, or not */
-                  }
-                  setStep(1);
-                }}
-                className={`nd-press mt-4 flex min-h-[64px] items-center gap-3 rounded-[3px] bg-foreground px-3 text-background ${href ? "" : "pointer-events-none opacity-60"}`}
-              >
-                <span className="type-caption grid size-9 flex-none place-items-center rounded-[3px] text-[18px] text-[#0b0a10]" style={{ background: P.colour }}>
-                  {P.name[0]}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <b className="block text-[16px]">{href ? `Open in ${P.name}` : "Getting the question ready…"}</b>
-                  <small className="block text-[13px] opacity-70">{P.line}</small>
-                </span>
-                <ChevronRight className="size-5" aria-hidden />
-              </a>
+              {choice === "copy" ? (
+                <button
+                  type="button"
+                  data-ai-copy
+                  onClick={copy}
+                  disabled={!question?.prompt}
+                  className="nd-press mt-4 flex min-h-[64px] items-center gap-3 rounded-[3px] bg-foreground px-3 text-left text-background disabled:opacity-60"
+                >
+                  <span className="grid size-9 flex-none place-items-center rounded-[3px] bg-background/15">
+                    <Copy className="size-5" aria-hidden />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <b className="block text-[16px]">{question?.prompt ? "Copy the question" : "Getting the question ready…"}</b>
+                    <small className="block text-[13px] opacity-70">Paste it into any AI chat that can search the web</small>
+                  </span>
+                  <ChevronRight className="size-5" aria-hidden />
+                </button>
+              ) : (
+                <div className="flex flex-col">
+                  {big.map((a) => openIn(a))}
+                </div>
+              )}
               <div className="mt-2 flex flex-col">
                 {(Object.keys(APPS) as ChatApp[])
-                  .filter((a) => a !== app)
-                  .map((a) => (
-                    <button key={a} type="button" onClick={() => setApp(a)} className="flex min-h-11 items-center gap-2.5 text-left text-[14px] font-semibold">
-                      <span className="type-caption grid size-6 place-items-center rounded-[2px] text-[13px] text-[#0b0a10]" style={{ background: APPS[a].colour }}>
-                        {APPS[a].name[0]}
-                      </span>
-                      Use {APPS[a].name} instead
-                    </button>
-                  ))}
-                <button type="button" data-ai-copy onClick={copy} disabled={!question?.prompt} className="flex min-h-11 items-center gap-2.5 text-left text-[14px] font-semibold disabled:opacity-50">
-                  <Copy className="size-5 text-muted-foreground" aria-hidden />
-                  Another AI? Copy the question
-                </button>
+                  .filter((a) => !big.includes(a))
+                  .map((a) =>
+                    choice === "copy" ? (
+                      openIn(a, true)
+                    ) : (
+                      <button key={a} type="button" onClick={() => setPicked(a)} className="flex min-h-11 items-center gap-2.5 text-left text-[14px] font-semibold">
+                        <span className="type-caption grid size-6 place-items-center rounded-[2px] text-[13px] text-[#0b0a10]" style={{ background: APPS[a].colour }}>
+                          {APPS[a].name[0]}
+                        </span>
+                        Use {APPS[a].name} instead
+                      </button>
+                    )
+                  )}
+                {choice !== "copy" && (
+                  <button type="button" data-ai-copy onClick={copy} disabled={!question?.prompt} className="flex min-h-11 items-center gap-2.5 text-left text-[14px] font-semibold disabled:opacity-50">
+                    <Copy className="size-5 text-muted-foreground" aria-hidden />
+                    Another AI? Copy the question
+                  </button>
+                )}
               </div>
               <p className="mt-2 text-[12px] leading-snug text-muted-foreground">
                 Free. It uses your own account, and free versions work. We send the AI a short link to the question, nothing else.

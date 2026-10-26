@@ -124,6 +124,8 @@ async function down(pool) {
   await pool.query(`DELETE FROM leagues WHERE slug LIKE 'zt-nd-%' OR created_by = ANY($1::text[])`, [userIds]); // memberships and Recent changes cascade
   // Questions Backstage parked for Ask an AI (they'd only lose their author with the users, and expire in a week).
   await pool.query(`DELETE FROM ai_briefs WHERE created_by = ANY($1::text[])`, [userIds]);
+  // Problems zt_nd people reported from Settings (step 15 part 1): a report keeps its username when its account goes.
+  await pool.query(`DELETE FROM issue_reports WHERE user_id = ANY($1::text[]) OR username LIKE 'zt\\_nd\\_%'`, [userIds]);
   if (groups.length) await pool.query(`DELETE FROM league_groups WHERE id = ANY($1::uuid[])`, [groups.map((g) => g.group_id)]);
   if (couches.length) await pool.query(`DELETE FROM couches WHERE id = ANY($1::uuid[])`, [couches.map((c) => c.id)]);
   await pool.query(`DELETE FROM shows WHERE slug IN ($1, $2)`, [SHOW, TRAITORS]); // seasons and follows go with them

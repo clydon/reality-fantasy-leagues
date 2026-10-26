@@ -1,107 +1,22 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeftRight, KeyRound, LayoutTemplate, LogOut, MonitorSmartphone, Plus } from "lucide-react";
-import { logOutTo } from "@/lib/auth-client";
+import { KeyRound } from "lucide-react";
 import type { WayIn } from "@/lib/server/way-in";
-import { couches as couchApi, setCouch, switchDesign, useAfterCouch, useCouchInvite, useCurrentCouch, useHome, type JoinGame } from "../data";
-import { couchLine, FaceStack, openCouchSheet } from "../couch/couch-sheets";
+import { couches as couchApi, setCouch, useAfterCouch, useCouchInvite, type JoinGame } from "../data";
+import { FaceStack } from "../couch/couch-sheets";
 import { JoinGameRow, JoinGameSheet, joinLine } from "../couch/join-game";
 import { gameColour } from "../games";
 import { NavLink, useNav } from "../nav";
 import { paths } from "../routes";
-import { useMe } from "../session";
-import { Avatar, PageHeader, Wordmark } from "../ui/bars";
-import { Btn, BtnLink, EmptyState, Row, SectionHead } from "../ui/parts";
-import { Preview } from "../ui/preview";
+import { PageHeader, Wordmark } from "../ui/bars";
+import { Btn, BtnLink, EmptyState, SectionHead } from "../ui/parts";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { InviteWayIn } from "../welcome/invite";
 
-// Settings (/settings) and joining a couch (/join/[code]). Settings has your couches (step 9) and going back to the
-// classic design; the rest is step 15 (mock settings.js). The join page is real signed in (step 9 part 1) and for
-// someone new (part 2: welcome/invite.tsx makes the account). First run is welcome/first-run.tsx.
-
-export function SettingsScreen() {
-  const me = useMe();
-  const { data: home } = useHome();
-  const current = useCurrentCouch(home);
-  const [switching, setSwitching] = useState(false);
-  const couches = home?.couches.map((c) => c.name) ?? [];
-  return (
-    <div className="pb-16">
-      <PageHeader title="Settings" back={{ label: "Home", parent: paths.home }} />
-      <div className="mx-4 mt-5 flex items-center gap-3 rounded-[3px] bg-card p-3">
-        <Avatar id={me.id} name={me.name} size={56} />
-        <div className="min-w-0 flex-1">
-          <b className="block truncate text-[17px] font-semibold">{me.name}</b>
-          {couches.length > 0 && (
-            <small className="mt-0.5 block text-[13px] text-muted-foreground">{couches.length > 2 ? `On ${couches.length} couches` : `On ${couches.join(" and ")}`}</small>
-          )}
-        </div>
-        <Preview id="settings.profile" tag={false}>
-          <Btn className="h-10 px-3.5 text-sm">Edit</Btn>
-        </Preview>
-      </div>
-      <Preview id="settings.account" className="mx-4 mt-6" />
-      <section className="mt-8" data-settings-couches>
-        <SectionHead title="Your couches" aside={home ? `${home.couches.length}` : undefined} />
-        <div className="flex flex-col px-4">
-          {home?.couches.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              data-settings-couch={c.name}
-              onClick={() => openCouchSheet({ kind: "details", couchId: c.id })}
-              className="nd-press flex min-h-[64px] items-center gap-3 border-t border-border py-2 text-left first:border-t-0"
-            >
-              <FaceStack people={c.members} />
-              <span className="min-w-0 flex-1">
-                <b className="block truncate text-[15px] font-semibold">
-                  {c.name}
-                  {c.id === current?.id && <span className="ml-2 text-[12px] font-semibold text-muted-foreground">On the hub</span>}
-                </b>
-                <small className="block truncate text-[13px] text-muted-foreground">{couchLine(c)}</small>
-              </span>
-            </button>
-          ))}
-          {current && home && home.couches.length > 1 && (
-            <Row icon={ArrowLeftRight} title="Switch couches" detail={`The hub shows ${current.name}`} onClick={() => openCouchSheet({ kind: "switch" })} />
-          )}
-          <Row icon={Plus} title="Start a couch" detail="Name it, get a code, send it to your people" onClick={() => openCouchSheet({ kind: "new" })} />
-          <Row icon={KeyRound} title="Join a couch" detail="Got a code? Pull up a seat" onClick={() => openCouchSheet({ kind: "join" })} />
-        </div>
-      </section>
-      <section className="mt-8">
-        <SectionHead title="The new design" />
-        <div className="flex flex-col px-4">
-          <Row
-            icon={MonitorSmartphone}
-            title={switching ? "Switching…" : "Back to the classic design"}
-            detail="Your games are the same in both. Come back any time from the menu."
-            onClick={async () => {
-              if (switching) return;
-              setSwitching(true);
-              try {
-                await switchDesign("classic");
-              } catch {
-                setSwitching(false);
-                toast("Couldn't switch. Try again.");
-              }
-            }}
-          />
-          <Row
-            icon={LayoutTemplate}
-            title="The full design"
-            detail="Every screen as it's designed, with demo people. Opens in a new tab."
-            onClick={() => window.open("/mock", "_blank", "noopener")}
-          />
-          <Row icon={LogOut} title="Sign out" onClick={() => logOutTo(paths.welcome)} />
-        </div>
-      </section>
-    </div>
-  );
-}
+// Joining a couch (/join/[code]): real signed in (step 9 part 1) and for someone new (part 2: welcome/invite.tsx makes the
+// account). First run is welcome/first-run.tsx; Settings is settings/settings.tsx (step 15).
 
 /**
  * An invite (/join/[code]; the mock's round2.js joinRoute): the couch first (whose code, who's on it), then joining it,

@@ -85,7 +85,11 @@ async function api({ user, pass, headers = {} }) {
     try { parsed = JSON.parse(text); } catch { /* not JSON: keep the text */ }
     return { status: res.status, body: parsed };
   }
-  return { user, call };
+  // The raw Response, for a body that isn't JSON either way (a picture's bytes up, an image down: step 15's check-new-settings.js).
+  async function raw(method, url, { body, type } = {}) {
+    return fetch(BASE + url, { method, headers: { cookie, origin: BASE, ...headers, ...(type ? { "content-type": type } : {}) }, body });
+  }
+  return { user, call, raw };
 }
 
 module.exports = { open, api, BASE };

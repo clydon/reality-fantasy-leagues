@@ -78,6 +78,13 @@ export async function requireAuth(req: Request): Promise<SessionUser> {
   return user;
 }
 
+/** requireAuth, keeping the session (to tell whether an admin is viewing as this person). */
+export async function requireAuthSession(req: Request): Promise<Session> {
+  const session = await requireSession(req);
+  if (!isSuperAdminUser(session.user) && !isApprovedUser(session.user)) throw new HttpError(403, "Pending approval");
+  return session;
+}
+
 export async function requireSuperAdmin(req: Request): Promise<SessionUser> {
   const user = await requireAuth(req);
   if (!isSuperAdminUser(user)) throw new HttpError(403, "Super-admin only");
