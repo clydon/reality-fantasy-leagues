@@ -74,7 +74,8 @@ async function runReminders(pool, opts = {}) {
   const airing = new Map((await loadSeasons(pool, "ss.status = 'airing'")).filter((s) => isSeasonLive(s, now)).map((s) => [key(s), s]));
   if (!seasons.size && !airing.size) return { sent: 0 };
 
-  const { rows: leagues } = await pool.query("SELECT id, name, state FROM leagues");
+  // A deleted or archived game (step 10 part 2b) hears nothing.
+  const { rows: leagues } = await pool.query("SELECT id, name, state FROM leagues WHERE deleted_at IS NULL AND COALESCE(state->'settings'->>'archivedAt', '') = ''");
   let sent = 0;
   for (const league of leagues) {
     try {

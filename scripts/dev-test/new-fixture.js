@@ -109,7 +109,8 @@ async function down(pool) {
         AND NOT EXISTS (SELECT 1 FROM couch_members m WHERE m.couch_id = c.id AND NOT (m.user_id = ANY($1::text[])))`,
     [userIds]
   );
-  const { rows: groups } = await pool.query(`SELECT DISTINCT group_id FROM leagues WHERE slug LIKE 'zt-nd-%' AND group_id IS NOT NULL`);
+  // Games a check started in the new design (step 10 part 2b) are named like any game; they're zt_nd people's.
+  const { rows: groups } = await pool.query(`SELECT DISTINCT group_id FROM leagues WHERE (slug LIKE 'zt-nd-%' OR created_by = ANY($1::text[])) AND group_id IS NOT NULL`, [userIds]);
   // The desk's history (step 6b part 2) names what it changed by id, with no foreign key: the fixture's seasons, their
   // rulebooks, results and cast, its couches, and anything zt_nd people changed.
   await pool.query(
@@ -120,7 +121,7 @@ async function down(pool) {
        UNION SELECT c.id::text FROM season_cast c JOIN show_seasons ss ON ss.id = c.season_id JOIN shows sh ON sh.id = ss.show_id WHERE sh.slug IN ($3, $4))`,
     [userIds, couches.map((c) => c.id), SHOW, TRAITORS]
   );
-  await pool.query(`DELETE FROM leagues WHERE slug LIKE 'zt-nd-%'`); // memberships and Recent changes cascade
+  await pool.query(`DELETE FROM leagues WHERE slug LIKE 'zt-nd-%' OR created_by = ANY($1::text[])`, [userIds]); // memberships and Recent changes cascade
   // Questions Backstage parked for Ask an AI (they'd only lose their author with the users, and expire in a week).
   await pool.query(`DELETE FROM ai_briefs WHERE created_by = ANY($1::text[])`, [userIds]);
   if (groups.length) await pool.query(`DELETE FROM league_groups WHERE id = ANY($1::uuid[])`, [groups.map((g) => g.group_id)]);

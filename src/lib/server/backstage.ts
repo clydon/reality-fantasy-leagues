@@ -52,14 +52,18 @@ export interface BackstageScope {
   filler?: boolean;
 }
 
-/** Whoever runs a game on this couch's season (Commissioner or Game admin). 403 for anyone else on the couch. */
-export async function backstageScope(user: SessionUser, seasonId: string, couchId: string | null): Promise<BackstageScope> {
+/**
+ * Whoever runs a game on this couch's season (Commissioner or Game admin). 403 for anyone else on the couch. An archived
+ * game (step 10 part 2b) stands still, so it's left out of what Backstage runs (results, waivers, settings, members)
+ * unless `archived` asks for it (archiving or deleting games: end-game.ts).
+ */
+export async function backstageScope(user: SessionUser, seasonId: string, couchId: string | null, opts: { archived?: boolean } = {}): Promise<BackstageScope> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
   if (!couchId) throw new HttpError(400, "couch required");
   const { rows } = await pool.query("SELECT results_by FROM show_seasons WHERE id = $1", [seasonId]);
   if (!rows.length) throw new HttpError(404, "Season not found");
   const { here, runs } = await couchGames(user, seasonId, couchId);
-  const games = here.filter((g) => runs.has(g.leagueId));
+  const games = here.filter((g) => runs.has(g.leagueId) && (opts.archived || !g.archived));
   if (!games.length) throw new HttpError(403, "Backstage is for whoever runs a game here");
   return { user, seasonId, couchId, games, resultsBy: rows[0].results_by };
 }
@@ -77,7 +81,7 @@ export async function fillScope(user: SessionUser, seasonId: string, couchId: st
   if (!(await couchFillsResults(couchId))) throw new HttpError(403, "On this couch, whoever runs the games fills in results");
   if ((await seenThrough(user.id, seasonId)) < episode) throw new HttpError(403, `Reveal Episode ${episode} first`);
   const { rows } = await pool.query("SELECT results_by FROM show_seasons WHERE id = $1", [seasonId]);
-  return { user, seasonId, couchId, games: here.filter((g) => g.yourRole), resultsBy: rows[0]?.results_by ?? "leagues", filler: true };
+  return { user, seasonId, couchId, games: here.filter((g) => g.yourRole && !g.archived), resultsBy: rows[0]?.results_by ?? "leagues", filler: true };
 }
 
 interface Loaded {

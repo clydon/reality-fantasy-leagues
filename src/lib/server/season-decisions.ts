@@ -128,6 +128,8 @@ function labelOf(state: LeagueState, d: Pick<DecisionRow, "kind" | "method" | "e
  */
 export async function syncLeagueDecisions(client: PoolClient, leagueId: string, state: LeagueState, opts: SyncOptions = {}): Promise<SyncResult> {
   const result: SyncResult = { applied: 0, undone: 0, skipped: [], eliminatedEpisodeIds: [], episodes: [] };
+  // An archived game (docs/PLAN-new-design.md step 10 part 2b) stands as it was: nothing more reaches it until it's back.
+  if (state.settings.archivedAt) return result;
   const season = await seasonForLeague(client, state);
   const seasonId = season ? season.id : null;
   const since = season ? season.adminSince : null;
@@ -340,7 +342,7 @@ export async function syncSeasonLeagues(seasonId: string, actorUserId: string | 
     `SELECT l.id, l.name, l.couch_id FROM leagues l
        JOIN shows s ON s.slug = l.state->'settings'->>'showId'
        JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
-      WHERE ss.id = $1
+      WHERE ss.id = $1 AND l.deleted_at IS NULL AND COALESCE(l.state->'settings'->>'archivedAt', '') = ''
       ORDER BY l.name`,
     [seasonId]
   );

@@ -8,7 +8,7 @@ import StateLogic from "./state-logic.js";
 /** The episode picks are for, and whether you can still pick for it (not aired, no results yet). */
 export function pickWindow(state: LeagueState) {
   const ep = StateLogic.pickEmUpcomingEpisode(state);
-  const decided = StateLogic.pickEmDecided(ep);
+  const decided = StateLogic.pickEmDecided(ep, state);
   const open = !!ep && !decided && !StateLogic.hasAired(ep);
   return { ep, open };
 }

@@ -19,6 +19,8 @@ export interface CommissionerItem {
 export function commissionerItems(state: LeagueState): CommissionerItem[] {
   const type = StateLogic.getLeagueType(state);
   const items: CommissionerItem[] = [];
+  // An archived game (step 10 part 2b) has nothing left to set up.
+  if (state.settings.archivedAt) return items;
 
   if (state.castaways.length === 0 && !StateLogic.isDraftStarted(state)) {
     items.push({

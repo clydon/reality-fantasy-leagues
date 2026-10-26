@@ -44,11 +44,11 @@ async function runWaivers(pool, opts = {}) {
   // window the commissioner opened in a league that's otherwise off). The pre-v2 switches too, for any league the
   // backfill (0063) hasn't reached.
   const { rows } = await pool.query(
-    `SELECT id FROM leagues WHERE
+    `SELECT id FROM leagues WHERE deleted_at IS NULL AND COALESCE(state->'settings'->>'archivedAt', '') = '' AND (
        COALESCE(state->'settings'->>'replaceRule', 'never') <> 'never'
        OR COALESCE((state->'settings'->'waiverWindows'->>'swaps')::int, 0) > 0
        OR state->'settings'->>'replenishEnabled' = 'true' OR state->'settings'->>'tradeEnabled' = 'true'
-       OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(state->'midSeason'->'waivers'->'periods', '[]'::jsonb)) p WHERE p->>'phase' <> 'closed')`
+       OR EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(state->'midSeason'->'waivers'->'periods', '[]'::jsonb)) p WHERE p->>'phase' <> 'closed'))`
   );
   // opts.leagueIds: only these (the dev test bank's, scripts/dev-test/check-waivers-alerts.js).
   const only = opts.leagueIds ? new Set(opts.leagueIds) : null;

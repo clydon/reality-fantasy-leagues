@@ -29,6 +29,8 @@ import type { ListingHit } from "@/lib/game/listing";
 import type { AddedShow } from "@/lib/server/add-show";
 import type { ListingSeason } from "@/lib/server/listings";
 import type { MakeState } from "@/lib/server/make-game";
+import type { Started, StartOptions } from "@/lib/server/start-game";
+import type { DeletePreview, EndGame } from "@/lib/server/end-game";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -58,6 +60,8 @@ export type { CatchUpReveal } from "@/lib/server/season-episodes";
 export type { CallMove } from "@/lib/game/game-view";
 export type { BotLevel, PoolInfo, PracticeGame, PracticeInfo, SoloSeason } from "@/lib/server/solo";
 export type { MakeReview, MakeState } from "@/lib/server/make-game";
+export type { StartChoice, Started, StartOptions } from "@/lib/server/start-game";
+export type { DeletePreview, EndGame } from "@/lib/server/end-game";
 
 // The new design's reads (docs/PLAN-new-design.md steps 0b, 0c and 1): the home, a show space's frame, your games
 // on a show, its How it works and its cast stats, all spoiler-safe on the server (guard.ts); and the moves' writes, through the
@@ -79,6 +83,8 @@ export interface GameRef {
   yourRole: LeagueRole | null;
   /** A game on no couch (step 9 part 3): a season's public pool, or your practice couch against computer players. */
   solo?: "public" | "practice" | null;
+  /** Archived (step 10 part 2b): on the couch and the trophy shelf as it stood; nothing scores it. */
+  archived?: boolean;
 }
 
 export interface SeasonHeader {
@@ -942,4 +948,36 @@ export const make = {
   confirm: (seasonId: string, couchId: string | null) => post<MakeState>(makeUrl(seasonId, couchId), { action: "confirm" }),
   /** A question to copy into your own chat. */
   prompt: (seasonId: string, part: "rules" | "cast") => get<{ prompt: string; task: string }>(seasonUrl(seasonId, "/make", { prompt: part })),
+};
+
+// ---- Start a game that fits (step 10 part 2b; start-game.ts) and archive or delete one (end-game.ts). Read when the sheet
+// or Game settings opens; nothing polls. ----
+
+/** What can start on a season for a couch: the season games and whether each fits, why the rest don't, Run it back's game. */
+export function useStartOptions(seasonId: string | null, couchId: string | null, again: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "start", seasonId, couchId, again],
+    queryFn: () => get<StartOptions>(seasonUrl(seasonId!, "/start", { couch: couchId!, ...(again ? { again } : {}) })),
+    enabled: enabled && !!seasonId && !!couchId,
+    staleTime: 0,
+  });
+}
+
+/** The games here a Commissioner can archive or delete (archived ones too). */
+export function useEndGames(seasonId: string, couchId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "end-games", seasonId, couchId],
+    queryFn: () => get<{ games: EndGame[] }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId! })),
+    enabled: enabled && !!couchId,
+  });
+}
+
+export const gamesApi = {
+  start: (seasonId: string, couchId: string, body: { game: string; tell: boolean; again?: string | null }) =>
+    post<Started>(seasonUrl(seasonId, "/start", { couch: couchId }), body),
+  archive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "archive", leagueId }),
+  unarchive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "unarchive", leagueId }),
+  deletePreview: (seasonId: string, couchId: string, leagueId: string) =>
+    post<DeletePreview>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "delete", leagueId, preview: true }),
+  delete: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "delete", leagueId }),
 };

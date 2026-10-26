@@ -575,8 +575,9 @@ declare const StateLogic: {
   };
   /** The episode picks are being made for (the next to reveal when catching up, else the latest). */
   pickEmUpcomingEpisode(state: LeagueState): Episode | null;
-  /** A Pool episode is decided once someone went home in it, or it's known nobody did (step 6c). */
-  pickEmDecided(ep: Episode | null | undefined): boolean;
+  /** A Pool episode is decided once someone went home in it, or it's known nobody did (step 6c); a pool that survives by
+   *  scoring (`state.settings.poolSurvive` 'scores', a sport: step 10 part 2b) once its scores are in. */
+  pickEmDecided(ep: Episode | null | undefined, state?: LeagueState): boolean;
   /**
    * The episode "this week's choice" is for -- shared by Eliminator Pool's pick, Active Roster's
    * lineup grid, and Overview's side bets (the next to reveal when catching up, else the latest, never

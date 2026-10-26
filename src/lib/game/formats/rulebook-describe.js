@@ -14,8 +14,9 @@
 // The smaller pieces (decidedLine, whoLine, startText, pointGroups, blockSummaries...) are exported for the
 // admin's and the commissioner's pages. Plain CommonJS, browser-safe, like everything in formats/.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js */
-const { KINDS, GAME_LABELS, labelOf, kindOf, partWord, blockLabel, cap, pluralOf } = require('./rulebook-schema.js');
+const { KINDS, labelOf, kindOf, partWord, blockLabel, cap, pluralOf } = require('./rulebook-schema.js');
 const { momentsFor } = require('./rulebook-moments.js');
+const { gamesFor } = require('./rulebook-fits.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const list = (v) => (Array.isArray(v) ? v : []);
@@ -323,7 +324,8 @@ function howItWorks(blocks, opts = {}) {
     updates: updatesFor(b, opts.updates, seen),
     lineage: opts.lineage || null,
     results: K.results,
-    games: K.games.map((key) => ({ key, name: GAME_LABELS[key] })),
+    // The season games this rulebook can feed (rulebook-fits.js): the kind's, less any its rules can't.
+    games: gamesFor(b, opts.compiled).filter((g) => g.fits).map((g) => ({ key: g.key, name: g.name })),
   };
 }
 

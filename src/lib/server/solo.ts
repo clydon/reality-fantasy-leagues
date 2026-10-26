@@ -1,17 +1,11 @@
 import crypto from "crypto";
-import type { PoolClient } from "pg";
 import StateLogic from "@/lib/game/state-logic.js";
 import { gameView, type GameView } from "@/lib/game/game-view";
 import { BOT_NAMES, practiceTeams, type PracticeGame } from "@/lib/game/practice";
 import type { LeagueState } from "@/lib/game/types";
-import { syncLeagueFormat } from "@db/show-formats.js";
-import { syncLeagueChanges } from "@db/season-rule-changes.js";
-import { syncLeagueRulebook } from "@db/rulebooks.js";
 import type { SessionUser } from "./auth-helpers";
 import { pool, withLeagueLock, HttpError } from "./db";
-import { genJoinCode, slugify } from "./league-codes";
-import { approvedCastFor, applyCastToState } from "./season-cast";
-import { syncLeagueDecisions } from "./season-decisions";
+import { existingSolo as existing, makeLeague } from "./new-game";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import { followLeagueProgress } from "./follows";
 import { gamesHere, type GameHere } from "./season-games";
@@ -33,8 +27,9 @@ import { gamesHere, type GameHere } from "./season-games";
 //   take their turns inside whatever write or read moves the league on (db.ts withLeagueLock -> bots.ts, league-read.ts
 //   readyLeague), so nothing runs on a schedule. One per person and season; never counted toward a couch.
 //
-// Both are for a curated competition show's season with its cast in and an episode still to come. Joining or starting
-// underway plays from the next episode (startEpisode); someone behind is told the pick or the draft shows who's still in.
+// Both are for a competition that's set up as a game (an admin's, or one a player made a game: step 10 part 2b) with its
+// cast in and an episode still to come. Joining or starting underway plays from the next episode (startEpisode); someone
+// behind is told the pick or the draft shows who's still in.
 
 /** The most people one season's public pool holds (docs/HOSTING.md: its state is read in full after every change). */
 export const POOL_CAP = 100;
@@ -45,7 +40,6 @@ const LEVEL_OF: Record<string, BotLevel> = { casual: "easy", solid: "normal", sh
 export type { PracticeGame };
 const PRACTICE_NAME: Record<PracticeGame, string> = { "active-roster": "Weekly Lineup", "classic-draft": "Outlast" };
 
-type Queryable = { query: typeof pool.query };
 const nameOf = (user: SessionUser) => (user as { username?: string | null }).username || user.name;
 
 interface SeasonRow {
@@ -56,7 +50,8 @@ interface SeasonRow {
   slug: string;
   showName: string;
   kind: string;
-  curated: boolean;
+  /** Set up as a game (shows.set_up_at): an admin's show, or one someone made a game (step 10). */
+  ready: boolean;
 }
 
 async function seasonRows(ids: string[]): Promise<Map<string, SeasonRow>> {
@@ -64,12 +59,12 @@ async function seasonRows(ids: string[]): Promise<Map<string, SeasonRow>> {
   if (!ids.length) return out;
   const { rows } = await pool.query(
     `SELECT ss.id, ss.season_number, ss.status, ss.cast_approved_at IS NOT NULL AS cast_in, s.slug, s.name, s.kind,
-            (s.archived = false AND s.created_by IS NULL) AS curated
+            (s.archived = false AND s.set_up_at IS NOT NULL) AS ready
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = ANY($1::uuid[])`,
     [ids]
   );
   for (const r of rows) {
-    out.set(r.id, { id: r.id, number: r.season_number, status: r.status, castIn: r.cast_in, slug: r.slug, showName: r.name, kind: r.kind, curated: r.curated });
+    out.set(r.id, { id: r.id, number: r.season_number, status: r.status, castIn: r.cast_in, slug: r.slug, showName: r.name, kind: r.kind, ready: r.ready });
   }
   return out;
 }
@@ -82,7 +77,7 @@ function nextOpen(schedule: SeasonSchedule | undefined, now: Date): number | nul
 
 /** Why this season has no solo games, or null. */
 export function soloBlocked(row: SeasonRow | undefined, schedule: SeasonSchedule | undefined, now = new Date()): string | null {
-  if (!row || !row.curated) return "This show isn't set up for games yet";
+  if (!row || !row.ready) return "This show isn't set up for games yet";
   if (row.kind !== "competition") return "Solo games come to this kind of show later";
   if (!row.castIn) return "Its cast isn't in yet";
   if (row.status === "completed") return "The season's over";
@@ -94,65 +89,6 @@ export function soloBlocked(row: SeasonRow | undefined, schedule: SeasonSchedule
 /** Where a game made now starts: the next episode to air (1 before the premiere). */
 function startNow(schedule: SeasonSchedule | undefined, now: Date): number {
   return nextOpen(schedule, now) ?? latestAired(schedule, now) + 1;
-}
-
-// ---------- making a solo game ----------
-
-/**
- * A new league on `row`'s season, set up as the create wizard sets one up (show, type, season, the season's rule changes,
- * rulebook, approved cast and shared results), with `before` run on the empty state first (its players: added before the
- * results arrive, so nobody's a late joiner) and `after` once the cast and results are in. Null when the insert lost a
- * race (the season's pool, or your practice couch here, already exists).
- */
-async function makeLeague(
-  row: SeasonRow,
-  opts: {
-    name: string;
-    solo: "public" | "practice";
-    createdBy: string | null;
-    type: string;
-    before?: (s: LeagueState) => void;
-    after: (s: LeagueState, client: PoolClient, leagueId: string) => void | Promise<void>;
-  }
-): Promise<string | null> {
-  const state = StateLogic.defaultState();
-  StateLogic.ensureNextEpisode(state);
-  opts.before?.(state);
-  let id: string | null = null;
-  for (let attempt = 0; attempt < 5 && !id; attempt++) {
-    const { rows } = await pool.query(
-      `INSERT INTO leagues (name, slug, join_code, state, created_by, solo, solo_season_id) VALUES ($1, $2, $3, $4, $5, $6, $7)
-       ON CONFLICT DO NOTHING RETURNING id`,
-      [opts.name, slugify(opts.name), genJoinCode(), JSON.stringify(state), opts.createdBy, opts.solo, row.id]
-    );
-    if (rows.length) id = rows[0].id as string;
-    else if (await existing(opts.solo, row.id, opts.createdBy)) return null; // made by someone else meanwhile
-  }
-  if (!id) throw new HttpError(500, "Couldn't make the game, try again");
-  const leagueId = id;
-  await withLeagueLock(leagueId, async (s, client) => {
-    StateLogic.updateSettings(s, "showId", row.slug);
-    await syncLeagueFormat(client, s.settings, row.slug);
-    StateLogic.updateSettings(s, "leagueTypeId", opts.type);
-    StateLogic.updateSettings(s, "revealedThroughEpisode", null);
-    StateLogic.updateSettings(s, "wikiSeason", row.number);
-    await syncLeagueChanges(client, s.settings, { adoptAll: true });
-    await syncLeagueRulebook(client, leagueId, s.settings);
-    const approved = await approvedCastFor(client, row.slug, row.number);
-    if (approved) applyCastToState(s, approved.cast, approved.tribesFromEpisode);
-    await syncLeagueDecisions(client, leagueId, s);
-    await opts.after(s, client, leagueId);
-    StateLogic.updateSettings(s, "setupComplete", true);
-  });
-  return leagueId;
-}
-
-async function existing(solo: "public" | "practice", seasonId: string, createdBy: string | null, db: Queryable = pool): Promise<string | null> {
-  const { rows } =
-    solo === "public"
-      ? await db.query("SELECT id FROM leagues WHERE solo = 'public' AND solo_season_id = $1", [seasonId])
-      : await db.query("SELECT id FROM leagues WHERE solo = 'practice' AND solo_season_id = $1 AND created_by = $2", [seasonId, createdBy]);
-  return (rows[0]?.id as string | undefined) ?? null;
 }
 
 async function seasonFor(seasonId: string, now: Date): Promise<{ row: SeasonRow; schedule: SeasonSchedule | undefined }> {
@@ -261,7 +197,7 @@ export async function joinPool(user: SessionUser, seasonId: string, now = new Da
 
 function poolWindow(s: LeagueState) {
   const ep = StateLogic.pickEmUpcomingEpisode(s);
-  return { ep, open: !!ep && !StateLogic.pickEmDecided(ep) && !StateLogic.hasAired(ep) };
+  return { ep, open: !!ep && !StateLogic.pickEmDecided(ep, s) && !StateLogic.hasAired(ep) };
 }
 
 async function seatIn(leagueId: string, userId: string): Promise<string> {

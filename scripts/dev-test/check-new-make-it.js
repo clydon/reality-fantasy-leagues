@@ -164,7 +164,8 @@ const showIn = (prompt) => Object.keys(ANSWERS).find((name) => prompt.includes(n
     const k1 = await post("alex", ys, { action: "kind", kind: "competition" });
     check(k1.status === 200 && k1.body.review.kind.key === "competition" && k1.body.review.kind.changed === true && k1.body.review.needsCast === true && k1.body.review.approvable === false && k1.body.setup.stage === "cast",
       "a competition: the listing's crew isn't its cast, so who's in it is missing", JSON.stringify(k1.body.review?.kind));
-    check(k1.body.review.how.games.map((g) => g.name).join() === "Survival Pool,Weekly Lineup,Outlast", "a competition fits all three (its finale still crowns nobody, as ChatGPT said)");
+    // What fits is the rulebook's (step 10 part 2b, rulebook-fits.js): nobody goes home each charter and nobody wins.
+    check(k1.body.review.how.games.map((g) => g.name).join() === "Weekly Lineup", "as a competition only Weekly Lineup fits: nobody goes home each episode, and its finale still crowns nobody, as ChatGPT said", k1.body.review.how.games.map((g) => g.name).join());
     check((await post("alex", ys, { action: "confirm" })).status === 409, "and it can't be set up like that");
     const k2 = await post("alex", ys, { action: "kind", kind: "series", start: "scripted" });
     check(k2.body.review.kind.name === "A series · scripted" && k2.body.review.cast.faces.some((f) => f.name === "Captain" && f.line === "Cap Rivers"), "a scripted series: the listing read as characters", JSON.stringify(k2.body.review.cast.faces[0]));

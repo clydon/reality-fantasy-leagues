@@ -67,6 +67,8 @@ export interface Game {
   yourRole: LeagueRole | null;
   /** A game on no couch (step 9 part 3, db/migrations/0120): a season's public pool, or someone's practice couch. */
   solo: "public" | "practice" | null;
+  /** Archived (step 10 part 2b, settings.archivedAt): on the couch and the trophy shelf as it stood; nothing scores it. */
+  archived: boolean;
 }
 
 /**
@@ -75,7 +77,8 @@ export interface Game {
  * a practice couch: on no couch, but theirs wherever they look at the season), after the couch's.
  */
 export async function games(viewerId: string, filter: { mine?: boolean; couchIds?: string[]; seasonId?: string; withSolo?: boolean }): Promise<Game[]> {
-  const where: string[] = [];
+  // A deleted game (step 10 part 2b, db/migrations/0123) is nobody's until it's restored from Recent changes.
+  const where: string[] = ["l.deleted_at IS NULL"];
   const params: unknown[] = [viewerId];
   if (filter.mine) where.push("me.user_id IS NOT NULL");
   if (filter.couchIds) {
@@ -84,12 +87,13 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
   }
   if (filter.seasonId) where.push(`ss.id = $${params.push(filter.seasonId)}`);
   const { rows } = await pool.query(
-    `SELECT l.id, l.name, l.couch_id, l.group_id, l.solo, l.state->'settings'->>'leagueTypeId' AS type_id, ss.id AS season_id, me.role AS your_role
+    `SELECT l.id, l.name, l.couch_id, l.group_id, l.solo, l.state->'settings'->>'leagueTypeId' AS type_id, ss.id AS season_id, me.role AS your_role,
+            COALESCE(l.state->'settings'->>'archivedAt', '') <> '' AS archived
        FROM leagues l
        LEFT JOIN shows s ON s.slug = l.state->'settings'->>'showId'
        LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
        LEFT JOIN league_memberships me ON me.league_id = l.id AND me.user_id = $1
-      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+      WHERE ${where.join(" AND ")}
       ORDER BY l.solo NULLS FIRST, l.group_id NULLS LAST, l.group_position NULLS LAST, l.name, l.id`,
     params
   );
@@ -103,6 +107,7 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
     groupId: r.group_id,
     yourRole: r.your_role,
     solo: r.solo ?? null,
+    archived: !!r.archived,
   }));
 }
 

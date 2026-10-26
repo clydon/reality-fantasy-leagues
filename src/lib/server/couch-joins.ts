@@ -292,7 +292,8 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
       players: s.players.filter((p) => !p.disabled && !G.isGhost(p)).length,
       teamSize: G.teamSize(s),
       runners: memberRows.filter((m) => m.league_id === g.leagueId && (m.role === "commissioner" || m.role === "admin")).map((m) => m.name as string),
-      ended: StateLogic.seasonEnded(s),
+      // An archived game (step 10 part 2b) takes nobody new, as a season that's over doesn't.
+      ended: StateLogic.seasonEnded(s) || g.archived,
       you: viewer ? { playing: !!g.yourRole, asked: !!ask && !ask.decided_at, letIn: ask?.outcome === "let-in" } : null,
     });
   }

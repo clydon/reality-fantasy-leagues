@@ -35,7 +35,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 7 | Draft room and blind draft | **done** 2026-10-25 on the branch (migration 0117 ships with 0b's) | Opus · xhigh |
 | 8 | Hub I: focus-first hub, More on the couch and its six pages | **done** 2026-10-25 on the branch (migration 0118 ships with 0b's) | Opus · xhigh |
 | 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | **done** 2026-10-25 on the branch, in three parts: couches and joining their games (migration 0119), the way in (landing, first run, the invite signed out, sign-in, Google behind config; no migration), solo (public pools per season, the practice couch, the solo hub; migration 0120); 0119 and 0120 ship with 0b's | Opus · xhigh |
-| 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **in progress**, in three parts (the plan's step 10 section), part 2 split in two: part 1, watching, finished 2026-10-25 (migration 0121; TV listings from TVmaze on demand); part 2a, Make it a game to a set-up show with its rulebook and cast, finished 2026-10-25 (migration 0122); both ship with 0b's. Next 2b (Start a game that fits, archive or delete a game), then 3 (the library and the new-show flow) | Opus · xhigh |
+| 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **in progress**, in three parts (the plan's step 10 section), part 2 split in two: part 1, watching, finished 2026-10-25 (migration 0121; TV listings from TVmaze on demand); part 2a, Make it a game to a set-up show with its rulebook and cast, finished 2026-10-25 (migration 0122); part 2b, Start a game that fits (every entry point, Run it back, solo games for any set-up competition) and archive or delete a game, finished 2026-10-25 (migration 0123); all ship with 0b's. Next 3 (the library and the new-show flow) | Opus · xhigh |
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | not started | Opus · xhigh |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | not started | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | not started | Opus · xhigh |
@@ -159,10 +159,6 @@ step's As built.
 - **Chat pushes are still classic's** (step 4; for 15). A message in a game's chat pushes that game's players, linking to
   classic's `/chat` (also for someone on the new design); a show the couch only watches pushes nobody, and nor does anyone
   on the couch who isn't in the games. `couch-chat.ts postCouchChat` is where step 15's notifications by moment would go.
-- **A couch with two unlinked games on one season** (step 4; for 10 part 2b, where a couch starts games: step 9's joins only join games that exist). The new design shows
-  the couch one conversation (both games' chats) and posts into the first; classic shows each game's chat on its own, so
-  someone only in the second game wouldn't see what was posted from the new design. Linking them (or posting where you
-  play) would settle it. Today every couch has one linked group per season, so it can't happen yet.
 - **The fold goes by airtime** (step 4; for 14). Everything others said since an episode you haven't seen started airing
   is folded, which is right for weekly and nightly shows; a binge drop folds everything after the drop until you finish.
   Step 14's streaming shows could fold by the author's own progress at the time (what episode they were on) instead.
@@ -221,8 +217,9 @@ step's As built.
   mode (for C).
 - **No "Extend a day"** (step 6a; for 6b or later). The mock's Backstage › Waivers has it; the engine has no way to move a
   week's deadline (a window's `processAt` is worked out from the schedule). Small: an override on the period.
-- **No "Lock it down"** (step 6a; for 10 part 2b, beside archive in Game settings, or later). The mock's Game settings has a competitive switch (no late joins, no
-  catch-up, rules frozen); only the first means anything in the engine today (Who can join).
+- **No "Lock it down"** (step 6a; 10 part 2b left it; for 15 or a later polish). The mock's Game settings has a competitive switch
+  (no late joins, no catch-up, rules frozen); only the first means anything in the engine today (Who can join's Nobody new, per
+  game). "Rules frozen" would refuse a Commissioner's own Scoring rules and Make it ours for the season: a setting nothing reads yet.
 - **The run's "seen" mark is per device** (step 6a; for 15). Tonight's "Waivers ran" plate goes once you've watched the run
   here (localStorage), so another phone shows it again until the week ends.
 - **No quick-check switch for a couch** (step 6c part 1; for when Autopilot ships, the user's call; 6c part 2 left it). The mock's
@@ -270,8 +267,6 @@ step's As built.
   never set) and shows the couch's name, its first six people's usernames and its games to whoever has it (never results);
   making a new code and retiring the old isn't built. A request waits until it's answered or taken back, and a quiet
   decline lets them ask again.
-- **Get the couch going names your soonest show** (step 9; for 10 part 2b, with Start a game). Add a show is real since step 10
-  part 1, but the line belongs with the step's Start a game, so its first step's line ("It can start with Episode 6 on Wednesday") is the soonest show you follow anywhere.
 - **An episode page can't open from a link** (step 8; for a later polish). Previously on's rows and Last time open the show's
   Episodes tab, a tap short of the episode: an episode page is a pushed page opened by a tap on Episodes, not from its URL
   (`?page=ep4` alone doesn't render it). Letting the page read its episode from the URL would let the hub, the feed and
@@ -299,9 +294,10 @@ step's As built.
   and calls sit in one row, read whole by anyone's next read after any pick (~2 KB a player), so a pool stops at 100
   ("The pool is full"; HOSTING.md). Past that, picks and calls in a table of their own (a row per person and episode) and
   the board as a SQL read of the top ten and you; or a second pool for the season.
-- **Solo games are for curated competition shows** (step 9 part 3; for 10 part 2b). A pool and a practice couch need a show an admin
-  set up (`created_by` NULL), its cast approved and an episode still to air; a series, talk show or sport, or a show a
-  player set up for their own league, gets neither (`soloBlocked`). Step 10's Start a game that fits is where they'd come.
+- **Solo games are for competitions** (step 9 part 3; since 10 part 2b any set-up competition, a player-made one too; for a later
+  step). A series, talk show or sport gets no public pool or practice couch ("Solo games come to this kind of show later"): a
+  sport's pool would survive by scoring (`poolSurvive 'scores'`, as a couch's does) and its practice couch would draft the field
+  shared, but the bots (`bot-logic.js`) and the pool's Who goes home? call assume someone leaves each episode.
 - **Only solo players are offered them** (step 9 part 3, the mock's; for a later step). The pool's card and the practice
   couch's are on the solo hub and on a show's Games tab when you're solo (`show.solo`: no couch, or a couch of one).
   Someone on a couch can't find them (the API would let them), though a pool or practice couch they joined while solo
@@ -352,6 +348,25 @@ step's As built.
   publicly cacheable, so the browser's cache lock is the likely holder). Harmless to people, but a check waiting for network
   idle times out: check-new-draft's finished draft room did, at HEAD too (step 10 part 2a made it wait for `load`). Reading the
   catalog only when Add a show opens would end both.
+- **A sport says Episode outside Start a game** (step 10 part 2b; for part 3 or a later polish). The rulebook's `parts` ("race",
+  "game") reaches Start a game's sheet, its lines and its push; the show space still says Episode everywhere else (the Episodes
+  tab, Tonight, the dock, the reveal: the mock's rbVocab renames them all). The season header could carry the rulebook's part
+  word for the shell's tab label and the screens' "Episode N".
+- **Classic doesn't know a game is archived** (step 10 part 2b; for C). Classic's league list still shows an archived game as
+  playing and its commissioner screens still take results by hand into it (the league routes don't read `settings.archivedAt`);
+  the season sync, moves, waivers and reminders do skip it. A deleted game is out of classic's list (its memberships are in
+  the restore line), though its old URL still reads for a site admin.
+- **A deleted game's chat stays where it moved** (step 10 part 2b; for a later polish). Deleting moves what was said in the game
+  to the couch's next game on the season (or the couch's own conversation), so nobody loses it; restoring the game doesn't move
+  it back (the couch reads one conversation either way; classic's chat for the restored game starts empty).
+- **A new game on a season whose results live only in leagues** (step 10 part 2b; for C). A game started mid-season gets the
+  season's shared results (an admin's accepted ones on an `admin` season, sourced ones on a `leagues` season) as history, so on
+  a `leagues` season whose earlier results were entered in each league by classic's research (none on the local copy: Survivor
+  51 and Traitors 5 are `admin`), its cast would show people already out as still in. The check sets its fixture season to
+  `admin`, as production's live seasons are.
+- **Tell the couch uses the invite setting** (step 10 part 2b; for 15). "alex started a game for Survivor" goes to people who
+  allow league invites (push-core's `invite`), linking to the show's Games tab; notifications by moment (step 15) could give it a
+  moment of its own.
 - **Posters are TVmaze's medium image** (step 10 part 1; for a later polish). 210 by 295, soft in the tall show bar; TVmaze's
   other size is the upload itself, often over a megabyte. A resized copy we keep (or Vercel's image optimisation, which has
   limits of its own) would sharpen it.
@@ -2597,6 +2612,96 @@ poll while our bot asks, nothing on a schedule (HOSTING.md). New: `src/lib/game/
   season's rulebook is `rulebook_live` and its show's stored format is the same rules, so a league started on it (2b) plays by
   them through `syncLeagueRulebook` (call it when a game is made) and `syncLeagueFormat`; `shows.kind` is the chosen kind (and
   the rulebook's `blocks.start` the series' starting point) for `gamesFor`; the sport's "Race" is the rulebook's `parts`.
+
+### As built, step 10 part 2b (2026-10-25, on `new-design`): Start a game that fits, archive or delete a game
+
+Migration **0123** (ships with 0b's, same rehearsal): `leagues.deleted_at` and `deleted_by`. Nothing polls and nothing runs on
+a schedule (HOSTING.md). New: `src/lib/game/formats/rulebook-fits.js` (+ `.d.ts`), `src/lib/server/new-game.ts` (the league
+maker solo.ts used, now shared), `start-game.ts`, `end-game.ts`, `GET/POST /api/seasons/[id]/start`, `GET/POST
+/api/seasons/[id]/backstage/end`, `src/new/couch/start-game.tsx` (`openStartGame`, its sheets mounted in the signed-in layout).
+- **What fits** (`rulebook-fits.js gamesFor(blocks, compiled)`, PLAN-rulebooks-implementation 4.8 and 7.12): Weekly Lineup needs
+  a cast and 5+ moments (never talk); Outlast a competition with a way out and a winner (a `winner` way, or the compiled rules'
+  `winnerExitMethod`); Survival Pool a competition where a segment that runs every episode sends someone home (or causes a way
+  out: The Amazing Race's pit stop), or a sport with a cast and something that scores (a pick survives a race by scoring in
+  it); talk gets Weekly Bingo and Weekly Calls, fitting but `soon: '12'` (no league type yet). Each kind's own games first, in
+  `KINDS.games` order (the first recommended when there's a choice). `noFitLine` is the mock's RB_NOFIT (talk: drafts need a
+  cast that scores week to week; a series: Survival Pool and Outlast need someone knocked out; a sport: Outlast; anything else
+  says what's missing) and `gameLine` the mock's rbGameLine in the show's words (the rulebook's cast plural and `parts`: "Draft
+  five drivers, start three each race", "Draft the crew members…", "Draft the characters…"). How it works' games (and so Make it
+  a game's review) are now `gamesFor`'s fitting ones.
+- **Start a game** (`start-game.ts`; the mock's rulebook.js newGameW): anyone on the couch, on a set-up show, from the next
+  episode to air (1 before the premiere). Refused with a reason when the show isn't a game yet ("Make ZT Old Show a game first")
+  or every episode has aired (then `next`: the show's next set-up season, for Run it back). The new league (new-game.ts
+  `makeLeague`, as solo's: show, type, season, rule changes, rulebook, approved cast, shared results) is the starter's (its
+  Commissioner), on the couch, named after the game ("Weekly Lineup 2" when the couch has one of that name here). A sport's
+  Weekly Lineup is shared ownership (the draft of athletes is step 7's blind draft: everyone picks from the whole field) and its
+  Survival Pool sets `settings.poolSurvive 'scores'`; an Outlast's team size is fitted to who's still in and the couch's size.
+  **Linked** into the couch's group on the season (classic's link rule, `linkProblem`), so one reveal and one chat (from
+  Noticed: "A couch with two unlinked games", fixed). **Its rules:** the couch's own copy when it made the season's rulebook its
+  own (`leagues.rulebook_id` set at insert, Make it ours), else the season's rulebook through `syncLeagueRulebook`; on a made
+  show the league's `showFormat` is the stored `made-<slug>` and its `settings.rulebook.data.id` the same (checked). **Tell the
+  couch** (on by default): one push to everyone else on the couch (the `invite` setting, to the show's Games tab); always a
+  `game.start` line in Recent changes, which the hub's feed reads ("riley started a Weekly Lineup · tap to join", to the Games
+  tab). Everyone else joins as step 9's joins do.
+- **Engine:** `PickEmLogic.decided(ep, state)` (and `pickEmDecided(ep, state)`): a pool that survives by scoring is decided once
+  its scores are in, and a pick is right when it scored (`scored`: positive points in that episode); `GhostLogic.isUnderway`
+  counts results only from the league's `startEpisode`, so a game started mid-season takes newcomers into its draft until it
+  has a result of its own; an archived game (`settings.archivedAt`) has no action items or commissioner items, no waiver step,
+  and `syncLeagueDecisions` leaves it as it stood.
+- **Run it back** (the same game on the show's next season, with its name and settings: `AGAIN_KEEPS`, never its people or
+  results): the trophy shelf's Run it back rows (`couchHub.again`: a finished game of yours whose show's next season is set up,
+  still to finish, and has no game of that kind on the couch) and a finished season's Games tab ("Run it back · Survivor 52",
+  from `StartOptions.next`). The sheet says "Run it back · Survivor 52 · the same Outlast as Survivor 50".
+- **Every entry point** opens the one sheet: the Games tab's Start a game row and Play it's button, Tonight's Your games tile, the
+  show's ⋯ menu, Make it a game's Done view, the hub's nudge (Make it a game opens the show's `?page=make` for a show that isn't
+  set up), Get the couch going's first step (it names the show now: the soonest set-up one of yours with no game on the couch,
+  e.g. "Survival Pool needs no draft: ZT Survivor 51 can start with Episode 6 on Wednesday"; Noticed fixed), the hub's foot
+  ("Start a game", was "New league") and Commercial break's card (both Pick the show first: your shows still to finish; one
+  that isn't a game yet goes to Make it a game). With no couch the sheet offers Start a couch.
+- **Solo games for any set-up competition** (Noticed: "Solo games are for curated competition shows", fixed): `soloBlocked`
+  reads `shows.set_up_at`, so a competition a player made a game gets a public pool and practice couches. Other kinds still
+  have none ("Solo games come to this kind of show later").
+- **Archive or delete a game** (`end-game.ts`; Backstage › Game settings' folded "Archive or delete a game", the mock's
+  details.danger; a Commissioner's): **Archive** is tier 1 (a `settingsSet` change, Undo on the toast and in Recent changes):
+  `settings.archivedAt`/`archivedBy`; it stays on the couch with its table as it stood, marked Archived on the Games tab with
+  Bring it back for its Commissioner; it counts as ended for the trophy shelf and joins (`ended`); the season sync, moves due,
+  waivers, reminders and Backstage skip it (`backstageScope` leaves archived games out unless asked). Bringing it back (Undo, or
+  Bring it back) syncs what came in meanwhile. **Delete** is tier 3 (a hold, "Archive it instead" offered first): its people's
+  memberships (whole rows) and its group go into the line's `GameUndo`, `deleted_at` set, out of the group, anyone on the couch
+  only for it kept on the couch (`via 'couch'`), the chat it held moved to the couch's next game here (or the couch's own
+  conversation), so nobody loses what was said. Recent changes keeps a deleted game's lines for 30 days ("restorable until Nov
+  24"); its Commissioners (`GameUndo.commissioners`) restore it there (seats, group, and the results that came in). After 30 days
+  it's removed for good the next time anyone deletes a game (`purgeDeleted`; no job). `games()` leaves deleted games out; the
+  season sync, the waiver job and the reminders leave out both.
+- **Changed from the mock:** F1's own pages (Draft your drivers, Your drivers with Starting/Bench, the race pool's sheet) aren't
+  built: a sport plays on the same screens as any Weekly Lineup and Survival Pool (the blind draft, the dock's lineup, Your moves'
+  pick); Tonight's "Your game" job is the real moves and Backstage's Needs you (Schedule the draft, Invite people); the old
+  newGameSheet's "One night only" choices (bingo night, prediction round, a watch along) are steps 12 and 13, not in Start a
+  game; a talk show's two games show as coming soon with no Tell the couch; "the couch plays one already" was tried on each
+  game's line and dropped (noise). "Race" is the sport's word in Start a game (its subtitle, lines and push) only (Noticed).
+- **Not built:** Lock it down (Noticed keeps it).
+- **Checks:** `scripts/dev-test/check-new-start-game.js <outDir> [--width=390] [--keep] [--api]` (75 PASS at 390) on new-fixture.js +
+  hub-fixture.js, `fake-listings.js` (plus ZT Late Night, a running talk show the check adds) and `fake-bot.js`, making ZT Yacht
+  Life, ZT Grand Prix, ZT Love Shack and ZT Late Night games through Make it a game first: what fits each kind, refusals, jordan's
+  Weekly Lineup (linked, from Episode 6, three told, the feed and Recent changes lines, alex joining into its draft), a second
+  one's name, a series and a sport on their rulebooks and stored formats, the sport's shared draft and scoring pool, the couch's
+  own rules reaching a new game, pools and practice on a player-made competition, Run it back (the shelf, an over season, its
+  name and team size), archive (only its Commissioner; Episode 6 reaching the rest through the season sync, then Undo bringing it
+  in), delete (the hold's sentence, out of the group, restorable only by whoever ran it, gone after 30 days); then the browser
+  (the Games tab's sheet and Start it, Pick the show and a sport's sheet, the nudge, a talk show from the ⋯ menu, Make it a game's
+  Done, Backstage's Archive with Undo and Delete with the hold, Recent changes' restore, Commercial break, the feed's line).
+  `tests/start-game.test.js` (8). new-fixture's down also removes games zt_nd people started (named like any game).
+  Updated for what changed: check-new-make-it (as a competition, ZT Yacht Life now fits only Weekly Lineup: nobody goes home each
+  charter and nobody wins), check-new-watching (the nudge's Make it a game opens the make page), check-new-hub (Commercial break's
+  Start a game is real), check-new-backstage-ii (Game settings' Archive or delete). The rest pass, one at a time: check-new-make-it
+  (81), -watching (114), -solo (92), -way-in (85), -couches (114), -hub (75), -draft (90), -settling (96), -results-ways (89), -ours
+  (89), -desk (100; its "every league renames him" read failed once in the batch and passed on its own, as before), -community
+  (82), -backstage (67), -backstage-ii (116), -show (69), -shell (46), -reveal (49), -stats (57), -chat (52), check-foundation,
+  check-preview and check-backup-restore; `npm test` 568 of 568; type-check clean; lint (src) as before (the old error in classic's
+  `use-sheet-swipe.ts` and the old warning in `episode-results.ts`).
+- **For part 3:** "Fits these games" on a rulebook's page (7.12's new-league flow is this sheet) is `gamesFor(blocks, compiled)`
+  with its `needs`; the library's rulebooks all answer it (tests/start-game.test.js); a new show from the desk's flow becomes
+  startable the moment `shows.set_up_at` is set and its season has a rulebook.
 
 ## Step C: cutover
 

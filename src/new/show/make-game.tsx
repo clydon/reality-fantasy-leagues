@@ -8,7 +8,7 @@ import { make, useAfterWatching, useMake, useMakePoll, type MakeReview, type Mak
 import type { ShowData } from "../screens/show-space";
 import { PushedPage, usePushedPage } from "../ui/page";
 import { Btn } from "../ui/parts";
-import { Preview } from "../ui/preview";
+import { openStartGame } from "../couch/start-game";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { HowItWorksBody } from "./how-it-works";
@@ -103,7 +103,7 @@ export function MakeGamePage({ show }: { show: ShowData }) {
   const pasting = mode === "paste" || (s?.via === "paste" && mode !== "review" && s.stage !== "ready");
   let body: React.ReactNode;
   if (!m) body = <div aria-busy className="h-72 animate-pulse rounded-[4px] bg-card" />;
-  else if (m.ready) body = <Done m={m} />;
+  else if (m.ready) body = <Done m={m} seasonId={seasonId} couchId={couchId} />;
   else if (s && (s.asking || stalled) && !pasting) body = <Asking m={m} problem={problem} onPaste={() => setMode("paste")} />;
   else if (s?.stage === "failed" && !pasting)
     body = <Failed m={m} busy={busy} problem={problem} onAsk={() => act(() => make.ask(seasonId, couchId))} onPaste={() => setMode("paste")} />;
@@ -674,8 +674,8 @@ function KindSheet({ open, onOpenChange, label, review, onUse }: { open: boolean
   );
 }
 
-/** It's a game: every couch can play it. Start a game is step 10 part 2b's. */
-function Done({ m }: { m: MakeState }) {
+/** It's a game: every couch can play it, starting with yours (Start a game: step 10 part 2b). */
+function Done({ m, seasonId, couchId }: { m: MakeState; seasonId: string; couchId: string | null }) {
   return (
     <div data-make-view="done">
       <span className="grid size-12 place-items-center rounded-full bg-good/20 text-good">
@@ -683,11 +683,9 @@ function Done({ m }: { m: MakeState }) {
       </span>
       <Title>{m.label} is a game</Title>
       <Lede>{m.madeBy ? `${m.madeBy} set it up. ` : ""}Every couch can play it now, and How it works is on its Games tab.</Lede>
-      <Preview id="show.start-game" className="mt-5">
-        <Btn tone="must" wide>
-          Start a game
-        </Btn>
-      </Preview>
+      <Btn tone="must" wide data-make-start className="mt-5" onClick={() => openStartGame({ seasonId, couchId })}>
+        Start a game
+      </Btn>
     </div>
   );
 }

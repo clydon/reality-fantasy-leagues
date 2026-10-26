@@ -31,6 +31,7 @@ import { openCouchSheet } from "../couch/couch-sheets";
 import { PoolPage } from "../show/solo";
 import { MakeGamePage, useOpenMake } from "../show/make-game";
 import { openWatching, type WhereTarget } from "../watching/sheets";
+import { openStartGame } from "../couch/start-game";
 
 // A show space (/show/[seasonId]/[tab]): the show bar (the show's art, where the next episode is, the ⋯ menu), the
 // five tabs (Tonight · Episodes · Games · Cast · Chat; solo drops Chat; each in src/new/show/), the moves dock above
@@ -51,7 +52,8 @@ export function useShow(seasonId: string) {
   const header: SeasonHeader | undefined = space.data ?? cached;
   const games: GameRef[] = space.data?.games ?? cached?.games ?? [];
   const yours = games.filter((g) => g.yourRole);
-  const runs = games.filter((g) => g.yourRole === "commissioner" || g.yourRole === "admin");
+  // An archived game (step 10 part 2b) stands still: Backstage runs the rest.
+  const runs = games.filter((g) => (g.yourRole === "commissioner" || g.yourRole === "admin") && !g.archived);
   const people = space.data?.people ?? null;
   // Your moves due in this couch's games here, soonest first (the home's list: actionItems).
   const moves = movesByDue(home.data?.moves.filter((m) => yours.some((g) => g.leagueId === m.leagueId)) ?? []);
@@ -333,7 +335,17 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
             />
           )}
           {show.ready ? (
-            soon("show.start-game", Plus, "Start a game", "Bingo night, predictions, a new league")
+            !show.solo && (
+              <Row
+                icon={Plus}
+                title="Start a game"
+                detail="A season game that fits this show. Anyone on the couch can"
+                onClick={() => {
+                  setOpen(false);
+                  openStartGame({ seasonId, couchId: show.couch?.id ?? null });
+                }}
+              />
+            )
           ) : (
             <Row
               icon={Plus}

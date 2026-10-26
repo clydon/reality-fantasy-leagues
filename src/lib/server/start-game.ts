@@ -1,0 +1,332 @@
+import StateLogic from "@/lib/game/state-logic.js";
+import { rulebookFor } from "@/lib/game/formats/blocks/index.js";
+import { gameLine, gamesFor, noFitLine } from "@/lib/game/formats/rulebook-fits.js";
+import type { GameFit, SeasonGameKey } from "@/lib/game/formats/rulebook-fits";
+import { partWord } from "@/lib/game/formats/rulebook-schema.js";
+import type { RulebookBlocks, RulebookKind } from "@/lib/game/formats/rulebook-schema";
+import type { LeagueState } from "@/lib/game/types";
+import { seasonRulebook } from "@db/rulebooks.js";
+import { resolveFormat } from "@db/show-formats.js";
+import { isUuid, type SessionUser } from "./auth-helpers";
+import { recordChange } from "./change-log";
+import { couchMembers, requireCouch } from "./couches";
+import { pool, HttpError } from "./db";
+import { followLeagueProgress } from "./follows";
+import { linkProblem } from "./league-groups";
+import { leagueStates } from "./league-states";
+import { makeLeague } from "./new-game";
+import { copyOf } from "./ours";
+import { notifyAfter } from "./push-targets";
+import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
+import { followsOf, games, seasonHeaders, type Game } from "./show-space";
+
+// Start a game that fits (docs/PLAN-new-design.md step 10 part 2b; the mock's rulebook.js newGameW, rbGameLine, RB_FITS and
+// RB_NOFIT). Anyone on a couch starts a season game on a show that's set up, from the next episode to air: only the games
+// its rulebook can feed (rulebook-fits.js gamesFor), the kind's first recommended, the rest said why not.
+//
+//   A competition  Survival Pool, Weekly Lineup, Outlast
+//   A series       Weekly Lineup: draft the crew (reality) or the characters (scripted)
+//   Talk           Weekly Bingo and Weekly Calls, shown and started with step 12's episode games
+//   A sport        the draft of athletes (Weekly Lineup, castaways on several teams: the blind draft, start some each
+//                  race) and Survival Pool (a pick survives a race by scoring in it: settings.poolSurvive 'scores')
+//
+// The new game is the starter's (its Commissioner), on the couch, linked to the couch's other games on the season (one
+// reveal and one chat: Noticed's "A couch with two unlinked games"), playing by the couch's own copy of the rules when it
+// made them its own (Make it ours) or the season's rulebook (new-game.ts makeLeague: syncLeagueRulebook), a line in its
+// Recent changes and the couch's feed, and, with Tell the couch, one push to everyone else on it. Everyone else joins
+// from the Games tab as step 9's joins do (shared or no teams: anyone on the couch; exclusive: ask first).
+//
+// Run it back: the same game on the show's next season, with its name and settings, from a game whose season is over.
+
+export interface StartChoice extends GameFit {
+  /** What it is on this show, in a line ("Draft five drivers, start three each race"). */
+  line: string;
+  /** How many of this game the couch already plays here. */
+  have: number;
+}
+
+export interface StartOptions {
+  seasonId: string;
+  /** "Survivor 51". */
+  label: string;
+  /** How people say it: "Formula 1", "Survivor". */
+  show: string;
+  artUrl: string | null;
+  kind: RulebookKind;
+  /** A series' starting point. */
+  start: "reality" | "scripted" | null;
+  /** What one part of the season is called ("episode", a sport's "race"). */
+  part: { singular: string; plural: string };
+  /** The game starts with this episode (the next to air; 1 before the premiere). */
+  from: number;
+  /** Every season game, `fits` or not, the kind's first recommended. */
+  games: StartChoice[];
+  /** Why the games that don't fit don't (the mock's RB_NOFIT), or null. */
+  noFit: string | null;
+  /** Others on the couch who watch it or play it (Tell the couch's line). */
+  watchers: string[];
+  /** Why nothing can start here, or null. */
+  blocked: string | null;
+  couch: { id: string; name: string; members: number };
+  /** Run it back: the game it plays again (the same game, name and settings). */
+  again: { leagueId: string; name: string; gameName: string; key: SeasonGameKey; label: string } | null;
+  /** Once this season's over: the show's next season to run a game back on (set up, still to finish), or null. */
+  next: { seasonId: string; label: string } | null;
+}
+
+const KEY_OF: Record<string, SeasonGameKey> = { pickem: "survivalPool", "active-roster": "weeklyLineup", "classic-draft": "outlast" };
+
+/** "Survivor", "Formula 1": a show as people say it. */
+const plain = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").replace(/^The /, "").trim() || name;
+
+/** The next episode still to air; 1 before the premiere. */
+function startFrom(schedule: SeasonSchedule | undefined, now: Date): number {
+  for (const ep of schedule?.episodes ?? []) if (ep.airAt && new Date(ep.airAt).getTime() > now.getTime()) return ep.number;
+  return latestAired(schedule, now) + 1;
+}
+
+/** The season's rules as blocks, for what fits: its rulebook, else its show's format read back as blocks. */
+async function seasonBlocks(seasonId: string): Promise<{ blocks: RulebookBlocks; compiled: { events?: unknown[]; winnerExitMethod?: string | null } | null }> {
+  const row = await seasonRulebook(pool, seasonId);
+  if (row?.blocks) return { blocks: row.blocks as RulebookBlocks, compiled: row.compiled ?? null };
+  const { rows } = await pool.query("SELECT s.format FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [seasonId]);
+  const format = await resolveFormat(pool, rows[0]?.format ?? null);
+  return { blocks: rulebookFor(format.id, format.data).blocks as RulebookBlocks, compiled: format.data };
+}
+
+/** The couch's games on a season (not deleted), in its order. */
+const couchGamesOn = (user: SessionUser, couchId: string, seasonId: string) => games(user.id, { couchIds: [couchId], seasonId });
+
+/** What can be started on a season for a couch (GET /api/seasons/[id]/start?couch=&again=). */
+export async function startOptions(user: SessionUser, seasonId: string, couchId: string | null, againId?: string | null, now = new Date()): Promise<StartOptions> {
+  if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
+  if (!couchId || !isUuid(couchId)) throw new HttpError(400, "couch required");
+  const role = await requireCouch(user, couchId);
+  if (role === "viewer") throw new HttpError(403, "Join the couch to start a game on it");
+  const [headers, schedules, members, { rows: couchRows }] = await Promise.all([
+    seasonHeaders([seasonId]),
+    seasonSchedules([seasonId], now),
+    couchMembers([couchId]),
+    pool.query("SELECT name FROM couches WHERE id = $1", [couchId]),
+  ]);
+  const h = headers.get(seasonId);
+  if (!h) throw new HttpError(404, "Season not found");
+  const schedule = schedules.get(seasonId);
+  const people = members.get(couchId) ?? [];
+  const here = await couchGamesOn(user, couchId, seasonId);
+
+  const { blocks, compiled } = await seasonBlocks(seasonId);
+  const fits = gamesFor(blocks, compiled);
+  const have = (key: SeasonGameKey) => here.filter((g) => KEY_OF[g.gameType] === key && !g.archived).length;
+  const show = plain(h.show.name);
+  // Every season game with whether it fits (the sheet shows the ones that do; the rest are the doesn't-fit line).
+  const choices: StartChoice[] = fits.map((g) => ({ ...g, line: gameLine(g.key, blocks) ?? "", have: have(g.key) }));
+
+  // Who on the couch watches it openly or plays it, for Tell the couch's line (never how far: the guard).
+  const others = people.filter((p) => p.userId !== user.id);
+  const follows = await followsOf(user.id, others.map((p) => p.userId));
+  const players = new Set(
+    here.length
+      ? (await pool.query("SELECT DISTINCT user_id FROM league_memberships WHERE league_id = ANY($1::uuid[])", [here.map((g) => g.leagueId)])).rows.map((r) => r.user_id as string)
+      : []
+  );
+  const watchers = others.filter((p) => players.has(p.userId) || follows.some((f) => f.userId === p.userId && f.seasonId === seasonId && f.following && !f.private)).map((p) => p.name);
+
+  const from = startFrom(schedule, now);
+  const eps = schedule?.episodes ?? [];
+  const over = h.status === "completed" || (h.status !== "upcoming" && eps.length > 0 && eps.every((e) => e.airAt && new Date(e.airAt).getTime() <= now.getTime()));
+  const blocked = h.ready === false ? `Make ${show} a game first` : over ? "The season's over: every episode has aired" : null;
+
+  let again: StartOptions["again"] = null;
+  if (againId) {
+    if (!isUuid(againId)) throw new HttpError(404, "That game isn't here");
+    const { rows } = await pool.query(
+      `SELECT l.id, l.name, l.state->'settings'->>'leagueTypeId' AS type, s.name AS show, ss.season_number
+         FROM leagues l JOIN league_memberships m ON m.league_id = l.id AND m.user_id = $2
+         JOIN shows s ON s.slug = l.state->'settings'->>'showId'
+         JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
+        WHERE l.id = $1 AND l.deleted_at IS NULL AND s.id = $3`,
+      [againId, user.id, h.show.id]
+    );
+    const r = rows[0];
+    const key = r ? KEY_OF[r.type || "classic-draft"] : undefined;
+    if (!r || !key) throw new HttpError(404, "That game isn't one of yours on this show");
+    again = { leagueId: r.id, name: r.name, gameName: fits.find((g) => g.key === key)?.name ?? r.name, key, label: `${plain(r.show)} ${r.season_number}` };
+  }
+
+  let next: StartOptions["next"] = null;
+  if (over && h.ready !== false) {
+    const { rows } = await pool.query(
+      `SELECT id, season_number FROM show_seasons WHERE show_id = $1 AND season_number > $2 AND status <> 'completed' ORDER BY season_number LIMIT 1`,
+      [h.show.id, h.seasonNumber ?? 0]
+    );
+    if (rows.length) next = { seasonId: rows[0].id, label: `${show} ${rows[0].season_number}` };
+  }
+
+  return {
+    seasonId,
+    next,
+    label: `${show}${h.seasonNumber ? ` ${h.seasonNumber}` : ""}`,
+    show,
+    artUrl: h.show.artUrl,
+    kind: (blocks.kind ?? h.show.kind) as RulebookKind,
+    start: blocks.kind === "series" ? (blocks.start ?? "reality") : null,
+    part: partWord(blocks),
+    from,
+    games: choices,
+    noFit: noFitLine(fits, blocks, show),
+    watchers,
+    blocked,
+    couch: { id: couchId, name: couchRows[0]?.name ?? "Your couch", members: people.length },
+    again,
+  };
+}
+
+// What a game run back keeps of the one it plays again (its shape, never its results or people).
+const AGAIN_KEEPS = ["ownershipMode", "activeSlots", "benchSlots", "teamSize", "joinMode", "pickemCorrectPoints", "waiverRecommendation", "draftTimer", "draftAway", "allowLateJoiners"];
+
+/** A name the couch doesn't use for another of its games here ("Weekly Lineup 2"). */
+function freeName(want: string, here: Game[]): string {
+  const taken = new Set(here.map((g) => g.name.toLowerCase()));
+  if (!taken.has(want.toLowerCase())) return want;
+  for (let n = 2; ; n++) if (!taken.has(`${want} ${n}`.toLowerCase())) return `${want} ${n}`;
+}
+
+/** Joins the new game to the couch's other games here: one reveal and one chat (the classic link route's rule). */
+async function linkIn(leagueId: string, here: Game[], userId: string): Promise<boolean> {
+  if (!here.length) return false;
+  const states = await leagueStates([leagueId, ...here.map((g) => g.leagueId)]);
+  const mine = states.get(leagueId);
+  if (!mine) return false;
+  // Into the first game's group, when every game in it can share a reveal with this one.
+  const lead = here[0];
+  const group = here.filter((g) => (lead.groupId ? g.groupId === lead.groupId : g.leagueId === lead.leagueId));
+  if (group.some((g) => !states.get(g.leagueId) || linkProblem(mine, states.get(g.leagueId) as LeagueState))) return false;
+  let groupId = lead.groupId;
+  if (!groupId) {
+    const { rows } = await pool.query("INSERT INTO league_groups (created_by) VALUES ($1) RETURNING id", [userId]);
+    groupId = rows[0].id as string;
+    await pool.query("UPDATE leagues SET group_id = $1, group_position = 0 WHERE id = $2", [groupId, lead.leagueId]);
+  }
+  await pool.query(
+    `UPDATE leagues SET group_id = $1, group_position = (SELECT COALESCE(max(group_position), -1) + 1 FROM leagues WHERE group_id = $1) WHERE id = $2`,
+    [groupId, leagueId]
+  );
+  return true;
+}
+
+export interface Started {
+  leagueId: string;
+  name: string;
+  gameName: string;
+  /** The episode it starts with. */
+  from: number;
+  linked: boolean;
+  /** How many on the couch the push went to (0 when Tell the couch was off). */
+  told: number;
+}
+
+/** Start a game on a season for a couch (POST /api/seasons/[id]/start): `game` a key that fits, `tell` the couch, `again` a game to run back. */
+export async function startGame(user: SessionUser, seasonId: string, couchId: string | null, body: { game?: unknown; tell?: unknown; again?: unknown }, now = new Date()): Promise<Started> {
+  const againId = typeof body.again === "string" ? body.again : null;
+  const opts = await startOptions(user, seasonId, couchId, againId, now);
+  if (opts.blocked) throw new HttpError(409, opts.blocked);
+  const choice = opts.games.find((g) => g.key === body.game);
+  if (!choice || !choice.fits) throw new HttpError(400, choice ? `${choice.name} doesn't fit ${opts.show}: it needs ${choice.needs}` : "Pick a game");
+  if (choice.soon || !choice.type) throw new HttpError(409, `${choice.name} comes with this week's episode games, soon`);
+  const couch = opts.couch.id;
+  const here = await couchGamesOn(user, couch, seasonId);
+  const name = freeName(opts.again && opts.again.key === choice.key ? opts.again.name : choice.name, here);
+  const starter = (user as { username?: string | null }).username || user.name;
+  const { rows: seasonRow } = await pool.query("SELECT ss.season_number, s.slug FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [seasonId]);
+  const row = { id: seasonId, number: seasonRow[0].season_number as number, slug: seasonRow[0].slug as string };
+  // The couch's own rules (Make it ours), when its games here play by them.
+  const copy = await copyOf(here.map((g) => g.leagueId));
+  const kept = opts.again ? (await leagueStates([opts.again.leagueId])).get(opts.again.leagueId)?.settings : undefined;
+  let seat = "";
+  const leagueId = await makeLeague(row, {
+    name,
+    createdBy: user.id,
+    type: choice.type,
+    couchId: couch,
+    rulebookId: copy?.id ?? null,
+    before: (s) => {
+      seat = StateLogic.addPlayer(s, starter).id;
+    },
+    after: async (s, client, id) => {
+      // Theirs from the start: a game of yours never exists without you in it.
+      await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, $3, 'commissioner')", [id, user.id, seat]);
+      if (opts.from > 1) StateLogic.updateSettings(s, "startEpisode", opts.from);
+      if (opts.kind === "sport") {
+        // The draft of athletes: everyone drafts from the whole grid (the blind draft), and a pool pick survives by scoring.
+        if (choice.key === "weeklyLineup") StateLogic.updateSettings(s, "ownershipMode", "shared");
+        if (choice.key === "survivalPool") s.settings.poolSurvive = "scores";
+      }
+      if (choice.key === "outlast") {
+        // One team each from who's still in: fitted to the couch, so everyone on it could play (Game settings changes it).
+        const stillIn = s.castaways.filter((c) => c.status === "active").length;
+        const each = Math.floor(stillIn / Math.max(2, opts.couch.members));
+        if (stillIn && each >= 1 && each < (s.settings.teamSize || 4)) StateLogic.updateSettings(s, "teamSize", each);
+      }
+      if (kept && opts.again?.key === choice.key) {
+        for (const k of AGAIN_KEEPS) {
+          const v = (kept as unknown as Record<string, unknown>)[k];
+          if (v !== undefined && v !== null) StateLogic.updateSettings(s, k, v);
+        }
+      }
+      await recordChange(client, id, s, {
+        userId: user.id,
+        kind: "game.start",
+        tier: 1,
+        text: `${starter} started ${choice.name}${opts.again ? `, again after ${opts.again.label}` : ""}`,
+        detail: { game: choice.key, from: opts.from },
+      });
+    },
+  });
+  if (!leagueId) throw new HttpError(500, "Couldn't make the game, try again");
+  const linked = await linkIn(leagueId, here, user.id).catch((e) => {
+    console.error(`[start-game] couldn't link ${leagueId}:`, e);
+    return false;
+  });
+  await followLeagueProgress(user.id, leagueId);
+
+  // Tell the couch: one push to everyone else on it, to the show's Games tab.
+  const audience = body.tell === false ? [] : (await couchMembers([couch])).get(couch)?.filter((m) => m.userId !== user.id).map((m) => m.userId) ?? [];
+  if (audience.length) {
+    notifyAfter("invite", async () => ({
+      userIds: audience,
+      message: {
+        title: `${starter} started a game for ${opts.show}`,
+        body: `${choice.name} on ${opts.label}, from ${opts.part.singular === "episode" ? "Episode" : opts.part.singular.replace(/^./, (c) => c.toUpperCase())} ${opts.from}. Join from the Games tab.`,
+        url: `/show/${seasonId}/games`,
+        tag: `started-${leagueId}`,
+      },
+    }));
+  }
+  return { leagueId, name, gameName: choice.name, from: opts.from, linked, told: audience.length };
+}
+
+/**
+ * Run it back on the trophy shelf and a finished show's Games tab: for each finished game of yours on the couch, the show's
+ * next season that's set up and still to finish, when the couch has no game of that kind there yet.
+ */
+export async function runItBack(user: SessionUser, couchId: string, finished: { leagueId: string; seasonId: string; gameType: string }[]): Promise<{ leagueId: string; seasonId: string; label: string }[]> {
+  if (!finished.length) return [];
+  const { rows } = await pool.query(
+    `SELECT DISTINCT ON (ss.id) ss.id AS from_season, nx.id, s.name, nx.season_number
+       FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
+       JOIN show_seasons nx ON nx.show_id = ss.show_id AND nx.season_number > ss.season_number AND nx.status <> 'completed'
+      WHERE ss.id = ANY($1::uuid[]) AND s.set_up_at IS NOT NULL
+      ORDER BY ss.id, nx.season_number`,
+    [[...new Set(finished.map((f) => f.seasonId))]]
+  );
+  if (!rows.length) return [];
+  const there = await games(user.id, { couchIds: [couchId] });
+  const out: { leagueId: string; seasonId: string; label: string }[] = [];
+  for (const f of finished) {
+    const next = rows.find((r) => r.from_season === f.seasonId);
+    if (!next || there.some((g) => g.seasonId === next.id && g.gameType === f.gameType)) continue;
+    out.push({ leagueId: f.leagueId, seasonId: next.id, label: `${plain(next.name)} ${next.season_number}` });
+  }
+  return out;
+}

@@ -341,7 +341,7 @@ const first = (name) => name.split(" ")[0];
     await toastUndo();
     await page.waitForTimeout(1500);
     check((await state("outlast")).settings.allowLateJoiners !== false, "and the toast's Undo opens it again");
-    check((await page.locator("[data-preview='backstage.end-game']").count()) === 1, "archive or delete a game: Preview (step 10)");
+    check((await page.locator("[data-end-games]").count()) === 1, "archive or delete a game, folded at the end (step 10 part 2b)");
     check((await bs("alex", "settings", "PATCH", { leagueId: L.lineup, set: { benchSlots: 3 } })).status === 409, "the bench can't change after the draft (409)");
     check((await bs("riley", "settings", "PATCH", { leagueId: L.lineup, set: { activeSlots: 4 } })).status === 403, "a Game admin can't change settings");
     await fits("Game settings");

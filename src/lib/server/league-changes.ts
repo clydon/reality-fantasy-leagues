@@ -2,11 +2,12 @@ import type { PoolClient } from "pg";
 import StateLogic from "@/lib/game/state-logic.js";
 import { undoResults } from "@/lib/game/results-changes";
 import type { LeagueState } from "@/lib/game/types";
-import type { ChangeUndo, MemberUndo, Tier } from "./change-log";
+import type { ChangeUndo, GameUndo, MemberUndo, Tier } from "./change-log";
 import { isSuperAdminUser, type SessionUser } from "./auth-helpers";
 import { withdrawResults } from "./community-results";
 import { joinedLeague, requireCouch } from "./couches";
 import { pool, withLeagueLock, HttpError } from "./db";
+import { deletedHere, restoreGame } from "./end-game";
 import { undoRulebookChange } from "./ours";
 import { setLeagueRole } from "./roles";
 import { syncLeagueDecisions } from "./season-decisions";
@@ -81,12 +82,16 @@ async function latestResults(leagueIds: string[]): Promise<Set<string>> {
 /** Results changes (and answers sent, step 6b) come off newest first. */
 const inOrder = (u: ChangeUndo) => u.type === "results" || u.type === "submission";
 
-/** Whoever runs every game a change touched may undo it; an answer sent, also whoever sent it. */
+/** Who may take this line back besides whoever runs its game: an answer's sender, a deleted game's Commissioners. */
+const ownUndo = (r: ChangeRow, you: string | null) =>
+  !!you && ((r.undo?.type === "submission" && r.user_id === you) || (r.undo?.type === "game" && r.undo.commissioners.includes(you)));
+
+/** Whoever runs every game a change touched may undo it; an answer sent, also whoever sent it; a deleted game, whoever ran it. */
 function canUndo(rows: ChangeRow[], runs: Set<string>, latest: Set<string>, you: string | null = null): boolean {
   const now = Date.now();
   return rows.every(
     (r) =>
-      (runs.has(r.league_id) || (r.undo?.type === "submission" && !!you && r.user_id === you)) &&
+      (runs.has(r.league_id) || ownUndo(r, you)) &&
       r.undo &&
       !r.undone_at &&
       r.undo_until &&
@@ -118,7 +123,9 @@ function lineOf(rows: ChangeRow[], names: Map<string, string>, runs: Set<string>
 /** Recent changes to the couch's games on a season, newest first, as one line per batch: for anyone on the couch. */
 export async function changesFor(user: SessionUser, seasonId: string, couchId: string, limit = 60): Promise<{ lines: ChangeLine[]; runs: boolean }> {
   const { here, runs } = await couchGames(user, seasonId, couchId);
-  const ids = here.map((g) => g.leagueId);
+  // A game deleted in the last 30 days keeps its lines here, the deletion's with its Undo (step 10 part 2b).
+  const gone = await deletedHere(couchId, seasonId);
+  const ids = [...here.map((g) => g.leagueId), ...gone.map((g) => g.leagueId)];
   if (!ids.length) return { lines: [], runs: false };
   const { rows } = await pool.query<ChangeRow>(
     `SELECT ${ROW_COLUMNS} FROM league_changes c ${ROW_JOINS}
@@ -127,7 +134,7 @@ export async function changesFor(user: SessionUser, seasonId: string, couchId: s
       ORDER BY c.created_at DESC`,
     [ids, limit]
   );
-  const names = new Map(here.map((g) => [g.leagueId, g.name]));
+  const names = new Map([...here, ...gone].map((g) => [g.leagueId, g.name]));
   const latest = await latestResults(ids);
   const batches = new Map<string, ChangeRow[]>();
   for (const r of rows) batches.set(r.batch, [...(batches.get(r.batch) ?? []), r]);
@@ -162,14 +169,15 @@ export async function latestBatch(leagueIds: string[], episode: number, kind: st
  */
 export async function undoBatch(user: SessionUser, seasonId: string, couchId: string, batch: string): Promise<{ undone: number; text: string }> {
   const { here, runs } = await couchGames(user, seasonId, couchId);
-  const ids = here.map((g) => g.leagueId);
+  const ids = [...here.map((g) => g.leagueId), ...(await deletedHere(couchId, seasonId)).map((g) => g.leagueId)];
   const { rows } = await pool.query<ChangeRow>(
     `SELECT ${ROW_COLUMNS} FROM league_changes c ${ROW_JOINS} WHERE c.batch = $1 AND c.league_id = ANY($2::uuid[])`,
     [batch, ids]
   );
   if (!rows.length) throw new HttpError(404, "That change isn't here");
-  const sent = rows.every((r) => r.undo?.type === "submission" && r.user_id === user.id);
-  if (!sent && rows.some((r) => !runs.has(r.league_id))) throw new HttpError(403, "Only whoever runs these games can undo this");
+  if (rows.some((r) => !runs.has(r.league_id) && !ownUndo(r, user.id))) {
+    throw new HttpError(403, "Only whoever runs these games can undo this");
+  }
   if (rows.some((r) => r.undone_at)) throw new HttpError(409, "That's already been undone");
   if (rows.some((r) => !r.undo)) throw new HttpError(409, "This one can't be undone here");
   if (rows.some((r) => !r.undo_until || r.undo_until.getTime() <= Date.now())) throw new HttpError(409, "Too late to undo: the next episode has aired");
@@ -183,6 +191,25 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
   if (first.type === "submission") {
     await withdrawResults(first.researchId, couchId, user.id);
     await pool.query("UPDATE league_changes SET undone_at = now(), undone_by = $3 WHERE batch = $1 AND league_id = ANY($2::uuid[]) AND undone_at IS NULL", [batch, ids, user.id]);
+    return { undone: rows.length, text: rows[0].text };
+  }
+
+  // A deleted game (step 10 part 2b) comes back: its people, its group, what scored meanwhile.
+  if (first.type === "game") {
+    for (const r of rows) {
+      const client = await pool.connect();
+      try {
+        await client.query("BEGIN");
+        await restoreGame(client, r.league_id, r.undo as GameUndo);
+        await client.query("UPDATE league_changes SET undone_at = now(), undone_by = $2 WHERE id = $1 AND undone_at IS NULL", [r.id, user.id]);
+        await client.query("COMMIT");
+      } catch (e) {
+        await client.query("ROLLBACK").catch(() => {});
+        throw e;
+      } finally {
+        client.release();
+      }
+    }
     return { undone: rows.length, text: rows[0].text };
   }
 
@@ -211,6 +238,8 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
           else settings[k] = v;
         }
         StateLogic.WaiverLogic.mirrorLegacy(s);
+        // An archive taken back (step 10 part 2b): what came in while it stood still reaches it now.
+        if ("archivedAt" in undo.before && !settings.archivedAt) await syncLeagueDecisions(client, r.league_id, s);
       } else if (undo.type === "ruling") {
         // The house ruling comes off: the shared result applies here again.
         await client.query("DELETE FROM league_rulings WHERE league_id = $1 AND decision_id = $2", [r.league_id, undo.decisionId]);

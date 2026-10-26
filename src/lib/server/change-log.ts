@@ -7,7 +7,7 @@ import type { LeagueState } from "@/lib/game/types";
 // others appends a line in the same transaction as the change: withLeagueLock's `change` (db.ts), or recordChange with
 // the write's own client. Reading them and Undo are league-changes.ts. Guards by blast radius: tier 1 (affects others,
 // reversible) and tier 2 (moves standings) carry their undo, open until the next episode airs; tier 3 (hard to undo:
-// someone taken out of the games, or leaving them) is restorable for 30 days. A player's own moves (their lineup, their pick) are tier 0 and aren't logged. Lines are written to give nothing
+// someone taken out of the games, or leaving them; a game deleted) is restorable for 30 days. A player's own moves (their lineup, their pick) are tier 0 and aren't logged. Lines are written to give nothing
 // away: "Applied Episode 6's results to 3 games", never who went home. Kept apart from db.ts's imports' other way round.
 
 export type Tier = 0 | 1 | 2 | 3;
@@ -90,7 +90,20 @@ export interface DraftPickUndo {
   n: number;
 }
 
-export type ChangeUndo = ResultsUndo | SettingsUndo | RoleUndo | SettingsSetUndo | WaiverRunUndo | MemberUndo | SubmissionUndo | RulingUndo | RulebookUndo | DraftPickUndo;
+/**
+ * A game deleted (step 10 part 2b, tier 3): restorable for 30 days by whoever ran it. Its people's memberships as they were
+ * (whole rows), and the linked group it left.
+ */
+export interface GameUndo {
+  type: "game";
+  memberships: unknown[];
+  groupId: string | null;
+  groupPosition: number | null;
+  /** Its Commissioners when it was deleted: who may bring it back. */
+  commissioners: string[];
+}
+
+export type ChangeUndo = ResultsUndo | SettingsUndo | RoleUndo | SettingsSetUndo | WaiverRunUndo | MemberUndo | SubmissionUndo | RulingUndo | RulebookUndo | DraftPickUndo | GameUndo;
 
 export interface ChangeSpec {
   /** Who did it; null when it applied on its own. */

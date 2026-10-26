@@ -5,6 +5,7 @@ import { ChartColumn, ChevronRight, Crown, Link2, Plus, RotateCcw, Tv, Trophy } 
 import { airTime, calmWhen, ticks } from "../clock";
 import { useAfterWatching, useInviteCode, watching, type Couch, type CouchHub, type CouchShow, type FeedItem, type Home, type HomeShow, type Move, type PlayingGame, type WeekProgress } from "../data";
 import { openCouchSheet } from "../couch/couch-sheets";
+import { openStartGame } from "../couch/start-game";
 import { ON_NOW } from "../fixtures/watch-along";
 import { PEOPLE, type Demo } from "../fixtures/people";
 import { ordinal } from "../games";
@@ -453,13 +454,24 @@ export function BothWatch({ home, couch }: { home: Home; couch: Couch | null }) 
           </b>
           <small className="text-[13px] leading-snug text-muted-foreground">Nobody&rsquo;s playing it yet. Start a game and the couch hears about it once.</small>
           <div className="mt-2 grid grid-cols-2 gap-2">
-            <NavLink
-              href={paths.show(n.show.seasonId, "games")}
-              data-nudge-go
-              className="nd-press flex h-11 items-center justify-center rounded-[3px] bg-card text-[15px] font-bold outline-1 -outline-offset-1 outline-input"
-            >
-              {ready ? "Start a game" : "Make it a game"}
-            </NavLink>
+            {ready ? (
+              <button
+                type="button"
+                data-nudge-go
+                onClick={() => openStartGame({ seasonId: n.show.seasonId, couchId: couch?.id ?? null })}
+                className="nd-press flex h-11 items-center justify-center rounded-[3px] bg-card text-[15px] font-bold outline-1 -outline-offset-1 outline-input"
+              >
+                Start a game
+              </button>
+            ) : (
+              <NavLink
+                href={`${paths.show(n.show.seasonId, "games")}?page=make`}
+                data-nudge-go
+                className="nd-press flex h-11 items-center justify-center rounded-[3px] bg-card text-[15px] font-bold outline-1 -outline-offset-1 outline-input"
+              >
+                Make it a game
+              </NavLink>
+            )}
             <Btn
               className="h-11"
               data-nudge-no
@@ -582,7 +594,16 @@ function ago(iso: string, now = Date.now()) {
 }
 
 function FeedRow({ e }: { e: FeedItem }) {
-  const did = e.kind === "revealed" ? `revealed Episode ${e.episode}` : e.kind === "joined" ? "joined the couch" : e.kind === "watching" ? `started watching ${e.label}` : null;
+  const did =
+    e.kind === "revealed"
+      ? `revealed Episode ${e.episode}`
+      : e.kind === "joined"
+        ? "joined the couch"
+        : e.kind === "watching"
+          ? `started watching ${e.label}`
+          : e.kind === "started"
+            ? `started ${/^[AEIOU]/.test(e.text ?? "") ? "an" : "a"} ${e.text} · tap to join`
+            : null;
   const body = (
     <>
       <Avatar id={e.userId ?? e.name} name={e.name} size={34} />
@@ -593,7 +614,7 @@ function FeedRow({ e }: { e: FeedItem }) {
           </span>
           <small className="flex-none text-xs text-muted-foreground">{ago(e.at)}</small>
         </span>
-        {e.kind === "revealed" && <span className="mt-0.5 block text-xs text-muted-foreground">{e.label}</span>}
+        {(e.kind === "revealed" || e.kind === "started") && <span className="mt-0.5 block text-xs text-muted-foreground">{e.label}</span>}
         {e.kind === "said" && (
           <>
             <span className="mt-[5px] block break-words rounded-[3px] bg-card px-2.5 py-2 text-[15px]">{e.text}</span>
@@ -619,7 +640,7 @@ function FeedRow({ e }: { e: FeedItem }) {
   const cls = "flex items-start gap-2.5 border-t border-border py-[11px] text-left first:border-t-0";
   if (!e.seasonId) return <div data-feed={e.kind} className={cls}>{body}</div>;
   return (
-    <NavLink data-feed={e.kind} href={paths.show(e.seasonId, e.kind === "watching" ? "tonight" : "chat")} className={`${cls} nd-press`}>
+    <NavLink data-feed={e.kind} href={paths.show(e.seasonId, e.kind === "watching" ? "tonight" : e.kind === "started" ? "games" : "chat")} className={`${cls} nd-press`}>
       {body}
     </NavLink>
   );
@@ -655,22 +676,47 @@ export function Feed({ hub }: { hub: CouchHub | undefined }) {
 
 // ---------- the foot, and the new couch's extras ----------
 
-/** The hub's foot: start a game (step 10) or join another couch with a code. */
-export function Foot() {
+/** The hub's foot: start a game (step 10 part 2b: pick the show, then a game that fits) or join another couch with a code. */
+export function Foot({ couchId = null }: { couchId?: string | null }) {
   return (
     <div className="mx-4 mt-8 grid grid-cols-2 gap-2.5">
-      <Preview id="hub.start-game" tag={false}>
-        <Btn wide>
-          <Plus className="size-5" aria-hidden />
-          New league
-        </Btn>
-      </Preview>
+      <Btn wide data-foot-start onClick={() => openStartGame({ couchId })}>
+        <Plus className="size-5" aria-hidden />
+        Start a game
+      </Btn>
       <Btn data-foot-join onClick={() => openCouchSheet({ kind: "join" })}>
         <Link2 className="size-5" aria-hidden />
         Join a couch
       </Btn>
     </div>
   );
+}
+
+/** The show a new couch's first game would be on: the soonest of yours that's a game, still to finish, with none of the couch's on it. */
+export function startShow(home: Home, couch: Couch | null): HomeShow | null {
+  const at = (s: HomeShow) => (s.upNext?.airAt ? Date.parse(s.upNext.airAt) : Infinity);
+  return (
+    home.shows
+      .filter(
+        (s) =>
+          (s.following || s.games.length) &&
+          s.ready !== false &&
+          s.status !== "completed" &&
+          s.release !== "binge" &&
+          s.show.kind !== "talk" &&
+          !(couch?.games ?? []).some((g) => g.seasonId === s.seasonId && !g.archived)
+      )
+      .sort((a, b) => at(a) - at(b))[0] ?? null
+  );
+}
+
+/** "Survival Pool needs no draft: Survivor 51 can start with Episode 6 on Wednesday." */
+function startLineOf(s: HomeShow): string {
+  const label = `${plainName(s.show.name).replace(/^The /, "")}${s.seasonNumber ? ` ${s.seasonNumber}` : ""}`;
+  const when = s.upNext ? ` with Episode ${s.upNext.number}${s.upNext.airAt ? ` on ${new Date(s.upNext.airAt).toLocaleDateString("en-US", { weekday: "long" })}` : ""}` : " with the next episode";
+  if (s.show.kind === "series") return `Weekly Lineup on ${label}: draft the cast, and it can start${when}.`;
+  if (s.show.kind === "sport") return `Weekly Lineup on ${label}: draft from the whole field, and it can start with the next event.`;
+  return `Survival Pool needs no draft: ${label} can start${when}.`;
 }
 
 /** One of Get the couch going's steps: its number (the first is the one yellow: it's what to do now), title and line. */
@@ -693,10 +739,8 @@ function GoStep({ n, title, line, onClick }: { n: number; title: string; line: s
  */
 export function GetGoing({ home, couch }: { home: Home; couch: Couch | null }) {
   const code = useInviteCode(couch?.id ?? null).data?.code;
-  const next = nextShow(home);
-  const startLine = next?.upNext
-    ? `Survival Pool needs no draft. It can start with Episode ${next.upNext.number}${next.upNext.airAt ? ` on ${new Date(next.upNext.airAt).toLocaleDateString("en-US", { weekday: "long" })}` : ""}.`
-    : "Survival Pool needs no draft: it can start with the next episode.";
+  const next = startShow(home, couch);
+  const startLine = next ? startLineOf(next) : "Pick a show the couch watches. Survival Pool needs no draft.";
   return (
     <section className="mx-4 mb-3 rounded-[4px] bg-plate p-3.5 text-plate-foreground" data-get-going>
       <span className="type-caption inline-block bg-chyron py-1 pl-[7px] pr-3.5 text-[11px] tracking-[0.06em] text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
@@ -705,9 +749,7 @@ export function GetGoing({ home, couch }: { home: Home; couch: Couch | null }) {
       <b className="type-caption mt-2 block text-[30px]">Get the couch going</b>
       {couch && <small className="block text-[13px] text-plate-muted">{couch.name}</small>}
       <div className="mt-2">
-        <Preview id="hub.start-game" tag={false}>
-          <GoStep n={1} title="Start a game" line={startLine} />
-        </Preview>
+        <GoStep n={1} title="Start a game" line={startLine} onClick={() => openStartGame({ seasonId: next?.seasonId ?? null, couchId: couch?.id ?? null })} />
         <GoStep n={2} title="Add the other shows you watch" line="The couch sees what everyone's watching. That's where games start." onClick={() => openWatching({ kind: "add" })} />
         {couch ? (
           <GoStep

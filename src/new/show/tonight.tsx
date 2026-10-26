@@ -22,6 +22,7 @@ import { doneCards, isRequired, moveCard, openMoves, type MoveCard } from "./mov
 import { Block, Face } from "./parts";
 import { WaiversRanPlate } from "./waivers";
 import { CatchUpSheet, CatchUpStrips } from "../couch/join-game";
+import { openStartGame } from "../couch/start-game";
 import { useOpenMorning, useOpenReveal } from "./reveal";
 import { StatsCard } from "./stats";
 
@@ -644,13 +645,18 @@ function YourGames({ seasonId, show }: { seasonId: string; show: ShowData }) {
             <small className="block text-xs text-muted-foreground">{yourLine(g)}</small>
           </NavLink>
         ))}
-        <Preview id="show.start-game" tag={false}>
-          <button type="button" className="flex min-h-[104px] w-full flex-col justify-center gap-1.5 p-3 text-left text-muted-foreground">
+        {!show.solo && (
+          <button
+            type="button"
+            data-tonight-start
+            onClick={() => openStartGame({ seasonId, couchId: show.couch?.id ?? null })}
+            className="nd-press flex min-h-[104px] w-full flex-col justify-center gap-1.5 rounded-[4px] p-3 text-left text-muted-foreground outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input"
+          >
             <Plus className="size-5" aria-hidden />
             <b className="text-[15px] text-foreground">Start a game</b>
             <small className="block text-xs">Anyone on the couch can</small>
           </button>
-        </Preview>
+        )}
       </div>
     </section>
   );

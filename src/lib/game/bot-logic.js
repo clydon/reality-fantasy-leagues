@@ -275,7 +275,7 @@ function lineups(state) {
 function eliminatorPicks(state) {
   if (!getLeagueType(state).hasWeeklyPicks) return 0;
   const ep = currentEpisode(state);
-  if (!ep || !inPlay(state, ep.number) || hasAired(ep) || PickEmLogic.decided(ep)) return 0;
+  if (!ep || !inPlay(state, ep.number) || hasAired(ep) || PickEmLogic.decided(ep, state)) return 0;
   let made = 0;
   botIds(state).forEach((pid) => {
     const { available } = PickEmLogic.eligibility(state, ep.id, pid);

@@ -127,6 +127,8 @@ export interface GameRefIn {
   yourRole: string | null;
   /** A game on no couch (step 9 part 3): a season's public pool, or your practice couch against computer players. */
   solo?: "public" | "practice" | null;
+  /** Archived (step 10 part 2b): its table as it stood; nothing scores it. */
+  archived?: boolean;
 }
 
 /** A public pool's table: the top ten, you and whoever's either side of you (it can hold hundreds). */

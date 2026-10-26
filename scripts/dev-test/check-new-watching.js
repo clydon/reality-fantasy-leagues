@@ -318,8 +318,9 @@ async function newcomer(pool, who, approved = true) {
       const nudge2 = await nudge.innerText().catch(() => "");
       check((await nudge.getAttribute("data-nudge").catch(() => null)) === ss.id && /You and zt_nd_riley both watch ZT Love Shack/.test(nudge2) && /Make it a game/.test(nudge2), "then the next: ZT Love Shack, not a game yet, so Make it a game", nudge2.replace(/\n/g, " | "));
       await page.locator("[data-nudge-go]").click();
-      await page.waitForURL(`**/show/${ss.id}/games`);
-      check((await page.locator('[data-play-it="make"] [data-make-it]').count()) === 1, "its button opens the show's Games tab, where Make it a game is (step 10 part 2a)");
+      await page.waitForURL(`**/show/${ss.id}/games?page=make`);
+      await page.locator('[data-make-view="ask"]').waitFor();
+      check((await page.locator('[data-play-it="make"] [data-make-it]').count()) === 1, "its button opens Make it a game (step 10 part 2b), over the show's Games tab where its plate is");
       await shot("make-it-a-game", page);
 
       // ---- Add a show ----

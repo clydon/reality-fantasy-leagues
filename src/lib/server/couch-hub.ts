@@ -9,8 +9,10 @@ import { couchMembers, requireCouch } from "./couches";
 import { pool } from "./db";
 import { EVERYTHING, seenThrough } from "./guard";
 import { hiddenFromGroup } from "./late-join";
+import { gameName } from "./league-season";
 import { leagueStates } from "./league-states";
 import { seasonSchedules } from "./schedule";
+import { runItBack } from "./start-game";
 import { followsOf, games, seasonHeaders, type Game } from "./show-space";
 
 // The hub's couch, for More on the couch, your profile's numbers and the feed (docs/PLAN-new-design.md step 8; GET
@@ -44,7 +46,8 @@ export interface PlayingGame {
 
 export interface FeedItem {
   id: string;
-  kind: "said" | "revealed" | "joined" | "watching";
+  /** started: someone started a game on the couch (step 10 part 2b; `text` is the game, "Weekly Lineup"). */
+  kind: "said" | "revealed" | "joined" | "watching" | "started";
   userId: string | null;
   name: string;
   at: string;
@@ -66,6 +69,8 @@ export interface CouchHub {
   accolades: Accolade[];
   you: YourNumbers;
   feed: FeedItem[];
+  /** Run it back (step 10 part 2b): a finished game of yours, and the show's next season to play it again on. */
+  again: { leagueId: string; seasonId: string; label: string }[];
 }
 
 /** What a game's table says, for one viewer at their mark: who placed where, the streaks, predictions called. */
@@ -131,7 +136,8 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
         artUrl: header.show.artUrl,
         year: header.premiereDate ? Number(header.premiereDate.slice(0, 4)) : null,
         through: now.through,
-        ended: now.ended,
+        // An archived game (step 10 part 2b) is over where it stood: it keeps its place on the trophy shelf.
+        ended: now.ended || g.archived,
         rows: now.rows,
         before,
       });
@@ -162,8 +168,13 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
       };
     });
 
-  const [accolades, feed] = await Promise.all([accoladesFor(user, couchId, people, list, standings), feedFor(user, couchId, people, list, marks, schedules)]);
-  return { couchId, rankings, trophies, games: yours, accolades, you: yourNumbers(standings, rankings, trophies, user.id), feed };
+  const finished = standings.filter((g) => g.ended && yours.some((y) => y.leagueId === g.leagueId));
+  const [accolades, feed, again] = await Promise.all([
+    accoladesFor(user, couchId, people, list, standings),
+    feedFor(user, couchId, people, list, marks, schedules),
+    runItBack(user, couchId, finished.map((g) => ({ leagueId: g.leagueId, seasonId: g.seasonId, gameType: g.gameType }))),
+  ]);
+  return { couchId, rankings, trophies, games: yours, accolades, you: yourNumbers(standings, rankings, trophies, user.id), feed, again };
 }
 
 /** By the numbers' couch accolades: what people share (open follows), how much they've said this month, the games. */
@@ -260,9 +271,9 @@ async function feedFor(
     }
   }
 
-  // Who joined the couch lately, and who started watching something openly that they don't play.
+  // Who joined the couch lately, who started a game, and who started watching something openly that they don't play.
   const member = new Map(people.map((p) => [p.userId, p.name]));
-  const [{ rows: joined }, { rows: watching }] = await Promise.all([
+  const [{ rows: joined }, { rows: watching }, { rows: started }] = await Promise.all([
     // Someone joining a couch that was already going: not its founders (on it from the start), and not you.
     pool.query(
       `SELECT m.user_id, m.joined_at FROM couch_members m JOIN couches c ON c.id = m.couch_id
@@ -278,7 +289,26 @@ async function feedFor(
                           WHERE m.user_id = f.user_id AND ss.id = f.season_id)`,
       [people.map((p) => p.userId)]
     ),
+    // Games started in the new design (step 10 part 2b): their first line in Recent changes.
+    pool.query(
+      `SELECT c.league_id, c.user_id, c.created_at, l.state->'settings'->>'leagueTypeId' AS type FROM league_changes c JOIN leagues l ON l.id = c.league_id
+        WHERE c.league_id = ANY($1::uuid[]) AND c.kind = 'game.start' AND c.created_at > now() - interval '60 days'`,
+      [ids]
+    ),
   ]);
+  for (const s of started) {
+    const seasonId = seasonOf.get(s.league_id) as string;
+    items.push({
+      id: `start-${s.league_id}`,
+      kind: "started",
+      userId: s.user_id,
+      name: member.get(s.user_id) ?? "",
+      at: new Date(s.created_at).toISOString(),
+      text: gameName(s.type),
+      seasonId,
+      label: label(seasonId),
+    });
+  }
   for (const j of joined) items.push({ id: `join-${j.user_id}`, kind: "joined", userId: j.user_id, name: member.get(j.user_id) ?? "", at: new Date(j.joined_at).toISOString() });
   const watchLabels = await seasonHeaders(watching.map((w) => w.season_id));
   for (const w of watching) {

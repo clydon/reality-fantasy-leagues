@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { ChartColumn, ChevronRight, CircleQuestionMark, Crown, Grid3x3, Plus, Repeat, Shield, ShieldCheck, Star, Trophy, Tv, Zap, type LucideIcon } from "lucide-react";
+import { ChartColumn, ChevronRight, CircleQuestionMark, Crown, Grid3x3, Plus, Repeat, RotateCcw, Shield, ShieldCheck, Star, Trophy, Tv, Zap, type LucideIcon } from "lucide-react";
 import {
   useCouchGames,
   useSeasonEpisodes,
@@ -21,6 +21,7 @@ import {
 } from "../data";
 import { HUB_THIS_WEEK } from "../fixtures/episode-games";
 import { JoinGameRow, JoinGameSheet } from "../couch/join-game";
+import { openStartGame } from "../couch/start-game";
 import { TASTE, VERDICTS } from "../fixtures/verdicts";
 import { dayOf } from "../clock";
 import { gameColour, ordinal } from "../games";
@@ -158,7 +159,7 @@ export function CouchPages({ home, couch, hub }: { home: Home | undefined; couch
         <PreviouslyOn shows={shows} couch={couch} />
       </CouchPage>
       <CouchPage k="trophies">
-        <TrophyShelf hub={hub} me={home?.user.id ?? ""} />
+        <TrophyShelf hub={hub} me={home?.user.id ?? ""} couchId={couch?.id ?? null} />
       </CouchPage>
     </>
   );
@@ -436,15 +437,18 @@ function CommercialBreak({ hub, home, couch }: { hub: CouchHub | undefined; home
             })}
           </div>
         </Preview>
-        <Preview id="hub.start-game" tag={false} className="mt-6">
-          <div className="flex items-center gap-3 rounded-[4px] p-4 outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input">
-            <Plus className="size-6 flex-none" aria-hidden />
-            <span>
-              <b className="block text-base">Start a game</b>
-              <small className="mt-0.5 block text-[13px] text-muted-foreground">A season game, bingo, a poll or trivia. Anyone on the couch can.</small>
-            </span>
-          </div>
-        </Preview>
+        <button
+          type="button"
+          data-break-start
+          onClick={() => openStartGame({ couchId: couch?.id ?? null })}
+          className="nd-press mt-6 flex w-full items-center gap-3 rounded-[4px] p-4 text-left outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input"
+        >
+          <Plus className="size-6 flex-none" aria-hidden />
+          <span>
+            <b className="block text-base">Start a game</b>
+            <small className="mt-0.5 block text-[13px] text-muted-foreground">A season game on any of your shows. Anyone on the couch can.</small>
+          </span>
+        </button>
       </section>
     </>
   );
@@ -873,7 +877,7 @@ function plaqueLine(p: Plaque, me: string) {
 }
 
 /** Your titles as the big number, a plaque per finished game, the couch's records (only once a season has ended). */
-function TrophyShelf({ hub, me }: { hub: CouchHub | undefined; me: string }) {
+function TrophyShelf({ hub, me, couchId }: { hub: CouchHub | undefined; me: string; couchId: string | null }) {
   if (!hub) return <Loading />;
   const t = hub.trophies;
   if (!t) return <Empty icon={Crown} title="Your first trophy goes here" line="Win a season and it stays on the shelf, every season after." />;
@@ -902,6 +906,32 @@ function TrophyShelf({ hub, me }: { hub: CouchHub | undefined; me: string }) {
           })}
         </div>
       </section>
+      {hub.again.length > 0 && (
+        <section className="mt-6 px-3" data-run-it-back>
+          <SectionHead title="Run it back" aside="The same game, next season" flush />
+          {hub.again.map((a) => {
+            const p = t.plaques.find((x) => x.leagueId === a.leagueId);
+            return (
+              <button
+                key={a.leagueId}
+                type="button"
+                data-again={a.seasonId}
+                onClick={() => openStartGame({ seasonId: a.seasonId, couchId, again: a.leagueId })}
+                className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border text-left"
+              >
+                <span className="grid size-9 flex-none place-items-center rounded-[3px] bg-card">
+                  <RotateCcw className="size-[18px]" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <b className="block text-[15px]">{a.label}</b>
+                  <small className="block text-[12.5px] text-muted-foreground">{p ? `${p.gameName} again, after ${p.label}` : "The same game again"}</small>
+                </span>
+                <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+              </button>
+            );
+          })}
+        </section>
+      )}
       {t.records.length > 0 && (
         <section className="mt-6 px-3">
           <SectionHead title="Couch records" flush />

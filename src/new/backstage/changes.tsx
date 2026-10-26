@@ -53,7 +53,7 @@ export function ChangesPage({ seasonId, show }: { seasonId: string; show: ShowDa
               <span className={`min-w-0 flex-1 ${l.undone ? "opacity-60" : ""}`}>
                 <b className={`block text-[15px] font-semibold leading-snug ${l.undone ? "line-through decoration-1" : ""}`}>{l.text}</b>
                 <small className="mt-0.5 block text-[12px] leading-snug text-muted-foreground">
-                  {[l.who?.name ?? (l.kind === "results.correction" ? "From the shared check" : "On its own"), airTime(Date.parse(l.at)), l.tier >= 2 ? "moved standings" : null, show.games.length > 1 ? l.games.join(", ") : null]
+                  {[l.who?.name ?? (l.kind === "results.correction" ? "From the shared check" : "On its own"), airTime(Date.parse(l.at)), l.tier === 2 ? "moved standings" : l.tier === 3 && l.undoUntil && !l.undone ? `restorable until ${new Date(l.undoUntil).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : null, show.games.length > 1 ? l.games.join(", ") : null]
                     .filter(Boolean)
                     .join(" · ")}
                 </small>

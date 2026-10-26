@@ -73,7 +73,7 @@ function FocusHub({ home, couch, hub }: { home: Home; couch: Couch | null; hub: 
       <CouchWatching home={home} couch={couch} />
       <Feed hub={hub} />
       <MoreOnTheCouch home={home} hub={hub} />
-      <Foot />
+      <Foot couchId={couch?.id ?? null} />
     </>
   );
 }
@@ -91,7 +91,7 @@ function GrowHub({ home, couch, hub, newCouch }: { home: Home; couch: Couch | nu
       <CouchWatching home={home} couch={couch} />
       <Feed hub={hub} />
       <GrowNote home={home} hub={hub} />
-      <Foot />
+      <Foot couchId={couch?.id ?? null} />
     </>
   );
 }

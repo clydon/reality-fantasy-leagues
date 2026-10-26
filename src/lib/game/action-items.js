@@ -28,6 +28,8 @@ function isBetSettled(bet) {
 function actionItems(state, playerId, seenThrough, opts = {}) {
   const me = state.players.find((p) => p.id === playerId);
   if (!me || me.disabled || me.active === false) return [];
+  // An archived game (docs/PLAN-new-design.md step 10 part 2b) stands still: nothing's due in it.
+  if (state.settings && state.settings.archivedAt) return [];
   const due = opts.commissioner ? resultsDueEpisode(state, opts.now) : null;
   return [...(due ? [resultsItem(state, due)] : []), ...playerItems(state, playerId, seenThrough)].map((it) => ({
     ...it,
@@ -182,7 +184,7 @@ function liveItems(state, playerId) {
     const ep = StateLogic.pickEmUpcomingEpisode(state);
     if (
       ep &&
-      !StateLogic.pickEmDecided(ep) &&
+      !StateLogic.pickEmDecided(ep, state) &&
       !StateLogic.hasAired(ep) &&
       !StateLogic.pickEmPickFor(state, ep.id, playerId) &&
       StateLogic.pickEmEligibility(state, ep.id, playerId).available.length > 0

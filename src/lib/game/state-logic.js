@@ -1062,8 +1062,19 @@ class PickEmLogic {
   static upcomingEpisode(state){ return currentEpisode(state); }
   // An episode has "happened" for scoring once its eliminations are logged -- a pick for a future
   // episode would otherwise count as correct the moment it's made (nothing yet contradicts it) -- or
-  // once it's known nobody went home (ep.noExit, step 6c), when every pick survives.
-  static decided(ep){ return !!ep && (!!ep.noExit || (ep.events||[]).length > 0); }
+  // once it's known nobody went home (ep.noExit, step 6c), when every pick survives. A pool that survives by scoring (a
+  // sport, settings.poolSurvive 'scores': docs/PLAN-new-design.md step 10 part 2b) is decided once its scores are in.
+  static decided(ep, state){
+    if(!ep) return false;
+    if(ep.noExit || (ep.events||[]).length > 0) return true;
+    return PickEmLogic.byScore(state) && (ep.scoringEvents||[]).length > 0;
+  }
+  // Nobody goes home in a sport: a pick survives an event by scoring in it (a driver in the points), not by staying in.
+  static byScore(state){ return !!(state && state.settings && state.settings.poolSurvive === 'scores'); }
+  static scored(state, ep, castawayId){
+    const points = ActiveRosterLogic.episodeEvents(state, ep).filter(ev => ev.castawayId === castawayId).reduce((n, ev) => n + ActiveRosterLogic.eventPoints(state, ev), 0);
+    return points > 0;
+  }
 
   // Who a player may pick for an episode, under both rules:
   //
@@ -1118,13 +1129,13 @@ class PickEmLogic {
     // A late joiner's season starts at their own episode (GhostLogic.startFor).
     [...state.episodes].filter(ep => ep.number >= GhostLogic.startFor(state, playerId)).sort((a,b) => a.number - b.number).forEach(ep => {
       const pick = (ep.picks||[]).find(pk => pk.playerId === playerId) || null;
-      if(!PickEmLogic.decided(ep)){
+      if(!PickEmLogic.decided(ep, state)){
         if(pick) rows.push({ episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick.castawayId, correct: null, points: 0, streak: current });
         return;
       }
-      // Correct = the picked person isn't among this episode's eliminations. Derived live from
-      // ep.events rather than stored, so logging or undoing an elimination can't leave it stale.
-      const correct = !!pick && !ep.events.some(ev => ev.castawayId === pick.castawayId);
+      // Correct = the picked person isn't among this episode's eliminations (or, surviving by scoring, scored in it). Derived
+      // live from the episode rather than stored, so logging or undoing a result can't leave it stale.
+      const correct = !!pick && (PickEmLogic.byScore(state) ? PickEmLogic.scored(state, ep, pick.castawayId) : !ep.events.some(ev => ev.castawayId === pick.castawayId));
       if(correct){ current++; total += perCorrect; longest = Math.max(longest, current); }
       else current = 0;
       rows.push({ episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick ? pick.castawayId : null, correct, points: correct ? perCorrect : 0, streak: current });
@@ -1147,7 +1158,7 @@ class PickEmLogic {
     const c = Core.getCastaway(state, castawayId);
     const player = Core.getPlayer(state, playerId);
     if(!ep || !c || !player || c.status!=='active' || !inPlay(state, ep.number)) return;
-    if(hasAired(ep) || PickEmLogic.decided(ep)) return; // picks close when the episode starts
+    if(hasAired(ep) || PickEmLogic.decided(ep, state)) return; // picks close when the episode starts
     if(!PickEmLogic.eligibility(state, epId, playerId).available.includes(castawayId)) return;
     ep.picks = ep.picks || [];
     const existing = ep.picks.find(pk=>pk.playerId===playerId);
@@ -1175,7 +1186,7 @@ class PickEmLogic {
     const ep = PickEmLogic.findEpisode(state, epId);
     const c = Core.getCastaway(state, castawayId);
     if(!ep || !c || !Core.getPlayer(state, playerId) || c.status!=='active' || !inPlay(state, ep.number)) return;
-    if(hasAired(ep) || PickEmLogic.decided(ep)) return;
+    if(hasAired(ep) || PickEmLogic.decided(ep, state)) return;
     ep.calls = ep.calls || [];
     const existing = ep.calls.find(x=>x.playerId===playerId);
     if(existing) existing.castawayId = castawayId;
@@ -1192,7 +1203,7 @@ class PickEmLogic {
     [...state.episodes].filter(ep => ep.number >= GhostLogic.startFor(state, playerId)).sort((a,b) => a.number - b.number).forEach(ep => {
       const call = (ep.calls||[]).find(x => x.playerId === playerId);
       if(!call) return;
-      if(!PickEmLogic.decided(ep)){ rows.push({ episode: ep.number, castawayId: call.castawayId, correct: null }); return; }
+      if(!PickEmLogic.decided(ep, state)){ rows.push({ episode: ep.number, castawayId: call.castawayId, correct: null }); return; }
       const correct = (ep.events||[]).some(ev => ev.castawayId === call.castawayId && !isWinnerExit(state, ev.method));
       if(correct) right++;
       rows.push({ episode: ep.number, castawayId: call.castawayId, correct });
@@ -2392,6 +2403,8 @@ class WaiverLogic {
   }
   /** The step waiting at `now`: 'open' | 'process' | 'close' | 'cancel' | null. */
   static due(state, now){
+    // An archived game (settings.archivedAt, step 10 part 2b) stands still: nothing runs.
+    if(state.settings && state.settings.archivedAt) return null;
     const cur = WaiverLogic.current(state);
     const last = lastCompletedEpisode(state);
     if(cur){
@@ -3412,7 +3425,9 @@ class GhostLogic {
   // A league is underway -- too late to just slot in -- once its draft is done or an episode has results.
   static isUnderway(state){
     const turn = DraftLogic.currentTurn(state);
-    return !!(turn && turn.isComplete) || SpoilerLogic.latestWithResults(state) > 0;
+    // Results before the league's own start are history, not play: a game started mid-season (step 10 part 2b) takes
+    // newcomers into its draft until it has a result of its own.
+    return !!(turn && turn.isComplete) || SpoilerLogic.latestWithResults(state) >= startEpisode(state);
   }
   // On unless a commissioner switched it off (absent = on, so it covers every league that predates it).
   static allowed(state){ return !(state.settings && state.settings.allowLateJoiners === false); }
@@ -3977,7 +3992,7 @@ return {
   lockActiveRosterLineups: ActiveRosterLogic.lockLineups, unlockActiveRosterLineups: ActiveRosterLogic.unlockLineups,
   addScoringEvent: ActiveRosterLogic.addEvent, removeScoringEvent: ActiveRosterLogic.removeEvent, setScoringEventUnits: ActiveRosterLogic.setEventUnits,
   pickEmPickFor: PickEmLogic.pickFor, pickEmEligibility: PickEmLogic.eligibility, pickEmHistory: PickEmLogic.history,
-  pickEmUpcomingEpisode: PickEmLogic.upcomingEpisode, pickEmDecided: PickEmLogic.decided, currentEpisode,
+  pickEmUpcomingEpisode: PickEmLogic.upcomingEpisode, pickEmDecided: (ep, state) => PickEmLogic.decided(ep, state), currentEpisode,
   setPickEmPick: PickEmLogic.setPick, removePickEmPick: PickEmLogic.removePick,
   pickEmCallsOn: PickEmLogic.callsOn, pickEmCallFor: PickEmLogic.callFor, setPickEmCall: PickEmLogic.setCall, removePickEmCall: PickEmLogic.removeCall,
   pickEmCallHistory: PickEmLogic.callHistory,

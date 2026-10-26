@@ -136,6 +136,17 @@ step 11's job). A show's poster is TVmaze's medium image, hotlinked (~25 KB; its
 over 1 MB, so it's never used). The hub's home read now also carries the couch's shows you don't follow (their headers and
 schedules: a few hundred bytes each), and the show space's read one more small query (whether you play the season).
 
+**Starting, archiving and deleting games (new design, step 10 part 2b)** polls nothing and runs nothing on a schedule.
+**Start a game** reads what fits once when the sheet opens (`/api/seasons/[id]/start`: the season's rulebook, the couch's
+games and who watches it, a few KB) and makes an ordinary league (~20-40 KB of state like any, plus its rulebook as
+`settings.rulebook`, ~5-14 KB) with one line in Recent changes; **Tell the couch** is one web push per person on the couch
+(free: our own VAPID keys, no service). Its line on the hub's feed comes from that Recent changes row, read with the hub
+(one more small query). **Archive** is a field in the game's own state (`settings.archivedAt`): from then on the season
+sync, moves due, waivers and reminders skip it, so an archived game costs less than a playing one. **Delete** keeps the
+game for 30 days (`leagues.deleted_at`, migration 0123; its people's seats in the Recent changes line that restores it,
+~0.5 KB a person), then it's removed for good the next time anyone deletes a game (no job): at most a few dozen KB per
+deleted game for a month.
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
 none on the hub.
@@ -430,3 +441,9 @@ never handles it: the user does the reset and the pasting.
   (blocks and compiled rules, ~20-60 KB), the same rules as a stored format (`show_formats`, ~10-30 KB, so older readers
   agree), the season's cast (`season_cast`, ~200 bytes a person) and a desk History line. Our bot is asked one or two
   questions per show set up (Bot capacity); TVmaze one more call (`/shows/:id/cast`) for a series or talk show.
+- **2026-10-25, on the `new-design` branch (not deployed).** Step 10 part 2b, Start a game that fits, and archive or delete
+  a game. **Nothing polls and nothing runs on a schedule.** Migration 0123: `leagues.deleted_at` and `deleted_by` (a deleted
+  game is kept 30 days, restorable from Recent changes, then removed the next time anyone deletes one). A started game is an
+  ordinary league (~20-40 KB) with one Recent changes line; Tell the couch is one web push per person on the couch. An
+  archived game is skipped by the season sync, the hourly waiver job and the reminders (`db/waivers.js`, `db/reminders.js`
+  now leave out archived and deleted games), so it costs less than one that's playing.

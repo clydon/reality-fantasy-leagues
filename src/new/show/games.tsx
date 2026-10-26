@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, Check, ChevronRight, CircleQuestionMark, Eye, Grid3x3, Plus, X } from "lucide-react";
+import { Archive, BookOpen, Check, ChevronRight, CircleQuestionMark, Eye, Grid3x3, Plus, RotateCcw, X } from "lucide-react";
 import { dayOf, timeOf } from "../clock";
 import { THIS_WEEK } from "../fixtures/episode-games";
-import { useCouchGames, useHowItWorks, useSeasonWaivers, type GameView, type JoinGame, type TableRow, type WaiverWeek } from "../data";
+import { backstage, gamesApi, useAfterReveal, useCouchGames, useHowItWorks, useSeasonWaivers, useStartOptions, type GameView, type JoinGame, type TableRow, type WaiverWeek } from "../data";
+import { openStartGame } from "../couch/start-game";
+import { toast } from "../ui/toast";
 import { JoinGameRow, JoinGameSheet } from "../couch/join-game";
 import { gameColour, GAME_STYLE, isGameName, ordinal } from "../games";
 import type { ShowData } from "../screens/show-space";
@@ -25,7 +27,8 @@ import { useOpenMake } from "./make-game";
 // you're in one (a pill per game, then each table; a row opens that person's team, Rules each game in plain words),
 // How it works, this week's one-night games and Start a game; a show you don't play gets Play it. Real: the tables
 // (your games through the guard: game-view.ts), each game's rules (its settings: game-rules.ts), How it works' row.
-// On fixtures behind Preview: the episode games (12) and Start a game (10 part 2b). Make it a game is real (10 part 2a).
+// On fixtures behind Preview: the episode games (12). Make it a game (10 part 2a) and Start a game, Run it back and an
+// archived game's Bring it back (10 part 2b) are real.
 
 /** A game's line under its name: what it is, for a game the new design knows. */
 const lineOf = (g: GameView) => (isGameName(g.gameName) ? GAME_STYLE[g.gameName].line : g.name);
@@ -47,7 +50,12 @@ export function Games({ show }: { show: ShowData }) {
       {playing && show.episodes?.reveal && <AsOf show={show} />}
       {playing ? (
         show.play ? (
-          <Standings play={show.play} onPlayer={(row, game) => setPlayer({ row, game })} onRules={setRules} />
+          <Standings
+            play={show.play}
+            scope={show.header && show.couch ? { seasonId: show.header.seasonId, couchId: show.couch.id } : null}
+            onPlayer={(row, game) => setPlayer({ row, game })}
+            onRules={setRules}
+          />
         ) : (
           <div aria-busy className="mx-4 mt-4 h-72 animate-pulse rounded-[4px] bg-card" />
         )
@@ -69,17 +77,7 @@ export function Games({ show }: { show: ShowData }) {
       )}
       {show.ready && <HowRow show={show} name={name} />}
       <ThisWeek show={show} />
-      {!show.solo && (
-        <Preview id="show.start-game" className="mx-4 mt-[26px]">
-          <button type="button" className="flex w-full items-center gap-3 p-4 text-left">
-            <Plus className="size-6 flex-none" aria-hidden />
-            <span>
-              <b className="block text-base">Start a game</b>
-              <small className="block text-[13px] leading-snug text-muted-foreground">A season game, bingo, a poll or trivia. Anyone on the couch can.</small>
-            </span>
-          </button>
-        </Preview>
-      )}
+      {!show.solo && show.ready && <StartRow show={show} />}
       <PlayerSheet open={player} onClose={() => setPlayer(null)} />
       <RulesSheet game={rules} play={show.play ?? []} onGame={setRules} waivers={wv.data?.games ?? []} />
     </>
@@ -134,7 +132,9 @@ function RowExtras({ g, r }: { g: GameView; r: TableRow }) {
   );
 }
 
-function Standings({ play, onPlayer, onRules }: { play: GameView[]; onPlayer: (row: TableRow, game: GameView) => void; onRules: (g: GameView) => void }) {
+type Scope = { seasonId: string; couchId: string } | null;
+
+function Standings({ play, scope, onPlayer, onRules }: { play: GameView[]; scope: Scope; onPlayer: (row: TableRow, game: GameView) => void; onRules: (g: GameView) => void }) {
   const twin = (g: GameView) => play.filter((x) => x.gameType === g.gameType).length > 1;
   const through = Math.min(...play.map((g) => g.through));
   return (
@@ -162,6 +162,7 @@ function Standings({ play, onPlayer, onRules }: { play: GameView[]; onPlayer: (r
               <small className="mt-1 block text-[13px] text-muted-foreground">
                 {g.solo === "public" ? `Everyone · ${g.players} ${g.players === 1 ? "person" : "people"}` : g.solo === "practice" ? "Practice couch · against computer players" : twin(g) ? g.name : lineOf(g)}
               </small>
+              {g.archived && <Archived g={g} scope={scope} />}
             </div>
             <button type="button" onClick={() => onRules(g)} className="px-1 py-2 text-[15px] font-semibold">
               Rules
@@ -356,8 +357,16 @@ const MAKE_LINE: Record<string, string> = {
   sport: "Draft who's competing and start some each event, or pick one to finish well. One question to ChatGPT sets it up.",
 };
 
+/** What a set-up show of each kind plays (the mock's rbPlate in play mode): its recommended game first. */
+const PLAY_LINE: Record<string, string> = {
+  competition: "Survival Pool starts from the next episode, no draft. Or draft a team from this cast.",
+  series: "Weekly Lineup: draft the cast, start three each week, and score what they get up to.",
+  talk: "Weekly Bingo and Weekly Calls: a card and two calls every show, all season. Coming with episode games.",
+  sport: "Weekly Lineup: draft from the whole field, start some each event. Or Survival Pool: one pick to score each event.",
+};
+
 /** A show with no game of yours (the mock's playplate and rulebook.js rbPlate): Make it a game when nobody has set it up
- *  (step 10 part 2a), else Play it, whose Start a game is part 2b's (still Preview). */
+ *  (step 10 part 2a), else Play it: Start a game (part 2b). */
 export function PlayIt({ show }: { show: ShowData }) {
   const openMake = useOpenMake();
   const h = show.header;
@@ -373,21 +382,86 @@ export function PlayIt({ show }: { show: ShowData }) {
       <h3 className="type-caption mt-2 text-[28px]">{show.ready ? `${label} with your couch` : `Make ${label} a game`}</h3>
       <p className="mt-1 text-sm leading-snug text-plate-muted">
         {show.ready
-          ? "Survival Pool starts from the next episode, no draft. Or draft a team from this cast."
+          ? (PLAY_LINE[h?.show.kind ?? "competition"] ?? PLAY_LINE.competition)
           : `${MAKE_LINE[h?.show.kind ?? "competition"] ?? MAKE_LINE.competition}${watchers > 1 ? " Everyone who watches it can play." : " Every couch can play it after."}`}
       </p>
       {show.ready ? (
-        <Preview id="show.start-game" tag={false} className="mt-3 w-fit">
-          <button type="button" className={`${button} mt-0`}>
-            Start a game
-          </button>
-        </Preview>
+        <button type="button" data-play-start onClick={() => openStartGame({ seasonId: h?.seasonId, couchId: show.couch?.id ?? null })} className={button}>
+          Start a game
+        </button>
       ) : (
         <button type="button" data-make-it onClick={openMake} className={button}>
           Make it a game
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * Start a game, under the Games tab's games (the mock's cp-start): any game that fits this show, for anyone on the couch.
+ * Once every episode has aired it's Run it back: the same game on the show's next season, when there's one to play.
+ */
+function StartRow({ show }: { show: ShowData }) {
+  const h = show.header;
+  const over = !!h && (h.status === "completed" || (!!h.episodeCount && show.latestAired >= h.episodeCount && !show.upNext));
+  const opts = useStartOptions(h?.seasonId ?? null, show.couch?.id ?? null, null, over);
+  const finished = (show.play ?? []).find((g) => !g.solo);
+  const next = opts.data?.next ?? null;
+  if (over && !next) return null;
+  const again = over && next;
+  return (
+    <button
+      type="button"
+      data-start-row={again ? "again" : "start"}
+      onClick={() => openStartGame(again ? { seasonId: next.seasonId, couchId: show.couch?.id ?? null, again: finished?.leagueId ?? null } : { seasonId: h?.seasonId, couchId: show.couch?.id ?? null })}
+      className="nd-press mx-4 mt-[26px] flex w-[calc(100%-32px)] items-center gap-3 rounded-[4px] p-4 text-left outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input"
+    >
+      {again ? <RotateCcw className="size-6 flex-none" aria-hidden /> : <Plus className="size-6 flex-none" aria-hidden />}
+      <span>
+        <b className="block text-base">{again ? `Run it back · ${next.label}` : "Start a game"}</b>
+        <small className="block text-[13px] leading-snug text-muted-foreground">
+          {again ? `${finished?.gameName ?? "The same game"} again, from its first episode. The couch hears about it.` : "A season game for this show. Anyone on the couch can."}
+        </small>
+      </span>
+    </button>
+  );
+}
+
+/** An archived game's line (step 10 part 2b): it stands as it was; its Commissioner can bring it back. */
+function Archived({ g, scope: show }: { g: GameView; scope: Scope }) {
+  const refresh = useAfterReveal();
+  return (
+    <span data-archived={g.leagueId} className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] text-muted-foreground">
+      <span className="type-caption inline-flex items-center gap-1 rounded-[2px] bg-secondary px-1.5 py-0.5 text-[11px] tracking-[0.06em]">
+        <Archive className="size-3" aria-hidden />
+        Archived
+      </span>
+      Scores stopped. It stays on the trophy shelf.
+      {g.yourRole === "commissioner" && show && (
+        <button
+          type="button"
+          data-unarchive={g.leagueId}
+          className="font-semibold text-foreground underline underline-offset-2"
+          onClick={async () => {
+            try {
+              const r = await gamesApi.unarchive(show.seasonId, show.couchId, g.leagueId);
+              await refresh();
+              toast(`${g.gameName} is back: it scores again`, {
+                undo: async () => {
+                  await backstage.undo(show.seasonId, show.couchId, r.batch);
+                  await refresh();
+                },
+              });
+            } catch (e) {
+              toast((e as Error).message);
+            }
+          }}
+        >
+          Bring it back
+        </button>
+      )}
+    </span>
   );
 }
 

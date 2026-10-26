@@ -222,6 +222,12 @@ export interface LeagueSettings {
   teamSize: number;
   /** Survival Pool: a weekly Who goes home? call beside the pick (a season's public pool, step 9 part 3). */
   calls?: boolean;
+  /** Survival Pool: 'scores' when a pick survives an event by scoring in it (a sport, where nobody goes home: step 10
+   *  part 2b); absent, by not going home. */
+  poolSurvive?: "scores";
+  /** Archived (step 10 part 2b): when, and by whom. It stays on the couch and the trophy shelf; nothing scores it. */
+  archivedAt?: string;
+  archivedBy?: string;
   bonusEnabled: boolean;
   /** Mid-season priority: "rolling" reverse-draft waiver list (default), or standings each round. */
   replenishOrderBy: "rolling" | "mostPoints" | "leastPoints";
