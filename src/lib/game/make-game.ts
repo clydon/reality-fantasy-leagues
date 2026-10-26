@@ -8,13 +8,30 @@ import { BUILT_IN_BLOCKS } from "./formats/blocks/index.js";
 import { libraryRulebook } from "./formats/library/index.js";
 import { momentsFor } from "./formats/rulebook-moments.js";
 import { KINDS, blocksProblems, kindOf, partWord, pluralOf, type BlocksProblem, type RulebookBlocks, type RulebookKind } from "./formats/rulebook-schema.js";
+import { sameFamily } from "./formats/rulebook-shapes.js";
 
 export type SeriesStart = "reality" | "scripted";
 
-/** A rulebook to start the prompt from: a built-in's blocks, or a library entry's. */
+/** A rulebook to start the prompt from: a built-in's blocks, a library file's, or a rulebook row's (the desk's library, or
+ *  the same show's other season). */
 export interface TemplateRef {
-  from: "builtin" | "library";
+  from: "builtin" | "library" | "rulebook";
   id: string;
+}
+
+/**
+ * One of the desk's library templates, as templateFor reads it (step 10 part 3): its kind (and a series' start), the show
+ * families it's for (the show it was saved from, or a shape's examples), whether the desk saved it from a rulebook's blocks
+ * (a legacy mirror of a stored format is only a name match), and its blocks.
+ */
+export interface LibraryTemplate {
+  id: string;
+  name: string;
+  kind: RulebookKind;
+  start: SeriesStart | null;
+  shows: string[];
+  saved: boolean;
+  blocks: RulebookBlocks;
 }
 
 // A show we have a rulebook for, by its name. The first that matches wins.
@@ -48,20 +65,31 @@ export function startOf(type: string | null | undefined): SeriesStart | null {
 
 /**
  * The rulebook a new show's prompt starts from (the design plan's Templates: "the nearest template as a starting
- * skeleton, so the chat corrects a shape instead of inventing one"): one we have for a show of that name, else the
- * nearest of its kind (the listing's guess), else none. The same show's other season is the server's to look up first.
+ * skeleton, so the chat corrects a shape instead of inventing one"), reading the desk's library (step 10 part 3): a template
+ * the desk saved for a show of that family (or a shape whose examples it is), else one we have by name, else a stored
+ * format's mirror of that family, else the nearest of its kind (a series' or a talk show's: the newest the desk saved, else
+ * ours), else none. The same show's other season is the server's to look up first.
  */
-export function templateFor(show: { name: string; kind: RulebookKind; type?: string | null }): TemplateRef | null {
+export function templateFor(show: { name: string; kind: RulebookKind; type?: string | null }, library: LibraryTemplate[] = []): TemplateRef | null {
+  const family = (t: LibraryTemplate) => t.shows.some((s) => sameFamily(s, show.name));
+  const saved = library.find((t) => t.saved && family(t));
+  if (saved) return { from: "rulebook", id: saved.id };
   const named = BY_NAME.find(([re]) => re.test(show.name.trim()));
   if (named) return named[1];
-  if (show.kind === "series") return BY_KIND[`series:${startOf(show.type) ?? "reality"}`] ?? null;
-  return BY_KIND[show.kind] ?? null;
+  const mirror = library.find((t) => !t.saved && family(t));
+  if (mirror) return { from: "rulebook", id: mirror.id };
+  if (show.kind !== "series" && show.kind !== "talk") return BY_KIND[show.kind] ?? null;
+  const start = show.kind === "series" ? (startOf(show.type) ?? "reality") : null;
+  const ofKind = library.find((t) => t.saved && t.kind === show.kind && (show.kind !== "series" || (t.start ?? "reality") === start));
+  if (ofKind) return { from: "rulebook", id: ofKind.id };
+  return BY_KIND[show.kind === "series" ? `series:${start}` : show.kind] ?? null;
 }
 
-/** A template's blocks, or null. */
-export function templateBlocks(ref: TemplateRef | null): RulebookBlocks | null {
+/** A template's blocks, or null (a rulebook row's from the library templateFor was given). */
+export function templateBlocks(ref: TemplateRef | null, library: LibraryTemplate[] = []): RulebookBlocks | null {
   if (!ref) return null;
   if (ref.from === "builtin") return (BUILT_IN_BLOCKS as Record<string, { blocks: RulebookBlocks }>)[ref.id]?.blocks ?? null;
+  if (ref.from === "rulebook") return library.find((t) => t.id === ref.id)?.blocks ?? null;
   return (libraryRulebook(ref.id) as { blocks: RulebookBlocks } | null)?.blocks ?? null;
 }
 

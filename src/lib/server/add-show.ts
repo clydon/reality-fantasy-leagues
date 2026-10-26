@@ -69,9 +69,10 @@ async function makeShow(
   db: Db,
   userId: string,
   name: string,
-  listing: { hit: ListingHit; fetchedAt: string } | null
+  listing: { hit: ListingHit; fetchedAt: string } | null,
+  cap = true
 ): Promise<string> {
-  if ((await madeToday(userId)) >= NEW_SHOWS_A_DAY) throw new HttpError(429, `You've added ${NEW_SHOWS_A_DAY} new shows today. Try again tomorrow.`);
+  if (cap && (await madeToday(userId)) >= NEW_SHOWS_A_DAY) throw new HttpError(429, `You've added ${NEW_SHOWS_A_DAY} new shows today. Try again tomorrow.`);
   const kind = listing?.hit.kind ?? "competition";
   const t = terms(kind);
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -199,7 +200,7 @@ async function seasonByName(showId: string): Promise<string> {
   return made[0].id as string;
 }
 
-async function followAt(userId: string, seasonId: string, seen: number | undefined): Promise<AddedShow> {
+async function followAt(userId: string, seasonId: string, seen: number | undefined, follow = true): Promise<AddedShow> {
   const now = new Date();
   const [schedules, { rows }] = await Promise.all([
     seasonSchedules([seasonId], now),
@@ -211,7 +212,7 @@ async function followAt(userId: string, seasonId: string, seen: number | undefin
   const aired = latestAired(schedules.get(seasonId), now);
   const want = Number.isInteger(seen) && (seen as number) > 0 ? Math.min(seen as number, aired) : 0;
   let mark = want;
-  try {
+  if (follow) try {
     mark = (await setFollow(userId, seasonId, { following: true, seenThrough: want })).seenThrough;
   } catch (e) {
     // You play it: where you are moves with your games' reveals, so it's only followed.
@@ -226,9 +227,18 @@ async function followAt(userId: string, seasonId: string, seen: number | undefin
 
 /**
  * Add a show to your shows (POST /api/me/shows): `{ listing: <TVmaze id> }` or `{ name }`, with where you are
- * (`seenThrough`, capped at what's aired). Returns the season it follows.
+ * (`seenThrough`, capped at what's aired). Returns the season it follows. The desk's New show flow (step 10 part 3) makes a
+ * show the same way without following it or counting it against a day's new shows (`follow: false, cap: false`).
  */
-export async function addShow(userId: string, body: { listing?: unknown; name?: unknown; seenThrough?: unknown }, base: string, now = new Date()): Promise<AddedShow> {
+export async function addShow(
+  userId: string,
+  body: { listing?: unknown; name?: unknown; seenThrough?: unknown },
+  base: string,
+  now = new Date(),
+  opts: { follow?: boolean; cap?: boolean } = {}
+): Promise<AddedShow> {
+  const follow = opts.follow !== false;
+  const cap = opts.cap !== false;
   const seen = Number.isInteger(body.seenThrough) ? (body.seenThrough as number) : undefined;
   if (body.listing !== undefined) {
     const id = body.listing;
@@ -245,7 +255,7 @@ export async function addShow(userId: string, body: { listing?: unknown; name?: 
         [id]
       );
       if (!rows.length) throw new HttpError(503, "TV listings aren't answering. Try again in a minute.");
-      return followAt(userId, rows[0].id, seen);
+      return followAt(userId, rows[0].id, seen, follow);
     }
     if (!found) throw new HttpError(404, "That show isn't in the TV listings");
     const hit = hitOf(found.show);
@@ -253,7 +263,7 @@ export async function addShow(userId: string, body: { listing?: unknown; name?: 
     const season = pickSeason(found.seasons, now);
     let showId = await showForListing(hit, fetchedAt);
     const made = !showId;
-    if (!showId) showId = await makeShow(pool, userId, hit.name, { hit, fetchedAt });
+    if (!showId) showId = await makeShow(pool, userId, hit.name, { hit, fetchedAt }, cap);
     const here = await seasonHere(showId, season?.number ?? null);
     let seasonId: string;
     if (here) {
@@ -266,7 +276,7 @@ export async function addShow(userId: string, body: { listing?: unknown; name?: 
     } else {
       seasonId = await seasonByName(showId);
     }
-    return { ...(await followAt(userId, seasonId, seen)), made };
+    return { ...(await followAt(userId, seasonId, seen, follow)), made };
   }
   if (typeof body.name === "string") {
     const name = body.name.trim().replace(/\s+/g, " ");
@@ -274,8 +284,8 @@ export async function addShow(userId: string, body: { listing?: unknown; name?: 
     const { rows } = await pool.query("SELECT id, name, created_by IS NULL AS curated FROM shows WHERE archived = false");
     const key = nameParts(name);
     const match = rows.filter((s) => sameShow(s.name, { name, country: key.country })).sort((a, b) => Number(b.curated) - Number(a.curated))[0];
-    const showId = match?.id ?? (await makeShow(pool, userId, name, null));
-    return { ...(await followAt(userId, await seasonByName(showId), seen)), made: !match };
+    const showId = match?.id ?? (await makeShow(pool, userId, name, null, cap));
+    return { ...(await followAt(userId, await seasonByName(showId), seen, follow)), made: !match };
   }
   throw new HttpError(400, "Which show? A TV listing or a name");
 }

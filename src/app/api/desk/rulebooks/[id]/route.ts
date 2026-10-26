@@ -3,7 +3,10 @@ import { apiRoute } from "@/lib/server/api-route";
 import { HttpError } from "@/lib/server/db";
 import { requireDesk } from "@/lib/server/desk";
 import { confirmPhase, deskRulebook, lockRulebook, reviewAnswer, rulebookPrompt, saveAsTemplate, saveRulebook, setLive, settleSuggestion } from "@/lib/server/desk-rulebooks";
+import { deleteLibraryRulebook, setTemplate, takeOver } from "@/lib/server/desk-library";
 import { settleNotice } from "@/lib/server/show-changes";
+import { getRulebook } from "@db/rulebooks.js";
+import { pool } from "@/lib/server/db";
 
 // A rulebook on the desk, its editor (step 6b part 2): GET the page (`?prompt=1`: the Check for changes prompt). POST one action:
 //   { action: "save", blocks, kind: "fix" | "show_changed", fromEpisode?, summary? }   saved, pushed to its leagues, rescored
@@ -11,6 +14,8 @@ import { settleNotice } from "@/lib/server/show-changes";
 //   { action: "phase", phaseId, episode }        when a phase started (null clears it)
 //   { action: "lock", lock }   { action: "template" }   { action: "review", answer }   { action: "suggestion", suggestion, status }
 //   { action: "notice", notice, status: "added" | "not_new" }   a show change the couches split on, or sent here (6c part 2)
+//   { action: "takeOver" }   a player-made rulebook becomes the desk's (step 10 part 3)
+//   { action: "template" }   a season's: saved as a starting point ({ id }); a library one: offered as one. { action: "untemplate" }, { action: "delete" }
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: string }> }) => {
   await requireDesk(req);
   const { id } = await params;
@@ -31,8 +36,21 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
       return NextResponse.json(await confirmPhase(user, id, body));
     case "lock":
       return NextResponse.json(await lockRulebook(user, id, body.lock));
-    case "template":
-      return NextResponse.json(await saveAsTemplate(user, id));
+    case "template": {
+      const r = await getRulebook(pool, id);
+      if (r?.ownerKind !== "library") return NextResponse.json(await saveAsTemplate(user, id));
+      await setTemplate(user, id, true);
+      return NextResponse.json(await deskRulebook(id));
+    }
+    case "untemplate":
+      await setTemplate(user, id, false);
+      return NextResponse.json(await deskRulebook(id));
+    case "delete":
+      await deleteLibraryRulebook(user, id);
+      return NextResponse.json({ ok: true });
+    case "takeOver":
+      await takeOver(user, id);
+      return NextResponse.json(await deskRulebook(id));
     case "review":
       return NextResponse.json(await reviewAnswer(id, body.answer));
     case "suggestion":

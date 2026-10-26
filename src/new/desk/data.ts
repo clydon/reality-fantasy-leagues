@@ -12,6 +12,7 @@ export type { DeskSeason, DeskCastaway } from "@/lib/server/desk-cast";
 export type { SeasonBot } from "@/lib/server/desk-bot";
 export type { DeskCouch, DeskPerson, DeskShow } from "@/lib/server/desk-couches";
 export type { DeskRulebook, DeskRulebookEdit } from "@/lib/server/desk-rulebooks";
+export type { DeskLibrary, LibraryTemplateCard, ProposedShape, LibraryRow, MadeRow } from "@/lib/server/desk-library";
 
 const KEY = ["new-design", "desk"] as const;
 

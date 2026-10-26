@@ -22,14 +22,16 @@ import {
   type SeriesStart,
   type TemplateRef,
 } from "@/lib/game/make-game";
-import { createRulebook, ensureLibraryEntry, ensureTemplate, sourceFor } from "@db/rulebooks.js";
+import { blocksAt } from "@/lib/game/formats/rulebook-patch.js";
+import { createRulebook, ensureLibraryEntry, ensureTemplate, getRulebook, inForceEdits, sourceFor } from "@db/rulebooks.js";
 import { askBot, askBotStatus } from "./ask-bot";
-import { isUuid, type SessionUser } from "./auth-helpers";
+import { isSuperAdminUser, isUuid, type SessionUser } from "./auth-helpers";
 import { pool, HttpError } from "./db";
 import { logDesk } from "./desk";
 import { seenThrough } from "./guard";
 import { ListingsUnavailable, showCast } from "./listings";
 import { seasonHeaders, type SeasonHeader } from "./show-space";
+import { libraryTemplates, otherSeasonRulebook } from "./templates";
 
 // Make it a game (docs/PLAN-new-design.md step 10 part 2a; the mock's rulebook.js makeGame; GET/POST
 // /api/seasons/[id]/make). A show someone added to follow ("Not a game yet", shows.set_up_at NULL) becomes a game for
@@ -56,7 +58,7 @@ interface SetupRow {
   season_id: string;
   started_by: string | null;
   couch_id: string | null;
-  via: "bot" | "paste";
+  via: "bot" | "paste" | "template";
   stage: Stage;
   asking_at: Date | null;
   message: string | null;
@@ -99,9 +101,11 @@ export interface MakeState {
   ready: boolean;
   /** Whoever set it up (once it's done), on your couch; else null. */
   madeBy: string | null;
+  /** The season's rulebook, once it's set up (the desk's page for it). */
+  rulebookId: string | null;
   setup: {
     id: string;
-    via: "bot" | "paste";
+    via: "bot" | "paste" | "template";
     stage: Stage;
     /** Our bot is asking right now. */
     asking: boolean;
@@ -162,16 +166,22 @@ const seasonWords = (h: SeasonHeader) => h.seasonName?.trim() || `season ${h.sea
 
 // ---- the questions ----
 
-/** The rulebook it starts from: one we have for this show's name, else the nearest of its kind (make-game.ts templateFor). */
-function templateOf(show: Show): { ref: TemplateRef; blocks: RulebookBlocks } | null {
-  const ref = templateFor({ name: show.header.show.name, kind: show.header.show.kind as RulebookKind, type: show.type });
-  const blocks = templateBlocks(ref);
+/**
+ * The rulebook it starts from: the same show's other season, else the desk's library and ours (make-game.ts templateFor: a
+ * template for this show's family, one we have by name, else the nearest of its kind).
+ */
+async function templateOf(show: Show): Promise<{ ref: TemplateRef; blocks: RulebookBlocks } | null> {
+  const other = await otherSeasonRulebook(pool, show.header.show.id, show.header.seasonId);
+  if (other) return { ref: { from: "rulebook", id: other.id }, blocks: other.blocks };
+  const library = await libraryTemplates();
+  const ref = templateFor({ name: show.header.show.name, kind: show.header.show.kind as RulebookKind, type: show.type }, library);
+  const blocks = templateBlocks(ref, library);
   return ref && blocks ? { ref, blocks } : null;
 }
 
-function rulesPrompt(show: Show): string {
+async function rulesPrompt(show: Show): Promise<string> {
   const h = show.header;
-  return buildRulebookPrompt({ show: h.show.name, season: seasonWords(h), airing: h.status === "airing", template: templateOf(show)?.blocks ?? null });
+  return buildRulebookPrompt({ show: h.show.name, season: seasonWords(h), airing: h.status === "airing", template: (await templateOf(show))?.blocks ?? null });
 }
 
 /** The rules a cast is read against: the answer's terms, groups and roles. */
@@ -314,12 +324,14 @@ export async function makeState(user: SessionUser, seasonId: string, couchId: st
   const ready = show.header.ready;
   const row = ready ? null : await openRow(seasonId);
   let madeBy: string | null = null;
+  let rulebookId: string | null = null;
   if (ready) {
     const { rows } = await pool.query(
-      `SELECT COALESCE(u.username, u.name) AS who, s.couch_id FROM show_setups s LEFT JOIN "user" u ON u.id = s.done_by WHERE s.season_id = $1 AND s.done_at IS NOT NULL ORDER BY s.done_at DESC LIMIT 1`,
+      `SELECT COALESCE(u.username, u.name) AS who, s.couch_id, s.rulebook_id FROM show_setups s LEFT JOIN "user" u ON u.id = s.done_by WHERE s.season_id = $1 AND s.done_at IS NOT NULL ORDER BY s.done_at DESC LIMIT 1`,
       [seasonId]
     );
     madeBy = rows[0] && (rows[0].couch_id === couch || !rows[0].couch_id) ? rows[0].who : null;
+    rulebookId = rows[0]?.rulebook_id ?? null;
   }
   const worked = row ? workOut(row, show, await seenThrough(user.id, seasonId)) : null;
   const mine = !!row && row.started_by === user.id;
@@ -328,6 +340,7 @@ export async function makeState(user: SessionUser, seasonId: string, couchId: st
     label: labelOf(show.header),
     ready,
     madeBy,
+    rulebookId,
     setup: row && {
       id: row.id,
       via: row.via,
@@ -365,7 +378,7 @@ export async function makePrompt(user: SessionUser, seasonId: string, part: stri
   const show = await showOf(seasonId);
   if (show.header.ready) throw new HttpError(409, "It's a game already");
   const h = show.header;
-  if (part === "rules") return { prompt: rulesPrompt(show), task: `finding out how ${h.show.name} works` };
+  if (part === "rules") return { prompt: await rulesPrompt(show), task: `finding out how ${h.show.name} works` };
   if (part !== "cast") throw new HttpError(400, "part is rules or cast");
   const row = await openRow(seasonId);
   const worked = row ? workOut(row, show, await seenThrough(user.id, seasonId)) : null;
@@ -375,12 +388,12 @@ export async function makePrompt(user: SessionUser, seasonId: string, part: stri
 
 // ---- asking, pasting, choosing ----
 
-/** The season's open attempt, made if there's none (capped per person a day), for `via`. */
-async function attempt(user: SessionUser, seasonId: string, couchId: string | null, via: "bot" | "paste"): Promise<SetupRow> {
+/** The season's open attempt, made if there's none (capped per person a day, except for the desk), for `via`. */
+async function attempt(user: SessionUser, seasonId: string, couchId: string | null, via: "bot" | "paste" | "template"): Promise<SetupRow> {
   const found = await openRow(seasonId);
   if (found) return found;
   const { rows: today } = await pool.query("SELECT count(*)::int AS n FROM show_setups WHERE started_by = $1 AND created_at > now() - interval '1 day'", [user.id]);
-  if (today[0].n >= MAKES_A_DAY) throw new HttpError(429, `You've made ${MAKES_A_DAY} shows into games today. Try again tomorrow.`);
+  if (today[0].n >= MAKES_A_DAY && !isSuperAdminUser(user)) throw new HttpError(429, `You've made ${MAKES_A_DAY} shows into games today. Try again tomorrow.`);
   const couch = await onCouch(user.id, couchId);
   const { rows } = await pool.query("INSERT INTO show_setups (season_id, started_by, couch_id, via) VALUES ($1, $2, $3, $4) ON CONFLICT (season_id) WHERE done_at IS NULL DO NOTHING RETURNING id", [
     seasonId,
@@ -427,7 +440,7 @@ async function runAsk(id: string, seasonId: string, base: string, bot?: string):
     const show = await showOf(seasonId);
     let row = await rowById(id);
     if (!row.rules_answer) {
-      const { answer } = await askBot(rulesPrompt(show), { bot, budgetMs: left() - 5_000 });
+      const { answer } = await askBot(await rulesPrompt(show), { bot, budgetMs: left() - 5_000 });
       const parsed = parseRulebookAnswer(answer);
       if (!parsed.cast && !parsed.segments) throw new Error("ChatGPT answered something else. Ask again.");
       await set("rules_answer = $2, stage = 'cast'", [answer]);
@@ -489,6 +502,34 @@ export async function pasteMake(user: SessionUser, seasonId: string, couchId: st
   return makeState(user, seasonId, couchId);
 }
 
+/**
+ * Start from a template (the desk's New show flow, step 10 part 3): a rulebook from the library (or the same show's other
+ * season) is the answer to how the show works, named for this show, its tagline left behind; the cast is then asked for,
+ * pasted or read from the listing as for any answer, and Looks right sets it up with the template as its parent. The desk's.
+ */
+export async function templateMake(user: SessionUser, seasonId: string, couchId: string | null, body: { template?: unknown }, base: string): Promise<MakeState> {
+  if (!isSuperAdminUser(user)) throw new HttpError(403, "Starting from a template is the desk's");
+  const show = await notReady(seasonId);
+  const id = String(body.template ?? "");
+  if (!isUuid(id)) throw new HttpError(400, "Which template?");
+  const t = await getRulebook(pool, id);
+  if (!t || t.status === "archived" || !t.blocks) throw new HttpError(404, "That template's gone");
+  if (t.ownerKind === "league") throw new HttpError(400, "A couch's own copy isn't a starting point");
+  const blocks = { ...(blocksAt(t.blocks, await inForceEdits(pool, id), Infinity) as RulebookBlocks), show: show.header.show.name, derivedFrom: `rulebook:${id}` };
+  delete blocks.tagline;
+  let row = await attempt(user, seasonId, couchId, "template");
+  if (askingNow(row)) throw new HttpError(409, "Our bot is asking right now. It'll be ready in a minute or two.");
+  await pool.query(
+    `UPDATE show_setups SET via = 'template', rules_answer = $2, kind = NULL, start = NULL, message = NULL, stage = 'cast',
+            cast_answer = CASE WHEN cast_from = 'listing' THEN NULL ELSE cast_answer END, cast_from = CASE WHEN cast_from = 'listing' THEN NULL ELSE cast_from END, updated_at = now()
+      WHERE id = $1`,
+    [row.id, JSON.stringify(blocks)]
+  );
+  row = await rowById(row.id);
+  await settleStage(row, show, base);
+  return makeState(user, seasonId, couchId);
+}
+
 /** After an answer or a kind: the cast from the listing when it can come from there, then ready or still needing the cast. */
 async function settleStage(row: SetupRow, show: Show, base: string): Promise<void> {
   const worked = workOut(row, show, Infinity);
@@ -536,14 +577,24 @@ export async function restartMake(user: SessionUser, seasonId: string, couchId: 
 
 // ---- Looks right: the show set up for everyone ----
 
-/** The rulebook it started from, as a row (the made rulebook's parent): a built-in's template or a library entry. */
-async function templateRow(c: PoolClient, show: Show): Promise<{ id: string; version: number } | null> {
-  const t = templateOf(show);
-  if (!t) return null;
-  if (t.ref.from === "builtin") return (await ensureTemplate(c, await sourceFor(c, t.ref.id))).row;
-  const entry = LIBRARY[t.ref.id];
+/** The rulebook it started from, as a row (the made rulebook's parent): a built-in's template, a library file's entry, or a
+ *  rulebook row (the desk's library, the same show's other season, or the template it was started from). */
+async function templateRow(c: PoolClient, ref: TemplateRef | null): Promise<{ id: string; version: number } | null> {
+  if (!ref) return null;
+  if (ref.from === "builtin") return (await ensureTemplate(c, await sourceFor(c, ref.id))).row;
+  if (ref.from === "rulebook") {
+    const { rows } = await c.query("SELECT id, version FROM rulebooks WHERE id = $1", [ref.id]);
+    return rows[0] ?? null;
+  }
+  const entry = LIBRARY[ref.id];
   return entry ? (await ensureLibraryEntry(c, entry)).row : null;
 }
+
+/** The template a rulebook answer was started from (Start from a template writes "rulebook:<id>" into derivedFrom). */
+const startedFrom = (blocks: RulebookBlocks): TemplateRef | null => {
+  const m = typeof blocks.derivedFrom === "string" ? blocks.derivedFrom.match(/^rulebook:([0-9a-f-]{36})$/) : null;
+  return m ? { from: "rulebook", id: m[1] } : null;
+};
 
 /** Looks right: the season's rulebook and cast, and the show set up for every couch. */
 export async function confirmMake(user: SessionUser, seasonId: string, couchId: string | null): Promise<MakeState> {
@@ -557,12 +608,15 @@ export async function confirmMake(user: SessionUser, seasonId: string, couchId: 
   const { blocks, data, phaseStarts, cast } = worked;
   const { key } = worked.review.kind;
   const formatId = data.id;
+  const template = row.via === "template" ? startedFrom(blocks) : ((await templateOf(show))?.ref ?? null);
+  // The desk's own (a site admin made it): it's checked as it's made. Anyone else's is new until another couch checks it.
+  const desk = isSuperAdminUser(user);
   const c = await pool.connect();
   try {
     await c.query("BEGIN");
     const { rows: lock } = await c.query("SELECT set_up_at FROM shows WHERE id = $1 FOR UPDATE", [h.show.id]);
     if (lock[0]?.set_up_at) throw new HttpError(409, "Someone made it a game a moment ago");
-    const parent = await templateRow(c, show);
+    const parent = await templateRow(c, template);
     // Anything the season had (a mirror of the show's default format, made before it was a game) steps aside.
     await c.query("UPDATE rulebooks SET status = 'archived', updated_at = now() WHERE owner_kind = 'season' AND season_id = $1 AND status <> 'archived'", [seasonId]);
     const book = await createRulebook(c, {
@@ -582,9 +636,10 @@ export async function confirmMake(user: SessionUser, seasonId: string, couchId: 
       base: null,
       aliases: { events: {}, exits: {} },
       phaseStarts,
-      provenance: { from: "made", via: row.via, by: user.id, couch: row.couch_id, setup: row.id, template: templateOf(show)?.ref ?? null, dropped: worked.review.dropped, leftOut: worked.review.leftOut },
-      reviewStatus: "unreviewed",
+      provenance: { from: "made", via: row.via, by: user.id, couch: row.couch_id, setup: row.id, template, dropped: worked.review.dropped, leftOut: worked.review.leftOut },
+      reviewStatus: desk ? "reviewed" : "unreviewed",
       createdBy: user.id,
+      ...(desk ? { approvedBy: user.id, approvedAt: new Date().toISOString() } : {}),
     });
     // The cast: the season's, approved, finished (only the desk changes it from here).
     for (const [i, p] of cast.entries()) {
@@ -618,7 +673,7 @@ export async function confirmMake(user: SessionUser, seasonId: string, couchId: 
       entity: "rulebook",
       entityId: book.id,
       action: "made",
-      text: `${labelOf(h)} made a game (${row.via === "bot" ? "Ask ChatGPT for me" : "copy and paste"}): ${kindName(key, worked.review.kind.start).toLowerCase()}, ${cast.length} in the cast`,
+      text: `${labelOf(h)} made a game (${row.via === "bot" ? "Ask ChatGPT for me" : row.via === "template" ? "from a template" : "copy and paste"}): ${kindName(key, worked.review.kind.start).toLowerCase()}, ${cast.length} in the cast`,
       userId: user.id,
     });
     await c.query("COMMIT");

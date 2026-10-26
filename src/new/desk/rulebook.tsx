@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { BookOpen, ChevronRight, Copy, Plus } from "lucide-react";
+import { BookOpen, Check, ChevronRight, Clock, Copy, Plus, X } from "lucide-react";
 import { OPT, QUESTIONS, TWIST_FIELDS, blockLabel, blocksProblems, camelId, labelOf, optionsFor, type RulebookBlocks } from "@/lib/game/formats/rulebook-schema.js";
 import { momentsFor, WAY_POINTS } from "@/lib/game/formats/rulebook-moments.js";
 import { diffBlocks, opLines } from "@/lib/game/formats/rulebook-patch.js";
 import { airTime } from "../clock";
+import { useNav } from "../nav";
 import { paths } from "../routes";
 import { HowItWorksBody } from "../show/how-it-works";
 import { Btn, Chip } from "../ui/parts";
@@ -20,7 +21,9 @@ import { Choice, DeskHeader, History, LockRow, Multi, Section, Stepper, Tag, Tex
 // research prompt and the validator can't drift), changes collect as a draft with a live count of what changed, and
 // Save asks what kind of change it is: Fix a mistake (every couch rescored from the start) or The show changed (from an
 // episode on). Check for changes asks research for the rulebook again and shows what its answer would change. Lock,
-// the Timeline, History, and Save as a starting point. Server: src/lib/server/desk-rulebooks.ts.
+// the Timeline, History, and Save as a starting point. Step 10 part 3 adds Fits these games (rulebook-fits.js gamesFor, what
+// each game needs), Take it over for a rulebook a player made, and a library rulebook's own controls (offered as a starting
+// point or not, Delete while nothing's made from it). Server: src/lib/server/desk-rulebooks.ts and desk-library.ts.
 
 type Obj = Record<string, unknown>;
 type Block = "kind" | "cast" | "season" | "segments" | "waysOut" | "twists" | "points";
@@ -49,6 +52,7 @@ function newId(blocks: RulebookBlocks, name: string) {
 export function RulebookPage({ id }: { id: string }) {
   const q = useDesk<DeskRulebook>(`/rulebooks/${id}`);
   const after = useAfterDesk();
+  const nav = useNav();
   const [draft, setDraft] = useState<RulebookBlocks | null>(null);
   const [seenVersion, setSeenVersion] = useState<number | null>(null);
   const [editing, setEditing] = useState<Editing | null>(null);
@@ -64,7 +68,11 @@ export function RulebookPage({ id }: { id: string }) {
   const ops = useMemo(() => (page && draft ? diffBlocks(page.now, draft) : []), [page, draft]);
   const lines = useMemo(() => (page && draft ? opLines(ops, page.now, draft) : []), [ops, page, draft]);
   const problems = useMemo(() => (draft ? blocksProblems(draft) : []), [draft]);
-  const backTo = page?.season ? { label: page.season.name, href: paths.deskItem("season", page.season.id) } : { label: "Find", href: paths.desk("find") };
+  const backTo = page?.season
+    ? { label: page.season.name, href: paths.deskItem("season", page.season.id) }
+    : page?.ownerKind === "library"
+      ? { label: "Library", href: paths.desk("library") }
+      : { label: "Find", href: paths.desk("find") };
   if (q.error) return <><DeskHeader title="Rulebook" back={backTo} /><p className="px-4 pt-6 text-sm text-muted-foreground">{(q.error as Error).message}</p></>;
   if (!page || !draft) return <><DeskHeader title="Rulebook" back={backTo} /><div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" /></>;
 
@@ -107,6 +115,91 @@ export function RulebookPage({ id }: { id: string }) {
           </span>
         </div>
         <p className="mt-2.5 text-[14px] leading-snug text-muted-foreground">{page.reach.line}</p>
+        {page.lineage.length > 0 && (
+          <p data-lineage className="mt-1 text-[13px] leading-snug text-muted-foreground">
+            From {page.lineage.join(" › ")}
+          </p>
+        )}
+        {page.made?.review === "reviewed" && <p className="mt-1 text-[13px] leading-snug text-muted-foreground">{page.made.line}</p>}
+      </Section>
+
+      {page.made && page.made.review !== "reviewed" && (
+        <Section>
+          <div data-made={page.made.review} className="rounded-[4px] bg-card p-3.5">
+            <Tag tone={page.made.review === "checked" ? "good" : "must"}>{page.made.review === "checked" ? "Checked" : "New"}</Tag>
+            <b className="mt-2 block text-[16px]">A player made it</b>
+            <small className="block text-[13px] leading-snug text-muted-foreground">
+              {page.made.line}
+              {page.made.couches.length ? ` (${page.made.couches.join(", ")})` : ""}. Every couch on the season plays by it. Take it over and it&apos;s the desk&apos;s: How it works stops calling it new. Whoever made it stays its first maker.
+            </small>
+            <Btn data-take-over tone="must" wide className="mt-2.5 h-11 text-[15px]" onClick={() => post({ action: "takeOver" }, "Taken over: it's the desk's now")}>
+              Take it over
+            </Btn>
+          </div>
+        </Section>
+      )}
+
+      {page.library && (
+        <Section title="In the library">
+          <div data-library-controls>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={page.library.template}
+              data-template-switch={page.library.template ? "on" : "off"}
+              onClick={() => post({ action: page.library!.template ? "untemplate" : "template" }, page.library!.template ? "No longer a starting point" : "Offered as a starting point")}
+              className="nd-press flex min-h-[64px] w-full items-center gap-3 rounded-[4px] bg-card p-3.5 text-left"
+            >
+              <span className="min-w-0 flex-1">
+                <b className="block text-[16px]">A starting point for new shows</b>
+                <small className="block text-[13px] leading-snug text-muted-foreground">
+                  {page.library.template
+                    ? `Make it a game starts from it for ${page.library.shows.length ? `shows like ${page.library.shows.slice(0, 3).join(", ")}` : `a show called ${page.name}`}${page.kind === "series" || page.kind === "talk" ? `, and for any new ${page.kindLabel.replace(/^An? /, "").toLowerCase()} while it's the newest` : ""}. New show lists it.`
+                    : "A draft: not offered to new shows yet."}
+                </small>
+              </span>
+              <span className={`relative h-[30px] w-[52px] flex-none rounded-full ${page.library.template ? "bg-foreground" : "bg-secondary"}`}>
+                <i className={`absolute top-[3px] size-6 rounded-full ${page.library.template ? "left-[25px] bg-background" : "left-[3px] bg-muted-foreground"}`} />
+              </span>
+            </button>
+            <p className="mt-2 text-[13px] leading-snug text-muted-foreground">
+              {page.library.shape ? `The ${page.library.shape} shape. ` : ""}
+              {page.library.seasons ? `${page.library.seasons} ${page.library.seasons === 1 ? "rulebook was" : "rulebooks were"} made from it.` : "Nothing's been made from it yet."}
+            </p>
+            {page.library.deletable && (
+              <button
+                type="button"
+                data-library-delete
+                onClick={async () => {
+                  await post({ action: "delete" }, `Deleted ${page.name} from the library`);
+                  nav.push(paths.desk("library"));
+                }}
+                className="mt-2 flex min-h-11 items-center text-[15px] font-semibold text-destructive"
+              >
+                Delete it from the library
+              </button>
+            )}
+          </div>
+        </Section>
+      )}
+
+      <Section title="Fits these games" aside={`${page.fits.filter((g) => g.fits).length} of ${page.fits.length}`}>
+        <ul data-fits>
+          {page.fits.map((g) => (
+            <li key={g.key} data-fit={g.key} data-fits-it={g.fits ? (g.soon ? "soon" : "yes") : "no"} className="flex items-start gap-3 border-t border-border py-2.5 first:border-t-0">
+              <span className={`mt-0.5 grid size-6 flex-none place-items-center rounded-full ${g.fits ? (g.soon ? "bg-secondary" : "bg-good/20 text-good") : "bg-secondary text-muted-foreground"}`}>
+                {g.fits ? g.soon ? <Clock className="size-3.5" aria-hidden /> : <Check className="size-3.5" strokeWidth={3} aria-hidden /> : <X className="size-3.5" strokeWidth={3} aria-hidden />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <b className={`block text-[15px] ${g.fits ? "" : "text-muted-foreground"}`}>{g.name}</b>
+                <small className="block text-[13px] leading-snug text-muted-foreground">
+                  {g.fits ? (g.soon ? `Fits · comes with episode games (step ${g.soon})` : "Fits: Start a game offers it") : `Doesn't fit: needs ${g.needs}`}
+                </small>
+              </span>
+            </li>
+          ))}
+        </ul>
+        {page.shapes.length > 0 && page.ownerKind === "season" && <p data-shapes className="mt-2 text-[13px] leading-snug text-muted-foreground">Plays like the library&apos;s {page.shapes.join(", ")} shape.</p>}
       </Section>
 
       {page.season && (
@@ -251,7 +344,14 @@ export function RulebookPage({ id }: { id: string }) {
       </Section>
       {page.ownerKind === "season" && (
         <Section>
-          <Btn data-template wide onClick={() => post({ action: "template" }, "Saved as a starting point: new shows like it can start from it")}>
+          <Btn
+            data-template
+            wide
+            onClick={async () => {
+              const out = (await post({ action: "template" }, "Saved as a starting point: new shows like it can start from it")) as { id?: string };
+              if (out?.id) nav.push(paths.deskItem("rulebook", out.id));
+            }}
+          >
             Save as a starting point for new shows
           </Btn>
         </Section>

@@ -147,6 +147,14 @@ game for 30 days (`leagues.deleted_at`, migration 0123; its people's seats in th
 ~0.5 KB a person), then it's removed for good the next time anyone deletes a game (no job): at most a few dozen KB per
 deleted game for a month.
 
+**The rulebooks library and New show (new design, step 10 part 3)** poll nothing and run nothing on a schedule; they're the
+desk's (site admins), read when a page opens. The library reads every library and season rulebook's blocks once per open
+(~20-60 KB each: a few hundred KB with dozens of shows, for one admin now and then). Saving a starting point copies one
+rulebook (~20-60 KB). "Looks right to us" is one tiny row per couch per made rulebook (`rulebook_checks`, migration 0124),
+and a show the desk looked at two columns on its row. A set-up show's next season copies last season's rulebook once (~20-60
+KB) when anything first reads it. New show makes a show as Add a show does (the same TVmaze calls) and asks our bot as Make
+it a game does (Bot capacity); starting from a template asks the bot at most the cast question.
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
 none on the hub.
@@ -447,3 +455,10 @@ never handles it: the user does the reset and the pasting.
   ordinary league (~20-40 KB) with one Recent changes line; Tell the couch is one web push per person on the couch. An
   archived game is skipped by the season sync, the hourly waiver job and the reminders (`db/waivers.js`, `db/reminders.js`
   now leave out archived and deleted games), so it costs less than one that's playing.
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 10 part 3, rulebooks phase 8: the library and the desk's
+  New show. **Nothing polls and nothing runs on a schedule.** Migration 0124: `rulebook_checks` (one tiny row per couch that
+  says a made rulebook looks right), `shows.reviewed_at`/`reviewed_by`, and wider checks on `rulebooks.review_status`,
+  `show_setups.via` and `admin_changes.entity`. The library is read by the desk only, once per open (a few hundred KB at
+  most). A starting point the desk saves is one rulebook copy (~20-60 KB); a set-up show's next season copies last season's
+  rulebook once. A made show's stored format no longer becomes a library template whenever its season is read (it did on
+  the branch since 2a; nothing reached production).

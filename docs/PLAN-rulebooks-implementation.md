@@ -36,7 +36,7 @@ says where each phase goes. The logic, data and API in this file still hold.
 | 5 | Timeline edits: show changed / fix, reach, league fan-out, rescore | 6b | not started |
 | 6 | Research: the rulebook prompt, paste-and-review, check for changes | 6b | **logic built** 2026-10-24 (`rulebook-research.js`, tried on 11 shows); Check for changes and the screens are 6b's |
 | 7 | Commissioner: read view, Make it ours, own-copy editor, offers and fixes | 6b (on 6a's Scoring rules) | not started |
-| 8 | Library, kinds of show, the new-show flow, "Fits these games", first-creator-is-parent | 10 | **library seeded** 2026-10-24: six researched rulebooks in `src/lib/game/formats/library/` |
+| 8 | Library, kinds of show, the new-show flow, "Fits these games", first-creator-is-parent | 10 | **done** 2026-10-26 (`PLAN-new-design.md` step 10 part 3 As built; kinds and Make it a game were parts 2a/2b). Changed from this plan: the library is the desk's page from Find; New show infers the kind on Make it a game's review instead of asking it first, and can start from a template through make-game.ts; proposed templates (`rulebook-shapes.js`) earn their place when two real shows pass a test over their blocks; a player-made rulebook is checked by another couch ("Looks right to us") or taken over by the desk (`review_status` checked / reviewed, migration 0124) |
 | 9 | Clean-up: retire `show_formats`, `league_rulesets`, `season_rule_changes`, old screens | C | not started |
 
 Update this table (and `docs/HANDOFF.md`) as phases land.

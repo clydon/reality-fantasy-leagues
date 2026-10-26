@@ -120,6 +120,8 @@ async function backfill(db) {
   const { rows: stored } = await db.query("SELECT id FROM show_formats WHERE status='approved' AND data IS NOT NULL ORDER BY id");
   for (const f of stored) {
     const source = await R.sourceFor(db, f.id);
+    // A show someone made a game: its rules are its seasons' rulebooks, never a template (step 10 part 3).
+    if ((await R.madeFormat(db, f.id)) !== null) continue;
     if (source.kind !== "show_format") {
       report.notes.push(`stored format ${f.id} doesn't resolve as itself (its data's id isn't "${f.id}"), so it has no template`);
       continue;

@@ -1,8 +1,9 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { BookOpen, ChevronRight, CircleQuestionMark, Crown, Gavel, Shuffle, Trophy, Users, Zap } from "lucide-react";
-import { suggestRulebookFix, useHowItWorks, type HowItWorksPage } from "../data";
+import { useQueryClient } from "@tanstack/react-query";
+import { BookOpen, Check, ChevronRight, CircleQuestionMark, Crown, Gavel, Shuffle, Trophy, Users, Zap } from "lucide-react";
+import { checkRulebook, suggestRulebookFix, useHowItWorks, type HowItWorksPage } from "../data";
 import { PushedPage, usePushedPage } from "../ui/page";
 import { Btn, Chip } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
@@ -16,7 +17,8 @@ import { Face, IconBox } from "./parts";
 // playing, ways out, twists, what scores, and the rulebook's updates (later ones counted, never told). Served per
 // season through the guard (GET /api/seasons/[id]/how-it-works: the rulebook the couch's games play by, at your
 // episode), read once the page opens. "Something off? Suggest a fix" sends a note to the admin's Inbox (step 6b part 2);
-// the desk's rulebook page reads the same body (HowItWorksBody) with nothing to suggest.
+// a rulebook someone made can be checked by someone on another couch, "Looks right to us" (step 10 part 3); the desk's
+// rulebook page reads the same body (HowItWorksBody) with nothing to suggest or check.
 
 const STAKE: Record<string, string> = {
   reward: "text-chyron-line outline-chyron-line",
@@ -85,6 +87,21 @@ export function HowItWorksBody({
   const { how, cast } = page;
   const top = useRef<HTMLDivElement>(null);
   const [fixing, setFixing] = useState(false);
+  const [checking, setChecking] = useState(false);
+  const client = useQueryClient();
+  const check = async () => {
+    if (!suggest?.couchId) return;
+    setChecking(true);
+    try {
+      await checkRulebook(seasonId, suggest.couchId);
+      await client.invalidateQueries({ queryKey: ["new-design", "how", seasonId] });
+      toast("Thanks: it says checked by another couch now, for everyone");
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setChecking(false);
+    }
+  };
   const jump = (key: string) => {
     const el = top.current?.querySelector<HTMLElement>(`[data-jump-to="${key}"]`);
     el?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -308,6 +325,27 @@ export function HowItWorksBody({
         <p className="mt-6 flex items-start gap-2 px-2 text-[14px] leading-snug text-muted-foreground">
           <BookOpen className="mt-0.5 size-4 flex-none" aria-hidden />
           {how.lineage}
+        </p>
+      )}
+      {suggest && page.check === "can" && (
+        <button
+          type="button"
+          data-rulebook-check
+          disabled={checking}
+          onClick={check}
+          className="nd-press mx-2 mt-3 flex min-h-12 w-[calc(100%-16px)] items-center gap-2 rounded-[3px] bg-card px-3 text-left text-[15px] font-semibold disabled:opacity-60"
+        >
+          <Check className="size-[18px] text-good" strokeWidth={2.6} aria-hidden />
+          <span className="min-w-0 flex-1">
+            Looks right to us
+            <small className="block text-[13px] font-normal text-muted-foreground">You&apos;ve watched it: say the rulebook matches the show</small>
+          </span>
+        </button>
+      )}
+      {suggest && page.check === "done" && (
+        <p data-rulebook-checked className="mx-2 mt-3 flex items-center gap-2 text-[14px] text-muted-foreground">
+          <Check className="size-4 text-good" strokeWidth={2.6} aria-hidden />
+          Your couch said it looks right
         </p>
       )}
       {suggest && (

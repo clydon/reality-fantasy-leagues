@@ -1,13 +1,17 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Bell, BookOpen, Check, ChevronRight, CircleAlert, Copy, Flag, Mic, RotateCcw, ShieldCheck, Trophy, Tv, Zap, type LucideIcon } from "lucide-react";
 import { KINDS, OPT } from "@/lib/game/formats/rulebook-schema.js";
 import { AskAiPasteSheet, type AnswerCheck } from "../backstage/ask-ai";
 import { make, useAfterWatching, useMake, useMakePoll, type MakeReview, type MakeState } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { PushedPage, usePushedPage } from "../ui/page";
-import { Btn } from "../ui/parts";
+import { BtnLink, Btn } from "../ui/parts";
+import { useNav } from "../nav";
+import { paths } from "../routes";
+import { useMe } from "../session";
 import { openStartGame } from "../couch/start-game";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
@@ -54,6 +58,9 @@ const checkCast: AnswerCheck = (text) => {
 export function MakeGamePage({ show }: { show: ShowData }) {
   const page = usePushedPage("make");
   const howPage = usePushedPage("make-how");
+  const nav = useNav();
+  // The desk's New show opens this page (?from=desk, step 10 part 3): Looks right goes back to the desk, to its rulebook.
+  const fromDesk = useSearchParams().get("from") === "desk";
   const h = show.header;
   const seasonId = h?.seasonId ?? "";
   const couchId = show.couch?.id ?? null;
@@ -133,10 +140,11 @@ export function MakeGamePage({ show }: { show: ShowData }) {
         onConfirm={() =>
           act(
             () => make.confirm(seasonId, couchId),
-            () => {
+            (r) => {
               void refresh();
               toast(`${label} is a game · every couch can play it`);
-              page.close();
+              if (fromDesk && r.rulebookId) nav.push(paths.deskItem("rulebook", r.rulebookId));
+              else page.close();
             }
           )
         }
@@ -438,7 +446,7 @@ function Review({
         <br />
         look right?
       </Title>
-      <Lede>From ChatGPT&rsquo;s answer and the TV listing. Fix anything now, or later.</Lede>
+      <Lede>{m.setup?.via === "template" ? "From a starting point in the library" : "From ChatGPT’s answer"} and the TV listing. Fix anything now, or later.</Lede>
       <button
         type="button"
         data-kind-line={review.kind.key}
@@ -676,6 +684,7 @@ function KindSheet({ open, onOpenChange, label, review, onUse }: { open: boolean
 
 /** It's a game: every couch can play it, starting with yours (Start a game: step 10 part 2b). */
 function Done({ m, seasonId, couchId }: { m: MakeState; seasonId: string; couchId: string | null }) {
+  const me = useMe();
   return (
     <div data-make-view="done">
       <span className="grid size-12 place-items-center rounded-full bg-good/20 text-good">
@@ -686,6 +695,12 @@ function Done({ m, seasonId, couchId }: { m: MakeState; seasonId: string; couchI
       <Btn tone="must" wide data-make-start className="mt-5" onClick={() => openStartGame({ seasonId, couchId })}>
         Start a game
       </Btn>
+      {/* The desk's New show ends here too (step 10 part 3): its rulebook's page, to edit or save as a starting point. */}
+      {me.isSuperAdmin && m.rulebookId && (
+        <BtnLink href={paths.deskItem("rulebook", m.rulebookId)} wide data-make-desk className="mt-2">
+          <BookOpen className="size-4" aria-hidden /> Its rulebook on the desk
+        </BtnLink>
+      )}
     </div>
   );
 }

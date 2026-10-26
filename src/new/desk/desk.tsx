@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, Search } from "lucide-react";
+import { BookOpen, Check, ChevronRight, Plus, Search } from "lucide-react";
 import { NavLink } from "../nav";
 import { paths, type DeskKind } from "../routes";
 import { useMe } from "../session";
@@ -9,6 +9,8 @@ import { EmptyState, Row } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { deskSend, useAfterDesk, useDesk, type DeskSettings, type DeskLine, type FoundItem, type Inbox } from "./data";
+import { LibraryPage } from "./library";
+import { NewShowFlow } from "./new-show";
 import { CastawayPage, CouchPage, FactPage, PersonPage, SeasonPage, ShowPage } from "./pages";
 import { DeskHeader, History, ItemRow, Section } from "./parts";
 import { RulebookPage } from "./rulebook";
@@ -16,11 +18,12 @@ import { RulebookPage } from "./rulebook";
 // The admin's desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js admin), from the profile menu: Inbox
 // (only what the community couldn't settle, and what settled on its own this week), Find (one search; each thing has a
 // page with Override, Lock and History) and Settings. Site admins only: anyone else is told so, and every read is
-// refused by its own route.
+// refused by its own route. The library and New show (step 10 part 3) are pages a level down, from Find.
 
 type Tab = "inbox" | "find" | "settings";
+type Page = Tab | "library" | "new";
 
-export function DeskScreen({ tab, item }: { tab: Tab | null; item: { kind: DeskKind; id: string } | null }) {
+export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: DeskKind; id: string } | null }) {
   const me = useMe();
   if (!me.isSuperAdmin) {
     return (
@@ -35,6 +38,8 @@ export function DeskScreen({ tab, item }: { tab: Tab | null; item: { kind: DeskK
     const Page = page;
     return <Page id={item.id} />;
   }
+  if (tab === "library") return <LibraryPage />;
+  if (tab === "new") return <NewShowFlow />;
   return <DeskTabs tab={tab ?? "inbox"} />;
 }
 
@@ -78,6 +83,8 @@ const TAGS: Record<string, [string, "must" | "quiet"]> = {
   phase: ["Confirm", "must"],
   suggestion: ["Report", "quiet"],
   change: ["New?", "must"],
+  made: ["Rulebook", "must"],
+  show: ["Show", "quiet"],
 };
 
 function InboxTab({ data, loading }: { data: Inbox | undefined; loading: boolean }) {
@@ -128,6 +135,25 @@ function FindTab() {
   const found = useDesk<{ found: FoundItem[] }>(`/find?q=${encodeURIComponent(q.trim())}`);
   return (
     <Section>
+      {/* The library and New show (step 10 part 3): the rulebooks new shows start from, and a show set up from the desk. */}
+      <div className="mb-4 grid grid-cols-2 gap-2">
+        <NavLink href={paths.desk("library")} data-desk-library-link className="nd-press flex min-h-[64px] items-center gap-2.5 rounded-[4px] bg-card p-3">
+          <BookOpen className="size-5 flex-none" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px]">Library</b>
+            <small className="block text-[12.5px] leading-snug text-muted-foreground">Starting points</small>
+          </span>
+          <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+        </NavLink>
+        <NavLink href={paths.deskNew()} data-desk-new-link className="nd-press flex min-h-[64px] items-center gap-2.5 rounded-[4px] bg-card p-3">
+          <Plus className="size-5 flex-none" aria-hidden />
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px]">New show</b>
+            <small className="block text-[12.5px] leading-snug text-muted-foreground">Set one up</small>
+          </span>
+          <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
+        </NavLink>
+      </div>
       <label className="flex h-12 items-center gap-2 rounded-[3px] bg-card px-3 outline-1 -outline-offset-1 outline-input">
         <Search className="size-5 text-muted-foreground" aria-hidden />
         <input data-find value={q} onChange={(e) => setQ(e.target.value)} placeholder="A show, season, castaway, couch or person" aria-label="Find anything" className="h-full min-w-0 flex-1 bg-transparent text-base outline-none" />

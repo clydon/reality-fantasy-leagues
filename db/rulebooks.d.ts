@@ -40,7 +40,9 @@ export interface Rulebook {
   provenance: { from?: string; id?: string | null; version?: number; editedAt?: string; [k: string]: unknown };
   version: number;
   visibility: "private" | "shared";
-  reviewStatus: "unreviewed" | "approved";
+  /** approved: the built-ins', the backfill's and templates'; a player-made one is unreviewed, then checked (another couch) or
+   *  reviewed (the desk took it over), step 10 part 3. */
+  reviewStatus: "unreviewed" | "checked" | "reviewed" | "approved";
   createdBy: string | null;
   approvedBy: string | null;
   approvedAt: string | null;
@@ -123,6 +125,8 @@ export function ensureTemplate(db: Db, source: RulebookSource): Promise<Ensured>
 export function ensureLibraryEntry(db: Db, entry: { id: string; show: string; blocks: RulebookBlocks; compiled: FormatData; researched?: unknown; leftOut?: string[] }): Promise<Ensured>;
 export function knownPhaseStarts(db: Db, seasonId: string, blocks: RulebookBlocks): Promise<Record<string, number>>;
 export function ensureSeasonRulebook(db: Db, seasonId: string): Promise<(Ensured & { source: RulebookSource }) | null>;
+/** The rulebook id a made show's stored format came from ("" when it doesn't say), or null for any other format. */
+export function madeFormat(db: Db, formatId: string | null | undefined): Promise<string | null>;
 export function ensureLeagueRulebook(
   db: Db,
   leagueId: string,

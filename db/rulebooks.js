@@ -28,7 +28,7 @@ const Formats = require("../src/lib/game/formats/index.js");
 const { rulebookFor } = require("../src/lib/game/formats/blocks/index.js");
 const { blocksFromFormat } = require("../src/lib/game/formats/rulebook-from-format.js");
 const { compileRulebook } = require("../src/lib/game/formats/rulebook-compile.js");
-const { applyOps, mergeAtEpisode } = require("../src/lib/game/formats/rulebook-patch.js");
+const { applyOps, blocksAt, mergeAtEpisode } = require("../src/lib/game/formats/rulebook-patch.js");
 const { blocksProblems, kindOf } = require("../src/lib/game/formats/rulebook-schema.js");
 const { formatProblems } = require("../src/lib/game/formats/define.js");
 const ShowFormats = require("./show-formats.js");
@@ -525,9 +525,55 @@ async function knownPhaseStarts(db, seasonId, blocks) {
 }
 
 /**
+ * The rulebook a stored format was made from (step 10 part 2a's Make it a game writes a made show's rules as its stored
+ * format too, show_formats.proposal { madeFrom: 'rulebook', rulebookId }), or null for any other format. A made show's
+ * rules live in its seasons' rulebooks: it never gets a library template of its own (the desk saves one on purpose).
+ */
+async function madeFormat(db, formatId) {
+  if (!formatId) return null;
+  const r = await one(db, "SELECT proposal->>'rulebookId' AS id FROM show_formats WHERE id=$1 AND proposal->>'madeFrom' = 'rulebook'", [formatId]);
+  return r ? r.id || "" : null;
+}
+
+/**
+ * A made show's season with no rulebook of its own (its next season, step 10 part 3): the newest other season's rulebook,
+ * every change folded in (same as last season), compiled afresh for this season, which plays by it. Null when the show
+ * has no season rulebook from blocks to start from.
+ */
+async function sameAsLastSeason(db, seasonId, name) {
+  const last = rowOut(
+    await one(
+      db,
+      `SELECT r.* FROM rulebooks r JOIN show_seasons ss ON ss.id = r.season_id
+        WHERE ss.show_id = (SELECT show_id FROM show_seasons WHERE id=$1) AND ss.id <> $1 AND r.owner_kind='season' AND r.status <> 'archived' AND r.compiled_source='blocks'
+        ORDER BY ss.season_number DESC LIMIT 1`,
+      [seasonId]
+    )
+  );
+  if (!last) return null;
+  const blocks = blocksAt(last.blocks, await inForceEdits(db, last.id), Infinity);
+  const made = await insertRulebook(
+    db,
+    {
+      name, kind: kindOf(blocks), ownerKind: "season", seasonId, isTemplate: false, status: "in_force", parentKind: "rulebook", parentId: last.id,
+      parentVersion: last.version, reader: last.reader, blocks, compiled: last.compiled, compiledSource: "blocks", base: last.base, aliases: last.aliases,
+      phaseStarts: {}, provenance: { from: "rulebook", id: last.id, version: last.version, sameAsLastSeason: true }, reviewStatus: last.reviewStatus,
+      createdBy: last.createdBy,
+    },
+    { onConflict: "(season_id) WHERE owner_kind = 'season' AND status <> 'archived'" }
+  );
+  if (!made) return null;
+  const saved = await saveChain(db, made.id, { blocks });
+  const row = saved && saved.rulebook ? saved.rulebook : made;
+  await db.query("UPDATE show_seasons SET rulebook_id=$1, rulebook_live=true WHERE id=$2", [row.id, seasonId]);
+  return row;
+}
+
+/**
  * The season's rulebook: made from its show's format's template if it has none, and while unedited kept equal to
  * that format (a show switched format, a stored format re-approved). Phase starts its results confirm are filled in
- * (without a version bump: a legacy compile doesn't read them). { row, change, source } or null for no such season.
+ * (without a version bump: a legacy compile doesn't read them). A made show's season is its own (never a template's):
+ * one with none starts as the last season's (sameAsLastSeason). { row, change, source } or null for no such season.
  */
 async function ensureSeasonRulebook(db, seasonId) {
   const info = await one(
@@ -538,6 +584,18 @@ async function ensureSeasonRulebook(db, seasonId) {
   );
   if (!info) return null;
   const source = await sourceFor(db, info.format);
+  if ((await madeFormat(db, info.format)) !== null) {
+    let row = rowOut(await one(db, "SELECT * FROM rulebooks WHERE owner_kind='season' AND season_id=$1 AND status <> 'archived'", [seasonId]));
+    let change = "unchanged";
+    if (!row) {
+      row = await sameAsLastSeason(db, seasonId, info.name || `${info.show_name} ${info.season_number}`);
+      change = "created";
+    }
+    if (row) {
+      if (info.rulebook_id !== row.id) await db.query("UPDATE show_seasons SET rulebook_id=$1 WHERE id=$2", [row.id, seasonId]);
+      return { row, change, source };
+    }
+  }
   const { row: template } = await ensureTemplate(db, source);
   const want = {
     ...legacyFields(source), name: info.name || `${info.show_name} ${info.season_number}`,
@@ -704,6 +762,6 @@ module.exports = {
   rulebooksOn, seasonLive, setRulebooksOn, sameData, legacyBase, readerOf, inForceEdits, compileChain, saveChain,
   getRulebook, listLibrary, seasonRulebook, seasonIdOf, rulebookForLeague, createRulebook, copyRulebook, saveBlocks, setPhaseStart,
   leaguesUsing, lineage, compiledFor, seasonRulebookFormat,
-  sourceFor, ensureTemplate, ensureLibraryEntry, knownPhaseStarts, ensureSeasonRulebook, ensureLeagueRulebook,
+  sourceFor, ensureTemplate, ensureLibraryEntry, knownPhaseStarts, ensureSeasonRulebook, ensureLeagueRulebook, madeFormat,
   syncLeagueRulebook, syncLeagueRow, refreshShowRulebooks, oursOf,
 };

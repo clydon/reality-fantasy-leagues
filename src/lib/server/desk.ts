@@ -15,7 +15,7 @@ import { SIGNUP_MODES, type SignupMode } from "@/lib/signups";
 // shows, seasons, castaways, couches, people and rulebooks; each has a page with Override, a Lock and its History) and
 // Settings. Every change the desk makes is a row in admin_changes (0113), with its undo where it has one.
 
-export type DeskEntity = "fact" | "castaway" | "season" | "rulebook" | "couch" | "settings";
+export type DeskEntity = "fact" | "castaway" | "season" | "rulebook" | "couch" | "settings" | "show";
 
 /** Site admins only: 403 for anyone else (the desk's routes and screens). */
 export async function requireDesk(req: Request): Promise<SessionUser> {
@@ -221,7 +221,7 @@ export const settingsLines = async () =>
 // ---------- Inbox ----------
 
 export interface InboxItem {
-  kind: "split" | "stale" | "stranded" | "phase" | "suggestion" | "change";
+  kind: "split" | "stale" | "stranded" | "phase" | "suggestion" | "change" | "made" | "show";
   title: string;
   line: string;
   href: string;
@@ -325,6 +325,30 @@ export async function inbox(): Promise<Inbox> {
   for (const t of tips) {
     items.push({ kind: "suggestion", title: `A fix for ${t.season}'s rulebook`, line: `From ${t.who ?? "someone"} · "${String(t.note).slice(0, 80)}"`, href: t.rulebook_id ? `/desk/rulebook/${t.rulebook_id}` : "/desk/find" });
   }
+  // A rulebook someone made with Make it a game (step 10 part 2a) that nobody on another couch has checked: every couch plays
+  // by it, so the desk looks it over (Take it over). Once another couch checks it, the couches have settled it.
+  const { rows: made } = await pool.query(
+    `SELECT r.id, ${seasonName} AS season, r.provenance->>'via' AS via, COALESCE(u.username, u.name) AS who
+       FROM rulebooks r JOIN show_seasons ss ON ss.id = r.season_id JOIN shows s ON s.id = ss.show_id LEFT JOIN "user" u ON u.id = r.created_by
+      WHERE r.owner_kind = 'season' AND r.status <> 'archived' AND r.provenance->>'from' = 'made' AND r.review_status = 'unreviewed'
+      ORDER BY r.created_at LIMIT 20`
+  );
+  for (const m of made) {
+    const how = m.via === "template" ? "Made from a template" : m.via === "paste" ? "Made with copy and paste" : "Made with ChatGPT";
+    items.push({ kind: "made", title: `${m.season}: a new rulebook`, line: `${how}${m.who ? ` by ${m.who}` : ""} · nobody on another couch has checked it`, href: `/desk/rulebook/${m.id}` });
+  }
+  // A show someone added by name (step 10 part 1): not in the TV listings, so nothing's known about it but its name, and it's
+  // in everyone's search. The desk looks it over (Looks fine, or archive it). Once it's a game its rulebook is what waits.
+  const { rows: named } = await pool.query(
+    `SELECT s.id, s.name, COALESCE(u.username, u.name) AS who,
+            (SELECT count(*)::int FROM show_follows f JOIN show_seasons ss ON ss.id = f.season_id WHERE ss.show_id = s.id AND f.following) AS following
+       FROM shows s LEFT JOIN "user" u ON u.id = s.created_by
+      WHERE s.created_by IS NOT NULL AND s.tvmaze_id IS NULL AND s.set_up_at IS NULL AND s.reviewed_at IS NULL AND s.archived = false
+      ORDER BY s.created_at LIMIT 20`
+  );
+  for (const n of named) {
+    items.push({ kind: "show", title: `${n.name}: added by name`, line: `By ${n.who ?? "someone"} · not in the TV listings · ${n.following} following`, href: `/desk/show/${n.id}` });
+  }
 
   const count = async (sql: string) => (await pool.query(sql)).rows[0].n as number;
   const week = {
@@ -362,6 +386,12 @@ export async function find(q: string): Promise<FoundItem[]> {
     [like]
   );
   out.push(...shows.map((r) => ({ kind: "show" as const, title: r.name, line: `Show · ${r.seasons} ${r.seasons === 1 ? "season" : "seasons"}`, href: `/desk/show/${r.id}` })));
+  // The library's rulebooks by name (step 10 part 3): its starting points and drafts.
+  const { rows: library } = await pool.query(
+    `SELECT id, name, is_template FROM rulebooks WHERE owner_kind = 'library' AND status <> 'archived' AND name ILIKE $1 ORDER BY is_template DESC, name LIMIT 6`,
+    [like]
+  );
+  out.push(...library.map((r) => ({ kind: "rulebook" as const, title: r.name, line: r.is_template ? "Library · a starting point" : "Library · a draft", href: `/desk/rulebook/${r.id}` })));
   const { rows: seasons } = await pool.query(
     `SELECT ss.id, ${seasonName} AS name, ss.status, r.id AS rulebook FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
        LEFT JOIN rulebooks r ON r.owner_kind = 'season' AND r.season_id = ss.id AND r.status <> 'archived'

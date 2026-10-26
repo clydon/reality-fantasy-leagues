@@ -350,6 +350,8 @@ export const useAfterResults = useAfterReveal;
 export interface HowItWorksPage {
   how: HowItWorks;
   cast: { name: string; photo: string | null; colour: string | null }[];
+  /** A rulebook someone made (step 10 part 3): your couch can say it looks right, or has. */
+  check?: "can" | "done" | null;
 }
 
 /**
@@ -552,6 +554,9 @@ export const flagResult = (
 /** "Something off? Suggest a fix" from How it works (step 6b part 2): it goes to the admin's Inbox; nothing changes until they fix the rulebook. */
 export const suggestRulebookFix = (seasonId: string, couchId: string | null, body: { about: "segment" | "wayOut" | "scores" | "other"; note: string }) =>
   post<{ ok: true }>(seasonUrl(seasonId, "/rulebook/suggest", { couch: couchId ?? "" }), body);
+
+/** "Looks right to us" (step 10 part 3): someone on another couch checks a rulebook someone made with Make it a game. */
+export const checkRulebook = (seasonId: string, couchId: string) => post<{ ok: true }>(seasonUrl(seasonId, "/rulebook/check", { couch: couchId }), {});
 
 // ---- Waivers (step 6a): your week in each game here, saved a spot at a time through the league routes; and Backstage
 // II's pages for whoever runs a game. Read when a page opens and after each write; nothing polls. ----
@@ -946,6 +951,8 @@ export const make = {
   kind: (seasonId: string, couchId: string | null, kind: string, start: string | null) => post<MakeState>(makeUrl(seasonId, couchId), { action: "kind", kind, start }),
   restart: (seasonId: string, couchId: string | null, part: "all" | "cast") => post<MakeState>(makeUrl(seasonId, couchId), { action: "restart", part }),
   confirm: (seasonId: string, couchId: string | null) => post<MakeState>(makeUrl(seasonId, couchId), { action: "confirm" }),
+  /** The desk's: start from a library rulebook (step 10 part 3). */
+  template: (seasonId: string, couchId: string | null, template: string) => post<MakeState>(makeUrl(seasonId, couchId), { action: "template", template }),
   /** A question to copy into your own chat. */
   prompt: (seasonId: string, part: "rules" | "cast") => get<{ prompt: string; task: string }>(seasonUrl(seasonId, "/make", { prompt: part })),
 };

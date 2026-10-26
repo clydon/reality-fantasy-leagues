@@ -1,3 +1,4 @@
+import { ensureSeasonRulebook } from "@db/rulebooks.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { roleChange } from "./change-log";
 import { setWhoFills } from "./community-results";
@@ -9,7 +10,8 @@ import { setLeagueRole } from "./roles";
 // Couches, people and shows on the desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js adminEntity):
 // a couch's people, its games and who runs each, who fills in its results (Override), and, when a game has nobody
 // running it (its only commissioner left or deleted their account: the Inbox's stranded couch), Hand it to someone who
-// plays it. A person's couches and games, to look up; a show's seasons, to go to.
+// plays it. A person's couches and games, to look up; a show's seasons, to go to, who added it (step 10 part 3: a show added by
+// name waits in the Inbox until the desk says Looks fine or archives it), and New season.
 
 export interface DeskCouch {
   id: string;
@@ -122,16 +124,80 @@ export interface DeskShow {
   id: string;
   name: string;
   format: string | null;
-  seasons: { id: string; name: string; status: string | null }[];
+  kind: string | null;
+  /** A game for every couch (Make it a game, or set up by the desk); else "Not a game yet". */
+  setUp: boolean;
+  archived: boolean;
+  /** Someone added it (Add a show): who, when, and whether it came from a TV listing (else by name, with no schedule). */
+  added: { by: string | null; at: string; listing: boolean } | null;
+  /** The desk looked at it (a show added by name waits in the Inbox until then). */
+  reviewed: { by: string | null; at: string } | null;
+  seasons: { id: string; name: string; status: string | null; number: number; rulebookId: string | null }[];
+  history: DeskLine[];
 }
 
 export async function deskShow(id: string): Promise<DeskShow> {
   if (!isUuid(id)) throw new HttpError(404, "Show not found");
-  const { rows } = await pool.query("SELECT id, name, format FROM shows WHERE id = $1", [id]);
-  if (!rows.length) throw new HttpError(404, "Show not found");
-  const { rows: seasons } = await pool.query(
-    "SELECT ss.id, COALESCE(ss.name, s.name || ' ' || ss.season_number) AS name, ss.status FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.show_id = $1 ORDER BY ss.season_number DESC",
+  const { rows } = await pool.query(
+    `SELECT s.id, s.name, s.format, s.kind, s.set_up_at, s.archived, s.created_at, s.created_by, s.tvmaze_id, s.reviewed_at,
+            COALESCE(a.username, a.name) AS added_by, COALESCE(r.username, r.name) AS reviewed_by
+       FROM shows s LEFT JOIN "user" a ON a.id = s.created_by LEFT JOIN "user" r ON r.id = s.reviewed_by WHERE s.id = $1`,
     [id]
   );
-  return { id, name: rows[0].name, format: rows[0].format, seasons };
+  if (!rows.length) throw new HttpError(404, "Show not found");
+  const s = rows[0];
+  const { rows: seasons } = await pool.query(
+    `SELECT ss.id, COALESCE(ss.name, s.name || ' ' || ss.season_number) AS name, ss.status, ss.season_number AS number,
+            (SELECT r.id FROM rulebooks r WHERE r.owner_kind = 'season' AND r.season_id = ss.id AND r.status <> 'archived') AS "rulebookId"
+       FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.show_id = $1 ORDER BY ss.season_number DESC`,
+    [id]
+  );
+  return {
+    id,
+    name: s.name,
+    format: s.format,
+    kind: s.kind,
+    setUp: !!s.set_up_at,
+    archived: !!s.archived,
+    added: s.created_by ? { by: s.added_by, at: s.created_at.toISOString(), listing: s.tvmaze_id != null } : null,
+    reviewed: s.reviewed_at ? { by: s.reviewed_by, at: s.reviewed_at.toISOString() } : null,
+    seasons,
+    history: byNewest(await deskLines("show", id)),
+  };
+}
+
+/**
+ * The desk on a show: Looks fine (a show added by name, looked at), archived (out of everyone's search; its follows and
+ * games stay), or a new season (the next number, nothing known about it yet). A set-up show's new season starts as the
+ * last season's rulebook (db/rulebooks.js sameAsLastSeason) and plays by it; its cast comes from Backstage as any season's.
+ */
+export async function deskShowAction(user: SessionUser, id: string, body: { action?: unknown }): Promise<DeskShow & { seasonId?: string }> {
+  const show = await deskShow(id);
+  if (body.action === "reviewed" || body.action === "archive") {
+    const archive = body.action === "archive";
+    if (!archive && show.reviewed) throw new HttpError(409, "Looked at already");
+    await pool.query("UPDATE shows SET reviewed_at = now(), reviewed_by = $2, archived = CASE WHEN $3 THEN true ELSE archived END, updated_at = now() WHERE id = $1", [id, user.id, archive]);
+    await logDesk(pool, {
+      entity: "show",
+      entityId: id,
+      action: String(body.action),
+      text: archive ? "Archived: out of everyone's search" : "Looks fine",
+      undo: { type: "showReviewed", id, archived: show.archived },
+      userId: user.id,
+    });
+    return deskShow(id);
+  }
+  if (body.action === "season") {
+    const next = Math.max(0, ...show.seasons.map((s) => s.number)) + 1;
+    const { rows } = await pool.query(
+      `INSERT INTO show_seasons (show_id, season_number, status) VALUES ($1, $2, 'upcoming') ON CONFLICT (show_id, season_number) DO NOTHING RETURNING id`,
+      [id, next]
+    );
+    if (!rows.length) throw new HttpError(409, "That season was added a moment ago");
+    const seasonId = rows[0].id as string;
+    if (show.setUp) await ensureSeasonRulebook(pool, seasonId);
+    await logDesk(pool, { entity: "show", entityId: id, action: "season", text: `Added season ${next}${show.setUp ? ", playing by last season's rulebook" : ""}`, userId: user.id });
+    return { ...(await deskShow(id)), seasonId };
+  }
+  throw new HttpError(400, "action is reviewed, archive or season");
 }

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Check, X } from "lucide-react";
 import { airTime } from "../clock";
-import { NavLink } from "../nav";
+import { NavLink, useNav } from "../nav";
 import { paths } from "../routes";
 import { Face } from "../show/parts";
 import { GuardSheet } from "../ui/guards";
@@ -15,7 +15,8 @@ import { DeskHeader, FieldRow, History, ItemRow, LockRow, OverrideSheet, Section
 
 // One thing on the desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js adminFact and adminEntity): a
 // disputed fact's two sides and the admin's decision; a season (its rulebook, its cast by group, its episodes' results);
-// a castaway (Override, Lock, History); a couch (who runs its games, Hand it to, who fills in); a person; a show.
+// a castaway (Override, Lock, History); a couch (who runs its games, Hand it to, who fills in); a person; a show (who added
+// it, Looks fine or Archive for one added by name, its seasons and their rulebooks, New season: step 10 part 3).
 
 const Loading = () => <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
 const back = { label: "Find", href: paths.desk("find") };
@@ -566,20 +567,68 @@ export function PersonPage({ id }: { id: string }) {
 
 export function ShowPage({ id }: { id: string }) {
   const q = useDesk<DeskShow>(`/shows/${id}`);
+  const act = useAct<DeskShow & { seasonId?: string }>(`/shows/${id}`);
+  const nav = useNav();
   if (q.error) return <><DeskHeader title="Show" back={back} /><NotFound error={q.error} /></>;
   if (!q.data) return <><DeskHeader title="Show" back={back} /><Loading /></>;
   const s = q.data;
+  const byName = !!s.added && !s.added.listing;
+  const newSeason = async () => {
+    const out = await act({ action: "season" }, s.setUp ? "Added: it plays by last season's rulebook" : "Added a season");
+    const made = out.seasons.find((x) => x.id === out.seasonId);
+    if (!out.seasonId) return;
+    if (out.setUp && made?.rulebookId) nav.push(paths.deskItem("rulebook", made.rulebookId));
+    else nav.push(paths.deskNew(out.seasonId));
+  };
   return (
-    <div className="pb-16" data-desk-show>
+    <div className="pb-16" data-desk-show={s.setUp ? "game" : "watching"}>
       <DeskHeader title="Show" back={back} />
       <Section>
         <b className="type-caption block text-[30px] leading-none">{s.name}</b>
-        <small className="mt-1 block text-[14px] text-muted-foreground">Show · {s.format ? `format: ${s.format}` : "built in"}</small>
+        <small className="mt-1 block text-[14px] text-muted-foreground">
+          {s.setUp ? `A game · ${s.kind ?? "competition"}` : "Not a game yet"}
+          {s.archived ? " · archived" : ""}
+          {s.added ? ` · added by ${s.added.by ?? "someone"} ${s.added.listing ? "from the TV listings" : "by name"}` : ""}
+        </small>
       </Section>
-      <Section title="Seasons">
+      {byName && !s.reviewed && !s.archived && (
+        <Section>
+          <div data-show-review className="rounded-[4px] bg-card p-3.5">
+            <Tag tone="must">Look it over</Tag>
+            <b className="mt-2 block text-[16px]">Added by name: not in the TV listings</b>
+            <small className="block text-[13px] leading-snug text-muted-foreground">
+              It&apos;s in everyone&apos;s search with no schedule. Keep it if it&apos;s a real show; archive it if it isn&apos;t (anyone following it keeps it).
+            </small>
+            <div className="mt-2.5 flex gap-2">
+              <Btn data-show-fine tone="must" className="h-11 flex-1 text-[15px]" onClick={() => act({ action: "reviewed" }, "Looks fine")}>
+                Looks fine
+              </Btn>
+              <Btn data-show-archive className="h-11 flex-1 text-[15px]" onClick={() => act({ action: "archive" }, "Archived: out of everyone's search")}>
+                Archive it
+              </Btn>
+            </div>
+          </div>
+        </Section>
+      )}
+      <Section title="Seasons" aside={s.seasons.length}>
         {s.seasons.map((x) => (
-          <ItemRow key={x.id} href={paths.deskItem("season", x.id)} title={x.name} line={x.status ?? "Upcoming"} />
+          <ItemRow
+            key={x.id}
+            data="season"
+            href={s.setUp ? paths.deskItem("season", x.id) : paths.deskNew(x.id)}
+            title={x.name}
+            line={`${x.status ?? "Upcoming"}${s.setUp ? (x.rulebookId ? " · has its rulebook" : "") : " · set it up"}`}
+          />
         ))}
+        <Btn data-show-new-season wide className="mt-3" onClick={newSeason}>
+          New season {Math.max(0, ...s.seasons.map((x) => x.number)) + 1}
+        </Btn>
+        {!s.setUp && (
+          <p className="mt-2 text-[13px] leading-snug text-muted-foreground">Not a game yet: tap a season to set it up (anyone can, from its Make it a game, too).</p>
+        )}
+      </Section>
+      <Section title="History">
+        <History lines={s.history} emptyLine="Nothing changed here yet." />
       </Section>
     </div>
   );

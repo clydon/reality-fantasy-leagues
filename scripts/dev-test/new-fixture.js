@@ -132,8 +132,13 @@ async function down(pool) {
   // Their rules, kept as a stored format too when Make it a game set one up (step 10 part 2a; its rulebook and cast went
   // with the season).
   await pool.query("DELETE FROM show_formats WHERE id LIKE 'made-zt-%'");
-  // A starting point the desk saved from one of its seasons' rulebooks lives in the library, with no season.
-  await pool.query("DELETE FROM rulebooks WHERE owner_kind = 'library' AND (name LIKE 'ZT Survivor%' OR name LIKE 'ZT Traitors%')");
+  // A starting point the desk saved from one of its seasons' rulebooks lives in the library, with no season: named for it,
+  // or (a shape's, step 10 part 3) for the zt shows it was earned from; and the mirrors older code made of made shows'
+  // stored formats (before step 10 part 3 kept them out of the library).
+  await pool.query(
+    `DELETE FROM rulebooks WHERE owner_kind = 'library' AND (name LIKE 'ZT %' OR parent_id LIKE 'made-zt-%'
+       OR EXISTS (SELECT 1 FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(provenance->'shows') = 'array' THEN provenance->'shows' ELSE '[]'::jsonb END) s WHERE s LIKE 'ZT %'))`
+  );
   await pool.query(`DELETE FROM "user" WHERE username LIKE 'zt\\_nd\\_%'`); // sessions, accounts, follows cascade
 }
 

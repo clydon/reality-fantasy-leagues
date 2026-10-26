@@ -35,7 +35,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 7 | Draft room and blind draft | **done** 2026-10-25 on the branch (migration 0117 ships with 0b's) | Opus · xhigh |
 | 8 | Hub I: focus-first hub, More on the couch and its six pages | **done** 2026-10-25 on the branch (migration 0118 ships with 0b's) | Opus · xhigh |
 | 9 | Couches, sign-up, first run, join, sign-in, solo pools and the practice couch | **done** 2026-10-25 on the branch, in three parts: couches and joining their games (migration 0119), the way in (landing, first run, the invite signed out, sign-in, Google behind config; no migration), solo (public pools per season, the practice couch, the solo hub; migration 0120); 0119 and 0120 ship with 0b's | Opus · xhigh |
-| 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **in progress**, in three parts (the plan's step 10 section), part 2 split in two: part 1, watching, finished 2026-10-25 (migration 0121; TV listings from TVmaze on demand); part 2a, Make it a game to a set-up show with its rulebook and cast, finished 2026-10-25 (migration 0122); part 2b, Start a game that fits (every entry point, Run it back, solo games for any set-up competition) and archive or delete a game, finished 2026-10-25 (migration 0123); all ship with 0b's. Next 3 (the library and the new-show flow) | Opus · xhigh |
+| 10 | Watching: Add a show, follow, where you are, Make it a game for every kind; rulebooks phase 8 | **done** 2026-10-26 on the branch, in three parts (part 2 split in two): watching (migration 0121; TV listings from TVmaze on demand), Make it a game to a set-up show with its rulebook and cast (0122), Start a game that fits and archive or delete a game (0123), rulebooks phase 8: the library, the desk's New show, Fits these games, Take it over and Looks right to us (0124); all ship with 0b's | Opus · xhigh |
 | 11 | TV guide: schedules, all of TV, hide from guide, drops, planned nights | not started | Opus · xhigh |
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | not started | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | not started | Opus · xhigh |
@@ -213,8 +213,8 @@ step's As built.
   Outlast draft" (step 7), "Invite people to <game>" and join requests (step 9); classic's other commissioner items (Add the
   cast, a catch-up league's next reveal: `commissioner-items.ts`, the home's `backstage`) link to classic pages. Since step 10
   part 2a a show made a game gets its season's cast with it, so Add the cast only comes up for a season with none (a set-up
-  show's later season: see "A set-up show's next season"); a catch-up league's next reveal is classic's RevealLogic catch-up
-  mode (for C).
+  show's later season, which since part 3 plays by last season's rulebook); a catch-up league's next reveal is classic's
+  RevealLogic catch-up mode (for C).
 - **No "Extend a day"** (step 6a; for 6b or later). The mock's Backstage › Waivers has it; the engine has no way to move a
   week's deadline (a window's `processAt` is worked out from the schedule). Small: an override on the period.
 - **No "Lock it down"** (step 6a; 10 part 2b left it; for 15 or a later polish). The mock's Game settings has a competitive switch
@@ -317,20 +317,19 @@ step's As built.
 - **A show added by name has no schedule** (step 10 part 1; for 11 or a desk step). A show the listings don't have is a name and
   an empty first season: no episodes or air times, so where you are can't be set and nothing's "up next". The desk (Find › the
   show) could fill it in or link it to a listing later.
-- **Anyone let in can make shows** (step 10 part 1; for part 3 or a desk step). Up to 10 a day each, in everyone's search; from a
-  listing they're real shows, by name they're only checked against the names already here. The desk's Find reaches them
-  (archive); an Inbox kind for shows added by name (part 3 adds Inbox kinds) would let the admin look them over.
-- **New until another couch checks it, and nothing checks it** (step 10 part 2a; for part 3). A rulebook made with Make it a game
-  is `review_status` unreviewed and How it works says "new until another couch checks it", but nothing yet lets someone on
-  another couch check it, or the desk take it over (phase 8's "a player-made rulebook the desk can take over"). Part 3's desk
-  (Inbox kind, Take it over) is the place; a "Looks right to us" on How it works for another couch could be the check.
-- **The review can't be edited** (step 10 part 2a; for part 3 or later). Make it a game's review changes only the kind; a wrong
-  part, way out or points needs the desk's rulebook editor after it's set up (Fix a mistake) or a couch's Make it ours. The
-  mock has none either; the library and new-show flow (part 3) could offer the editor's parts to its maker before Looks right.
-- **A set-up show's next season** (step 10 part 2a; for 11 or part 3). `shows.set_up_at` is the show's, so a later season of a
-  show someone made a game (added from its listing once it starts: Noticed's "A listed show's next season isn't offered") is
-  ready with no rulebook or cast of its own: its leagues would play by the show's stored format (`made-<slug>`, the first
-  season's rules) and Backstage asks to Add the cast. Make it a game could offer "Same as last season?" for it.
+- **The review can't be edited** (step 10 part 2a; part 3 left it; for a later step). Make it a game's review changes only the
+  kind; a wrong part, way out or points needs the desk's rulebook editor after it's set up (Fix a mistake) or a couch's Make it
+  ours. The desk's New show lands on that editor straight after Looks right (part 3); a player's review could offer the
+  editor's parts to its maker before Looks right (the mock has none either).
+- **Every made show's phases wait for the desk** (step 10 part 3; for a later desk step). A rulebook from Make it a game whose
+  phases start "when the show says so" (a Below Deck-like answer has two) puts a "when did X start?" in the Inbox for each,
+  once its season is airing: every show players make adds Inbox rows, and the phase's segments wait meanwhile. The couches
+  could confirm a phase start as they confirm a show change (step 6c part 2), leaving only a split for the desk.
+- **A reality series from its listing gets no skeleton** (step 10 part 3, as part 2a chose; for a later step). The listings call
+  every reality show "Reality", which Make it a game guesses is a competition, so templateFor's by-kind series template (the
+  newest the desk saved, else Below Deck's) only reaches a show the listings call Documentary or Scripted, or one of a
+  template's family by name (ZT Yacht Life Riviera from ZT Yacht Life). Asking ChatGPT the kind first, or a second ask once
+  its answer says "series", would give a reality series its skeleton.
 - **The stored format doesn't follow the rulebook** (step 10 part 2a; for C). A made show's rules are also its `show_formats` row
   (so classic's paths read them), written once at Looks right. The season plays by its rulebook (`rulebook_live`), whose later
   edits (a show change, a desk fix) don't reach that row; only something reading the show's format the old way would see the
@@ -2702,6 +2701,94 @@ maker solo.ts used, now shared), `start-game.ts`, `end-game.ts`, `GET/POST /api/
 - **For part 3:** "Fits these games" on a rulebook's page (7.12's new-league flow is this sheet) is `gamesFor(blocks, compiled)`
   with its `needs`; the library's rulebooks all answer it (tests/start-game.test.js); a new show from the desk's flow becomes
   startable the moment `shows.set_up_at` is set and its season has a rulebook.
+
+### As built, step 10 part 3 (2026-10-26, on `new-design`): the library and the new-show flow
+
+Rulebooks phase 8, which finishes step 10. Migration **0124** (ships with 0b's, same rehearsal): `rulebook_checks` (one row
+per couch that says a made rulebook looks right), `shows.reviewed_at`/`reviewed_by`, and wider checks on
+`rulebooks.review_status` (+ `checked`, `reviewed`), `show_setups.via` (+ `template`) and `admin_changes.entity` (+ `show`).
+Nothing polls and nothing runs on a schedule (HOSTING.md). New: `src/lib/game/formats/rulebook-shapes.js` (+ `.d.ts`),
+`src/lib/server/desk-library.ts`, `templates.ts`, `rulebook-checks.ts`, `GET/POST /api/desk/library`, `POST /api/desk/shows`,
+`POST /api/desk/shows/[id]`, `POST /api/seasons/[id]/rulebook/check`, `src/new/desk/library.tsx` and `new-show.tsx` at
+`/desk/library` and `/desk/new` (pages a level down, from Find's two new tiles).
+- **The library** (PLAN-rulebooks-implementation 7.9): **Start from**, the templates by kind (the built-ins' and stored
+  formats' mirrors, a starting point the desk saved, a shape's), each with the shows it plays like and who decides its
+  segments (no tags for a competition mirror, whose blocks are read back from its format and say "nobody" everywhere); the
+  design plan's eight **proposed shapes** (`rulebook-shapes.js SHAPES`: brackets and duels, auditions to live shows, game
+  show, docuseries, awards night, season and playoffs, tournament bracket, race series, each a test over the blocks) dashed,
+  "No show here plays like it yet" or "ZT Rally plays like it · one more and it earns its place", until **two real shows**
+  here fit one (each show's newest season rulebook, never a show with a template of its own: The Challenge is a duel every
+  episode but has its own), then **Earned** with **Make it a template** (saved from one of them, named for the shape, its
+  examples kept so a show like them finds it); **Made by players** (New, Checked); **Drafts** (the researched files, and any
+  template taken off); **In use** (every season's rulebook: where it came from, leagues following it, own copies). Sticky
+  New show.
+- **Save as a starting point** (a season rulebook's page) is `desk-library.ts saveTemplate` now: the rulebook as it reads
+  now, every change folded in, the show's name and tagline left blank, named for its show (`provenance.shows`); it opens the
+  template's page. A library rulebook's page has "A starting point for new shows" (on or off), Delete while nothing's made
+  from it (a built-in's or stored format's mirror stays), the shape it was saved as, and the editor as for any rulebook (a
+  fix on a library rulebook changes only it). Every library change is in its History with Undo.
+- **Make it a game's templateFor reads the library** (`make-game.ts templateFor(show, library)`, fed by `templates.ts`): the
+  same show's other season first (one made or edited from blocks), then a template the desk saved for the show's family
+  (`familyOf`/`sameFamily`: no country, edition or leading "The"; "Below Deck" and "Below Deck Mediterranean" are one), ours
+  by name, a stored format's mirror of that family (Big Brother Canada starts from Big Brother US), then by kind for a series
+  or a talk show (the newest the desk saved, a series by its start, else ours); still none by kind for a competition or a
+  sport.
+- **Fits these games** on every rulebook's page (`gamesFor` with each game's `needs`): fits, with step 12, or "Doesn't fit:
+  needs …", and the shape a season's rulebook plays like.
+- **A player-made rulebook** (7.9's "commissioner-made" ones; first creator is parent): the desk's page says "A player made
+  it", how and by whom, the couches that checked it, and **Take it over** (`review_status` 'reviewed', `approved_by` and
+  `approved_at`; its creator stays the first maker; History's Undo puts it back). **Looks right to us** (Noticed's "New until
+  another couch checks it, and nothing checks it", fixed): on How it works, someone on another couch (never the maker or the
+  maker's couch) checks it, once per couch, and it reads "checked by another couch" for everyone (`review_status`
+  'checked'). How it works says "Made with ChatGPT by alex · new until another couch checks it", then "· checked by another
+  couch", then nothing more once the desk took it over; the desk's own reads "Made from the ZT Yacht Life rulebook".
+- **The desk's New show** (7.10, with the kind inferred on the review rather than asked first, layer zero): 1, which show
+  (one here: a season to set up, or New season; a TV listing, made as Add a show makes it without following it or counting
+  against a day's ten; or a name); 2, how to start: Ask ChatGPT for me or copy and paste (the make page, as for anyone), or a
+  starting point (the desk's saved ones first, the show's kind first). **make-game.ts's template path** (`POST /make {
+  action: "template" }`, the desk's only) answers how the show works with the template's blocks named for the show
+  (`derivedFrom: "rulebook:<id>"`), then the cast is asked for, pasted or read from the listing as for any answer. The review,
+  Change and Looks right are the make page's (`?from=desk`), and Looks right comes back to the rulebook's page on the desk. A
+  site admin's made rulebook is checked as it's made ('reviewed', approved by its maker), its parent the template; their
+  attempts aren't capped at five a day; Make it a game's Done view links "Its rulebook on the desk" for them.
+- **A set-up show's next season** (Noticed, fixed): `db/rulebooks.js ensureSeasonRulebook` gives a made show's season with no
+  rulebook of its own a copy of the newest other season's (every change folded in, compiled for itself, `rulebook_live`,
+  `provenance.sameAsLastSeason`) the first time anything reads it (Start a game, the desk, a game's sync). The show's desk
+  page has **New season** (the next number; a set-up show's plays by last season's rulebook, one that isn't a game yet goes to
+  New show's second step). Its cast is still Backstage's Add the cast.
+- **Fixed on the way:** since 2a a made show's stored format (`made-<slug>`) became an approved library template, of the wrong
+  kind, whenever its season's rulebook was ensured (branch only); `ensureSeasonRulebook` and the backfill leave made formats
+  out now (`madeFormat`), and new-fixture's down removes old mirrors and anything saved from zt shows.
+- **The Inbox's new kinds** (7.13; Noticed's "Anyone let in can make shows", fixed for shows added by name): **Rulebook**
+  ("ZT Yacht Life 2: a new rulebook · Made with ChatGPT by alex · nobody on another couch has checked it", until another couch
+  checks it or the desk takes it over) and **Show** ("ZT Mystery Hour: added by name · By alex · not in the TV listings · 1
+  following"; the show's page has Looks fine and Archive it, each undoable; a show the desk adds by name itself has been looked
+  at). Find also finds library rulebooks by name.
+- **Backups** hold `rulebook_checks` (step 0a's scripts: `backup-common.js`, its slice in `backup-leagues.js`, a row in
+  `backup-fixture.js`; `check-backup-restore.js` passes).
+- **End to end:** a series (ZT Harbour Crew from the desk's ZT Yacht Life template, its crew from the listing; alex's Weekly
+  Lineup plays by its rulebook) and a talk show (ZT Night Desk through our bot: Fits these games says Weekly Bingo and Weekly
+  Calls, with step 12, and How it works and Start a game agree).
+- **Changed from the plan:** the library is a page from Find, not a fourth tab; New show asks which show and how to start,
+  never the kind; the review is the show space's make page, not a desk screen of its own; a commissioner's rulebook is a
+  player's (rulebooks are made per season now); a shape earns its place by two real shows passing a test over their blocks,
+  and the desk picks which one's rulebook becomes the template.
+- **Checks:** `scripts/dev-test/check-new-library.js <outDir> [--width=390] [--keep] [--api]` (91 PASS at 390) on
+  new-fixture.js, its own `zt_nd_desk`, `fake-listings.js` (plus ZT Rally and ZT Speedway, race series; ZT Harbour Crew, ZT
+  Coast Guard and ZT Yacht Life Riviera, reality series; ZT Night Desk, a talk show, added by the check) and `fake-bot.js`:
+  the library and its 403, a made rulebook in the Inbox and the library, Looks right to us (casey's couch; alex's refused),
+  Take it over and its Undo, Fits these games, Save as a starting point and a fix on it, templateFor (the Riviera prompt
+  starts from it), on and off, New show from a listing to the template to Looks right, a series and a talk show end to end, a
+  set-up show's next season, a show added by name (Looks fine, Undo, Archive), the Race series shape from proposed to earned,
+  and every real league and earlier rulebook unchanged; then the browser as the desk and as casey. `tests/rulebook-shapes.test.js`
+  (3). Fixed on the way for
+  check-new-desk: the fixture's own shows (made by a zt user, no listing) read as shows added by name, so the Inbox's Show kind
+  is only for a show that isn't a game yet. The rest pass, one at a time: check-new-start-game (75), -make-it (81), -watching
+  (114), -solo (92), -way-in (85), -couches (114), -hub (75), -draft (90), -settling (96), -results-ways (89), -ours (89),
+  -desk (100 on its own; its "every league renames him" failed once in the batch, as before), -community (82), -backstage
+  (67), -backstage-ii (116), -show (69), -shell (46), -reveal (49), -stats (57), -chat (52), check-foundation, check-preview
+  and check-backup-restore; `npm test` 571 of 571; type-check clean; lint (src) as before (the old error in classic's
+  `use-sheet-swipe.ts` and the old warning in `episode-results.ts`).
 
 ## Step C: cutover
 

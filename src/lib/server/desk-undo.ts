@@ -7,6 +7,7 @@ import { restoreSetting } from "./desk";
 import { restoreSeasonBot } from "./desk-bot";
 import { restoreCastaway, restoreGroup, setCastawayLock } from "./desk-cast";
 import { restoreFact } from "./desk-facts";
+import { restoreReview, restoreTemplateRow } from "./desk-library";
 import { restoreLive, undoRulebook, writePhase } from "./desk-rulebooks";
 
 // History's Undo on the desk (docs/PLAN-new-design.md step 6b part 2): each admin_changes row carries how it's taken
@@ -48,6 +49,15 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
       break;
     case "live":
       await restoreLive(user.id, String(u.id), !!u.live);
+      break;
+    case "templateRow":
+      await restoreTemplateRow(u as Parameters<typeof restoreTemplateRow>[0]);
+      break;
+    case "review":
+      await restoreReview(u as Parameters<typeof restoreReview>[0]);
+      break;
+    case "showReviewed":
+      await pool.query("UPDATE shows SET reviewed_at = NULL, reviewed_by = NULL, archived = $2, updated_at = now() WHERE id = $1", [String(u.id), !!u.archived]);
       break;
     case "bot":
       await restoreSeasonBot(String(u.id), { on: !!u.on, schedule: u.schedule as Parameters<typeof restoreSeasonBot>[1]["schedule"] });

@@ -12,6 +12,7 @@ import type { SessionUser } from "./auth-helpers";
 import { pool, HttpError } from "./db";
 import { EVERYTHING, seenThrough } from "./guard";
 import { leagueStates } from "./league-states";
+import { checkState, type CheckState } from "./rulebook-checks";
 import { seasonCastRows } from "./season-cast";
 import { games, seasonHeaders } from "./show-space";
 
@@ -27,6 +28,8 @@ import { games, seasonHeaders } from "./show-space";
 export interface HowItWorksPage {
   how: HowItWorks;
   cast: { name: string; photo: string | null; colour: string | null }[];
+  /** A rulebook someone made (step 10 part 3): whether your couch can say it looks right, or has. */
+  check: CheckState;
 }
 
 export async function seasonHowItWorks(user: SessionUser, seasonId: string, couchId: string | null): Promise<HowItWorksPage> {
@@ -76,12 +79,19 @@ export async function seasonHowItWorks(user: SessionUser, seasonId: string, couc
   const book = row?.blocks && plays ? { blocks: blocksAt(row.blocks, edits, mark ?? Infinity), aliases: row.aliases } : rulebookFor(format.id, format.data);
   const phaseStarts = row && Object.keys(row.phaseStarts || {}).length ? row.phaseStarts : await knownPhaseStarts(pool, seasonId, book.blocks);
   const line = row ? await lineage(pool, row.id) : null;
-  // A rulebook someone made with Make it a game (step 10 part 2a) says so, and that it's new until another couch checks it.
+  // A rulebook someone made with Make it a game (step 10 part 2a) says so, and that it's new until another couch checks it
+  // (step 10 part 3: Looks right to us), unless the desk made it or took it over.
   let made: string | null = null;
   if (row?.provenance?.from === "made") {
     const { rows: by } = await pool.query(`SELECT COALESCE(username, name) AS who FROM "user" WHERE id = $1`, [row.createdBy]);
-    made = `Made with ChatGPT${by[0]?.who ? ` by ${by[0].who}` : ""}${row.reviewStatus === "unreviewed" ? " · new until another couch checks it" : ""}`;
+    const { rows: parent } = row.provenance.via === "template" && row.parentId ? await pool.query("SELECT name FROM rulebooks WHERE id::text = $1", [row.parentId]) : { rows: [] };
+    const how = row.provenance.via === "template" ? `Made from the ${parent[0]?.name ?? "library"} rulebook` : "Made with ChatGPT";
+    const state = row.reviewStatus === "unreviewed" ? " · new until another couch checks it" : row.reviewStatus === "checked" ? " · checked by another couch" : "";
+    // The desk's own (made by a site admin, checked as it was made) names nobody.
+    const desk = !!row.approvedBy && row.approvedBy === row.createdBy;
+    made = `${how}${by[0]?.who && !desk ? ` by ${by[0].who}` : ""}${state}`;
   }
+  const seasonBook = row?.ownerKind === "season" ? row : await seasonRulebook(pool, seasonId);
   const how = howItWorks(book.blocks, {
     compiled: format.data,
     aliases: book.aliases,
@@ -94,5 +104,5 @@ export async function seasonHowItWorks(user: SessionUser, seasonId: string, couc
     updates,
     lineage: made ?? (row ? `${row.name}${line && line.following > 1 ? ` · ${line.following} games play by it` : ""}` : null),
   });
-  return { how, cast };
+  return { how, cast, check: await checkState(user.id, seasonBook, couchId) };
 }

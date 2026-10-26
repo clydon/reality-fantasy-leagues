@@ -8,6 +8,7 @@
 //   /signin                                  signing in (depth 1)
 //   /settings, /start/[step], /join/[code]   their own screens (depth 1)
 //   /desk, /desk/find, /desk/settings         the admin's desk, its three tabs (depth 1, site admins: step 6b part 2)
+//   /desk/library, /desk/new                 the rulebooks library, and New show (depth 2, pushed from Find: step 10 part 3)
 //   /desk/[kind]/[id]                        one thing on the desk: a fact, a season, a castaway, a rulebook... (depth 2)
 //
 // Classic owns everything else ("/", /account, /waivers, /setup, /admin...); the two designs never share a path.
@@ -56,12 +57,16 @@ export const paths = {
   showPage: (seasonId: string, page: "draft" | "blind" | "waivers") => `/show/${seasonId}/${page}`,
   start: (step: number) => `/start/${step}`,
   join: (code: string) => `/join/${code}`,
-  desk: (tab?: "find" | "settings") => `/desk${tab ? `/${tab}` : ""}`,
+  desk: (tab?: "find" | "settings" | "library") => `/desk${tab ? `/${tab}` : ""}`,
+  /** New show; `season`: a season that's here, to set up (How do you want to start?). */
+  deskNew: (season?: string) => `/desk/new${season ? `?season=${encodeURIComponent(season)}` : ""}`,
   deskItem: (kind: DeskKind, id: string) => `/desk/${kind}/${id}`,
 };
 
 /** The desk's tabs, and the kinds of thing it has a page for. */
 export const DESK_TABS = ["inbox", "find", "settings"] as const;
+/** The desk's own pages, a level down from its tabs. */
+export const DESK_PAGES = ["library", "new"] as const;
 export const DESK_KINDS = ["fact", "season", "castaway", "couch", "person", "show", "rulebook"] as const;
 export type DeskKind = (typeof DESK_KINDS)[number];
 export const isDeskKind = (v: string): v is DeskKind => (DESK_KINDS as readonly string[]).includes(v);

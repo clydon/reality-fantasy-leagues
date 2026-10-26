@@ -65,6 +65,8 @@ const GROUP_SLICES = {
   rulebooks: `season_id = ANY($S::uuid[]) OR league_id = ANY($L::uuid[]) OR owner_kind = 'library'`,
   rulebook_edits: `rulebook_id IN (SELECT id FROM rulebooks WHERE season_id = ANY($S::uuid[]) OR league_id = ANY($L::uuid[]) OR owner_kind = 'library')`,
   rulebook_suggestions: "season_id = ANY($S::uuid[])",
+  // Looks right to us (0124, step 10 part 3): which couches checked the seasons' rulebooks someone made.
+  rulebook_checks: "rulebook_id IN (SELECT id FROM rulebooks WHERE season_id = ANY($S::uuid[]))",
   // Make it ours (0114): what the group's couches answered for their own moments on its seasons.
   couch_answers: "couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[])) AND season_id = ANY($S::uuid[])",
   // How results get in (0115): One tap unlocked for the group's couches on its seasons, and who unlocked it. (A quick

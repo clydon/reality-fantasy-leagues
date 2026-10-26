@@ -1,14 +1,18 @@
 import { howItWorks, blockSummaries, type HowItWorks } from "@/lib/game/formats/rulebook-describe";
+import { gamesFor } from "@/lib/game/formats/rulebook-fits.js";
+import type { GameFit } from "@/lib/game/formats/rulebook-fits";
+import { shapeById, shapesOf } from "@/lib/game/formats/rulebook-shapes.js";
 import { applyOps, blocksAt, diffBlocks, opLines } from "@/lib/game/formats/rulebook-patch";
 import { parseRulebookAnswer, reviewRulebook } from "@/lib/game/formats/rulebook-research";
 import { buildRulebookPrompt } from "@/lib/game/formats/rulebook-research";
 import { blocksProblems, labelOf, type BlocksProblem, type RulebookBlocks } from "@/lib/game/formats/rulebook-schema";
-import { copyRulebook, ensureSeasonRulebook, getRulebook, inForceEdits, leaguesUsing, saveChain, setPhaseStart, syncLeagueRulebook, type Rulebook } from "@db/rulebooks.js";
+import { ensureSeasonRulebook, getRulebook, inForceEdits, leaguesUsing, lineage, saveChain, setPhaseStart, syncLeagueRulebook, type Rulebook } from "@db/rulebooks.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { restageSeason } from "./community-results";
 import { requireCouch } from "./couches";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { byNewest, deskLines, logDesk, type DeskLine } from "./desk";
+import { madeLine, saveTemplate } from "./desk-library";
 import { reachCopies } from "./ours";
 import { deskNotices } from "./show-changes";
 import { latestAired, seasonSchedules } from "./schedule";
@@ -64,6 +68,17 @@ export interface DeskRulebook {
   /** Show changes the couches split on, or sent to the desk (step 6c part 2): research's note, and why it's here. */
   notices: { id: string; episode: number; note: string; line: string | null; yes: number; no: number }[];
   history: DeskLine[];
+  /** "Fits these games" (rulebook-fits.js gamesFor): each season game, whether it fits, and what it needs when it doesn't. */
+  fits: GameFit[];
+  /** Made by someone with Make it a game (step 10 part 2a): who first made it and how, whether anyone checked it, and
+   *  whether the desk took it over. */
+  made: { line: string; review: "unreviewed" | "checked" | "reviewed"; couches: string[] } | null;
+  /** In the library: offered as a starting point, the shape it was saved as, the shows it's for, and what was made from it. */
+  library: { template: boolean; shape: string | null; shows: string[]; seasons: number; deletable: boolean } | null;
+  /** Where it came from, nearest first ("Survivor 50 › Survivor"). */
+  lineage: string[];
+  /** The shapes it is (a season's rulebook: what it would help earn). */
+  shapes: string[];
 }
 
 const ABOUT: Record<string, string> = { segment: "A part of an episode", wayOut: "A way out", scores: "Something that scores", other: "Something else" };
@@ -161,6 +176,33 @@ export async function deskRulebook(id: string): Promise<DeskRulebook> {
     suggestions: tips.map((t) => ({ id: t.id, who: t.who ?? "Someone", about: ABOUT[t.about] ?? t.about, note: t.note, at: t.created_at.toISOString() })),
     notices: season ? (await deskNotices()).filter((n) => n.seasonId === season.id).map((n) => ({ id: n.id, episode: n.episode, note: n.note, line: n.line, yes: n.yes, no: n.no })) : [],
     history: byNewest(await deskLines("rulebook", id)),
+    fits: gamesFor(now, r.compiled),
+    made: await madeOf(r),
+    library: r.ownerKind === "library" ? await libraryOf(r) : null,
+    lineage: ((await lineage(pool, id))?.parents ?? []).map((p) => p.name),
+    shapes: shapesOf(now).map((s) => shapeById(s)?.name ?? s),
+  };
+}
+
+async function madeOf(r: Rulebook): Promise<DeskRulebook["made"]> {
+  if (r.provenance?.from !== "made") return null;
+  const { rows } = await pool.query(`SELECT COALESCE(username, name) AS who FROM "user" WHERE id = $1`, [r.createdBy]);
+  const { rows: parent } = r.parentId ? await pool.query("SELECT name FROM rulebooks WHERE id::text = $1", [r.parentId]) : { rows: [] };
+  const { rows: checks } = await pool.query("SELECT c.name FROM rulebook_checks k JOIN couches c ON c.id = k.couch_id WHERE k.rulebook_id = $1 ORDER BY k.created_at", [r.id]);
+  const review = (["unreviewed", "checked", "reviewed"].includes(r.reviewStatus) ? r.reviewStatus : "reviewed") as "unreviewed" | "checked" | "reviewed";
+  const desk = !!r.approvedBy && r.approvedBy === r.createdBy;
+  return { line: madeLine({ via: r.provenance?.via as string | undefined, who: rows[0]?.who ?? null, template: parent[0]?.name ?? null, review, checks: checks.length, desk }), review, couches: checks.map((c) => c.name) };
+}
+
+async function libraryOf(r: Rulebook): Promise<DeskRulebook["library"]> {
+  const { rows } = await pool.query("SELECT count(*)::int AS n FROM rulebooks WHERE parent_kind = 'rulebook' AND parent_id = $1 AND status <> 'archived'", [r.id]);
+  const shows = Array.isArray(r.provenance?.shows) ? (r.provenance!.shows as unknown[]).filter((s): s is string => typeof s === "string") : [];
+  return {
+    template: r.isTemplate,
+    shape: typeof r.provenance?.shape === "string" ? (shapeById(r.provenance.shape)?.name ?? null) : null,
+    shows,
+    seasons: rows[0].n,
+    deletable: r.parentKind !== "builtin" && r.parentKind !== "show_format" && rows[0].n === 0,
   };
 }
 
@@ -330,16 +372,10 @@ export async function lockRulebook(user: SessionUser, id: string, locked: unknow
   return deskRulebook(id);
 }
 
-/** A copy in the library, as a starting point for new shows like it (step 10's new-show flow starts from these). */
+/** A copy in the library, as a starting point for new shows like it (desk-library.ts saveTemplate; step 10 part 3). */
 export async function saveAsTemplate(user: SessionUser, id: string): Promise<{ id: string }> {
-  const r = await row(id);
-  const copy = await copyRulebook(pool, id, { ownerKind: "library", userId: user.id, name: `${r.name} (starting point)`, status: "in_force" });
-  if (!copy) throw new HttpError(404, "Rulebook not found");
-  // The copy carries every edit folded in: a starting point has no timeline.
-  const edits = await inForceEdits(pool, id);
-  await pool.query("UPDATE rulebooks SET is_template = true, blocks = $2::jsonb, review_status = 'approved' WHERE id = $1", [copy.id, JSON.stringify(blocksAt(r.blocks, edits, Infinity))]);
-  await logDesk(pool, { entity: "rulebook", entityId: id, action: "template", text: "Saved as a starting point for new shows", userId: user.id });
-  return { id: copy.id };
+  await row(id);
+  return saveTemplate(user, id);
 }
 
 /** The research prompt for Check for changes: the rulebook prompt with this rulebook, as it is now, as the starting point. */

@@ -4,7 +4,7 @@ import { botFor } from "@/lib/server/ask-bot";
 import { requireAuth } from "@/lib/server/auth-helpers";
 import { HttpError } from "@/lib/server/db";
 import { listingsFor } from "@/lib/server/listings";
-import { askMake, confirmMake, kindMake, makePoll, makePrompt, makeState, pasteMake, restartMake } from "@/lib/server/make-game";
+import { askMake, confirmMake, kindMake, makePoll, makePrompt, makeState, pasteMake, restartMake, templateMake } from "@/lib/server/make-game";
 
 // Make it a game (docs/PLAN-new-design.md step 10 part 2a; make-game.ts), for a show that isn't a game yet.
 //   GET                   where it stands: who's at it, what's been found, the review (MakeState)
@@ -12,7 +12,8 @@ import { askMake, confirmMake, kindMake, makePoll, makePrompt, makeState, pasteM
 //   GET ?prompt=rules|cast  a question to copy into your own chat
 //   POST { action }       ask (our bot, after the response: this route's maxDuration is its whole budget; `again`:
 //                         "rules" | "cast" asks that over), continue (the cast, when the first ask ran out of time),
-//                         paste { part, answer }, kind { kind, start }, restart { part }, confirm (Looks right)
+//                         paste { part, answer }, kind { kind, start }, restart { part }, confirm (Looks right),
+//                         template { template } (the desk's: start from a library rulebook, step 10 part 3)
 // `?couch=` is the couch you're on (who started it is named only on your own couch).
 export const maxDuration = 300;
 
@@ -45,7 +46,9 @@ export const POST = apiRoute(async (req, { params }: Params) => {
       return NextResponse.json(await restartMake(user, seasonId, couch, body));
     case "confirm":
       return NextResponse.json(await confirmMake(user, seasonId, couch));
+    case "template":
+      return NextResponse.json(await templateMake(user, seasonId, couch, body, base));
     default:
-      throw new HttpError(400, "action is ask, continue, paste, kind, restart or confirm");
+      throw new HttpError(400, "action is ask, continue, paste, kind, restart, confirm or template");
   }
 });
