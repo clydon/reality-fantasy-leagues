@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { auth } from "@/lib/auth";
 import { realEmail } from "@/lib/no-email";
 import { isPaletteColour } from "@/lib/people";
+import { DEFAULT_THEME, isTheme, type Theme } from "@/lib/appearance";
 import { sharingFrom, SHARE_SWITCHES, type ShareSwitch, type Sharing } from "@/lib/sharing";
 import { isImpersonating, isSuperAdminUser, type Session, type SessionUser } from "./auth-helpers";
 import { pool, HttpError, withLeagueLock } from "./db";
@@ -14,7 +15,8 @@ import { readNotify, saveNotify, type NotifySettings } from "./notify-prefs";
 
 // Your profile and your account settings in the new design (docs/PLAN-new-design.md step 15 part 1; the mock's settings.js):
 // your name, colour and picture, Hide scores until I reveal, your AI for results, and what your account signs in with; and What
-// your couch sees (step 15 part 3: the four switches, src/lib/sharing.ts, and what they let out of you, in your own words).
+// your couch sees (step 15 part 3: the four switches, src/lib/sharing.ts, and what they let out of you, in your own words); and
+// Appearance (part 4: Night, Studio or Match phone, src/lib/appearance.ts, kept on each device as a cookie: appearance.ts).
 //
 // One name: your username is the name your couch sees (the way in says so), and saving a new one renames your seat in every
 // league you play (classic's tables and the new design's then agree) and signs your old messages with it. One face: your
@@ -35,6 +37,8 @@ export interface Profile {
   ai: AiChoice;
   /** Results wait for you to reveal them (user_settings.show_results_immediately turned round). */
   hideScores: boolean;
+  /** Appearance (step 15 part 4): Night, Studio or Match phone. */
+  theme: Theme;
   /** "Survivor 49": the first season you played, for the me card's "since". */
   since: string | null;
   /** What we notify you about (step 15 part 2): each moment on or off, and Couch chat's choice. */
@@ -57,7 +61,7 @@ export interface Profile {
 export async function readProfile(user: SessionUser): Promise<Profile> {
   const [{ rows }, { rows: first }, notify] = await Promise.all([
     pool.query(
-      `SELECT u.username, u.name, u.email, s.colour, s.ai, COALESCE(s.show_results_immediately, false) AS immediate,
+      `SELECT u.username, u.name, u.email, s.colour, s.ai, s.theme, COALESCE(s.show_results_immediately, false) AS immediate,
               (EXTRACT(EPOCH FROM p.updated_at) * 1000)::bigint AS picture,
               EXISTS (SELECT 1 FROM account a WHERE a."userId" = u.id AND a."providerId" = 'credential') AS password,
               EXISTS (SELECT 1 FROM account a WHERE a."userId" = u.id AND a."providerId" = 'google') AS google
@@ -82,6 +86,7 @@ export async function readProfile(user: SessionUser): Promise<Profile> {
     picture: r.picture == null ? null : Number(r.picture),
     ai: AI_CHOICES.includes(r.ai) ? (r.ai as AiChoice) : "chatgpt",
     hideScores: !r.immediate,
+    theme: isTheme(r.theme) ? r.theme : DEFAULT_THEME,
     since: first[0] ? `${(first[0].name as string).replace(/^The /, "")}${first[0].season_number ? ` ${first[0].season_number}` : ""}` : null,
     notify,
     sharing: { on: (await sharingOf([user.id])).get(user.id)!, lines: await sharingLines(user.id, name) },
@@ -139,12 +144,12 @@ function mayChange(session: Session) {
 }
 
 /**
- * Your colour, AI, spoiler setting, a notification moment or What your couch sees (PUT /api/me/profile). Only what's sent changes;
- * null colour goes back to the one your id picks. `sharing`: { preset } (all, games, min) or any of the four switches.
+ * Your colour, AI, spoiler setting, a notification moment, What your couch sees or Appearance (PUT /api/me/profile). Only what's
+ * sent changes; null colour goes back to the one your id picks. `sharing`: { preset } (all, games, min) or any of the four switches.
  */
 export async function saveSettings(
   session: Session,
-  body: { colour?: unknown; ai?: unknown; hideScores?: unknown; notify?: unknown; sharing?: unknown }
+  body: { colour?: unknown; ai?: unknown; hideScores?: unknown; notify?: unknown; sharing?: unknown; theme?: unknown }
 ): Promise<void> {
   mayChange(session);
   if (body.notify !== undefined) {
@@ -168,6 +173,11 @@ export async function saveSettings(
     if (typeof body.hideScores !== "boolean") throw new HttpError(400, "hideScores must be true or false");
     args.push(!body.hideScores);
     sets.push(`show_results_immediately = $${args.length}`);
+  }
+  if ("theme" in body) {
+    if (!isTheme(body.theme)) throw new HttpError(400, "theme must be night, studio or phone");
+    args.push(body.theme);
+    sets.push(`theme = $${args.length}`);
   }
   if ("sharing" in body) {
     const next = sharingFrom(body.sharing, (await sharingOf([session.user.id])).get(session.user.id)!);

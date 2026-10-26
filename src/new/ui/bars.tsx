@@ -87,7 +87,7 @@ export function PageHeader({
 }) {
   const nav = useNav();
   return (
-    <header className="sticky top-0 z-20 grid grid-cols-[1fr_auto_1fr] items-center border-b border-border bg-[rgba(22,20,29,.92)] px-2.5 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md">
+    <header className="sticky top-0 z-20 grid grid-cols-[1fr_auto_1fr] items-center border-b border-border bg-background/92 px-2.5 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md">
       <button
         type="button"
         onClick={() => nav.back(back.parent, back.accepts)}

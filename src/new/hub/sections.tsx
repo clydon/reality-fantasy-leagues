@@ -208,7 +208,8 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
     set: { tag: "All set", tone: "bg-good text-good-foreground", title: up ? `Nothing due for Episode ${up.number}` : "Nothing due", line: "Change anything until it airs" },
   }[kind];
   return (
-    <section data-art-scope data-upnext={kind} className="relative isolate mx-4 mt-1 flex min-h-[330px] flex-col overflow-hidden rounded-[4px] shadow-[0_18px_40px_rgba(0,0,0,.45)]">
+    // Over the show's art: Night in both themes (step 15 part 4).
+    <section data-art-scope data-upnext={kind} className="dark relative isolate mx-4 mt-1 flex min-h-[330px] flex-col overflow-hidden rounded-[4px] text-foreground shadow-[0_18px_40px_rgba(0,0,0,.45)]">
       <span className="absolute inset-0 -z-[2] overflow-hidden">
         <ShowArt seasonId={show.seasonId} artUrl={show.show.artUrl} name={show.show.name} className="nd-kenburns size-full" />
       </span>

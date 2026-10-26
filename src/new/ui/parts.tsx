@@ -3,6 +3,7 @@
 import type { ComponentProps, ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import { ChevronRight, Minus, Plus, ShieldCheck } from "lucide-react";
+import { inkOf } from "../games";
 import { NavLink } from "../nav";
 
 // The new design's small parts (the mock's .btn, .row, .sh, .chip, .gd-chip). Rules they carry (the critique,
@@ -126,7 +127,9 @@ export function GuardChip({ seenThrough, onChange, className = "" }: { seenThrou
     <button
       type="button"
       onClick={onChange}
-      className={`flex h-9 w-full items-center gap-[7px] rounded-[3px] bg-good/10 px-2.5 text-left text-xs font-bold text-good ${className}`}
+      className={`flex h-9 w-full items-center gap-[7px] rounded-[3px] bg-good/10 px-2.5 text-left text-xs font-bold ${className}`}
+      // The good colour as text: deeper on Studio (games.ts inkOf), where the tint behind it takes it under 4.5:1.
+      style={{ color: inkOf("var(--good)") }}
     >
       <ShieldCheck className="size-[15px] flex-none" aria-hidden />
       <span className="flex-1">

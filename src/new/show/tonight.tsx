@@ -6,7 +6,7 @@ import { Check, ChevronRight, Eye, EyeOff, Grid3x3, Lock, MessageCircle, Plus } 
 import { airTime, calm, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
 import { AskAiSheet, checkFull } from "../backstage/ask-ai";
 import { backstage, chatCouch, useAfterResults, useChatBadge, useWatchCard, type GameView, type PasteResult } from "../data";
-import { gameColour, ordinal } from "../games";
+import { gameColour, gameInk, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { episodesOf, openWhere, type ShowData } from "../screens/show-space";
@@ -618,7 +618,7 @@ function LastTime({ show }: { show: ShowData }) {
             <span className="type-caption block text-[13px] tracking-[0.04em] text-muted-foreground">Your night</span>
             {lines.map((l) => (
               <div key={`${l.leagueId}-${l.gameType}`} className="grid grid-cols-[110px_1fr] items-baseline gap-x-2.5 border-t border-border py-2.5 first-of-type:border-t-0">
-                <span className="type-caption text-[13px] tracking-[0.04em]" style={{ color: l.gameType === "predictions" ? "var(--muted-foreground)" : gameColour(l.gameName) }}>
+                <span className="type-caption text-[13px] tracking-[0.04em]" style={{ color: l.gameType === "predictions" ? "var(--muted-foreground)" : gameInk(l.gameName) }}>
                   {l.gameName}
                 </span>
                 <span className="min-w-0">

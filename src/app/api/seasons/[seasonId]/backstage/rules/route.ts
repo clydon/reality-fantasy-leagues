@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
 import { backstageScope } from "@/lib/server/backstage";
-import { pointsWrite, scoringRules } from "@/lib/server/backstage-games";
+import { anyLockedDown, FROZEN, pointsWrite, scoringRules } from "@/lib/server/backstage-games";
 import { HttpError } from "@/lib/server/db";
 import { answerUpdate, changeOurs, followAgain, makeOurs } from "@/lib/server/ours";
 
@@ -15,6 +15,7 @@ import { answerUpdate, changeOurs, followAgain, makeOurs } from "@/lib/server/ou
 //   { action: "moment", add: { label, counted, points } } a moment the couch answers;  { action: "moment", remove: id, preview? }
 //   { action: "update", edit, take: boolean, preview? }  a show change: Add it or Skip
 //   { action: "points", leagueId, points: { [momentId]: n }, preview? }   a Weekly Lineup's points, the season scored again
+// A game here locked down (step 15 part 4: Lock it down) freezes the rules for the season: every action is refused (409).
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId: string }> }) => {
   const { seasonId } = await params;
   const user = await requireAuth(req);
@@ -28,6 +29,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ seasonI
   const scope = await backstageScope(user, seasonId, new URL(req.url).searchParams.get("couch"));
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const preview = body.preview === true;
+  if (await anyLockedDown(scope.games.map((g) => g.leagueId))) throw new HttpError(409, FROZEN);
   switch (body.action) {
     case "ours":
       return NextResponse.json(await makeOurs(scope));

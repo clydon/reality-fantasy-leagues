@@ -4,19 +4,22 @@ import dynamic from "next/dynamic";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { Theme } from "emoji-picker-react";
 import { Eye, MessageCircle, Plus, Send } from "lucide-react";
-import { useChatActions, useCouchChat, type ChatLine, type CouchChat } from "../data";
+import { chatEarlier, useChatActions, useCouchChat, type ChatLine, type CouchChat } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
 import { Btn, CaptionPlate, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { useOpenReveal } from "./reveal";
+import { useNight } from "../appearance";
 
 // Chat (the mock's show.js tabChat and watching.js wChat; docs/PLAN-new-design.md step 4): the couch's one chat about
 // this show (its games' chat, which classic shows as the linked group's, or the couch's own on a show it only
 // watches), by day, with the reveal lines, reactions, and the composer above the tab bar. Folded past where you are
 // on the server (couch-chat.ts): what others said since an episode you haven't seen aired arrives without its words,
-// and shows as one dashed line with Reveal and Show them. Polls a version every 5 s while it's open.
+// and shows as one dashed line with Reveal and Show them. Polls a version every 5 s while it's open. Earlier messages (step 15
+// part 4): it opens on the newest 300; a tap at the top reads the 100 before (folded the same), and from then on the poll asks
+// for everything since the earliest you've read back to, so it's one conversation that keeps updating.
 
 const EmojiPicker = dynamic(() => import("emoji-picker-react"), { ssr: false });
 const QUICK = ["👍", "❤️", "😂", "😮", "😢", "🔥"];
@@ -80,12 +83,43 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const couchId = show.couch?.id ?? null;
   const unfoldKey = `${seasonId}:${couchId}`;
   const [unfold, setUnfold] = useState<number | null>(() => unfolds.get(unfoldKey) ?? null);
-  const chat = useCouchChat(seasonId, couchId, unfold);
+  // Earlier messages: where the conversation's read from once you've read back, and the page that's shown until that read is in.
+  const [since, setSince] = useState<string | null>(null);
+  const [page, setPage] = useState<{ messages: ChatLine[]; more: boolean } | null>(null);
+  const [reading, setReading] = useState(false);
+  const chat = useCouchChat(seasonId, couchId, unfold, since);
   const actions = useChatActions(seasonId, couchId);
   const openReveal = useOpenReveal();
   const [open, setOpen] = useState<ChatLine | null>(null);
   const data = chat.data && "messages" in chat.data ? chat.data : null;
-  const messages = data?.messages ?? [];
+  const read = data?.messages ?? [];
+  const waiting = !!page && read[0]?.id !== since;
+  const messages = waiting ? [...page.messages, ...read.filter((m) => !page.messages.some((p) => p.id === m.id))] : read;
+  const more = waiting ? page.more : !!data?.more;
+  // Reading back keeps your place: the page grows above you.
+  const keep = useRef<number | null>(null);
+  useLayoutEffect(() => {
+    if (keep.current == null) return;
+    window.scrollTo({ top: document.documentElement.scrollHeight - keep.current, behavior: "instant" });
+    keep.current = null;
+  }, [messages.length]);
+  const earlier = async () => {
+    const first = messages[0];
+    if (!first || reading || !couchId) return;
+    setReading(true);
+    try {
+      const got = await chatEarlier(seasonId, couchId, first.id, unfold);
+      if ("messages" in got && got.messages.length) {
+        keep.current = document.documentElement.scrollHeight - window.scrollY;
+        setPage({ messages: [...got.messages, ...messages], more: got.more });
+        setSince(got.messages[0].id);
+      } else if ("messages" in got) setPage({ messages, more: false });
+    } catch (e) {
+      toast(`Didn't load: ${(e as Error).message}`);
+    } finally {
+      setReading(false);
+    }
+  };
 
   // Opens at the newest message and keeps up with new ones, unless you've scrolled up to read back.
   const atBottom = useRef(true);
@@ -149,6 +183,13 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
 
   return (
     <div data-chat className="px-4 pb-4 pt-1">
+      {more && (
+        <div className="flex justify-center pb-1 pt-3">
+          <Btn data-earlier className="h-10 px-4 text-[14px]" disabled={reading} onClick={earlier}>
+            {reading ? "Loading…" : "Earlier messages"}
+          </Btn>
+        </div>
+      )}
       {messages.length === 0 && (
         <div className="py-14 text-center">
           <p className="type-caption text-[22px]">No messages yet</p>
@@ -347,7 +388,7 @@ function Composer({ placeholder, onSend }: { placeholder: string; onSend: (text:
           e.preventDefault();
           send();
         }}
-        className="nd-fixed-x fixed z-[25] flex items-end gap-2 border-t border-border bg-[rgba(22,20,29,.95)] px-4 pb-4 pt-2.5 backdrop-blur-md"
+        className="nd-fixed-x fixed z-[25] flex items-end gap-2 border-t border-border bg-background/95 px-4 pb-4 pt-2.5 backdrop-blur-md"
         style={{ bottom: lift ? lift : "calc(66px + env(safe-area-inset-bottom, 0px))" }}
       >
         <textarea
@@ -380,6 +421,7 @@ function Composer({ placeholder, onSend }: { placeholder: string; onSend: (text:
 function MessageSheet({ m, chat, onClose, actions }: { m: ChatLine | null; chat: CouchChat; onClose: () => void; actions: ReturnType<typeof useChatActions> }) {
   const [picker, setPicker] = useState(false);
   const [editing, setEditing] = useState<string | null>(null);
+  const night = useNight();
   // Keeps showing the message it opened with while it slides away.
   const [shown, setShown] = useState<ChatLine | null>(m);
   if (m && m !== shown) setShown(m);
@@ -470,7 +512,7 @@ function MessageSheet({ m, chat, onClose, actions }: { m: ChatLine | null; chat:
                 onEmojiClick={(d) => (close(), run(actions.react(shown.id, d.emoji)))}
                 width="100%"
                 height={320}
-                theme={"dark" as Theme}
+                theme={(night ? "dark" : "light") as Theme}
                 previewConfig={{ showPreview: false }}
                 lazyLoadEmojis
               />

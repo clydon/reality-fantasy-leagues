@@ -109,7 +109,7 @@ export function DraftScreen({ seasonId, kind }: { seasonId: string; kind: "snake
 
   return (
     <div className="flex min-h-dvh flex-col pb-28" data-draft={kind}>
-      <header className="sticky top-0 z-20 grid h-14 grid-cols-[44px_1fr_44px] items-center gap-1.5 border-b border-border bg-[rgba(22,20,29,.95)] px-1.5 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md">
+      <header className="sticky top-0 z-20 grid h-14 grid-cols-[44px_1fr_44px] items-center gap-1.5 border-b border-border bg-background/95 px-1.5 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md">
         <button type="button" onClick={leave} aria-label="Leave the draft" className="grid size-11 place-items-center rounded-[3px]">
           <X className="size-5" aria-hidden />
         </button>
@@ -213,7 +213,7 @@ function ClockCard({ tone, lead, kick, line, end }: { tone: "you" | "away" | "qu
     >
       {lead}
       <div className="min-w-0 flex-1">
-        <span className={`type-caption block text-[13px] tracking-[0.06em] ${tone === "you" ? "text-[#845800]" : "text-muted-foreground"}`}>{kick}</span>
+        <span className={`type-caption block text-[13px] tracking-[0.06em] ${tone === "you" ? "text-plate-line" : "text-muted-foreground"}`}>{kick}</span>
         <b className="mt-[3px] block text-[15px] leading-snug">{line}</b>
       </div>
       {end}
@@ -249,7 +249,7 @@ function Tile({
         disabled={disabled}
         onClick={onTap}
         className={`relative isolate flex aspect-[3/4] w-full flex-col justify-end overflow-hidden rounded-[3px] p-1.5 text-left text-white transition-[transform,box-shadow] duration-300 ${
-          selected ? "-translate-y-0.5 shadow-[0_0_0_3px_var(--chyron)]" : ""
+          selected ? "-translate-y-0.5 shadow-[0_0_0_3px_var(--chyron-line)]" : ""
         }`}
       >
         <Face src={face.photo} name={face.name} className={`absolute inset-0 -z-20 size-full ${taken ? "brightness-[.45] grayscale" : ""}`} />
@@ -269,7 +269,7 @@ function Tile({
           aria-pressed={starred}
           aria-label={starred ? `Take ${first(face.name)} out of your queue` : `Queue ${first(face.name)}`}
           onClick={onStar}
-          className={`absolute right-1 top-1 grid size-[30px] place-items-center rounded-full ${starred ? "bg-chyron text-chyron-foreground" : "bg-[rgba(16,14,21,.6)] text-muted-foreground"}`}
+          className={`absolute right-1 top-1 grid size-[30px] place-items-center rounded-full ${starred ? "bg-chyron text-chyron-foreground" : "bg-[rgba(16,14,21,.6)] text-white/75"}`}
         >
           <Star className="size-[15px]" fill={starred ? "currentColor" : "none"} aria-hidden />
         </button>
@@ -439,7 +439,7 @@ function SnakeRoom({ seasonId, show, game, onSettings }: { seasonId: string; sho
   return (
     <>
       {live && (
-        <div data-ticker className="flex gap-4 overflow-hidden whitespace-nowrap border-b border-border bg-[#121019] px-4 py-2 text-xs text-muted-foreground [mask-image:linear-gradient(90deg,#000_80%,transparent)]">
+        <div data-ticker className="flex gap-4 overflow-hidden whitespace-nowrap border-b border-border bg-panel-menu px-4 py-2 text-xs text-muted-foreground [mask-image:linear-gradient(90deg,#000_80%,transparent)]">
           {latest.length ? (
             latest.map((p, i) => (
               <span key={p.n} className={i === 0 ? "nd-rise text-foreground" : ""}>
@@ -523,7 +523,7 @@ function SnakeRoom({ seasonId, show, game, onSettings }: { seasonId: string; sho
       )}
 
       {forWho && (
-        <div data-for-bar className="mx-4 mt-2 flex items-center gap-2 rounded-[3px] bg-[rgba(255,197,49,.12)] px-2.5 py-2 text-[13px] outline-1 -outline-offset-1 outline-chyron">
+        <div data-for-bar className="mx-4 mt-2 flex items-center gap-2 rounded-[3px] bg-[rgba(255,197,49,.12)] px-2.5 py-2 text-[13px] outline-1 -outline-offset-1 outline-chyron-line">
           <Hand className="size-4 flex-none text-chyron-line" aria-hidden />
           <span className="flex-1">
             Picking for <b>{onClock}</b> · on the phone with them?
@@ -881,7 +881,7 @@ function BlindRoom({ seasonId, show, game, onSettings }: { seasonId: string; sho
       )}
 
       {forWho && (
-        <div data-for-bar className="mx-4 mt-2 flex items-center gap-2 rounded-[3px] bg-[rgba(255,197,49,.12)] px-2.5 py-2 text-[13px] outline-1 -outline-offset-1 outline-chyron">
+        <div data-for-bar className="mx-4 mt-2 flex items-center gap-2 rounded-[3px] bg-[rgba(255,197,49,.12)] px-2.5 py-2 text-[13px] outline-1 -outline-offset-1 outline-chyron-line">
           <Hand className="size-4 flex-none text-chyron-line" aria-hidden />
           <span className="flex-1">
             Picking for <b>{forName}</b>. You won&rsquo;t see anything they picked.
@@ -1026,7 +1026,7 @@ function BlindReveal({ seasonId, show, game }: { seasonId: string; show: ShowDat
   const name = showName(show);
   const cols = game.size > 5 ? "grid-cols-5" : game.size === 5 ? "grid-cols-5" : "grid-cols-4";
   return (
-    <div data-blind-reveal className={`-mb-28 flex-1 bg-[#0b0a10] px-4 pb-36 pt-6 ${still ? "nd-still" : ""}`}>
+    <div data-blind-reveal className={`dark -mb-28 flex-1 bg-[#0b0a10] px-4 pb-36 pt-6 text-foreground ${still ? "nd-still" : ""}`}>
       <span className="type-caption text-xs tracking-[0.06em] text-muted-foreground">
         {game.gameName} · {name}
       </span>
@@ -1090,7 +1090,7 @@ function StartsAt({ initial, onSave }: { initial: string; onSave: (iso: string |
         aria-label="When the draft starts"
         value={when}
         onChange={(e) => setWhen(e.target.value)}
-        className="h-12 min-w-0 flex-1 rounded-[3px] bg-secondary px-3 text-base [color-scheme:dark]"
+        className="h-12 min-w-0 flex-1 rounded-[3px] bg-secondary px-3 text-base"
       />
       <Btn data-save-when onClick={() => onSave(when ? new Date(when).toISOString() : null)}>
         Save

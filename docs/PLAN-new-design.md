@@ -40,7 +40,7 @@ and bringing Noticed, not fixed up to date. That's the continuity between sessio
 | 12 | Episode games: Rate it and verdicts, Call it, bingo, polls, trivia | **done** 2026-10-26 on the branch, in three parts: Rate it and couch verdicts (migration 0128), Call it, polls and Weekly Calls (0129), bingo, trivia and Weekly Bingo (0130); all ship with 0b's | Opus · xhigh |
 | 13 | Watch along: pinned reactions, GIFs, together sessions | **done** 2026-10-26 on the branch, in three parts: watch along on your own time (reactions pinned to runtime, GIFs behind config; migration 0131), who's on now and the live airing (each open watch along's clock kept on the server; 0132), together sessions and planned nights (one clock for everyone in a planned night's watch along, Up next's planned night, a shared start's own time, bingo ticks and the two accolades; 0133); all ship with 0b's | Opus · xhigh |
 | 14 | Streaming shows and the rail | **done** 2026-10-26 on the branch, in two parts: streaming on the couch (the release model, the rail, the show space; no migration), the fold by progress, first to finish and daily streaming off Also on (migration 0134, which ships with 0b's) | Opus · high |
-| 15 | Notifications by moment, account settings, What your couch sees | in progress on the branch, in four parts: your settings and your profile (part 1 finished 2026-10-26, migration 0135), notifications by moment (part 2 finished 2026-10-26, migration 0136), what your couch sees (part 3 finished 2026-10-26, migration 0137), Studio and the rest; 0135-0137 ship with 0b's | Opus · xhigh |
+| 15 | Notifications by moment, account settings, What your couch sees | **done** 2026-10-26 on the branch, in four parts: your settings and your profile (migration 0135), notifications by moment (0136), what your couch sees (0137), Studio and the rest (the light theme and Match phone, Earlier messages, Lock it down; 0138); all ship with 0b's. The Preview registry and `src/new/fixtures/` hold nothing | Opus · xhigh |
 | — | **Merge, deploy and switch the couch to the new design** | after 15 (the user, 2026-10-25): backup, Neon rehearsal, merge, `ui='new'` for the couch | — |
 | C | Cutover: new design for everyone, classic removed, cleanup; rulebooks phase 9 | not started | Opus · xhigh |
 
@@ -162,8 +162,6 @@ step's As built.
 - **No tour in the new design** (step 15 part 1; for C or a later step). The mock's Help has Take the tour again ("5 minutes on a practice
   season"); classic's guided tour is classic's, so Settings has How each game works and Report a problem only. The practice couch (step 9
   part 3) is the nearest thing.
-- **Only the newest 300 messages** (step 4; for 15: step 13 part 1 left it, a watch along has its own stream), as classic: nothing
-  loads earlier ones.
 - **Classic's research isn't a source** (step 6b part 1; for C). Backstage's answers, a player's Fill it in, One tap and
   (since 6c) the bot's scheduled runs are submissions that settle facts for every couch; classic's commissioner research
   panel, the admin's research and paste in Admin › Shows, and the wiki still stage pending results the old way, so they're
@@ -215,9 +213,6 @@ step's As built.
   RevealLogic catch-up mode (for C).
 - **No "Extend a day"** (step 6a; for 6b or later). The mock's Backstage › Waivers has it; the engine has no way to move a
   week's deadline (a window's `processAt` is worked out from the schedule). Small: an override on the period.
-- **No "Lock it down"** (step 6a; 10 part 2b left it; for 15 or a later polish). The mock's Game settings has a competitive switch
-  (no late joins, no catch-up, rules frozen); only the first means anything in the engine today (Who can join's Nobody new, per
-  game). "Rules frozen" would refuse a Commissioner's own Scoring rules and Make it ours for the season: a setting nothing reads yet.
 - **No quick-check switch for a couch** (step 6c part 1; for when Autopilot ships, the user's call; 6c part 2 left it). The mock's
   Quick check card has a switch ("Our bot checks who went home about 5 minutes after the episode, and keeps checking until
   it's sure. Always free."). The bot's schedule is per season and an admin's (Survivor 51 runs only the schedule check, the
@@ -470,6 +465,29 @@ step's As built.
 - **Posters are TVmaze's medium image** (step 10 part 1; for a later polish). 210 by 295, soft in the tall show bar; TVmaze's
   other size is the upload itself, often over a megabyte. A resized copy we keep (or Vercel's image optimisation, which has
   limits of its own) would sharpen it.
+- **Some small text sits between 3:1 and 4.5:1** (step 15 part 4; for a later polish). `check-new-studio.js` fails anything under 3:1
+  (none now, in either theme) and lists what's under 4.5:1 as LOW: in both themes the tab bar's badge count (white on live red, 3.4:1
+  on Night), a dimmed "Episodes 6 to 13" on Episodes (3.4:1), the landing's "S37 · Ep 7"; on Studio a few muted lines on a tinted
+  fill (3.1-4.1:1). Each is a small token or opacity change; run the check with `--themes=night,studio` and read its LOW lines.
+- **An undo can change a locked-down game's settings** (step 15 part 4; for a later polish). Lock it down refuses new changes to Game
+  settings, the points and Make it ours, but Recent changes' Undo of a change made before it was locked (a lineup size, a points
+  change) still applies: undo goes through the change log, not those writes. The undo could check `GhostLogic.lockedDown` for a
+  settings or rules batch.
+- **Classic's late-joiner switch doesn't know Lock it down** (step 15 part 4; for C). Classic's Let people join late reads
+  `GhostLogic.allowed`, so it shows off while a game is locked down, and switching it on there changes nothing until Lock it down is
+  off in the new design. Classic retires at C.
+- **A refusal's toast carries the check mark** (step 15 part 4, seen on Lock it down's "Locked down for the season: the rules are
+  frozen"; for a later polish). The new design's toast has one look, the green tick of something done, and every refusal and error
+  goes through it too ("Only a Commissioner changes this"). A quiet variant without the tick (or with the warning triangle) for
+  messages that aren't confirmations would read truer.
+- **check-new-settings' colour toast can miss in a batch** (step 15 part 4; for whoever next touches the check). "Saved: your colour"
+  wasn't seen within its 15 s once in the full batch, though the colour saved (the next assertion, the face, passed), then the check
+  passed alone; most likely the PUT answering slowly under the batch's load. Waiting on the saved row first, then the toast, would
+  steady it.
+- **Earlier messages and a deleted first message** (step 15 part 4; for a later polish). Once you've read back, the open chat polls
+  from the earliest message you loaded; if that very message is deleted (by its author or whoever runs a game) while you have it open,
+  the read falls back to the newest 300 and the page keeps showing the earlier ones as they were until you open the chat again. The
+  read could fall back to the next message on instead.
 
 ## What exists, what's needed
 
@@ -4194,6 +4212,101 @@ choice has to survive a restore; one that lost it would show what someone chose 
 - **For part 4 (Studio and the rest):** `settings.appearance` is the registry's last entry (the Studio light theme and Match phone);
   from Noticed: only the newest 300 messages (Earlier messages), no Lock it down. At its end `src/new/preview.ts` and `src/new/fixtures/`
   hold nothing, step 15's Status row says it's done, and the merge-and-deploy step is the user's.
+
+### As built, step 15 part 4 (2026-10-26, on `new-design`): Studio and the rest
+
+Migration **0138** (ships with 0b's, same rehearsal): `user_settings.theme`, NOT NULL, 'night' by default (the new design until now),
+checked to 'night' | 'studio' | 'phone'; **backed up** with `user_settings` like the account's other choices. Lock it down needs no
+migration (`settings.lockedDown`, a league setting in its state). Nothing new polls, runs on a schedule or pushes (HOSTING.md). New:
+`src/lib/appearance.ts` (pure: the themes, the cookie, the grounds), `src/lib/server/appearance.ts` (the account's theme, the device's
+cookie), `src/new/appearance.tsx` (the browser side), `src/new/settings/appearance.tsx`, `tests/appearance.test.js`,
+`scripts/dev-test/check-new-studio.js`. With this part, step 15 is done and **the Preview registry and `src/new/fixtures/` hold
+nothing**: `PREVIEWS` is an empty object and the fixtures folder only its convention file. **Decided:** `<Preview>`, the registry,
+`fixtures/index.ts` and `check-preview.js` stay until step C deletes them, as The approach says, so a later step (desktop layouts) that
+ports a piece before its data is real can still mark it; `check-preview.js` passes with nothing in it.
+- **Appearance** (the mock's settings.js `.segm`, after Your AI for results): Night · Studio · Match phone, a segmented control of three
+  44 px buttons, with the chosen one's line ("Light, for daytime", and on Match phone "Studio now" or "Night now"), "Every phone you sign
+  in on follows it." A tap draws it at once (the cookie, `<html>`, the bars' colour), saves it to the account (PUT `/api/me/profile {
+  theme }`), Undo puts the last one back. **Per account, before first paint:** the account's choice is the truth and the `gys_theme`
+  cookie each device's copy (not httpOnly: the boot script reads it). The root layout's boot script (`theme-script.ts`) now knows the
+  new design's routes: there it reads the cookie (Night without one, or for anything it doesn't know) and puts `dark` and
+  `data-nd-theme` on `<html>` while the HTML is parsed, so nothing flashes; everywhere else it's classic's per-browser choice as before.
+  The `(new)` layout's `generateViewport` reads the same cookie for the browser's bars (two media queries on Match phone). The cookie is
+  written by every answer that reads the account's choice when the device's differs: the profile's read and save, the home read and GET
+  /api/me (which the new design's sign-in asks before it goes in, so the first screen after signing in is right); a device that still
+  has another theme catches up when the home read says otherwise (`ThemeSync`, once). Match phone follows the phone as it changes
+  (`matchMedia`), with no reload. An admin viewing as someone keeps their own device's theme. The emoji picker follows it too.
+- **Studio across the new design:** the tokens are classic's Studio (globals.css `:root`), already DESIGN.md's; the new design forced
+  Night by putting `dark` on its column, which is gone (the shell's `nd` div carries no theme). Every screen was looked at in both
+  themes (`check-new-studio.js`, below). What changed: the chrome that had Night's colours written in (the tab bar `bg-panel-menu/94`,
+  page and pushed-page headers and the draft room's `bg-background/92`, the sheets' scrim `var(--scrim)`, the chat composer and the
+  bottom bars of Waivers, Scoring rules, the rulebook editor and the library `bg-background/95`, the draft ticker `bg-panel-menu`); the
+  phone column's backdrop and edge per theme (new.css `--nd-backdrop`, `--nd-edge`); yellow as a line (the yellow rule): selection rings
+  on photos, chosen plates and focus borders now `chyron-line` (amber on Studio), a ruled plate's kicker `text-plate-line`; the landing's
+  top bar, hints and two dark-only gradients to tokens, and its Outlast card's out row; **game colours as text** (`games.ts gameInk`,
+  `inkOf`): the colour itself on Night, mixed with the ink (62% of it, new.css `--nd-ink-mix`) on Studio, where Outlast's orange and
+  Survival Pool's teal were under 2.5:1 (now 4.7:1 or better), used for the game names on Tonight, Episodes and Commercial break, the
+  landing's kickers and the spoiler chip's green; dimmed rows (`--nd-dim`: 0.6 on Night as before, 0.75 on Studio) for a knocked-out
+  castaway, an undone change and episodes still to air; won plaques gold as `accent-2`; the hidden toast now hides (its shadow showed at
+  the top of a Studio screen). **Decided, Night in both themes** (they carry `dark text-foreground`, so their tokens are Night's): what
+  sits on a show's art (the show bar, Tonight's tall header with its compact bar a dark band over the page, the hub's Up next, How it
+  works' header, the pool's header, an invite's header), the watch along (a player's screen: you're watching TV), the reveal and the
+  waivers run (the broadcast's own moments), the blind draft's reveal, and the landing's phone in a watch along. Posters, guide cards
+  and photo tiles already had white type on their own scrims. Unchanged on Night (the check shows it).
+- **Earlier messages** (from Noticed): the couch chat's read sends the newest 300 and `more` (one row past them); GET
+  `?before=<message>` (`couch-chat.ts readEarlierChat`) the 100 before it, oldest first, folded exactly as the rest (the same
+  `foldFor`/`isFolded`, so nothing past someone's mark leaves the server), refused (404) for a message that isn't this conversation's;
+  `?since=<message>` everything from it on (at most 1,000) with `more` from one EXISTS. The Chat tab: Earlier messages at the top while
+  there are more; a tap shows the page at once, keeps your place, and from then on the 5 s poll asks `since` the earliest message
+  you've loaded, so one read stays the conversation (reactions and edits on older messages keep up) and nothing slides away as new ones
+  come in. Unfolding (Show them) reads it all again unfolded. Classic's chat still sends its newest 300 (it retires at C).
+- **Lock it down** (from Noticed; the mock's settings.js "Competitive mode"): Backstage › Game settings ends with Competitive mode,
+  one switch for every game you run here as a Commissioner ("No late joins, no catch-up, rules frozen for the season. Off is best for
+  most groups."), on when they all are; one batch in Recent changes for the couch to see ("Locked the game down for the season: nobody
+  new joins, the rules are frozen"), Undo on the toast ("Competitive mode on" / "Back to casual"); a Game admin sees it as it stands.
+  PATCH `/backstage/settings { lockDown }`. Engine: `GhostLogic.lockedDown`, and `allowed` (which both designs' join paths and
+  `joinMode` ask) is false while it's on, without touching `allowLateJoiners` or `joinMode`, so turning it off leaves Who can join as it
+  was. **No late joins:** joining is refused ("This game is locked down for the season: nobody new joins"), Let in on a request made
+  before is refused (decline still works), the couch's games read says `lockedDown` and the join sheets say "Locked down for the season by
+  alex (competitive)". **No catch-up:** nobody new can start one; **decided:** someone already catching up when it's switched on finishes
+  (they joined under casual rules, and stopping them would strand their seat). **Rules frozen:** Game settings' lineup size and Who can
+  join (and their Reset) are shown as they stand and refused (409), the points refused, and every Scoring rules action (Make it ours,
+  Follow it again, what counts, the couch's own moments, a show change's Add it or Skip) refused while any game here is locked down, with
+  a "Frozen for the season" plate on the page; waivers stay a Game admin's to run (they're the week's business, not the rules), and the
+  desk's fixes and show changes still reach couches that follow the season's rulebook (they're the show's own rules).
+- **Fixtures and Preview:** `settings.appearance` is gone; nothing is registered (above). The hub's and the show's checks, which look
+  for every `hub.*` and `show.*` entry, have none to find.
+- **Checks:** `scripts/dev-test/check-new-studio.js <outDir> [--width=390] [--keep] [--api] [--themes=night,studio] [--only=<re>]`
+  (new; 364 PASS at 390, Night and Studio) on new-fixture.js, draft-fixture.js and a desk admin of its own: the column and the profile's theme, a bad one
+  refused, the cookie on save (not httpOnly, a year), the home read and /api/me writing it only when a device's differs; the server's
+  HTML carrying the boot script and the bars for each theme; **first paint** with every app script blocked (nothing hydrates) drawn in
+  Studio; Settings' Appearance (Studio at once and saved, Undo, Match phone following the phone light and dark without a reload, a
+  reload keeping it, a second device catching up); then **the sweep**: 34 screens (signed out with an invite, both hub shapes, the profile sheet and
+  the bell, a show's five tabs, Your moves, an episode page, stats, the chat and a message's sheet, the watch along, Waivers, Backstage's
+  seven pages, a show the couch only watches, sam's reveal, the draft room, Settings, the desk's three) in Night and in Studio, each
+  screenshotted and audited from the pixels: a text-free screenshot gives what each line of text sits on (its own fill, a card, a show's
+  art), so the **yellow rule** (no yellow text, icon, border or outline on a light ground) and **3:1** fail, and 3-4.5:1 is listed as
+  LOW. Extended: `check-new-chat.js` (Earlier messages: 520 more said after Episode 4 aired, the 300 and `more`, a page of 100 in order,
+  folded for sam as the rest with nothing of it in the answer, refusals, `since`; in the browser the tap, the place kept, the poll asking
+  `since`; 65 PASS, 13 new), `check-new-backstage-ii.js` (Lock it down: a Game admin refused, one batch for three games, nobody new, the
+  settings, points and Make it ours refused, the frozen Scoring rules page, off with "Back to casual" and Undo; 134 PASS, 18 new),
+  `tests/appearance.test.js` (the boot script in a stand-in page for each route and cookie, the cookie's reading, gameInk, the engine's
+  lock), and `check-new-settings`, `check-new-notify`, `check-new-sharing` (no Preview left in Settings). The rest pass, one at a time
+  (the batch, `gys15b/batch.sh`, now starts with check-new-studio): check-new-sharing (87), -notify (125), -settings (110; its colour
+  toast missed once in the batch while the colour saved, then passed alone: Noticed), -streaming (114), -watch-along (276),
+  -episode-games (285), -plans (104), -listings (77), -guide (57), -library (91), -start-game (75), -make-it (81), -watching (114),
+  -solo (92), -way-in (85), -couches (114), -hub (77), -draft (90), -settling (96), -results-ways (89), -ours (89), -desk (100),
+  -community (82), -backstage (67), -show (69), -shell (46), -reveal (49), -stats (57), classic's check-chat-polls --ui, check-foundation,
+  check-preview (nothing registered, step 15 done) and check-backup-restore; `npm test` 647 of 647; type-check clean; lint (src) as before
+  (the old error in classic's `use-sheet-swipe.ts` and the old warning in `episode-results.ts`). Seen at 390 in both themes: every
+  screen of the sweep, Settings' Appearance on each choice, the Chat tab before and after Earlier messages, Game settings locked down
+  and the frozen Scoring rules.
+- **Noticed, left as is:** six, now in Noticed, not fixed: some small text between 3:1 and 4.5:1, an undo can change a locked-down
+  game's settings, classic's late-joiner switch doesn't know Lock it down, a refusal's toast carries the check mark, check-new-settings'
+  colour toast can miss in a batch, Earlier messages and a deleted first message. Taken out: only the newest 300 messages, no Lock it down (both above).
+- **Step 15 is done, and with it every step before the merge.** What follows is the user's: the merge-and-deploy step (HANDOFF's Next
+  says what to run, in order: a fresh backup, the Neon rehearsal of every branch migration 0100-0138, the merge and push, then `ui='new'`
+  for the couch), a week's watch, then C. Desktop layouts come after (until then the new design is the phone column on a desktop).
 
 ## Step C: cutover
 

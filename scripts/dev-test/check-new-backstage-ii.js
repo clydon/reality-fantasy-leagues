@@ -11,8 +11,10 @@
 //   4. The run plays like an episode: Tonight's "Waivers ran" plate and its reveal, Episodes' row into its page, the
 //      Waivers page after the run, a shared game's swap through the picker, free agency.
 //   5. Game settings (starters with the bench following after the draft, Reset to recommended, who can join with Undo,
-//      the end-a-game Preview, a Game admin refused), Scoring rules' read side (the rulebook, How it works, the points,
-//      Make it ours opens its sheet: check-new-ours.js covers it, since step 6b part 3).
+//      the end-a-game Preview, a Game admin refused), Lock it down (step 15 part 4: competitive mode for all three games in
+//      one batch with Undo, nobody new, the settings and the rules frozen and refused while it's on, a Game admin refused),
+//      Scoring rules' read side (the rulebook, How it works, the points, Make it ours opens its sheet: check-new-ours.js
+//      covers it, since step 6b part 3).
 //   6. Members & roles: named as the games name them, a game's sheet (share it), a role for all three games with Undo,
 //      the last Commissioner refused (stepping down, leaving here and in classic), tier 3's hold (a tap does nothing, a
 //      hold removes, Recent changes restores for 30 days), and leaving from the show's ⋯ menu.
@@ -346,6 +348,43 @@ const first = (name) => name.split(" ")[0];
     check((await bs("riley", "settings", "PATCH", { leagueId: L.lineup, set: { activeSlots: 4 } })).status === 403, "a Game admin can't change settings");
     await fits("Game settings");
     await shot("settings");
+
+    // Lock it down (step 15 part 4): competitive mode, every game alex runs here at once.
+    check((await bs("riley", "settings", "PATCH", { lockDown: true })).status === 403, "Lock it down: a Game admin can't");
+    check((await bs("alex", "settings", "PATCH", { lockDown: "yes" })).status === 400, "lockDown must be true or false");
+    const lockRow = page.locator("[data-lock-down]");
+    await lockRow.scrollIntoViewIfNeeded();
+    check((await lockRow.getAttribute("data-lock-down")) === "off" && /No late joins, no catch-up, rules frozen for the season/.test(await lockRow.innerText()), "Competitive mode: Lock it down, off, saying what it does");
+    await lockRow.locator("[data-setting=lock-down]").click();
+    check(/Competitive mode on/.test(await toasted(/Competitive mode on/)), "on: Competitive mode on, with Undo");
+    const locked = await Promise.all(["outlast", "lineup", "pool"].map(state));
+    check(locked.every((x) => x.settings.lockedDown === true), "all three games locked down", locked.map((x) => x.settings.lockedDown).join());
+    const { rows: lockLines } = await pool.query("SELECT DISTINCT batch, text FROM league_changes WHERE league_id = ANY($1::uuid[]) AND text LIKE 'Locked the game down%'", [[L.outlast, L.lineup, L.pool]]);
+    check(lockLines.length === 1, "one batch, a line in Recent changes for the couch to see", JSON.stringify(lockLines));
+    const joinable = (await as.riley.call("GET", `/api/couches/${fx.couchId}/games`)).body.games;
+    check(joinable.filter((g) => [L.outlast, L.lineup, L.pool].includes(g.leagueId)).every((g) => g.mode === "locked" && g.lockedDown), "nobody new: every game says locked, locked down");
+    check(/Locked down for the season/.test(await page.locator('[data-settings-game="Outlast"] [data-settings=joining]').innerText()) && (await page.locator('[data-settings-game="Outlast"] [data-join=ask]').isDisabled()), "Who can join says so, and can't be changed");
+    check(await page.locator("[data-settings=lineup]").getByRole("button", { name: "More" }).first().isDisabled(), "the lineup's size is frozen");
+    check((await bs("alex", "settings", "PATCH", { leagueId: L.lineup, set: { activeSlots: 4 } })).status === 409, "a settings change is refused (409)");
+    check((await bs("alex", "rules", "POST", { action: "ours" })).status === 409, "and Make it ours (409)");
+    check((await bs("alex", "rules", "POST", { action: "points", leagueId: L.lineup, points: { immunity: 3 } })).status === 409, "and the points (409)");
+    await shot("settings-locked");
+    await page.goto(`${BASE}/show/${sid}/backstage/rules`);
+    await page.locator("[data-rules-frozen]").waitFor({ timeout: 20000 });
+    check(/Frozen for the season/i.test(await page.locator("[data-rules-frozen]").innerText()), "Scoring rules: frozen for the season");
+    await page.locator("[data-make-ours]").click();
+    check(/Locked down for the season/.test(await toasted(/Locked down/)), "Make it ours says why it can't");
+    await shot("rules-frozen");
+    await page.goto(`${BASE}/show/${sid}/backstage/settings`);
+    await page.locator("[data-lock-down=on]").waitFor({ timeout: 20000 });
+    await page.locator("[data-lock-down] [data-setting=lock-down]").click();
+    check(/Back to casual/.test(await toasted(/Back to casual/)), "off again: Back to casual");
+    check((await Promise.all(["outlast", "lineup", "pool"].map(state))).every((x) => !x.settings.lockedDown), "every game off lock down");
+    await toastUndo();
+    await page.waitForTimeout(1500);
+    check((await Promise.all(["outlast", "lineup", "pool"].map(state))).every((x) => x.settings.lockedDown === true), "the toast's Undo locks them down again");
+    check((await bs("alex", "settings", "PATCH", { lockDown: false })).status === 200 && (await Promise.all(["outlast", "lineup", "pool"].map(state))).every((x) => !x.settings.lockedDown), "and off once more (the rest of the check is casual)");
+
     await page.goto(`${BASE}/show/${sid}/backstage/rules`);
     await page.locator("[data-rulebook]").waitFor({ timeout: 20000 });
     check(/Following the Survivor rulebook/.test(await page.locator("[data-rulebook]").innerText()), "Scoring rules: the rulebook these games follow");

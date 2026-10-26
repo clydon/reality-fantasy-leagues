@@ -39,8 +39,9 @@ export function ToastHost() {
       className="nd-fixed-x pointer-events-none fixed top-0 z-[90] flex justify-center px-4 pt-[calc(14px+env(safe-area-inset-top,0px))]"
     >
       <div
-        className={`pointer-events-auto flex w-full max-w-[358px] items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-[0_12px_30px_rgba(0,0,0,.45)] transition-transform duration-500 ease-[cubic-bezier(.34,1.45,.64,1)] motion-reduce:transition-none ${
-          shown && current ? "translate-y-0" : "-translate-y-[160%]"
+        className={`pointer-events-auto flex w-full max-w-[358px] items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-[0_12px_30px_rgba(0,0,0,.45)] transition-[transform,visibility] duration-500 ease-[cubic-bezier(.34,1.45,.64,1)] motion-reduce:transition-none ${
+          // Hidden once it's gone up, or its shadow shows at the top of a Studio screen (step 15 part 4).
+          shown && current ? "visible translate-y-0" : "invisible -translate-y-[160%]"
         }`}
       >
         <span className="tag-cut grid place-items-center bg-good pl-2.5 pr-4 text-good-foreground [--tag-slant:10px]">

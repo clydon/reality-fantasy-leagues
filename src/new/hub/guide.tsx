@@ -181,7 +181,7 @@ function dayLabel(d: GuideDay, now: number): string {
 function Faces({ faces }: { faces: GuideCard["faces"] }) {
   if (!faces.length) return null;
   return (
-    <span className="flex flex-none pl-[3px]" aria-label={`${namesOf(faces.map((f) => f.name))} watch it`}>
+    <span role="img" className="flex flex-none pl-[3px]" aria-label={`${namesOf(faces.map((f) => f.name))} watch it`}>
       {faces.slice(0, 4).map((f) => (
         <TinyFace
           key={f.userId}
@@ -284,7 +284,7 @@ function NextUpCard({ c, evening, onCouch }: { c: GuideCard; evening: boolean; o
       <span className="absolute left-2 top-[7px] rounded-[2px] bg-[rgba(10,8,14,.72)] px-1.5 py-[3px] text-[11px] font-extrabold backdrop-blur-sm">
         Nothing {evening ? "tonight" : "today"}
       </span>
-      <span className="type-caption text-[11px] tracking-[0.06em] text-muted-foreground">Next up</span>
+      <span className="type-caption text-[11px] tracking-[0.06em] text-white/70">Next up</span>
       <span className="type-caption line-clamp-2 text-[17px] leading-[.95]">{c.name}</span>
       <span className="mt-[3px] truncate text-[11px] font-semibold opacity-85">{airTime(c.at)}</span>
     </>

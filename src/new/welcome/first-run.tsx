@@ -168,7 +168,7 @@ function PickShows({
                 aria-pressed={on.has(s.seasonId)}
                 onClick={() => toggle(s.seasonId)}
                 className={`relative isolate flex aspect-[3/4] flex-col justify-end overflow-hidden rounded-[4px] p-2.5 text-left text-white transition-[transform,box-shadow] duration-300 ${
-                  on.has(s.seasonId) ? "scale-[.97] shadow-[0_0_0_3px_var(--chyron)]" : ""
+                  on.has(s.seasonId) ? "scale-[.97] shadow-[0_0_0_3px_var(--chyron-line)]" : ""
                 }`}
               >
                 <ShowArt seasonId={s.seasonId} artUrl={s.artUrl} name={s.show} position={s.artPosition} className="absolute inset-0 -z-[2] size-full" />
@@ -193,7 +193,7 @@ function PickShows({
               data-pick={picks.extra![id].name}
               aria-pressed
               onClick={() => toggle(id)}
-              className="relative isolate flex aspect-[3/4] scale-[.97] flex-col justify-end overflow-hidden rounded-[4px] p-2.5 text-left text-white shadow-[0_0_0_3px_var(--chyron)]"
+              className="relative isolate flex aspect-[3/4] scale-[.97] flex-col justify-end overflow-hidden rounded-[4px] p-2.5 text-left text-white shadow-[0_0_0_3px_var(--chyron-line)]"
             >
               <ShowArt seasonId={`extra-${id}`} artUrl={picks.extra![id].artUrl} name={picks.extra![id].name} className="absolute inset-0 -z-[2] size-full" />
               <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,transparent_40%,rgba(10,8,14,.92))]" />

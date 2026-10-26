@@ -292,6 +292,8 @@ export interface JoinGame {
   /** Who runs it, who'd let you in. */
   runners: string[];
   ended: boolean;
+  /** Locked down for the season (step 15 part 4: competitive mode): nobody new, whatever Who can join said. */
+  lockedDown: boolean;
   /** You, signed in: in it, your request waiting, let in (yours to use). */
   you: { playing: boolean; asked: boolean; letIn: boolean } | null;
 }
@@ -346,6 +348,7 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
       // An archived game (step 10 part 2b) takes nobody new, as a season that's over doesn't. A game scored outside its state
       // (Weekly Calls, Weekly Bingo: step 12) is over once its season's last episode has aired.
       ended: gameOver(s, g.seasonId ? schedules.get(g.seasonId) : undefined) || g.archived,
+      lockedDown: G.lockedDown(s),
       you: viewer ? { playing: !!g.yourRole, asked: !!ask && !ask.decided_at, letIn: ask?.outcome === "let-in" } : null,
     });
   }
@@ -434,7 +437,7 @@ export async function joinGame(user: SessionUser, couchId: string, leagueId: str
   const { game, state, join } = await gameOnCouch(user, couchId, leagueId);
   if (join.you?.playing) throw new HttpError(409, "You're already in it");
   if (join.ended) throw new HttpError(409, "That season's over");
-  if (join.mode === "locked") throw new HttpError(403, "Nobody new can join this game");
+  if (join.mode === "locked") throw new HttpError(403, join.lockedDown ? "This game is locked down for the season: nobody new joins" : "Nobody new can join this game");
   const { rows: letIn } = await pool.query(
     "SELECT id FROM game_join_requests WHERE league_id = $1 AND user_id = $2 AND outcome = 'let-in' ORDER BY decided_at DESC LIMIT 1",
     [leagueId, user.id]
@@ -574,6 +577,9 @@ export async function answerRequest(user: SessionUser, couchId: string, requestI
   const { rows: me } = await pool.query("SELECT role FROM league_memberships WHERE league_id = $1 AND user_id = $2", [r.league_id, user.id]);
   if (!(me[0]?.role === "commissioner" || me[0]?.role === "admin")) throw new HttpError(403, "Only whoever runs the game answers");
   const game = (await games(user.id, { couchIds: [couchId] })).find((g) => g.leagueId === r.league_id);
+  // A game locked down since they asked (step 15 part 4) takes nobody new: decline is still yours.
+  const st = letIn ? (await leagueStates([r.league_id])).get(r.league_id) : null;
+  if (st && StateLogic.GhostLogic.lockedDown(st)) throw new HttpError(409, "This game is locked down for the season: nobody new joins");
   await tx(async (c) => {
     const { rowCount } = await c.query("UPDATE game_join_requests SET decided_at = now(), decided_by = $2, outcome = $3 WHERE id = $1 AND decided_at IS NULL", [
       requestId,

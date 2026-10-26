@@ -8,6 +8,7 @@ import { gameColour } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import type { ShowData } from "../screens/show-space";
+import { SwitchRow } from "../settings/controls";
 import { HoldSheet } from "../ui/guards";
 import { EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
@@ -20,7 +21,9 @@ import { Stepper } from "./waivers";
 // What everyone drafted is fixed once the draft starts: a Weekly Lineup's team size (more starters come off the bench) and
 // Outlast's team. Replacing people who leave is the Waivers page. Last, folded away (the mock's details.danger: a toggle): archive or
 // delete a game (step 10 part 2b: archive is tier 1 with Undo, delete tier 3 after a hold, restorable for 30 days from Recent
-// changes). A Commissioner changes these; a Game admin reads them.
+// changes). A Commissioner changes these; a Game admin reads them. Competitive mode (step 15 part 4, the mock's Lock it down):
+// one switch for every game you run here; while it's on, nobody new joins and the lineup sizes, Who can join and Scoring rules
+// are frozen for the season.
 
 function useAfter() {
   const client = useQueryClient();
@@ -64,6 +67,7 @@ export function SettingsPage({ seasonId, show }: { seasonId: string; show: ShowD
       {data.data.games.map((g) => (
         <GameBlock key={g.leagueId} seasonId={seasonId} g={g} write={write} />
       ))}
+      <LockDown seasonId={seasonId} couchId={couchId} games={data.data.games} />
       <EndGames seasonId={seasonId} couchId={couchId} />
       {!data.data.games.some((g) => g.commissioner) && <p className="px-4 pt-6 text-[14px] text-muted-foreground">Only a Commissioner changes these.</p>}
     </div>
@@ -82,6 +86,8 @@ function GameBlock({
   const L = g.lineup;
   const lineupChanged = !!L && (L.starters !== L.rec.starters || (!g.draftStarted && L.bench !== L.rec.bench));
   const joinChanged = g.joining.mode !== g.joining.rec;
+  // Locked down: frozen for the season, shown as it stands.
+  const can = g.commissioner && !g.lockedDown;
   return (
     <section data-settings-game={g.gameName} className="mt-7 px-4">
       <div className="mb-3 flex items-center gap-3">
@@ -98,7 +104,7 @@ function GameBlock({
         <div data-settings="lineup" className="mb-5">
           <div className="mb-2 flex items-baseline justify-between">
             <h3 className="type-caption text-[15px] tracking-[0.04em] text-muted-foreground">How Weekly Lineup works</h3>
-            {lineupChanged && g.commissioner && (
+            {lineupChanged && can && (
               <button type="button" data-reset="lineup" onClick={() => write(g, { reset: "lineup" }, `Back to recommended: ${L.rec.starters} score each week`)} className="text-[14px] font-bold">
                 Reset to recommended
               </button>
@@ -115,9 +121,9 @@ function GameBlock({
                   <Dot on={L.starters !== L.rec.starters} />
                 </>
               }
-              line={L.starters === L.rec.starters ? "Recommended" : `Recommended: ${L.rec.starters}`}
+              line={g.lockedDown ? "Frozen for the season" : L.starters === L.rec.starters ? "Recommended" : `Recommended: ${L.rec.starters}`}
               value={String(L.starters)}
-              disabled={!g.commissioner}
+              disabled={!can}
               onStep={(d) => write(g, { set: { activeSlots: L.starters + d }, text: `Changed who scores each week to ${L.starters + d}` }, `${L.starters + d} score each week from Episode ${g.from ?? "next"}`)}
             />
             {g.draftStarted ? (
@@ -136,9 +142,9 @@ function GameBlock({
                     <Dot on={L.bench !== L.rec.bench} />
                   </>
                 }
-                line="Backups who don't score until you start them"
+                line={g.lockedDown ? "Frozen for the season" : "Backups who don't score until you start them"}
                 value={String(L.bench)}
-                disabled={!g.commissioner}
+                disabled={!can}
                 onStep={(d) => write(g, { set: { benchSlots: L.bench + d }, text: `Changed the bench to ${L.bench + d}` }, `${L.bench + d} on the bench`)}
               />
             )}
@@ -166,7 +172,7 @@ function GameBlock({
             Who can join
             <Dot on={joinChanged} />
           </h3>
-          {joinChanged && g.commissioner && (
+          {joinChanged && can && (
             <button
               type="button"
               data-reset="joining"
@@ -178,11 +184,13 @@ function GameBlock({
           )}
         </div>
         <small className="mb-2 block text-[13px] text-muted-foreground">
-          {g.gameType === "pickem"
-            ? "There are no teams, so new players can jump in."
-            : g.joining.rec === "open"
-              ? "Castaways can be on several teams, so new players can jump in."
-              : "Each castaway is on one team, so new players need your OK."}
+          {g.lockedDown
+            ? "Locked down for the season: nobody new joins or catches up."
+            : g.gameType === "pickem"
+              ? "There are no teams, so new players can jump in."
+              : g.joining.rec === "open"
+                ? "Castaways can be on several teams, so new players can jump in."
+                : "Each castaway is on one team, so new players need your OK."}
         </small>
         {(
           [
@@ -198,7 +206,7 @@ function GameBlock({
             type="button"
             data-join={mode}
             aria-pressed={g.joining.mode === mode}
-            disabled={!g.commissioner}
+            disabled={!can}
             onClick={() => g.joining.mode !== mode && write(g, { set: { joinMode: mode }, text: line }, `Saved: ${g.gameName} · ${t}`)}
             className="mb-1.5 flex w-full items-center gap-3 rounded-[3px] bg-background p-2.5 text-left"
           >
@@ -228,6 +236,45 @@ function GameBlock({
           </NavLink>
         </div>
       )}
+    </section>
+  );
+}
+
+// ---------- competitive mode (step 15 part 4) ----------
+
+/**
+ * The mock's "Competitive mode": Lock it down, for every game you run here at once (on when they all are). A Commissioner's,
+ * with Undo; anyone else who runs a game here sees it as it stands.
+ */
+function LockDown({ seasonId, couchId, games }: { seasonId: string; couchId: string; games: GameSettings[] }) {
+  const after = useAfter();
+  const [busy, setBusy] = useState(false);
+  const mine = games.filter((g) => g.commissioner);
+  const on = mine.length ? mine.every((g) => g.lockedDown) : games.some((g) => g.lockedDown);
+  const set = async (to: boolean, undo = true) => {
+    if (!mine.length) return toast("Only a Commissioner changes this");
+    setBusy(true);
+    try {
+      const r = await gameAdmin.lockDown(seasonId, couchId, to);
+      await after();
+      toast(to ? "Competitive mode on" : "Back to casual", undo && r.batch ? { undo: () => set(!to, false) } : {});
+    } catch (e) {
+      toast((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="mt-8 px-4" data-lock-down={on ? "on" : "off"}>
+      <h3 className="type-caption mb-1 text-[15px] tracking-[0.04em] text-muted-foreground">Competitive mode</h3>
+      <SwitchRow
+        data="lock-down"
+        on={on}
+        disabled={busy || !mine.length}
+        title={on ? "Locked down" : "Lock it down"}
+        line="No late joins, no catch-up, rules frozen for the season. Off is best for most groups."
+        onChange={(to) => set(to)}
+      />
     </section>
   );
 }

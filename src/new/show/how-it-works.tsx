@@ -111,7 +111,7 @@ export function HowItWorksBody({
   return (
     <div ref={top}>
       {/* The show, its kind, and what it is in a line */}
-      <section className="relative isolate flex min-h-[230px] flex-col justify-end overflow-hidden rounded-t-[4px] px-3 pb-3">
+      <section className="dark relative isolate flex min-h-[230px] flex-col justify-end overflow-hidden rounded-t-[4px] px-3 pb-3 text-foreground">
         <ShowArt seasonId={seasonId} artUrl={artUrl} name={name} className="absolute inset-0 -z-[2] size-full scale-105 blur-[3px] brightness-[.45]" />
         <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,transparent_40%,var(--background)_100%)]" />
         <h2 className="type-caption text-[56px] leading-[.9] [text-shadow:0_2px_20px_rgba(0,0,0,.5)]">

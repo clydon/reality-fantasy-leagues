@@ -8,7 +8,7 @@ import type { ShowData } from "../screens/show-space";
 import { HowItWorksPage } from "../show/how-it-works";
 import { GuardSheet } from "../ui/guards";
 import { usePushedPage } from "../ui/page";
-import { Btn, EmptyState } from "../ui/parts";
+import { Btn, CaptionPlate, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { Stepper } from "./waivers";
@@ -30,8 +30,12 @@ export function RulesPage({ seasonId, show }: { seasonId: string; show: ShowData
   const [sheet, setSheet] = useState<"ours" | "follow" | "counts" | "add" | null>(null);
   if (data.error) return <EmptyState icon={Trophy} title="Scoring rules aren't yours to see here" line={(data.error as Error).message} />;
   if (!data.data || !couchId) return <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
-  const { rulebook, games, ours } = data.data;
+  const { rulebook, games, frozen } = data.data;
+  // Locked down (step 15 part 4: Game settings' Lock it down): the rules are frozen for the season, so nothing here changes.
+  const ours = frozen ? { ...data.data.ours, canChange: false } : data.data.ours;
   const copy = ours.copy;
+  const may = (open: () => void) => () =>
+    frozen ? toast("Locked down for the season: the rules are frozen") : data.data.ours.canChange ? open() : toast("Only a Commissioner changes the rules");
 
   /** A change made: its toast, with Undo through Recent changes. */
   const done = async (batch: string | null | undefined, said: string) => {
@@ -52,6 +56,11 @@ export function RulesPage({ seasonId, show }: { seasonId: string; show: ShowData
 
   return (
     <div className="pb-12">
+      {frozen && (
+        <div className="mx-4 mt-6" data-rules-frozen>
+          <CaptionPlate tag="Locked" tone="quiet" wrap title="Frozen for the season" subtitle="Lock it down is on in Game settings: nothing here changes until it's off." />
+        </div>
+      )}
       <section className="mt-6 px-4">
         <div data-rulebook data-ours={copy ? "yes" : "no"} className="flex items-start gap-3.5 rounded-[4px] bg-card p-3.5">
           <span className="grid size-11 flex-none place-items-center rounded-[3px] bg-foreground text-background">
@@ -72,11 +81,11 @@ export function RulesPage({ seasonId, show }: { seasonId: string; show: ShowData
             How it works
           </Btn>
           {copy ? (
-            <Btn data-follow-again onClick={() => (ours.canChange ? setSheet("follow") : toast("Only a Commissioner changes the rules"))}>
+            <Btn data-follow-again onClick={may(() => setSheet("follow"))}>
               Follow it again
             </Btn>
           ) : (
-            <Btn data-make-ours onClick={() => (ours.canChange ? setSheet("ours") : toast("Only a Commissioner changes the rules"))}>
+            <Btn data-make-ours onClick={may(() => setSheet("ours"))}>
               Make it ours
             </Btn>
           )}
@@ -98,7 +107,7 @@ export function RulesPage({ seasonId, show }: { seasonId: string; show: ShowData
           <button
             type="button"
             data-what-counts
-            onClick={() => (ours.canChange ? setSheet("counts") : toast("Only a Commissioner changes the rules"))}
+            onClick={may(() => setSheet("counts"))}
             className="nd-press flex min-h-[60px] w-full items-center gap-3 border-b border-border py-2 text-left"
           >
             <span className="grid size-9 flex-none place-items-center rounded-[3px] bg-secondary">
@@ -128,7 +137,7 @@ export function RulesPage({ seasonId, show }: { seasonId: string; show: ShowData
 
       <p className="mx-4 mt-6 flex items-start gap-2 text-[14px] leading-snug text-muted-foreground">
         <Trophy className="mt-0.5 size-4 flex-none" aria-hidden />
-        Points are always the couch&apos;s to change, whichever rulebook you follow.
+        {frozen ? "The points are frozen too, as they stand." : "Points are always the couch's to change, whichever rulebook you follow."}
       </p>
       {games.map((g) => (
         <GamePoints key={g.leagueId} g={g} seasonId={seasonId} couchId={couchId} canChange={ours.canChange} done={done} />
@@ -561,7 +570,7 @@ function GamePoints({ g, seasonId, couchId, canChange, done }: { g: GameRules; s
             </Btn>
           )}
           {editing && (
-            <div data-points-bar className="nd-fixed-x fixed bottom-0 z-30 border-t border-border bg-[rgba(22,20,29,.96)] px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pt-3 backdrop-blur-md">
+            <div data-points-bar className="nd-fixed-x fixed bottom-0 z-30 border-t border-border bg-background/96 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pt-3 backdrop-blur-md">
               <b className="block text-[15px]">{n ? `${n} ${n === 1 ? "moment" : "moments"} changed` : "Tap − or + to change a moment's points"}</b>
               <small className="block text-[13px] text-muted-foreground">For the whole season: every episode is scored again.</small>
               <div className="mt-2 flex gap-2">

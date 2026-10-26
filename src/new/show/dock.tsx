@@ -378,7 +378,7 @@ function LineupPanel({
               <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,transparent_45%,rgba(10,8,14,.92))]" />
               <span
                 className={`type-caption absolute left-1.5 top-1.5 rounded-[2px] px-1.5 py-0.5 text-[10px] tracking-[0.06em] ${
-                  c.left ? "bg-live text-live-foreground" : on ? "bg-chyron text-chyron-foreground" : "bg-[rgba(16,14,21,.8)] text-muted-foreground"
+                  c.left ? "bg-live text-live-foreground" : on ? "bg-chyron text-chyron-foreground" : "bg-[rgba(16,14,21,.8)] text-white/75"
                 }`}
               >
                 {c.left ? (pickup ? "Out · replace" : "Out") : on ? "Starting" : "Bench"}
@@ -397,7 +397,7 @@ function LineupPanel({
             );
           }
           return (
-            <button key={c.id} type="button" data-starter={c.id} disabled={c.left} onClick={() => toggle(c.id)} aria-pressed={on} className={`${tile} ${on ? "shadow-[0_0_0_3px_var(--chyron)]" : ""}`}>
+            <button key={c.id} type="button" data-starter={c.id} disabled={c.left} onClick={() => toggle(c.id)} aria-pressed={on} className={`${tile} ${on ? "shadow-[0_0_0_3px_var(--chyron-line)]" : ""}`}>
               {body}
             </button>
           );
@@ -535,7 +535,7 @@ function OutlastPanel({ g, pickup, seasonId }: { g: GameView; pickup: Move | und
         {pickup ? `No lineup in ${g.gameName}, but one of yours is out: pick who comes in.` : `Nothing to set in ${g.gameName}. Your ${team.length} just have to last.`}
       </p>
       {team.map((c) => (
-        <div key={c.id} className={`flex min-h-14 items-center gap-3 border-t border-border py-1.5 ${c.knocked ? "opacity-60" : ""}`}>
+        <div key={c.id} className={`flex min-h-14 items-center gap-3 border-t border-border py-1.5 ${c.knocked ? "opacity-(--nd-dim)" : ""}`}>
           <Face src={c.photo} name={c.name} out={c.knocked} className="size-10 rounded-[3px]" />
           <span className="min-w-0 flex-1">
             <b className="block text-[15px] font-semibold">{c.name}</b>

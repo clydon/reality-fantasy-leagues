@@ -421,7 +421,7 @@ function PlanForm({ o, episode: asked }: { o: PlanOptions; episode: number | nul
                     if (i >= 0) setDay(i);
                     setOwnDay(i >= 0 ? null : d);
                   }}
-                  className="mt-2 h-11 w-full rounded-[3px] border border-input bg-background px-3 text-base outline-0 focus:border-chyron"
+                  className="mt-2 h-11 w-full rounded-[3px] border border-input bg-background px-3 text-base outline-0 focus:border-chyron-line"
                 />
               )}
               <span className={label}>Start at</span>
@@ -459,7 +459,7 @@ function PlanForm({ o, episode: asked }: { o: PlanOptions; episode: number | nul
                     if (i >= 0) setTime(i);
                     setOwnTime(i >= 0 ? null : tm);
                   }}
-                  className="mt-2 h-11 w-full rounded-[3px] border border-input bg-background px-3 text-base outline-0 focus:border-chyron"
+                  className="mt-2 h-11 w-full rounded-[3px] border border-input bg-background px-3 text-base outline-0 focus:border-chyron-line"
                 />
               )}
               {at == null && (
@@ -505,7 +505,7 @@ function HowCard({ on, dot, title, line, onClick, ...data }: { on: boolean; dot:
       aria-pressed={on}
       onClick={onClick}
       {...data}
-      className={`flex w-full items-start gap-3 rounded-[4px] p-3 text-left ${on ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron" : "bg-secondary/60"}`}
+      className={`flex w-full items-start gap-3 rounded-[4px] p-3 text-left ${on ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron-line" : "bg-secondary/60"}`}
     >
       <i className="mt-[5px] size-3 flex-none rounded-full" style={{ background: dot }} aria-hidden />
       <span className="min-w-0 flex-1">

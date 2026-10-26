@@ -70,7 +70,7 @@ export function PushedPage({ open, onClose, title, back = "Back", children }: { 
         open ? "visible translate-x-0" : "invisible translate-x-full"
       }`}
     >
-      <div className="sticky top-0 z-[3] flex h-14 items-center gap-1.5 border-b border-border bg-[rgba(22,20,29,.9)] px-2.5 backdrop-blur-md">
+      <div className="sticky top-0 z-[3] flex h-14 items-center gap-1.5 border-b border-border bg-background/90 px-2.5 backdrop-blur-md">
         <button ref={backButton} type="button" onClick={onClose} className="flex h-11 items-center gap-0.5 rounded-[3px] pl-1 pr-2.5 text-[15px] font-semibold hover:bg-card">
           <ChevronLeft className="size-5" aria-hidden />
           {back}

@@ -48,7 +48,8 @@ export function JoinScreen({ code, way, welcome }: { code: string; way: WayIn; w
   const newcomer = !way.me || welcome || !way.me.approved;
   return (
     <div className="pb-16" data-join-page={inv?.couch.name ?? ""}>
-      <section className="relative isolate overflow-hidden px-4 pb-6 pt-[calc(14px+env(safe-area-inset-top,0px))]">
+      {/* Over the couch's show's art: Night in both themes (step 15 part 4). */}
+      <section className="dark relative isolate overflow-hidden px-4 pb-6 pt-[calc(14px+env(safe-area-inset-top,0px))] text-foreground">
         {lead && (
           <>
             <ShowArt seasonId={lead.seasonId} artUrl={lead.artUrl} name={lead.name} className="absolute inset-0 -z-[2] size-full" />
@@ -73,7 +74,8 @@ export function JoinScreen({ code, way, welcome }: { code: string; way: WayIn; w
         <div aria-busy className="mx-4 h-60 animate-pulse rounded-[4px] bg-card" />
       ) : (
         <>
-          <section className="px-4">
+          {/* Clear of the header, which ends in a hard edge on Studio. */}
+          <section className="px-4 pt-4">
             {inv.onIt ? (
               <p className="text-[15px] leading-snug text-muted-foreground" data-on-couch>
                 You&rsquo;re on the couch: its chat, its TV guide, its watch alongs. Each game decides who can play.

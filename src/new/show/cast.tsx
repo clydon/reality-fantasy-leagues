@@ -393,7 +393,7 @@ function Heat({ d, people, onTap }: ViewProps) {
         <table className="min-w-full border-separate border-spacing-0 text-sm" data-heat>
           <thead>
             <tr>
-              <th className={`${th} sticky left-0 z-[1] min-w-[124px] pl-4 text-left shadow-[6px_0_8px_-6px_rgba(0,0,0,.7)]`}>Points</th>
+              <th className={`${th} sticky left-0 z-[1] min-w-[124px] pl-4 text-left shadow-[6px_0_8px_-6px_rgba(0,0,0,.25)] dark:shadow-[6px_0_8px_-6px_rgba(0,0,0,.7)]`}>Points</th>
               {eps.map((e) => (
                 <th key={e} className={th}>
                   Episode {e}
@@ -405,7 +405,7 @@ function Heat({ d, people, onTap }: ViewProps) {
           <tbody>
             {rows.map((c) => (
               <tr key={c.name} data-cast-row={c.first} onClick={() => onTap(c)} className={`cursor-pointer ${c.out !== null ? "opacity-55" : ""}`}>
-                <td className="sticky left-0 z-[1] border-b border-border bg-background pl-4 shadow-[6px_0_8px_-6px_rgba(0,0,0,.7)]">
+                <td className="sticky left-0 z-[1] border-b border-border bg-background pl-4 shadow-[6px_0_8px_-6px_rgba(0,0,0,.25)] dark:shadow-[6px_0_8px_-6px_rgba(0,0,0,.7)]">
                   <span className="flex h-[46px] items-center gap-2 font-semibold">
                     <Face src={c.photo} name={c.first} out={c.out !== null} className="size-[30px] rounded-[3px]" />
                     {c.first}

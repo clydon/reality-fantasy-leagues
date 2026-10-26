@@ -90,7 +90,8 @@ export function RevealScreen({ show, seasonId }: { show: ShowData; seasonId: str
       aria-modal="true"
       aria-hidden={!page.open}
       aria-label="The reveal"
-      className={`nd-fixed-x fixed inset-y-0 z-[75] flex flex-col bg-[#0b0a10] text-foreground transition-[opacity,visibility] duration-300 motion-reduce:transition-none ${
+      // Night in both themes (step 15 part 4): the reveal is the broadcast's own moment.
+      className={`dark nd-fixed-x fixed inset-y-0 z-[75] flex flex-col bg-[#0b0a10] text-foreground transition-[opacity,visibility] duration-300 motion-reduce:transition-none ${
         page.open ? "visible opacity-100" : "invisible opacity-0"
       }`}
     >

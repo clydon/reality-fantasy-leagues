@@ -191,7 +191,7 @@ function PoolOut({ show, info }: { show: ShowData; info: PoolInfo }) {
   }
   return (
     <>
-      <section className={`relative overflow-hidden ${art ? "h-[200px]" : "h-[120px]"}`}>
+      <section className={`dark relative overflow-hidden text-foreground ${art ? "h-[200px]" : "h-[120px]"}`}>
         {art && (
           // eslint-disable-next-line @next/next/no-img-element -- the show's key art, any host
           <img src={art} alt="" className="absolute inset-0 size-full object-cover" />

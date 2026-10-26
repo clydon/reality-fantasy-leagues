@@ -45,7 +45,7 @@ function YourNumbers({ hub }: { hub: CouchHub | undefined }) {
           <p className="type-caption mb-2 mt-4 text-xs tracking-[0.06em] text-muted-foreground">Your best show</p>
           <NavLink href={paths.show(y.bestShow.seasonId)} channel data-art-scope className="relative block h-24 overflow-hidden rounded-[4px]">
             <ShowArt seasonId={y.bestShow.seasonId} artUrl={y.bestShow.artUrl} name={y.bestShow.name} className="size-full" />
-            <b className="type-caption absolute bottom-2 left-3 text-[28px] [text-shadow:0_2px_12px_rgba(0,0,0,.6)]">{y.bestShow.name}</b>
+            <b className="type-caption absolute bottom-2 left-3 text-[28px] text-white [text-shadow:0_2px_12px_rgba(0,0,0,.6)]">{y.bestShow.name}</b>
           </NavLink>
         </>
       ) : (

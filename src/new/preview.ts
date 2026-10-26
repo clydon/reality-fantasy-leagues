@@ -26,11 +26,12 @@ export const PREVIEWS = {
   // 12 part 1; Call it and the couch's polls in Commercial break's This week only since part 2, its bingo and trivia since part 3;
   // Watch along from Up next, Previously on and the solo hub since step 13 part 1, On now since part 2; Streaming on the couch since
   // step 14 part 1; the bell since step 15 part 2) and a show space (all real since step 15 part 2: its ⋯ menu's Notifications)
-  // have nothing left here.
-
-  // ---- Settings (real since step 15 part 1: your profile, spoilers, your AI, couches, help, your account; What we notify you
-  // about since part 2; What your couch sees since part 3; this one is part 4's) ----
-  "settings.appearance": { step: "15", title: "Appearance", line: "Night, Studio (light) or match your phone." },
+  // have nothing left here; nor Settings (real since step 15 part 1: your profile, spoilers, your AI, couches, help, your account;
+  // What we notify you about since part 2; What your couch sees since part 3; Appearance since part 4).
+  //
+  // Empty since step 15 part 4: everything in the new design is on real data. The registry, <Preview> and the fixtures folder
+  // stay until step C deletes them (the plan's "The Preview system"), so a later step that ports something before its data is
+  // real can still mark it.
 } satisfies Record<string, PreviewEntry>;
 
 export type PreviewId = keyof typeof PREVIEWS;

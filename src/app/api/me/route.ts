@@ -4,6 +4,7 @@ import { isApprovedUser, requireSession } from "@/lib/server/auth-helpers";
 import { pool } from "@/lib/server/db";
 import { groupDisplayName } from "@/lib/server/league-groups";
 import { uiOf, withUiCookie } from "@/lib/server/ui-choice";
+import { themeOf, withThemeCookie } from "@/lib/server/appearance";
 import { keepTimeZone } from "@/lib/server/notify-prefs";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
@@ -79,9 +80,11 @@ export const GET = apiRoute(async (req) => {
     }
   }
   // Which design this account opens on (step 0c): auth-gate.tsx sends the new design's people to /home, and
-  // the cookie lets this device's next "/" do it before anything loads (ui-choice.ts).
-  const ui = await uiOf(user.id);
-  return withUiCookie(NextResponse.json({
+  // the cookie lets this device's next "/" do it before anything loads (ui-choice.ts). The new design's Appearance the same way
+  // (step 15 part 4, appearance.ts): its sign-in asks this before going in, so the first screen is drawn in the account's theme.
+  const [ui, theme] = await Promise.all([uiOf(user.id), themeOf(user.id)]);
+  const impersonating = !!(session as { impersonatedBy?: unknown }).impersonatedBy;
+  const res = withUiCookie(NextResponse.json({
     user: {
       id: user.id,
       username: (user as { username?: string | null }).username,
@@ -94,6 +97,8 @@ export const GET = apiRoute(async (req) => {
     leagues,
     // Better Auth's admin plugin marks impersonation on the session row (impersonatedBy), not
     // the user -- same underlying idea as SurvivorDraft's separate req.session.impersonatorId.
-    impersonating: !!(session as { impersonatedBy?: unknown }).impersonatedBy,
+    impersonating,
   }), ui);
+  // An admin viewing as someone keeps their own device's theme.
+  return impersonating ? res : withThemeCookie(res, theme, req);
 });

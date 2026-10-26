@@ -11,8 +11,8 @@
 //   - hiding scores is the guard's own setting (show_results_immediately): seenThrough null while off;
 //   - the couch: only whoever runs it renames it or hands it on (refused for anyone else, and for someone not on it), a
 //     new code retires your old one (it stops opening the couch) and leaves everyone else's.
-//   In a real browser at --width (390 by default), as alex: Settings in the mock's order with only part 4's Preview (Appearance)
-//   left (part 3 made What your couch sees real: check-new-sharing.js), the profile sheet (a colour with Undo, a picture shrunk in the browser and shown on every face of his, a taken name
+//   In a real browser at --width (390 by default), as alex: Settings in the mock's order with no Preview left (part 3 made What
+//   your couch sees real: check-new-sharing.js; part 4 Appearance: check-new-studio.js), the profile sheet (a colour with Undo, a picture shrunk in the browser and shown on every face of his, a taken name
 //   refused, a new one saved and shown at once), Hide scores with Undo, Your AI for results leading each Ask an AI sheet
 //   (Ask each time: both apps; I'll copy and paste: the copy first; Grok), the couch's sheet (Rename with Undo, a new code,
 //   Hand it on), How each game works, Report a problem (a row kept for us), Change password (a wrong one refused, then
@@ -259,7 +259,7 @@ function check(ok, what, detail = "") {
         heads.join("|")
       );
       const previews = await pg.locator("[data-preview]").evaluateAll((els) => els.map((e) => e.getAttribute("data-preview")));
-      check(previews.join() === "settings.appearance", "only part 4's Appearance is still Preview (parts 2 and 3 made notifications and sharing real)", previews.join());
+      check(previews.length === 0, "nothing is Preview any more (parts 2 to 4 made notifications, sharing and Appearance real)", previews.join());
       check((await pg.locator("[data-setting=hide-scores]").getAttribute("aria-checked")) === "true", "Hide scores until I reveal is on");
       check((await pg.locator("[data-choice=chatgpt]").getAttribute("aria-checked")) === "true", "ChatGPT is his AI (Recommended)");
       check(!(await pg.locator("[data-settings-account]").innerText()).includes("Google"), "no Google row while it isn't set up");

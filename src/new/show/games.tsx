@@ -306,7 +306,7 @@ function TeamList({ g, team, label = true }: { g: GameView; team: string[]; labe
         const c = faceIn(g, id);
         if (!c) return null;
         return (
-          <div key={id} className={`flex min-h-14 items-center gap-3 border-t border-border py-1.5 ${c.knocked ? "opacity-60" : ""}`}>
+          <div key={id} className={`flex min-h-14 items-center gap-3 border-t border-border py-1.5 ${c.knocked ? "opacity-(--nd-dim)" : ""}`}>
             <Face src={c.photo} name={c.name} out={c.knocked} className="size-10 rounded-[3px]" />
             <span className="min-w-0 flex-1">
               <b className="block text-[15px] font-semibold">{c.name}</b>

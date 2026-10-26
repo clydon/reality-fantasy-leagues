@@ -265,6 +265,9 @@ export interface LeagueSettings {
   /** Late joiners play from an episode of their choosing, unseen until added (StateLogic.GhostLogic).
    *  Absent means on; only an explicit false switches it off. */
   allowLateJoiners?: boolean;
+  /** Lock it down (the new design's competitive mode, step 15 part 4): nobody new joins (GhostLogic.allowed), nobody catches up,
+   *  and the rules don't change for the season. Absent means off. */
+  lockedDown?: boolean;
   /**
    * The episode this league starts playing at (default 1): a league formed mid-season drafts and picks
    * from here, and nothing in earlier episodes scores. Read it through StateLogic.startEpisode.

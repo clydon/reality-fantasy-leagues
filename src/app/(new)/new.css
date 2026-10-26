@@ -1,20 +1,43 @@
-/* The new design's own CSS (docs/PLAN-new-design.md step 0c). Its tokens are DESIGN.md's Night palette, the same
-   variables classic's `.dark` block sets (globals.css), so components use the usual utilities (bg-background,
-   bg-card, bg-secondary, border-border, text-muted-foreground, bg-chyron, bg-plate...). The layout forces Night by
-   putting `dark` on <html> while you're here; the Studio (light) theme comes back in step 15. Everything else is
-   Tailwind in the components; this file holds what utilities can't say: the phone column, and the motion. */
+/* The new design's own CSS (docs/PLAN-new-design.md step 0c). Its tokens are DESIGN.md's two palettes, the same
+   variables classic sets (globals.css: Night on `.dark`, Studio on :root), so components use the usual utilities
+   (bg-background, bg-card, bg-secondary, border-border, text-muted-foreground, bg-chyron, bg-plate...). Appearance
+   (step 15 part 4) says which: the boot script puts `dark` on <html> for Night before the first paint. Yellow as
+   text, a line or a dot is `chyron-line` (amber on Studio); `chyron` is the fill behind ink. Some surfaces are Night
+   in both themes (over a show's art, the reveal, the watch along): they carry `dark` themselves, so the tokens inside
+   are Night's. Everything else is Tailwind in the components; this file holds what utilities can't say: the phone
+   column, and the motion. */
 
 /* ---------- the phone column ---------- */
-/* Phone first: on a desktop the new design is a centred 390px column on a darker backdrop (desktop layouts come
-   after step 15). Fixed pieces (tab bar, sheets, toasts, pushed pages) sit inside the column with these insets. */
+/* Phone first: on a desktop the new design is a centred 390px column on a backdrop a step darker than the ground
+   (desktop layouts come after step 15). Fixed pieces (tab bar, sheets, toasts, pushed pages) sit inside the column
+   with these insets. */
 html:has(.nd) {
   --nd-col: 390px;
   --nd-inset: max(0px, calc((100vw - var(--nd-col)) / 2));
-  background: #0b0a0f;
-  color-scheme: dark;
+  --nd-backdrop: #d9d7e0;
+  --nd-edge: #c9c5d3;
+  /* What sits over a scrolling page (the composer, a sticky bar): the ground, nearly opaque. */
+  --nd-glass: rgba(236, 235, 241, 0.94);
+  background: var(--nd-backdrop);
+}
+html.dark:has(.nd) {
+  --nd-backdrop: #0b0a0f;
+  --nd-edge: #2a2633;
+  --nd-glass: rgba(22, 20, 29, 0.95);
 }
 html:has(.nd) body {
-  background: #0b0a0f;
+  background: var(--nd-backdrop);
+}
+/* A bright colour as text (a game's, src/new/games.ts gameInk): itself on Night, mixed with the ink on Studio (62% of it), where the
+   bright one is under 3:1. Anything carrying `dark` (art, the watch along, the reveal) is Night inside. */
+/* A row that's out of play (knocked out, undone, still to air) fades: less on Studio, where its muted words would drop under 3:1. */
+:root {
+  --nd-ink-mix: 62%;
+  --nd-dim: 0.75;
+}
+.dark {
+  --nd-ink-mix: 100%;
+  --nd-dim: 0.6;
 }
 .nd {
   min-height: 100dvh;
@@ -28,7 +51,7 @@ html:has(.nd) body {
 }
 @media (min-width: 760px) {
   .nd {
-    outline: 1px solid #2a2633;
+    outline: 1px solid var(--nd-edge);
   }
 }
 .nd-fixed-x {

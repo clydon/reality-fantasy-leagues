@@ -26,7 +26,7 @@ import {
 import { JoinGameRow, JoinGameSheet } from "../couch/join-game";
 import { openStartGame } from "../couch/start-game";
 import { airTime, dayOf } from "../clock";
-import { gameColour, ordinal } from "../games";
+import { gameInk, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { HubStatsPage, statBoard, statOf, unitFor, useStatsPage } from "../show/stats";
@@ -406,7 +406,7 @@ function CommercialBreak({ hub, home, couch }: { hub: CouchHub | undefined; home
               <NavLink key={g.leagueId} data-playing={g.leagueId} href={paths.show(g.seasonId, "games")} className="nd-press flex min-h-[72px] items-center gap-3 border-t border-border last:border-b">
                 <ShowArt seasonId={g.seasonId} artUrl={g.artUrl} name={g.label} className="size-[54px] flex-none rounded-[3px]" />
                 <span className="min-w-0 flex-1">
-                  <span className="type-caption text-xs tracking-[0.05em]" style={{ color: gameColour(g.gameName) }}>
+                  <span className="type-caption text-xs tracking-[0.05em]" style={{ color: gameInk(g.gameName) }}>
                     {g.gameName}
                   </span>
                   <b className="mt-[3px] block truncate text-base">{g.label}</b>
@@ -1005,10 +1005,10 @@ function TrophyShelf({ hub, me, couchId }: { hub: CouchHub | undefined; me: stri
               <div
                 key={p.leagueId}
                 data-plaque={p.label}
-                className={`relative flex flex-col gap-[3px] overflow-hidden rounded-[4px] bg-card p-2.5 ${won ? "outline-[1.5px] -outline-offset-[1.5px] outline-[#e0b23a]" : ""}`}
+                className={`relative flex flex-col gap-[3px] overflow-hidden rounded-[4px] bg-card p-2.5 ${won ? "outline-[1.5px] -outline-offset-[1.5px] outline-accent-2" : ""}`}
               >
                 <ShowArt seasonId={p.seasonId} artUrl={p.artUrl} name={p.label} className={`mb-1.5 h-[74px] w-full rounded-[3px] ${won ? "" : "[filter:saturate(.6)_brightness(.8)]"}`} />
-                <span className={`type-num text-[40px] leading-[.9] ${won ? "text-[#e0b23a]" : ""}`}>{p.you ? placeWord(p.you.rank, p.you.place) : "–"}</span>
+                <span className={`type-num text-[40px] leading-[.9] ${won ? "text-accent-2" : ""}`}>{p.you ? placeWord(p.you.rank, p.you.place) : "–"}</span>
                 <b className="type-caption text-base">{p.label}</b>
                 <small className="text-[12.5px] text-muted-foreground">{plaqueLine(p, me)}</small>
                 {p.ranItBack && <span className="type-caption mt-1 self-start rounded-[2px] bg-secondary px-[7px] py-[3px] text-[11px] tracking-[0.06em]">Ran it back</span>}

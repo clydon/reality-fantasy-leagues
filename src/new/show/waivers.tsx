@@ -438,7 +438,7 @@ function OpenWeek({ seasonId, show, week }: { seasonId: string; show: ShowData; 
       <Order week={week} due={due} />
 
       {(open.length > 0 || total > 0) && (
-        <div data-wv-bar className="nd-fixed-x fixed bottom-0 z-[30] flex items-center gap-3 border-t border-border bg-[rgba(22,20,29,.96)] px-4 pb-[calc(12px+env(safe-area-inset-bottom,0px))] pt-3 backdrop-blur-md">
+        <div data-wv-bar className="nd-fixed-x fixed bottom-0 z-[30] flex items-center gap-3 border-t border-border bg-background/96 px-4 pb-[calc(12px+env(safe-area-inset-bottom,0px))] pt-3 backdrop-blur-md">
           {open.length > 0 ? (
             <>
               <span className="min-w-0 flex-1">
@@ -933,7 +933,7 @@ export function WaiverRunScreen({ seasonId, weeks }: { seasonId: string; weeks: 
       aria-modal="true"
       aria-hidden={!page.open}
       aria-label="Waivers ran"
-      className={`nd-fixed-x fixed inset-y-0 z-[75] flex flex-col bg-[#0b0a10] text-foreground transition-[opacity,visibility] duration-300 motion-reduce:transition-none ${page.open ? "visible opacity-100" : "invisible opacity-0"}`}
+      className={`dark nd-fixed-x fixed inset-y-0 z-[75] flex flex-col bg-[#0b0a10] text-foreground transition-[opacity,visibility] duration-300 motion-reduce:transition-none ${page.open ? "visible opacity-100" : "invisible opacity-0"}`}
     >
       {page.open && week?.run && <RunBeats key={week.run.periodId} week={week} onSeen={() => markSeen(week.leagueId, week.run!.periodId)} onClose={page.close} />}
     </div>,

@@ -16,7 +16,7 @@ import { deskSend, useAfterDesk, type DeskLine } from "./data";
 export function DeskHeader({ title, back, badge = true }: { title: string; back: { label: string; href: string }; badge?: boolean }) {
   const nav = useNav();
   return (
-    <header className="sticky top-0 z-20 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center border-b border-border bg-[rgba(22,20,29,.92)] px-2.5 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md">
+    <header className="sticky top-0 z-20 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center border-b border-border bg-background/92 px-2.5 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md">
       <button type="button" onClick={() => nav.back(back.href)} className="flex h-14 min-w-0 items-center gap-0.5 justify-self-start rounded-[3px] pl-1 pr-2.5 text-[15px] font-semibold">
         <ChevronLeft className="size-5 flex-none" aria-hidden />
         <span className="truncate">{back.label}</span>
@@ -137,7 +137,7 @@ export function History({ lines, emptyLine = "Nothing yet." }: { lines: DeskLine
     <div data-history>
       {lines.map((l, i) => (
         <div key={l.id ?? `${l.at}-${i}`} data-history-line={l.id ?? undefined} className="flex min-h-12 items-center gap-3 border-t border-border py-2 first:border-t-0">
-          <span className={`min-w-0 flex-1 ${l.undone ? "opacity-60" : ""}`}>
+          <span className={`min-w-0 flex-1 ${l.undone ? "opacity-(--nd-dim)" : ""}`}>
             <span className={`block text-[14px] leading-snug ${l.undone ? "line-through" : ""}`}>{l.text}</span>
             <small className="block text-[12px] text-muted-foreground">
               {[l.who, airTime(Date.parse(l.at)), l.undone ? "undone" : null].filter(Boolean).join(" · ")}

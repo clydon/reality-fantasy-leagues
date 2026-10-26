@@ -15,6 +15,8 @@ import { leagueStates } from "@/lib/server/league-states";
 import { resultsDue } from "@/lib/game/results-due";
 import { keepTimeZone, unreadNotes } from "@/lib/server/notify-prefs";
 import { isImpersonating, requireAuthSession } from "@/lib/server/auth-helpers";
+import { withThemeCookie } from "@/lib/server/appearance";
+import { DEFAULT_THEME, isTheme } from "@/lib/appearance";
 
 // The new design's home (docs/PLAN-new-design.md step 0b; the hub, step 8): your couches with their people and
 // games, the shows you follow or play with where you are in each and what's on next (and who's set for it, step 1),
@@ -32,6 +34,9 @@ import { isImpersonating, requireAuthSession } from "@/lib/server/auth-helpers";
 //
 // Notifications (step 15 part 2): how many notices are new in the bell since you last looked (`notes`), and `?tz=` keeps the
 // time zone your phone is in, so a push says your time (written only when it's changed).
+//
+// Appearance (step 15 part 4): your theme rides on your own face (`user.theme`), and this device's cookie is written when it
+// differs (appearance.ts), so a second device catches up on its first visit.
 export const GET = apiRoute(async (req) => {
   const session = await requireAuthSession(req);
   const user = session.user;
@@ -47,9 +52,9 @@ export const GET = apiRoute(async (req) => {
     couchMembers(couchIds),
     games(user.id, { couchIds }),
     games(user.id, { mine: true }),
-    // Your own face (step 15 part 1): your colour and picture, for your avatar wherever it shows.
+    // Your own face (step 15 part 1): your colour and picture, for your avatar wherever it shows; and your theme (part 4).
     pool.query(
-      `SELECT s.colour, (EXTRACT(EPOCH FROM p.updated_at) * 1000)::bigint AS picture
+      `SELECT s.colour, s.theme, (EXTRACT(EPOCH FROM p.updated_at) * 1000)::bigint AS picture
          FROM "user" u LEFT JOIN user_settings s ON s.user_id = u.id LEFT JOIN user_pictures p ON p.user_id = u.id WHERE u.id = $1`,
       [user.id]
     ),
@@ -131,12 +136,14 @@ export const GET = apiRoute(async (req) => {
     });
   }
 
-  return NextResponse.json({
+  const theme = isTheme(face.rows[0]?.theme) ? face.rows[0].theme : DEFAULT_THEME;
+  const res = NextResponse.json({
     user: {
       id: user.id,
       name: (user as { username?: string | null }).username || user.name,
       colour: (face.rows[0]?.colour as string | null) ?? null,
       picture: face.rows[0]?.picture == null ? null : Number(face.rows[0].picture),
+      theme,
     },
     couches: couchRows.map((c) => ({
       id: c.id,
@@ -183,6 +190,8 @@ export const GET = apiRoute(async (req) => {
     // The bell (step 15 part 2): how many notices are new since you last looked.
     notes: { unread: notes },
   });
+  // An admin viewing as someone keeps their own device's theme.
+  return isImpersonating(session) ? res : withThemeCookie(res, theme, req);
 });
 
 function gameOut(g: Game) {

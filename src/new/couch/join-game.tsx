@@ -23,6 +23,7 @@ import { faceIn, first, openMoves } from "../show/moves";
 export function joinLine(g: JoinGame): string {
   const runner = g.runners[0] ?? "whoever runs it";
   if (g.you?.playing) return "You're in it.";
+  if (g.mode === "locked" && g.lockedDown) return `Locked down for the season${g.runners[0] ? ` by ${g.runners[0]}` : ""} (competitive).`;
   if (g.mode === "locked") return `Nobody new this season${g.runners[0] ? `: ${g.runners[0]} closed it` : ""}.`;
   if (g.mode === "ask") {
     if (g.you?.letIn) return `${runner} let you in. Pick where you start.`;

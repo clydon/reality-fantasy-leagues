@@ -195,7 +195,7 @@ function Title({ children, tag }: { children: React.ReactNode; tag?: string }) {
   return (
     <>
       {tag && (
-        <span className="type-caption inline-block rounded-[2px] px-[7px] py-[2px] text-[11px] tracking-[0.05em] outline-1 -outline-offset-1 outline-dashed outline-white/60">{tag}</span>
+        <span className="type-caption inline-block rounded-[2px] px-[7px] py-[2px] text-[11px] tracking-[0.05em] outline-1 -outline-offset-1 outline-dashed outline-foreground/60">{tag}</span>
       )}
       <h2 className="type-caption mt-2 text-[38px] leading-[.95]">{children}</h2>
     </>

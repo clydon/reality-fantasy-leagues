@@ -300,7 +300,7 @@ function check(ok, what, detail = "") {
       await sec.waitFor({ timeout: 30000 });
       await pg.waitForFunction(() => /ZT /.test(document.querySelector("[data-sees=where]")?.textContent || ""), null, { timeout: 15000 });
       await pg.waitForTimeout(800);
-      check((await pg.locator("[data-preview]").evaluateAll((els) => els.map((e) => e.getAttribute("data-preview")))).join() === "settings.appearance", "Settings: only Appearance is still Preview (part 4's)");
+      check((await pg.locator("[data-preview]").count()) === 0, "Settings: nothing is Preview (part 4 made Appearance real)");
       const choices = await sec.locator("[data-choice]").allInnerTexts();
       check(
         choices.length === 3 && /^Everything\s*Recommended/i.test(choices[0]) && /^Just my games/.test(choices[1]) && /^Only what games need/.test(choices[2]),

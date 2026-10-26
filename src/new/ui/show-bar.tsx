@@ -32,7 +32,7 @@ export function ShowArt({
   ) : (
     <span
       data-art={seasonId}
-      className={`type-caption grid place-items-center overflow-hidden bg-[linear-gradient(135deg,#2a2633,#100e15)] p-3 text-center text-[30px] leading-[.9] text-foreground/25 ${className}`}
+      className={`dark type-caption grid place-items-center overflow-hidden bg-[linear-gradient(135deg,#2a2633,#100e15)] p-3 text-center text-[30px] leading-[.9] text-foreground/25 ${className}`}
     >
       {name}
     </span>
@@ -70,7 +70,8 @@ export function ShowBar({
   const season = show.seasonNumber ? `S${show.seasonNumber}` : null;
   return (
     <header
-      className={`nd-showbar isolate z-20 flex flex-col overflow-hidden px-2 pb-2.5 pt-[calc(8px+env(safe-area-inset-top,0px))] text-white ${
+      // Night in both themes (step 15 part 4): it's the show's art, on its own dark plate; on Studio a dark band over the light page.
+      className={`nd-showbar dark isolate z-20 flex flex-col overflow-hidden px-2 pb-2.5 pt-[calc(8px+env(safe-area-inset-top,0px))] text-white ${
         tall ? "relative min-h-[250px] pb-4" : "sticky top-0 min-h-[96px]"
       }`}
     >
@@ -137,7 +138,7 @@ export function TabBar({ seasonId, tabs, current, badges = {} }: { seasonId: str
   return (
     <nav
       aria-label="Show"
-      className="nd-tabbar nd-fixed-x fixed bottom-0 z-30 grid h-[calc(66px+env(safe-area-inset-bottom,0px))] border-t border-border bg-[rgba(16,14,21,.94)] pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-[14px]"
+      className="nd-tabbar nd-fixed-x fixed bottom-0 z-30 grid h-[calc(66px+env(safe-area-inset-bottom,0px))] border-t border-border bg-panel-menu/94 pb-[env(safe-area-inset-bottom,0px)] backdrop-blur-[14px]"
       style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}
     >
       {tabs.map((tab) => {

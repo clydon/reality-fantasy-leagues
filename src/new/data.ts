@@ -47,6 +47,7 @@ import type { SharePreset, Sharing } from "@/lib/sharing";
 import type { Note, ShowNotify } from "@/lib/server/notify-prefs";
 import type { ChatMode, MomentId } from "@/lib/moments";
 import type { Face as PersonFace } from "@/lib/people";
+import type { Theme } from "@/lib/appearance";
 
 export type { CastFace, GameView, LineupMove, PickMove, PredictionMove, TableRow, WeekProgress } from "@/lib/game/game-view";
 export type { EpisodeSeen, GameNight, Happened, OutFace, RevealGame, RevealTable, Scorer } from "@/lib/game/episode-view";
@@ -212,7 +213,8 @@ export interface CouchShow extends SeasonHeader {
 }
 
 export interface Home {
-  user: { id: string; name: string; colour: string | null; picture: number | null };
+  /** You: your face, and your Appearance (step 15 part 4). */
+  user: { id: string; name: string; colour: string | null; picture: number | null; theme: Theme };
   couches: Couch[];
   shows: HomeShow[];
   /** The couches' shows you don't follow (step 10: The couch is watching); who watches each is in the couches' members. */
@@ -339,9 +341,11 @@ export type ChatRead = CouchChat | { out: true };
  * The couch's chat about this show, folded past where you are (unfolded through `unfold` once you've asked), polled
  * every 5 s while it's on screen. Each poll sends the version it has, and an unchanged chat keeps what's here.
  */
-export function useCouchChat(seasonId: string, couchId: string | null, unfold: number | null) {
+/** The open chat, polled. `since` (step 15 part 4): once you've read back (Earlier messages), everything from the message the
+ *  first window started at, so it never slides away under what you've read. */
+export function useCouchChat(seasonId: string, couchId: string | null, unfold: number | null, since: string | null = null) {
   const client = useQueryClient();
-  const key = ["new-design", "chat", seasonId, couchId, unfold] as const;
+  const key = ["new-design", "chat", seasonId, couchId, unfold, since] as const;
   return useQuery({
     queryKey: key,
     queryFn: async (): Promise<ChatRead> => {
@@ -349,6 +353,7 @@ export function useCouchChat(seasonId: string, couchId: string | null, unfold: n
       const v = have && "v" in have ? have.v : null;
       const query: Record<string, string> = {};
       if (unfold) query.unfold = String(unfold);
+      if (since) query.since = since;
       if (v) query.v = v;
       const body = await get<ChatRead | { unchanged: true; v: string }>(chatUrl(seasonId, couchId as string, "", query));
       return "unchanged" in body && have ? have : (body as ChatRead);
@@ -379,6 +384,11 @@ export function useChatBadge(seasonId: string, couchId: string | null, reveal: n
 
 /** The couch whose chat a show has: none when you're on your own there (no Chat tab). */
 export const chatCouch = (show: { solo: boolean; couch: { id: string } | null }) => (show.solo ? null : (show.couch?.id ?? null));
+
+/** Earlier messages (step 15 part 4): the 100 before a message, folded as the rest are; read on a tap, never polled. */
+export function chatEarlier(seasonId: string, couchId: string, before: string, unfold: number | null) {
+  return get<{ messages: ChatLine[]; more: boolean } | { out: true }>(chatUrl(seasonId, couchId, "", { before, ...(unfold ? { unfold: String(unfold) } : {}) }));
+}
 
 /** What you can do in the couch's chat; each refreshes the open chat (and the badge, for a read). */
 export function useChatActions(seasonId: string, couchId: string | null) {
@@ -724,6 +734,9 @@ export const gameAdmin = {
     sendJson<T>(seasonUrl(seasonId, "/backstage/waivers", { couch: couchId }), "POST", { leagueId, ...body }),
   settings: (seasonId: string, couchId: string, leagueId: string, body: { set?: Record<string, unknown>; reset?: "lineup" | "team" | "joining"; text?: string }) =>
     sendJson<{ batch: string | null }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, ...body }),
+  /** Lock it down (step 15 part 4): competitive mode for every game you run here, one batch. */
+  lockDown: (seasonId: string, couchId: string, on: boolean) =>
+    sendJson<{ batch: string | null; games: number }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { lockDown: on }),
   role: (seasonId: string, couchId: string, userId: string, role: LeagueRole, leagueIds?: string[]) =>
     sendJson<{ batch: string; games: number }>(seasonUrl(seasonId, `/backstage/members/${encodeURIComponent(userId)}`, { couch: couchId }), "PUT", { role, leagueIds }),
   remove: (seasonId: string, couchId: string, userId: string, preview = false) =>
@@ -922,8 +935,27 @@ function faceIn(h: Home, userId: string): PersonFace | null {
   return null;
 }
 
+/** Your Appearance as the home read last said it, without reading it (ThemeSync: a second device catches up). */
+export function useHomeTheme(): Theme | null {
+  const { data } = useQuery({ queryKey: HOME_KEY, queryFn: () => get<Home>(homeUrl()), enabled: false, select: (h: Home) => h.user.theme ?? null });
+  return data ?? null;
+}
+
+/** After saving your Appearance: the profile as answered and the home's copy, so nothing reads it back as it was. */
+export function useAfterTheme() {
+  const qc = useQueryClient();
+  return useCallback(
+    (profile: Profile) => {
+      qc.setQueryData(PROFILE_KEY, profile);
+      qc.setQueryData<Home>(HOME_KEY, (h) => (h ? { ...h, user: { ...h.user, theme: profile.theme } } : h));
+    },
+    [qc]
+  );
+}
+
 export const profileApi = {
-  /** Any of your name, colour, AI, spoiler setting, a notification moment or What your couch sees; answers the profile as it now is. */
+  /** Any of your name, colour, AI, spoiler setting, a notification moment, What your couch sees or Appearance; answers the profile
+   *  as it now is. */
   save: (body: {
     name?: string;
     colour?: string | null;
@@ -931,6 +963,7 @@ export const profileApi = {
     hideScores?: boolean;
     notify?: { moment: MomentId; on: boolean } | { chat: ChatMode };
     sharing?: { preset: SharePreset } | Partial<Sharing>;
+    theme?: Theme;
   }) => sendJson<Profile>("/api/me/profile", "PUT", body),
   /** Your picture, already made small (256 by 256). Answers its version. */
   picture: async (image: Blob): Promise<{ picture: number }> => {

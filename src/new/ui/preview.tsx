@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { PREVIEWS, type PreviewId } from "../preview";
+import { PREVIEWS, type PreviewEntry, type PreviewId } from "../preview";
 import { toast } from "./toast";
 
 // <Preview id> (docs/PLAN-new-design.md, "The Preview system"): a part of a screen that isn't on real data yet.
@@ -16,7 +16,8 @@ import { toast } from "./toast";
 
 /** `tag={false}` for a control too small to carry the tag (an icon button): the outline alone marks it. */
 export function Preview({ id, children, tag = true, className = "" }: { id: PreviewId; children?: ReactNode; tag?: boolean; className?: string }) {
-  const entry = PREVIEWS[id];
+  // Typed as an entry: with the registry empty (since step 15 part 4) no id exists, and nothing renders this until step C deletes it.
+  const entry: PreviewEntry = PREVIEWS[id];
   return (
     <div
       data-preview={id}

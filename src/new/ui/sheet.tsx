@@ -31,7 +31,7 @@ export function Sheet({
       <Dialog.Portal>
         <Dialog.Backdrop
           ref={scrimRef}
-          className="nd-fixed-x fixed inset-y-0 z-[80] bg-[rgba(8,6,12,.62)] transition-opacity duration-[250ms] data-[ending-style]:opacity-0 data-[starting-style]:opacity-0"
+          className="nd-fixed-x fixed inset-y-0 z-[80] bg-[var(--scrim)] transition-opacity duration-[250ms] data-[ending-style]:opacity-0 data-[starting-style]:opacity-0"
         />
         <Dialog.Popup
           ref={popupRef}

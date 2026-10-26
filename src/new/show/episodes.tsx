@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ChevronRight, Clock, Eye } from "lucide-react";
 import { airTime, dayOf } from "../clock";
 import { useEpisodeResults, useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverWeek } from "../data";
-import { gameColour, ordinal } from "../games";
+import { gameInk, ordinal } from "../games";
 import { episodesOf, type ShowData } from "../screens/show-space";
 import { PushedPage, usePushedPage } from "../ui/page";
 import { ShowArt } from "../ui/show-bar";
@@ -145,7 +145,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
             ))}
             {eps.episodes.length === 0 && !(drop && eps.toAir) && <p className="border-t border-border py-4 text-sm text-muted-foreground">Nothing has aired yet.</p>}
             {eps.toAir && (
-              <div data-ep-to-air={drop ? "drop" : eps.toAir.from} className="flex min-h-[68px] items-center gap-3 border-y border-border opacity-60">
+              <div data-ep-to-air={drop ? "drop" : eps.toAir.from} className="flex min-h-[68px] items-center gap-3 border-y border-border opacity-(--nd-dim)">
                 <span className="type-num w-7 text-[28px] text-muted-foreground">{eps.toAir.from}</span>
                 <span className="min-w-0 flex-1">
                   <b className="block text-base font-semibold">
@@ -177,7 +177,7 @@ function HiddenRow({ e, onReveal }: { e: EpisodeRow; onReveal: () => void }) {
       type="button"
       data-ep-hidden={e.number}
       onClick={onReveal}
-      className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border bg-[repeating-linear-gradient(135deg,transparent_0_10px,rgba(255,255,255,.025)_10px_20px)] text-left"
+      className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border bg-[repeating-linear-gradient(135deg,transparent_0_10px,color-mix(in_srgb,var(--foreground)_3%,transparent)_10px_20px)] text-left"
     >
       <span className="type-num w-7 text-[28px] text-muted-foreground">{e.number}</span>
       <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-chyron-line">
@@ -297,7 +297,7 @@ function GameLine({ l }: { l: GameNight }) {
     <div className="grid grid-cols-[118px_1fr] gap-x-2.5 gap-y-0.5 border-t border-border py-3">
       <span
         className="type-caption row-span-2 self-center text-[13px] tracking-[0.04em]"
-        style={{ color: l.gameType === "predictions" ? "var(--muted-foreground)" : gameColour(l.gameName) }}
+        style={{ color: l.gameType === "predictions" ? "var(--muted-foreground)" : gameInk(l.gameName) }}
       >
         {l.gameName}
       </span>

@@ -14,6 +14,10 @@
 //     bar, opening at the newest; send, react and edit through a message's sheet; the badge on the Chat tab and
 //     Tonight; the open chat's poll sends its version; as sam: the fold, Show them, and Tonight's "riley and jordan
 //     have revealed"; as riley: the Traitors' chat, folded past Episode 2;
+//   - Earlier messages (step 15 part 4): with 520 more said since Episode 4 aired, a read sends the newest 300 and says there
+//     are more; `&before=` the 100 before a message, oldest first, folded for sam exactly as the rest (nothing of theirs leaves
+//     the server), refused for a message that isn't this chat's; `&since=` everything from a message on; in the browser, as
+//     alex, Earlier messages at the top adds 100 and keeps his place, and the open chat's poll asks `since` from then on;
 //   - nothing wider than the screen, no page errors.
 // Screenshots go to <outDir>.
 //
@@ -247,6 +251,65 @@ function check(ok, what, detail = "") {
     check((await rb.page.locator('textarea[aria-label="Message"]').getAttribute("placeholder")) === "Message the couch about ZT Traitors 5", "its composer: Message the couch about ZT Traitors 5");
     await fits("the Traitors' chat", rb.page);
     await shot("chat-traitors", rb.page);
+
+    // ---- Earlier messages (step 15 part 4) ----
+    // 520 more from jordan in the hour and a half after Episode 4 aired (folded for sam, on 3), so the conversation runs past one read.
+    const ep4At = await airOf(sid, 4);
+    await pool.query(
+      `INSERT INTO chat_messages (league_id, user_id, author_name, type, text, created_at)
+       SELECT $1, $2, 'jordan', 'message', 'zt-earlier ' || g, $3::timestamptz + (g * interval '10 seconds') FROM generate_series(1, 520) g`,
+      [L.lineup, fx.users.jordan, ep4At]
+    );
+    const total = Number((await pool.query(
+      `SELECT count(*) FROM chat_messages WHERE (league_id = ANY($1::uuid[])) AND type <> 'system'`, [[L.outlast, L.lineup, L.pool]]
+    )).rows[0].count);
+    const main = (await chat("alex", sid)).body;
+    check(main.messages.length === 300 && main.more === true, "a read sends the newest 300, and says there are more", `${main.messages.length} of ${total}, more ${main.more}`);
+    const first = main.messages[0];
+    const page1 = (await chat("alex", sid, `&before=${first.id}`)).body;
+    check(page1.messages.length === 100 && page1.more === (total > 400), "&before=: the 100 before it, and whether there are more", `${page1.messages.length} more ${page1.more}`);
+    check(
+      page1.messages.every((m, i) => i === 0 || m.at >= page1.messages[i - 1].at) && page1.messages[99].at <= first.at && !page1.messages.some((m) => main.messages.some((x) => x.id === m.id)),
+      "oldest first, all of them before the read's first, none of them twice"
+    );
+    check(page1.messages.every((m) => !m.folded), "alex (on 5): in full");
+    const samMain = (await chat("sam", sid)).body;
+    const samPage = (await chat("sam", sid, `&before=${samMain.messages[0].id}`)).body;
+    const theirs = samPage.messages.filter((m) => m.userId === fx.users.jordan && new Date(m.at) >= new Date(ep4At));
+    check(
+      samMain.more === true && theirs.length > 0 && theirs.every((m) => m.folded && m.text === null) && !JSON.stringify(samPage).includes("zt-earlier"),
+      "sam (on 3): an earlier page folds what was said since Episode 4 aired, as the rest (nothing of it leaves the server)",
+      `${theirs.length} folded`
+    );
+    check(samPage.messages.filter((m) => new Date(m.at) < new Date(ep4At)).every((m) => !m.folded), "and what came before it shows");
+    check((await chat("alex", sid, `&before=${elsewhere}`)).status === 404 && (await chat("alex", sid, "&before=nope")).status === 404, "&before= a message that isn't this chat's: 404");
+    const since = (await chat("alex", sid, `&since=${page1.messages[0].id}`)).body;
+    check(since.messages.length === 400 && since.messages[0].id === page1.messages[0].id && since.more === (total > 400), "&since=: everything from that message on", `${since.messages.length}`);
+
+    // In the browser: Earlier messages at the top, the place kept, and the poll asking from there on.
+    const sinceAsked = [];
+    page.on("request", (rq) => /\/chat\?.*since=/.test(rq.url()) && sinceAsked.push(rq.url()));
+    await page.goto(`${BASE}/show/${sid}/chat`, { waitUntil: "load" });
+    await page.locator("[data-msg]").first().waitFor({ timeout: 20_000 });
+    await page.waitForTimeout(1200);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(400);
+    const earlierBtn = page.locator("[data-earlier]");
+    check((await earlierBtn.count()) === 1 && /Earlier messages/.test(await earlierBtn.innerText()), "Earlier messages, at the top of the chat");
+    const shown = await page.locator("[data-msg]").count();
+    const firstId = await page.locator("[data-msg]").first().getAttribute("data-msg");
+    await shot("chat-earlier-before");
+    await earlierBtn.click();
+    await page.waitForFunction((n) => document.querySelectorAll("[data-msg]").length > n, shown, { timeout: 15_000 });
+    await page.waitForTimeout(600);
+    const after = await page.locator("[data-msg]").count();
+    const kept = await page.evaluate((id) => document.querySelector(`[data-msg="${id}"]`)?.getBoundingClientRect().top ?? -1, firstId);
+    check(after - shown === 100 - page1.messages.filter((m) => m.type === "reveal").length, "a tap adds the 100 before", `${shown} → ${after}`);
+    check(kept > 0 && kept < 844, "and keeps your place: what was first is still on screen", `${kept}`);
+    await shot("chat-earlier-after");
+    await page.waitForTimeout(6000);
+    check(sinceAsked.length > 0, "the open chat asks since the earliest you've read from then on", `${sinceAsked.length}`);
+    check((await page.locator("[data-msg]").count()) === after, "and keeps them all", `${await page.locator("[data-msg]").count()}`);
 
     const real = [...errors, ...sb.errors, ...rb.errors].filter((e) => !/Download the React DevTools|\[HMR\]|\[Fast Refresh\]/.test(e));
     check(real.length === 0, "no page errors", real.slice(0, 3).join(" | "));

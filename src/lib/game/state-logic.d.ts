@@ -262,6 +262,8 @@ declare const StateLogic: {
     isUnderway(state: LeagueState): boolean;
     /** Late joining is on unless the commissioner switched it off. */
     allowed(state: LeagueState): boolean;
+    /** Lock it down (step 15 part 4): competitive mode, nobody new joins, the rules frozen for the season. */
+    lockedDown(state: LeagueState): boolean;
     /** Castaways can be on several teams (or there are no teams): a new player takes nothing and may catch up. */
     sharedJoin(state: LeagueState): boolean;
     /** Who can join (step 9): settings.joinMode, else locked when late joining is off, else the recommended one. */

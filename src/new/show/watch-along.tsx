@@ -226,7 +226,8 @@ export function WatchAlongPage({ show }: { show: ShowData }) {
 
 function Layer({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <div role="dialog" aria-modal="true" aria-label="Watch along" data-watch-along className={`nd-fixed-x nd-wa-in fixed inset-y-0 z-[72] flex flex-col overflow-hidden bg-[#0b0a10] text-foreground ${className}`}>
+    // Night in both themes (step 15 part 4), like a player's screen: you're watching TV.
+    <div role="dialog" aria-modal="true" aria-label="Watch along" data-watch-along className={`dark nd-fixed-x nd-wa-in fixed inset-y-0 z-[72] flex flex-col overflow-hidden bg-[#0b0a10] text-foreground ${className}`}>
       {children}
     </div>
   );

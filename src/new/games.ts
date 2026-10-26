@@ -54,5 +54,12 @@ export const isGameName = (name: string): name is GameName => Object.prototype.h
 /** A game's colour, or a quiet one for a game the new design doesn't know yet. */
 export const gameColour = (name: string) => (isGameName(name) ? GAME_STYLE[name].colour : "var(--muted-foreground)");
 
+/** A game's colour as text (step 15 part 4): the colour itself on Night, a deeper shade of it on Studio, where the bright one is
+ *  under 3:1 (new.css --nd-ink-mix: the colour mixed with the ink, 62% of it, 4.7:1 or better on Studio's ground). */
+export const gameInk = (name: string) => (isGameName(name) ? inkOf(GAME_STYLE[name].colour) : "var(--muted-foreground)");
+
+/** Any bright colour as text, the same way. */
+export const inkOf = (colour: string) => `color-mix(in oklab, ${colour} var(--nd-ink-mix, 100%), var(--foreground))`;
+
 /** "1st", "2nd", "11th". */
 export const ordinal = (n: number) => `${n}${["th", "st", "nd", "rd"][n % 100 > 10 && n % 100 < 14 ? 0 : n % 10] ?? "th"}`;

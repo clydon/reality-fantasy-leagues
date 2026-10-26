@@ -170,7 +170,7 @@ export function SuggestionCard({ title, sub, art, position, on, onClick }: { tit
       data-suggest={title}
       aria-pressed={on}
       onClick={onClick}
-      className={`relative isolate flex aspect-[4/3] flex-col justify-end overflow-hidden rounded-[4px] p-2.5 text-left text-white ${on ? "shadow-[0_0_0_3px_var(--chyron)]" : ""}`}
+      className={`relative isolate flex aspect-[4/3] flex-col justify-end overflow-hidden rounded-[4px] p-2.5 text-left text-white ${on ? "shadow-[0_0_0_3px_var(--chyron-line)]" : ""}`}
     >
       <ShowArt seasonId={`suggest-${title}`} artUrl={art} name={title} position={position} className="absolute inset-0 -z-[2] size-full" />
       <span aria-hidden className="absolute inset-0 -z-[1] bg-[linear-gradient(180deg,transparent_30%,rgba(10,8,14,.92))]" />

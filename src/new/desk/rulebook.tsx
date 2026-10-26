@@ -358,7 +358,7 @@ export function RulebookPage({ id }: { id: string }) {
       )}
 
       {ops.length > 0 && (
-        <div data-unsaved={ops.length} className="nd-fixed-x fixed bottom-0 z-30 border-t border-border bg-[rgba(22,20,29,.96)] px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pt-3 backdrop-blur-md">
+        <div data-unsaved={ops.length} className="nd-fixed-x fixed bottom-0 z-30 border-t border-border bg-background/96 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pt-3 backdrop-blur-md">
           <b className="block text-[15px]">
             {ops.length} unsaved {ops.length === 1 ? "change" : "changes"}
           </b>

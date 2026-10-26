@@ -687,7 +687,8 @@ function WatchPhone({ reduce }: { reduce: boolean }) {
     return { n, line: COUCH[n % COUCH.length] };
   });
   return (
-    <div className="lp-waphone" aria-hidden>
+    // A phone in a watch along: Night in both themes, as the watch along is (step 15 part 4).
+    <div className="lp-waphone dark text-foreground" aria-hidden>
       <div className="bar">
         <b className="cap">Survivor 51</b>
         <small>
@@ -818,7 +819,7 @@ function SpoilerSafe({ reduce }: { reduce: boolean }) {
                 ))}
               </defs>
               {[0, 25, 50, 75].filter((v) => v <= max).map((v) => (
-                <line key={v} x1={PL} x2={W - PR} y1={Y(v)} y2={Y(v)} stroke="#2e2a3a" />
+                <line key={v} x1={PL} x2={W - PR} y1={Y(v)} y2={Y(v)} stroke="var(--border)" />
               ))}
               {Array.from({ length: Math.ceil(NE / 3) }, (_, n) => n * 3).map((i) => (
                 <text key={i} x={X(i)} y={H - 4} className="axis" textAnchor="middle">

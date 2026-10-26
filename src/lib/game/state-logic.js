@@ -1767,6 +1767,7 @@ class RosterLogic {
     // quietly become a number that lets more through than the commissioner picked. See RevealLogic.
     if(field === 'revealedThroughEpisode') value = RevealLogic.normalize(value);
     if(field === 'allowLateJoiners') value = value !== false;
+    if(field === 'lockedDown') value = value === true;
     // Who can join (step 9): open, ask or locked. Classic's late-joiner switch follows it, so a game nobody new may
     // join is closed in classic too (its join code gives an inactive seat).
     if(field === 'joinMode'){
@@ -3436,8 +3437,13 @@ class GhostLogic {
     // newcomers into its draft until it has a result of its own.
     return !!(turn && turn.isComplete) || SpoilerLogic.latestWithResults(state) >= startEpisode(state);
   }
-  // On unless a commissioner switched it off (absent = on, so it covers every league that predates it).
-  static allowed(state){ return !(state.settings && state.settings.allowLateJoiners === false); }
+  // On unless a commissioner switched it off (absent = on, so it covers every league that predates it), or locked the game down.
+  static allowed(state){ return !(state.settings && (state.settings.allowLateJoiners === false || GhostLogic.lockedDown(state))); }
+  // Lock it down (the new design's competitive mode, step 15 part 4): no late joins, no catch-up, rules frozen for the season.
+  // Joining closes here (allowed, so joinMode and classic's join code agree); the rest is the new design's Game settings and
+  // Scoring rules refusing changes (backstage-games.ts). Kept apart from allowLateJoiners, so turning it off leaves Who can
+  // join as it was.
+  static lockedDown(state){ return !!(state.settings && state.settings.lockedDown === true); }
   // Whether castaways can be on several teams here (shared ownership, or a game with no teams at all: Survival Pool),
   // so a new player takes nothing from anyone and may catch up on what they missed.
   static sharedJoin(state){

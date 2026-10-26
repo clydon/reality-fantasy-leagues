@@ -230,7 +230,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                   aria-pressed={on}
                   disabled={!!g.soon}
                   onClick={() => setPicked(g.key)}
-                  className={`flex w-full items-start gap-3 rounded-[4px] p-3 text-left disabled:opacity-60 ${on ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron" : "bg-secondary/60"}`}
+                  className={`flex w-full items-start gap-3 rounded-[4px] p-3 text-left disabled:opacity-60 ${on ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron-line" : "bg-secondary/60"}`}
                 >
                   <i className="mt-[5px] size-3 flex-none rounded-full" style={{ background: dotOf(g) }} aria-hidden />
                   <span className="min-w-0 flex-1">

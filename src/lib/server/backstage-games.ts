@@ -28,6 +28,8 @@ import { ourRules, type OurRules } from "./ours";
 // who has picks in, Run now, a window, the feel and Fine-tune), Game settings (lineup size, who can join, each with
 // Reset to recommended) and Scoring rules' read side (the rulebook the games follow, and each game's points). Members &
 // roles are backstage-members.ts. A Game admin runs results and waivers; settings, rules and roles are a Commissioner's.
+// Lock it down (step 15 part 4, the mock's competitive mode): one switch for every game you run here, nobody new joins
+// (GhostLogic.allowed), and the rules are frozen for the season: Game settings, the points and Make it ours refuse changes.
 //
 // Every write is one batch in Recent changes (change-log.ts) and answers its id, so the toast's Undo can take it back
 // (tier 1); running waivers moves standings, so it's previewed first (tier 2) and carries its own Undo while free agency
@@ -460,7 +462,12 @@ export interface GameSettings {
   joining: { mode: "open" | "ask" | "locked"; rec: "open" | "ask" };
   /** Waivers' one line, for the row into its page; null without waivers. */
   waivers: string | null;
+  /** Lock it down (step 15 part 4): competitive mode, nobody new, rules frozen for the season. */
+  lockedDown: boolean;
 }
+
+/** A game locked down (step 15 part 4): its rules don't change for the season. */
+export const FROZEN = "Locked down for the season: the rules are frozen. Turn off Lock it down in Game settings first.";
 
 export async function gameSettings(scope: BackstageScope): Promise<{ games: GameSettings[] }> {
   const loaded = await load(scope);
@@ -486,6 +493,7 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         team: type.hasRoster && !type.hasActiveRoster ? { size: s.settings.teamSize, rec: REC.teamSize } : null,
         joining: { mode: StateLogic.GhostLogic.joinMode(s), rec: StateLogic.GhostLogic.recommendedJoinMode(s) },
         waivers: c ? `${RULE_WORDS[c.replaceRule]} · ${c.waiverWindows.swaps > 0 ? `${c.waiverWindows.swaps} optional swap${c.waiverWindows.swaps === 1 ? "" : "s"} per window` : "no optional swaps"}` : null,
+        lockedDown: StateLogic.GhostLogic.lockedDown(s),
       };
     }),
   };
@@ -515,6 +523,7 @@ export async function settingsWrite(
   await withLeagueLock(
     game.leagueId,
     (s) => {
+      if (StateLogic.GhostLogic.lockedDown(s)) throw new HttpError(409, FROZEN);
       const drafted = StateLogic.DraftLogic.isStarted(s);
       for (const [k, v] of Object.entries(set)) {
         if (k === "allowLateJoiners") {
@@ -568,6 +577,40 @@ export async function settingsWrite(
   return { batch: changed ? batch : null };
 }
 
+/**
+ * Lock it down (step 15 part 4; the mock's settings.js "Competitive mode"): on or off for every game you run here as a
+ * Commissioner, in one batch with Undo, a line each in Recent changes for the whole couch to see.
+ */
+export async function lockDownWrite(scope: BackstageScope, on: unknown): Promise<{ batch: string | null; games: number }> {
+  if (typeof on !== "boolean") throw new HttpError(400, "lockDown must be true or false");
+  const mine = scope.games.filter((g) => g.yourRole === "commissioner" || isSuperAdminUser(scope.user));
+  if (!mine.length) throw new HttpError(403, "Only a Commissioner changes this");
+  const batch = crypto.randomUUID();
+  let changed = 0;
+  for (const game of mine) {
+    await withLeagueLock(
+      game.leagueId,
+      (s) => StateLogic.updateSettings(s, "lockedDown", on),
+      (b, a) => {
+        const spec = settingsSetChange(scope.user.id, on ? "Locked the game down for the season: nobody new joins, the rules are frozen" : "Took the game off lock down: back to casual", { batch });
+        const out = typeof spec === "function" ? spec(b, a) : spec;
+        if (out) changed++;
+        return out;
+      }
+    );
+  }
+  return { batch: changed ? batch : null, games: changed };
+}
+
+/** Whether any of these games is locked down: Make it ours and the couch's rules are frozen while one is. */
+export async function anyLockedDown(leagueIds: string[]): Promise<boolean> {
+  const states = await leagueStates(leagueIds);
+  return leagueIds.some((id) => {
+    const s = states.get(id) as LeagueState | undefined;
+    return !!s && StateLogic.GhostLogic.lockedDown(s);
+  });
+}
+
 // ---- Scoring rules: a game's points ----
 
 /**
@@ -584,6 +627,7 @@ export async function pointsWrite(
   if (game.gameType !== "active-roster") throw new HttpError(400, "Only Weekly Lineup scores by moment");
   const s0 = (await leagueStates([game.leagueId])).get(game.leagueId) as LeagueState | undefined;
   if (!s0) throw new HttpError(404, "League not found");
+  if (StateLogic.GhostLogic.lockedDown(s0)) throw new HttpError(409, FROZEN);
   const known = new Set(StateLogic.formatOf(s0).events.map((e: { id: string }) => e.id));
   const given = body.points && typeof body.points === "object" ? Object.entries(body.points as Record<string, unknown>) : [];
   if (!given.length) throw new HttpError(400, "Nothing changed");
@@ -606,7 +650,10 @@ export async function pointsWrite(
   let changed = false;
   const n = Object.keys(points).length;
   // Points aren't a plain setting (settingsSetChange leaves them out): their own line, and an Undo that puts them back.
-  await withLeagueLock(game.leagueId, apply, (b, a) => {
+  await withLeagueLock(game.leagueId, (s) => {
+    if (StateLogic.GhostLogic.lockedDown(s)) throw new HttpError(409, FROZEN);
+    apply(s);
+  }, (b, a) => {
     if (JSON.stringify(b.settings.eventPoints ?? null) === JSON.stringify(a.settings.eventPoints ?? null)) return null;
     changed = true;
     return {
@@ -641,6 +688,8 @@ export interface ScoringRules {
   games: GameRules[];
   /** Make it ours (step 6b part 3): following the season's rulebook or the couch's own copy, and the copy's choices. */
   ours: OurRules;
+  /** A game here is locked down (step 15 part 4): the rules are frozen for the season, nothing on this page changes. */
+  frozen: boolean;
 }
 
 export async function scoringRules(scope: BackstageScope): Promise<ScoringRules> {
@@ -679,5 +728,10 @@ export async function scoringRules(scope: BackstageScope): Promise<ScoringRules>
       lines: weekly ? [] : gameRules(view),
     });
   }
-  return { rulebook: rulebook ?? { name: "this show", season: false, following: 0 }, games, ours: await ourRules(scope) };
+  return {
+    rulebook: rulebook ?? { name: "this show", season: false, following: 0 },
+    games,
+    ours: await ourRules(scope),
+    frozen: loaded.some((l) => StateLogic.GhostLogic.lockedDown(l.state)),
+  };
 }

@@ -62,7 +62,7 @@ export function LibraryPage() {
           </Section>
         </>
       )}
-      <div className="nd-fixed-x fixed bottom-0 z-30 border-t border-border bg-[rgba(22,20,29,.96)] px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pt-3 backdrop-blur-md">
+      <div className="nd-fixed-x fixed bottom-0 z-30 border-t border-border bg-background/96 px-4 pb-[calc(env(safe-area-inset-bottom,0px)+12px)] pt-3 backdrop-blur-md">
         <NavLink href={paths.deskNew()} data-new-show className="nd-press flex h-[52px] w-full items-center justify-center gap-2 rounded-[3px] bg-chyron text-[17px] font-bold text-chyron-foreground">
           <Plus className="size-5" strokeWidth={2.6} aria-hidden />
           New show

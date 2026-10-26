@@ -352,6 +352,17 @@ bytes sent, so the watch along's 5 s poll and the open Chat tab's 5 s poll send 
 people. Settings' profile read gains two small queries (your switches; your lines from your follows, latest rating and reactions
 count). Trivia's read gains one small query (the show's finished seasons you haven't marked).
 
+**Studio, Earlier messages and Lock it down (new design, step 15 part 4)** add no poll, nothing on a schedule and no push. **Stored:**
+`user_settings.theme` (migration 0138: 'night', 'studio' or 'phone', a few bytes a person; backed up with `user_settings`, like the
+account's other choices) and each device's copy of it in a `gys_theme` cookie (no database read to draw a page: the boot script reads
+the cookie). The home read and GET /api/me read the column with the row they already read and set the cookie only when a device's
+differs; saving it is one small UPDATE. Lock it down is a league setting (`settings.lockedDown` in the league's state: no migration),
+one league write per game when it's switched. **Earlier messages:** the open Chat tab's read now sends the newest 300 plus one row (to
+say there are more); a tap on Earlier messages reads 100 more (~20-30 KB, folded as the rest; never polled); and once someone has read
+back, their open chat's 5 s poll asks for everything from the earliest message they've loaded (at most 1,000) instead of the newest
+300, with one more tiny EXISTS query. Its `{ unchanged }` answer while nothing moved is the same 32 characters, so the poll's cost only
+changes on the reads where the chat changed (a few hundred rows more, ~50-100 KB, only for someone reading far back with it open).
+
 **Vercel invocations** are one per poll: about 10 a minute per open screen (600 an hour); 18 a minute on the
 chat page (its 5-second poll replaces the badge's). The new design: 2 a minute on a show space, 12 on its Chat tab,
 none on the hub, 14 in a watch along while its clock runs (its own 12, and the 2 of the show space's Chat badge under it), 5 while
@@ -742,3 +753,9 @@ never handles it: the user does the reset and the pasting.
   schedule, no pushes.** Migration 0137: four booleans on `user_settings` (backed up). The guard's sharing checks are primary-key lookups
   inside existing queries (no more bytes sent, the polls unchanged); the home and space reads carry each person's mark where they share
   it and one more small query; the profile read two; trivia's one; Seen it all one write.
+- **2026-10-26, on the `new-design` branch (not deployed).** Step 15 part 4, Studio and the rest, which finishes step 15. **Nothing new
+  polls and nothing runs on a schedule; no pushes.** Migration 0138: `user_settings.theme` (backed up), copied to each device as the
+  `gys_theme` cookie (the page is drawn in it before anything loads; no read for it). Lock it down: a league setting, no migration. The
+  open Chat tab's read sends one row more (whether there's anything earlier); Earlier messages reads 100 at a tap, and someone who has
+  read back polls from the earliest they've loaded (its unchanged answer is the same 32 characters; a changed one carries what they've
+  loaded, at most 1,000 messages).
