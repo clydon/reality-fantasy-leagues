@@ -329,12 +329,14 @@ export interface PhotosFound {
  * premiere guest cast; a sport's from Wikipedia. Then every league on the season gets them (an approved cast only, as an
  * admin's photo change would).
  */
-export async function fillCastPhotos(seasonId: string, listingsBase?: string, opts: { roster?: boolean } = {}): Promise<PhotosFound> {
+export async function fillCastPhotos(seasonId: string, listingsBase?: string, opts: { roster?: boolean; only?: string[] } = {}): Promise<PhotosFound> {
   const result: PhotosFound = { looked: 0, found: 0, from: {} };
   const s = await linkedSeason(seasonId, listingsBase);
   if (!s || s.art_off) return result;
   const { rows: cast } = await pool.query("SELECT id, name, tribe_name, photo_url FROM season_cast WHERE season_id = $1 ORDER BY sort_order", [seasonId]);
-  const want = cast.filter((c) => replaceablePhoto(c.photo_url));
+  // `only`: just these people (a sport's cast growing from its games looks only for who it just added).
+  const only = opts.only ? new Set(opts.only.map((n) => n.toLowerCase())) : null;
+  const want = cast.filter((c) => replaceablePhoto(c.photo_url) && (!only || only.has((c.name as string).toLowerCase())));
   result.looked = want.length;
   const found = new Map<string, { url: string; from: string }>();
   if (want.length) {

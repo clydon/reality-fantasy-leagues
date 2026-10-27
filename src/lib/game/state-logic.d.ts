@@ -310,8 +310,14 @@ declare const StateLogic: {
   formatOf(state: LeagueState): GameFormat;
   /** The episode this league starts playing at (settings.startEpisode, default 1). */
   startEpisode(state: LeagueState): number;
-  /** Whether an episode counts for this league -- at or after its start episode. */
+  /** The last episode a game over a span plays (settings.endEpisode), or null: to the season's end. */
+  endEpisode(state: LeagueState): number | null;
+  /** Whether an episode counts for this league -- from its start episode through its end, if it has one. */
   inPlay(state: LeagueState, episodeNumber: number): boolean;
+  /** The league as its span saw it: results after its last episode taken out (the state itself when there are none). */
+  spanView(state: LeagueState): LeagueState;
+  /** The game is over: its season is, or its span's last episode has results. */
+  gameOver(state: LeagueState): boolean;
   /** Whether the episode has started airing (its server-stamped airsAt has passed). */
   hasAired(ep: Episode | null | undefined, now?: number): boolean;
   /** Whether an exit method crowns the winner (never, for a format nobody wins, or a null method). */

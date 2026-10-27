@@ -220,7 +220,9 @@ export async function saysOn(seasonId: string, episodes: number[], who: { viewer
 }
 
 /** A game scored outside its state (Weekly Calls, Weekly Bingo) is over once its season's last episode is within `through`. */
-export function endedThrough(schedule: SeasonSchedule | undefined, through: number): boolean {
+export function endedThrough(schedule: SeasonSchedule | undefined, through: number, end: number | null = null): boolean {
+  // A game over a span (settings.endEpisode, docs/PLAN-sports-data.md step 6) is over at its own last episode.
+  if (end !== null && through >= end) return true;
   return !!schedule?.episodeCount && through >= schedule.episodeCount;
 }
 
@@ -493,7 +495,9 @@ export async function leagueCalls(o: {
   const pooled = StateLogic.pickEmCallsOn(o.state);
   if (!type.hasCalls && !pooled) return null;
   const now = o.now ?? new Date();
-  const through = o.mark ?? Number.POSITIVE_INFINITY;
+  // A game over a span counts its own shows only (settings.endEpisode).
+  const end = StateLogic.endEpisode(o.state);
+  const through = Math.min(o.mark ?? Number.POSITIVE_INFINITY, end ?? Number.POSITIVE_INFINITY);
   const book = o.book ?? (await seasonBook(o.seasonId));
   const userIds = o.state.players.map((p) => o.userOf(p.id)).filter((id): id is string => !!id);
   const rights = await callRights(o.seasonId, userIds, {
@@ -530,8 +534,9 @@ export async function leagueCalls(o: {
   return {
     right,
     through: Math.min(through, aired),
-    ended: endedThrough(schedule, Math.min(through, aired)),
-    move: made ? { epId: "", episode: made.episode, airsAt: made.airAt, open: true, call: null, available: [], made: made.made, of: made.of, right: o.playerId ? right(o.playerId) : 0 } : null,
+    ended: endedThrough(schedule, Math.min(through, aired), end),
+    // Past a span's last show there's nothing left to call for this game.
+    move: made && (end === null || made.episode <= end) ? { epId: "", episode: made.episode, airsAt: made.airAt, open: true, call: null, available: [], made: made.made, of: made.of, right: o.playerId ? right(o.playerId) : 0 } : null,
   };
 }
 
@@ -548,7 +553,7 @@ export async function seasonCastIdOf(seasonId: string, castaway: { name: string;
  */
 export async function weeklyCallMoves(
   userId: string,
-  games: { leagueId: string; name: string; gameType: string; seasonId: string | null; archived?: boolean }[],
+  games: { leagueId: string; name: string; gameType: string; seasonId: string | null; archived?: boolean; span?: { from: number; to: number } | null }[],
   now = new Date()
 ): Promise<{ kind: "calls"; text: string; href: string; leagueId: string; leagueName: string; episode: number; deadline: string; who: "you" }[]> {
   const out = [];
@@ -556,6 +561,8 @@ export async function weeklyCallMoves(
     if (g.gameType !== "weekly-calls" || !g.seasonId || g.archived) continue;
     const made = await callsMade(userId, g.seasonId, now).catch(() => null);
     if (!made || !made.of || made.made >= made.of) continue;
+    // A game over a span asks for no calls past its last show.
+    if (g.span && made.episode > g.span.to) continue;
     out.push({
       kind: "calls" as const,
       text: made.of - made.made === 1 && made.made ? "Make your last call" : `Make this week's ${made.of === 1 ? "call" : `${made.of === 2 ? "two" : made.of} calls`}`,

@@ -1010,6 +1010,12 @@ function TrophyShelf({ hub, me, couchId }: { hub: CouchHub | undefined; me: stri
                 <ShowArt seasonId={p.seasonId} artUrl={p.artUrl} name={p.label} className={`mb-1.5 h-[74px] w-full rounded-[3px] ${won ? "" : "[filter:saturate(.6)_brightness(.8)]"}`} />
                 <span className={`type-num text-[40px] leading-[.9] ${won ? "text-accent-2" : ""}`}>{p.you ? placeWord(p.you.rank, p.you.place) : "–"}</span>
                 <b className="type-caption text-base">{p.label}</b>
+                {/* A game over a span says which (step 6 of docs/PLAN-sports-data.md). */}
+                {p.span && (
+                  <b data-plaque-span className="text-[13px] font-semibold">
+                    {p.span}
+                  </b>
+                )}
                 <small className="text-[12.5px] text-muted-foreground">{plaqueLine(p, me)}</small>
                 {p.ranItBack && <span className="type-caption mt-1 self-start rounded-[2px] bg-secondary px-[7px] py-[3px] text-[11px] tracking-[0.06em]">Ran it back</span>}
               </div>
@@ -1019,7 +1025,7 @@ function TrophyShelf({ hub, me, couchId }: { hub: CouchHub | undefined; me: stri
       </section>
       {hub.again.length > 0 && (
         <section className="mt-6 px-3" data-run-it-back>
-          <SectionHead title="Run it back" aside="The same game, next season" flush />
+          <SectionHead title="Run it back" aside="The same game again" flush />
           {hub.again.map((a) => {
             const p = t.plaques.find((x) => x.leagueId === a.leagueId);
             return (
@@ -1035,7 +1041,7 @@ function TrophyShelf({ hub, me, couchId }: { hub: CouchHub | undefined; me: stri
                 </span>
                 <span className="min-w-0 flex-1">
                   <b className="block text-[15px]">{a.label}</b>
-                  <small className="block text-[12.5px] text-muted-foreground">{p ? `${p.gameName} again, after ${p.label}` : "The same game again"}</small>
+                  <small className="block text-[12.5px] text-muted-foreground">{p ? `${p.gameName} again, after ${p.label}${p.span ? ` · ${p.span}` : ""}` : "The same game again"}</small>
                 </span>
                 <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
               </button>

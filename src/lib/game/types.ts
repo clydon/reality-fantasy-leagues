@@ -273,6 +273,12 @@ export interface LeagueSettings {
    * from here, and nothing in earlier episodes scores. Read it through StateLogic.startEpisode.
    */
   startEpisode?: number;
+  /**
+   * The last episode a game over a span plays (docs/PLAN-sports-data.md step 6): one game, a series, a stretch of the
+   * season. Nothing after it scores, and the game's over once it has results. Absent or null: to the season's end. Read
+   * it through StateLogic.endEpisode.
+   */
+  endEpisode?: number | null;
   defaultBetPoints: number;
   // Same opt-in shape as replenishEnabled/tradeEnabled above, gated together with the league
   // type's own supportsFinalePredictions -- see finalePredictionsAvailable in state-logic.js.

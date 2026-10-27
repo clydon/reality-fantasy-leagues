@@ -204,5 +204,5 @@ export const GET = apiRoute(async (req) => {
 });
 
 function gameOut(g: Game) {
-  return { leagueId: g.leagueId, name: g.name, gameType: g.gameType, gameName: g.gameName, couchId: g.couchId, seasonId: g.seasonId, groupId: g.groupId, yourRole: g.yourRole, solo: g.solo };
+  return { leagueId: g.leagueId, name: g.name, gameType: g.gameType, gameName: g.gameName, couchId: g.couchId, seasonId: g.seasonId, groupId: g.groupId, yourRole: g.yourRole, solo: g.solo, span: g.span, start: g.start };
 }

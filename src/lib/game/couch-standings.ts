@@ -33,6 +33,8 @@ export interface GameStanding {
   showName: string;
   /** "Survivor 50". */
   label: string;
+  /** A game over a span (docs/PLAN-sports-data.md step 6): its episodes, and how the show says them ("Games 4–6"). */
+  span?: { from: number; to: number; name: string } | null;
   artUrl: string | null;
   /** The year the season premiered, for "This year". */
   year: number | null;
@@ -179,6 +181,8 @@ export interface Plaque {
   leagueId: string;
   seasonId: string;
   label: string;
+  /** A game over a span: which ("Games 4–6"), under the season's label. */
+  span: string | null;
   gameName: string;
   artUrl: string | null;
   /** Your place, when you played it. */
@@ -210,25 +214,32 @@ export interface TrophyShelf {
 
 const pointsGame = (g: GameStanding) => g.gameType !== "pickem";
 
+/** `x` came before `g` on the couch: an earlier season of the show, or an earlier span of the same season. */
+const earlier = (x: GameStanding, g: GameStanding) =>
+  x.seasonId !== g.seasonId
+    ? (x.year ?? 0) <= (g.year ?? 0) && x.label.localeCompare(g.label, undefined, { numeric: true }) < 0
+    : !!x.span && !!g.span && x.span.to < g.span.from;
+
 /** The trophy shelf, or null until a season the couch played has ended (as far as you've seen). */
 export function trophiesOf(games: GameStanding[], people: Person[], me: string): TrophyShelf | null {
   const ended = games.filter((g) => g.ended && counts(g));
   if (!ended.length) return null;
   const member = new Map(people.map((p) => [p.userId, p]));
-  // Newest first: by year, then the season's label (Survivor 50 before Survivor 49).
-  const order = [...ended].sort((a, b) => (b.year ?? 0) - (a.year ?? 0) || b.label.localeCompare(a.label, undefined, { numeric: true }));
+  // Newest first: by year, then the season's label (Survivor 50 before Survivor 49), then the span that ended later.
+  const order = [...ended].sort((a, b) => (b.year ?? 0) - (a.year ?? 0) || b.label.localeCompare(a.label, undefined, { numeric: true }) || (b.span?.to ?? 0) - (a.span?.to ?? 0));
   const winnersOf = (g: GameStanding) => g.rows.filter((r) => r.place === 1);
   const plaques: Plaque[] = order.map((g) => {
     const top = winnersOf(g);
     const second = g.rows.find((r) => r.place === 2);
-    // The same show's previous season of the same game on the couch, if it had ended too.
-    const prev = order.filter((x) => x.showId === g.showId && x.gameType === g.gameType && x.seasonId !== g.seasonId && (x.year ?? 0) <= (g.year ?? 0) && x.label.localeCompare(g.label, undefined, { numeric: true }) < 0)[0];
+    // The same game's previous run on the couch (the show's previous season, or this season's previous span), if it had ended too.
+    const prev = order.filter((x) => x.showId === g.showId && x.gameType === g.gameType && x.leagueId !== g.leagueId && earlier(x, g))[0];
     const prevWinners = prev ? new Set(winnersOf(prev).map((r) => r.userId).filter(Boolean)) : new Set();
     const mine = g.rows.find((r) => r.userId === me);
     return {
       leagueId: g.leagueId,
       seasonId: g.seasonId,
       label: g.label,
+      span: g.span?.name ?? null,
       gameName: g.gameName,
       artUrl: g.artUrl,
       you: mine ? { place: mine.place, rank: mine.rank } : null,
@@ -249,8 +260,11 @@ export function trophiesOf(games: GameStanding[], people: Person[], me: string):
   if (mostTitles) records.push({ key: "titles", title: "Most titles", line: `${mostTitles[1]} ${mostTitles[1] === 1 ? "title" : "titles"}`, who: member.get(mostTitles[0])! });
   const back = plaques.find((p) => p.ranItBack);
   if (back) {
-    const prevLabel = plaques.find((p) => p.seasonId !== back.seasonId && p.gameName === back.gameName && p.winners.some((w) => w.userId === back.winners[0].userId) && p.label.localeCompare(back.label, undefined, { numeric: true }) < 0)?.label;
-    records.push({ key: "ranItBack", title: "Ran it back", line: prevLabel ? `${prevLabel} and ${back.label.replace(/^.*?(\d+)$/, "$1")}` : back.label, who: member.get(back.winners[0].userId!)! });
+    const standing = new Map(ended.map((g) => [g.leagueId, g]));
+    const prev = plaques.find((p) => p.leagueId !== back.leagueId && p.gameName === back.gameName && p.winners.some((w) => w.userId === back.winners[0].userId) && earlier(standing.get(p.leagueId)!, standing.get(back.leagueId)!));
+    // "Survivor 49 and 50"; two spans of one season, "Survivor 51 · Episodes 6–7 and Episodes 8–9".
+    const line = !prev ? back.label : prev.seasonId === back.seasonId ? `${back.label} · ${prev.span} and ${back.span}` : `${prev.label} and ${back.label.replace(/^.*?(\d+)$/, "$1")}`;
+    records.push({ key: "ranItBack", title: "Ran it back", line, who: member.get(back.winners[0].userId!)! });
   }
   let streak: { who: string; n: number; label: string } | null = null;
   for (const g of games.filter(counts)) for (const r of g.rows) if (r.userId && member.has(r.userId) && (r.best ?? 0) > (streak?.n ?? 1)) streak = { who: r.userId, n: r.best!, label: g.label };

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Check, ChevronLeft, KeyRound, Play, RotateCcw } from "lucide-react";
 import { couches, useAfterCouch, useJoinOptions, type CatchUpReveal, type GameView, type JoinGame } from "../data";
+import { spanName } from "@/lib/game/spans";
 import { gameColour } from "../games";
 import { useNav } from "../nav";
 import { paths } from "../routes";
@@ -19,8 +20,13 @@ import { faceIn, first, openMoves } from "../show/moves";
 // pick your team, and someone catching up plays one episode at a time from Tonight's strip: make the move, watch it,
 // reveal it.
 
-/** The game's one line on the join page or Commercial break: who may join, in plain words. */
+/** The game's one line on the join page or Commercial break: who may join, in plain words; a game over a span says which first. */
 export function joinLine(g: JoinGame): string {
+  const line = whoJoins(g);
+  return g.span && !g.you?.playing ? `${spanName(g.span.from, g.span.to, { singular: "episode", plural: "episodes" })} only. ${line}` : line;
+}
+
+function whoJoins(g: JoinGame): string {
   const runner = g.runners[0] ?? "whoever runs it";
   if (g.you?.playing) return "You're in it.";
   if (g.mode === "locked" && g.lockedDown) return `Locked down for the season${g.runners[0] ? ` by ${g.runners[0]}` : ""} (competitive).`;

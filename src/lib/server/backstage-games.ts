@@ -18,7 +18,9 @@ import { pool, withLeagueLock, HttpError } from "./db";
 import { EVERYTHING, seenThrough } from "./guard";
 import { readyLeague } from "./league-read";
 import { leagueStates } from "./league-states";
+import { endedThrough } from "./calls";
 import { notifyWaiverWindow } from "./push-events";
+import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import type { Game } from "./show-space";
 import { windowSnapshot, type WindowSnapshot } from "./waiver-pushes";
 import { openWindow, processNow, saveClaim } from "./waivers";
@@ -464,19 +466,39 @@ export interface GameSettings {
   waivers: string | null;
   /** Lock it down (step 15 part 4): competitive mode, nobody new, rules frozen for the season. */
   lockedDown: boolean;
+  /** How long it runs (step 6 of docs/PLAN-sports-data.md): from its start to its last episode (null: the season's end); `over`
+   *  once that's in, when its end doesn't change; `ends`: the episodes still to come, from its start, it can end with instead. */
+  span: { from: number; to: number | null; over: boolean; ends: { number: number; title: string | null }[] };
+}
+
+/**
+ * Where a game is on its season for How long: the latest episode it's played (a game scored outside its state, Weekly Calls and
+ * Weekly Bingo, by what's aired), whether it's over, and the episodes it could end with: still to come, from its start, listed.
+ */
+function spanState(s: LeagueState, schedule: SeasonSchedule | undefined) {
+  const type = StateLogic.getLeagueType(s);
+  const outside = !!type.hasCalls || !!type.hasBingo;
+  const played = outside ? latestAired(schedule) : StateLogic.SpoilerLogic.latestWithResults(s);
+  const end = StateLogic.endEpisode(s);
+  const over = outside ? endedThrough(schedule, played, end) : StateLogic.gameOver(s);
+  const from = StateLogic.startEpisode(s);
+  const ends = (schedule?.episodes ?? []).filter((e) => e.number >= from && e.number > played).map((e) => ({ number: e.number, title: e.title ?? null }));
+  return { from, to: end, over, ends };
 }
 
 /** A game locked down (step 15 part 4): its rules don't change for the season. */
 export const FROZEN = "Locked down for the season: the rules are frozen. Turn off Lock it down in Game settings first.";
 
-// What Game settings may change, and the limits (the bench and Outlast's team are set at the draft).
-const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode"];
+// What Game settings may change, and the limits (the bench and Outlast's team are set at the draft; a game's end only before
+// it's reached).
+const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode", "endEpisode"];
 
 /** The settings Lock it down freezes: Game settings' and the points (waivers stay the week's business). Undo asks too. */
 export const FROZEN_FIELDS = new Set([...SETTING_FIELDS, "eventPoints"]);
 
 export async function gameSettings(scope: BackstageScope): Promise<{ games: GameSettings[] }> {
-  const loaded = await load(scope);
+  const [loaded, schedules] = await Promise.all([load(scope), seasonSchedules([scope.seasonId])]);
+  const schedule = schedules.get(scope.seasonId);
   return {
     games: loaded.map((l) => {
       const s = l.state;
@@ -500,6 +522,7 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         joining: { mode: StateLogic.GhostLogic.joinMode(s), rec: StateLogic.GhostLogic.recommendedJoinMode(s) },
         waivers: c ? `${RULE_WORDS[c.replaceRule]} · ${c.waiverWindows.swaps > 0 ? `${c.waiverWindows.swaps} optional swap${c.waiverWindows.swaps === 1 ? "" : "s"} per window` : "no optional swaps"}` : null,
         lockedDown: StateLogic.GhostLogic.lockedDown(s),
+        span: spanState(s, schedule),
       };
     }),
   };
@@ -521,6 +544,7 @@ export async function settingsWrite(
           ? { joinMode: "recommended" }
           : (body.set ?? {});
   if (!Object.keys(set).length || Object.keys(set).some((k) => !SETTING_FIELDS.includes(k))) throw new HttpError(400, `set may change ${SETTING_FIELDS.join(", ")}`);
+  const schedule = "endEpisode" in set ? (await seasonSchedules([scope.seasonId])).get(scope.seasonId) : undefined;
   const batch = crypto.randomUUID();
   let changed = false;
   await withLeagueLock(
@@ -531,6 +555,15 @@ export async function settingsWrite(
       for (const [k, v] of Object.entries(set)) {
         if (k === "allowLateJoiners") {
           StateLogic.updateSettings(s, k, v !== false);
+          continue;
+        }
+        // How long it runs (step 6 of docs/PLAN-sports-data.md): only before its end is reached, and only to an episode still
+        // to come, from its start, that the listing has (null: the season's end).
+        if (k === "endEpisode") {
+          const now = spanState(s, schedule);
+          if (now.over) throw new HttpError(409, "It's over: its last episode is in");
+          if (v !== null && !now.ends.some((e) => e.number === v)) throw new HttpError(400, "Pick an episode still to come, from where it starts");
+          StateLogic.updateSettings(s, k, v);
           continue;
         }
         // Who can join (step 9): open, ask or locked; anything else is the recommended one. An exclusive game can't be

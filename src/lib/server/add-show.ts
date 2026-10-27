@@ -20,7 +20,8 @@ import { pool, HttpError } from "./db";
 import { setFollow } from "./follows";
 import { findArtLater } from "./show-art";
 import { latestAired, seasonSchedules } from "./schedule";
-import { ListingsUnavailable, seasonListing, showListing } from "./listings";
+import { isTvmaze, ListingsUnavailable, seasonListing, showListing } from "./listings";
+import { linkLater } from "./sports/season";
 
 // Add a show (docs/PLAN-new-design.md step 10 part 1; the mock's refine.js addShowSheet): follow a show from its TV listing,
 // or by name when the listings don't have it. A show is made once for everyone: found by its TVmaze id, else by its name
@@ -282,10 +283,11 @@ export async function addShow(
     if (!showId) showId = await makeShow(pool, userId, hit.name, { hit, fetchedAt }, cap);
     const here = await seasonHere(showId, season?.number ?? null);
     let seasonId: string;
+    let stale = false;
     if (here) {
       seasonId = here.id;
       // A season made from its listing is read again when it's a day old; one that was already here keeps its schedule.
-      const stale = here.listingId != null && season && here.listingId === season.id && (!here.fetchedAt || now.getTime() - here.fetchedAt.getTime() > REFRESH_MS);
+      stale = here.listingId != null && !!season && here.listingId === season.id && (!here.fetchedAt || now.getTime() - here.fetchedAt.getTime() > REFRESH_MS);
       if (stale) await listedSeason(showId, found.show, season!, base, now, here.id).catch((e) => console.error("[add-show] refresh:", e));
     } else if (season) {
       seasonId = await listedSeason(showId, found.show, season, base, now, null);
@@ -294,6 +296,9 @@ export async function addShow(
     }
     // A show nobody had added, or a season just made: its art (and the season's poster) from TMDB after the answer.
     if (made || !here) findArtLater({ showId: made ? showId : undefined, seasonId: here ? undefined : seasonId }, base);
+    // A sport's season just made or read again: its games linked to the sports data's, and its people from them, after the answer
+    // (sports/season.ts). A check's stand-in listings never reach the real ESPN (the daily job links it otherwise).
+    if (hit.kind === "sport" && (!here || stale) && isTvmaze(base)) linkLater(seasonId);
     return { ...(await followAt(userId, seasonId, seen, follow, live)), made };
   }
   if (typeof body.name === "string") {

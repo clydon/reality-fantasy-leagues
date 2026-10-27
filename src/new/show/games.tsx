@@ -6,6 +6,7 @@ import { backstage, gamesApi, useAfterReveal, useCouchGames, useHowItWorks, useS
 import { openStartGame } from "../couch/start-game";
 import { toast } from "../ui/toast";
 import { JoinGameRow, JoinGameSheet } from "../couch/join-game";
+import { spanName } from "@/lib/game/spans";
 import { gameColour, GAME_STYLE, isGameName, ordinal } from "../games";
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
@@ -34,6 +35,10 @@ import { TriviaRow } from "./trivia";
 
 /** A game's line under its name: what it is, for a game the new design knows. */
 const lineOf = (g: GameView) => (isGameName(g.gameName) ? GAME_STYLE[g.gameName].line : g.name);
+/** A game over a span (step 6 of docs/PLAN-sports-data.md), in the show's words: "Games 4–6", "Final · Game 4"; null for a
+ *  season game. */
+const spanOf = (g: GameView, words: ShowData["words"]) =>
+  g.to === null ? null : `${g.over ? "Final · " : ""}${spanName(g.from, g.to, { singular: words.episode.toLowerCase(), plural: words.episodes.toLowerCase() })}`;
 const anchor = (g: GameView) => `game-${g.leagueId}`;
 
 export function Games({ show }: { show: ShowData }) {
@@ -54,6 +59,7 @@ export function Games({ show }: { show: ShowData }) {
         show.play ? (
           <Standings
             play={show.play}
+            words={show.words}
             scope={show.header && show.couch ? { seasonId: show.header.seasonId, couchId: show.couch.id } : null}
             onPlayer={(row, game) => setPlayer({ row, game })}
             onRules={setRules}
@@ -79,7 +85,7 @@ export function Games({ show }: { show: ShowData }) {
       )}
       {show.ready && <HowRow show={show} name={name} />}
       <ThisWeek show={show} />
-      {!show.solo && show.ready && <StartRow show={show} />}
+      {!show.solo && show.ready && <StartRow show={show} others={others} />}
       <PlayerSheet open={player} onClose={() => setPlayer(null)} />
       <RulesSheet game={rules} play={show.play ?? []} onGame={setRules} waivers={wv.data?.games ?? []} />
     </>
@@ -136,9 +142,23 @@ function RowExtras({ g, r }: { g: GameView; r: TableRow }) {
 
 type Scope = { seasonId: string; couchId: string } | null;
 
-function Standings({ play, scope, onPlayer, onRules }: { play: GameView[]; scope: Scope; onPlayer: (row: TableRow, game: GameView) => void; onRules: (g: GameView) => void }) {
+function Standings({
+  play,
+  words,
+  scope,
+  onPlayer,
+  onRules,
+}: {
+  play: GameView[];
+  words: ShowData["words"];
+  scope: Scope;
+  onPlayer: (row: TableRow, game: GameView) => void;
+  onRules: (g: GameView) => void;
+}) {
   const twin = (g: GameView) => play.filter((x) => x.gameType === g.gameType).length > 1;
-  const through = Math.min(...play.map((g) => g.through));
+  // A game over a span that's over stands at its last episode (it says Final): the line is the running games'.
+  const running = play.filter((g) => g.to === null || !g.over);
+  const through = Math.min(...(running.length ? running : play).map((g) => g.through));
   return (
     <div className="mt-4">
       <div className="flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
@@ -162,6 +182,12 @@ function Standings({ play, scope, onPlayer, onRules }: { play: GameView[]; scope
             <div className="min-w-0 flex-1">
               <h2 className="type-caption text-[26px]">{g.gameName}</h2>
               <small className="mt-1 block text-[13px] text-muted-foreground">
+                {spanOf(g, words) && (
+                  <b data-span={g.leagueId} className="font-semibold text-foreground">
+                    {spanOf(g, words)}
+                    {" · "}
+                  </b>
+                )}
                 {g.solo === "public" ? `Everyone · ${g.players} ${g.players === 1 ? "person" : "people"}` : g.solo === "practice" ? "Practice couch · against computer players" : twin(g) ? g.name : lineOf(g)}
               </small>
               {g.archived && <Archived g={g} scope={scope} />}
@@ -412,13 +438,47 @@ export function PlayIt({ show }: { show: ShowData }) {
  * Start a game, under the Games tab's games (the mock's cp-start): any game that fits this show, for anyone on the couch.
  * Once every episode has aired it's Run it back: the same game on the show's next season, when there's one to play.
  */
-function StartRow({ show }: { show: ShowData }) {
+/**
+ * A game of yours over a span that's over (step 6 of docs/PLAN-sports-data.md), the latest, to run back on the next span: none
+ * once a game of its kind has started here since it ended (yours or the couch's).
+ */
+function spanToRunBack(show: ShowData, others: JoinGame[]): GameView | null {
+  const started = [...show.games.map((x) => ({ id: x.leagueId, type: x.gameType, start: x.start ?? 1 })), ...others.map((x) => ({ id: x.leagueId, type: x.gameType, start: x.start }))];
+  return (
+    (show.play ?? [])
+      .filter((g) => !g.solo && g.to !== null && g.over && !started.some((x) => x.id !== g.leagueId && x.type === g.gameType && x.start > (g.to as number)))
+      .sort((a, b) => (b.to ?? 0) - (a.to ?? 0))[0] ?? null
+  );
+}
+
+function StartRow({ show, others }: { show: ShowData; others: JoinGame[] }) {
   const h = show.header;
   const over = !!h && (h.status === "completed" || (!!h.episodeCount && show.latestAired >= h.episodeCount && !show.upNext));
-  const opts = useStartOptions(h?.seasonId ?? null, show.couch?.id ?? null, null, over);
+  const done = over ? null : spanToRunBack(show, others);
+  const opts = useStartOptions(h?.seasonId ?? null, show.couch?.id ?? null, done?.leagueId ?? null, over || !!done);
   const finished = (show.play ?? []).find((g) => !g.solo);
   const next = opts.data?.next ?? null;
   if (over && !next) return null;
+  // Run it back on the next span, when there's one listed.
+  const back = done && opts.data?.again && opts.data.again.to !== null && !opts.data.blocked ? opts.data : null;
+  if (done && back) {
+    return (
+      <button
+        type="button"
+        data-start-row="again-span"
+        onClick={() => openStartGame({ seasonId: h?.seasonId, couchId: show.couch?.id ?? null, again: done.leagueId })}
+        className="nd-press mx-4 mt-[26px] flex w-[calc(100%-32px)] items-center gap-3 rounded-[4px] p-4 text-left outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-input"
+      >
+        <RotateCcw className="size-6 flex-none" aria-hidden />
+        <span>
+          <b className="block text-base">Run it back · {spanName(back.from, back.again!.to, back.part)}</b>
+          <small className="block text-[13px] leading-snug text-muted-foreground">
+            {done.gameName} again, after {back.again!.label}. The couch hears about it.
+          </small>
+        </span>
+      </button>
+    );
+  }
   const again = over && next;
   return (
     <button

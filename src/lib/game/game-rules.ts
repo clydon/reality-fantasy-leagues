@@ -55,7 +55,10 @@ export function gameRules(state: LeagueState, castaway = StateLogic.formatOf(sta
     rules.push(`Predictions: a right answer earns its points (usually ${s.defaultBetPoints}), once at least two of you have answered.`);
   }
   const start = StateLogic.startEpisode(state);
+  const end = StateLogic.endEpisode(state);
   if (start > 1) rules.push(`Scoring starts at Episode ${start}; the episodes before it are history.`);
+  // A game over a span (docs/PLAN-sports-data.md step 6).
+  if (end !== null) rules.push(end === start ? `It's one episode: Episode ${end}, then it's over.` : `It ends with Episode ${end}: nothing after it scores, and the table there is final.`);
   return rules;
 }
 

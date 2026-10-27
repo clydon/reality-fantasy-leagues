@@ -3,7 +3,7 @@
 What's open, newest thinking first. **Decided against** and **done** are kept below so a later
 session doesn't re-propose them. Context for everything here is in `docs/HANDOFF.md`.
 
-Last updated 2026-10-11.
+Last updated 2026-10-27.
 
 ## Open: needs design or a decision first
 
@@ -51,6 +51,19 @@ Last updated 2026-10-11.
      the winner per league (`sports_picks`), and a circuit breaker for a source that's down or rate limited.
    - Only if a test keeps failing (free signups): CricketData, football-data.org. Not used: TheSportsDB (free team lists stop at 10
      players), API-Sports (free is old seasons only), FotMob (didn't answer).
+
+10. **Games over a span: what's still open** (2026-10-27; docs/PLAN-sports-data.md step 6, its As built and follow-up). Built: a
+    game from the next episode through a chosen one, Run it back on the next span, plaques that name it, and its end in Game
+    settings. Open:
+   - **Moving its start.** Only the end moves (Game settings' How long). A start that moves before its first episode airs would
+     cover "post-merge" or "just the playoffs" without waiting to start the game then.
+   - **Side bets after the end.** One proposed after a span's last episode goes on a later episode and never pays
+     (`BetLogic.addToUpcoming`): it should be refused, or not offered.
+   - **One word for an episode.** The start sheet says the rulebook's (`partWord`), the hub, plaques and Game settings the
+     show's (`episode_term`). They agree on every show today; a rulebook saying "event" for a show saying "Game" would read both.
+   - **Run it back's "same length again" counts episodes, not nights**: a span over a double-header night is two.
+   - **Places that don't know the end yet:** the classic app's catch-up reveal (`RevealLogic.isComplete`, `revealNext`),
+     Backstage's open episodes (`backstage.ts` `takes`), and How it works' updates (they say only where a game starts).
 
 ## Open: small or polish
 

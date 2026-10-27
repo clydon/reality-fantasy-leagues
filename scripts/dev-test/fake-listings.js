@@ -113,6 +113,35 @@ function daily(id, name, from, days, o = {}) {
   };
 }
 
+/**
+ * A baseball series as TVmaze lists the World Series (its show 20637): one game an evening from `games` ([{ days, title }]: days
+ * from now, the title in full, so a game can name no one, as "Game 5" might), at midnight UTC (8 PM Eastern in October), with
+ * TVmaze's pregame specials beside them (no number: never an episode here). Sports, on a US network; show `id` (990014),
+ * season 2026. For check-sports-links.js: push it into start({ shows }).
+ */
+function worldSeries(games, o = {}) {
+  const now = o.now ?? Date.now();
+  const id = o.id ?? 990014;
+  const seasonId = id * 10 + 1;
+  const at = (days) => {
+    const d = new Date(now + days * DAY);
+    d.setUTCHours(24, 0, 0, 0);
+    return d.getTime();
+  };
+  const episodes = [];
+  games.forEach((g, i) => {
+    const t = at(g.days);
+    const e = eastern(t);
+    episodes.push({ id: null, season: 2026, number: null, type: "insignificant_special", name: `Pregame ${i + 1}`, airdate: e.date, airtime: "19:00", airstamp: iso(t - 3600_000), runtime: 60 });
+    episodes.push({ id: seasonId * 100 + i + 1, season: 2026, number: i + 1, type: "regular", name: g.title, airdate: e.date, airtime: e.time, airstamp: iso(t), runtime: 200 });
+  });
+  const us = { name: "ZT Network", country: { name: "United States", code: "US", timezone: ZONE } };
+  return {
+    show: { id, name: o.name ?? "ZT World Series", type: "Sports", language: "English", genres: [], status: "Running", premiered: "1947-09-30", network: us, webChannel: null, image: null, url: `https://www.tvmaze.com/shows/${id}`, schedule: { time: "", days: [] } },
+    seasons: [{ season: { id: seasonId, number: 2026, name: "ZT Rays vs. ZT Brewers", episodeOrder: null, premiereDate: eastern(at(games[0].days)).date, endDate: null }, episodes }],
+  };
+}
+
 /** Every episode of the stand-in's shows as TVmaze's schedules list them on `date` (Eastern): the network's, or streaming. */
 function scheduleOf(list, date, streaming) {
   const out = [];
@@ -210,4 +239,4 @@ async function start(opts = {}) {
   return tv;
 }
 
-module.exports = { start, shows, oneNight, daily, eastern };
+module.exports = { start, shows, oneNight, daily, eastern, worldSeries };

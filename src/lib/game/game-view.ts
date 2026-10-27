@@ -184,6 +184,10 @@ export interface GameView extends GameRefIn {
   /** The first episode this game counts for you (its start, or yours as a late joiner): standings mean something once
    *  `through` reaches it. */
   from: number;
+  /** A game over a span (docs/PLAN-sports-data.md step 6): its last episode; null to the season's end. */
+  to: number | null;
+  /** It's over as far as you've seen: its season, or its span's last episode (StateLogic.gameOver). */
+  over: boolean;
   table: TableRow[];
   you: TableRow | null;
   /** Everyone on the table, when `table` is a public pool's top and you (else table.length). */
@@ -213,10 +217,13 @@ export type UserOf = (playerId: string) => string | null;
  * this league (null: they see results straight away).
  */
 export function gameView(game: GameRefIn, full: LeagueState, playerId: string, seen: number | null, userOf: UserOf, calls?: GameCalls): GameView {
-  const view = StateLogic.GhostLogic.viewFor(full, playerId, seen);
+  // A game over a span (settings.endEpisode) as it stood at its last episode, however far past it you are.
+  const view = StateLogic.spanView(StateLogic.GhostLogic.viewFor(full, playerId, seen));
   const type = StateLogic.getLeagueType(view);
   const catchingUp = StateLogic.GhostLogic.isCatchingUp(full, playerId) && Number.isInteger(seen);
-  const hidden = StateLogic.SpoilerLogic.hiddenEpisodes(full, seen);
+  const end = StateLogic.endEpisode(full);
+  // Results after its last episode aren't this game's to reveal.
+  const hidden = StateLogic.SpoilerLogic.hiddenEpisodes(full, seen).filter((e) => end === null || e.number <= end);
   const everyone = tableOf(view, playerId, userOf, calls?.right);
   const isPublic = game.solo === "public";
   const table = isPublic ? poolTop(everyone) : everyone;
@@ -226,6 +233,8 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string, s
     playerId,
     through: type.hasCalls || type.hasBingo ? (calls?.through ?? 0) : StateLogic.SpoilerLogic.latestWithResults(view),
     from: StateLogic.GhostLogic.startFor(view, playerId),
+    to: end,
+    over: type.hasCalls || type.hasBingo ? !!calls?.ended : StateLogic.gameOver(view),
     table,
     you: table.find((r) => r.you) ?? null,
     players: everyone.length,

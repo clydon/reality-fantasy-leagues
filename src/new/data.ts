@@ -123,6 +123,10 @@ export interface GameRef {
   solo?: "public" | "practice" | null;
   /** Archived (step 10 part 2b): on the couch and the trophy shelf as it stood; nothing scores it. */
   archived?: boolean;
+  /** A game over a span (step 6 of docs/PLAN-sports-data.md): its first and last episode; null or absent to the season's end. */
+  span?: { from: number; to: number } | null;
+  /** The episode it starts with: a game started after a span ended is its run back. */
+  start?: number;
 }
 
 export interface SeasonHeader {
@@ -1104,7 +1108,7 @@ export function useRecaps(seasonId: string | null, enabled = true) {
 
 export type { Roster, RosterGroup, StatItem } from "@/lib/server/rosters";
 
-/** A sport's Players tab (rosters.ts): who's playing by team, and our bot's ask, read while it's going. */
+/** A sport's Players tab (rosters.ts): who's playing by team, their stats, and our bot's ask or the stats fill, read while going. */
 export function useRoster(seasonId: string | null, enabled = true) {
   return useQuery({
     queryKey: ["new-design", "roster", seasonId],
@@ -1119,10 +1123,6 @@ export const roster = {
   ask: (seasonId: string) => post<Roster>(`/api/seasons/${seasonId}/roster`, { action: "ask" }),
   paste: (seasonId: string, answer: string) => post<Roster & { filled: number }>(`/api/seasons/${seasonId}/roster`, { answer }),
   prompt: (seasonId: string) => get<{ prompt: string }>(`/api/seasons/${seasonId}/roster?prompt=1`),
-  /** Its stats (0145): coming in, and through the latest episode that's ended. */
-  askStats: (seasonId: string) => post<Roster>(`/api/seasons/${seasonId}/roster`, { action: "stats" }),
-  pasteStats: (seasonId: string, answer: string) => post<Roster & { filled: number }>(`/api/seasons/${seasonId}/roster`, { answer, part: "stats" }),
-  statsPrompt: (seasonId: string) => get<{ prompt: string }>(`/api/seasons/${seasonId}/roster?prompt=stats`),
 };
 
 export const recaps = {
@@ -1267,7 +1267,8 @@ export function useEndGames(seasonId: string, couchId: string | null, enabled = 
 }
 
 export const gamesApi = {
-  start: (seasonId: string, couchId: string, body: { game: string; tell: boolean; again?: string | null }) =>
+  /** `to`: the last episode it plays (a span, step 6 of docs/PLAN-sports-data.md); null to the season's end. */
+  start: (seasonId: string, couchId: string, body: { game: string; tell: boolean; again?: string | null; to?: number | null }) =>
     post<Started>(seasonUrl(seasonId, "/start", { couch: couchId }), body),
   archive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "archive", leagueId }),
   unarchive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "unarchive", leagueId }),

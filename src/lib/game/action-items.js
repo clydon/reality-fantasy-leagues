@@ -198,7 +198,8 @@ function liveItems(state, playerId) {
 
   // Predictions: open on an episode that hasn't happened yet, and you haven't guessed.
   if (state.settings.bonusEnabled) {
-    const open = state.episodes.filter((ep) => !StateLogic.episodeHasResults(ep));
+    // Only this game's episodes: a game over a span asks nothing of you past its last one.
+    const open = state.episodes.filter((ep) => !StateLogic.episodeHasResults(ep) && StateLogic.inPlay(state, ep.number));
     const pending = open
       .flatMap((ep) => (ep.bets || []).map((bet) => ({ ep, bet })))
       .filter(({ bet }) => !isBetSettled(bet) && !(bet.predictions || []).some((p) => p.playerId === playerId));

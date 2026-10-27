@@ -759,12 +759,20 @@ export async function leagueBingo(o: {
   const now = o.now ?? new Date();
   const schedule = (await seasonSchedules([o.seasonId], now)).get(o.seasonId);
   const mark = o.mark ?? Number.POSITIVE_INFINITY;
-  const through = Math.min(mark, latestAired(schedule, now));
+  // A game over a span counts its own episodes only (settings.endEpisode), and hands no card past its last.
+  const end = StateLogic.endEpisode(o.state);
+  const through = Math.min(mark, latestAired(schedule, now), end ?? Number.POSITIVE_INFINITY);
   const from = StateLogic.startEpisode(o.state);
   const userIds = o.state.players.map((p) => o.userOf(p.id)).filter((id): id is string => !!id);
   const [lines, move] = await Promise.all([
     bingoLines(o.seasonId, userIds, { from, through, couchId: o.couchId, book: o.book }),
     o.playerId ? bingoMove(o.userId, o.seasonId, mark, from, schedule, now) : Promise.resolve(null),
   ]);
-  return { right: (p) => lines.get(o.userOf(p) ?? "") ?? 0, move: null, bingo: move, through, ended: endedThrough(schedule, through) };
+  return {
+    right: (p) => lines.get(o.userOf(p) ?? "") ?? 0,
+    move: null,
+    bingo: move && (end === null || move.episode <= end) ? move : null,
+    through,
+    ended: endedThrough(schedule, Math.min(mark, latestAired(schedule, now)), end),
+  };
 }

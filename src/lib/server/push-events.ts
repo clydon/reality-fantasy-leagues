@@ -179,6 +179,9 @@ export function notifyEpisodeResults(leagueId: string, state: LeagueState, epId:
   const ep = state.episodes.find((e) => e.id === epId);
   const stage = ep ? StateLogic.resultsStage(ep) : null;
   if (!ep || !stage) return;
+  // A game over a span has nothing to say about an episode after its last (another game on the season tells them).
+  const end = StateLogic.endEpisode(state);
+  if (end !== null && ep.number > end) return;
   const n = ep.number;
   notifyAfter(stage === "early" ? "episodeResults" : "finalScores", async () => {
     const userIds = await leagueMemberUserIds(leagueId, actorUserId, { ghosts: true });
@@ -526,14 +529,15 @@ export function notifyCouchJoined(couchId: string, joinerUserId: string, joinerN
 // ---------- the couch's own moments (step 15 part 2; the new design's alone: moments.js NEW_ONLY) ----------
 
 /** Tell the couch (Start a game): everyone else on it hears, with a link to the show's Games tab, where they join. */
-export function notifyGameStarted(o: { userIds: string[]; seasonId: string; leagueId: string; starter: string; show: string; gameName: string; label: string; from: string }) {
+export function notifyGameStarted(o: { userIds: string[]; seasonId: string; leagueId: string; starter: string; show: string; gameName: string; label: string; from: string; span?: string | null }) {
   if (!o.userIds.length) return;
   notifyAfter("gameStarted", async () => ({
     userIds: o.userIds,
     seasonId: o.seasonId,
     message: {
       title: `${o.starter} started a game for ${o.show}`,
-      body: `${o.gameName} on ${o.label}, from ${o.from}. Join from the Games tab.`,
+      // A game over a span says which ("for Games 4–6"); else where it starts.
+      body: `${o.gameName} on ${o.label}, ${o.span ? `for ${o.span}` : `from ${o.from}`}. Join from the Games tab.`,
       next: `/show/${o.seasonId}/games`,
       tag: `started-${o.leagueId}`,
       key: `started:${o.leagueId}`,

@@ -109,7 +109,32 @@ function startEpisode(state){
   const n = Number(state && state.settings ? state.settings.startEpisode : 1);
   return Number.isInteger(n) && n >= 1 ? n : 1;
 }
-function inPlay(state, episodeNumber){ return episodeNumber >= startEpisode(state); }
+// The episode this league plays through (settings.endEpisode): a game over a span -- one game, a series, a
+// stretch of the season (docs/PLAN-sports-data.md step 6) -- ends there. Nothing after it scores, no picks or
+// lineups are made for it, and the game is over once it has results. Null (the default): to the season's end.
+function endEpisode(state){
+  const n = Number(state && state.settings ? state.settings.endEpisode : NaN);
+  return Number.isInteger(n) && n >= startEpisode(state) ? n : null;
+}
+function inPlay(state, episodeNumber){
+  const end = endEpisode(state);
+  return episodeNumber >= startEpisode(state) && (end === null || episodeNumber <= end);
+}
+// The league as its span saw it: results after its last episode taken out (as the spoiler guard takes out what
+// someone hasn't seen), so a game over a span scores, and is shown, as it stood at its end, whatever came after
+// -- Outlast's boot order, a pool's streaks and a lineup's points alike. The state itself when there's nothing
+// after it.
+function spanView(state){
+  const end = endEpisode(state);
+  if(end === null || !(state.episodes || []).some(e => e.number > end && EpisodeLogic.hasResults(e))) return state;
+  return SpoilerLogic.viewThrough(state, end);
+}
+// The game is over: its season is (seasonEnded), or its span's last episode has results.
+function gameOver(state){
+  if(seasonEnded(state)) return true;
+  const end = endEpisode(state);
+  return end !== null && (state.episodes || []).some(e => e.number >= end && EpisodeLogic.hasResults(e));
+}
 
 // Who won, and when the season is over. The format's winner exit method crowns the winner (Survivor's
 // Sole Survivor). A format nobody wins -- a series, a talk show, a sport's standings: winnerExitMethod
@@ -159,6 +184,8 @@ function lastCompletedEpisode(state){
 // one first). One shared definition so all three agree on which episode is "now".
 function currentEpisode(state){
   const number = Math.max(BetLogic.upcomingEpisodeNumber(state), startEpisode(state));
+  // Past a span's last episode there's nothing left to choose for.
+  if(!inPlay(state, number)) return null;
   return state.episodes.find(e => e.number === number) || null;
 }
 
@@ -425,7 +452,8 @@ class CallsScoringStrategy {
 // whichever league type's scoringStrategy is active; today that's always
 // EliminationOrderScoringStrategy, so behavior is unchanged from before this split.
 class ScoringLogic {
-  static compute(state){ return getLeagueType(state).scoringStrategy.compute(state); }
+  // A game over a span scores as it stood at its last episode (spanView).
+  static compute(state){ return getLeagueType(state).scoringStrategy.compute(spanView(state)); }
 }
 
 // ---------- SnakeDraftStrategy: the 'classic-draft' league type's draft mechanic ----------
@@ -789,7 +817,7 @@ class ActiveRosterLogic {
     const ep = state.episodes.find(e => e.id === epId);
     if(!ep) return 'No such episode';
     if(ActiveRosterLogic.isLineupLocked(state, epId)) return 'This episode has started -- lineups are locked';
-    if(!inPlay(state, ep.number)) return 'This league starts at episode ' + startEpisode(state);
+    if(!inPlay(state, ep.number)) return ep.number < startEpisode(state) ? 'This league starts at episode ' + startEpisode(state) : 'This game ended with episode ' + endEpisode(state);
     if(!Core.getPlayer(state, playerId)) return 'No such player';
     const ids = Array.isArray(castawayIds) ? castawayIds : [];
     if(new Set(ids).size !== ids.length) return 'Same castaway listed twice';
@@ -1137,7 +1165,7 @@ class PickEmLogic {
     let current = 0, longest = 0, total = 0;
     // Episodes before the league started are history, not missed picks (settings.startEpisode).
     // A late joiner's season starts at their own episode (GhostLogic.startFor).
-    [...state.episodes].filter(ep => ep.number >= GhostLogic.startFor(state, playerId)).sort((a,b) => a.number - b.number).forEach(ep => {
+    [...state.episodes].filter(ep => ep.number >= GhostLogic.startFor(state, playerId) && inPlay(state, ep.number)).sort((a,b) => a.number - b.number).forEach(ep => {
       const pick = (ep.picks||[]).find(pk => pk.playerId === playerId) || null;
       if(!PickEmLogic.decided(ep, state)){
         if(pick) rows.push({ episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick.castawayId, correct: null, points: 0, streak: current });
@@ -1802,6 +1830,11 @@ class RosterLogic {
       const n = Math.floor(Number(value));
       value = Number.isFinite(n) && n >= 1 ? n : 1;
     }
+    // A span's last episode (endEpisode): a whole number, else none (to the season's end).
+    if(field === 'endEpisode'){
+      const n = Math.floor(Number(value));
+      value = value !== null && value !== '' && Number.isFinite(n) && n >= 1 ? n : null;
+    }
     state.settings[field]=value;
     // Active Roster defaults to shared ownership: nobody gets shut out of a castaway they wanted, and
     // lineups (not exclusivity) are where the skill is. Only while the league is still in guided
@@ -2304,6 +2337,8 @@ class WaiverLogic {
   static isWindowEpisode(state, n){
     const w = WaiverLogic.windows(state);
     if(w.schedule === 'manual' || !Number.isInteger(n)) return false;
+    const end = endEpisode(state);
+    if(end !== null && n >= end) return false;
     if(!(w.swaps > 0 || WaiverLogic.replaceRule(state) === 'windows')) return false;
     const k = n - startEpisode(state) + 1;
     return k >= 1 && (w.schedule === 'everyEpisode' || k % w.every === 0);
@@ -2430,6 +2465,9 @@ class WaiverLogic {
       return closing ? 'close' : null;
     }
     if(!WaiverLogic.enabled(state) || last === null || MidSeasonLogic.seasonOver(state)) return null;
+    // A game over a span opens no week after its last episode: nothing's left to play.
+    const end = endEpisode(state);
+    if(end !== null && last >= end) return null;
     const ps = WaiverLogic.periods(state);
     const prev = ps[ps.length - 1];
     if(prev && prev.episode >= last) return null;
@@ -2947,7 +2985,7 @@ class EpisodeLogic {
   // crowned by the format's winner exit method -- Survivor's is Sole Survivor -- or, where nobody wins,
   // nobody is left).
   static ensureUpcoming(state){
-    if(seasonEnded(state)) return false;
+    if(gameOver(state)) return false;
     const maxNum = state.episodes.length ? Math.max(...state.episodes.map(e=>e.number)) : 0;
     const latest = state.episodes.find(e=>e.number===maxNum);
     if(latest && !EpisodeLogic.hasResults(latest)) return false;
@@ -2969,6 +3007,8 @@ class EpisodeLogic {
   // anyone has confirmed the winner, and it shouldn't outlive that. Returns true if it changed anything.
   static ensureNextEpisode(state){
     if(!Array.isArray(state.episodes)) state.episodes = [];
+    // A game over a span that's over makes no more episodes (its season's results still arrive as they're accepted).
+    if(!seasonEnded(state) && gameOver(state)) return false;
     if(seasonEnded(state)){
       const finale = finaleEpisodeOf(state);
       if(!finale) return false;
@@ -3959,7 +3999,7 @@ return {
   // ---- constants ----
   PALETTE, SEED_CASTAWAYS,
   LEAGUE_TYPES, SHOWS, getLeagueType, replenishAvailable, tradeAvailable, finalePredictionsAvailable, rosterSize, originalDraftPicks,
-  formatOf, startEpisode, inPlay, hasAired, isWinnerExit, seasonWinner, seasonEnded,
+  formatOf, startEpisode, endEpisode, inPlay, spanView, gameOver, hasAired, isWinnerExit, seasonWinner, seasonEnded,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
   // (public/app.js's 95+ call sites, every server route) needs to change. Each is a direct

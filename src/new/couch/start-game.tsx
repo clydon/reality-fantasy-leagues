@@ -3,6 +3,7 @@
 import { useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { Bell, ChevronRight, Plus, RotateCcw, Trophy, Users } from "lucide-react";
+import { spanName } from "@/lib/game/spans";
 import { gamesApi, useAfterReveal, useCurrentCouch, useHome, useStartOptions, type HomeShow, type StartChoice, type StartOptions } from "../data";
 import { gameColour } from "../games";
 import { useNav } from "../nav";
@@ -17,8 +18,9 @@ import { openCouchSheet } from "./couch-sheets";
 // opened from anywhere signed in with openStartGame:
 //   - with a season: the games that fit that show (start-game.ts: rulebook-fits.js gamesFor), the kind's first recommended,
 //     each in a line in the show's own words ("Draft five drivers, start three each race"); what doesn't fit, in a line; a
-//     talk show's Weekly Bingo (step 12 part 3: a card a show, bingo.tsx) and Weekly Calls (part 2: two calls a show); Tell the
-//     couch (one alert, on by default); Start it.
+//     talk show's Weekly Bingo (step 12 part 3: a card a show, bingo.tsx) and Weekly Calls (part 2: two calls a show); How long
+//     (docs/PLAN-sports-data.md step 6, spans.ts: the rest of the season, just the next one, this series for a sport, or
+//     through any later episode the listing has); Tell the couch (one alert, on by default); Start it.
 //   - without one (the hub's foot, Commercial break, Get the couch going with nothing to suggest): Pick the show first, from
 //     your shows still airing; one that isn't a game yet goes to Make it a game.
 //   - `again` (Run it back): the same game, its name and settings, on the show's next season.
@@ -153,6 +155,9 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   const fits = (o?.games ?? []).filter((g) => g.fits);
   const startable = fits.filter((g) => !g.soon);
   const [picked, setPicked] = useState<string | null>(null);
+  // The last episode it plays: null to the season's end (the default); Run it back on a span starts on the next one.
+  const [toPicked, setTo] = useState<number | null | undefined>(undefined);
+  const to = toPicked !== undefined ? toPicked : (o?.again?.to ?? null);
   const [tell, setTell] = useState(true);
   const [busy, setBusy] = useState(false);
   const pick = picked ?? o?.again?.key ?? startable[0]?.key ?? null;
@@ -167,6 +172,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
         game: pick,
         tell,
         again: target?.again ?? null,
+        to,
       });
       await refresh();
       toast(`${r.gameName} started${r.told ? " · the couch has been told" : ""}`);
@@ -185,7 +191,13 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
       open={!!asked}
       onOpenChange={onOpenChange}
       title={again ? "Run it back" : "Start a game"}
-      subtitle={o ? (again ? `${o.label} · the same ${again.gameName} as ${again.label}` : `${o.show} · from ${partAt(o)}`) : undefined}
+      subtitle={
+        o
+          ? again
+            ? `${o.label}${to === null ? "" : ` · ${spanName(o.from, to, o.part)}`} · the same ${again.gameName} as ${again.label}`
+            : `${o.show} · ${to === null ? `from ${partAt(o)}` : spanName(o.from, to, o.part)}`
+          : undefined
+      }
     >
       <div data-start-sheet={o?.kind ?? "loading"} className="flex flex-col gap-2 pb-2">
         {!couchId ? (
@@ -251,6 +263,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 <span>{o.noFit}</span>
               </p>
             )}
+            {startable.length > 0 && (o.spans.length > 1 || o.ends.length > 0) && <HowLong o={o} to={to} setTo={setTo} />}
             {startable.length > 0 && (
               <button
                 type="button"
@@ -283,6 +296,59 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
         )}
       </div>
     </Sheet>
+  );
+}
+
+/**
+ * How long the game runs (spans.ts): the rest of the season, just the next one, this series (a sport's games between the same
+ * teams), or through any later episode the listing has, from a list. Nothing after its last one scores.
+ */
+function HowLong({ o, to, setTo }: { o: StartOptions; to: number | null; setTo: (to: number | null) => void }) {
+  const preset = o.spans.some((sp) => sp.to === to);
+  const P = o.part.singular.replace(/^./, (c) => c.toUpperCase());
+  return (
+    <section data-start-span className="mt-1 flex flex-col gap-1.5 border-t border-border pt-3" role="radiogroup" aria-label="How long">
+      <b className="text-[15px] font-semibold">How long</b>
+      {o.spans.map((sp) => {
+        const on = sp.to === to;
+        return (
+          <button
+            key={sp.kind}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            data-start-span-choice={sp.kind}
+            onClick={() => setTo(sp.to)}
+            className={`flex min-h-[52px] w-full flex-col justify-center rounded-[4px] px-3 py-2 text-left ${on ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron-line" : "bg-secondary/60"}`}
+          >
+            <b className="block text-[15px]">{sp.label}</b>
+            <small className={`block truncate text-[13px] leading-snug ${on ? "text-plate-muted" : "text-muted-foreground"}`}>{sp.line}</small>
+          </button>
+        );
+      })}
+      {o.ends.length > 0 && (
+        <label
+          data-start-span-choice="through"
+          className={`flex min-h-[52px] w-full items-center gap-2 rounded-[4px] px-3 py-2 ${!preset ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron-line" : "bg-secondary/60"}`}
+        >
+          <b className="flex-none text-[15px]">Through</b>
+          <select
+            data-start-span-through
+            value={!preset && to !== null ? String(to) : ""}
+            onChange={(e) => setTo(e.target.value ? Number(e.target.value) : null)}
+            className="min-w-0 flex-1 truncate rounded-[3px] bg-transparent py-1.5 text-[15px] font-semibold outline-none"
+          >
+            <option value="">A later {o.part.singular}…</option>
+            {o.ends.map((e) => (
+              <option key={e.number} value={e.number}>
+                {/* Its title when that says which ("Game 6: Rays at Brewers"), else "Game 6 · its title". */}
+                {e.title?.toLowerCase().startsWith(`${o.part.singular} ${e.number}`) ? e.title : `${P} ${e.number}${e.title ? ` · ${e.title}` : ""}`}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
+    </section>
   );
 }
 

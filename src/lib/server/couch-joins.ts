@@ -292,16 +292,21 @@ export interface JoinGame {
   /** Who runs it, who'd let you in. */
   runners: string[];
   ended: boolean;
+  /** A game over a span (step 6 of docs/PLAN-sports-data.md): its first and last episode; null to the season's end. */
+  span: { from: number; to: number } | null;
+  /** The episode it starts with: a game started after a span ended is its run back. */
+  start: number;
   /** Locked down for the season (step 15 part 4: competitive mode): nobody new, whatever Who can join said. */
   lockedDown: boolean;
   /** You, signed in: in it, your request waiting, let in (yours to use). */
   you: { playing: boolean; asked: boolean; letIn: boolean } | null;
 }
 
-/** Its season is over: a winner, or nobody left; for a game scored outside its state, its season's last episode has aired. */
+/** It's over: a winner, or nobody left, or its span's last episode is in (StateLogic.gameOver); for a game scored outside its
+ *  state, its season's (or span's) last episode has aired. */
 function gameOver(s: LeagueState, schedule: SeasonSchedule | undefined): boolean {
   const type = StateLogic.getLeagueType(s);
-  return type.hasCalls || type.hasBingo ? endedThrough(schedule, latestAired(schedule)) : StateLogic.seasonEnded(s);
+  return type.hasCalls || type.hasBingo ? endedThrough(schedule, latestAired(schedule), StateLogic.endEpisode(s)) : StateLogic.gameOver(s);
 }
 
 /** Every game on a couch with who may join it, in the couch's order. */
@@ -348,6 +353,8 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
       // An archived game (step 10 part 2b) takes nobody new, as a season that's over doesn't. A game scored outside its state
       // (Weekly Calls, Weekly Bingo: step 12) is over once its season's last episode has aired.
       ended: gameOver(s, g.seasonId ? schedules.get(g.seasonId) : undefined) || g.archived,
+      span: StateLogic.endEpisode(s) === null ? null : { from: StateLogic.startEpisode(s), to: StateLogic.endEpisode(s) as number },
+      start: StateLogic.startEpisode(s),
       lockedDown: G.lockedDown(s),
       you: viewer ? { playing: !!g.yourRole, asked: !!ask && !ask.decided_at, letIn: ask?.outcome === "let-in" } : null,
     });
@@ -436,7 +443,7 @@ export async function joinOptions(user: SessionUser, couchId: string, leagueId: 
 export async function joinGame(user: SessionUser, couchId: string, leagueId: string, body: { start?: unknown; team?: unknown }) {
   const { game, state, join } = await gameOnCouch(user, couchId, leagueId);
   if (join.you?.playing) throw new HttpError(409, "You're already in it");
-  if (join.ended) throw new HttpError(409, "That season's over");
+  if (join.ended) throw new HttpError(409, "That game's over");
   if (join.mode === "locked") throw new HttpError(403, join.lockedDown ? "This game is locked down for the season: nobody new joins" : "Nobody new can join this game");
   const { rows: letIn } = await pool.query(
     "SELECT id FROM game_join_requests WHERE league_id = $1 AND user_id = $2 AND outcome = 'let-in' ORDER BY decided_at DESC LIMIT 1",

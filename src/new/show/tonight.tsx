@@ -674,9 +674,12 @@ function toCall(show: ShowData): number | null {
   const up = show.upNext;
   const playing = show.games.some((g) => g.yourRole);
   if (!show.header || !show.ready || !up || up.live || (!show.following && !playing)) return null;
-  if (show.games.some((g) => g.yourRole && g.gameType === "weekly-calls")) return null;
+  if (show.games.some((g) => g.yourRole && g.gameType === "weekly-calls" && asksFor(g, up.number))) return null;
   return up.number;
 }
+
+/** Your game here still asks for episode `n` (a game over a span asks for nothing past its last: step 6 of PLAN-sports-data.md). */
+const asksFor = (g: ShowData["games"][number], n: number) => !g.span || n <= g.span.to;
 
 function Extras({ show }: { show: ShowData }) {
   const up = show.upNext;
@@ -684,7 +687,7 @@ function Extras({ show }: { show: ShowData }) {
   const rate = toRate(show);
   const call = toCall(show);
   // Your bingo card (Weekly Bingo's is a card in Your moves), and how the latest you've seen went once you ticked it.
-  const bingo = show.games.some((g) => g.yourRole && g.gameType === "weekly-bingo") ? null : toBingo(show);
+  const bingo = show.games.some((g) => g.yourRole && g.gameType === "weekly-bingo" && asksFor(g, up?.number ?? show.latestAired)) ? null : toBingo(show);
   const couchId = show.couch?.id ?? null;
   // The couch's polls still open on this show (step 12 part 2): yours to vote in until it airs.
   const polls = useSeasonPolls(show.header?.seasonId ?? null, couchId, !show.solo && !!couchId);

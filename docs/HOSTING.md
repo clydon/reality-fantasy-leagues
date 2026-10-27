@@ -21,6 +21,7 @@ free plan stops being enough, choosing the cheapest fit is arithmetic, not resea
 | **GIPHY** API (**no key yet**: the user's, new design step 13 part 1, on the branch) | GIFs in a watch along: what's trending and a search, asked by our server (`/api/gifs`, kept at the edge an hour per search); the pictures load from GIPHY's media CDN straight into the browser. Off until `GIPHY_API_KEY` is set (no key, no GIF button). Tenor, the other choice, closed its API on 2026-06-30 | Free. A new key is a beta key: 100 calls an hour (each distinct search, and trending, at most once an hour per edge region); past that, GIPHY's production key (applied for from its dashboard, reviewed, and they may talk pricing). "Powered by GIPHY" shown under the picker; ratings PG-13 at most | $0 |
 | **TMDB** API (`api.themoviedb.org`, show art and cast photos, 2026-10-26, on the branch) | Show posters, header images (backdrops) and logos, season posters, and a season's cast photos by name (`src/lib/server/show-art.ts`). Images hotlinked from `image.tmdb.org`, stored as plain URLs. Off until `TMDB_READ_TOKEN` is set (the user's; in `.env.local`, and Vercel needs it too) | Free key, **non-commercial only**: charging users (or ads) needs TMDB's written agreement, price on request. Data kept at most 6 months (the daily job re-asks at 150 days); on a licence ending, everything on `image.tmdb.org` must go: `UPDATE ... WHERE url LIKE 'https://image.tmdb.org/%'`. Attribution: its logo and notice on Settings › Credits. About 40 requests a second allowed | $0 |
 | **Wikipedia / Wikidata** API and **Jolpica** (`api.jolpi.ca`, F1) (2026-10-26, on the branch) | Athletes' photos for sport shows: Wikipedia's page image API returns only freely licensed (Commons) photos; Jolpica gives Formula 1's field with Wikipedia links | Free, no keys. Wikipedia rate-limits bursts (a probe got 429s after ~15 quick calls): batched, one call at a time, at most 30 searches a sweep. Commons photos need their photographer's credit | $0 |
+| **ESPN** (`site.api.espn.com`, `site.web.api.espn.com`, `sports.core.api.espn.com`; sports data, 2026-10-27, local only) | A sport season's games (each day's scoreboard), linked to its episodes; each team's roster with headshots, the Players tab's players (headshots hotlinked from `a.espncdn.com` through ESPN's resizer); a game's box score in the sport's own columns and a player's regular-season line, the Players tab's stats (or a race's places, from its scoreboard); its search (which league a season's teams are in) (`src/lib/server/sports/`, docs/PLAN-sports-data.md). Asked by our server only; every answer cached in Neon (`sports_cache`) | Free, no key, but **unofficial and undocumented**: no published terms or rate limit, and it can change without notice. Asked little (cached hard), credited in Settings › Credits and under the Players tab's roster, other sources planned for when it fails (docs/BACKLOG.md). It refuses a User-Agent with a URL in it (403), so ours is a bare `GameYourShow/1.0` | $0 |
 | Anthropic API | Paid auto-research (Claude), only for seasons switched on | Pay per use | per episode researched |
 | Domain `gameyourshow.com` | Bought 2026-10-12 | not recorded | yearly |
 
@@ -179,11 +180,34 @@ it a game's (`maxDuration` 300, the bot's ~1-3 min). While it asks, the Episodes
 row per season (`episode_fills`). **Fill in who's playing** (migration 0144, `src/lib/server/rosters.ts`) is the same shape: one
 bot ask per sport season, ever (only while it has no cast; ~30 s for the World Series), polling every 4 s only while it asks, and
 ~100 bytes a person on `season_cast` (a series' two teams and officials: ~90 rows). Its photos are Wikipedia searches right after
-(one per person, ~0.3 s apart, ~1 min for a series; free, no key), stored as Wikimedia thumbnail URLs. **Stats** (migration 0145) are
-more bot asks: batches of 25 names per question, each part (so far, coming in) and once more for whoever an answer left out, as long
-as the request has time (~1-2 min each on the bot), Update stats finishing the rest; one more round after each episode ends. Each
-person's snapshot is ~150 bytes on `cast_stats` (a series of 7 games: ~90 people × 8 snapshots, ~100 KB). **Keeping up** (migration 0141) adds an UPDATE on your own reads only for shows set to move
+(one per person, ~0.3 s apart, ~1 min for a series; free, no key), stored as Wikimedia thumbnail URLs. **Stats** never ask our bot
+(since step 4 of docs/PLAN-sports-data.md they come from ESPN's box scores: Sports data, below); `cast_stats` (0145, the bot's
+snapshots) is no longer read or written. **Keeping up** (migration 0141) adds an UPDATE on your own reads only for shows set to move
 along by themselves, and a few-ms query on each bot clock call.
+
+**Sports data (docs/PLAN-sports-data.md steps 1-2, migration 0148)** polls nothing and wakes nothing of its own. ESPN is asked by our
+server only: after the answer when someone adds a sport (linking its season's episodes to ESPN's games), and by the daily listings job
+for sport seasons with games still to link (at most 20 seasons a run; a season is looked at again the next day while games are missing,
+a week on when ESPN has none of them). Every answer goes through `sports_cache` in Neon, read into our shapes (ESPN's raw game summary
+is ~1 MB and is never stored): searches and the league index a week, a past day's games a month, a finished game's box score for good,
+a roster or a season line a day, anything live 3 minutes; when ESPN doesn't answer, the last answer is served. Measured on the real 2026
+World Series (2026-10-27): its four games linked in 7 ESPN calls (3 searches, 4 days' games), 1.4 s, 7 cache rows; linking them again
+took none. Storage: a day's games ~1 KB, a box score ~10 KB, a row per sport season (`sports_links`) and per linked episode
+(`season_events`, ~300 bytes); the job prunes cache rows a week past their time. Not backed up (asked again). **Its players (step 3,
+migration 0149)** come from the linked games: one roster call per team (cached a day), else the team's played games' box scores
+(cached for good once final), so the World Series' 52 players took 2 calls; ~250 bytes a person on `season_cast` (with its headshot's address and ESPN's id).
+Their headshots are hotlinked from ESPN's CDN through its own resizer (`a.espncdn.com/combiner`, ~36 KB each, lazily loaded; no
+bytes through Vercel or Neon), and Wikipedia is searched only for whoever has none (none for the World Series). The Players tab's
+read gains one small query (its links and fill), and when a fill is due runs it after the answer (nothing polls but the page,
+every 4 s, while it's going: seconds). **Their stats (step 4, migration 0150)** come from the same games: each linked game's box
+score once it's likely over (3 hours after it starts; cached for good once final, so one call a game, ever; again at most every 10
+minutes while one isn't final), a race's places from its day's games (already cached), and each player's regular-season line for
+coming in, **one call a player, once** (at most 60 a run, 4 at a time; the World Series' 52 took 52 calls, ~1-4 s). Measured on the
+real World Series' Games 1-3 (2026-10-27): 55 ESPN calls in 1.2-3.6 s, none on a second run. Storage on `game_lines`: ~320 bytes a
+player a game (~10 KB a game) and ~420 bytes a player for coming in (its main category only; ~22 KB for the series); a season line's
+cache row is ~1.1 KB, kept a day. Each Players tab read pulls the lines up to your mark plus everyone's coming in (~25 KB for the
+series at Game 1, ~85 KB at Game 7) and one small aggregate; a fill runs after the answer only when something's due (a game's over,
+someone has no coming in yet), held on `stat_fills`, and the page polls every 4 s only while it runs. Nothing new polls or wakes Neon.
 
 **All of TV and the daily listings job (new design, step 11 part 2)** poll nothing and wake nothing of their own. **The job**
 (`src/lib/server/tv-listings.ts`) runs at most once an Eastern day, after the answer of a bot clock call
@@ -470,6 +494,13 @@ never handles it: the user does the reset and the pasting.
 
 ## Changelog
 
+- **2026-10-27, local only (not deployed).** Sports data, steps 1-2 (docs/PLAN-sports-data.md; migration 0148): a new free service,
+  **ESPN** (no key, unofficial: see The stack), asked by our server only when a sport is added and by the daily listings job, every
+  answer cached in Neon (`sports_cache`). Nothing polls, nothing new wakes Neon. The real World Series' four games linked in 7 calls.
+  Step 3 (migration 0149): a sport's players from its linked games (a roster call per team, cached a day), their headshots hotlinked
+  from ESPN's CDN at ~36 KB each through its resizer; the World Series' 52 players in 2 calls. Step 4 (migration 0150): their stats
+  from the games' box scores (a call a game, once final) and each player's regular season (a call a player, once): the World
+  Series' Games 1-3 and 52 players in 55 calls; `game_lines` ~10 KB a game plus ~420 bytes a player. ChatGPT never asked for stats.
 - **2026-10-26.** Show art and cast photos found on their own (docs/RESEARCH-show-art-and-cast-photos.md; migration 0139):
   two new free services, **TMDB** (key `TMDB_READ_TOKEN`, non-commercial only: see The stack) and **Wikipedia/Wikidata +
   Jolpica** (no keys) for sports. Rides on existing moments and the daily listings job; nothing new polls or wakes Neon.

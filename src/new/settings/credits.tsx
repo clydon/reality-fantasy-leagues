@@ -5,8 +5,9 @@ import { Btn } from "../ui/parts";
 
 // Credits (docs/RESEARCH-show-art-and-cast-photos.md): where shows' art, cast photos and the TV listings come from. TMDB's terms
 // ask for its logo and its notice; TVmaze's licence (CC BY-SA) for a credit with a link; Wikimedia Commons' photos for their
-// photographers' credit. And the art belongs to the networks: anyone can ask for something to come down (Report a problem;
-// the desk's "No art or photos" switch takes a show's down).
+// photographers' credit. ESPN's data (sports' games, players and headshots: docs/PLAN-sports-data.md) has no published terms for
+// this use, so it's credited plainly, and as not connected with us. And the art belongs to the networks: anyone can ask for
+// something to come down (Report a problem; the desk's "No art or photos" switch takes a show's down).
 
 /** TMDB's approved logo ("alt short"), from TMDB's own logos page. */
 const TMDB_LOGO = "https://www.themoviedb.org/assets/2/v4/logos/v2/blue_short-8e7b30f73a4020692ccca9c88bafe5dcb6f8a62a4c6bc55cd9ba82bb2cd95f6c.svg";
@@ -19,7 +20,7 @@ const A = ({ href, children }: { href: string; children: React.ReactNode }) => (
 
 export function CreditsSheet({ open, onOpenChange, onReport }: { open: boolean; onOpenChange: (open: boolean) => void; onReport: () => void }) {
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Credits" subtitle="Where the art, photos and listings come from">
+    <Sheet open={open} onOpenChange={onOpenChange} title="Credits" subtitle="Where the art, photos, listings and sports data come from">
       <div data-credits className="flex flex-col gap-5 text-[14px] leading-snug text-muted-foreground">
         <section data-credit="tmdb">
           {/* eslint-disable-next-line @next/next/no-img-element -- TMDB's own logo file, as its attribution page gives it */}
@@ -33,6 +34,12 @@ export function CreditsSheet({ open, onOpenChange, onReport }: { open: boolean; 
           <b className="block text-[15px] text-foreground">TVmaze</b>
           <p>
             TV listings, and some posters and photos, from <A href="https://www.tvmaze.com">TVmaze</A> (CC BY-SA).
+          </p>
+        </section>
+        <section data-credit="espn">
+          <b className="block text-[15px] text-foreground">ESPN</b>
+          <p>
+            Sports&apos; games, teams, players and headshots come from <A href="https://www.espn.com">ESPN</A>. Game Your Show isn&apos;t connected with ESPN.
           </p>
         </section>
         <section data-credit="wikimedia">

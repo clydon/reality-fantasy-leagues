@@ -25,8 +25,25 @@ const rows = (order, extra = {}) => {
 };
 const game = (over) => ({
   leagueId: over.leagueId, name: "G", gameName: over.gameName ?? "Outlast", gameType: over.gameType ?? "classic-draft",
-  seasonId: over.seasonId, showId: over.showId ?? "surv", showName: over.showName ?? "Survivor", label: over.label,
+  seasonId: over.seasonId, showId: over.showId ?? "surv", showName: over.showName ?? "Survivor", label: over.label, span: over.span ?? null,
   artUrl: null, year: over.year ?? 2026, through: over.through ?? 5, ended: !!over.ended, rows: over.rows, before: over.before ?? null,
+});
+
+test("games over a span (step 6 of PLAN-sports-data): each plaque names its span, and winning the next span of the season runs it back", () => {
+  const span = (from, to) => ({ from, to, name: from === to ? `Game ${from}` : `Games ${from}–${to}` });
+  const games = [
+    game({ leagueId: "a", seasonId: "ws", label: "World Series 2026", gameName: "Weekly Lineup", gameType: "active-roster", ended: true, span: span(1, 3), rows: rows(["bo", "ann"]) }),
+    game({ leagueId: "b", seasonId: "ws", label: "World Series 2026", gameName: "Weekly Lineup", gameType: "active-roster", ended: true, span: span(4, 6), rows: rows(["bo", "ann"]) }),
+    game({ leagueId: "c", seasonId: "ws", label: "World Series 2026", gameName: "Survival Pool", gameType: "pickem", ended: true, span: span(7, 7), rows: rows(["ann", "bo"]) }),
+  ];
+  const t = trophiesOf(games, people, "ann");
+  assert.deepEqual(t.plaques.map((p) => [p.leagueId, p.label, p.span, p.ranItBack]), [
+    ["c", "World Series 2026", "Game 7", false],
+    ["b", "World Series 2026", "Games 4–6", true],
+    ["a", "World Series 2026", "Games 1–3", false],
+  ], "the season's later spans first; bo won Games 1-3, then Games 4-6");
+  assert.deepEqual(t.records.find((r) => r.key === "ranItBack")?.line, "World Series 2026 · Games 1–3 and Games 4–6");
+  assert.equal(trophiesOf([game({ leagueId: "x", seasonId: "s50", label: "Survivor 50", ended: true, rows: rows(["bo", "ann"]) })], people, "ann").plaques[0].span, null, "a season game names no span");
 });
 
 test("a place is worth 10 for first down to 1 for last, whatever the field", () => {

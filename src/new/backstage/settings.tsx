@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Archive, CalendarDays, ChevronRight, KeyRound, RotateCcw, SlidersHorizontal, Trash2 } from "lucide-react";
 import { backstage, gameAdmin, gamesApi, useEndGames, useGameSettings, type DeletePreview, type EndGame, type GameSettings } from "../data";
+import { spanName } from "@/lib/game/spans";
 import { gameColour } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
@@ -65,7 +66,7 @@ export function SettingsPage({ seasonId, show }: { seasonId: string; show: ShowD
   return (
     <div className="pb-12">
       {data.data.games.map((g) => (
-        <GameBlock key={g.leagueId} seasonId={seasonId} g={g} write={write} />
+        <GameBlock key={g.leagueId} seasonId={seasonId} g={g} words={show.words} write={write} />
       ))}
       <LockDown seasonId={seasonId} couchId={couchId} games={data.data.games} />
       <EndGames seasonId={seasonId} couchId={couchId} />
@@ -77,10 +78,12 @@ export function SettingsPage({ seasonId, show }: { seasonId: string; show: ShowD
 function GameBlock({
   seasonId,
   g,
+  words,
   write,
 }: {
   seasonId: string;
   g: GameSettings;
+  words: ShowData["words"];
   write: (g: GameSettings, body: Parameters<typeof gameAdmin.settings>[3], said: string) => Promise<void>;
 }) {
   const L = g.lineup;
@@ -224,6 +227,8 @@ function GameBlock({
         ))}
       </div>
 
+      <HowLong g={g} words={words} can={can} write={write} />
+
       {g.waivers && (
         <div className="mb-2">
           <h3 className="type-caption mb-2 text-[15px] tracking-[0.04em] text-muted-foreground">Replacing people who leave</h3>
@@ -237,6 +242,66 @@ function GameBlock({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * How long it runs (step 6 of docs/PLAN-sports-data.md): to the season's end or through an episode, changed before its end is
+ * reached, to one still to come; frozen once it's over, or while it's locked down.
+ */
+function HowLong({
+  g,
+  words,
+  can,
+  write,
+}: {
+  g: GameSettings;
+  words: ShowData["words"];
+  can: boolean;
+  write: (g: GameSettings, body: Parameters<typeof gameAdmin.settings>[3], said: string) => Promise<void>;
+}) {
+  const part = { singular: words.episode.toLowerCase(), plural: words.episodes.toLowerCase() };
+  const sp = g.span;
+  const now = sp.to === null ? `${words.episode} ${sp.from} to the season's end` : spanName(sp.from, sp.to, part);
+  const say = (to: number | null) => (to === null ? "to the season's end" : `through ${words.episode} ${to}`);
+  const open = can && !sp.over;
+  return (
+    <div data-settings="span" className="mb-5">
+      <h3 className="type-caption mb-2 text-[15px] tracking-[0.04em] text-muted-foreground">How long</h3>
+      <div className="rounded-[3px] bg-background p-2.5">
+        <b data-span-now className="block text-[15px]">
+          {sp.over ? `Final · ${now}` : now}
+        </b>
+        <small className="block text-[13px] leading-snug text-muted-foreground">
+          {sp.over
+            ? "It's over: its last one is in, so its end stays."
+            : g.lockedDown
+              ? "Frozen for the season"
+              : `Change its end before it's reached. Nothing after its last ${part.singular} scores.`}
+        </small>
+        {open && (
+          <label className="mt-2 flex min-h-11 items-center gap-2.5 border-t border-border pt-2">
+            <span className="flex-none text-[14px] text-muted-foreground">Ends</span>
+            <select
+              data-span-end
+              value={sp.to === null ? "" : String(sp.to)}
+              onChange={(e) => {
+                const to = e.target.value ? Number(e.target.value) : null;
+                void write(g, { set: { endEpisode: to }, text: `Changed how long ${g.gameName} runs: ${say(to)}` }, `${g.gameName} runs ${say(to)}`);
+              }}
+              className="min-w-0 flex-1 truncate rounded-[3px] bg-card px-2.5 py-2 text-[15px] font-semibold"
+            >
+              <option value="">At the season&rsquo;s end</option>
+              {sp.ends.map((e) => (
+                <option key={e.number} value={e.number}>
+                  Through {words.episode} {e.number}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -3,6 +3,8 @@ import { foldFor, isFolded, revealedThrough } from "@/lib/game/chat-fold";
 import { accoladesOf, rankingsOf, trophiesOf, yourNumbers, type Accolade, type GameStanding, type Person, type Rankings, type StandingRow, type TrophyShelf, type YourNumbers } from "@/lib/game/couch-standings";
 import { tableOf } from "@/lib/game/game-view";
 import type { Taste } from "@/lib/game/ratings";
+import { showWords } from "@/lib/game/show-words";
+import { spanName } from "@/lib/game/spans";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { bingoLines } from "./bingo";
@@ -110,16 +112,31 @@ function standingOf(
     ...(pool ? { best: r.total, streak: r.week ?? 0 } : {}),
     called: called.get(r.playerId) ?? 0,
   }));
-  return { rows, through: calls ? calls.through : StateLogic.SpoilerLogic.latestWithResults(view), ended: calls ? calls.ended : StateLogic.seasonEnded(view) };
+  // A game over a span stands at its last episode (StateLogic.spanView), and is over once that's in (gameOver).
+  const end = StateLogic.endEpisode(view);
+  const seen = StateLogic.SpoilerLogic.latestWithResults(view);
+  return { rows, through: calls ? calls.through : end === null ? seen : Math.min(seen, end), ended: calls ? calls.ended : StateLogic.gameOver(view) };
+}
+
+/** A game over a span (docs/PLAN-sports-data.md step 6), named in the show's own word ("Games 4–6"); null for a season game. */
+function spanOf(state: LeagueState, episodeTerm: string | null | undefined): GameStanding["span"] {
+  const to = StateLogic.endEpisode(state);
+  if (to === null) return null;
+  const from = StateLogic.startEpisode(state);
+  const w = showWords({ episode: episodeTerm });
+  return { from, to, name: spanName(from, to, { singular: w.episode.toLowerCase(), plural: w.episodes.toLowerCase() }) };
 }
 
 /** A Weekly Calls game's right calls, or a Weekly Bingo game's lines, through `through`, by player (on its couch); over once the
  *  season's last episode is within it. */
 async function callsThrough(state: LeagueState, g: Game & { seasonId: string }, who: (p: string) => string | null, through: number, schedule: Parameters<typeof endedThrough>[0]) {
   const userIds = state.players.map((p) => who(p.id)).filter((id): id is string => !!id);
-  const opts = { from: StateLogic.startEpisode(state), through, couchId: g.couchId };
+  // A game over a span counts its own episodes only.
+  const end = StateLogic.endEpisode(state);
+  const upTo = end === null ? through : Math.min(through, end);
+  const opts = { from: StateLogic.startEpisode(state), through: upTo, couchId: g.couchId };
   const rights = StateLogic.getLeagueType(state).hasBingo ? await bingoLines(g.seasonId, userIds, opts) : await callRights(g.seasonId, userIds, opts);
-  return { right: (p: string) => rights.get(who(p) ?? "") ?? 0, through, ended: endedThrough(schedule, through) };
+  return { right: (p: string) => rights.get(who(p) ?? "") ?? 0, through: upTo, ended: endedThrough(schedule, through, end) };
 }
 
 export async function couchHub(user: SessionUser, couchId: string): Promise<CouchHub> {
@@ -169,6 +186,7 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
         showId: header.show.id,
         showName: header.show.name.replace(/^The /, ""),
         label: `${header.show.name.replace(/^The /, "")}${header.seasonNumber ? ` ${header.seasonNumber}` : ""}`,
+        span: spanOf(state, header.show.terms.episode),
         artUrl: header.show.artUrl,
         year: header.premiereDate ? Number(header.premiereDate.slice(0, 4)) : null,
         through: now.through,
@@ -208,7 +226,7 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
   const [accolades, feed, again, rated] = await Promise.all([
     accoladesFor(user, couchId, people, list, standings),
     feedFor(user, couchId, people, list, marks, schedules),
-    runItBack(user, couchId, finished.map((g) => ({ leagueId: g.leagueId, seasonId: g.seasonId, gameType: g.gameType }))),
+    runItBack(user, couchId, finished.map((g) => ({ leagueId: g.leagueId, seasonId: g.seasonId, gameType: g.gameType, span: g.span ?? null }))),
     couchTaste(user.id, couchId, people),
   ]);
   return {

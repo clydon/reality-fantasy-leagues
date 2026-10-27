@@ -97,6 +97,11 @@ export interface Game {
   solo: "public" | "practice" | null;
   /** Archived (step 10 part 2b, settings.archivedAt): on the couch and the trophy shelf as it stood; nothing scores it. */
   archived: boolean;
+  /** A game over a span (settings.startEpisode through settings.endEpisode; docs/PLAN-sports-data.md step 6), or null: to the
+   *  season's end. */
+  span: { from: number; to: number } | null;
+  /** The episode it starts with (settings.startEpisode): a game started after a span ended is its run back. */
+  start: number;
 }
 
 /**
@@ -116,7 +121,8 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
   if (filter.seasonId) where.push(`ss.id = $${params.push(filter.seasonId)}`);
   const { rows } = await pool.query(
     `SELECT l.id, l.name, l.couch_id, l.group_id, l.solo, l.state->'settings'->>'leagueTypeId' AS type_id, ss.id AS season_id, me.role AS your_role,
-            COALESCE(l.state->'settings'->>'archivedAt', '') <> '' AS archived
+            COALESCE(l.state->'settings'->>'archivedAt', '') <> '' AS archived,
+            l.state->'settings'->'startEpisode' AS start_episode, l.state->'settings'->'endEpisode' AS end_episode
        FROM leagues l
        LEFT JOIN shows s ON s.slug = l.state->'settings'->>'showId'
        LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
@@ -136,6 +142,8 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
     yourRole: r.your_role,
     solo: r.solo ?? null,
     archived: !!r.archived,
+    span: Number.isInteger(r.end_episode) ? { from: Number.isInteger(r.start_episode) ? r.start_episode : 1, to: r.end_episode } : null,
+    start: Number.isInteger(r.start_episode) ? r.start_episode : 1,
   }));
 }
 
