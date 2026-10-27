@@ -94,7 +94,9 @@ export async function askBot(prompt: string, o: BotChoice = {}): Promise<{ answe
       const res = await fetch(`${url}/ask`, {
         method: "POST",
         headers: { ...UA, "Content-Type": "application/json", "X-API-Key": KEY! },
-        body: JSON.stringify({ provider: "chatgpt", prompt, search: true, max_wait: Math.floor((left - 15_000) / 1000) }),
+        // keepalive: the bot sends spaces while ChatGPT works, then the JSON (a failure as { detail }, still status 200), so
+        // Cloudflare's tunnel doesn't cut off an answer that takes over 100 s (error 524): a full episode's research does.
+        body: JSON.stringify({ provider: "chatgpt", prompt, search: true, max_wait: Math.floor((left - 15_000) / 1000), keepalive: true }),
         signal: AbortSignal.timeout(left),
         cache: "no-store",
       });

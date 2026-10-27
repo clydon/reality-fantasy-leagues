@@ -51,6 +51,11 @@ progress; whoever asked gets a `researchDone` notification as each lands. A seas
 (Backstage, One tap, Autopilot), so Survivor 51 never gets results this way. Check: `scripts/dev-test/check-research-asks.js`
 (45 PASS at 390 and 1280; its rules are `researched-traitors.json`, what research wrote for the real season, renamed). For
 Traitors 5 after deploying: open its Episodes or Players tab and tap Ask ChatGPT for me (the VM's clock runs the episodes).
+**Its first production run failed with HTTP 524 on every episode:** Cloudflare's tunnel cuts any answer not started within
+100 s, and a full episode's research takes ~2-4 min on the micro VM, so full research through the bot had never worked in
+production (One tap's and the schedule's too). Fixed the same day: the bot's `/ask` takes `keepalive: true` (spaces until the
+JSON; llm-browser-api, deployed to the VM with the user's OK) and `ask-bot.ts` sends it. Proven with Traitors 5 episode 1's
+real prompt (41k chars): answered through Cloudflare in 227 s, all 22 players.
 
 **The desk catches up with classic's admin (planned 2026-10-27): [PLAN-desk-parity.md](PLAN-desk-parity.md).** The gap audit, the user's decisions (Act as them = classic's impersonation, logged; every gap designed now; phone first), eight steps (people and Act as first), and the design brief; the mock designs come next, after the brief is confirmed.
 
