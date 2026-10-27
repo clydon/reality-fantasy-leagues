@@ -41,6 +41,17 @@ Last updated 2026-10-11.
 8. **Local dev DB repair** (see HANDOFF): re-apply 0017–0024 (minus 0016/0023, which need
    pgvector), then 0033–0040. Needs the user's go-ahead.
 
+9. **Sports data beyond ESPN** (2026-10-27; docs/PLAN-sports-data.md). The first build is ESPN only. Add these behind the same
+   provider interface when a gap shows, each checked live already (the plan's table has the details):
+   - MLB Stats API (no key): every minor-league level, plus KBO and NPB, with headshots. ESPN has no minor-league baseball.
+   - NHL's API (no key; not probed yet); the AHL (ESPN doesn't have it; no free source found yet).
+   - The Premier League's fantasy API (no key): its players' official headshots (ESPN's soccer has few; Wikipedia covers most meanwhile).
+   - OpenLigaDB (no key): German soccer backup. Jolpica / OpenF1 (no key): F1.
+   - With a second source: the chain's tests (the plan's 1b: a roster holding the players its box scores show, and so on), remembering
+     the winner per league (`sports_picks`), and a circuit breaker for a source that's down or rate limited.
+   - Only if a test keeps failing (free signups): CricketData, football-data.org. Not used: TheSportsDB (free team lists stop at 10
+     players), API-Sports (free is old seasons only), FotMob (didn't answer).
+
 ## Open: small or polish
 
 8. **League swipe tuning.** Everything is a constant at the top of `league-swipe.tsx`: DEAD_ZONE

@@ -1,6 +1,8 @@
 # Plan: sports data from APIs (rosters, photos, stats), ChatGPT last
 
-Status: **planned, not built** (2026-10-27). Bot-powered stats are paused (`BOT_STATS = false` in `src/lib/server/rosters.ts`);
+Status: **planned, not built** (2026-10-27). **First build: ESPN only** (the user, 2026-10-27): ESPN behind the provider interface,
+Wikipedia for missing photos, ChatGPT for a roster only when ESPN has none. Every other source, the chain's tests (1b) and the circuit
+breaker wait in docs/BACKLOG.md until a gap shows. Bot-powered stats are paused (`BOT_STATS = false` in `src/lib/server/rosters.ts`);
 Fill in who's playing still asks our bot, now for players only. This plan replaces both with sports-data APIs.
 
 ## Why
@@ -59,7 +61,7 @@ are no linked games to read players from.
 
 ## The design
 
-### 1. Providers, in order, behind one interface
+### 1. Providers, in order, behind one interface (first build: ESPN alone behind it)
 
 `src/lib/server/sports/` with one adapter per provider, each answering the same few questions:
 
@@ -77,7 +79,7 @@ else has the league: section 3). Which one a league ends up on is decided by sec
 answers 429 is skipped for a while (a small circuit breaker), and the next answers. Every answer is cached (rosters a day, a finished
 game's box score for good, a live one a few minutes), so a season costs a handful of calls, not one per person per visit.
 
-### 1b. Which source, decided by the data (no table of leagues)
+### 1b. Which source, decided by the data (no table of leagues) (backlog: only matters with a second source)
 
 For each league and each need (roster, photos, box scores, season stats), the chain tries sources in order and keeps the first whose
 answer passes a test made from the data itself:
@@ -137,16 +139,14 @@ for each game's line.
 
 ## Steps (each its own session)
 
-1. **Providers and the chain**: the interface, ESPN and MLB Stats API adapters, the circuit breaker and cache, section 1b's tests and
-   `sports_picks`; a dev check against
-   the real services (`scripts/dev-test/check-sports-data.js`, like check-show-art.js: real calls, no app server).
+1. **The interface and ESPN**: `src/lib/server/sports/` with the provider interface and its one adapter, ESPN (leagues from ESPN's own
+   index, games on a date, rosters with headshots, box scores, season stats), and a cache (rosters a day, a finished game's box score for
+   good); a dev check against the real ESPN (`scripts/dev-test/check-sports-data.js`, like check-show-art.js: real calls, no app server).
 2. **Linking**: `season_events` (migration), matching episodes to events by date and team names; the World Series as the first real
    case; a check with fake-listings' World Series and a stand-in provider.
 3. **Cast**: rosters from linked events, players only, headshots then Wikipedia; Fill in who's playing uses it first.
 4. **Stats**: box scores per game, so far summed through the guard, coming in from season stats; the Players tab's lines.
-5. **More providers**: NHL, Jolpica or OpenF1, the Premier League's fantasy API (photos), OpenLigaDB, each behind the chain and section
-   1b's tests; minor-league baseball via MLB Stats API sport ids; CricketData or football-data.org only if a test keeps failing (free
-   signups).
+5. **More providers: backlog** (docs/BACKLOG.md, "Sports data beyond ESPN"), when a gap shows.
 6. **Spans** (the user's next idea) build on the links.
 
 ## Decisions (the user: costs stay at zero, 2026-10-27)
