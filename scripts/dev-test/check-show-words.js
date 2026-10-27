@@ -8,6 +8,9 @@
 //   Players (src/lib/server/rosters.ts, 0144): a sport nobody's made a game of starts with nobody and Fill in who's playing; the
 //   question is the same for any sport (teams, players, coaches, officials; the listing's matchups as context) and refused for a
 //   show that isn't a sport; the answer lands as the season's cast by team with roles, nobody twice, and is never asked again.
+//   Its stats (0145) follow in the same ask, one question per part (through the latest game, and coming in), never asking about
+//   someone twice; someone on Game 3 sees coming in only, and a line saying Game 6's stats wait. Photos are looked for on the real
+//   Wikipedia (the stand-in names find none).
 //   Console errors print with the screen they happened on.
 //   API: adding the World Series saves a sport that calls its episodes Game and its people Players; the stand-in F1 show ("Night 1"
 //   titles, a word that says when) keeps Event; the show space's header carries the words.
@@ -47,6 +50,14 @@ function check(ok, what, detail = "") {
   if (!ok) failures++;
 }
 
+/** The stand-in bot's stats answer: numbers for every player it's asked about (not a manager or an umpire), for the part asked. */
+function statsAnswer(prompt) {
+  const players = [...prompt.matchAll(/^- (.+?) \((?:[^,)]+, )?(Pitcher|Catcher|Shortstop)\)$/gm)].map((m) => m[1]);
+  const soFar = /"soFar": \{"through": (\d+)/.exec(prompt);
+  const block = (v) => players.map((name) => ({ name, stats: [{ label: "H", value: v }, { label: "AVG", value: ".250" }] }));
+  return JSON.stringify(soFar ? { soFar: { through: Number(soFar[1]), people: block("3") } } : { comingIn: { label: "ZT regular season", people: block("120") } });
+}
+
 /** The stand-in F1 show made over as a baseball series: "Game N: ZT Rays at ZT Brewers". */
 function worldSeries(shows) {
   const f1 = shows.find((s) => s.show.id === 990012);
@@ -67,7 +78,9 @@ function worldSeries(shows) {
   // The recap question, answered for every game it names.
   const bot = await fakeBot.start({
     answer: (prompt) =>
-      /who's taking part in/.test(prompt)
+      /the stats of these people/.test(prompt)
+        ? statsAnswer(prompt)
+        : /who's taking part in/.test(prompt)
         ? JSON.stringify({
             groups: [
               { name: "ZT Rays", people: [{ name: "Zed Pitcher", role: "Pitcher" }, { name: "Zed Catcher", role: "Catcher" }, { name: "Zed Manager", role: "Manager" }] },
@@ -201,6 +214,23 @@ function worldSeries(shows) {
       check(teams.join() === "ZT Rays,ZT Brewers,Officials", "done: each team, then the officials", teams.join());
       const brewers = await page.locator('[data-roster-group="ZT Brewers"] [data-roster-person]').allInnerTexts();
       check(brewers.length === 1 && /Zee Shortstop\s+Shortstop/.test(brewers[0]), "each with what they do, nobody twice", JSON.stringify(brewers));
+      // Stats follow in the same ask: so far through Game 6 (the latest that's ended), and coming in.
+      await page.locator('[data-roster-stats="so-far"]').first().waitFor({ timeout: 30_000 }).catch(() => {});
+      await page.locator('[data-roster-statsbar="shown"]').waitFor({ timeout: 15_000 }).catch(() => {});
+      const pitcher = await page.locator('[data-roster-person="Zed Pitcher"]').innerText();
+      check(/Thru Game 6 · 3 H · \.250 AVG/.test(pitcher) && /ZT regular season · 120 H/.test(pitcher), "stats: through Game 6, and coming in", pitcher.replace(/\s+/g, " "));
+      check((await page.locator('[data-roster-person="Zed Manager"] [data-roster-stats]').count()) === 0, "nobody's numbers for a manager");
+      const statsBar = await page.locator("[data-roster-statsbar]").innerText();
+      check(/Stats through Game 6/.test(statsBar) && /Coming in: ZT regular season/.test(statsBar), "the stats bar: through Game 6, coming in", statsBar.replace(/\s+/g, " "));
+      check(bot.asked.filter((q) => /the stats of these people/.test(q.prompt)).length === 4, "each part asked, then once more for just who it missed (the manager and umpire), then done", `${bot.asked.filter((q) => /the stats of these people/.test(q.prompt)).length}`);
+      // The spoiler guard: on Game 3, no numbers past it, and a line saying Game 6's wait.
+      await pool.query("UPDATE show_follows SET seen_through = 3 WHERE user_id = $1 AND season_id = $2", [fx.users.alex, wsSeason]);
+      await page.reload();
+      await page.locator("[data-roster]").waitFor({ timeout: 30_000 });
+      await page.locator("[data-roster-statsline]").waitFor({ timeout: 15_000 }).catch(() => {});
+      check((await page.locator('[data-roster-stats="so-far"]').count()) === 0 && (await page.locator('[data-roster-stats="coming-in"]').count()) > 0, "on Game 3: coming in only, nothing through Game 6");
+      check(/Game 6's stats open once you've seen it/.test(await page.locator("[data-roster-statsline]").innerText()), "and Game 6's wait, said so");
+      await pool.query("UPDATE show_follows SET seen_through = 6 WHERE user_id = $1 AND season_id = $2", [fx.users.alex, wsSeason]);
       await shot("ws-players-filled");
       await fits("Players");
       const cast = (await pool.query("SELECT name, tribe_name, role FROM season_cast WHERE season_id = $1 ORDER BY sort_order", [wsSeason])).rows;

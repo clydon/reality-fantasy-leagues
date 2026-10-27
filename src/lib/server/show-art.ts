@@ -257,10 +257,11 @@ async function people(qids: string[]): Promise<Set<string>> {
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-/** The Wikipedia page of an athlete, by a search for their name and the sport: one clear hit or nothing. */
-async function wikiSearch(name: string, sport: string): Promise<string | null> {
+/** The Wikipedia page of an athlete, by a search for their name and what they're part of (their team, else the show): one clear
+ *  hit or nothing. */
+async function wikiSearch(name: string, context: string): Promise<string | null> {
   const d = await getJson<{ query?: { search?: { title: string }[] } }>(
-    `${WIKI}&action=query&list=search&srlimit=5&srsearch=${encodeURIComponent(`${name} ${sport}`)}`
+    `${WIKI}&action=query&list=search&srlimit=5&srsearch=${encodeURIComponent(`${name} ${context}`)}`
   );
   const hits = (d?.query?.search ?? []).filter((h) => wikiHitIs(name, h.title));
   return hits[0]?.title ?? null;
@@ -272,11 +273,19 @@ async function formulaOneField(year: number): Promise<{ names: string[]; title: 
   return (d?.MRData?.DriverTable?.Drivers ?? []).map((x) => ({ names: [`${x.givenName} ${x.familyName}`], title: wikiTitle(x.url) }));
 }
 
-/** The most searches one sweep makes (Wikipedia rate-limits bursts); the rest wait for the next. */
+/** The most searches one sweep makes (Wikipedia rate-limits bursts); the rest wait for the next. A roster just filled in
+ *  (rosters.ts) looks for everyone at once, a little slower. */
 const SEARCHES_A_SWEEP = 30;
+const SEARCHES_A_ROSTER = 150;
 
-/** Free athlete photos from Wikipedia, by name: Jolpica's links for Formula 1, else one search each. */
-async function sportPhotos(s: SeasonRow, names: string[]): Promise<Map<string, string>> {
+/**
+ * Free athlete photos from Wikipedia, by name: Jolpica's links for Formula 1, else one search each, by their team (season_cast's
+ * group: "Kevin Cash Tampa Bay Rays" finds the manager, where the show's name alone can find someone else) and else the show.
+ */
+async function sportPhotos(s: SeasonRow, want: { name: string; group: string | null }[], cap = SEARCHES_A_SWEEP): Promise<Map<string, string>> {
+  const names = want.map((w) => w.name);
+  const groupOf = new Map(want.map((w) => [w.name, w.group]));
+  const show = s.show_name.replace(/\s*\([^)]*\)\s*$/, "");
   const titles = new Map<string, { title: string; searched: boolean }>();
   if (isFormulaOne(s.show_name)) {
     const year = s.premiere ? Number(s.premiere.slice(0, 4)) : s.season_number > 1900 ? s.season_number : new Date().getFullYear();
@@ -288,11 +297,13 @@ async function sportPhotos(s: SeasonRow, names: string[]): Promise<Map<string, s
   }
   let searches = 0;
   for (const n of names) {
-    if (titles.has(n) || searches >= SEARCHES_A_SWEEP) continue;
+    if (titles.has(n) || searches >= cap) continue;
     searches++;
-    const t = await wikiSearch(n, s.show_name.replace(/\s*\([^)]*\)\s*$/, ""));
+    const group = groupOf.get(n);
+    // A team's name is the best context; a group that isn't one ("Officials", "Field") goes with the show's.
+    const t = await wikiSearch(n, group ? `${group} ${show}` : show);
     if (t) titles.set(n, { title: t, searched: true });
-    await pause(400);
+    await pause(cap > SEARCHES_A_SWEEP ? 300 : 400);
   }
   const pages = await wikiPages([...new Set([...titles.values()].map((t) => t.title))]);
   const searchedIds = [...titles.values()].filter((t) => t.searched).map((t) => pages.get(t.title)?.pageprops?.wikibase_item).filter((x): x is string => !!x);
@@ -318,17 +329,18 @@ export interface PhotosFound {
  * premiere guest cast; a sport's from Wikipedia. Then every league on the season gets them (an approved cast only, as an
  * admin's photo change would).
  */
-export async function fillCastPhotos(seasonId: string, listingsBase?: string): Promise<PhotosFound> {
+export async function fillCastPhotos(seasonId: string, listingsBase?: string, opts: { roster?: boolean } = {}): Promise<PhotosFound> {
   const result: PhotosFound = { looked: 0, found: 0, from: {} };
   const s = await linkedSeason(seasonId, listingsBase);
   if (!s || s.art_off) return result;
-  const { rows: cast } = await pool.query("SELECT id, name, photo_url FROM season_cast WHERE season_id = $1", [seasonId]);
+  const { rows: cast } = await pool.query("SELECT id, name, tribe_name, photo_url FROM season_cast WHERE season_id = $1 ORDER BY sort_order", [seasonId]);
   const want = cast.filter((c) => replaceablePhoto(c.photo_url));
   result.looked = want.length;
   const found = new Map<string, { url: string; from: string }>();
   if (want.length) {
     if (s.kind === "sport") {
-      for (const [name, url] of await sportPhotos(s, want.map((c) => c.name))) found.set(name, { url, from: "wikipedia" });
+      const people = want.map((c) => ({ name: c.name as string, group: (c.tribe_name as string | null) ?? null }));
+      for (const [name, url] of await sportPhotos(s, people, opts.roster ? SEARCHES_A_ROSTER : SEARCHES_A_SWEEP)) found.set(name, { url, from: "wikipedia" });
     } else {
       const match = (credits: Credit[], from: string) => {
         for (const c of want) {

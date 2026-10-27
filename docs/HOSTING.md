@@ -178,7 +178,11 @@ it a game's (`maxDuration` 300, the bot's ~1-3 min). While it asks, the Episodes
 (a small JSON); nothing polls otherwise. Each recap is up to 1 KB on its episode's row (`season_episodes.summary`), plus one tiny
 row per season (`episode_fills`). **Fill in who's playing** (migration 0144, `src/lib/server/rosters.ts`) is the same shape: one
 bot ask per sport season, ever (only while it has no cast; ~30 s for the World Series), polling every 4 s only while it asks, and
-~100 bytes a person on `season_cast` (a series' two teams and officials: ~90 rows). **Keeping up** (migration 0141) adds an UPDATE on your own reads only for shows set to move
+~100 bytes a person on `season_cast` (a series' two teams and officials: ~90 rows). Its photos are Wikipedia searches right after
+(one per person, ~0.3 s apart, ~1 min for a series; free, no key), stored as Wikimedia thumbnail URLs. **Stats** (migration 0145) are
+more bot asks: batches of 25 names per question, each part (so far, coming in) and once more for whoever an answer left out, as long
+as the request has time (~1-2 min each on the bot), Update stats finishing the rest; one more round after each episode ends. Each
+person's snapshot is ~150 bytes on `cast_stats` (a series of 7 games: ~90 people × 8 snapshots, ~100 KB). **Keeping up** (migration 0141) adds an UPDATE on your own reads only for shows set to move
 along by themselves, and a few-ms query on each bot clock call.
 
 **All of TV and the daily listings job (new design, step 11 part 2)** poll nothing and wake nothing of their own. **The job**

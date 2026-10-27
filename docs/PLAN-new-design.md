@@ -143,6 +143,13 @@ step's As built.
   bingo, calls, rate, remind, watch along, something wrong), couch pages, the guide, the desk, and notifications and pushes.
   Any step on those can take them by reading `show.words`. Also: a season numbered by year shows "S2026" in the show bar's
   title ("2026" would read better), and the desk has no field for the episode word yet (an admin can't correct "Event").
+- **Players' photos and stats (2026-10-27, rosters.ts, show-art.ts, migration 0145) left these alone.** (1) Stats come only when
+  someone taps (Fill in / Update stats) or straight after a roster's filled in; nothing updates them by itself when a game ends (the
+  bot clock could, a few hours after each episode, as recaps could). (2) A big roster takes several bot asks (batches of 25, two parts,
+  one retry for misses): ~5-9 minutes for a World Series on our bot, over two or three taps of Update stats. (3) ChatGPT's numbers
+  aren't checked against anything; a wrong line can be fixed only by asking again (nothing edits one by hand yet). (4) The F1
+  shortcut in show-art.ts (Jolpica's field) is the one sport-specific path left; search by team now works for everyone, so it could go.
+  (5) Stats only on a sport's roster; a reality show nobody's made a game of still has no stats until research.
 - **Fill in who's playing (2026-10-27, rosters.ts, migration 0144) left these alone.** (1) Sports only: a show that isn't a sport
   still gets its cast from Make it a game (or its listing, for a series or talk show); the same one-question fill could offer
   a not-yet-a-game competition's cast too. (2) No photos: the photo finder (show-art.ts) looks in TMDB and TVmaze credits, which for a

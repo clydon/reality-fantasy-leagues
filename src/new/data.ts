@@ -1102,7 +1102,7 @@ export function useRecaps(seasonId: string | null, enabled = true) {
   });
 }
 
-export type { Roster, RosterGroup } from "@/lib/server/rosters";
+export type { Roster, RosterGroup, StatItem } from "@/lib/server/rosters";
 
 /** A sport's Players tab (rosters.ts): who's playing by team, and our bot's ask, read while it's going. */
 export function useRoster(seasonId: string | null, enabled = true) {
@@ -1111,7 +1111,7 @@ export function useRoster(seasonId: string | null, enabled = true) {
     queryFn: () => get<Roster>(`/api/seasons/${seasonId}/roster`),
     enabled: enabled && seasonId != null,
     staleTime: 60_000,
-    refetchInterval: (q) => (q.state.data?.asking ? 4000 : false),
+    refetchInterval: (q) => (q.state.data?.asking || q.state.data?.stats.asking ? 4000 : false),
   });
 }
 
@@ -1119,6 +1119,10 @@ export const roster = {
   ask: (seasonId: string) => post<Roster>(`/api/seasons/${seasonId}/roster`, { action: "ask" }),
   paste: (seasonId: string, answer: string) => post<Roster & { filled: number }>(`/api/seasons/${seasonId}/roster`, { answer }),
   prompt: (seasonId: string) => get<{ prompt: string }>(`/api/seasons/${seasonId}/roster?prompt=1`),
+  /** Its stats (0145): coming in, and through the latest episode that's ended. */
+  askStats: (seasonId: string) => post<Roster>(`/api/seasons/${seasonId}/roster`, { action: "stats" }),
+  pasteStats: (seasonId: string, answer: string) => post<Roster & { filled: number }>(`/api/seasons/${seasonId}/roster`, { answer, part: "stats" }),
+  statsPrompt: (seasonId: string) => get<{ prompt: string }>(`/api/seasons/${seasonId}/roster?prompt=stats`),
 };
 
 export const recaps = {
