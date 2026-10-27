@@ -31,6 +31,11 @@
 // which settles most of them; what it doesn't settle reaches the admin's Inbox. It isn't any season's schedule: it's
 // the desk's switch (app_settings 'tiebreak', off by default), across every season, and its runs are planned with the
 // rest, so the VM's clock is told when one comes due (nextRunAt) and calls only then.
+//
+// Results someone asked for (db/migrations/0152, src/lib/server/research-asks.ts): a show nobody plays a game on, whose
+// aired episodes have no results, gets each episode's full research when someone fills in what happened. It isn't any
+// season's schedule either: each asked episode is a job of its own (slot 'asked'), a season's in episode order, one at a
+// time, two tries each; the run says how it ended on the ask (settleAsk), and the app tells whoever asked.
 const Air = require("../src/lib/game/air-schedule.js");
 const StateLogic = require("../src/lib/game/state-logic.js");
 const AutoResearch = require("./auto-research.js");
@@ -83,6 +88,10 @@ const QUICK = { fastMs: 5 * MIN, fastForMs: 30 * MIN, slowMs: 15 * MIN, windowMs
 const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN, schedule: 3 * 24 * 60 * MIN, tiebreak: 3 * 24 * 60 * MIN, trivia: 2 * 24 * 60 * MIN, bingo: MAX_AFTER * MIN };
 // A result disputed this long gets its tie-break run.
 const TIEBREAK_AFTER_MS = 24 * 60 * MIN;
+// An asked episode's run rows (kind 'full') carry this slot: two tries, the second two minutes after the first failed.
+const ASKED_SLOT = "asked";
+const ASKED_TRIES = 2;
+const ASKED_RETRY_MS = 2 * MIN;
 
 const slotOf = (run) => `${run.kind}@${run.after}`;
 
@@ -242,6 +251,80 @@ async function planTiebreaks(pool, now) {
     if (next === null || when < next) next = when;
   }
   return { due, next: next === null ? null : new Date(next) };
+}
+
+// ---------- results someone asked for ----------
+
+/**
+ * When an asked episode's next try may start, or null for never: its ask itself before any try; while a try runs, when it
+ * would count as cut off (the run's end plans again sooner); after a failure, two minutes on; never once one worked or both
+ * tries failed. `tries`: its runs since it was asked, { started_at, ok }. Pure.
+ */
+function askedNext(askedAt, tries, now) {
+  if (tries.some((h) => h.ok === true)) return null;
+  const t = now.getTime();
+  const running = tries.filter((h) => h.ok == null && new Date(h.started_at).getTime() + RUNNING_STALE_MS > t);
+  if (running.length) return new Date(Math.max(...running.map((h) => new Date(h.started_at).getTime() + RUNNING_STALE_MS)));
+  if (tries.length >= ASKED_TRIES) return null;
+  if (!tries.length) return new Date(askedAt);
+  return new Date(Math.max(...tries.map((h) => new Date(h.started_at).getTime())) + ASKED_RETRY_MS);
+}
+
+/** Every open ask (or one season's), oldest first and a season's in episode order, with its tries since it was asked. */
+async function openAsks(pool, seasonId = null) {
+  const { rows } = await pool.query(
+    `SELECT a.season_id, a.episode_number, a.asked_at,
+            COALESCE(json_agg(json_build_object('started_at', r.started_at, 'ok', r.ok)) FILTER (WHERE r.id IS NOT NULL), '[]') AS tries
+       FROM research_asks a
+       LEFT JOIN bot_research_runs r ON r.season_id = a.season_id AND r.episode_number = a.episode_number AND r.slot = $2 AND r.started_at >= a.asked_at
+      WHERE a.done_at IS NULL AND ($1::uuid IS NULL OR a.season_id = $1)
+      GROUP BY a.season_id, a.episode_number, a.asked_at
+      ORDER BY a.asked_at, a.episode_number`,
+    [seasonId, ASKED_SLOT]
+  );
+  return rows;
+}
+
+/**
+ * The asked episodes due now and when the next comes due: { due: [job], next }. A season's asks go one at a time, in the
+ * order asked (an episode's before the next one's): one running, or waiting to try again, holds the rest of its season; one
+ * given up lets the next go.
+ */
+async function planAsks(pool, now, seasonId = null) {
+  const t = now.getTime();
+  const due = [];
+  let next = null;
+  const held = new Set();
+  for (const a of await openAsks(pool, seasonId)) {
+    if (held.has(a.season_id)) continue;
+    const at = askedNext(a.asked_at, a.tries, now);
+    if (!at) continue;
+    held.add(a.season_id);
+    if (at.getTime() <= t) {
+      const season = await loadSeasonForJob(pool, a.season_id);
+      if (season) due.push({ episode: a.episode_number, slot: ASKED_SLOT, kind: "full", after: null, at: new Date(a.asked_at), season });
+    }
+    const when = Math.max(at.getTime(), t);
+    if (next === null || when < next) next = when;
+  }
+  return { due, next: next === null ? null : new Date(next) };
+}
+
+/**
+ * An asked episode's run just ended: the ask is done when it worked (with how many results reached the season), or when
+ * this was its last try. Whoever asked, to tell ({ userId, askedAt, ok, found, message }), or null while it's still to try
+ * again (or someone asked again meanwhile).
+ */
+async function settleAsk(pool, seasonId, episode, ok, message, found) {
+  const { rows } = await pool.query(
+    `UPDATE research_asks a SET done_at = now(), ok = $3, message = $4, found = $5
+      WHERE a.season_id = $1 AND a.episode_number = $2 AND a.done_at IS NULL
+        AND ($3 OR (SELECT count(*) FROM bot_research_runs r WHERE r.season_id = a.season_id AND r.episode_number = a.episode_number
+                      AND r.slot = $6 AND r.started_at >= a.asked_at) >= $7)
+      RETURNING a.asked_by, a.asked_at`,
+    [seasonId, episode, ok, String(message || "").slice(0, 300), ok ? found : null, ASKED_SLOT, ASKED_TRIES]
+  );
+  return rows[0] ? { userId: rows[0].asked_by, askedAt: rows[0].asked_at, ok, found: ok ? found : null, message: ok ? null : message } : null;
 }
 
 /** A schedule from a request body or the column, cleaned up; throws on anything malformed. */
@@ -460,6 +543,10 @@ async function planRuns(pool, { now = new Date(), seasonId } = {}) {
   const ties = await planTiebreaks(pool, now);
   for (const job of ties.due) if (!seasonId || job.season.id === seasonId) due.push(job);
   if (!seasonId && ties.next && (next === null || ties.next < next)) next = ties.next;
+  // Results someone asked for (any season, whatever its schedule).
+  const asks = await planAsks(pool, now, seasonId);
+  due.push(...asks.due);
+  if (asks.next && (next === null || asks.next < next)) next = asks.next;
   return { due: due.sort((a, b) => a.at - b.at), next };
 }
 
@@ -496,7 +583,9 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
         [runId, ok, String(message || "").slice(0, 1000), result ? JSON.stringify(result) : null, seconds]
       );
     }
-    return { ok, message, result, seconds, runId };
+    // An asked episode: done when it worked or this was its last try (whoever asked, for the app to tell).
+    const asked = runId && slot === ASKED_SLOT ? await settleAsk(pool, season.id, episode, ok, message, result && Number.isInteger(result.live) ? result.live : null) : null;
+    return { ok, message, result, seconds, runId, ...(asked ? { asked } : {}) };
   };
 
   try {
@@ -641,7 +730,7 @@ async function runNext(pool, { ask, send = null, now = new Date(), dry = false, 
   // however long the run took, so a test clock stays a test clock.
   const after = await planRuns(pool, { now: new Date(now.getTime() + Date.now() - startedAt), seasonId });
   return {
-    job: { season: job.season.slug, seasonNumber: job.season.season_number, episode: job.episode, slot: job.slot, kind: job.kind },
+    job: { season: job.season.slug, seasonNumber: job.season.season_number, seasonId: job.season.id, episode: job.episode, slot: job.slot, kind: job.kind },
     ...outcome,
     next: after.next,
   };
@@ -676,4 +765,9 @@ module.exports = {
   dueAt,
   TRIVIA_AFTER_END,
   SEASON_BINGO_SLOT,
+  ASKED_SLOT,
+  ASKED_TRIES,
+  RUNNING_STALE_MS,
+  askedNext,
+  planAsks,
 };

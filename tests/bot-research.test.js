@@ -230,3 +230,17 @@ test("the tie-break: a day after a flag nobody's answer has checked, or after th
   // Gone stale three days past due (the bot was down): none.
   assert.equal(Bot.tiebreakNext({ flags: [], disputed: true, newest: at(0), tries: [{ started_at: at(24 + 80), ok: false }] }), null);
 });
+
+test("results someone asked for (0152): at once, held while a try runs, again two minutes after a failure, then given up", () => {
+  const asked = new Date("2026-10-27T18:00:00Z");
+  const at = (m) => new Date(asked.getTime() + m * 60 * 1000);
+  const try_ = (m, ok) => ({ started_at: at(m).toISOString(), ok });
+  assert.equal(Bot.askedNext(asked, [], at(5)).getTime(), asked.getTime(), "never tried: due since it was asked");
+  // A try running holds it until it would count as cut off; once cut off, it's a failed try.
+  assert.equal(Bot.askedNext(asked, [try_(1, null)], at(3)).getTime(), at(1).getTime() + Bot.RUNNING_STALE_MS);
+  assert.equal(Bot.askedNext(asked, [try_(1, false)], at(3)).getTime(), at(3).getTime(), "failed at 1: tried again 2 minutes on");
+  assert.equal(Bot.askedNext(asked, [try_(1, true)], at(3)), null, "it worked: never again");
+  assert.equal(Bot.askedNext(asked, [try_(1, false), try_(3, false)], at(9)), null, `${Bot.ASKED_TRIES} tries, then given up`);
+  assert.equal(Bot.askedNext(asked, [try_(1, false), try_(3, null)], at(5)).getTime(), at(3).getTime() + Bot.RUNNING_STALE_MS, "the last try still running");
+  assert.equal(Bot.askedNext(asked, [try_(1, false), try_(3, null)], at(30)), null, "the last try cut off: given up");
+});

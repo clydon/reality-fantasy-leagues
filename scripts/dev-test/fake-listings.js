@@ -4,6 +4,8 @@
 //   GET /shows/:id?embed=seasons  the show with _embedded.seasons
 //   GET /seasons/:id/episodes   that season's episodes
 //   GET /shows/:id/cast         the show's main cast (people and the characters they play), for Make it a game
+//   GET /episodes/:id/guestcast an episode's guest cast: its show's `guestCast` rows (TVmaze's shape, people with photos), for
+//                               every episode of a show a check gave one; how a reality season lists its people (show-art.ts)
 //   GET /schedule?country=US&date=   a day's network airings (step 11 part 2's listings job): every episode of a show on a
 //                               US network whose start falls on that date in the East, the show as `show`
 //   GET /schedule/web?date=     the day's streaming: every episode of a show on a web channel, the show as `_embedded.show`
@@ -229,6 +231,10 @@ async function start(opts = {}) {
     }
     if ((m = u.pathname.match(/^\/seasons\/(\d+)\/episodes$/))) {
       for (const s of tv.shows) for (const x of s.seasons) if (x.season.id === Number(m[1])) return send(200, x.episodes);
+      return send(404, { name: "Not Found" });
+    }
+    if ((m = u.pathname.match(/^\/episodes\/(\d+)\/guestcast$/))) {
+      for (const s of tv.shows) for (const x of s.seasons) if (x.episodes.some((e) => e.id === Number(m[1]))) return send(200, s.guestCast || []);
       return send(404, { name: "Not Found" });
     }
     return send(404, { name: "Not Found" });

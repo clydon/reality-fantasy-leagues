@@ -39,6 +39,19 @@ step updates it and adds an As built note. Step 0a (back up the live leagues) is
 
 **Survivor on researched rules, tested on shadow leagues (2026-10-27): [PLAN-researched-survivor.md](PLAN-researched-survivor.md).** `scripts/dev-test/shadow-leagues.js` clones the couch's three Survivor 51 games from a production backup into a local couch played by mock players copying every real move, on researched rules, and diffs every table episode by episode (`look` screenshots them). Findings: Survivor's own template scores identically with aliases; a freshly researched rulebook (the bot's, 42 events) collapses Weekly Lineup because only 5 of its event ids match the recorded ones. The user's requirement: research may add events, but every shared event keeps today's built-in points. The switch (an event map, a question map, whole-episode checks as data) is planned for Survivor 52. **The test couch** (same day, the same idea in production; pushed 2026-10-27, which ran migration 0151): Settings › Test couch copies one of your couches' games on a season onto `Test · <couch>`, played by test players `<username>_test` (one per person, yours running the games), with switches into each from your profile menu and Back to me; results reach it as they reach the real games, the rules can be swapped (template, the real games' own, fresh ids, researched by our bot), Copy again and Remove. Test players can't touch what every game on the season shares. `scripts/dev-test/check-test-couch.js` passes at 390px. Make it from Settings in production.
 
+**Results for a show you watch (2026-10-27, pushed to master, which runs migration 0152):** the
+user made The Traitors 5 a game in production, filled in what happened, and saw no players: the Cast tab hid the cast until
+results came in, and nothing looked up results for a show nobody plays. Now: with nothing counted the Cast tab shows the
+faces; Make it a game's review shows the cast's photos from TMDB/TVmaze before Looks right (`show-art.ts castPhotosFor`, saved
+by Looks right); and Fill in what happened also queues each aired episode's full research for a show made a game that nobody
+plays a game on (`src/lib/server/research-asks.ts`, `db/bot-research.js` planAsks: slot 'asked', one at a time on the bot's
+clock, in episode order, two tries each), filed as the bot's answer so the season's stats count it with the season's
+RESEARCHED rulebook's suggested points (never a built-in format: the user's requirement). Its card shows each episode's
+progress; whoever asked gets a `researchDone` notification as each lands. A season someone plays is left to its games
+(Backstage, One tap, Autopilot), so Survivor 51 never gets results this way. Check: `scripts/dev-test/check-research-asks.js`
+(45 PASS at 390 and 1280; its rules are `researched-traitors.json`, what research wrote for the real season, renamed). For
+Traitors 5 after deploying: open its Episodes or Players tab and tap Ask ChatGPT for me (the VM's clock runs the episodes).
+
 **The desk catches up with classic's admin (planned 2026-10-27): [PLAN-desk-parity.md](PLAN-desk-parity.md).** The gap audit, the user's decisions (Act as them = classic's impersonation, logged; every gap designed now; phone first), eight steps (people and Act as first), and the design brief; the mock designs come next, after the brief is confirmed.
 
 **Next: the merge-and-deploy step, which is the user's** (decided 2026-10-25: one merge after step 15). In order, from your own terminal (Claude never handles the connection strings), as 0b's As built in the plan describes:

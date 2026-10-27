@@ -17,7 +17,7 @@ const MOMENTS = [
     perShow: true,
   },
   { id: "early", title: "Early results are in", line: "Who went home, minutes after the episode", types: ["episodeResults"], perShow: true },
-  { id: "final", title: "Final scores are in", line: "The morning after. And how your predictions and flags went", types: ["finalScores", "betResult", "flagSettled"], perShow: true },
+  { id: "final", title: "Final scores are in", line: "The morning after. And how your predictions and flags went, and results you asked for", types: ["finalScores", "betResult", "flagSettled", "researchDone"], perShow: true },
   {
     id: "invites",
     title: "Invites and join requests",
@@ -49,7 +49,7 @@ const MOMENT_OF = new Map(MOMENTS.flatMap((m) => m.types.map((t) => [t, m.id])))
  * Types only the new design has a page for (a poll, a planned night, a flag...): pushed only to someone on the new design, since
  * classic's own screens can't open them. Their notices still go in the bell, for the day they switch.
  */
-const NEW_ONLY = new Set(["gameStarted", "planned", "planOff", "poll", "bingoLine", "flagSettled"]);
+const NEW_ONLY = new Set(["gameStarted", "planned", "planOff", "poll", "bingoLine", "flagSettled", "researchDone"]);
 
 /** The moment a notification type belongs to (null for one that isn't anyone's, which can't happen for a known type). */
 function momentOf(type) {

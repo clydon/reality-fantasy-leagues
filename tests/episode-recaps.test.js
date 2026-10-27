@@ -5,7 +5,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
-const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
+// "@db": the module reaches db/ through research-asks.ts (results looked up alongside, 0152).
+const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src"), "@db": path.join(__dirname, "..", "db") } });
 const { readRecaps, recapPrompt } = jiti("../src/lib/server/episode-recaps.ts");
 const { showWords } = jiti("../src/lib/game/show-words.ts");
 

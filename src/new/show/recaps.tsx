@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Copy, Sparkles } from "lucide-react";
-import { recaps, useRecaps, type SeasonEpisodes } from "../data";
+import { Check, Copy, Loader2, Sparkles, X } from "lucide-react";
+import { recaps, useRecaps, type AskedEpisode, type SeasonEpisodes } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
@@ -13,16 +13,35 @@ import { toast } from "../ui/toast";
 // they aired, one card asks ChatGPT what happened in each (our bot, else copy and paste the same prompt). The recaps are the
 // season's, everyone's, and each row shows its own once you've seen it. While our bot asks, the card says so and the read polls;
 // when it's done, the episodes read again.
+//
+// For a show made a game that nobody plays, the same ask looks up each episode's results (research-asks.ts, 0152), one at a
+// time on the bot's clock: the card shows each episode's progress (waiting, being looked up, in, not found), and as each comes
+// in the Cast tab's stats and the episodes read again. Whoever asked gets a notification as each one lands, so the page can be
+// left. The Cast tab shows the same card (`eps` null: results only) while it has nothing to count.
 
-export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: ShowData; eps: SeasonEpisodes }) {
-  const blank = eps.episodes.filter((e) => e.status === "aired" && e.watched && !e.summary).map((e) => e.number);
-  const state = useRecaps(seasonId, blank.length > 0);
+/** "Episode 4", "Episodes 1–7". */
+function episodesLabel(ns: number[], w: ShowData["words"]): string {
+  const [lo, hi] = [Math.min(...ns), Math.max(...ns)];
+  return ns.length === 1 ? `${w.episode} ${lo}` : `${w.episodes} ${lo}–${hi}`;
+}
+
+export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: ShowData; eps: SeasonEpisodes | null }) {
+  const blank = eps ? eps.episodes.filter((e) => e.status === "aired" && e.watched && !e.summary).map((e) => e.number) : [];
+  // A show made a game (not a sport) may have results to look up; the server says whether it's ours to (nobody plays it).
+  const game = show.ready && show.header?.show.kind !== "sport";
+  const state = useRecaps(seasonId, blank.length > 0 || game);
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [paste, setPaste] = useState(false);
   const asking = !!state.data?.asking;
+  const results = state.data?.results ?? null;
+  const asked = results?.asked ?? [];
+  const going = asked.filter((a) => a.status === "waiting" || a.status === "asking");
+  const failed = asked.filter((a) => a.status === "failed").map((a) => a.episode);
+  const done = asked.filter((a) => a.status === "done");
+  const missing = results?.missing ?? [];
   const was = useRef(asking);
-  // The ask finished: read the episodes again, and say how it went.
+  // The recaps' ask finished: read the episodes again, and say how it went.
   useEffect(() => {
     if (was.current && !asking) {
       qc.invalidateQueries({ queryKey: ["new-design", "episodes", seasonId] });
@@ -31,10 +50,25 @@ export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: Sh
     }
     was.current = asking;
   }, [asking, qc, seasonId, state.data?.message]);
-  if (!blank.length && !asking) return null;
+  // An episode's results came in: the stats and the episodes read again; the last one says so.
+  const doneCount = done.length;
+  const wasDone = useRef<number | null>(null);
+  const stillGoing = going.length;
+  useEffect(() => {
+    if (wasDone.current !== null && doneCount > wasDone.current) {
+      qc.invalidateQueries({ queryKey: ["new-design", "episodes", seasonId] });
+      qc.invalidateQueries({ queryKey: ["new-design", "stats", seasonId] });
+      if (!stillGoing) toast("Every episode's results are in");
+    }
+    if (state.data) wasDone.current = doneCount;
+  }, [doneCount, stillGoing, qc, seasonId, state.data]);
+
+  const resultsToAsk = missing.length + failed.length;
+  const busyNow = asking || going.length > 0;
+  if (!blank.length && !busyNow && !resultsToAsk) return null;
   const w = show.words;
-  const [lo, hi] = [Math.min(...blank), Math.max(...blank)];
-  const which = blank.length === 1 ? `${w.episode} ${lo}` : `${w.episodes} ${lo}–${hi}`;
+  const ep = w.episode.toLowerCase();
+  const people = w.peopleTab;
   const ask = async () => {
     setBusy(true);
     try {
@@ -45,29 +79,41 @@ export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: Sh
       setBusy(false);
     }
   };
+  const shared = "Everyone on the show sees them, only for the ones they've seen.";
+  const line = busyNow
+    ? going.length
+      ? `ChatGPT is looking it up, one ${ep} at a time. We'll tell you as each one comes in, so you can leave this page.`
+      : "ChatGPT is looking it up. It takes a minute or two; you can leave this page."
+    : blank.length && missing.length
+      ? `${episodesLabel(blank, w)} only say when ${blank.length === 1 ? "it" : "they"} aired. ChatGPT can look up what happened in each, then everyone's results one ${ep} at a time, so ${people} can count their stats. ${shared}`
+      : blank.length
+        ? `${episodesLabel(blank, w)} only say when ${blank.length === 1 ? "it" : "they"} aired. ChatGPT can look up ${show.header?.show.kind === "sport" ? "the score, who won and who stood out" : "what happened"} in each. ${shared}`
+        : missing.length
+          ? `${episodesLabel(missing, w)} ${missing.length === 1 ? "has" : "have"} no results yet. ChatGPT can look them up one ${ep} at a time, so ${people} can count everyone's stats. ${shared}`
+          : `ChatGPT couldn't find ${episodesLabel(failed, w)}'s results.`;
   return (
-    <section className="mt-[18px] px-4" data-recaps={asking ? "asking" : "ask"}>
+    <section className="mt-[18px] px-4" data-recaps={busyNow ? "asking" : "ask"}>
       <div className="flex flex-col gap-2 rounded-[4px] bg-card p-4 outline-1 -outline-offset-1 outline-border">
         <b className="flex items-center gap-2 text-[17px] leading-tight">
           <Sparkles className="size-[18px] flex-none" aria-hidden />
-          Fill in what happened
+          {busyNow ? "Filling in what happened" : "Fill in what happened"}
         </b>
-        <small className="text-[13.5px] leading-snug text-muted-foreground">
-          {asking
-            ? "ChatGPT is looking it up. It takes a minute or two; you can leave this page."
-            : `${which} only say when ${blank.length === 1 ? "it" : "they"} aired. ChatGPT can look up ${show.header?.show.kind === "sport" ? "the score, who won and who stood out" : "what happened"} in each. Everyone on the show sees them, only for the ones they've seen.`}
-        </small>
+        <small className="text-[13.5px] leading-snug text-muted-foreground">{line}</small>
         {!asking && state.data?.message && <small className="text-[13px] font-semibold leading-snug text-live">{state.data.message}</small>}
-        {!asking && (
+        {asked.length > 0 && <ResultsProgress asked={asked} words={w} />}
+        {!busyNow && (
           <div className="mt-1 flex flex-col gap-1.5">
             {state.data?.available !== false && (
               <Btn tone="must" wide data-recaps-ask disabled={busy || !state.data} onClick={ask}>
-                {busy ? "Asking…" : "Ask ChatGPT for me"}
+                {busy ? "Asking…" : !blank.length && !missing.length ? "Try again" : "Ask ChatGPT for me"}
               </Btn>
             )}
-            <button type="button" data-recaps-paste onClick={() => setPaste(true)} className="self-start py-1.5 text-[13px] font-semibold text-muted-foreground underline underline-offset-2">
-              {state.data?.available === false ? "Our bot's away: copy and paste instead" : "Or copy and paste it yourself"}
-            </button>
+            {blank.length > 0 && (
+              <button type="button" data-recaps-paste onClick={() => setPaste(true)} className="self-start py-1.5 text-[13px] font-semibold text-muted-foreground underline underline-offset-2">
+                {state.data?.available === false ? "Our bot's away: copy and paste instead" : "Or copy and paste it yourself"}
+              </button>
+            )}
+            {!blank.length && state.data?.available === false && <small className="text-[13px] leading-snug text-muted-foreground">{"Our bot's away right now. Try again in a little while."}</small>}
           </div>
         )}
       </div>
@@ -83,6 +129,48 @@ export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: Sh
         }}
       />
     </section>
+  );
+}
+
+const STATUS_WORDS: Record<AskedEpisode["status"], string> = { waiting: "waiting its turn", asking: "being looked up", done: "in", failed: "not found" };
+
+/** Each asked episode's results as a chip: in (with how many), being looked up, waiting its turn, or not found. */
+function ResultsProgress({ asked, words: w }: { asked: AskedEpisode[]; words: ShowData["words"] }) {
+  const done = asked.filter((a) => a.status === "done");
+  const found = done.reduce((n, a) => n + (a.found ?? 0), 0);
+  return (
+    <div className="mt-1" data-results-progress>
+      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+        <span className="type-caption text-[13px] tracking-[0.04em] text-muted-foreground">Results</span>
+        <small className="text-[12.5px] text-muted-foreground" data-results-count>
+          {done.length} of {asked.length} in{found ? ` · ${found} ${found === 1 ? "result" : "results"} so far` : ""}
+        </small>
+      </div>
+      <ol className="flex flex-wrap gap-1.5">
+        {asked.map((a) => (
+          <li
+            key={a.episode}
+            data-result-ep={a.episode}
+            data-status={a.status}
+            aria-label={`${w.episode} ${a.episode}: ${STATUS_WORDS[a.status]}${a.status === "done" && a.found != null ? `, ${a.found} results` : ""}`}
+            className={`flex h-8 min-w-10 items-center justify-center gap-1 rounded-[3px] px-2 text-[13px] font-bold tabular-nums ${
+              a.status === "done"
+                ? "bg-foreground text-background"
+                : a.status === "asking"
+                  ? "outline-[1.5px] -outline-offset-1 outline-foreground"
+                  : a.status === "failed"
+                    ? "text-live outline-1 -outline-offset-1 outline-live"
+                    : "bg-secondary text-muted-foreground"
+            }`}
+          >
+            {a.status === "done" && <Check className="size-3.5" aria-hidden />}
+            {a.status === "asking" && <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden />}
+            {a.status === "failed" && <X className="size-3.5" aria-hidden />}
+            {a.episode}
+          </li>
+        ))}
+      </ol>
+    </div>
   );
 }
 

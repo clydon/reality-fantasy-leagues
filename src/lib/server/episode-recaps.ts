@@ -4,6 +4,7 @@ import { askBot, askBotStatus } from "./ask-bot";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { pool, HttpError } from "./db";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
+import { askResults, resultsResearch, type ResultsResearch } from "./research-asks";
 import { latestEnded, seasonSchedules } from "./schedule";
 
 // Fill in what happened (db/migrations/0143): a short recap of each aired episode of a show you watch, so its Episodes tab says
@@ -11,6 +12,9 @@ import { latestEnded, seasonSchedules } from "./schedule";
 // episode that hasn't one: our bot (after the response, the way Make it a game asks: make-game.ts), else a pasted answer to the
 // same prompt. Recaps are the season's, shared by everyone on it, and only reach someone who has seen that episode
 // (season-episodes.ts reads them through the guard's mark). A recap already filled in is never written over.
+//
+// The same ask looks up each episode's results too, for a show made a game that nobody plays (research-asks.ts, 0152): one
+// episode at a time on the bot's clock, so the Cast tab can count stats for it. Their progress comes with the recaps' state.
 
 const ASK_STALE_MS = 6 * 60_000;
 const BUDGET_MS = 280_000;
@@ -36,6 +40,9 @@ export interface RecapState {
   message: string | null;
   /** Our bot answers right now (else it's copy and paste). */
   available: boolean;
+  /** Each episode's results, looked up one at a time (research-asks.ts); null where that isn't ours to do (not a game yet, a
+   *  sport, or someone plays a game on it: its results come in through its games). */
+  results: ResultsResearch | null;
 }
 
 /** What to ask about: the season's words and the aired episodes with no recap. */
@@ -133,19 +140,27 @@ async function mayFill(userId: string, seasonId: string): Promise<void> {
   if (!rows[0]?.ok) throw new HttpError(403, "Add it to your shows first");
 }
 
+// The bot's health, asked at most every 20 s (the card polls while results come in one at a time).
+let health: { at: number; available: boolean } | null = null;
 async function botAvailable(bot?: string): Promise<boolean> {
-  return (await askBotStatus({ bot })).available;
+  // A check's stand-in (next dev only) is asked every time, so it going down is seen at once.
+  if (bot) return (await askBotStatus({ bot })).available;
+  if (health && Date.now() - health.at < 20_000) return health.available;
+  const { available } = await askBotStatus();
+  health = { at: Date.now(), available };
+  return available;
 }
 
 export async function recapState(user: SessionUser, seasonId: string, bot?: string): Promise<RecapState> {
   await mayFill(user.id, seasonId);
-  const [plan, { rows }, available] = await Promise.all([
+  const [plan, { rows }, available, results] = await Promise.all([
     planOf(seasonId),
     pool.query("SELECT asking_at, message FROM episode_fills WHERE season_id = $1", [seasonId]),
     botAvailable(bot),
+    resultsResearch(seasonId),
   ]);
   const asking = !!rows[0]?.asking_at && Date.now() - new Date(rows[0].asking_at).getTime() < ASK_STALE_MS;
-  return { missing: plan.missing.map((e) => e.number), asking, message: asking ? null : (rows[0]?.message ?? null), available };
+  return { missing: plan.missing.map((e) => e.number), asking, message: asking ? null : (rows[0]?.message ?? null), available, results };
 }
 
 /** The prompt to copy, for copy and paste. */
@@ -156,19 +171,26 @@ export async function recapPromptFor(user: SessionUser, seasonId: string): Promi
   return { prompt: recapPrompt(plan) };
 }
 
-/** Ask our bot, after this answers (one ask a season at a time: one already going is joined). */
+/**
+ * Ask our bot, after this answers (one ask a season at a time: one already going is joined): the recaps still missing, and
+ * each episode's results still missing (or that failed), queued one at a time (research-asks.ts).
+ */
 export async function askRecaps(user: SessionUser, seasonId: string, bot?: string): Promise<RecapState> {
   await mayFill(user.id, seasonId);
-  const plan = await planOf(seasonId);
-  if (!plan.missing.length) throw new HttpError(409, "Every one that's aired is filled in already");
+  const [plan, results] = await Promise.all([planOf(seasonId), resultsResearch(seasonId)]);
+  const resultsToAsk = !!results && (results.missing.length > 0 || results.asked.some((a) => a.status === "failed"));
+  if (!plan.missing.length && !resultsToAsk) throw new HttpError(409, "Every one that's aired is filled in already");
   if (!(await botAvailable(bot))) throw new HttpError(503, "Our bot isn't answering right now. Copy and paste works.");
-  const { rowCount } = await pool.query(
-    `INSERT INTO episode_fills (season_id, asking_at, asked_by, message) VALUES ($1, now(), $2, NULL)
-     ON CONFLICT (season_id) DO UPDATE SET asking_at = now(), asked_by = $2, message = NULL, updated_at = now()
-      WHERE episode_fills.asking_at IS NULL OR episode_fills.asking_at < now() - make_interval(secs => $3)`,
-    [seasonId, user.id, ASK_STALE_MS / 1000]
-  );
-  if (rowCount) after(() => runAsk(seasonId, bot));
+  if (plan.missing.length) {
+    const { rowCount } = await pool.query(
+      `INSERT INTO episode_fills (season_id, asking_at, asked_by, message) VALUES ($1, now(), $2, NULL)
+       ON CONFLICT (season_id) DO UPDATE SET asking_at = now(), asked_by = $2, message = NULL, updated_at = now()
+        WHERE episode_fills.asking_at IS NULL OR episode_fills.asking_at < now() - make_interval(secs => $3)`,
+      [seasonId, user.id, ASK_STALE_MS / 1000]
+    );
+    if (rowCount) after(() => runAsk(seasonId, bot));
+  }
+  if (resultsToAsk) await askResults(user.id, seasonId);
   return recapState(user, seasonId, bot);
 }
 

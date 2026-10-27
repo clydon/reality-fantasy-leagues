@@ -80,9 +80,12 @@ async function ui(pool, season, out, width) {
     const show = (await pool.query(`INSERT INTO shows (slug, name) VALUES ($1, 'ZT Bot Clock') RETURNING id`, [SLUG])).rows[0].id;
     const season = (
       await pool.query(
+        // The schedule this checks: the quick check and the two full runs (trivia's and bingo's runs, added to the default
+        // schedule since, have checks of their own: check-trivia-research.js, check-bingo-bank.js).
         `INSERT INTO show_seasons (show_id, season_number, name, status, premiere_date, air_time, air_tz, episode_count, episode_minutes,
-                                   bot_research_on, bot_research_since)
-         VALUES ($1, 1, 'ZT Bot Clock 1', 'airing', '2026-10-07', '20:00', 'America/New_York', 13, 90, true, '2026-10-20T00:00Z') RETURNING id`,
+                                   bot_research_on, bot_research_since, bot_research_schedule)
+         VALUES ($1, 1, 'ZT Bot Clock 1', 'airing', '2026-10-07', '20:00', 'America/New_York', 13, 90, true, '2026-10-20T00:00Z',
+                 '[{"kind":"quick","after":5,"on":true},{"kind":"full","after":60,"on":true},{"kind":"full","after":540,"on":true}]') RETURNING id`,
         [show]
       )
     ).rows[0].id;

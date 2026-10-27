@@ -25,7 +25,7 @@ export const GET = apiRoute(async (req, { params }: Params) => {
   const q = new URL(req.url).searchParams;
   if (q.get("poll")) return NextResponse.json(await makePoll(seasonId));
   if (q.get("prompt")) return NextResponse.json(await makePrompt(user, seasonId, q.get("prompt")));
-  return NextResponse.json(await makeState(user, seasonId, q.get("couch"), botFor(req)));
+  return NextResponse.json(await makeState(user, seasonId, q.get("couch"), botFor(req), listingsFor(req)));
 });
 
 export const POST = apiRoute(async (req, { params }: Params) => {
@@ -43,9 +43,9 @@ export const POST = apiRoute(async (req, { params }: Params) => {
     case "kind":
       return NextResponse.json(await kindMake(user, seasonId, couch, body, base));
     case "restart":
-      return NextResponse.json(await restartMake(user, seasonId, couch, body));
+      return NextResponse.json(await restartMake(user, seasonId, couch, body, base));
     case "confirm":
-      return NextResponse.json(await confirmMake(user, seasonId, couch));
+      return NextResponse.json(await confirmMake(user, seasonId, couch, base));
     case "template":
       return NextResponse.json(await templateMake(user, seasonId, couch, body, base));
     default:

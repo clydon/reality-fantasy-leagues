@@ -37,12 +37,23 @@ export function buildQuickPrompt(ctx: QuickContext, airedAt: Date | null, tz: st
 /** The quick check's answer, each name matched to `castNames` where it can be. Throws when it isn't JSON. */
 export function parseQuickAnswer(text: string, castNames: string[]): QuickAnswer;
 
+/** An asked episode's run that ended its ask (it worked, or was its last try): whoever asked, to tell. */
+export interface SettledAsk {
+  userId: string | null;
+  askedAt: Date;
+  ok: boolean;
+  /** How many results reached the season (when it worked). */
+  found: number | null;
+  message: string | null;
+}
 export interface BotRunOutcome {
   ok: boolean;
   message: string;
   result: Record<string, unknown> | null;
   seconds: number;
   runId: string | null;
+  /** An asked episode's run (slot ASKED_SLOT) that ended its ask. */
+  asked?: SettledAsk;
 }
 /** `budgetMs`: how long this ask may take (a trivia run's two share the route's budget). */
 type Ask = (prompt: string, o?: { budgetMs?: number }) => Promise<{ answer: string }>;
@@ -68,7 +79,7 @@ export function runNext(
   opts: { ask: Ask; send?: BotSend; now?: Date; dry?: boolean; seasonId?: string }
 ): Promise<
   | { job: null; next: Date | null }
-  | ({ job: { season: string; seasonNumber: number; episode: number; slot: string; kind: RunKind }; next: Date | null } & BotRunOutcome)
+  | ({ job: { season: string; seasonNumber: number; seasonId: string; episode: number; slot: string; kind: RunKind }; next: Date | null } & BotRunOutcome)
 >;
 /** `forSeason`: a bingo job for the season's own bank (slot SEASON_BINGO_SLOT). */
 type DueRun = { episode: number; slot: string; kind: RunKind; after: number | null; at: Date; forSeason?: boolean; season: { id: string; slug: string; season_number: number } };
@@ -86,6 +97,16 @@ export function runJob(
 ): Promise<BotRunOutcome>;
 /** A season row the way runJob wants it (schedule, air clock), or undefined. */
 export function loadSeasonForJob(pool: Pool, seasonId: string): Promise<unknown>;
+
+/** An asked episode's run rows carry this slot (db/migrations/0152); two tries each. */
+export const ASKED_SLOT: string;
+export const ASKED_TRIES: number;
+/** A run still marked running after this long was cut off: it counts as a failed try. */
+export const RUNNING_STALE_MS: number;
+/** When an asked episode's next try may start (its runs since it was asked), or null for never. */
+export function askedNext(askedAt: Date, tries: { started_at: Date | string; ok: boolean | null }[], now: Date): Date | null;
+/** The asked episodes due now (one at a time per season, in order) and when the next comes due. */
+export function planAsks(pool: Pool, now: Date, seasonId?: string | null): Promise<{ due: DueRun[]; next: Date | null }>;
 
 /** How long a result stays disputed before its tie-break run. */
 export const TIEBREAK_AFTER_MS: number;

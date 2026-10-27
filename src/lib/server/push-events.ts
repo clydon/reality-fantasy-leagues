@@ -12,6 +12,7 @@ import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { seasonSchedules } from "./schedule";
 import { after } from "next/server";
 import { clock, nudgeMessage, resultsLine, sendWindow, type WindowSnapshot } from "./waiver-pushes";
+import { showWords } from "@/lib/game/show-words";
 
 // One function per pushable event, so each route's trigger is a single line and all the "who gets this, and what does it say"
 // decisions live together in one reviewable place.
@@ -727,6 +728,37 @@ export function notifyBingoCall(o: { seasonId: string; episode: number; couchId:
  * Flags settled since last told (community-results.ts tellSettled claims them): whoever raised each hears how it went. They
  * had seen the episode to flag it, so the words may name the result.
  */
+/**
+ * An episode's results someone asked our bot to look up (research-asks.ts; db/bot-research.js settleAsk): they hear as each one
+ * comes in, or that it couldn't be found. No names, so the words are the same whether or not they've seen it. One per ask
+ * (asking again after a failure is a new one); on the phone, each replaces the season's last.
+ */
+export function notifyResearched(o: { userId: string; seasonId: string; episode: number; askedAt: Date; ok: boolean; found: number | null }) {
+  notifyAfter("researchDone", async () => {
+    const { rows } = await pool.query(
+      "SELECT s.name AS show_name, s.castaway_term, s.episode_term, ss.season_number FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1",
+      [o.seasonId]
+    );
+    if (!rows[0]) return null;
+    const label = seasonLabel(rows[0].show_name, rows[0].season_number);
+    const w = showWords({ castaway: rows[0].castaway_term, episode: rows[0].episode_term });
+    const ep = `${w.episode} ${o.episode}`;
+    const found = o.found ?? 0;
+    const words = o.ok
+      ? {
+          title: `${ep}'s results are in`,
+          body: found ? `${label} · ${found === 1 ? "1 result" : `${found} results`}. The ${w.peopleTab} tab counts them now.` : `${label} · Nothing it found was sure enough to count.`,
+          next: `/show/${o.seasonId}/cast`,
+        }
+      : { title: `Couldn't find ${ep}'s results`, body: `${label} · Our bot asked twice. Try again from the ${w.episodesTab} tab.`, next: `/show/${o.seasonId}/episodes` };
+    return {
+      userIds: [o.userId],
+      seasonId: o.seasonId,
+      message: { ...words, tag: `research-${o.seasonId}`, key: `research:${o.seasonId}:${o.episode}:${o.askedAt.getTime()}`, seasonId: o.seasonId },
+    };
+  });
+}
+
 export function notifyFlagsSettled(flags: { id: string; userId: string; seasonId: string; episode: number; status: string; what: string | null }[]) {
   for (const f of flags) {
     notifyAfter("flagSettled", async () => {

@@ -2,7 +2,7 @@
 
 import { startTransition, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowLeftRight, ChevronDown, ChevronRight, Ellipsis, Eye, Send, Users, Zap } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, ChevronRight, Ellipsis, Send, Users, Zap } from "lucide-react";
 import { chatCouch, postToCouch, useSeasonStats, type CastStat, type Pattern, type SeasonStats } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { Flip } from "../ui/flip";
@@ -10,6 +10,7 @@ import { EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { Face } from "./parts";
+import { RecapsCard } from "./recaps";
 import { DisputeSheet } from "./something-wrong";
 import { statOf, statValue, unitFor, yourTeam } from "./stats";
 
@@ -20,7 +21,9 @@ import { statOf, statValue, unitFor, yourTeam } from "./stats";
 // range for all three, capped at where you are. A face opens their story, episode by episode. No ownership dots: in
 // a game, your castaways say "Your team". Every number is counted on the server up to where you are
 // (GET /api/seasons/[id]/stats); a new range asks again. `?rank=<stat>` opens Rank sorted by it (the stats page
-// links there), `&from=&to=` a range (Share's link).
+// links there), `&from=&to=` a range (Share's link). With nothing counted yet (no results up to where you are) it's
+// the faces alone, no numbers. A show made a game that nobody plays has Fill in what happened's card on top while its
+// results are still to look up or coming in (recaps.tsx, research-asks.ts).
 
 type View = "faces" | "rank" | "heat";
 
@@ -59,14 +62,29 @@ export function Cast({ seasonId, show }: { seasonId: string; show: ShowData }) {
     const people = show.words.people.toLowerCase();
     return <EmptyState icon={Users} title={`No ${people} yet`} line={`The ${people} show up here once the season's cast is in.`} />;
   }
+  const mine = yourTeam(show.play);
+  const isMine = (c: CastStat) => mine.has(c.name);
   if (!all.through) {
-    return <EmptyState icon={Eye} title="Nothing to show yet" line="The cast's stats fill in as you watch, up to the episode you're on, never past it." />;
+    // Nothing counted yet (no results up to where you are): who's in it anyway, and (a show made a game that nobody plays)
+    // its results to look up, or their progress (recaps.tsx).
+    const w = show.words;
+    return (
+      <>
+        <RecapsCard seasonId={seasonId} show={show} eps={null} />
+        <section data-explorer data-no-stats className="mx-4 mt-5 pb-4">
+          <p className="mb-1 text-[13.5px] leading-snug text-muted-foreground">
+            {all.seenThrough === 0
+              ? `Their stats fill in as you watch, up to the ${w.episode.toLowerCase()} you're on, never past it.`
+              : `No results are in yet for the ${w.episodes.toLowerCase()} you've seen. Their stats fill in as they come in.`}
+          </p>
+          <Faces d={all} people={all.cast} onTap={() => {}} isMine={isMine} bare />
+        </section>
+      </>
+    );
   }
   // The range's numbers once they're back (the last range's until then), else the whole season's.
   const d = (range && ranged.data) || all;
   const [from, to] = [d.from, d.to];
-  const mine = yourTeam(show.play);
-  const isMine = (c: CastStat) => mine.has(c.name);
   const filters: [string, string][] = [
     ["all", "Everyone"],
     ["in", "Still in"],
@@ -110,6 +128,7 @@ export function Cast({ seasonId, show }: { seasonId: string; show: ShowData }) {
 
   return (
     <>
+      <RecapsCard seasonId={seasonId} show={show} eps={null} />
       <section data-explorer className="mx-4 mt-5 pb-4">
         <div className="mb-3 flex gap-1" role="tablist">
           {(
@@ -299,7 +318,8 @@ function YourTeamTag() {
   return <span className="type-caption absolute left-[5px] top-[5px] rounded-[2px] bg-foreground px-1.5 py-0.5 text-[10px] tracking-[0.04em] text-background">Your team</span>;
 }
 
-function Faces({ d, people, onTap, picking, isMine }: ViewProps) {
+/** `bare`: nothing counted yet (no results up to where you are): faces only, no points, nothing to open. */
+function Faces({ d, people, onTap, picking, isMine, bare }: ViewProps & { bare?: boolean }) {
   // By group now (as far as you've seen), else (no groups, or a faction that's a secret role) Still in.
   const groups: [string, CastStat[], string | null][] = d.groups.length
     ? [...d.groups.map((g) => [g.name, people.filter((c) => c.out === null && c.group === g.name), g.colour] as [string, CastStat[], string]), ["Still in", people.filter((c) => c.out === null && !d.groups.some((g) => g.name === c.group)), null]]
@@ -322,21 +342,29 @@ function Faces({ d, people, onTap, picking, isMine }: ViewProps) {
             <div className="grid grid-cols-3 gap-2">
               {[...list]
                 .sort((p, q) => (name === "Out" ? q.out! - p.out! : q.points - p.points))
-                .map((c) => (
-                  <Flip key={c.name} id={`face-${c.first}`}>
-                    <button
-                      type="button"
-                      data-cast={c.first}
-                      onClick={() => onTap(c)}
-                      className={`relative flex flex-col gap-0.5 text-left ${picking?.includes(c.name) ? "rounded-[3px] outline-2 outline-offset-2 outline-good" : ""}`}
-                    >
-                      <Face src={c.photo} name={c.first} out={c.out !== null} className={`mb-1 aspect-[4/5] w-full rounded-[3px] ${c.out !== null ? "opacity-55" : ""}`} />
+                .map((c) =>
+                  bare ? (
+                    <div key={c.name} data-cast={c.first} className="relative flex min-w-0 flex-col gap-0.5">
+                      <Face src={c.photo} name={c.first} className="mb-1 aspect-[4/5] w-full rounded-[3px]" />
                       <b className="type-caption truncate text-[15px]">{c.first}</b>
-                      <small className="block text-xs text-muted-foreground">{c.out !== null ? outLine(c) : `${c.points} ${c.points === 1 ? "pt" : "pts"}`}</small>
                       {isMine?.(c) && <YourTeamTag />}
-                    </button>
-                  </Flip>
-                ))}
+                    </div>
+                  ) : (
+                    <Flip key={c.name} id={`face-${c.first}`}>
+                      <button
+                        type="button"
+                        data-cast={c.first}
+                        onClick={() => onTap(c)}
+                        className={`relative flex flex-col gap-0.5 text-left ${picking?.includes(c.name) ? "rounded-[3px] outline-2 outline-offset-2 outline-good" : ""}`}
+                      >
+                        <Face src={c.photo} name={c.first} out={c.out !== null} className={`mb-1 aspect-[4/5] w-full rounded-[3px] ${c.out !== null ? "opacity-55" : ""}`} />
+                        <b className="type-caption truncate text-[15px]">{c.first}</b>
+                        <small className="block text-xs text-muted-foreground">{c.out !== null ? outLine(c) : `${c.points} ${c.points === 1 ? "pt" : "pts"}`}</small>
+                        {isMine?.(c) && <YourTeamTag />}
+                      </button>
+                    </Flip>
+                  )
+                )}
             </div>
           </div>
         ))}

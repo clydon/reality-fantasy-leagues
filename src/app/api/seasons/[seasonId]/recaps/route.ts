@@ -5,9 +5,11 @@ import { requireAuth } from "@/lib/server/auth-helpers";
 import { askRecaps, pasteRecaps, recapPromptFor, recapState } from "@/lib/server/episode-recaps";
 
 // Fill in what happened (db/migrations/0143, episode-recaps.ts): a recap of each aired episode of a show you watch or play.
-//   GET              which aired episodes have no recap, whether our bot is asking, and whether it answers right now
+//   GET              which aired episodes have no recap, whether our bot is asking, and whether it answers right now; for a show
+//                    made a game that nobody plays, each episode's results too (research-asks.ts): missing, and how each asked one is going
 //   GET ?prompt=1    the prompt to copy (copy and paste)
-//   POST { action: "ask" }    our bot asks, after this answers (the page polls GET)
+//   POST { action: "ask" }    our bot asks, after this answers (the page polls GET); results still missing are queued one
+//                             episode at a time on the bot's clock
 //   POST { answer }           a pasted answer, read and saved now
 // Recaps themselves come with the episodes (GET .../episodes), only for an episode you've seen.
 export const maxDuration = 300;

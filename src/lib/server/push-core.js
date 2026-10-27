@@ -65,6 +65,8 @@ const NOTIFICATION_TYPES = [
     sample: { title: "riley called BINGO", body: "Survivor 50 · Episode 5 · Look at their card" } },
   { id: "flagSettled", label: "Flags settled", description: "How a result you flagged was settled.",
     sample: { title: "You were right about Episode 5", body: "Survivor 50 · Kyle · voted out: every game has it put right." } },
+  { id: "researchDone", label: "Results you asked for", description: "As each episode's results come in, when you asked our bot to look them up.",
+    sample: { title: "Episode 5's results are in", body: "Traitors 5 · 12 results. The Players tab counts them now." } },
 ];
 const TYPE_IDS = new Set(NOTIFICATION_TYPES.map((t) => t.id));
 

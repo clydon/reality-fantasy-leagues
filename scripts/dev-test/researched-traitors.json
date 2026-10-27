@@ -1,0 +1,305 @@
+{
+ "cast": {
+  "unit": "people",
+  "groups": null,
+  "plural": "players",
+  "singular": "player",
+  "usualSize": 22
+ },
+ "kind": "competition",
+ "show": "ZT Castle Game",
+ "points": {
+  "winner": 6,
+  "removed": -10,
+  "banished": -6,
+  "finalist": 4,
+  "murdered": 0,
+  "shieldWon": 2,
+  "leftTheGame": -10,
+  "secretMission": 2,
+  "missionBlunder": -1,
+  "publicArgument": 0,
+  "missionStandout": 2,
+  "shieldProtected": 3,
+  "traitorBanished": 4,
+  "faithfulBanished": -2,
+  "traitorRecruited": 2,
+  "missionMoneyAdded": 1,
+  "accusedAndSurvived": 1,
+  "accusedOfBeingTraitor": 0
+ },
+ "schema": 1,
+ "season": {
+  "finale": {
+   "summary": "The remaining players decide whether to end the game or continue banishing; if any Traitor remains when the game ends, the Traitors take the prize, otherwise the Faithful share it.",
+   "decidedBy": "castVote",
+   "finalists": 4
+  },
+  "phases": [
+   {
+    "id": "castle",
+    "name": "The castle",
+    "starts": {
+     "n": 1,
+     "type": "episode"
+    },
+    "changes": [],
+    "summary": "Players establish relationships, undertake Missions, gather at the Round Table to vote on Banishments, and face secret nighttime Murders while trying to determine whom to trust."
+   },
+   {
+    "id": "endgame",
+    "name": "The endgame",
+    "starts": {
+     "type": "announced"
+    },
+    "changes": [
+     "segmentsChange"
+    ],
+    "summary": "As the field narrows, the game shifts toward successive Banishments and the final decision about whether any Traitors remain."
+   }
+  ]
+ },
+ "twists": [
+  {
+   "id": "traitorsAndFaithful",
+   "name": "Traitors and Faithful",
+   "type": "secretRole",
+   "roles": [
+    "Traitor",
+    "Faithful"
+   ],
+   "summary": "Players are secretly assigned to the Traitors or the Faithful; Traitors cooperate in secret to eliminate other players, and recruitment may allow the hidden faction to grow.",
+   "revealed": "whenTheyLeave",
+   "canSwitch": "recruited"
+  },
+  {
+   "id": "shields",
+   "does": [
+    "keepsSafe"
+   ],
+   "name": "Shields",
+   "type": "advantage",
+   "gotBy": "wonAt",
+   "lasts": "oneEpisode",
+   "wonAt": "mission",
+   "summary": "A Shield can protect its holder from a Murder, but does not ordinarily prevent a Banishment at the Round Table.",
+   "oneIsCalled": "a Shield"
+  },
+  {
+   "id": "recruitment",
+   "does": [
+    "savesSomeone",
+    "hurtsSomeone"
+   ],
+   "name": "Recruitment",
+   "type": "advantage",
+   "gotBy": "chosenByShow",
+   "lasts": "oneUse",
+   "summary": "The remaining Traitors may be offered an opportunity to recruit a Faithful into their secret faction, subject to the rules of the offer.",
+   "oneIsCalled": "a recruitment offer"
+  }
+ ],
+ "leftOut": [
+  "The opening ceremony includes a blindfolded role-selection process in which the host secretly designates the Traitors.",
+  "The Traitors meet in a secret location to discuss strategy and coordinate their decisions, a recurring scene that is not itself a separate competition segment.",
+  "A special secret mission can impose an additional objective or consequence beyond the ordinary Mission cycle.",
+  "Murder decisions and their consequences may be delayed or altered by special rules, recruitment offers, or other twists announced by the show.",
+  "The network edition uses shorter broadcast episodes, so a complete day in the castle does not necessarily fit within one episode.",
+  "The finale's endgame decision and any further Banishments belong to the season finale rather than a regular episode segment."
+ ],
+ "premise": "Everyday players enter a Scottish castle to compete in missions that build a shared prize fund while secretly assigned Traitors work against the Faithful. The Faithful try to identify and banish every Traitor, while the Traitors secretly murder players and conceal their identities. At the end, the remaining players decide whether to finish the game or banish again: if any Traitor remains, the Traitors claim the prize; if all remaining players are Faithful, they share it.",
+ "tagline": "Faithful hunt secret Traitors in a castle of deception",
+ "waysOut": [
+  {
+   "id": "banished",
+   "name": "Banished at the Round Table",
+   "cause": {
+    "segment": "roundTable"
+   },
+   "means": "out"
+  },
+  {
+   "id": "murdered",
+   "name": "Murdered",
+   "cause": {
+    "segment": "murder"
+   },
+   "means": "out"
+  },
+  {
+   "id": "leftTheGame",
+   "name": "Left the game",
+   "cause": "ownChoice",
+   "means": "out"
+  },
+  {
+   "id": "removed",
+   "name": "Removed from the game",
+   "cause": "removed",
+   "means": "out"
+  },
+  {
+   "id": "finalist",
+   "name": "Finalist",
+   "means": "finalist"
+  },
+  {
+   "id": "winner",
+   "name": "Winner",
+   "means": "winner"
+  }
+ ],
+ "segments": [
+  {
+   "id": "breakfast",
+   "name": "Breakfast",
+   "often": "everyEpisode",
+   "summary": "The remaining players gather and discover who has been murdered during the night, while the absence of a player fuels suspicion.",
+   "decidedBy": "nobody",
+   "onTheLine": "nothing"
+  },
+  {
+   "id": "mission",
+   "name": "Mission",
+   "often": "everyEpisode",
+   "decides": "winner",
+   "summary": "Players work together on a challenge to add money to the prize fund, with some Missions also offering access to protective advantages or other special opportunities.",
+   "decidedBy": "result",
+   "onTheLine": "reward",
+   "takesPart": "everyone"
+  },
+  {
+   "id": "roundTable",
+   "name": "Round Table",
+   "often": "everyEpisode",
+   "voters": "cast",
+   "summary": "Players debate suspicions and secretly vote to Banish one of their fellow players, with the person receiving the most votes leaving the game and revealing their allegiance.",
+   "decidedBy": "vote",
+   "onTheLine": "goingHome",
+   "takesPart": "everyone"
+  },
+  {
+   "id": "murder",
+   "name": "Murder",
+   "often": "everyEpisode",
+   "voters": "secretGroup",
+   "summary": "The Traitors meet in secret to choose a player to murder, removing that player from the game unless a special rule prevents the murder.",
+   "decidedBy": "vote",
+   "onTheLine": "goingHome",
+   "takesPart": "everyone"
+  }
+ ],
+ "customMoments": [
+  {
+   "id": "missionMoneyAdded",
+   "label": "Money added to the prize fund",
+   "during": {
+    "segment": "mission"
+   },
+   "counted": "perUnit",
+   "answeredBy": "research",
+   "reliability": "reliable"
+  },
+  {
+   "id": "missionStandout",
+   "label": "Credited with a standout contribution to a Mission",
+   "during": {
+    "segment": "mission"
+   },
+   "counted": "yesNo",
+   "answeredBy": "research",
+   "reliability": "usually"
+  },
+  {
+   "id": "missionBlunder",
+   "label": "Blamed for a Mission mistake or lost money",
+   "during": {
+    "segment": "mission"
+   },
+   "counted": "yesNo",
+   "answeredBy": "research",
+   "reliability": "usually"
+  },
+  {
+   "id": "accusedAndSurvived",
+   "label": "Accused at the Round Table and survived",
+   "during": {
+    "segment": "roundTable"
+   },
+   "counted": "yesNo",
+   "answeredBy": "research",
+   "reliability": "usually"
+  },
+  {
+   "id": "traitorBanished",
+   "label": "Traitor banished",
+   "during": {
+    "segment": "roundTable"
+   },
+   "counted": "yesNo",
+   "answeredBy": "research",
+   "reliability": "reliable"
+  },
+  {
+   "id": "faithfulBanished",
+   "label": "Faithful banished",
+   "during": {
+    "segment": "roundTable"
+   },
+   "counted": "yesNo",
+   "answeredBy": "research",
+   "reliability": "reliable"
+  },
+  {
+   "id": "traitorRecruited",
+   "label": "Faithful recruited into the Traitors",
+   "during": {
+    "twist": "recruitment"
+   },
+   "counted": "yesNo",
+   "answeredBy": "research",
+   "reliability": "reliable"
+  },
+  {
+   "id": "shieldWon",
+   "label": "Won a Shield",
+   "during": {
+    "twist": "shields"
+   },
+   "counted": "yesNo",
+   "answeredBy": "research",
+   "reliability": "reliable"
+  },
+  {
+   "id": "shieldProtected",
+   "label": "Shield prevented a Murder",
+   "during": {
+    "twist": "shields"
+   },
+   "counted": "yesNo",
+   "answeredBy": "research",
+   "reliability": "usually"
+  },
+  {
+   "id": "accusedOfBeingTraitor",
+   "label": "Accused of being a Traitor",
+   "counted": "eachTime",
+   "answeredBy": "research",
+   "reliability": "usually"
+  },
+  {
+   "id": "publicArgument",
+   "label": "Had a public argument with another player",
+   "counted": "eachTime",
+   "answeredBy": "research",
+   "reliability": "usually"
+  },
+  {
+   "id": "secretMission",
+   "label": "Undertook a secret mission",
+   "counted": "yesNo",
+   "answeredBy": "research",
+   "reliability": "reliable"
+  }
+ ]
+}

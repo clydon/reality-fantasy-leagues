@@ -22,7 +22,8 @@ export type NotificationType =
   | "planOff"
   | "poll"
   | "bingoLine"
-  | "flagSettled";
+  | "flagSettled"
+  | "researchDone";
 
 export interface NotificationTypeDef {
   id: NotificationType;

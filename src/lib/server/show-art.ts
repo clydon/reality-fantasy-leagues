@@ -376,6 +376,46 @@ export async function fillCastPhotos(seasonId: string, listingsBase?: string, op
   return result;
 }
 
+/** A season's credits as castPhotosFor reads them: TMDB's, and TVmaze's once a name needed them. Kept a few minutes. */
+const credited = new Map<string, { at: number; season: SeasonRow | null; tmdb: Credit[]; tvmaze: Credit[] | null }>();
+const CREDITS_KEPT_MS = 10 * 60_000;
+
+/**
+ * Photos for a cast nobody has saved yet (Make it a game's review, before Looks right): each name's photo from the season's
+ * credits, found the way fillCastPhotos finds them (TMDB's, then TVmaze's premiere guest cast), by name. Nothing is written
+ * but the show's TMDB link. A sport's are left to the sweep (a Wikipedia search each). Never throws: none found is an empty map.
+ */
+export async function castPhotosFor(seasonId: string, names: string[], listingsBase?: string): Promise<Map<string, string>> {
+  const out = new Map<string, string>();
+  if (!names.length) return out;
+  try {
+    let kept = credited.get(seasonId);
+    if (!kept || Date.now() - kept.at > CREDITS_KEPT_MS) {
+      const season = await linkedSeason(seasonId, listingsBase);
+      const usable = !!season && !season.art_off && season.kind !== "sport";
+      kept = { at: Date.now(), season: usable ? season : null, tmdb: usable && season!.tmdb_id && tmdbOn() ? await tmdbSeasonCredits(season!) : [], tvmaze: null };
+      if (credited.size > 50) credited.clear();
+      credited.set(seasonId, kept);
+    }
+    if (!kept.season) return out;
+    const match = (credits: Credit[]) => {
+      for (const n of names) {
+        if (out.has(n)) continue;
+        const hit = matchCredit(n, credits);
+        if (hit?.photo) out.set(n, hit.photo);
+      }
+    };
+    match(kept.tmdb);
+    if (names.some((n) => !out.has(n))) {
+      kept.tvmaze ??= await tvmazeSeasonCredits(kept.season, listingsBase);
+      match(kept.tvmaze);
+    }
+  } catch (e) {
+    console.error("[show-art] cast photos for a review:", e);
+  }
+  return out;
+}
+
 // ---------- when it runs ----------
 
 /** Everything for one show: its art, then each season's poster and cast photos (newest five). */

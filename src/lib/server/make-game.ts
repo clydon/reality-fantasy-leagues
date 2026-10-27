@@ -30,7 +30,7 @@ import { pool, HttpError } from "./db";
 import { logDesk } from "./desk";
 import { seenThrough } from "./guard";
 import { ListingsUnavailable, showCast } from "./listings";
-import { findArtLater } from "./show-art";
+import { castPhotosFor, findArtLater } from "./show-art";
 import { seasonHeaders, type SeasonHeader } from "./show-space";
 import { libraryTemplates, otherSeasonRulebook } from "./templates";
 
@@ -325,8 +325,22 @@ function needsOf(row: SetupRow, worked: Worked | null): "rules" | "cast" | null 
   return worked.review.needsCast ? "cast" : null;
 }
 
-/** Make it a game for this season, as you see it: who's at it, how far, and the review once how it works is in. */
-export async function makeState(user: SessionUser, seasonId: string, couchId: string | null, bot?: string): Promise<MakeState> {
+/**
+ * The faces an answer gave no photo: the season's own credits' (show-art.ts castPhotosFor: TMDB's, else TVmaze's), shown in the
+ * review straight away and saved with the cast by Looks right. Never written before that.
+ */
+async function withPhotos(seasonId: string, worked: Worked, base?: string): Promise<void> {
+  const want = worked.cast.filter((c) => !c.photoUrl).map((c) => c.name);
+  if (!want.length) return;
+  const found = await castPhotosFor(seasonId, want, base);
+  if (!found.size) return;
+  worked.cast = worked.cast.map((c) => (c.photoUrl || !found.has(c.name) ? c : { ...c, photoUrl: found.get(c.name)! }));
+  for (const f of worked.review.cast.faces) if (!f.photo && found.has(f.name)) f.photo = found.get(f.name)!;
+}
+
+/** Make it a game for this season, as you see it: who's at it, how far, and the review once how it works is in. `base`: the
+ *  TV listings (a check's stand-in), where the review's photos are looked for. */
+export async function makeState(user: SessionUser, seasonId: string, couchId: string | null, bot?: string, base?: string): Promise<MakeState> {
   const show = await showOf(seasonId);
   const couch = await onCouch(user.id, couchId);
   const ready = show.header.ready;
@@ -342,6 +356,7 @@ export async function makeState(user: SessionUser, seasonId: string, couchId: st
     rulebookId = rows[0]?.rulebook_id ?? null;
   }
   const worked = row ? workOut(row, show, await seenThrough(user.id, seasonId)) : null;
+  if (worked) await withPhotos(seasonId, worked, base);
   const mine = !!row && row.started_by === user.id;
   return {
     seasonId,
@@ -426,7 +441,7 @@ export async function askMake(user: SessionUser, seasonId: string, couchId: stri
   await notReady(seasonId);
   if (!(await botAvailable(bot))) throw new HttpError(503, "Our bot isn't answering right now. Copy and paste works.");
   const row = await attempt(user, seasonId, couchId, "bot");
-  if (askingNow(row)) return makeState(user, seasonId, couchId, bot);
+  if (askingNow(row)) return makeState(user, seasonId, couchId, bot, base);
   if (body.again === "rules") await pool.query("UPDATE show_setups SET rules_answer = NULL, kind = NULL, start = NULL, cast_answer = CASE WHEN cast_from = 'chat' THEN NULL ELSE cast_answer END WHERE id = $1", [row.id]);
   if (body.again === "cast") await pool.query("UPDATE show_setups SET cast_answer = NULL, cast_from = NULL WHERE id = $1", [row.id]);
   // Only one ask at a time, whoever tapped.
@@ -436,7 +451,7 @@ export async function askMake(user: SessionUser, seasonId: string, couchId: stri
     [row.id, ASK_STALE_MS / 1000]
   );
   if (rowCount) after(() => runAsk(row.id, seasonId, base, bot));
-  return makeState(user, seasonId, couchId, bot);
+  return makeState(user, seasonId, couchId, bot, base);
 }
 
 /** Our bot's ask, after the response: how it works, then the cast (TVmaze's for a series or talk show), as time allows. */
@@ -507,7 +522,7 @@ export async function pasteMake(user: SessionUser, seasonId: string, couchId: st
   } else throw new HttpError(400, "part is rules or cast");
   row = await rowById(row.id);
   await settleStage(row, show, base);
-  return makeState(user, seasonId, couchId);
+  return makeState(user, seasonId, couchId, undefined, base);
 }
 
 /**
@@ -535,7 +550,7 @@ export async function templateMake(user: SessionUser, seasonId: string, couchId:
   );
   row = await rowById(row.id);
   await settleStage(row, show, base);
-  return makeState(user, seasonId, couchId);
+  return makeState(user, seasonId, couchId, undefined, base);
 }
 
 /** After an answer or a kind: the cast from the listing when it can come from there, then ready or still needing the cast. */
@@ -568,11 +583,11 @@ export async function kindMake(user: SessionUser, seasonId: string, couchId: str
     [row.id, kind, start]
   );
   if (!askingNow(row)) await settleStage(await rowById(row.id), show, base);
-  return makeState(user, seasonId, couchId);
+  return makeState(user, seasonId, couchId, undefined, base);
 }
 
 /** Start over: forget how it works (and the kind), the cast, or the whole attempt. */
-export async function restartMake(user: SessionUser, seasonId: string, couchId: string | null, body: { part?: unknown }): Promise<MakeState> {
+export async function restartMake(user: SessionUser, seasonId: string, couchId: string | null, body: { part?: unknown }, base?: string): Promise<MakeState> {
   await notReady(seasonId);
   const row = await openRow(seasonId);
   if (row && askingNow(row)) throw new HttpError(409, "Our bot is asking right now. It'll be ready in a minute or two.");
@@ -580,7 +595,7 @@ export async function restartMake(user: SessionUser, seasonId: string, couchId: 
     if (body.part === "cast") await pool.query("UPDATE show_setups SET cast_answer = NULL, cast_from = NULL, stage = 'cast', message = NULL, updated_at = now() WHERE id = $1", [row.id]);
     else await pool.query("DELETE FROM show_setups WHERE id = $1 AND done_at IS NULL", [row.id]);
   }
-  return makeState(user, seasonId, couchId);
+  return makeState(user, seasonId, couchId, undefined, base);
 }
 
 // ---- Looks right: the show set up for everyone ----
@@ -604,8 +619,8 @@ const startedFrom = (blocks: RulebookBlocks): TemplateRef | null => {
   return m ? { from: "rulebook", id: m[1] } : null;
 };
 
-/** Looks right: the season's rulebook and cast, and the show set up for every couch. */
-export async function confirmMake(user: SessionUser, seasonId: string, couchId: string | null): Promise<MakeState> {
+/** Looks right: the season's rulebook and cast (with the photos the review showed), and the show set up for every couch. */
+export async function confirmMake(user: SessionUser, seasonId: string, couchId: string | null, base?: string): Promise<MakeState> {
   const show = await notReady(seasonId);
   const h = show.header;
   const row = await openRow(seasonId);
@@ -613,6 +628,7 @@ export async function confirmMake(user: SessionUser, seasonId: string, couchId: 
   if (askingNow(row)) throw new HttpError(409, "Our bot is asking right now. It'll be ready in a minute or two.");
   const worked = workOut(row, show, Infinity);
   if (!worked || !worked.review.approvable || !worked.data) throw new HttpError(409, worked?.review.needsCast ? "Who's in it is still missing" : "That answer can't be used. Ask again.");
+  await withPhotos(seasonId, worked, base);
   const { blocks, data, phaseStarts, cast } = worked;
   const { key } = worked.review.kind;
   const formatId = data.id;
@@ -694,7 +710,7 @@ export async function confirmMake(user: SessionUser, seasonId: string, couchId: 
   } finally {
     c.release();
   }
-  // The show's art, the season's poster and the cast's photos, found after the answer (show-art.ts).
-  findArtLater({ showId: h.show.id, seasonId });
-  return makeState(user, seasonId, couchId);
+  // The show's art, the season's poster and the cast's photos (anyone still without one), found after the answer (show-art.ts).
+  findArtLater({ showId: h.show.id, seasonId }, base);
+  return makeState(user, seasonId, couchId, undefined, base);
 }

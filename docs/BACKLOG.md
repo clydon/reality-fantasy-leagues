@@ -97,6 +97,22 @@ Last updated 2026-10-27.
       (`src/components/phone-back.tsx`, which drops its own watcher on that tap anyway). Classic's More sheet already
       closes on back (a history entry, `mobile-nav.tsx`).
     - **Check:** extend `scripts/dev-test/check-phone-back.js`: open a sheet, Escape, the sheet closes and the path stays.
+13. ~~**The Cast tab hides a set-up cast until results come in**~~ **Built 2026-10-27:** with nothing counted the Cast tab
+    shows the faces (no numbers) and a line; and Fill in what happened now looks up each episode's results too, for a show
+    made a game that nobody plays (`src/lib/server/research-asks.ts`, migration 0152; check:
+    `scripts/dev-test/check-research-asks.js`).
+14. **Making a game drops the cast's starting roles (noticed 2026-10-27, Traitors 5).** The cast answer's `startingRole`
+    (the season's two starting Traitors) is parsed by `cast-prompt.js`, but `confirmMake`
+    (`src/lib/server/make-game.ts`) writes only name, group and photo, so `season_cast.role` stays null. `toCastRoles`
+    exists for a league's import. Decide whether a confirmed starting role belongs on the season's cast (spoiler-guarded
+    from episode 1) or should come in as an episode-1 `role` result.
+15. **Results looked up one episode at a time: a gap isn't asked around (noticed 2026-10-27, building research asks).** Each
+    episode's question lists who's still in by the results so far (`db/episode-research.js` stillInGame). When one episode
+    isn't found (two tries, then given up), the next ones still go, so their questions can include someone who actually
+    left in the missing one; Try again fills the gap later, but the episodes after it aren't asked again.
+    - **The fix, if it shows:** when a given-up episode is filled in by Try again, ask again (merge) the asked episodes
+      after it, or hold a season's later asks while one before them is given up. `src/lib/server/research-asks.ts`,
+      `db/bot-research.js` planAsks.
 
 ## Decided against (don't re-propose without new information)
 

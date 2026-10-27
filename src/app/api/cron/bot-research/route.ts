@@ -7,6 +7,7 @@ import { requireCron } from "@/lib/server/cron";
 import { listingsFor } from "@/lib/server/listings";
 import { listingsDue, refreshListings } from "@/lib/server/tv-listings";
 import { advanceAllAuto } from "@/lib/server/keep-up";
+import { notifyResearched } from "@/lib/server/push-events";
 import { runNext, planRuns } from "@db/bot-research.js";
 
 // The bot research clock (db/bot-research.js): the ask-AI bot's VM calls this, and each call runs at most
@@ -26,6 +27,9 @@ import { runNext, planRuns } from "@db/bot-research.js";
 // hadn't woken already and never holds up a bot run. `listings` in the answer says it did.
 //
 // So do shows set to move along by themselves (keep-up.ts advanceAllAuto): every call moves their marks forward, after its answer.
+//
+// Results someone asked for (research-asks.ts, slot 'asked') are planned with the rest; a run that ends its ask (it worked, or
+// was its last try) tells whoever asked (push-events.ts notifyResearched), after the answer.
 //
 // Authorization: Bearer <CRON_SECRET>, the same value in Vercel and the VM's .env.
 export const maxDuration = 300;
@@ -53,6 +57,9 @@ export const POST = apiRoute(async (req) => {
   const bot = botFor(req);
   const base = listingsFor(req);
   const out = await runNext(pool, { ask: (prompt, o) => askBot(prompt, { ...o, bot }), send: botSend, now: nowFrom(req) });
+  if (out.job && out.asked?.userId) {
+    notifyResearched({ userId: out.asked.userId, seasonId: out.job.seasonId, episode: out.job.episode, askedAt: new Date(out.asked.askedAt), ok: out.asked.ok, found: out.asked.found });
+  }
   const listings = !out.job && (await listingsDue());
   if (listings) after(() => refreshListings(base, { how: "clock" }).catch((e) => console.error("[listings] the daily run:", e)));
   // Shows set to move along by themselves (keep-up.ts): marks moved for everyone, so a couch sees each other where they are.
