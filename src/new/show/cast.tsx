@@ -11,6 +11,7 @@ import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { Face } from "./parts";
 import { RecapsCard } from "./recaps";
+import { ScoringLink } from "./scoring";
 import { DisputeSheet } from "./something-wrong";
 import { statOf, statValue, unitFor, yourTeam } from "./stats";
 
@@ -78,6 +79,7 @@ export function Cast({ seasonId, show }: { seasonId: string; show: ShowData }) {
               : `No results are in yet for the ${w.episodes.toLowerCase()} you've seen. Their stats fill in as they come in.`}
           </p>
           <Faces d={all} people={all.cast} onTap={() => {}} isMine={isMine} bare />
+          <ScoringLink seasonId={seasonId} variant="line" />
         </section>
       </>
     );
@@ -199,6 +201,7 @@ export function Cast({ seasonId, show }: { seasonId: string; show: ShowData }) {
           </>
         )}
         {view === "heat" && <Heat d={d} people={people} onTap={tap} />}
+        <ScoringLink seasonId={seasonId} variant="line" />
       </section>
       <StorySheet
         d={all}

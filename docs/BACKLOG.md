@@ -114,6 +114,33 @@ Last updated 2026-10-27.
       after it, or hold a season's later asks while one before them is given up. `src/lib/server/research-asks.ts`,
       `db/bot-research.js` planAsks. (Who went home now goes first for every episode, so the questions after a missing
       one usually know who left in it; only one whose who-went-home also failed leaves the gap.)
+19. **Looking episodes up again: what step 5 left (noticed 2026-10-27, PLAN-maker-scoring step 5).**
+    - **Only the bot's own earlier answers are replaced.** A fact is held back while any answer covering that person didn't
+      report it (fact-status.ts settleFact `contradicted`), so a person's pasted answer from before a question was added
+      still holds that question's results back (they stay pending). Made games are researched by the bot, so it hasn't
+      come up. The fix would be covers that say which questions an answer was asked (touches everyone's settling).
+    - **A re-ask while that episode's run is going** keeps the run's mode, and that run's prompt was already built: the new
+      question isn't in it. It shows as behind again once the run lands, and Look them up again asks it.
+    - **Behind counts only the questions of moments added by hand** (`behindOf`); a missing re-run asks whatever the stored
+      answers lack, which can be more.
+    - **The roll call's line is cut off at 390** while asked again ("The new question · Our bot picks it up within …"): the
+      caption plate is one line. Could drop the stage line when asked again, or let the plate wrap.
+    - **The replaced answers' Recent changes lines** (their Undo) do nothing once withdrawn.
+18. **A rulebook edit keeps the points block whole (noticed 2026-10-27, PLAN-maker-scoring step 3).** `diffBlocks` records a
+    points change as `{ op: "set", block: "points", value: <every moment's points> }`, so a "the show changed" edit from
+    Episode N carries a snapshot of all the points: a later fix to the base's points (the desk's, or the maker's) is put
+    back to the snapshot from N on. maker-scoring.ts refuses points changes and new moments (409, with why) on a season with
+    such an edit; the desk's fix path has the same gap.
+    - **The fix:** record points per moment in edits (set and unset by id) and apply them that way, keeping old whole-block
+      edits working; then the maker's refusal can go.
+17. **A question added from a later episode is asked of earlier ones too (noticed 2026-10-27, PLAN-maker-scoring step 1).**
+    Research now asks a season by its rulebook as it is (db/episode-research.js catalogEntry → seasonRulebookFormat), whose
+    compiled checklist is every question across its edits (rulebook-patch.js mergeAtEpisode unions them; only the rules
+    carry when each starts). So an episode before a "the show changed" edit is asked its new question too; filing ignores
+    the answer there (check-maker-scoring.js shows nothing counts), so it costs only a longer question. The maker's edits are
+    fixes from the premiere, so only the desk's and the couches' show-changed edits do this.
+    - **The fix, if it matters:** compile the blocks at that episode (blocksAt) for the prompt's checklist, cached by
+      rulebook version and episode.
 16. **The bot's fallback on the PC isn't kept running (noticed 2026-10-27, deploying the bot's progress).** The PC's
     llm-browser-api was started by hand (no scheduled task or startup item, though `deploy/windows-startup.ps1` makes
     one), and `bot-home.gameyourshow.com` has no tunnel running, so production's fallback behind the VM answers nothing.

@@ -47,6 +47,11 @@ export interface SubmitInput {
   facts: SubmittedFact[];
   payload?: unknown;
   provenance?: Record<string, unknown>;
+  /** It carries everything the sender said about the episode before (the bot's answer asked again, merged into its earlier
+   *  ones: db/bot-research.js runJob): those stop counting (withdrawn) as it's filed. An earlier answer that was never asked
+   *  a question added since would otherwise count against every result of it (fact-status.ts: any answer not reporting a
+   *  fact holds it back). */
+  replaces?: boolean;
 }
 
 /** What settling an episode moved: facts that now reach every league, ones that came out, ones whose content changed. */
@@ -89,6 +94,14 @@ export async function submit(input: SubmitInput): Promise<{ researchId: string; 
     await client.query("BEGIN");
     await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [lockKey(input.seasonId, input.episode)]);
     const key = await seasonKey(client, input.seasonId);
+    if (input.replaces) {
+      await client.query(
+        `UPDATE episode_research SET withdrawn_at = now()
+          WHERE show_id = $1 AND season_number = $2 AND episode_number = $3 AND source = $4 AND source <> 'combined' AND withdrawn_at IS NULL
+            AND submitted_by IS NOT DISTINCT FROM $5 AND couch_id IS NOT DISTINCT FROM $6`,
+        [key.showId, key.season, input.episode, input.source, input.userId, input.couchId]
+      );
+    }
     const { rows } = await client.query(
       `INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance, source, submitted_by, couch_id, covers)
        VALUES ($1, $2, $3, $4::jsonb, $5::jsonb, $6, $7, $8, $9::jsonb) RETURNING id`,

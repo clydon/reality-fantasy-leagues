@@ -3,7 +3,7 @@
 //
 //   /home                                    the hub (depth 0)
 //   /show/[seasonId]/[tab]                   a show space's five tabs (depth 1)
-//   /show/[seasonId]/backstage|draft|blind|waivers   pushed over the show (depth 2; a Backstage page is 3)
+//   /show/[seasonId]/backstage|draft|blind|waivers|scoring   pushed over the show (depth 2; a Backstage page is 3)
 //   /welcome                                 the landing, for anyone signed out (depth 0; step 9 part 2)
 //   /signin                                  signing in (depth 1)
 //   /settings, /start/[step], /join/[code]   their own screens (depth 1)
@@ -33,7 +33,7 @@ export function isShowTab(v: string): v is ShowTab {
 }
 
 /** Pages pushed over a show space, each a route of its own. */
-export const SHOW_PAGES = ["backstage", "draft", "blind", "waivers"] as const;
+export const SHOW_PAGES = ["backstage", "draft", "blind", "waivers", "scoring"] as const;
 
 /** Backstage's own pages, one level deeper (/show/[seasonId]/backstage/results). */
 export const BACKSTAGE_PAGES = ["results", "waivers", "rules", "members", "settings", "history"] as const;
@@ -56,7 +56,7 @@ export const paths = {
   /** The show's Tonight with its watch along open (step 13): your next episode, or `ep`; a planned night's, together (`plan`). */
   watch: (seasonId: string, ep?: number | null, plan?: string | null) => `/show/${seasonId}/tonight?page=watch${ep ? `&ep=${ep}` : ""}${plan ? `&plan=${plan}` : ""}`,
   backstage: (seasonId: string, page?: string) => `/show/${seasonId}/backstage${page ? `/${page}` : ""}`,
-  showPage: (seasonId: string, page: "draft" | "blind" | "waivers") => `/show/${seasonId}/${page}`,
+  showPage: (seasonId: string, page: "draft" | "blind" | "waivers" | "scoring") => `/show/${seasonId}/${page}`,
   start: (step: number) => `/start/${step}`,
   join: (code: string) => `/join/${code}`,
   desk: (tab?: "find" | "settings" | "library") => `/desk${tab ? `/${tab}` : ""}`,

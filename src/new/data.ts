@@ -29,6 +29,7 @@ import type { ListingHit } from "@/lib/game/listing";
 import type { AddedShow } from "@/lib/server/add-show";
 import type { KeepUp } from "@/lib/server/keep-up";
 import type { RecapState } from "@/lib/server/episode-recaps";
+import type { ScoringPage } from "@/lib/server/maker-scoring";
 import type { Roster } from "@/lib/server/rosters";
 import type { StepEpisode } from "@/lib/server/schedule";
 import type { ListingSeason } from "@/lib/server/listings";
@@ -1128,6 +1129,28 @@ export const roster = {
   ask: (seasonId: string) => post<Roster>(`/api/seasons/${seasonId}/roster`, { action: "ask" }),
   paste: (seasonId: string, answer: string) => post<Roster & { filled: number }>(`/api/seasons/${seasonId}/roster`, { answer }),
   prompt: (seasonId: string) => get<{ prompt: string }>(`/api/seasons/${seasonId}/roster?prompt=1`),
+};
+
+export type { ScoringMoment, ScoringPage, ScoringSave } from "@/lib/server/maker-scoring";
+
+/** A made game's scoring as its maker changes it (maker-scoring.ts): every moment's points, the questions to score from,
+ *  and whether you may change it; null for a show that isn't a made game. */
+export function useScoring(seasonId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "scoring", seasonId],
+    queryFn: () => get<ScoringPage | null>(`/api/seasons/${seasonId}/scoring`),
+    enabled: enabled && seasonId != null,
+    staleTime: 30_000,
+    retry: false,
+  });
+}
+
+export const scoring = {
+  /** Saved as a fix from the premiere; `ask`: the new moments that need the episodes looked up again. */
+  save: (seasonId: string, body: { points?: Record<string, number>; add?: { label: string; counted: string; points: number; uses?: string }[]; remove?: string[] }) =>
+    post<{ page: ScoringPage; ask: { id: string; label: string }[]; restaged: number[] }>(`/api/seasons/${seasonId}/scoring`, body),
+  /** The episodes looked up already, asked about again: for just the new questions, or everything. */
+  again: (seasonId: string, again: "missing" | "full") => post<{ page: ScoringPage; asked: number }>(`/api/seasons/${seasonId}/scoring`, { again }),
 };
 
 export const recaps = {

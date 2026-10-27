@@ -261,4 +261,7 @@ test("results someone asked for: each episode's full results in order, one at a 
   assert.equal(next([ask(1, [run(1, false)]), ask(2)], 4).episode, 1);
   assert.equal(next([ask(1, [run(1, false), run(4, false)]), ask(2)], 7).episode, 2);
   assert.equal(next([], 1), null);
+  // Asked again (0154): the job says for what.
+  assert.equal(next([{ ...ask(3), mode: "missing" }], 1).mode, "missing");
+  assert.equal("mode" in next([ask(3)], 1), false);
 });

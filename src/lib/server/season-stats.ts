@@ -3,8 +3,10 @@ import { castStats, seasonFacts, type CastStats, type StatsBook } from "@/lib/ga
 import type { DecisionFact } from "@/lib/game/decision-apply";
 import { isBuiltInFormat } from "@/lib/game/formats/index.js";
 import { rulebookFor } from "@/lib/game/formats/blocks/index.js";
+import { blocksAt } from "@/lib/game/formats/rulebook-patch.js";
+import type { RulebookBlocks } from "@/lib/game/formats/rulebook-schema.js";
 import type { LeagueSettings, LeagueState } from "@/lib/game/types";
-import { rulebookForLeague, seasonRulebook } from "@db/rulebooks.js";
+import { inForceEdits, rulebookForLeague, seasonRulebook } from "@db/rulebooks.js";
 import { resolveFormat } from "@db/show-formats.js";
 import type { SessionUser } from "./auth-helpers";
 import { unsettledFacts } from "./community-results";
@@ -74,6 +76,13 @@ export interface SeasonFactsFor {
   pointsFrom: string | null;
 }
 
+/** A rulebook's blocks as they are at where you are: its in-force edits applied (a moment an edit added gets its stat
+ *  column, docs/PLAN-maker-scoring.md step 1), as Backstage's scoring reads them. */
+async function bookOf(row: { id: string; blocks: unknown; aliases: unknown }, mark: number): Promise<StatsBook> {
+  const blocks = blocksAt(row.blocks as RulebookBlocks, await inForceEdits(pool, row.id), Number.isFinite(mark) ? mark : Infinity) as RulebookBlocks;
+  return { blocks, aliases: row.aliases as StatsBook["aliases"] };
+}
+
 /** The facts a viewer's stats are counted from, and how to name and score them. */
 export async function seasonFactsFor(user: SessionUser, seasonId: string, couchId: string | null): Promise<SeasonFactsFor> {
   const seen = await seenThrough(user.id, seasonId);
@@ -107,14 +116,14 @@ export async function seasonFactsFor(user: SessionUser, seasonId: string, couchI
     if (game.gameType === "active-roster") settings.eventPoints = state.settings.eventPoints;
     const row = await rulebookForLeague(pool, { leagueId: game.leagueId, settings: state.settings });
     const format = StateLogic.formatOf(view);
-    book = row?.blocks ? { blocks: row.blocks, aliases: row.aliases } : rulebookFor(format.id, format.data);
+    book = row?.blocks ? await bookOf(row, mark) : rulebookFor(format.id, format.data);
   } else {
     const row = await seasonRulebook(pool, seasonId);
     const format = await resolveFormat(pool, season.format ?? null);
     settings = row?.compiled
       ? { rulebook: { data: row.compiled, reader: row.reader } as LeagueSettings["rulebook"] }
       : ({ showFormat: format.id, showFormatData: isBuiltInFormat(format.id) ? null : format.data } as Partial<LeagueSettings>);
-    book = row?.blocks ? { blocks: row.blocks, aliases: row.aliases } : rulebookFor(format.id, format.data);
+    book = row?.blocks ? await bookOf(row, mark) : rulebookFor(format.id, format.data);
   }
 
   // The season's results, or (none accepted yet) the game's own as you've seen them.

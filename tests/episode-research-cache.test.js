@@ -74,6 +74,29 @@ test("merge: with nothing stored, the new run is the answer as-is", () => {
   assert.equal(R.mergeResearchPayload(null, incoming).payload, incoming);
 });
 
+test("just what's new (docs/PLAN-maker-scoring.md step 5): only the questions stored answers have nothing for, filled in", () => {
+  const keys = R.checklistKeys(survivor);
+  assert.ok(keys.includes("votesReceived") && !keys.includes("name") && !keys.includes("confidence"), "the format's own questions, not the core ones");
+  // Answers from before votesReceived and wentOnJourney were asked: those two are what's missing.
+  const old = { castaways: [Object.fromEntries(["name", "confidence", ...keys.filter((k) => k !== "votesReceived" && k !== "wentOnJourney")].map((k) => [k, "no"]))] };
+  assert.deepEqual(R.unaskedKeys(survivor, old), ["votesReceived", "wentOnJourney"]);
+  assert.deepEqual(R.unaskedKeys(survivor, { castaways: [Object.fromEntries(keys.map((k) => [k, "no"]))] }), []);
+  // The cut-down checklist: the core fields and those keys, nothing per episode, no groups or merge.
+  const only = R.onlyFormat(survivor, ["votesReceived"]);
+  const schema = R.researchSchemaFor(only);
+  assert.deepEqual(Object.keys(schema.shape.castaways.element.shape).sort(), ["confidence", "exitMethod", "leftTheGame", "name", "sources", "votesReceived"]);
+  assert.equal("merged" in schema.shape, false);
+  assert.ok("summary" in schema.shape && "airDate" in schema.shape, "still says which episode it's about");
+  assert.equal(survivor.hasGroups, true, "the format itself is untouched");
+  // Filled in: the new answer joins the stored entry, everything it had stays.
+  const stored = { castaways: [{ ...entry("Ada Lovelace", "high"), attendedTribal: "yes", foundAdvantage: "yes" }] };
+  const merged = R.mergeResearchPayload(stored, { castaways: [{ name: "Ada Lovelace", leftTheGame: "no", exitMethod: null, sources: ["https://x"], confidence: "medium", votesReceived: 2 }] }, { fill: true }).payload;
+  assert.equal(merged.castaways[0].votesReceived, 2);
+  assert.equal(merged.castaways[0].attendedTribal, "yes");
+  assert.equal(merged.castaways[0].foundAdvantage, "yes");
+  assert.equal(merged.castaways[0].confidence, "high");
+});
+
 test("the admin store replaces wholesale and never merges (no read, no lock -- one upsert of exactly what it was given)", async () => {
   const queries = [];
   const pool = {

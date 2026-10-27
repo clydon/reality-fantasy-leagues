@@ -67,7 +67,9 @@ export interface BotSend {
     { applied: true; leagues: number; researchId: string } | { applied: false; doubt: string; line: string }
   >;
   /** The full results (researchFromPaste's run): sent as one source, the scheduled runs' (autopilot) or a tie-break's. */
-  full(input: { seasonId: string; episode: number; run: unknown; source: "autopilot" | "tiebreak" }): Promise<{ researchId: string; facts: number; count: number }>;
+  /** `replaces`: the answer carries everything the bot said about the episode before (asked again, merged): its earlier ones
+   *  stop counting. */
+  full(input: { seasonId: string; episode: number; run: unknown; source: "autopilot" | "tiebreak"; replaces?: boolean }): Promise<{ researchId: string; facts: number; count: number }>;
 }
 
 export const DEFAULT_SCHEDULE: BotScheduleRun[];

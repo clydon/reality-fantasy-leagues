@@ -37,6 +37,9 @@
 // season's schedule either: each asked episode is a job of its own (slot 'asked'), a season's one at a time in episode
 // order, each one's full results complete before the next (two tries each; seasonAskNext). The run says how it ended on the
 // ask (settleAsk), and the app tells whoever asked. Every run writes how far it's got as it goes (progressFor, 0153).
+// An episode looked up already can be asked again (0154, the maker's scoring: docs/PLAN-maker-scoring.md step 5): "missing"
+// asks only the questions its stored answers have nothing for, "full" the whole checklist; either is filled into the stored
+// answers, and what's filed as the bot's answer is that merged whole, so nothing it said before counts as taken back.
 const Air = require("../src/lib/game/air-schedule.js");
 const StateLogic = require("../src/lib/game/state-logic.js");
 const AutoResearch = require("./auto-research.js");
@@ -285,7 +288,7 @@ function seasonAskNext(asks, now) {
   for (const a of asks) {
     const at = askedNext(a.asked_at, a.tries, now);
     if (!at) continue;
-    return at.getTime() <= t ? { episode: a.episode_number, kind: "full", slot: ASKED_SLOT, at: new Date(a.asked_at) } : { hold: at };
+    return at.getTime() <= t ? { episode: a.episode_number, kind: "full", slot: ASKED_SLOT, at: new Date(a.asked_at), ...(a.mode ? { mode: a.mode } : {}) } : { hold: at };
   }
   return null;
 }
@@ -293,12 +296,12 @@ function seasonAskNext(asks, now) {
 /** Every open ask (or one season's), oldest first and a season's in episode order, with its runs since it was asked. */
 async function openAsks(pool, seasonId = null) {
   const { rows } = await pool.query(
-    `SELECT a.season_id, a.episode_number, a.asked_at,
+    `SELECT a.season_id, a.episode_number, a.asked_at, a.mode,
             COALESCE(json_agg(json_build_object('started_at', r.started_at, 'ok', r.ok)) FILTER (WHERE r.id IS NOT NULL), '[]') AS tries
        FROM research_asks a
        LEFT JOIN bot_research_runs r ON r.season_id = a.season_id AND r.episode_number = a.episode_number AND r.slot = $2 AND r.started_at >= a.asked_at
       WHERE a.done_at IS NULL AND ($1::uuid IS NULL OR a.season_id = $1)
-      GROUP BY a.season_id, a.episode_number, a.asked_at
+      GROUP BY a.season_id, a.episode_number, a.asked_at, a.mode
       ORDER BY a.asked_at, a.episode_number`,
     [seasonId, ASKED_SLOT]
   );
@@ -321,7 +324,7 @@ async function planAsks(pool, now, seasonId = null) {
     const at = plan.hold ?? plan.at;
     if (!plan.hold) {
       const season = await loadSeasonForJob(pool, id);
-      if (season) due.push({ episode: plan.episode, slot: plan.slot, kind: plan.kind, after: null, at: plan.at, season });
+      if (season) due.push({ episode: plan.episode, slot: plan.slot, kind: plan.kind, after: null, at: plan.at, season, ...(plan.mode ? { mode: plan.mode } : {}) });
     }
     const when = Math.max(at.getTime(), t);
     if (next === null || when < next) next = when;
@@ -681,7 +684,12 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
       }
       return finish(true, quickMessage(q), q);
     }
-    const { prompt, castCount } = await Research.buildPasteImportPrompt(pool, season.slug, season.season_number, episode, { structured: true });
+    // Asked again for just what's new: only the questions its stored answers have nothing for (none: nothing to ask).
+    const { prompt, castCount, only } = await Research.buildPasteImportPrompt(pool, season.slug, season.season_number, episode, {
+      structured: true,
+      ...(job.mode === "missing" ? { only: "missing" } : {}),
+    });
+    if (!prompt) return finish(true, "Nothing new to ask: its answers have every question already", { only: [], live: null });
     const { answer } = await ask(prompt, { progress: progressFor(castCount) });
     const { rows: prior } = await pool.query(
       "SELECT 1 FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 AND source = 'combined'",
@@ -694,6 +702,7 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
       structured: true,
       merge: again,
       fill: again,
+      ...(only ? { only } : {}),
       dry,
       via: "bot",
       // An answer about another episode (the bot's chat can carry an earlier question over) is a failed try.
@@ -703,6 +712,7 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
     const result = {
       researchId: run.id || null,
       merged: again,
+      ...(only ? { only } : {}),
       inserted: d.inserted || 0,
       updated: d.updated || 0,
       total: d.total || 0,
@@ -710,7 +720,12 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
     };
     if (send && !dry) {
       // A tie-break is the same full research, filed as a source of its own.
-      const sent = await send.full({ seasonId: season.id, episode, run, source: kind === "tiebreak" ? "tiebreak" : "autopilot" });
+      // Asked again (an episode with answers already): the merged whole is the bot's answer, so a question asked on its own
+      // doesn't take back everything it didn't ask, and it replaces the bot's earlier answers (which weren't asked what's
+      // new, so would otherwise count as saying it didn't happen).
+      const replaces = slot === ASKED_SLOT && again;
+      const filed = replaces ? { ...run, submitted: run.payload } : run;
+      const sent = await send.full({ seasonId: season.id, episode, run: filed, source: kind === "tiebreak" ? "tiebreak" : "autopilot", ...(replaces ? { replaces } : {}) });
       const lead = kind === "tiebreak" ? "Tie-break: " : "";
       return finish(true, `${lead}${sent.count} of ${sent.facts} result(s) in every league${again ? " (the stored answers merged too)" : ""}`, { ...result, submission: sent.researchId, live: sent.count });
     }

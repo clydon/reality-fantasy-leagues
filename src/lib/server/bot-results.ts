@@ -42,7 +42,7 @@ export const botSend: BotSend = {
     return { applied: true, leagues: sent.leagues, researchId: sent.researchId };
   },
 
-  async full({ seasonId, episode, run, source }) {
+  async full({ seasonId, episode, run, source, replaces }) {
     const r = run as PastedRun;
     const items = await researchItems(pool, seasonId, r, r.submitted);
     const facts: SubmittedFact[] = withNobodyOut(
@@ -59,6 +59,7 @@ export const botSend: BotSend = {
         couchId: null,
         covers: { people: r.castNames, kinds: null },
         facts,
+        ...(replaces ? { replaces } : {}),
         payload: r.submitted,
         provenance: { ...provenance, run: source === "tiebreak" ? "tiebreak" : "full", pasted: typeof pastedNotes === "string" ? pastedNotes.length : null },
       },

@@ -53,6 +53,8 @@ export interface RulebookCustomMoment {
   id: string;
   label: string;
   question?: string;
+  /** Scored from a question the rulebook already asks (its key) instead of one of its own (docs/PLAN-maker-scoring.md). */
+  uses?: string;
   during?: { segment: string } | { twist: string } | null;
   counted: "yesNo" | "eachTime" | "perUnit";
   answeredBy: "research" | "league";

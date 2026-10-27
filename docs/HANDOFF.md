@@ -65,6 +65,25 @@ hard-stops a question stuck past its time (it once hung 16 minutes and blocked e
 1's real research in 155 s, counted 0 to 22 as it was written. Checks: check-research-asks.js 53 PASS at 390; One tap's and
 Autopilot's (89) and settling's (96) still pass with progress on every run.
 
+**The maker changes a made game's scoring (2026-10-27, built, not committed; migration 0154):**
+[PLAN-maker-scoring.md](PLAN-maker-scoring.md), all six steps. Whoever made a show a game (or a site admin) changes its
+scoring on a **Scoring page** (`/show/[seasonId]/scoring`, `src/new/show/scoring.tsx`; "Change the scoring" under How it
+works' points and on the Players tab) until a game is played on the season; anyone else reads it as the rules, with why.
+Points on − and +, saved from a bar (every episode counted again at once, no research); **Add a moment** scored from an
+answer research already gets (`customMoments[].uses`, e.g. each vote received at the Round Table: counted at once) or from a
+question of its own. A new question leaves the episodes looked up before it **behind**: a sheet offers **Just the new
+question** (the bot asks only what that episode's stored answers have nothing for, worked out when it runs, with the core
+fields; filled into the stored answers) or **Everything again**, and the page keeps saying so until they're asked; the asks
+join Fill in what happened's queue, whose roll call says "The new question" or "Everything again". Server:
+`maker-scoring.ts` (saves as the desk's fix from the premiere, keeps the `made-` show_formats row in step, restages),
+`research-asks.ts askAgain`, `bot-research.js runJob` (`mode`), `episode-research.js onlyFormat/unaskedKeys`. Two fixes on
+the way: research and the Players tab now read the season's rulebook as it is (not the format stored when it was made, nor
+the base blocks). **A re-asked episode's answer is the merged whole and replaces the bot's earlier answers** (`submit`'s
+`replaces`: they're withdrawn), because fact-status holds back any fact an answer covering that person didn't report, and
+the earlier answers were never asked the new question. Checks: `scripts/dev-test/check-maker-scoring.js` 57 PASS (API,
+then the browser at 390 on Night and Studio); check-research-asks 50, results ways 89, settling 96, stats 57, unit tests 739.
+Left: BACKLOG 17, 18, 19.
+
 **The desk catches up with classic's admin (planned 2026-10-27): [PLAN-desk-parity.md](PLAN-desk-parity.md).** The gap audit, the user's decisions (Act as them = classic's impersonation, logged; every gap designed now; phone first), eight steps (people and Act as first), and the design brief; the mock designs come next, after the brief is confirmed.
 
 **Next: the merge-and-deploy step, which is the user's** (decided 2026-10-25: one merge after step 15). In order, from your own terminal (Claude never handles the connection strings), as 0b's As built in the plan describes:

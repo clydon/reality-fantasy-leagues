@@ -368,3 +368,27 @@ test("on top of its base: a moment switched off takes its rules with it, a new o
   const collide = compileRulebook(blocks, { aliases: { ...aliases, events: { ...aliases.events, immunityChallengeSecond: "individualImmunity" } } });
   assert.deepEqual(collide.problems, ["events: immunityChallengeSecond and immunityChallengeWon are both individualImmunity"], "T-14");
 });
+
+test("a moment scored from a question the rulebook already asks (customMoments[].uses, docs/PLAN-maker-scoring.md)", () => {
+  const { compileRulebook } = require("../src/lib/game/formats/rulebook-compile.js");
+  const { blocksProblems } = require("../src/lib/game/formats/rulebook-schema.js");
+  const traitors = require("../scripts/dev-test/researched-traitors.json");
+  const perVote = { id: "eachVoteReceived", label: "Each vote received at the Round Table", uses: "roundTableVotesReceived", counted: "eachTime", answeredBy: "research" };
+  const blocks = { ...traitors, customMoments: [...(traitors.customMoments || []), perVote], points: { ...traitors.points, eachVoteReceived: -0.5 } };
+  assert.deepEqual(blocksProblems(blocks), []);
+  const { data, problems } = compileRulebook(blocks, { id: "made-test", reader: "research" });
+  assert.deepEqual(problems, []);
+  const keys = data.research.checklist.map((f) => f.key);
+  assert.equal(keys.filter((k) => k === "roundTableVotesReceived").length, 1, "the votes question is asked once");
+  assert.ok(!keys.includes("eachVoteReceived"), "no question of its own");
+  const rule = data.rules.research.find((r) => r.award === "eachVoteReceived");
+  assert.deepEqual({ when: rule.when, per: rule.per }, { when: { answer: "roundTableVotesReceived", greaterThan: 0 }, per: "roundTableVotesReceived" });
+  assert.equal(data.events.find((e) => e.id === "eachVoteReceived").defaultPoints, -0.5);
+
+  // A question it doesn't ask, or one of the wrong kind, is refused; so is the league answering it.
+  const bad = (m) => compileRulebook({ ...traitors, customMoments: [...(traitors.customMoments || []), { ...perVote, ...m }] }, { id: "made-test", reader: "research" }).problems.join(" ");
+  assert.match(bad({ uses: "cryingCount" }), /doesn't ask/);
+  assert.match(bad({ counted: "yesNo" }), /isn't a yes-or-no question/);
+  assert.ok(blocksProblems({ ...traitors, customMoments: [{ ...perVote, answeredBy: "league" }] }).some((p) => /answered by research/.test(p.message)));
+  assert.ok(blocksProblems({ ...traitors, customMoments: [{ ...perVote, uses: "no spaces please" }] }).some((p) => /scored from/.test(p.message)));
+});

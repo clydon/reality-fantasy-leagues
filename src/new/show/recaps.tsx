@@ -133,6 +133,8 @@ export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: Sh
 }
 
 const STATUS_WORDS: Record<AskedEpisode["status"], string> = { waiting: "waiting its turn", asking: "being looked up", done: "in", failed: "not found" };
+/** What an episode looked up already is asked again for (the maker's scoring added a question: scoring.tsx). */
+const AGAIN_WORDS: Record<NonNullable<AskedEpisode["again"]>, string> = { missing: "The new question", full: "Everything again" };
 
 /** How many times `sig` has changed while this was on screen: 0 until it does. Keyed on it, an element animates for a change
  *  you watched, never on arrival (Up next's useChangeCount, overview/up-next.tsx). */
@@ -192,7 +194,7 @@ function ResultsProgress({ asked, now, words: w }: { asked: AskedEpisode[]; now:
               key={`${a.episode}:${landed.has(a.episode) ? landings : 0}`}
               data-result-ep={a.episode}
               data-status={a.status}
-              aria-label={`${w.episode} ${a.episode}: ${STATUS_WORDS[a.status]}${a.status === "done" && a.found != null ? `, ${a.found} results` : ""}`}
+              aria-label={`${w.episode} ${a.episode}${a.again ? ` (${AGAIN_WORDS[a.again].toLowerCase()})` : ""}: ${STATUS_WORDS[a.status]}${a.status === "done" && a.found != null ? `, ${a.found} results` : ""}`}
               className={`relative isolate flex h-8 min-w-10 items-center justify-center gap-1 overflow-hidden rounded-[3px] px-2 text-[13px] font-bold tabular-nums ${
                 a.status === "done"
                   ? "bg-foreground text-background"
@@ -220,7 +222,7 @@ function ResultsProgress({ asked, now, words: w }: { asked: AskedEpisode[]; now:
           );
         })}
       </ol>
-      {shown && <RollCall key={shown.episode} now={shown} words={w} arrived={episodeCue > 0} queued={!now} />}
+      {shown && <RollCall key={shown.episode} now={shown} again={asked.find((a) => a.episode === shown.episode)?.again ?? null} words={w} arrived={episodeCue > 0} queued={!now} />}
     </div>
   );
 }
@@ -241,9 +243,10 @@ function rollWords(now: ResearchNow, w: ShowData["words"], queued: boolean): { t
  * once it's being written up), and under it a rail with a segment for each person, lighting as ChatGPT writes each one up, a
  * short stagger across the ones that arrive together; while it searches, a light sweeps the rail. For an episode you haven't
  * seen there's no head count, so the rail is one meter. `arrived`: it came on while you watched (its plate comes on from the
- * left). `queued`: next in line with nothing running yet (starting: the light sweeps).
+ * left). `queued`: next in line with nothing running yet (starting: the light sweeps). `again`: an episode looked up already,
+ * asked again (its plate says for what).
  */
-function RollCall({ now, words: w, arrived, queued }: { now: ResearchNow; words: ShowData["words"]; arrived: boolean; queued: boolean }) {
+function RollCall({ now, again, words: w, arrived, queued }: { now: ResearchNow; again: AskedEpisode["again"]; words: ShowData["words"]; arrived: boolean; queued: boolean }) {
   const { title, line } = rollWords(now, w, queued);
   const counted = now.of != null && now.done != null && now.of > 0 && now.of <= 60;
   const lit = counted ? Math.min(now.done!, now.of!) : 0;
@@ -263,7 +266,7 @@ function RollCall({ now, words: w, arrived, queued }: { now: ResearchNow; words:
             {title}
           </span>
         }
-        subtitle={line}
+        subtitle={again ? <span data-results-again={again}>{`${AGAIN_WORDS[again]} · ${line}`}</span> : line}
       />
       <div className="relative mt-2 h-2.5 overflow-hidden" data-results-rail={counted ? now.of : "meter"} aria-hidden>
         {counted ? (

@@ -58,6 +58,7 @@ const ShowFormats = require("./show-formats.js");
 // A season's approved rule changes (docs/PLAN-season-rule-changes.md): research asks what the season's
 // rules ask by the episode it's researching, not just what the show's format asks.
 const SeasonRuleChanges = require("./season-rule-changes.js");
+const Rulebooks = require("./rulebooks.js");
 const embeddings = require("./embeddings.js");
 const Air = require("../src/lib/game/air-schedule.js");
 
@@ -99,6 +100,32 @@ function researchSchemaFor(format, withBets = false) {
       .describe("EXACTLY ONE ENTRY PER CASTAWAY in the list you were sent, in that same order, including anyone nothing happened to."),
     ...(withBets ? { betAnswers: BetAnswers } : {}),
   });
+}
+
+// Just some of the checklist (docs/PLAN-maker-scoring.md step 5): a question added after episodes were looked up is asked of
+// those episodes alone, merged into their stored answers. The core fields every answer has (formats/checklist.js CORE_FIELDS)
+// stay, so who's who and how sure still come with it; the episode's own questions, groups and the merge aren't asked again.
+const { CORE_FIELDS } = require("../src/lib/game/formats/checklist.js");
+
+/** The per-person questions a format asks, besides the core ones every answer has. Pure. */
+function checklistKeys(format) {
+  return Object.keys(format.research.checklistSchema(z, Answer).shape).filter((k) => !(k in CORE_FIELDS));
+}
+
+/** Of a format's questions, the ones a stored episode answer has nothing for (asked before the question was added). Pure. */
+function unaskedKeys(format, payload) {
+  const have = new Set(((payload && payload.castaways) || []).flatMap((c) => (c && typeof c === "object" ? Object.keys(c) : [])));
+  return checklistKeys(format).filter((k) => !have.has(k));
+}
+
+/** The format asking only `keys` (and the core fields) of each person. Pure. */
+function onlyFormat(format, keys) {
+  const want = new Set([...Object.keys(CORE_FIELDS), ...keys]);
+  const checklistSchema = (zz, A) => {
+    const entry = format.research.checklistSchema(zz, A);
+    return entry.pick(Object.fromEntries(Object.keys(entry.shape).filter((k) => want.has(k)).map((k) => [k, true])));
+  };
+  return { ...format, hasGroups: false, hasMerge: false, research: { ...format.research, checklistSchema, episodeFields: () => ({}) } };
 }
 
 const newGroupText = (group) =>
@@ -1150,6 +1177,9 @@ async function catalogEntry(pool, showSlug, season, label) {
   }
   // A show on a stored format (db/show-formats.js) carries its data, for contextFrom's formatFor.
   rows[0].format_data = await ShowFormats.formatDataFor(pool, rows[0].format);
+  // A season playing by its own rulebook is asked by that rulebook as it is now (an edit's new question included), not
+  // the stored format copied from it when it was made (docs/PLAN-maker-scoring.md step 1), as seasonFormat reads it.
+  rows[0].rulebook_format = await Rulebooks.seasonRulebookFormat(pool, rows[0].season_id, { formatId: rows[0].format });
   // ...and the season's approved rule changes, which contextFrom layers on by episode.
   rows[0].rule_changes = await SeasonRuleChanges.approvedChanges(pool, rows[0].season_id);
   return rows[0];
@@ -1245,7 +1275,7 @@ async function stillInGame(pool, showId, season, episodeNumber, castNames) {
 // (db/season-rule-changes.js). A change that no longer fits the format (the show was switched since) is
 // left out rather than stopping research; the season's Rules row is where that gets noticed.
 function seasonFormatFor(entry, episodeNumber) {
-  const base = Formats.formatFor(entry.format, entry.format_data);
+  const base = entry.rulebook_format || Formats.formatFor(entry.format, entry.format_data);
   const changes = (entry.rule_changes || []).filter((c) => c.effectiveEpisode <= episodeNumber);
   try {
     return { format: Formats.withChanges(base, changes), changes };
@@ -1538,7 +1568,7 @@ async function storeResearch(pool, ctx, payload, provenance, opts) {
   // Whatever this run says about the next episode goes to the season's schedule either way (0067).
   const next = payload && payload.nextEpisode;
   if (opts.merge) {
-    const stored = await storeMergedResearch(pool, ctx, payload, provenance, { fill: !!opts.fill });
+    const stored = await storeMergedResearch(pool, ctx, payload, provenance, { fill: !!opts.fill, onto: Array.isArray(opts.only) });
     await recordNextEpisode(pool, ctx, next);
     return stored;
   }
@@ -1634,6 +1664,8 @@ async function storeMergedResearch(pool, ctx, payload, provenance, mergeOpts = {
       [ctx.showId, ctx.season, ctx.episodeNumber]
     );
     const sameFormat = prior.length && ((prior[0].provenance && prior[0].provenance.format) || Formats.DEFAULT_FORMAT) === provenance.format;
+    // Just some questions' answers, alone, would stand for the whole episode.
+    if (mergeOpts.onto && !sameFormat) throw new Error("There are no stored answers for this episode to add the new questions to.");
     const merged = mergeResearchPayload(sameFormat ? prior[0].payload : null, payload, mergeOpts);
     const fullProvenance = {
       ...provenance,
@@ -1968,14 +2000,27 @@ function extractJsonObject(text) {
  * its context (staged cast, who's still in the game, the season's open side bets). Read-only -- no
  * model call, nothing written; it only assembles text for the admin to copy.
  */
+//
+// `opts.only: "missing"` asks only what the episode's stored answers have nothing for (a question added since: unaskedKeys),
+// answering `only`, the keys asked, for researchFromPaste's own `only`: [] when there's nothing to ask (and no prompt), null
+// when there are no stored answers of this checklist to add to (the whole checklist, as without it).
 async function buildPasteImportPrompt(pool, showSlug, season, episodeNumber, opts = {}) {
   requireEpisodeNumber(episodeNumber);
   const ctx = await resolveSeasonResearchContext(pool, showSlug, season, episodeNumber);
-  const bets = await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
+  let only = null;
+  if (opts.only === "missing") {
+    const stored = await storedResearchFor(pool, ctx);
+    if (stored && ((stored.provenance && stored.provenance.format) || Formats.DEFAULT_FORMAT) === ctx.format.id) {
+      only = unaskedKeys(ctx.format, stored.payload);
+      if (!only.length) return { prompt: null, castCount: ctx.castNames.length, betCount: 0, only };
+    }
+  }
+  const bets = only ? [] : await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
   return {
-    prompt: buildPastePrompt(ctx, bets, { structured: !!opts.structured }),
+    prompt: buildPastePrompt(only ? { ...ctx, format: onlyFormat(ctx.format, only) } : ctx, bets, { structured: !!opts.structured }),
     castCount: ctx.castNames.length,
     betCount: bets.length,
+    only,
   };
 }
 
@@ -1986,6 +2031,9 @@ async function buildPasteImportPrompt(pool, showSlug, season, episodeNumber, opt
  * episode_research row and season_decisions review a real research run produces -- a pasted episode
  * and a searched one are interchangeable from here on, including which one a later re-run overwrites.
  */
+//
+// `opts.only`: the keys a cut-down prompt asked (buildPasteImportPrompt's `only`): the answer is read for just those (anything
+// else it says is dropped) and filled into the stored answers, which it needs: with none of this checklist stored it refuses.
 async function researchFromPaste(pool, showSlug, season, episodeNumber, notes, opts = {}) {
   requireEpisodeNumber(episodeNumber);
   const trimmed = requireNotes(notes);
@@ -2264,8 +2312,9 @@ async function pastedRun(pool, ctx, episodeNumber, trimmed, opts) {
   // Structuring, not searching -- the cheapest model is plenty for "reorganise this text", and this
   // path exists specifically to avoid paying for a bigger one.
   const model = opts.model && RESEARCH_MODELS.includes(opts.model) ? opts.model : "claude-haiku-4-5";
-  const bets = await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
-  const schema = researchSchemaFor(ctx.format, bets.length > 0);
+  const only = Array.isArray(opts.only) ? opts.only : null;
+  const bets = only ? [] : await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
+  const schema = researchSchemaFor(only ? onlyFormat(ctx.format, only) : ctx.format, bets.length > 0);
 
   let parsed;
   let usage;
@@ -2519,6 +2568,9 @@ if (require.main === module) {
 
 module.exports = {
   researchSchemaFor,
+  checklistKeys,
+  unaskedKeys,
+  onlyFormat,
   buildPrompt,
   betKey,
   openBetsFor,

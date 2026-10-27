@@ -169,6 +169,8 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
   };
   const research = [];
   const implied = [];
+  // Moments scored from a question the rulebook already asks (customMoments[].uses).
+  const scoredFrom = [];
   const gated = (rule, m) => {
     const g = gateOf(m);
     if (g) research.push({ ...rule, ...g });
@@ -204,6 +206,10 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
     }
     if (!m.ask) {
       warnings.push(`${m.label}: nothing says how it's known, so nothing awards it`);
+      continue;
+    }
+    if (m.uses) {
+      scoredFrom.push(m); // a question something else asks: only its rule, once every question is in (below)
       continue;
     }
     if (m.ask.type === 'answer') {
@@ -363,6 +369,18 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
       key: 'phaseStarted', type: 'enum', values: ids, nullable: true,
       description: `Did one of these parts of the season begin in THIS ${part}? ${ids.map((p) => `${p}: ${phaseById.get(p).name}${phaseById.get(p).summary ? ` (${phaseById.get(p).summary})` : ''}`).join('; ')}. Null if none did.`,
     }, episodeFields);
+  }
+
+  // A moment scored from a question the rulebook already asks (docs/PLAN-maker-scoring.md: "−0.5 a vote received at the Round
+  // Table" on roundTableVotesReceived): no question of its own, only its rule on that question's answer. The question has to
+  // be asked here, and of the kind it counts: yes or no for once an episode, a number for each time or per amount.
+  for (const m of scoredFrom) {
+    const f = fields.find((x) => x.key === m.ask.key) || (legacy ? legacy.research.checklist.find((x) => x.key === m.ask.key) : null);
+    const counts = f && (f.type === 'integer' || f.type === 'number');
+    if (!f) problems.push(`${m.label}: it's scored from "${m.ask.key}", which this rulebook doesn't ask`);
+    else if (m.ask.type === 'answer' ? f.type !== 'answer' : !counts) problems.push(`${m.label}: "${m.ask.key}" isn't ${m.ask.type === 'answer' ? 'a yes-or-no question' : 'a number'}`);
+    else if (m.ask.type === 'answer') gated({ when: yes(m.ask.key), award: ev(m.id) }, m);
+    else gated({ when: { answer: m.ask.key, greaterThan: 0 }, award: ev(m.id), per: m.ask.key }, m);
   }
 
   const core = (key) => ['sources', 'confidence'].includes(key);

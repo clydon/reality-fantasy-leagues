@@ -10,7 +10,9 @@
 //     segments: [{ id, name, summary?, decidedBy, voters?, pickers?, takesPart?, decides?, onTheLine?, often, phase?, momentsOff? }],
 //     waysOut:  [{ id, name, means, cause?: { segment } | ownChoice | medical | removed | story }],
 //     twists:   [{ id, type, name, summary?, ...that type's answers }],
-//     customMoments: [{ id, label, question?, during?: { segment } | { twist }, counted, answeredBy, reliability? }],
+//     customMoments: [{ id, label, question?, uses?, during?: { segment } | { twist }, counted, answeredBy, reliability? }],
+//       (uses: the key of a question the rulebook already asks, scored instead of asking one of its own:
+//       "−0.5 a vote received at the Round Table" on roundTableVotesReceived; docs/PLAN-maker-scoring.md)
 //     points:   { [momentId]: number | { exclusive, shared } },   suggested-point overrides
 //     momentNotes: { [momentId]: { reliability?, answeredBy?, off? } }, research's rating of a built moment;
 //               off: a couch's own copy doesn't count it (Make it ours)
@@ -526,6 +528,9 @@ function blocksProblems(blocks) {
     claim(m.id, at, name);
     if (!isText(m.label)) add(`${at}.label`, 'A moment has no description');
     if (m.question !== undefined && !isText(m.question)) add(`${at}.question`, `${name}: the question should be text`);
+    // Scored from a question the rulebook already asks (its key): compile checks it's asked, and of the right kind.
+    if (m.uses !== undefined && !(typeof m.uses === 'string' && /^[A-Za-z][A-Za-z0-9]{0,60}$/.test(m.uses))) add(`${at}.uses`, `${name}: the question it's scored from isn't one this can read`);
+    if (m.uses !== undefined && m.answeredBy !== 'research') add(`${at}.answeredBy`, `${name}: a moment scored from research's question is answered by research`);
     if (m.during !== undefined && m.during !== null) {
       const ok = isObj(m.during) && ((m.during.segment !== undefined && segIds.has(m.during.segment)) || (m.during.twist !== undefined && twistIds.has(m.during.twist)));
       if (!ok) add(`${at}.during`, `${name}: where it happens isn't one of the segments or twists`);

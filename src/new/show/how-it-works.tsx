@@ -9,6 +9,7 @@ import { Btn, Chip } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
+import { ScoringLink } from "./scoring";
 import { Face, IconBox } from "./parts";
 
 // How it works (the mock's rulebook.js howPage), for everyone: a page pushed over the show from its ⋯ menu and the
@@ -285,6 +286,11 @@ export function HowItWorksBody({
             ))}
           </div>
         ))}
+      </div>
+
+      {/* Its maker, until a game's played on it: change the scoring (show/scoring.tsx). */}
+      <div className="px-2">
+        <ScoringLink seasonId={seasonId} variant="button" />
       </div>
 
       {/* Updates: what changed, as far as you've seen */}

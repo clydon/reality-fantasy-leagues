@@ -176,7 +176,12 @@ function customMoment(m, blocks) {
   const type = m.counted === 'yesNo' ? 'answer' : m.counted === 'perUnit' ? 'number' : 'integer';
   // A segment is a place in the episode ("at the Reward challenge"); a twist isn't, so it adds nothing to the question.
   const question = questionFor({ label: m.label, question: m.question, counted: m.counted, where: seg ? seg.name : null }, blocks);
-  return { id: m.id, label: m.label, from, defaultPoints: 0, custom: true, ask: { key: m.id, type, question }, answeredBy: m.answeredBy, ...(m.reliability ? { reliability: m.reliability } : {}) };
+  // `uses`: scored from a question the rulebook already asks (its key), rather than one of its own (rulebook-compile.js).
+  const key = typeof m.uses === 'string' && m.uses ? m.uses : m.id;
+  return {
+    id: m.id, label: m.label, from, defaultPoints: 0, custom: true, ask: { key, type, question }, answeredBy: m.answeredBy,
+    ...(key !== m.id ? { uses: key } : {}), ...(m.reliability ? { reliability: m.reliability } : {}),
+  };
 }
 
 /**

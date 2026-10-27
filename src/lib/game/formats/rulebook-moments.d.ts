@@ -12,6 +12,8 @@ export interface Moment {
   /** Known without asking about it: how someone left, a role, other answers. */
   auto?: true;
   custom?: true;
+  /** A custom moment scored from a question the rulebook already asks: that question's key (ask.key). */
+  uses?: string;
   answeredBy?: "research" | "league";
   reliability?: "reliable" | "usually" | "patchy";
   /** Only with includeOff: built, but switched off. */
