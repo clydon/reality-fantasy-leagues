@@ -9,11 +9,11 @@
 //     listing nobody has made a show of, a listing that's a show here hidden as that show, Show again by show and by
 //     listing, nobody else seeing it.
 //   In a real browser at --width (390 by default), as alex: seven days from today, the Now line, On now, Same time (yours
-//   first), the drop's one card, the due dot on Survivor, dashed and faded, no Preview left (Also on is part 2's, real:
+//   first), the drop's one card, the controller and due dot on Survivor, faded, no legend, no Preview left (Also on is part 2's, real:
 //   check-new-listings.js); the hub doesn't
 //   read the catalog until Add a show opens (from Noticed); the roll with motion on (a tap and a swipe up the page leave it
 //   rolling, a swipe across or a sideways wheel pauses it, and it rolls on after); a couch show's sheet (who watches it), Hide from guide with
-//   the toast's Undo, "1 hidden" and Show again, Add to my shows (where you are, then it's yours: dashed, no longer faded), a
+//   the toast's Undo, "1 hidden" and Show again, Add to my shows (where you are, then it's yours: no longer faded), a
 //   card of yours opening its show. As casey (alex's other couch): hiding the Late Show leaves today with Nothing tonight /
 //   Next up. Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
 //
@@ -166,7 +166,8 @@ function check(ok, what, detail = "") {
       check(/^Tomorrow$/.test((await pg.locator("[data-guide-day='1'] b").first().textContent()).trim()), "then Tomorrow");
       check((await pg.locator("[data-guide-day='0'] [data-guide-now]").count()) === 1 && (await pg.locator("[data-guide-now]").count()) === 1, "the Now line, on today only");
       const liveCard = A.card(live, 3);
-      check((await liveCard.getAttribute("data-live")) === "true" && /On now/.test(await liveCard.textContent()) && (await liveCard.getAttribute("data-tie")) === "watches", "ZT Live Now: On now, dashed (watched, not played)");
+      check((await liveCard.getAttribute("data-live")) === "true" && /On now/.test(await liveCard.textContent()) && (await liveCard.getAttribute("data-tie")) === "watches", "ZT Live Now: On now (watched, not played)");
+      check((await liveCard.locator("[data-games]").count()) === 0, "no game on it: no controller");
       // The Now line comes before what's on now.
       const order = await pg.locator("[data-guide-day='0']").evaluate((day) => [...day.querySelectorAll("[data-guide-now], [data-guide-card]")].map((x) => (x.hasAttribute("data-guide-now") ? "now" : x.getAttribute("data-guide-card").split(":")[0])));
       check(order.indexOf("now") === order.indexOf(live) - 1 && order.indexOf(live) > -1, "the Now line sits just above what's on now", order.join(","));
@@ -176,10 +177,10 @@ function check(ok, what, detail = "") {
       check((await A.card(tsid, 4).getAttribute("data-tie")) === "couch", "the Traitors: the couch's (faded)");
       const dropCard = A.card(drop, 1);
       check((await dropCard.count()) === 1 && (await dropCard.getAttribute("data-drop")) === "8" && /All 8 drop/i.test(await dropCard.textContent()), "ZT Drop Show: one card, All 8 drop");
-      check((await A.card(sid, 6).locator("[data-due]").count()) === 1 && (await A.card(sid, 6).getAttribute("data-tie")) === "plays", "ZT Survivor 51: yours in full, with the due dot");
+      check((await A.card(sid, 6).locator("[data-games] [data-due]").count()) === 1 && (await A.card(sid, 6).getAttribute("data-tie")) === "plays", "ZT Survivor 51: yours in full, the controller (a game's on) with the due dot");
       check((await A.card(late).count()) >= 6, "the Late Show every night", String(await A.card(late).count()));
-      const legend = await pg.locator("[data-guide-foot]").textContent();
-      check(/Dashed: not playing yet/.test(legend) && /Faded: not on your shows/.test(legend), "the foot says what dashed and faded mean", legend);
+      const foot = await pg.locator("[data-guide-foot]").textContent();
+      check(!/Dashed|Faded|TVmaze/.test(foot) && (await pg.locator("[data-guide-card]:not([data-tie='plays'])").evaluateAll((xs) => xs.filter((x) => getComputedStyle(x).outlineStyle === "dashed").length)) === 0, "no legend in the foot, and no dashed cards (2026-10-27)", foot);
       check((await pg.locator("[data-guide-hidden]").count()) === 0, "nothing hidden: no hidden count");
       // Reduced motion (this browser's): it never rolls, so it says neither Rolling nor Paused (from Noticed); with motion it does.
       check((await pg.locator("[data-guide-roll]").count()) === 0, "reduced motion: no Rolling or Paused");
@@ -298,7 +299,7 @@ function check(ok, what, detail = "") {
       check((await rows("alex")).length === 0 && (await pg.locator("[data-guide-hidden]").count()) === 0, "Show again: back on the guide, nothing hidden");
       await pg.locator("[role=dialog][data-open]").waitFor({ state: "detached" }).catch(() => {});
 
-      // Add to my shows from a couch show's sheet: where you are, then it's yours (dashed, not faded).
+      // Add to my shows from a couch show's sheet: where you are, then it's yours (not faded).
       await A.reel(0);
       await A.card(tsid, 4).click();
       await pg.locator(`[data-guide-sheet="${tsid}"]`).waitFor();
@@ -309,7 +310,7 @@ function check(ok, what, detail = "") {
       await A.shot("add-from-guide");
       await where.getByRole("button", { name: "Add to my shows" }).click();
       await pg.waitForFunction((id) => document.querySelector(`[data-guide-card^="${id}:"]`)?.getAttribute("data-tie") === "watches", tsid, { timeout: 15_000 }).catch(() => {});
-      check((await A.card(tsid, 4).getAttribute("data-tie")) === "watches", "added: the Traitors are alex's now (dashed, no longer faded)");
+      check((await A.card(tsid, 4).getAttribute("data-tie")) === "watches", "added: the Traitors are alex's now (no longer faded)");
       check((await pool.query("SELECT following FROM show_follows WHERE user_id = $1 AND season_id = $2", [fx.users.alex, tsid])).rows[0]?.following === true, "saved as a follow");
 
       // A card of yours opens its show.

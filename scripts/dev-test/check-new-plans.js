@@ -420,7 +420,9 @@ function check(ok, what, detail = "") {
       await pg.keyboard.press("Escape");
       await A.closed();
 
-      // A TV listing: Plan a watch along adds it to his shows first.
+      // A TV listing: Plan a watch along adds it to his shows first. (The guide shows the couch's shows only to begin with:
+      // All TV brings the listings in.)
+      await pg.locator("[data-guide-tv-choice='all']").click();
       const lst = pg.locator(`[data-also-on='1'] [data-tvmaze='${LISTING}']`);
       await lst.waitFor({ timeout: 15_000 });
       await A.reelTo(`[data-also-on='1'] [data-tvmaze='${LISTING}']`);

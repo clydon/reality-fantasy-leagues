@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { EyeOff, Plus, UserPlus } from "lucide-react";
+import { EyeOff, Gamepad2, Plus, UserPlus } from "lucide-react";
 import { episodeLine, eveningAt, guideWeek, nextUpAfter, type GuideCard, type GuideDay, type GuidePlan, type GuideShow } from "@/lib/game/guide";
 import { alsoOn, hitOfListing, listingLine, type AlsoOnDay, type AlsoOnItem } from "@/lib/game/tv-listings";
 import { guide as guideApi, useListingsWeek, useSetGuideHidden, type Couch, type CouchShow, type HiddenShow, type Home } from "../data";
@@ -112,8 +112,8 @@ function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
   return rolling;
 }
 
-/** What the guide shows under your shows and the couch's (2026-10-27): nothing more, the competitions on TV (tv-listings.ts
- *  competitionOf), or all of TV. Per phone; held for the visit when the phone won't keep it. */
+/** What the guide shows under your shows and the couch's (2026-10-27): nothing more (to begin with), the competitions on TV
+ *  (tv-listings.ts competitionOf), or all of TV. Per phone; held for the visit when the phone won't keep it. */
 type OnTv = "couch" | "comps" | "all";
 const ON_TV_KEY = "gys.guideTv";
 const onTvListeners = new Set<() => void>();
@@ -123,9 +123,9 @@ function readOnTv(): OnTv {
   if (onTvHere) return onTvHere;
   try {
     const v = localStorage.getItem(ON_TV_KEY);
-    return v === "couch" || v === "comps" ? v : "all";
+    return v === "comps" || v === "all" ? v : "couch";
   } catch {
-    return "all";
+    return "couch";
   }
 }
 
@@ -146,7 +146,7 @@ const useOnTv = () =>
       return () => onTvListeners.delete(l);
     },
     readOnTv,
-    (): OnTv => "all"
+    (): OnTv => "couch"
   );
 
 /** The guide's switch, quiet in its foot: Couch (My shows, solo) · Competitions · All TV. */
@@ -199,6 +199,9 @@ export function guideShows(home: Home, couch: Couch | null): GuideShow[] {
     const n = m.episode ?? s?.upNext?.number;
     if (s && n != null && !(due.get(s.seasonId)! <= n)) due.set(s.seasonId, n);
   }
+  // A game's going on a season: one of yours, or the couch's (not archived).
+  const gamesOn = (seasonId: string, mine: Home["shows"][number]["games"] = []) =>
+    [...mine, ...(couch?.games ?? [])].some((g) => g.seasonId === seasonId && !g.archived);
   const yours: GuideShow[] = home.shows
     .filter((s) => s.following || s.games.length)
     .map((s) => ({
@@ -211,6 +214,7 @@ export function guideShows(home: Home, couch: Couch | null): GuideShow[] {
       tie: s.games.length ? "plays" : "watches",
       faces: facesOf(s.seasonId),
       dueEpisode: due.get(s.seasonId) ?? null,
+      games: gamesOn(s.seasonId, s.games),
     }));
   const hidden = home.guideHidden ?? [];
   const theirs: GuideShow[] = (home.couchShows ?? [])
@@ -225,6 +229,7 @@ export function guideShows(home: Home, couch: Couch | null): GuideShow[] {
       tie: "couch",
       faces: facesOf(s.seasonId),
       dueEpisode: null,
+      games: gamesOn(s.seasonId),
     }));
   return [...yours, ...theirs];
 }
@@ -288,8 +293,8 @@ function Faces({ faces }: { faces: GuideCard["faces"] }) {
 
 const CARD =
   "relative isolate flex w-full flex-col justify-end overflow-hidden rounded-[3px] bg-card px-[9px] py-2 text-left text-white transition-transform duration-300 active:scale-[.97]";
-// The fade ladder (tvguide.css): yours in full, dashed when you watch without playing, faded a step more when it isn't yours.
-const DASHED = "outline-[1.5px] -outline-offset-[1.5px] outline-dashed outline-white/45";
+// The fade ladder (tvguide.css): yours in full, faded a step more when it isn't yours. A game going on it is the controller in
+// the corner (2026-10-27: it replaced the dashed edge for a show you watch without playing, and the foot's legend).
 const FADED = "opacity-80 [filter:saturate(.3)_brightness(.78)]";
 
 /** A card's art, or with none (a show added by name, a listing without a poster) its first letter, faint (tvguide.css g-noart). */
@@ -317,7 +322,15 @@ function CardBody({ c, now, me }: { c: GuideCard; now: number; me: string }) {
         {c.live && <i className="size-1.5 animate-pulse rounded-full bg-current" aria-hidden />}
         {c.live ? "On now" : timeOf(c.at)}
       </span>
-      {c.due && <i data-due className="absolute right-2 top-2 size-[9px] rounded-full bg-live shadow-[0_0_0_2px_rgba(255,255,255,.8)]" aria-label="A move is due" />}
+      {/* A game's going on it: a white controller, with a move due its red dot. */}
+      {c.games ? (
+        <span data-games className="absolute right-[7px] top-[7px] grid size-[22px] place-items-center text-white [filter:drop-shadow(0_1px_3px_rgba(0,0,0,.8))]">
+          <Gamepad2 className="size-[19px]" strokeWidth={2.2} aria-hidden />
+          {c.due && <i data-due className="absolute -right-0.5 top-0 size-2 rounded-full bg-live shadow-[0_0_0_1.5px_rgba(10,8,14,.9)]" />}
+        </span>
+      ) : (
+        c.due && <i data-due className="absolute right-2 top-2 size-[9px] rounded-full bg-live shadow-[0_0_0_2px_rgba(255,255,255,.8)]" />
+      )}
       {c.drop != null && (
         <span className="type-caption mb-1 self-start bg-secondary py-[3px] pl-1.5 pr-2.5 text-[10px] tracking-[0.06em] text-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_6px)_100%,0_100%)]">
           All {c.drop} drop
@@ -343,12 +356,13 @@ function CardBody({ c, now, me }: { c: GuideCard; now: number; me: string }) {
  *  not faded while you're in it. */
 function Card({ c, now, me, height = 104, onCouch }: { c: GuideCard; now: number; me: string; height?: number; onCouch: (c: GuideCard) => void }) {
   const own = c.key.startsWith("plan:");
-  const edge = c.plan ? "outline-[1.5px] -outline-offset-[1.5px] outline-solid outline-good" : c.tie !== "plays" ? DASHED : "";
+  const edge = c.plan ? "outline-[1.5px] -outline-offset-[1.5px] outline-solid outline-good" : "";
   const cls = `${CARD} ${edge} ${c.tie === "couch" && !c.plan?.you ? FADED : ""}`;
   const data = { "data-guide-card": c.key, "data-tie": c.tie, "data-live": c.live || undefined, "data-drop": c.drop ?? undefined, "data-plan": c.plan?.id };
+  const extra = `${c.games ? ", a game's on" : ""}${c.due ? ", a move is due" : ""}`;
   const label = own
-    ? `${c.name}, watch along for Episode ${c.plan!.episode}, ${c.live ? "on now" : airTime(c.at)}`
-    : `${c.name}, ${c.drop ? `all ${c.drop} episodes drop` : episodeLine(c)}, ${c.live ? "on now" : airTime(c.at)}${c.plan ? ", a watch along" : ""}${c.tie === "couch" ? ", not on your shows" : ""}`;
+    ? `${c.name}, watch along for Episode ${c.plan!.episode}, ${c.live ? "on now" : airTime(c.at)}${extra}`
+    : `${c.name}, ${c.drop ? `all ${c.drop} episodes drop` : episodeLine(c)}, ${c.live ? "on now" : airTime(c.at)}${c.plan ? ", a watch along" : ""}${c.tie === "couch" ? ", not on your shows" : ""}${extra}`;
   if (own) {
     return (
       <button type="button" {...data} aria-label={label} className={cls} style={{ height }} onClick={() => openPlan({ kind: "plan", planId: c.plan!.id })}>
@@ -552,20 +566,10 @@ export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
   const [listing, setListing] = useState<AlsoOnItem | null>(null);
   const [evening, setEvening] = useState<GuideDay | null>(null);
   const [hiddenOpen, setHiddenOpen] = useState(false);
-  const ties = new Set(week.flatMap((d) => d.slots.flatMap((sl) => (Array.isArray(sl) ? sl : [sl]).map((c) => c.tie))));
-  const legend = [ties.has("watches") ? "Dashed: not playing yet" : null, ties.has("couch") ? "Faded: not on your shows" : null].filter(Boolean).join(" · ");
-  // What dashed and faded mean, the TVmaze credit and what's hidden.
+  // What's hidden. (2026-10-27, to declutter: no legend for the card styles, and the TVmaze credit is on a listing's and the
+  // evening's sheets only.)
   const notes = () => (
     <span className="flex min-w-0 flex-col items-start pt-1 first:pt-0">
-      {legend && <span className="leading-snug">{legend}</span>}
-      {also.some((d) => d.all.length) && (
-        <span data-guide-credit className="text-[12px] leading-snug">
-          TV listings from{" "}
-          <a href="https://www.tvmaze.com" target="_blank" rel="noreferrer" className="font-semibold underline underline-offset-2">
-            TVmaze
-          </a>
-        </span>
-      )}
       {hidden.length > 0 && (
         <button type="button" data-guide-hidden onClick={() => setHiddenOpen(true)} className="flex h-9 items-center gap-1.5 font-bold text-foreground underline-offset-2 hover:underline">
           <EyeOff className="size-4" aria-hidden />

@@ -28,9 +28,15 @@ const FINISHED_DAYS = 14;
 /** Calls to TVmaze itself are spaced so a run stays under its limit (20 calls every 10 seconds). */
 const GAP_MS = 700;
 
+/** What a run writes. A run by an older one is due again, even on its day: 2 = rows say whether they're a competition
+ *  (migration 0147), so the week's rows written before it are rewritten at the clock's next call, not the next day. */
+const RUN_V = 2;
+
 export interface ListingsRun {
   /** The Eastern day it ran for. */
   day: string;
+  /** RUN_V when it ran (none: 1). */
+  v?: number;
   at: string;
   done: string | null;
   ok: boolean | null;
@@ -60,11 +66,12 @@ export async function lastRun(): Promise<(ListingsRun & { updatedAt: string }) |
   return rows[0] ? { ...(rows[0].value as ListingsRun), updatedAt: (rows[0].updated_at as Date).toISOString() } : null;
 }
 
-/** Whether today's run is still to do: none yet today (Eastern), or the last failed (or stopped) over an hour ago. */
+/** Whether today's run is still to do: none yet today (Eastern), the last by an older RUN_V, or the last failed (or
+ *  stopped) over an hour ago. */
 export async function listingsDue(now = new Date()): Promise<boolean> {
   const last = await lastRun();
   if (!last) return true;
-  if (last.day !== easternDay(now)) return true;
+  if (last.day !== easternDay(now) || (last.v ?? 1) < RUN_V) return true;
   return last.ok !== true && now.getTime() - Date.parse(last.updatedAt) > 3600_000;
 }
 
@@ -74,10 +81,10 @@ async function claim(run: ListingsRun, force: boolean): Promise<boolean> {
     `INSERT INTO app_settings (key, value, updated_at) VALUES ($1, $2::jsonb, now())
      ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()
       WHERE NOT (app_settings.value->>'done' IS NULL AND app_settings.updated_at > now() - interval '5 minutes')
-        AND ($4 OR app_settings.value->>'day' IS DISTINCT FROM $3
+        AND ($4 OR app_settings.value->>'day' IS DISTINCT FROM $3 OR COALESCE((app_settings.value->>'v')::int, 1) < $5
              OR (COALESCE(app_settings.value->>'ok', 'false') = 'false' AND app_settings.updated_at < now() - interval '1 hour'))
      RETURNING key`,
-    [KEY, JSON.stringify(run), run.day, force]
+    [KEY, JSON.stringify(run), run.day, force, RUN_V]
   );
   return rows.length > 0;
 }
@@ -256,7 +263,7 @@ async function linkByName(shows: ScheduleShow[], base: string, now: Date, pace: 
 export async function refreshListings(base: string, opts: { now?: Date; force?: boolean; how?: ListingsRun["how"] } = {}): Promise<ListingsRun | null> {
   const now = opts.now ?? new Date();
   const prev = await lastRun();
-  const run: ListingsRun = { day: easternDay(now), at: now.toISOString(), done: null, ok: null, how: opts.how ?? "clock", keptAt: prev?.keptAt };
+  const run: ListingsRun = { day: easternDay(now), v: RUN_V, at: now.toISOString(), done: null, ok: null, how: opts.how ?? "clock", keptAt: prev?.keptAt };
   if (!(await claim(run, !!opts.force))) return null;
   const pace = pacer(base);
   const errors: string[] = [];

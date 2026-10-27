@@ -29,6 +29,8 @@ export interface GuideShow {
   faces: GuideFace[];
   /** The episode one of your moves is due for, or null. */
   dueEpisode: number | null;
+  /** A game's going on it (yours or the couch's, not archived): the card's controller. */
+  games?: boolean;
 }
 
 /** A planned night (step 11 part 3) as the guide is given it: the couch's watch along for one episode. */
@@ -67,6 +69,8 @@ export interface GuideCard {
   drop: number | null;
   /** One of your moves is due for it. */
   due: boolean;
+  /** A game's going on its show (GuideShow.games). */
+  games: boolean;
   /** The couch's watch along planned for it (an airing it tags), or the night itself (a card of its own); null: none. */
   plan: GuidePlan | null;
 }
@@ -145,6 +149,7 @@ export function guideCards(shows: GuideShow[], now: number): GuideCard[] {
         live: s.release !== "binge" && at <= now && now < endsAt,
         drop,
         due: s.dueEpisode != null && numbers.includes(s.dueEpisode),
+        games: !!s.games,
         plan: null,
       });
     }
@@ -180,6 +185,7 @@ export function withPlans(cards: GuideCard[], plans: GuidePlan[], now: number, s
       live: p.at <= now && now < p.endsAt,
       drop: null,
       due: false,
+      games: !!s?.games,
       plan: p,
     });
   }

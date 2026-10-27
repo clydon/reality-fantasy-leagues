@@ -3183,6 +3183,14 @@ person's hidden listing is `guide_hidden`, which is backed up). Nothing polls an
   switch (blurbs in `fake-listings.js` `oneNight`'s new `summary`; the couch's Traitors a competition by its kind), and its read
   gains `competition`. check-new-guide all passed; check-new-listings passed but for one timing step (Noticed, not fixed). Seen
   at 390 and 360 in both themes. Not in What's New yet (the user approves those).
+  **The same day, after the user tried it:** Competitions was empty on production because the week's rows were written before
+  0147 (all false; only Survivor, by its kind, and it's the couch's). The job's run now carries a version (`RUN_V` 2 in
+  server tv-listings.ts): a run from before it is due again on its own day, so the clock's next call (its check-in every few
+  hours) rewrites the week. And, the user's calls: **Couch is the default** (a phone that picked another keeps it); the foot
+  loses its legend and the TVmaze credit (the credit stays on a listing's and the evening's sheets, and Add a show's); the
+  dashed edge for a show you watch without playing is gone, and instead a **white controller** sits top right on any card whose
+  season has a game going (yours or the couch's, not archived: `GuideShow.games`), a move due its red dot. check-new-guide and
+  check-new-listings follow (Couch first, Competitions kept over a reload), check-new-plans taps All TV for its listing.
 
 ### As built, step 11 part 3 (2026-10-26, on `new-design`): planned nights
 
