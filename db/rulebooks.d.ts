@@ -124,6 +124,12 @@ export function sourceFor(db: Db, formatId: string | null | undefined): Promise<
 export function ensureTemplate(db: Db, source: RulebookSource): Promise<Ensured>;
 export function ensureLibraryEntry(db: Db, entry: { id: string; show: string; blocks: RulebookBlocks; compiled: FormatData; researched?: unknown; leftOut?: string[] }): Promise<Ensured>;
 export function knownPhaseStarts(db: Db, seasonId: string, blocks: RulebookBlocks): Promise<Record<string, number>>;
+/** Where each phase not set to an episode may have begun, by the season so far; a phase nothing points to yet is left out. */
+export function phaseCues(
+  db: Db,
+  seasonId: string,
+  blocks: RulebookBlocks
+): Promise<Record<string, { episode: number; by: "research" | "results" | "left"; left?: number }>>;
 export function ensureSeasonRulebook(db: Db, seasonId: string): Promise<(Ensured & { source: RulebookSource }) | null>;
 /** The rulebook id a made show's stored format came from ("" when it doesn't say), or null for any other format. */
 export function madeFormat(db: Db, formatId: string | null | undefined): Promise<string | null>;

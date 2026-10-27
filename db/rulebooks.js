@@ -525,6 +525,46 @@ async function knownPhaseStarts(db, seasonId, blocks) {
 }
 
 /**
+ * Where each phase not set to an episode may have begun, by what the season says so far: { [phaseId]: { episode, by,
+ * left? } }, the earliest episode anything points to. `by` is "research" (its `phaseStarted` answer, or `merged` for the
+ * phase the groups end in), "results" (accepted results marked post-merge) or "left" (for "when N are left": an episode
+ * with results went in with `left`, N or fewer, still in). A phase nothing points to yet is left out: asking a person
+ * when it started before it can have is noise. Only ever a cue: the start itself stays a person's (decision 5).
+ */
+async function phaseCues(db, seasonId, blocks) {
+  const phases = ((blocks && blocks.season && blocks.season.phases) || []).filter((p) => p && p.starts && p.starts.type !== "episode");
+  if (!phases.length) return {};
+  const ends = phases.find((p) => (p.changes || []).includes("groupsEnd"));
+  const { rows: flagged } = await db.query(
+    `SELECT er.episode_number AS n, er.payload->>'phaseStarted' AS phase, er.payload->>'merged' = 'yes' AS merged
+       FROM episode_research er JOIN show_seasons ss ON ss.show_id = er.show_id AND ss.season_number = er.season_number
+      WHERE ss.id=$1 AND er.withdrawn_at IS NULL AND (er.payload->>'phaseStarted' IS NOT NULL OR er.payload->>'merged' = 'yes')`,
+    [seasonId]
+  );
+  const { rows: results } = await db.query(
+    `SELECT episode_number AS n, bool_or(post_merge) AS merged, count(DISTINCT castaway_name) FILTER (WHERE kind = 'elimination')::int AS out
+       FROM season_decisions WHERE season_id=$1 AND status='accepted' GROUP BY episode_number ORDER BY episode_number`,
+    [seasonId]
+  );
+  const counted = phases.some((p) => p.starts.type === "remaining");
+  const cast = counted ? (await one(db, "SELECT count(*)::int AS n FROM season_cast WHERE season_id=$1", [seasonId])).n : 0;
+  const cues = {};
+  const cue = (p, episode, by, left) => {
+    if (!cues[p.id] || episode < cues[p.id].episode) cues[p.id] = { episode, by, ...(left != null ? { left } : {}) };
+  };
+  for (const f of flagged) for (const p of phases) if (f.phase === p.id || (f.merged && p === ends)) cue(p, f.n, "research");
+  let left = cast;
+  for (const r of results) {
+    for (const p of phases) {
+      if (r.merged && p === ends) cue(p, r.n, "results");
+      if (p.starts.type === "remaining" && cast > 0 && left <= p.starts.n) cue(p, r.n, "left", left);
+    }
+    left -= r.out;
+  }
+  return cues;
+}
+
+/**
  * The rulebook a stored format was made from (step 10 part 2a's Make it a game writes a made show's rules as its stored
  * format too, show_formats.proposal { madeFrom: 'rulebook', rulebookId }), or null for any other format. A made show's
  * rules live in its seasons' rulebooks: it never gets a library template of its own (the desk saves one on purpose).
@@ -762,6 +802,6 @@ module.exports = {
   rulebooksOn, seasonLive, setRulebooksOn, sameData, legacyBase, readerOf, inForceEdits, compileChain, saveChain,
   getRulebook, listLibrary, seasonRulebook, seasonIdOf, rulebookForLeague, createRulebook, copyRulebook, saveBlocks, setPhaseStart,
   leaguesUsing, lineage, compiledFor, seasonRulebookFormat,
-  sourceFor, ensureTemplate, ensureLibraryEntry, knownPhaseStarts, ensureSeasonRulebook, ensureLeagueRulebook, madeFormat,
+  sourceFor, ensureTemplate, ensureLibraryEntry, knownPhaseStarts, phaseCues, ensureSeasonRulebook, ensureLeagueRulebook, madeFormat,
   syncLeagueRulebook, syncLeagueRow, refreshShowRulebooks, oursOf,
 };

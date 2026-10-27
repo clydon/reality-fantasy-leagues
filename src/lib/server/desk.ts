@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from "pg";
 import { TIEBREAK_AFTER_MS, tiebreakNext, tiebreakOn, tiebreakQuestions } from "@db/bot-research.js";
+import { phaseCues } from "@db/rulebooks.js";
 import { isSuperAdminUser, requireAuth, type SessionUser } from "./auth-helpers";
 import { confirmAt, settleEverything } from "./community-results";
 import { pool, HttpError } from "./db";
@@ -302,15 +303,21 @@ export async function inbox(): Promise<Inbox> {
   for (const c of stranded) {
     items.push({ kind: "stranded", title: `${c.name} has no one running it`, line: `${c.games} ${c.games === 1 ? "game" : "games"} with no commissioner · ${c.members} on the couch`, href: `/desk/couch/${c.id}` });
   }
-  // A phase that starts when the show says so (or when N are left), on an airing season, with no confirmed start.
+  // A phase that starts when the show says so (or when N are left), on an airing season, with no confirmed start, once
+  // something says it's begun: before then (the merge, three episodes in) there's nothing to confirm.
   const { rows: books } = await pool.query(
-    `SELECT r.id, r.blocks, r.phase_starts, ${seasonName} AS season FROM rulebooks r JOIN show_seasons ss ON ss.id = r.season_id JOIN shows s ON s.id = ss.show_id
+    `SELECT r.id, r.season_id, r.blocks, r.phase_starts, ${seasonName} AS season FROM rulebooks r JOIN show_seasons ss ON ss.id = r.season_id JOIN shows s ON s.id = ss.show_id
       WHERE r.owner_kind = 'season' AND r.status = 'in_force' AND ss.status = 'airing'`
   );
   for (const b of books) {
-    for (const p of b.blocks?.season?.phases ?? []) {
-      if (!p?.starts || p.starts.type === "episode" || (b.phase_starts ?? {})[p.id] != null) continue;
-      items.push({ kind: "phase", title: `${b.season}: when did ${String(p.name).toLowerCase().startsWith("the ") ? p.name : `the ${p.name}`} start?`, line: "A phase start to confirm · its segments wait until it's set", href: `/desk/rulebook/${b.id}` });
+    const open = (b.blocks?.season?.phases ?? []).filter((p: { id: string; starts?: { type: string } }) => p?.starts && p.starts.type !== "episode" && (b.phase_starts ?? {})[p.id] == null);
+    if (!open.length) continue;
+    const cues = await phaseCues(pool, b.season_id, b.blocks);
+    for (const p of open) {
+      const c = cues[p.id];
+      if (!c) continue;
+      const why = c.by === "left" ? `${c.left} left going into Episode ${c.episode}` : `${c.by === "research" ? "Research says" : "The results say"} it began in Episode ${c.episode}`;
+      items.push({ kind: "phase", title: `${b.season}: when did ${String(p.name).toLowerCase().startsWith("the ") ? p.name : `the ${p.name}`} start?`, line: `${why} · its segments wait until it's set`, href: `/desk/rulebook/${b.id}` });
     }
   }
   // Something new the couches split on, or that couldn't go in on its own (step 6c part 2).

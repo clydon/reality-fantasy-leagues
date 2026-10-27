@@ -52,6 +52,29 @@ test("the merge counts as confirmed only on a clean switch in the season's accep
   assert.equal(db.asked.length, 0, "a rulebook with no merge doesn't ask");
 });
 
+test("a phase start is only asked about once something says it began", async () => {
+  // results: [episode, how many went home, marked post-merge]; flagged: [episode, phaseStarted, merged].
+  const season = ({ cast = 18, results = [], flagged = [] }) =>
+    fakeDb((sql) =>
+      /episode_research/.test(sql) ? flagged.map(([n, phase, merged]) => ({ n, phase, merged }))
+        : /season_decisions/.test(sql) ? results.map(([n, out, merged]) => ({ n, out, merged }))
+          : /season_cast/.test(sql) ? [{ n: cast }] : null
+    );
+  const blocks = survivorBlocks.blocks; // Merged: when 12 are left
+  const oneOut = (to) => Array.from({ length: to }, (_, i) => [i + 1, 1, false]);
+  assert.deepEqual(await R.phaseCues(season({ results: oneOut(3) }), "s", blocks), {}, "three episodes in, 18 cast: nothing to confirm");
+  assert.deepEqual(await R.phaseCues(season({ results: oneOut(6) }), "s", blocks), {}, "13 going into Episode 6");
+  assert.deepEqual(await R.phaseCues(season({ results: oneOut(7) }), "s", blocks), { merged: { episode: 7, by: "left", left: 12 } });
+  assert.deepEqual(await R.phaseCues(season({ results: oneOut(4), flagged: [[4, null, true], [5, null, true]] }), "s", blocks), { merged: { episode: 4, by: "research" } }, "research's merged flag, its first episode");
+  assert.deepEqual(await R.phaseCues(season({ results: [...oneOut(4), [5, 1, true]] }), "s", blocks), { merged: { episode: 5, by: "results" } }, "results marked post-merge");
+  assert.deepEqual(await R.phaseCues(season({ flagged: [[3, "merged", false]] }), "s", blocks), { merged: { episode: 3, by: "research" } }, "research's phaseStarted answer");
+  assert.deepEqual(await R.phaseCues(season({ cast: 0, results: oneOut(3) }), "s", blocks), {}, "no cast to count from");
+  const traitors = require("../src/lib/game/formats/blocks/traitors.blocks.js").blocks;
+  const db = season({ results: oneOut(9) });
+  assert.deepEqual(await R.phaseCues(db, "s", traitors), {});
+  assert.equal(db.asked.length, 0, "a rulebook whose phases start at set episodes doesn't ask");
+});
+
 test("with the flag off and its season not switched on, syncing a league only takes settings.rulebook out", async () => {
   const db = fakeDb((sql) => (/app_settings/.test(sql) ? [{ value: false }] : /rulebook_live/.test(sql) ? [{ rulebook_live: false }] : /JOIN shows/.test(sql) ? [{ id: "s51" }] : null));
   const settings = { showId: "survivor", wikiSeason: 51, rulebook: { id: "x", version: 1, data: {}, reader: "survivor" } };

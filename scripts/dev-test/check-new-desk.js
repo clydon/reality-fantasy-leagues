@@ -6,8 +6,8 @@
 // answer says so, casey's full answer doesn't), and couch B's game with nobody running it (alex stepped down).
 //   1. Only site admins: alex (a commissioner) is refused every desk route and sees "The desk is for site admins".
 //   2. Suggest a fix: jordan sends one from How it works.
-//   3. The Inbox, from the profile menu's Admin row: the split, the stranded couch, the Merged start to confirm and
-//      jordan's suggestion; nothing of the real seasons is asserted on.
+//   3. The Inbox, from the profile menu's Admin row: the split, the stranded couch, the Merged start to confirm (only
+//      once research says it began) and jordan's suggestion; nothing of the real seasons is asserted on.
 //   4. A fact: both sides with who said what; Yes (canonical, locked: every league on the season gets it), Undo from
 //      History (settled again, out of every league), No then Reopen, and an edit (it was Danny's) undone.
 //   5. Find and a castaway: Override the name (every league renames them), Undo; a group override; Lock (a
@@ -131,7 +131,8 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
          VALUES ($1, $2, 5, '{"facts": []}', '{}', 'paste', $3, $4, $5) RETURNING id`,
         [key[0].show_id, key[0].season_number, fx.users[who], couch, JSON.stringify({ people: cast, kinds: null })]
       )).rows[0].id;
-    await pool.query("INSERT INTO fact_sources (decision_id, research_id, method, confidence) VALUES ($1, $2, '', 'medium')", [ori, await answer("jordan", fx.couchId)]);
+    const jordansAnswer = await answer("jordan", fx.couchId);
+    await pool.query("INSERT INTO fact_sources (decision_id, research_id, method, confidence) VALUES ($1, $2, '', 'medium')", [ori, jordansAnswer]);
     await answer("casey", fx.extraCouchId);
     // Couch B's game with nobody running it.
     await pool.query("UPDATE league_memberships SET role = 'member' WHERE league_id = $1 AND user_id = $2", [L.extra, fx.users.alex]);
@@ -232,11 +233,20 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     check((await as.sam.call("POST", `/api/seasons/${sid}/rulebook/suggest${A}`, { about: "scores", note: "" })).status === 400, "a suggestion needs a note");
 
     // ---- 3. the Inbox, from the profile menu ----
+    // Merged starts when 12 are left: 14 went into Episode 5 and nothing says it began, so there's nothing to confirm yet.
+    const early = (await as.desk.call("GET", "/api/desk/inbox")).body;
+    check(!early.items.some((i) => i.kind === "phase" && /ZT Survivor 51/.test(i.title)), "Inbox: no Merged start to confirm before anything says it began", JSON.stringify(early.items.map((i) => i.title)));
+    // jordan's answer says the game merged in Episode 5.
+    await pool.query(`UPDATE episode_research SET payload = payload || '{"merged": "yes"}' WHERE id = $1`, [jordansAnswer]);
     const inbox = (await as.desk.call("GET", "/api/desk/inbox")).body;
     const item = (kind, re) => inbox.items.find((i) => i.kind === kind && re.test(i.title + i.line));
     check(!!item("split", /Ori Jean Charles/) && item("split", /Ori/).href === `/desk/fact/${ori}`, "Inbox: Ori's idol, the sources split", JSON.stringify(inbox.items.map((i) => i.title)));
     check(!!item("stranded", /ZT Extra/), "Inbox: ZT Extra has no one running it");
-    check(!!item("phase", /ZT Survivor 51.*Merged/) && item("phase", /ZT Survivor 51/).href === `/desk/rulebook/${rb}`, "Inbox: when did the Merged start (ZT Survivor 51)");
+    check(
+      !!item("phase", /ZT Survivor 51.*Merged.*Research says it began in Episode 5/) && item("phase", /ZT Survivor 51/).href === `/desk/rulebook/${rb}`,
+      "Inbox: when did the Merged start (ZT Survivor 51), once research says it began",
+      JSON.stringify(item("phase", /ZT Survivor 51/))
+    );
     check(!!item("suggestion", /ZT Survivor 51/) && /zt_nd_jordan/.test(item("suggestion", /ZT Survivor 51/).line), "Inbox: jordan's suggested fix");
     check(!inbox.items.some((i) => /ZT Survivor 51 has no one|ZT Traitors/.test(i.title)), "couch A's games are run, so it isn't stranded");
 
