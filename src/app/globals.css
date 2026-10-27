@@ -544,6 +544,47 @@
   .tag-slide,
   .way-in-lit { animation: none; }
 }
+/* Fill in what happened's roll call (show/recaps.tsx): an episode's results written up as a broadcast graphic loads. The
+   caption plate comes on from the left when a new episode starts (roll-in); while ChatGPT searches, a light sweeps the rail
+   as on the loading mark (roll-sweep); each person's segment lights as they're written up, a short stagger across the ones
+   that arrive together (seg-lit); the episode's chip settles when it goes live or lands (chip-land). Transform and opacity
+   only, and none of it under reduced motion: the lit segments, the chip's meter and the plate still show, still. */
+@keyframes roll-in {
+  0% { transform: translateX(-14px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+.roll-in {
+  animation: roll-in 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes roll-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+.roll-sweep {
+  animation: roll-sweep 1.4s cubic-bezier(0.65, 0, 0.35, 1) infinite;
+}
+@keyframes seg-lit {
+  0% { opacity: 0.18; transform: scaleY(0.4); }
+  60% { opacity: 1; }
+  100% { opacity: 1; transform: scaleY(1); }
+}
+.seg-lit {
+  transform-origin: bottom;
+  animation: seg-lit 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes chip-land {
+  0% { transform: scale(0.86); opacity: 0.5; }
+  100% { transform: scale(1); opacity: 1; }
+}
+.chip-land {
+  animation: chip-land 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .roll-in,
+  .seg-lit,
+  .chip-land { animation: none; }
+  .roll-sweep { animation: none; display: none; }
+}
 /* The reaction picker (emoji-picker-react) on our tokens, so it sits in the sheet like the rest. */
 .chat-sheet .EmojiPickerReact {
   --epr-bg-color: var(--card);

@@ -34,9 +34,12 @@ export interface AskedEpisode {
 export interface ResearchNow {
   episode: number;
   stage: "waiting" | "opening" | "sending" | "asking" | "writing";
-  /** People answered so far, of those asked about. */
+  /** People answered so far, of those asked about: only for someone who has seen the episode (how many are still in by
+   *  then would give earlier exits away; episode-recaps.ts leaves them out for anyone else). */
   done: number | null;
   of: number | null;
+  /** How far through it is, 0 to 1, for everyone (no head count in it). */
+  share: number | null;
 }
 
 export interface ResultsResearch {
@@ -143,6 +146,7 @@ export async function resultsResearch(seasonId: string, now = new Date()): Promi
           stage: (p.stage && STAGES.has(p.stage) ? p.stage : "sending") as ResearchNow["stage"],
           done: Number.isInteger(p.done) ? p.done! : null,
           of: Number.isInteger(p.of) ? p.of! : null,
+          share: Number.isInteger(p.done) && Number.isInteger(p.of) && p.of! > 0 ? Math.min(1, p.done! / p.of!) : null,
         }
       : null,
   };

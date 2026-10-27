@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Loader2, Sparkles, X } from "lucide-react";
 import { recaps, useRecaps, type AskedEpisode, type ResearchNow, type SeasonEpisodes } from "../data";
 import type { ShowData } from "../screens/show-space";
-import { Btn } from "../ui/parts";
+import { Btn, CaptionPlate } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 
@@ -134,71 +134,163 @@ export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: Sh
 
 const STATUS_WORDS: Record<AskedEpisode["status"], string> = { waiting: "waiting its turn", asking: "being looked up", done: "in", failed: "not found" };
 
-/** What our bot is doing right now, in a line, as the episode's answer is written. */
-function nowLine(now: ResearchNow, w: ShowData["words"]): string {
-  const ep = `${w.episode} ${now.episode}`;
-  if (now.stage === "writing" && now.of) return `${ep}: ${now.done ?? 0} of ${now.of} ${w.people.toLowerCase()} written up`;
-  if (now.stage === "asking" || now.stage === "writing") return `${ep}: ChatGPT is searching`;
-  if (now.stage === "waiting") return `${ep}: waiting for our bot`;
-  return `${ep}: starting`;
+/** How many times `sig` has changed while this was on screen: 0 until it does. Keyed on it, an element animates for a change
+ *  you watched, never on arrival (Up next's useChangeCount, overview/up-next.tsx). */
+function useChangeCount(sig: string): number {
+  const [s, setS] = useState({ sig, n: 0 });
+  if (s.sig !== sig) setS({ sig, n: s.n + 1 });
+  return s.n;
 }
 
-/** Each asked episode's results as a chip: in (with how many), being looked up, waiting its turn, or not found; and under
- *  them, what's being asked now and how far its answer has got (or, between runs, what's next). */
+/** The episodes whose chip changed while you watched (went live, or landed), and how many changes so far (a key, so each
+ *  plays its settle once). */
+function useLanded(asked: AskedEpisode[]): { landed: Set<number>; n: number } {
+  const sig = asked.map((a) => `${a.episode}:${a.status}`).join(",");
+  const [s, setS] = useState({ sig, landed: new Set<number>(), n: 0 });
+  if (s.sig !== sig) {
+    const before = new Map(s.sig.split(",").filter(Boolean).map((x) => x.split(":") as [string, string]));
+    const landed = new Set(asked.filter((a) => before.has(String(a.episode)) && before.get(String(a.episode)) !== a.status && (a.status === "asking" || a.status === "done")).map((a) => a.episode));
+    setS({ sig, landed, n: s.n + 1 });
+  }
+  return { landed: s.landed, n: s.n };
+}
+
+const RISE = { "--rise": "6px", "--dur": "160ms" } as CSSProperties;
+
+/** Each asked episode's results as a chip: in (with how many), being looked up (its meter rising as its people are written
+ *  up), waiting its turn, or not found; under them the roll call for the one being asked now, or, between runs, what's next. */
 function ResultsProgress({ asked, now, words: w }: { asked: AskedEpisode[]; now: ResearchNow | null; words: ShowData["words"] }) {
   const done = asked.filter((a) => a.status === "done");
   const found = done.reduce((n, a) => n + (a.found ?? 0), 0);
   const waitingNext = !now ? asked.find((a) => a.status === "waiting") : undefined;
-  const share = now && now.stage === "writing" && now.of ? Math.min(1, (now.done ?? 0) / now.of) : null;
+  const { landed, n: landings } = useLanded(asked);
+  const countCue = useChangeCount(String(done.length));
+  // A new episode coming on while you watch (not the one already on when you arrived): its plate comes on from the left.
+  const episodeCue = useChangeCount(String(now?.episode ?? ""));
   return (
     <div className="mt-1" data-results-progress>
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
         <span className="type-caption text-[13px] tracking-[0.04em] text-muted-foreground">Results</span>
         <small className="text-[12.5px] text-muted-foreground" data-results-count>
-          {done.length} of {asked.length} in{found ? ` · ${found} ${found === 1 ? "result" : "results"} so far` : ""}
+          <span key={countCue} className={`inline-block ${countCue ? "chat-in" : ""}`} style={RISE}>
+            {done.length}
+          </span>{" "}
+          of {asked.length} in{found ? ` · ${found} ${found === 1 ? "result" : "results"} so far` : ""}
         </small>
       </div>
       <ol className="flex flex-wrap gap-1.5">
-        {asked.map((a) => (
-          <li
-            key={a.episode}
-            data-result-ep={a.episode}
-            data-status={a.status}
-            aria-label={`${w.episode} ${a.episode}: ${STATUS_WORDS[a.status]}${a.status === "done" && a.found != null ? `, ${a.found} results` : ""}`}
-            className={`flex h-8 min-w-10 items-center justify-center gap-1 rounded-[3px] px-2 text-[13px] font-bold tabular-nums ${
-              a.status === "done"
-                ? "bg-foreground text-background"
-                : a.status === "asking"
-                  ? "outline-[1.5px] -outline-offset-1 outline-foreground"
-                  : a.status === "failed"
-                    ? "text-live outline-1 -outline-offset-1 outline-live"
-                    : "bg-secondary text-muted-foreground"
-            }`}
-          >
-            {a.status === "done" && <Check className="size-3.5" aria-hidden />}
-            {a.status === "asking" && <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden />}
-            {a.status === "failed" && <X className="size-3.5" aria-hidden />}
-            {a.episode}
-          </li>
-        ))}
+        {asked.map((a) => {
+          const live = a.status === "asking" && now?.episode === a.episode;
+          const meter = live && now ? (now.share ?? 0) : 0;
+          return (
+            <li
+              key={`${a.episode}:${landed.has(a.episode) ? landings : 0}`}
+              data-result-ep={a.episode}
+              data-status={a.status}
+              aria-label={`${w.episode} ${a.episode}: ${STATUS_WORDS[a.status]}${a.status === "done" && a.found != null ? `, ${a.found} results` : ""}`}
+              className={`relative isolate flex h-8 min-w-10 items-center justify-center gap-1 overflow-hidden rounded-[3px] px-2 text-[13px] font-bold tabular-nums ${
+                a.status === "done"
+                  ? "bg-foreground text-background"
+                  : a.status === "asking"
+                    ? "outline-[1.5px] -outline-offset-1 outline-foreground"
+                    : a.status === "failed"
+                      ? "text-live outline-1 -outline-offset-1 outline-live"
+                      : "bg-secondary text-muted-foreground"
+              } ${landed.has(a.episode) ? "chip-land" : ""}`}
+            >
+              {/* The live episode's meter: it fills from the bottom as its people are written up. */}
+              {live && (
+                <span
+                  aria-hidden
+                  data-chip-meter
+                  className="absolute inset-0 -z-10 origin-bottom bg-foreground/20 transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
+                  style={{ transform: `scaleY(${meter})` }}
+                />
+              )}
+              {a.status === "done" && <Check className="size-3.5" aria-hidden />}
+              {a.status === "asking" && !live && <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden />}
+              {a.status === "failed" && <X className="size-3.5" aria-hidden />}
+              {a.episode}
+            </li>
+          );
+        })}
       </ol>
       {waitingNext && (
         <small className="mt-2.5 block text-[13px] leading-snug text-muted-foreground" data-results-next>
           Next: {w.episode} {waitingNext.episode}
         </small>
       )}
-      {now && (
-        <div className="mt-2.5" data-results-now>
-          <small className="block text-[13px] leading-snug text-muted-foreground" aria-live="polite">
-            {nowLine(now, w)}
-          </small>
-          {share !== null && (
-            <div className="mt-1.5 h-1 overflow-hidden rounded-[2px] bg-border" data-results-bar>
-              <i className="block h-full bg-foreground transition-[width] duration-700 motion-reduce:transition-none" style={{ width: `${Math.round(share * 100)}%` }} />
-            </div>
-          )}
-        </div>
-      )}
+      {now && <RollCall key={now.episode} now={now} words={w} arrived={episodeCue > 0} />}
+    </div>
+  );
+}
+
+/** What the plate says at each stage of the episode being asked now. */
+function rollWords(now: ResearchNow, w: ShowData["words"]): { title: string; line: string } {
+  const people = w.people.toLowerCase();
+  if (now.stage === "writing" && now.of != null && now.done != null) return { title: `${now.done} of ${now.of} written up`, line: `ChatGPT is writing up the ${people}` };
+  if (now.stage === "writing") return { title: "Writing it up", line: "No head count before you've seen it" };
+  if (now.stage === "asking") return { title: "Searching", line: "ChatGPT is reading the recaps" };
+  if (now.stage === "waiting") return { title: "Up next", line: "Our bot is finishing another question" };
+  return { title: "Starting", line: "Opening ChatGPT" };
+}
+
+/**
+ * The roll call: the episode being asked now as a broadcast graphic loading. Its caption plate (the stage, and the head count
+ * once it's being written up), and under it a rail with a segment for each person, lighting as ChatGPT writes each one up, a
+ * short stagger across the ones that arrive together; while it searches, a light sweeps the rail. For an episode you haven't
+ * seen there's no head count, so the rail is one meter. `arrived`: it came on while you watched (its plate comes on from the
+ * left).
+ */
+function RollCall({ now, words: w, arrived }: { now: ResearchNow; words: ShowData["words"]; arrived: boolean }) {
+  const { title, line } = rollWords(now, w);
+  const counted = now.of != null && now.done != null && now.of > 0 && now.of <= 60;
+  const lit = counted ? Math.min(now.done!, now.of!) : 0;
+  // What was lit before this render, kept as the count moves: what lights now is what's new (never what was lit on arrival).
+  const [s, setS] = useState({ lit, from: lit, base: lit });
+  if (s.lit !== lit) setS({ lit, from: s.lit, base: s.base });
+  const searching = now.stage !== "writing";
+  const titleCue = useChangeCount(title);
+  return (
+    <div className={`mt-3 ${arrived ? "roll-in" : ""}`} data-results-now aria-live="polite">
+      <CaptionPlate
+        size="sm"
+        tone="quiet"
+        tag={`${w.ep} ${now.episode}`}
+        title={
+          <span key={titleCue} className={`block ${titleCue ? "chat-in" : ""}`} style={RISE}>
+            {title}
+          </span>
+        }
+        subtitle={line}
+      />
+      <div className="relative mt-2 h-2.5 overflow-hidden" data-results-rail={counted ? now.of : "meter"} aria-hidden>
+        {counted ? (
+          <div className="flex h-full gap-[2px]">
+            {Array.from({ length: now.of! }, (_, i) => {
+              const on = i < lit;
+              const fresh = on && i >= s.from && i >= s.base;
+              return (
+                <i
+                  key={i}
+                  data-seg={on ? "on" : "off"}
+                  className={`h-full min-w-0 flex-1 rounded-[1px] bg-foreground ${on ? "" : "opacity-[0.16]"} ${fresh ? "seg-lit" : ""}`}
+                  style={fresh ? { animationDelay: `${Math.min(i - s.from, 8) * 45}ms` } : undefined}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <div className="h-full rounded-[1px] bg-foreground/[0.16]">
+            <i
+              className="block h-full origin-left rounded-[1px] bg-foreground transition-transform duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] motion-reduce:transition-none"
+              style={{ transform: `scaleX(${now.share ?? 0})` }}
+            />
+          </div>
+        )}
+        {/* While ChatGPT searches, a light crosses the rail (the loading mark's sweep). */}
+        {searching && <i className="roll-sweep absolute inset-y-0 left-0 w-1/4 bg-gradient-to-r from-transparent via-foreground/45 to-transparent" />}
+      </div>
     </div>
   );
 }

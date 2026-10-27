@@ -3,6 +3,7 @@ import { showWords } from "@/lib/game/show-words";
 import { askBot, askBotStatus } from "./ask-bot";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { pool, HttpError } from "./db";
+import { EVERYTHING, seenThrough } from "./guard";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { askResults, resultsResearch, type ResultsResearch } from "./research-asks";
 import { latestEnded, seasonSchedules } from "./schedule";
@@ -153,12 +154,15 @@ async function botAvailable(bot?: string): Promise<boolean> {
 
 export async function recapState(user: SessionUser, seasonId: string, bot?: string): Promise<RecapState> {
   await mayFill(user.id, seasonId);
-  const [plan, { rows }, available, results] = await Promise.all([
+  const [plan, { rows }, available, results, seen] = await Promise.all([
     planOf(seasonId),
     pool.query("SELECT asking_at, message FROM episode_fills WHERE season_id = $1", [seasonId]),
     botAvailable(bot),
     resultsResearch(seasonId),
+    seenThrough(user.id, seasonId),
   ]);
+  // An episode you haven't seen: how far its answer has got, but not how many people it's about (who's still in by then).
+  if (results?.now && seen !== EVERYTHING && seen < results.now.episode) results.now = { ...results.now, done: null, of: null };
   const asking = !!rows[0]?.asking_at && Date.now() - new Date(rows[0].asking_at).getTime() < ASK_STALE_MS;
   return { missing: plan.missing.map((e) => e.number), asking, message: asking ? null : (rows[0]?.message ?? null), available, results };
 }

@@ -25,7 +25,7 @@
 //   Try again for the one not found. No page errors; nothing wider than the screen. Screenshots go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal; CRON_SECRET in .env.local)
-//   node scripts/dev-test/check-research-asks.js <outDir> [--width=390] [--keep] [--api]
+//   node scripts/dev-test/check-research-asks.js <outDir> [--width=390] [--theme=light|dark] [--keep] [--api]
 //   node scripts/dev-test/check-research-asks.js down            (removes what it made: zt_ra_ people, the show 990041)
 //
 // It drives the bot's clock route, which plans every season: it stops before calling it if anything that isn't its own is
@@ -49,6 +49,8 @@ if (!out) throw new Error("usage: check-research-asks.js <outDir> [--width=390] 
 const width = Number((args.find((a) => a.startsWith("--width=")) || "--width=390").slice(8));
 const apiOnly = args.includes("--api");
 const keep = args.includes("--keep");
+// --theme=light (Studio) or dark (Night) for the browser's screenshots; the app's own default otherwise.
+const theme = (args.find((a) => a.startsWith("--theme=")) || "").slice(8) || null;
 
 const PASSWORD = "zt-pass-12345";
 const PEOPLE = ["watcher", "friend", "late"];
@@ -225,6 +227,12 @@ function recapAnswer(prompt) {
     if (!apiOnly) {
       browser = await open({ user: "zt_ra_watcher", pass: PASSWORD, width, headers });
       browser.page.on("pageerror", (e) => check(false, "no page errors", e.message));
+      // The new design's theme is the account's (user_settings.theme, 0138), copied to the gys_theme cookie for the first paint.
+      if (theme) {
+        const t = theme === "light" ? "studio" : "night";
+        await pool.query("UPDATE user_settings SET theme = $2 WHERE user_id = $1", [users.watcher, t]);
+        await browser.page.context().addCookies([{ name: "gys_theme", value: t, url: BASE }]);
+      }
     }
 
     // ---- Make it a game: photos before Looks right ----
@@ -314,7 +322,12 @@ function recapAnswer(prompt) {
       await page.goto(`${BASE}/show/${sid}/episodes`);
       await page.locator("[data-results-now]").waitFor({ timeout: 10_000 }).catch(() => {});
       const nowText = (await page.locator("[data-results-now]").count()) ? await page.locator("[data-results-now]").innerText() : "";
-      check(/Episode 1: \d of 6 players written up/.test(nowText) && (await page.locator("[data-results-bar]").count()) === 1, "in the browser: \"Episode 1: n of 6 players written up\" and its bar", nowText);
+      const lit = await page.locator('[data-results-rail="6"] [data-seg="on"]').count();
+      check(
+        /Ep 1/i.test(nowText) && /\d of 6 written up/i.test(nowText) && lit >= 1 && lit <= 6 && (await page.locator('[data-result-ep="1"] [data-chip-meter]').count()) === 1,
+        "in the browser: the roll call (\"Ep 1 · n of 6 written up\", a lit segment per person so far) and Episode 1's chip filling",
+        `${nowText} · ${lit} lit`
+      );
       await shot(page, "3b-episodes-progress");
     }
     const run1 = await slow;
@@ -345,7 +358,24 @@ function recapAnswer(prompt) {
     const run4 = await tick(at(3));
     const run5 = await tick(at(6));
     check(run4?.job?.episode === 3 && run4.ok === false && run5?.job?.episode === 3 && run5.ok === false && run5.asked?.ok === false, "Episode 3 fails twice and is given up", JSON.stringify([run4, run5]));
-    const run6 = await tick(at(6));
+    // Episode 4 slowly, to see it as late (on Episode 1) does: how far it's got, but no head count (who's still in by then).
+    bot.delayMs = 6000;
+    const slow4 = tick(at(6));
+    let lateNow = null;
+    let watcherNow = null;
+    for (let i = 0; i < 50 && !(lateNow && watcherNow); i++) {
+      const [l, wt] = [(await recaps("late"))?.results?.now, (await recaps())?.results?.now];
+      if (l?.episode === 4 && l.stage === "writing") lateNow = l;
+      if (wt?.episode === 4 && wt.stage === "writing") watcherNow = wt;
+      if (!(lateNow && watcherNow)) await sleep(150);
+    }
+    check(
+      lateNow && lateNow.done === null && lateNow.of === null && lateNow.share > 0 && watcherNow?.of === 4 && watcherNow.done >= 1,
+      "Episode 4 being written up: late (on Episode 1) sees how far, no head count; the watcher (on 4) sees n of 4 (Ada, Bea out; 3 not found)",
+      JSON.stringify({ lateNow, watcherNow })
+    );
+    const run6 = await slow4;
+    bot.delayMs = 0;
     check(run6?.job?.episode === 4 && run6.ok === true, "so Episode 4 goes", JSON.stringify(run6));
     check((await tick(at(9))) === null, "then nothing's due");
     check(JSON.stringify(statusOf(await recaps())) === JSON.stringify({ 1: "done", 2: "done", 3: "failed", 4: "done" }), "1, 2 and 4 in; 3 not found");
