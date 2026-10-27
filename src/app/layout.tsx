@@ -4,6 +4,7 @@ import { Archivo, IBM_Plex_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthGate } from "@/components/auth-gate";
 import { MotionProvider } from "@/components/motion";
+import { NoLinkMenu } from "@/components/no-link-menu";
 import { QueryProvider } from "@/components/query-provider";
 import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme-script";
@@ -99,6 +100,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body className="min-h-full flex flex-col bg-background">
         <ServiceWorkerRegistrar />
+        <NoLinkMenu />
         <QueryProvider>
           <MotionProvider>
             <AuthGate hasSession={hasSession}>{children}</AuthGate>

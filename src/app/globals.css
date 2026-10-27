@@ -331,6 +331,13 @@
     -webkit-user-select: text;
     user-select: text;
   }
+  /* The installed app on iOS: a long press on a link or image doesn't pop the browser's link menu
+     (copy link address, open in new tab). Android's equivalent is no-link-menu.tsx. */
+  @media (display-mode: standalone) {
+    body {
+      -webkit-touch-callout: none;
+    }
+  }
   html {
     @apply font-sans;
   }
