@@ -15,6 +15,10 @@ import { fillCastPhotos } from "./show-art";
 // a game's cast is Make it a game's and the desk's, and this never touches one. A roster isn't a spoiler (who's on a team is known
 // before a game), so the tab shows it to anyone on the show.
 //
+// Stats are paused (BOT_STATS, 2026-10-27): asking our bot for a whole roster's numbers was slow and unreliable, and the plan is a
+// sports-data API first, others behind it, ChatGPT last (docs/PLAN-sports-data.md). Until then nothing asks for stats; what's
+// stored still shows, and the code below is what an API's numbers will reuse.
+//
 // Stats (db/migrations/0145): each person's numbers as snapshots. Coming in (`through` 0: the regular season, a career, whatever
 // came before) always shows; this season or series through episode N shows only up to where you are, the newest snapshot at or
 // before your mark (guard.ts). One question asks for both, in whatever columns the sport's box scores use (the answer chooses them;
@@ -106,7 +110,7 @@ export function rosterPrompt(s: Season): string {
   return [
     `Search the web for who's taking part in ${s.show} (${s.seasonLabel}). Answer with JSON only, in this shape:`,
     `{"groups": [{"name": "the team's name", "people": [{"name": "Full Name", "role": "what they do"}]}]}`,
-    `One group per team, with its ${people} on the current roster (each one's role is their position), then its manager or head coach and its coaches (role "Manager", "Pitching coach" and so on). If the event has officials (umpires, referees), add a group named "Officials" with each one's role. A sport of individuals has one group named "Field" with every competitor.`,
+    `One group per team, with its ${people} on the current roster and nobody else (no coaches, staff or officials); each one's role is their position. A sport of individuals has one group named "Field" with every competitor.`,
     `Use real names as the official rosters give them, nobody twice, and leave out anyone you can't confirm.`,
     ...(s.titles.length ? [``, `The TV listings for it:`, ...s.titles.map((t) => `- ${t}`)] : []),
   ].join("\n");
@@ -254,7 +258,7 @@ async function runAsk(seasonId: string, bot?: string): Promise<void> {
     // Their stats next, while this request has time (else Players offers Fill in stats). Taken before this ask lets go, so the
     // page, polling while either asks, never sees a moment with neither.
     const left = BUDGET_MS - (Date.now() - t0);
-    const stats = !!filled && left > STATS_NEEDS_MS && (await lockStats(seasonId, null));
+    const stats = BOT_STATS && !!filled && left > STATS_NEEDS_MS && (await lockStats(seasonId, null));
     await done(null, filled);
     if (stats) await runStats(seasonId, bot, left - 10_000);
   } catch (e) {
@@ -278,11 +282,14 @@ export async function pasteRoster(user: SessionUser, seasonId: string, answer: u
 
 // ---------- stats (0145) ----------
 
+/** Our bot asking for stats: off until sports-data APIs lead (see the header). */
+const BOT_STATS = false;
+
 /** How long a stats ask needs, at least, to be worth starting after the roster in the same request. */
 const STATS_NEEDS_MS = 120_000;
 
 /** Whether a sport's stats can be asked for: a sport nobody's made a game of, with its roster in. */
-const statsAskable = (s: Season) => s.kind === "sport" && !s.ready && s.people > 0;
+const statsAskable = (s: Season) => BOT_STATS && s.kind === "sport" && !s.ready && s.people > 0;
 
 export type StatsPart = "comingIn" | "soFar";
 
@@ -541,6 +548,7 @@ async function runStats(seasonId: string, bot: string | undefined, budgetMs: num
 async function statsAskableFor(user: SessionUser, seasonId: string): Promise<void> {
   await mayFill(user.id, seasonId);
   const s = await seasonOf(seasonId);
+  if (!BOT_STATS) throw new HttpError(409, "Stats are on their way from sports data sources");
   if (!statsAskable(s)) throw new HttpError(409, s.people ? "Its stats come with the game" : `Fill in its ${s.words.people.toLowerCase()} first`);
 }
 

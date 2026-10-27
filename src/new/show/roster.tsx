@@ -58,7 +58,7 @@ export function Roster({ seasonId, show }: { seasonId: string; show: ShowData })
           <small className="text-[13.5px] leading-snug text-muted-foreground">
             {asking
               ? "ChatGPT is looking it up. It takes a minute or two; you can leave this page."
-              : `TV listings only list a sport's broadcasters. ChatGPT can find each team's ${people}, coaches and the officials. Everyone on the show sees them.`}
+              : `TV listings only list a sport's broadcasters. ChatGPT can find each team's ${people}. Everyone on the show sees them.`}
           </small>
           {!asking && r.message && <small className="text-[13px] font-semibold leading-snug text-live">{r.message}</small>}
           {!asking && (

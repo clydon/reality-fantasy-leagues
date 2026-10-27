@@ -14,8 +14,8 @@ const season = (people, titles = []) => ({ show: "World Series", seasonLabel: "s
 test("the question: the same for every sport, in the show's own words, with its listing's titles", () => {
   const p = rosterPrompt(season("Player", ["Game 1: Tampa Bay Rays at Milwaukee Brewers"]));
   assert.match(p, /who's taking part in World Series \(season 2026\)/);
-  assert.match(p, /One group per team, with its players on the current roster/);
-  assert.match(p, /group named "Officials"/);
+  assert.match(p, /One group per team, with its players on the current roster and nobody else \(no coaches, staff or officials\)/);
+  assert.doesNotMatch(p, /"Officials"/);
   assert.match(p, /one group named "Field"/);
   assert.match(p, /- Game 1: Tampa Bay Rays at Milwaukee Brewers/);
   assert.match(rosterPrompt(season("Driver")), /with its drivers on the current roster/);

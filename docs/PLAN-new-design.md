@@ -143,6 +143,9 @@ step's As built.
   bingo, calls, rate, remind, watch along, something wrong), couch pages, the guide, the desk, and notifications and pushes.
   Any step on those can take them by reading `show.words`. Also: a season numbered by year shows "S2026" in the show bar's
   title ("2026" would read better), and the desk has no field for the episode word yet (an admin can't correct "Event").
+- **Bot-powered sports stats are paused (2026-10-27, the user's call; `BOT_STATS` in rosters.ts)** and Fill in who's playing asks for
+  players only. Sports data moves to APIs first, ChatGPT last: docs/PLAN-sports-data.md has the research and the steps. What follows in
+  the next entry about stats asks is moot until that plan's step 4.
 - **Players' photos and stats (2026-10-27, rosters.ts, show-art.ts, migration 0145) left these alone.** (1) Stats come only when
   someone taps (Fill in / Update stats) or straight after a roster's filled in; nothing updates them by itself when a game ends (the
   bot clock could, a few hours after each episode, as recaps could). (2) A big roster takes several bot asks (batches of 25, two parts,
