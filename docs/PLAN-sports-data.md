@@ -32,6 +32,10 @@ last resort, for rosters only.
 | **CricketData.org** (was CricAPI) | yes, free signup | Cricket | Squads, scorecards, player stats | 100 hits a day; not needed to start (ESPN has the big cricket competitions) |
 | **Jolpica** (Ergast's successor), **OpenF1** | none | F1 | Fields, results, laps | Jolpica already used for F1 photos (show-art.ts) |
 | **NHL** (`api-web.nhle.com`) | none | NHL | Rosters, box scores | Not probed yet |
+| **Premier League's fantasy API** (`fantasy.premierleague.com/api/bootstrap-static/`) | none | Premier League only | All 669 players and 20 teams; official headshots (`resources.premierleague.com/premierleague/photos/players/250x250/p{code}.png`, returned an image); goals, assists, minutes, clean sheets, saves, cards | Unofficial, like ESPN; one league |
+| **OpenLigaDB** (`api.openligadb.de`) | none | German leagues (Bundesliga: 18 teams) | Teams, matches, goals | No player photos; thin on players |
+| **football-data.org** | free signup | 12 competitions | Fixtures, squads | Needs a key (refused without); squads have no photos. Not needed |
+| **FotMob** | none (unofficial) | Broad | | Its league endpoint answered 404: out |
 
 Sources: [Zuplo's ESPN hidden API guide](https://zuplo.com/blog/2024/10/01/espn-hidden-api-guide),
 [sportsapis.dev on ESPN](https://sportsapis.dev/espn-api), [MLB Stats API listing](https://freeapihub.com/apis/mlb-stats-api),
@@ -46,7 +50,9 @@ Sources: [Zuplo's ESPN hidden API guide](https://zuplo.com/blog/2024/10/01/espn-
   games' box scores.
 - MLB Stats API: a Triple-A roster (Toledo, 22) and its headshots at `img.mlbstatic.com/mlb-photos/image/upload/w_213,q_100/v1/people/{id}/headshot/67/current`
   (returned an image).
-- Photos where a provider has none (ESPN's soccer): Wikipedia (show-art.ts, by name and team). TheSportsDB was checked and left out.
+- Soccer: ESPN's match sheets list each team's squad with per-player stats (appearances, goals, saves, cards, fouls...), but few
+  headshots (Premier League: 2 of 20 on a match sheet). Photos there come from the Premier League's own API for that league, and
+  Wikipedia (show-art.ts, by name and team) for the rest. TheSportsDB was checked and left out.
 
 So rosters and photos need no ChatGPT for anything a provider has: ChatGPT only for a league no source carries, and only when there
 are no linked games to read players from.
@@ -66,9 +72,26 @@ are no linked games to read players from.
 - `seasonStats(league, athlete)`: a player's line for a season (coming in).
 
 A chain tries them in order per call: **ESPN → the league's own free API** (MLB Stats API for any baseball level, NHL's, Jolpica or
-OpenF1 for F1) **→ ChatGPT** (rosters only, and only when nothing else has the league: section 3). A provider that errors, times out or
+OpenF1 for F1, the Premier League's for its photos, OpenLigaDB for German soccer) **→ ChatGPT** (rosters only, and only when nothing
+else has the league: section 3). Which one a league ends up on is decided by section 1b's tests, not by hand. A provider that errors, times out or
 answers 429 is skipped for a while (a small circuit breaker), and the next answers. Every answer is cached (rosters a day, a finished
 game's box score for good, a live one a few minutes), so a season costs a handful of calls, not one per person per visit.
+
+### 1b. Which source, decided by the data (no table of leagues)
+
+For each league and each need (roster, photos, box scores, season stats), the chain tries sources in order and keeps the first whose
+answer passes a test made from the data itself:
+
+- **Roster**: it includes at least 90% of the players who appear in that team's linked box scores (before any game: at least as many
+  players as the league's other teams' rosters have, from the same source).
+- **Photos**: per person, not per league: the roster source's headshot, then the next source that has one for that person (the
+  Premier League's own API, for its players), then Wikipedia, then initials.
+- **Box score**: both teams have player lines.
+- **Season stats**: most players with box-score lines have one.
+
+The winner is remembered per league and need (`sports_picks`: league, need, source, score, checked_at) so the next call goes straight
+to it, and checked again weekly or as soon as a call to it fails. A source that only covers some leagues (the Premier League's API, MLB
+Stats API's levels) says which from its own data, so nothing here lists leagues by hand.
 
 ### 2. Linking a season to the provider's games, universally
 
@@ -88,7 +111,8 @@ so stats can find them.
 
 - **Roster**, first that answers: the provider's team roster (ESPN, the league's own API) → the players in the linked games' box scores
   (AFL, where ESPN's roster is empty) → ChatGPT only when no provider carries the league and no games are linked.
-- **Photos**, first that has one: the provider's headshot (ESPN, MLB's) → Wikipedia by name and team → initials. Never ChatGPT.
+- **Photos**, per person, first that has one: the provider's headshot (ESPN, MLB's) → another source's (the Premier League's, for its
+  players) → Wikipedia by name and team → initials. Never ChatGPT.
 - It happens on its own once the season's games are linked (no tap); Fill in who's playing stays only for the ChatGPT case.
 
 ### 4. Stats from box scores, spoiler-safe by construction
@@ -113,14 +137,16 @@ for each game's line.
 
 ## Steps (each its own session)
 
-1. **Providers and the chain**: the interface, ESPN and MLB Stats API adapters, the circuit breaker and cache; a dev check against
+1. **Providers and the chain**: the interface, ESPN and MLB Stats API adapters, the circuit breaker and cache, section 1b's tests and
+   `sports_picks`; a dev check against
    the real services (`scripts/dev-test/check-sports-data.js`, like check-show-art.js: real calls, no app server).
 2. **Linking**: `season_events` (migration), matching episodes to events by date and team names; the World Series as the first real
    case; a check with fake-listings' World Series and a stand-in provider.
 3. **Cast**: rosters from linked events, players only, headshots then Wikipedia; Fill in who's playing uses it first.
 4. **Stats**: box scores per game, so far summed through the guard, coming in from season stats; the Players tab's lines.
-5. **More providers**: NHL, Jolpica or OpenF1, each behind the chain; minor-league baseball via MLB Stats API sport ids; CricketData
-   only if needed (free signup).
+5. **More providers**: NHL, Jolpica or OpenF1, the Premier League's fantasy API (photos), OpenLigaDB, each behind the chain and section
+   1b's tests; minor-league baseball via MLB Stats API sport ids; CricketData or football-data.org only if a test keeps failing (free
+   signups).
 6. **Spans** (the user's next idea) build on the links.
 
 ## Decisions (the user: costs stay at zero, 2026-10-27)
