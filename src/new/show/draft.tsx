@@ -749,6 +749,7 @@ function OrderList({ seasonId, show, game }: { seasonId: string; show: ShowData;
             <SeatFace game={game} playerId={s.playerId} />
             <b className="min-w-0 flex-1 truncate text-[15px]">{s.name}</b>
             {s.you && <span className="type-caption rounded-[2px] bg-secondary px-1.5 py-0.5 text-[11px] tracking-[0.06em]">You</span>}
+            {s.bot && <span className="type-caption rounded-[2px] bg-secondary px-1.5 py-0.5 text-[11px] tracking-[0.06em] text-muted-foreground">Computer</span>}
           </li>
         ))}
       </ol>

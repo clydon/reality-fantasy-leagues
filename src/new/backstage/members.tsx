@@ -14,6 +14,7 @@ import { EmptyState, SectionHead } from "../ui/parts";
 import { openCouchSheet } from "../couch/couch-sheets";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
+import { ComputerPlayers } from "./computer-players";
 
 // Backstage › Members & roles (the mock's backstage.js bsMembers and guards.js memberSheet, docs/PLAN-new-design.md step 6a):
 // who runs each game here and everyone who plays. Roles can be handed off or shared: a Commissioner (results, waivers,
@@ -21,7 +22,8 @@ import { toast } from "../ui/toast";
 // changes at once with Undo (tier 1); taking someone out of the games, or leaving them yourself, is tier 3: a sentence
 // saying what happens and a hold, restorable from Recent changes for 30 days. A game always keeps a Commissioner, so the
 // last one can't step down or leave: it's refused before anyone holds. Only a Commissioner changes roles; a Game admin
-// reads this page. Join requests and invites come with the couch's own join flow (step 9).
+// reads this page. Join requests and invites come with the couch's own join flow (step 9). Then each game's computer players
+// (computer-players.tsx), which whoever runs it adds, sets the level of, or takes out.
 
 const ROLE_WORDS: Record<LeagueRole, string> = { commissioner: "Commissioner", admin: "Game admin", member: "Player" };
 const ROLES: [LeagueRole, string, string][] = [
@@ -119,6 +121,8 @@ export function MembersPage({ seasonId, show }: { seasonId: string; show: ShowDa
           ))}
         </ul>
       </section>
+
+      <ComputerPlayers seasonId={seasonId} couchId={couchId} games={games} />
 
       <p className="px-4 pt-6 text-[14px] leading-relaxed text-muted-foreground">
         <b className="text-foreground">Commissioner:</b> results, waivers, rules and roles. <b className="text-foreground">Game admin:</b> results and waivers, and can pick for people in a

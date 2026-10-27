@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { GameView } from "@/lib/game/game-view";
+import { BOT_LEVEL as LEVEL, LEVEL_OF, type BotLevel } from "@/lib/game/computer-players";
 import { BOT_NAMES, practiceTeams, type PracticeGame } from "@/lib/game/practice";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
@@ -37,10 +38,7 @@ import { gamesHere, viewWithCalls, type GameHere } from "./season-games";
 /** The most people one season's public pool holds (docs/HOSTING.md: its state is read in full after every change). */
 export const POOL_CAP = 100;
 
-export type BotLevel = "easy" | "normal" | "sharp";
-const LEVEL: Record<BotLevel, "casual" | "solid" | "sharp"> = { easy: "casual", normal: "solid", sharp: "sharp" };
-const LEVEL_OF: Record<string, BotLevel> = { casual: "easy", solid: "normal", sharp: "sharp" };
-export type { PracticeGame };
+export type { BotLevel, PracticeGame };
 const PRACTICE_NAME: Record<PracticeGame, string> = { "active-roster": "Weekly Lineup", "classic-draft": "Outlast" };
 
 const nameOf = (user: SessionUser) => (user as { username?: string | null }).username || user.name;

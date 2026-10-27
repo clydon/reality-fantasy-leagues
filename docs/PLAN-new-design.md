@@ -362,7 +362,10 @@ step's As built.
 - **Only solo players are offered them** (step 9 part 3, the mock's; for a later step). The pool's card and the practice
   couch's are on the solo hub and on a show's Games tab when you're solo (`show.solo`: no couch, or a couch of one).
   Someone on a couch can't find them (the API would let them), though a pool or practice couch they joined while solo
-  stays with their games on that show. Commercial break or the Games tab could offer the pool to everyone.
+  stays with their games on that show. Commercial break or the Games tab could offer the pool to everyone. **Since
+  2026-10-27 the practice couch is offered to everyone** (the Games tab's Practice block, `solo.tsx CouchPractice`), and any
+  couch game can have computer players (Start a game, Backstage › Members: `computer-players.ts`; HANDOFF has it); the pool
+  is still solo-only.
 - **A practice couch is in classic's list** (step 9 part 3; for C). Classic's league menu shows it as an ordinary league with
   computer players (classic plays bots), where it works, though it says nothing about being practice; the public pool is
   left out of classic's list. C removes the list.

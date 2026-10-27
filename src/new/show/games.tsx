@@ -18,7 +18,7 @@ import { placeOf } from "./tonight";
 import { Block, Face, IconBox } from "./parts";
 import { playsWaivers, WaiversHowBody } from "./waivers";
 import { useOpenReveal } from "./reveal";
-import { SoloGames } from "./solo";
+import { CouchPractice, SoloGames } from "./solo";
 import { useOpenMake } from "./make-game";
 import { CallRow } from "./calls";
 import { PollRow, StartPollRow } from "./polls";
@@ -86,6 +86,8 @@ export function Games({ show }: { show: ShowData }) {
       {show.ready && <HowRow show={show} name={name} />}
       <ThisWeek show={show} />
       {!show.solo && show.ready && <StartRow show={show} others={others} />}
+      {/* Anyone on a couch can practise against computer players too (solo players have it under On your own). */}
+      {!show.solo && show.ready && <CouchPractice show={show} />}
       <PlayerSheet open={player} onClose={() => setPlayer(null)} />
       <RulesSheet game={rules} play={show.play ?? []} onGame={setRules} waivers={wv.data?.games ?? []} />
     </>

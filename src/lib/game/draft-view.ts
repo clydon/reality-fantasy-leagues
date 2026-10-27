@@ -35,6 +35,8 @@ export interface DraftSeat {
   name: string;
   userId: string | null;
   you: boolean;
+  /** A computer player (bot-logic.js). */
+  bot: boolean;
 }
 
 export interface DraftPick {
@@ -178,7 +180,7 @@ export function draftView(
   const size = StateLogic.rosterSize(full);
   const role = game.yourRole;
   const nameOf = (id: string) => full.players.find((p) => p.id === id)?.name ?? "someone";
-  const seat = (id: string): DraftSeat => ({ playerId: id, name: nameOf(id), userId: userOf(id), you: id === playerId });
+  const seat = (id: string): DraftSeat => ({ playerId: id, name: nameOf(id), userId: userOf(id), you: id === playerId, bot: !!full.players.find((p) => p.id === id)?.automated });
 
   // The cast as you've seen it, tribe by tribe. Points only once an episode has scored: before that it's the tribe.
   const faces = new Map(castOf(view).map((c) => [c.id, c]));

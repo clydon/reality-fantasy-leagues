@@ -84,6 +84,20 @@ the earlier answers were never asked the new question. Checks: `scripts/dev-test
 then the browser at 390 on Night and Studio); check-research-asks 50, results ways 89, settling 96, stats 57, unit tests 739.
 Left: BACKLOG 17, 18, 19.
 
+**Computer players for anyone (2026-10-27, pushed to master; no migration):** no longer only the solo practice couch. **Start a game**
+has a Computer players choice (None, 1, 2, 3, then Easy / Normal / Sharp) on a competition's drafts and Survival Pool;
+**Backstage › Members** has a Computer players section for whoever runs a game (Commissioner or Game admin): add one, set
+its level, take one or all of them out behind a hold (tier 3, no restore: the sentence says what happens). The user's rules:
+they join before the draft starts (with no draft, before the game's first results), and **can't be taken out while the draft
+is open**, only before it or once it's done (after it, their teams go and whoever they drafted is free). The draft room tags
+their seats Computer. The **practice couch** is offered to everyone on the Games tab (a Practice block under Start a game),
+not only someone solo; the public pool stays solo-only. Rules: `src/lib/game/computer-players.ts` (pure; tests/computer-
+players.test.js); writes `src/lib/server/computer-players.ts`, `POST /api/seasons/[id]/backstage/computer`; Start's `bots` and
+`level`. Not offered on a series or sport (bot-logic.js assumes someone goes home each episode). Checks:
+`scripts/dev-test/check-new-computer-players.js` 43 PASS at 390; unit tests 746. Noticed, not fixed: Members' role line
+repeats a game name when the couch has two of a kind ("Commissioner in Outlast" for Outlast and Outlast 2): `roleLine` uses
+`gameName`, not the game's own name (BACKLOG).
+
 **The desk catches up with classic's admin (planned 2026-10-27): [PLAN-desk-parity.md](PLAN-desk-parity.md).** The gap audit, the user's decisions (Act as them = classic's impersonation, logged; every gap designed now; phone first), eight steps (people and Act as first), and the design brief; the mock designs come next, after the brief is confirmed.
 
 **Next: the merge-and-deploy step, which is the user's** (decided 2026-10-25: one merge after step 15). In order, from your own terminal (Claude never handles the connection strings), as 0b's As built in the plan describes:

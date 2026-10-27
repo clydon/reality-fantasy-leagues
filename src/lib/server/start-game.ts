@@ -1,4 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
+import { addBot, MAX_BOTS, type BotLevel } from "@/lib/game/computer-players";
 import { rulebookFor } from "@/lib/game/formats/blocks/index.js";
 import { gameLine, gamesFor, noFitLine } from "@/lib/game/formats/rulebook-fits.js";
 import type { GameFit, SeasonGameKey } from "@/lib/game/formats/rulebook-fits";
@@ -52,6 +53,8 @@ export interface StartChoice extends GameFit {
   line: string;
   /** How many of this game the couch already plays here. */
   have: number;
+  /** Computer players can join it (computer-players.ts botsPlay: a competition's drafts and Survival Pool). */
+  bots: boolean;
 }
 
 export interface StartOptions {
@@ -95,6 +98,9 @@ const KEY_OF: Record<string, SeasonGameKey> = {
   "weekly-calls": "weeklyCalls",
   "weekly-bingo": "weeklyBingo",
 };
+
+/** The games computer players play (bot-logic.js): the drafts and Survival Pool. */
+const BOT_GAMES = new Set<SeasonGameKey>(["survivalPool", "weeklyLineup", "outlast"]);
 
 /** "Survivor", "Formula 1": a show as people say it. */
 const plain = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").replace(/^The /, "").trim() || name;
@@ -147,7 +153,7 @@ export async function startOptions(user: SessionUser, seasonId: string, couchId:
   const have = (key: SeasonGameKey) => here.filter((g) => KEY_OF[g.gameType] === key && !g.archived).length;
   const show = plain(h.show.name);
   // Every season game with whether it fits (the sheet shows the ones that do; the rest are the doesn't-fit line).
-  const choices: StartChoice[] = fits.map((g) => ({ ...g, line: gameLine(g.key, blocks) ?? "", have: have(g.key) }));
+  const choices: StartChoice[] = fits.map((g) => ({ ...g, line: gameLine(g.key, blocks) ?? "", have: have(g.key), bots: (blocks.kind ?? h.show.kind) === "competition" && BOT_GAMES.has(g.key) }));
 
   // Who on the couch watches it openly or plays it, for Tell the couch's line (never how far: the guard).
   const others = people.filter((p) => p.userId !== user.id);
@@ -275,7 +281,7 @@ export interface Started {
  * Start a game on a season for a couch (POST /api/seasons/[id]/start): `game` a key that fits, `tell` the couch, `again` a game
  * to run back, `to` the last episode it plays (none: to the season's end).
  */
-export async function startGame(user: SessionUser, seasonId: string, couchId: string | null, body: { game?: unknown; tell?: unknown; again?: unknown; to?: unknown }, now = new Date()): Promise<Started> {
+export async function startGame(user: SessionUser, seasonId: string, couchId: string | null, body: { game?: unknown; tell?: unknown; again?: unknown; to?: unknown; bots?: unknown; level?: unknown }, now = new Date()): Promise<Started> {
   const againId = typeof body.again === "string" ? body.again : null;
   const opts = await startOptions(user, seasonId, couchId, againId, now);
   if (opts.blocked) throw new HttpError(409, opts.blocked);
@@ -287,6 +293,11 @@ export async function startGame(user: SessionUser, seasonId: string, couchId: st
   const to = typeof body.to === "number" && ends.has(body.to) ? body.to : null;
   if (body.to != null && to === null) throw new HttpError(400, `Pick an end the listing has, from ${opts.part.singular} ${opts.from} on`);
   const span = to === null ? null : spanName(opts.from, to, opts.part);
+  // Computer players in the seats (computer-players.ts), seated before anyone joins, at one level.
+  const bots = typeof body.bots === "number" && Number.isInteger(body.bots) ? body.bots : 0;
+  if (bots < 0 || bots > MAX_BOTS) throw new HttpError(400, `Up to ${MAX_BOTS} computer players`);
+  if (bots && !choice.bots) throw new HttpError(409, `Computer players don't play ${choice.name}${opts.kind === "competition" ? "" : ` on ${opts.show} yet`}`);
+  const level: BotLevel = body.level === "easy" || body.level === "sharp" ? body.level : "normal";
   const couch = opts.couch.id;
   const here = await couchGamesOn(user, couch, seasonId);
   const name = freeName(opts.again && opts.again.key === choice.key ? opts.again.name : choice.name, here);
@@ -305,6 +316,7 @@ export async function startGame(user: SessionUser, seasonId: string, couchId: st
     rulebookId: copy?.id ?? null,
     before: (s) => {
       seat = StateLogic.addPlayer(s, starter).id;
+      for (let i = 0; i < bots; i++) addBot(s, level);
     },
     after: async (s, client, id) => {
       // Theirs from the start: a game of yours never exists without you in it.
@@ -319,7 +331,7 @@ export async function startGame(user: SessionUser, seasonId: string, couchId: st
       if (choice.key === "outlast") {
         // One team each from who's still in: fitted to the couch, so everyone on it could play (Game settings changes it).
         const stillIn = s.castaways.filter((c) => c.status === "active").length;
-        const each = Math.floor(stillIn / Math.max(2, opts.couch.members));
+        const each = Math.floor(stillIn / Math.max(2, opts.couch.members + bots));
         if (stillIn && each >= 1 && each < (s.settings.teamSize || 4)) StateLogic.updateSettings(s, "teamSize", each);
       }
       if (kept && opts.again?.key === choice.key) {
@@ -332,8 +344,8 @@ export async function startGame(user: SessionUser, seasonId: string, couchId: st
         userId: user.id,
         kind: "game.start",
         tier: 1,
-        text: `${starter} started ${choice.name}${span ? ` for ${span}` : ""}${opts.again ? `, again after ${opts.again.label}` : ""}`,
-        detail: { game: choice.key, from: opts.from, to },
+        text: `${starter} started ${choice.name}${span ? ` for ${span}` : ""}${opts.again ? `, again after ${opts.again.label}` : ""}${bots ? ` with ${bots} computer ${bots === 1 ? "player" : "players"}` : ""}`,
+        detail: { game: choice.key, from: opts.from, to, bots },
       });
     },
   });

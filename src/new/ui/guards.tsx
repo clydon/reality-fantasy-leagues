@@ -126,6 +126,7 @@ export function HoldSheet({
   cta,
   problem,
   alt,
+  restore = "Restorable for 30 days from Recent changes",
   onConfirm,
 }: {
   open: boolean;
@@ -136,6 +137,8 @@ export function HoldSheet({
   cta: string;
   problem?: string | null;
   alt?: { label: string; line: string; onClick: () => void };
+  /** The line under the button: how to have it back (null: none, the consequence says). */
+  restore?: string | null;
   onConfirm: () => Promise<void>;
 }) {
   const [holding, setHolding] = useState(false);
@@ -214,7 +217,7 @@ export function HoldSheet({
               />
               <span className="relative">{busy ? "One moment…" : holding ? "Keep holding…" : `Hold to ${cta}`}</span>
             </button>
-            <p className="mt-2 text-center text-[13px] text-muted-foreground">Restorable for 30 days from Recent changes</p>
+            {restore && <p className="mt-2 text-center text-[13px] text-muted-foreground">{restore}</p>}
           </>
         )}
         {error && (

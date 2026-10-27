@@ -71,6 +71,7 @@ export type { OurRules } from "@/lib/server/ours";
 export type { CouchMoments } from "@/lib/server/couch-answers";
 export type { ShowChange } from "@/lib/server/show-changes";
 export type { Member, MemberGame, Members, OutPreview } from "@/lib/server/backstage-members";
+export type { BotSeat, GameBots } from "@/lib/server/computer-players";
 export type { AskRun, Ways } from "@/lib/server/results-ways";
 export type { DraftClock, DraftFace, DraftGame, DraftPick, DraftSeat } from "@/lib/game/draft-view";
 export type { SeasonDraft } from "@/lib/server/season-draft";
@@ -759,6 +760,9 @@ export const gameAdmin = {
   remove: (seasonId: string, couchId: string, userId: string, preview = false) =>
     sendJson<OutPreview & { batch: string | null }>(seasonUrl(seasonId, `/backstage/members/${encodeURIComponent(userId)}/remove`, { couch: couchId }), "POST", { preview }),
   leave: (seasonId: string, couchId: string, preview = false) => sendJson<OutPreview & { batch: string | null }>(seasonUrl(seasonId, "/leave", { couch: couchId }), "POST", { preview }),
+  /** A game's computer players (computer-players.ts): add one, set one's level, take one or all of them out. */
+  bots: (seasonId: string, couchId: string, leagueId: string, body: { action: "add"; level: BotLevel } | { action: "level"; playerId: string; level: BotLevel } | { action: "remove"; playerId?: string; all?: true }) =>
+    sendJson<{ names: string[] }>(seasonUrl(seasonId, "/backstage/computer", { couch: couchId }), "POST", { leagueId, ...body }),
 };
 
 // ---- Make it ours (step 6b part 3): Scoring rules' writes, each a Commissioner's, `preview` first where standings can move ----
@@ -1296,7 +1300,7 @@ export function useEndGames(seasonId: string, couchId: string | null, enabled = 
 
 export const gamesApi = {
   /** `to`: the last episode it plays (a span, step 6 of docs/PLAN-sports-data.md); null to the season's end. */
-  start: (seasonId: string, couchId: string, body: { game: string; tell: boolean; again?: string | null; to?: number | null }) =>
+  start: (seasonId: string, couchId: string, body: { game: string; tell: boolean; again?: string | null; to?: number | null; bots?: number; level?: BotLevel }) =>
     post<Started>(seasonUrl(seasonId, "/start", { couch: couchId }), body),
   archive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "archive", leagueId }),
   unarchive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "unarchive", leagueId }),

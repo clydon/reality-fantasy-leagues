@@ -2,7 +2,8 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, ChevronRight, Plus, RotateCcw, Trophy, Users } from "lucide-react";
+import { Bell, Bot, ChevronRight, Plus, RotateCcw, Trophy, Users } from "lucide-react";
+import { LEVEL_WORDS, type BotLevel } from "@/lib/game/computer-players";
 import { spanName } from "@/lib/game/spans";
 import { gamesApi, useAfterReveal, useCurrentCouch, useHome, useStartOptions, type HomeShow, type StartChoice, type StartOptions } from "../data";
 import { gameColour } from "../games";
@@ -20,7 +21,9 @@ import { openCouchSheet } from "./couch-sheets";
 //     each in a line in the show's own words ("Draft five drivers, start three each race"); what doesn't fit, in a line; a
 //     talk show's Weekly Bingo (step 12 part 3: a card a show, bingo.tsx) and Weekly Calls (part 2: two calls a show); How long
 //     (docs/PLAN-sports-data.md step 6, spans.ts: the rest of the season, just the next one, this series for a sport, or
-//     through any later episode the listing has); Tell the couch (one alert, on by default); Start it.
+//     through any later episode the listing has); Computer players (none to three, at one level, in a competition's drafts and
+//     Survival Pool: computer-players.ts; Backstage › Members adds more or takes them out); Tell the couch (one alert, on by
+//     default); Start it.
 //   - without one (the hub's foot, Commercial break, Get the couch going with nothing to suggest): Pick the show first, from
 //     your shows still airing; one that isn't a game yet goes to Make it a game.
 //   - `again` (Run it back): the same game, its name and settings, on the show's next season.
@@ -159,9 +162,12 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   const [toPicked, setTo] = useState<number | null | undefined>(undefined);
   const to = toPicked !== undefined ? toPicked : (o?.again?.to ?? null);
   const [tell, setTell] = useState(true);
+  const [bots, setBots] = useState(0);
+  const [level, setLevel] = useState<BotLevel>("normal");
   const [busy, setBusy] = useState(false);
   const pick = picked ?? o?.again?.key ?? startable[0]?.key ?? null;
   const me = home?.user.name ?? "you";
+  const botsHere = !!fits.find((g) => g.key === pick)?.bots;
   const again = o?.again;
 
   const start = async () => {
@@ -173,6 +179,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
         tell,
         again: target?.again ?? null,
         to,
+        ...(botsHere && bots ? { bots, level } : {}),
       });
       await refresh();
       toast(`${r.gameName} started${r.told ? " · the couch has been told" : ""}`);
@@ -264,6 +271,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
               </p>
             )}
             {startable.length > 0 && (o.spans.length > 1 || o.ends.length > 0) && <HowLong o={o} to={to} setTo={setTo} />}
+            {botsHere && <Computers n={bots} setN={setBots} level={level} setLevel={setLevel} />}
             {startable.length > 0 && (
               <button
                 type="button"
@@ -347,6 +355,52 @@ function HowLong({ o, to, setTo }: { o: StartOptions; to: number | null; setTo: 
             ))}
           </select>
         </label>
+      )}
+    </section>
+  );
+}
+
+/** A row of choices, one picked (the practice couch's level picker's look). */
+function Pills<T extends string | number>({ label, value, items, onChange, data }: { label: string; value: T; items: [T, string][]; onChange: (v: T) => void; data: string }) {
+  return (
+    <div className="grid gap-1 rounded-[3px] bg-secondary/60 p-1" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }} role="radiogroup" aria-label={label}>
+      {items.map(([v, word]) => (
+        <button
+          key={String(v)}
+          type="button"
+          role="radio"
+          aria-checked={value === v}
+          onClick={() => onChange(v)}
+          {...{ [data]: String(v) }}
+          className={`h-11 rounded-[2px] text-[15px] font-semibold ${value === v ? "bg-foreground text-background" : ""}`}
+        >
+          {word}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Computer players (computer-players.ts): how many fill seats, and how sharp they play. */
+function Computers({ n, setN, level, setLevel }: { n: number; setN: (n: number) => void; level: BotLevel; setLevel: (l: BotLevel) => void }) {
+  return (
+    <section data-start-bots className="mt-1 flex flex-col gap-1.5 border-t border-border pt-3">
+      <b className="flex items-center gap-2 text-[15px] font-semibold">
+        <Bot className="size-4" aria-hidden />
+        Computer players
+      </b>
+      <small className="text-[13px] leading-snug text-muted-foreground">
+        They take seats and make their own moves. Add more or take them out in Backstage, any time but while the draft&rsquo;s open.
+      </small>
+      <Pills label="How many computer players" value={n} items={[[0, "None"], [1, "1"], [2, "2"], [3, "3"]]} onChange={setN} data="data-start-bots-count" />
+      {n > 0 && (
+        <Pills
+          label="How sharp they play"
+          value={level}
+          items={(Object.keys(LEVEL_WORDS) as BotLevel[]).map((l) => [l, LEVEL_WORDS[l]])}
+          onChange={setLevel}
+          data="data-start-bots-level"
+        />
       )}
     </section>
   );

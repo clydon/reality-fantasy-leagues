@@ -20,7 +20,8 @@ import { useOpenReveal } from "./reveal";
 // Playing solo (docs/PLAN-new-design.md step 9 part 3; the mock's solo.js): a season's public pool ("Survivor 51 ·
 // Everyone": Survival Pool and a weekly Who goes home? against everyone on the app, usernames only, no chat) and your
 // practice couch (you against three computer players, Weekly Lineup or Outlast, on the real results). Both on the solo
-// hub's Play on your own and a show's Games tab when you're solo (solo.ts on the server; nothing polls).
+// hub's Play on your own and a show's Games tab when you're solo (solo.ts on the server; nothing polls); the practice couch
+// on anyone's Games tab (2026-10-27: computer players for everyone, not only someone solo), under the couch's games.
 
 /** "top 20%" while you're in the top half of a big enough field, else "12th of 40". */
 export function standing(place: number, of: number): string {
@@ -142,6 +143,25 @@ export function SoloGames({ show }: { show: ShowData }) {
         <div>
           {poolShown(p) && <PoolCard info={p} art={show.header?.show.artUrl ?? null} onOpen={page.show} />}
           {practiceShown(pr) && <PracticeCard info={pr} onOpen={() => setSheet(true)} />}
+        </div>
+      </Block>
+      <PracticeSheet open={sheet} onOpenChange={setSheet} seasons={[{ info: pr, seenThrough: show.seenThrough, latestAired: show.latestAired }]} />
+    </>
+  );
+}
+
+/** A show's Games tab on a couch: your practice couch, against computer players and never counted toward the couch. */
+export function CouchPractice({ show }: { show: ShowData }) {
+  const seasonId = show.header?.seasonId ?? "";
+  const practice = usePractice(seasonId, !!show.header);
+  const [sheet, setSheet] = useState(false);
+  const pr = practice.data;
+  if (!pr || !practiceShown(pr)) return null;
+  return (
+    <>
+      <Block title="Practice" aside="Doesn't count on the couch">
+        <div data-couch-practice>
+          <PracticeCard info={pr} onOpen={() => setSheet(true)} />
         </div>
       </Block>
       <PracticeSheet open={sheet} onOpenChange={setSheet} seasons={[{ info: pr, seenThrough: show.seenThrough, latestAired: show.latestAired }]} />
