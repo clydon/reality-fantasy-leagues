@@ -34,8 +34,10 @@
 //
 // Results someone asked for (db/migrations/0152, src/lib/server/research-asks.ts): a show nobody plays a game on, whose
 // aired episodes have no results, gets each episode's full research when someone fills in what happened. It isn't any
-// season's schedule either: each asked episode is a job of its own (slot 'asked'), a season's in episode order, one at a
-// time, two tries each; the run says how it ended on the ask (settleAsk), and the app tells whoever asked.
+// season's schedule either: each asked episode is a job of its own, a season's one at a time: first who went home in each
+// (slot 'asked-quick', one short question each, so who's out shows across the season within minutes), then each one's full
+// results in episode order (slot 'asked', two tries each; seasonAskNext). A full run says how it ended on the ask
+// (settleAsk), and the app tells whoever asked. Every run writes how far it's got as it goes (progressFor, 0153).
 const Air = require("../src/lib/game/air-schedule.js");
 const StateLogic = require("../src/lib/game/state-logic.js");
 const AutoResearch = require("./auto-research.js");
@@ -92,6 +94,10 @@ const TIEBREAK_AFTER_MS = 24 * 60 * MIN;
 const ASKED_SLOT = "asked";
 const ASKED_TRIES = 2;
 const ASKED_RETRY_MS = 2 * MIN;
+// Its who-went-home run (kind 'quick', one try) carries this one: every asked episode's goes before any full run.
+const ASKED_QUICK_SLOT = "asked-quick";
+// What a full research answer's people are counted by while it's written (each person's entry has a name): its progress.
+const PEOPLE_PATTERN = '"name"\\s*:';
 
 const slotOf = (run) => `${run.kind}@${run.after}`;
 
@@ -270,39 +276,67 @@ function askedNext(askedAt, tries, now) {
   return new Date(Math.max(...tries.map((h) => new Date(h.started_at).getTime())) + ASKED_RETRY_MS);
 }
 
-/** Every open ask (or one season's), oldest first and a season's in episode order, with its tries since it was asked. */
+/**
+ * One season's next asked run: { episode, kind, slot, at } when one is due, { hold: Date } when one is running or waiting to
+ * try again (nothing else of the season goes meanwhile), or null when none is left. Who went home first, for every asked
+ * episode that has no results yet, in order (one short question each, one try: so who's out shows across the season within
+ * minutes), then each one's full results in order (two tries each; askedNext). `asks`: the season's open asks in the order
+ * asked, each { episode_number, asked_at, tries, quick_tries, has_results } (tries: full runs since it was asked; quick_tries:
+ * who went home's). Pure.
+ */
+function seasonAskNext(asks, now) {
+  const t = now.getTime();
+  const running = (h) => h.ok == null && new Date(h.started_at).getTime() + RUNNING_STALE_MS > t;
+  for (const a of asks) {
+    const r = a.quick_tries.find(running);
+    if (r) return { hold: new Date(new Date(r.started_at).getTime() + RUNNING_STALE_MS) };
+  }
+  const quick = asks.find((a) => !a.has_results && !a.quick_tries.length && !a.tries.length);
+  if (quick) return { episode: quick.episode_number, kind: "quick", slot: ASKED_QUICK_SLOT, at: new Date(quick.asked_at) };
+  for (const a of asks) {
+    const at = askedNext(a.asked_at, a.tries, now);
+    if (!at) continue;
+    return at.getTime() <= t ? { episode: a.episode_number, kind: "full", slot: ASKED_SLOT, at: new Date(a.asked_at) } : { hold: at };
+  }
+  return null;
+}
+
+/** Every open ask (or one season's), oldest first and a season's in episode order, with its runs since it was asked (full
+ *  and who went home) and whether anyone has sent results for it yet. */
 async function openAsks(pool, seasonId = null) {
   const { rows } = await pool.query(
     `SELECT a.season_id, a.episode_number, a.asked_at,
-            COALESCE(json_agg(json_build_object('started_at', r.started_at, 'ok', r.ok)) FILTER (WHERE r.id IS NOT NULL), '[]') AS tries
+            COALESCE(json_agg(json_build_object('started_at', r.started_at, 'ok', r.ok)) FILTER (WHERE r.slot = $2), '[]') AS tries,
+            COALESCE(json_agg(json_build_object('started_at', r.started_at, 'ok', r.ok)) FILTER (WHERE r.slot = $3), '[]') AS quick_tries,
+            EXISTS (SELECT 1 FROM episode_research er JOIN show_seasons ss ON ss.show_id = er.show_id AND ss.season_number = er.season_number
+                     WHERE ss.id = a.season_id AND er.episode_number = a.episode_number AND er.source <> 'combined' AND er.withdrawn_at IS NULL) AS has_results
        FROM research_asks a
-       LEFT JOIN bot_research_runs r ON r.season_id = a.season_id AND r.episode_number = a.episode_number AND r.slot = $2 AND r.started_at >= a.asked_at
+       LEFT JOIN bot_research_runs r ON r.season_id = a.season_id AND r.episode_number = a.episode_number AND r.slot IN ($2, $3) AND r.started_at >= a.asked_at
       WHERE a.done_at IS NULL AND ($1::uuid IS NULL OR a.season_id = $1)
       GROUP BY a.season_id, a.episode_number, a.asked_at
       ORDER BY a.asked_at, a.episode_number`,
-    [seasonId, ASKED_SLOT]
+    [seasonId, ASKED_SLOT, ASKED_QUICK_SLOT]
   );
   return rows;
 }
 
-/**
- * The asked episodes due now and when the next comes due: { due: [job], next }. A season's asks go one at a time, in the
- * order asked (an episode's before the next one's): one running, or waiting to try again, holds the rest of its season; one
- * given up lets the next go.
- */
+/** The asked runs due now (a season's one at a time: seasonAskNext) and when the next comes due: { due: [job], next }. */
 async function planAsks(pool, now, seasonId = null) {
   const t = now.getTime();
+  const seasons = new Map();
+  for (const a of await openAsks(pool, seasonId)) {
+    if (!seasons.has(a.season_id)) seasons.set(a.season_id, []);
+    seasons.get(a.season_id).push(a);
+  }
   const due = [];
   let next = null;
-  const held = new Set();
-  for (const a of await openAsks(pool, seasonId)) {
-    if (held.has(a.season_id)) continue;
-    const at = askedNext(a.asked_at, a.tries, now);
-    if (!at) continue;
-    held.add(a.season_id);
-    if (at.getTime() <= t) {
-      const season = await loadSeasonForJob(pool, a.season_id);
-      if (season) due.push({ episode: a.episode_number, slot: ASKED_SLOT, kind: "full", after: null, at: new Date(a.asked_at), season });
+  for (const [id, asks] of seasons) {
+    const plan = seasonAskNext(asks, now);
+    if (!plan) continue;
+    const at = plan.hold ?? plan.at;
+    if (!plan.hold) {
+      const season = await loadSeasonForJob(pool, id);
+      if (season) due.push({ episode: plan.episode, slot: plan.slot, kind: plan.kind, after: null, at: plan.at, season });
     }
     const when = Math.max(at.getTime(), t);
     if (next === null || when < next) next = when;
@@ -587,6 +621,23 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
     const asked = runId && slot === ASKED_SLOT ? await settleAsk(pool, season.id, episode, ok, message, result && Number.isInteger(result.live) ? result.live : null) : null;
     return { ok, message, result, seconds, runId, ...(asked ? { asked } : {}) };
   };
+  // How far the answer has got, on the run's row while it runs (0153): its stage, and for a full research the people
+  // answered so far of those asked about (`of`). A new stage at once, the count at most every 3 s; never blocks the run.
+  const progressFor = (of = null) => {
+    if (!runId) return undefined;
+    let sent = null;
+    let at = 0;
+    return {
+      pattern: of ? PEOPLE_PATTERN : null,
+      on: (p) => {
+        const v = { stage: p.stage, ...(of ? { done: Math.min(of, p.matches || 0), of } : {}) };
+        if (sent && sent.stage === v.stage && (sent.done === v.done || Date.now() - at < 3000)) return;
+        sent = v;
+        at = Date.now();
+        pool.query("UPDATE bot_research_runs SET progress = $2 WHERE id = $1 AND finished_at IS NULL", [runId, JSON.stringify(v)]).catch(() => {});
+      },
+    };
+  };
 
   try {
     if (kind === "schedule") {
@@ -633,7 +684,7 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
     if (kind === "quick") {
       const ctx = await Research.resolveSeasonResearchContext(pool, season.slug, season.season_number, episode);
       const airedAt = Air.episodeAirTime(season.schedule, episode, season.wikiAirDates);
-      const { answer } = await ask(buildQuickPrompt(ctx, airedAt, season.air_tz));
+      const { answer } = await ask(buildQuickPrompt(ctx, airedAt, season.air_tz), { progress: progressFor() });
       const q = parseQuickAnswer(answer, ctx.castNames);
       // Too early is a failed attempt, so it's asked again a few minutes later.
       if (!q.found) return finish(false, "No source about this episode yet", q);
@@ -645,8 +696,8 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
       }
       return finish(true, quickMessage(q), q);
     }
-    const { prompt } = await Research.buildPasteImportPrompt(pool, season.slug, season.season_number, episode, { structured: true });
-    const { answer } = await ask(prompt);
+    const { prompt, castCount } = await Research.buildPasteImportPrompt(pool, season.slug, season.season_number, episode, { structured: true });
+    const { answer } = await ask(prompt, { progress: progressFor(castCount) });
     const { rows: prior } = await pool.query(
       "SELECT 1 FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 AND source = 'combined'",
       [season.show_id, season.season_number, episode]
@@ -766,8 +817,10 @@ module.exports = {
   TRIVIA_AFTER_END,
   SEASON_BINGO_SLOT,
   ASKED_SLOT,
+  ASKED_QUICK_SLOT,
   ASKED_TRIES,
   RUNNING_STALE_MS,
   askedNext,
+  seasonAskNext,
   planAsks,
 };

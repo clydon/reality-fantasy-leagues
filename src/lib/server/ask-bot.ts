@@ -19,11 +19,69 @@ const KEY = process.env.LLM_BROWSER_API_KEY;
 
 export const askBotConfigured = URLS.length > 0 && !!KEY;
 
+/** How far an answer has got (the bot's stream "progress"): its stage, how much is written, and how often the asker's
+ *  pattern is in it (one per person answered, say). */
+export interface BotProgress {
+  stage: "waiting" | "opening" | "sending" | "asking" | "writing";
+  chars: number;
+  matches?: number;
+}
+
 /** Which bot to ask: `bot` (a development server's stand-in, from botFor) instead of the configured list. */
 export interface BotChoice {
   bot?: string;
   /** How long this ask may take, at most (default: the route's whole budget): two asks in one request share it. */
   budgetMs?: number;
+  /** Hear how the answer is going while it comes (`pattern`, a regular expression, counted in what's written so far). */
+  progress?: { pattern?: string | null; on: (p: BotProgress) => void };
+}
+
+type BotAnswer = { response?: string; seconds?: number; detail?: string };
+
+/** The bot's stream "progress": a JSON object a line, progress until the answer (or { detail }). An older bot that sent
+ *  one JSON object instead is read as that. */
+async function readProgress(res: Response, on: (p: BotProgress) => void): Promise<BotAnswer> {
+  const text = new TextDecoder();
+  const reader = res.body?.getReader();
+  if (!reader) return {};
+  let buf = "";
+  let all = "";
+  let answer: BotAnswer | null = null;
+  const line = (raw: string) => {
+    const s = raw.trim();
+    if (!s) return;
+    try {
+      const msg = JSON.parse(s) as BotAnswer & { progress?: BotProgress };
+      if (msg.progress) {
+        try {
+          on(msg.progress);
+        } catch {
+          /* a listener's failure isn't the answer's */
+        }
+      } else answer = msg;
+    } catch {
+      /* not a line of the stream: the whole body is read below */
+    }
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    const chunk = text.decode(value, { stream: true });
+    all += chunk;
+    buf += chunk;
+    let i;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      line(buf.slice(0, i));
+      buf = buf.slice(i + 1);
+    }
+  }
+  line(buf);
+  if (answer) return answer;
+  try {
+    return JSON.parse(all.trim()) as BotAnswer;
+  } catch {
+    return {};
+  }
 }
 
 const urlsFor = (o: BotChoice = {}) => (o.bot ? [o.bot] : URLS);
@@ -96,11 +154,18 @@ export async function askBot(prompt: string, o: BotChoice = {}): Promise<{ answe
         headers: { ...UA, "Content-Type": "application/json", "X-API-Key": KEY! },
         // keepalive: the bot sends spaces while ChatGPT works, then the JSON (a failure as { detail }, still status 200), so
         // Cloudflare's tunnel doesn't cut off an answer that takes over 100 s (error 524): a full episode's research does.
-        body: JSON.stringify({ provider: "chatgpt", prompt, search: true, max_wait: Math.floor((left - 15_000) / 1000), keepalive: true }),
+        // stream "progress" keeps the line open the same way, with how far it's got on each line.
+        body: JSON.stringify({
+          provider: "chatgpt",
+          prompt,
+          search: true,
+          max_wait: Math.floor((left - 15_000) / 1000),
+          ...(o.progress ? { stream: "progress", ...(o.progress.pattern ? { progress_pattern: o.progress.pattern } : {}) } : { keepalive: true }),
+        }),
         signal: AbortSignal.timeout(left),
         cache: "no-store",
       });
-      const body = (await res.json().catch(() => ({}))) as { response?: string; seconds?: number; detail?: string };
+      const body: BotAnswer = o.progress && res.ok ? await readProgress(res, o.progress.on) : ((await res.json().catch(() => ({}))) as BotAnswer);
       if (res.ok && body.response) return { answer: body.response, seconds: body.seconds ?? 0 };
       failures.push(`${new URL(url).host}: ${body.detail ?? `HTTP ${res.status}`}`);
     } catch (e) {

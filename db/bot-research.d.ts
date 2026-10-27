@@ -55,8 +55,11 @@ export interface BotRunOutcome {
   /** An asked episode's run (slot ASKED_SLOT) that ended its ask. */
   asked?: SettledAsk;
 }
-/** `budgetMs`: how long this ask may take (a trivia run's two share the route's budget). */
-type Ask = (prompt: string, o?: { budgetMs?: number }) => Promise<{ answer: string }>;
+/** How far an answer has got, as the bot streams it (src/lib/server/ask-bot.ts BotProgress). */
+type AskProgress = { stage: "waiting" | "opening" | "sending" | "asking" | "writing"; chars: number; matches?: number };
+/** `budgetMs`: how long this ask may take (a trivia run's two share the route's budget). `progress`: hear how the answer is
+ *  going (`pattern` counted in what's written so far); a stand-in may ignore it. */
+type Ask = (prompt: string, o?: { budgetMs?: number; progress?: { pattern?: string | null; on: (p: AskProgress) => void } }) => Promise<{ answer: string }>;
 /** Files the bot's answers as sources (src/lib/server/bot-results.ts, docs/PLAN-new-design.md step 6c). */
 export interface BotSend {
   /** Who went home: sent when it can be trusted on its own, else kept for a commissioner (`applied: false`). */
@@ -98,9 +101,16 @@ export function runJob(
 /** A season row the way runJob wants it (schedule, air clock), or undefined. */
 export function loadSeasonForJob(pool: Pool, seasonId: string): Promise<unknown>;
 
-/** An asked episode's run rows carry this slot (db/migrations/0152); two tries each. */
+/** An asked episode's run rows carry this slot (db/migrations/0152); two tries each. Its who-went-home run's, the quick one. */
 export const ASKED_SLOT: string;
+export const ASKED_QUICK_SLOT: string;
 export const ASKED_TRIES: number;
+type RunTry = { started_at: Date | string; ok: boolean | null };
+/** One season's next asked run (who went home for each first, then each one's full results), a hold, or null. */
+export function seasonAskNext(
+  asks: { episode_number: number; asked_at: Date | string; tries: RunTry[]; quick_tries: RunTry[]; has_results: boolean }[],
+  now: Date
+): { episode: number; kind: "quick" | "full"; slot: string; at: Date } | { hold: Date } | null;
 /** A run still marked running after this long was cut off: it counts as a failed try. */
 export const RUNNING_STALE_MS: number;
 /** When an asked episode's next try may start (its runs since it was asked), or null for never. */

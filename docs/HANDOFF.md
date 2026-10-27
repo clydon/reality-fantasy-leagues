@@ -56,6 +56,14 @@ Traitors 5 after deploying: open its Episodes or Players tab and tap Ask ChatGPT
 production (One tap's and the schedule's too). Fixed the same day: the bot's `/ask` takes `keepalive: true` (spaces until the
 JSON; llm-browser-api, deployed to the VM with the user's OK) and `ask-bot.ts` sends it. Proven with Traitors 5 episode 1's
 real prompt (41k chars): answered through Cloudflare in 227 s, all 22 players.
+**Then (same day, the user's "do all"): the wait shows progress and is shorter.** Asked results now go who went home in
+every episode first (slot `asked-quick`, one short question each: the Cast tab greys out who's gone across the season within
+minutes), then each episode's full results; every bot run streams how far it's got (the bot's `stream: "progress"`; the run's
+`progress`, migration 0153), so the card says "Episode 3: 9 of 22 players written up" with a bar. The bot keeps Chrome open
+between questions (a short one: 22 s instead of ~50), uses temporary chats (no carry-over between questions), and
+hard-stops a question stuck past its time (it once hung 16 minutes and blocked everything). On the VM: Traitors 5 episode
+1's real research in 155 s, counted 0 to 22 as it was written. Checks: check-research-asks.js 53 PASS at 390; One tap's and
+Autopilot's (89) and settling's (96) still pass with progress on every run.
 
 **The desk catches up with classic's admin (planned 2026-10-27): [PLAN-desk-parity.md](PLAN-desk-parity.md).** The gap audit, the user's decisions (Act as them = classic's impersonation, logged; every gap designed now; phone first), eight steps (people and Act as first), and the design brief; the mock designs come next, after the brief is confirmed.
 

@@ -1,7 +1,8 @@
 // Dev-only: a stand-in for the ask-AI bot (llm-browser-api, src/lib/server/ask-bot.ts), so a check can drive One tap and
 // the bot's scheduled runs (docs/PLAN-new-design.md step 6c) without ChatGPT or production's VM. It answers GET /health
 // and POST /ask like the real one; each question is answered by the check's own `answer(prompt)` (a string, or a promise
-// of one), after an optional delay, and every question asked is kept in `asked`.
+// of one), after an optional delay, and every question asked is kept in `asked` (with `stream`: "progress" when it was
+// asked to stream how far it's got, as the real bot does: halfway through the delay, half the answer's written).
 //
 //   const bot = await require("./fake-bot").start({ answer: (prompt) => "...", delayMs: 1500 });
 //   // point the dev server at it for a request or a browser: header  x-gys-bot: bot.url   (next dev only, loopback only)
@@ -41,21 +42,42 @@ async function start(opts = {}) {
       req.on("data", (c) => (raw += c));
       req.on("end", async () => {
         if (bot.down) return send(503, { detail: "the stand-in bot is down" });
-        let prompt = "";
+        let body;
         try {
-          prompt = JSON.parse(raw).prompt || "";
+          body = JSON.parse(raw);
         } catch {
           return send(400, { detail: "bad body" });
         }
-        bot.asked.push({ kind: kindOf(prompt), prompt, at: Date.now() });
+        const prompt = body.prompt || "";
+        // stream "progress" (the real bot's, llm-browser-api): a line asking, half the delay, a line with half the answer
+        // written (its pattern counted in it), the other half, then the answer on a line (a failure as { detail }).
+        const streamed = body.stream === "progress";
+        bot.asked.push({ kind: kindOf(prompt), prompt, at: Date.now(), stream: streamed ? "progress" : null });
         bot.busy++;
         const started = Date.now();
+        const wait = (ms) => (ms ? new Promise((r) => setTimeout(r, ms)) : null);
+        const line = (o) => res.write(JSON.stringify(o) + "\n");
+        if (streamed) {
+          res.writeHead(200, { "content-type": "application/x-ndjson" });
+          line({ progress: { stage: "asking", chars: 0 } });
+        }
         try {
-          if (bot.delayMs) await new Promise((r) => setTimeout(r, bot.delayMs));
+          await wait(streamed ? bot.delayMs / 2 : bot.delayMs);
           const response = await bot.answer(prompt, kindOf(prompt));
-          send(200, { response, seconds: (Date.now() - started) / 1000 });
+          if (streamed) {
+            const half = response.slice(0, Math.floor(response.length / 2));
+            const re = body.progress_pattern ? new RegExp(body.progress_pattern, "g") : null;
+            line({ progress: { stage: "writing", chars: half.length, ...(re ? { matches: (half.match(re) || []).length } : {}) } });
+            await wait(bot.delayMs / 2);
+            line({ response, seconds: (Date.now() - started) / 1000 });
+            res.end();
+          } else send(200, { response, seconds: (Date.now() - started) / 1000 });
         } catch (e) {
-          send(502, { detail: e instanceof Error ? e.message : "failed" });
+          const detail = e instanceof Error ? e.message : "failed";
+          if (streamed) {
+            line({ detail });
+            res.end();
+          } else send(502, { detail });
         } finally {
           bot.busy--;
         }

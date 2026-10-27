@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Check, Copy, Loader2, Sparkles, X } from "lucide-react";
-import { recaps, useRecaps, type AskedEpisode, type SeasonEpisodes } from "../data";
+import { recaps, useRecaps, type AskedEpisode, type ResearchNow, type SeasonEpisodes } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
@@ -50,18 +50,24 @@ export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: Sh
     }
     was.current = asking;
   }, [asking, qc, seasonId, state.data?.message]);
-  // An episode's results came in: the stats and the episodes read again; the last one says so.
+  // Who went home in an episode, or its results, came in: the stats and the episodes read again; the last one says so.
   const doneCount = done.length;
+  const outCount = asked.filter((a) => a.out).length;
   const wasDone = useRef<number | null>(null);
+  const wasOut = useRef<number | null>(null);
   const stillGoing = going.length;
   useEffect(() => {
-    if (wasDone.current !== null && doneCount > wasDone.current) {
+    const more = (wasDone.current !== null && doneCount > wasDone.current) || (wasOut.current !== null && outCount > wasOut.current);
+    if (more) {
       qc.invalidateQueries({ queryKey: ["new-design", "episodes", seasonId] });
       qc.invalidateQueries({ queryKey: ["new-design", "stats", seasonId] });
-      if (!stillGoing) toast("Every episode's results are in");
+      if (wasDone.current !== null && doneCount > wasDone.current && !stillGoing) toast("Every episode's results are in");
     }
-    if (state.data) wasDone.current = doneCount;
-  }, [doneCount, stillGoing, qc, seasonId, state.data]);
+    if (state.data) {
+      wasDone.current = doneCount;
+      wasOut.current = outCount;
+    }
+  }, [doneCount, outCount, stillGoing, qc, seasonId, state.data]);
 
   const resultsToAsk = missing.length + failed.length;
   const busyNow = asking || going.length > 0;
@@ -82,7 +88,7 @@ export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: Sh
   const shared = "Everyone on the show sees them, only for the ones they've seen.";
   const line = busyNow
     ? going.length
-      ? `ChatGPT is looking it up, one ${ep} at a time. We'll tell you as each one comes in, so you can leave this page.`
+      ? `ChatGPT is looking it up: who went home in each first, then everyone's results one ${ep} at a time. We'll tell you as each one comes in, so you can leave this page.`
       : "ChatGPT is looking it up. It takes a minute or two; you can leave this page."
     : blank.length && missing.length
       ? `${episodesLabel(blank, w)} only say when ${blank.length === 1 ? "it" : "they"} aired. ChatGPT can look up what happened in each, then everyone's results one ${ep} at a time, so ${people} can count their stats. ${shared}`
@@ -100,7 +106,7 @@ export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: Sh
         </b>
         <small className="text-[13.5px] leading-snug text-muted-foreground">{line}</small>
         {!asking && state.data?.message && <small className="text-[13px] font-semibold leading-snug text-live">{state.data.message}</small>}
-        {asked.length > 0 && <ResultsProgress asked={asked} words={w} />}
+        {asked.length > 0 && <ResultsProgress asked={asked} now={results?.now ?? null} words={w} />}
         {!busyNow && (
           <div className="mt-1 flex flex-col gap-1.5">
             {state.data?.available !== false && (
@@ -134,16 +140,34 @@ export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: Sh
 
 const STATUS_WORDS: Record<AskedEpisode["status"], string> = { waiting: "waiting its turn", asking: "being looked up", done: "in", failed: "not found" };
 
-/** Each asked episode's results as a chip: in (with how many), being looked up, waiting its turn, or not found. */
-function ResultsProgress({ asked, words: w }: { asked: AskedEpisode[]; words: ShowData["words"] }) {
+/** What our bot is doing right now, in a line: who went home in an episode, or everyone's results as they're written. */
+function nowLine(now: ResearchNow, w: ShowData["words"]): string {
+  const ep = `${w.episode} ${now.episode}`;
+  if (now.part === "who") return `Checking who went home in ${ep}`;
+  if (now.stage === "writing" && now.of) return `${ep}: ${now.done ?? 0} of ${now.of} ${w.people.toLowerCase()} written up`;
+  if (now.stage === "asking" || now.stage === "writing") return `${ep}: ChatGPT is searching`;
+  if (now.stage === "waiting") return `${ep}: waiting for our bot`;
+  return `${ep}: starting`;
+}
+
+/** Each asked episode's results as a chip: in (with how many), being looked up, waiting its turn (with who went home in, once
+ *  it is), or not found; and under them, what's being asked now and how far its answer has got. */
+function ResultsProgress({ asked, now, words: w }: { asked: AskedEpisode[]; now: ResearchNow | null; words: ShowData["words"] }) {
   const done = asked.filter((a) => a.status === "done");
   const found = done.reduce((n, a) => n + (a.found ?? 0), 0);
+  const outCount = asked.filter((a) => a.out).length;
+  const share = now?.part === "full" && now.stage === "writing" && now.of ? Math.min(1, (now.done ?? 0) / now.of) : null;
   return (
     <div className="mt-1" data-results-progress>
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
         <span className="type-caption text-[13px] tracking-[0.04em] text-muted-foreground">Results</span>
         <small className="text-[12.5px] text-muted-foreground" data-results-count>
-          {done.length} of {asked.length} in{found ? ` · ${found} ${found === 1 ? "result" : "results"} so far` : ""}
+          {/* Who went home comes in first for every episode, then everyone's results. */}
+          {outCount < asked.length
+            ? `who went home: ${outCount} of ${asked.length}`
+            : !done.length
+              ? `who went home: all ${asked.length} · results next`
+              : `${done.length} of ${asked.length} in${found ? ` · ${found} ${found === 1 ? "result" : "results"} so far` : ""}`}
         </small>
       </div>
       <ol className="flex flex-wrap gap-1.5">
@@ -152,7 +176,8 @@ function ResultsProgress({ asked, words: w }: { asked: AskedEpisode[]; words: Sh
             key={a.episode}
             data-result-ep={a.episode}
             data-status={a.status}
-            aria-label={`${w.episode} ${a.episode}: ${STATUS_WORDS[a.status]}${a.status === "done" && a.found != null ? `, ${a.found} results` : ""}`}
+            data-out={a.out ? "" : undefined}
+            aria-label={`${w.episode} ${a.episode}: ${STATUS_WORDS[a.status]}${a.status === "done" && a.found != null ? `, ${a.found} results` : a.out && a.status !== "failed" ? ", who went home is in" : ""}`}
             className={`flex h-8 min-w-10 items-center justify-center gap-1 rounded-[3px] px-2 text-[13px] font-bold tabular-nums ${
               a.status === "done"
                 ? "bg-foreground text-background"
@@ -166,10 +191,23 @@ function ResultsProgress({ asked, words: w }: { asked: AskedEpisode[]; words: Sh
             {a.status === "done" && <Check className="size-3.5" aria-hidden />}
             {a.status === "asking" && <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden />}
             {a.status === "failed" && <X className="size-3.5" aria-hidden />}
+            {a.status === "waiting" && a.out && <Check className="size-3 opacity-60" aria-hidden />}
             {a.episode}
           </li>
         ))}
       </ol>
+      {now && (
+        <div className="mt-2.5" data-results-now={now.part}>
+          <small className="block text-[13px] leading-snug text-muted-foreground" aria-live="polite">
+            {nowLine(now, w)}
+          </small>
+          {share !== null && (
+            <div className="mt-1.5 h-1 overflow-hidden rounded-[2px] bg-border" data-results-bar>
+              <i className="block h-full bg-foreground transition-[width] duration-700 motion-reduce:transition-none" style={{ width: `${Math.round(share * 100)}%` }} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

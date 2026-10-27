@@ -1094,7 +1094,7 @@ export const watching = {
 
 export type { KeepUp } from "@/lib/server/keep-up";
 export type { RecapState } from "@/lib/server/episode-recaps";
-export type { AskedEpisode, ResultsResearch } from "@/lib/server/research-asks";
+export type { AskedEpisode, ResearchNow, ResultsResearch } from "@/lib/server/research-asks";
 
 /** Fill in what happened (episode-recaps.ts): which aired episodes have no recap, and our bot's ask, read while it's going; and
  *  each episode's results (research-asks.ts), read while they come in one at a time. */
@@ -1105,8 +1105,9 @@ export function useRecaps(seasonId: string | null, enabled = true) {
     enabled: enabled && seasonId != null,
     staleTime: 30_000,
     retry: false,
+    // Every 4 s while something's being asked (an answer's progress moves), else 6 s while results are still queued.
     refetchInterval: (q) =>
-      q.state.data?.asking ? 4000 : q.state.data?.results?.asked.some((a) => a.status === "waiting" || a.status === "asking") ? 6000 : false,
+      q.state.data?.asking || q.state.data?.results?.now ? 4000 : q.state.data?.results?.asked.some((a) => a.status === "waiting" || a.status === "asking") ? 6000 : false,
   });
 }
 

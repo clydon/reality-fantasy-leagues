@@ -244,3 +244,27 @@ test("results someone asked for (0152): at once, held while a try runs, again tw
   assert.equal(Bot.askedNext(asked, [try_(1, false), try_(3, null)], at(5)).getTime(), at(3).getTime() + Bot.RUNNING_STALE_MS, "the last try still running");
   assert.equal(Bot.askedNext(asked, [try_(1, false), try_(3, null)], at(30)), null, "the last try cut off: given up");
 });
+
+test("results someone asked for: who went home in every episode first, in order, then each one's full results", () => {
+  const asked = new Date("2026-10-27T18:00:00Z");
+  const at = (m) => new Date(asked.getTime() + m * 60 * 1000);
+  const run = (m, ok) => ({ started_at: at(m).toISOString(), ok });
+  const ask = (n, o = {}) => ({ episode_number: n, asked_at: asked, tries: [], quick_tries: [], has_results: false, ...o });
+  const next = (asks, m) => Bot.seasonAskNext(asks, at(m));
+  // Nothing tried: Episode 1's who went home.
+  assert.deepEqual(next([ask(1), ask(2)], 1), { episode: 1, kind: "quick", slot: Bot.ASKED_QUICK_SLOT, at: asked });
+  // One running holds the season; done (or not found: one try), the next episode's goes.
+  assert.ok(next([ask(1, { quick_tries: [run(1, null)] }), ask(2)], 2).hold);
+  assert.equal(next([ask(1, { quick_tries: [run(1, true)], has_results: true }), ask(2)], 2).episode, 2);
+  assert.equal(next([ask(1, { quick_tries: [run(1, false)] }), ask(2)], 2).episode, 2);
+  // Every episode's done: the full results, in order.
+  const both = [ask(1, { quick_tries: [run(1, true)], has_results: true }), ask(2, { quick_tries: [run(2, true)], has_results: true })];
+  assert.deepEqual(next(both, 3), { episode: 1, kind: "full", slot: Bot.ASKED_SLOT, at: asked });
+  // A full one failed: held two minutes (the season waits), then it again.
+  const failed = [ask(1, { quick_tries: [run(1, true)], has_results: true, tries: [run(3, false)] }), both[1]];
+  assert.ok(next(failed, 4).hold);
+  assert.equal(next(failed, 6).kind, "full");
+  // Asked again after a failure, with results already in (who went home): straight to the full results.
+  assert.equal(next([ask(3, { has_results: true })], 1).kind, "full");
+  assert.equal(next([], 1), null);
+});

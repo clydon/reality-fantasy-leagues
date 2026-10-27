@@ -1,12 +1,14 @@
-import { ASKED_SLOT, RUNNING_STALE_MS, askedNext } from "@db/bot-research.js";
+import { ASKED_QUICK_SLOT, ASKED_SLOT, RUNNING_STALE_MS, askedNext } from "@db/bot-research.js";
 import { tellBotClock } from "./ask-bot";
 import { pool, HttpError } from "./db";
 import { latestEnded, seasonSchedules } from "./schedule";
 
 // Results looked up for a show you watch (db/migrations/0152): a show made a game that nobody plays a game on, whose aired
-// episodes have no results from anyone. Fill in what happened (episode-recaps.ts) asks for them along with its recaps: each
-// episode is the bot's full research, queued here and run by the bot's clock one at a time, a season's in episode order (each
-// one's question asks only about who's still in after the ones before it), two tries each (db/bot-research.js planAsks). Its
+// episodes have no results from anyone. Fill in what happened (episode-recaps.ts) asks for them along with its recaps: queued
+// here and run by the bot's clock one at a time, who went home in each first (a short question each, so who's out shows
+// across the season within minutes), then each episode's full research in episode order (each one's question asks only about
+// who's still in after the ones before it), two tries each (db/bot-research.js seasonAskNext). What's being asked now, and
+// how far its answer has got, comes with the rest (the bot streams it: ask-bot.ts, 0153). Its
 // answer is filed like a scheduled run's (bot-results.ts), so what's trusted becomes the season's results: the Cast tab counts
 // stats from them and the Episodes tab shows them, to each person only as far as they've seen. Whoever asked hears as each
 // one comes in (the cron route, push-events.ts notifyResearched).
@@ -24,8 +26,22 @@ export interface AskedEpisode {
   episode: number;
   /** Its turn still to come, being looked up now, in, or not found after two tries. */
   status: AskStatus;
+  /** Who went home in it is in (its short question first, or any results), so the Cast tab shows who's out; everyone's
+   *  results may still be to come. */
+  out: boolean;
   /** How many results reached the season, once it's in. */
   found: number | null;
+}
+
+/** What our bot is asking about right now, and how far it's got (db/bot-research.js progressFor, 0153). */
+export interface ResearchNow {
+  episode: number;
+  /** Who went home (a short question) or everyone's results. */
+  part: "who" | "full";
+  stage: "waiting" | "opening" | "sending" | "asking" | "writing";
+  /** Everyone's results: people answered so far, of those asked about. */
+  done: number | null;
+  of: number | null;
 }
 
 export interface ResultsResearch {
@@ -33,6 +49,7 @@ export interface ResultsResearch {
   missing: number[];
   /** What's been asked, by episode. */
   asked: AskedEpisode[];
+  now: ResearchNow | null;
 }
 
 interface Season {
@@ -76,44 +93,70 @@ interface AskRow {
   ok: boolean | null;
   found: number | null;
   tries: { started_at: string; ok: boolean | null }[];
+  quick_tries: { started_at: string; ok: boolean | null }[];
+  has_results: boolean;
 }
 
-/** Each ask's status: done or given up when it says so; else being asked while a try runs, given up once both tries failed
- *  (one cut off counts), else waiting its turn (or to try again). */
+/** Each ask's status: done or given up when it says so; else being asked while a try runs (who went home's or the full
+ *  one's), given up once both full tries failed (one cut off counts), else waiting its turn (or to try again). */
 function statusOf(a: AskRow, now: Date): AskStatus {
   if (a.done_at) return a.ok ? "done" : "failed";
   if (!askedNext(a.asked_at, a.tries, now)) return "failed";
   const t = now.getTime();
-  return a.tries.some((h) => h.ok == null && new Date(h.started_at).getTime() + RUNNING_STALE_MS > t) ? "asking" : "waiting";
+  const running = (h: { started_at: string; ok: boolean | null }) => h.ok == null && new Date(h.started_at).getTime() + RUNNING_STALE_MS > t;
+  return a.tries.some(running) || a.quick_tries.some(running) ? "asking" : "waiting";
 }
+
+const STAGES = new Set(["waiting", "opening", "sending", "asking", "writing"]);
 
 /** Results for this season: what's missing and what's been asked; null where that isn't ours to do. */
 export async function resultsResearch(seasonId: string, now = new Date()): Promise<ResultsResearch | null> {
   const s = await researchable(seasonId);
   if (!s) return null;
-  const [schedules, { rows }] = await Promise.all([
+  const [schedules, { rows }, { rows: going }] = await Promise.all([
     seasonSchedules([seasonId], now),
     pool.query<AskRow>(
       `SELECT a.episode_number, a.asked_at, a.done_at, a.ok, a.found,
-              COALESCE(json_agg(json_build_object('started_at', r.started_at, 'ok', r.ok)) FILTER (WHERE r.id IS NOT NULL), '[]') AS tries
+              COALESCE(json_agg(json_build_object('started_at', r.started_at, 'ok', r.ok)) FILTER (WHERE r.slot = $2), '[]') AS tries,
+              COALESCE(json_agg(json_build_object('started_at', r.started_at, 'ok', r.ok)) FILTER (WHERE r.slot = $3), '[]') AS quick_tries,
+              EXISTS (SELECT 1 FROM episode_research er WHERE er.show_id = $4 AND er.season_number = $5 AND er.episode_number = a.episode_number
+                         AND er.source <> 'combined' AND er.withdrawn_at IS NULL) AS has_results
          FROM research_asks a
-         LEFT JOIN bot_research_runs r ON r.season_id = a.season_id AND r.episode_number = a.episode_number AND r.slot = $2 AND r.started_at >= a.asked_at
+         LEFT JOIN bot_research_runs r ON r.season_id = a.season_id AND r.episode_number = a.episode_number AND r.slot IN ($2, $3) AND r.started_at >= a.asked_at
         WHERE a.season_id = $1
         GROUP BY a.season_id, a.episode_number, a.asked_at, a.done_at, a.ok, a.found
         ORDER BY a.episode_number`,
-      [seasonId, ASKED_SLOT]
+      [seasonId, ASKED_SLOT, ASKED_QUICK_SLOT, s.showId, s.seasonNumber]
+    ),
+    // The run going now, with how far it's got.
+    pool.query(
+      `SELECT episode_number, slot, progress FROM bot_research_runs
+        WHERE season_id = $1 AND slot IN ($2, $3) AND finished_at IS NULL AND started_at > $4
+        ORDER BY started_at DESC LIMIT 1`,
+      [seasonId, ASKED_SLOT, ASKED_QUICK_SLOT, new Date(now.getTime() - RUNNING_STALE_MS)]
     ),
   ]);
   const schedule = schedules.get(seasonId);
   const ended = latestEnded(schedule, now);
   const aired = (schedule?.episodes ?? []).filter((e) => e.number >= 1 && e.number <= ended).map((e) => e.number);
   const asked = new Set(rows.map((r) => r.episode_number));
+  const g = going[0];
+  const p = (g?.progress ?? {}) as { stage?: string; done?: number; of?: number };
   return {
     missing: await withoutResults(seasonId, s, aired.filter((n) => !asked.has(n))),
     asked: rows.map((r) => {
       const status = statusOf(r, now);
-      return { episode: r.episode_number, status, found: status === "done" ? r.found : null };
+      return { episode: r.episode_number, status, out: r.has_results, found: status === "done" ? r.found : null };
     }),
+    now: g
+      ? {
+          episode: g.episode_number,
+          part: g.slot === ASKED_QUICK_SLOT ? "who" : "full",
+          stage: (p.stage && STAGES.has(p.stage) ? p.stage : "sending") as ResearchNow["stage"],
+          done: Number.isInteger(p.done) ? p.done! : null,
+          of: Number.isInteger(p.of) ? p.of! : null,
+        }
+      : null,
   };
 }
 

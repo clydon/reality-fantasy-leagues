@@ -112,7 +112,13 @@ Last updated 2026-10-27.
     left in the missing one; Try again fills the gap later, but the episodes after it aren't asked again.
     - **The fix, if it shows:** when a given-up episode is filled in by Try again, ask again (merge) the asked episodes
       after it, or hold a season's later asks while one before them is given up. `src/lib/server/research-asks.ts`,
-      `db/bot-research.js` planAsks.
+      `db/bot-research.js` planAsks. (Who went home now goes first for every episode, so the questions after a missing
+      one usually know who left in it; only one whose who-went-home also failed leaves the gap.)
+16. **The bot's fallback on the PC isn't kept running (noticed 2026-10-27, deploying the bot's progress).** The PC's
+    llm-browser-api was started by hand (no scheduled task or startup item, though `deploy/windows-startup.ps1` makes
+    one), and `bot-home.gameyourshow.com` has no tunnel running, so production's fallback behind the VM answers nothing.
+    - **The fix:** run `deploy/windows-startup.ps1` once on the PC, and start its tunnel (deploy/README.md, "Your PC as
+      the fallback"); the user's call, since it keeps their PC busy with the bot.
 
 ## Decided against (don't re-propose without new information)
 
