@@ -344,8 +344,8 @@ function recapAnswer(prompt) {
       await page.locator("[data-results-progress]").waitFor({ timeout: 20_000 });
       check(
         (await page.locator('[data-result-ep="1"][data-status="done"]').count()) === 1 && (await page.locator('[data-result-ep="4"][data-status="waiting"]').count()) === 1 && /1 of 4 in/.test(await page.locator("[data-results-count]").innerText()) &&
-          /Next: Episode 2/.test((await page.locator("[data-results-next]").count()) ? await page.locator("[data-results-next]").innerText() : ""),
-        "the Episodes tab's card: 1 of 4 in, the rest waiting, \"Next: Episode 2\" between runs"
+          /Ep 2[\s\S]*Starting/i.test((await page.locator("[data-results-now][data-queued]").count()) ? await page.locator("[data-results-now][data-queued]").innerText() : ""),
+        "the Episodes tab's card: 1 of 4 in, the rest waiting, and between runs the next one already showing as starting"
       );
       check((await wide(page)) <= width, "the Episodes tab fits the screen");
       await shot(page, "3-episodes-progress");
@@ -399,6 +399,14 @@ function recapAnswer(prompt) {
       await page.locator("[data-recaps-ask]").click();
       await page.locator('[data-result-ep="3"][data-status="waiting"]').waitFor({ timeout: 10_000 }).catch(() => {});
       check((await page.locator('[data-result-ep="3"][data-status="waiting"]').count()) === 1, "Try again: Episode 3 waits its turn again");
+      await page.locator("[data-results-now][data-queued]").waitFor({ timeout: 5_000 }).catch(() => {});
+      const startText = (await page.locator("[data-results-now][data-queued]").count()) ? await page.locator("[data-results-now][data-queued]").innerText() : "";
+      check(
+        /Ep 3[\s\S]*Starting/i.test(startText) && (await page.locator('[data-result-ep="3"] svg.animate-spin').count()) === 1,
+        "the moment it's tapped: Episode 3 shows as starting (its plate, its chip spinning) before the bot's clock picks it up",
+        startText
+      );
+      await shot(page, "4b-try-again-starting");
     } else {
       check((await as.watcher.call("POST", `/api/seasons/${sid}/recaps`, { action: "ask" })).status === 200, "Try again");
     }

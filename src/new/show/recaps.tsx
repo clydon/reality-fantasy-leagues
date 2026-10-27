@@ -158,15 +158,18 @@ function useLanded(asked: AskedEpisode[]): { landed: Set<number>; n: number } {
 const RISE = { "--rise": "6px", "--dur": "160ms" } as CSSProperties;
 
 /** Each asked episode's results as a chip: in (with how many), being looked up (its meter rising as its people are written
- *  up), waiting its turn, or not found; under them the roll call for the one being asked now, or, between runs, what's next. */
+ *  up), waiting its turn, or not found; under them the roll call for the one being asked now. Between runs, and the moment
+ *  something's asked (or asked again), the next in the queue shows as starting: the bot's clock picks it up within a minute,
+ *  and the card shouldn't look idle meanwhile. */
 function ResultsProgress({ asked, now, words: w }: { asked: AskedEpisode[]; now: ResearchNow | null; words: ShowData["words"] }) {
   const done = asked.filter((a) => a.status === "done");
   const found = done.reduce((n, a) => n + (a.found ?? 0), 0);
-  const waitingNext = !now ? asked.find((a) => a.status === "waiting") : undefined;
+  const next = !now ? asked.find((a) => a.status === "waiting") : undefined;
+  const shown: ResearchNow | null = now ?? (next ? { episode: next.episode, stage: "waiting", done: null, of: null, share: null } : null);
   const { landed, n: landings } = useLanded(asked);
   const countCue = useChangeCount(String(done.length));
   // A new episode coming on while you watch (not the one already on when you arrived): its plate comes on from the left.
-  const episodeCue = useChangeCount(String(now?.episode ?? ""));
+  const episodeCue = useChangeCount(String(shown?.episode ?? ""));
   return (
     <div className="mt-1" data-results-progress>
       <div className="mb-1.5 flex items-baseline justify-between gap-2">
@@ -182,6 +185,8 @@ function ResultsProgress({ asked, now, words: w }: { asked: AskedEpisode[]; now:
         {asked.map((a) => {
           const live = a.status === "asking" && now?.episode === a.episode;
           const meter = live && now ? (now.share ?? 0) : 0;
+          // The next in the queue, about to start: it reads as underway (a spinner, the live outline).
+          const starting = !now && next?.episode === a.episode;
           return (
             <li
               key={`${a.episode}:${landed.has(a.episode) ? landings : 0}`}
@@ -191,7 +196,7 @@ function ResultsProgress({ asked, now, words: w }: { asked: AskedEpisode[]; now:
               className={`relative isolate flex h-8 min-w-10 items-center justify-center gap-1 overflow-hidden rounded-[3px] px-2 text-[13px] font-bold tabular-nums ${
                 a.status === "done"
                   ? "bg-foreground text-background"
-                  : a.status === "asking"
+                  : a.status === "asking" || starting
                     ? "outline-[1.5px] -outline-offset-1 outline-foreground"
                     : a.status === "failed"
                       ? "text-live outline-1 -outline-offset-1 outline-live"
@@ -208,26 +213,22 @@ function ResultsProgress({ asked, now, words: w }: { asked: AskedEpisode[]; now:
                 />
               )}
               {a.status === "done" && <Check className="size-3.5" aria-hidden />}
-              {a.status === "asking" && !live && <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden />}
+              {((a.status === "asking" && !live) || starting) && <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden />}
               {a.status === "failed" && <X className="size-3.5" aria-hidden />}
               {a.episode}
             </li>
           );
         })}
       </ol>
-      {waitingNext && (
-        <small className="mt-2.5 block text-[13px] leading-snug text-muted-foreground" data-results-next>
-          Next: {w.episode} {waitingNext.episode}
-        </small>
-      )}
-      {now && <RollCall key={now.episode} now={now} words={w} arrived={episodeCue > 0} />}
+      {shown && <RollCall key={shown.episode} now={shown} words={w} arrived={episodeCue > 0} queued={!now} />}
     </div>
   );
 }
 
-/** What the plate says at each stage of the episode being asked now. */
-function rollWords(now: ResearchNow, w: ShowData["words"]): { title: string; line: string } {
+/** What the plate says at each stage of the episode being asked now (`queued`: next in line, nothing running yet). */
+function rollWords(now: ResearchNow, w: ShowData["words"], queued: boolean): { title: string; line: string } {
   const people = w.people.toLowerCase();
+  if (queued) return { title: "Starting", line: "Our bot picks it up within a minute" };
   if (now.stage === "writing" && now.of != null && now.done != null) return { title: `${now.done} of ${now.of} written up`, line: `ChatGPT is writing up the ${people}` };
   if (now.stage === "writing") return { title: "Writing it up", line: "No head count before you've seen it" };
   if (now.stage === "asking") return { title: "Searching", line: "ChatGPT is reading the recaps" };
@@ -240,10 +241,10 @@ function rollWords(now: ResearchNow, w: ShowData["words"]): { title: string; lin
  * once it's being written up), and under it a rail with a segment for each person, lighting as ChatGPT writes each one up, a
  * short stagger across the ones that arrive together; while it searches, a light sweeps the rail. For an episode you haven't
  * seen there's no head count, so the rail is one meter. `arrived`: it came on while you watched (its plate comes on from the
- * left).
+ * left). `queued`: next in line with nothing running yet (starting: the light sweeps).
  */
-function RollCall({ now, words: w, arrived }: { now: ResearchNow; words: ShowData["words"]; arrived: boolean }) {
-  const { title, line } = rollWords(now, w);
+function RollCall({ now, words: w, arrived, queued }: { now: ResearchNow; words: ShowData["words"]; arrived: boolean; queued: boolean }) {
+  const { title, line } = rollWords(now, w, queued);
   const counted = now.of != null && now.done != null && now.of > 0 && now.of <= 60;
   const lit = counted ? Math.min(now.done!, now.of!) : 0;
   // What was lit before this render, kept as the count moves: what lights now is what's new (never what was lit on arrival).
@@ -252,7 +253,7 @@ function RollCall({ now, words: w, arrived }: { now: ResearchNow; words: ShowDat
   const searching = now.stage !== "writing";
   const titleCue = useChangeCount(title);
   return (
-    <div className={`mt-3 ${arrived ? "roll-in" : ""}`} data-results-now aria-live="polite">
+    <div className={`mt-3 ${arrived ? "roll-in" : ""}`} data-results-now data-queued={queued ? "" : undefined} aria-live="polite">
       <CaptionPlate
         size="sm"
         tone="quiet"
