@@ -16,9 +16,13 @@
 //     --thinking                                     show thinking too
 //     --dry-run                                      print what would run, run nothing
 //
-//   From another terminal:  node scripts/session-loop.js pause | resume | stop | status
+//   From another terminal:  node scripts/session-loop.js pause | resume | stop | next | status
+//     (next prints the seed prompt the last session handed off, and saves it to .session-loop/next-prompt.md)
 //
 // While a session runs, in this terminal:  p  pause now   ·   s  stop after this session   ·   q (or Ctrl+C)  quit now.
+// Stopping after a session (s or `stop`) prints the seed prompt it handed off, as `next` does. To change the effort
+// (or model) partway, quit (q) and run it again with --effort high, say: the stopped session resumes at that, and so does
+// every session after it until you pass another.
 // Pausing ends the running session where it is (its tool calls stop too) and keeps it: Enter resumes the same session,
 // or type a message to send it instead. Quitting keeps it the same way: the next run offers to resume it. `pause` from
 // another terminal (a .session-loop/PAUSE file) pauses the same way and `resume` lets it go on. A session that runs into
@@ -50,6 +54,7 @@ const STOP = path.join(DIR, "STOP");
 const PAUSE = path.join(DIR, "PAUSE");
 const SCREENS = path.join(DIR, "screens");
 const GALLERY = path.join(DIR, "screens.html");
+const NEXT = path.join(DIR, "next-prompt.md");
 const IMAGE = /\.(png|jpe?g|gif|webp)$/i;
 
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
@@ -100,6 +105,16 @@ const readState = () => {
 // A dry run reads the state and never writes it.
 const writeState = (s) => process.argv.includes("--dry-run") || fs.writeFileSync(STATE, JSON.stringify(s, null, 2));
 
+/** The next session's seed prompt in full, and in .session-loop/next-prompt.md to copy from (into a chat of your own). */
+function showNext(next) {
+  const advised = next.advised && (next.advised.model !== next.model || next.advised.effort !== next.effort) ? `   (its hand-off recommends ${next.advised.model ?? "?"} · ${next.advised.effort ?? "?"})` : "";
+  console.log(bold(`\nNext: ${next.name} · ${next.model ?? "default model"} · ${next.effort ?? "default effort"}`) + dim(advised));
+  console.log(`\n${String(next.prompt).trim()}\n`);
+  if (!process.argv.includes("--dry-run")) fs.writeFileSync(NEXT, `${String(next.prompt).trim()}\n`);
+  console.log(dim(`Saved to ${path.relative(ROOT, NEXT)}. Carry on with: node scripts/session-loop.js   (--effort high, say, to run it at less)`));
+  console.log(dim("Or paste it into a chat and do it yourself; then start the loop from that chat's hand-off: --prompt-file <file>."));
+}
+
 function command(cmd) {
   fs.mkdirSync(DIR, { recursive: true });
   if (cmd === "pause") {
@@ -110,14 +125,19 @@ function command(cmd) {
     console.log("Resuming (if the loop is running). If it isn't, start it again: node scripts/session-loop.js");
   } else if (cmd === "stop") {
     fs.writeFileSync(STOP, new Date().toISOString());
-    console.log("The loop stops after the session that's running.");
+    console.log("The loop stops after the session that's running, and prints the seed prompt it hands off.");
+  } else if (cmd === "next") {
+    const s = readState();
+    if (s.pending) console.log(`${s.pending.name} (${s.pending.sessionId}) hasn't handed off yet: it's running, paused, or waiting on you. \`stop\` (or s in the loop) stops after it and prints its hand-off.`);
+    else if (s.next) showNext(s.next);
+    else console.log("No hand-off saved.");
   } else {
     const s = readState();
     const total = s.history.reduce((t, h) => t + (h.cost || 0), 0);
     console.log(`Sessions run: ${s.history.length} · $${total.toFixed(2)}`);
     for (const h of s.history.slice(-5)) console.log(`  ${h.at.slice(0, 16).replace("T", " ")}  ${h.name}  $${(h.cost || 0).toFixed(2)}  ${h.sessionId ?? ""}`);
-    if (s.pending) console.log(`Waiting: ${s.pending.name} (${s.pending.sessionId}) · ${s.pending.paused ? "paused" : s.pending.question ? "has a question for you" : "stopped"}`);
-    if (s.next) console.log(`Next: ${s.next.name}`);
+    if (s.pending) console.log(`In progress: ${s.pending.name} (${s.pending.sessionId}) · ${s.pending.question ? "has a question for you" : "running or paused"}`);
+    else if (s.next) console.log(`Next: ${s.next.name}   (\`node scripts/session-loop.js next\` prints its prompt)`);
     console.log(s.fixed ? `Every session runs at: ${s.fixed.model ?? "the hand-off's model"} · ${s.fixed.effort ?? "the hand-off's effort"}` : "Each session runs at what the hand-off before it recommends.");
     if (s.limits) console.log(`Usage: ${limitLine(s.limits)}`);
     if (fs.existsSync(GALLERY)) console.log(`Screenshots: ${fileUrl(GALLERY)}`);
@@ -492,6 +512,7 @@ async function main() {
     if (fs.existsSync(STOP) || ctl.stopAfter) {
       if (fs.existsSync(STOP)) fs.rmSync(STOP);
       console.log(yellow("\nStopping before the next session, as asked. Run the loop again to carry on."));
+      if (!run.resume) showNext(run);
       break;
     }
     // Before starting: wait while the 5-hour window is nearly used up; a weekly limit stops the loop.
@@ -573,7 +594,8 @@ async function main() {
         console.log(red("\nThe hand-off repeats this session's own prompt: stopping. Run the loop again to answer it."));
         return;
       }
-      run = at({ prompt: h.prompt, model: h.model || run.model, effort: EFFORTS.includes(h.effort) ? h.effort : run.effort, name: h.name || `Session ${n + 1}` });
+      const advised = { model: h.model || run.model, effort: EFFORTS.includes(h.effort) ? h.effort : run.effort };
+      run = at({ prompt: h.prompt, ...advised, advised, name: h.name || `Session ${n + 1}` });
       state.next = run;
       state.pending = null;
       writeState(state);

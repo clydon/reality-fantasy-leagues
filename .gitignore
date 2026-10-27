@@ -59,6 +59,7 @@ next-env.d.ts
 .impeccable/mocks/
 .impeccable/questions/
 .impeccable/review/
+.impeccable/critique/
 
 # scripts/session-loop.js: its state, hand-offs and session logs
 /.session-loop/
