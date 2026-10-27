@@ -219,6 +219,23 @@ const showIn = (prompt) => Object.keys(ANSWERS).find((name) => prompt.includes(n
     check(cont.status === 200 && cont.body.setup.asking === true && cont.body.setup.stage === "cast", "carrying on: asking who's in it", JSON.stringify(cont.body.setup));
     const g2 = await settle("jordan", gp);
     check(bot.asked.slice(asked2).map((q) => q.kind).join() === "cast" && g2.review.cast.count === 6, "only the cast was asked again");
+    // Its players already in from its linked games (sports/cast.ts: ESPN's rosters): taken from there, ChatGPT never asked.
+    await pool.query(
+      `INSERT INTO season_cast (season_id, name, tribe_name, role, provider_ids, sort_order) VALUES
+         ($1, 'Zt Pitcher', 'Zt Blue Sox', 'Pitcher', '{"espn":"zt1"}', 0), ($1, 'Zt Catcher', 'Zt Blue Sox', 'Catcher', '{"espn":"zt2"}', 1),
+         ($1, 'Zt Shortstop', 'Zt Red Birds', 'Shortstop', '{"espn":"zt3"}', 2)`,
+      [gp]
+    );
+    await post("jordan", gp, { action: "restart", part: "cast" });
+    const asked3 = bot.asked.length;
+    await post("jordan", gp, { action: "ask" });
+    const g3 = await settle("jordan", gp);
+    check(
+      bot.asked.length === asked3 && g3.review?.cast.count === 3 && g3.review.cast.faces.map((f) => `${f.name}/${f.line}`).join() === "Zt Pitcher/Zt Blue Sox,Zt Catcher/Zt Blue Sox,Zt Shortstop/Zt Red Birds",
+      "a sport whose players came in from its games: who's in it from there, ChatGPT not asked",
+      JSON.stringify({ asked: bot.asked.slice(asked3).map((q) => q.kind), cast: g3.review?.cast })
+    );
+    await pool.query("DELETE FROM season_cast WHERE season_id = $1 AND name LIKE 'Zt %'", [gp]);
     // A failed ask is kept, and asked again.
     await post("jordan", gp, { action: "restart", part: "all" });
     const failing = ANSWERS["ZT Grand Prix"].setup;

@@ -31,6 +31,7 @@ import { logDesk } from "./desk";
 import { seenThrough } from "./guard";
 import { ListingsUnavailable, showCast } from "./listings";
 import { castPhotosFor, findArtLater } from "./show-art";
+import { followSeason } from "./sports/season";
 import { seasonHeaders, type SeasonHeader } from "./show-space";
 import { libraryTemplates, otherSeasonRulebook } from "./templates";
 
@@ -286,8 +287,13 @@ function workOut(row: SetupRow, show: Show, seen: number): Worked | null {
   return { blocks, data, phaseStarts: read.phaseStarts, cast, review };
 }
 
-/** A series' or talk show's cast from its TV listing ([] for any other kind, with no listing, or with the listings down). */
+/**
+ * A cast from a listing ([] for any other kind, with none, or with the listings down): a series' or talk show's from TVmaze, a
+ * sport's from its linked games (sports/cast.ts: the provider's rosters, filled in when the sport was added, else now). ChatGPT
+ * is asked only when there's none: it can't know a season's rosters as they are (the World Series, 2026-10-27).
+ */
 async function listingCast(show: Show, kind: RulebookKind, start: SeriesStart | null, base: string): Promise<MadeCastRow[]> {
+  if (kind === "sport") return sportsCast(show.header.seasonId);
   if ((kind !== "series" && kind !== "talk") || !show.tvmazeId) return [];
   try {
     return castFromListing(await showCast(show.tvmazeId, base), start);
@@ -295,6 +301,22 @@ async function listingCast(show: Show, kind: RulebookKind, start: SeriesStart | 
     if (e instanceof ListingsUnavailable) return [];
     throw e;
   }
+}
+
+/** A sport's people from its linked games, team by team (their position as the line); linked and filled now when there are none. */
+async function sportsCast(seasonId: string): Promise<MadeCastRow[]> {
+  const read = async () =>
+    (
+      await pool.query("SELECT name, tribe_name, role, photo_url FROM season_cast WHERE season_id = $1 AND provider_ids IS NOT NULL ORDER BY sort_order, lower(name)", [seasonId])
+    ).rows.map((r) => ({ name: r.name as string, photoUrl: (r.photo_url as string | null) ?? null, group: (r.tribe_name as string | null) ?? null, note: (r.role as string | null) ?? null }));
+  const had = await read();
+  if (had.length) return had;
+  try {
+    await followSeason(seasonId);
+  } catch (e) {
+    console.error("[make-game] sports cast", seasonId, e);
+  }
+  return read();
 }
 
 // ---- reading it ----
