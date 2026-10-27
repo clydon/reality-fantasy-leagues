@@ -17,6 +17,7 @@ import {
 } from "@/lib/game/listing";
 import { pool, HttpError } from "./db";
 import { setFollow } from "./follows";
+import { findArtLater } from "./show-art";
 import { latestAired, seasonSchedules } from "./schedule";
 import { ListingsUnavailable, seasonListing, showListing } from "./listings";
 
@@ -136,6 +137,8 @@ function seasonRow(show: TvShow, season: TvSeason, episodes: ReturnType<typeof e
     count,
     airTime: airTimeOf(show),
     tz: zoneOf(show) ?? "America/New_York",
+    // The season's own poster, the medium one (as the show's): the season's art until TMDB's (show-art.ts) replaces it.
+    art: season.image?.medium ?? null,
   };
 }
 
@@ -163,18 +166,18 @@ export async function listedSeason(showId: string, show: TvShow, season: TvSeaso
     let id = existing;
     if (!id) {
       const { rows } = await c.query(
-        `INSERT INTO show_seasons (show_id, season_number, name, status, premiere_date, finale_date, episode_count, release, drop_at, air_time, air_tz, listing_id, listing_fetched_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now())
+        `INSERT INTO show_seasons (show_id, season_number, name, status, premiere_date, finale_date, episode_count, release, drop_at, air_time, air_tz, listing_id, listing_fetched_at, art_url)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, now(), $13)
          ON CONFLICT (show_id, season_number) DO NOTHING RETURNING id`,
-        [showId, season.number, season.name?.trim() || null, row.status, row.premiere, row.finale, row.count, row.release, row.dropAt, row.airTime, row.tz, season.id]
+        [showId, season.number, season.name?.trim() || null, row.status, row.premiere, row.finale, row.count, row.release, row.dropAt, row.airTime, row.tz, season.id, row.art]
       );
       id = rows[0]?.id ?? (await c.query("SELECT id FROM show_seasons WHERE show_id = $1 AND season_number = $2", [showId, season.number])).rows[0].id;
     } else {
       await c.query(
         `UPDATE show_seasons SET status = $2, premiere_date = $3, finale_date = $4, episode_count = $5, release = $6, drop_at = $7,
-                air_time = COALESCE($8, air_time), listing_fetched_at = now(), updated_at = now()
+                air_time = COALESCE($8, air_time), art_url = COALESCE(art_url, $9), listing_fetched_at = now(), updated_at = now()
           WHERE id = $1 AND listing_id IS NOT NULL`,
-        [id, row.status, row.premiere, row.finale, row.count, row.release, row.dropAt, row.airTime]
+        [id, row.status, row.premiere, row.finale, row.count, row.release, row.dropAt, row.airTime, row.art]
       );
     }
     await writeEpisodes(c, id!, episodes);
@@ -278,6 +281,8 @@ export async function addShow(
     } else {
       seasonId = await seasonByName(showId);
     }
+    // A show nobody had added, or a season just made: its art (and the season's poster) from TMDB after the answer.
+    if (made || !here) findArtLater({ showId: made ? showId : undefined, seasonId: here ? undefined : seasonId }, base);
     return { ...(await followAt(userId, seasonId, seen, follow)), made };
   }
   if (typeof body.name === "string") {

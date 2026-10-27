@@ -93,7 +93,7 @@ async function row(id: string): Promise<Rulebook> {
 async function seasonOf(r: Rulebook) {
   if (!r.seasonId) return null;
   const { rows } = await pool.query(
-    `SELECT ss.id, COALESCE(ss.name, s.name || ' ' || ss.season_number) AS name, s.name AS show, s.art_url, ss.episode_count, ss.rulebook_live, ss.status, ss.season_number
+    `SELECT ss.id, COALESCE(ss.name, s.name || ' ' || ss.season_number) AS name, s.name AS show, COALESCE(NULLIF(ss.art_url, ''), s.art_url) AS art_url, ss.episode_count, ss.rulebook_live, ss.status, ss.season_number
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1`,
     [r.seasonId]
   );

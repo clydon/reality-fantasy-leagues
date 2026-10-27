@@ -26,7 +26,10 @@ export interface SeasonHeader {
     slug: string;
     name: string;
     kind: string;
+    /** The season's poster, else the show's (cards and tiles); null while the show's art is off. */
     artUrl: string | null;
+    /** A landscape image for headers and wide cards (TMDB's backdrop: show-art.ts); null without one. */
+    backdropUrl: string | null;
     terms: { castaway: string; tribe: string };
     tvmazeId: number | null;
     /** Where it airs, from its TV listing: the network, else the streaming service ("Netflix"; step 14); null without one. */
@@ -42,7 +45,8 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
   const { rows } = await pool.query(
     `SELECT ss.id, ss.season_number, ss.name, ss.status, ss.episode_count, to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere_date,
             ss.release, ss.drop_at, s.set_up_at IS NOT NULL AS ready,
-            s.id AS show_id, s.slug, s.name AS show_name, s.kind, s.art_url, s.castaway_term, s.tribe_term, s.tvmaze_id, s.listing->>'network' AS network
+            s.id AS show_id, s.slug, s.name AS show_name, s.kind, CASE WHEN s.art_off THEN NULL ELSE COALESCE(NULLIF(ss.art_url, ''), s.art_url) END AS art_url,
+            CASE WHEN s.art_off THEN NULL ELSE s.backdrop_url END AS backdrop_url, s.castaway_term, s.tribe_term, s.tvmaze_id, s.listing->>'network' AS network
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
       WHERE ss.id = ANY($1::uuid[])`,
     [ids]
@@ -64,6 +68,7 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
         name: r.show_name,
         kind: r.kind,
         artUrl: r.art_url,
+        backdropUrl: r.backdrop_url ?? null,
         terms: { castaway: r.castaway_term, tribe: r.tribe_term },
         tvmazeId: r.tvmaze_id ?? null,
         network: r.network ?? null,

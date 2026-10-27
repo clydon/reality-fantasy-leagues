@@ -43,7 +43,7 @@ export function BackstageScreen({ seasonId, page }: { seasonId: string; page?: B
   const bar = (title: string, back: { label: string; to: string; accepts?: (prev: string) => boolean }, status?: ReactNode) =>
     show.header ? (
       <ShowBar
-        show={{ seasonId, name, seasonNumber: show.header.seasonNumber, artUrl: show.header.show.artUrl }}
+        show={{ seasonId, name, seasonNumber: show.header.seasonNumber, artUrl: show.header.show.artUrl, backdropUrl: show.header.show.backdropUrl }}
         back={{ label: back.label, onClick: () => nav.back(back.to, back.accepts) }}
         status={status}
         title={title}

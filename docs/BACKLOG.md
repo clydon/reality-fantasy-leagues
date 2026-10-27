@@ -52,6 +52,18 @@ Last updated 2026-10-11.
 10. **Predictions lock?** A player asked whether predictions should close when the episode starts.
     The user decided to keep them open for now ("a bit of nuance in what should be allowed").
     Revisit if it causes disputes.
+11. **Keep show art and cast photos for the installed app (added 2026-10-26).** Today the browser's own cache holds them:
+    TMDB and TVmaze send a year's `max-age`; Wikimedia sends none, only ETag/Last-Modified, so browsers recheck it cheaply.
+    No service lookups happen on a page load: the finder (`src/lib/server/show-art.ts`) stores URLs once. The gap is the
+    installed PWA. Phones evict that cache under storage pressure (iOS readily), and offline nothing shows, because
+    `public/sw.js` deliberately caches only the offline page.
+    - **The fix:** a cache-first rule in `sw.js` for images from `image.tmdb.org`, `static.tvmaze.com` and
+      `upload.wikimedia.org` only, in its own cache with an entry cap (oldest out), and nothing else changed.
+    - **The catch:** TMDB sends no CORS header, so its responses are opaque, and Chrome counts each opaque cached response
+      as ~7 MB of quota. Keep the cap small (~100), or load those images with `crossOrigin` if TMDB's host allows it
+      (check first).
+    - **Not localStorage:** text only, ~5 MB.
+    - **When:** only if offline start-up with art matters, or players notice posters reloading on start-up.
 
 ## Decided against (don't re-propose without new information)
 

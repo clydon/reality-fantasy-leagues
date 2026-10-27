@@ -191,7 +191,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
     <>
       {show.header ? (
         <ShowBar
-          show={{ seasonId, name: show.header.show.name, seasonNumber: show.header.seasonNumber, artUrl: show.header.show.artUrl }}
+          show={{ seasonId, name: show.header.show.name, seasonNumber: show.header.seasonNumber, artUrl: show.header.show.artUrl, backdropUrl: show.header.show.backdropUrl }}
           tall={tab === "tonight"}
           back={{ label: "Home", onClick: () => nav.back(paths.home) }}
           status={status}

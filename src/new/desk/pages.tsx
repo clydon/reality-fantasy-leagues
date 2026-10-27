@@ -10,6 +10,7 @@ import { GuardSheet } from "../ui/guards";
 import { Btn, Chip, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
+import { ArtSection } from "./art";
 import { deskSend, useAfterDesk, useDesk, type DeskCastaway, type DeskCouch, type DeskFact, type DeskLine, type DeskPerson, type DeskSeason, type DeskShow, type SeasonBot } from "./data";
 import { DeskHeader, FieldRow, History, ItemRow, LockRow, OverrideSheet, Section, SwitchRow, Tag } from "./parts";
 
@@ -634,6 +635,7 @@ export function ShowPage({ id }: { id: string }) {
           <p className="mt-2 text-[13px] leading-snug text-muted-foreground">Not a game yet: tap a season to set it up (anyone can, from its Make it a game, too).</p>
         )}
       </Section>
+      <ArtSection show={s} act={act} />
       <Section title="History">
         <History lines={s.history} emptyLine="Nothing changed here yet." />
       </Section>

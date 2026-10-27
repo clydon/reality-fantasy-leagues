@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { ArrowLeftRight, AtSign, BookOpen, KeyRound, LayoutTemplate, LifeBuoy, Mail, MonitorSmartphone, Plus, UserRound } from "lucide-react";
+import { ArrowLeftRight, AtSign, BookOpen, Images, KeyRound, LayoutTemplate, LifeBuoy, Mail, MonitorSmartphone, Plus, UserRound } from "lucide-react";
 import { authClient, logOutTo } from "@/lib/auth-client";
 import { profileApi, switchDesign, useAfterProfile, useCurrentCouch, useHome, useProfile, type AiChoice, type Profile } from "../data";
 import { couchLine, FaceStack, openCouchSheet } from "../couch/couch-sheets";
@@ -10,6 +10,7 @@ import { useMe } from "../session";
 import { Avatar, PageHeader } from "../ui/bars";
 import { Btn, Row, SectionHead } from "../ui/parts";
 import { toast } from "../ui/toast";
+import { CreditsSheet } from "./credits";
 import { GamesSheet, PasswordSheet, ProfileSheet, ReportSheet } from "./sheets";
 import { Choice, SwitchRow } from "./controls";
 import { NotifySection } from "./notify";
@@ -36,7 +37,7 @@ export function SettingsScreen() {
   const { data: p } = useProfile();
   const after = useAfterProfile();
   const current = useCurrentCouch(home);
-  const [sheet, setSheet] = useState<"profile" | "password" | "report" | "games" | null>(null);
+  const [sheet, setSheet] = useState<"profile" | "password" | "report" | "games" | "credits" | null>(null);
   const [switching, setSwitching] = useState(false);
   const [linking, setLinking] = useState(false);
   const couches = home?.couches.map((c) => c.name) ?? [];
@@ -166,6 +167,7 @@ export function SettingsScreen() {
         <div className="flex flex-col px-4">
           <Row icon={BookOpen} title="How each game works" detail="Outlast, Weekly Lineup, Survival Pool and the rest, in plain words" onClick={open("games")} />
           <Row icon={LifeBuoy} title="Report a problem" detail="Or an idea. It goes straight to us" onClick={open("report")} />
+          <Row icon={Images} title="Credits" detail="Where shows' art, photos and listings come from" onClick={open("credits")} />
         </div>
       </section>
 
@@ -233,6 +235,7 @@ export function SettingsScreen() {
       <ProfileSheet open={sheet === "profile"} onOpenChange={close} />
       <PasswordSheet open={sheet === "password"} onOpenChange={close} />
       <ReportSheet open={sheet === "report"} onOpenChange={close} />
+      <CreditsSheet open={sheet === "credits"} onOpenChange={close} onReport={() => setSheet("report")} />
       <GamesSheet open={sheet === "games"} onOpenChange={close} />
     </div>
   );

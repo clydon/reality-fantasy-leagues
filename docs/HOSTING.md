@@ -19,6 +19,8 @@ free plan stops being enough, choosing the cheapest fit is arithmetic, not resea
 | **TVmaze** API (`api.tvmaze.com`, new design step 10 part 1, on the branch) | TV listings for Add a show: the show search as you type, a show's seasons and episode air times when someone adds it, and its cast when someone makes a series or talk show a game (step 10 part 2a). Since step 11 part 2, also once a day by the listings job (the week's schedules for the guide's Also on, what changed, new seasons): about 17-20 calls a day, on the bot clock's calls, never on a timer of its own | Free, no key. Data is CC BY-SA (credited with a link back on Add a show, the guide and its sheets); at least 20 calls every 10 seconds per IP, else HTTP 429 (the job spaces its calls 0.7 s apart); posters hotlinked from its image CDN (allowed) | $0 |
 | Google Cloud OAuth client (**not made yet**: the user's, step 9 part 2) | Continue with Google on the new design's way in. Off until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (no keys, no button) | Free (sign-in only: the email, profile and openid scopes, no verification review needed) | $0 |
 | **GIPHY** API (**no key yet**: the user's, new design step 13 part 1, on the branch) | GIFs in a watch along: what's trending and a search, asked by our server (`/api/gifs`, kept at the edge an hour per search); the pictures load from GIPHY's media CDN straight into the browser. Off until `GIPHY_API_KEY` is set (no key, no GIF button). Tenor, the other choice, closed its API on 2026-06-30 | Free. A new key is a beta key: 100 calls an hour (each distinct search, and trending, at most once an hour per edge region); past that, GIPHY's production key (applied for from its dashboard, reviewed, and they may talk pricing). "Powered by GIPHY" shown under the picker; ratings PG-13 at most | $0 |
+| **TMDB** API (`api.themoviedb.org`, show art and cast photos, 2026-10-26, on the branch) | Show posters, header images (backdrops) and logos, season posters, and a season's cast photos by name (`src/lib/server/show-art.ts`). Images hotlinked from `image.tmdb.org`, stored as plain URLs. Off until `TMDB_READ_TOKEN` is set (the user's; in `.env.local`, and Vercel needs it too) | Free key, **non-commercial only**: charging users (or ads) needs TMDB's written agreement, price on request. Data kept at most 6 months (the daily job re-asks at 150 days); on a licence ending, everything on `image.tmdb.org` must go: `UPDATE ... WHERE url LIKE 'https://image.tmdb.org/%'`. Attribution: its logo and notice on Settings › Credits. About 40 requests a second allowed | $0 |
+| **Wikipedia / Wikidata** API and **Jolpica** (`api.jolpi.ca`, F1) (2026-10-26, on the branch) | Athletes' photos for sport shows: Wikipedia's page image API returns only freely licensed (Commons) photos; Jolpica gives Formula 1's field with Wikipedia links | Free, no keys. Wikipedia rate-limits bursts (a probe got 429s after ~15 quick calls): batched, one call at a time, at most 30 searches a sweep. Commons photos need their photographer's credit | $0 |
 | Anthropic API | Paid auto-research (Claude), only for seasons switched on | Pay per use | per episode researched |
 | Domain `gameyourshow.com` | Bought 2026-10-12 | not recorded | yearly |
 
@@ -310,7 +312,9 @@ in the browser: the week's read and `tv_listings` are unchanged.
 
 **Your settings and your profile (new design, step 15 part 1)** poll nothing and run nothing on a schedule. Settings and the profile
 sheet read your profile when they open (`/api/me/profile`: one small query and one for "since", a few hundred bytes), and an Ask an AI
-sheet reads it once to know your AI (kept five minutes). Migration 0135: `user_settings.colour` and `user_settings.ai` (a few bytes each,
+sheet reads it once to know your AI (kept five minutes). The reminder ask (2026-10-26, `show/remind.tsx`) reads it the same way, only
+while this phone isn't getting notifications: after a save in Your moves until it has asked once on that phone, and on Tonight while its row
+could show; nothing else (what it has asked is kept on the phone). Migration 0135: `user_settings.colour` and `user_settings.ai` (a few bytes each,
 backed up with `user_settings`), and **`user_pictures`**: one picture per person who chooses one, made 256 by 256 in the browser (~10-30
 KB as a JPEG, refused over 100 KB), so a couch of four with pictures is ~100 KB of Neon storage. **Not backed up** (a face, not the game:
 whoever chose it can choose it again). A picture leaves Neon only through `GET /api/people/[id]/picture?v=<version>`, which the browser
@@ -396,6 +400,17 @@ call to `/api/cron/bot-research` wakes Neon on its own (a different time from th
 (~100 s, inside the route's 300 s) and a few small writes. Storage: six short questions an episode (`trivia_questions`, ~3 KB),
 flags as people tap Wrong?. Nothing polls: the round is read when the trivia sheet, row or Commercial break opens, as before.
 
+**Show art and cast photos (2026-10-26, on the branch)** polls nothing and adds no wake. The finder (`src/lib/server/show-art.ts`)
+runs after the answer (`after()`) when a show is added from the listings or a season made, when Make it a game confirms a
+cast, when the desk adds a season or taps Find art and photos, and as part of the daily listings job (which already runs on
+the bot clock's calls): at most 6 shows' art, 4 new seasons' posters and 4 seasons' cast photos a day. A show is about 4 TMDB
+calls (find, images, season images, season credits), plus 2-3 TVmaze calls when TMDB lacks someone; a sport season is 1
+Jolpica call (F1) or up to 30 Wikipedia searches, then 1-2 batched page reads. Storage: a few URLs a show and season
+(migration 0139: `shows.tmdb_id/backdrop_url/logo_url/art_by_hand/art_off/art_checked_at`, `show_seasons.art_url/
+art_by_hand/tmdb_season/photos_checked_at`), nothing backed up separately (it can all be found again). Every picture is
+hotlinked from TMDB's, TVmaze's or Wikimedia's CDN: no Vercel image optimisation, no bytes from Neon. Headers load TMDB's
+`w1280` backdrop (~150-250 KB), cards the `w500` poster (~50-80 KB), cast avatars `w185` (~10-15 KB).
+
 ## Levers, cheapest first
 
 1. **Poll less** (free): one combined poll instead of three; stop polling when the window isn't focused (today
@@ -436,6 +451,10 @@ never handles it: the user does the reset and the pasting.
 
 ## Changelog
 
+- **2026-10-26.** Show art and cast photos found on their own (docs/RESEARCH-show-art-and-cast-photos.md; migration 0139):
+  two new free services, **TMDB** (key `TMDB_READ_TOKEN`, non-commercial only: see The stack) and **Wikipedia/Wikidata +
+  Jolpica** (no keys) for sports. Rides on existing moments and the daily listings job; nothing new polls or wakes Neon.
+  Before charging users: a TMDB licence, or switch to TheTVDB (free under $50k revenue) + TVmaze and remove TMDB's images.
 - **2026-10-24.** Neon transfer was at 95% with a week left: every chat fetch read each linked league's full
   state once per member (~240 KB for 12 KB of chat). Fixed in 31294fd: `src/lib/server/league-states.ts`
   (hash check, cached copies), `/chat/unread`, `/chat?v=`; checked by `scripts/dev-test/check-chat-polls.js`.

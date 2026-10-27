@@ -24,6 +24,8 @@ export interface TvShow {
   network?: { name?: string | null; country?: { code?: string | null; timezone?: string | null } | null } | null;
   webChannel?: { name?: string | null; country?: { code?: string | null; timezone?: string | null } | null } | null;
   image?: { medium?: string | null; original?: string | null } | null;
+  /** Its ids elsewhere: how the show is found on TMDB (src/lib/server/show-art.ts). */
+  externals?: { imdb?: string | null; thetvdb?: number | null } | null;
 }
 
 export interface TvSeason {
@@ -33,9 +35,12 @@ export interface TvSeason {
   episodeOrder?: number | null;
   premiereDate?: string | null;
   endDate?: string | null;
+  /** The season's own poster (the season's art until TMDB has one: show-art.ts). */
+  image?: { medium?: string | null; original?: string | null } | null;
 }
 
 export interface TvEpisode {
+  id?: number;
   season: number;
   number: number | null;
   type?: string | null;

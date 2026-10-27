@@ -109,7 +109,7 @@ export const plainShow = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").
 export async function catalog(now = new Date()): Promise<CatalogSeason[]> {
   const { rows } = await pool.query(
     `SELECT ss.id, ss.season_number, ss.name, ss.status, to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere,
-            s.name AS show_name, s.art_url, s.art_style, s.created_by IS NULL AS curated, s.set_up_at IS NOT NULL AS ready, s.tvmaze_id,
+            s.name AS show_name, CASE WHEN s.art_off THEN NULL ELSE COALESCE(NULLIF(ss.art_url, ''), s.art_url) END AS art_url, s.art_style, s.created_by IS NULL AS curated, s.set_up_at IS NOT NULL AS ready, s.tvmaze_id,
             s.listing->>'network' AS network, s.listing->>'country' AS country
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
       WHERE s.archived = false`

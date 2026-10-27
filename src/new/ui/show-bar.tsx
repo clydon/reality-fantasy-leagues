@@ -44,6 +44,8 @@ export interface ShowBarShow {
   name: string;
   seasonNumber: number | null;
   artUrl: string | null;
+  /** A landscape image (TMDB's backdrop, often wordless): when there is one it fills the bar; else the poster does. */
+  backdropUrl?: string | null;
 }
 
 /**
@@ -68,6 +70,8 @@ export function ShowBar({
   below?: ReactNode;
 }) {
   const season = show.seasonNumber ? `S${show.seasonNumber}` : null;
+  // A wide image fills the tall bar under the same fade, so the name sits on its dark left; a poster keeps to the right.
+  const wide = !!show.backdropUrl;
   return (
     <header
       // Night in both themes (step 15 part 4): it's the show's art, on its own dark plate; on Studio a dark band over the light page.
@@ -77,10 +81,10 @@ export function ShowBar({
     >
       <ShowArt
         seasonId={show.seasonId}
-        artUrl={show.artUrl}
+        artUrl={show.backdropUrl || show.artUrl}
         name={show.name}
-        position={tall ? "100% 40%" : "center"}
-        className={`absolute inset-y-0 -z-[2] h-full ${tall ? "right-0 w-[70%]" : "inset-x-0 w-full"}`}
+        position={wide ? "center 30%" : tall ? "100% 40%" : "center"}
+        className={`absolute inset-y-0 -z-[2] h-full ${tall && !wide ? "right-0 w-[70%]" : "inset-x-0 w-full"}`}
       />
       <span
         aria-hidden

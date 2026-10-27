@@ -1,5 +1,6 @@
 import { airedOf, episodesOf, hitOf, pickSeason, seasonStatus, type ListingHit, type TvEpisode, type TvSeason, type TvShow } from "@/lib/game/listing";
 import type { TvCastRow } from "@/lib/game/make-game";
+import type { TvGuestCast } from "@/lib/game/show-art";
 import type { TvScheduleEntry } from "@/lib/game/tv-listings";
 
 // TV listings from TVmaze (docs/PLAN-new-design.md step 10 part 1; docs/HOSTING.md): free, no key, CC BY-SA (credited with
@@ -61,6 +62,11 @@ export async function showListing(id: number, base = TVMAZE): Promise<{ show: Tv
 /** One season's episodes. */
 export async function seasonListing(tvSeasonId: number, base = TVMAZE): Promise<TvEpisode[]> {
   return (await tv<TvEpisode[]>(base, `/seasons/${tvSeasonId}/episodes`)) ?? [];
+}
+
+/** Who's in one episode as a guest (how TVmaze lists a reality season's contestants: show-art.ts's cast photos). */
+export async function episodeGuestCast(episodeId: number, base = TVMAZE): Promise<TvGuestCast[]> {
+  return (await tv<TvGuestCast[]>(base, `/episodes/${episodeId}/guestcast`)) ?? [];
 }
 
 /** A day's US schedule (networks: the show as `show`), for the listings job. */

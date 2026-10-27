@@ -140,6 +140,8 @@ export interface SeasonHeader {
     name: string;
     kind: "competition" | "series" | "talk" | "sport";
     artUrl: string | null;
+    /** A landscape image for the show bar (TMDB's backdrop), else null: the bar uses the poster. */
+    backdropUrl?: string | null;
     terms: { castaway: string | null; tribe: string | null };
     /** Its TV listing (step 10), so the guide knows the same show in the listings (step 11). */
     tvmazeId?: number | null;

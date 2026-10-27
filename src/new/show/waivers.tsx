@@ -186,7 +186,7 @@ export function WaiversScreen({ seasonId }: { seasonId: string }) {
     <>
       {show.header ? (
         <ShowBar
-          show={{ seasonId, name, seasonNumber: show.header.seasonNumber, artUrl: show.header.show.artUrl }}
+          show={{ seasonId, name, seasonNumber: show.header.seasonNumber, artUrl: show.header.show.artUrl, backdropUrl: show.header.show.backdropUrl }}
           back={back}
           status={
             week ? (

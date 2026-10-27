@@ -6,6 +6,7 @@ import { pool, HttpError } from "./db";
 import { byNewest, deskLines, logDesk, type DeskLine } from "./desk";
 import { gameName } from "./league-season";
 import { setLeagueRole } from "./roles";
+import { artAutomatic, chooseArt, deskArt, findArtForShow, findArtLater, setArtOff, type DeskArt } from "./show-art";
 
 // Couches, people and shows on the desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js adminEntity):
 // a couch's people, its games and who runs each, who fills in its results (Override), and, when a game has nobody
@@ -133,6 +134,8 @@ export interface DeskShow {
   /** The desk looked at it (a show added by name waits in the Inbox until then). */
   reviewed: { by: string | null; at: string } | null;
   seasons: { id: string; name: string; status: string | null; number: number; rulebookId: string | null }[];
+  /** Its art and the finder's state (show-art.ts): Choose art, Find art and photos, No art or photos. */
+  art: DeskArt;
   history: DeskLine[];
 }
 
@@ -162,6 +165,7 @@ export async function deskShow(id: string): Promise<DeskShow> {
     added: s.created_by ? { by: s.added_by, at: s.created_at.toISOString(), listing: s.tvmaze_id != null } : null,
     reviewed: s.reviewed_at ? { by: s.reviewed_by, at: s.reviewed_at.toISOString() } : null,
     seasons,
+    art: await deskArt(id),
     history: byNewest(await deskLines("show", id)),
   };
 }
@@ -197,7 +201,34 @@ export async function deskShowAction(user: SessionUser, id: string, body: { acti
     const seasonId = rows[0].id as string;
     if (show.setUp) await ensureSeasonRulebook(pool, seasonId);
     await logDesk(pool, { entity: "show", entityId: id, action: "season", text: `Added season ${next}${show.setUp ? ", playing by last season's rulebook" : ""}`, userId: user.id });
+    findArtLater({ seasonId });
     return { ...(await deskShow(id)), seasonId };
   }
-  throw new HttpError(400, "action is reviewed, archive or season");
+  // Art (show-art.ts): look now, choose one by hand, back to automatic, or the off switch.
+  if (body.action === "findArt") {
+    const found = await findArtForShow(id);
+    const text = `Looked for art and photos: ${found.art ? "the show's art" : "no show art"}, ${found.seasons} season poster${found.seasons === 1 ? "" : "s"}, ${found.photos} photo${found.photos === 1 ? "" : "s"}`;
+    await logDesk(pool, { entity: "show", entityId: id, action: "findArt", text, userId: user.id });
+    return deskShow(id);
+  }
+  if (body.action === "chooseArt") {
+    const what = await chooseArt(id, body as Record<string, unknown>).catch((e) => {
+      throw new HttpError(400, (e as Error).message);
+    });
+    await logDesk(pool, { entity: "show", entityId: id, action: "chooseArt", text: `Chose ${what}`, userId: user.id });
+    return deskShow(id);
+  }
+  if (body.action === "artAutomatic") {
+    await artAutomatic(id);
+    await logDesk(pool, { entity: "show", entityId: id, action: "artAutomatic", text: "Art back to automatic", userId: user.id });
+    return deskShow(id);
+  }
+  if (body.action === "artOff") {
+    const off = (body as { off?: unknown }).off === true;
+    const { photos } = await setArtOff(id, off);
+    const text = off ? `No art or photos: took down the art and ${photos} found photo${photos === 1 ? "" : "s"}` : "Art and photos back on";
+    await logDesk(pool, { entity: "show", entityId: id, action: "artOff", text, userId: user.id });
+    return deskShow(id);
+  }
+  throw new HttpError(400, "action is reviewed, archive, season, findArt, chooseArt, artAutomatic or artOff");
 }

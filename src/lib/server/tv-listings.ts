@@ -2,6 +2,7 @@ import { ensureSeasonRulebook } from "@db/rulebooks.js";
 import { hitOf, kindOf, pickSeason, sameShow, type TvSeason } from "@/lib/game/listing";
 import { easternDay, listingDays, scheduleRows, weekListings, type ListingRow, type ScheduleShow, type WeekListing } from "@/lib/game/tv-listings";
 import { listedSeason, termsOf } from "./add-show";
+import { sweepArt, type ArtSweep } from "./show-art";
 import { pool } from "./db";
 import { isTvmaze, ListingsUnavailable, scheduleDay, showListing, updatedShows, webScheduleDay } from "./listings";
 
@@ -48,6 +49,8 @@ export interface ListingsRun {
   linked?: number;
   /** When listing seasons were last kept current (carried from run to run until a run does it). */
   keptAt?: string;
+  /** Shows and seasons given art, and cast photos found (show-art.ts sweepArt). */
+  art?: ArtSweep;
   errors?: string[];
 }
 
@@ -300,6 +303,12 @@ export async function refreshListings(base: string, opts: { now?: Date; force?: 
   } catch (e) {
     note("shows by name", e);
   }
+  try {
+    // Art and cast photos for a few shows and seasons nobody's looked for yet (or due TMDB's six-month re-ask): show-art.ts.
+    run.art = await sweepArt(base);
+  } catch (e) {
+    note("art", e);
+  }
   run.errors = errors;
   run.ok = !errors.length && !failed.length;
   run.done = new Date().toISOString();
@@ -307,6 +316,7 @@ export async function refreshListings(base: string, opts: { now?: Date; force?: 
   console.log(
     `[listings] ${run.day} (${run.how}): ${run.ok ? "ok" : "not all"}; ${run.rows ?? 0} listings over ${run.days ?? 0} days` +
       `${failed.length ? ` (${failed.length} unanswered)` : ""}, ${run.seasons ?? 0} seasons read again, ${run.made ?? 0} made, ${run.linked ?? 0} linked` +
+      `${run.art ? `; art for ${run.art.shows} shows, ${run.art.seasons} seasons, ${run.art.photos} photos` : ""}` +
       `${errors.length ? `; ${errors.join("; ")}` : ""}`
   );
   return run;

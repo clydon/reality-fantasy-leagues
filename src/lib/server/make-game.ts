@@ -30,6 +30,7 @@ import { pool, HttpError } from "./db";
 import { logDesk } from "./desk";
 import { seenThrough } from "./guard";
 import { ListingsUnavailable, showCast } from "./listings";
+import { findArtLater } from "./show-art";
 import { seasonHeaders, type SeasonHeader } from "./show-space";
 import { libraryTemplates, otherSeasonRulebook } from "./templates";
 
@@ -683,5 +684,7 @@ export async function confirmMake(user: SessionUser, seasonId: string, couchId: 
   } finally {
     c.release();
   }
+  // The show's art, the season's poster and the cast's photos, found after the answer (show-art.ts).
+  findArtLater({ showId: h.show.id, seasonId });
   return makeState(user, seasonId, couchId);
 }

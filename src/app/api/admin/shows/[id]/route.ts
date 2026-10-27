@@ -87,6 +87,8 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
     sets.push(`${column}=$${values.length}`);
   }
   if (!sets.length) throw new HttpError(400, "No editable fields supplied");
+  // A pasted art URL is the admin's choice: the art finder (src/lib/server/show-art.ts) leaves it alone. Cleared, it finds again.
+  if ("artUrl" in body) sets.push(`art_by_hand = ${typeof body.artUrl === "string" && body.artUrl.trim() ? "true" : "false"}`);
 
   const { rows } = await pool.query(
     `UPDATE shows SET ${sets.join(", ")}, updated_at=now() WHERE id=$1 RETURNING id, slug, name, archived, format`,
