@@ -11,6 +11,7 @@ import { isShowTab, paths, SHOW_TABS, type ShowTab } from "../routes";
 import { Cast } from "../show/cast";
 import { Chat } from "../show/chat";
 import { Dock, dockShows, MovesSheet } from "../show/dock";
+import { RemindSheet } from "../show/remind";
 import { Episodes } from "../show/episodes";
 import { Games } from "../show/games";
 import { HowItWorksPage } from "../show/how-it-works";
@@ -210,6 +211,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
         badges={{ tonight: show.movesDue + (show.episodes?.reveal ? 1 : 0), chat: tab === "chat" ? 0 : (badge.data?.unread ?? 0) }}
       />
       <MovesSheet show={show} seasonId={seasonId} />
+      <RemindSheet show={show} />
       <RevealScreen show={show} seasonId={seasonId} />
       <MorningSheet show={show} seasonId={seasonId} />
       {show.header && (

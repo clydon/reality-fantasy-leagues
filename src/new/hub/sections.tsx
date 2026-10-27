@@ -65,7 +65,7 @@ export function showOfMove(home: Home, m: Move): HomeShow | undefined {
 }
 
 /** "your Survivor lineup locks Wed 8:05 PM", from the move and its show. */
-function moveLine(m: Move, show?: HomeShow) {
+export function moveLine(m: Move, show?: HomeShow) {
   const name = show ? showName(show) : m.leagueName;
   const when = m.deadline ? airTime(Date.parse(m.deadline)) : null;
   if (m.kind === "lineup") return `your ${name} lineup ${when ? `locks ${when}` : "is due"}`;
@@ -179,12 +179,15 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
   const up = show.upNext;
   const reveal = show.results?.reveal ?? null;
   const final = !reveal ? (show.results?.final ?? null) : null;
-  // Who's set in this couch's game here (a lineup's before a pick's), else in any of yours.
+  const move = movesByDue(home.moves).find((m) => show.games.some((g) => g.leagueId === m.leagueId));
+  // Who's set: in the game of the move on the plate ("0 of 4 picked" beside a pick), else in this couch's game here (a
+  // lineup's before a pick's), else in any of yours.
   const here = show.progress.filter((p) => !couch || couch.games.some((g) => g.leagueId === p.leagueId));
-  const progress = [...(here.length ? here : show.progress)].sort((a, b) => Number(a.label !== "lineups set") - Number(b.label !== "lineups set"))[0];
+  const pool = here.length ? here : show.progress;
+  const progress =
+    (move && pool.find((p) => p.leagueId === move.leagueId)) ?? [...pool].sort((a, b) => Number(a.label !== "lineups set") - Number(b.label !== "lineups set"))[0];
   const t = up?.airAt ? Date.parse(up.airAt) : null;
   const now = useNow(t != null && ticks(t));
-  const move = movesByDue(home.moves).find((m) => show.games.some((g) => g.leagueId === m.leagueId));
   const name = showName(show);
   const href = paths.show(show.seasonId);
   const kind = reveal ? "reveal" : move ? "move" : final ? "final" : "set";

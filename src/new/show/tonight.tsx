@@ -30,6 +30,7 @@ import { CallResultRow, CallRow, openCall } from "./calls";
 import { PollRow } from "./polls";
 import { bingoEpisode as toBingo, BingoRow, openBingo, type BingoTarget } from "./bingo";
 import { WatchAlongCard } from "./watch-along";
+import { RemindRow } from "./remind";
 import { useSeasonPolls } from "../data";
 
 // Tonight (the mock's refine.js tabTonight, option 2C, 2026-10-24): the phase as a heading from the clock, then
@@ -47,7 +48,7 @@ import { useSeasonPolls } from "../data";
 // everyone (step 6b): a player who has seen an episode with only its early results gets a quiet "Full scores need one
 // paste · Fill it in" when the couch lets anyone fill them in. A streaming season (step 14; the mock's streaming.js wTonight):
 // before its drop, the drop plate (every episode at once, when, the countdown); after it, your next episode at your own pace,
-// with Watch along first.
+// with Watch along first. Under the heading, the reminder ask's row while nothing reaches you (remind.tsx).
 
 export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const playing = show.games.some((g) => g.yourRole);
@@ -59,6 +60,7 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
       <CatchUpSheet show={show} game={catchUp} onOpenChange={(o) => !o && setCatchUp(null)} />
       <DropPlate show={show} />
       <PhaseHead show={show} />
+      {playing && <RemindRow seasonId={seasonId} show={show} />}
       {!playing && <Following show={show} />}
       {playing && <AfterEpisode seasonId={seasonId} show={show} />}
       {playing && <FillItIn seasonId={seasonId} show={show} />}

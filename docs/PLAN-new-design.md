@@ -137,6 +137,10 @@ Behaviour a session saw and left alone because it wasn't that step's to change. 
 the step that could take it (a guess: any later step that touches it may). Fixed ones come out, with a line in that
 step's As built.
 
+- **check-new-episode-games fails its talk-show part late in the evening** (seen 2026-10-26 at 9:30 PM EDT, with or without
+  the reminder ask's changes, `--api` too): "the talk show's Episode 4: both calls wait for the couch to say" gets no verdicts, then
+  a TypeError at `personIn`. The part moves the talk show by whole days, so it reads as a date-in-UTC-versus-local slip (after 8 PM
+  Eastern it's tomorrow in UTC). The check or `talk-fixture.js` could take it; run it in the daytime meanwhile.
 - **Traitors 5's cast stores the faction as its tribe** (step 3; the tool is 6b part 2's, doing it is the user's call). Its
   `season_cast.tribe_name` is "Traitor" for the two original Traitors and "Faithful" for everyone else, and the one league on
   that season in the local copy (production's, 2026-10-16) has tribes named Traitor and Faithful, so classic's boards and
@@ -481,6 +485,25 @@ step's As built.
 - **Classic's white on live red** (seen in the polish before the merge; for C). Classic's draft board marks and waiver badge draw white
   on `--live` (3.4:1 on Night's coral, whose ink is `--live-foreground`); the new design's tab badge now uses the ink. Classic retires
   at C.
+- **The archetype critique's layout findings** (2026-10-26, `/impeccable critique`, its snapshot local in `.impeccable/critique/`; for
+  after the first blind testers, `docs/ARCHETYPES.md`). The hub runs 11 sections with airtime four times on its first screen and the
+  move to make at 19px under a 44px show name; show tabs spend 236px on chrome before content and the dock covers rows; Tonight's
+  moves are a sideways carousel (the second a 36px sliver); yellow is on 9 things in the lineup sheet and red marks "needs you" (tab
+  badges, the poster dot); Rules, the desk's Library and Backstage results put one-line items in boxes. Its three directions to mock
+  side by side first: the hub as one action then rows, Tonight as a checklist, the lineup as a picture (field over bench).
+- **The behind-watcher's pick** (the same critique; the user's call). A pool pick that waits on revealing the last episode turns its
+  button into "Reveal Episode N" with no why and no way to skip the week (`show/tonight.tsx` YourMoves), and the Tonight tab's red
+  badge counts that reveal as a move (`screens/show-space.tsx`).
+- **No one can make a weekly move for someone** (the same critique; the user's call). Draft and waivers have "Pick for them"; Weekly
+  Lineup, Survival Pool picks and predictions have no screen for it, and the routes let a commissioner, not a Game admin, do it (the
+  episode picks and lineups routes; a pick is already logged to Recent changes).
+- **Bounce easing against DESIGN.md's "no bounce"** (the critique's detector; the user's call, likely carried from the mock): the
+  reveal's standings reorder (`show/reveal.tsx`), the tab bar's icon lift (`ui/show-bar.tsx`), the toast (`ui/toast.tsx`), four in
+  `new.css` (`.nd-dock`, `.nd-vote`, `nd-stamp`, `.nd-line`) and the landing's `--spring`.
+- **Small things the critique saw** (any step touching them): Episodes passes `text-[13px]` to `ShowArt` but its own 30px wins, so a
+  show without art overflows its 96×60 tile (`show/episodes.tsx`); 10px text under the 11px floor on the hub posters' game chips
+  (`hub/sections.tsx`) and Games' "You" badge (`show/games.tsx`, `show/solo.tsx`); Stats shows a tie as 1 and 2 where everything else
+  says T1 (`show/stats.tsx`); a toast covers first run's Back and, after joining, the wordmark.
 
 ## What exists, what's needed
 
@@ -4357,6 +4380,67 @@ polls, runs or is stored (HOSTING.md unchanged).
   you are says "Premieres" before a drop (needs the drop and its count in the where sheet's data).
 - **Next:** the user's merge-and-deploy step (HANDOFF's Next, unchanged: a fresh backup, the Neon rehearsal of 0100-0138, the merge and
   push, `ui='new'` for the couch).
+
+### As built, the archetype critique's fixes before the merge (2026-10-26, on `new-design`)
+
+An `/impeccable critique` of the whole new design against the friend group's archetypes (`docs/ARCHETYPES.md`: the Fan Who Forgets,
+the Picture-First Partner, the Drive-By…) scored 22/40; its P0 was that reminders never reach the people who need them. The user chose
+to fix the P0 and the confirmed bugs before the merge, the layout work after the first blind testers. No migration; nothing new polls,
+runs or is stored on the server (HOSTING.md: the reminder ask's cached read of your profile, only while this phone isn't on).
+- **Settings says when no reminder reaches you** (`settings/notify.tsx`): the moment switches show your saved choice (on by default),
+  which read as "reminders are coming" with this phone off. With no phone of yours getting them (this one not on, `notify.devices` 0), a
+  line above them says "None of these reach you yet" and what starts them for this phone's state (turn on, add to the Home Screen,
+  allow in the browser, or this browser can't). The phone's state moved up to the section (`usePhone` in `NotifySection`).
+- **The dock goes where Tonight's card goes**: a lead move Tonight takes to its own page (a waiver pick, as well as a draft turn or
+  blind picks) opens that page from the dock's Set; a waiver pick used to open Your moves on the Weekly Lineup tab (`tabOf` never
+  returns Outlast). Tonight's waiver card now carries `?game=` like the drafts and the Episodes row, so both land on the right game.
+- **Up next's "who's set" is for the move on its plate** (`hub/sections.tsx UpNext`): "0 of 4 picked" beside a pick, where it said
+  "4 of 4 lineups set"; with no count for that game (a waiver pick), the old order (a lineup's before a pick's).
+- **The bell says what's still due**: its line says "Nothing new" (not "All caught up"), and a row above the list says the moves due in
+  the status line's words, opening that show (`hub/notes.tsx DueRow`, `moveLine` exported from sections.tsx).
+- **Checks:** check-new-notify (129: no line while another phone gets them, the line with none, gone once turned on; the bell's due
+  row against the home read), check-new-backstage-ii (142: the dock's Set opens Waivers at Outlast), check-new-show (69: Up next's
+  count for the lead move), check-new-hub (77) and check-new-studio's hub and Settings, all at 390; type-check and lint clean.
+- **The reminder ask, option B** (the user's pick from `.impeccable/mocks/reminders/index.html`; `show/remind.tsx`). Right after a save
+  in Your moves (lineups, picks, predictions: what `db/reminders.js` reminds about), a sheet, Want a nudge?, showing the notification
+  itself on a drawn lock screen: next week's 2-hours-before reminder, worded as `db/reminders.js` words it ("Pool Party: episode 7 airs in
+  about 2 hours · Make your episode 7 pick", and the 24-hours one under it), its clock two hours before airtime a calendar week on (a week
+  can cross a clock change). Turn on (bone, not yellow: it's optional) turns this phone on there and then; Not now. It asks only while no
+  phone of yours gets notifications (this phone's push state from `usePhone`, now exported from `settings/notify.tsx`, and the profile's
+  `notify.devices` 0), only on a season with an airtime (no schedule, no reminders), never on the way in, and once per phone: "asked" is
+  kept on the device per account (`localStorage` `gys.remind.<userId>`; no backend). **On an iPhone outside the installed app** the same
+  sheet shows Add to Home Screen as three pictures with a numbered line under each (Tap Share · Add to Home Screen · Open it from there)
+  and Got it; opened from the Home Screen, the next save asks again with Turn on (an installed iPhone app keeps its own storage, so it
+  would anyway). **The row**: after Not now or Got it, a quiet outlined row right under Tonight's episode heading ("Get a nudge before it
+  locks? · The day before, and 2 hours before", Turn on, ×) until it's turned on or closed; on the iPhone its Turn on shows the pictures
+  again. **After a miss**: when the last episode you've seen has a move of yours that never came in (no Survival Pool pick, or nobody
+  started; a new `missed` flag on the episode's game lines, `episode-view.ts nightIn`), the row comes back once, "Episode 6's pick slipped
+  by · Want a nudge before Episode 7 locks?", at most once a week, and × closes it for that miss. Blocked or unsupported browsers aren't
+  asked (Settings says why). The profile is read for it only while this phone isn't on (HOSTING.md); nothing new is stored on the server.
+  - **Not the mock's B exactly:** the "slipped by" row shows for a miss whether or not the sheet had asked before (the mock had it only
+    after a Not now). Someone who never saves never sees the sheet, and they're the one a miss tells most; it's still once, after the
+    reveal, and only while nothing reaches them. Say if it should wait for a Not now.
+  - **The pictures are placeholder art** (`public/remind/add-to-home-screen.svg`, drawn like the mock's frames): replace that file with
+    the generated image, or drop in a PNG and change `ADD_TO_HOME_ART` in `remind.tsx`. Generate it from the mock's image prompt **without
+    the labels** (the sheet writes them, so they stay readable at 390): three equal square panels side by side, 372 × 120 or any multiple.
+  - **Not built here:** the avatar labelled "You" (the mock's last item, separate from B), and asking after a waiver claim or a Call it
+    (no reminder covers Call it; waiver reminders do, a follow-up if wanted).
+- **The archetypes' paths, walked at 390** (`docs/ARCHETYPES.md`). The Fan Who Forgets: saves on Tonight, "All set", then the sheet with
+  the very notification they'd get and one Turn on; Not now leaves the row on Tonight's first screen; a missed pick brings it back once,
+  saying so without blame. The Picture-First Partner on an iPhone: three pictures and three short lines, no paragraph; Got it, then the
+  row's Turn on shows them again; from the Home Screen, Turn on works. Noticed, not fixed: the row lives on Tonight, not the hub, where
+  everyone lands (the hub's layout work after the blind testers could carry it); a Partner whose moves someone beside them makes is never
+  asked on their own phone; iPadOS reports itself as a Mac, so an iPad in Safari reads as "can't" and isn't asked (as Settings already
+  reads it).
+- **Checks:** check-new-show (the Fan Who Forgets' first save: the sheet and its picture's words and clock, Not now's row under the
+  heading and outlined, no second ask, × for good, the slipped-by row once after his Episode 5 pick is taken out), check-new-notify (his
+  other phone on: no ask; an iPhone in Safari: the pictures load, numbered lines, no Turn on, Got it's row, its Turn on shows them again;
+  opened from the Home Screen: asked again, Turn on subscribes that phone, a test push reaches it, the row goes, Settings agrees),
+  all at 390, check-new-show 81 and check-new-notify 143 passing; check-new-chat passes too (it saves in Your moves). Both checks
+  wait for Your moves itself to close now, since the ask's sheet can open as it goes. check-new-episode-games' browser part runs
+  through its save; its talk-show part fails in the evening with or without this change (Noticed, not fixed). Type-check and lint
+  clean.
+- **Next:** the merge-and-deploy step as above.
 
 ## Step C: cutover
 

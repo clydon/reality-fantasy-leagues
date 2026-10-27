@@ -20,7 +20,11 @@
 //   - the bell: its count on the home read, its list, read when it opens, a row past 30 days gone when a new one is written.
 //   In a real browser at --width (390 by default), as alex: Settings' What we notify you about (this phone turned on through a
 //   stand-in PushManager, a test push reaching it, a moment off with Undo, Couch chat), the hub's bell (its dot, the list, opening
-//   reads it, a row opens its page), a show's Notifications in its ⋯ menu. Nothing wider than the screen; no page errors.
+//   reads it, a row opens its page), a show's Notifications in its ⋯ menu. Then the reminder ask (show/remind.tsx; check-new-show.js
+//   has the Fan Who Forgets' first save): with his other phone getting them a save doesn't ask; with none, on an iPhone in Safari
+//   (no PushManager) a save shows Add to Home Screen's three pictures, Got it leaves the row and its Turn on shows them again; opened
+//   from the Home Screen (standalone, a stand-in PushManager) the next save asks again, and Turn on subscribes that phone (a test
+//   push reaches it) and the row goes. Nothing wider than the screen; no page errors.
 //   Screenshots go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal; .env.local's VAPID keys)
@@ -562,6 +566,26 @@ async function person(pool, who, role = null) {
       await pg.locator("[data-phone-toggle]").click();
       check(await toasted(/Off for this phone/), "Turn off: this phone only");
       check((await pool.query("SELECT 1 FROM push_subscriptions WHERE endpoint = $1", [phone.endpoint])).rows.length === 0, "its subscription is gone; his other phone's stays");
+      // Nothing reaching him: with no phone of his on (this one off, his other one gone for a moment), the switches say so
+      // instead of reading as reminders that are coming (the 2026-10-26 critique's P0).
+      check((await pg.locator("[data-notify-quiet]").count()) === 0, "his other phone still gets them: no 'none of these reach you'");
+      const other = push.subscription("alex");
+      await pool.query("DELETE FROM push_subscriptions WHERE endpoint = $1", [other.endpoint]);
+      await pg.reload({ waitUntil: "load" });
+      await pg.locator("[data-notify-quiet=off]").waitFor({ timeout: 15000 }).catch(() => {});
+      check(
+        /None of these reach you yet.*turn notifications on above/.test((await pg.locator("[data-notify-quiet]").textContent().catch(() => "")) || ""),
+        "no phone of his on: the switches say none of these reach him yet, and how they start"
+      );
+      await pg.locator("[data-notify-quiet]").scrollIntoViewIfNeeded().catch(() => {});
+      await shot("settings-none-reach");
+      await pg.locator("[data-phone-toggle]").click();
+      await pg.locator("[data-phone=on]").waitFor({ timeout: 10000 });
+      await pg.waitForFunction(() => !document.querySelector("[data-notify-quiet]"), null, { timeout: 10000 }).catch(() => {});
+      check((await pg.locator("[data-notify-quiet]").count()) === 0, "turned on here: the line goes");
+      await pg.locator("[data-phone-toggle]").click();
+      await pg.locator("[data-phone=off]").waitFor({ timeout: 10000 });
+      await pool.query("INSERT INTO push_subscriptions (user_id, endpoint, p256dh, auth, user_agent) VALUES ($1, $2, $3, $4, 'zt notify check')", [U.alex, other.endpoint, other.p256dh, other.auth]);
 
       // The hub's bell.
       const unread = (await home("alex")).notes.unread;
@@ -578,6 +602,13 @@ async function person(pool, who, role = null) {
       const fresh = await pg.locator("[data-note][data-unread='1']").count();
       check(rows === unread && fresh === unread, `the list: ${rows} rows, each marked new`, `${rows} rows, ${fresh} new, ${unread} on the home read`);
       check(new RegExp(`${unread} new`).test(await sheet.innerText()), "its line says how many are new");
+      const dueN = (await home("alex")).moves.length;
+      const dueRow = (await pg.locator("[data-notes-due]").count()) ? await pg.locator("[data-notes-due]").getAttribute("data-notes-due") : null;
+      check(
+        dueN ? dueRow === String(dueN) && new RegExp(`${dueN} moves? due`).test(await pg.locator("[data-notes-due]").innerText()) : dueRow === null,
+        dueN ? `above the list, what's still his to do: ${dueN} due (nothing new isn't nothing due)` : "nothing due: no due row",
+        `${dueRow} vs ${dueN}`
+      );
       await wide("the bell");
       await shot("bell");
       await pg.waitForFunction(() => document.querySelector("[data-bell]")?.getAttribute("data-unread") === "0", null, { timeout: 15000 }).catch(() => {});
@@ -605,7 +636,101 @@ async function person(pool, who, role = null) {
       await pg.locator("[role=status] button", { hasText: /undo/i }).click();
       await pg.waitForFunction(() => document.querySelector("[data-setting=show-chat]")?.getAttribute("aria-checked") === "true", null, { timeout: 15000 }).catch(() => {});
       check(!(await prefs("alex")).shows[showId], "Undo: on again");
+      // The reminder ask. His other phone gets them (it's back), so a save here doesn't ask.
+      const changePick = async (p) => {
+        await p.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "load" });
+        await p.locator("[data-tab=tonight]").waitFor({ timeout: 30000 });
+        await p.waitForTimeout(1000);
+        await p.locator('[data-move^="pick-"] button, [data-done^="pick-done"] button').first().click();
+        const d = p.getByRole("dialog");
+        await d.getByText("Your moves").waitFor({ timeout: 15000 });
+        const tab = d.getByRole("tab", { name: "Survival Pool" });
+        if (await tab.count()) await tab.click();
+        await d.locator('[data-pick]:not([disabled])[aria-pressed="false"]').first().click();
+        await d.getByRole("button", { name: "Save" }).click();
+        await d.filter({ hasText: "Your moves" }).waitFor({ state: "hidden", timeout: 15000 });
+        await p.waitForTimeout(1500);
+      };
+      const asked = (p) => p.evaluate((id) => JSON.parse(localStorage.getItem(`gys.remind.${id}`) || "{}").asked ?? null, U.alex);
+      await changePick(pg);
+      check((await pg.locator("[data-remind-sheet]").count()) === 0 && (await asked(pg)) === null, "his other phone gets them: saving doesn't ask");
       check(errors().length === 0, "alex: no page errors", errors().join(" | "));
+
+      // Nothing reaching him (his other phone gone), on an iPhone in Safari: no PushManager until it's opened from the Home Screen.
+      await pool.query("DELETE FROM push_subscriptions WHERE user_id = $1", [U.alex]);
+      const iphone = push.subscription("alex-iphone");
+      const onIphone = (s) => {
+        Object.defineProperty(navigator, "userAgent", { get: () => "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1" });
+        let installed = false;
+        try {
+          installed = !!localStorage.getItem("zt-installed");
+        } catch {
+          /* about:blank */
+        }
+        if (!installed) return void delete window.PushManager;
+        Object.defineProperty(navigator, "standalone", { get: () => true });
+        const key = "zt-notify-subscribed";
+        const make = () => ({ endpoint: s.endpoint, expirationTime: null, toJSON: () => ({ endpoint: s.endpoint, expirationTime: null, keys: { p256dh: s.p256dh, auth: s.auth } }), unsubscribe: async () => (localStorage.removeItem(key), true) });
+        PushManager.prototype.subscribe = async function () {
+          localStorage.setItem(key, "1");
+          return make();
+        };
+        PushManager.prototype.getSubscription = async function () {
+          return localStorage.getItem(key) ? make() : null;
+        };
+      };
+      const b2 = await open({ user: fixture.username("alex"), pass: PASSWORD, width, height: 844, motion: "off" });
+      closers.push(b2.close);
+      const ip = b2.page;
+      await ip.context().addInitScript(noBadge);
+      await ip.context().addInitScript(onIphone, iphone);
+      await ip.context().grantPermissions(["notifications"], { origin: BASE });
+      await ip.emulateMedia({ reducedMotion: "reduce" });
+      await changePick(ip);
+      const ask = ip.locator("[data-remind-sheet]");
+      await ask.waitFor({ timeout: 10000 }).catch(() => {});
+      check((await ask.getAttribute("data-remind-sheet").catch(() => null)) === "install", "an iPhone in Safari: the save asks with Add to Home Screen, not Turn on");
+      const art = ask.locator("img");
+      await ip.waitForFunction(() => document.querySelector("[data-remind-sheet] img")?.complete, null, { timeout: 10000 }).catch(() => {});
+      check((await art.evaluate((i) => i.naturalWidth > 0).catch(() => false)) && /add-to-home-screen/.test((await art.getAttribute("src")) || ""), "its three pictures load (the placeholder art)");
+      check(/Tap Share.*Add to Home Screen.*Open it from there/s.test(await ask.innerText()) && (await ask.locator("[data-remind-on]").count()) === 0, "one line under each picture, numbered, and no Turn on");
+      check((await asked(ip))?.as === "install", "remembered: asked, for the Home Screen");
+      await wide("the iPhone's ask");
+      await ip.waitForTimeout(400);
+      await ip.screenshot({ path: path.join(out, `${String(++n).padStart(2, "0")}-alex-remind-iphone.png`) });
+      await ask.locator("[data-remind-got]").click();
+      await ask.waitFor({ state: "hidden", timeout: 10000 });
+      const row = ip.locator("[data-remind-row]");
+      await row.waitFor({ timeout: 10000 }).catch(() => {});
+      // "slipped" where a move of his for the last episode he's seen never came in (his Episode 6 pick, here), else "ask".
+      const rowKind = await row.getAttribute("data-remind-row").catch(() => null);
+      check(rowKind === "ask" || rowKind === "slipped", `Got it: the row under the heading (${rowKind}), since nothing reaches him yet`);
+      await row.locator("[data-remind-row-on]").click();
+      await ask.waitFor({ timeout: 10000 }).catch(() => {});
+      check((await ask.getAttribute("data-remind-sheet").catch(() => null)) === "install", "the row's Turn on shows the pictures again");
+      await ask.locator("[data-remind-later]").click();
+      await ask.waitFor({ state: "hidden", timeout: 10000 });
+
+      // Opened from the Home Screen: notifications can work now, so the next save asks again, and Turn on turns this phone on.
+      await ip.evaluate(() => localStorage.setItem("zt-installed", "1"));
+      await changePick(ip);
+      await ask.waitFor({ timeout: 10000 }).catch(() => {});
+      check((await ask.getAttribute("data-remind-sheet").catch(() => null)) === "off", "opened from the Home Screen: the next save asks again, with Turn on");
+      await ip.waitForTimeout(400);
+      await ip.screenshot({ path: path.join(out, `${String(++n).padStart(2, "0")}-alex-remind-installed.png`) });
+      await ask.locator("[data-remind-on]").click();
+      await ip.waitForFunction(() => /On for this phone/.test(document.querySelector("[role=status]")?.textContent || ""), null, { timeout: 15000 }).catch(() => {});
+      await ask.waitFor({ state: "hidden", timeout: 10000 }).catch(() => {});
+      check((await pool.query("SELECT user_id FROM push_subscriptions WHERE endpoint = $1", [iphone.endpoint])).rows[0]?.user_id === U.alex, "Turn on: this iPhone is subscribed");
+      check((await row.count()) === 0, "and the row goes");
+      push.clear();
+      await as.alex.call("POST", "/api/me/push-test", {});
+      await expect((rs) => rs.some((x) => x.who === "alex-iphone"));
+      check(got("alex-iphone").length === 1, "a test push reaches it");
+      await ip.goto(`${BASE}/settings`, { waitUntil: "load" });
+      await ip.locator("[data-phone=on]").waitFor({ timeout: 15000 }).catch(() => {});
+      check((await ip.locator("[data-phone=on]").count()) === 1 && (await ip.locator("[data-notify-quiet]").count()) === 0, "Settings agrees: on for this phone, nothing about none reaching him");
+      check(b2.errors.length === 0, "the iPhone: no page errors", b2.errors.join(" | "));
     }
     void katId;
     void deskId;

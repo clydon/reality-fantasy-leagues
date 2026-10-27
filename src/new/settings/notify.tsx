@@ -17,10 +17,11 @@ import { Choice, SwitchRow } from "./controls";
 
 type Save = (body: Parameters<typeof profileApi.save>[0], said: string, undo?: Parameters<typeof profileApi.save>[0]) => Promise<void>;
 
-type PhoneState = "loading" | "unsupported" | "install" | "blocked" | "off" | "on";
+export type PhoneState = "loading" | "unsupported" | "install" | "blocked" | "off" | "on";
 
-/** This phone: whether it can show notifications, and whether it's turned on (the browser's own state, not the account's). */
-function usePhone(): [PhoneState, (s: PhoneState) => void] {
+/** This phone: whether it can show notifications, and whether it's turned on (the browser's own state, not the account's).
+ *  The reminder ask reads it too (show/remind.tsx). */
+export function usePhone(): [PhoneState, (s: PhoneState) => void] {
   const [state, setState] = useState<PhoneState>("loading");
   useEffect(() => {
     let live = true;
@@ -44,8 +45,7 @@ function usePhone(): [PhoneState, (s: PhoneState) => void] {
   return [state, setState];
 }
 
-function PhoneRow({ devices }: { devices: number }) {
-  const [state, setState] = usePhone();
+function PhoneRow({ devices, state, setState }: { devices: number; state: PhoneState; setState: (s: PhoneState) => void }) {
   const [busy, setBusy] = useState(false);
   const qc = useQueryClient();
   const words: Record<PhoneState, { title: string; line: string }> = {
@@ -99,15 +99,36 @@ function PhoneRow({ devices }: { devices: number }) {
   );
 }
 
+/** What starts the switches below, by why this phone isn't getting them. */
+const QUIET_LINE: Partial<Record<PhoneState, string>> = {
+  off: "They start once you turn notifications on above. Until then, everything waits in the bell on the hub.",
+  install: "They start once it's on your Home Screen and turned on there. Until then, everything waits in the bell on the hub.",
+  blocked: "They start once your browser allows them. Until then, everything waits in the bell on the hub.",
+  unsupported: "This browser can't show them. Everything waits in the bell on the hub.",
+};
+
 /** Settings' "What we notify you about". `runs`: you run a game somewhere (Backstage's moment shows). */
 export function NotifySection({ p, save, runs }: { p: Profile | undefined; save: Save; runs: boolean }) {
   const notify = p?.notify;
+  const [phone, setPhone] = usePhone();
   const shown = MOMENTS.filter((m) => m.id !== "chat" && (m.id !== "backstage" || runs));
+  // The switches pick what you hear; they only reach you once a phone gets notifications. With none that does (this one
+  // isn't on and no other is), say so, so a switch that's on doesn't read as a reminder that's coming.
+  const quiet = notify && !notify.devices && phone !== "on" && phone !== "loading" ? QUIET_LINE[phone] : null;
   return (
     <div data-settings-notify>
       <div className="px-4">
-        <PhoneRow devices={notify?.devices ?? 0} />
+        <PhoneRow devices={notify?.devices ?? 0} state={phone} setState={setPhone} />
       </div>
+      {quiet && (
+        <p data-notify-quiet={phone} className="mx-4 mt-1 flex gap-2.5 border-t border-border pt-3 text-[13px] leading-snug text-muted-foreground">
+          <BellOff className="mt-0.5 size-4 flex-none text-chyron-line" aria-hidden />
+          <span>
+            <b className="block text-[15px] font-semibold text-foreground">None of these reach you yet</b>
+            {quiet}
+          </span>
+        </p>
+      )}
       <div className="mt-1 px-4">
         {shown.map((m) => {
           const on = notify?.moments[m.id as Exclude<MomentId, "chat">] ?? true;

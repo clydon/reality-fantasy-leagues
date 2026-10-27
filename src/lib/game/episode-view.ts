@@ -34,6 +34,8 @@ export interface GameNight {
   line: string;
   /** Weekly Lineup's points for it, while only the early results are in: "so far". */
   soFar?: boolean;
+  /** Your move for it never came in: nobody started, or no pick (the reminder ask's "slipped by", remind.tsx). */
+  missed?: boolean;
 }
 
 export interface Happened {
@@ -106,13 +108,13 @@ export function nightIn(game: GameRefIn, view: LeagueState, me: string, ep: Epis
     const b = teamEpisodeBreakdown(view, ep.id, me);
     const soFar = StateLogic.resultsStage(ep) === "early";
     const who = b.started.map((s) => `${first(s.c.name)} ${signed(s.points)}`).join(" · ");
-    return { ...base, big: `${signed(b.total)}${soFar ? " so far" : ""}`, line: who || "Nobody started", soFar };
+    return { ...base, big: `${signed(b.total)}${soFar ? " so far" : ""}`, line: who || "Nobody started", soFar, ...(who ? {} : { missed: true }) };
   }
   if (type.hasWeeklyPicks) {
     const row = StateLogic.pickEmHistory(view, me).rows.find((r) => r.episode === ep.number);
     const c = row?.castawayId ? StateLogic.getCastaway(view, row.castawayId) : null;
     if (!row || row.correct === null) return { ...base, big: "Waiting", line: c ? `You picked ${first(c.name)}` : "No pick yet" };
-    if (!c) return { ...base, big: "No pick", line: "Streak reset" };
+    if (!c) return { ...base, big: "No pick", line: "Streak reset", missed: true };
     return row.correct
       ? { ...base, big: "Survived", line: `You picked ${first(c.name)} · streak ${row.streak}` }
       : { ...base, big: "Went home", line: `You picked ${first(c.name)} · streak reset` };

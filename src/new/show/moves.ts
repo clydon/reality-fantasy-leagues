@@ -47,7 +47,7 @@ export function moveCard(m: Move, seasonId: string, twin: boolean): MoveCard {
     case "pick":
       return { key, title: "Pick who survives", line: `Picks close at airtime${when ? ` · ${when}` : ""}${which}`, action: "Make my pick", tab: "pool", leagueId: m.leagueId };
     case "pickup":
-      return { key, title: m.text, line: `${when ? `Due ${when} · ` : ""}you pick who comes in${which}`, action: "Pick who comes in", href: paths.showPage(seasonId, "waivers") };
+      return { key, title: m.text, line: `${when ? `Due ${when} · ` : ""}you pick who comes in${which}`, action: "Pick who comes in", href: `${paths.showPage(seasonId, "waivers")}?game=${m.leagueId}` };
     case "draftTurn":
       return { key, title: "Your turn to draft", line: m.leagueName, action: "Draft", href: `${paths.showPage(seasonId, "draft")}?game=${m.leagueId}` };
     case "blindDraft":

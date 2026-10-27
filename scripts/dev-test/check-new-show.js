@@ -8,6 +8,10 @@
 //     and saved land in the leagues (the database, as the classic app reads them) and in /games; Tonight then shows
 //     them as done cards after one "You're set"; Change opens the sheet again, and a changed lineup and guess
 //     replace the old ones (one guess per person; "Will an idol be played?" is answered with Yes / No chips since step 12 part 2);
+//   - the reminder ask (the 2026-10-26 critique's P0, the Fan Who Forgets' path; check-new-notify.js has the iPhone's and who it
+//     skips): nothing reaches alex (no phone of his on), so his first save asks once with the notification he'd get; Not now
+//     leaves a row under the heading; the next save doesn't ask; × closes the row for good; a move that slipped by (his Episode 5
+//     pick taken out, at the end) brings it back once, saying so;
 //   - Episodes: the dock (Set when moves are due, else Edit, with your starters' and your pick's faces), who's set,
 //     an episode row opens its page (?page=epN) and back closes it; the dock holds still while the tabs move;
 //   - Games: a real table per game, a row opens that person's sheet, Rules says each game's own rules, the How it
@@ -122,7 +126,8 @@ function check(ok, what, detail = "") {
     // toast's last words stay in the page after it slides away, so it's read, not waited for.
     const save = async () => {
       await dialog().getByRole("button", { name: "Save" }).click();
-      await dialog().waitFor({ state: "hidden", timeout: 15_000 });
+      // Your moves itself (the reminder ask's sheet can open as it goes).
+      await dialog().filter({ hasText: "Your moves" }).waitFor({ state: "hidden", timeout: 15_000 });
       await page.waitForTimeout(600);
       return (await page.locator("[role=status]").textContent()) || "";
     };
@@ -200,6 +205,42 @@ function check(ok, what, detail = "") {
     const said = await save();
     check(/^All set\. Change anything until/.test(said), "Save says All set", said);
 
+    // ---- the reminder ask: no phone of alex's gets notifications, so his first save asks, once ----
+    const ask = page.locator("[data-remind-sheet]");
+    const remindRow = page.locator("[data-remind-row]");
+    const remembered = () => page.evaluate((id) => JSON.parse(localStorage.getItem(`gys.remind.${id}`) || "{}"), fx.users.alex);
+    await ask.waitFor({ timeout: 10_000 }).catch(() => {});
+    check((await ask.getAttribute("data-remind-sheet").catch(() => null)) === "off", "the first save asks about notifications: Want a nudge?");
+    const picture = (await page.locator("[data-remind-picture]").innerText().catch(() => "")) || "";
+    check(
+      new RegExp(`episode ${up.number + 1} airs in about 2 hours`).test(picture) && new RegExp(`Make your episode ${up.number + 1} pick`).test(picture),
+      "its picture is the reminder he'd get next week, worded as db/reminders.js words it",
+      picture.replace(/\s+/g, " ")
+    );
+    // Next week's 2-hours-before is this week's airtime less two hours on the clock, even across a clock change.
+    const clock = await page.evaluate((at) => {
+      const d = new Date(at);
+      d.setHours(d.getHours() - 2);
+      return d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(/\s?[AP]M$/i, "");
+    }, up.airAt);
+    check(picture.startsWith(clock), `the picture's clock: ${clock}, two hours before airtime`, picture.slice(0, 12));
+    check((await remembered()).asked?.as === "off", "remembered on this phone: asked");
+    await fits("the reminder ask");
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: path.join(out, "remind-ask.png") });
+    await page.locator("[data-remind-later]").click();
+    await ask.waitFor({ state: "hidden", timeout: 10_000 });
+    await remindRow.waitFor({ timeout: 10_000 }).catch(() => {});
+    check(
+      (await remindRow.getAttribute("data-remind-row").catch(() => null)) === "ask" &&
+        (await page.evaluate(() => !!document.querySelector("[data-remind-row]")?.previousElementSibling?.matches("[data-phase]"))),
+      "Not now: a quiet row right under the episode's heading"
+    );
+    check((await remindRow.locator(".bg-chyron").count()) === 0, "the row is outlined, not yellow (it's optional)");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: path.join(out, "remind-row.png") });
+
     const lineupState = await stateOf(lineupGame.leagueId);
     const ep6 = lineupState.episodes.find((e) => e.id === lineupGame.lineup.epId);
     check(JSON.stringify([...(ep6.lineups?.[lineupGame.playerId] ?? [])].sort()) === JSON.stringify([...picked].sort()), "the lineup is in the league (as classic reads it)", JSON.stringify(ep6.lineups?.[lineupGame.playerId]));
@@ -243,6 +284,14 @@ function check(ok, what, detail = "") {
     await dialog().getByRole("tab", { name: "Predictions" }).click();
     await dialog().locator('[data-guess-chip="No"]').first().click();
     await save();
+    await page.waitForTimeout(900);
+    check((await ask.count()) === 0, "the second save doesn't ask again");
+    await remindRow.locator("[data-remind-row-close]").click();
+    await remindRow.waitFor({ state: "hidden", timeout: 5_000 }).catch(() => {});
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator("[data-tab=tonight]").waitFor({ timeout: 30_000 });
+    await page.waitForTimeout(1200);
+    check((await remindRow.count()) === 0 && !!(await remembered()).closed, "× closes the row, and it stays closed (on this phone)");
     const now = (await stateOf(lineupGame.leagueId)).episodes.find((e) => e.id === lineupGame.lineup.epId).lineups[lineupGame.playerId];
     check(!!swapped && now.includes(swapped) && !now.includes(picked[0]) && now.length === lineupGame.lineup.need, "a changed lineup replaces the old one", JSON.stringify(now));
     guesses = (await bet()).predictions.filter((p) => p.playerId === outlastGame.playerId);
@@ -315,11 +364,19 @@ function check(ok, what, detail = "") {
     await page.goBack();
     await page.waitForTimeout(600);
 
-    // ---- the hub: who's set on Up next ----
+    // ---- the hub: who's set on Up next, for the move on its plate (a pick's count beside a pick, since the 2026-10-26
+    // critique; a lineup's when a lineup leads or nothing's due) ----
     await page.goto(`${BASE}/home`, { waitUntil: "networkidle" });
     await page.locator("[data-hub]").waitFor({ timeout: 30_000 });
+    home = await (await page.request.get(`${BASE}/api/me/home`)).json();
+    const dueAt = (m) => (m.deadline ? Date.parse(m.deadline) : Infinity);
+    const leadKind = home.moves.filter((m) => mine.has(m.leagueId)).sort((a, b) => dueAt(a) - dueAt(b))[0]?.kind ?? null;
     const progress = page.locator("[data-progress]");
-    check((await progress.count()) > 0 && /\d of 4 lineups set/.test((await progress.first().textContent()) || ""), "Up next: who's set, real", (await progress.count()) ? await progress.first().textContent() : "none");
+    check(
+      (await progress.count()) > 0 && (leadKind === "pick" ? /\d of 4 picked/ : /\d of 4 lineups set/).test((await progress.first().textContent()) || ""),
+      `Up next: who's set, real, for the move on its plate (${leadKind ?? "nothing due"})`,
+      (await progress.count()) ? await progress.first().textContent() : "none"
+    );
     await page.screenshot({ path: path.join(out, "hub-upnext.png") });
 
     // ---- the guard: sam is behind (seen 3; results through 5) ----
@@ -419,6 +476,29 @@ function check(ok, what, detail = "") {
     await closeSheet();
     const missing = Object.keys(PREVIEWS).filter((id) => id.startsWith("show.") && !ELSEWHERE.includes(id) && !seen.has(id));
     check(missing.length === 0, "every show.* Preview entry renders", missing.join(", "));
+
+    // ---- a move that slipped by: alex's Episode 5 pick taken out (last: it resets his streak), and the closed row comes back
+    // once, saying so ----
+    const ps = await stateOf(poolGame.leagueId);
+    const e5 = ps.episodes.find((e) => e.number === 5);
+    e5.picks = (e5.picks || []).filter((p) => p.playerId !== poolGame.playerId);
+    await pool.query("UPDATE leagues SET state = $2 WHERE id = $1", [poolGame.leagueId, JSON.stringify(ps)]);
+    await page.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "networkidle" });
+    await page.locator("[data-tab=tonight]").waitFor({ timeout: 30_000 });
+    await remindRow.waitFor({ timeout: 15_000 }).catch(() => {});
+    const slipped = (await remindRow.innerText().catch(() => "")) || "";
+    check(
+      (await remindRow.getAttribute("data-remind-row").catch(() => null)) === "slipped" && /Episode 5's pick slipped by/.test(slipped) && new RegExp(`before Episode ${up.number} locks`).test(slipped),
+      "his Episode 5 pick never came in: the row is back, once, saying so",
+      slipped.replace(/\s+/g, " ")
+    );
+    await fits("Tonight with the slipped-by row");
+    await page.screenshot({ path: path.join(out, "remind-slipped.png") });
+    await remindRow.locator("[data-remind-row-close]").click();
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator("[data-tab=tonight]").waitFor({ timeout: 30_000 });
+    await page.waitForTimeout(1200);
+    check((await remindRow.count()) === 0 && (await remembered()).slipped?.key === `${sid}:5`, "closed: it doesn't come back for that miss");
 
     const real = errors.filter((e) => !/Download the React DevTools|\[HMR\]|\[Fast Refresh\]/.test(e));
     check(real.length === 0, "no page errors", real.slice(0, 3).join(" | "));

@@ -134,6 +134,13 @@ const first = (name) => name.split(" ")[0];
     check(/Due .* · in \d+ days/.test(dock), "the dock says the waiver pick's deadline (Due), not airtime", dock);
     await fits("Episodes");
     await shot("episodes");
+    // The dock's Set goes where Tonight's card does: the waiver pick is due first, so Waivers at Outlast (before the
+    // 2026-10-26 critique it opened Your moves on the Weekly Lineup tab).
+    await page.locator(".nd-dock").click();
+    await page.waitForURL((u) => u.pathname.endsWith("/waivers"), { timeout: 15000 }).catch(() => {});
+    check(page.url().includes(`/waivers?game=${L.outlast}`), "the dock's Set opens Waivers at Outlast, as Tonight's card does", page.url());
+    await page.goBack();
+    await row.waitFor({ timeout: 20000 });
     await row.click();
     await page.locator("[data-wv-week=open]").waitFor({ timeout: 20000 });
     check(page.url().includes(`/waivers?game=${L.outlast}`), "the row opens Waivers at Outlast");

@@ -17,6 +17,7 @@ import { openCall } from "./calls";
 import { rateLabel } from "./rate";
 import { Face, IconBox } from "./parts";
 import { useOpenMorning, useOpenReveal } from "./reveal";
+import { askAfterSave } from "./remind";
 
 // The moves dock (the mock's dock.js, option D): above the tab bar on Episodes, Games and Cast while you play a game
 // here, until airtime. Needs you (the one yellow: Set) → all set (Edit, change until airtime) → locked once it's on
@@ -61,9 +62,11 @@ export function Dock({ show }: { show: ShowData }) {
   const openMorning = useOpenMorning();
   const nav = useNav();
   const when = t != null ? `${airTime(t)} · ${calm(t, now)}` : null;
-  // A draft due first (your turn, or your blind picks) opens the draft room rather than Your moves.
+  // A move due first that Tonight's card takes to its own page (your draft turn or blind picks, a waiver pick) goes there
+  // too, rather than Your moves.
   const lead = show.moves[0];
-  const draftHref = lead && (lead.kind === "draftTurn" || lead.kind === "blindDraft") ? moveCard(lead, show.header?.seasonId ?? "", false).href : null;
+  const leadHref = lead ? (moveCard(lead, show.header?.seasonId ?? "", false).href ?? null) : null;
+  const drafting = lead?.kind === "draftTurn" || lead?.kind === "blindDraft";
   const base = "nd-dock nd-fixed-x fixed bottom-[calc(76px+env(safe-area-inset-bottom,0px))] z-[28] mx-2.5 flex items-center gap-2.5 overflow-hidden rounded-[4px] py-[7px] pl-[9px] pr-[7px] text-left shadow-[0_12px_28px_rgba(0,0,0,.5)]";
 
   if (up.live) {
@@ -126,8 +129,8 @@ export function Dock({ show }: { show: ShowData }) {
     <button
       type="button"
       onClick={() =>
-        draftHref
-          ? nav.push(draftHref)
+        leadHref
+          ? nav.push(leadHref)
           : show.moves[0]?.kind === "calls" && show.header
             ? // Weekly Calls' calls are Call it's sheet (step 12 part 2).
               openCall({ seasonId: show.header.seasonId, couchId: show.couch?.id ?? null, episode: show.moves[0].episode ?? up.number, label: rateLabel(show), solo: show.solo })
@@ -154,7 +157,7 @@ export function Dock({ show }: { show: ShowData }) {
         )}
       </span>
       <span className={`grid h-[38px] place-items-center rounded-[3px] px-3.5 text-sm font-extrabold ${need ? "bg-chyron text-chyron-foreground" : "bg-background text-foreground"}`}>
-        {need ? (draftHref ? "Draft" : "Set") : "Edit"}
+        {need ? (drafting ? "Draft" : "Set") : "Edit"}
       </span>
     </button>
   );
@@ -232,15 +235,23 @@ function MovesBody({
 
   async function save() {
     const jobs: (() => Promise<void>)[] = [];
+    const kinds = new Set<string>();
     for (const g of play) {
       const l = g.lineup;
-      if (l && lineupOpen(g) && !sameSet(lineups[g.leagueId] ?? [], l.starters)) jobs.push(() => write.lineup(g.leagueId, l.epId, g.playerId, lineups[g.leagueId]));
+      if (l && lineupOpen(g) && !sameSet(lineups[g.leagueId] ?? [], l.starters)) {
+        kinds.add("lineup");
+        jobs.push(() => write.lineup(g.leagueId, l.epId, g.playerId, lineups[g.leagueId]));
+      }
       const p = g.pick;
       const chosen = picks[g.leagueId];
-      if (p && pickOpen(g) && chosen && chosen !== p.pick) jobs.push(() => write.pick(g.leagueId, p.epId, g.playerId, chosen));
+      if (p && pickOpen(g) && chosen && chosen !== p.pick) {
+        kinds.add("pick");
+        jobs.push(() => write.pick(g.leagueId, p.epId, g.playerId, chosen));
+      }
       for (const q of g.predictions) {
         const now = (guesses[guessKey(g, q.betId)] ?? "").trim();
         if (now === (q.guess?.text ?? "")) continue;
+        kinds.add("prediction");
         // A guess is changed by taking the old one back and making the new one (the classic app has no edit).
         jobs.push(async () => {
           if (q.guess) await write.unguess(g.leagueId, q.epId, q.betId, q.guess.id);
@@ -256,6 +267,8 @@ function MovesBody({
       closeMoves();
       const still = tabs.some((t) => t.kind !== "predict" && t.kind !== "outlast" && open(t));
       toast(still ? "Saved. Something's still open." : until ? `All set. Change anything until ${until}.` : "All set.");
+      // The first save is when a reminder makes sense: ask about notifications, once (remind.tsx says when it doesn't).
+      askAfterSave([...kinds]);
     } catch (e) {
       await after();
       toast.quiet(`Not saved: ${(e as Error).message}`);

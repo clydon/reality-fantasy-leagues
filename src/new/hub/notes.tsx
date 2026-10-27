@@ -2,12 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Bell, CalendarClock, ClipboardList, Eye, KeyRound, MessageCircle, Trophy, UserPlus, Users } from "lucide-react";
+import { Bell, CalendarClock, ChevronRight, ClipboardList, Eye, KeyRound, MessageCircle, Trophy, UserPlus, Users } from "lucide-react";
 import type { MomentId } from "@/lib/moments";
 import { notesApi, useAfterNotesRead, useHome, useNotes, type Note } from "../data";
 import { useNav } from "../nav";
+import { paths } from "../routes";
 import { useNow } from "../ui/bars";
 import { Sheet } from "../ui/sheet";
+import { moveLine, movesByDue, showOfMove } from "./sections";
 
 // The bell (docs/PLAN-new-design.md step 15 part 2; the mock's index.html notesSheet): what's happened on your couches since you
 // last looked, the same moments the pushes are about, kept as a list whatever your pushes say (push-core.js keeps a notice for
@@ -65,6 +67,37 @@ function NoteRow({ note, now, onOpen }: { note: Note; now: number; onOpen: () =>
   );
 }
 
+/** What's still yours to do, above the list: nothing new isn't the same as nothing due. The hub's status line, in its words. */
+function DueRow({ onGo }: { onGo: (href: string) => void }) {
+  const { data: home } = useHome();
+  const due = home ? movesByDue(home.moves) : [];
+  const first = due[0];
+  if (!home || !first) return null;
+  const show = showOfMove(home, first);
+  const body = (
+    <>
+      <i className="size-2 flex-none rounded-full bg-chyron-line" aria-hidden />
+      <span className="flex-1">
+        <b className="text-foreground">
+          {due.length} {due.length === 1 ? "move" : "moves"} due
+        </b>{" "}
+        · {moveLine(first, show)}
+      </span>
+      {show && <ChevronRight className="size-5 flex-none" aria-hidden />}
+    </>
+  );
+  const cls = "mb-2 flex w-full items-center gap-2.5 rounded-[3px] bg-card px-3 py-2.5 text-left text-sm text-muted-foreground";
+  return show ? (
+    <button type="button" data-notes-due={due.length} onClick={() => onGo(paths.show(show.seasonId))} className={`nd-press ${cls}`}>
+      {body}
+    </button>
+  ) : (
+    <div data-notes-due={due.length} className={cls}>
+      {body}
+    </div>
+  );
+}
+
 function NotesSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const notes = useNotes(open);
   const afterRead = useAfterNotesRead();
@@ -74,6 +107,10 @@ function NotesSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open
   const read = useRef(false);
   const data = notes.data;
   const fresh = data?.notes.filter((n) => n.unread).length ?? 0;
+  const go = (href: string) => {
+    onOpenChange(false);
+    setTimeout(() => nav.push(href), 220);
+  };
   // Opening it reads them: once per open, after the list is here (its new rows keep their mark while it's open). Closed, the list
   // goes, so the next open reads it fresh.
   useEffect(() => {
@@ -87,8 +124,9 @@ function NotesSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open
     if (fresh) notesApi.read().then(afterRead, () => {});
   }, [open, data, fresh, afterRead, qc]);
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Notifications" subtitle={!data ? "…" : fresh ? `${fresh} new` : "All caught up"}>
+    <Sheet open={open} onOpenChange={onOpenChange} title="Notifications" subtitle={!data ? "…" : fresh ? `${fresh} new` : "Nothing new"}>
       <div data-notes-sheet>
+        <DueRow onGo={go} />
         {data && !data.notes.length && (
           <p className="py-8 text-center text-[14px] leading-snug text-muted-foreground" data-notes-empty>
             Nothing yet. Results, reminders and what the couch is up to land here.
@@ -99,10 +137,7 @@ function NotesSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open
             key={n.id}
             note={n}
             now={now}
-            onOpen={() => {
-              onOpenChange(false);
-              setTimeout(() => nav.push(n.link), 220);
-            }}
+            onOpen={() => go(n.link)}
           />
         ))}
         {notes.isError && <p className="py-6 text-center text-[14px] text-muted-foreground">Couldn&rsquo;t load them. Try again.</p>}
