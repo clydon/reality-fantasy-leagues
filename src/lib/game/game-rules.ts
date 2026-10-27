@@ -36,7 +36,7 @@ export function gameRules(state: LeagueState, castaway = StateLogic.formatOf(sta
     rules.push("Change your calls until it starts. Nobody sees them until then.");
     rules.push("Most right calls by the finale wins.");
   } else if (type.id === "weekly-bingo") {
-    rules.push("No draft, no team. Every show you get a new bingo card: nine of the show's moments, the middle one free.");
+    rules.push("No draft, no team. Every show you get a new bingo card: eight things that might happen, the middle one free.");
     rules.push("Tick a square when it happens. Three in a row, down or across makes a line.");
     rules.push("A square counts once the couch agrees it happened: two of you ticking it, or saying so, settles it.");
     rules.push("Most lines by the finale wins.");

@@ -681,6 +681,45 @@ export function notifyBingoLines(o: { seasonId: string; episode: number; lines: 
 }
 
 /**
+ * Someone called BINGO on an episode (docs/PLAN-bingo-bank.md step 3; bingo.ts callBingo): the people on that couch who follow
+ * the show, are playing that episode or have seen it, and share their games with the caller (guard.ts shares) hear "riley called
+ * BINGO · Look at their card", once per caller and episode (a second line called says nothing new). Never the caller. The words
+ * say nothing about what happened; the card the link opens is spoiler-guarded (bingo.ts theirBingo).
+ */
+export function notifyBingoCall(o: { seasonId: string; episode: number; couchId: string; caller: string }) {
+  notifyAfter("bingoLine", async () => {
+    const info = await seasonInfo(o.seasonId);
+    if (!info) return null;
+    const { rows } = await pool.query(
+      `SELECT m.user_id, (SELECT COALESCE(username, name) FROM "user" WHERE id = $3) AS caller
+         FROM couch_members m JOIN show_follows f ON f.user_id = m.user_id AND f.season_id = $1 AND f.following
+        WHERE m.couch_id = $2 AND m.user_id <> $3
+          AND (f.seen_through >= $4 OR EXISTS (SELECT 1 FROM bingo_cards c WHERE c.user_id = m.user_id AND c.season_id = $1 AND c.episode = $4))`,
+      [o.seasonId, o.couchId, o.caller, o.episode]
+    );
+    if (!rows.length) return null;
+    const name = rows[0].caller as string;
+    const key = `bingo:${o.seasonId}:${o.episode}:${o.caller}`;
+    return {
+      userIds: rows.map((r) => r.user_id as string),
+      seasonId: o.seasonId,
+      message: async (reader: PushReader) => {
+        if (!(await shares(reader.userId, o.caller, { kind: "play", seasonId: o.seasonId }))) return null;
+        if ((await keysOf(reader.userId, [key])).has(key)) return null;
+        return {
+          title: `${name} called BINGO`,
+          body: `${info.label} · Episode ${o.episode} · Look at their card`,
+          next: `/show/${o.seasonId}/tonight?bingo=${o.episode}&of=${o.caller}`,
+          tag: `bingo-${o.seasonId}-${o.episode}`,
+          key,
+          seasonId: o.seasonId,
+        };
+      },
+    };
+  });
+}
+
+/**
  * Flags settled since last told (community-results.ts tellSettled claims them): whoever raised each hears how it went. They
  * had seen the episode to flag it, so the words may name the result.
  */

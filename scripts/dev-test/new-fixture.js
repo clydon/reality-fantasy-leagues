@@ -239,6 +239,10 @@ async function up(pool) {
   await seedChat(pool, { couch, season, traitorsSeason, leagues, users });
 
   console.log(`[zt] up: sign in as ${PEOPLE.map(username).join(" / ")} (password ${PASSWORD}); couch "ZT Survivor 51", 3 linked leagues, episode 6 in 3 days`);
+  // Bingo's squares (docs/PLAN-bingo-bank.md): a season bank of eight, so every card has the same eight in its own places and two
+  // people can back each other up on any square. A check that wants other banks files its own (bingo-fixture.js).
+  await require("./bingo-fixture").up(pool, season, null, { likely: 3, maybe: 4, longshot: 1 });
+
   return { couchId: couch, extraCouchId: extraCouch, seasonId: season, traitorsSeasonId: traitorsSeason, groupId: group, leagues, users };
 }
 

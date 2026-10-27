@@ -53,8 +53,9 @@ export interface PlayingGame {
 export interface FeedItem {
   id: string;
   /** started: someone started a game on the couch (step 10 part 2b; `text` is the game, "Weekly Lineup"). planned: someone
-   *  planned a watch along (step 11 part 3; `episode`, `how`, `startsAt`, `going`). */
-  kind: "said" | "revealed" | "joined" | "watching" | "started" | "planned";
+   *  planned a watch along (step 11 part 3; `episode`, `how`, `startsAt`, `going`). bingo: someone called BINGO on an episode
+   *  (docs/PLAN-bingo-bank.md step 3; `episode`), opening their card. */
+  kind: "said" | "revealed" | "joined" | "watching" | "started" | "planned" | "bingo";
   userId: string | null;
   name: string;
   at: string;
@@ -366,7 +367,7 @@ async function feedFor(
 
   // Who joined the couch lately, who started a game, and who started watching something openly that they don't play.
   const member = new Map(people.map((p) => [p.userId, p.name]));
-  const [{ rows: joined }, { rows: watching }, { rows: started }, planned] = await Promise.all([
+  const [{ rows: joined }, { rows: watching }, { rows: started }, planned, { rows: called }] = await Promise.all([
     // Someone joining a couch that was already going: not its founders (on it from the start), and not you.
     pool.query(
       `SELECT m.user_id, m.joined_at FROM couch_members m JOIN couches c ON c.id = m.couch_id
@@ -390,6 +391,16 @@ async function feedFor(
     ),
     // Planned nights (step 11 part 3): never a title, only when and who's in.
     plansLately(couchId),
+    // BINGO called (bingo step 3), as the call's notice goes: on a show you follow, an episode you've seen or have a card on,
+    // by someone who shares their games on it. The words say nothing of what happened; their card is spoiler-guarded.
+    pool.query(
+      `SELECT c.user_id, c.season_id, c.episode, (SELECT min((x->>'at')::timestamptz) FROM jsonb_array_elements(c.called_lines) x) AS at
+         FROM bingo_cards c
+        WHERE c.user_id = ANY($1::text[]) AND c.user_id <> $2 AND jsonb_array_length(c.called_lines) > 0 AND ${sharesSql("play", "c.user_id", "c.season_id")}
+          AND EXISTS (SELECT 1 FROM show_follows f WHERE f.user_id = $2 AND f.season_id = c.season_id AND f.following
+                        AND (f.seen_through >= c.episode OR EXISTS (SELECT 1 FROM bingo_cards m WHERE m.user_id = $2 AND m.season_id = c.season_id AND m.episode = c.episode)))`,
+      [people.map((p) => p.userId), user.id]
+    ),
   ]);
   for (const s of started) {
     const seasonId = seasonOf.get(s.league_id) as string;
@@ -423,6 +434,21 @@ async function feedFor(
     });
   }
   for (const j of joined) items.push({ id: `join-${j.user_id}`, kind: "joined", userId: j.user_id, name: member.get(j.user_id) ?? "", at: new Date(j.joined_at).toISOString() });
+  const calledLabels = await seasonHeaders(called.map((c) => c.season_id as string).filter((id) => !headers.has(id)));
+  for (const c of called) {
+    const h = headers.get(c.season_id) ?? calledLabels.get(c.season_id);
+    if (!h || !c.at || Date.now() - new Date(c.at).getTime() > 60 * 24 * 60 * 60 * 1000) continue;
+    items.push({
+      id: `bingo-${c.user_id}-${c.season_id}-${c.episode}`,
+      kind: "bingo",
+      userId: c.user_id,
+      name: member.get(c.user_id) ?? "",
+      at: new Date(c.at).toISOString(),
+      seasonId: c.season_id,
+      label: `${h.show.name.replace(/^The /, "")}${h.seasonNumber ? ` ${h.seasonNumber}` : ""}`,
+      episode: c.episode,
+    });
+  }
   const watchLabels = await seasonHeaders(watching.map((w) => w.season_id));
   for (const w of watching) {
     const h = watchLabels.get(w.season_id);

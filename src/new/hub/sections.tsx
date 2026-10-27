@@ -732,7 +732,9 @@ function FeedRow({ e }: { e: FeedItem }) {
             ? `started ${/^[AEIOU]/.test(e.text ?? "") ? "an" : "a"} ${e.text} · tap to join`
             : e.kind === "planned"
               ? "planned a watch along"
-              : null;
+              : e.kind === "bingo"
+                ? `called BINGO on Episode ${e.episode} · look at their card`
+                : null;
   const body = (
     <>
       <Avatar id={e.userId ?? e.name} name={e.name} size={34} />
@@ -743,7 +745,7 @@ function FeedRow({ e }: { e: FeedItem }) {
           </span>
           <small className="flex-none text-xs text-muted-foreground">{ago(e.at)}</small>
         </span>
-        {(e.kind === "revealed" || e.kind === "started") && <span className="mt-0.5 block text-xs text-muted-foreground">{e.label}</span>}
+        {(e.kind === "revealed" || e.kind === "started" || e.kind === "bingo") && <span className="mt-0.5 block text-xs text-muted-foreground">{e.label}</span>}
         {e.kind === "planned" && (
           <span data-feed-plan className="mt-0.5 block text-xs text-muted-foreground">
             {e.label} · Ep {e.episode} · {e.how === "live" ? "the live airing" : "starting together"} · {e.startsAt ? airTime(Date.parse(e.startsAt)) : ""} · {e.going} going
@@ -774,7 +776,15 @@ function FeedRow({ e }: { e: FeedItem }) {
   const cls = "flex items-start gap-2.5 border-t border-border py-[11px] text-left first:border-t-0";
   if (!e.seasonId) return <div data-feed={e.kind} className={cls}>{body}</div>;
   return (
-    <NavLink data-feed={e.kind} href={paths.show(e.seasonId, e.kind === "watching" || e.kind === "planned" ? "tonight" : e.kind === "started" ? "games" : "chat")} className={`${cls} nd-press`}>
+    <NavLink
+      data-feed={e.kind}
+      href={
+        e.kind === "bingo"
+          ? `${paths.show(e.seasonId, "tonight")}?bingo=${e.episode}&of=${encodeURIComponent(e.userId ?? "")}`
+          : paths.show(e.seasonId, e.kind === "watching" || e.kind === "planned" ? "tonight" : e.kind === "started" ? "games" : "chat")
+      }
+      className={`${cls} nd-press`}
+    >
       {body}
     </NavLink>
   );

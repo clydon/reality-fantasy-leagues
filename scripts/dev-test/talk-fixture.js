@@ -63,6 +63,8 @@ async function up(pool, fx) {
   for (const [who, priv] of [["alex", false], ["riley", false], ["jordan", true]]) {
     await pool.query(`INSERT INTO show_follows (user_id, season_id, seen_through, private) VALUES ($1, $2, $3, $4)`, [users[who], season, NEXT - 1, priv]);
   }
+  // Bingo's squares: a season bank of eight talk-show squares (bingo-fixture.js), every card the same eight in its own places.
+  await require("./bingo-fixture").up(pool, season, null, require("./bingo-fixture").squares({ likely: 3, maybe: 4, longshot: 1 }, "talk"));
   return { showId: show, seasonId: season, next: NEXT };
 }
 

@@ -10,6 +10,10 @@
 //                       prompt. Its minutes count BACK from when the NEXT episode airs, so it lands a day before that
 //                       one whether the show airs weekly or most nights (and never sooner than TRIVIA_AFTER_END after
 //                       this one ends, for the recaps)
+//   bingo   1440 min -- bingo's squares for the episode coming up (db/bingo-research.js, docs/PLAN-bingo-bank.md), checked by
+//                       a second prompt. Its minutes count BACK from when THIS episode airs, and it never runs once it has. A
+//                       season without its own bank yet (the fallback for an episode without squares) gets that written too,
+//                       as a job of its own in the same window (slot bingo@season), so each call stays one write and one check
 //
 // Each call to POST /api/cron/bot-research runs at most one due run (the bot answers one question at a
 // time anyway) and says when the next one comes due (nextRunAt). The VM's tick calls only then, so the
@@ -32,16 +36,23 @@ const StateLogic = require("../src/lib/game/state-logic.js");
 const AutoResearch = require("./auto-research.js");
 const Research = require("./episode-research.js");
 const Trivia = require("./trivia-research.js");
+const Bingo = require("./bingo-research.js");
 
-const KINDS = ["quick", "full", "schedule", "trivia"];
+const KINDS = ["quick", "full", "schedule", "trivia", "bingo"];
 // A tie-break's run rows (kind 'tiebreak', 0116) carry this slot.
 const TIEBREAK_SLOT = "tiebreak";
+// The season's own bingo bank, written once, in the window of an episode's bingo run (dueAt).
+const SEASON_BINGO_SLOT = "bingo@season";
 const DEFAULT_SCHEDULE = [
   { kind: "quick", after: 5, on: true },
   { kind: "full", after: 60, on: true },
   { kind: "full", after: 540, on: true },
   { kind: "trivia", after: 1440, on: true },
+  { kind: "bingo", after: 1440, on: true },
 ];
+// A bingo run's two asks share the route's 300s as trivia's do.
+const BINGO_WRITE_MS = 160_000;
+const BINGO_TOTAL_MS = 280_000;
 // A trivia run waits at least this long (minutes) after its episode ends, for the recaps, however soon the next one airs.
 const TRIVIA_AFTER_END = 3 * 60;
 // A trivia run's two asks share the route's 300s: the questions get up to 160s, the check the rest.
@@ -68,7 +79,8 @@ const FULL_RETRY_MS = 20 * MIN;
 const QUICK = { fastMs: 5 * MIN, fastForMs: 30 * MIN, slowMs: 15 * MIN, windowMs: 3 * 60 * MIN, maxTries: 20 };
 // How late a run is still worth doing at all (the VM was down, say). A quick check is news for hours; a
 // full one is useful for days, and so is a tie-break.
-const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN, schedule: 3 * 24 * 60 * MIN, tiebreak: 3 * 24 * 60 * MIN, trivia: 2 * 24 * 60 * MIN };
+// Bingo's squares are worth writing until the episode airs (slots cuts a try off there), however early its run was set.
+const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN, schedule: 3 * 24 * 60 * MIN, tiebreak: 3 * 24 * 60 * MIN, trivia: 2 * 24 * 60 * MIN, bingo: MAX_AFTER * MIN };
 // A result disputed this long gets its tie-break run.
 const TIEBREAK_AFTER_MS = 24 * 60 * MIN;
 
@@ -103,28 +115,40 @@ function nextTryAt(kind, due, tries) {
 /**
  * When one run of an episode is due, from when the episode ends (ms) and when the next one airs (null: not known, or the
  * finale): the end plus the run's minutes. Trivia's count back from the next episode instead, no sooner than
- * TRIVIA_AFTER_END after the end (with no next one known, from the end like the rest), and never once the next one airs. Pure.
+ * TRIVIA_AFTER_END after the end (with no next one known, from the end like the rest), and never once the next one airs.
+ * Bingo's count back from when this one starts (`starts`, ms): null for a run timed at or after it. Pure.
  */
-function dueAt(run, ends, nextAt) {
+function dueAt(run, ends, nextAt, starts = null) {
+  if (run.kind === "bingo") {
+    const due = starts === null ? null : starts - run.after * MIN;
+    return due !== null && due < starts ? new Date(due) : null;
+  }
   if (run.kind !== "trivia" || !nextAt) return new Date(ends + run.after * MIN);
   const due = Math.max(ends + TRIVIA_AFTER_END * MIN, nextAt.getTime() - run.after * MIN);
   return due < nextAt.getTime() ? new Date(due) : null;
 }
 
-/** Every scheduled slot of every episode, with when it's due (dueAt): the episode's end (its own length when research
- *  confirmed one, else the season's) plus the run's minutes; trivia's, a day (by default) before the next one. */
-function slots({ schedule, since, airTimes, episodeMinutes = 0, history }) {
+/**
+ * Every scheduled slot of every episode, with when it's due (dueAt): the episode's end (its own length when research
+ * confirmed one, else the season's) plus the run's minutes; trivia's, a day (by default) before the next one; bingo's, a day
+ * (by default) before this one, no try once it airs (`until`, which dueRuns and nextRunAt both keep to). `seasonBank` false: the
+ * season has no bingo bank of its own yet, so each bingo slot has a twin (forSeason) for it, due with it and listed after it,
+ * with tries of its own.
+ */
+function slots({ schedule, since, airTimes, episodeMinutes = 0, history, seasonBank = true }) {
   const out = [];
   for (const { episode, at: airedAt, minutes } of airTimes) {
     const ends = airedAt.getTime() + (minutes ?? episodeMinutes) * MIN;
     const next = airTimes.find((e) => e.episode === episode + 1);
     for (const run of schedule) {
       if (!run.on) continue;
-      const due = dueAt(run, ends, next ? next.at : null);
+      const due = dueAt(run, ends, next ? next.at : null, airedAt.getTime());
       if (!due || (since && due < since)) continue;
       const slot = slotOf(run);
-      const tries = history.filter((h) => h.episode_number === episode && h.slot === slot);
-      out.push({ episode, slot, kind: run.kind, after: run.after, at: due, next: nextTryAt(run.kind, due, tries) });
+      const at = (s) => nextTryAt(run.kind, due, history.filter((h) => h.episode_number === episode && h.slot === s));
+      const until = run.kind === "bingo" ? airedAt : null;
+      out.push({ episode, slot, kind: run.kind, after: run.after, at: due, next: at(slot), until });
+      if (run.kind === "bingo" && !seasonBank) out.push({ episode, slot: SEASON_BINGO_SLOT, kind: "bingo", after: run.after, at: due, next: at(SEASON_BINGO_SLOT), until, forSeason: true });
     }
   }
   return out;
@@ -235,7 +259,8 @@ function normalizeSchedule(input) {
   // Two entries for the same slot would share their run history, so the second could never run.
   const seen = new Set();
   for (const r of out) {
-    if (seen.has(slotOf(r))) throw new Error(`Two ${r.kind} runs ${r.after} minutes ${r.kind === "trivia" ? "before the next episode" : "after airing"}`);
+    const when = r.kind === "trivia" ? "before the next episode" : r.kind === "bingo" ? "before it airs" : "after airing";
+    if (seen.has(slotOf(r))) throw new Error(`Two ${r.kind} runs ${r.after} minutes ${when}`);
     seen.add(slotOf(r));
   }
   return out.sort((a, b) => a.after - b.after);
@@ -249,12 +274,14 @@ function normalizeSchedule(input) {
  *                      when known (later ones are ignored)
  *   episodeMinutes  -- how long an episode runs when it has no length of its own: a run's minutes count from its end
  *   history         -- bot_research_runs rows for the season: { episode_number, slot, started_at, ok }
+ *   seasonBank      -- the season has a bingo bank of its own (false: its bingo runs write one too); true by default
+ * A job for the season's own bingo bank carries `forSeason`.
  */
-function dueRuns({ schedule, since, airTimes, episodeMinutes = 0, history, now }) {
+function dueRuns({ schedule, since, airTimes, episodeMinutes = 0, history, now, seasonBank = true }) {
   const t = now.getTime();
-  return slots({ schedule, since, airTimes, episodeMinutes, history })
-    .filter((s) => s.next && s.next.getTime() <= t && t - s.at.getTime() <= STALE_MS[s.kind])
-    .map(({ episode, slot, kind, after, at }) => ({ episode, slot, kind, after, at }))
+  return slots({ schedule, since, airTimes, episodeMinutes, history, seasonBank })
+    .filter((s) => s.next && s.next.getTime() <= t && t - s.at.getTime() <= STALE_MS[s.kind] && (!s.until || t < s.until.getTime()))
+    .map(({ episode, slot, kind, after, at, forSeason }) => ({ episode, slot, kind, after, at, ...(forSeason ? { forSeason } : {}) }))
     .sort((a, b) => a.at - b.at);
 }
 
@@ -263,13 +290,13 @@ function dueRuns({ schedule, since, airTimes, episodeMinutes = 0, history, now }
  * episode's air time, aired or not. Pure; the same rules as dueRuns, so the VM is never told to come back
  * for a run that then isn't due.
  */
-function nextRunAt({ schedule, since, airTimes, episodeMinutes = 0, history, now }) {
+function nextRunAt({ schedule, since, airTimes, episodeMinutes = 0, history, now, seasonBank = true }) {
   const t = now.getTime();
   let best = null;
-  for (const s of slots({ schedule, since, airTimes, episodeMinutes, history })) {
+  for (const s of slots({ schedule, since, airTimes, episodeMinutes, history, seasonBank })) {
     if (!s.next) continue;
     const when = Math.max(s.next.getTime(), t);
-    if (when - s.at.getTime() > STALE_MS[s.kind]) continue;
+    if (when - s.at.getTime() > STALE_MS[s.kind] || (s.until && when >= s.until.getTime())) continue;
     if (best === null || when < best) best = when;
   }
   return best === null ? null : new Date(best);
@@ -414,13 +441,16 @@ async function planRuns(pool, { now = new Date(), seasonId } = {}) {
       "SELECT episode_number, slot, started_at, ok FROM bot_research_runs WHERE season_id=$1",
       [season.id]
     );
+    const schedule = normalizeSchedule(season.bot_research_schedule);
     const input = {
-      schedule: normalizeSchedule(season.bot_research_schedule),
+      schedule,
       since: season.bot_research_since ? new Date(season.bot_research_since) : null,
       airTimes: episodeAirTimes(season),
       episodeMinutes: episodeMinutesOf(season),
       history,
       now,
+      // Asked only of a season whose schedule has bingo on: its own bank yet?
+      seasonBank: schedule.some((r) => r.kind === "bingo" && r.on) ? await Bingo.hasBank(pool, season.id, null) : true,
     };
     if (AutoResearch.isSeasonLive(season, now)) due.push(...dueRuns(input).map((r) => ({ ...r, season })));
     const when = nextRunAt(input);
@@ -441,8 +471,9 @@ async function listDue(pool, opts = {}) {
 /**
  * Runs one job: asks the bot (`ask(prompt, { budgetMs? }) -> { answer }`, injected so a test can stand in) and files
  * the answer. A quick answer is kept on the run row; a full one goes through the paste import, merged
- * into whatever the episode already has; trivia's questions, checked, go in trivia_questions (0140). `send` (the app's) also files either as a source: a quick
- * answer it can't trust yet waits for a commissioner and counts as a failed try, so it's asked again.
+ * into whatever the episode already has; trivia's questions, checked, go in trivia_questions (0140); bingo's squares, checked,
+ * go in bingo_squares (0146) as the episode's bank, or with `job.forSeason` the season's own. `send` (the app's) also files
+ * either as a source: a quick answer it can't trust yet waits for a commissioner and counts as a failed try, so it's asked again.
  * `dry` asks and parses but writes nothing.
  */
 async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
@@ -509,6 +540,7 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
       // None passing is a failed try, asked again (a new batch replaces this one).
       return finish(live > 0, line, result);
     }
+    if (kind === "bingo") return await bingoJob(pool, job, { ask, dry, runId, started, finish });
     if (kind === "quick") {
       const ctx = await Research.resolveSeasonResearchContext(pool, season.slug, season.season_number, episode);
       const airedAt = Air.episodeAirTime(season.schedule, episode, season.wikiAirDates);
@@ -563,6 +595,38 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
   }
 }
 
+/**
+ * A bingo run (runJob's): the squares for an episode coming up (or with `job.forSeason`, the season's own bank), written, then
+ * checked in a chat of its own, filed as that bank when at least Bingo.BOT_MIN pass; fewer is a failed try (asked again), and
+ * the bank there stays as it was. A scheduled run for an episode that has its squares already (written by hand, or by an
+ * admin's run) leaves them be, without asking. Each run's result lists every square, live or dropped with why.
+ */
+async function bingoJob(pool, job, { ask, dry, runId, started, finish }) {
+  const { season, episode } = job;
+  const forSeason = !!job.forSeason;
+  const which = forSeason ? "the season's own squares" : `Episode ${episode}'s squares`;
+  if (job.slot && job.slot !== "now" && (await Bingo.hasBank(pool, season.id, forSeason ? null : episode))) {
+    return finish(true, `${which}: written already, left as they are`, { forSeason, kept: true });
+  }
+  const airedAt = Air.episodeAirTime(season.schedule, episode, season.wikiAirDates);
+  const ctx = await Bingo.bingoContext(pool, season.id, forSeason ? null : episode, { airAt: airedAt ? Air.formatInTz(airedAt, season.air_tz) : null });
+  const { answer } = await ask(Bingo.buildBingoPrompt(ctx), { budgetMs: BINGO_WRITE_MS });
+  const parsed = Bingo.parseBingoAnswer(answer, { avoid: ctx.avoid, names: ctx.cast, anyone: !forSeason });
+  const kept = parsed.squares.filter((s) => s.status === "live");
+  if (kept.length < Bingo.BOT_MIN) {
+    return finish(false, `${which}: only ${kept.length} of ${parsed.squares.length} passed the parse (a bank needs ${Bingo.BOT_MIN})`, { forSeason, squares: parsed.squares });
+  }
+  const { answer: checked } = await ask(Bingo.buildCheckPrompt({ ...ctx, squares: kept }), { budgetMs: BINGO_TOTAL_MS - (Date.now() - started) });
+  const squares = Bingo.judged(parsed.squares, Bingo.parseCheckAnswer(checked, kept.length));
+  const live = squares.filter((s) => s.status === "live").length;
+  const result = { forSeason, live, squares };
+  const line = `${which}: ${live} of ${squares.length} passed their checks`;
+  if (live < Bingo.BOT_MIN) return finish(false, `${line} (a bank needs ${Bingo.BOT_MIN}; the squares there stay)`, result);
+  if (dry) return finish(true, `${line} (dry run: not filed)`, result);
+  await Bingo.storeBank(pool, season.id, forSeason ? null : episode, squares, runId);
+  return finish(true, line, result);
+}
+
 /** What the VM's timer calls: runs the earliest due job, if any. */
 async function runNext(pool, { ask, send = null, now = new Date(), dry = false, seasonId } = {}) {
   const startedAt = Date.now();
@@ -611,4 +675,5 @@ module.exports = {
   slotOf,
   dueAt,
   TRIVIA_AFTER_END,
+  SEASON_BINGO_SLOT,
 };

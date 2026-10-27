@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useSearchParams } from "next/navigation";
 import { whereWords } from "@/lib/sharing";
 import { Check, ChevronRight, Eye, EyeOff, Grid3x3, Lock, MessageCircle, Plus } from "lucide-react";
 import { airTime, calm, calmWhen, dayOf, justAired, ticks, timeOf } from "../clock";
@@ -56,6 +57,7 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
   const [catchUp, setCatchUp] = useState<GameView | null>(null);
   return (
     <>
+      <BingoLink show={show} />
       {playing && <WaiversRanPlate seasonId={seasonId} show={show} />}
       {playing && <CatchUpStrips show={show} onOpen={setCatchUp} />}
       <CatchUpSheet show={show} game={catchUp} onOpenChange={(o) => !o && setCatchUp(null)} />
@@ -720,6 +722,28 @@ const bingoTarget = (show: ShowData, episode: number): BingoTarget => ({
   label: rateLabel(show),
   solo: show.solo,
 });
+
+/**
+ * The BINGO notice's link ("riley called BINGO · Look at their card", docs/PLAN-bingo-bank.md step 3): `?bingo=<episode>&of=<user>`
+ * opens their card once the show's here, then leaves the URL (the server decides what of it you may see yet).
+ */
+function BingoLink({ show }: { show: ShowData }) {
+  const params = useSearchParams();
+  const n = Number(params.get("bingo")) || null;
+  const of = params.get("of");
+  const done = useRef<string | null>(null);
+  useEffect(() => {
+    const asked = `${n}:${of}`;
+    if (!n || !show.header || done.current === asked) return;
+    done.current = asked;
+    openBingo({ ...bingoTarget(show, n), of: of ? { userId: of } : null });
+    const url = new URL(window.location.href);
+    url.searchParams.delete("bingo");
+    url.searchParams.delete("of");
+    window.history.replaceState(null, "", url);
+  }, [n, of, show]);
+  return null;
+}
 
 /** While the episode's on (the mock's during phase): your bingo card, tick it as it happens. */
 function OnTonight({ show }: { show: ShowData }) {

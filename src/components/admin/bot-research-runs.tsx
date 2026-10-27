@@ -12,18 +12,21 @@ import { cn } from "cn";
 
 // One episode's bot research (experimental, db/bot-research.js): every run so far, scheduled or asked
 // for, with what it found -- a quick check's answer is shown right here, a full run's results join the
-// review list, trivia's questions are listed with why any were dropped -- and "Run now" for each kind,
-// outside the schedule.
+// review list, trivia's questions and bingo's squares are listed with why any were dropped -- and "Run
+// now" for each kind, outside the schedule (bingo's is the Bingo section's Write squares now, bingo-bank.tsx).
 
-const KIND: Record<string, string> = { quick: "Quick check", full: "Full research", schedule: "Schedule check", trivia: "Trivia", tiebreak: "Tie-break", rulebook: "Rulebook check" };
+const KIND: Record<string, string> = { quick: "Quick check", full: "Full research", schedule: "Schedule check", trivia: "Trivia", bingo: "Bingo squares", tiebreak: "Tie-break", rulebook: "Rulebook check" };
 
 function slotLabel(slot: string) {
   if (slot === "now") return "run by hand";
+  if (slot === "bingo@season") return "the season's own, with this episode's";
   const [kind, at] = slot.split("@");
   const after = Number(at);
   if (!Number.isFinite(after)) return slot;
-  return kind === "trivia" ? `${afterLabel(after)} before the next episode` : `${afterLabel(after)} after it ends`;
+  return kind === "trivia" ? `${afterLabel(after)} before the next episode` : kind === "bingo" ? `${afterLabel(after)} before it airs` : `${afterLabel(after)} after it ends`;
 }
+
+const LIKELY = { likely: "Likely", maybe: "Maybe", longshot: "Long shot" } as const;
 
 export function BotResearchRuns({ season, episode, aired, onFiled }: { season: ShowSeason; episode: number; aired: boolean; onFiled: () => unknown }) {
   const queryClient = useQueryClient();
@@ -133,6 +136,24 @@ function RunRow({ run, tz }: { run: BotResearchRun; tz: string }) {
               </li>
             ))}
           </ol>
+        </>
+      ) : run.kind === "bingo" && r?.squares ? (
+        <>
+          <span className={cn("text-[14px] leading-snug", run.ok ? "text-muted-foreground" : "text-destructive")}>
+            {run.message}
+            {r.forSeason && run.slot === "now" ? " (the season's own)" : ""}
+          </span>
+          <ul className="flex flex-col gap-1.5 pt-1" data-run-squares>
+            {r.squares.map((s, i) => (
+              <li key={i} data-run-square={s.status} className={cn("flex flex-col text-[14px] leading-snug", s.status === "dropped" && "text-muted-foreground")}>
+                <span className="flex items-baseline justify-between gap-3">
+                  <span className={cn(s.status === "dropped" && "line-through")}>{s.label}</span>
+                  <span className="shrink-0 text-[13px] text-muted-foreground">{LIKELY[s.likelihood]}</span>
+                </span>
+                {s.note && <span className="text-[13px] text-destructive">Dropped: {s.note}</span>}
+              </li>
+            ))}
+          </ul>
         </>
       ) : run.ok && run.kind === "quick" && r ? (
         <>

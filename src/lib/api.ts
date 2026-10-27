@@ -5,6 +5,7 @@ import type { SeasonCheck } from "@/lib/game/formats/season-check";
 import type { DemoSeasonData } from "@/lib/game/demo-season-builder";
 import type { ActionItem } from "@/lib/game/action-items.js";
 import type { CommissionerItem } from "@/lib/game/commissioner-items";
+import type { AdminBingoBank } from "@/lib/server/bingo-bank";
 
 export interface EpisodeTeamSummary {
   /** Every team's saved "why it mattered" line, by player id. */
@@ -55,7 +56,7 @@ export interface BotResearchRun {
   id: string;
   episode: number;
   slot: string;
-  kind: "quick" | "full" | "schedule" | "trivia" | "tiebreak" | "rulebook";
+  kind: "quick" | "full" | "schedule" | "trivia" | "bingo" | "tiebreak" | "rulebook";
   startedAt: string;
   finishedAt: string | null;
   ok: boolean | null;
@@ -69,6 +70,12 @@ export interface BotResearchRun {
     /** Trivia (db/trivia-research.js): every question written, live or dropped by the check, and those the parse dropped. */
     questions?: { episode: number; question: string; options: string[]; answer: string; source: string; status: "live" | "dropped"; note: string | null }[];
     dropped?: { index: number; why: string; question: string | null }[];
+    /** Bingo (db/bingo-research.js): every square written, live or dropped (the parse's or the check's) with why; for the season's own bank. */
+    squares?: { label: string; likelihood: "likely" | "maybe" | "longshot"; status: "live" | "dropped"; note: string | null }[];
+    forSeason?: boolean;
+    live?: number;
+    /** A scheduled run that found the squares written already, and left them. */
+    kept?: boolean;
   } | null;
   seconds: number | null;
 }
@@ -676,10 +683,11 @@ export const api = {
   // (admin) Bot research (db/bot-research.js): a season's runs, and one run now outside the schedule.
   adminBotRuns: (seasonId: string, episode?: number) =>
     localFetch<{ runs: BotResearchRun[] }>(`/api/admin/seasons/${seasonId}/bot-research${episode ? `?episode=${episode}` : ""}`),
-  adminBotRunNow: (seasonId: string, episode: number, kind: "quick" | "full" | "schedule" | "trivia") =>
+  // Bingo's ("Write squares now") is for an episode coming up: `scope: "season"` writes the season's own bank.
+  adminBotRunNow: (seasonId: string, episode: number, kind: "quick" | "full" | "schedule" | "trivia" | "bingo", opts: { scope?: "episode" | "season" } = {}) =>
     localFetch<{ ok: boolean; message: string; seconds: number }>(`/api/admin/seasons/${seasonId}/bot-research`, {
       method: "POST",
-      body: JSON.stringify({ episode, kind }),
+      body: JSON.stringify({ episode, kind, ...(opts.scope ? { scope: opts.scope } : {}) }),
     }),
   createFormat: (answer: string) =>
     localFetch<{ format: StoredFormat }>("/api/formats", { method: "POST", body: JSON.stringify({ answer }) }),
@@ -819,6 +827,18 @@ export const api = {
   // The paste-import path: no search, no API key of the admin's own -- they get the prompt below from
   // their own web-searching chat and paste the answer back, which costs one cheap structuring call
   // instead of a search-and-answer one. See db/episode-research.js's "manual / paste import" section.
+  // Bingo's bank by hand (docs/PLAN-bingo-bank.md step 1): an episode's bank and the season's own, with the prompt for one;
+  // a chat's answer filed as that bank.
+  adminBingoBank: (id: string, episode: number, scope: "episode" | "season") =>
+    localFetch<AdminBingoBank>(`/api/admin/seasons/${id}/bingo?episode=${episode}&scope=${scope}`),
+  // Hide a square (an admin's flag takes it out of new cards at once), or take the flag back.
+  adminFlagBingoSquare: (id: string, episode: number, scope: "episode" | "season", square: string, on: boolean) =>
+    localFetch<AdminBingoBank>(`/api/admin/seasons/${id}/bingo`, { method: "POST", body: JSON.stringify({ episode, scope, flag: square, on }) }),
+  adminSaveBingoBank: (id: string, episode: number, scope: "episode" | "season", answer: string) =>
+    localFetch<AdminBingoBank & { live: number; dropped: number }>(`/api/admin/seasons/${id}/bingo`, {
+      method: "POST",
+      body: JSON.stringify({ episode, scope, answer }),
+    }),
   adminPasteImportPrompt: (id: string, episode: number, structured = false) =>
     localFetch<{ prompt: string; castCount: number; betCount: number }>(
       `/api/admin/seasons/${id}/research/prompt?episode=${episode}${structured ? "&structured=1" : ""}`

@@ -42,12 +42,12 @@
 //
 // Part 3 is bingo, trivia, Commercial break's This week only and Weekly Bingo (bingo.ts, trivia.ts), on the same fixtures plus
 // hub-fixture.js (ZT Survivor 49 and 50, finished and seen to the end):
-//   API: a card for the next episode (three by three, the centre free, the show's moments and no names, dealt the same way twice,
-//   each person's own, nothing to tick until it airs, nothing kept until a first tick); on Episode 6 (aired): ticks, a line
-//   through the centre once both squares happened, a square that didn't happen counting for nothing, the couch's cards and who got
-//   a line first (only for someone who's seen it: sam on 3 and casey see their own cards, a count, nothing else), the refusals; on
-//   the talk show, two ticks agreeing settle a square, a tick is a say (it settles a call again), a say of your own wins over your
-//   tick; Weekly Bingo (startable, recommended first, from Episode 5, riley joins, nothing due, out of classic's list, its card
+//   API: a card for the next episode (three by three, the centre free, dealt from the fixture's bank, no names, dealt the same way
+//   twice, each person's own, nothing to tick until it airs, nothing kept until a first tick); on Episode 6 (aired): ticks, a line
+//   through the centre waiting on a second say, then counting once riley ticks the same two (docs/PLAN-bingo-bank.md: two on the
+//   couch say so), the couch's cards and who got a line first (only for someone who's seen it: sam on 3 and casey see their own
+//   cards, a count, nothing else), the refusals; on the talk show, two ticks agreeing settle a square, and a bingo tick isn't a
+//   say on a call (its squares are the bank's); Weekly Bingo (startable, recommended first, from Episode 5, riley joins, nothing due, out of classic's list, its card
 //   ready then open, lines counting once both have seen the episode, the hub), both talk games ending with the season's last show
 //   (on the trophy shelf, nobody new joins) and running on in a longer one; trivia (three questions about Survivor 50 for alex,
 //   Survivor 49 for sam who hasn't finished 50, Survivor 51 so far for casey with nothing past her mark, riley's 1 of 3 kept as the
@@ -886,12 +886,8 @@ function check(ok, what, detail = "") {
     const tick = (who, n, square, ticked = true, season = sid, couch = A) => as[who].call("POST", `/api/seasons/${season}/bingo/${n}${q(couch)}`, { square, ticked });
     const cardsOf = async (who, season = sid) => (await pool.query("SELECT episode FROM bingo_cards WHERE user_id = $1 AND season_id = $2", [U[who], season])).rows.map((x) => x.episode);
     const castNames = new Set(castRows.map((x) => x.name));
-    const happened = (season, n, key, name) =>
-      pool.query(
-        `INSERT INTO season_decisions (season_id, episode_number, kind, castaway_name, method, event_type, status, from_research, decided_at) VALUES ($1, $2, 'event', $3, '', $4, 'accepted', true, now())
-         ON CONFLICT DO NOTHING`,
-        [season, n, name, key.slice(2)]
-      );
+    // Cards are dealt from the fixtures' eight-square season banks (docs/PLAN-bingo-bank.md; new-fixture.js, talk-fixture.js), so
+    // everyone's card has the same eight squares, each in its own place: two people can back each other up on any of them.
     const at = (card, key) => card.squares.findIndex((s) => s.key === key);
     const personOf = (body, who) => body.people.find((p) => p.name === u(who));
 
@@ -903,8 +899,8 @@ function check(ok, what, detail = "") {
       JSON.stringify(bg.body).slice(0, 300)
     );
     check(
-      bg.body.squares.every((s) => s.key === "free" || /^m:/.test(s.key)) && !bg.body.squares.some((s) => castNames.has(s.label)) && bg.body.truth === null && bg.body.ticked.length === 0,
-      "its squares are the show's moments: no names, nothing about the episode",
+      bg.body.squares.every((s) => s.key === "free" || /^b:/.test(s.key)) && !bg.body.squares.some((s) => castNames.has(s.label)) && bg.body.truth === null && bg.body.ticked.length === 0 && bg.body.rerollsLeft === 2,
+      "its squares are the season's bank's (written before it airs): no names, two new cards to deal",
       bg.body.squares.map((s) => s.label).join(" | ")
     );
     check(JSON.stringify((await bingoOf("alex", 7)).body.squares) === JSON.stringify(bg.body.squares), "dealt the same way twice");
@@ -917,31 +913,27 @@ function check(ok, what, detail = "") {
 
     // ---------- bingo on an episode that's aired: ticks, lines, the couch's cards ----------
     let b6 = (await bingoOf("alex", 6)).body;
-    check(b6.status === "open" && Array.isArray(b6.truth) && b6.truth[4] === "yes" && b6.by === "results" && b6.people.length === 0, "Episode 6 (aired, alex has seen it): open to tick, and how each square went", JSON.stringify(b6).slice(0, 300));
+    check(b6.status === "open" && Array.isArray(b6.truth) && b6.truth[4] === "yes" && b6.by === "couch" && b6.people.length === 0, "Episode 6 (aired, alex has seen it): open to tick, settled by the couch", JSON.stringify(b6).slice(0, 300));
     const rb6 = (await bingoOf("riley", 6)).body;
-    // The results say the squares beside the centre happened: alex's row (3, 5) and riley's column (1, 7).
-    for (const k of new Set([b6.squares[3].key, b6.squares[5].key, rb6.squares[1].key, rb6.squares[7].key])) await happened(sid, 6, k, STAY.label);
     r = await tick("alex", 6, 3);
-    check(r.status === 200 && r.body.ticked.join() === "3" && (await cardsOf("alex")).includes(6), "alex ticks a square: his card is kept from his first tick", JSON.stringify(r.body.ticked));
+    check(r.status === 200 && r.body.ticked.join() === "3" && (await cardsOf("alex")).includes(6) && r.body.truth[3] === null, "alex ticks a square: his card is kept from his first tick; one say doesn't settle it", JSON.stringify(r.body.ticked));
     const kept = (await pool.query("SELECT squares FROM bingo_cards WHERE user_id = $1 AND season_id = $2 AND episode = 6", [U.alex, sid])).rows[0].squares;
     check(JSON.stringify(kept) === JSON.stringify(b6.squares), "kept as it was dealt");
     r = await tick("alex", 6, 5);
-    check(r.body.lines.ticked === 1 && r.body.lines.standing === 1 && r.body.truth[3] === "yes" && r.body.truth[5] === "yes", "his row through the free centre: a line, both squares happened", JSON.stringify(r.body.lines));
-    const noAt = r.body.truth.findIndex((x, i) => x === "no" && i !== 3 && i !== 5);
-    if (noAt >= 0) {
-      r = await tick("alex", 6, noAt);
-      check(r.body.truth[noAt] === "no" && r.body.lines.standing === 1 && r.body.ticked.length === 3, "a tick on what didn't happen counts for nothing", JSON.stringify(r.body.lines));
-      r = await tick("alex", 6, noAt, false);
-      check(r.body.ticked.join() === "3,5", "and unticked again");
-    }
+    check(r.body.lines.ticked === 1 && r.body.lines.called === 0 && r.body.lines.standing === 0, "his row through the free centre: a line made, not counted until called", JSON.stringify(r.body.lines));
+    // docs/PLAN-bingo-bank.md step 3: only a called line counts.
+    r = await as.alex.call("POST", `/api/seasons/${sid}/bingo/6${q(A)}`, { call: 1 });
+    check(r.status === 200 && r.body.called[0]?.line === 1 && r.body.lines.waiting === 1, "he calls BINGO on it: waiting on a second say", JSON.stringify(r.body.lines));
     await new Promise((res) => setTimeout(res, 60));
-    await tick("riley", 6, 1);
-    r = await tick("riley", 6, 7);
-    check(r.body.lines.standing === 1, "riley's column: a line too");
+    await tick("riley", 6, at(rb6, b6.squares[3].key));
+    r = await tick("riley", 6, at(rb6, b6.squares[5].key));
+    check(r.body.truth[at(rb6, b6.squares[3].key)] === "yes" && r.body.truth[at(rb6, b6.squares[5].key)] === "yes", "riley ticks the same two (in her own places): two say so");
+    const rileyLines = r.body.lines.standing;
     r = await bingoOf("alex", 6);
+    check(r.body.lines.standing === 1 && r.body.truth[3] === "yes" && r.body.truth[5] === "yes", "so alex's line counts", JSON.stringify(r.body.lines));
     check(
-      r.body.first?.userId === U.alex && r.body.people[0]?.name === u("alex") && personOf(r.body, "riley")?.lines === 1 && !personOf(r.body, "jordan"),
-      "the couch's cards, his first: alex got a line first, riley 1 line (jordan didn't play)",
+      r.body.first?.userId === U.alex && r.body.people[0]?.name === u("alex") && personOf(r.body, "riley")?.lines === rileyLines && !personOf(r.body, "jordan"),
+      "the couch's cards, his first: alex got a line first, riley's card (jordan didn't play)",
       JSON.stringify({ first: r.body.first, people: r.body.people })
     );
     r = await bingoOf("riley", 6);
@@ -966,35 +958,33 @@ function check(ok, what, detail = "") {
     check(r.status === 404, "a couch you're not on: 404");
     check(!(await cardsOf("jordan")).length, "jordan never ticked: no card kept for him");
 
-    // ---------- bingo on a talk show: the couch says what happened, and a tick is a say ----------
+    // ---------- bingo on a talk show: its bank, settled by the couch; Call it keeps its own says ----------
     const t4 = (await bingoOf("alex", 4, tk.seasonId)).body;
     check(
-      t4.by === "couch" && !t4.alone && t4.squares.filter((s) => s.key === "free").length === 3 && t4.squares.filter((s) => s.key !== "free").length === 6,
-      "the talk show's card: its six moments and three free squares, settled by the couch",
+      t4.by === "couch" && !t4.alone && t4.squares.filter((s) => s.key === "free").length === 1 && t4.squares.filter((s) => /^b:/.test(s.key)).length === 8,
+      "the talk show's card: its bank's eight squares, settled by the couch",
       JSON.stringify(t4.squares)
     );
     const rt4 = (await bingoOf("riley", 4, tk.seasonId)).body;
-    const loose = t4.squares.find((s) => s.key !== "free" && !tq.some((x) => x.key === s.key));
+    const [loose, other] = t4.squares.filter((s) => s.key !== "free");
     r = await tick("alex", 4, at(t4, loose.key), true, tk.seasonId);
-    check(r.body.truth[at(t4, loose.key)] === null, "alex ticks a moment nobody else has said: it waits for a second", JSON.stringify(r.body.truth));
+    check(r.body.truth[at(t4, loose.key)] === null, "alex ticks a square nobody else has said: it waits for a second", JSON.stringify(r.body.truth));
     await tick("riley", 4, at(rt4, loose.key), true, tk.seasonId);
     r = await bingoOf("alex", 4, tk.seasonId);
     check(r.body.truth[at(t4, loose.key)] === "yes", "riley ticks it too: two agreeing settle it");
     await callIt("riley", 4, { said: { [tq[0].key]: null } }, tk.seasonId);
     c = await callsOf("alex", 4, tk.seasonId);
     check(c.body.verdicts?.[tq[0].key]?.state === "waiting", "riley takes back her say on a call: it waits again", JSON.stringify(c.body.verdicts));
-    await tick("riley", 4, at(rt4, tq[0].key), true, tk.seasonId);
+    await tick("riley", 4, at(rt4, other.key), true, tk.seasonId);
+    c = await callsOf("alex", 4, tk.seasonId);
+    check(c.body.verdicts?.[tq[0].key]?.state === "waiting", "a bingo tick isn't a say on a call (the card's squares are the bank's, not the show's moments)", JSON.stringify(c.body.verdicts));
+    await callIt("riley", 4, { said: { [tq[0].key]: "yes" } }, tk.seasonId);
     c = await callsOf("alex", 4, tk.seasonId);
     check(
       JSON.stringify(c.body.verdicts?.[tq[0].key]) === JSON.stringify({ state: "known", right: ["yes"] }) && c.body.says?.[tq[0].key]?.yes === 2,
-      "her tick on her card is her say: the call is settled again",
+      "she says it again: the call is settled again",
       JSON.stringify(c.body.says)
     );
-    await tick("alex", 4, at(t4, tq[1].key), true, tk.seasonId);
-    c = await callsOf("alex", 4, tk.seasonId);
-    check(c.body.says?.[tq[1].key]?.no === 2 && c.body.says[tq[1].key].yes === 0, "a say of your own wins over your tick (alex said it didn't happen)", JSON.stringify(c.body.says?.[tq[1].key]));
-    r = await bingoOf("alex", 4, tk.seasonId);
-    check(r.body.truth[at(t4, tq[1].key)] === "no", "so his tick on it is crossed out");
 
     // ---------- Weekly Bingo, the talk show's other season game ----------
     r = await as.alex.call("GET", `/api/seasons/${tk.seasonId}/start${q(A)}`);
@@ -1021,9 +1011,14 @@ function check(ok, what, detail = "") {
     wbg = await wbGame();
     check(wbg.bingo?.episode === 5 && wbg.bingo.open === true, "Episode 5 has aired: his card for it is open", JSON.stringify(wbg.bingo));
     let a5 = (await bingoOf("alex", 5, tk.seasonId)).body;
-    const lineAt = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]].find((l) => l.filter((i) => a5.squares[i].key !== "free").length === 2);
+    const ALL_LINES = [[0, 1, 2], [3, 4, 5], [6, 7, 8], [0, 3, 6], [1, 4, 7], [2, 5, 8], [0, 4, 8], [2, 4, 6]];
+    const lineAt = ALL_LINES.find((l) => l.filter((i) => a5.squares[i].key !== "free").length === 2);
     const lineKeys = lineAt.filter((i) => a5.squares[i].key !== "free").map((i) => a5.squares[i].key);
     for (const k of lineKeys) await tick("alex", 5, at(a5, k), true, tk.seasonId);
+    // Only a called line counts (step 3).
+    const lineIndex = ALL_LINES.indexOf(lineAt);
+    r = await as.alex.call("POST", `/api/seasons/${tk.seasonId}/bingo/5${q(A)}`, { call: lineIndex });
+    check(r.status === 200 && r.body.called.some((c) => c.line === lineIndex), "alex calls BINGO on his line", JSON.stringify(r.body).slice(0, 200));
     const r5 = (await bingoOf("riley", 5, tk.seasonId)).body;
     for (const k of lineKeys) await tick("riley", 5, at(r5, k), true, tk.seasonId);
     wbg = await wbGame();
@@ -1233,8 +1228,12 @@ function check(ok, what, detail = "") {
       await s7live.locator('[data-square="3"]').click();
       await dp.waitForTimeout(400);
       await s7live.locator('[data-square="5"]').click();
-      await dp.locator("[data-bingo-banner]").waitFor({ timeout: 5_000 });
-      check((await s7live.locator('[data-square="3"][data-ticked="yes"]').count()) === 1, "a tap ticks a square; a row says Bingo!");
+      // A bank's card: the row asks Sure all three happened?, and Call BINGO is the Bingo! (step 3).
+      await dp.locator('[data-bingo-call="1"]').waitFor({ timeout: 10_000 });
+      await D.shot("bingo-call");
+      await dp.locator("[data-bingo-callit]").click();
+      await dp.locator("[data-bingo-banner]").waitFor({ timeout: 10_000 });
+      check((await s7live.locator('[data-square="3"][data-ticked="yes"][data-called="yes"]').count()) === 1, "a tap ticks a square; a row called says Bingo!");
       await D.shot("bingo-line");
       await dp.locator("[data-bingo-tell]").waitFor({ timeout: 10_000 });
       await dp.waitForTimeout(1600);

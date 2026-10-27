@@ -6,12 +6,13 @@ const Bot = require("../db/bot-research.js");
 
 const AIRED = new Date("2026-10-22T00:05:00Z"); // Wednesday 8:05pm Eastern
 const min = (n) => new Date(AIRED.getTime() + n * 60 * 1000);
-const schedule = Bot.normalizeSchedule(null);
+// The runs after an episode, as these tests were written for them: bingo's (before an episode airs) has tests of its own below.
+const schedule = Bot.normalizeSchedule(null).filter((r) => r.kind !== "bingo");
 const due = (now, history = [], extra = {}) =>
   Bot.dueRuns({ schedule, since: null, airTimes: [{ episode: 5, at: AIRED }], history, now, ...extra }).map((r) => r.slot);
 
-test("the default schedule: quick at 5 minutes, full at 1 and 9 hours, trivia a day before the next episode", () => {
-  assert.deepEqual(schedule.map(Bot.slotOf), ["quick@5", "full@60", "full@540", "trivia@1440"]);
+test("the default schedule: quick at 5 minutes, full at 1 and 9 hours, trivia a day before the next episode, bingo a day before this one", () => {
+  assert.deepEqual(Bot.normalizeSchedule(null).map(Bot.slotOf), ["quick@5", "full@60", "full@540", "trivia@1440", "bingo@1440"]);
 });
 
 test("trivia counts back from the next episode: a day before a weekly one, 3 hours after the end for a nightly one, none for a double", () => {
@@ -109,6 +110,53 @@ test("an episode night: the VM calls only when told, and the quick check lands w
     now = when > now ? when : new Date(now.getTime() + 60 * 1000);
   }
   assert.deepEqual(calls, [95, 100, 105, 110, 115, 150, 630, 1530], "quick at 95 and every 5 until 115 finds it; full at 150 and 630; trivia a day after (no next episode known)");
+});
+
+// ---------- bingo (docs/PLAN-bingo-bank.md step 2) ----------
+const DAY = 24 * 60;
+const bingoOnly = Bot.normalizeSchedule([{ kind: "bingo", after: DAY }]);
+const bingo = (now, history = [], extra = {}) =>
+  Bot.dueRuns({ schedule: bingoOnly, since: null, airTimes: [{ episode: 5, at: AIRED }], history, now, ...extra }).map((r) => `${r.slot}${r.forSeason ? "+season" : ""}`);
+
+test("bingo counts back from when this episode starts, and never at or after it", () => {
+  const starts = AIRED.getTime();
+  assert.deepEqual(Bot.dueAt({ kind: "bingo", after: DAY }, starts + 90 * 60000, null, starts), min(-DAY), "a day before it airs");
+  assert.deepEqual(Bot.dueAt({ kind: "bingo", after: 30 }, starts + 90 * 60000, null, starts), min(-30));
+  assert.equal(Bot.dueAt({ kind: "bingo", after: 0 }, starts + 90 * 60000, null, starts), null, "at airtime: too late for squares");
+  assert.equal(Bot.dueAt({ kind: "bingo", after: DAY }, starts + 90 * 60000, null, null), null, "no air time: nothing to count back from");
+  assert.throws(() => Bot.normalizeSchedule([{ kind: "bingo", after: DAY }, { kind: "bingo", after: DAY }]), /Two bingo runs 1440 minutes before it airs/);
+});
+
+test("a bingo run: due a day before, three tries 20 minutes apart, none once the episode airs", () => {
+  assert.deepEqual(bingo(min(-DAY - 1)), []);
+  assert.deepEqual(bingo(min(-DAY)), ["bingo@1440"]);
+  const fail = (m) => ({ episode_number: 5, slot: "bingo@1440", started_at: min(m), ok: false });
+  assert.deepEqual(bingo(min(-DAY + 10), [fail(-DAY)]), [], "a retry waits 20 minutes");
+  assert.deepEqual(bingo(min(-DAY + 20), [fail(-DAY)]), ["bingo@1440"]);
+  assert.deepEqual(bingo(min(-DAY + 60), [fail(-DAY), fail(-DAY + 20), fail(-DAY + 40)]), [], "three strikes");
+  assert.deepEqual(bingo(min(-10)), ["bingo@1440"], "the VM was down all day: still worth it ten minutes before");
+  assert.deepEqual(bingo(min(0)), [], "it's on: too late");
+  assert.deepEqual(bingo(min(-1), [fail(-15)]), [], "a retry that would land after airtime never comes");
+  const nextAfterLate = Bot.nextRunAt({ schedule: bingoOnly, since: null, airTimes: [{ episode: 5, at: AIRED }], episodeMinutes: 90, history: [fail(-15)], now: min(-14) });
+  assert.equal(nextAfterLate, null, "and the VM isn't told to come back for it");
+  const ok = { episode_number: 5, slot: "bingo@1440", started_at: min(-DAY), ok: true };
+  assert.deepEqual(bingo(min(-DAY + 30), [ok]), [], "written: done");
+  assert.deepEqual(bingo(min(-60), [], { since: min(-120) }), [], "switched on after its time: not picked up");
+});
+
+test("a season without its own bank: each bingo run brings a job for it, after the episode's, with tries of its own", () => {
+  assert.deepEqual(bingo(min(-DAY), [], { seasonBank: false }), ["bingo@1440", "bingo@season+season"]);
+  const episodeOk = { episode_number: 5, slot: "bingo@1440", started_at: min(-DAY), ok: true };
+  assert.deepEqual(bingo(min(-DAY + 2), [episodeOk], { seasonBank: false }), ["bingo@season+season"], "the next call writes the season's");
+  const seasonOk = { episode_number: 5, slot: "bingo@season", started_at: min(-DAY + 2), ok: true };
+  assert.deepEqual(bingo(min(-DAY + 4), [episodeOk, seasonOk], { seasonBank: false }), []);
+  assert.deepEqual(bingo(min(-DAY), [], { seasonBank: true }), ["bingo@1440"], "a season with a bank of its own: just the episode's");
+  assert.deepEqual(bingo(min(5), [], { seasonBank: false }), [], "neither once it airs");
+  const airTimes = [{ episode: 5, at: AIRED }, { episode: 6, at: min(7 * DAY) }];
+  const next = (now, history = [], seasonBank = true) => Bot.nextRunAt({ schedule: bingoOnly, since: null, airTimes, episodeMinutes: 90, history, now, seasonBank });
+  assert.deepEqual(next(min(-2 * DAY)), min(-DAY), "nextRunAt: a day before Episode 5");
+  assert.deepEqual(next(min(10)), min(6 * DAY), "Episode 5's on: a day before Episode 6");
+  assert.deepEqual(next(min(-DAY + 2), [episodeOk], false), min(-DAY + 2), "the season's job: now");
 });
 
 test("switched on mid-season: earlier runs are never picked up", () => {

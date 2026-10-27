@@ -16,7 +16,7 @@
 //     moment off and classic's own switch off (the bell keeps them), the bell's rows read back through the guard;
 //   - the couch's moments: a poll (only to whoever's seen the episode before), a game started (Tell the couch), a watch along
 //     planned (each reader's time zone) and called off (once its Undo has passed; an Undo inside it tells nobody), someone joining
-//     the couch, a flag settled on the desk, a bingo line (yours, and a couch-mate's);
+//     the couch, a flag settled on the desk, a BINGO called (a couch-mate's, never your own; once);
 //   - the bell: its count on the home read, its list, read when it opens, a row past 30 days gone when a new one is written.
 //   In a real browser at --width (390 by default), as alex: Settings' What we notify you about (this phone turned on through a
 //   stand-in PushManager, a test push reaching it, a moment off with Undo, Couch chat), the hub's bell (its dot, the list, opening
@@ -427,35 +427,41 @@ async function person(pool, who, role = null) {
     );
     check((await pool.query("SELECT told_at FROM fact_disputes WHERE decision_id = $1", [danny])).rows.every((x) => x.told_at), "told once (fact_disputes.told_at)");
 
-    // A bingo line: the two moments either side of the free square in the middle row of jordan's card on Episode 6 happened (in
-    // the season's results, as check-new-episode-games.js makes a square happen).
+    // A bingo line: the squares either side of the free one in the middle row of jordan's card on Episode 6 (the fixture's bank,
+    // docs/PLAN-bingo-bank.md). A bank's square counts once two on the couch say it happened: alex says so of both (a say of his own,
+    // in the table the couch's says go in), and jordan's ticks are the second say.
     const card = (await as.jordan.call("GET", `/api/seasons/${sid}/bingo/6${q}`)).body;
     check(card.status === "open" && card.squares?.[4]?.key === "free" && Array.isArray(card.truth), "jordan's card on Episode 6 is open, the middle square free", JSON.stringify(card).slice(0, 160));
     for (const i of [3, 5]) {
-      if (card.truth[i] === "yes") continue;
-      await pool.query(
-        `INSERT INTO season_decisions (season_id, episode_number, kind, castaway_name, method, event_type, status, from_research, decided_at)
-         VALUES ($1, 6, 'event', 'Eric Macksoud', '', $2, 'accepted', true, now()) ON CONFLICT DO NOTHING`,
-        [sid, card.squares[i].key.slice(2)]
-      );
+      await pool.query("INSERT INTO episode_call_says (user_id, season_id, episode, question, happened) VALUES ($1, $2, 6, $3, true) ON CONFLICT DO NOTHING", [U.alex, sid, card.squares[i].key]);
     }
-    check((await as.jordan.call("GET", `/api/seasons/${sid}/bingo/6${q}`)).body.truth.filter((t, i) => [3, 4, 5].includes(i)).every((t) => t === "yes"), "its middle row all happened");
+    check((await as.jordan.call("GET", `/api/seasons/${sid}/bingo/6${q}`)).body.truth.filter((t, i) => [3, 5].includes(i)).every((t) => t === null), "its middle row: alex says it happened, one say each so far");
     await as.alex.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 0, ticked: true });
     push.clear();
     await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 3, ticked: true });
     await wait(2500);
     check(push.received.length === 0, "one square of the line: nothing yet");
     r = await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 5, ticked: true });
-    check(r.body.lines?.standing === 1, "the second: jordan's line counts", JSON.stringify(r.body.lines));
-    await expect((rs) => rs.some((x) => x.who === "jordan") && rs.some((x) => x.who === "alex"));
-    check(got("jordan").length === 1 && got("jordan")[0].title === "You got a bingo line" && got("jordan")[0].body === "ZT Survivor 51 · Episode 6.", "jordan: You got a bingo line", JSON.stringify(got("jordan")));
-    check(got("alex").length === 1 && got("alex")[0].title === "zt_nd_jordan got a bingo line", "alex (playing that episode on the couch): jordan got one", JSON.stringify(got("alex")));
+    check(r.body.lines?.ticked === 1 && r.body.lines.called === 0, "the second: a line made, not called yet", JSON.stringify(r.body.lines));
+    await wait(2500);
+    check(push.received.length === 0, "a line made tells nobody: calling it does (docs/PLAN-bingo-bank.md step 3)");
+    r = await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { call: 1 });
+    check(r.status === 200 && r.body.lines?.standing === 1, "jordan calls BINGO: his line counts (alex says, jordan ticks)", JSON.stringify(r.body.lines));
+    await expect((rs) => rs.some((x) => x.who === "alex"));
+    await wait(1500);
+    check(
+      got("alex").length === 1 && got("alex")[0].title === "zt_nd_jordan called BINGO" && got("alex")[0].body === "ZT Survivor 51 · Episode 6 · Look at their card",
+      "alex (playing that episode on the couch): zt_nd_jordan called BINGO · Look at their card",
+      JSON.stringify(got("alex"))
+    );
+    check(got("jordan").length === 0, "jordan isn't told of his own call", JSON.stringify(got("jordan")));
     check(got("sam").length === 0 && got("riley").length === 0, "sam and riley have no card on it (and haven't seen it): nothing");
     push.clear();
     await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 5, ticked: false });
     await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { square: 5, ticked: true });
+    await as.jordan.call("POST", `/api/seasons/${sid}/bingo/6${q}`, { call: 1 });
     await wait(3000);
-    check(push.received.length === 0, "the same line again: told once");
+    check(push.received.length === 0, "unticked, ticked and called again: told once");
 
     // ---------- the bell ----------
     const hs = await home("sam");

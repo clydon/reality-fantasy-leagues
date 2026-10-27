@@ -254,6 +254,12 @@ season's rulebook, your card and ticks, a count of who's playing; once you've se
 or says for that episode: a few small queries, a few KB), kept 30 s, and each tick answers with the card; a tick on a talk show
 also re-reads its calls (a tick is a say). Trivia reads when its row or sheet opens: the season's stats facts for at most two of
 the show's seasons (season-stats.ts, whose accepted results are kept per server by a fingerprint), and the couch's scores.
+**The bingo bank (docs/PLAN-bingo-bank.md, migration 0146)** replaces the rulebook's moments as a card's squares: about 30 short
+squares per episode, and a season bank of the same, in `bingo_squares` (~150 bytes a square: ~5 KB an episode, ~70 KB a season of
+13; not backed up, like researched trivia: a kept card carries its squares' labels). Written by pasting an AI chat's answer on the
+admin episode page for now (free, no model call of ours); step 2 adds a bot run per episode (one more ChatGPT ask on the free VM,
+like trivia's). A card read now also reads the episode's bank (one small indexed query) and, until you tick, deals from it each
+read; a reroll is one upsert. A bank square is settled by the couch's says (the says query bingo already ran for talk shows).
 `/api/me/trivia` (Commercial break, and the solo hub's On your own, kept 60 s) works out the round for up to six of your shows
 until it has three: at most about a dozen of those stats reads per open, the heaviest new read (a cache per person and week
 would make it one; Noticed). Commercial break's This week only adds each show's rulebook and card (two small queries a show).
@@ -797,3 +803,24 @@ never handles it: the user does the reset and the pasting.
   open Chat tab's read sends one row more (whether there's anything earlier); Earlier messages reads 100 at a tap, and someone who has
   read back polls from the earliest they've loaded (its unchanged answer is the same 32 characters; a changed one carries what they've
   loaded, at most 1,000 messages).
+- **2026-10-27, pushed to master (deploys with migration 0146).** The bingo bank, step 1 (docs/PLAN-bingo-bank.md). **Nothing polls, nothing
+  runs on a schedule, no pushes.** Migration 0146: `bingo_squares` (~150 bytes a square, ~30 an episode plus a season's own; not backed
+  up), `bingo_square_flags` (step 4), `bingo_cards.rerolls`/`.called_lines` (backed up with their table). A card read gains one small
+  query (the episode's bank); the admin's prompt is built from a few reads, no model call. Step 2's bot run will add one ChatGPT ask
+  per episode on the free VM.
+- **2026-10-27, pushed to master (deploys with migration 0146).** The bingo bank, step 2: the bot's `bingo` run (in the default schedule,
+  a day before each episode airs). **Per episode, on a season with the bot's schedule on and bingo in it: two ChatGPT asks on the
+  free VM** (write, then check; up to ~4 min, inside the route's 300 s), plus two more once per season for its own bank (on the next
+  call). Free (our bot), but it's VM time: with trivia, a season now asks four times between episodes. The planner reads one more
+  tiny EXISTS query per bingo season per cron call (whether the season has its own bank). The VM is told to come back a day before
+  each episode, as for trivia; nothing polls. A failed run tries three times, 20 minutes apart, never once the episode airs.
+- **2026-10-27, pushed to master (deploys with migration 0146).** The bingo bank, step 3: calling BINGO and "Did it?". **Nothing polls,
+  nothing runs on a schedule, no migration** (0146's `bingo_cards.called_lines` holds the calls). A call is one small UPDATE and
+  at most one push per couch-mate per caller and episode (the existing `bingoLine` type, kept in the bell); a "Did it?" answer is
+  one row in `episode_call_says` (~80 bytes). A seen card's read now carries the couch's called squares waiting on you (computed
+  from the cards query it already ran) and someone else's card (`?of=`) is one query plus, while you're behind, one presence
+  check of the together session.
+- **2026-10-27, pushed to master (deploys with migration 0146).** The bingo bank, step 4: flags. **Nothing polls, nothing scheduled, no
+  migration, no pushes.** A flag is one row in `bingo_square_flags` (0146, ~60 bytes); dealing a card adds two small subqueries
+  per square of the episode's bank (counted flags, an admin's flag: indexed by the flags' primary key). The hub's read gains one
+  query for the couch feed's BINGO lines (couch members' cards with a call, guarded as the notice is).

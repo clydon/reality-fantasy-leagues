@@ -38,6 +38,8 @@ const { open, api, BASE } = require("./browser");
 const { settle } = require("./motion");
 const fixture = require("./new-fixture");
 const fakeBot = require("./fake-bot");
+// The usual runs a season switched on starts with (the default schedule: it grew trivia, then bingo, since this was written).
+const { DEFAULT_SCHEDULE } = require("../../db/bot-research.js");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("check-new-settling runs against a local database only");
@@ -432,7 +434,7 @@ function rulebookAnswer(prompt) {
     check(/The bot's schedule is on/.test(await toasted(/schedule is on/, d.page)), "the season's bot switched on");
     await d.page.locator("[data-switch=bot][data-on=on]").waitFor();
     let row = (await pool.query("SELECT bot_research_on, bot_research_since, bot_research_schedule FROM show_seasons WHERE id = $1", [sid])).rows[0];
-    check(row.bot_research_on && row.bot_research_since && row.bot_research_schedule.length === 3, "stored: on, from now, the usual runs", JSON.stringify(row));
+    check(row.bot_research_on && row.bot_research_since && row.bot_research_schedule.length === DEFAULT_SCHEDULE.length, "stored: on, from now, the usual runs", JSON.stringify(row));
     await d.page.locator("[data-switch='run-quick@5']").click();
     await toasted(/Who went home off/, d.page);
     await d.page.locator("[data-switch='run-quick@5'][data-on=off]").waitFor();
@@ -447,7 +449,7 @@ function rulebookAnswer(prompt) {
     check(true, "Undo from History: the run's back on");
     await d.page.goto(`${BASE}/desk/settings`);
     await d.page.locator("[data-autopilot]").waitFor({ timeout: 20000 });
-    check(/ZT Survivor 51/.test(await d.page.locator("[data-autopilot]").innerText()) && /Checks who went home and the full results/.test(await d.page.locator("[data-autopilot]").innerText()), "Settings › Autopilot trial: the season, and what it checks");
+    check(/ZT Survivor 51/.test(await d.page.locator("[data-autopilot]").innerText()) && /Checks who went home, the full results, trivia questions and bingo squares/.test(await d.page.locator("[data-autopilot]").innerText()), "Settings › Autopilot trial: the season, and what it checks");
     await d.page.locator("[data-autopilot]").scrollIntoViewIfNeeded();
     await shot("desk-autopilot", d.page);
 

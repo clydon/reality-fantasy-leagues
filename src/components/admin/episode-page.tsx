@@ -14,6 +14,7 @@ import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { fieldCls } from "@/components/setup/settings-ui";
 import { ActButton, AdminPage, Cost, Notice, Row, Rows, Section, Segmented, Step, StickyBar, count, errorText, seasonShort, useAdminSeason } from "./admin-ui";
 import { AskAi } from "@/components/ask-ai";
+import { BingoBank } from "./bingo-bank";
 import { BotResearchRuns } from "./bot-research-runs";
 import { ResearchResult, modelLabel } from "./admin-results";
 import { cn } from "cn";
@@ -22,6 +23,7 @@ import { cn } from "cn";
 // research, or the free paste path (copy a prompt into any AI chat with web search, paste the answer
 // back) -- each with where it stands and its one action. Whatever any of them finds joins the review
 // list; nothing reaches a league until it's accepted there. Clearing the episode is in the ⋯ sheet.
+// Under them, its bingo squares (bingo-bank.tsx), written before it airs.
 
 export function EpisodePage({ seasonId, episode }: { seasonId: string; episode: number }) {
   const queryClient = useQueryClient();
@@ -193,6 +195,8 @@ export function EpisodePage({ seasonId, episode }: { seasonId: string; episode: 
           ? "Anything new is staged for each league's commissioner to apply."
           : "Anything new joins the review list. Nothing reaches a league until you accept it."}
       </p>
+
+      <BingoBank seasonId={seasonId} episode={episode} />
 
       {decisions.length > 0 && (
         <StickyBar note={pending ? `${count(pending, "result")} waiting` : `${count(decisions.length, "result")}, all decided`}>

@@ -90,7 +90,7 @@ export type { Taste, Twin } from "@/lib/game/ratings";
 export type { CallPerson, CallSay, EpisodeCalls } from "@/lib/server/calls";
 export type { CallOption, CallQuestion, Verdict } from "@/lib/game/calls";
 export type { Poll, PollOption, SeasonPolls, ThisWeekShow } from "@/lib/server/polls";
-export type { BingoMate, BingoPerson, EpisodeBingo } from "@/lib/server/bingo";
+export type { BingoDidIt, BingoMate, BingoPerson, EpisodeBingo } from "@/lib/server/bingo";
 export type { BingoSquare, LineCount, Truth } from "@/lib/game/bingo";
 export type { BingoMove } from "@/lib/game/game-view";
 export type { TriviaCard, TriviaRound } from "@/lib/server/trivia";
@@ -1438,10 +1438,11 @@ export function useAfterPoll() {
 // tick; trivia when its sheet, row or Commercial break opens. Nothing polls. ----
 
 /** One episode's bingo card: yours, what you've ticked; once you've seen it, how the squares went and the couch's cards. */
-export function useEpisodeBingo(seasonId: string | null, couchId: string | null, episode: number | null, enabled = true) {
+/** An episode's bingo card: yours, or with `of`, someone else's on the couch (step 3's "Look at their card", under your own key). */
+export function useEpisodeBingo(seasonId: string | null, couchId: string | null, episode: number | null, enabled = true, of: string | null = null) {
   return useQuery({
-    queryKey: ["new-design", "bingo", seasonId, couchId, episode],
-    queryFn: () => get<EpisodeBingo>(seasonUrl(seasonId!, `/bingo/${episode}`, couchQuery(couchId))),
+    queryKey: of ? ["new-design", "bingo", seasonId, couchId, episode, of] : ["new-design", "bingo", seasonId, couchId, episode],
+    queryFn: () => get<EpisodeBingo>(seasonUrl(seasonId!, `/bingo/${episode}`, { ...couchQuery(couchId), ...(of ? { of } : {}) })),
     enabled: enabled && !!seasonId && !!episode,
     staleTime: 30_000,
     retry: (n, e) => n < 2 && ![403, 404, 409].includes((e as { status?: number }).status ?? 0),
@@ -1451,6 +1452,16 @@ export function useEpisodeBingo(seasonId: string | null, couchId: string | null,
 export const bingoApi = {
   tick: (seasonId: string, couchId: string | null, episode: number, square: number, ticked: boolean) =>
     post<EpisodeBingo>(seasonUrl(seasonId, `/bingo/${episode}`, couchQuery(couchId)), { square, ticked }),
+  /** A new card, until your first tick (at most two): the bingo bank's rerolls. */
+  reroll: (seasonId: string, couchId: string | null, episode: number) => post<EpisodeBingo>(seasonUrl(seasonId, `/bingo/${episode}`, couchQuery(couchId)), { reroll: true }),
+  /** Call BINGO on a line you've ticked all of (only a called line counts; the couch hears of it). */
+  call: (seasonId: string, couchId: string | null, episode: number, line: number) => post<EpisodeBingo>(seasonUrl(seasonId, `/bingo/${episode}`, couchQuery(couchId)), { call: line }),
+  /** "This square's unfair": flag a square on your card (on: false takes it back). */
+  flag: (seasonId: string, couchId: string | null, episode: number, square: string, on: boolean) =>
+    post<EpisodeBingo>(seasonUrl(seasonId, `/bingo/${episode}`, couchQuery(couchId)), { flag: square, on }),
+  /** "Did it happen?": a say on squares in the couch's called lines, once you've seen it. */
+  say: (seasonId: string, couchId: string | null, episode: number, said: Record<string, "yes" | "no" | null>) =>
+    post<EpisodeBingo>(seasonUrl(seasonId, `/bingo/${episode}`, couchQuery(couchId)), { said }),
 };
 
 /** Someone watching together with you ticked a square (step 13 part 3): your card for that episode, read again. */

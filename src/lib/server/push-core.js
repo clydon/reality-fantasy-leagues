@@ -61,8 +61,8 @@ const NOTIFICATION_TYPES = [
     sample: { title: "alex called off Wednesday's watch along", body: "Survivor 50 · Episode 5." } },
   { id: "poll", label: "Polls", description: "When someone on your couch starts a poll.",
     sample: { title: "riley started a poll", body: "Survivor 50 · Episode 5: Who goes home?" } },
-  { id: "bingoLine", label: "Bingo lines", description: "When you, or someone on your couch, gets a bingo line.",
-    sample: { title: "You got a bingo line", body: "Survivor 50 · Episode 5." } },
+  { id: "bingoLine", label: "Bingo", description: "When someone on your couch calls BINGO (on an older card, when a line of yours or theirs counts).",
+    sample: { title: "riley called BINGO", body: "Survivor 50 · Episode 5 · Look at their card" } },
   { id: "flagSettled", label: "Flags settled", description: "How a result you flagged was settled.",
     sample: { title: "You were right about Episode 5", body: "Survivor 50 · Kyle · voted out: every game has it put right." } },
 ];
