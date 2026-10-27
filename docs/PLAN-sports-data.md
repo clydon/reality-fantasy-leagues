@@ -28,7 +28,7 @@ last resort, for rosters only.
 | **ESPN** (`site.api.espn.com`, `site.web.api.espn.com`) | none | MLB, NFL, NBA, NHL, WNBA, MLS, Premier League, AFL, Rugby World Cup, F1, NCAA football and baseball, NBA G League, cricket (IPL, World Cup, Test Championship). No AHL, no minor-league baseball | Teams; rosters grouped by position with **headshots** (coaches separate); scoreboards by date (the 2026 World Series games, with ESPN event ids); per-game **box scores with the sport's own columns** (MLB batting `H-AB AB R H RBI HR BB K #P AVG OBP SLG`, pitching `IP H R ER BB K HR PC-ST ERA PC`; AFL `D G B T M FF FA ...`) and officials; athlete season stats by year (Yandy Díaz 2026 regular season: 154 GP, 180 H, 22 HR, 85 RBI; a separate postseason row) | Unofficial and undocumented: can change without notice, no stated rate limit or terms. Cache hard, call little, and keep the backups |
 | **MLB Stats API** (`statsapi.mlb.com/api/v1`) | none | MLB plus Triple-A (11), Double-A (12), High-A (13), Single-A (14), Rookie (16), Winter (17), Independent (23), KBO (32), NPB (31) | Teams by sport, rosters, box scores, player stats | Copyright MLB Advanced Media; no formal docs; personal and analytical use is the comfortable zone |
 | **API-Sports** (api-sports.io: football, basketball, baseball, hockey, rugby, AFL, F1, NFL, ...) | yes | Broad international | Fixtures, rosters, player stats | **Free plan is old seasons only** (a real free key got baseball 2022-2024 and was refused 2025; the pricing page says free plans are season-limited). Useful only paid (~$15-19/month per sport, 7,500 requests a day) |
-| **TheSportsDB** | public free key `123`, **no signup** ($9/month Patreon is a "dedicated production" key) | Very broad, international | Player search by name with a photo (Nick Daicos, Collingwood: a cut-out); teams, events | Free: a team's player list stops at 10 (Arsenal: 10, a coach among them), so not a roster source; stats thin; its page doesn't say the free key is for production, so keep calls few and cached |
+| **TheSportsDB** | public free key `123`, no signup | Very broad, international | Player search by name with a photo | **Not used** (the user, 2026-10-27): free team lists stop at 10 players, so it can't be a roster source, and it isn't worth a source just for photos |
 | **CricketData.org** (was CricAPI) | yes, free signup | Cricket | Squads, scorecards, player stats | 100 hits a day; not needed to start (ESPN has the big cricket competitions) |
 | **Jolpica** (Ergast's successor), **OpenF1** | none | F1 | Fields, results, laps | Jolpica already used for F1 photos (show-art.ts) |
 | **NHL** (`api-web.nhle.com`) | none | NHL | Rosters, box scores | Not probed yet |
@@ -46,7 +46,7 @@ Sources: [Zuplo's ESPN hidden API guide](https://zuplo.com/blog/2024/10/01/espn-
   games' box scores.
 - MLB Stats API: a Triple-A roster (Toledo, 22) and its headshots at `img.mlbstatic.com/mlb-photos/image/upload/w_213,q_100/v1/people/{id}/headshot/67/current`
   (returned an image).
-- TheSportsDB (free key, no signup): photos by player name; Wikipedia (show-art.ts, by team) behind it.
+- Photos where a provider has none (ESPN's soccer): Wikipedia (show-art.ts, by name and team). TheSportsDB was checked and left out.
 
 So rosters and photos need no ChatGPT for anything a provider has: ChatGPT only for a league no source carries, and only when there
 are no linked games to read players from.
@@ -66,7 +66,7 @@ are no linked games to read players from.
 - `seasonStats(league, athlete)`: a player's line for a season (coming in).
 
 A chain tries them in order per call: **ESPN → the league's own free API** (MLB Stats API for any baseball level, NHL's, Jolpica or
-OpenF1 for F1) **→ TheSportsDB → ChatGPT** (rosters only, and only when nothing else has the league: section 3). A provider that errors, times out or
+OpenF1 for F1) **→ ChatGPT** (rosters only, and only when nothing else has the league: section 3). A provider that errors, times out or
 answers 429 is skipped for a while (a small circuit breaker), and the next answers. Every answer is cached (rosters a day, a finished
 game's box score for good, a live one a few minutes), so a season costs a handful of calls, not one per person per visit.
 
@@ -88,8 +88,7 @@ so stats can find them.
 
 - **Roster**, first that answers: the provider's team roster (ESPN, the league's own API) → the players in the linked games' box scores
   (AFL, where ESPN's roster is empty) → ChatGPT only when no provider carries the league and no games are linked.
-- **Photos**, first that has one: the provider's headshot (ESPN, MLB's) → TheSportsDB by name → Wikipedia by name and team → initials.
-  Never ChatGPT.
+- **Photos**, first that has one: the provider's headshot (ESPN, MLB's) → Wikipedia by name and team → initials. Never ChatGPT.
 - It happens on its own once the season's games are linked (no tap); Fill in who's playing stays only for the ChatGPT case.
 
 ### 4. Stats from box scores, spoiler-safe by construction
@@ -120,15 +119,15 @@ for each game's line.
    case; a check with fake-listings' World Series and a stand-in provider.
 3. **Cast**: rosters from linked events, players only, headshots then Wikipedia; Fill in who's playing uses it first.
 4. **Stats**: box scores per game, so far summed through the guard, coming in from season stats; the Players tab's lines.
-5. **More providers**: NHL, Jolpica or OpenF1, TheSportsDB (free key, photos by name), each behind the chain; minor-league baseball
-   via MLB Stats API sport ids; CricketData only if needed (free signup).
+5. **More providers**: NHL, Jolpica or OpenF1, each behind the chain; minor-league baseball via MLB Stats API sport ids; CricketData
+   only if needed (free signup).
 6. **Spans** (the user's next idea) build on the links.
 
 ## Decisions (the user: costs stay at zero, 2026-10-27)
 
-1. **No keys to start.** ESPN, MLB Stats API, NHL's API, Jolpica and OpenF1 need none; TheSportsDB's public free key (`123`) needs no
-   signup. CricketData (free signup) only if cricket ever needs more than ESPN has. Nothing paid: no Patreon key, no API-Sports.
+1. **No keys.** ESPN, MLB Stats API, NHL's API, Jolpica and OpenF1 need none. CricketData (free signup) only if cricket ever needs more
+   than ESPN has. Nothing paid. TheSportsDB is out (free team lists stop at 10 players).
 2. **API-Sports**: skipped (free is old seasons only).
-3. **ESPN's terms**: unofficial, no published terms for this use. Use it, cache hard, credit ESPN (and TheSportsDB) in Credits, and keep
-   the backups ready so a block isn't an outage.
+3. **ESPN's terms**: unofficial, no published terms for this use. Use it, cache hard, credit ESPN in Credits, and keep the backups ready
+   so a block isn't an outage.
 4. **ChatGPT**: rosters only, and only for a league no source carries with no games linked; never photos, never stats.
