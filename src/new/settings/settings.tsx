@@ -16,6 +16,7 @@ import { Choice, SwitchRow } from "./controls";
 import { NotifySection } from "./notify";
 import { SharingSection } from "./sharing";
 import { AppearanceSection } from "./appearance";
+import { AutoSection } from "./keep-up";
 
 // Settings (/settings; docs/PLAN-new-design.md step 15 part 1; the mock's settings.js accountRoute and share.js), in the mock's
 // order: you (your face, name and couches, with Edit), what we notify you about (part 2: notify.tsx), keeping you spoiler-free,
@@ -100,6 +101,7 @@ export function SettingsScreen() {
               )
             }
           />
+          <AutoSection />
         </div>
       </section>
 

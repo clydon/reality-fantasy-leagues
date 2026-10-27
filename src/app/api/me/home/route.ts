@@ -7,7 +7,8 @@ import { weeklyCallMoves } from "@/lib/server/calls";
 import { dueMoves } from "@/lib/server/due-moves";
 import { seenThrough } from "@/lib/server/guard";
 import { followsOf, games, seasonHeaders, type Game } from "@/lib/server/show-space";
-import { latestAired, seasonSchedules, titledFor, upNext } from "@/lib/server/schedule";
+import { latestAired, latestEnded, seasonSchedules, titledFor, upNext } from "@/lib/server/schedule";
+import { seenItAsk, type KeepUp } from "@/lib/server/keep-up";
 import { hiddenFor, weekOf } from "@/lib/server/guide";
 import { plansFor } from "@/lib/server/watch-plans";
 import { progressOf } from "@/lib/server/season-games";
@@ -87,7 +88,7 @@ export const GET = apiRoute(async (req) => {
   const [plans, callMoves] = await Promise.all([plansFor(user.id, couchIds, new Date(), { members, schedules, headers }), weeklyCallMoves(user.id, myGames)]);
   // Who's set this week in your games with a weekly move, read after the moves so each state costs a hash; and each
   // game's state again (a hash each) for what its results ask of you.
-  const [progress, states, early, seats] = await Promise.all([
+  const [progress, states, early, seats, keeping] = await Promise.all([
     progressOf(user, myGames),
     leagueStates(myGames.filter((g) => g.seasonId).map((g) => g.leagueId)),
     pool.query(
@@ -95,7 +96,10 @@ export const GET = apiRoute(async (req) => {
       [user.id]
     ),
     pool.query("SELECT league_id, player_id FROM league_memberships WHERE user_id = $1", [user.id]),
+    pool.query("SELECT season_id, keep_up, not_yet FROM show_follows WHERE user_id = $1 AND keep_up <> 'off'", [user.id]),
   ]);
+  const KEEP_OFF = { keepUp: "off" as KeepUp, notYet: null };
+  const keepUp = new Map(keeping.rows.map((r) => [r.season_id as string, { keepUp: r.keep_up as KeepUp, notYet: r.not_yet as number | null }]));
   // A game you're catching up in (step 9) reveals from its own strip, not the hub's "Results are in".
   const seatIn = new Map(seats.rows.map((r) => [r.league_id as string, r.player_id as string | null]));
   const live = (g: Game) => {
@@ -111,6 +115,8 @@ export const GET = apiRoute(async (req) => {
     if (!header) continue;
     const follow = mine.find((f) => f.seasonId === id);
     const seen = await seenThrough(user.id, id);
+    // Off on a season you play: where you are moves with your games' reveals.
+    const keeps = myGames.some((g) => g.seasonId === id) ? KEEP_OFF : (keepUp.get(id) ?? KEEP_OFF);
     const schedule = schedules.get(id);
     shows.push({
       ...header,
@@ -120,6 +126,9 @@ export const GET = apiRoute(async (req) => {
       nudgeOff: nudged.has(id),
       // null: they see results straight away (spoiler protection off in Account settings).
       seenThrough: Number.isFinite(seen) ? seen : null,
+      // How where you are keeps up (keep-up.ts), and Live's "Seen it?" episode when there's one to ask about.
+      keepUp: keeps.keepUp,
+      seenIt: Number.isFinite(seen) ? seenItAsk({ ...keeps, seen }, latestEnded(schedule, now)) : null,
       upNext: ((u) => (u ? titledFor(u, seen) : null))(upNext(schedule, now)),
       latestAired: latestAired(schedule, now),
       // The guide's episodes (step 11): when each airs around this week, no titles.

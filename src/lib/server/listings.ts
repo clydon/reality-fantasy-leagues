@@ -2,6 +2,7 @@ import { airedOf, episodesOf, hitOf, pickSeason, seasonStatus, type ListingHit, 
 import type { TvCastRow } from "@/lib/game/make-game";
 import type { TvGuestCast } from "@/lib/game/show-art";
 import type { TvScheduleEntry } from "@/lib/game/tv-listings";
+import { stepEpisodes, type StepEpisode } from "./schedule";
 
 // TV listings from TVmaze (docs/PLAN-new-design.md step 10 part 1; docs/HOSTING.md): free, no key, CC BY-SA (credited with
 // a link back wherever it's shown), at least 20 calls every 10 seconds per IP. Asked when someone searches Add a show or
@@ -97,6 +98,8 @@ export interface ListingSeason {
   hit: ListingHit;
   /** The season adding it would follow (on now, else the next, else the latest), or null with none listed. */
   season: { number: number; name: string | null; status: "upcoming" | "airing" | "completed"; premiere: string | null; aired: number; episodeCount: number | null } | null;
+  /** Its aired episodes for the where stepper (schedule.ts stepEpisodes): nobody's seen any yet, so only a sport's titles. */
+  episodes: StepEpisode[];
 }
 
 /** What adding a show from its listing would follow, for where you are before it's added (first run, Add a show). */
@@ -104,18 +107,21 @@ export async function listingSeason(id: number, base = TVMAZE, now = new Date())
   const found = await showListing(id, base);
   if (!found) return null;
   const season = pickSeason(found.seasons, now);
-  if (!season) return { hit: hitOf(found.show), season: null };
+  if (!season) return { hit: hitOf(found.show), season: null, episodes: [] };
   const episodes = episodesOf(await seasonListing(season.id, base));
   const status = seasonStatus(season, now);
+  const hit = hitOf(found.show);
+  const aired = airedOf(episodes, now);
   return {
-    hit: hitOf(found.show),
+    hit,
     season: {
       number: season.number,
       name: season.name?.trim() || null,
       status,
       premiere: season.premiereDate ?? null,
-      aired: airedOf(episodes, now),
+      aired,
       episodeCount: season.episodeOrder && season.episodeOrder > 0 ? season.episodeOrder : status === "completed" ? episodes.length || null : null,
     },
+    episodes: stepEpisodes(episodes, aired, 0, hit.kind),
   };
 }

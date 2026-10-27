@@ -137,6 +137,15 @@ Behaviour a session saw and left alone because it wasn't that step's to change. 
 the step that could take it (a guess: any later step that touches it may). Fixed ones come out, with a line in that
 step's As built.
 
+- **Keeping up (2026-10-27, keep-up.ts, migration 0141) left these alone.** (1) Live's "Seen it?" is only on the show's Tonight: no
+  push and no hub card when an episode ends; a push ("Episode 4 is over. Seen it?") through push-core.js, keyed once per person
+  per episode, is the natural next piece, with a hub row for it. (2) Adding a show where nothing has aired skips the where step
+  (watching/sheets.tsx pickSeason), so Live can't be picked while adding it; the where sheet offers it afterwards. (3) First
+  run's and an invite's steppers (welcome/first-run.tsx, invite.tsx) don't show each step's episode and date yet, nor I'm up
+  to date. (4) Live and Move along by itself are off on a season you play (your games' reveals move it), so making a game on
+  a show you keep up live with quietly ends Live there; the where sheet says the reveals move it. (5) The stepper's titles follow
+  titledFor except a sport's (its titles are the matchups); a sport whose listing titles give a result away would show it.
+  Any later step on the hub, notifications or first run could take (1) to (3).
 - **check-new-episode-games fails its talk-show part late in the evening** (seen 2026-10-26 at 9:30 PM EDT, with or without
   the reminder ask's changes, `--api` too): "the talk show's Episode 4: both calls wait for the couch to say" gets no verdicts, then
   a TypeError at `personIn`. The part moves the talk show by whole days, so it reads as a date-in-UTC-versus-local slip (after 8 PM

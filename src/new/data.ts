@@ -27,6 +27,8 @@ import type { CouchInvite, CouchSeason, JoinGame, JoinOptions, LeaveCouch } from
 import type { CatchUpReveal } from "@/lib/server/season-episodes";
 import type { ListingHit } from "@/lib/game/listing";
 import type { AddedShow } from "@/lib/server/add-show";
+import type { KeepUp } from "@/lib/server/keep-up";
+import type { StepEpisode } from "@/lib/server/schedule";
 import type { ListingSeason } from "@/lib/server/listings";
 import type { MakeState } from "@/lib/server/make-game";
 import type { Started, StartOptions } from "@/lib/server/start-game";
@@ -174,6 +176,10 @@ export interface HomeShow extends SeasonHeader {
   private: boolean;
   /** Null: they see results straight away (spoiler protection off). */
   seenThrough: number | null;
+  /** How where you are keeps up as episodes air (keep-up.ts): off, Live ("ask") or by itself ("auto"); off on one you play. */
+  keepUp: KeepUp;
+  /** Live's "Seen it?": the episode that's ended past where you are, when there's one to ask about. */
+  seenIt: number | null;
   upNext: UpNext | null;
   latestAired: number;
   games: GameRef[];
@@ -234,7 +240,7 @@ export interface Home {
 
 export interface Space extends SeasonHeader {
   couchId: string | null;
-  you: { following: boolean; private: boolean; seenThrough: number | null; plays?: boolean };
+  you: { following: boolean; private: boolean; seenThrough: number | null; plays?: boolean; keepUp?: KeepUp; seenIt?: number | null };
   schedule: { release: string; dropAt: string | null; airTz: string; upNext: UpNext | null; latestAired: number } | null;
   games: GameRef[];
   /** `seen`: how far they are, where they share it (step 15 part 3's Where I am); never yours here (that's `you`). */
@@ -1074,11 +1080,24 @@ export function useListingSeason(tvmazeId: number | null) {
 
 export const watching = {
   /** Add a show from its listing or by name, at where you are. */
-  add: (body: { listing: number; seenThrough?: number } | { name: string; seenThrough?: number }) => post<AddedShow>("/api/me/shows", body),
-  /** Follow (or stop following) a season here, watch it privately, say where you are, or answer the nudge. */
-  follow: (seasonId: string, change: { following?: boolean; private?: boolean; seenThrough?: number; nudgeOff?: boolean }) =>
-    sendJson<{ seenThrough: number; following: boolean; private: boolean }>(`/api/me/follows/${seasonId}`, "PUT", change),
+  add: (body: ({ listing: number } | { name: string }) & { seenThrough?: number; live?: boolean }) => post<AddedShow>("/api/me/shows", body),
+  /** Follow (or stop following) a season here, watch it privately, say where you are, answer the nudge, or how it keeps up. */
+  follow: (seasonId: string, change: { following?: boolean; private?: boolean; seenThrough?: number; nudgeOff?: boolean; keepUp?: KeepUp; notYet?: number }) =>
+    sendJson<{ seenThrough: number; following: boolean; private: boolean; keepUp: KeepUp; notYet: number | null }>(`/api/me/follows/${seasonId}`, "PUT", change),
 };
+
+export type { KeepUp } from "@/lib/server/keep-up";
+export type { StepEpisode } from "@/lib/server/schedule";
+
+/** A season's aired episodes for the where stepper (when each aired; titles as far as you've seen, a sport's always). */
+export function useAiredEpisodes(seasonId: string | null) {
+  return useQuery({
+    queryKey: ["new-design", "aired", seasonId],
+    queryFn: () => get<{ episodes: StepEpisode[] }>(`/api/seasons/${seasonId}/aired`),
+    enabled: seasonId != null,
+    staleTime: 300_000,
+  });
+}
 
 /** After adding, following or moving where you are: everything moves on (the hub, the show, what you can see). */
 export const useAfterWatching = useAfterReveal;

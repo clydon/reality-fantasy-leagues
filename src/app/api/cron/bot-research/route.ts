@@ -6,6 +6,7 @@ import { botSend } from "@/lib/server/bot-results";
 import { requireCron } from "@/lib/server/cron";
 import { listingsFor } from "@/lib/server/listings";
 import { listingsDue, refreshListings } from "@/lib/server/tv-listings";
+import { advanceAllAuto } from "@/lib/server/keep-up";
 import { runNext, planRuns } from "@db/bot-research.js";
 
 // The bot research clock (db/bot-research.js): the ask-AI bot's VM calls this, and each call runs at most
@@ -23,6 +24,8 @@ import { runNext, planRuns } from "@db/bot-research.js";
 // The daily listings job rides on these calls (step 11 part 2, src/lib/server/tv-listings.ts): a call that ran no bot job,
 // when today's listings are still to read, reads them after its answer is sent (after()), so it wakes nothing the call
 // hadn't woken already and never holds up a bot run. `listings` in the answer says it did.
+//
+// So do shows set to move along by themselves (keep-up.ts advanceAllAuto): every call moves their marks forward, after its answer.
 //
 // Authorization: Bearer <CRON_SECRET>, the same value in Vercel and the VM's .env.
 export const maxDuration = 300;
@@ -52,5 +55,7 @@ export const POST = apiRoute(async (req) => {
   const out = await runNext(pool, { ask: (prompt, o) => askBot(prompt, { ...o, bot }), send: botSend, now: nowFrom(req) });
   const listings = !out.job && (await listingsDue());
   if (listings) after(() => refreshListings(base, { how: "clock" }).catch((e) => console.error("[listings] the daily run:", e)));
+  // Shows set to move along by themselves (keep-up.ts): marks moved for everyone, so a couch sees each other where they are.
+  after(() => advanceAllAuto().catch((e) => console.error("[keep-up] auto:", e)));
   return NextResponse.json({ ...out, listings });
 });

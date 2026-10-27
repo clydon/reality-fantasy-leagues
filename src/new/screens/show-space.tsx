@@ -75,6 +75,10 @@ export function useShow(seasonId: string) {
     following: space.data ? space.data.you.following : (cached?.following ?? false),
     /** Watched privately: the couch doesn't see it on your list. */
     watchingPrivately: space.data ? space.data.you.private : (cached?.private ?? false),
+    /** How where you are keeps up as episodes air (keep-up.ts): off, Live ("ask") or by itself ("auto"). */
+    keepUp: (space.data ? space.data.you.keepUp : cached?.keepUp) ?? "off",
+    /** Live's "Seen it?": the episode that's ended past where you are, when there's one to ask about. */
+    seenIt: (space.data ? space.data.you.seenIt : cached?.seenIt) ?? null,
     /** You play this season (here or elsewhere): where you are moves with your games' reveals. */
     plays: space.data ? !!space.data.you.plays : !!cached?.games.length,
     /** Set up as a game (step 10): false is "Not a game yet". */
@@ -120,6 +124,7 @@ export function whereTarget(show: ShowData): WhereTarget | null {
     seen: show.seenThrough ?? show.latestAired,
     following: show.following,
     plays: show.plays,
+    keepUp: show.keepUp,
   };
 }
 

@@ -11,6 +11,7 @@ import {
   watching,
   type CatalogSeason,
   type Home,
+  type KeepUp,
   type ListingHit,
 } from "../data";
 import { Btn } from "../ui/parts";
@@ -29,7 +30,7 @@ import { WhereAsk, type WhereSeason } from "./where";
 //   listing  Add to my shows from a TV listing (the guide's Also on, step 11 part 2): where you are, read from the listing's
 //          season as Add a show does, then added; `then` goes on from there (part 3: Plan a watch along on the show it made).
 
-export type WhereTarget = WhereSeason & { seen: number; following: boolean; plays: boolean };
+export type WhereTarget = WhereSeason & { seen: number; following: boolean; plays: boolean; keepUp?: KeepUp };
 type WatchingSheet = { kind: "add" } | { kind: "where"; target: WhereTarget } | { kind: "listing"; hit: ListingHit; then?: (seasonId: string) => void };
 
 type Store = { sheet: WatchingSheet | null; n: number };
@@ -96,12 +97,14 @@ function WhereSheet({ target, onOpenChange }: { target: WhereTarget | null; onOp
           s={t}
           start={t.seen}
           plays={t.plays}
+          keepUp={t.keepUp}
           busy={busy}
           cta={t.following ? "Save" : "Add to my shows"}
-          onSave={async (seen) => {
+          onSave={async (seen, live) => {
             setBusy(true);
             try {
-              await watching.follow(t.seasonId, { following: true, seenThrough: seen });
+              // A show set to move along by itself keeps that (Settings); otherwise Live is the switch's.
+              await watching.follow(t.seasonId, { following: true, seenThrough: seen, ...(t.keepUp === "auto" ? {} : { keepUp: live ? "ask" : "off" }) });
               await refresh();
               toast(savedLine(t.label, t.following, seen));
               close();
@@ -131,10 +134,10 @@ function ListingSheet({ hit, then, onOpenChange }: { hit: ListingHit | null; the
           <ListingWhere
             hit={h}
             busy={busy}
-            onSave={async (seen) => {
+            onSave={async (seen, live) => {
               setBusy(true);
               try {
-                const r = await watching.add({ listing: h.tvmazeId, seenThrough: seen });
+                const r = await watching.add({ listing: h.tvmazeId, seenThrough: seen, live });
                 await refresh();
                 toast(`${r.label} added to your shows${r.ready ? "" : " · not a game yet"}`);
                 close();
@@ -226,10 +229,10 @@ function AddShowSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
       setBusy(false);
     }
   };
-  const addSeason = (s: WhereSeason, ready: boolean, seen: number) =>
+  const addSeason = (s: WhereSeason, ready: boolean, seen: number, live = false) =>
     run(async () => {
       try {
-        await watching.follow(s.seasonId, { following: true, seenThrough: seen });
+        await watching.follow(s.seasonId, { following: true, seenThrough: seen, ...(live ? { keepUp: "ask" as const } : {}) });
       } catch (e) {
         // You play it: it's followed, and where you are moves with your games.
         if ((e as { status?: number }).status !== 409) throw e;
@@ -293,14 +296,14 @@ function AddShowSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
             <ListingsCredit />
           </>
         )}
-        {step?.kind === "season" && <WhereAsk s={step.s} start={0} cta="Add to my shows" busy={busy} onSave={(seen) => addSeason(step.s, step.ready, seen)} />}
+        {step?.kind === "season" && <WhereAsk s={step.s} start={0} cta="Add to my shows" busy={busy} onSave={(seen, live) => addSeason(step.s, step.ready, seen, live)} />}
         {step?.kind === "listing" && (
           <ListingWhere
             hit={step.hit}
             busy={busy}
-            onSave={(seen) =>
+            onSave={(seen, live) =>
               run(async () => {
-                const r = await watching.add({ listing: step.hit.tvmazeId, seenThrough: seen });
+                const r = await watching.add({ listing: step.hit.tvmazeId, seenThrough: seen, live });
                 await done(r.label, r.ready);
               })
             }
@@ -334,7 +337,7 @@ function AddShowSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o:
 }
 
 /** Where you are in a show from the TV listings: its season, read from the listing first (how much has aired). */
-function ListingWhere({ hit, busy, onSave }: { hit: ListingHit; busy: boolean; onSave: (seen: number) => void }) {
+function ListingWhere({ hit, busy, onSave }: { hit: ListingHit; busy: boolean; onSave: (seen: number, live: boolean) => void }) {
   const { data, error } = useListingSeason(hit.tvmazeId);
   if (error) return <p className="text-[14px] text-live">{(error as Error).message}</p>;
   if (!data) return <div aria-busy className="h-[150px] animate-pulse rounded-[4px] bg-background" />;
@@ -348,6 +351,7 @@ function ListingWhere({ hit, busy, onSave }: { hit: ListingHit; busy: boolean; o
     aired: season ? season.aired : 0,
     status: season?.status ?? "upcoming",
     premiere: season?.premiere ?? null,
+    episodes: data.episodes,
   };
   return <WhereAsk s={s} start={0} cta="Add to my shows" busy={busy} onSave={onSave} />;
 }

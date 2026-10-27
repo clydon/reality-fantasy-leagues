@@ -125,9 +125,39 @@ export function titledFor<T extends { number: number; title: string | null }>(ep
   return ep.number <= seen || !ep.title ? ep : { ...ep, title: null };
 }
 
+/** An aired episode as the where stepper shows it (watching/where.tsx), so stepping says which one it is. */
+export interface StepEpisode {
+  number: number;
+  airAt: string | null;
+  title: string | null;
+}
+
+/**
+ * The aired episodes for the where stepper: when each aired, and its title as titledFor lets it out, except a sport's, whose
+ * titles are the matchups listed before each game ("Game 4: Brewers at Rays") and give nothing away.
+ */
+export function stepEpisodes(episodes: { number: number; airAt: string | null; title: string | null }[], aired: number, seen: number, kind: string | null): StepEpisode[] {
+  return episodes
+    .filter((e) => e.number <= aired)
+    .map((e) => ({ number: e.number, airAt: e.airAt, title: kind === "sport" || e.number <= seen ? e.title : null }));
+}
+
 /** The latest episode that has aired (started), or 0. */
 export function latestAired(schedule: SeasonSchedule | undefined, now = new Date()): number {
   let n = 0;
   for (const ep of schedule?.episodes ?? []) if (ep.airAt && new Date(ep.airAt).getTime() <= now.getTime()) n = ep.number;
+  return n;
+}
+
+/** The latest episode that has finished (started and run its length; a streaming season's are out as they drop), or 0: what
+ *  Live's "Seen it?" asks about (keep-up.ts). */
+export function latestEnded(schedule: SeasonSchedule | undefined, now = new Date()): number {
+  const binge = schedule?.release === "binge";
+  let n = 0;
+  for (const ep of schedule?.episodes ?? []) {
+    if (!ep.airAt) continue;
+    const end = new Date(ep.airAt).getTime() + (binge ? 0 : (ep.runtimeMin ?? DEFAULT_RUNTIME_MIN) * 60_000);
+    if (end <= now.getTime()) n = ep.number;
+  }
   return n;
 }

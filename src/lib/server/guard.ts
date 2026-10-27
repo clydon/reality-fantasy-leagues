@@ -4,12 +4,14 @@ import { SHARE_DEFAULT, type ShareSwitch, type Sharing } from "@/lib/sharing";
 import { pool } from "./db";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { leagueStates } from "./league-states";
+import { advanceAuto } from "./keep-up";
 
 // The spoiler guard, server side (docs/PLAN-new-design.md step 0b; the mock's guard.js rules). Every read
 // endpoint of the new design trims what it sends through here, so nothing past someone's episode leaves the
 // server, whatever the screen does with it:
 //   1. Time: nothing after the episode they've seen (show_follows.seen_through), and an unknown episode is
-//      episode 0 (fail closed). Something with no known episode isn't sent at all.
+//      episode 0 (fail closed). Something with no known episode isn't sent at all. A show set to move along by itself
+//      (show_follows.keep_up 'auto', keep-up.ts) has its mark moved to what's aired first, so it's still the one mark.
 //   2. Secrets: a format's secret roles (the Traitors' faction) only for people who have left by then.
 //   3. Sharing: what someone's couches see of them (shares, sharesSql). A show watched privately is never shared
 //      (show_follows.private), and on the rest What your couch sees decides (step 15 part 3; user_settings.share_*,
@@ -37,10 +39,12 @@ export function progressFrom(mark: number | null | undefined, immediate: boolean
 export async function seenThrough(userId: string, seasonId: string, db: Queryable = pool): Promise<number> {
   const { rows } = await db.query(
     `SELECT (SELECT seen_through FROM show_follows WHERE user_id = $1 AND season_id = $2) AS mark,
+            (SELECT keep_up FROM show_follows WHERE user_id = $1 AND season_id = $2) AS keep_up,
             COALESCE((SELECT show_results_immediately FROM user_settings WHERE user_id = $1), false) AS immediate`,
     [userId, seasonId]
   );
-  const mark = rows[0]?.mark as number | null;
+  let mark = rows[0]?.mark as number | null;
+  if (rows[0]?.keep_up === "auto") mark = (await advanceAuto([seasonId], userId, db)).get(`${userId}/${seasonId}`) ?? mark;
   const immediate = !!rows[0]?.immediate;
   if (!immediate) return progressFrom(mark, false, []);
   const { rows: seats } = await db.query(
@@ -62,13 +66,18 @@ export async function seenThrough(userId: string, seasonId: string, db: Queryabl
  */
 export async function seenThroughAll(userId: string, db: Queryable = pool): Promise<Map<string, number>> {
   const { rows } = await db.query(
-    `SELECT f.season_id, f.seen_through,
+    `SELECT f.season_id, f.seen_through, f.keep_up,
             COALESCE((SELECT show_results_immediately FROM user_settings WHERE user_id = $1), false) AS immediate
        FROM show_follows f WHERE f.user_id = $1`,
     [userId]
   );
+  const auto = rows.filter((r) => r.keep_up === "auto").map((r) => r.season_id as string);
+  const moved = auto.length ? await advanceAuto(auto, userId, db) : new Map<string, number>();
   const out = new Map<string, number>();
-  for (const r of rows) out.set(r.season_id as string, r.immediate ? await seenThrough(userId, r.season_id, db) : progressFrom(r.seen_through, false, []));
+  for (const r of rows) {
+    const mark = moved.get(`${userId}/${r.season_id}`) ?? r.seen_through;
+    out.set(r.season_id as string, r.immediate ? await seenThrough(userId, r.season_id, db) : progressFrom(mark, false, []));
+  }
   return out;
 }
 

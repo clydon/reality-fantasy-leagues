@@ -31,6 +31,7 @@ import { PollRow } from "./polls";
 import { bingoEpisode as toBingo, BingoRow, openBingo, type BingoTarget } from "./bingo";
 import { WatchAlongCard } from "./watch-along";
 import { RemindRow } from "./remind";
+import { SeenItCard } from "./seen-it";
 import { useSeasonPolls } from "../data";
 
 // Tonight (the mock's refine.js tabTonight, option 2C, 2026-10-24): the phase as a heading from the clock, then
@@ -59,6 +60,7 @@ export function Tonight({ seasonId, show }: { seasonId: string; show: ShowData }
       {playing && <CatchUpStrips show={show} onOpen={setCatchUp} />}
       <CatchUpSheet show={show} game={catchUp} onOpenChange={(o) => !o && setCatchUp(null)} />
       <DropPlate show={show} />
+      {!playing && <SeenItCard show={show} />}
       <PhaseHead show={show} />
       {playing && <RemindRow seasonId={seasonId} show={show} />}
       {!playing && <Following show={show} />}

@@ -5,7 +5,8 @@ import { pool, HttpError } from "@/lib/server/db";
 import { couchMembers, healCouches, requireCouch } from "@/lib/server/couches";
 import { seenThrough } from "@/lib/server/guard";
 import { followsOf, games, playersOf, seasonHeaders } from "@/lib/server/show-space";
-import { latestAired, seasonSchedules, titledFor, upNext } from "@/lib/server/schedule";
+import { latestAired, latestEnded, seasonSchedules, titledFor, upNext } from "@/lib/server/schedule";
+import { seenItAsk } from "@/lib/server/keep-up";
 import { LEAGUE_SEASON_JOIN } from "@/lib/server/league-season";
 
 // A show space's frame (docs/PLAN-new-design.md step 0b; the screens are steps 0d and 1): the show bar's
@@ -30,7 +31,7 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
     seasonSchedules([seasonId]),
     seenThrough(user.id, seasonId),
     pool.query(
-      `SELECT following, private,
+      `SELECT following, private, COALESCE(keep_up, 'off') AS keep_up, not_yet,
               EXISTS (SELECT 1 FROM league_memberships m JOIN leagues l ON l.id = m.league_id ${LEAGUE_SEASON_JOIN} WHERE m.user_id = $1 AND ss.id = $2) AS plays
          FROM (SELECT 1) one LEFT JOIN show_follows f ON f.user_id = $1 AND f.season_id = $2`,
       [user.id, seasonId]
@@ -64,6 +65,12 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
       plays: !!follow[0]?.plays,
       // null: they see results straight away (spoiler protection off in Account settings).
       seenThrough: Number.isFinite(seen) ? seen : null,
+      // How where you are keeps up (keep-up.ts; off on a season you play), and Live's "Seen it?" episode when there's one.
+      keepUp: follow[0]?.plays ? "off" : follow[0]?.keep_up,
+      seenIt:
+        follow[0]?.plays || !Number.isFinite(seen)
+          ? null
+          : seenItAsk({ keepUp: follow[0]?.keep_up, seen, notYet: follow[0]?.not_yet ?? null }, latestEnded(schedule, new Date())),
     },
     schedule: schedule
       ? {

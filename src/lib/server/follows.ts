@@ -1,5 +1,6 @@
 import { pool, HttpError } from "./db";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
+import { KEEP_UPS, type KeepUp } from "./keep-up";
 
 // Per-person progress and following (db/migrations/0102 show_follows): where someone is in a season, and
 // whether they follow it, watching privately or not.
@@ -64,6 +65,30 @@ export interface FollowChange {
   private?: unknown;
   /** The hub's "you both watch" nudge for this show: true once it's been answered (Not now), so it's never asked again. */
   nudgeOff?: unknown;
+  /** How where you are moves as episodes air (keep-up.ts): "off", "ask" (Live) or "auto". */
+  keepUp?: unknown;
+  /** Live's "Not yet": the episode you haven't seen, so it isn't asked about again until a newer one ends. */
+  notYet?: unknown;
+}
+
+export interface Follow {
+  seenThrough: number;
+  following: boolean;
+  private: boolean;
+  keepUp: KeepUp;
+  notYet: number | null;
+}
+
+const RETURNING = `RETURNING seen_through AS "seenThrough", following, private, keep_up AS "keepUp", not_yet AS "notYet"`;
+
+/** Does this person play a game on this season? (Then where they are moves with their games' reveals.) */
+async function playsSeason(userId: string, seasonId: string): Promise<boolean> {
+  const { rows } = await pool.query(
+    `SELECT 1 FROM league_memberships m JOIN leagues l ON l.id = m.league_id ${LEAGUE_SEASON_JOIN}
+      WHERE m.user_id = $1 AND ss.id = $2 LIMIT 1`,
+    [userId, seasonId]
+  );
+  return rows.length > 0;
 }
 
 /**
@@ -87,41 +112,49 @@ export async function setFollow(userId: string, seasonId: string, change: Follow
     if (typeof change.nudgeOff !== "boolean") throw new HttpError(400, "nudgeOff must be true or false");
     set.nudge_off_at = change.nudgeOff ? "now()" : "NULL";
   }
+  const values: Record<string, string | number> = {};
+  if (change.keepUp !== undefined) {
+    if (!KEEP_UPS.includes(change.keepUp as KeepUp)) throw new HttpError(400, `keepUp must be one of ${KEEP_UPS.join(", ")}`);
+    if (change.keepUp !== "off" && (await playsSeason(userId, seasonId))) throw new HttpError(409, "You play this season: where you are moves with your games' reveals.");
+    values.keep_up = change.keepUp as KeepUp;
+  }
+  if (change.notYet !== undefined) {
+    if (!Number.isInteger(change.notYet) || (change.notYet as number) < 1) throw new HttpError(400, "notYet must be an episode");
+    values.not_yet = change.notYet as number;
+  }
   if (change.seenThrough !== undefined) {
     const n = change.seenThrough;
     const max = (season[0].episode_count as number | null) ?? 200;
     if (!Number.isInteger(n) || (n as number) < 0 || (n as number) > max) throw new HttpError(400, `seenThrough must be an episode from 0 to ${max}`);
-    const { rows: plays } = await pool.query(
-      `SELECT 1 FROM league_memberships m JOIN leagues l ON l.id = m.league_id ${LEAGUE_SEASON_JOIN}
-        WHERE m.user_id = $1 AND ss.id = $2 LIMIT 1`,
-      [userId, seasonId]
-    );
-    if (plays.length) throw new HttpError(409, "You play this season: where you are moves with your games' reveals.");
+    if (await playsSeason(userId, seasonId)) throw new HttpError(409, "You play this season: where you are moves with your games' reveals.");
     fields.seen_through = n as number;
+    // Moving where you are answers Live's question, whichever way.
+    if (change.notYet === undefined) set.not_yet = "NULL";
     // Finished: when the mark first reached the last episode; moving back from it takes that away.
     const done = !!season[0].episode_count && (n as number) >= (season[0].episode_count as number);
     set.finished_at = done ? "now()" : "NULL";
     onUpdate.finished_at = done ? "COALESCE(show_follows.finished_at, now())" : "NULL";
   }
-  if (!Object.keys(fields).length && !Object.keys(set).length) throw new HttpError(400, "Nothing to change");
-  const cols = Object.keys(fields);
+  if (!Object.keys(fields).length && !Object.keys(set).length && !Object.keys(values).length) throw new HttpError(400, "Nothing to change");
+  const cols = [...Object.keys(fields), ...Object.keys(values)];
+  const valueOf = (c: string) => (c in fields ? fields[c] : values[c]);
   const fixed = Object.keys(set);
   if (!cols.length) {
     // Only the nudge: on a follow that's there (answering it never follows a show).
     const { rows } = await pool.query(
       `UPDATE show_follows SET ${fixed.map((c) => `${c} = ${set[c]}`).join(", ")}, updated_at = now() WHERE user_id = $1 AND season_id = $2
-       RETURNING seen_through AS "seenThrough", following, private`,
+       ${RETURNING}`,
       [userId, seasonId]
     );
     if (!rows.length) throw new HttpError(404, "You don't follow that show");
-    return rows[0] as { seenThrough: number; following: boolean; private: boolean };
+    return rows[0] as Follow;
   }
   const { rows } = await pool.query(
     `INSERT INTO show_follows (user_id, season_id${[...cols, ...fixed].map((c) => `, ${c}`).join("")})
      VALUES ($1, $2${cols.map((_, i) => `, $${i + 3}`).join("")}${fixed.map((c) => `, ${set[c]}`).join("")})
      ON CONFLICT (user_id, season_id) DO UPDATE SET ${[...cols.map((c) => `${c} = EXCLUDED.${c}`), ...fixed.map((c) => `${c} = ${onUpdate[c] ?? set[c]}`)].join(", ")}, updated_at = now()
-     RETURNING seen_through AS "seenThrough", following, private`,
-    [userId, seasonId, ...cols.map((c) => fields[c])]
+     ${RETURNING}`,
+    [userId, seasonId, ...cols.map(valueOf)]
   );
-  return rows[0] as { seenThrough: number; following: boolean; private: boolean };
+  return rows[0] as Follow;
 }
