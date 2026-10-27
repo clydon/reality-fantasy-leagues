@@ -488,3 +488,18 @@ test("clear: an episode with nothing pasted is a harmless no-op", async () => {
   const out = await R.clearLeagueResearch(pool, "league-a", 4);
   assert.deepEqual(out, { cleared: false, withdrawn: 0 });
 });
+
+test("a double episode: an answer dated the night both aired is the second one's when the schedule says so", () => {
+  const { pasteEpisodeMismatch } = require("../db/episode-research.js");
+  // Episode 1 is stored, dated the premiere night; episodes 1 and 2 aired back to back that night (an hour apart, UTC).
+  const siblings = [{ episode_number: 1, title: "A New Dawn", air_date: "September 17, 2026", summary: null }];
+  const parsed = { episodeTitle: "", airDate: "September 17, 2026", summary: "" };
+  const schedule = [
+    { number: 1, airsAt: "2026-09-18T00:00:00.000Z" },
+    { number: 2, airsAt: "2026-09-18T01:00:00.000Z" },
+    { number: 3, airsAt: "2026-09-25T00:00:00.000Z" },
+  ];
+  assert.equal(pasteEpisodeMismatch(parsed, 2, { siblings, leagueEpisodes: schedule }), null, "the schedule puts episode 2 that night too");
+  assert.match(pasteEpisodeMismatch(parsed, 2, { siblings }).message, /episode 1's/, "without the schedule it reads as episode 1's (the bug)");
+  assert.match(pasteEpisodeMismatch(parsed, 3, { siblings, leagueEpisodes: schedule }).message, /episode 1's/, "a week later's still caught");
+});

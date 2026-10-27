@@ -12,17 +12,16 @@
 //   - Nothing counted: the stats have the cast and through 0; Fill in what happened says Episodes 1-4 have no results.
 //   - A game on the season (a league row): results aren't ours to look up (null); the game gone, they are again.
 //   - Ask: the recaps asked and filled in, Episodes 1-4 queued (waiting); a second ask adds nothing.
-//   - The bot's clock (POST /api/cron/bot-research as the VM calls it, with its test clock): who went home in Episodes 1-4
-//     first (a short question each), so the Cast tab shows who's out across the season before any full results, nobody
-//     told yet; every run asks the bot to stream its progress. Then each episode's full results in order: while Episode 1's
-//     answer is written, how many people it's got to of the six (the run's progress, 0153); Episode 2 fails once, waits two
-//     minutes and goes again; Episode 3 fails twice and is given up, so 4 goes; each that ends tells the watcher (the bell:
-//     researchDone, no names), nobody else.
+//   - The bot's clock (POST /api/cron/bot-research as the VM calls it, with its test clock): each episode's full results, one
+//     at a time in order, every run asking the bot to stream its progress: while Episode 1's answer is written, how many
+//     people it's got to of the six (the run's progress, 0153); Episode 2 fails once, waits two minutes and goes again;
+//     Episode 3 fails twice and is given up, so 4 goes; each that ends tells the watcher (the bell: researchDone, no names),
+//     nobody else.
 //   - The stats: through 4 for the watcher and friend, 1 for late; points as the researched rulebook suggests them.
 //   - Try again: Episode 3 asked again and in.
 //   In a real browser at --width (390 by default), as the watcher: the review with photos; the Cast tab's faces with nothing
-//   counted and the card; the Cast tab's Out after who went home; the Episodes tab's card mid-answer ("Episode 1: n of 6
-//   players written up" and its bar) and with each episode's progress part-way; the Cast tab with stats after, and
+//   counted and the card; the Episodes tab's card mid-answer ("Episode 1: n of 6 players written up" and its bar) and
+//   between runs (what's next), with each episode's progress part-way; the Cast tab with stats after, and
 //   Try again for the one not found. No page errors; nothing wider than the screen. Screenshots go to <outDir>.
 //
 //   npm run dev                                                  (in another terminal; CRON_SECRET in .env.local)
@@ -171,14 +170,6 @@ function recapAnswer(prompt) {
       if (kind === "setup") return `Here's how it works:\n${fence}json\n${JSON.stringify(RULEBOOK)}\n${fence}`;
       if (kind === "cast") return `${fence}json\n${JSON.stringify({ castaways: CAST.map((name) => ({ name, photoUrl: "", startingRole: "Faithful" })), sources: ["https://example.invalid/cast"] })}\n${fence}`;
       if (/Search the web for what happened in each/.test(prompt)) return recapAnswer(prompt);
-      if (kind === "quick") {
-        // Who went home: the one murdered, from two sources (what a quick answer needs to be trusted on its own); for the
-        // premiere, nobody (as ChatGPT said of the real one), which isn't trusted on its own: its full results settle it.
-        const n = Number((prompt.match(/episode (\d+)/i) || [])[1]);
-        const left = n === 1 ? [] : [{ name: OUT[n], how: "Murdered" }];
-        const answer = { found: true, episodeTitle: null, left, headline: n === 1 ? "The castle opened." : `${OUT[n]} was murdered.`, sources: [`https://a.invalid/castle/${n}`, `https://b.invalid/castle/${n}`] };
-        return `${fence}json\n${JSON.stringify(answer)}\n${fence}`;
-      }
       if (kind === "full") {
         const { n, text } = fullAnswer(prompt);
         if (fails[n] > 0) {
@@ -305,56 +296,16 @@ function recapAnswer(prompt) {
     check(again.status === 409, "a second ask has nothing to add", `${again.status}`);
     check((await recaps("friend"))?.results?.asked?.length === 4, "the friend sees the same progress (results are the season's)");
 
-    // ---- the bot's clock: who went home in each first ----
+    // ---- the bot's clock: each episode's full results in order, with how far each answer has got ----
     const t0 = Date.now();
     const at = (min) => new Date(t0 + min * 60_000);
-    const quicks = [];
-    for (let i = 0; i < 4; i++) quicks.push(await tick());
-    check(
-      quicks.every((r, i) => r?.job?.slot === "asked-quick" && r.job.kind === "quick" && r.job.episode === i + 1 && !r.asked) &&
-        quicks[0].ok === false && /nobody went home/i.test(quicks[0].message) && quicks.slice(1).every((r) => r.ok === true),
-      "the clock: who went home in Episodes 1-4 first, one short question each, in order (the premiere's \"nobody\" isn't trusted alone)",
-      JSON.stringify(quicks.map((r) => [r?.job?.slot, r?.job?.episode, r?.ok, r?.message]))
-    );
-    const rq = await recaps();
-    const byEp = Object.fromEntries((rq?.results?.asked ?? []).map((a) => [a.episode, a]));
-    check(
-      byEp[1]?.checked && !byEp[1].out && [2, 3, 4].every((n) => byEp[n]?.out && byEp[n].checked) && rq.results.asked.every((a) => a.status === "waiting"),
-      "each episode's who-went-home asked: 2-4 in, the premiere's not sure yet; everyone's results still to come",
-      JSON.stringify(rq?.results?.asked)
-    );
-    const sq = await stats();
-    check(
-      sq?.through === 4 && sq.cast.find((c) => c.name === "Ada Moat")?.out === null && ["Bea Tower", "Dot Gate", "Cal Keep"].every((n, i) => sq.cast.find((c) => c.name === n)?.out === i + 2),
-      "the Cast tab already shows who's out in Episodes 2-4",
-      JSON.stringify(sq?.cast?.map((c) => [c.name, c.out]))
-    );
-    check((await bell("watcher")).length === 0, "nobody's told yet (that's for each episode's full results)");
-    check(bot.asked.filter((q) => q.kind === "quick").every((q) => q.stream === "progress"), "every run asks the bot to stream its progress");
-    if (browser) {
-      const { page } = browser;
-      await page.goto(`${BASE}/show/${sid}/cast`);
-      await page.locator("[data-slider]").waitFor({ timeout: 20_000 });
-      check((await page.locator('[data-group="Out"] [data-cast]').count()) === 3, "in the browser: the Cast tab's Out has the three, before any full results");
-      await page.locator("[data-results-next]").waitFor({ timeout: 10_000 }).catch(() => {});
-      check(
-        (await page.locator('[data-result-ep="1"][data-checked]:not([data-out])').count()) === 1 &&
-          (await page.locator('[data-result-ep="2"][data-out]').count()) === 1 &&
-          /who went home: all 4 · results next/.test(await page.locator("[data-results-count]").innerText()) &&
-          /Next: Episode 1's results/.test(await page.locator("[data-results-next]").innerText()),
-        "its card: the premiere asked (not sure yet), 2-4 in, \"who went home: all 4 · results next\", and what's next"
-      );
-      await shot(page, "3a-cast-who-went-home");
-    }
-
-    // ---- then everyone's results, episode by episode, with how far each answer has got ----
     // A slow answer (half written 4 s in, done 4 s later), long enough to read and to load a page in the middle of.
     bot.delayMs = 8000;
     const slow = tick();
     let seen = null;
     for (let i = 0; i < 40 && !seen; i++) {
       const now = (await recaps())?.results?.now;
-      if (now?.part === "full" && now.stage === "writing" && now.done > 0) seen = now;
+      if (now?.stage === "writing" && now.done > 0) seen = now;
       else await sleep(150);
     }
     check(seen?.episode === 1 && seen.of === 6 && seen.done >= 1 && seen.done <= 6, "while Episode 1's answer is written: how many people it's got to, of the six", JSON.stringify(seen));
@@ -368,7 +319,8 @@ function recapAnswer(prompt) {
     }
     const run1 = await slow;
     bot.delayMs = 0;
-    check(run1?.job?.slot === "asked" && run1.job.episode === 1 && run1.ok === true && run1.asked?.ok === true, "then Episode 1's full results: in", JSON.stringify(run1));
+    check(run1?.job?.slot === "asked" && run1.job.episode === 1 && run1.ok === true && run1.asked?.ok === true, "the clock: Episode 1's full results first, in", JSON.stringify(run1));
+    check(bot.asked.filter((q) => q.kind === "full").every((q) => q.stream === "progress"), "every run asks the bot to stream its progress");
     check(JSON.stringify(statusOf(await recaps())) === JSON.stringify({ 1: "done", 2: "waiting", 3: "waiting", 4: "waiting" }), "1 in, the rest waiting");
     const b1 = await bellAfter("watcher", 1);
     check(b1.length === 1 && /Episode 1's results are in/.test(b1[0].title) && /Players tab counts them/.test(b1[0].body) && b1[0].link === `/show/${sid}/cast` && !CAST.some((n) => b1[0].body.includes(n)), "the watcher hears Episode 1 is in (no names), opening the Cast tab", JSON.stringify(b1));
@@ -378,8 +330,9 @@ function recapAnswer(prompt) {
       await page.goto(`${BASE}/show/${sid}/episodes`);
       await page.locator("[data-results-progress]").waitFor({ timeout: 20_000 });
       check(
-        (await page.locator('[data-result-ep="1"][data-status="done"]').count()) === 1 && (await page.locator('[data-result-ep="4"][data-status="waiting"]').count()) === 1 && /1 of 4 in/.test(await page.locator("[data-results-count]").innerText()),
-        "the Episodes tab's card: 1 of 4 in, the rest waiting"
+        (await page.locator('[data-result-ep="1"][data-status="done"]').count()) === 1 && (await page.locator('[data-result-ep="4"][data-status="waiting"]').count()) === 1 && /1 of 4 in/.test(await page.locator("[data-results-count]").innerText()) &&
+          /Next: Episode 2/.test((await page.locator("[data-results-next]").count()) ? await page.locator("[data-results-next]").innerText() : ""),
+        "the Episodes tab's card: 1 of 4 in, the rest waiting, \"Next: Episode 2\" between runs"
       );
       check((await wide(page)) <= width, "the Episodes tab fits the screen");
       await shot(page, "3-episodes-progress");

@@ -101,16 +101,15 @@ export function runJob(
 /** A season row the way runJob wants it (schedule, air clock), or undefined. */
 export function loadSeasonForJob(pool: Pool, seasonId: string): Promise<unknown>;
 
-/** An asked episode's run rows carry this slot (db/migrations/0152); two tries each. Its who-went-home run's, the quick one. */
+/** An asked episode's run rows carry this slot (db/migrations/0152); two tries each. */
 export const ASKED_SLOT: string;
-export const ASKED_QUICK_SLOT: string;
 export const ASKED_TRIES: number;
 type RunTry = { started_at: Date | string; ok: boolean | null };
-/** One season's next asked run (who went home for each first, then each one's full results), a hold, or null. */
+/** One season's next asked run (each episode's full results in order), a hold, or null. */
 export function seasonAskNext(
-  asks: { episode_number: number; asked_at: Date | string; tries: RunTry[]; quick_tries: RunTry[]; has_results: boolean }[],
+  asks: { episode_number: number; asked_at: Date | string; tries: RunTry[] }[],
   now: Date
-): { episode: number; kind: "quick" | "full"; slot: string; at: Date } | { hold: Date } | null;
+): { episode: number; kind: "full"; slot: string; at: Date } | { hold: Date } | null;
 /** A run still marked running after this long was cut off: it counts as a failed try. */
 export const RUNNING_STALE_MS: number;
 /** When an asked episode's next try may start (its runs since it was asked), or null for never. */

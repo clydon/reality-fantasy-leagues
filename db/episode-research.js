@@ -2135,6 +2135,13 @@ function dayNumber(printed) {
 // a week apart.
 const sameDay = (a, b) => Math.abs(a - b) <= 1;
 
+/** A season's episodes with when each airs (season_episodes), as pasteEpisodeMismatch reads a league's: [{ number, airsAt }]. */
+async function scheduledEpisodes(pool, seasonId) {
+  if (!seasonId) return [];
+  const { rows } = await pool.query("SELECT number, air_at FROM season_episodes WHERE season_id = $1 AND air_at IS NOT NULL", [seasonId]);
+  return rows.map((r) => ({ number: r.number, airsAt: new Date(r.air_at).toISOString() }));
+}
+
 /**
  * Whether a parsed answer reads like another episode's results rather than `episodeNumber`'s.
  *   siblings        -- [{ episode_number, title, air_date, summary }]: what stored research says of each episode
@@ -2288,7 +2295,9 @@ async function pastedRun(pool, ctx, episodeNumber, trimmed, opts) {
   if (opts.checkEpisode) {
     const mismatch = pasteEpisodeMismatch(parsed, episodeNumber, {
       siblings: await siblingEpisodeFacts(pool, ctx),
-      leagueEpisodes: opts.leagueEpisodes,
+      // No league's episodes (the bot's runs, a season's own): the season's schedule says when each aired, so an answer
+      // dated the night this one aired is this one's, even when another aired the same night (a double episode).
+      leagueEpisodes: opts.leagueEpisodes ?? (await scheduledEpisodes(pool, ctx.seasonId)),
     });
     // `code` lets the route tell it from a bad paste: it asks the commissioner to confirm rather than refusing.
     if (mismatch) throw Object.assign(new Error(mismatch.message), { code: "EPISODE_MISMATCH", episode: mismatch.episode });
