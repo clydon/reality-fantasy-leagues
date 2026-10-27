@@ -28,6 +28,7 @@ import type { CatchUpReveal } from "@/lib/server/season-episodes";
 import type { ListingHit } from "@/lib/game/listing";
 import type { AddedShow } from "@/lib/server/add-show";
 import type { KeepUp } from "@/lib/server/keep-up";
+import type { RecapState } from "@/lib/server/episode-recaps";
 import type { StepEpisode } from "@/lib/server/schedule";
 import type { ListingSeason } from "@/lib/server/listings";
 import type { MakeState } from "@/lib/server/make-game";
@@ -1087,6 +1088,24 @@ export const watching = {
 };
 
 export type { KeepUp } from "@/lib/server/keep-up";
+export type { RecapState } from "@/lib/server/episode-recaps";
+
+/** Fill in what happened (episode-recaps.ts): which aired episodes have no recap, and our bot's ask, read while it's going. */
+export function useRecaps(seasonId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "recaps", seasonId],
+    queryFn: () => get<RecapState>(`/api/seasons/${seasonId}/recaps`),
+    enabled: enabled && seasonId != null,
+    staleTime: 30_000,
+    refetchInterval: (q) => (q.state.data?.asking ? 4000 : false),
+  });
+}
+
+export const recaps = {
+  ask: (seasonId: string) => post<RecapState>(`/api/seasons/${seasonId}/recaps`, { action: "ask" }),
+  paste: (seasonId: string, answer: string) => post<RecapState & { filled: number }>(`/api/seasons/${seasonId}/recaps`, { answer }),
+  prompt: (seasonId: string) => get<{ prompt: string }>(`/api/seasons/${seasonId}/recaps?prompt=1`),
+};
 export type { StepEpisode } from "@/lib/server/schedule";
 
 /** A season's aired episodes for the where stepper (when each aired; titles as far as you've seen, a sport's always). */

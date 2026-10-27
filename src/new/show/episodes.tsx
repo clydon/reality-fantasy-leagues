@@ -19,6 +19,7 @@ import { BingoResults } from "./bingo";
 import { ShowChangeCard } from "./show-change";
 import { CorrectionPlates, CorrectionRow, SomethingWrong } from "./something-wrong";
 import { playsWaivers, WaiverEpisodeRow } from "./waivers";
+import { RecapsCard } from "./recaps";
 
 // Episodes (the mock's show.js tabEpisodes and episodePage, episode.js's locked row, waivers.js's row): this week's
 // episode and who's set for it, the next results to reveal, then every episode: one whose results are in but hidden
@@ -113,6 +114,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
           </button>
         </section>
       )}
+      {eps && <RecapsCard seasonId={seasonId} show={show} eps={eps} />}
       <section className="mt-[26px] px-4">
         <div className="mb-3 flex items-baseline justify-between gap-3">
           <h2 className="type-caption text-[24px]">Every {show.words.episode.toLowerCase()}</h2>
@@ -206,18 +208,23 @@ function AiredRow({ e, solo, streaming, word = "Episode", onRate }: { e: Episode
           {e.airAt && !streaming ? `Aired ${airTime(Date.parse(e.airAt))} · ` : ""}
           {e.watched ? "You've seen it" : "Not seen yet"}
         </small>
+        {e.summary && (
+          <small data-ep-summary className="mt-1 block text-[13.5px] leading-snug text-foreground/90">
+            {e.summary}
+          </small>
+        )}
       </span>
     </>
   );
   if (!e.watched) {
     return (
-      <div data-ep-aired={e.number} data-watched="no" className="flex min-h-[68px] items-center gap-3 border-t border-border">
+      <div data-ep-aired={e.number} data-watched="no" className="flex min-h-[68px] items-center gap-3 border-t border-border py-2">
         {body}
       </div>
     );
   }
   return (
-    <button type="button" data-ep-aired={e.number} data-watched="yes" onClick={onRate} className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border text-left">
+    <button type="button" data-ep-aired={e.number} data-watched="yes" onClick={onRate} className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border py-2.5 text-left">
       {body}
       <VerdictMark v={e.verdict} solo={solo} rate />
     </button>

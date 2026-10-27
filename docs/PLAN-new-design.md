@@ -143,6 +143,11 @@ step's As built.
   bingo, calls, rate, remind, watch along, something wrong), couch pages, the guide, the desk, and notifications and pushes.
   Any step on those can take them by reading `show.words`. Also: a season numbered by year shows "S2026" in the show bar's
   title ("2026" would read better), and the desk has no field for the episode word yet (an admin can't correct "Event").
+- **Fill in what happened (2026-10-27, episode-recaps.ts, migration 0143) left these alone.** (1) It's a tap: nothing fills in a new
+  episode by itself when it airs; a bot clock run a few hours after each episode of a followed, unresearched show could (the
+  schedule's pattern, db/bot-research.js). (2) Recaps show on a show you only watch (Episodes' aired rows); a show you play has
+  research, and its episode page doesn't show a recap. (3) A sport's players still have no source (the Players tab says so); Make
+  it a game's cast question is the only way in. (4) Recaps feed nothing else yet (stats, trivia, the guide).
 - **"All set" beyond the hub's Up next** (2026-10-27: Up next's All set plate came out, the user's call: a line that asks nothing
   of you is noise, and it showed on a show with no game too). Two cousins stay, both with something to tap: Tonight's Your moves
   card "You're set for Episode N" (show/tonight.tsx YourMoves, with Change) and the moves dock "All set for Episode N" (show/dock.tsx,

@@ -41,6 +41,8 @@ export interface EpisodeRow extends Partial<Omit<EpisodeSeen, "number" | "stage"
   watched?: boolean;
   /** Its title from the listings, once you've seen it (a title can give an episode away). */
   title?: string | null;
+  /** What happened (Fill in what happened: episode-recaps.ts, 0143), once you've seen it. */
+  summary?: string | null;
   /** Rate it (step 12 part 1): the couch's verdict and your stars, on an episode you've seen (ratings.ts seasonVerdicts; the
    *  couch's people who share the show, or everyone on Game Your Show's with nobody else on the couch). */
   verdict?: EpisodeVerdictLine;
@@ -69,11 +71,13 @@ const catchingUpIn = (h: GameHere) => StateLogic.GhostLogic.isCatchingUp(h.state
 
 /** The episodes you may be told about, merged across your games here (or, playing none, the season's own results). */
 export async function seasonEpisodes(user: SessionUser, seasonId: string, couchId: string | null): Promise<SeasonEpisodes> {
-  const [{ seen, here: all }, schedules, follow] = await Promise.all([
+  const [{ seen, here: all }, schedules, follow, recapRows] = await Promise.all([
     gamesHere(user, seasonId, couchId),
     seasonSchedules([seasonId]),
     pool.query("SELECT early_seen FROM show_follows WHERE user_id = $1 AND season_id = $2", [user.id, seasonId]),
+    pool.query("SELECT number, summary FROM season_episodes WHERE season_id = $1 AND summary IS NOT NULL", [seasonId]),
   ]);
+  const recaps = new Map(recapRows.rows.map((r) => [r.number as number, r.summary as string]));
   // A game scored from calls or bingo cards (Weekly Calls, Weekly Bingo: step 12) has no results of its own: its show's episodes
   // list as a show you only watch does, every one that's aired.
   const here = all.filter((h) => !StateLogic.getLeagueType(h.state).hasCalls && !StateLogic.getLeagueType(h.state).hasBingo);
@@ -116,7 +120,10 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   // A show you only watch (step 10): every episode that's aired is listed, with results or not, seen by you or not yet.
   if (!here.length) {
     for (const e of schedule?.episodes ?? []) {
-      if (finished(e.number) && !seenRows.has(e.number)) rows.push({ number: e.number, airAt: e.airAt, status: "aired", stage: null, watched: e.number <= mark, title: e.number <= mark ? e.title : null });
+      if (finished(e.number) && !seenRows.has(e.number)) {
+        const watched = e.number <= mark;
+        rows.push({ number: e.number, airAt: e.airAt, status: "aired", stage: null, watched, title: watched ? e.title : null, summary: watched ? (recaps.get(e.number) ?? null) : null });
+      }
     }
   }
   const latest = latestIn(states);

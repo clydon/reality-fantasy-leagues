@@ -172,6 +172,13 @@ a couple of KB per open). The browser lays the week out and moves the clock on e
 from guide** is one small row per hidden show per person (`guide_hidden`, migration 0125, ~100 bytes), written when someone
 hides one.
 
+**Fill in what happened (2026-10-27, `src/lib/server/episode-recaps.ts`, migration 0143)** is one bot ask per season when someone
+taps it (only aired episodes with no recap, so a season is asked about again only for new ones), run after the response like Make
+it a game's (`maxDuration` 300, the bot's ~1-3 min). While it asks, the Episodes tab polls `/api/seasons/[id]/recaps` every 4 s
+(a small JSON); nothing polls otherwise. Each recap is up to 1 KB on its episode's row (`season_episodes.summary`), plus one tiny
+row per season (`episode_fills`). **Keeping up** (migration 0141) adds an UPDATE on your own reads only for shows set to move
+along by themselves, and a few-ms query on each bot clock call.
+
 **All of TV and the daily listings job (new design, step 11 part 2)** poll nothing and wake nothing of their own. **The job**
 (`src/lib/server/tv-listings.ts`) runs at most once an Eastern day, after the answer of a bot clock call
 (`/api/cron/bot-research`) that ran no bot job (`after()`, so it never holds up a run or the VM): the VM calls at least every
