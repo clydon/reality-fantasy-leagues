@@ -12,6 +12,7 @@ import { requireCouch } from "./couches";
 import { pool, HttpError } from "./db";
 import { seenThrough } from "./guard";
 import { syncSeasonLeagues } from "./season-decisions";
+import { refuseTestPlayer } from "./test-players";
 
 // Results from everyone (docs/PLAN-new-design.md step 6b; db/migrations/0112). Facts are shared per season, one
 // answer per fact whichever couch asks; points stay each game's own. Every answer anyone sends (a couch's paste, who
@@ -82,6 +83,7 @@ async function seasonKey(client: PoolClient, seasonId: string): Promise<{ showId
 
 /** Files one submission and its facts, then settles the episode again. In its own transaction. */
 export async function submit(input: SubmitInput): Promise<{ researchId: string; settled: Settled; facts: string[] }> {
+  await refuseTestPlayer(input.userId, "fill in results");
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
@@ -495,6 +497,7 @@ export type FlagReason = (typeof REASONS)[number];
  */
 export async function flagResult(user: SessionUser, seasonId: string, couchId: string | null, body: { episode?: unknown; decisionId?: unknown; reason?: unknown; note?: unknown; link?: unknown }): Promise<{ others: number; status: FactStatus | null }> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
+  await refuseTestPlayer(user.id, "flag results");
   if (couchId) await requireCouch(user, couchId);
   const episode = Number(body.episode);
   if (!Number.isInteger(episode) || episode < 1) throw new HttpError(400, "episode required");

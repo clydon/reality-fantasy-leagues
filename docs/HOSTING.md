@@ -494,6 +494,11 @@ never handles it: the user does the reset and the pasting.
 
 ## Changelog
 
+- **2026-10-27, deployed.** A site admin's test couch (docs/PLAN-researched-survivor.md; migration 0151): a copy
+  of a couch's games on a season, played by test players. Nothing polls and nothing new wakes Neon; its cost is the copy's size:
+  for the couch's three Survivor 51 games, three more league rows (~the real ones' state each) and a handful of users, and every
+  result accepted for the season syncs three more leagues (a few more writes on an episode night). Researched rules ask our bot
+  once (the answer is kept). Remove it when done.
 - **2026-10-27, local only (not deployed).** Sports data, steps 1-2 (docs/PLAN-sports-data.md; migration 0148): a new free service,
   **ESPN** (no key, unofficial: see The stack), asked by our server only when a sport is added and by the daily listings job, every
   answer cached in Neon (`sports_cache`). Nothing polls, nothing new wakes Neon. The real World Series' four games linked in 7 calls.

@@ -17,11 +17,12 @@ import { NotifySection } from "./notify";
 import { SharingSection } from "./sharing";
 import { AppearanceSection } from "./appearance";
 import { AutoSection } from "./keep-up";
+import { TestCouchSection } from "./test-couch";
 
 // Settings (/settings; docs/PLAN-new-design.md step 15 part 1; the mock's settings.js accountRoute and share.js), in the mock's
 // order: you (your face, name and couches, with Edit), what we notify you about (part 2: notify.tsx), keeping you spoiler-free,
 // what your couch sees (part 3: sharing.tsx), your AI for results, appearance (part 4: appearance.tsx), your couches, help, your
-// account, and the classic design.
+// account, and the classic design; for site admins, their test couch (test-couch.tsx).
 // Organised by the question people have, in plain words; every choice says what it does, the recommended one marked; a switch
 // or a choice saves as it's tapped (with Undo where it matters).
 
@@ -200,6 +201,8 @@ export function SettingsScreen() {
           )}
         </div>
       </section>
+
+      <TestCouchSection />
 
       <section className="mt-8">
         <SectionHead title="The new design" />

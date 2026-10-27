@@ -8,6 +8,7 @@ import type { LeagueState } from "@/lib/game/types";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { endedThrough, episodeFacts, openEpisode, OPEN, othersSharing, saysOn, scopeOf, seasonBook, settledSays, SHARED, type SayRow } from "./calls";
 import { HttpError, pool } from "./db";
+import { refuseTestPlayer } from "./test-players";
 import { EVERYTHING, seenThrough } from "./guard";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import { seasonHeaders, type SeasonHeader } from "./show-space";
@@ -576,6 +577,7 @@ export async function flagBingo(user: SessionUser, seasonId: string, couchId: st
   const ctx = await context(user, seasonId, couchId, n, now);
   const key = typeof body.flag === "string" ? body.flag : "";
   if (!/^b:[0-9a-f-]{36}$/.test(key)) throw new HttpError(400, "Which square?");
+  await refuseTestPlayer(user.id, "flag bingo squares");
   if (body.on !== undefined && typeof body.on !== "boolean") throw new HttpError(400, "on must be true or false");
   // Taking your flag back works wherever the square went (flagging took it off a card you hadn't ticked).
   const card = await cardOf(user.id, seasonId, n);
