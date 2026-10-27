@@ -23,13 +23,14 @@ export function SeenItCard({ show }: { show: ShowData }) {
   const from = (show.seenThrough ?? 0) + 1;
   const title = aired.data?.episodes.find((e) => e.number === n)?.title ?? null;
   const many = n > from;
+  const w = show.words;
   const answer = async (seen: boolean) => {
     if (busy) return;
     setBusy(true);
     try {
       await watching.follow(seasonId, seen ? { seenThrough: n } : { notYet: n });
       await after();
-      if (seen) toast(`Caught up through Episode ${n}`);
+      if (seen) toast(`Caught up through ${w.episode} ${n}`);
       else toast("It stays hidden until you say you've seen it");
     } catch (e) {
       toast.quiet((e as Error).message);
@@ -44,7 +45,7 @@ export function SeenItCard({ show }: { show: ShowData }) {
           <Radio className="size-4" aria-hidden />
           Live
         </span>
-        <b className="text-[17px] leading-tight">{many ? `Episodes ${from}${n - from > 1 ? `–${n}` : ` and ${n}`} have aired` : `Episode ${n} just aired`}</b>
+        <b className="text-[17px] leading-tight">{many ? `${w.episodes} ${from}${n - from > 1 ? `–${n}` : ` and ${n}`} have aired` : `${w.episode} ${n} just aired`}</b>
         {title && <small className="text-[13.5px] font-semibold leading-snug">{title}</small>}
         <small className="text-[13.5px] leading-snug text-muted-foreground">
           {many ? "Seen them?" : "Seen it?"} Its results, stats and the couch&rsquo;s chat open when you say, not before.

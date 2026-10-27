@@ -137,6 +137,12 @@ Behaviour a session saw and left alone because it wasn't that step's to change. 
 the step that could take it (a guess: any later step that touches it may). Fixed ones come out, with a line in that
 step's As built.
 
+- **Show words (2026-10-27, lib/game/show-words.ts, migration 0142) reach the show's tabs and the screens of a show you watch**:
+  the show bar, Tonight's head, the spoiler chip, Episodes (Schedule), the Cast tab's empty state, Where you are, Seen it, the
+  hub's Up next. Still "Episode" (about 130 more): the game screens (the moves dock, Your moves, reveal, Backstage, waivers,
+  bingo, calls, rate, remind, watch along, something wrong), couch pages, the guide, the desk, and notifications and pushes.
+  Any step on those can take them by reading `show.words`. Also: a season numbered by year shows "S2026" in the show bar's
+  title ("2026" would read better), and the desk has no field for the episode word yet (an admin can't correct "Event").
 - **"All set" beyond the hub's Up next** (2026-10-27: Up next's All set plate came out, the user's call: a line that asks nothing
   of you is noise, and it showed on a show with no game too). Two cousins stay, both with something to tap: Tonight's Your moves
   card "You're set for Episode N" (show/tonight.tsx YourMoves, with Change) and the moves dock "All set for Episode N" (show/dock.tsx,

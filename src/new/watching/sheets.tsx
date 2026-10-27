@@ -19,6 +19,7 @@ import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { AddNewBlock, ListingsCredit, SearchNote, SearchRows, SuggestionCard, seasonLine, useShowSearch, type SearchRow } from "./search";
 import { WhereAsk, type WhereSeason } from "./where";
+import { episodeWordFromTitles } from "@/lib/game/show-words";
 
 // The watching sheets (docs/PLAN-new-design.md step 10 part 1), opened from anywhere signed in with openWatching:
 //   add    Add a show (the mock's refine.js addShowSheet): "Search or add a show", suggestions before you type (what the
@@ -352,6 +353,8 @@ function ListingWhere({ hit, busy, onSave }: { hit: ListingHit; busy: boolean; o
     status: season?.status ?? "upcoming",
     premiere: season?.premiere ?? null,
     episodes: data.episodes,
+    // A sport's word from its titles ("Game"), as adding it will save (0142).
+    episodeWord: hit.kind === "sport" ? (episodeWordFromTitles(data.episodes.map((e) => e.title)) ?? "Event") : undefined,
   };
   return <WhereAsk s={s} start={0} cta="Add to my shows" busy={busy} onSave={onSave} />;
 }

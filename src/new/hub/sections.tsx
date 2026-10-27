@@ -36,6 +36,7 @@ import { ShowArt } from "../ui/show-bar";
 import { toast } from "../ui/toast";
 import { openWatching } from "../watching/sheets";
 import { useOpenTogether } from "../show/watch-along";
+import { showWords } from "@/lib/game/show-words";
 
 // The hub's sections (the mock's index.html hub, refine.js wireHub, hubplus.js, watching.js, fresh.js), in the order
 // screens/home.tsx lays them out. Real (step 8): the status line and Up next (results to reveal first, then what's due,
@@ -192,6 +193,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
   const name = showName(show);
   const href = paths.show(show.seasonId);
   const kind = reveal ? "reveal" : move ? "move" : final ? "final" : "set";
+  const ep = showWords(show.show.terms).ep;
   // A night the couch planned on this show (the soonest you can watch: never past your next episode) takes Watch along's place.
   const next = show.seenThrough == null ? Number.POSITIVE_INFINITY : show.seenThrough + 1;
   const night = couch ? ((home.plans ?? []).find((p) => p.seasonId === show.seasonId && p.couchId === couch.id && p.episode <= next) ?? null) : null;
@@ -231,7 +233,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
           </span>
           <span className="text-[13px] font-semibold text-white [text-shadow:0_1px_6px_rgba(0,0,0,.6)]">
             {show.seasonNumber ? `Season ${show.seasonNumber}` : (show.seasonName ?? "")}
-            {reveal ? ` · Ep ${reveal.episode}` : up ? ` · Ep ${up.number}${t != null ? ` · ${airTime(t)}` : ""}` : ""}
+            {reveal ? ` · ${ep} ${reveal.episode}` : up ? ` · ${ep} ${up.number}${t != null ? ` · ${airTime(t)}` : ""}` : ""}
           </span>
         </div>
         <h2 className="type-caption mt-auto text-[44px] [text-shadow:0_2px_20px_rgba(0,0,0,.5)]">

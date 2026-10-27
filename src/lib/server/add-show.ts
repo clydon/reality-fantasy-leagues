@@ -15,6 +15,7 @@ import {
   type TvSeason,
   type TvShow,
 } from "@/lib/game/listing";
+import { episodeWordFromTitles } from "@/lib/game/show-words";
 import { pool, HttpError } from "./db";
 import { setFollow } from "./follows";
 import { findArtLater } from "./show-art";
@@ -51,9 +52,14 @@ export interface AddedShow {
 
 type Db = Pick<PoolClient, "query">;
 
-/** What a kind of show calls its people and their groups (shows.castaway_term, tribe_term). */
+/** What a kind of show calls its people, their groups and its episodes (shows.castaway_term, tribe_term, episode_term: 0142).
+ *  A sport's episode word is read from its listing's titles once its episodes are in (listedSeason); "Event" until then. */
 export const termsOf = (kind: ShowKind) =>
-  kind === "competition" ? { castaway: "Contestant", tribe: "Team" } : kind === "sport" ? { castaway: "Athlete", tribe: "Team" } : { castaway: "Cast member", tribe: "Group" };
+  kind === "competition"
+    ? { castaway: "Contestant", tribe: "Team", episode: "Episode" }
+    : kind === "sport"
+      ? { castaway: "Player", tribe: "Team", episode: "Event" }
+      : { castaway: "Cast member", tribe: "Group", episode: "Episode" };
 
 async function newSlug(db: Db, name: string): Promise<string> {
   const base = slugOf(name);
@@ -81,10 +87,10 @@ async function makeShow(
   for (let attempt = 0; attempt < 3; attempt++) {
     const slug = await newSlug(db, name);
     const { rows } = await db.query(
-      `INSERT INTO shows (slug, name, castaway_term, tribe_term, kind, art_url, created_by, set_up_at, tvmaze_id, listing)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, NULL, $8, $9)
+      `INSERT INTO shows (slug, name, castaway_term, tribe_term, episode_term, kind, art_url, created_by, set_up_at, tvmaze_id, listing)
+       VALUES ($1, $2, $3, $4, $10, $5, $6, $7, NULL, $8, $9)
        ON CONFLICT DO NOTHING RETURNING id`,
-      [slug, name.slice(0, 120), t.castaway, t.tribe, kind, listing?.hit.art ?? null, userId, listing?.hit.tvmazeId ?? null, listing ? JSON.stringify({ ...listing.hit, fetchedAt: listing.fetchedAt }) : null]
+      [slug, name.slice(0, 120), t.castaway, t.tribe, kind, listing?.hit.art ?? null, userId, listing?.hit.tvmazeId ?? null, listing ? JSON.stringify({ ...listing.hit, fetchedAt: listing.fetchedAt }) : null, t.episode]
     );
     if (rows.length) return rows[0].id as string;
     // Someone else made it a moment ago (its TVmaze id), or took the slug: look again.
@@ -181,6 +187,9 @@ export async function listedSeason(showId: string, show: TvShow, season: TvSeaso
       );
     }
     await writeEpisodes(c, id!, episodes);
+    // A sport's word for an episode, from its titles ("Game 4: Brewers at Rays" -> Game), until research or the desk says otherwise.
+    const word = episodeWordFromTitles(episodes.map((e) => e.title));
+    if (word) await c.query("UPDATE shows SET episode_term = $2 WHERE id = $1 AND kind = 'sport' AND episode_term = 'Event'", [showId, word]);
     await c.query("COMMIT");
     return id!;
   } catch (e) {

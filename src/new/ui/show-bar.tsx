@@ -136,7 +136,20 @@ const TAB_META: Record<ShowTab, { label: string; icon: LucideIcon }> = {
 };
 
 /** The show's tabs. A tab move replaces the history entry: back from any tab leaves the show. */
-export function TabBar({ seasonId, tabs, current, badges = {} }: { seasonId: string; tabs: readonly ShowTab[]; current: ShowTab; badges?: Partial<Record<ShowTab, number>> }) {
+export function TabBar({
+  seasonId,
+  tabs,
+  current,
+  badges = {},
+  labels = {},
+}: {
+  seasonId: string;
+  tabs: readonly ShowTab[];
+  current: ShowTab;
+  badges?: Partial<Record<ShowTab, number>>;
+  /** The show's own words for a tab ("Schedule", "Players": lib/game/show-words.ts). */
+  labels?: Partial<Record<ShowTab, string>>;
+}) {
   const i = tabs.indexOf(current);
   const n = tabs.length;
   return (
@@ -146,7 +159,8 @@ export function TabBar({ seasonId, tabs, current, badges = {} }: { seasonId: str
       style={{ gridTemplateColumns: `repeat(${n}, 1fr)` }}
     >
       {tabs.map((tab) => {
-        const { label, icon: Icon } = TAB_META[tab];
+        const { icon: Icon } = TAB_META[tab];
+        const label = labels[tab] ?? TAB_META[tab].label;
         const on = tab === current;
         const badge = badges[tab];
         return (

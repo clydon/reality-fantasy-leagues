@@ -91,34 +91,35 @@ function PhaseHead({ show }: { show: ShowData }) {
   let aside: string | null = null;
   const eps = show.episodes;
   const n = episodesOf(show);
+  const w = show.words;
   if (show.dropAt != null && show.dropAt > now) return null;
   if (!up?.live && (eps?.reveal || eps?.waiting)) {
     // An episode's results come first: in (to reveal), or not yet.
-    title = `Episode ${eps.reveal?.episode ?? eps.waiting!.episode}`;
+    title = `${w.episode} ${eps.reveal?.episode ?? eps.waiting!.episode}`;
     aside = eps.reveal ? (eps.reveal.stage === "early" ? "Early results" : "Results") : justAired(eps.waiting!.airAt) ? "Just aired" : "Aired";
   } else if (show.ownPace && !up) {
     const seen = show.following || show.plays ? show.seenThrough : null;
     aside = "Your own pace";
-    if (seen == null) title = n ? `All ${n} episodes are out` : "Every episode is out";
+    if (seen == null) title = n ? `All ${n} ${w.episodes.toLowerCase()} are out` : `Every ${w.episode.toLowerCase()} is out`;
     else if (n && seen >= n) {
       title = "You finished it";
-      aside = `All ${n} episodes`;
-    } else title = `Episode ${seen + 1}`;
+      aside = `All ${n} ${w.episodes.toLowerCase()}`;
+    } else title = `${w.episode} ${seen + 1}`;
   } else if (up?.live) {
     title = (
       <>
         <i className="size-[9px] animate-pulse rounded-full bg-live" aria-hidden />
-        On air · Episode {up.number}
+        On air · {w.episode} {up.number}
       </>
     );
     aside = t != null ? `Locked at ${timeOf(t)}` : null;
   } else if (up) {
-    title = `Episode ${up.number}`;
+    title = `${w.episode} ${up.number}`;
     aside = t != null ? calmWhen(t, now) : null;
   } else if (show.header?.episodeCount && show.latestAired >= show.header.episodeCount) {
     title = "Season over";
   } else {
-    title = show.latestAired ? `Episode ${show.latestAired}` : "Coming up";
+    title = show.latestAired ? `${w.episode} ${show.latestAired}` : "Coming up";
     aside = show.latestAired ? "Aired" : null;
   }
   return (
@@ -199,7 +200,7 @@ function Following({ show }: { show: ShowData }) {
   }
   return (
     <section className="mt-[18px] px-4" data-following>
-      <GuardChip seenThrough={show.seenThrough} onChange={() => openWhere(show)} />
+      <GuardChip seenThrough={show.seenThrough} ep={show.words.ep} onChange={() => openWhere(show)} />
       {show.watchingPrivately && (
         <p data-private-line className="mt-2 flex items-center gap-1.5 text-[13px] text-muted-foreground">
           <EyeOff className="size-4 flex-none" aria-hidden />

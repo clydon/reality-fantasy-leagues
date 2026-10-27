@@ -82,7 +82,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
     <>
       {/* A streaming season's drop is the list's own line (below), not this week's episode. */}
       {up && show.header && !drop && (
-        <Block title={`Episode ${up.number}`} aside={up.live ? "On now" : "This week"}>
+        <Block title={`${show.words.episode} ${up.number}`} aside={up.live ? "On now" : "This week"}>
           <div className="flex items-center gap-3 rounded-[4px] bg-card p-2.5" data-ep-up={up.number}>
             <ShowArt seasonId={seasonId} artUrl={show.header.show.artUrl} name={show.header.show.name} className="h-[60px] w-24 flex-none rounded-[3px] text-[13px]" />
             <div className="min-w-0">
@@ -101,7 +101,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
             className="nd-press flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate"
           >
             <span className="type-caption -mr-[13px] flex items-center whitespace-nowrap bg-chyron py-0 pl-[11px] pr-[22px] text-sm tracking-[0.04em] text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)]">
-              Ep {eps.reveal.episode}
+              {show.words.ep} {eps.reveal.episode}
             </span>
             <span className="flex flex-1 flex-col justify-center gap-[3px] py-[7px] pl-5 pr-2.5">
               <span className="type-caption text-[19px]">{eps.reveal.stage === "early" ? "Early results are in" : "Results are in"}</span>
@@ -115,7 +115,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
       )}
       <section className="mt-[26px] px-4">
         <div className="mb-3 flex items-baseline justify-between gap-3">
-          <h2 className="type-caption text-[24px]">Every episode</h2>
+          <h2 className="type-caption text-[24px]">Every {show.words.episode.toLowerCase()}</h2>
           {aside && (
             <span data-episodes-aside className="text-[13px] text-muted-foreground">
               {aside}
@@ -137,7 +137,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                 ) : e.status === "waiting" ? (
                   <WaitingRow e={e} />
                 ) : e.status === "aired" ? (
-                  <AiredRow e={e} solo={show.solo} streaming={show.streaming} onRate={() => openRate(rateFor(e.number))} />
+                  <AiredRow e={e} solo={show.solo} streaming={show.streaming} word={show.words.episode} onRate={() => openRate(rateFor(e.number))} />
                 ) : (
                   <SeenRow e={e} solo={show.solo} />
                 )}
@@ -158,7 +158,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                   {/* The row is dimmed already: muted on top of it fell under 4.5:1. */}
                   {eps.toAir.to && eps.toAir.to > eps.toAir.from && (
                     <small className="mt-0.5 block text-[13px] text-foreground/85">
-                      Episodes {eps.toAir.from} to {eps.toAir.to}
+                      {show.words.episodes} {eps.toAir.from} to {eps.toAir.to}
                     </small>
                   )}
                 </span>
@@ -195,12 +195,12 @@ function HiddenRow({ e, onReveal }: { e: EpisodeRow; onReveal: () => void }) {
 
 /** An episode of a show you only watch, with no results to show (step 10): when it aired, and whether you've seen it. One
  *  you've seen opens Rate it (step 12 part 1), with the couch's verdict on the row. */
-function AiredRow({ e, solo, streaming, onRate }: { e: EpisodeRow; solo: boolean; streaming?: boolean; onRate: () => void }) {
+function AiredRow({ e, solo, streaming, word = "Episode", onRate }: { e: EpisodeRow; solo: boolean; streaming?: boolean; word?: string; onRate: () => void }) {
   const body = (
     <>
       <span className={`type-num w-7 text-[28px] ${e.watched ? "" : "text-muted-foreground"}`}>{e.number}</span>
       <span className="min-w-0 flex-1">
-        <b className="block text-base font-semibold">{e.title ?? `Episode ${e.number}`}</b>
+        <b className="block text-base font-semibold">{e.title ?? `${word} ${e.number}`}</b>
         <small className="mt-0.5 block text-[13px] text-muted-foreground">
           {/* A streaming season's all came out at once: when isn't news. */}
           {e.airAt && !streaming ? `Aired ${airTime(Date.parse(e.airAt))} · ` : ""}
@@ -277,7 +277,7 @@ function EpisodePage({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const page = usePushedPage(`ep${shown}`);
   const e = show.episodes?.episodes.find((x) => x.number === shown && x.status === "seen") ?? null;
   return (
-    <PushedPage open={ep != null} onClose={page.close} title={`Episode ${shown ?? ""}`} back="Episodes">
+    <PushedPage open={ep != null} onClose={page.close} title={`${show.words.episode} ${shown ?? ""}`} back={show.words.episodesTab}>
       {e ? (
         <EpisodeBody
           seasonId={seasonId}

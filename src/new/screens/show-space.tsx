@@ -35,6 +35,7 @@ import { openPlan, PlanIcon } from "../couch/watch-plans";
 import { WatchAlongPage } from "../show/watch-along";
 import { ShowNotifySheet } from "../show/notify-sheet";
 import { ownPace } from "@/lib/game/streaming";
+import { showWords } from "@/lib/game/show-words";
 
 // A show space (/show/[seasonId]/[tab]): the show bar (the show's art, where the next episode is, the ⋯ menu), the
 // five tabs (Tonight · Episodes · Games · Cast · Chat; solo drops Chat; each in src/new/show/), the moves dock above
@@ -71,6 +72,8 @@ export function useShow(seasonId: string) {
     // From the couch the home already has, so the tab bar doesn't change once the space comes back.
     solo: !couch || couch.members.length <= 1,
     seenThrough: space.data ? space.data.you.seenThrough : (cached?.seenThrough ?? 0),
+    /** What the show calls its episodes and its people ("Game 4", "Players": lib/game/show-words.ts, 0142). */
+    words: showWords(header?.show.terms),
     /** You follow it (step 10): on your shows, openly or privately. */
     following: space.data ? space.data.you.following : (cached?.following ?? false),
     /** Watched privately: the couch doesn't see it on your list. */
@@ -125,6 +128,7 @@ export function whereTarget(show: ShowData): WhereTarget | null {
     following: show.following,
     plays: show.plays,
     keepUp: show.keepUp,
+    episodeWord: show.words.episode,
   };
 }
 
@@ -144,13 +148,15 @@ export const episodesOf = (show: ShowData) => show.header?.episodeCount ?? show.
 export function allOut(show: ShowData): string {
   const n = episodesOf(show);
   const network = show.header?.show.network;
-  return `${n ? `All ${n} episodes` : "Every episode"}${network ? ` · ${network}` : ""}`;
+  const w = show.words;
+  return `${n ? `All ${n} ${w.episodes.toLowerCase()}` : `Every ${w.episode.toLowerCase()}`}${network ? ` · ${network}` : ""}`;
 }
 
 /** Where the show is, for the show bar: on air, results to reveal or waiting for them, then where the next episode is
  *  (calm days, a ticking clock inside the last day). A streaming season (step 14): when it drops, then all of it out. */
 function useAirStatus(show: ShowData): ReactNode {
   const { upNext, latestAired, episodes } = show;
+  const ep = show.words.ep;
   const episodeCount = show.header?.episodeCount ?? null;
   const t = upNext?.airAt ? Date.parse(upNext.airAt) : null;
   const now = useNow(t != null && ticks(t));
@@ -163,15 +169,15 @@ function useAirStatus(show: ShowData): ReactNode {
     return (
       <>
         <i className="size-2 animate-pulse rounded-full bg-live" aria-hidden />
-        On air · Ep {upNext.number}
+        On air · {ep} {upNext.number}
       </>
     );
   }
-  if (episodes?.reveal) return `Ep ${episodes.reveal.episode} ${episodes.reveal.stage === "early" ? "early results" : "results are in"}`;
-  if (episodes?.waiting) return `Ep ${episodes.waiting.episode} ${justAired(episodes.waiting.airAt) ? "just aired" : "aired"}`;
-  if (upNext && t != null) return `Ep ${upNext.number} · ${calm(t, now)}`;
+  if (episodes?.reveal) return `${ep} ${episodes.reveal.episode} ${episodes.reveal.stage === "early" ? "early results" : "results are in"}`;
+  if (episodes?.waiting) return `${ep} ${episodes.waiting.episode} ${justAired(episodes.waiting.airAt) ? "just aired" : "aired"}`;
+  if (upNext && t != null) return `${ep} ${upNext.number} · ${calm(t, now)}`;
   if (episodeCount && latestAired >= episodeCount) return "Season over";
-  if (latestAired) return `Ep ${latestAired} aired`;
+  if (latestAired) return `${ep} ${latestAired} aired`;
   return null;
 }
 
@@ -214,6 +220,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
         tabs={tabs}
         current={tab}
         badges={{ tonight: show.movesDue + (show.episodes?.reveal ? 1 : 0), chat: tab === "chat" ? 0 : (badge.data?.unread ?? 0) }}
+        labels={{ episodes: show.words.episodesTab, cast: show.words.peopleTab }}
       />
       <MovesSheet show={show} seasonId={seasonId} />
       <RemindSheet show={show} />
@@ -513,7 +520,7 @@ function WatchingRows({ show, onDone }: { show: ShowData; onDone: () => void }) 
       <Row
         icon={CalendarDays}
         title="Where you are"
-        detail={show.plays ? "Moves as you reveal each episode" : show.seenThrough ? `Episode ${show.seenThrough}` : "Not started"}
+        detail={show.plays ? `Moves as you reveal each ${show.words.episode.toLowerCase()}` : show.seenThrough ? `${show.words.episode} ${show.seenThrough}` : "Not started"}
         onClick={() => {
           onDone();
           openWhere(show);
@@ -549,7 +556,7 @@ export function TabScreen({ seasonId, tab }: { seasonId: string; tab: ShowTab })
     <div data-tab={tab}>
       {tab !== "tonight" && (
         <div className="px-4 pt-4">
-          <GuardChip seenThrough={show.seenThrough} onChange={() => openWhere(show)} />
+          <GuardChip seenThrough={show.seenThrough} ep={show.words.ep} onChange={() => openWhere(show)} />
         </div>
       )}
       {tab === "tonight" && <Tonight seasonId={seasonId} show={show} />}

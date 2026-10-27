@@ -17,15 +17,17 @@ import { whereCap, whereLabel } from "../way-in";
 export type WhereSeason = Pick<CatalogSeason, "seasonId" | "label" | "show" | "artUrl" | "artPosition" | "aired" | "status" | "premiere"> & {
   /** Its aired episodes, when the caller has them (a TV listing's); else read for a season that's here. */
   episodes?: StepEpisode[];
+  /** What the show calls an episode ("Game": lib/game/show-words.ts); Episode when not known. */
+  episodeWord?: string;
 };
 
 const isUuid = (id: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
 
 /** "Game 2: Rays at Brewers · Sat, Oct 24", "Episode 5 · Tue, Oct 20": which episode a step is. */
-function stepLine(ep: StepEpisode | undefined): string | null {
+function stepLine(ep: StepEpisode | undefined, word = "Episode"): string | null {
   if (!ep) return null;
   const day = ep.airAt ? new Date(ep.airAt).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : null;
-  return [ep.title ?? `Episode ${ep.number}`, day].filter(Boolean).join(" · ");
+  return [ep.title ?? `${word} ${ep.number}`, day].filter(Boolean).join(" · ");
 }
 
 /** One season's row: its art, where you are in words (and which episode that is), and the stepper (none before its premiere). */
@@ -44,7 +46,7 @@ export function WhereRow({
   line?: string;
   episodes?: StepEpisode[];
 }) {
-  const step = seen > 0 ? stepLine(episodes?.find((e) => e.number === seen)) : null;
+  const step = seen > 0 ? stepLine(episodes?.find((e) => e.number === seen), s.episodeWord) : null;
   return (
     <div className="flex min-h-[76px] items-center gap-3 border-t border-border py-2 first:border-t-0" data-where={s.label}>
       <ShowArt seasonId={`where-${s.seasonId}`} artUrl={s.artUrl} name={s.show[0]} position={s.artPosition} className="h-12 w-16 flex-none rounded-[3px] text-[22px]" />
@@ -122,7 +124,7 @@ export function WhereAsk({
       {canLive &&
         (keepUp === "auto" ? (
           <p data-where-auto className="mt-3 text-[13px] leading-normal text-muted-foreground">
-            Moves along by itself as each episode airs. Change it in Settings, under Keeping you spoiler-free.
+            Moves along by itself as each {(s.episodeWord ?? "Episode").toLowerCase()} airs. Change it in Settings, under Keeping you spoiler-free.
           </p>
         ) : (
           <div className="mt-2">
@@ -132,7 +134,7 @@ export function WhereAsk({
               title="Keep me live"
               line={
                 live
-                  ? "When each new episode ends, Tonight asks if you've seen it. Nothing opens until you say"
+                  ? `When each new ${(s.episodeWord ?? "Episode").toLowerCase()} ends, Tonight asks if you've seen it. Nothing opens until you say`
                   : "Off: you move where you are yourself"
               }
               onChange={setLive}

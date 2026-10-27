@@ -185,6 +185,13 @@ async function rulesPrompt(show: Show): Promise<string> {
   return buildRulebookPrompt({ show: h.show.name, season: seasonWords(h), airing: h.status === "airing", template: (await templateOf(show))?.blocks ?? null });
 }
 
+/** What the research says one part of the season is called ("race": the rulebook's "parts", 0142's shows.episode_term), or null
+ *  when the show is made of episodes. */
+function episodeWordOf(blocks: RulebookBlocks): string | null {
+  const word = (blocks as { parts?: { singular?: unknown } }).parts?.singular;
+  return typeof word === "string" && word.trim() && word.trim().length <= 40 ? cap(word.trim()) : null;
+}
+
 /** The rules a cast is read against: the answer's terms, groups and roles. */
 const castFormatOf = (data: FormatData) => formatForRulebook(data, "research");
 
@@ -666,8 +673,11 @@ export async function confirmMake(user: SessionUser, seasonId: string, couchId: 
       [formatId, data.name, JSON.stringify({ madeFrom: "rulebook", rulebookId: book.id }), JSON.stringify(data), user.id]
     );
     await c.query(
-      "UPDATE shows SET set_up_at = now(), kind = $2, format = $3, castaway_term = $4, tribe_term = $5, updated_at = now() WHERE id = $1",
-      [h.show.id, key, formatId, data.terms.castaway, data.terms.tribe]
+      // Its word for an episode (0142): the research's own ("race"), else a sport keeps what its listing said, else Episode.
+      `UPDATE shows SET set_up_at = now(), kind = $2, format = $3, castaway_term = $4, tribe_term = $5,
+              episode_term = COALESCE($6, CASE WHEN $2 = 'sport' THEN episode_term ELSE 'Episode' END), updated_at = now()
+        WHERE id = $1`,
+      [h.show.id, key, formatId, data.terms.castaway, data.terms.tribe, episodeWordOf(blocks)]
     );
     await c.query("UPDATE show_setups SET stage = 'done', done_at = now(), done_by = $2, rulebook_id = $3, updated_at = now() WHERE id = $1", [row.id, user.id, book.id]);
     await logDesk(c, {

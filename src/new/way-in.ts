@@ -105,11 +105,12 @@ const DATE = (iso: string) => new Date(`${iso}T12:00:00Z`).toLocaleDateString("e
  * a season that hasn't started has "Premieres Oct 30" (no stepper). `aired` null: a finished season whose length isn't
  * listed ("Seen through Episode 3").
  */
-export function whereLabel(s: { aired: number | null; status: string; premiere: string | null }, seen: number): string {
+export function whereLabel(s: { aired: number | null; status: string; premiere: string | null; episodeWord?: string }, seen: number): string {
+  const ep = s.episodeWord ?? "Episode";
   if (s.aired === 0) return s.premiere ? `Premieres ${DATE(s.premiere)}` : "Premieres soon";
   if (seen <= 0) return "Haven't started";
-  if (s.aired == null) return `Seen through Episode ${seen}`;
-  return seen >= s.aired ? `Caught up through Episode ${s.aired}` : `Seen through Episode ${seen} of ${s.aired}`;
+  if (s.aired == null) return `Seen through ${ep} ${seen}`;
+  return seen >= s.aired ? `Caught up through ${ep} ${s.aired}` : `Seen through ${ep} ${seen} of ${s.aired}`;
 }
 
 /** The stepper's top: what's aired (a finished season of unknown length goes to 99). */
