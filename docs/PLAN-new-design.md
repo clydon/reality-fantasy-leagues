@@ -137,6 +137,11 @@ Behaviour a session saw and left alone because it wasn't that step's to change. 
 the step that could take it (a guess: any later step that touches it may). Fixed ones come out, with a line in that
 step's As built.
 
+- **"All set" beyond the hub's Up next** (2026-10-27: Up next's All set plate came out, the user's call: a line that asks nothing
+  of you is noise, and it showed on a show with no game too). Two cousins stay, both with something to tap: Tonight's Your moves
+  card "You're set for Episode N" (show/tonight.tsx YourMoves, with Change) and the moves dock "All set for Episode N" (show/dock.tsx,
+  with Edit). If the user wants those quieter too, the dock could drop to a plain Edit and Your moves could go when nothing's open;
+  the next step on a show's Tonight could take it.
 - **Keeping up (2026-10-27, keep-up.ts, migration 0141) left these alone.** (1) Live's "Seen it?" is only on the show's Tonight: no
   push and no hub card when an episode ends; a push ("Episode 4 is over. Seen it?") through push-core.js, keyed once per person
   per episode, is the natural next piece, with a hub row for it. (2) Adding a show where nothing has aired skips the where step

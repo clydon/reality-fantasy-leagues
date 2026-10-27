@@ -172,8 +172,9 @@ export function nextShow(home: Home): HomeShow | null {
 
 /**
  * The show on next: its art large, when it's on, and on a caption plate what it asks of you: Reveal when its results
- * are in (the one yellow), else your move for it (yellow), else the morning update's final scores (teal), else "All
- * set" (teal); then who's set.
+ * are in (the one yellow), else your move for it (yellow), else the morning update's final scores (teal); then who's set.
+ * Nothing to do: no plate (it said "All set · Nothing due", on a show with no game too, and a line that asks nothing of
+ * you is noise; the show's name still opens it, and who's set still shows).
  */
 export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couch: Couch | null }) {
   const up = show.upNext;
@@ -194,7 +195,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
   // A night the couch planned on this show (the soonest you can watch: never past your next episode) takes Watch along's place.
   const next = show.seenThrough == null ? Number.POSITIVE_INFINITY : show.seenThrough + 1;
   const night = couch ? ((home.plans ?? []).find((p) => p.seasonId === show.seasonId && p.couchId === couch.id && p.episode <= next) ?? null) : null;
-  const plate = {
+  const plate = kind === "set" ? null : {
     reveal: {
       tag: "Reveal",
       tone: "bg-chyron text-chyron-foreground",
@@ -208,7 +209,6 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
       line: move?.deadline ? `${move.kind === "lineup" || move.kind === "pick" ? "Locks" : "Due"} ${calmWhen(Date.parse(move.deadline), now)}` : (move?.leagueName ?? ""),
     },
     final: { tag: "Morning update", tone: "bg-good text-good-foreground", title: "Final scores are in", line: `Episode ${final?.episode} · every point counted` },
-    set: { tag: "All set", tone: "bg-good text-good-foreground", title: up ? `Nothing due for Episode ${up.number}` : "Nothing due", line: "Change anything until it airs" },
   }[kind];
   return (
     // Over the show's art: Night in both themes (step 15 part 4).
@@ -241,24 +241,26 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
           </NavLink>
         </h2>
         {!reveal && t != null && !up?.live && <div className="type-caption -mt-1 text-[20px] tracking-[0.02em]">{calmWhen(t, now)}</div>}
-        <NavLink
-          href={href}
-          channel
-          className="nd-press flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate"
-        >
-          <span
-            className={`type-caption -mr-[13px] flex items-center whitespace-nowrap py-0 pl-[11px] pr-[22px] text-sm tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)] ${plate.tone}`}
+        {plate && (
+          <NavLink
+            href={href}
+            channel
+            className="nd-press flex min-h-14 w-full items-stretch overflow-hidden rounded-[3px] bg-plate text-left text-plate-foreground shadow-plate"
           >
-            {plate.tag}
-          </span>
-          <span className="flex flex-1 flex-col justify-center gap-[3px] py-[7px] pl-5 pr-2.5">
-            <span className="type-caption text-[19px]">{plate.title}</span>
-            <span className="text-[13px] text-plate-muted">{plate.line}</span>
-          </span>
-          <span className="grid place-items-center px-3">
-            <ChevronRight className="size-5" aria-hidden />
-          </span>
-        </NavLink>
+            <span
+              className={`type-caption -mr-[13px] flex items-center whitespace-nowrap py-0 pl-[11px] pr-[22px] text-sm tracking-[0.04em] [clip-path:polygon(0_0,100%_0,calc(100%_-_13px)_100%,0_100%)] ${plate.tone}`}
+            >
+              {plate.tag}
+            </span>
+            <span className="flex flex-1 flex-col justify-center gap-[3px] py-[7px] pl-5 pr-2.5">
+              <span className="type-caption text-[19px]">{plate.title}</span>
+              <span className="text-[13px] text-plate-muted">{plate.line}</span>
+            </span>
+            <span className="grid place-items-center px-3">
+              <ChevronRight className="size-5" aria-hidden />
+            </span>
+          </NavLink>
+        )}
         {night && <PlannedNight plan={night} me={home.user.id} />}
         <div className="flex items-center justify-between gap-2.5">
           {progress && !reveal ? <WhoIsSet progress={progress} /> : <span />}
