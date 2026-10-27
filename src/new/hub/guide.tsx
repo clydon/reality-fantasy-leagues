@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { EyeOff, Plus, UserPlus } from "lucide-react";
 import { episodeLine, eveningAt, guideWeek, nextUpAfter, type GuideCard, type GuideDay, type GuidePlan, type GuideShow } from "@/lib/game/guide";
 import { alsoOn, hitOfListing, listingLine, type AlsoOnDay, type AlsoOnItem } from "@/lib/game/tv-listings";
@@ -34,8 +34,10 @@ const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct
 const plain = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
 
 /**
- * The guide rolls on its own once you reach it (not while it's the first thing you see: the critique, 2026-10-23),
- * and stops for a few seconds whenever you touch it. Reduced motion: it never rolls.
+ * The guide rolls on its own once you reach it (not while it's the first thing you see: the critique, 2026-10-23), and is
+ * Paused for a few seconds when you move it yourself: a swipe across it, a sideways wheel or trackpad, the keyboard. A tap (on
+ * a card or between them) and a swipe up or down the page leave it rolling (2026-10-27: a stray tap used to stop it).
+ * Reduced motion: it never rolls.
  */
 function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
   const [rolling, setRolling] = useState(false);
@@ -46,23 +48,41 @@ function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
     let started = false;
     let holdUntil = 0;
     let x = 0;
+    let shown = false;
+    let from: { x: number; y: number } | null = null;
+    const show = (on: boolean) => on !== shown && setRolling((shown = on));
     const step = (t: number) => {
       if (t > holdUntil) {
         x = Math.max(x, el.scrollLeft) + 0.35;
         if (x >= el.scrollWidth - el.clientWidth) {
-          setRolling(false);
+          show(false);
           return;
         }
         el.scrollLeft = x;
-      } else x = el.scrollLeft;
+        show(true);
+      } else {
+        x = el.scrollLeft;
+        show(false);
+      }
       raf = requestAnimationFrame(step);
     };
     const hold = () => (holdUntil = performance.now() + 4000);
+    // A swipe is across once it's gone further across than down, past a tap's wobble.
+    const touchStart = (e: TouchEvent) => (from = { x: e.touches[0].clientX, y: e.touches[0].clientY });
+    const touchMove = (e: TouchEvent) => {
+      if (!from) return;
+      const dx = Math.abs(e.touches[0].clientX - from.x);
+      if (dx > 8 && dx > Math.abs(e.touches[0].clientY - from.y)) hold();
+    };
+    const touchEnd = () => (from = null);
+    const wheel = (e: WheelEvent) => Math.abs(e.deltaX) > Math.abs(e.deltaY) && hold();
+    // Whatever else moves it (a fling still gliding, the arrow keys): it's somewhere the roll didn't put it.
+    const scroll = () => Math.abs(el.scrollLeft - x) > 2 && hold();
+    const focus = (e: FocusEvent) => (e.target as Element).matches(":focus-visible") && hold();
     const io = new IntersectionObserver(
       ([e]) => {
         if (e.isIntersecting && !started) {
           started = true;
-          setRolling(true);
           raf = requestAnimationFrame(step);
           io.disconnect();
         }
@@ -70,18 +90,89 @@ function useRoll(reel: React.RefObject<HTMLDivElement | null>) {
       { threshold: 0.6 }
     );
     io.observe(el);
-    el.addEventListener("pointerdown", hold);
-    el.addEventListener("wheel", hold, { passive: true });
-    el.addEventListener("touchstart", hold, { passive: true });
+    el.addEventListener("touchstart", touchStart, { passive: true });
+    el.addEventListener("touchmove", touchMove, { passive: true });
+    el.addEventListener("touchend", touchEnd);
+    el.addEventListener("touchcancel", touchEnd);
+    el.addEventListener("wheel", wheel, { passive: true });
+    el.addEventListener("scroll", scroll, { passive: true });
+    el.addEventListener("focusin", focus);
     return () => {
       cancelAnimationFrame(raf);
       io.disconnect();
-      el.removeEventListener("pointerdown", hold);
-      el.removeEventListener("wheel", hold);
-      el.removeEventListener("touchstart", hold);
+      el.removeEventListener("touchstart", touchStart);
+      el.removeEventListener("touchmove", touchMove);
+      el.removeEventListener("touchend", touchEnd);
+      el.removeEventListener("touchcancel", touchEnd);
+      el.removeEventListener("wheel", wheel);
+      el.removeEventListener("scroll", scroll);
+      el.removeEventListener("focusin", focus);
     };
   }, [reel]);
   return rolling;
+}
+
+/** What the guide shows under your shows and the couch's (2026-10-27): nothing more, the competitions on TV (tv-listings.ts
+ *  competitionOf), or all of TV. Per phone; held for the visit when the phone won't keep it. */
+type OnTv = "couch" | "comps" | "all";
+const ON_TV_KEY = "gys.guideTv";
+const onTvListeners = new Set<() => void>();
+let onTvHere: OnTv | null = null;
+
+function readOnTv(): OnTv {
+  if (onTvHere) return onTvHere;
+  try {
+    const v = localStorage.getItem(ON_TV_KEY);
+    return v === "couch" || v === "comps" ? v : "all";
+  } catch {
+    return "all";
+  }
+}
+
+function setOnTv(v: OnTv) {
+  onTvHere = v;
+  try {
+    localStorage.setItem(ON_TV_KEY, v);
+  } catch {
+    /* kept for this visit only */
+  }
+  onTvListeners.forEach((l) => l());
+}
+
+const useOnTv = () =>
+  useSyncExternalStore(
+    (l) => {
+      onTvListeners.add(l);
+      return () => onTvListeners.delete(l);
+    },
+    readOnTv,
+    (): OnTv => "all"
+  );
+
+/** The guide's switch, quiet in its foot: Couch (My shows, solo) · Competitions · All TV. */
+function OnTvSwitch({ on, solo }: { on: OnTv; solo: boolean }) {
+  const choices: [OnTv, string][] = [
+    ["couch", solo ? "My shows" : "Couch"],
+    ["comps", "Competitions"],
+    ["all", "All TV"],
+  ];
+  return (
+    <div role="radiogroup" aria-label="What the guide shows" data-guide-tv={on} className="flex flex-none gap-[2px] rounded-[3px] p-[2px] outline-1 -outline-offset-1 outline-border">
+      {choices.map(([id, label]) => (
+        <button
+          key={id}
+          type="button"
+          role="radio"
+          aria-checked={on === id}
+          data-guide-tv-choice={id}
+          onClick={() => setOnTv(id)}
+          className={`nd-press h-9 rounded-[2px] px-2 text-[12px] font-semibold transition-colors ${on === id ? "bg-secondary text-foreground" : "text-muted-foreground"}`}
+        >
+          {label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 /** The clock the guide is drawn at, moved on each minute (the Now line, On now); nothing is read again. */
@@ -444,24 +535,45 @@ export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
   const week = useMemo(() => guideWeek(shows, now, undefined, plans), [shows, now, plans]);
   const hidden = hiddenNow(home);
   const listings = useListingsWeek().data?.listings;
+  const onTv = useOnTv();
   // Also on leaves out your shows, the couch's and what you've hidden: by their listing, or by name for a show here that
-  // hasn't one yet (the daily job links them).
+  // hasn't one yet (the daily job links them). The switch leaves out all of it, or all but the competitions.
   const also = useMemo(() => {
-    if (!listings?.length) return [];
+    if (!listings?.length || onTv === "couch") return [];
     const ids = new Set<number>();
     const names: string[] = [];
     const leave = (show: { tvmazeId?: number | null; name: string }) => (show.tvmazeId ? ids.add(show.tvmazeId) : names.push(show.name));
     for (const s of home.shows) if (s.following || s.games.length) leave(s.show);
     for (const s of home.couchShows ?? []) leave(s.show);
     for (const h of home.guideHidden ?? []) if (h.tvmazeId) ids.add(h.tvmazeId);
-    return alsoOn(listings, week, { ids, names }, now);
-  }, [listings, home, week, now]);
+    return alsoOn(onTv === "comps" ? listings.filter((l) => l.competition) : listings, week, { ids, names }, now);
+  }, [listings, home, week, now, onTv]);
   const [couchCard, setCouchCard] = useState<GuideCard | null>(null);
   const [listing, setListing] = useState<AlsoOnItem | null>(null);
   const [evening, setEvening] = useState<GuideDay | null>(null);
   const [hiddenOpen, setHiddenOpen] = useState(false);
   const ties = new Set(week.flatMap((d) => d.slots.flatMap((sl) => (Array.isArray(sl) ? sl : [sl]).map((c) => c.tie))));
   const legend = [ties.has("watches") ? "Dashed: not playing yet" : null, ties.has("couch") ? "Faded: not on your shows" : null].filter(Boolean).join(" · ");
+  // What dashed and faded mean, the TVmaze credit and what's hidden.
+  const notes = () => (
+    <span className="flex min-w-0 flex-col items-start pt-1 first:pt-0">
+      {legend && <span className="leading-snug">{legend}</span>}
+      {also.some((d) => d.all.length) && (
+        <span data-guide-credit className="text-[12px] leading-snug">
+          TV listings from{" "}
+          <a href="https://www.tvmaze.com" target="_blank" rel="noreferrer" className="font-semibold underline underline-offset-2">
+            TVmaze
+          </a>
+        </span>
+      )}
+      {hidden.length > 0 && (
+        <button type="button" data-guide-hidden onClick={() => setHiddenOpen(true)} className="flex h-9 items-center gap-1.5 font-bold text-foreground underline-offset-2 hover:underline">
+          <EyeOff className="size-4" aria-hidden />
+          {hidden.length} hidden
+        </button>
+      )}
+    </span>
+  );
   return (
     <section className="mt-8" data-guide>
       <div className="mb-2.5 flex items-baseline justify-between px-4">
@@ -482,33 +594,21 @@ export function Guide({ home, couch }: { home: Home; couch: Couch | null }) {
           <Day key={d.offset} d={d} i={i} now={now} me={home.user.id} week={week} also={also[i]} onCouch={setCouchCard} onListing={setListing} onMore={setEvening} />
         ))}
       </div>
-      <div data-guide-foot className="flex items-center justify-between gap-3 px-4 pt-1 text-[13px] text-muted-foreground">
-        <span className="flex min-w-0 flex-col items-start">
-          {legend && <span className="leading-snug">{legend}</span>}
-          {also.some((d) => d.all.length) && (
-            <span data-guide-credit className="text-[12px] leading-snug">
-              TV listings from{" "}
-              <a href="https://www.tvmaze.com" target="_blank" rel="noreferrer" className="font-semibold underline underline-offset-2">
-                TVmaze
-              </a>
-            </span>
-          )}
-          {hidden.length > 0 && (
-            <button type="button" data-guide-hidden onClick={() => setHiddenOpen(true)} className="flex h-9 items-center gap-1.5 font-bold text-foreground underline-offset-2 hover:underline">
-              <EyeOff className="size-4" aria-hidden />
-              {hidden.length} hidden
-            </button>
-          )}
-        </span>
-        <button
-          type="button"
-          data-guide-add
-          onClick={() => openWatching({ kind: "add" })}
-          className="nd-press flex h-10 flex-none items-center gap-1 rounded-[3px] px-2.5 text-sm font-semibold text-foreground outline-1 -outline-offset-1 outline-input"
-        >
-          <Plus className="size-4" aria-hidden />
-          Add a show
-        </button>
+      {/* With TV listings, the switch shares Add a show's line and the notes go under it. */}
+      <div data-guide-foot className="px-4 pt-1 text-[13px] text-muted-foreground">
+        <div className={`flex items-center justify-between gap-x-3 gap-y-1.5 ${listings?.length ? "flex-wrap" : ""}`}>
+          {listings?.length ? <OnTvSwitch on={onTv} solo={!couch} /> : notes()}
+          <button
+            type="button"
+            data-guide-add
+            onClick={() => openWatching({ kind: "add" })}
+            className="nd-press ml-auto flex h-10 flex-none items-center gap-1 rounded-[3px] px-2.5 text-sm font-semibold text-foreground outline-1 -outline-offset-1 outline-input"
+          >
+            <Plus className="size-4" aria-hidden />
+            Add a show
+          </button>
+        </div>
+        {!!listings?.length && notes()}
       </div>
       <CouchShowSheet home={home} couch={couch} card={couchCard} onOpenChange={(o) => !o && setCouchCard(null)} />
       <ListingSheet l={listing} couchId={couch?.id ?? null} onOpenChange={(o) => !o && setListing(null)} />

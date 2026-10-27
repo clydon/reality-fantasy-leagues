@@ -36,6 +36,8 @@ export interface ListingRow {
   country: string | null;
   weight: number;
   artUrl: string | null;
+  /** A reality competition or game show, as its listing says (competitionOf). */
+  competition: boolean;
 }
 
 /** Where a schedule's shows air from, for linking a show added by name (any of the day's shows but the news). */
@@ -72,6 +74,27 @@ const isNews = (s: TvScheduleShow) => (s.type ?? "").trim().toLowerCase() === "n
 const whereOf = (s: TvScheduleShow) => s.network ?? s.webChannel ?? null;
 const minutes = (n: number | null | undefined) => (Number.isInteger(n) && (n as number) >= 1 && (n as number) <= 600 ? (n as number) : null);
 
+// What a competition's blurb says it does: compete, contestants, eliminations, a prize, crowned, judges, voted out, a winner
+// (not an award winner on the crew), a cash figure.
+const CONTEST =
+  /\b(?:compet(?:e|es|ed|ing|ition|itions|itor|itors)|contestants?|contenders?|opponents|eliminat(?:ed|ion|ions)|prizes?|crowned|crowning|champions?|championship|battle it out|vote[sd]? \w+ out|judges|judged|facing off)\b|(?<![-\w]|award )winners?\b|\$\s?\d/i;
+const QUIZ = /\b(?:quiz\w*|trivia|puzzles?|questions?|answers?|guess\w*)\b/i;
+
+/**
+ * Whether a listed show is a competition (the guide's Competitions, 2026-10-27), from its own listing: TVmaze calls Survivor
+ * and Below Deck both "Reality" and The Traitors a "Game Show", so it's a reality or game show whose blurb says what a
+ * competition does (CONTEST), and a game show that's a quiz (questions, trivia, puzzles) isn't one. Measured on 158 reality
+ * and game shows in ten days of TVmaze's schedules: 46 in, three of them wrongly (a makeover show "crowning" the ugliest
+ * house), and a few competitions that never say so missed (Love Is Blind, Fear Factor). A show set up here goes by its own
+ * kind instead (src/lib/server/tv-listings.ts listingsWeek).
+ */
+export function competitionOf(s: Pick<TvShow, "type" | "summary">): boolean {
+  const type = (s.type ?? "").trim().toLowerCase();
+  if (type !== "reality" && type !== "game show") return false;
+  const blurb = (s.summary ?? "").replace(/<[^>]+>/g, " ").replace(/&amp;/g, "&");
+  return !(type === "game show" && QUIZ.test(blurb)) && CONTEST.test(blurb);
+}
+
 /**
  * A day's two schedules as tv_listings rows: the networks' evening (/schedule?country=US) and streaming (/schedule/web) in
  * English on a US or worldwide service (a UK or New Zealand service's shows can't be watched here), evening airings and
@@ -107,6 +130,7 @@ export function scheduleRows(day: string, us: TvScheduleEntry[], web: TvSchedule
       country,
       weight: Number.isFinite(s.weight) ? Math.max(0, Math.min(100, Math.round(s.weight as number))) : 0,
       artUrl: s.image?.medium ?? s.image?.original ?? null,
+      competition: competitionOf(s),
     });
   };
   for (const e of us) take(e, false);
@@ -131,11 +155,13 @@ export interface WeekListing {
   season: number | null;
   numbers: number[];
   binge: boolean;
+  /** A competition (competitionOf, or a show set up here as one): the guide's Competitions. */
+  competition: boolean;
 }
 
 /** The rows as airings: one per show and start, in time order. */
 export function weekListings(
-  rows: Pick<ListingRow, "tvmazeId" | "name" | "network" | "country" | "type" | "artUrl" | "weight" | "airAt" | "runtimeMin" | "season" | "number" | "binge">[]
+  rows: Pick<ListingRow, "tvmazeId" | "name" | "network" | "country" | "type" | "artUrl" | "weight" | "airAt" | "runtimeMin" | "season" | "number" | "binge" | "competition">[]
 ): WeekListing[] {
   const out = new Map<string, WeekListing>();
   for (const r of rows) {
@@ -159,6 +185,7 @@ export function weekListings(
       season: r.season,
       numbers: r.number != null ? [r.number] : [],
       binge: r.binge,
+      competition: !!r.competition,
     });
   }
   return [...out.values()].map((l) => ({ ...l, numbers: l.numbers.sort((a, b) => a - b) })).sort((a, b) => a.airAt.localeCompare(b.airAt) || b.weight - a.weight || a.name.localeCompare(b.name));

@@ -79,6 +79,28 @@ test("a day's schedules as rows: the evening and drops, in English on a US or wo
   assert.equal(shows.find((s) => s.name === "Prime Time Show").country, "US");
 });
 
+test("a competition, from its listing: a reality or game show whose blurb says it competes; never a quiz, a docusoap or a drama", () => {
+  const c = (type, summary) => T.competitionOf({ type, summary });
+  // TVmaze's own blurbs (2026-10-27), shortened.
+  assert.equal(c("Reality", "<p>Eighteen to twenty castaways will <b>compete</b> against each other on Survivor.</p>"), true);
+  assert.equal(c("Game Show", "<p>Twenty personalities complete a series of challenges with the objective of earning a cash prize of up to $250,000.</p>"), true, "The Traitors is a game show to TVmaze");
+  assert.equal(c("Reality", "Each week, the Houseguests will vote someone out of the house."), true);
+  assert.equal(c("Reality", "Celebrities perform choreographed dance routines that are judged by a panel of renowned ballroom experts"), true);
+  assert.equal(c("Reality", "Ten kings. One crown. The first ever drag KING competition series"), true);
+  assert.equal(c("Reality", "The upstairs and downstairs worlds collide when this young and single crew of yachties live, love and work together on board"), false, "a docusoap");
+  assert.equal(c("Reality", "Long before banks, ATMS and check-cashing services, there were pawn shops."), false);
+  assert.equal(c("Reality", "Host Emmy award winner Rich Koz and an Award-winner designer"), false, "an award winner isn't a competition's");
+  assert.equal(c("Game Show", "15 questions need to be answered by the contestants to win the 1 million dollar prize."), false, "a quiz");
+  assert.equal(c("Game Show", "Contestants solve word puzzles for a chance to win up to one million dollars."), false, "a puzzle quiz");
+  assert.equal(c("Scripted", "Rival chefs compete for the top job in a cut-throat kitchen."), false, "a drama about a competition");
+  assert.equal(c("Reality", null), false, "no blurb, no telling");
+  assert.equal(c(null, "They compete for $1 million"), false);
+  const s = (id, summary) => show(id, `Show ${id}`, { summary });
+  const { rows } = T.scheduleRows("2026-10-27", [ep(1, s(10, "Castaways compete.")), ep(2, s(11, "A family business.")), ep(3, show(12, "Scripted", { type: "Scripted", summary: "They compete." }))], []);
+  assert.deepEqual(rows.map((r) => `${r.tvmazeId}:${r.competition}`), ["10:true", "11:false", "12:false"], "each row says so");
+  assert.deepEqual(T.weekListings(rows).filter((l) => l.competition).map((l) => l.tvmazeId), [10], "and so does the week");
+});
+
 test("the week: a show's episodes starting together are one airing, in time order", () => {
   const row = (over) => ({ tvmazeId: 1, name: "A", network: "X", type: "Reality", artUrl: null, weight: 10, airAt: "2026-10-28T00:00:00.000Z", runtimeMin: 60, season: 1, number: 1, binge: false, ...over });
   const week = T.weekListings([

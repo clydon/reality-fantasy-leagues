@@ -101,14 +101,14 @@ async function writeRows(rows: ListingRow[], read: string[], keepFrom: string): 
     await c.query("DELETE FROM tv_listings WHERE day = ANY($1::date[]) OR day < $2::date", [read, keepFrom]);
     if (one.length) {
       await c.query(
-        `INSERT INTO tv_listings (episode_id, day, tvmaze_id, air_at, runtime_min, season, number, binge, name, type, network, country, weight, art_url)
-         SELECT "episodeId", day, "tvmazeId", "airAt", "runtimeMin", season, number, binge, name, type, network, country, weight, "artUrl"
+        `INSERT INTO tv_listings (episode_id, day, tvmaze_id, air_at, runtime_min, season, number, binge, name, type, network, country, weight, art_url, competition)
+         SELECT "episodeId", day, "tvmazeId", "airAt", "runtimeMin", season, number, binge, name, type, network, country, weight, "artUrl", competition
            FROM jsonb_to_recordset($1::jsonb) AS r("episodeId" int, day date, "tvmazeId" int, "airAt" timestamptz, "runtimeMin" smallint, season int,
-                number int, binge boolean, name text, type text, network text, country text, weight smallint, "artUrl" text)
+                number int, binge boolean, name text, type text, network text, country text, weight smallint, "artUrl" text, competition boolean)
          ON CONFLICT (episode_id) DO UPDATE SET day = EXCLUDED.day, tvmaze_id = EXCLUDED.tvmaze_id, air_at = EXCLUDED.air_at,
            runtime_min = EXCLUDED.runtime_min, season = EXCLUDED.season, number = EXCLUDED.number, binge = EXCLUDED.binge, name = EXCLUDED.name,
            type = EXCLUDED.type, network = EXCLUDED.network, country = EXCLUDED.country, weight = EXCLUDED.weight, art_url = EXCLUDED.art_url,
-           fetched_at = now()`,
+           competition = EXCLUDED.competition, fetched_at = now()`,
         [JSON.stringify(one)]
       );
     }
@@ -325,8 +325,12 @@ export async function refreshListings(base: string, opts: { now?: Date; force?: 
 /** The week on TV as the guide reads it (/api/listings/week): the same for everyone, from yesterday on. */
 export async function listingsWeek(now = new Date()): Promise<{ listings: WeekListing[] }> {
   const { rows } = await pool.query(
-    `SELECT tvmaze_id AS "tvmazeId", name, network, country, type, art_url AS "artUrl", weight, air_at AS "airAt", runtime_min AS "runtimeMin", season, number, binge
-       FROM tv_listings WHERE day >= $1::date ORDER BY air_at, episode_id`,
+    // A show set up here is a competition by its own kind (Below Deck is a series however its listing reads); the rest by
+    // their listing's (competitionOf).
+    `SELECT l.tvmaze_id AS "tvmazeId", l.name, l.network, l.country, l.type, l.art_url AS "artUrl", l.weight, l.air_at AS "airAt",
+            l.runtime_min AS "runtimeMin", l.season, l.number, l.binge, COALESCE(s.kind = 'competition', l.competition) AS competition
+       FROM tv_listings l LEFT JOIN shows s ON s.tvmaze_id = l.tvmaze_id AND s.set_up_at IS NOT NULL
+      WHERE l.day >= $1::date ORDER BY l.air_at, l.episode_id`,
     [easternDay(now, -1)]
   );
   return { listings: weekListings(rows.map((r) => ({ ...r, airAt: (r.airAt as Date).toISOString() }))) };

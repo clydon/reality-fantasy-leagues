@@ -14,6 +14,8 @@ export interface TvShow {
   type?: string | null;
   language?: string | null;
   genres?: string[] | null;
+  /** TVmaze's blurb (HTML): read only for whether a listed show is a competition (tv-listings.ts competitionOf). */
+  summary?: string | null;
   status?: string | null;
   premiered?: string | null;
   ended?: string | null;

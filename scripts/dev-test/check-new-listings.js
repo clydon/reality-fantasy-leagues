@@ -14,7 +14,8 @@
 //     with a schedule only gains the link.
 //   In a real browser at --width (390 by default), as alex: tomorrow's Also on (the most watched three in time order, his
 //   own Late Show and the couch's Traitors left out, and since step 14 part 2 a daily streaming soap, the most watched, kept in
-//   tv_listings but on no day of Also on), "2 more on TV" and the evening sheet (after midnight is the night
+//   tv_listings but on no day of Also on), the guide's switch (Competitions: only the listings whose blurbs say so, or set
+//   up here as one; Couch: no listings; kept on the phone; All TV again), "2 more on TV" and the evening sheet (after midnight is the night
 //   before's), a listing's sheet, Hide from guide with Undo, hiding from the evening sheet and Show again, Add to my shows
 //   from the evening sheet (where you are, then it's his: on his guide, out of Also on), the show added by name on his guide
 //   at its listing's time, a drop's day ("Streaming"), the TVmaze credit, no titles anywhere; nothing wider than the screen,
@@ -96,10 +97,11 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const N = fakeListings.oneNight;
     const art = (slug) => `/mock/showcase/art/${slug}.jpg`;
     const extra = [
-      N(990100, "ZT Prime A", at(1, 20), { weight: 95, art: art("amazing-race") }),
-      N(990102, "ZT Prime B", at(1, 21), { weight: 90, art: art("dwts") }),
+      // B and D are competitions by their blurbs (the guide's Competitions); A's is a docusoap's, C has none.
+      N(990100, "ZT Prime A", at(1, 20), { weight: 95, art: art("amazing-race"), summary: "<p>A family runs the busiest pawn shop in town.</p>" }),
+      N(990102, "ZT Prime B", at(1, 21), { weight: 90, art: art("dwts"), summary: "<p>Celebrity couples <b>compete</b> for the mirrorball.</p>" }),
       N(990103, "ZT Prime C", at(1, 22), { weight: 85, art: art("drag-race") }),
-      N(990104, "ZT Prime D", at(1, 20, 30), { weight: 40 }),
+      N(990104, "ZT Prime D", at(1, 20, 30), { weight: 40, summary: "Each week the houseguests vote someone out of the house." }),
       N(990113, "ZT After Midnight", at(1, 24, 35), { weight: 20, type: "Talk Show" }),
       N(990105, "ZT Morning", at(1, 9), { weight: 99, type: "Talk Show" }),
       N(990106, "ZT News Hour", at(1, 19), { weight: 99, type: "News" }),
@@ -225,7 +227,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const dropAiring = wb.listings.filter((l) => l.name === "ZT Stream Drop");
     check(dropAiring.length === 1 && dropAiring[0].numbers.join() === "1,2,3" && dropAiring[0].binge, "a drop is one airing (episodes 1-3)", JSON.stringify(dropAiring));
     check(!TITLES.test(weekText), "no episode titles in the week's read");
-    check(wb.listings.every((l) => Object.keys(l).sort().join() === "airAt,art,binge,country,name,network,numbers,runtimeMin,season,tvmazeId,type,weight"), "each airing: when, what and where, nothing else", Object.keys(wb.listings[0] ?? {}).join());
+    check(wb.listings.every((l) => Object.keys(l).sort().join() === "airAt,art,binge,competition,country,name,network,numbers,runtimeMin,season,tvmazeId,type,weight"), "each airing: when, what and where, nothing else", Object.keys(wb.listings[0] ?? {}).join());
+    const comps = [...new Set(wb.listings.filter((l) => l.competition).map((l) => l.name))].sort();
+    check(comps.join() === "ZT Prime B,ZT Prime D,ZT Traitors", "competitions: the two whose blurbs say so, and the couch's Traitors (set up here as one) though its listing has none", comps.join());
+    check((await pool.query("SELECT bool_or(competition) AS c FROM tv_listings WHERE tvmaze_id = 990002")).rows[0].c === false, "(the Traitors' row says what its listing does; its kind here decides on read)");
 
     // ---- listing seasons kept current ----
     const shackNow = await episodesOf(shackSeason.id);
@@ -331,6 +336,32 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
       const dropDay = pg.locator("[data-also-on='2']");
       check(/Streaming/.test(await dropDay.locator("[data-tvmaze='990107']").textContent()) && /3 episodes/.test(await dropDay.locator("[data-tvmaze='990107']").textContent()), "the day after: the drop, Streaming, 3 episodes");
       check(!TITLES.test(await pg.locator("[data-guide]").innerText()), "no episode titles on the guide");
+
+      // The guide's switch (2026-10-27): Couch · Competitions · All TV, kept on the phone.
+      const tvSwitch = pg.locator("[data-guide-tv]");
+      const switched = (to) => pg.waitForFunction((v) => document.querySelector("[data-guide-tv]")?.getAttribute("data-guide-tv") === v, to, { timeout: 10_000 }).catch(() => {});
+      check((await tvSwitch.getAttribute("data-guide-tv")) === "all" && (await tvSwitch.locator("[aria-checked=true]").textContent()) === "All TV", "the guide's switch: All TV to begin with");
+      await tvSwitch.locator("[data-guide-tv-choice='comps']").click();
+      await switched("comps");
+      check((await alsoNames(1)).join() === "ZT Prime D,ZT Prime B", "Competitions: tomorrow's Also on is the two competitions, in time order", (await alsoNames(1)).join());
+      check((await pg.locator("[data-also-more='1']").count()) === 0 && (await pg.locator("[data-also-on='2'] [data-tvmaze='990107']").count()) === 0, "with nothing more, and the scripted drop's day without it");
+      check((await namedCard.count()) === 1, "his own shows stay on the guide");
+      await toGuide();
+      await reel(150);
+      await shot("guide-competitions");
+      await tvSwitch.locator("[data-guide-tv-choice='couch']").click();
+      await switched("couch");
+      check((await pg.locator("[data-also-on]").count()) === 0 && (await pg.locator("[data-guide-credit]").count()) === 0 && (await namedCard.count()) === 1, "Couch: the couch's shows and his, no TV listings nor their credit");
+      await pg.reload({ waitUntil: "load" });
+      await pg.locator("[data-guide-tv]").waitFor({ timeout: 30_000 });
+      await pg.waitForTimeout(500);
+      check((await tvSwitch.getAttribute("data-guide-tv")) === "couch" && (await pg.locator("[data-also-on]").count()) === 0, "kept on the phone: still Couch after a reload");
+      await toGuide();
+      await shot("guide-couch-only");
+      await wide("the guide with its switch");
+      await tvSwitch.locator("[data-guide-tv-choice='all']").click();
+      await pg.locator("[data-also-on='1']").waitFor({ timeout: 10_000 });
+      check((await alsoNames(1)).join() === "ZT Prime A,ZT Prime B,ZT Prime C", "All TV: as it was", (await alsoNames(1)).join());
 
       // A listing's sheet; Hide from guide with Undo.
       await listing(990100).click();

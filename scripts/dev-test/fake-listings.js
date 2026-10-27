@@ -59,7 +59,8 @@ function eastern(t) {
 /**
  * A show with one season airing at `at` (a Date or ms): `episodes` of them at once (a streaming drop when `web` is set and
  * `drop` is true), on a US network unless `web` names a streaming service ({ name, country: code or null }). Its season is
- * `season` (1), its popularity `weight` (50), its language `language` ("English"), its type `type` ("Reality").
+ * `season` (1), its popularity `weight` (50), its language `language` ("English"), its type `type` ("Reality"), its blurb
+ * `summary` (none: a competition only when it says so, tv-listings.ts competitionOf).
  */
 function oneNight(id, name, at, o = {}) {
   const t = new Date(at).getTime();
@@ -70,7 +71,7 @@ function oneNight(id, name, at, o = {}) {
   const premiere = eastern(t).date;
   return {
     show: {
-      id, name, type: o.type ?? "Reality", language: o.language ?? "English", genres: [], status: "Running", premiered: premiere, weight: o.weight ?? 50,
+      id, name, type: o.type ?? "Reality", language: o.language ?? "English", genres: [], summary: o.summary ?? null, status: "Running", premiered: premiere, weight: o.weight ?? 50,
       network, webChannel, image: o.art ? { medium: o.art, original: o.art } : null, url: `https://www.tvmaze.com/shows/${id}`,
       schedule: { time: o.drop ? "" : eastern(t).time, days: [] },
     },

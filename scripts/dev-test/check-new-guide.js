@@ -11,7 +11,8 @@
 //   In a real browser at --width (390 by default), as alex: seven days from today, the Now line, On now, Same time (yours
 //   first), the drop's one card, the due dot on Survivor, dashed and faded, no Preview left (Also on is part 2's, real:
 //   check-new-listings.js); the hub doesn't
-//   read the catalog until Add a show opens (from Noticed); a couch show's sheet (who watches it), Hide from guide with
+//   read the catalog until Add a show opens (from Noticed); the roll with motion on (a tap and a swipe up the page leave it
+//   rolling, a swipe across or a sideways wheel pauses it, and it rolls on after); a couch show's sheet (who watches it), Hide from guide with
 //   the toast's Undo, "1 hidden" and Show again, Add to my shows (where you are, then it's yours: dashed, no longer faded), a
 //   card of yours opening its show. As casey (alex's other couch): hiding the Late Show leaves today with Nothing tonight /
 //   Next up. Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
@@ -187,6 +188,61 @@ function check(ok, what, detail = "") {
       check((await pg.locator("[data-guide-roll]").count()) === 1, "with motion, the guide's status is back");
       await pg.emulateMedia({ reducedMotion: "reduce" });
       check(!A.asked.includes("/api/catalog"), "the hub didn't read the catalog (from Noticed)", A.asked.filter((p) => p.startsWith("/api/")).join(","));
+
+      // The roll (2026-10-27), on a phone with motion: a tap and a swipe up the page leave it rolling; a swipe across or a
+      // sideways wheel pauses it a few seconds.
+      {
+        const R = await open({ user: fixture.username("alex"), pass: PASSWORD, width, height: 844 });
+        closers.push(R.close);
+        await R.page.context().addInitScript(noBadge);
+        const rp = R.page;
+        await rp.goto(`${BASE}/home`, { waitUntil: "load" });
+        await rp.locator("[data-guide] [data-guide-day='1']").waitFor({ timeout: 30_000 });
+        await rp.locator("[data-guide]").scrollIntoViewIfNeeded();
+        await rp.evaluate(() => window.scrollBy(0, -70));
+        const roll = () => rp.locator("[data-guide-roll]").getAttribute("data-guide-roll");
+        const left = () => rp.evaluate(() => document.querySelector("[data-guide] .overflow-x-auto").scrollLeft);
+        const rolled = async (what) => {
+          const a = await left();
+          await rp.waitForTimeout(1200);
+          const b = await left();
+          check((await roll()) === "on" && b > a + 5, what, `${await roll()}, ${a} → ${b}`);
+        };
+        await rp.waitForFunction(() => document.querySelector("[data-guide-roll]")?.getAttribute("data-guide-roll") === "on", null, { timeout: 10_000 }).catch(() => {});
+        await rolled("with motion, the guide rolls once you reach it");
+        const box = await rp.locator("[data-guide] .overflow-x-auto").boundingBox();
+        const y = box.y + box.height / 2;
+        const head = await rp.locator("[data-guide-day='1'] b").first().boundingBox();
+        await rp.touchscreen.tap(head.x + 5, head.y + head.height / 2);
+        await rolled("a tap on the guide leaves it rolling");
+        const cdp = await rp.context().newCDPSession(rp);
+        const swipe = async (dx, dy) => {
+          const x0 = box.x + box.width / 2;
+          await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: x0, y }] });
+          for (let i = 1; i <= 6; i++) {
+            await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x0 + (dx * i) / 6, y: y + (dy * i) / 6 }] });
+            await rp.waitForTimeout(16);
+          }
+          await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+        };
+        await swipe(4, -80);
+        await rolled("a swipe up the page, starting on the guide, leaves it rolling");
+        await rp.locator("[data-guide]").scrollIntoViewIfNeeded();
+        await swipe(-140, 6);
+        await rp.waitForTimeout(1500); // a fling's glide
+        const held = await left();
+        await rp.waitForTimeout(1500);
+        check((await roll()) === "off" && Math.abs((await left()) - held) <= 2, "a swipe across pauses it (Paused)", `${await roll()}, ${held} → ${await left()}`);
+        await rp.waitForFunction(() => document.querySelector("[data-guide-roll]")?.getAttribute("data-guide-roll") === "on", null, { timeout: 6000 }).catch(() => {});
+        await rolled("and it rolls on a few seconds later");
+        await rp.mouse.move(box.x + box.width / 2, y);
+        await rp.mouse.wheel(120, 0);
+        await rp.waitForTimeout(300);
+        check((await roll()) === "off", "a sideways wheel or trackpad pauses it too", await roll());
+        await cdp.detach();
+        check(R.errors.filter((e) => !/Failed to load resource/.test(e)).length === 0, "the roll: no page errors", R.errors.join(" | "));
+        await R.close();
+      }
       await A.toGuide();
       await A.shot("guide-today");
       await A.wide("the hub with the guide");

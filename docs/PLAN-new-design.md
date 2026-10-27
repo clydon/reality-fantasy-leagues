@@ -137,6 +137,17 @@ Behaviour a session saw and left alone because it wasn't that step's to change. 
 the step that could take it (a guess: any later step that touches it may). Fixed ones come out, with a line in that
 step's As built.
 
+- **The guide's Competitions (2026-10-27, tv-listings.ts competitionOf, migration 0147) is a guess from TVmaze's blurb**: about
+  1 in 15 wrong (a makeover show that "crowns" the ugliest house), and a competition whose blurb never says so is missed (Love Is
+  Blind, Fear Factor). Exact would be asking once per new reality show (our bot, "Is X a competition?", kept per listing), or a
+  "Not a competition / Is one" on a listing's sheet that two people settle, as results are. A show set up here is already exact.
+- **Checks that share new-fixture.js can't run at once (2026-10-27)**: check-bingo-bank.js and the check-new-* checks all bring
+  up and take down the same zt_nd_ people, so two at a time sign each other out and delete each other's seasons mid-run (seen as
+  "Not logged in", or the bot clock planning nothing). Run them one at a time; a lock file in new-fixture.js `up` would make it
+  say so.
+- **check-new-listings' "nothing asked of the listings" step (2026-10-27) can catch show art's lookup**: adding ZT Old Listing
+  finds its art after the answer (show-art.ts, `/shows/:id?embed=seasons`), which can land in the step's 2-second window after
+  the bot clock's call. The step could ignore `/shows/` lookups, or wait for the art first.
 - **Show words (2026-10-27, lib/game/show-words.ts, migration 0142) reach the show's tabs and the screens of a show you watch**:
   the show bar, Tonight's head, the spoiler chip, Episodes (Schedule), the Cast tab's empty state, Where you are, Seen it, the
   hub's Up next. Still "Episode" (about 130 more): the game screens (the moves dock, Your moves, reveal, Backstage, waivers,
@@ -3152,6 +3163,26 @@ person's hidden listing is `guide_hidden`, which is backed up). Nothing polls an
 - **For part 3:** a guide card of yours opens the show (part 1), so planning a night from the guide lives on the couch show's
   sheet (`CouchShowSheet`) and a listing's (`ListingSheet`, which would need the show added first), besides the show's Tonight and
   ⋯ menu. Migration 0127 is next. Nothing in step 11 is Preview now, so check-preview passes either way.
+- **Later, 2026-10-27 (on master; migration 0147): the guide's switch, Competitions, and the roll.** The user asked for three
+  things. (1) **The roll** (`useRoll`): a tap no longer stops it; it's Paused for 4 s only when you move it yourself (a touch that
+  goes further across than down, past 8 px; a sideways wheel or trackpad; anything else that moves it from where the roll put it,
+  like a fling's glide; keyboard focus), and Rolling/Paused now says so while it waits. (2) **The switch**, quiet in the foot
+  beside Add a show: **Couch** (My shows, solo) · **Competitions** · **All TV**, per phone (`gys.guideTv` in localStorage, held for
+  the visit when the phone won't keep it), All TV to begin with; Couch drops Also on and its credit, Competitions keeps only
+  listings that are competitions. It shows only once there are listings, and the notes (legend, credit, N hidden) go under it.
+  (3) **Which listings are competitions** (`competitionOf` in tv-listings.ts, `tv_listings.competition`, written by the daily
+  job): a reality or game show whose TVmaze blurb says what a competition does (compete, contestants, eliminations, a prize,
+  crowned, judges, voted out, a winner, a cash figure), and not a game show that's a quiz (questions, trivia, puzzles). TVmaze
+  can't say it (Survivor and Below Deck are both "Reality", The Traitors a "Game Show"; its genres don't help), so it reads the
+  blurb, which nothing kept before. Measured on 158 reality and game shows in ten days of real schedules: 46 in, three wrongly
+  (House Shock, Million Dollar Nannies, Ugliest House in America), and a few competitions missed that never say so (Love Is
+  Blind, Fear Factor: House of Fear, Lock Upp). A show set up here goes by its own kind instead, on read (`listingsWeek` joins
+  `shows` on the listing: Below Deck is a series however its blurb reads). Rows written before 0147 say false until the job's
+  next daily run rewrites the week. **Checks:** `tests/tv-listings.test.js` (8); check-new-guide's roll on a phone with motion (a
+  tap and a swipe up the page leave it rolling, a swipe across and a sideways wheel pause it, it rolls on); check-new-listings'
+  switch (blurbs in `fake-listings.js` `oneNight`'s new `summary`; the couch's Traitors a competition by its kind), and its read
+  gains `competition`. check-new-guide all passed; check-new-listings passed but for one timing step (Noticed, not fixed). Seen
+  at 390 and 360 in both themes. Not in What's New yet (the user approves those).
 
 ### As built, step 11 part 3 (2026-10-26, on `new-design`): planned nights
 
