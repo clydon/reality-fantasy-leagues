@@ -49,6 +49,34 @@ test("the hub and a show: the channel change when there's art to grow, and alway
   assert.equal(R.navKind(`${S}/backstage`, "/home"), "pop");
 });
 
+test("up from a page: where its own Back leads, on up to the hub (the phone's back, components/phone-back.tsx)", () => {
+  assert.equal(R.upFrom("/home"), null);
+  assert.equal(R.upFrom("/welcome"), null);
+  for (const tab of R.SHOW_TABS) assert.equal(R.upFrom(`${S}/${tab}`), "/home", tab);
+  assert.equal(R.upFrom(S), "/home");
+  for (const p of ["draft", "blind", "waivers"]) assert.equal(R.upFrom(`${S}/${p}`), `${S}/tonight`, p);
+  assert.equal(R.upFrom(`${S}/backstage`), `${S}/tonight`);
+  assert.equal(R.upFrom(`${S}/backstage/results`), `${S}/backstage`);
+  assert.equal(R.upFrom(`${S}/backstage/history`), `${S}/tonight`);
+  // A page pushed over the screen closes to the screen under it, its own params and all.
+  assert.equal(R.upFrom(`${S}/tonight?page=watch&ep=3`), `${S}/tonight`);
+  assert.equal(R.upFrom("/home?page=how"), "/home");
+  assert.equal(R.upFrom("/settings"), "/home");
+  assert.equal(R.upFrom("/join/K7Q2XZ"), "/home");
+  assert.equal(R.upFrom("/start/3"), "/start/2");
+  assert.equal(R.upFrom("/start/1"), "/home");
+  assert.equal(R.upFrom("/desk"), "/home");
+  assert.equal(R.upFrom("/desk/find"), "/home");
+  assert.equal(R.upFrom("/desk/library"), "/desk/find");
+  assert.equal(R.upFrom("/desk/new?season=abc"), "/desk/library");
+  assert.equal(R.upFrom("/desk/fact/42"), "/desk");
+  assert.equal(R.upFrom("/desk/castaway/7"), "/desk/find");
+  // Signed out, the top is the landing.
+  assert.equal(R.upFrom("/signin"), "/welcome");
+  assert.equal(R.upFrom("/start/1", { signedIn: false }), "/welcome");
+  assert.equal(R.upFrom("/join/K7Q2XZ", { signedIn: false }), "/welcome");
+});
+
 test("reduced motion: every move is the calm crossfade", () => {
   assert.equal(R.navKind("/home", `${S}/tonight`, { channel: true, reducedMotion: true }), "calm");
   assert.equal(R.navKind(`${S}/tonight`, `${S}/cast`, { reducedMotion: true }), "calm");

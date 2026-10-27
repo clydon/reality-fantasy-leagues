@@ -88,6 +88,15 @@ Last updated 2026-10-27.
       (check first).
     - **Not localStorage:** text only, ~5 MB.
     - **When:** only if offline start-up with art matters, or players notice posters reloading on start-up.
+12. **The phone's back doesn't close an open sheet (noticed 2026-10-27, building the phone's back).** The new design's
+    sheets (`src/new/ui/sheet.tsx`, Base UI's Dialog) close on Escape, a scrim tap or a swipe down, but Android's back
+    goes to the history: it moves the page underneath, and a sheet mounted in `(in)/layout.tsx` (the couch's, Start a
+    game, Rate it…) can stay open over the new page. A native app closes the sheet first.
+    - **The fix:** a close watcher while a sheet is open (`new CloseWatcher()`, its `onclose` closing the sheet,
+      destroyed when it closes). It's opened by a tap, so it gets a group of its own above the phone's-back watcher
+      (`src/components/phone-back.tsx`, which drops its own watcher on that tap anyway). Classic's More sheet already
+      closes on back (a history entry, `mobile-nav.tsx`).
+    - **Check:** extend `scripts/dev-test/check-phone-back.js`: open a sheet, Escape, the sheet closes and the path stays.
 
 ## Decided against (don't re-propose without new information)
 

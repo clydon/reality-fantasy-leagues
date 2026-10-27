@@ -5,6 +5,7 @@ import "./globals.css";
 import { AuthGate } from "@/components/auth-gate";
 import { MotionProvider } from "@/components/motion";
 import { NoLinkMenu } from "@/components/no-link-menu";
+import { PhoneBack } from "@/components/phone-back";
 import { QueryProvider } from "@/components/query-provider";
 import { ServiceWorkerRegistrar } from "@/components/service-worker-registrar";
 import { THEME_BOOT_SCRIPT } from "@/lib/theme-script";
@@ -101,6 +102,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col bg-background">
         <ServiceWorkerRegistrar />
         <NoLinkMenu />
+        <PhoneBack signedIn={hasSession} />
         <QueryProvider>
           <MotionProvider>
             <AuthGate hasSession={hasSession}>{children}</AuthGate>

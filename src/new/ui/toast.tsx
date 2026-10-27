@@ -20,10 +20,13 @@ const useToasts = create<{ current: Toast | null; shown: boolean }>(() => ({ cur
 let seq = 0;
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
 
+/** How long a quiet toast is up. */
+export const QUIET_MS = 4000;
+
 export function toast(text: string, opts: { undo?: () => void; quiet?: boolean } = {}) {
   clearTimeout(hideTimer);
   useToasts.setState({ current: { id: ++seq, text, undo: opts.undo, quiet: opts.quiet }, shown: true });
-  hideTimer = setTimeout(dismiss, opts.undo ? 5000 : opts.quiet ? 4000 : 2600);
+  hideTimer = setTimeout(dismiss, opts.undo ? 5000 : opts.quiet ? QUIET_MS : 2600);
 }
 
 /** Why something can't be done, or what went wrong: no tick. */

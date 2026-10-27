@@ -116,6 +116,45 @@ export function depthOf(href: string): number {
 }
 
 /**
+ * Up from a page: where its own Back button leads, without the page you came from (src/components/phone-back.tsx,
+ * the phone's back once the trail has run out). Null at the top: the hub, the landing. A page pushed over the screen
+ * (`?page=`) is up to the screen under it. A show's tabs are all up to the hub, as the show bar's Back says. Classic's
+ * pages aren't here (lib/nav-trail.ts has theirs).
+ */
+export function upFrom(href: string, { signedIn = true }: { signedIn?: boolean } = {}): string | null {
+  const [path, query = ""] = href.split("#")[0].split("?");
+  if (new URLSearchParams(query).has("page")) return path;
+  const top = signedIn ? paths.home : paths.welcome;
+  const p = parse(path);
+  switch (p[0]) {
+    case "home":
+    case "welcome":
+      return null;
+    case "signin":
+      return paths.welcome;
+    case "start": {
+      const step = Number(p[1]) || 1;
+      return step > 1 ? paths.start(step - 1) : top;
+    }
+    case "show":
+      if (!p[1]) return paths.home;
+      // Recent changes is a player's too, from the show's menu, so up is the show, not Backstage.
+      if (p[2] === "backstage") return p[3] && p[3] !== "history" ? paths.backstage(p[1]) : paths.show(p[1]);
+      if ((SHOW_PAGES as readonly string[]).includes(p[2])) return paths.show(p[1]);
+      return paths.home;
+    case "desk":
+      if (p[1] === "library") return paths.desk("find");
+      if (p[1] === "new") return paths.desk("library");
+      if (p[1] === "fact") return paths.desk();
+      if (p[1] && isDeskKind(p[1])) return paths.desk("find");
+      return paths.home;
+    default:
+      // Settings, joining a couch.
+      return top;
+  }
+}
+
+/**
  * The kind of move from one path to another. `channel` asks for the art morph when going from the hub into a show
  * (the tapped card has art to grow); coming back from a show's tab to the hub is always a channel change.
  */
