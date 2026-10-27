@@ -226,7 +226,13 @@ function EditFactSheet({ fact, onClose, onSave }: { fact: DeskFact; onClose: () 
 // ---------- a season ----------
 
 type BotRun = SeasonBot["schedule"][number];
-const RUN_WORDS: Record<BotRun["kind"], string> = { quick: "Who went home", full: "The full results", schedule: "When the next episode airs" };
+const RUN_WORDS: Record<BotRun["kind"], string> = { quick: "Who went home", full: "The full results", schedule: "When the next episode airs", trivia: "Trivia" };
+const RUN_LINES: Record<BotRun["kind"], string> = {
+  quick: "Free for every couch: keeps whoever runs a game spoiler-safe.",
+  full: "Every scoring moment, for every game on the season.",
+  schedule: "Moves lineup locks and reminders when the show takes a week off.",
+  trivia: "Questions on the episode and the season so far for trivia, each checked by a second ask.",
+};
 const minutes = (m: number) => (m < 60 ? `${m} min` : Number.isInteger(m / 60) ? `${m / 60} h` : `${Math.floor(m / 60)} h ${m % 60} min`);
 // The runs a season can switch on: its own, and the usual ones it hasn't got (off until switched on).
 const USUAL: BotRun[] = [
@@ -234,6 +240,7 @@ const USUAL: BotRun[] = [
   { kind: "full", after: 60, on: false },
   { kind: "full", after: 540, on: false },
   { kind: "schedule", after: 30, on: false },
+  { kind: "trivia", after: 1440, on: false },
 ];
 
 /**
@@ -270,8 +277,8 @@ function SeasonBotSection({ id, bot }: { id: string; bot: SeasonBot }) {
             data={`run-${r.kind}@${r.after}`}
             on={r.on}
             disabled={!bot.on}
-            title={`${RUN_WORDS[r.kind]} · ${minutes(r.after)} after it ends`}
-            line={r.kind === "quick" ? "Free for every couch: keeps whoever runs a game spoiler-safe." : r.kind === "full" ? "Every scoring moment, for every game on the season." : "Moves lineup locks and reminders when the show takes a week off."}
+            title={`${RUN_WORDS[r.kind]} · ${minutes(r.after)} ${r.kind === "trivia" ? "before the next one" : "after it ends"}`}
+            line={RUN_LINES[r.kind]}
             onChange={() => flip(r)}
           />
         ))}

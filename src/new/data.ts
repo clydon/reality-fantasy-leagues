@@ -1437,6 +1437,8 @@ export const triviaApi = {
   play: (seasonId: string, couchId: string | null, answers: Record<string, string>) => post<TriviaRound>(seasonUrl(seasonId, "/trivia", couchQuery(couchId)), { answers }),
   /** An earlier season of the show seen to the end (Seen it all): answers the round again, which can now ask about it. */
   seenAll: (seasonId: string, couchId: string | null, seen: string) => post<TriviaRound>(seasonUrl(seasonId, "/trivia", couchQuery(couchId)), { seen }),
+  /** "This question's wrong": a researched question, gone from your rounds (and everyone's at two flags). */
+  flag: (seasonId: string, question: string) => post<{ ok: true }>(seasonUrl(seasonId, "/trivia", {}), { flag: question }),
 };
 
 /** After a round's played: the round put in place, the lists that show its score read again. */

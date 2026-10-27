@@ -80,6 +80,7 @@ scales up under load). So what matters is how often something wakes it, not how 
 |---|---|---|
 | Hourly GitHub job (when it runs) | ~6 min an hour | ~18 |
 | Bot research clock, after 2026-10-24 | each episode night's runs, plus a check-in every 6 h | ~3 per show airing |
+| Researched trivia runs (2026-10-26; in the default schedule) | one call a day before each episode (two ChatGPT asks, ~2 min), up to 3 tries | a few minutes per episode, ~0.1 per show airing |
 | Tie-break runs (new design, step 6c; off until switched on in desk › Settings) | one call a day after a dispute, up to 3 tries | a few minutes per disputed episode |
 | The listings job (new design, step 11 part 2) | none of its own: it runs after a bot clock call that ran no bot job, which had woken the database already; ~10-30 s of queries once a day | ~0 (a backstop Vercel cron, if ever needed, ~0.6) |
 | Bot research clock, before (a call every 2 min) | around the clock | ~180 (over the allowance) |
@@ -389,6 +390,11 @@ stays alive while it waits, up to the route's 300 s (typically 40-120 s). That's
 provisioned memory for the whole wait (about 1 GB × 2 minutes per full-results tap). Make it a game's ask works the same
 way, both its questions in one request when they fit in 300 s (else the open page asks for the second in a request of its
 own): about 1 GB × 2-4 minutes per show set up.
+
+**Researched trivia (2026-10-26, on the branch)** is one more bot run per episode (`trivia`, a day before the next one airs): its
+call to `/api/cron/bot-research` wakes Neon on its own (a different time from the episode night's runs), for the two asks
+(~100 s, inside the route's 300 s) and a few small writes. Storage: six short questions an episode (`trivia_questions`, ~3 KB),
+flags as people tap Wrong?. Nothing polls: the round is read when the trivia sheet, row or Commercial break opens, as before.
 
 ## Levers, cheapest first
 

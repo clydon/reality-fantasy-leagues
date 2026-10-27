@@ -25,7 +25,7 @@ export interface SeasonBot {
   recent: { episode: number; kind: string; slot: string; ok: boolean | null; message: string | null; at: string }[];
 }
 
-const KIND_WORD: Record<string, string> = { quick: "who went home", full: "the full results", schedule: "when the next episode airs" };
+const KIND_WORD: Record<string, string> = { quick: "who went home", full: "the full results", schedule: "when the next episode airs", trivia: "trivia questions" };
 
 /** "Checks who went home and the full results" (what a schedule's runs ask about, in a line). */
 export function scheduleLine(schedule: BotScheduleRun[]): string {

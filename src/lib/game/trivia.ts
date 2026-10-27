@@ -6,6 +6,10 @@ import { randomFrom, shuffled } from "./seeded";
 // longer, who scored more. Only about a season finished and seen to the end, or the one you're on as far as you've seen it (who
 // left first, who lasted longer of two who've both left). The same seed (a show and a week) deals the same round to everyone who's
 // seen the same. Pure: src/lib/server/trivia.ts gathers the facts and keeps the scores; tests/trivia.test.js.
+//
+// Researched questions come first (db/trivia-research.js: the bot writes them a day before each episode, about the one before it
+// and the season so far, and a second ask checks them; trivia_questions, 0140): the details a close watcher would catch, which the
+// results can't say. The server picks which and in what order (only about episodes you've seen); these fill whatever's left.
 
 export interface TriviaPerson {
   name: string;
@@ -38,14 +42,35 @@ export interface TriviaOption {
 }
 
 export interface TriviaQuestion {
-  /** Stable for a round: what it asks, about which season (the server grades by it). */
+  /** Stable for a round: what it asks, about which season (the server grades by it); a researched one's is "r:<its id>". */
   id: string;
+  /** The season it's about. */
+  seasonId: string;
   /** "Who won Survivor 49?" */
   lead: string;
   /** A moment, for "Who did this most?"; else null. */
   what: string | null;
   options: TriviaOption[];
   answer: string;
+  /** A researched question's line on what happened, shown once it's answered, and the page that says so. */
+  why?: string | null;
+  source?: string | null;
+}
+
+/** A question the bot researched and a second ask checked (trivia_questions). */
+export interface ResearchedQuestion {
+  id: string;
+  seasonId: string;
+  /** The latest episode aired when it was written, and the one it's about (never later). */
+  madeAfter: number;
+  episode: number;
+  /** cast: its options are people (with faces); number: digits, smallest first; text: anything else. */
+  kind: "cast" | "number" | "text";
+  question: string;
+  options: string[];
+  answer: string;
+  why: string | null;
+  source: string;
 }
 
 /** Three questions a round. */
@@ -115,11 +140,25 @@ function candidates(s: TriviaSeason, next: () => number): Candidate[] {
   return out;
 }
 
+/** A researched question as asked: a person's options with their faces (from the season's cast), shuffled unless they're numbers. */
+function asked(q: ResearchedQuestion, seasons: TriviaSeason[], next: () => number): TriviaQuestion {
+  const cast = seasons.find((s) => s.seasonId === q.seasonId)?.cast ?? [];
+  const photo = (name: string) => (q.kind === "cast" ? (cast.find((c) => c.name === name)?.photo ?? null) : null);
+  const options = q.kind === "number" ? q.options : shuffled(q.options, next);
+  return { id: `r:${q.id}`, seasonId: q.seasonId, lead: q.question, what: null, options: options.map((o) => ({ key: o, label: o, photo: photo(o) })), answer: q.answer, why: q.why, source: q.source };
+}
+
 /**
- * A round: up to ROUND questions from these seasons' facts (the first is the round's own season), dealt by `seed`. At most one of
- * each kind (two of "who did this most"), the round's own season first; four faces a question (two for "A or B?").
+ * A round: the researched questions first (as many as fit, in the order given), then up to ROUND in all from these seasons'
+ * facts (the first is the round's own season), dealt by `seed`. At most one of each kind (two of "who did this most"), the round's
+ * own season first; four faces a question (two for "A or B?").
  */
-export function triviaRound(seasons: TriviaSeason[], seed: string, size = ROUND): TriviaQuestion[] {
+export function triviaRound(seasons: TriviaSeason[], seed: string, size = ROUND, researched: ResearchedQuestion[] = []): TriviaQuestion[] {
+  // Their own draw, so the facts' questions deal as they always have.
+  const mine = randomFrom(`${seed}|researched`);
+  const first = researched.slice(0, size).map((q) => asked(q, seasons, mine));
+  if (first.length >= size) return first;
+  size -= first.length;
   const next = randomFrom(seed);
   const all = seasons.flatMap((s, i) => shuffled(candidates(s, next), next).map((c) => ({ c, i })));
   const taken: { c: Candidate; i: number }[] = [];
@@ -131,10 +170,11 @@ export function triviaRound(seasons: TriviaSeason[], seed: string, size = ROUND)
       taken.push(t);
     }
   }
-  return shuffled(taken, next).map(({ c }) => {
+  const facts = shuffled(taken, next).map(({ c, i }) => {
     const people = c.pair ? [c.answer, c.pair] : [c.answer, ...shuffled(c.pool, next).slice(0, 3)];
-    return { id: c.id, lead: c.lead, what: c.what, options: shuffled(people, next).map(opt), answer: c.answer.name };
+    return { id: c.id, seasonId: seasons[i].seasonId, lead: c.lead, what: c.what, options: shuffled(people, next).map(opt), answer: c.answer.name };
   });
+  return [...first, ...facts];
 }
 
 /** How many of a round's questions these answers got right (only questions in the round count). */

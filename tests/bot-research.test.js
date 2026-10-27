@@ -10,8 +10,22 @@ const schedule = Bot.normalizeSchedule(null);
 const due = (now, history = [], extra = {}) =>
   Bot.dueRuns({ schedule, since: null, airTimes: [{ episode: 5, at: AIRED }], history, now, ...extra }).map((r) => r.slot);
 
-test("the default schedule: quick at 5 minutes, full at 1 and 9 hours", () => {
-  assert.deepEqual(schedule.map(Bot.slotOf), ["quick@5", "full@60", "full@540"]);
+test("the default schedule: quick at 5 minutes, full at 1 and 9 hours, trivia a day before the next episode", () => {
+  assert.deepEqual(schedule.map(Bot.slotOf), ["quick@5", "full@60", "full@540", "trivia@1440"]);
+});
+
+test("trivia counts back from the next episode: a day before a weekly one, 3 hours after the end for a nightly one, none for a double", () => {
+  const hour = 60 * 60 * 1000;
+  const run = { kind: "trivia", after: 1440 };
+  const ends = 90 * 60 * 1000;
+  const due = (gap) => Bot.dueAt(run, ends, gap === null ? null : new Date(gap * hour));
+  assert.deepEqual(due(7 * 24), new Date(6 * 24 * hour), "weekly: a day before the next one");
+  assert.deepEqual(due(24), new Date(ends + Bot.TRIVIA_AFTER_END * 60 * 1000), "nightly: 3 hours after it ends");
+  assert.equal(due(3), null, "a double episode: the next one airs before the recaps can be read");
+  assert.deepEqual(due(null), new Date(ends + 24 * hour), "the finale (no next one): a day after it ends");
+  const schedule = Bot.normalizeSchedule([{ kind: "trivia", after: 1440 }]);
+  const airTimes = [{ episode: 5, at: AIRED }, { episode: 6, at: new Date(AIRED.getTime() + 7 * 24 * hour) }];
+  assert.deepEqual(Bot.nextRunAt({ schedule, since: null, airTimes, episodeMinutes: 90, history: [], now: min(-60) }), new Date(AIRED.getTime() + 6 * 24 * hour));
 });
 
 test("nothing is due before its time, then each run comes due in turn", () => {
@@ -69,9 +83,11 @@ test("nextRunAt: when to come back, by the same rules", () => {
   assert.deepEqual(next(min(96), [quickFailed]), min(100), "a retry 5 minutes on");
   const quickOk = runAt(5, { slot: "quick@5", at: min(100), ok: true });
   assert.deepEqual(next(min(101), [quickFailed, quickOk]), min(150), "then the full run, an hour after the end");
-  const done = ["quick@5", "full@60", "full@540"].map((slot) => runAt(5, { slot, at: min(600), ok: true }));
+  const results = ["quick@5", "full@60", "full@540"].map((slot) => runAt(5, { slot, at: min(600), ok: true }));
+  assert.deepEqual(next(min(700), results), new Date(NEXT_EP.getTime() - 24 * 60 * 60 * 1000), "then trivia, a day before the next episode");
+  const done = [...results, runAt(5, { slot: "trivia@1440", at: min(700), ok: true })];
   assert.deepEqual(next(min(700), done), new Date(NEXT_EP.getTime() + 95 * 60 * 1000), "then next week's episode");
-  assert.equal(next(min(700), done, { airTimes: [{ episode: 5, at: AIRED }] }), null, "nothing left: null");
+  assert.equal(next(min(800), done, { airTimes: [{ episode: 5, at: AIRED }] }), null, "nothing left: null");
   assert.deepEqual(next(min(-60), [], { since: min(120) }), min(150), "switched on later: earlier runs never come due");
 });
 
@@ -92,7 +108,7 @@ test("an episode night: the VM calls only when told, and the quick check lands w
     assert.ok(job || when > now, "never told to come back for a run that isn't due");
     now = when > now ? when : new Date(now.getTime() + 60 * 1000);
   }
-  assert.deepEqual(calls, [95, 100, 105, 110, 115, 150, 630], "quick at 95 and every 5 until 115 finds it; full at 150 and 630");
+  assert.deepEqual(calls, [95, 100, 105, 110, 115, 150, 630, 1530], "quick at 95 and every 5 until 115 finds it; full at 150 and 630; trivia a day after (no next episode known)");
 });
 
 test("switched on mid-season: earlier runs are never picked up", () => {

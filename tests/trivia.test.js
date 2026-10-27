@@ -78,3 +78,20 @@ test("grading, and the week", () => {
   assert.equal(weekOf(new Date("2026-11-01T23:59:00Z")), "2026-10-26", "Sunday is the week's last day");
   assert.equal(weekOf(new Date("2026-11-02T00:00:00Z")), "2026-11-02");
 });
+
+test("researched questions come first, in the order given, and the season's facts fill what's left", () => {
+  const withPhotos = { ...finished, cast: finished.cast.map((c) => ({ ...c, photo: `${c.name}.jpg` })) };
+  const r = (id, over = {}) => ({ id, seasonId: "s49", madeAfter: 4, episode: 4, kind: "cast", question: `Question ${id}?`, options: ["Ann", "Bo", "Cy", "Di"], answer: "Bo", why: "Bo did.", source: "https://example.com", ...over });
+  const two = triviaRound([withPhotos], "w", ROUND, [r("a"), r("b", { kind: "number", options: ["2", "3", "4", "5"], answer: "3" })]);
+  assert.equal(two.length, ROUND);
+  assert.deepEqual(two.slice(0, 2).map((q) => q.id), ["r:a", "r:b"]);
+  assert.ok(!two[2].id.startsWith("r:"), "the facts fill the third");
+  assert.equal(two[0].lead, "Question a?");
+  assert.equal(two[0].why, "Bo did.");
+  assert.equal(two[0].options.find((o) => o.key === "Bo").photo, "Bo.jpg", "a person's face");
+  assert.deepEqual(two[1].options.map((o) => o.key), ["2", "3", "4", "5"], "numbers stay in order");
+  assert.equal(two[1].options[0].photo, null);
+  const four = triviaRound([withPhotos], "w", ROUND, ["a", "b", "c", "d"].map((id) => r(id)));
+  assert.deepEqual(four.map((q) => q.id), ["r:a", "r:b", "r:c"], "never more than a round");
+  assert.equal(scoreRound(four, { "r:a": "Bo", "r:b": "Ann" }), 1);
+});

@@ -2,14 +2,15 @@
 import type { Pool } from "pg";
 
 /** quick: who left and the headline; full: every result, staged for review; schedule: when the next episode airs
- *  and how long it runs (season_episodes), nothing to review. */
-export type BotKind = "quick" | "full" | "schedule";
+ *  and how long it runs (season_episodes), nothing to review; trivia: questions about it and the season so far, checked
+ *  (trivia_questions, 0140). */
+export type BotKind = "quick" | "full" | "schedule" | "trivia";
 /** A run row's kind: a schedule's, or a tie-break (the full research again, when a result's been disputed a day; the
  *  desk's switch) or a rulebook check (a show change the couches confirmed). */
 export type RunKind = BotKind | "tiebreak" | "rulebook";
 export interface BotScheduleRun {
   kind: BotKind;
-  /** Minutes after the episode ends (its air time plus the season's episode length). */
+  /** Minutes after the episode ends (its air time plus the season's episode length); trivia's, before the next one airs. */
   after: number;
   on: boolean;
 }
@@ -42,7 +43,8 @@ export interface BotRunOutcome {
   seconds: number;
   runId: string | null;
 }
-type Ask = (prompt: string) => Promise<{ answer: string }>;
+/** `budgetMs`: how long this ask may take (a trivia run's two share the route's budget). */
+type Ask = (prompt: string, o?: { budgetMs?: number }) => Promise<{ answer: string }>;
 /** Files the bot's answers as sources (src/lib/server/bot-results.ts, docs/PLAN-new-design.md step 6c). */
 export interface BotSend {
   /** Who went home: sent when it can be trusted on its own, else kept for a commissioner (`applied: false`). */

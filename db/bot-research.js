@@ -6,6 +6,10 @@
 //   quick @   5 min -- who left the game and the episode's headline, while it's still news
 //   full  @  60 min -- the whole research checklist, staged for review like a pasted answer
 //   full  @ 540 min -- the checklist again once the overnight recaps are up, merged into the first
+//   trivia  1440 min -- trivia questions about it and the season so far (db/trivia-research.js), checked by a second
+//                       prompt. Its minutes count BACK from when the NEXT episode airs, so it lands a day before that
+//                       one whether the show airs weekly or most nights (and never sooner than TRIVIA_AFTER_END after
+//                       this one ends, for the recaps)
 //
 // Each call to POST /api/cron/bot-research runs at most one due run (the bot answers one question at a
 // time anyway) and says when the next one comes due (nextRunAt). The VM's tick calls only then, so the
@@ -27,15 +31,22 @@ const Air = require("../src/lib/game/air-schedule.js");
 const StateLogic = require("../src/lib/game/state-logic.js");
 const AutoResearch = require("./auto-research.js");
 const Research = require("./episode-research.js");
+const Trivia = require("./trivia-research.js");
 
-const KINDS = ["quick", "full", "schedule"];
+const KINDS = ["quick", "full", "schedule", "trivia"];
 // A tie-break's run rows (kind 'tiebreak', 0116) carry this slot.
 const TIEBREAK_SLOT = "tiebreak";
 const DEFAULT_SCHEDULE = [
   { kind: "quick", after: 5, on: true },
   { kind: "full", after: 60, on: true },
   { kind: "full", after: 540, on: true },
+  { kind: "trivia", after: 1440, on: true },
 ];
+// A trivia run waits at least this long (minutes) after its episode ends, for the recaps, however soon the next one airs.
+const TRIVIA_AFTER_END = 3 * 60;
+// A trivia run's two asks share the route's 300s: the questions get up to 160s, the check the rest.
+const TRIVIA_WRITE_MS = 160_000;
+const TRIVIA_TOTAL_MS = 280_000;
 const MAX_RUNS = 8;
 // Two weeks: a run after that is about an episode nobody is waiting on.
 const MAX_AFTER = 14 * 24 * 60;
@@ -57,7 +68,7 @@ const FULL_RETRY_MS = 20 * MIN;
 const QUICK = { fastMs: 5 * MIN, fastForMs: 30 * MIN, slowMs: 15 * MIN, windowMs: 3 * 60 * MIN, maxTries: 20 };
 // How late a run is still worth doing at all (the VM was down, say). A quick check is news for hours; a
 // full one is useful for days, and so is a tie-break.
-const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN, schedule: 3 * 24 * 60 * MIN, tiebreak: 3 * 24 * 60 * MIN };
+const STALE_MS = { quick: 12 * 60 * MIN, full: 3 * 24 * 60 * MIN, schedule: 3 * 24 * 60 * MIN, tiebreak: 3 * 24 * 60 * MIN, trivia: 2 * 24 * 60 * MIN };
 // A result disputed this long gets its tie-break run.
 const TIEBREAK_AFTER_MS = 24 * 60 * MIN;
 
@@ -80,7 +91,7 @@ function nextTryAt(kind, due, tries) {
       next = last + (last - at < QUICK.fastForMs ? QUICK.fastMs : QUICK.slowMs);
       if (tries.length >= MAX_ATTEMPTS && next - at > QUICK.windowMs) return null;
     } else {
-      // A full run, a schedule check and a tie-break: three tries, 20 minutes apart.
+      // A full run, a schedule check, a tie-break and trivia: three tries, 20 minutes apart.
       if (tries.length >= MAX_ATTEMPTS) return null;
       next = last + FULL_RETRY_MS;
     }
@@ -89,15 +100,28 @@ function nextTryAt(kind, due, tries) {
   return next - at > STALE_MS[kind] ? null : new Date(next);
 }
 
-/** Every scheduled slot of every episode, with when it's due: the episode's end (its own length when research
- *  confirmed one, else the season's) plus the run's minutes. */
+/**
+ * When one run of an episode is due, from when the episode ends (ms) and when the next one airs (null: not known, or the
+ * finale): the end plus the run's minutes. Trivia's count back from the next episode instead, no sooner than
+ * TRIVIA_AFTER_END after the end (with no next one known, from the end like the rest), and never once the next one airs. Pure.
+ */
+function dueAt(run, ends, nextAt) {
+  if (run.kind !== "trivia" || !nextAt) return new Date(ends + run.after * MIN);
+  const due = Math.max(ends + TRIVIA_AFTER_END * MIN, nextAt.getTime() - run.after * MIN);
+  return due < nextAt.getTime() ? new Date(due) : null;
+}
+
+/** Every scheduled slot of every episode, with when it's due (dueAt): the episode's end (its own length when research
+ *  confirmed one, else the season's) plus the run's minutes; trivia's, a day (by default) before the next one. */
 function slots({ schedule, since, airTimes, episodeMinutes = 0, history }) {
   const out = [];
   for (const { episode, at: airedAt, minutes } of airTimes) {
+    const ends = airedAt.getTime() + (minutes ?? episodeMinutes) * MIN;
+    const next = airTimes.find((e) => e.episode === episode + 1);
     for (const run of schedule) {
       if (!run.on) continue;
-      const due = new Date(airedAt.getTime() + ((minutes ?? episodeMinutes) + run.after) * MIN);
-      if (since && due < since) continue;
+      const due = dueAt(run, ends, next ? next.at : null);
+      if (!due || (since && due < since)) continue;
       const slot = slotOf(run);
       const tries = history.filter((h) => h.episode_number === episode && h.slot === slot);
       out.push({ episode, slot, kind: run.kind, after: run.after, at: due, next: nextTryAt(run.kind, due, tries) });
@@ -211,7 +235,7 @@ function normalizeSchedule(input) {
   // Two entries for the same slot would share their run history, so the second could never run.
   const seen = new Set();
   for (const r of out) {
-    if (seen.has(slotOf(r))) throw new Error(`Two ${r.kind} runs ${r.after} minutes after airing`);
+    if (seen.has(slotOf(r))) throw new Error(`Two ${r.kind} runs ${r.after} minutes ${r.kind === "trivia" ? "before the next episode" : "after airing"}`);
     seen.add(slotOf(r));
   }
   return out.sort((a, b) => a.after - b.after);
@@ -415,9 +439,9 @@ async function listDue(pool, opts = {}) {
 }
 
 /**
- * Runs one job: asks the bot (`ask(prompt) -> { answer }`, injected so a test can stand in) and files
+ * Runs one job: asks the bot (`ask(prompt, { budgetMs? }) -> { answer }`, injected so a test can stand in) and files
  * the answer. A quick answer is kept on the run row; a full one goes through the paste import, merged
- * into whatever the episode already has. `send` (the app's) also files either as a source: a quick
+ * into whatever the episode already has; trivia's questions, checked, go in trivia_questions (0140). `send` (the app's) also files either as a source: a quick
  * answer it can't trust yet waits for a commissioner and counts as a failed try, so it's asked again.
  * `dry` asks and parses but writes nothing.
  */
@@ -465,6 +489,25 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
         ...a,
         airAt: clean.airAt ? clean.airAt.toISOString() : null,
       });
+    }
+    if (kind === "trivia") {
+      // Two asks in one call, sharing the route's budget: the questions, then the check, in a chat of its own.
+      const about = await Trivia.castFor(pool, season.id, episode);
+      const names = about.cast.map((c) => c.name);
+      const { answer } = await ask(Trivia.buildTriviaPrompt({ ...about, episode }), { budgetMs: TRIVIA_WRITE_MS });
+      const parsed = Trivia.parseTriviaAnswer(answer, episode, names);
+      if (!parsed.found) return finish(false, `No usable trivia about episode ${episode} yet`, { dropped: parsed.dropped });
+      const { answer: checked } = await ask(Trivia.buildCheckPrompt({ ...about, episode, questions: parsed.questions }), {
+        budgetMs: TRIVIA_TOTAL_MS - (Date.now() - started),
+      });
+      const questions = Trivia.judged(parsed, Trivia.parseCheckAnswer(checked, parsed.questions.length));
+      const live = questions.filter((q) => q.status === "live").length;
+      const result = { live, questions, dropped: parsed.dropped };
+      const line = `${live} of ${questions.length + parsed.dropped.length} trivia question(s) passed their checks`;
+      if (dry) return finish(live > 0, `${line} (dry run: not filed)`, result);
+      await Trivia.storeTrivia(pool, season.id, episode, questions, runId);
+      // None passing is a failed try, asked again (a new batch replaces this one).
+      return finish(live > 0, line, result);
     }
     if (kind === "quick") {
       const ctx = await Research.resolveSeasonResearchContext(pool, season.slug, season.season_number, episode);
@@ -566,4 +609,6 @@ module.exports = {
   runJob,
   runNext,
   slotOf,
+  dueAt,
+  TRIVIA_AFTER_END,
 };

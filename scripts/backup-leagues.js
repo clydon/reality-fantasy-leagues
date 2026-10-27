@@ -79,7 +79,8 @@ const GROUP_SLICES = {
   // Make it ours (0114): what the group's couches answered for their own moments on its seasons.
   couch_answers: "couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[])) AND season_id = ANY($S::uuid[])",
   // How results get in (0115): One tap unlocked for the group's couches on its seasons, and who unlocked it. (A quick
-  // check that waits, quick_waits, and the bot's runs aren't kept: they're what was asked, not what was played.)
+  // check that waits, quick_waits, and the bot's runs aren't kept: they're what was asked, not what was played. Nor is the
+  // researched trivia they wrote, trivia_questions and its flags (0140): a play keeps its score, and a run writes more.)
   results_plans: "couch_id IN (SELECT couch_id FROM leagues WHERE id = ANY($L::uuid[])) AND season_id = ANY($S::uuid[])",
   admin_changes: `entity = 'settings'
       OR (entity = 'season' AND entity_id IN (SELECT id::text FROM show_seasons WHERE id = ANY($S::uuid[])))

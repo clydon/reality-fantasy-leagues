@@ -10,23 +10,27 @@ import * as Air from "@/lib/game/air-schedule.js";
 import { useNowMinute } from "@/components/episodes/episode-status";
 
 // Bot research (experimental, db/bot-research.js) for one season: the free ChatGPT schedule, counted
-// from when each episode ends (its air time plus the season's episode length). Every run is editable:
-// what it asks, how long after the end, on or off.
+// from when each episode ends (its air time plus the season's episode length); trivia's, back from when the next
+// one airs. Every run is editable: what it asks, how long after the end (or before the next), on or off.
 
-type Run = { kind: "quick" | "full" | "schedule"; after: number; on: boolean };
+type Run = { kind: "quick" | "full" | "schedule" | "trivia"; after: number; on: boolean };
 
 // The server's default (db/bot-research.js DEFAULT_SCHEDULE), for a season that's never saved one.
 const DEFAULT: Run[] = [
   { kind: "quick", after: 5, on: true },
   { kind: "full", after: 60, on: true },
   { kind: "full", after: 540, on: true },
+  { kind: "trivia", after: 1440, on: true },
 ];
-const KIND_LABEL = { quick: "Quick check", full: "Full research", schedule: "Schedule check" } as const;
+const KIND_LABEL = { quick: "Quick check", full: "Full research", schedule: "Schedule check", trivia: "Trivia" } as const;
 const KIND_HINT = {
   quick: "Who left the game, and the episode's headline.",
   full: "Every result, staged for your review. A second one fills in what the first missed.",
   schedule: "When the next episode airs and how long it runs, so lineups lock at the right time. Nothing to review.",
+  trivia: "Questions about the episode and the season so far for the weekly trivia round, each checked by a second ask. Nothing to review.",
 } as const;
+/** When a run is, in words: trivia counts back from the next episode, the rest from this one's end. */
+const whenLabel = (r: Run) => (r.kind === "trivia" ? `${afterLabel(r.after)} before the next episode` : `${afterLabel(r.after)} after it ends`);
 
 export function afterLabel(min: number) {
   if (min < 60) return `${min} min`;
@@ -91,7 +95,7 @@ export function BotResearchSection({
           runs.map((r, i) => (
             <div key={`${r.kind}@${r.after}@${i}`} className="flex flex-col gap-1 pb-3">
               <ToggleRow
-                label={`${KIND_LABEL[r.kind]}, ${afterLabel(r.after)} after it ends`}
+                label={`${KIND_LABEL[r.kind]}, ${whenLabel(r)}`}
                 hint={KIND_HINT[r.kind]}
                 checked={r.on}
                 disabled={busy}
@@ -115,7 +119,7 @@ export function BotResearchSection({
             Add a run
           </ActButton>
           <ActButton disabled={busy} onClick={() => commit(DEFAULT)}>
-            Reset to 5 min, 1 h, 9 h
+            Reset to 5 min, 1 h, 9 h, trivia
           </ActButton>
         </div>
       )}
@@ -160,9 +164,10 @@ function RunEditor({ run, disabled, onChange, onRemove }: { run: Run; disabled: 
         <option value="quick">Quick</option>
         <option value="full">Full</option>
         <option value="schedule">Schedule</option>
+        <option value="trivia">Trivia</option>
       </select>
       <input
-        aria-label="How long after it ends"
+        aria-label={run.kind === "trivia" ? "How long before the next episode" : "How long after it ends"}
         type="number"
         min={0}
         className={cn(fieldCls, "min-h-11 w-[68px] px-3 tabular-nums")}

@@ -77,6 +77,37 @@ into a `zt-bot-*` show and drives the schedule with a test clock against the rea
   couch and who asked), so the admin's runs list shows it too.
 - A dev server can be pointed at a stand-in bot per request (`x-gys-bot`, `ask-bot.ts` `botFor`; `scripts/dev-test/fake-bot.js`).
 
+## 3. Researched trivia: built 2026-10-26 (on `new-design`)
+
+Trivia's computed questions only know what the results record (who won, who left first). A `trivia` run asks ChatGPT for the
+details a close watcher would catch, a day before each episode, and a second ask checks them.
+
+- **When:** a schedule run of kind `trivia` (default `trivia@1440`, in `DEFAULT_SCHEDULE`). Its minutes count **back from
+  the next episode's air time** (`dueAt`), so a weekly show gets it a day before, and one airing most nights (Australian
+  Survivor) gets one before each episode: never sooner than 3 hours after the episode ends (`TRIVIA_AFTER_END`, for the
+  recaps), and none when the next one airs before then (a double episode). With no next air time known (the finale), a day
+  after it ends. Three tries, 20 minutes apart; stale after 2 days.
+- **The prompts** (`db/trivia-research.js`): the first asks for 6 questions (3 on the episode, 3 on the season so far) as
+  fixed JSON: `episode` (what it's about, for the spoiler guard), `question`, 4 `options`, `answer` copied from one of them,
+  `why` (shown after answering), `source`. It lists the whole cast with who left in which episode, so a person's option is
+  a cast name (matched back, with faces) and wrong options are people still in at that point. Rules: obscure but stated
+  plainly on a page found, one right answer, believable wrong options of the same length and detail, a mix (a person, a
+  "How many", at most two quotes), nothing past its episode. The parse drops a bad question with why and keeps the rest.
+  The second ask, a fresh chat (each ask opens one), gets every question and says per question `correct` (a page states
+  the answer), `onlyOne`, `spoilerFree`, `note`; only a question passing all three goes live.
+- **Stored:** `trivia_questions` (0140), live and dropped (with `note`), per season and `made_after` (the episode it was
+  written after); a re-run replaces that batch. The run row's `result` lists them, and the admin episode page shows each
+  (Write trivia now runs one by hand).
+- **Played** (`src/lib/server/trivia.ts`): researched questions first, each once you've seen its episode; the computed ones
+  fill the rest. A batch written in the last 7 days about where you are is a round of its own (`trivia_plays.round`
+  `'<season>:<made_after>'`, played once, whatever the week; `''` is the week's round); otherwise the week's round asks the
+  researched ones you haven't been asked. "Wrong?" after answering (`trivia_flags`) hides one from you, and from everyone at
+  two flags or an admin's; it still counts in the round you flagged it in.
+- **Checks:** `tests/trivia-research.test.js`, `tests/bot-research.test.js` (the timing), `tests/trivia.test.js`;
+  `scripts/dev-test/check-new-researched-trivia.js` (the run with a stand-in bot, the round, the sheet at 390);
+  `scripts/dev-test/check-trivia-research.js` (the prompt against the real bot, writes nothing). On Survivor 51 after
+  Episode 4 the real job took ~97 s: 5 of 6 passed, and the check dropped a vote count the recaps disagree on (5-3 or 6-2).
+
 ## Next
 
 - Per-show research checks as data (memory: research-checks-as-data) applies to the quick prompt too.

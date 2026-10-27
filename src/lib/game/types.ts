@@ -409,7 +409,7 @@ export interface ShowSeason {
   // Bot research (db/migrations/0065, experimental): the free ChatGPT schedule, minutes after an episode ends.
   botResearchOn?: boolean;
   /** null = never set: the default (quick at 5 min, full at 1 h and 9 h). */
-  botResearchSchedule?: { kind: "quick" | "full" | "schedule"; after: number; on: boolean }[] | null;
+  botResearchSchedule?: { kind: "quick" | "full" | "schedule" | "trivia"; after: number; on: boolean }[] | null;
   botResearchSince?: string | null;
   /** How long an episode runs, in minutes (0066); null = an hour. Bot research counts from the end. */
   episodeMinutes?: number | null;

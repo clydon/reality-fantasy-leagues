@@ -55,7 +55,7 @@ export interface BotResearchRun {
   id: string;
   episode: number;
   slot: string;
-  kind: "quick" | "full";
+  kind: "quick" | "full" | "schedule" | "trivia" | "tiebreak" | "rulebook";
   startedAt: string;
   finishedAt: string | null;
   ok: boolean | null;
@@ -66,6 +66,9 @@ export interface BotResearchRun {
     sources?: string[];
     inserted?: number;
     merged?: boolean;
+    /** Trivia (db/trivia-research.js): every question written, live or dropped by the check, and those the parse dropped. */
+    questions?: { episode: number; question: string; options: string[]; answer: string; source: string; status: "live" | "dropped"; note: string | null }[];
+    dropped?: { index: number; why: string; question: string | null }[];
   } | null;
   seconds: number | null;
 }
@@ -673,7 +676,7 @@ export const api = {
   // (admin) Bot research (db/bot-research.js): a season's runs, and one run now outside the schedule.
   adminBotRuns: (seasonId: string, episode?: number) =>
     localFetch<{ runs: BotResearchRun[] }>(`/api/admin/seasons/${seasonId}/bot-research${episode ? `?episode=${episode}` : ""}`),
-  adminBotRunNow: (seasonId: string, episode: number, kind: "quick" | "full" | "schedule") =>
+  adminBotRunNow: (seasonId: string, episode: number, kind: "quick" | "full" | "schedule" | "trivia") =>
     localFetch<{ ok: boolean; message: string; seconds: number }>(`/api/admin/seasons/${seasonId}/bot-research`, {
       method: "POST",
       body: JSON.stringify({ episode, kind }),

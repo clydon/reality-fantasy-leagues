@@ -12,14 +12,17 @@ import { cn } from "cn";
 
 // One episode's bot research (experimental, db/bot-research.js): every run so far, scheduled or asked
 // for, with what it found -- a quick check's answer is shown right here, a full run's results join the
-// review list -- and "Run now" for either kind, outside the schedule.
+// review list, trivia's questions are listed with why any were dropped -- and "Run now" for each kind,
+// outside the schedule.
 
-const KIND = { quick: "Quick check", full: "Full research", schedule: "Schedule check" } as const;
+const KIND: Record<string, string> = { quick: "Quick check", full: "Full research", schedule: "Schedule check", trivia: "Trivia", tiebreak: "Tie-break", rulebook: "Rulebook check" };
 
 function slotLabel(slot: string) {
   if (slot === "now") return "run by hand";
-  const after = Number(slot.split("@")[1]);
-  return Number.isFinite(after) ? `${afterLabel(after)} after it ends` : slot;
+  const [kind, at] = slot.split("@");
+  const after = Number(at);
+  if (!Number.isFinite(after)) return slot;
+  return kind === "trivia" ? `${afterLabel(after)} before the next episode` : `${afterLabel(after)} after it ends`;
 }
 
 export function BotResearchRuns({ season, episode, aired, onFiled }: { season: ShowSeason; episode: number; aired: boolean; onFiled: () => unknown }) {
@@ -31,7 +34,7 @@ export function BotResearchRuns({ season, episode, aired, onFiled }: { season: S
     refetchInterval: (q) => (q.state.data?.runs.some((r) => r.ok === null) ? 5000 : 60_000),
   });
   const runNow = useMutation({
-    mutationFn: (kind: "quick" | "full" | "schedule") => api.adminBotRunNow(season.id, episode, kind),
+    mutationFn: (kind: "quick" | "full" | "schedule" | "trivia") => api.adminBotRunNow(season.id, episode, kind),
     onSettled: async () => {
       await queryClient.invalidateQueries({ queryKey: ["bot-runs", season.id, episode] });
       await onFiled();
@@ -71,9 +74,16 @@ export function BotResearchRuns({ season, episode, aired, onFiled }: { season: S
           <ActButton disabled={runNow.isPending} onClick={() => runNow.mutate("schedule")}>
             {runNow.isPending && runNow.variables === "schedule" ? `Asking… ${elapsed}s` : "Check the next episode's schedule"}
           </ActButton>
+          <ActButton disabled={runNow.isPending} onClick={() => runNow.mutate("trivia")}>
+            {runNow.isPending && runNow.variables === "trivia" ? `Asking… ${elapsed}s` : "Write trivia now"}
+          </ActButton>
         </div>
       )}
-      {runNow.isPending && <Notice tone="quiet">ChatGPT searches first, so this takes up to two minutes. Leave this open.</Notice>}
+      {runNow.isPending && (
+        <Notice tone="quiet">
+          ChatGPT searches first, so this takes up to {runNow.variables === "trivia" ? "four minutes (it writes, then checks)" : "two minutes"}. Leave this open.
+        </Notice>
+      )}
       {runNow.isError && <Notice tone="bad">{errorText(runNow.error)}</Notice>}
       {runNow.data && !runNow.data.ok && <Notice tone="bad">{runNow.data.message}</Notice>}
     </Section>
@@ -96,6 +106,34 @@ function RunRow({ run, tz }: { run: BotResearchRun; tz: string }) {
       </span>
       {running ? (
         <span className="text-[14px] text-muted-foreground">Asking ChatGPT…</span>
+      ) : run.kind === "trivia" && r?.questions ? (
+        <>
+          <span className={cn("text-[14px] leading-snug", run.ok ? "text-muted-foreground" : "text-destructive")}>{run.message}</span>
+          <ol className="flex flex-col gap-2 pt-1">
+            {r.questions.map((q, i) => (
+              <li key={i} className={cn("flex flex-col text-[14px] leading-snug", q.status === "dropped" && "text-muted-foreground")}>
+                <span>
+                  <span className="font-semibold">Ep {q.episode}.</span> {q.question}
+                </span>
+                <span className="text-[13px]">
+                  {q.options.map((o) => (o === q.answer ? `[${o}]` : o)).join(" · ")}
+                </span>
+                {q.status === "dropped" ? (
+                  <span className="text-[13px] text-destructive">Dropped: {q.note}</span>
+                ) : (
+                  <a href={q.source} target="_blank" rel="noopener noreferrer" className="text-[13px] text-muted-foreground underline underline-offset-2">
+                    {hostOf(q.source)}
+                  </a>
+                )}
+              </li>
+            ))}
+            {(r.dropped ?? []).map((d) => (
+              <li key={`d${d.index}`} className="text-[13px] leading-snug text-muted-foreground">
+                {d.question ?? "A question"} <span className="text-destructive">Dropped: {d.why}</span>
+              </li>
+            ))}
+          </ol>
+        </>
       ) : run.ok && run.kind === "quick" && r ? (
         <>
           <span className="text-[15px] leading-snug">

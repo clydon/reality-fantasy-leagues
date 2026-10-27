@@ -49,7 +49,7 @@ export const POST = apiRoute(async (req) => {
   requireCron(req);
   const bot = botFor(req);
   const base = listingsFor(req);
-  const out = await runNext(pool, { ask: (prompt) => askBot(prompt, { bot }), send: botSend, now: nowFrom(req) });
+  const out = await runNext(pool, { ask: (prompt, o) => askBot(prompt, { ...o, bot }), send: botSend, now: nowFrom(req) });
   const listings = !out.job && (await listingsDue());
   if (listings) after(() => refreshListings(base, { how: "clock" }).catch((e) => console.error("[listings] the daily run:", e)));
   return NextResponse.json({ ...out, listings });

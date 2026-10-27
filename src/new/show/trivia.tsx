@@ -15,6 +15,9 @@ import { Face, IconBox } from "./parts";
 // Play again is just for fun. Under the score (or Nothing to ask yet), Seen an earlier season? (step 15 part 3, from Noticed: a past
 // season counts only when it's marked): a finished season of the show you've seen to the end, marked in two taps, and the round
 // can ask about it. Also the row that opens it (the Games tab's This week).
+//
+// A researched question (the bot's, about the episodes: src/lib/server/trivia.ts) waits after it's answered with what happened
+// and where that's from, and Next; "Wrong?" takes it out of your rounds (and everyone's, once two people say so).
 
 export type TriviaTarget = { seasonId: string; couchId: string | null };
 
@@ -96,22 +99,24 @@ function Round({ target, r }: { target: TriviaTarget; r: TriviaRound }) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   const done = at >= r.questions.length;
+  const advance = async (next: Record<string, string>) => {
+    setTapped(null);
+    setAt((n) => n + 1);
+    if (at + 1 >= r.questions.length && !r.played && !replay) {
+      try {
+        after(target.seasonId, target.couchId, await triviaApi.play(target.seasonId, target.couchId, next));
+      } catch (e) {
+        toast.quiet((e as Error).message);
+      }
+    }
+  };
   const answer = (q: TriviaQuestion, key: string) => {
     if (tapped) return;
     setTapped(key);
     const next = { ...answers, [q.id]: key };
     setAnswers(next);
-    timer.current = setTimeout(async () => {
-      setTapped(null);
-      setAt((n) => n + 1);
-      if (at + 1 >= r.questions.length && !r.played && !replay) {
-        try {
-          after(target.seasonId, target.couchId, await triviaApi.play(target.seasonId, target.couchId, next));
-        } catch (e) {
-          toast.quiet((e as Error).message);
-        }
-      }
-    }, 1100);
+    // One with a line on what happened waits for Next; the rest move on by themselves.
+    if (!q.why) timer.current = setTimeout(() => void advance(next), 1100);
   };
   if (done) {
     const score = replay || !r.played ? r.questions.filter((q) => answers[q.id] === q.answer).length : r.played.score;
@@ -123,7 +128,7 @@ function Round({ target, r }: { target: TriviaTarget; r: TriviaRound }) {
             {score}/{of}
           </b>
           <p className="mt-1.5 text-[17px] font-semibold" data-trivia-against>
-            {replay ? "Just for fun: your first go this week counts" : againstCouch(r, score, of)}
+            {replay ? "Just for fun: your first go counts" : againstCouch(r, score, of)}
           </p>
           {r.couch.length > 0 && (
             <p className="mt-1.5 text-sm text-muted-foreground" data-trivia-couch>
@@ -178,13 +183,61 @@ function Round({ target, r }: { target: TriviaTarget; r: TriviaRound }) {
                 right ? "bg-good text-good-foreground" : wrong ? "nd-shake bg-live text-live-foreground" : "bg-secondary"
               }`}
             >
-              <Face src={o.photo} name={o.label} className="size-10 flex-none rounded-[2px] text-[16px]" />
+              {(o.photo || !q.id.startsWith("r:")) && <Face src={o.photo} name={o.label} className="size-10 flex-none rounded-[2px] text-[16px]" />}
               {o.label}
             </button>
           );
         })}
       </div>
+      {tapped && q.why && (
+        <div className="nd-beat mt-3.5" data-trivia-why>
+          <p className="text-[15px] leading-snug">{q.why}</p>
+          {q.source && (
+            <a href={q.source} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-[13px] text-muted-foreground underline underline-offset-2">
+              {hostOf(q.source)}
+            </a>
+          )}
+          <div className="mt-3 flex items-center gap-2">
+            <Btn tone="ink" className="flex-1" data-trivia-next onClick={() => void advance(answers)}>
+              {at + 1 >= r.questions.length ? "See your score" : "Next"}
+            </Btn>
+            <FlagButton seasonId={target.seasonId} question={q.id} />
+          </div>
+        </div>
+      )}
     </div>
+  );
+}
+
+const hostOf = (url: string) => {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return url;
+  }
+};
+
+/** "Wrong?": this researched question isn't asked again (you now; everyone, once two people say so). It still counts this time. */
+function FlagButton({ seasonId, question }: { seasonId: string; question: string }) {
+  const [sent, setSent] = useState(false);
+  return (
+    <Btn
+      className="h-11 flex-none px-3.5 text-sm"
+      disabled={sent}
+      data-trivia-flag
+      onClick={async () => {
+        setSent(true);
+        try {
+          await triviaApi.flag(seasonId, question);
+          toast("Thanks: it won't be asked again");
+        } catch (e) {
+          setSent(false);
+          toast.quiet((e as Error).message);
+        }
+      }}
+    >
+      {sent ? "Flagged" : "Wrong?"}
+    </Btn>
   );
 }
 
