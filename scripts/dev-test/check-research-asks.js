@@ -172,9 +172,11 @@ function recapAnswer(prompt) {
       if (kind === "cast") return `${fence}json\n${JSON.stringify({ castaways: CAST.map((name) => ({ name, photoUrl: "", startingRole: "Faithful" })), sources: ["https://example.invalid/cast"] })}\n${fence}`;
       if (/Search the web for what happened in each/.test(prompt)) return recapAnswer(prompt);
       if (kind === "quick") {
-        // Who went home: the one murdered, from two sources (what a quick answer needs to be trusted on its own).
+        // Who went home: the one murdered, from two sources (what a quick answer needs to be trusted on its own); for the
+        // premiere, nobody (as ChatGPT said of the real one), which isn't trusted on its own: its full results settle it.
         const n = Number((prompt.match(/episode (\d+)/i) || [])[1]);
-        const answer = { found: true, episodeTitle: null, left: [{ name: OUT[n], how: "Murdered" }], headline: `${OUT[n]} was murdered.`, sources: [`https://a.invalid/castle/${n}`, `https://b.invalid/castle/${n}`] };
+        const left = n === 1 ? [] : [{ name: OUT[n], how: "Murdered" }];
+        const answer = { found: true, episodeTitle: null, left, headline: n === 1 ? "The castle opened." : `${OUT[n]} was murdered.`, sources: [`https://a.invalid/castle/${n}`, `https://b.invalid/castle/${n}`] };
         return `${fence}json\n${JSON.stringify(answer)}\n${fence}`;
       }
       if (kind === "full") {
@@ -309,21 +311,39 @@ function recapAnswer(prompt) {
     const quicks = [];
     for (let i = 0; i < 4; i++) quicks.push(await tick());
     check(
-      quicks.every((r, i) => r?.job?.slot === "asked-quick" && r.job.kind === "quick" && r.job.episode === i + 1 && r.ok === true && !r.asked),
-      "the clock: who went home in Episodes 1-4 first, one short question each, in order",
+      quicks.every((r, i) => r?.job?.slot === "asked-quick" && r.job.kind === "quick" && r.job.episode === i + 1 && !r.asked) &&
+        quicks[0].ok === false && /nobody went home/i.test(quicks[0].message) && quicks.slice(1).every((r) => r.ok === true),
+      "the clock: who went home in Episodes 1-4 first, one short question each, in order (the premiere's \"nobody\" isn't trusted alone)",
       JSON.stringify(quicks.map((r) => [r?.job?.slot, r?.job?.episode, r?.ok, r?.message]))
     );
     const rq = await recaps();
-    check(rq?.results?.asked?.every((a) => a.out && a.status === "waiting"), "each episode's who went home is in; everyone's results still to come", JSON.stringify(rq?.results?.asked));
+    const byEp = Object.fromEntries((rq?.results?.asked ?? []).map((a) => [a.episode, a]));
+    check(
+      byEp[1]?.checked && !byEp[1].out && [2, 3, 4].every((n) => byEp[n]?.out && byEp[n].checked) && rq.results.asked.every((a) => a.status === "waiting"),
+      "each episode's who-went-home asked: 2-4 in, the premiere's not sure yet; everyone's results still to come",
+      JSON.stringify(rq?.results?.asked)
+    );
     const sq = await stats();
-    check(sq?.through === 4 && ["Ada Moat", "Bea Tower", "Dot Gate", "Cal Keep"].every((n, i) => sq.cast.find((c) => c.name === n)?.out === i + 1), "the Cast tab already shows who's out across the season", JSON.stringify(sq?.cast?.map((c) => [c.name, c.out])));
+    check(
+      sq?.through === 4 && sq.cast.find((c) => c.name === "Ada Moat")?.out === null && ["Bea Tower", "Dot Gate", "Cal Keep"].every((n, i) => sq.cast.find((c) => c.name === n)?.out === i + 2),
+      "the Cast tab already shows who's out in Episodes 2-4",
+      JSON.stringify(sq?.cast?.map((c) => [c.name, c.out]))
+    );
     check((await bell("watcher")).length === 0, "nobody's told yet (that's for each episode's full results)");
     check(bot.asked.filter((q) => q.kind === "quick").every((q) => q.stream === "progress"), "every run asks the bot to stream its progress");
     if (browser) {
       const { page } = browser;
       await page.goto(`${BASE}/show/${sid}/cast`);
       await page.locator("[data-slider]").waitFor({ timeout: 20_000 });
-      check((await page.locator('[data-group="Out"] [data-cast]').count()) === 4, "in the browser: the Cast tab's Out has the four, before any full results");
+      check((await page.locator('[data-group="Out"] [data-cast]').count()) === 3, "in the browser: the Cast tab's Out has the three, before any full results");
+      await page.locator("[data-results-next]").waitFor({ timeout: 10_000 }).catch(() => {});
+      check(
+        (await page.locator('[data-result-ep="1"][data-checked]:not([data-out])').count()) === 1 &&
+          (await page.locator('[data-result-ep="2"][data-out]').count()) === 1 &&
+          /who went home: all 4 · results next/.test(await page.locator("[data-results-count]").innerText()) &&
+          /Next: Episode 1's results/.test(await page.locator("[data-results-next]").innerText()),
+        "its card: the premiere asked (not sure yet), 2-4 in, \"who went home: all 4 · results next\", and what's next"
+      );
       await shot(page, "3a-cast-who-went-home");
     }
 

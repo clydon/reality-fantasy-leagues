@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Check, Copy, Loader2, Sparkles, X } from "lucide-react";
+import { Check, Copy, Loader2, Minus, Sparkles, X } from "lucide-react";
 import { recaps, useRecaps, type AskedEpisode, type ResearchNow, type SeasonEpisodes } from "../data";
 import type { ShowData } from "../screens/show-space";
 import { Btn } from "../ui/parts";
@@ -155,7 +155,9 @@ function nowLine(now: ResearchNow, w: ShowData["words"]): string {
 function ResultsProgress({ asked, now, words: w }: { asked: AskedEpisode[]; now: ResearchNow | null; words: ShowData["words"] }) {
   const done = asked.filter((a) => a.status === "done");
   const found = done.reduce((n, a) => n + (a.found ?? 0), 0);
-  const outCount = asked.filter((a) => a.out).length;
+  const checkedCount = asked.filter((a) => a.checked).length;
+  // Between runs: what's next (who went home in the first not asked yet, else the first episode's results still to come).
+  const waitingNext = !now ? (asked.find((a) => a.status === "waiting" && !a.checked) ?? asked.find((a) => a.status === "waiting")) : undefined;
   const share = now?.part === "full" && now.stage === "writing" && now.of ? Math.min(1, (now.done ?? 0) / now.of) : null;
   return (
     <div className="mt-1" data-results-progress>
@@ -163,8 +165,8 @@ function ResultsProgress({ asked, now, words: w }: { asked: AskedEpisode[]; now:
         <span className="type-caption text-[13px] tracking-[0.04em] text-muted-foreground">Results</span>
         <small className="text-[12.5px] text-muted-foreground" data-results-count>
           {/* Who went home comes in first for every episode, then everyone's results. */}
-          {outCount < asked.length
-            ? `who went home: ${outCount} of ${asked.length}`
+          {checkedCount < asked.length
+            ? `who went home: ${checkedCount} of ${asked.length}`
             : !done.length
               ? `who went home: all ${asked.length} · results next`
               : `${done.length} of ${asked.length} in${found ? ` · ${found} ${found === 1 ? "result" : "results"} so far` : ""}`}
@@ -177,7 +179,18 @@ function ResultsProgress({ asked, now, words: w }: { asked: AskedEpisode[]; now:
             data-result-ep={a.episode}
             data-status={a.status}
             data-out={a.out ? "" : undefined}
-            aria-label={`${w.episode} ${a.episode}: ${STATUS_WORDS[a.status]}${a.status === "done" && a.found != null ? `, ${a.found} results` : a.out && a.status !== "failed" ? ", who went home is in" : ""}`}
+            data-checked={a.checked ? "" : undefined}
+            aria-label={`${w.episode} ${a.episode}: ${STATUS_WORDS[a.status]}${
+              a.status === "done" && a.found != null
+                ? `, ${a.found} results`
+                : a.status === "failed"
+                  ? ""
+                  : a.out
+                    ? ", who went home is in"
+                    : a.checked
+                      ? ", who went home: not sure yet, its full results will tell"
+                      : ""
+            }`}
             className={`flex h-8 min-w-10 items-center justify-center gap-1 rounded-[3px] px-2 text-[13px] font-bold tabular-nums ${
               a.status === "done"
                 ? "bg-foreground text-background"
@@ -192,10 +205,16 @@ function ResultsProgress({ asked, now, words: w }: { asked: AskedEpisode[]; now:
             {a.status === "asking" && <Loader2 className="size-3.5 animate-spin motion-reduce:animate-none" aria-hidden />}
             {a.status === "failed" && <X className="size-3.5" aria-hidden />}
             {a.status === "waiting" && a.out && <Check className="size-3 opacity-60" aria-hidden />}
+            {a.status === "waiting" && a.checked && !a.out && <Minus className="size-3 opacity-60" aria-hidden />}
             {a.episode}
           </li>
         ))}
       </ol>
+      {waitingNext && (
+        <small className="mt-2.5 block text-[13px] leading-snug text-muted-foreground" data-results-next>
+          {waitingNext.checked ? `Next: ${w.episode} ${waitingNext.episode}'s results` : `Next: who went home in ${w.episode} ${waitingNext.episode}`}
+        </small>
+      )}
       {now && (
         <div className="mt-2.5" data-results-now={now.part}>
           <small className="block text-[13px] leading-snug text-muted-foreground" aria-live="polite">

@@ -29,6 +29,9 @@ export interface AskedEpisode {
   /** Who went home in it is in (its short question first, or any results), so the Cast tab shows who's out; everyone's
    *  results may still be to come. */
   out: boolean;
+  /** Its who-went-home question has been asked, whatever it found: an answer of nobody (or one it couldn't be sure of)
+   *  applies nothing on its own, and the full results settle it. */
+  checked: boolean;
   /** How many results reached the season, once it's in. */
   found: number | null;
 }
@@ -146,7 +149,8 @@ export async function resultsResearch(seasonId: string, now = new Date()): Promi
     missing: await withoutResults(seasonId, s, aired.filter((n) => !asked.has(n))),
     asked: rows.map((r) => {
       const status = statusOf(r, now);
-      return { episode: r.episode_number, status, out: r.has_results, found: status === "done" ? r.found : null };
+      const checked = r.has_results || r.quick_tries.some((h) => h.ok != null) || r.tries.length > 0;
+      return { episode: r.episode_number, status, out: r.has_results, checked, found: status === "done" ? r.found : null };
     }),
     now: g
       ? {
