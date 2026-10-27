@@ -65,7 +65,7 @@ hard-stops a question stuck past its time (it once hung 16 minutes and blocked e
 1's real research in 155 s, counted 0 to 22 as it was written. Checks: check-research-asks.js 53 PASS at 390; One tap's and
 Autopilot's (89) and settling's (96) still pass with progress on every run.
 
-**The maker changes a made game's scoring (2026-10-27, built, not committed; migration 0154):**
+**The maker changes a made game's scoring (2026-10-27, pushed to master in 9c9faab8, which runs migration 0154):**
 [PLAN-maker-scoring.md](PLAN-maker-scoring.md), all six steps. Whoever made a show a game (or a site admin) changes its
 scoring on a **Scoring page** (`/show/[seasonId]/scoring`, `src/new/show/scoring.tsx`; "Change the scoring" under How it
 works' points and on the Players tab) until a game is played on the season; anyone else reads it as the rules, with why.

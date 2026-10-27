@@ -146,7 +146,7 @@ the researched Traitors rulebook)
 - Everything again: the full prompt, merged.
 - Someone else (follower, not maker): read-only, 403 on save. A league on the season: read-only with why.
 
-## As built (2026-10-27: steps 1–6, not committed)
+## As built (2026-10-27: steps 1–6, pushed in 9c9faab8)
 
 - **No `fields` column.** 0154 adds only `research_asks.mode`; "missing" works out what to ask when it runs (the stored
   answer's keys against the checklist: episode-research.js `unaskedKeys`), so a question added while a re-run is queued comes
