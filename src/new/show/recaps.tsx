@@ -71,19 +71,39 @@ export function RecapsCard({ seasonId, show, eps }: { seasonId: string; show: Sh
           </div>
         )}
       </div>
-      <PasteSheet open={paste} onOpenChange={setPaste} seasonId={seasonId} />
+      <PasteSheet
+        open={paste}
+        onOpenChange={setPaste}
+        prompt={async () => (await recaps.prompt(seasonId)).prompt}
+        save={async (answer) => {
+          const out = await recaps.paste(seasonId, answer);
+          qc.setQueryData(["new-design", "recaps", seasonId], out);
+          await qc.invalidateQueries({ queryKey: ["new-design", "episodes", seasonId] });
+          return out.filled;
+        }}
+      />
     </section>
   );
 }
 
-/** Copy and paste: the prompt to copy into any AI chat that searches the web, and its answer pasted back. */
-function PasteSheet({ open, onOpenChange, seasonId }: { open: boolean; onOpenChange: (o: boolean) => void; seasonId: string }) {
-  const qc = useQueryClient();
+/** Copy and paste: the prompt to copy into any AI chat that searches the web, and its answer pasted back (`save` answers how many
+ *  it filled in). Fill in what happened's, and Fill in who's playing's (roster.tsx). */
+export function PasteSheet({
+  open,
+  onOpenChange,
+  prompt,
+  save: send,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  prompt: () => Promise<string>;
+  save: (answer: string) => Promise<number>;
+}) {
   const [answer, setAnswer] = useState("");
   const [busy, setBusy] = useState(false);
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText((await recaps.prompt(seasonId)).prompt);
+      await navigator.clipboard.writeText(await prompt());
       toast("Copied. Paste it into ChatGPT, then paste its answer here");
     } catch (e) {
       toast.quiet((e as Error).message);
@@ -92,10 +112,7 @@ function PasteSheet({ open, onOpenChange, seasonId }: { open: boolean; onOpenCha
   const save = async () => {
     setBusy(true);
     try {
-      const out = await recaps.paste(seasonId, answer);
-      qc.setQueryData(["new-design", "recaps", seasonId], out);
-      await qc.invalidateQueries({ queryKey: ["new-design", "episodes", seasonId] });
-      toast(`Filled in ${out.filled}`);
+      toast(`Filled in ${await send(answer)}`);
       setAnswer("");
       onOpenChange(false);
     } catch (e) {
@@ -106,20 +123,20 @@ function PasteSheet({ open, onOpenChange, seasonId }: { open: boolean; onOpenCha
   };
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="Copy and paste" subtitle="Any AI chat that searches the web">
-      <div data-recaps-sheet className="flex flex-col gap-3">
-        <Btn wide data-recaps-copy onClick={copy}>
+      <div data-paste-sheet className="flex flex-col gap-3">
+        <Btn wide data-paste-copy onClick={copy}>
           <Copy className="size-4" aria-hidden />
           Copy the question
         </Btn>
         <textarea
-          data-recaps-answer
+          data-paste-answer
           value={answer}
           onChange={(e) => setAnswer(e.target.value)}
           placeholder="Paste its whole answer here"
           rows={6}
           className="w-full rounded-[3px] bg-background p-3 text-[15px] outline-2 -outline-offset-2 outline-border focus:outline-chyron-line"
         />
-        <Btn tone="must" wide data-recaps-save disabled={busy || !answer.trim()} onClick={save}>
+        <Btn tone="must" wide data-paste-save disabled={busy || !answer.trim()} onClick={save}>
           {busy ? "Saving…" : "Save"}
         </Btn>
       </div>

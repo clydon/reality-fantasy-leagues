@@ -176,7 +176,9 @@ hides one.
 taps it (only aired episodes with no recap, so a season is asked about again only for new ones), run after the response like Make
 it a game's (`maxDuration` 300, the bot's ~1-3 min). While it asks, the Episodes tab polls `/api/seasons/[id]/recaps` every 4 s
 (a small JSON); nothing polls otherwise. Each recap is up to 1 KB on its episode's row (`season_episodes.summary`), plus one tiny
-row per season (`episode_fills`). **Keeping up** (migration 0141) adds an UPDATE on your own reads only for shows set to move
+row per season (`episode_fills`). **Fill in who's playing** (migration 0144, `src/lib/server/rosters.ts`) is the same shape: one
+bot ask per sport season, ever (only while it has no cast; ~30 s for the World Series), polling every 4 s only while it asks, and
+~100 bytes a person on `season_cast` (a series' two teams and officials: ~90 rows). **Keeping up** (migration 0141) adds an UPDATE on your own reads only for shows set to move
 along by themselves, and a few-ms query on each bot clock call.
 
 **All of TV and the daily listings job (new design, step 11 part 2)** poll nothing and wake nothing of their own. **The job**

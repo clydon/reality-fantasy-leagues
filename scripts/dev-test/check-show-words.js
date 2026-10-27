@@ -5,6 +5,10 @@
 //   Recaps: the six aired games have none; our bot asks once (in the show's words: games, the score) and fills them in; a
 //   second ask with nothing missing is refused; someone on Game 3 gets recaps for 1 to 3 only; a pasted answer fills in one
 //   that's missing, never over one that's there; someone who doesn't follow it can't.
+//   Players (src/lib/server/rosters.ts, 0144): a sport nobody's made a game of starts with nobody and Fill in who's playing; the
+//   question is the same for any sport (teams, players, coaches, officials; the listing's matchups as context) and refused for a
+//   show that isn't a sport; the answer lands as the season's cast by team with roles, nobody twice, and is never asked again.
+//   Console errors print with the screen they happened on.
 //   API: adding the World Series saves a sport that calls its episodes Game and its people Players; the stand-in F1 show ("Night 1"
 //   titles, a word that says when) keeps Event; the show space's header carries the words.
 //   In a real browser at --width (390 by default), as alex: the World Series' tabs say Schedule (its Games would read as the app's
@@ -63,7 +67,15 @@ function worldSeries(shows) {
   // The recap question, answered for every game it names.
   const bot = await fakeBot.start({
     answer: (prompt) =>
-      JSON.stringify({ episodes: [...prompt.matchAll(/^- Game (\d+)/gm)].map((m) => ({ number: Number(m[1]), summary: `ZT Rays won game ${m[1]}, 5 to 3.` })) }),
+      /who's taking part in/.test(prompt)
+        ? JSON.stringify({
+            groups: [
+              { name: "ZT Rays", people: [{ name: "Zed Pitcher", role: "Pitcher" }, { name: "Zed Catcher", role: "Catcher" }, { name: "Zed Manager", role: "Manager" }] },
+              { name: "ZT Brewers", people: [{ name: "Zee Shortstop", role: "Shortstop" }, { name: "Zed Pitcher", role: "Pitcher" }] },
+              { name: "Officials", people: [{ name: "Zoe Umpire", role: "Umpire" }] },
+            ],
+          })
+        : JSON.stringify({ episodes: [...prompt.matchAll(/^- Game (\d+)/gm)].map((m) => ({ number: Number(m[1]), summary: `ZT Rays won game ${m[1]}, 5 to 3.` })) }),
     delayMs: 1500,
   });
   const headers = { "x-gys-listings": tv.url, "x-gys-bot": bot.url };
@@ -105,6 +117,8 @@ function worldSeries(shows) {
       });
       close = b.close;
       const page = b.page;
+      // Where a page error happened, so a failure says which screen.
+      page.on("console", (m) => m.type() === "error" && console.log(`  (console error on ${new URL(page.url()).pathname}${new URL(page.url()).search}: ${m.text().slice(0, 100)})`));
       let n = 0;
       const shot = async (name) => {
         await page.waitForTimeout(450);
@@ -170,12 +184,28 @@ function worldSeries(shows) {
       await shot("ws-schedule");
       await fits("Schedule");
 
+      // ---- Players: Fill in who's playing ----
+      const fresh = (await alex.call("GET", `/api/seasons/${wsSeason}/roster`)).body;
+      check(fresh?.groups?.length === 0 && fresh.canFill === true && fresh.available === true, "Players: nobody yet, and it can be filled in", JSON.stringify(fresh));
+      const ask = (await alex.call("GET", `/api/seasons/${wsSeason}/roster?prompt=1`)).body?.prompt ?? "";
+      check(/who's taking part in ZT World Series/.test(ask) && /One group per team, with its players/.test(ask) && /"Officials"/.test(ask) && /- Game 1: ZT Rays at ZT Brewers/.test(ask), "the question: teams, players, coaches, officials, and the listing's matchups", ask.slice(0, 200));
+      check((await alex.call("GET", `/api/seasons/${fx.seasonId}/roster?prompt=1`)).status === 409, "not on a show that isn't a sport (ZT Survivor's cast is Make it a game's)");
       await page.goto(`${BASE}/show/${wsSeason}/cast`);
-      await page.locator('[data-tab="cast"]').waitFor({ timeout: 30_000 });
-      await page.waitForFunction(() => /No players yet/i.test(document.body.innerText), null, { timeout: 15_000 }).catch(() => {});
-      const cast = await page.locator('[data-tab="cast"]').innerText();
-      check(/No players yet/i.test(cast) && /TV listings don't list a sport's players/.test(cast), "Players: none listed, and why", cast.replace(/\s+/g, " ").slice(0, 200));
-      await shot("ws-players");
+      const fill = page.locator("[data-roster-fill]");
+      await fill.waitFor({ timeout: 30_000 });
+      check(/Fill in who.s playing/.test(await fill.innerText()) && /only list a sport's broadcasters/.test(await fill.innerText()), "Players: Fill in who's playing, and why", await fill.innerText());
+      await shot("ws-players-fill");
+      await page.locator("[data-roster-ask]").click();
+      await page.locator("[data-roster]").waitFor({ timeout: 30_000 }).catch(() => {});
+      const teams = await page.locator("[data-roster-group]").evaluateAll((els) => els.map((e) => e.getAttribute("data-roster-group")));
+      check(teams.join() === "ZT Rays,ZT Brewers,Officials", "done: each team, then the officials", teams.join());
+      const brewers = await page.locator('[data-roster-group="ZT Brewers"] [data-roster-person]').allInnerTexts();
+      check(brewers.length === 1 && /Zee Shortstop\s+Shortstop/.test(brewers[0]), "each with what they do, nobody twice", JSON.stringify(brewers));
+      await shot("ws-players-filled");
+      await fits("Players");
+      const cast = (await pool.query("SELECT name, tribe_name, role FROM season_cast WHERE season_id = $1 ORDER BY sort_order", [wsSeason])).rows;
+      check(cast.length === 5 && cast[0].tribe_name === "ZT Rays" && cast[0].role === "Pitcher", "saved as the season's cast: the team its group, the role", JSON.stringify(cast));
+      check((await alex.call("POST", `/api/seasons/${wsSeason}/roster`, { action: "ask" })).status === 409, "filled in already: never asked again or written over");
 
       // ---- a show made of episodes keeps its words ----
       await page.goto(`${BASE}/show/${fx.seasonId}/tonight`);

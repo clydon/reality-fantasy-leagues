@@ -13,6 +13,7 @@ import { Chat } from "../show/chat";
 import { Dock, dockShows, MovesSheet } from "../show/dock";
 import { RemindSheet } from "../show/remind";
 import { Episodes } from "../show/episodes";
+import { Roster } from "../show/roster";
 import { Games } from "../show/games";
 import { HowItWorksPage } from "../show/how-it-works";
 import { MorningSheet, RevealScreen } from "../show/reveal";
@@ -562,7 +563,8 @@ export function TabScreen({ seasonId, tab }: { seasonId: string; tab: ShowTab })
       {tab === "tonight" && <Tonight seasonId={seasonId} show={show} />}
       {tab === "episodes" && <Episodes seasonId={seasonId} show={show} />}
       {tab === "games" && <Games show={show} />}
-      {tab === "cast" && <Cast seasonId={seasonId} show={show} />}
+      {/* A sport nobody's made a game of has a roster, not a cast with stats (show/roster.tsx). */}
+      {tab === "cast" && (show.header?.show.kind === "sport" && !show.ready ? <Roster seasonId={seasonId} show={show} /> : <Cast seasonId={seasonId} show={show} />)}
       {tab === "chat" && <Chat seasonId={seasonId} show={show} />}
     </div>
   );

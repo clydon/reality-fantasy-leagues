@@ -143,6 +143,14 @@ step's As built.
   bingo, calls, rate, remind, watch along, something wrong), couch pages, the guide, the desk, and notifications and pushes.
   Any step on those can take them by reading `show.words`. Also: a season numbered by year shows "S2026" in the show bar's
   title ("2026" would read better), and the desk has no field for the episode word yet (an admin can't correct "Event").
+- **Fill in who's playing (2026-10-27, rosters.ts, migration 0144) left these alone.** (1) Sports only: a show that isn't a sport
+  still gets its cast from Make it a game (or its listing, for a series or talk show); the same one-question fill could offer
+  a not-yet-a-game competition's cast too. (2) No photos: the photo finder (show-art.ts) looks in TMDB and TVmaze credits, which for a
+  sport are the broadcasters; a free source of player photos would be its own step. (3) A roster is filled once; a mid-season trade or
+  call-up isn't picked up (a "Refresh who's playing" could ask again and add who's new). (4) The stats read (season-stats.ts) still
+  says castaways and tribe for a show nobody's set up, from shows.format defaulting to survivor; it isn't shown on a sport's roster,
+  but anything that reads it for an unset show says the wrong words. (5) check-show-words.js once logged React's "state update on a
+  component that hasn't mounted yet" (1 run in 8, not reproduced since); it now prints the screen a console error happens on.
 - **Fill in what happened (2026-10-27, episode-recaps.ts, migration 0143) left these alone.** (1) It's a tap: nothing fills in a new
   episode by itself when it airs; a bot clock run a few hours after each episode of a followed, unresearched show could (the
   schedule's pattern, db/bot-research.js). (2) Recaps show on a show you only watch (Episodes' aired rows); a show you play has

@@ -55,18 +55,9 @@ export function Cast({ seasonId, show }: { seasonId: string; show: ShowData }) {
   if (!full.data) return <div className="mx-4 mt-5 h-72 animate-pulse rounded-[4px] bg-card" aria-busy />;
   const all = full.data;
   if (!all.cast.length) {
+    // A sport nobody's made a game of has its roster instead (show/roster.tsx, with Fill in who's playing).
     const people = show.words.people.toLowerCase();
-    return (
-      <EmptyState
-        icon={Users}
-        title={`No ${people} yet`}
-        line={
-          show.header?.show.kind === "sport"
-            ? `TV listings don't list a sport's ${people}. They show up here once someone makes it a game and says who's in it.`
-            : `The ${people} show up here once the season's cast is in.`
-        }
-      />
-    );
+    return <EmptyState icon={Users} title={`No ${people} yet`} line={`The ${people} show up here once the season's cast is in.`} />;
   }
   if (!all.through) {
     return <EmptyState icon={Eye} title="Nothing to show yet" line="The cast's stats fill in as you watch, up to the episode you're on, never past it." />;

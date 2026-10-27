@@ -29,6 +29,7 @@ import type { ListingHit } from "@/lib/game/listing";
 import type { AddedShow } from "@/lib/server/add-show";
 import type { KeepUp } from "@/lib/server/keep-up";
 import type { RecapState } from "@/lib/server/episode-recaps";
+import type { Roster } from "@/lib/server/rosters";
 import type { StepEpisode } from "@/lib/server/schedule";
 import type { ListingSeason } from "@/lib/server/listings";
 import type { MakeState } from "@/lib/server/make-game";
@@ -1100,6 +1101,25 @@ export function useRecaps(seasonId: string | null, enabled = true) {
     refetchInterval: (q) => (q.state.data?.asking ? 4000 : false),
   });
 }
+
+export type { Roster, RosterGroup } from "@/lib/server/rosters";
+
+/** A sport's Players tab (rosters.ts): who's playing by team, and our bot's ask, read while it's going. */
+export function useRoster(seasonId: string | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "roster", seasonId],
+    queryFn: () => get<Roster>(`/api/seasons/${seasonId}/roster`),
+    enabled: enabled && seasonId != null,
+    staleTime: 60_000,
+    refetchInterval: (q) => (q.state.data?.asking ? 4000 : false),
+  });
+}
+
+export const roster = {
+  ask: (seasonId: string) => post<Roster>(`/api/seasons/${seasonId}/roster`, { action: "ask" }),
+  paste: (seasonId: string, answer: string) => post<Roster & { filled: number }>(`/api/seasons/${seasonId}/roster`, { answer }),
+  prompt: (seasonId: string) => get<{ prompt: string }>(`/api/seasons/${seasonId}/roster?prompt=1`),
+};
 
 export const recaps = {
   ask: (seasonId: string) => post<RecapState>(`/api/seasons/${seasonId}/recaps`, { action: "ask" }),
