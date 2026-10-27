@@ -311,10 +311,10 @@ export async function playTrivia(user: SessionUser, seasonId: string, couchId: s
   const fits = (r: TriviaRound) => r.questions.filter((q) => typeof (answers as Record<string, unknown>)[q.id] === "string").length;
   const round = fits(dealt) > fits(shown) ? dealt : shown;
   if (!round.questions.length) throw new HttpError(409, "Nothing to ask about yet");
-  // A batch's round played in an earlier week is still played.
-  if (round.played) return shown;
   const kept = Object.fromEntries(round.questions.filter((q) => typeof (answers as Record<string, unknown>)[q.id] === "string").map((q) => [q.id, String((answers as Record<string, unknown>)[q.id]).slice(0, 120)]));
   if (!Object.keys(kept).length) throw new HttpError(400, "Answer at least one question");
+  // A batch's round played in an earlier week is still played.
+  if (round.played) return shown;
   await pool.query(
     `INSERT INTO trivia_plays (user_id, show_id, week, round, season_id, score, questions, answers) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
      ON CONFLICT (user_id, show_id, week, round) DO NOTHING`,
