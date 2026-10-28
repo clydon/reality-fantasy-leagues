@@ -2,9 +2,10 @@
 
 Status: **planned 2026-10-27; hardened 2026-10-28** with the user: the engine first, built to everything in "Where the engine
 is headed", then today's games recreated on it, then the UI last; the GPT's words grow alongside the engine. Built so far, on
-their branches and not yet merged: S1 and S2 (`survivor-data`), A1–A3 (`engine`); A4 in progress. Each step is its own
-session (Opus 5.5 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: live sports, its Sport classes and
-formats, written against this plan's game spec) and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season:
+their branches and not yet merged: S1 and S2 (`survivor-data`), A1–A3 (`engine`); A4 in progress. The live-sports plan is
+folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
+xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file
+keeps the details) and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season:
 track S here).
 
 ## What the user asked for (2026-10-27)
@@ -37,6 +38,7 @@ track S here).
 | Order, revised (2026-10-28) | **The engine first, to its full target** (every dial in "Where the engine is headed"), **then today's games recreated on it, then the UI, last**: "the finalized UI will certainly be dumbed down while the backend remains ultra powerful". The GPT's words (G1) grow alongside the engine. The sports branch keeps its own lane. |
 | Where the GPT starts (2026-10-28) | **On a show's page**, the show and season known. The bot drafts the spec from a context pack and the engine's manual; our check decides. |
 | Progress (2026-10-28) | **Living tables:** the dials and the stretch requests, each row's status generated from the engine itself (A5), so the user sees what's possible as the engine grows. |
+| Live sports (2026-10-28) | **Folded into this plan** ("Live sports in the same engine"): one engine for shows and sports. The difference is when results arrive: a sport's live, play by play, a show's after the episode. The sports plan's own decisions stand. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -339,6 +341,96 @@ the first open question below.
   about what happened on the show; the host's questions would still have to be ones data settles.
 - Numbers from outside the show's research (an episode's IMDb rating): fair game, or only what research records?
 
+## Live sports in the same engine (folded in 2026-10-28)
+
+The live-sports plan (`docs/PLAN-sports-live.md`, on the `sports` branch) is folded in here: one engine for shows and sports,
+one plan. Its file stays on the branch for the details (ESPN's shapes per sport, the screens list).
+
+**The difference is when results arrive** (the user): a show's come after the episode, from research; a sport's come live, play
+by play. So the engine's model is that **every fact has a time it became known**:
+- a show's facts are known when research is accepted, after the episode; a sport's when the play happens (ESPN's `wallclock`),
+  and for good when the game is final;
+- every game, standing and question is worked out **as of a moment** (`stateAt(t)`): now for someone watching live, their
+  synced clock for someone watching later, the end for everyone else;
+- live is provisional and the final is the truth: a sport's live points are worked out on the phone, and the final box score is
+  saved once, as today, for standings, trophies and anyone who never watched live.
+
+So every piece in "Where the engine is headed" works for both, settling as its facts arrive. "Top scorer" shows a running
+leader all game. A guillotine league on the NFL knocks someone out on Monday night as the last game ends. A captain's double
+points tick live. A split pot on "next drive" pays out when the drive ends.
+
+**What sports adds to the dials:**
+
+| Dial | Sports |
+|---|---|
+| When you act | lineups daily (NBA, NHL, MLB), weekly (NFL, college football) or per event (golf, racing, fights); live calls during the game |
+| What you predict | the winner, the margin, the total, a player's stat, the next play, the next scorer |
+| How you answer | a side; a squares grid; a bracket |
+| What settles it | the final (winner, total, margin), a player's stats (most, least, value), plays as they happen |
+| Scoring | points per stat key (`{ "HR": 5, "TB": 1 }`), from the sport's standard table, editable |
+| How you win | head-to-head matchups, categories, roto, best ball |
+| Live | every play timestamped for the team sports; by round, session or bout for golf, racing, MMA and tennis |
+
+**The sports plan's decisions** (the user's, 2026-10-27), unchanged:
+- live by default; a later watch syncs both ways (start when you press play, pause, ±30 s; or tap the last play you saw);
+- everything ESPN offers (boxing, esports and horse racing aren't in its API: left out, in the backlog);
+- formats: head-to-head, best ball, pick'em each game, categories and roto, squares, brackets, pick a few, live calls, plus
+  Weekly Lineup and Survival Pool;
+- scoring built in per sport (a standard table, like Yahoo's), editable by the commissioner; lineup locks per sport, like Yahoo;
+- built in per sport is fine for a sport's vocabulary, with good OOP so each sport is easy to test and change (shows stay
+  universal).
+
+**What ESPN gives** (checked 2026-10-27):
+- **The team sports** (NFL, college football, MLB, NBA, WNBA, college basketball, NHL; soccer's key events): a live box score and
+  every play with its time, so live and a later replay are exact.
+- **Golf** (by round), **F1, NASCAR, IndyCar** (by session), **UFC and MMA, tennis** (by bout): no per-play times.
+- **Boxing, esports, horse racing:** not in ESPN's API.
+- Also **team schedules** (games straight from ESPN, not only a TV listing's), **odds** (the over/under's default line) and
+  **finals** (to store).
+
+**How live stays free:** phones poll ESPN themselves (every ~15 s; ESPN caches it) and work out live points on the phone, so
+nothing reaches our server or Neon while a game is live. The final is saved once. A later watch fetches the finished game once
+and replays it on the phone. If ESPN ever stops answering browsers, one Vercel route forwards it with a 15 s CDN cache.
+
+**Built in vs data:** a sport's vocabulary and readers are code: `Sport` and its subclasses (positions, stat keys, periods,
+ESPN's box score and plays read into `Play`s), `Sport.reduce(plays)` for the box score at any moment, and `GameClock` (live,
+synced, snapped), which is A15's clock too. Everything a game is stays a spec: the formats are the engine's pieces, not sports
+classes, and a sport's defaults are default specs, stored as data.
+
+**More stretch requests, sports:**
+- "Guillotine NFL league: the lowest score each week is out, decided live on Monday night."
+- "Captain each night: one of your NBA players scores double." "Best ball for the World Series: your best 3 hitters count."
+- "Super Bowl squares, paid out each quarter." "March Madness bracket with a bonus for every upset."
+- "NFL pick'em with confidence points." "NBA head-to-head by categories this week."
+- "Predict the exact final score; closest wins." "Next goal scorer, called during the match."
+- "Buy and sell players during the game; prices move with their live stats."
+- "Our couch needs 10 right live calls this game to win together." "First to 20 points during the game wins."
+- "Over/under on total runs, locked at first pitch, settled live."
+
+**Track L: live sports** (the Sports lane, `sports` branch; the sports plan's steps, renumbered). A piece is built once, in the
+engine track; L brings each sport's data to it. Its screens wait for the UI track.
+- **L1. The framework, no UI.** `Sport` and the big four (football, baseball, basketball, hockey), their ESPN readers and
+  reducers (the reduced box score at the end equals ESPN's own), games straight from ESPN's schedule, finals and odds stored,
+  fixtures and tests (the user's two examples among them). The sports parts of the spec (`score.by: stats`, the sports
+  settles, the default specs) once master has A2.
+- **L2. The live clock.** The phone's poller and `GameClock` (live, synced, snapped), shared with A15; fake-espn replaying a
+  recorded game in real time or 60x; HOSTING.md.
+- **L3. Live scoring through the spec.** Points per stat from box scores and plays (`score.by: stats`), live on the phone and
+  saved once when final, replacing today's ChatGPT research of sports moments.
+- **L4. The formats, as the engine's pieces with sports data:** head-to-head, categories and roto (A11), best ball (A9),
+  pick'em and pick a few (A4's questions with the sports settles), brackets (A8), squares (a sports way to `get`), live calls
+  (A15); lineup locks per sport.
+- **L5. More of ESPN:** soccer; college and the WNBA; golf, racing, MMA and tennis (the field and bout shapes).
+- **L6. Release:** `sports` merges into master at once (migrations checked against a production backup first), then G3
+  teaches the GPT these formats.
+- Its screens (the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync, each format's
+  own) are in U0 and U1.
+
+**Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
+Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;
+tennis's draw, and how a bracket reads ESPN's. **Noticed:** golf, racing, MMA and tennis can sync a later watch only by round,
+session or bout.
+
 ## The wizard (U0 designs it, last, with impeccable)
 
 - **Simple on top, powerful underneath** (the user, 2026-10-28): the finished UI stays plain (a sentence, chips for what was
@@ -494,25 +586,19 @@ screens. Each step names the research data it needs and checks the tapes have it
 
 **U. The UI, last** ("it can get complicated": the user, 2026-10-28). Simple on top, powerful underneath (The wizard, above).
 - **U0. Design.** Impeccable `shape`, then mocks in `.impeccable/mocks/start-a-game/` at 390: the wizard and everything listed
-  under it above (was G0), answering questions and their results (was A4's), and the few controls the pieces need. Everything
-  else is reached by words. The user confirms before anything is built.
+  under it above (was G0), answering questions and their results (was A4's), the live pieces with the watch along (A15), the
+  sports screens (track L's: the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync,
+  each format's own; was the sports plan's step 0), and the few controls the pieces need. Everything else is reached by words.
+  The user confirms before anything is built.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
-  up, a sports request as far as today's sports games go (was G2); answering and results; checked at 390 on Night and Studio
-  with a zt- fixture.
+  up (was G2); answering and results; the live and sports screens; checked at 390 on Night and Studio with a zt- fixture.
 
-**The sports branch** (`PLAN-sports-live.md`): its design (step 0) and live data (step 2) can go any time. Its framework,
-scoring and formats (steps 1 and 4–6) build on A1–A2, so master gets merged in first. It adds:
-- games straight from ESPN's schedule;
-- stored finals and odds;
-- total bases from plays;
-- each Sport's stat keys;
-- the sports' default specs (data);
-- its formats as spec mechanics;
-- the sports' settles.
+**L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 
 **Suggested order** (revised 2026-10-28): S1 → S2 → A1 → A2 → A3 → A4 (all built or building), S3 once proven, then A5 (the
-tracker) → A6 → … → A13 (A14 if allowed) → R1 → R2 → R3 → U0 → U1. G1 runs alongside from A5; the sports branch in its own
-lane; G3 after it merges. Run in lanes (next section), it takes about half the calendar time.
+tracker) → A6 → … → A13 (A14 if allowed) → A15 → R1 → R2 → R3 → U0 → U1. Alongside: G1 from A5; track L in the Sports lane
+(L1 and L2 any time; L3 and L4 as master gets A2 and each format's engine piece; L6 releases it), then G3. Run in lanes (next
+section), it takes about half the calendar time.
 
 ## Running steps at the same time (lanes)
 
@@ -527,19 +613,19 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
 | Survivor | `../rfl-survivor` | `survivor-data` | `rfl_survivor` | 3001 | S1 → S2 → S3 |
 | Engine | `../rfl-engine` | `engine` | `rfl_engine` | 3002 | A1 → A4, the engine track A5 → A14, then R1 → R3, then U1 |
 | GPT words | `../rfl-gpt` | `gpt` | `rfl_gpt` | 3003 | G1, alongside the engine from A5 (the tracker's requests are its test set) |
-| Sports | `../reality-fantasy-leagues-sports` | `sports` | `rfl_sports` | 3004 | its steps 0 and 2 now; 1 and 4–6 once A2 is on master |
-| Design | the main folder (the mocks in `.impeccable/mocks/` aren't in git) | – | – | – | U0 (last) and the sports design: with the user there, never unattended |
+| Sports | `../reality-fantasy-leagues-sports` | `sports` | `rfl_sports` | 3004 | track L: L1 (its spec parts once A2 is on master) and L2 now; L3 and L4 with the engine's pieces; L5; L6 releases it |
+| Design | the main folder (the mocks in `.impeccable/mocks/` aren't in git) | – | – | – | U0 (last, the sports screens in it): with the user there, never unattended |
 | Playtest | `../rfl-playtest` | `playtest` | `rfl_playtest` | 3005 | docs/PLAN-playtests.md: season tapes (recorded from the local bot) and replays of them (since 2026-10-28) |
 
 **What can run alongside what:**
 
 | Step | Needs first | Can run at the same time as |
 |---|---|---|
-| S1 | nothing | A1, sports 0 and 2 |
-| S2 | S1 | A1 or A2, G1, sports 0 and 2 |
+| S1 | nothing | A1, L1, L2 |
+| S2 | S1 | A1 or A2, G1, L1, L2 |
 | S3 | S2, and two episodes proven on the test couch | A3, A4, G1; not while a step is mid-change in `state-logic.js` (S3 touches `formatOf`) |
-| A1 | nothing | S1 or S2, sports 0 and 2 |
-| A2 | A1 | S2, G1, sports 0 and 2 |
+| A1 | nothing | S1 or S2, L1, L2 |
+| A2 | A1 | S2, G1, L1, L2 |
 | A3, A4 | A2 (one after the other: both change `state-logic.js` and Start a game) | S3, G1, the sports branch |
 | A5 → A14 | A4, one after another (each changes the spec and the engine) | S3, G1, the sports branch, playtests |
 | R1 → R3 | the engine track (today's games are rebuilt from its pieces); R2 and R3 need the user's OK | G1, the sports branch |
@@ -547,8 +633,10 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
 | G3 | the sports branch merged | – |
 | U0 | the engine's target settled (it designs for what the engine and the GPT can make) | anything (it needs the user, not a lane) |
 | U1 | U0 and R | the sports branch |
-| Sports 0, 2 | nothing | anything |
-| Sports 1, 4–6 | A2 on master, merged into `sports` | G1, the engine track, S |
+| L1 (no spec parts), L2 | nothing (no UI: the screens are U's) | anything |
+| L1's spec parts, L3, L4 | A2 on master, merged into `sports`; each L4 format, its engine piece (A8, A9, A11, A15) | G1, the engine track, S |
+| L5 | L1 | anything |
+| L6 (the release) | L1–L5, migrations checked against a production backup | – |
 | Playtests (docs/PLAN-playtests.md) | nothing | anything: it only adds files, but holds the local bot while it records |
 
 **The rules that keep the quality:**
@@ -572,7 +660,7 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
 7. **One real-bot check at a time** (the bot answers one question at a time); every other check uses the stand-in. While the
    playtest lane records season tapes, the local bot is that lane's.
 8. **What waits for the user, however many lanes run:** production backups and Neon rehearsals, the game-specs flag (A2), the
-   VM deploy (G1), Survivor 51's switch (S3), merges and pushes, and design reviews (U0, the sports design). The user's attention
+   VM deploy (G1), Survivor 51's switch (S3), merges and pushes, and design reviews (U0, with the sports screens). The user's attention
    is the real limit, so **start with two lanes** (Survivor and Engine: S is time-bound, A is the longest path), add the sports
    lane's steps 0 and 2 when there's room, and the GPT words lane once A5 lands.
 9. **Lanes share one usage window.** Three lanes at xhigh use it about three times as fast; each session loop pauses itself near
@@ -600,6 +688,8 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
   their lock is still before they watch.
 - **Live games trust the viewer's clock** (A15). Someone can pause, look ahead and answer late. Runtime locks make that a
   deliberate act rather than an accident, and the stakes stay social (no prizes), as everywhere in the app.
+- **A sport's live result can change at the final** (a scoring change, a stat correction). The final saved once wins, and a
+  game whose standings moved says so ("Updated with the final box score").
 - **A show's events have no times** in research, so a live window tied to an event ("before tribal", "before the judges score
   this dance") can only be a runtime guess. The GPT says so and offers a runtime point instead ("the last 10 minutes").
 - **The half-minute wait.** It's always the bot. U0 designs the wait, and the progress stream already exists. Even with the
@@ -624,5 +714,5 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
 - Start a game's `SOON` branch is dead (`rulebook-fits.js` 25), and the Games tab's talk line still says "Coming with episode
   games" (`show/games.tsx` 402). (U1.)
 - Sports games score from ChatGPT research, against "ChatGPT never for stats"; `research-asks.ts` 20-21 says a sport's results
-  come from its sports data, which isn't built. (The sports branch's stat scoring.)
-- A sport's cast stops growing from ESPN once it's a game (`cast.ts` `castable`). (The sports branch.)
+  come from its sports data, which isn't built. (L3.)
+- A sport's cast stops growing from ESPN once it's a game (`cast.ts` `castable`). (L1.)
