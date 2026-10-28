@@ -11,7 +11,9 @@ on, the desk's pages and how they link, and Settings regrouped (`.impeccable/moc
 Mock scenarios › Desk · step 1 and Desk · pages and Settings). A couch's delete stays (approved with the rest). Step 2 (the
 Inbox, `desk-inbox.js`) is done in the mock (the user, 2026-10-28). **Step 3 (a season's Setup) is mocked and waiting for
 approval** (`desk-setup.js`; Mock scenarios › Desk · step 3: a season's Setup; step 3 below says what it shows and what its build
-needs). Classic's admin renders: all 19 of its pages at 390px locally
+needs). **Step 4 (a season's Research and the bot) is mocked and waiting for approval** (`desk-research.js`,
+`desk-research.css`; Mock scenarios › Desk · step 4: research and the bot; step 4 below says what it shows, what its build
+needs and the user's open questions). Classic's admin renders: all 19 of its pages at 390px locally
 (`scripts/dev-test/check-classic-admin.js`, which step 8 can turn round), and in production To do, Users, Leagues, a league's
 page, Shows and Site, with no console errors. The blank `/admin/leagues` seen in production earlier that day didn't come back.
 The likeliest cause is classic's boot screen: it covers the page until the first league loads (about a second locally, longer
@@ -33,6 +35,11 @@ season linked to a TV listing to its status by date each morning, so a status an
 day; (b) a schedule set by hand doesn't move the episodes a TV listing dated: their `season_episodes` rows (source 'listing',
 `air_at`) sit over the weekly guess in `season_air_dates` (0067, 0104), so classic's "Airs at" changes nothing for them; (c)
 classic's season route (`/api/admin/seasons/[id]` PATCH) can't set `release` or `drop_at` (nightly, all at once; 0104).
+From step 4's mock (2026-10-28): (d) HANDOFF.md says asked results go who went home first in slot `asked-quick`, but
+`db/bot-research.js` has only `asked` (`ASKED_SLOT`): the doc or the code is out of step; step 4's build checks it when it
+lists asked runs. (e) Classic's Run now says "up to two minutes" while a full run takes about 2½-4 (classic goes at step 8,
+so left). (f) `shoot-mock-scenarios.js` claimed a fresh load per scenario, but its hash-only `goto` kept the mock's state from
+one scenario to the next; it reloads now (fixed in step 4's design pass).
 
 **Decisions (the user, 2026-10-27):**
 1. **Act as them.** Opening the app as someone is classic's impersonation as it is: for an hour you are them (Better Auth's
@@ -149,6 +156,49 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    timing, add or remove a run, reset; an episode's research (paste an answer, discard, clear); auto research; the bingo bank
    (an episode's squares and the season's, hide or show, write by paste). The results queue: an episode's pending results with
    Accept all, accept, reject, correct.
+   **As mocked (2026-10-28, `desk-research.js` and `desk-research.css`, waiting for approval):** Running it's two step 4 rows
+   are real, and the season page's episodes open their own pages. **Research and the bot** (`/desk/.../research`): its lower
+   third is Autopilot on or off and the next run's time. **Run now** has five buttons (full results first and wide, then who
+   went home, the schedule check, trivia and bingo squares); each opens a sheet: which episode (aired ones; bingo the next two
+   and the season's bank; the schedule check none), what it does in plain words (tier 2: a full answer is a source like a
+   couch's, confirming what it agrees with in every game and disputing the rest, and replaces the bot's earlier answer; the
+   schedule check keeps a time set by hand), and "one question at a time" (it starts after the run in progress). The run then
+   shows in Runs with how far it's got ("9 of 21 people written up"). **Its schedule**: the Autopilot switch, then the bot's
+   runs drawn as the next episode's night on a rail (Now, Episode N starts, It ends with Change for the episode length,
+   each run at its real time with its switch; trivia and bingo counted back as `dueAt` counts them), Add a run (*n* of 8), Reset
+   to our usual five, and "Not in its schedule" listing the usual runs a season lacks, each with Add (how Survivor 51's
+   schedule-check-only setup shows why it gets no trivia or bingo). A run's sheet changes its timing on a stepper (refusing a
+   duplicate) or takes it off; paid Claude research shows only on a season where it's on, with Switch it off (the desk has no
+   paid actions). **Runs**: the latest five (done, failed, asking), each a sheet: what it found or why it failed, how many tries
+   it gets, The question, Ask again or Try again. **Not in the games yet**: episodes with results one source wasn't sure of,
+   no badge (decision 7). Then History and the season's Delete, as on Setup. **An episode** (`/desk/.../e/N`): its lower third
+   (Early, Final or Waiting; who went home); **Results** with Hide names (classic's spoiler toggle: counts only), *Not in the
+   games yet* (one source wasn't sure, or a name not in the cast: ✕ and ✓, or Who?), Accept all (tier 2: each into every game,
+   its games scoring them as each player reveals it, the shared stats), *Disputed* (to its fact page), and *In every game*
+   grouped by result (each a sheet: Correct it, Take it out, Unlock). **Answers**: each a source (a couch's paste, a quick check,
+   our bot's runs), each with Take it back (tier 2: what only it reported leaves every game); Paste an answer (the plain Ask an
+   AI, not the couch's $1 chooser) previews what it would add; Ask our bot is Run now for the episode. **Trivia**: the bot's
+   questions about it, each with Take it out (the admin's flag), or Write trivia now. **Bingo**: a link to its squares. Last,
+   red, **Clear Episode N's results** (tier 3: every answer and result, accepted ones too, out of every game; offered first,
+   Clear only what's waiting). **Bingo bank** (`/desk/.../bingo`): a strip of episodes and the season's bank; each with who
+   wrote it and how many passed its check, Write them again and Paste squares (a paste isn't checked, as classic's), squares by
+   Likely, Maybe, Long shot and Out of new cards (two flags, hidden by you, dropped by the check); a square's sheet shows it as
+   a plate, its flags and who sent them, Hide it from new cards or Show it again. Autopilot reaches Setup's What moves, the
+   Inbox's Coming up ("Autopilot: who went home, then full results") and Settings › Our bot › Autopilot (its seasons, each a
+   link). Mock scenarios: 16 (`scripts/dev-test/shoot-mock-scenarios.js --group=dsr` shoots them all at 390).
+   **What the build needs beyond classic:** Run now as a queued run (classic runs it inside the request, up to 300 s, with no
+   progress); every run's `progress` read on the desk (0153 writes it; only asked results read it today); a run in progress
+   found from its row (`ok` null, under 10 minutes old) to say what a new one waits behind; the queue read from the new
+   design's facts (`fact-status.ts`: a reported fact that isn't `live`, or a name not in the cast), not classic's staged
+   `season_decisions`, with Accept and Correct making it canonical and Reject removing it (desk routes over the shared facts;
+   classic's accept-episode applies staged rows); the desk's paste filed as a submission (`community-results.ts`), not
+   classic's review-only staging; Take it back withdrawing one submission (the couch's Undo, for any source); Clear's two scopes
+   mapped to classic's (everything = `scope=everything`; only what's waiting = the facts not live); Show it again on a square
+   two people flagged overruling their flags (`bingo.ts` counts two flags or an admin's, so an admin's unhide must outrank
+   them); trivia's questions per episode on the desk with the admin's flag (classic lists them only in the run's row).
+   **Open questions for the user:** (1) the season's Delete ends Research and the bot and the Bingo bank as it ends Setup, and
+   an episode ends with Clear its results: right for decision 4? (2) Hide names starts off: should it start on for an episode
+   you haven't seen? (3) trivia's questions and Take it out on an episode's page are beyond classic: keep them?
 5. **Seasons: cast.** Pull from the wiki and pull again, approve and send to the games, remove someone, hold starting groups
    until Episode 1.
 6. **Games and couches.** Find's Games (by name or join code); a game's page: its seats and who's in each (link an account,

@@ -1,6 +1,6 @@
 // Screenshots every scenario in one group of the full-site mock's Mock scenarios menu (.impeccable/mocks/site/index.html),
 // each from a fresh load, at phone size by default: the page a screen at a time, and an open sheet scrolled through its
-// body. For design steps that add a scenario group (the desk parity steps: dks, dps, dis, dss, ...). Prints page errors.
+// body. For design steps that add a scenario group (the desk parity steps: dks, dps, dis, dss, dsr, ...). Prints page errors.
 // No dev server, login or DB.
 //
 //   node scripts/dev-test/shoot-mock-scenarios.js <outDir> --group=dss [--width=390] [--height=844] [--screens=3] [--n=4] [--only=ds2,ds5]
@@ -29,7 +29,9 @@ const { open } = require("./browser");
   if (!keys.length) throw new Error(`no [data-${group}] scenarios in the mock menu`);
   const shot = async (f) => { await page.screenshot({ path: path.join(out, f) }); console.log("wrote", f); };
   for (const k of keys) {
+    // a hash-only goto is a same-document navigation: reload so each scenario starts from the mock's own state
     await page.goto(base + "#/hub", { waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "networkidle" });
     await page.addStyleTag({ content: ".mockfab{display:none!important}" });
     await page.$eval(`[data-${group}="${k}"]`, (b) => b.click());
     await page.waitForTimeout(1700);
