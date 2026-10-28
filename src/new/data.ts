@@ -1154,7 +1154,7 @@ export function useScoring(seasonId: string | null, enabled = true) {
 
 export const scoring = {
   /** Saved as a fix from the premiere; `ask`: the new moments that need the episodes looked up again. */
-  save: (seasonId: string, body: { points?: Record<string, number>; add?: { label: string; counted: string; points: number; uses?: string }[]; remove?: string[] }) =>
+  save: (seasonId: string, body: { points?: Record<string, number | { exclusive: number; shared: number }>; add?: { label: string; counted: string; points: number; uses?: string }[]; remove?: string[] }) =>
     post<{ page: ScoringPage; ask: { id: string; label: string }[]; restaged: number[] }>(`/api/seasons/${seasonId}/scoring`, body),
   /** The episodes looked up already, asked about again: for just the new questions, or everything. */
   again: (seasonId: string, again: "missing" | "full") => post<{ page: ScoringPage; asked: number }>(`/api/seasons/${seasonId}/scoring`, { again }),

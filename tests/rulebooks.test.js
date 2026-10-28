@@ -299,7 +299,7 @@ test("How it works reads like the mock for Survivor", () => {
   assert.match(v.waysOut.end, /jury votes for a winner from the final three/);
   assert.deepEqual(v.twists.items.map((t) => t.name), ["Idols and advantages", "Journeys", "Exile"]);
   const tribal = v.points.groups.find((g) => g.id === "tribal");
-  assert.deepEqual(tribal.items.find((i) => i.id === "votedOut"), { id: "votedOut", label: "Voted out", points: -3, auto: true, league: false });
+  assert.deepEqual(tribal.items.find((i) => i.id === "votedOut"), { id: "votedOut", momentId: "votedOut", label: "Voted out", points: -3, defaultPoints: -3, auto: true, league: false });
   assert.deepEqual(v.jump.map((j) => j.label), ["Each episode", "The season", "Who's playing", "What scores"]);
   assert.deepEqual(v.games.map((g) => g.name), ["Survival Pool", "Weekly Lineup", "Outlast"]);
 });

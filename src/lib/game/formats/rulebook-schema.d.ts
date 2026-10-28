@@ -1,4 +1,5 @@
 // Types for formats/rulebook-schema.js: a rulebook's blocks (docs/PLAN-rulebooks-implementation.md section 3).
+import type { MomentTag } from "./moment-tags";
 
 export type RulebookKind = "competition" | "series" | "talk" | "sport";
 export type BlockKey = "cast" | "season" | "segments" | "waysOut" | "twists" | "points";
@@ -135,7 +136,7 @@ export interface RulebookBlocks {
   customMoments?: RulebookCustomMoment[];
   points?: Record<string, Points>;
   /** off: a couch's own copy doesn't count it (Make it ours). */
-  momentNotes?: Record<string, { reliability?: "reliable" | "usually" | "patchy"; answeredBy?: "research" | "league"; off?: boolean }>;
+  momentNotes?: Record<string, { reliability?: "reliable" | "usually" | "patchy"; answeredBy?: "research" | "league"; off?: boolean; tags?: MomentTag[] }>;
   /** How research asks: the search hint's lines, and each question by the blocks' own key. */
   research?: { searchHint?: string[]; questions?: Record<string, RulebookQuestion>; checks?: Record<string, RulebookCheck> };
   leftOut?: string[];

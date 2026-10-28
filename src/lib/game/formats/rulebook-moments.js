@@ -3,7 +3,7 @@
 // segment's answers build its moments, and so do twists, ways out and the finale; moments added by hand
 // come on top. Nobody writes a rule: R2's compiler turns these into the engine's events and rules.
 //
-//   momentsFor(blocks) -> [{ id, label, from, defaultPoints, ask?, auto?, custom?, answeredBy, reliability?, off? }]
+//   momentsFor(blocks) -> [{ id, label, from, defaultPoints, ask?, auto?, custom?, answeredBy, reliability?, tags?, off? }]
 //
 //   from          where it comes from: { segment } | { twist } | { wayOut } | { finale: true }, plus { custom }
 //                 for a moment added by hand (with its segment or twist when it happens during one)
@@ -19,6 +19,8 @@
 //   exile         a side trip that takes them away from their group: recorded as the episode's exile, and
 //                 scored from that record (the engine's ep.exiled)
 //   auto          known without asking about it: from how someone left, a role, or other answers
+//   tags          what it says about someone's place in the game (moment-tags.js), from the structure that builds it
+//                 (derivedTags), or the rulebook's own for it (momentNotes[id].tags; [] for none)
 //   off           only with { includeOff: true }: built, but switched off (momentsOff, or a couch's own copy's
 //                 momentNotes[id].off: Make it ours, step 6b part 3)
 //
@@ -237,6 +239,37 @@ function customMoment(m, blocks) {
 }
 
 /**
+ * What a built moment says about someone's place in the game (moment-tags.js), from the structure that builds it: a vote
+ * that sends someone home or puts them at risk (votes against them survived, none against them, voted with the majority,
+ * targeted there and survived, in the bottom), being put at risk, winning safety, and protection carried into a later vote
+ * (an advantage that keeps them safe or cancels votes and lasts past the episode: got one, played one, the votes it
+ * cancelled). Null for the rest, and for a moment added by hand: the rulebook can give any moment its own
+ * (momentNotes[id].tags).
+ */
+function derivedTags(m, blocks) {
+  if (m.custom) return null;
+  const is = (item, suffix) => m.id === `${item.id}${suffix}`;
+  const seg = m.from.segment ? list(blocks.segments).find((s) => s.id === m.from.segment) : null;
+  if (seg) {
+    if (seg.decidedBy === 'vote' && (seg.onTheLine === 'goingHome' || seg.onTheLine === 'atRisk')) {
+      if (is(seg, 'ZeroVotes')) return ['safe', 'safety'];
+      if (is(seg, 'SurvivedVotes')) return ['danger', 'safety'];
+      if (is(seg, 'VotedWithMajority')) return ['safe'];
+      if (is(seg, 'TargetedSurvived') || is(seg, 'Bottom')) return ['danger'];
+    }
+    if (seg.onTheLine === 'safety' && is(seg, 'Won')) return ['threat', 'safety'];
+    if (seg.onTheLine === 'atRisk' && is(seg, 'AtRisk')) return ['danger'];
+    return null;
+  }
+  const twist = m.from.twist ? list(blocks.twists).find((t) => t.id === m.from.twist) : null;
+  if (twist && twist.type === 'advantage' && twist.lasts !== 'oneEpisode' && list(twist.does).some((d) => d === 'keepsSafe' || d === 'cancelsVotes')) {
+    if (is(twist, 'Got')) return ['protectionGained'];
+    if (is(twist, 'Played') || is(twist, 'CancelledVotes')) return ['protectionUsed'];
+  }
+  return null;
+}
+
+/**
  * Every moment the rulebook builds, in the order a points page lists them: each segment's, then the moments
  * added by hand during it; each twist's, then its own added ones; the ways out; the finale's; then the moments
  * added by hand anywhere. `includeOff` keeps the ones switched off (momentsOff), marked `off`.
@@ -274,11 +307,14 @@ function momentsFor(blocks, { includeOff = false } = {}) {
       // A talk show's moments are the league's to call as it watches (the design plan's layer zero).
       const answeredBy = m.answeredBy || note.answeredBy || (m.auto ? undefined : kind === 'talk' ? 'league' : 'research');
       const reliability = m.reliability || note.reliability;
+      // The rulebook's own say for this moment ([] for none), else what its structure says.
+      const tags = Array.isArray(note.tags) ? note.tags : derivedTags(m, blocks);
       return {
         ...m,
         defaultPoints: Object.prototype.hasOwnProperty.call(points, m.id) ? points[m.id] : m.defaultPoints,
         ...(answeredBy ? { answeredBy } : {}),
         ...(reliability ? { reliability } : {}),
+        ...(tags ? { tags: [...tags] } : {}),
       };
     });
 }

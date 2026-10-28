@@ -113,10 +113,15 @@ function checklistKeys(format) {
   return Object.keys(format.research.checklistSchema(z, Answer).shape).filter((k) => !(k in CORE_FIELDS));
 }
 
-/** Of a format's questions, the ones a stored episode answer has nothing for (asked before the question was added). Pure. */
+/**
+ * Of a format's questions, the ones a stored episode answer has nothing for (asked before the question was added), that
+ * something scores from: one asked besides (what was found, anything else notable) isn't worth asking an episode again for.
+ * Pure.
+ */
 function unaskedKeys(format, payload) {
   const have = new Set(((payload && payload.castaways) || []).flatMap((c) => (c && typeof c === "object" ? Object.keys(c) : [])));
-  return checklistKeys(format).filter((k) => !have.has(k));
+  const rules = format.data ? JSON.stringify(format.data.rules || {}) : null;
+  return checklistKeys(format).filter((k) => !have.has(k) && (rules === null || rules.includes(JSON.stringify(k))));
 }
 
 /** The format asking only `keys` (and the core fields) of each person. Pure. */
@@ -1189,8 +1194,11 @@ async function catalogEntry(pool, showSlug, season, label) {
   // A show on a stored format (db/show-formats.js) carries its data, for contextFrom's formatFor.
   rows[0].format_data = await ShowFormats.formatDataFor(pool, rows[0].format);
   // A season playing by its own rulebook is asked by that rulebook as it is now (an edit's new question included), not
-  // the stored format copied from it when it was made (docs/PLAN-maker-scoring.md step 1), as seasonFormat reads it.
-  rows[0].rulebook_format = await Rulebooks.seasonRulebookFormat(pool, rows[0].season_id, { formatId: rows[0].format });
+  // the stored format copied from it when it was made (docs/PLAN-maker-scoring.md step 1), as seasonFormat reads it. Which
+  // rulebook asks is recorded with what research stores, and stored answers are matched by it (askedAlike).
+  const asking = await Rulebooks.seasonResearchRulebook(pool, rows[0].season_id, { formatId: rows[0].format });
+  rows[0].rulebook_format = asking.format;
+  rows[0].rulebook_asking = asking.rulebook;
   // ...and the season's approved rule changes, which contextFrom layers on by episode.
   rows[0].rule_changes = await SeasonRuleChanges.approvedChanges(pool, rows[0].season_id);
   return rows[0];
@@ -1312,6 +1320,8 @@ function contextFrom(entry, showSlug, season, episodeNumber, castNames, castFrom
     castFrom,
     terms: termsFor(entry).terms,
     format,
+    // The season's rulebook when it's what asks (or an unedited mirror of the format that does), recorded in provenance.
+    rulebook: entry.rulebook_asking || null,
     // Which season rule changes the checklist included, recorded in provenance.
     ruleChanges: changes.map((c) => ({ id: c.id, version: c.version })),
   };
@@ -1447,17 +1457,31 @@ async function storedBetAnswer(pool, { showId, season, episodeNumber, label }) {
 // Keyed on (show, season, episode) and NOT on anything about the sources, unlike wiki_extractions:
 // there is no revision id for "the internet as it was last Thursday", so the only honest cache rule
 // is "we already researched this episode once; ask again only if you say so".
-async function cachedResearch(pool, showId, season, episodeNumber, formatId, opts) {
+
+/**
+ * Whether stored answers were asked by what asks now (`ctx`: its format and the rulebook asking, contextFrom), so they
+ * answer its questions: asked by the same rulebook (recorded since docs/PLAN-start-a-game-gpt.md S2), whatever its format
+ * is called now, so a season's rulebook moved onto new rules with its question map keeps its answers; or by the same format
+ * (research from before formats recorded none, and was all asked under the default). A rulebook frozen from one format is
+ * never rewritten as another's (db/rulebooks.js ensureSeasonRulebook makes that one anew), so the same rulebook is the same
+ * questions.
+ */
+function askedAlike(provenance, ctx) {
+  const p = provenance || {};
+  if (p.rulebook && ctx.rulebook && p.rulebook.id === ctx.rulebook.id) return true;
+  return (p.format || Formats.DEFAULT_FORMAT) === ctx.format.id;
+}
+
+async function cachedResearch(pool, ctx, episodeNumber, opts) {
   if (opts.force) return null;
   const { rows } = await pool.query(
     `SELECT id, payload, provenance, researched_at FROM episode_research
       WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 AND source = 'combined'`,
-    [showId, season, episodeNumber]
+    [ctx.showId, ctx.season, episodeNumber]
   );
   if (!rows.length) return null;
-  // Answers to another format's checklist (the show was switched since) don't answer this one.
-  // Research from before formats recorded none, and was all asked under the default.
-  if (((rows[0].provenance && rows[0].provenance.format) || Formats.DEFAULT_FORMAT) !== formatId) return null;
+  // Answers another rulebook asked (the season's rules were made again, or the show was switched since) don't answer this one.
+  if (!askedAlike(rows[0].provenance, ctx)) return null;
   console.log(
     `[research] episode ${episodeNumber} was researched ${new Date(rows[0].researched_at).toISOString()} ` +
       "-- reusing it (no model call). Pass --force to research it again."
@@ -1674,7 +1698,7 @@ async function storeMergedResearch(pool, ctx, payload, provenance, mergeOpts = {
       "SELECT payload, provenance, researched_at FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number=$3 AND source = 'combined'",
       [ctx.showId, ctx.season, ctx.episodeNumber]
     );
-    const sameFormat = prior.length && ((prior[0].provenance && prior[0].provenance.format) || Formats.DEFAULT_FORMAT) === provenance.format;
+    const sameFormat = prior.length && askedAlike(prior[0].provenance, ctx);
     // Just some questions' answers, alone, would stand for the whole episode.
     if (mergeOpts.onto && !sameFormat) throw new Error("There are no stored answers for this episode to add the new questions to.");
     const merged = mergeResearchPayload(sameFormat ? prior[0].payload : null, payload, mergeOpts);
@@ -1815,6 +1839,22 @@ async function researchItems(pool, seasonId, run, payload) {
   }));
 }
 
+// The rules stored answers were asked by, which is what their shape follows, with the season's rule changes in effect by
+// that episode: the rulebook that asked them when it's no longer the season's (`current`: the season's rulebook id; its
+// rules were made again since), else the season's by the format they were asked under.
+async function askedFormat(pool, seasonId, current, r) {
+  const p = r.provenance || {};
+  const then = p.rulebook && p.rulebook.id !== current ? await Rulebooks.compiledFor(pool, p.rulebook.id) : null;
+  if (!then) return SeasonRuleChanges.seasonFormat(pool, seasonId, { formatId: p.format || r.format, episode: r.episode_number });
+  const base = Formats.formatForRulebook(then.data, then.reader);
+  try {
+    return Formats.withChanges(base, await SeasonRuleChanges.approvedChanges(pool, seasonId, { throughEpisode: r.episode_number }));
+  } catch (e) {
+    console.log(`[research] ! season rule changes not applied: ${e.message}`);
+    return base;
+  }
+}
+
 /** Re-stages every episode already researched for a season, from the stored answers -- no search,
  * no model call. The research counterpart of wiki-sync's stageCachedSeasonEpisodes. */
 async function stageCachedSeasonResearch(pool, seasonId) {
@@ -1827,6 +1867,8 @@ async function stageCachedSeasonResearch(pool, seasonId) {
       ORDER BY er.episode_number`,
     [seasonId]
   );
+  const { rows: season } = await pool.query("SELECT rulebook_id FROM show_seasons WHERE id=$1", [seasonId]);
+  const current = season[0] ? season[0].rulebook_id : null;
   let inserted = 0;
   for (const r of rows) {
     const out = await stageResearchDecisions(pool, {
@@ -1837,12 +1879,7 @@ async function stageCachedSeasonResearch(pool, seasonId) {
       season: r.season_number,
       episodeNumber: r.episode_number,
       payload: r.payload,
-      // The format the answers were asked under, which is what their shape follows, with the season's
-      // rule changes in effect by that episode.
-      format: await SeasonRuleChanges.seasonFormat(pool, seasonId, {
-        formatId: (r.provenance && r.provenance.format) || r.format,
-        episode: r.episode_number,
-      }),
+      format: await askedFormat(pool, seasonId, current, r),
     });
     inserted += out.inserted;
   }
@@ -2021,7 +2058,7 @@ async function buildPasteImportPrompt(pool, showSlug, season, episodeNumber, opt
   let only = null;
   if (opts.only === "missing") {
     const stored = await storedResearchFor(pool, ctx);
-    if (stored && ((stored.provenance && stored.provenance.format) || Formats.DEFAULT_FORMAT) === ctx.format.id) {
+    if (stored && askedAlike(stored.provenance, ctx)) {
       only = unaskedKeys(ctx.format, stored.payload);
       if (!only.length) return { prompt: null, castCount: ctx.castNames.length, betCount: 0, only };
     }
@@ -2067,10 +2104,9 @@ function requireNotes(notes) {
 // Who the stored answers already settle, among the people this league's checklist would ask about.
 // One confidence per person per episode (formats/checklist.js's CORE_FIELDS.confidence), so a person is
 // settled or not as a whole: medium or high is settled; low or no entry at all is asked again. Stored
-// answers to another format's checklist settle nobody (see cachedResearch). Pure.
-function researchCoverage(stored, castNames, formatId) {
-  const usable =
-    stored && stored.payload && ((stored.provenance && stored.provenance.format) || Formats.DEFAULT_FORMAT) === formatId;
+// answers another rulebook asked settle nobody (askedAlike: `ctx` is what asks now). Pure.
+function researchCoverage(stored, castNames, ctx) {
+  const usable = !!stored && !!stored.payload && askedAlike(stored.provenance, ctx);
   const entries = usable ? stored.payload.castaways || [] : [];
   const roster = { castaways: entries.map((c, i) => ({ id: String(i), name: c.name })) };
   const covered = [];
@@ -2128,7 +2164,7 @@ async function ensureSeasonRow(pool, ctx) {
 async function leagueResearchStatus(pool, leagueId, episodeNumber, opts = {}) {
   requireEpisodeNumber(episodeNumber);
   const ctx = await resolveResearchContext(pool, leagueId, episodeNumber);
-  const coverage = researchCoverage(await storedResearchFor(pool, ctx), ctx.castNames, ctx.format.id);
+  const coverage = researchCoverage(await storedResearchFor(pool, ctx), ctx.castNames, ctx);
   const again = !!opts.again && coverage.researched;
   const asking = again ? ctx.castNames : coverage.needsAsking;
   if (!asking.length) return { ctx, coverage, prompt: null, betCount: 0, again: false };
@@ -2153,7 +2189,7 @@ async function researchFromPasteForLeague(pool, leagueId, episodeNumber, notes, 
   requireEpisodeNumber(episodeNumber);
   const trimmed = requireNotes(notes);
   const ctx = await resolveResearchContext(pool, leagueId, episodeNumber);
-  const coverage = researchCoverage(await storedResearchFor(pool, ctx), ctx.castNames, ctx.format.id);
+  const coverage = researchCoverage(await storedResearchFor(pool, ctx), ctx.castNames, ctx);
   // `opts.again`: the answer to leagueResearchStatus's everyone-again prompt, filled in field by field.
   const again = !!opts.again && coverage.researched;
   if (!again && !coverage.needsAsking.length) {
@@ -2386,6 +2422,7 @@ async function pastedRun(pool, ctx, episodeNumber, trimmed, opts) {
     seasonNumber: ctx.season,
     episodeNumber,
     format: ctx.format.id,
+    ...(ctx.rulebook ? { rulebook: ctx.rulebook } : {}),
     ruleChanges: ctx.ruleChanges || [],
     castFrom: ctx.castFrom,
     castAsked: ctx.castNames,
@@ -2432,7 +2469,7 @@ async function runFor(pool, ctx, opts) {
   const provider = providerFor(opts.provider);
   const model = opts.model || process.env.RESEARCH_MODEL || provider.defaultModel;
 
-  const cached = await cachedResearch(pool, ctx.showId, ctx.season, episodeNumber, ctx.format.id, opts);
+  const cached = await cachedResearch(pool, ctx, episodeNumber, opts);
   if (cached) {
     const review = validateResearch(cached.payload, ctx.castNames, ctx.terms, ctx.format, { groups: ctx.castGroups });
     // `id` matters even on a cache hit: staging needs a research_id to file decisions against, and
@@ -2480,8 +2517,9 @@ async function runFor(pool, ctx, opts) {
     showSlug: ctx.showSlug,
     seasonNumber: ctx.season,
     episodeNumber,
-    // Whose checklist this answers -- see cachedResearch.
+    // Whose checklist this answers -- see askedAlike.
     format: ctx.format.id,
+    ...(ctx.rulebook ? { rulebook: ctx.rulebook } : {}),
     ruleChanges: ctx.ruleChanges || [],
     castFrom: ctx.castFrom,
     castAsked: ctx.castNames,

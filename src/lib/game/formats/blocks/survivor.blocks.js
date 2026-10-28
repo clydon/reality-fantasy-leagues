@@ -24,6 +24,10 @@
 // template moments it has no event for are switched off, and its events no template builds are moments added
 // by hand, under their own ids.
 module.exports = {
+  // They say everything survivor.js does (tests/rulebook-golden.test.js, "Survivor on its own blocks"), so a new season's
+  // rulebook is these blocks compiled, never survivor.js frozen (db/rulebooks.js ensureSeasonRulebook). The Traitors' and
+  // The Challenge's blocks don't yet.
+  standsAlone: true,
   blocks: {
     schema: 1,
     kind: 'competition',

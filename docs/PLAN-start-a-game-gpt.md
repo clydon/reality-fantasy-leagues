@@ -1,8 +1,9 @@
 # Plan: the Start-a-game GPT, on games as data
 
 Status: **planned 2026-10-27**. **S1 built 2026-10-27** on `survivor-data` (not merged; its As built is under track S).
-**S2 part 1 built 2026-10-28** on `survivor-data` (checks and words as data; not merged; As built under track S); S2 part 2
-(the shared-code clean-up) is next. The
+**S2 part 1 built 2026-10-28** on `survivor-data` (checks and words as data; not merged; As built under track S), and **S2
+part 2 the same day** (moment tags, stored answers by rulebook, no new frozen built-ins, maker scoring's ids; As built under
+track S): S2 is done, waiting to merge, then the test couch plays it (the user's, in production). The
 user's idea, their decisions and the order are below; each step is its own session (Opus 5.5 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: live sports, its Sport classes and
 formats, written against this plan's game spec) and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season:
 track S here).
@@ -387,10 +388,105 @@ repairs, its notes and sentences), and so can any show's.
 - The research harness's `patterned()` never fills a nullable text answer (its JSON schema's type is a list), so votedFor, the
   advantage names and notableTwist are only ever null there; the golden test's own scenarios cover them. (Any later step
   touching `tests/harness/research-fixtures.js`; it feeds the format-regression harness too.)
-- A fresh researched rulebook doesn't ask `notableTwist`, so its research has nowhere for conflicts; the compiler could ask an
-  anything-else question for every show. (S2 part 2 or G1.)
+- ~~A fresh researched rulebook doesn't ask `notableTwist`~~ (done in S2 part 2: below).
 - The desk editor has no controls for the research block's words or checks (S1's noticed item, now bigger). (The desk-parity
   plan.)
+
+**S2 part 2 as built (2026-10-28, `survivor-data`, not merged; no migration).** No shared code names Survivor's, The
+Traitors' or The Challenge's ids any more: what the computer players and the Safety ranking read is data, stored answers are
+matched by the rulebook that asked them, and a new Survivor season's rulebook is Survivor's blocks compiled, never frozen.
+Nothing scores differently on any league today, and the computer players choose exactly as before.
+- **Moment tags** (`src/lib/game/formats/moment-tags.js`, new): what a moment says about someone's place in the game, as
+  `events[].tags` in FormatData (validated by `formatProblems`): `danger` (in the firing line and lived), `safe` (with the
+  numbers), `threat` (a win that makes a target after a merge), `protectionGained` / `protectionUsed` (an advantage carried
+  into a later vote, and using it up), `safety` (kept off the chopping block: the Safety ranking).
+  - **The compiler derives them** (`rulebook-moments.js derivedTags`): a vote that sends someone home or puts them at risk
+    (votes against them survived: danger + safety; none against them: safe + safety; with the majority: safe; targeted and
+    survived, in the bottom: danger), being put at risk (danger), winning a safety segment (threat + safety), and an advantage
+    that keeps someone safe or cancels votes and lasts past the episode (got: protectionGained; played, and the votes it
+    cancelled: protectionUsed). A rulebook gives any moment its own with `momentNotes[id].tags` (`[]` for none; a moment added
+    by hand has none of its own). Every event compiled from blocks carries `tags`, `[]` for none; on a base, the base's own.
+  - **The built-ins' data carries them by hand**, exactly what `bot-logic.js` SIGNALS and `research-rows.tsx` SAFETY_EVENTS
+    read by id before. The Traitors' and The Challenge's blocks set their own (`momentNotes`) so their no-base compiles match
+    their built-ins too: their Round Table and daily win keep nobody "safe" for a Safety ranking (Survivor's Tribal and
+    immunity do), being considered for murder, accused or nominated and lived is danger, an elimination win is a threat.
+    Dropping those notes would give The Traitors' and The Challenge's Survival Pools a Safety ranking: a product call, not
+    made.
+  - **Data from before tags** (a legacy rulebook, a base saved then, a league's own copy, a stored format, a rulebook compiled
+    before, and an event recorded under an id the rules no longer build) reads the built-ins' tags by event id
+    (`formats/index.js momentTags`): exactly what the old lists did. It goes with the built-ins at S3, once every stored
+    rulebook carries its own.
+  - **Readers:** `bot-logic.js` profiles read `momentTags`; `tribeEdges` ("tribes vote their own out") reads the format's
+    `research.groupVotes` (`groupVotesOf`, which gives a league's own copy of a built-in's rules from before part 1 its
+    family's). The Safety ranking (`research-rows.tsx`) counts moments tagged `safety`, and a show has it when any moment is.
+  - **The legacy-row refresh:** `survivor.js`, `traitors.js` and `challenge.js`'s data changed (tags), so their legacy rows
+    (templates and seasons, Survivor 51's included) refresh once, a version on, the next time `ensureTemplate` /
+    `ensureSeasonRulebook` runs, as part 1's `groupVotes` did; the data is the same bar the tags. The local copy's are
+    refreshed already (the flag check runs the backfill).
+- **Stored answers matched by rulebook** (`db/episode-research.js askedAlike`, at all five places). Research records the
+  rulebook that asked it in `provenance.rulebook` ({ id, version }: `db/rulebooks.js seasonResearchRulebook`): the season's
+  rulebook when research asks by it, or an unedited frozen one when research asks by the format it mirrors (the same
+  questions: so Survivor 51's answers from now on carry its rulebook, and S3 moving that row onto the blocks keeps them).
+  Stored answers count when the same rulebook asked them, whatever its format is called now, or (as before, and for answers
+  from before) the same format. Re-staging reads answers asked by an earlier rulebook of the season with that rulebook's rules
+  and the season's rule changes (`askedFormat`). `seasonRulebookFormat` is now `seasonResearchRulebook`'s format.
+- **`ensureSeasonRulebook` never freezes a built-in whose blocks stand alone.** `survivor.blocks.js` says `standsAlone: true`
+  (data: the golden tests prove it; a test keeps it to Survivor's). A new Survivor season's rulebook is those blocks compiled
+  with the generic reader, no base, under Survivor's aliases (`fromBuiltInBlocks`), and while unedited it follows them as a
+  frozen one follows its format (compiled again, a version on, when the blocks or the compiler move). Not live until the flag
+  or the season's own switch, so its leagues play survivor.js meanwhile, as research asks; the stats for someone with no game
+  read it now (`season-stats.ts`), and count the same. **The Traitors and The Challenge stay frozen**: their blocks don't say
+  everything their code does yet (their scores differ with no base), so a new season of theirs would count differently.
+  Existing legacy rows, Survivor 51's included, stay until S3.
+  - A season whose show moved to another format gets that format's rulebook anew, the old one archived (it used to be
+    rewritten in place, which would have let answers match by rulebook across formats). A phase start the results confirm
+    recompiles a rulebook from blocks (a legacy one still just records it).
+  - The flag's gates hold every season to `isFormatsRules`: frozen equal to its format, or its blocks compiled as they stand.
+    `scripts/rulebooks-flag.js comparePlayed` compares such a season's leagues' events and catalog as sets (the blocks' order
+    and words), so the flag can still go on with a new Survivor season.
+- **The anything-else question** (part 1's Noticed): every rulebook compiled with no base asks `notableTwist` (in the research
+  block's words when it gives them), so research has somewhere for conflicts, as every built-in has; not a talk show (its
+  questions are about the night) nor a sport (results from its data; a long roster). Rulebooks already stored get it when next
+  compiled. Asking an episode again for "just the new questions" skips questions nothing scores (`unaskedKeys`), so it never
+  asks for that one alone. The library's stored compiles were re-saved (it, and `tags`).
+- **Maker scoring:** the page lists each moment by its own id (`pointGroups` items now carry `momentId` and the rules'
+  `defaultPoints`), so a rulebook with aliases (a new Survivor season, editable by a site admin before a game) saves; an event
+  id is refused. A moment worth `{ exclusive, shared }` shows both ("+4.5 if on several teams"), − and + move both, and they
+  save whole (it used to show and save the exclusive one alone).
+- **Checks:**
+  - 782 unit tests; `tsc` and eslint clean.
+  - `tests/moment-tags.test.js` (new, 9): the built-ins' tags against the old lists, data from before tags (a legacy
+    rulebook, an own copy, a stored format) reading the same, own tags and `[]` winning, a made-up show's derived tags (and
+    what isn't tagged), `momentNotes` tags, Survivor's, The Traitors' and The Challenge's blocks reading like their built-ins,
+    `groupVotesOf`, and the computer players' ratings identical on a legacy rulebook from before tags and `groupVotes`, an own
+    copy from before, and Survivor's blocks with the generic reader.
+  - The golden test: Survivor's blocks with the generic reader give survivor.js's tags; only Survivor's blocks stand alone.
+  - `tests/episode-research-cache.test.js`: matching by rulebook (a renamed format keeps its answers, another format with
+    another rulebook doesn't), and re-asks skipping questions nothing scores. `tests/research-review.test.js`: the
+    anything-else question (its words, never on a talk show or a sport, a rulebook compiled before isn't told about it).
+  - `scripts/dev-test/check-rulebook-flag.js` (all passed): its fixture's built-in seasons now start frozen as every season
+    made before this step was; new: a season made today (Survivor's is its blocks, its league scores as on survivor.js with
+    the flag on, The Traitors' still frozen), what asks research, a frozen season from before its data moved refreshing, an
+    unedited blocks rulebook following its blocks, a show switched to another format.
+  - `check-maker-scoring.js` (step 6, new: a Survivor season from its blocks, its moment ids and split worths, in the browser
+    at 390), `check-new-computer-players.js` (43), `check-pool-research.js` (the Safety ranking: the same output with the old
+    and new code), `check-new-stats.js`, `check-research-asks.js` (50), `check-new-show.js` (81): all passed at 390 on this
+    lane's server.
+  - `/code-review` on the diff (its fixes: the flag's gates for a season from blocks, its refresh and phase starts, answers
+    matched by rulebook or format, the season's rule changes when re-staging, `tags: []` so a moment added by hand never reads
+    a built-in's by id, re-asks skipping unscored questions, `pointGroups` giving the maker's page its ids, the fixture not
+    touching library rows).
+- **Then the test couch plays it** (the user's, in production): after S2 merges and deploys, Settings › Test couch › Rules:
+  choose **Today's rules as a rulebook** again (choosing it compiles Survivor's blocks as they are now; the couch was made
+  with the blocks from before S1), then watch two airing episodes with every table matching the real games at today's points.
+
+**S2 part 2 noticed, not fixed:**
+- On a Survivor season's Scoring page (a new one from its blocks, for a site admin before a game), the blocks' own moments
+  added by hand (Chosen to join a reward, Sat out a challenge, Learned of an idol privately) show "Its own question" and an
+  X: the page treats every custom moment as the maker's, so it could take out one of the show's. (Maker scoring, or S3.)
+- The Traitors' and The Challenge's blocks with no base score differently from their built-ins (the flag check's first run
+  without the freeze: Traitors' scores, the Challenge's catalog). Their own S1 is what lets their new seasons stop freezing,
+  or S3 retires them first. (S3.)
 
 **A. The engine: games as specs** (master).
 - **A1. The game spec, pure, no engine change.**

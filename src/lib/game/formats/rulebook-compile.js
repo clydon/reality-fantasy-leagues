@@ -6,7 +6,8 @@
 //   formatForRulebook(data, reader?) -> the runtime format (index.js)
 //
 // FROM THE BLOCKS. Each moment is an event (its id through `aliases.events`, so a built-in's recorded events
-// keep their ids); each way out an exit method (through `aliases.exits`); each question a moment asks a
+// keep their ids), with its tags (what it says about someone's place in the game, which the computer players and the
+// Safety ranking read: rulebook-moments.js, moment-tags.js); each way out an exit method (through `aliases.exits`); each question a moment asks a
 // checklist field, and a yes-or-no one a research rule. A count scores once per unit (rules.js `per`): a whole
 // number for "each time", any number for an amount that needn't be whole (innings pitched). A way out is an
 // implied rule, and so is a jury finale. A vote by the cast adds who was there, how many votes each got and who
@@ -27,8 +28,10 @@
 // already use ("tribalCouncilAttended" -> "attendedTribal"), beside the event and exit maps, so research answered
 // before keeps reading. The rulebook's `research` block can give a question research's own words, say a yes needs
 // no source, ask questions besides that score nothing (each with a type and its words), and set the search hint. It
-// also says how each answer reads to a reviewer (`note`, `sentence`, `shown`: research-review.js). On a base, the
-// base's questions keep the base's words and search hint (the legacy freeze asks what it always asked).
+// also says how each answer reads to a reviewer (`note`, `sentence`, `shown`: research-review.js). Every show but a talk
+// show or a sport is asked an anything-else question (`notableTwist`), where research also says what its sources disagree
+// on, as every built-in is. On a base, the base's questions keep the base's words and search hint (the legacy freeze asks what
+// it always asked).
 //
 // RESEARCH'S CHECKS (docs/PLAN-start-a-game-gpt.md S2). Answers that contradict each other are caught from the blocks'
 // structure, for any show: a vote by the cast checks votes against someone who wasn't there, everyone at it on zero
@@ -163,7 +166,9 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
       continue;
     }
     seenIds.set(eid, m.id);
-    fromBlocks.push({ id: eid, label: m.label, defaultPoints: m.defaultPoints, ...(isImplied(m) ? { implied: true } : {}) });
+    // Its tags always, [] for none: only data from before tags reads the built-ins' by id (index.js momentTags), never a moment
+    // added by hand whose id happens to be one of theirs.
+    fromBlocks.push({ id: eid, label: m.label, defaultPoints: m.defaultPoints, ...(isImplied(m) ? { implied: true } : {}), tags: m.tags || [] });
   }
   const pts = new Map(fromBlocks.map((e) => [e.id, e.defaultPoints]));
   const events = legacy
@@ -476,6 +481,16 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
       continue;
     }
     field({ key, type: q.type, ...(q.type === 'answer' ? {} : { nullable: true }) }, q.of === 'episode' ? episodeFields : fields);
+  }
+  // Somewhere for anything else that happened to someone, and for what the sources disagree on (the research prompt says
+  // so when the checklist has it, db/episode-research.js buildPrompt), as every built-in has: unless the rulebook asks it
+  // itself (a question asked besides, above). Not on a base (its own questions stay), nor a talk show's (about the night),
+  // nor a sport's (its results come from its data, and a roster is long).
+  if (!legacy && !talk && kind !== 'sport' && !fieldKeys.has(qk('notableTwist'))) {
+    field({
+      key: 'notableTwist', type: 'string', nullable: true, note: '{value}',
+      description: `Any other notable, checkable thing that happened to this person this ${part}, in one short phrase. Null if nothing.`,
+    });
   }
 
   // A moment scored from a question the rulebook already asks (docs/PLAN-maker-scoring.md: "−0.5 a vote received at the Round

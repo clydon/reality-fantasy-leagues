@@ -100,10 +100,51 @@ function formatForRulebook(data, reader) {
   return byReader.get(key);
 }
 
+/**
+ * The votes one group goes to at a time (research.groupVotes: who was at each, and the words for a missed move): research
+ * reads them to fill in a missed group move, and the computer players as groups voting their own out. Data from before
+ * it said so (a league's own copy of a built-in's rules) reads its family's, for the votes it asks who was at, as data read
+ * by a built-in reader does (formatForRulebook). [] for none.
+ */
+function groupVotesOf(format) {
+  const data = format && format.data;
+  const own = data && data.research && data.research.groupVotes;
+  if (own !== undefined || !data || !BUILT_IN_READERS.includes(data.id)) return own || [];
+  return (withFamilyGroupVotes(data, data.id).research || {}).groupVotes || [];
+}
+
+// Moment tags (moment-tags.js) by event id: what each of the format's events says, else what the built-ins' data says
+// for that id. Data from before events carried tags (a legacy rulebook, a base saved then, a league's own copy of a
+// built-in's rules, a stored format, a rulebook compiled before) and an event recorded under an id the rules no longer
+// build read the built-ins' tags by id, which is what the computer players and the Safety ranking read before tags (lists
+// of Survivor's, The Traitors' and The Challenge's ids). It goes with the built-ins (docs/PLAN-start-a-game-gpt.md S3),
+// once every stored rulebook carries its own.
+const NO_TAGS = Object.freeze([]);
+let builtInTags = null;
+const tagsByFormat = new WeakMap();
+/** A lookup, event id -> its tags ([] for none), for `format`. */
+function momentTags(format) {
+  if (!builtInTags) {
+    builtInTags = new Map();
+    for (const f of Object.values(FORMATS)) {
+      for (const e of f.data.events) if (Array.isArray(e.tags)) builtInTags.set(e.id, [...new Set([...(builtInTags.get(e.id) || []), ...e.tags])]);
+    }
+  }
+  let lookup = format ? tagsByFormat.get(format) : null;
+  if (!lookup) {
+    const own = new Map(((format && format.events) || []).filter((e) => Array.isArray(e.tags)).map((e) => [e.id, e.tags]));
+    lookup = (id) => own.get(id) || builtInTags.get(id) || NO_TAGS;
+    if (format) tagsByFormat.set(format, lookup);
+  }
+  return lookup;
+}
+
 module.exports = {
   FORMATS, DEFAULT_FORMAT, formatFor, formatForRuleset, isBuiltInFormat, formatOptions, formatProblems,
   // Compiled rulebooks (rulebook-compile.js).
   BUILT_IN_READERS, formatForRulebook,
+  // What a format's moments and votes say, for the computer players and research (moment-tags.js).
+  momentTags, groupVotesOf,
   // Season rule changes (season-changes.js, docs/PLAN-season-rule-changes.md).
   withChanges, applyChanges, changeProblems,
 };

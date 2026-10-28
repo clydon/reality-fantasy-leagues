@@ -17,6 +17,7 @@
 const { buildChecklist, buildShape, checklistProblems, fieldProblems } = require('./checklist.js');
 const { researchItemsFrom, impliedEventsFrom, rulesProblems } = require('./rules.js');
 const { reviewProblems } = require('./research-review.js');
+const { tagsProblem } = require('./moment-tags.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 // What each half may hold, in the order the assembled object lists them.
@@ -87,7 +88,7 @@ function formatProblems(data) {
   for (const [i, e] of (Array.isArray(data.events) ? data.events : []).entries()) {
     const at = `events[${e && isText(e.id) ? e.id : i}]`;
     if (!e || typeof e !== 'object') { p.push(`${at}: not an object`); continue; }
-    p.push(...unknownKeys(e, ['id', 'label', 'defaultPoints', 'implied', 'retiredFrom'], at));
+    p.push(...unknownKeys(e, ['id', 'label', 'defaultPoints', 'implied', 'retiredFrom', 'tags'], at));
     if (!isText(e.id) || !/^[a-z][A-Za-z0-9]*$/.test(e.id)) p.push(`${at}: id must be a camelCase identifier`);
     else if (ids.has(e.id)) p.push(`${at}: id used twice`);
     ids.add(e.id);
@@ -96,6 +97,9 @@ function formatProblems(data) {
     if ('implied' in e && typeof e.implied !== 'boolean') p.push(`${at}: implied must be true or false`);
     // Set by a season rule change (season-changes.js): nothing awards it from this episode on.
     if ('retiredFrom' in e && !(Number.isInteger(e.retiredFrom) && e.retiredFrom >= 1)) p.push(`${at}: retiredFrom must be an episode number from 1`);
+    // What it says about someone's place in the game (moment-tags.js), which the computer players and the Safety ranking
+    // read. Data from before tags has none, and reads the built-ins' by id (index.js momentTags).
+    if ('tags' in e && tagsProblem(e.tags)) p.push(`${at}: ${tagsProblem(e.tags)}`);
   }
   const eventList = (v) => isTextList(v) && v.every((id) => ids.has(id));
 

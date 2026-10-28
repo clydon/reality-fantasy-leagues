@@ -15,8 +15,9 @@
 //       (uses: the key of a question the rulebook already asks, scored instead of asking one of its own:
 //       "−0.5 a vote received at the Round Table" on roundTableVotesReceived; docs/PLAN-maker-scoring.md)
 //     points:   { [momentId]: number | { exclusive, shared } },   suggested-point overrides
-//     momentNotes: { [momentId]: { reliability?, answeredBy?, off? } }, research's rating of a built moment;
-//               off: a couch's own copy doesn't count it (Make it ours)
+//     momentNotes: { [momentId]: { reliability?, answeredBy?, off?, tags? } }, research's rating of a built moment;
+//               off: a couch's own copy doesn't count it (Make it ours); tags: what it says about someone's place
+//               in the game, in place of what its structure says (moment-tags.js; [] for none)
 //     research: { searchHint?: ['a line of the research prompt'],
 //                 questions?: { [questionKey]: { words?, needsSource?, type?, of?, note?, sentence?, shown? } },
 //                 checks?: { [checkId]: { words?, when?, set?, off? } } },
@@ -45,6 +46,7 @@
 // browser-safe, like everything here.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js */
 const { camelId } = require('./proposal.js');
+const { tagsProblem } = require('./moment-tags.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const SCHEMA_VERSION = 1;
@@ -711,6 +713,7 @@ function blocksProblems(blocks) {
         const offOnly = field === 'momentNotes' && isObj(v) && v.off === true && Object.keys(v).length === 1;
         if (!known.has(id) && !offOnly) add(`${field}.${id}`, `"${id}" isn't one of this rulebook's moments`);
         else if (field === 'points' && !(Number.isFinite(v) || (isObj(v) && Number.isFinite(v.exclusive) && Number.isFinite(v.shared)))) add(`${field}.${id}`, `${id}: points should be a number`);
+        else if (field === 'momentNotes' && isObj(v) && v.tags !== undefined && tagsProblem(v.tags)) add(`${field}.${id}.tags`, `${id}: ${tagsProblem(v.tags)}`);
       }
     }
   }

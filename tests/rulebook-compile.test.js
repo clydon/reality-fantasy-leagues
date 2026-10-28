@@ -442,7 +442,7 @@ test("a show's own conditions as block fields: each compiles to its rule, and st
   assert.deepEqual(rule("invited").when, { all: [yes("invited"), no("prizeWon"), no("prizeGroupWon")] });
   // The island: the episode's exile record, and scored from it.
   assert.deepEqual(data.rules.research.find((r) => r.stage === "exiled"), { when: yes("islandWent"), stage: "exiled" });
-  assert.deepEqual(data.events.find((e) => e.id === "islandWent"), { id: "islandWent", label: "Sent to the island", defaultPoints: 1, implied: true });
+  assert.deepEqual(data.events.find((e) => e.id === "islandWent"), { id: "islandWent", label: "Sent to the island", defaultPoints: 1, implied: true, tags: [] });
   // The champion reached the end too.
   assert.deepEqual(data.rules.implied.find((r) => r.award === "runnerUp"), { whenExit: ["Runner-up", "Champion"], award: "runnerUp" });
   const asked = new Map(data.research.checklist.map((f) => [f.key, f]));

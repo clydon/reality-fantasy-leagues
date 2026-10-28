@@ -16,6 +16,10 @@
 //   zt-rb-legacy    no settings.showFormat (a league from before formats: Survivor's by default)
 //   zt-rb-stale     settings.showFormat 'traitors' on a Survivor season (a cache out of step)
 //   zt-rb-noseason  Survivor season 9994, which isn't in the catalog
+// The built-in shows' 994 seasons start with the rulebook every season made before docs/PLAN-start-a-game-gpt.md S2 got,
+// frozen from its format (compiled_source 'legacy', its family's reader: what Survivor 51 plays). Season 995 of Survivor
+// and The Traitors are made today, with no rulebook yet, and a Weekly Lineup each (zt-rb-fresh-survivor, -traitors): a
+// built-in whose blocks stand alone (Survivor's) is compiled from them, never frozen again.
 //
 // Every league slug starts zt-rb-, every season is named zt-rulebooks, and `down` removes those (their rulebooks,
 // edits and rule changes cascade), the zt show, its format and the format's library template. No users. Local only.
@@ -26,8 +30,11 @@ const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, ".
 const { buildDemoState } = jiti("../../src/lib/game/demo-season-builder.ts");
 const S = require("../../src/lib/game/state-logic.js");
 const Formats = require("../../src/lib/game/formats/index.js");
+const R = require("../../db/rulebooks.js");
 
 const SEASON = 994;
+const FRESH = 995;
+const FRESH_SHOWS = [["survivor", "survivor"], ["the-traitors-us", "traitors"]];
 const SEASON_NAME = "zt-rulebooks";
 const EPISODES = 6;
 const SHOW_SLUG = "zt-rb-show";
@@ -91,7 +98,7 @@ function demoState(formatId, type) {
 
 async function down(pool) {
   await pool.query(`DELETE FROM leagues WHERE slug LIKE 'zt-rb-%'`); // rulesets, own rulebooks and memberships cascade
-  await pool.query(`DELETE FROM show_seasons WHERE season_number=$1 AND name=$2`, [SEASON, SEASON_NAME]); // season rulebooks, edits, changes cascade
+  await pool.query(`DELETE FROM show_seasons WHERE season_number = ANY($1) AND name=$2`, [[SEASON, FRESH], SEASON_NAME]); // season rulebooks, edits, changes cascade
   await pool.query(`DELETE FROM shows WHERE slug=$1`, [SHOW_SLUG]);
   await pool.query(`DELETE FROM rulebooks WHERE owner_kind='library' AND parent_kind='show_format' AND parent_id=$1`, [FORMAT_ID]);
   await pool.query(`DELETE FROM show_formats WHERE id=$1`, [FORMAT_ID]);
@@ -104,7 +111,7 @@ async function insertLeague(pool, slug, name, state) {
   return rows[0].id;
 }
 
-/** -> { seasons: { [showSlug]: seasonId }, leagues: [{ slug, leagueId, kind, show, type }], change } */
+/** -> { seasons: { [showSlug]: seasonId }, fresh: { [showSlug]: seasonId }, leagues: [{ slug, leagueId, kind, show, type }], change } */
 async function up(pool, { copies = 1 } = {}) {
   await down(pool);
   made = 0;
@@ -118,6 +125,26 @@ async function up(pool, { copies = 1 } = {}) {
       [slug, SEASON, SEASON_NAME, EPISODES]
     );
     seasons[slug] = rows[0].id;
+  }
+  // Frozen, as every built-in season was before S2.
+  for (const [slug, formatId] of SHOWS.filter(([, f]) => Formats.isBuiltInFormat(f))) {
+    const source = await R.sourceFor(pool, formatId);
+    // The library's template as it stands (the app and the backfill keep it current), made only when there's none.
+    const { rows: had } = await pool.query("SELECT id, version FROM rulebooks WHERE owner_kind='library' AND parent_kind='builtin' AND parent_id=$1", [formatId]);
+    const template = had[0] || (await R.ensureTemplate(pool, source)).row;
+    const frozen = await R.createRulebook(pool, {
+      ...R.legacyFields(source), name: SEASON_NAME, ownerKind: "season", seasonId: seasons[slug], isTemplate: false, status: "in_force",
+      reviewStatus: "approved", parentKind: "rulebook", parentId: template.id, parentVersion: template.version, phaseStarts: {},
+    });
+    await pool.query(`UPDATE show_seasons SET rulebook_id=$1 WHERE id=$2`, [frozen.id, seasons[slug]]);
+  }
+  const fresh = {};
+  for (const [slug] of FRESH_SHOWS) {
+    const { rows } = await pool.query(
+      `INSERT INTO show_seasons (show_id, season_number, name, status, episode_count) SELECT id, $2, $3, 'airing', $4 FROM shows WHERE slug=$1 RETURNING id`,
+      [slug, FRESH, SEASON_NAME, EPISODES]
+    );
+    fresh[slug] = rows[0].id;
   }
   const { rows: ch } = await pool.query(
     `INSERT INTO season_rule_changes (season_id, status, effective_episode, checked_through, summary, proposal, delta, base_format, approved_at)
@@ -165,7 +192,12 @@ async function up(pool, { copies = 1 } = {}) {
   await add("zt-rb-legacy", "zt before formats", legacy, { kind: "legacy", show: "survivor", type: "active-roster" });
   await add("zt-rb-stale", "zt stale cache", placed(demoState("survivor", "active-roster"), "survivor", "traitors"), { kind: "stale", show: "survivor", type: "active-roster" });
   await add("zt-rb-noseason", "zt no season", placed(demoState("survivor", "active-roster"), "survivor", "survivor", 9994), { kind: "noseason", show: "survivor", type: "active-roster" });
-  return { seasons, leagues, change, formatId: FORMAT_ID, showSlug: SHOW_SLUG };
+  for (const [show, formatId] of FRESH_SHOWS) {
+    const s = demoState(formatId, "active-roster");
+    Object.assign(s.settings, { showId: show, wikiSeason: FRESH, showFormat: formatId });
+    await add(`zt-rb-fresh-${formatId}`, `zt fresh ${formatId}`, s, { kind: "fresh", show, type: "active-roster" });
+  }
+  return { seasons, fresh, leagues, change, formatId: FORMAT_ID, showSlug: SHOW_SLUG };
 }
 
 if (require.main === module) {
@@ -175,7 +207,7 @@ if (require.main === module) {
   const [cmd] = process.argv.slice(2);
   const copies = Number((process.argv.find((a) => a.startsWith("--copies=")) || "=1").split("=")[1]) || 1;
   const go = {
-    up: (p) => up(p, { copies }).then((r) => console.log(`[zt] up: ${r.leagues.length} leagues on 4 zt-rulebooks seasons`)),
+    up: (p) => up(p, { copies }).then((r) => console.log(`[zt] up: ${r.leagues.length} leagues on 6 zt-rulebooks seasons`)),
     down: (p) => down(p).then(() => console.log("[zt] down")),
   }[cmd];
   (go ? go(pool) : Promise.reject(new Error("usage: up [--copies=N] | down")))
@@ -183,4 +215,4 @@ if (require.main === module) {
     .finally(() => pool.end());
 }
 
-module.exports = { up, down, SEASON, SEASON_NAME, FORMAT_ID, SHOW_SLUG, storedData, ownData };
+module.exports = { up, down, SEASON, FRESH, SEASON_NAME, FORMAT_ID, SHOW_SLUG, storedData, ownData };

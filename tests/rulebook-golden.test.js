@@ -217,6 +217,16 @@ test("with no base and the generic reader, Survivor's blocks give survivor.js's 
   assert.deepEqual(asSet(data.rules.implied), asSet(f.rules.implied), "implied rules");
   const recap = (r) => asSet(r.map((x) => ({ events: [...x.events].sort(), tribe: [...(x.tribeEvents || [])].sort() })));
   assert.deepEqual(recap(data.recap), recap(f.recap), "an episode's headline wins, and which a tribe wins");
+  // What each moment says about someone's place in the game (S2 part 2): what the computer players and the Safety ranking
+  // read, so they play and rank exactly as on survivor.js (tests/moment-tags.test.js has the rest).
+  const tags = (events) => asSet(events.map((e) => ({ id: e.id, tags: [...(e.tags || [])].sort() })));
+  assert.deepEqual(tags(data.events), tags(f.events), "every event's tags");
+  assert.ok(f.events.filter((e) => e.tags).length >= 7, "survivor.js tags what the computer players read");
+});
+
+test("only blocks these tests prove say they stand alone, which is what makes a new season's rulebook compile from them", () => {
+  const { BUILT_IN_BLOCKS } = require("../src/lib/game/formats/blocks/index.js");
+  assert.deepEqual(Object.keys(BUILT_IN_BLOCKS).filter((id) => BUILT_IN_BLOCKS[id].standsAlone === true), ["survivor"]);
 });
 
 test("Survivor on its own blocks: the harness's answers stage the same results, and the same exits and exile imply the same events", () => {

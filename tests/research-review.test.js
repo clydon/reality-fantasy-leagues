@@ -205,16 +205,34 @@ test("data frozen from Survivor before it said which vote one tribe goes to read
   assert.equal(Formats.formatForRulebook(without, "survivor").data.research.groupVotes, undefined);
 });
 
-test("the research prompt has a chat put what it couldn't settle in notableTwist only when the format asks it", () => {
+test("every show's rulebook but a talk show's asks the anything-else question, and research is told to put what it couldn't settle there", () => {
   const ctx = (format) => ({ showName: "Island Test", season: 1, episodeNumber: 2, castNames: CAST, castGroups: { "Ann Example": "Reds" }, terms: TERMS, format });
-  const asks = ER.buildPrompt(ctx(Formats.FORMATS.survivor));
-  assert.match(asks.system, /say so in notableTwist\./);
-  assert.match(asks.user, /notableTwist alone\./);
-  const { format } = compiled(island());
-  const not = ER.buildPrompt(ctx(format));
+  const { data, format } = compiled(island());
+  assert.deepEqual(data.research.checklist.find((f) => f.key === "notableTwist"), {
+    key: "notableTwist", type: "string", nullable: true, note: "{value}",
+    description: "Any other notable, checkable thing that happened to this person this episode, in one short phrase. Null if nothing.",
+  });
+  assert.deepEqual(data.research.checklist.slice(-3).map((f) => f.key), ["notableTwist", "sources", "confidence"]);
+  for (const f of [Formats.FORMATS.survivor, format]) {
+    const asks = ER.buildPrompt(ctx(f));
+    assert.match(asks.system, /say so in notableTwist\./);
+    assert.match(asks.user, /notableTwist alone\./);
+  }
+  // In the rulebook's own words when it gives them; never on a talk show (its questions are about the night).
+  const worded = { ...island(), research: { questions: { notableTwist: { words: "Anything else worth knowing?" } } } };
+  assert.equal(compiled(worded).data.research.checklist.find((f) => f.key === "notableTwist").description, "Anything else worth knowing?");
+  const talk = { schema: 1, kind: "talk", show: "Late Test", cast: { unit: "people", singular: "host", plural: "hosts", groups: null }, season: { phases: [{ id: "all", name: "All", starts: { type: "episode", n: 1 }, changes: [] }] }, segments: [], waysOut: [], customMoments: [{ id: "cameo", label: "A surprise cameo", counted: "yesNo", answeredBy: "league" }] };
+  assert.ok(!compileRulebook(talk, { id: "late-test" }).data.research.checklist.some((f) => f.key === "notableTwist"));
+  // Nor a sport's: its results come from its data, and a roster is long.
+  const series = require("../src/lib/game/formats/library/world-series.rulebook.json");
+  assert.equal(series.blocks.kind, "sport");
+  assert.ok(!compileRulebook(series.blocks, { id: series.id }).data.research.checklist.some((f) => f.key === "notableTwist"));
+  // A rulebook compiled before it was asked isn't told about it, and nor is a re-ask of a few questions.
+  const before = clone(data);
+  before.research.checklist = before.research.checklist.filter((f) => f.key !== "notableTwist");
+  const not = ER.buildPrompt(ctx(Formats.formatForRulebook(before, "research")));
   assert.doesNotMatch(`${not.system}\n${not.user}`, /notableTwist/);
   assert.match(not.system, /lower the confidence\.$/m);
   assert.match(not.user, /that is the only place a team change is recorded\./);
-  // A re-ask of a few questions leaves it out too.
   assert.doesNotMatch(ER.buildPrompt(ctx(ER.onlyFormat(Formats.FORMATS.survivor, ["votesReceived"]))).system, /notableTwist/);
 });

@@ -1,5 +1,6 @@
 // Types for formats/index.js (plain CommonJS so db/*.js can require it under bare node). Only the parts
 // TypeScript callers use; the wiki and research halves are otherwise read by the connectors in db/.
+import type { MomentTag } from "./moment-tags";
 
 export interface ScoringEventDef {
   id: string;
@@ -9,6 +10,8 @@ export interface ScoringEventDef {
   implied?: boolean;
   /** Retired by a season rule change: nothing awards it from this episode on. */
   retiredFrom?: number;
+  /** What it says about someone's place in the game (moment-tags.js). */
+  tags?: MomentTag[];
 }
 
 export interface FormatRoles {
@@ -88,7 +91,7 @@ export interface FormatData {
   /** Null for a show nobody wins (a series, a talk show, a sport's standings). */
   winnerExitMethod: string | null;
   endgameExitMethods: string[];
-  events: { id: string; label: string; defaultPoints: number | { exclusive: number; shared: number }; implied?: boolean; retiredFrom?: number }[];
+  events: { id: string; label: string; defaultPoints: number | { exclusive: number; shared: number }; implied?: boolean; retiredFrom?: number; tags?: MomentTag[] }[];
   eventCategories: { id: string; label: string; events: string[] }[];
   recap: { label: string; events: string[]; tribeEvents?: string[] }[];
   hasMerge: boolean;
@@ -164,6 +167,10 @@ export function isBuiltInFormat(id: string | null | undefined): boolean;
 export const BUILT_IN_READERS: ("survivor" | "traitors" | "challenge")[];
 /** A compiled rulebook's runtime format: a built-in reader's code half over `data`, else a data-only format. */
 export function formatForRulebook(data: FormatData, reader?: string | null): GameFormat;
+/** A lookup, event id -> what it says about someone's place in the game: the format's own, else the built-ins' for that id. */
+export function momentTags(format: GameFormat): (eventId: string) => readonly MomentTag[];
+/** The votes one group goes to at a time (research.groupVotes), the family's for data from before it said so. */
+export function groupVotesOf(format: GameFormat): { attended: string; say: string }[];
 export function formatOptions(): { id: string; name: string }[];
 /** Why a format's data half isn't usable: [] when it is. */
 export function formatProblems(data: unknown): string[];

@@ -1,4 +1,5 @@
 // Types for formats/rulebook-moments.js: what a rulebook's answers build.
+import type { MomentTag } from "./moment-tags";
 import type { Points, RulebookBlocks } from "./rulebook-schema";
 
 /** A question a moment is known by, or one its condition reads. */
@@ -35,6 +36,8 @@ export interface Moment {
   uses?: string;
   answeredBy?: "research" | "league";
   reliability?: "reliable" | "usually" | "patchy";
+  /** What it says about someone's place in the game (moment-tags.js): its structure's, or the rulebook's own for it. */
+  tags?: MomentTag[];
   /** Only with includeOff: built, but switched off. */
   off?: true;
 }
