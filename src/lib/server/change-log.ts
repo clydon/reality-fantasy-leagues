@@ -207,8 +207,9 @@ export function settingsChange(userId: string, field: string): ChangeOf {
   };
 }
 
-// Settings Backstage never changes as a set, and the big ones a settings diff shouldn't carry.
-const NOT_A_SETTING = new Set(["showFormat", "showFormatData", "leagueRulesetData", "seasonRuleChanges", "adoptedRuleChanges", "declinedRuleChanges", "rulebook", "eventPoints"]);
+// Settings Backstage never changes as a set, and the big ones a settings diff shouldn't carry. The game's spec (settings.game,
+// the game-specs flag) follows its fields: an Undo puts the fields back and the spec with them (StateLogic.syncGame).
+const NOT_A_SETTING = new Set(["showFormat", "showFormatData", "leagueRulesetData", "seasonRuleChanges", "adoptedRuleChanges", "declinedRuleChanges", "rulebook", "eventPoints", "game"]);
 
 /** Several settings changed at once (tier 1): the line, and an Undo that puts every changed field back as it was. */
 export function settingsSetChange(userId: string, text: string, opts: { kind?: string; batch?: string } = {}): ChangeOf {

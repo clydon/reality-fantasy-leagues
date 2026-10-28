@@ -109,10 +109,8 @@ function roundTrip(state, label) {
   assert.deepEqual(G.fullSpec(spec), spec, `${label}: specOf gives a whole spec`);
   const f = S.formatOf(state);
   const ctx = { castaway: f.terms.castaway.toLowerCase(), groups: f.eventCategories.map((c) => c.label).filter(Boolean) };
-  const rules = gameRules(state);
-  // The one place the spec says it better: the Rules sheet tells a pool surviving by scoring (a sport's) "stays in".
-  if (spec.score.means === "scores") rules[0] = rules[0].replace("you think stays in", "you think scores in it");
-  assert.deepEqual(G.describeSpec(spec, ctx).rules, rules, `${label}: How it works is the Rules sheet's`);
+  // The Rules sheet reads the league's spec (A2): the one it carries, or this one.
+  assert.deepEqual(G.describeSpec(spec, ctx).rules, gameRules(state), `${label}: How it works is the Rules sheet's`);
   return spec;
 }
 
@@ -200,6 +198,52 @@ test("every kind of league round-trips through its spec", () => {
     }),
   };
   for (const [label, state] of Object.entries(kinds)) roundTrip(state, label);
+});
+
+test("the Rules sheet (game-rules.ts, describeSpec since A2) says what it always did, and now a sport's pool and finale predictions", () => {
+  const sheet = (type, after) => gameRules(made(type, after));
+  const BETS = "Predictions: a right answer earns its points (usually 1), once at least two of you have answered.";
+  assert.deepEqual(sheet("classic-draft"), [
+    "Snake-draft a team of three: once someone picks a castaway, nobody else can have them.",
+    "Each castaway earns 1 point, plus 1 for every boot they outlast.",
+    "So they end on their place in the boot order: the last one standing carries you.",
+    "No lineups to set. Just watch.",
+    BETS,
+  ]);
+  assert.deepEqual(sheet("active-roster", (s) => { S.updateSettings(s, "startEpisode", 3); S.updateSettings(s, "endEpisode", 9); }), [
+    "Draft a team of five in private; everyone's picks are revealed at once, and the same castaway can be on more than one team.",
+    "Before each episode, start three. Only starters score.",
+    "Points come from what happens: Idols & Advantages, Challenges, Tribal Council, Journeys & Exile, Endgame and Leaving the game.",
+    "Lineups lock when the episode starts. Change yours as often as you like until then.",
+    BETS,
+    "Scoring starts at Episode 3; the episodes before it are history.",
+    "It ends with Episode 9: nothing after it scores, and the table there is final.",
+  ]);
+  assert.deepEqual(sheet("pickem", (s) => S.updateSettings(s, "bonusEnabled", false)), [
+    "No draft. Before each episode, pick one castaway you think stays in.",
+    "Right: your streak grows. Wrong, or no pick: it resets. Your best streak still counts.",
+    "You can't pick the same castaway again until you've used everyone still in, and never two episodes in a row.",
+    "Longest streak wins; ties go to the most right picks.",
+  ]);
+  assert.deepEqual(sheet("weekly-calls"), [
+    "No draft, no team. Before each show starts, make two calls about what will happen in it.",
+    "The couch says what happened as it watches: two of you agreeing settles a call.",
+    "Change your calls until it starts. Nobody sees them until then.",
+    "Most right calls by the finale wins.",
+    BETS,
+  ]);
+  assert.deepEqual(sheet("weekly-bingo", (s) => S.updateSettings(s, "endEpisode", 1)), [
+    "No draft, no team. Every show you get a new bingo card: eight things that might happen, the middle one free.",
+    "Tick a square when it happens. Three in a row, down or across makes a line.",
+    "A square counts once the couch agrees it happened: two of you ticking it, or saying so, settles it.",
+    "Most lines by the finale wins.",
+    BETS,
+    "It's one episode: Episode 1, then it's over.",
+  ]);
+  // A sport's pool survives by scoring, and the sheet says so; finale predictions are on it when they're on.
+  assert.equal(sheet("pickem", (s) => S.setGame(s, { ...S.gameOf(s), score: { by: "survive", means: "scores", points: 1 } }))[0], "No draft. Before each episode, pick one castaway you think scores in it.");
+  const finale = sheet("classic-draft", (s) => { S.updateSettings(s, "finalePredictionsEnabled", true); S.updateSettings(s, "finalePredictionScope", "ownPicksOnly"); });
+  assert.equal(finale[finale.length - 1], "Finale predictions: before the finale, name your final three and the winner from your own team. 1 point for each of the three you get, 3 points for the winner.");
 });
 
 test("the three examples: their specs, what the wizard says, and what each waits for", () => {

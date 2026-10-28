@@ -3,6 +3,7 @@
 // as more of the file gets used.
 import type { LeagueState, ScoreRow, DraftTurn, Player, LateJoin, Castaway, Tribe, Bet, Episode, PickEmPick, ScoringEvent, EpisodeProposalPayload, MidSeasonLogEntry, WaiverPeriod, WaiverRun, WaiverClaim, WaiverPair, WaiverWindows, ReplaceRule, WaiverFeel, WaiverRecommendation } from "./types";
 import type { GameFormat, SeasonChange, SeasonChangeSkip } from "./formats/index.js";
+import type { GameSpec, SpecContext, SpecInput, SpecProblem } from "./game-spec/index.js";
 
 /** One question in guided first-time setup, in the order it should be asked. */
 /** A season_cast row as the cast-linking functions read it. */
@@ -147,7 +148,6 @@ declare const StateLogic: {
   WaiverLogic: {
     /** The league type has mid-season moves at all (not Eliminator Pool or shared Classic). */
     supported(state: LeagueState): boolean;
-    legacyConfig(state: LeagueState): { replaceRule: ReplaceRule; waiverWindows: WaiverWindows };
     normalizeWindows(state: LeagueState, w: Partial<WaiverWindows> | null | undefined): WaiverWindows;
     /** The league's waiver settings, read from the v2 keys or (not yet backfilled) the pre-v2 switches. */
     config(state: LeagueState): { replaceRule: ReplaceRule; waiverWindows: WaiverWindows; waiverFeel: WaiverFeel; autoFill: boolean };
@@ -182,6 +182,8 @@ declare const StateLogic: {
     teamsFor(state: LeagueState, opts?: { teams?: number }): number;
     recommendFor(state: LeagueState, feel?: WaiverFeel | null, opts?: { episodes?: number; castSize?: number; teams?: number }): WaiverRecommendation | null;
     applyRecommendation(state: LeagueState, feel?: WaiverFeel | null, opts?: { episodes?: number; castSize?: number; teams?: number }): boolean;
+    /** applyRecommendation, with why it was refused ([] when it's written). */
+    writeRecommendation(state: LeagueState, feel?: WaiverFeel | null, opts?: { episodes?: number; castSize?: number; teams?: number }): SpecProblem[];
     /** After the draft starts: re-fits a league still on its creation-time suggestion. */
     refit(state: LeagueState): boolean;
     isRecommended(state: LeagueState, opts?: { episodes?: number; castSize?: number; teams?: number }): boolean;
@@ -295,6 +297,8 @@ declare const StateLogic: {
     normalize(value: unknown): number | null;
   };
   getLeagueType(state: LeagueState): LeagueType;
+  /** The game the league plays, as data (its game spec: settings.game when it carries one, else read from its settings). Read only. */
+  gameOf(state: LeagueState): Readonly<GameSpec>;
   // Capability AND commissioner choice, together -- see their comment in state-logic.js. Anything
   // that shows or starts a mid-season round should ask through these, not read either half alone.
   replenishAvailable(state: LeagueState): boolean;
@@ -308,7 +312,7 @@ declare const StateLogic: {
   originalDraftPicks(state: LeagueState, playerId: string): Castaway[];
   /** The league's show format (exit methods, scoring events, merge, winner). See formats/index.js. */
   formatOf(state: LeagueState): GameFormat;
-  /** The episode this league starts playing at (settings.startEpisode, default 1). */
+  /** The episode this league starts playing at (the spec's span.from: settings.startEpisode, default 1). */
   startEpisode(state: LeagueState): number;
   /** The last episode a game over a span plays (settings.endEpisode), or null: to the season's end. */
   endEpisode(state: LeagueState): number | null;
@@ -481,7 +485,12 @@ declare const StateLogic: {
     skipped: string[];
     unresolved: string[];
   };
-  updateSettings(state: LeagueState, field: string, value: unknown): void;
+  /** A settings write; a game field goes through setGame. The problems it was refused for ([] when it's written). */
+  updateSettings(state: LeagueState, field: string, value: unknown): SpecProblem[];
+  /** A league's game written from a whole spec: checked as the league's own, today's fields written, its side effects. */
+  setGame(state: LeagueState, spec: SpecInput | GameSpec, opts?: { ctx?: SpecContext | null }): SpecProblem[];
+  /** A league carrying its spec (settings.game) carries what its fields play. */
+  syncGame(state: LeagueState): void;
   addBet(state: LeagueState, epId: string, label: string, points: number, createdByPlayerId: string | null): Bet;
   addBetToUpcoming(state: LeagueState, label: string, points: number, createdByPlayerId: string | null): Bet;
   removeBet(state: LeagueState, epId: string, betId: string): void;

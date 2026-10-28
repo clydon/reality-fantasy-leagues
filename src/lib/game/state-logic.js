@@ -25,25 +25,33 @@
 // bottom. Cross-domain calls are plain `OtherClass.method(state, ...)` — see MidSeasonLogic
 // calling ScoringLogic, or RosterLogic calling DraftLogic, for the existing pattern.
 //
+// Games as data (docs/PLAN-start-a-game-gpt.md step A2): what kind of game a league is, and every
+// setting of it, is its game spec (./game-spec/), read through gameOf(state): settings.game when the
+// league carries one (the game-specs flag), else read from its settings. Nothing below reads a game
+// setting from state.settings itself, and RosterLogic.setGame is the one way a game changes (every
+// settings write goes through it: the spec's validator, then today's fields written with withSpec).
+//
 // League types: DraftLogic and ScoringLogic below are thin dispatchers, not the real
-// implementations -- they read `state.settings.leagueTypeId`, look it up in LEAGUE_TYPES, and
-// delegate to that entry's `draftStrategy`/`scoringStrategy`. LEAGUE_TYPES has two entries today:
-// 'classic-draft' (EliminationOrderScoringStrategy, a real roster draft) and 'pickem'
-// (NoDraftStrategy + PickEmScoringStrategy -- no roster, no draft at all; see PickEmLogic for the
-// actual weekly-pick mechanic, which is NOT behind this dispatch since it doesn't fit the
-// DraftStrategy shape below, per the note two sentences down).
+// implementations -- getLeagueType works out the league type the spec plays (game-spec playsAs),
+// and they delegate to that entry's `draftStrategy`/`scoringStrategy`. LEAGUE_TYPES has five
+// entries: 'classic-draft' (Outlast: EliminationOrderScoringStrategy, a real roster draft),
+// 'active-roster' (Weekly Lineup), 'pickem' (Survival Pool: NoDraftStrategy + PickEmScoringStrategy
+// -- no roster, no draft at all; see PickEmLogic for the actual weekly-pick mechanic, which is NOT
+// behind this dispatch since it doesn't fit the DraftStrategy shape below, per the note two
+// sentences down), 'weekly-calls' and 'weekly-bingo'. Their flags (hasRoster, supportsReplenish,
+// ...) are worked out from each one's preset spec (game-spec flagsOf), not written by hand.
 //
-// One league type can carry more than one draft mechanic: 'classic-draft' resolves to
-// SnakeDraftStrategy or BlindDraftStrategy depending on `settings.ownershipMode`
-// ('exclusive'/'shared'), which getLeagueType applies as an override -- see CLASSIC_DRAFT_SHARED.
-// Call sites still just read getLeagueType(state) and never need to know ownershipMode exists.
+// One league type can carry more than one draft mechanic: a draft resolves to SnakeDraftStrategy
+// or BlindDraftStrategy by its spec's ownership (get.own: 'exclusive'/'shared'), which
+// getLeagueType applies as an override -- see SHARED_OWNERSHIP_VARIANTS. Call sites still just
+// read getLeagueType(state) and never need to know ownership exists.
 //
-// Adding a further league type means: write a new strategy class implementing the same static
-// method shape as SnakeDraftStrategy (syncOrder/currentTurn/isStarted/forceStart/reorder/move/
-// pick/undo) and/or EliminationOrderScoringStrategy (compute) -- or reuse NoDraftStrategy as-is if
-// the new type has no draft either -- register it under a new LEAGUE_TYPES key, and set
-// supportsReplenish/supportsTrade/supportsFinalePredictions/hasRoster/hasWeeklyPicks for whether
-// those features apply to it. MidSeasonLogic/WaiverLogic deliberately are NOT behind this dispatch
+// Adding a further league type means: give the game spec the mechanics (game-spec/schema.js VOCAB,
+// typeOf/playsAs), write a new strategy class implementing the same static method shape as
+// SnakeDraftStrategy (syncOrder/currentTurn/isStarted/forceStart/reorder/move/pick/undo) and/or
+// EliminationOrderScoringStrategy (compute) -- or reuse NoDraftStrategy as-is if the new type has no
+// draft either -- and register it under a new LEAGUE_TYPES key with its preset; its flags come from
+// the spec. MidSeasonLogic/WaiverLogic deliberately are NOT behind this dispatch
 // yet -- they're mid-season features of the current league type, gated by those three support
 // flags, not an independently-varying axis on their own. A "weekly pick'em" league (no persistent
 // roster, no turn-based picks at all) almost certainly won't fit the DraftStrategy shape above --
@@ -58,9 +66,9 @@
 // the database.
 (function(root, factory){
   // eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see above
-  if(typeof module === 'object' && module.exports) module.exports = factory(require('./formats/index.js'));
-  else root.StateLogic = factory(root.GameFormats);
-})(typeof self !== 'undefined' ? self : this, function(Formats){
+  if(typeof module === 'object' && module.exports) module.exports = factory(require('./formats/index.js'), require('./game-spec/index.js'));
+  else root.StateLogic = factory(root.GameFormats, root.GameSpec);
+})(typeof self !== 'undefined' ? self : this, function(Formats, Spec){
 
 const PALETTE = ['#45a89a','#d9704a','#a76bb0','#5089c4','#86a34c','#c99a3e','#b0563f','#6b8fc9'];
 // No longer seeded into new leagues (see Migrations.defaultState) -- a fresh league starts with an
@@ -101,24 +109,23 @@ function formatOf(state){
   }
 }
 
-// The episode this league starts playing at (settings.startEpisode, default 1). A league formed
+// The game this league plays, as data (docs/PLAN-start-a-game-gpt.md step A2): its game spec, settings.game when it
+// carries one (the game-specs flag), else read from its settings (game-spec gameOf). Every game setting below is read
+// through here. Read only: RosterLogic.setGame is how a game changes.
+function gameOf(state){ return Spec.gameOf(state && state.settings); }
+
+// The episode this league starts playing at (the spec's span.from; settings.startEpisode, default 1). A league formed
 // mid-season -- "we've all watched episode 1, we'll draft before episode 2" -- starts at 2: earlier
 // episodes are history everyone has seen, so they're shown but nothing in them scores, and no picks
 // or lineups are made for them.
-function startEpisode(state){
-  const n = Number(state && state.settings ? state.settings.startEpisode : 1);
-  return Number.isInteger(n) && n >= 1 ? n : 1;
-}
-// The episode this league plays through (settings.endEpisode): a game over a span -- one game, a series, a
+function startEpisode(state){ return gameOf(state).span.from; }
+// The episode this league plays through (span.to; settings.endEpisode): a game over a span -- one game, a series, a
 // stretch of the season (docs/PLAN-sports-data.md step 6) -- ends there. Nothing after it scores, no picks or
 // lineups are made for it, and the game is over once it has results. Null (the default): to the season's end.
-function endEpisode(state){
-  const n = Number(state && state.settings ? state.settings.endEpisode : NaN);
-  return Number.isInteger(n) && n >= startEpisode(state) ? n : null;
-}
+function endEpisode(state){ return gameOf(state).span.to; }
 function inPlay(state, episodeNumber){
-  const end = endEpisode(state);
-  return episodeNumber >= startEpisode(state) && (end === null || episodeNumber <= end);
+  const span = gameOf(state).span;
+  return episodeNumber >= span.from && (span.to === null || episodeNumber <= span.to);
 }
 // The league as its span saw it: results after its last episode taken out (as the spoiler guard takes out what
 // someone hasn't seen), so a game over a span scores, and is shown, as it stood at its end, whatever came after
@@ -400,29 +407,38 @@ class EliminationOrderScoringStrategy {
         results[c.formerOwnerId].formerRoster.push(c);
       }
     });
-    if(state.settings.bonusEnabled){
-      state.episodes.forEach(ep=>{
-        (ep.bets||[]).forEach(bet=>{
-          if((bet.predictions||[]).length < 2) return; // needs company: won't pay out if nobody else guessed
-          (bet.predictions||[]).forEach(pred=>{
-            if(pred.correct===true && results[pred.playerId]){
-              results[pred.playerId].bonus += (bet.points||0);
-            }
-          });
-        });
-      });
-    }
-    if(state.finaleActual && state.finaleActual.winner){
-      (state.finalePredictions||[]).forEach(fp=>{
-        if(!results[fp.playerId]) return;
-        const correctTop3 = (fp.top3||[]).filter(id=>id && (state.finaleActual.top3||[]).includes(id)).length;
-        results[fp.playerId].finale += correctTop3*(state.settings.finaleTop3Points||0);
-        if(fp.winner && fp.winner===state.finaleActual.winner) results[fp.playerId].finale += (state.settings.finaleWinnerPoints||0);
-      });
-    }
-    Object.values(results).forEach(r=> r.total = r.locked + (state.settings.bonusEnabled? r.bonus:0) + r.finale);
+    const bets = addSideLayers(state, results);
+    Object.values(results).forEach(r=> r.total = r.locked + (bets? r.bonus:0) + r.finale);
     return Object.values(results).sort((a,b)=>b.total-a.total);
   }
+}
+// The layers both drafts carry over how they score, as the spec says them (extras): side bets while they're on (a bet
+// needs company: it won't pay out unless two guessed), and finale predictions while they're on, at their points. Adds
+// each player's into `bonus` and `finale`; true when side bets count.
+function addSideLayers(state, results){
+  const extras = gameOf(state).extras;
+  if(extras.bets){
+    state.episodes.forEach(ep=>{
+      (ep.bets||[]).forEach(bet=>{
+        if((bet.predictions||[]).length < 2) return; // needs company: won't pay out if nobody else guessed
+        (bet.predictions||[]).forEach(pred=>{
+          if(pred.correct===true && results[pred.playerId]){
+            results[pred.playerId].bonus += (bet.points||0);
+          }
+        });
+      });
+    });
+  }
+  const finale = extras.finale;
+  if(finale && state.finaleActual && state.finaleActual.winner){
+    (state.finalePredictions||[]).forEach(fp=>{
+      if(!results[fp.playerId]) return;
+      const correctTop3 = (fp.top3||[]).filter(id=>id && (state.finaleActual.top3||[]).includes(id)).length;
+      results[fp.playerId].finale += correctTop3*(finale.top3||0);
+      if(fp.winner && fp.winner===state.finaleActual.winner) results[fp.playerId].finale += (finale.winner||0);
+    });
+  }
+  return !!extras.bets;
 }
 // ---------- PickEmScoringStrategy: the 'pickem' league type's scoring ----------
 // Points = (points per correct pick) x however many of a player's weekly picks survived their
@@ -458,8 +474,9 @@ class CallsScoringStrategy {
   }
 }
 // Thin dispatcher -- see the "League types" comment near the top of this file. Delegates to
-// whichever league type's scoringStrategy is active; today that's always
-// EliminationOrderScoringStrategy, so behavior is unchanged from before this split.
+// whichever league type's scoringStrategy the spec plays: EliminationOrderScoringStrategy (Outlast),
+// ActiveRosterEventScoringStrategy (Weekly Lineup), PickEmScoringStrategy (Survival Pool) or
+// CallsScoringStrategy (Weekly Calls and Weekly Bingo, scored outside the state).
 class ScoringLogic {
   // A game over a span scores as it stood at its last episode (spanView).
   static compute(state){ return getLeagueType(state).scoringStrategy.compute(spanView(state)); }
@@ -499,8 +516,7 @@ class SnakeDraftStrategy {
   static isStarted(state){
     if(state.draftPicksMade > 0) return true;
     if(state.draftForceStarted) return true;
-    const scheduled = state.settings.draftScheduledAt;
-    return !!(scheduled && Date.now() >= new Date(scheduled).getTime());
+    return draftTimeCame(state);
   }
   static forceStart(state){ state.draftForceStarted = true; stampDraftTurn(state, true); }
   static reorder(state, fromIdx, toIdx){
@@ -541,6 +557,13 @@ class SnakeDraftStrategy {
     Core.setOwner(state, castawayId, null);
     c.acquiredVia = null;
   }
+}
+
+// A draft's scheduled start (the spec's draft room: extras.draft.at) has come.
+function draftTimeCame(state){
+  const room = gameOf(state).extras.draft;
+  const scheduled = room && room.at;
+  return !!(scheduled && Date.now() >= new Date(scheduled).getTime());
 }
 
 // The turn-based draft's clock (the new design's draft room): when the turn now on the clock began, which a pick timer
@@ -629,7 +652,8 @@ class BlindDraftLogic {
   // a rejected blind submission needs to tell the player WHY: they can't see what anyone else did,
   // so a silent no-op would be indistinguishable from a successful lock-in.
   static validateSubmission(state, playerId, castawayIds){
-    if(!getLeagueType(state).hasRoster || state.settings.ownershipMode !== 'shared'){
+    const get = gameOf(state).get;
+    if(get.by !== 'draft' || get.own !== 'shared'){
       return 'This league is not running a blind draft';
     }
     if(!DraftLogic.isStarted(state)) return "The draft hasn't started yet";
@@ -695,8 +719,7 @@ class BlindDraftStrategy {
   static isStarted(state){
     if(BlindDraftLogic.isRevealed(state)) return true;
     if(state.draftForceStarted) return true;
-    const scheduled = state.settings.draftScheduledAt;
-    return !!(scheduled && Date.now() >= new Date(scheduled).getTime());
+    return draftTimeCame(state);
   }
   static forceStart(state){ state.draftForceStarted = true; stampDraftTurn(state, true); }
   static reorder(){ /* no turn order */ }
@@ -723,8 +746,10 @@ function defaultPointsFor(def, mode){
   if(d && typeof d === 'object') return mode === 'shared' ? d.shared : d.exclusive;
   return typeof d === 'number' ? d : 0;
 }
+// A draft's ownership (the spec's get.own); a game with no draft has nobody's castaways, so exclusive's defaults.
 function ownershipModeOf(state){
-  return state && state.settings && state.settings.ownershipMode === 'shared' ? 'shared' : 'exclusive';
+  const get = gameOf(state).get;
+  return get.by === 'draft' && get.own === 'shared' ? 'shared' : 'exclusive';
 }
 function defaultEventPoints(state, mode){
   const m = mode || ownershipModeOf(state);
@@ -737,9 +762,11 @@ function defaultEventPoints(state, mode){
 function roundPoints(n){ return Math.round((Number(n) || 0) * 100) / 100; }
 
 class ActiveRosterLogic {
-  // Points for one event type: the league's own value if set, else the catalog default. A type
+  // Points for one event type: the league's own value if set (the spec's points: settings.eventPoints, in a game that
+  // scores by moments), else the catalog default. A type
   // explicitly set to 0 stays 0 (that's how a commissioner switches a category off), which is why
-  // this tests for a number rather than using `||`.
+  // this tests for a number rather than using `||`. A game that doesn't score by moments (a Survival Pool that survives
+  // by scoring asks whether a pick scored) has no points of its own: the catalog's.
   //
   // A league playing by a rulebook (settings.rulebook) scores nothing for a moment its rules don't have, whatever
   // its points say: a couch's own copy that stopped counting a moment (docs/PLAN-new-design.md step 6b part 3)
@@ -747,7 +774,8 @@ class ActiveRosterLogic {
   // or a ruleset copy are as they always were.
   static pointsFor(state, type){
     if(state.settings && state.settings.rulebook && !formatOf(state).events.some(e => e.id === type)) return 0;
-    const configured = state.settings && state.settings.eventPoints ? state.settings.eventPoints[type] : undefined;
+    const score = gameOf(state).score;
+    const configured = score.by === 'moments' && score.points ? score.points[type] : undefined;
     if(typeof configured === 'number' && Number.isFinite(configured)) return configured;
     const def = formatOf(state).events.find(e => e.id === type);
     return defaultPointsFor(def, ownershipModeOf(state));
@@ -763,8 +791,15 @@ class ActiveRosterLogic {
     const points = ActiveRosterLogic.pointsFor(state, ev.type);
     return units === 1 ? points : points * units;
   }
-  static activeSlots(state){ return (state.settings && state.settings.activeSlots) || 0; }
-  static benchSlots(state){ return (state.settings && state.settings.benchSlots) || 0; }
+  // A lineup's starters (the spec's count.start) and its bench (the rest of the team); none outside a Weekly Lineup.
+  static activeSlots(state){
+    const g = gameOf(state);
+    return g.get.by === 'draft' && g.count && g.count.start ? g.count.start : 0;
+  }
+  static benchSlots(state){
+    const g = gameOf(state);
+    return g.get.by === 'draft' && g.count && g.count.start ? Math.max(0, (g.get.each || 0) - g.count.start) : 0;
+  }
 
   // ---- weekly lineups ----
   // Lineups are stored PER EPISODE (`episode.lineups[playerId] = castawayId[]`), never as one
@@ -1050,35 +1085,19 @@ class ActiveRosterEventScoringStrategy {
     state.episodes.forEach(ep=>{
       if(!inPlay(state, ep.number)) return; // before this league started (settings.startEpisode)
       ActiveRosterLogic.episodeEvents(state, ep).forEach(ev=>{
+        const points = ActiveRosterLogic.eventPoints(state, ev);
         state.players.forEach(p=>{
           const lineup = ActiveRosterLogic.lineupFor(state, ep.id, p.id);
           if(lineup.includes(ev.castawayId)){
-            results[p.id].locked = roundPoints(results[p.id].locked + ActiveRosterLogic.eventPoints(state, ev));
+            results[p.id].locked = roundPoints(results[p.id].locked + points);
           }
         });
       });
     });
     // The same optional layers classic-draft carries: side bets and finale predictions are orthogonal
     // to how the main score is earned, so an Active Roster league can still use them.
-    if(state.settings.bonusEnabled){
-      state.episodes.forEach(ep=>{
-        (ep.bets||[]).forEach(bet=>{
-          if((bet.predictions||[]).length < 2) return;
-          (bet.predictions||[]).forEach(pred=>{
-            if(pred.correct===true && results[pred.playerId]) results[pred.playerId].bonus += (bet.points||0);
-          });
-        });
-      });
-    }
-    if(state.finaleActual && state.finaleActual.winner){
-      (state.finalePredictions||[]).forEach(fp=>{
-        if(!results[fp.playerId]) return;
-        const correctTop3 = (fp.top3||[]).filter(id=>id && (state.finaleActual.top3||[]).includes(id)).length;
-        results[fp.playerId].finale += correctTop3*(state.settings.finaleTop3Points||0);
-        if(fp.winner && fp.winner===state.finaleActual.winner) results[fp.playerId].finale += (state.settings.finaleWinnerPoints||0);
-      });
-    }
-    Object.values(results).forEach(r=> r.total = roundPoints(r.locked + (state.settings.bonusEnabled? r.bonus:0) + r.finale));
+    const bets = addSideLayers(state, results);
+    Object.values(results).forEach(r=> r.total = roundPoints(r.locked + (bets? r.bonus:0) + r.finale));
     return Object.values(results).sort((a,b)=>b.total-a.total);
   }
 }
@@ -1117,7 +1136,7 @@ class PickEmLogic {
     return PickEmLogic.byScore(state) && (ep.scoringEvents||[]).length > 0;
   }
   // Nobody goes home in a sport: a pick survives an event by scoring in it (a driver in the points), not by staying in.
-  static byScore(state){ return !!(state && state.settings && state.settings.poolSurvive === 'scores'); }
+  static byScore(state){ return gameOf(state).score.means === 'scores'; }
   static scored(state, ep, castawayId){
     const points = ActiveRosterLogic.episodeEvents(state, ep).filter(ev => ev.castawayId === castawayId).reduce((n, ev) => n + ActiveRosterLogic.eventPoints(state, ev), 0);
     return points > 0;
@@ -1169,12 +1188,14 @@ class PickEmLogic {
   // A player's season, episode by episode, with their streaks. A row per episode that has happened
   // (picked or not -- a missed one breaks the streak) plus any pick still waiting on its episode.
   static history(state, playerId){
-    const perCorrect = typeof state.settings.pickemCorrectPoints === 'number' ? state.settings.pickemCorrectPoints : 1;
+    const score = gameOf(state).score;
+    const perCorrect = score.by === 'survive' && typeof score.points === 'number' ? score.points : 1;
     const rows = [];
     let current = 0, longest = 0, total = 0;
     // Episodes before the league started are history, not missed picks (settings.startEpisode).
     // A late joiner's season starts at their own episode (GhostLogic.startFor).
-    [...state.episodes].filter(ep => ep.number >= GhostLogic.startFor(state, playerId) && inPlay(state, ep.number)).sort((a,b) => a.number - b.number).forEach(ep => {
+    const from = GhostLogic.startFor(state, playerId);
+    [...state.episodes].filter(ep => ep.number >= from && inPlay(state, ep.number)).sort((a,b) => a.number - b.number).forEach(ep => {
       const pick = (ep.picks||[]).find(pk => pk.playerId === playerId) || null;
       if(!PickEmLogic.decided(ep, state)){
         if(pick) rows.push({ episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick.castawayId, correct: null, points: 0, streak: current });
@@ -1221,7 +1242,7 @@ class PickEmLogic {
   // Who goes home? (a public pool's prediction, docs/PLAN-new-design.md step 9 part 3; settings.calls): beside the pick of
   // who survives, one call a week of who leaves. Since step 12 part 2 the call itself is a person's Call it (the
   // episode_calls table, src/lib/server/calls.ts), the same call whatever reads it, so a pool only says it takes one.
-  static callsOn(state){ return !!(state && state.settings && state.settings.calls) && !!getLeagueType(state).hasWeeklyPicks; }
+  static callsOn(state){ return !!gameOf(state).extras.calls; }
 }
 
 // ---------- League type + show registries ----------
@@ -1229,38 +1250,24 @@ class PickEmLogic {
 // registries are plain data (id/name/description/etc.) so new entries are additive, not
 // rewrites -- SHOWS today is display/terminology metadata only, not wired to any behavior yet
 // (a future per-show wiki-sourcing config would attach here without changing this shape).
+//
+// Each type's flags are its preset spec's (game-spec flagsOf: hasRoster, hasActiveRoster, hasWeeklyPicks, hasCalls,
+// hasBingo, supportsReplenish, supportsTrade, supportsFinalePredictions), filled in below the table, so what a game
+// can do comes from what it is. The table says only what the spec doesn't: the name, the words and the strategies.
 const LEAGUE_TYPES = {
   'classic-draft': {
     id: 'classic-draft',
     name: 'Classic',
     description: 'Commissioner sets a draft order, players snake-draft castaways, score by elimination placement.',
     draftStrategy: SnakeDraftStrategy,
-    scoringStrategy: EliminationOrderScoringStrategy,
-    supportsReplenish: true,
-    supportsTrade: true,
-    supportsFinalePredictions: true,
-    // hasRoster/hasWeeklyPicks: orthogonal to the three supports* flags above, which are about
-    // which MID-SEASON mechanics apply to an existing roster -- these two are about whether a
-    // roster (and therefore a draft, Draft tab, Board grid) exists at all, and whether the
-    // frontend owes this league type a per-episode pick UI. Both start here explicit-but-inert
-    // for classic-draft (it has the roster, never the weekly picks) so a reader sees the full
-    // axis rather than inferring "pickem is the only type these apply to" from a single entry.
-    hasRoster: true,
-    hasWeeklyPicks: false,
-    hasActiveRoster: false
+    scoringStrategy: EliminationOrderScoringStrategy
   },
   'pickem': {
     id: 'pickem',
     name: "Eliminator Pool",
     description: 'No draft, no roster -- every episode, each player picks one castaway they think survives. No repeats until you\'ve picked everyone still in the game, and never the same one twice in a row. Ranked by longest streak of correct picks, then total correct.',
     draftStrategy: NoDraftStrategy,
-    scoringStrategy: PickEmScoringStrategy,
-    supportsReplenish: false,
-    supportsTrade: false,
-    supportsFinalePredictions: false,
-    hasRoster: false,
-    hasWeeklyPicks: true,
-    hasActiveRoster: false
+    scoringStrategy: PickEmScoringStrategy
   },
   // A talk show's season game (docs/PLAN-new-design.md step 12 part 2): no draft and no cast to own, two calls about each
   // show before it starts (Call it), most right by the finale wins. The calls aren't in the state (CallsScoringStrategy).
@@ -1269,14 +1276,7 @@ const LEAGUE_TYPES = {
     name: 'Weekly Calls',
     description: 'No draft, no team -- before each show, two calls about what will happen in it. Most right by the finale wins.',
     draftStrategy: NoDraftStrategy,
-    scoringStrategy: CallsScoringStrategy,
-    supportsReplenish: false,
-    supportsTrade: false,
-    supportsFinalePredictions: false,
-    hasRoster: false,
-    hasWeeklyPicks: false,
-    hasActiveRoster: false,
-    hasCalls: true
+    scoringStrategy: CallsScoringStrategy
   },
   // The talk show's other season game (step 12 part 3): no draft and no team, a new bingo card every show (bingo.ts), most
   // lines by the finale wins. The cards aren't in the state either (CallsScoringStrategy).
@@ -1285,14 +1285,7 @@ const LEAGUE_TYPES = {
     name: 'Weekly Bingo',
     description: 'No draft, no team -- a new bingo card every show, ticked as it happens. Most lines by the finale wins.',
     draftStrategy: NoDraftStrategy,
-    scoringStrategy: CallsScoringStrategy,
-    supportsReplenish: false,
-    supportsTrade: false,
-    supportsFinalePredictions: false,
-    hasRoster: false,
-    hasWeeklyPicks: false,
-    hasActiveRoster: false,
-    hasBingo: true
+    scoringStrategy: CallsScoringStrategy
   },
   'active-roster': {
     id: 'active-roster',
@@ -1301,15 +1294,11 @@ const LEAGUE_TYPES = {
     // Same draft mechanics as classic-draft, including the ownershipMode override below -- Active
     // Roster changes what happens to a roster AFTER the draft, not how it's drafted.
     draftStrategy: SnakeDraftStrategy,
-    scoringStrategy: ActiveRosterEventScoringStrategy,
-    supportsReplenish: true,
-    supportsTrade: true,
-    supportsFinalePredictions: true,
-    hasRoster: true,
-    hasWeeklyPicks: false,
-    hasActiveRoster: true
+    scoringStrategy: ActiveRosterEventScoringStrategy
   }
 };
+// The flags, from each type's preset (its exclusive draft, for the two drafts: the shared variants below are the other).
+Object.values(LEAGUE_TYPES).forEach(lt => Object.assign(lt, Spec.flagsOf(Spec.PRESETS[Spec.TYPE_PRESETS[lt.id]])));
 // NOT the catalog, and no longer a default either: a new league starts with showId null and the
 // commissioner picks from the catalog (defaultState / SetupLogic). The real catalog of shows and
 // seasons lives in Postgres (db/migrations/0006_shows_and_seasons.sql), is managed by a super-admin
@@ -1328,8 +1317,8 @@ const SHOWS = {
 // A roster league type running in shared-ownership mode. Same league type (same id, same scoring),
 // but a different draft mechanic and two mid-season features switched off:
 //
-// - draftStrategy -> BlindDraftStrategy. `ownershipMode` is a fixed pairing with the mechanic, not
-//   an independent choice: exclusive means snake, shared means blind-with-reveal.
+// - draftStrategy -> BlindDraftStrategy. Ownership is a fixed pairing with the mechanic, not
+//   an independent choice: exclusive means snake, shared means blind-with-reveal (the spec's get.order follows get.own).
 // - supportsReplenish/supportsTrade -> false. Both are free-agent mechanics, and shared mode has no
 //   free agents (nothing is ever removed from availability). Left on, they'd be live buttons that
 //   silently accomplish nothing: a pickup or add/drop takes only a castaway nobody owns, and in
@@ -1341,38 +1330,37 @@ const SHOWS = {
 // render and every DraftLogic dispatch. Keyed by league type id so Active Roster gets the same
 // treatment as Classic Draft without either needing to know about the other.
 const SHARED_OWNERSHIP_VARIANTS = {};
-// EXCEPT Active Roster, where shared replenish/swap now has a defined meaning: add anyone still in
-// the game who isn't already yours (MidSeasonLogic.availableFor). Classic Draft's shared mode keeps
-// them off -- its replenish replaces a loss 1-for-1 from a free-agent pool, which shared mode lacks.
+// Its flags are the shared draft's (flagsOf): waivers stay on for Active Roster, where shared replenish/swap has a
+// defined meaning (add anyone still in the game who isn't already yours: MidSeasonLogic.availableFor), and go off for
+// Classic Draft, whose replenish replaces a loss 1-for-1 from a free-agent pool, which shared mode lacks.
 Object.values(LEAGUE_TYPES).forEach(lt => {
   if(!lt.hasRoster) return;
+  const preset = Spec.PRESETS[Spec.TYPE_PRESETS[lt.id]];
   SHARED_OWNERSHIP_VARIANTS[lt.id] = {
     ...lt,
-    draftStrategy: BlindDraftStrategy,
-    supportsReplenish: !!lt.hasActiveRoster,
-    supportsTrade: !!lt.hasActiveRoster
+    ...Spec.flagsOf({ ...preset, get: { ...preset.get, own: 'shared', order: 'blind' } }),
+    draftStrategy: BlindDraftStrategy
   };
 });
-// Resolves the active league type, applying the ownership-mode override above. Returns the registry
-// entry itself in every other case, so `getLeagueType(state).id` and the supports*/has* flags stay
-// the single thing callers read -- no call site needs to know ownershipMode exists.
+// Resolves the league type the game's spec plays (game-spec playsAs: from its mechanics, never a stored name), applying
+// the ownership override above. Returns the registry entry itself in every other case, so `getLeagueType(state).id`
+// and the supports*/has* flags stay the single thing callers read -- no call site needs to know ownership exists. A spec
+// no game plays yet can't be stored (setGame refuses it), so the fallback, Outlast, is only for a league with no settings.
 function getLeagueType(state){
-  const base = LEAGUE_TYPES[state.settings && state.settings.leagueTypeId] || LEAGUE_TYPES['classic-draft'];
-  if(state.settings && state.settings.ownershipMode === 'shared' && SHARED_OWNERSHIP_VARIANTS[base.id]){
+  const g = gameOf(state);
+  const base = LEAGUE_TYPES[Spec.playsAs(g)] || LEAGUE_TYPES['classic-draft'];
+  if(g.get.by === 'draft' && g.get.own === 'shared' && SHARED_OWNERSHIP_VARIANTS[base.id]){
     return SHARED_OWNERSHIP_VARIANTS[base.id];
   }
   return base;
 }
 
-// How many castaways each player drafts. For Active Roster this is DERIVED from the slot settings
-// rather than read from teamSize: the roster is by definition the active slots plus the bench, and
-// keeping teamSize as an independent number would let a commissioner set 3 there against 3+2 slots
-// and produce a roster that can never fill its lineup. Every draft mechanic asks through here.
+// How many castaways each player drafts: the spec's get.each (none without a draft). For Active Roster that's the
+// active slots plus the bench, by definition (the spec's team is the lineup and the bench together), so a commissioner
+// can't set a team that could never fill its lineup. Every draft mechanic asks through here.
 function rosterSize(state){
-  if(getLeagueType(state).hasActiveRoster){
-    return ActiveRosterLogic.activeSlots(state) + ActiveRosterLogic.benchSlots(state);
-  }
-  return state.settings.teamSize;
+  const get = gameOf(state).get;
+  return get.by === 'draft' ? get.each : 0;
 }
 
 // Whether replacements (pre-v2 "pickups") / swaps (pre-v2 "add/drops") happen in this league. Two
@@ -1393,7 +1381,7 @@ function tradeAvailable(state){
   return (w.schedule !== 'manual' && w.swaps > 0) || WaiverLogic.swapsAllowed(WaiverLogic.current(state)) > 0;
 }
 function finalePredictionsAvailable(state){
-  return !!getLeagueType(state).supportsFinalePredictions && (state.settings && state.settings.finalePredictionsEnabled === true);
+  return !!gameOf(state).extras.finale;
 }
 
 // ---------- DraftLogic ----------
@@ -1798,63 +1786,152 @@ class RosterLogic {
     });
     return result;
   }
+  // Generic setter (the PATCH route passes whatever the UI sends). A field of the game (game-spec OWNED, and the waiver
+  // suggestion) is a change to the game: written the way it always was on a copy (writeSetting), then checked and
+  // written through setGame, so a change that would leave a game nobody can play is refused. Returns the problems it
+  // was refused for ([] when it's written; game-spec specProblems' { at, problem }). Anything else (the show, the
+  // season, what it reveals, setup) is the league's, written as it's given, with one normalized field:
+  // revealedThroughEpisode decides what a league is allowed to SEE, so a junk value must not
+  // quietly become a number that lets more through than the commissioner picked. See RevealLogic.
   static updateSettings(state, field, value){
-    // Generic setter (the PATCH route passes whatever the UI sends), with one normalized field:
-    // revealedThroughEpisode decides what a league is allowed to SEE, so a junk value must not
-    // quietly become a number that lets more through than the commissioner picked. See RevealLogic.
+    if(GAME_WRITES.has(field)) return RosterLogic.editSettings(state, s => writeSetting(s, field, value));
     if(field === 'revealedThroughEpisode') value = RevealLogic.normalize(value);
-    if(field === 'allowLateJoiners') value = value !== false;
-    if(field === 'lockedDown') value = value === true;
-    // Who can join (step 9): open, ask or locked. Classic's late-joiner switch follows it, so a game nobody new may
-    // join is closed in classic too (its join code gives an inactive seat).
-    if(field === 'joinMode'){
-      value = value === 'open' || value === 'ask' || value === 'locked' ? value : GhostLogic.recommendedJoinMode(state);
-      state.settings.allowLateJoiners = value !== 'locked';
-    }
-    // Waiver settings, new and pre-v2, are checked and kept in step there.
-    if(WaiverLogic.updateSetting(state, field, value)) return;
-    // Switching ownership moves every point value still at the OLD mode's default to the new mode's
-    // default; anything a commissioner set by hand stays exactly as they set it.
-    if(field === 'ownershipMode' && value !== state.settings.ownershipMode && state.settings.eventPoints){
-      const before = defaultEventPoints(state, ownershipModeOf(state));
-      const after = defaultEventPoints(state, value === 'shared' ? 'shared' : 'exclusive');
-      const pts = { ...state.settings.eventPoints };
-      Object.keys(after).forEach(id => { if(pts[id] === undefined || pts[id] === before[id]) pts[id] = after[id]; });
-      state.settings.eventPoints = pts;
-    }
-    if(field === 'eventPoints' && value && typeof value === 'object'){
-      const clean = {};
-      Object.keys(value).forEach(id => {
-        const n = Number(value[id]);
-        clean[id] = Number.isFinite(n) ? roundPoints(n) : 0;
-      });
-      value = clean;
-    }
-    if(field === 'defaultBetPoints') value = clampBetPoints(value);
-    // The turn-based draft's pick timer (seconds: off, 2 minutes or 60 seconds) and what happens when it runs out
-    // (wait for them, or pick from their queue). Casual first: off and wait.
-    if(field === 'draftTimer') value = [60, 120].includes(Number(value)) ? Number(value) : 0;
-    if(field === 'draftAway') value = value === 'queue' ? 'queue' : 'wait';
-    if(field === 'startEpisode'){
-      const n = Math.floor(Number(value));
-      value = Number.isFinite(n) && n >= 1 ? n : 1;
-    }
-    // A span's last episode (endEpisode): a whole number, else none (to the season's end).
-    if(field === 'endEpisode'){
-      const n = Math.floor(Number(value));
-      value = value !== null && value !== '' && Number.isFinite(n) && n >= 1 ? n : null;
-    }
+    // The teams a waiver suggestion is for (WaiverLogic.teamsFor): checked there, not part of the game.
+    if(field === 'expectedTeams'){ WaiverLogic.updateSetting(state, field, value); return []; }
     state.settings[field]=value;
-    // Active Roster defaults to shared ownership: nobody gets shut out of a castaway they wanted, and
-    // lineups (not exclusivity) are where the skill is. Only while the league is still in guided
-    // setup -- an established league never has its ownership changed under it -- and the commissioner
-    // can still pick exclusive in the next setup step.
-    if(field === 'leagueTypeId' && value === 'active-roster' && !SetupLogic.isComplete(state) && state.settings.ownershipMode !== 'shared'){
-      RosterLogic.updateSettings(state, 'ownershipMode', 'shared');
+    return [];
+  }
+
+  // ---- Writing a league's game (docs/PLAN-start-a-game-gpt.md step A2) ----
+  // Every write to a game setting comes here: setGame for a whole spec (Start a game, the GPT's games later), editSettings
+  // for a change made the way the settings always were (updateSettings, a waiver suggestion). Either way the spec it
+  // leaves is checked first (game-spec specProblems, as a league's own: what the league already plays stays as it is, and
+  // the one set of size limits holds for what grows), and nothing is written when that finds a problem the league didn't
+  // already have: the problems come back instead ([] when it's written). Then today's fields are written from the spec
+  // (game-spec withSpec: only the parts that change), which classic still reads, and the league's settings.game while it
+  // carries one (the game-specs flag). What a change does to the rest of the league happens here too: a draft changing
+  // hands (every point still at the old ownership's default moves to the new one's; anything set by hand stays), a later
+  // start (its episode is made, so picks and lineups have somewhere to go before it airs), and the waiver suggestion
+  // still to be fitted at the draft (given up when the waivers change: withSpec).
+  //
+  //   opts.base   the settings to write onto (editSettings' copy, with its change made); default the league's
+  //   opts.ctx    what the spec refers to, for the data-can-settle rule (game-spec specProblems' ctx)
+  static setGame(state, spec, opts){
+    const o = opts || {};
+    const st = state.settings;
+    const was = gameOf(state);
+    const want = Spec.fullSpec(spec);
+    const ctx = o.ctx || null;
+    const had = new Set(Spec.specProblems(was, ctx, { league: true, was }).map(problemKey));
+    const problems = Spec.specProblems(want, ctx, { league: true, was }).filter(p => !had.has(problemKey(p)));
+    if(problems.length) return problems;
+    // Only the game's own fields go through withSpec: the rest of the settings (the show and its rules, which can be
+    // big) stay where they are.
+    const base = o.base || st;
+    const fields = {};
+    GAME_FIELDS.forEach(k => { if(Object.prototype.hasOwnProperty.call(base, k)) fields[k] = base[k]; });
+    let out = Spec.withSpec(fields, want);
+    if(!out){
+      // Nothing plays it, or it keeps a problem the league already had (an Outlast that never had a team size): a change
+      // made the old way is written as it was made, as it always was; a whole spec isn't.
+      const waits = Spec.specWaitsFor(want).map(w => ({ at: w.at, problem: w.problem }));
+      if(!o.base || waits.length || !Spec.playsAs(want)) return waits.length ? waits : Spec.specProblems(want, ctx, { league: true, was });
+      out = fields;
     }
-    // A start episode that isn't on the schedule yet is created, so picks and lineups have somewhere
-    // to go before it airs.
-    if(field === 'startEpisode') EpisodeLogic.ensureEpisodeNumber(state, value, false);
+    const ownBefore = st.ownershipMode === 'shared' ? 'shared' : 'exclusive';
+    const ownAfter = out.ownershipMode === 'shared' ? 'shared' : 'exclusive';
+    // The points the league stores (its spec's, or a copy a game that doesn't score by moments keeps), unless this
+    // change set them itself.
+    if(ownBefore !== ownAfter && out.eventPoints && Spec.sameValue(out.eventPoints, st.eventPoints)){
+      const before = defaultEventPoints(state, ownBefore);
+      const after = defaultEventPoints(state, ownAfter);
+      const pts = { ...out.eventPoints };
+      Object.keys(after).forEach(id => { if(pts[id] === undefined || pts[id] === before[id]) pts[id] = after[id]; });
+      out.eventPoints = pts;
+    }
+    GAME_FIELDS.forEach(k => {
+      if(Object.prototype.hasOwnProperty.call(out, k)) st[k] = out[k];
+      else delete st[k];
+    });
+    RosterLogic.syncGame(state);
+    if(want.span.from !== was.span.from) EpisodeLogic.ensureEpisodeNumber(state, want.span.from, false);
+    return [];
+  }
+  // A change made the way the settings always were: `fn(copy)` changes a copy of the league (its settings a copy, without
+  // the spec it carries, so everything reads the change), and what the copy's settings then play is written through
+  // setGame. What it changed outside the game (the teams a suggestion is for, ...) is written as it was made. Returns
+  // setGame's problems ([] when it's written).
+  static editSettings(state, fn, opts){
+    const settings = state.settings;
+    const copy = { ...state, settings: { ...settings } };
+    delete copy.settings.game;
+    fn(copy);
+    const after = copy.settings;
+    const problems = RosterLogic.setGame(state, Spec.specOf(after), { ...opts, base: after });
+    if(problems.length) return problems;
+    Object.keys(after).forEach(k => { if(!GAME_FIELD_SET.has(k) && after[k] !== settings[k]) settings[k] = after[k]; });
+    Object.keys(settings).forEach(k => { if(!GAME_FIELD_SET.has(k) && k !== 'game' && !(k in after)) delete settings[k]; });
+    return [];
+  }
+  // A league that carries its spec (settings.game: the game-specs flag) carries the one its fields play, after they were
+  // written some other way (an Undo putting fields back as they were, setGame's ownership change). Nothing when it
+  // carries none.
+  static syncGame(state){
+    const st = state && state.settings;
+    if(st && st.game !== undefined) st.game = Spec.specOf(st);
+  }
+}
+
+// The settings fields a game is made of (game-spec OWNED) and the waiver suggestion's mark (waiverFit, which withSpec
+// takes away when the waivers change): what setGame writes. GAME_WRITES: what updateSettings writes through it.
+const GAME_FIELDS = [...Spec.OWNED, 'waiverFit'];
+const GAME_FIELD_SET = new Set(GAME_FIELDS);
+const GAME_WRITES = new Set([...Spec.OWNED, 'waiverRecommendation']);
+const problemKey = p => p.at + '|' + p.problem;
+
+// One settings field written the way it always was (whatever the UI sends): each field's own normalizing, and what
+// moves with it. Only on editSettings' copy: what the change means for the game is then checked and written by setGame
+// (which also moves a draft's points when its ownership changes, and makes a later start's episode).
+function writeSetting(state, field, value){
+  if(field === 'allowLateJoiners') value = value !== false;
+  if(field === 'lockedDown') value = value === true;
+  // Who can join (step 9): open, ask or locked. Classic's late-joiner switch follows it, so a game nobody new may
+  // join is closed in classic too (its join code gives an inactive seat).
+  if(field === 'joinMode'){
+    value = value === 'open' || value === 'ask' || value === 'locked' ? value : GhostLogic.recommendedJoinMode(state);
+    state.settings.allowLateJoiners = value !== 'locked';
+  }
+  // Waiver settings, new and pre-v2, are checked and kept in step there.
+  if(WaiverLogic.updateSetting(state, field, value)) return;
+  if(field === 'eventPoints' && value && typeof value === 'object'){
+    const clean = {};
+    Object.keys(value).forEach(id => {
+      const n = Number(value[id]);
+      clean[id] = Number.isFinite(n) ? roundPoints(n) : 0;
+    });
+    value = clean;
+  }
+  if(field === 'defaultBetPoints') value = clampBetPoints(value);
+  // The turn-based draft's pick timer (seconds: off, 2 minutes or 60 seconds) and what happens when it runs out
+  // (wait for them, or pick from their queue). Casual first: off and wait.
+  if(field === 'draftTimer') value = Spec.DRAFT_TIMERS.includes(Number(value)) ? Number(value) : 0;
+  if(field === 'draftAway') value = value === 'queue' ? 'queue' : 'wait';
+  if(field === 'startEpisode'){
+    const n = Math.floor(Number(value));
+    value = Number.isFinite(n) && n >= 1 ? n : 1;
+  }
+  // A span's last episode (endEpisode): a whole number, else none (to the season's end).
+  if(field === 'endEpisode'){
+    const n = Math.floor(Number(value));
+    value = value !== null && value !== '' && Number.isFinite(n) && n >= 1 ? n : null;
+  }
+  state.settings[field]=value;
+  // Active Roster defaults to shared ownership: nobody gets shut out of a castaway they wanted, and
+  // lineups (not exclusivity) are where the skill is. Only while the league is still in guided
+  // setup -- an established league never has its ownership changed under it -- and the commissioner
+  // can still pick exclusive in the next setup step. (setGame moves its points with it.)
+  if(field === 'leagueTypeId' && value === 'active-roster' && !SetupLogic.isComplete(state) && state.settings.ownershipMode !== 'shared'){
+    state.settings.ownershipMode = 'shared';
   }
 }
 
@@ -1887,7 +1964,7 @@ function restoreFields(c, was, keys){
   keys.forEach(k => { if(was && Object.prototype.hasOwnProperty.call(was, k)) c[k] = was[k]; else delete c[k]; });
 }
 class MidSeasonLogic {
-  static isShared(state){ return !!(state.settings && state.settings.ownershipMode === 'shared'); }
+  static isShared(state){ return ownershipModeOf(state) === 'shared'; }
   static availableFor(state, playerId){
     return state.castaways.filter(c => c.status === 'active' && (MidSeasonLogic.isShared(state)
       ? !ownerListOf(c).includes(playerId)
@@ -1912,7 +1989,7 @@ class MidSeasonLogic {
   }
   // Orders a set of player ids by the league's priority rule.
   static order(state, playerIds){
-    const mode = state.settings.replenishOrderBy || 'rolling';
+    const mode = WaiverLogic.waivers(state).order;
     if(mode === 'rolling'){
       const list = MidSeasonLogic.priorityList(state);
       return [...playerIds].sort((a,b) => list.indexOf(a) - list.indexOf(b));
@@ -1924,15 +2001,10 @@ class MidSeasonLogic {
     return [...playerIds].sort((a,b) => dir * (scoreOf(a) - scoreOf(b)) || tiebreak.indexOf(a) - tiebreak.indexOf(b));
   }
   // ---- Active Roster's replenish threshold ----
-  // settings.replenishAt: a roster down to this many castaways still in the game may replenish back
-  // up to one more than it (default: one fewer than the active slots, i.e. the moment you can no
-  // longer field a full lineup -- replenish keeps everyone playing, it doesn't rebuild a bench).
-  static replenishAt(state){
-    const n = state.settings && state.settings.replenishAt;
-    const slots = ActiveRosterLogic.activeSlots(state);
-    if(Number.isInteger(n) && n >= 0) return Math.min(n, Math.max(0, rosterSize(state) - 1));
-    return Math.max(0, slots - 1);
-  }
+  // The spec's waivers.short (settings.replenishAt): a roster down to this many castaways still in the game may replenish
+  // back up to one more than it (default: one fewer than the active slots, i.e. the moment you can no longer field a full
+  // lineup -- replenish keeps everyone playing, it doesn't rebuild a bench). One definition: WaiverLogic.shortAt.
+  static replenishAt(state){ return WaiverLogic.shortAt(state); }
   static inGameCount(state, playerId){
     return state.castaways.filter(c => c.status === 'active' && ownerListOf(c).includes(playerId)).length;
   }
@@ -1947,13 +2019,15 @@ class MidSeasonLogic {
   }
 
   // ---- The add/drop schedule ----
-  // settings.swapEvery: an add/drop week comes after every Nth episode the league plays (default 3).
+  // An add/drop week comes after every Nth episode the league plays (default 3): the spec's waiver windows (every
+  // episode is 1); a league with no waivers reads the pre-v2 switch it stored (settings.swapEvery).
   // Weekly is too often: it turns the league into chasing whoever won immunity last week, and makes
   // the draft matter less. Every three episodes is four or five windows in a normal season -- enough
   // to fix a bad pick or react to the merge.
   static swapEvery(state){
-    const n = Number(state.settings && state.settings.swapEvery);
-    return Number.isInteger(n) && n >= 1 ? n : 3;
+    const w = gameOf(state).extras.waivers;
+    if(w) return w.windows.schedule === 'everyEpisode' ? 1 : w.windows.every;
+    return Spec.swapEveryOf(state.settings || {});
   }
   // ---- The moves themselves, written in one place ----
   // A pickup: the free agent joins, and the loss it replaces leaves this player's roster (its points
@@ -2036,7 +2110,7 @@ class MidSeasonLogic {
 //   autoFill      -- replacements still owed at airtime are filled automatically (default on).
 // recommend() works out good values for all of them from the league's shape; waiverFeel (Casual ·
 // Balanced · Competitive) moves that recommendation a step. Leagues from before v2 read their old
-// switches (replenishEnabled, tradeEnabled, swapEvery) through legacyConfig until backfilled; both
+// switches (replenishEnabled, tradeEnabled, swapEvery) through the game spec (legacyWaivers) until backfilled; both
 // sets are kept in step for one release (mirrorLegacy), and the pre-v2 claim shape
 // { pickupIds, dropId, addIds } is still accepted and turned into pairs (pairsOf).
 //
@@ -2049,11 +2123,9 @@ class MidSeasonLogic {
 // The clock is passed in (`now`, ms). due() says which step is waiting -- open, process, close or
 // cancel -- and the server runs it under the league lock, lazily, on any write or load.
 const HOUR_MS = 3600 * 1000;
-const WAIVER_HOURS = [12, 24, 48];
-// Most generous first: Casual moves one step left, Competitive (and Classic) one step right.
-const REPLACE_RULES = ['always', 'whenShort', 'windows', 'never'];
-const WINDOW_SCHEDULES = ['everyEpisode', 'every', 'manual'];
-const WAIVER_FEELS = ['casual', 'balanced', 'competitive'];
+// The vocabularies are the game spec's (one definition). REPLACE_RULES is most generous first: Casual moves one step
+// left, Competitive (and Classic) one step right.
+const { REPLACE_RULES, WAIVER_FEELS } = Spec;
 // A sanity limit on one claim's pairs (the real limit is on distinct adds, checkClaim).
 const MAX_CLAIM_PAIRS = 60;
 // FNV-1a scaled to [0, 1): the "random" free agent an unfilled pickup gets, fixed per week and player
@@ -2073,39 +2145,19 @@ class WaiverLogic {
     const t = getLeagueType(state);
     return !!(t.supportsReplenish || t.supportsTrade);
   }
-  // What the pre-v2 switches meant, in v2 terms: how a league that hasn't been backfilled reads, and what
-  // the backfill (migrateLeagueState, db/migrations/0063) writes. Add/drops off means no swaps at all,
-  // so a league with both switches off stays off (never + manual + 0 swaps; see enabled()).
-  static legacyConfig(state){
-    const st = state.settings || {};
-    const n = MidSeasonLogic.swapEvery(state);
-    const every = Math.max(2, n);
-    return {
-      replaceRule: st.replenishEnabled === true ? (getLeagueType(state).hasActiveRoster ? 'whenShort' : 'always') : 'never',
-      waiverWindows: st.tradeEnabled === true
-        ? { schedule: n === 1 ? 'everyEpisode' : 'every', every, swaps: 1 }
-        : { schedule: 'manual', every, swaps: 0 },
-    };
-  }
-  static normalizeWindows(state, w){
-    const R = Math.max(1, rosterSize(state) || 1);
-    let schedule = WINDOW_SCHEDULES.includes(w && w.schedule) ? w.schedule : 'manual';
-    const n = Math.floor(Number(w && w.every));
-    if(schedule === 'every' && n === 1) schedule = 'everyEpisode';
-    const k = Math.floor(Number(w && w.swaps));
-    return { schedule, every: Number.isFinite(n) && n >= 2 ? n : 3, swaps: Number.isFinite(k) ? Math.min(Math.max(k, 0), R) : 1 };
+  static normalizeWindows(state, w){ return Spec.normalizeWindows(rosterSize(state), w); }
+  // The league's waivers as the spec says them (extras.waivers: { feel, replace, short, windows, order, hours,
+  // freeAgency, autoFill }); a league from before waivers v2 reads what its old switches meant (game-spec legacyWaivers:
+  // add/drops off means no swaps at all, so a league with both switches off stays off), which the backfill
+  // (migrateLeagueState, db/migrations/0063) writes. A game with none (no draft, or a shared Outlast) reads what its
+  // settings store, as the spec would for a draft: nothing plays it, but the waiver screens and writes still start from it.
+  static waivers(state){
+    return gameOf(state).extras.waivers || Spec.waiversOf(state.settings || {}, !!getLeagueType(state).hasActiveRoster, rosterSize(state));
   }
   static config(state){
-    const st = state.settings || {};
-    const legacy = WaiverLogic.legacyConfig(state);
-    const rule = REPLACE_RULES.includes(st.replaceRule) ? st.replaceRule : legacy.replaceRule;
-    return {
-      // Classic has no lineup to be short of: "only when short" (N = roster - 1) is replace-every-loss.
-      replaceRule: rule === 'whenShort' && !getLeagueType(state).hasActiveRoster ? 'always' : rule,
-      waiverWindows: st.waiverWindows && typeof st.waiverWindows === 'object' ? WaiverLogic.normalizeWindows(state, st.waiverWindows) : legacy.waiverWindows,
-      waiverFeel: WAIVER_FEELS.includes(st.waiverFeel) ? st.waiverFeel : 'balanced',
-      autoFill: st.autoFill !== false,
-    };
+    const w = WaiverLogic.waivers(state);
+    // Classic has no lineup to be short of: "only when short" (N = roster - 1) is replace-every-loss (the spec says so).
+    return { replaceRule: w.replace, waiverWindows: w.windows, waiverFeel: w.feel, autoFill: w.autoFill };
   }
   static replaceRule(state){ return WaiverLogic.supported(state) ? WaiverLogic.config(state).replaceRule : 'never'; }
   static windows(state){ return WaiverLogic.supported(state) ? WaiverLogic.config(state).waiverWindows : { schedule: 'manual', every: 3, swaps: 0 }; }
@@ -2120,17 +2172,15 @@ class WaiverLogic {
     const cur = WaiverLogic.current(state);
     return !!(cur && cur.openedBy === 'commissioner');
   }
-  static processHours(state){
-    const n = Number(state.settings && state.settings.waiverProcessHours);
-    return WAIVER_HOURS.includes(n) ? n : 24;
-  }
-  static freeAgencyOn(state){ return !(state.settings && state.settings.freeAgencyEnabled === false); }
-  static rolling(state){ return (state.settings.replenishOrderBy || 'rolling') === 'rolling'; }
-  /** whenShort's N: replace once down to this many still in (default: starting spots - 1; Classic: roster - 1). */
+  static processHours(state){ return WaiverLogic.waivers(state).hours; }
+  static freeAgencyOn(state){ return WaiverLogic.waivers(state).freeAgency; }
+  static rolling(state){ return WaiverLogic.waivers(state).order === 'rolling'; }
+  /** whenShort's N: replace once down to this many still in (the spec's waivers.short; default: starting spots - 1;
+   *  Classic: roster - 1). */
   static shortAt(state){
+    const short = WaiverLogic.waivers(state).short;
+    if(Number.isInteger(short)) return short;
     const R = rosterSize(state) || 0;
-    const n = state.settings && state.settings.replenishAt;
-    if(Number.isInteger(n) && n >= 0) return Math.min(n, Math.max(0, R - 1));
     const S = getLeagueType(state).hasActiveRoster ? ActiveRosterLogic.activeSlots(state) : R;
     return Math.max(0, S - 1);
   }
@@ -2295,21 +2345,26 @@ class WaiverLogic {
       S: roster ? ActiveRosterLogic.activeSlots(state) : R,
       E: o.episodes || Math.max(13, ...state.episodes.map(e => e.number)), start,
       shared: MidSeasonLogic.isShared(state),
-      type: roster ? 'active-roster' : state.settings.leagueTypeId,
+      type: getLeagueType(state).id,
       feel: feel || WaiverLogic.config(state).waiverFeel,
     });
   }
   /** Writes the recommendation for `feel` onto the league. False when there's none (or it can't fit). */
-  static applyRecommendation(state, feel, opts){
+  static applyRecommendation(state, feel, opts){ return !WaiverLogic.writeRecommendation(state, feel, opts).length; }
+  // applyRecommendation, saying why when it's refused: the cast too small for it, or the game's writer's problems.
+  static writeRecommendation(state, feel, opts){
     const r = WaiverLogic.recommendFor(state, feel, opts);
-    if(!r || !r.feasible) return false;
-    Object.assign(state.settings, r.settings);
-    WaiverLogic.mirrorLegacy(state);
-    // Before the draft a suggestion is provisional (the teams, the ownership and the roster can all still
-    // change): it is fitted again to the league as it really is when the draft starts.
-    if(!DraftLogic.isStarted(state)) state.settings.waiverFit = true;
-    else delete state.settings.waiverFit;
-    return true;
+    if(!r || !r.feasible) return [{ at: 'extras.waivers', problem: 'The cast is too small for that' }];
+    const started = DraftLogic.isStarted(state);
+    // Through the game's writer, like any change to it (RosterLogic.setGame).
+    return RosterLogic.editSettings(state, s => {
+      Object.assign(s.settings, r.settings);
+      WaiverLogic.mirrorLegacy(s);
+      // Before the draft a suggestion is provisional (the teams, the ownership and the roster can all still
+      // change): it is fitted again to the league as it really is when the draft starts.
+      if(!started) s.settings.waiverFit = true;
+      else delete s.settings.waiverFit;
+    });
   }
   // The draft has started: a league still on the suggestion it got at creation (never touched by hand)
   // gets the suggestion for the teams, ownership and cast it really has. Run by the server's waiver clock (waivers.js
@@ -2325,10 +2380,10 @@ class WaiverLogic {
     const c = WaiverLogic.config(state);
     const r = WaiverLogic.recommendFor(state, c.waiverFeel, opts);
     if(!r || !r.feasible) return false;
-    const want = r.settings, st = state.settings;
+    const want = r.settings;
     const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     return want.replaceRule === c.replaceRule && same(want.waiverWindows, c.waiverWindows) && want.autoFill === c.autoFill
-      && want.waiverProcessHours === WaiverLogic.processHours(state) && want.replenishOrderBy === (st.replenishOrderBy || 'rolling')
+      && want.waiverProcessHours === WaiverLogic.processHours(state) && want.replenishOrderBy === WaiverLogic.waivers(state).order
       && WaiverLogic.freeAgencyOn(state) && (c.replaceRule !== 'whenShort' || want.replenishAt === WaiverLogic.shortAt(state));
   }
 
@@ -3192,11 +3247,9 @@ class EpisodeLogic {
 // spread they add to the standings grows with their value: at about one a week, 3 points each puts
 // predictions at roughly a quarter of what decides a Classic league -- a real side game, not the
 // decider -- while an uncapped 10-pointer would put a quarter of the league on a single question.
-const MAX_BET_POINTS = 3;
-function clampBetPoints(v){
-  const n = Math.round(Number(v));
-  return Number.isFinite(n) ? Math.min(MAX_BET_POINTS, Math.max(1, n)) : 1;
-}
+// The game spec's (extras.bets: one definition).
+const MAX_BET_POINTS = Spec.MAX_BET_POINTS;
+const clampBetPoints = Spec.clampBet;
 class BetLogic {
   static add(state, epId, label, points, createdByPlayerId){
     const ep = state.episodes.find(e=>e.id===epId);
@@ -3487,12 +3540,12 @@ class GhostLogic {
     return !!(turn && turn.isComplete) || SpoilerLogic.latestWithResults(state) >= startEpisode(state);
   }
   // On unless a commissioner switched it off (absent = on, so it covers every league that predates it), or locked the game down.
-  static allowed(state){ return !(state.settings && (state.settings.allowLateJoiners === false || GhostLogic.lockedDown(state))); }
+  static allowed(state){ return gameOf(state).extras.join !== 'locked' && !GhostLogic.lockedDown(state); }
   // Lock it down (the new design's competitive mode, step 15 part 4): no late joins, no catch-up, rules frozen for the season.
   // Joining closes here (allowed, so joinMode and classic's join code agree); the rest is the new design's Game settings and
   // Scoring rules refusing changes (backstage-games.ts). Kept apart from allowLateJoiners, so turning it off leaves Who can
   // join as it was.
-  static lockedDown(state){ return !!(state.settings && state.settings.lockedDown === true); }
+  static lockedDown(state){ return gameOf(state).extras.lockedDown === true; }
   // Whether castaways can be on several teams here (shared ownership, or a game with no teams at all: Survival Pool),
   // so a new player takes nothing from anyone and may catch up on what they missed.
   static sharedJoin(state){
@@ -3503,9 +3556,9 @@ class GhostLogic {
   // late joiners is locked, and the recommended one for its ownership otherwise (shared open, exclusive ask). An exclusive
   // game is never open (its castaways are one team's each), so it falls back to ask.
   static joinMode(state){
-    // Classic's late-joiner switch off closes it, whatever was chosen here (they're kept in step: updateSettings).
+    // Classic's late-joiner switch off closes it, whatever was chosen here (the spec reads it as locked: extras.join).
     if(!GhostLogic.allowed(state)) return 'locked';
-    const m = state.settings && state.settings.joinMode;
+    const m = gameOf(state).extras.join;
     if(m === 'open' && GhostLogic.sharedJoin(state)) return m;
     if(m === 'ask') return m;
     return GhostLogic.recommendedJoinMode(state);
@@ -3944,6 +3997,9 @@ class Migrations {
     if(!Array.isArray(s.midSeason.log)) s.midSeason.log = [];
     if(!s.finalePredictions) s.finalePredictions = [];
     if(!s.finaleActual) s.finaleActual = {top3:[], winner:null};
+    // Not the engine's default ('rolling', which defaultState writes into every league made here): a save from before
+    // 'rolling' existed (SurvivorDraft's, which this file was forked from) ordered waivers by most points when it had no
+    // order, so that's what it keeps. Every league made here has the field, so the engine's default never meets one.
     if(!s.settings.replenishOrderBy) s.settings.replenishOrderBy = 'mostPoints';
     if(!s.settings.defaultBetPoints) s.settings.defaultBetPoints = 1;
     if(!s.settings.finalePredictionScope) s.settings.finalePredictionScope = 'open';
@@ -4000,6 +4056,8 @@ class Migrations {
     delete s.settings.bonusCategories;
     // Waivers v2's settings from the old switches (db/migrations/0063 did the same to stored leagues).
     WaiverLogic.backfill(s);
+    // A league carrying its spec (the game-specs flag) carries what the fields above play (the points map grows).
+    RosterLogic.syncGame(s);
     return s;
   }
 }
@@ -4007,7 +4065,7 @@ class Migrations {
 return {
   // ---- constants ----
   PALETTE, SEED_CASTAWAYS,
-  LEAGUE_TYPES, SHOWS, getLeagueType, replenishAvailable, tradeAvailable, finalePredictionsAvailable, rosterSize, originalDraftPicks,
+  LEAGUE_TYPES, SHOWS, getLeagueType, gameOf, replenishAvailable, tradeAvailable, finalePredictionsAvailable, rosterSize, originalDraftPicks,
   formatOf, startEpisode, endEpisode, inPlay, spanView, gameOver, hasAired, closedForPlay, isWinnerExit, seasonWinner, seasonEnded,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
@@ -4029,7 +4087,7 @@ return {
   castTribesDue: RosterLogic.castTribesDue, castawayInUse: RosterLogic.castawayInUse, applySeasonCast: RosterLogic.applySeasonCast,
   applyEliminationsImport: EpisodeLogic.applyEliminationsImport,
   applyScoringEventsImport: EpisodeLogic.applyScoringEventsImport,
-  updateSettings: RosterLogic.updateSettings,
+  updateSettings: RosterLogic.updateSettings, setGame: RosterLogic.setGame, syncGame: RosterLogic.syncGame,
   reorderDraft: DraftLogic.reorder, moveDraftOrder: DraftLogic.move, draftToCurrentTurn: DraftLogic.pick, undraft: DraftLogic.undo,
   MidSeasonLogic, availableFor: MidSeasonLogic.availableFor, replenishNeed: MidSeasonLogic.replenishNeed,
   addEpisode: EpisodeLogic.add, removeEpisode: EpisodeLogic.remove, updateEpisode: EpisodeLogic.update,

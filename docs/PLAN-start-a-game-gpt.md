@@ -1,7 +1,8 @@
 # Plan: the Start-a-game GPT, on games as data
 
-Status: **planned 2026-10-27**. **A1 built** the same day, on the `engine` lane, not merged (its As built under track A); the
-rest not started. The user's idea, their decisions and the order are below; each step is its own
+Status: **planned 2026-10-27**. **A1 built** the same day and **A2 built** on 2026-10-28, both on the `engine` lane, not
+merged (their As built under track A); the rest not started. **Waiting on the user (A2):** the game-specs flag in production
+(a Neon branch check from your terminal, then on), after the merge. The user's idea, their decisions and the order are below; each step is its own
 session (Opus 5.5 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: live sports, its Sport classes and
 formats, written against this plan's game spec) and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season:
 track S here).
@@ -304,6 +305,85 @@ in `PLAN-researched-survivor.md`'s "What the switch needs", with this plan's dec
   - `settings.game` goes behind a flag (`app_settings 'game-specs'`, `scripts/game-specs-flag.js status|check|on|off`). The
     check: every league scores the same with it on, on the local copy and on a Neon branch of production (from the user's
     terminal). Then it goes on in production, with the user's OK.
+
+  **As built (A2, 2026-10-28, on `engine`, not merged; no migration).** One session.
+  - **The engine reads specs.** `StateLogic.gameOf(state)` is the game a league plays: game-spec's `gameOf(settings)`, its
+    carried `settings.game` while that's whole, a game plays it and nothing's wrong with it as a league's own (checked once
+    per spec, since a league's spec is replaced, never changed in place), else `specOf(settings)` (read only; the points
+    map isn't copied, so the hot paths stay cheap). `getLeagueType` works the type out from the spec's mechanics
+    (`playsAs`, typeOf without the copy) and its ownership; the five types' flags are their presets' (`flagsOf`), the
+    shared variants the shared draft's, no longer written by hand. Every setting the engine reads comes from it: the span
+    (startEpisode, endEpisode, inPlay), the team, starters and bench, ownership, a moment's points, side bets and finale
+    points (one `addSideLayers` for both drafts), the draft room's time, a pool's survive-by-scoring, points and call,
+    waivers (`WaiverLogic.waivers`: the spec's, or for a game with none what its fields store, as the waiver screens
+    start from), who can join and Lock it down; outside the engine, draft-view's timer and the lineup page's hidden
+    starters. The vocabularies, `legacyConfig`, `normalizeWindows` and the bet clamp are game-spec's (one copy).
+  - **What reads differently** (the pre-A2 engine against the new one, on every lane league and played demos of the three
+    drafts and pools: every reading and every score the same, except): a game that doesn't score by moments (Outlast, a
+    pool) no longer reads the stale points copy `defaultState` gives every league, so `pointsFor` there is the rulebook's
+    own (a sport's pool asks whether a pick scored; the computer players' form in a pool); the team and lineup sizes are 0
+    in a game with none (they were the leftover fields); finale predictions switched off no longer count (scoring added
+    them whenever the finale was in); `MidSeasonLogic.replenishAt` is `WaiverLogic.shortAt` (only the unused
+    `replenishNeed` called it). `computeScores` is about twice as slow, still under 0.1 ms for a whole 12-episode season.
+  - **One writer.** `RosterLogic.setGame(state, spec, { ctx })` checks the spec as the league's own (`specProblems` with
+    `opts.league` and the new `opts.was`: a problem the league already had doesn't block; the size limits hold for what
+    grows), writes today's fields with `withSpec` (only the game's fields, so a big rulebook isn't copied), moves points
+    still at the old ownership's defaults when a draft changes hands (unless the write set the points itself), makes a later
+    start's episode, and keeps a carried spec in step (`syncGame`). It returns the problems it refused for ([] when
+    written). `editSettings(state, fn)` runs a change made the old way on a copy and writes what the copy plays through
+    `setGame`; `updateSettings` sends a game field (game-spec `OWNED`, and the waiver suggestion) that way (`writeSetting`
+    is today's normalizing) and returns the problems; the league's own fields (show, season, reveal, setup) are written as
+    before. The waiver suggestion goes through it too, and `migrateLeagueState` keeps a carried spec in step.
+  - **One set of size limits**, game-spec's (`MAX_TEAM` 10, `MAX_STARTERS` 8, `MAX_BENCH` 6, `MAX_LINEUP_TEAM` 14), for every
+    write; a league already bigger keeps its size and can come down. Game settings reports each size's `max` (the team, once
+    drafted) and its steppers stop there; classic's setup steppers, which had no maximum, stop there too.
+  - **The writers.** Classic's settings route (refused: 400 with why), Game settings (each change; drafted starters as one
+    change of the spec's count, the team unchanged), Fine-tune, Lock it down, the points, the draft room's time and timer,
+    Undo (one setting through `updateSettings`; a set put back as it was, then `syncGame`; `change-log.ts` leaves `game`
+    out of a settings diff), the public pool's call and the practice couch (`solo.ts`), and **Start a game**: one spec (the
+    made league's preset, its span, a sport's shared draft and a pool surviving by scoring, Outlast's team fitted to the
+    couch, Run it back's parts within the limits: `againParts`, which replaces `AGAIN_KEEPS`), written once with `setGame`.
+    `game-writes.ts refused` turns problems into an answer.
+  - **The flag**, `app_settings 'game-specs'` (`db/game-specs.js`: `gameSpecsOn`, `carryGame`, `syncLeagueGame`,
+    `syncLeagueRow`). On, every league carries `settings.game`; `makeLeague` and classic's settings route carry it from the
+    start. `scripts/game-specs-flag.js status | check | on | off` (`GAME_SPECS_DATABASE_URL` for a Neon branch, `--yes` away
+    from localhost; league ids only). **check**: for each league, its spec has nothing wrong as the league's own and a game
+    plays it, writing it back changes nothing, and carrying it plays the same: type, flags, sizes, span, waivers, joining,
+    the extras, every moment's points, the scores, and the scores after every episode. **This lane's database: 9 of 9 PASS;
+    the flag is on here** (left on, so A3 and A4 build on it), and after every browser check below, none drifted.
+    Production: the user's (below). **With it on, a league's fields are only written through the writer**: anything that
+    writes them straight in (a fixture editing a stored league, the guided tour's practice round copying a real league's
+    settings) calls `StateLogic.syncGame` after, as `check-pool-research.js`, `up-next-fixture.js` and `tour/practice.ts`
+    now do; `status` lists any league that drifted.
+  - **The Rules sheet** (`game-rules.ts`) is `describeSpec`'s How it works now: the same lines (fixtures in
+    `tests/game-spec.test.js`), a sport's pool "scores in it", and a line for finale predictions when they're on.
+  - **Noticed items taken:** the stale comment (fixed). `migrateLeagueState`'s 'mostPoints' backfill **stays**: it's for
+    saves from before 'rolling', and SurvivorDraft's engine (this file's source, checked) ordered by most points when a
+    league had none; every league made here has the field. Said in a comment there.
+  - **The code review's fixes** (`/code-review`, before the commit): the season's stats read a Weekly Lineup's own points
+    (`season-stats.ts`'s facts league plays as one, since `pointsFor` reads points only in a game scored by moments); Run it
+    back keeps a shared Outlast's ownership with no waivers (its waivers follow the ownership it keeps); Undo of a set syncs
+    the spec before the waiver switches are mirrored from it; a drafted lineup's most starters is the team within the limit;
+    the waiver feel says the writer's real reason (`WaiverLogic.writeRecommendation`); a carried spec is checked whole and
+    sound before it's played; `WaiverLogic.legacyConfig`, which nothing called, is gone. Declined: memoizing `gameOf` for a
+    league that carries no spec (a nested setting changed in place would read stale; the cost is under 0.1 ms a season, and
+    a carried spec is already read as stored).
+  - **Tests:** `tests/game-spec-engine.test.js` (10: the flags; a carried spec decides, a broken one doesn't; refusals write
+    nothing; the limits; what a change does (points moved once, guided setup's shared, a later start, the waiver suggestion,
+    a field kept for later); `setGame` with a whole spec; migrate; the flag's check on every kind; a carried spec played only
+    whole, and an Undo's order; the stats' facts league), the Rules sheet's fixtures; `npm test` 775. Browser, at 390 on this
+    lane's server with the flag on: `check-new-backstage-ii.js` grows A2's (149 PASS: the drafted maximum, Game settings and
+    classic's route refusing past the limits with nothing written, the stepper stopping at the team, and no game drifted
+    after every write the check makes); `check-new-start-game.js` 75, `check-new-solo.js` 92, `check-new-draft.js` 90,
+    `check-new-show.js` 81 (the Rules sheet), `check-new-stats.js` 57, `check-settings.js` (classic, both drafts) clean. One
+    early Backstage II run failed one line that didn't come back in four more (cut off before it was read).
+  - **For the user (after the merge):** a Neon branch of production, then from your terminal
+    `$env:GAME_SPECS_DATABASE_URL = "<the branch's string>"; node scripts/game-specs-flag.js check; Remove-Item
+    Env:GAME_SPECS_DATABASE_URL`. It must end PASS; then `on` against production (`--yes`), with your OK.
+  - **For A3:** the spec now can be carried, but `withSpec`, `carryGame` and the check assume today's fields say all of it
+    (true through A2). A phase start (`span.from: { phase }`) is the first thing they can't: A3 makes the engine play it from
+    `settings.game` and decides what the fields say meanwhile (and what `syncGame` does, which today rebuilds the spec from
+    the fields).
 - **A3. Spans that start later.** "Starts" on Start a game: any later listed episode, or when a rulebook phase starts (the game
   waits, and its draft can happen first). Game settings moves a start before it airs. Also the rest of BACKLOG item 10: side
   bets after the end, one word for an episode, and the places that don't know the end.
@@ -448,3 +528,18 @@ From A1 (2026-10-27):
   have. They score nothing. (A2: validate a league's own with `opts.league`, or drop them when writing.)
 - Classic's setup has no cap on a team (its stepper has a minimum only); Game settings caps it at 10, and at 8 starters and 6
   on the bench. A new spec gets Game settings' caps, a league's own none. (A2: one set of limits.)
+
+Taken by A2 (2026-10-28): the stale comment, the replenishOrderBy backfill (kept, with why), the Rules sheet (describeSpec),
+the points copy (a league's own is validated with `opts.league`; a game that doesn't score by moments no longer reads it),
+one set of limits.
+
+From A2 (2026-10-28):
+- Start a game still makes a Weekly Lineup with `defaultState`'s copy of the points (a map), not the preset's null. A copy
+  keeps the points it was made with; null follows the season's rulebook, so a desk fix to a moment's points reaches it.
+  The GPT's games (G2) will start from presets: which should a game follow? (G2, the user's call.)
+- Survival Pool, Weekly Calls and Weekly Bingo still show "Predictions" on the Rules sheet when side bets are on, which
+  never count there (A1's item; A4).
+- `MidSeasonLogic.replenishNeed` (and so `replenishAt`) has no caller outside state-logic. (Any step that touches waivers.)
+- `check-new-start-game.js` prints `[push] bingoLine notification failed: TypeError ... 'pool'` five times from its own
+  process (the bingo fixture notifying outside a request): no check fails, and no game-spec code is on that path.
+  (Whoever next touches the bingo fixture.)

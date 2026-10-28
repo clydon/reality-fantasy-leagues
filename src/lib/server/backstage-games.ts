@@ -10,11 +10,13 @@ import type { LeagueState, ReplaceRule, WaiverFeel, WaiverWindows } from "@/lib/
 import { waiverHow, waiverWeek, type WaiverWeek } from "@/lib/game/waiver-view";
 import { windowLine } from "@/lib/game/waiver-words.js";
 import { blocksAt } from "@/lib/game/formats/rulebook-patch.js";
+import { MAX_BENCH, MAX_STARTERS, MAX_TEAM } from "@/lib/game/game-spec/index.js";
 import { inForceEdits, lineage, rulebookForLeague } from "@db/rulebooks.js";
 import { isSuperAdminUser } from "./auth-helpers";
 import type { BackstageScope } from "./backstage";
 import { plainChange, settingsSetChange, type ChangeSpec } from "./change-log";
 import { pool, withLeagueLock, HttpError } from "./db";
+import { refused } from "./game-writes";
 import { EVERYTHING, seenThrough } from "./guard";
 import { readyLeague } from "./league-read";
 import { leagueStates } from "./league-states";
@@ -428,8 +430,8 @@ export async function waiverWrite(scope: BackstageScope, leagueId: unknown, body
     (s) => {
       if (!W.supported(s)) throw new HttpError(400, "This game doesn't use waivers");
       if (feel) {
-        if (!W.applyRecommendation(s, feel)) throw new HttpError(409, "The cast is too small for that");
-      } else for (const [k, v] of Object.entries((body as { set: Record<string, unknown> }).set)) StateLogic.updateSettings(s, k, v);
+        refused(W.writeRecommendation(s, feel), 409);
+      } else for (const [k, v] of Object.entries((body as { set: Record<string, unknown> }).set)) refused(StateLogic.updateSettings(s, k, v));
     },
     (b, a) => {
       const spec = settingsSetChange(user, label, { kind: "settings", batch });
@@ -456,10 +458,11 @@ export interface GameSettings {
   draftStarted: boolean;
   /** The next episode: lineup changes start there. */
   from: number | null;
-  /** Weekly Lineup: who scores each week and the bench (the bench is set at the draft). */
-  lineup: { starters: number; bench: number; rec: { starters: number; bench: number } } | null;
-  /** Outlast: the team's size, set at the draft. */
-  team: { size: number; rec: number } | null;
+  /** Weekly Lineup: who scores each week and the bench (the bench is set at the draft); `max`: the most each can be now (the
+   *  game spec's limits, or the team once it's drafted). */
+  lineup: { starters: number; bench: number; rec: { starters: number; bench: number }; max: { starters: number; bench: number } } | null;
+  /** Outlast: the team's size, set at the draft; `max`: the game spec's limit. */
+  team: { size: number; rec: number; max: number } | null;
   /** Who can join (step 9): anyone on the couch (castaways on several teams: they catch up), ask me first, or nobody new. */
   joining: { mode: "open" | "ask" | "locked"; rec: "open" | "ask" };
   /** Waivers' one line, for the row into its page; null without waivers. */
@@ -569,10 +572,8 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         shared: s.settings.ownershipMode === "shared",
         draftStarted: StateLogic.DraftLogic.isStarted(s),
         from: next?.number ?? null,
-        lineup: type.hasActiveRoster
-          ? { starters: StateLogic.ActiveRosterLogic.activeSlots(s), bench: StateLogic.ActiveRosterLogic.benchSlots(s), rec: { starters: REC.activeSlots, bench: REC.benchSlots } }
-          : null,
-        team: type.hasRoster && !type.hasActiveRoster ? { size: s.settings.teamSize, rec: REC.teamSize } : null,
+        lineup: type.hasActiveRoster ? lineupOf(s) : null,
+        team: type.hasRoster && !type.hasActiveRoster ? { size: StateLogic.rosterSize(s), rec: REC.teamSize, max: MAX_TEAM } : null,
         joining: { mode: StateLogic.GhostLogic.joinMode(s), rec: StateLogic.GhostLogic.recommendedJoinMode(s) },
         waivers: c ? `${RULE_WORDS[c.replaceRule]} · ${c.waiverWindows.swaps > 0 ? `${c.waiverWindows.swaps} optional swap${c.waiverWindows.swaps === 1 ? "" : "s"} per window` : "no optional swaps"}` : null,
         lockedDown: StateLogic.GhostLogic.lockedDown(s),
@@ -580,6 +581,20 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         lock: lockOf(s),
       };
     }),
+  };
+}
+
+/** A Weekly Lineup's sizes for Game settings: once it's drafted the team is fixed, so starters go up to it. A league already
+ *  past a limit shows its own size as the most (it can come down, never grow: game-spec specProblems' opts.was). */
+function lineupOf(s: LeagueState): NonNullable<GameSettings["lineup"]> {
+  const starters = StateLogic.ActiveRosterLogic.activeSlots(s);
+  const bench = StateLogic.ActiveRosterLogic.benchSlots(s);
+  const drafted = StateLogic.DraftLogic.isStarted(s);
+  return {
+    starters,
+    bench,
+    rec: { starters: REC.activeSlots, bench: REC.benchSlots },
+    max: { starters: Math.min(drafted ? starters + bench : Infinity, Math.max(MAX_STARTERS, starters)), bench: drafted ? bench : Math.max(MAX_BENCH, bench) },
   };
 }
 
@@ -609,7 +624,7 @@ export async function settingsWrite(
       const drafted = StateLogic.DraftLogic.isStarted(s);
       for (const [k, v] of Object.entries(set)) {
         if (k === "allowLateJoiners") {
-          StateLogic.updateSettings(s, k, v !== false);
+          refused(StateLogic.updateSettings(s, k, v !== false));
           continue;
         }
         // How long it runs (step 6 of docs/PLAN-sports-data.md): only before its end is reached, and only to an episode still
@@ -618,7 +633,7 @@ export async function settingsWrite(
           const now = spanState(s, schedule);
           if (now.over) throw new HttpError(409, "It's over: its last episode is in");
           if (v !== null && !now.ends.some((e) => e.number === v)) throw new HttpError(400, "Pick an episode still to come, from where it starts");
-          StateLogic.updateSettings(s, k, v);
+          refused(StateLogic.updateSettings(s, k, v));
           continue;
         }
         // Who can join (step 9): open, ask or locked; anything else is the recommended one. An exclusive game can't be
@@ -627,7 +642,7 @@ export async function settingsWrite(
           const mode = v === "recommended" ? StateLogic.GhostLogic.recommendedJoinMode(s) : v;
           if (mode !== "open" && mode !== "ask" && mode !== "locked") throw new HttpError(400, "Who can join is open, ask or locked");
           if (mode === "open" && !StateLogic.GhostLogic.sharedJoin(s)) throw new HttpError(400, "Each castaway is on one team here, so new players need your OK");
-          StateLogic.updateSettings(s, k, mode);
+          refused(StateLogic.updateSettings(s, k, mode));
           continue;
         }
         const n = Number(v);
@@ -639,14 +654,17 @@ export async function settingsWrite(
           if (n !== now && !(k === "benchSlots" && "activeSlots" in set)) throw new HttpError(409, "That's set at the draft");
           continue;
         }
+        // The limits are the game spec's (one set, for every write); its validator holds them too, and lets a league already
+        // past one come down.
         if (k === "activeSlots") {
           const roster = StateLogic.rosterSize(s);
-          if (n < 1 || (drafted ? n > roster : n > 8)) throw new HttpError(400, drafted ? `Starters must be 1 to ${roster}, the team's size` : "Starters must be 1 to 8");
-          if (drafted) StateLogic.updateSettings(s, "benchSlots", roster - n);
+          if (n < 1 || (drafted && n > roster)) throw new HttpError(400, drafted ? `Starters must be 1 to ${roster}, the team's size` : `Starters must be 1 to ${MAX_STARTERS}`);
         }
-        if (k === "benchSlots" && (n < 0 || n > 6)) throw new HttpError(400, "Bench must be 0 to 6");
-        if (k === "teamSize" && (n < 1 || n > 10)) throw new HttpError(400, "Team size must be 1 to 10");
-        StateLogic.updateSettings(s, k, n);
+        if (k === "benchSlots" && n < 0) throw new HttpError(400, `Bench must be 0 to ${MAX_BENCH}`);
+        if (k === "teamSize" && n < 1) throw new HttpError(400, `Team size must be 1 to ${MAX_TEAM}`);
+        // Drafted, the team stays as it is and the starters come off its bench: one change to the spec's count.
+        if (k === "activeSlots" && drafted) refused(StateLogic.setGame(s, { ...StateLogic.gameOf(s), count: { start: n } }));
+        else refused(StateLogic.updateSettings(s, k, n));
         // Fewer starters from the next episode: a lineup already set for it (or carried into it) keeps its first ones.
         if (k === "activeSlots" && n < now) {
           for (const ep of s.episodes.filter((e) => !StateLogic.ActiveRosterLogic.isLineupLocked(s, e.id))) {
@@ -681,7 +699,7 @@ export async function lockDownWrite(scope: BackstageScope, on: unknown): Promise
   for (const game of mine) {
     await withLeagueLock(
       game.leagueId,
-      (s) => StateLogic.updateSettings(s, "lockedDown", on),
+      (s) => refused(StateLogic.updateSettings(s, "lockedDown", on)),
       (b, a) => {
         const spec = settingsSetChange(scope.user.id, on ? "Locked the game down for the season: nobody new joins, the rules are frozen" : "Took the game off lock down: back to casual", { batch });
         const out = typeof spec === "function" ? spec(b, a) : spec;
@@ -729,7 +747,7 @@ export async function pointsWrite(
     if (!Number.isFinite(n) || n < -50 || n > 50) throw new HttpError(400, "Points are -50 to 50");
     points[id] = StateLogic.roundPoints(n);
   }
-  const apply = (s: LeagueState) => StateLogic.updateSettings(s, "eventPoints", { ...(s.settings.eventPoints ?? {}), ...points });
+  const apply = (s: LeagueState) => refused(StateLogic.updateSettings(s, "eventPoints", { ...(s.settings.eventPoints ?? {}), ...points }));
   if (body.preview) {
     const after = structuredClone(s0);
     apply(after);

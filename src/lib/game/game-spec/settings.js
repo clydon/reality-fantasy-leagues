@@ -7,6 +7,8 @@
 //                           these while classic still reads them.
 //   withSpec(settings, spec) the settings with the parts of the game that change written; the rest keep their stored
 //                           form.
+//   gameOf(settings)        the spec a league plays: its stored settings.game (the game-specs flag), else specOf. What
+//                           state-logic.js reads every game setting through (A2).
 //
 // A spec owns only its own game's fields: an Outlast league's lineup slots and moment points, a draft's pool points,
 // another kind's leftovers that defaultState gives every league, stay as they are (dormant: nothing reads them). OUTSIDE
@@ -15,7 +17,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
 const {
   SPEC_VERSION, TYPE_PRESETS, REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS,
-  MAX_BET_POINTS, ORDER_OF, fullSpec, typeOf, specProblems, waiversFit, sameValue,
+  MAX_BET_POINTS, ORDER_OF, fullSpec, typeOf, playsAs, specProblems, waiversFit, sameValue,
 } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -34,6 +36,7 @@ const OUTSIDE = [
 ];
 
 
+/** A side bet's points: a whole number from 1 to MAX_BET_POINTS (1 for anything else). */
 const clampBet = (v) => {
   const n = Math.round(Number(v));
   return Number.isFinite(n) ? Math.min(MAX_BET_POINTS, Math.max(1, n)) : 1;
@@ -47,13 +50,14 @@ function spanOf(st) {
   return { from: start, to: Number.isInteger(to) && to >= start ? to : null };
 }
 
-// WaiverLogic.legacyConfig, normalizeWindows and config, on settings alone (R: the roster size). These readers, and the
-// vocabularies in ./schema.js, are a second copy of state-logic.js's until A2, when the engine reads its settings through
-// specOf and takes the vocabularies from here: one definition. Until then tests/game-spec.test.js holds the two together.
+// How a league's settings say its waivers, on settings alone (R: the roster size). The one definition: state-logic.js's
+// WaiverLogic reads the spec, and its legacyConfig and normalizeWindows are these.
+/** The pre-v2 add/drop schedule (settings.swapEvery): every Nth episode, default 3. */
 function swapEveryOf(st) {
   const n = Number(st.swapEvery);
   return Number.isInteger(n) && n >= 1 ? n : 3;
 }
+/** A window schedule as WaiverLogic plays it: a known schedule (else manual), every 2 or more, 0 to R swaps. */
 function normalizeWindows(R, w) {
   const most = Math.max(1, R || 1);
   let schedule = WINDOW_SCHEDULES.includes(w && w.schedule) ? w.schedule : 'manual';
@@ -62,12 +66,19 @@ function normalizeWindows(R, w) {
   const k = Math.floor(Number(w && w.swaps));
   return { schedule, every: Number.isFinite(n) && n >= 2 ? n : 3, swaps: Number.isFinite(k) ? Math.min(Math.max(k, 0), most) : 1 };
 }
-function waiversOf(st, lineup, R) {
+/** What the pre-v2 switches (replenishEnabled, tradeEnabled, swapEvery) meant, in v2 terms: { replace, windows }. */
+function legacyWaivers(st, lineup) {
   const n = swapEveryOf(st);
   const every = Math.max(2, n);
-  const legacyReplace = st.replenishEnabled === true ? (lineup ? 'whenShort' : 'always') : 'never';
-  const legacyWindows = st.tradeEnabled === true ? { schedule: n === 1 ? 'everyEpisode' : 'every', every, swaps: 1 } : { schedule: 'manual', every, swaps: 0 };
-  const rule = REPLACE_RULES.includes(st.replaceRule) ? st.replaceRule : legacyReplace;
+  return {
+    replace: st.replenishEnabled === true ? (lineup ? 'whenShort' : 'always') : 'never',
+    windows: st.tradeEnabled === true ? { schedule: n === 1 ? 'everyEpisode' : 'every', every, swaps: 1 } : { schedule: 'manual', every, swaps: 0 },
+  };
+}
+/** A draft's waivers, from its settings (lineup: it has starters; R: its team). The spec's extras.waivers. */
+function waiversOf(st, lineup, R) {
+  const legacy = legacyWaivers(st, lineup);
+  const rule = REPLACE_RULES.includes(st.replaceRule) ? st.replaceRule : legacy.replace;
   const hours = Number(st.waiverProcessHours);
   return {
     feel: WAIVER_FEELS.includes(st.waiverFeel) ? st.waiverFeel : 'balanced',
@@ -75,7 +86,7 @@ function waiversOf(st, lineup, R) {
     replace: rule === 'whenShort' && !lineup ? 'always' : rule,
     // WaiverLogic.shortAt: never past the team less one, however the team changed since.
     short: Number.isInteger(st.replenishAt) && st.replenishAt >= 0 ? Math.min(st.replenishAt, Math.max(0, (R || 0) - 1)) : null,
-    windows: isObj(st.waiverWindows) ? normalizeWindows(R, st.waiverWindows) : legacyWindows,
+    windows: isObj(st.waiverWindows) ? normalizeWindows(R, st.waiverWindows) : legacy.windows,
     order: WAIVER_ORDERS.includes(st.replenishOrderBy) ? st.replenishOrderBy : 'rolling',
     hours: WAIVER_HOURS.includes(hours) ? hours : 24,
     freeAgency: st.freeAgencyEnabled !== false,
@@ -88,7 +99,34 @@ function waiversOf(st, lineup, R) {
  * missing league type plays Outlast, as getLeagueType does.
  */
 function specOf(settings) {
+  return readSpec(isObj(settings) ? settings : {}, true);
+}
+/**
+ * The spec a league plays: its stored settings.game (written while the game-specs flag is on: db/game-specs.js), else
+ * specOf(settings). The stored one only while it's a whole spec today's engine plays (a half-written or hand-edited one
+ * isn't: the fields are read instead). Handed out as it's stored, and specOf's without copying the points map: read it,
+ * never change it (state-logic.js's RosterLogic.setGame writes a league's game). The engine reads every game setting
+ * through this.
+ */
+function gameOf(settings) {
   const st = isObj(settings) ? settings : {};
+  return usable(st.game) ? st.game : readSpec(st, false);
+}
+// Whether a carried spec is one the engine can play from: whole (nothing fullSpec would add), a game plays it, and nothing
+// wrong with it as a league's own. Checked once per spec: a league's spec is replaced, never changed in place, whenever
+// its game changes (setGame, syncGame), so this costs nothing on the reads in between.
+const usableSpecs = new WeakMap();
+function usable(g) {
+  if (!isObj(g)) return false;
+  let ok = usableSpecs.get(g);
+  if (ok === undefined) {
+    ok = g.spec === SPEC_VERSION && !!playsAs(g) && sameValue(fullSpec(g), g) && !specProblems(g, null, { league: true }).length;
+    usableSpecs.set(g, ok);
+  }
+  return ok;
+}
+/** specOf's reading; `copy`: the points map copied (specOf), else the stored one (gameOf, read only). */
+function readSpec(st, copy) {
   const type = Object.prototype.hasOwnProperty.call(TYPE_PRESETS, st.leagueTypeId) ? st.leagueTypeId : 'classic-draft';
   const own = st.ownershipMode === 'shared' ? 'shared' : 'exclusive';
   const draft = type === 'classic-draft' || type === 'active-roster';
@@ -108,7 +146,7 @@ function specOf(settings) {
     Object.assign(spec, {
       get: { by: 'draft', each: R, order: ORDER_OF[own], own },
       count: { start },
-      score: { by: 'moments', points: isObj(st.eventPoints) ? clone(st.eventPoints) : null },
+      score: { by: 'moments', points: isObj(st.eventPoints) ? (copy ? clone(st.eventPoints) : st.eventPoints) : null },
       rank: { by: 'total' },
     });
   } else if (type === 'pickem') {
@@ -247,6 +285,8 @@ function withSpec(settings, spec) {
     for (const part of PARTS) if (!sameValue(part.read(now), part.read(want))) write(part);
     if (pass === 1 && !sameValue(specOf(out), want)) for (const part of PARTS) write(part);
   }
+  // A league carrying its spec (the game-specs flag) carries this one, so gameOf reads the same either way.
+  if ('game' in out) out.game = clone(want);
   return out;
 }
 
@@ -270,4 +310,7 @@ const PARTS = [
 /** Every settings field a spec can write. */
 const OWNED = PARTS.flatMap((p) => p.fields);
 
-module.exports = { OUTSIDE, OWNED, specOf, settingsOf, ownedFields, withSpec };
+module.exports = {
+  OUTSIDE, OWNED, specOf, gameOf, settingsOf, ownedFields, withSpec,
+  spanOf, waiversOf, legacyWaivers, normalizeWindows, swapEveryOf, clampBet,
+};

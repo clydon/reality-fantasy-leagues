@@ -118,14 +118,15 @@ export function snakeOwner(order: string[], index: number): string | undefined {
 
 /** The draft's kind, or null for a game with no draft (Survival Pool). */
 export function draftKind(state: LeagueState): DraftKind | null {
-  if (!StateLogic.getLeagueType(state).hasRoster) return null;
-  return state.settings.ownershipMode === "shared" ? "blind" : "snake";
+  const get = StateLogic.gameOf(state).get;
+  if (get.by !== "draft") return null;
+  return get.own === "shared" ? "blind" : "snake";
 }
 
-/** The pick timer in seconds (0: off), and what happens when it runs out. */
+/** The pick timer in seconds (0: off), and what happens when it runs out: the game spec's draft room. */
 export function draftTimer(state: LeagueState): { timer: number; away: "wait" | "queue" } {
-  const t = Number(state.settings.draftTimer);
-  return { timer: t === 60 || t === 120 ? t : 0, away: state.settings.draftAway === "queue" ? "queue" : "wait" };
+  const room = StateLogic.gameOf(state).extras.draft;
+  return { timer: room ? room.timer : 0, away: room?.away === "queue" ? "queue" : "wait" };
 }
 
 /** Who's on the clock in a live turn-based draft, since when, and when the timer runs out. Mutates nothing it shouldn't:

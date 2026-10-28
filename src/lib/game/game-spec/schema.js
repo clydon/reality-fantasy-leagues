@@ -180,8 +180,9 @@ function sameValue(a, b) {
   return ka.length === Object.keys(b).length && ka.every((k) => Object.prototype.hasOwnProperty.call(b, k) && sameValue(a[k], b[k]));
 }
 
-// The sizes Game settings allows a new game (backstage-games.ts): an Outlast team of 1 to 10; a lineup of 1 to 8 starters
-// and a bench of up to 6, so a team of up to 14 (once it's drafted, starters can move to the bench).
+// The one set of size limits, for every write (Game settings, classic's setup, Start a game, the GPT): an Outlast team of 1
+// to 10; a lineup of 1 to 8 starters and a bench of up to 6, so a team of up to 14 (once it's drafted, starters can move to
+// the bench). A league's own that's already bigger keeps its size, and can come down (specProblems' opts.was).
 const MAX_TEAM = 10;
 const MAX_STARTERS = 8;
 const MAX_BENCH = 6;
@@ -284,7 +285,12 @@ function fullSpec(spec) {
  * mechanics decide, never the preset's name: a spec the GPT writes plays the game its parts make.
  */
 function typeOf(spec) {
-  const s = fullSpec(spec);
+  return playsAs(fullSpec(spec));
+}
+/** typeOf on a spec that's already whole (fullSpec's, specOf's, a stored settings.game), without copying it: the engine's
+ *  getLeagueType asks this on nearly every read. */
+function playsAs(s) {
+  if (!isObj(s)) return null;
   const by = (k) => (isObj(s[k]) ? s[k].by : undefined);
   const count = countKind(s.count);
   if (!plainParts(s)) return null;
@@ -311,6 +317,34 @@ function plainParts(s) {
 }
 
 /**
+ * The flags state-logic.js's league types carry (hasRoster, supportsReplenish, ...), worked out from a whole spec: a team
+ * is a draft, a lineup a draft that starts some of it, a weekly pick a pick; calls and bingo by how it scores; waivers
+ * where a draft's castaways can come free (not a shared Outlast), finale predictions with a draft.
+ */
+function flagsOf(s) {
+  const get = isObj(s && s.get) ? s.get : {};
+  const score = isObj(s && s.score) ? s.score : {};
+  const waivers = waiversFit(s);
+  return {
+    hasRoster: get.by === 'draft',
+    hasActiveRoster: get.by === 'draft' && countKind(s.count) === 'start',
+    hasWeeklyPicks: get.by === 'pick',
+    hasCalls: score.by === 'calls',
+    hasBingo: score.by === 'lines',
+    supportsReplenish: waivers,
+    supportsTrade: waivers,
+    supportsFinalePredictions: finaleFits(s),
+  };
+}
+
+/** A whole spec's sizes: the team, the starters and the bench (0 where there are none). */
+function sizesOf(s) {
+  const each = isObj(s && s.get) && s.get.by === 'draft' && isInt(s.get.each, 1) ? s.get.each : 0;
+  const start = countKind(s && s.count) === 'start' && isInt(s.count.start, 1) ? s.count.start : 0;
+  return { each, start, bench: start ? Math.max(0, each - start) : 0 };
+}
+
+/**
  * What's wrong with a spec, as [{ at, problem }] (empty: nothing). Always its shape; with `ctx`, the data-can-settle rule
  * too: everything it scores or asks has to be something our data settles.
  *
@@ -322,10 +356,12 @@ function plainParts(s) {
  *                must be one. Absent: there are none, so nothing settles a stat.
  *   ctx.results  false when the show's results don't say who goes home or wins (a series, a talk show)
  *
- * opts.league: the spec is a league's own (A2's writes), so what it already plays stays as it is: a couch-answered moment
- * of its rules (Make it ours), points for moments its rules don't have (defaultState's copy of the default format's
- * points, on a league for another show, or a rulebook that changed its ids: they score nothing), and a team bigger than a
- * new game's (classic's setup has no cap). The GPT and Start a game never pass it. Without ctx only the shape is checked.
+ * opts.league: the spec is a league's own (every write to a league: RosterLogic.setGame), so what it already plays stays
+ * as it is: a couch-answered moment of its rules (Make it ours) and points for moments its rules don't have
+ * (defaultState's copy of the default format's points, on a league for another show, or a rulebook that changed its ids:
+ * they score nothing). opts.was, with it: the spec it's changing from, so the size limits hold for what grows (a league
+ * already bigger keeps its size); without it a league's own has no size limits. The GPT never passes opts.league. Without
+ * ctx only the shape is checked.
  */
 function specProblems(spec, ctx, opts) {
   const out = [];
@@ -362,12 +398,17 @@ function specProblems(spec, ctx, opts) {
   const count = countKind(s.count);
   if (!one('get.by', get.by)) add('get.by', 'How you get yours: draft, pick, card, none or squares');
   const league = !!(opts && opts.league);
+  // The size limits: always for a new game; for a league's own, only a size that grows past them (opts.was: the spec it's
+  // changing from), so one already bigger keeps its size and can come down. Without opts.was a league's own has none.
+  const before = league && isObj(opts.was) ? sizesOf(fullSpec(opts.was)) : null;
+  const over = (v, max, was) => v > max && (!league || (before !== null && v > was));
   if (get.by === 'draft') {
-    const most = league ? Infinity : isObj(s.score) && s.score.by === 'place' ? MAX_TEAM : MAX_LINEUP_TEAM;
-    if (!isInt(get.each, 1) || get.each > most) add('get.each', most === Infinity ? 'A draft is 1 or more each' : `A draft is 1 to ${most} each`);
-    else if (!league && count === 'start' && isInt(s.count.start, 1) && s.count.start <= get.each) {
-      if (s.count.start > MAX_STARTERS) add('count.start', `A new lineup starts 1 to ${MAX_STARTERS}`);
-      if (get.each - s.count.start > MAX_BENCH) add('get.each', `A new lineup's bench is 0 to ${MAX_BENCH}`);
+    const most = isObj(s.score) && s.score.by === 'place' ? MAX_TEAM : MAX_LINEUP_TEAM;
+    const capped = !league || before !== null;
+    if (!isInt(get.each, 1) || over(get.each, most, before && before.each)) add('get.each', capped ? `A draft is 1 to ${most} each` : 'A draft is 1 or more each');
+    else if (count === 'start' && isInt(s.count.start, 1) && s.count.start <= get.each) {
+      if (over(s.count.start, MAX_STARTERS, before && before.start)) add('count.start', `A lineup starts 1 to ${MAX_STARTERS}`);
+      if (over(get.each - s.count.start, MAX_BENCH, before && before.bench)) add('get.each', `A lineup's bench is 0 to ${MAX_BENCH}`);
     }
     if (!one('get.own', get.own)) add('get.own', 'A draft is exclusive or shared');
     if (!one('get.order', get.order)) add('get.order', 'A draft is snake or blind');
@@ -633,5 +674,6 @@ function specWaitsFor(spec) {
 module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
-  fullSpec, typeOf, specProblems, specWaitsFor, waiversFit, finaleFits, countKind, presetOf, sameValue, own,
+  MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM,
+  fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, specWaitsFor, waiversFit, finaleFits, countKind, presetOf, sameValue, own,
 };

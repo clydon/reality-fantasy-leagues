@@ -134,6 +134,8 @@ function GameBlock({
               line={g.lockedDown ? "Frozen for the season" : L.starters === L.rec.starters ? "Recommended" : `Recommended: ${L.rec.starters}`}
               value={String(L.starters)}
               disabled={!can}
+              atMin={L.starters <= 1}
+              atMax={L.starters >= L.max.starters}
               onStep={(d) => write(g, { set: { activeSlots: L.starters + d }, text: `Changed who scores each week to ${L.starters + d}` }, `${L.starters + d} score each week from Episode ${g.from ?? "next"}`)}
             />
             {g.draftStarted ? (
@@ -155,6 +157,8 @@ function GameBlock({
                 line={g.lockedDown ? "Frozen for the season" : "Backups who don't score until you start them"}
                 value={String(L.bench)}
                 disabled={!can}
+                atMin={L.bench <= 0}
+                atMax={L.bench >= L.max.bench}
                 onStep={(d) => write(g, { set: { benchSlots: L.bench + d }, text: `Changed the bench to ${L.bench + d}` }, `${L.bench + d} on the bench`)}
               />
             )}

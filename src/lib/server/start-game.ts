@@ -8,6 +8,8 @@ import type { RulebookBlocks, RulebookKind } from "@/lib/game/formats/rulebook-s
 import { showWords } from "@/lib/game/show-words";
 import { nextSpan, spanChoices, spanEnds, spanName, type SpanChoice, type SpanEpisode } from "@/lib/game/spans";
 import type { LeagueState } from "@/lib/game/types";
+import { MAX_BENCH, MAX_STARTERS, MAX_TEAM, NO_WAIVERS, waiversFit } from "@/lib/game/game-spec/index.js";
+import type { GameSpec } from "@/lib/game/game-spec/index.js";
 import { seasonRulebook } from "@db/rulebooks.js";
 import { resolveFormat } from "@db/show-formats.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
@@ -15,6 +17,7 @@ import { recordChange } from "./change-log";
 import { couchMembers, requireCouch } from "./couches";
 import { pool, HttpError } from "./db";
 import { followLeagueProgress } from "./follows";
+import { refused } from "./game-writes";
 import { linkProblem } from "./league-groups";
 import { leagueStates } from "./league-states";
 import { makeLeague } from "./new-game";
@@ -250,8 +253,29 @@ export async function startOptions(user: SessionUser, seasonId: string, couchId:
   };
 }
 
-// What a game run back keeps of the one it plays again (its shape, never its results or people).
-const AGAIN_KEEPS = ["ownershipMode", "activeSlots", "benchSlots", "teamSize", "joinMode", "pickemCorrectPoints", "waiverRecommendation", "draftTimer", "draftAway", "allowLateJoiners"];
+/**
+ * What a game run back keeps of the one it plays again, as parts of its spec (its shape, never its results or people): how
+ * you get yours (a draft's ownership and size, within the limits a new game has), what counts, a pool's points, who can
+ * join, and the draft room's timer (not its time).
+ */
+function againParts(kept: Readonly<GameSpec>, mine: GameSpec): Partial<GameSpec> {
+  const out: Partial<GameSpec> = {};
+  if (kept.get.by === "draft" && mine.get.by === "draft") {
+    const lineup = !!(kept.count && "start" in kept.count && mine.count && "start" in mine.count);
+    if (lineup) {
+      const start = Math.min((kept.count as { start: number }).start, MAX_STARTERS);
+      const bench = Math.min(Math.max(0, kept.get.each - (kept.count as { start: number }).start), MAX_BENCH);
+      out.get = { ...kept.get, each: start + bench };
+      out.count = { start };
+    } else out.get = { ...kept.get, each: Math.min(kept.get.each, MAX_TEAM) };
+  }
+  if (kept.score.by === "survive" && mine.score.by === "survive") out.score = { ...mine.score, points: kept.score.points };
+  const room = kept.extras.draft && mine.extras.draft ? { ...mine.extras.draft, timer: kept.extras.draft.timer, away: kept.extras.draft.away } : mine.extras.draft;
+  // Its waivers follow the ownership it keeps: none in a shared Outlast (no free agents), else the new game's own.
+  const waivers = waiversFit({ ...mine, ...out }) ? (mine.extras.waivers ?? NO_WAIVERS) : null;
+  out.extras = { ...mine.extras, join: kept.extras.join ?? mine.extras.join, draft: room, waivers };
+  return out;
+}
 
 /** A name the couch doesn't use for another of its games here ("Weekly Lineup 2"). */
 function freeName(want: string, here: Game[]): string {
@@ -343,31 +367,29 @@ export async function startGame(user: SessionUser, seasonId: string, couchId: st
       // Theirs from the start: a game of yours never exists without you in it.
       await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, $3, 'commissioner')", [id, user.id, seat]);
       made = id;
-      if (opts.from > 1) StateLogic.updateSettings(s, "startEpisode", opts.from);
+      // The game, as a spec (docs/PLAN-start-a-game-gpt.md step A2): the made league's own (its type's preset, as makeLeague
+      // set it up), then what Start a game decides, written once through the game's writer (RosterLogic.setGame: checked
+      // as the league's own, today's fields written from it, its first episode made).
+      const spec: GameSpec = { ...StateLogic.gameOf(s), span: { from: opts.from, to } };
+      if (opts.kind === "sport") {
+        // The draft of athletes: everyone drafts from the whole grid (the blind draft), and a pool pick survives by scoring.
+        if (spec.get.by === "draft") spec.get = { ...spec.get, own: "shared", order: "blind" };
+        if (spec.score.by === "survive") spec.score = { ...spec.score, means: "scores" };
+      }
+      if (choice.key === "outlast" && spec.get.by === "draft") {
+        // One team each from who's still in: fitted to the couch, so everyone on it could play (Game settings changes it).
+        const stillIn = s.castaways.filter((c) => c.status === "active").length;
+        const each = Math.floor(stillIn / Math.max(2, opts.couch.members + bots));
+        if (stillIn && each >= 1 && each < (spec.get.each || 4)) spec.get = { ...spec.get, each };
+      }
+      if (kept && opts.again?.key === choice.key) Object.assign(spec, againParts(StateLogic.gameOf({ settings: kept } as LeagueState), spec));
+      refused(StateLogic.setGame(s, spec), 409);
       if (opts.late) {
         // Include it: the episode on now stays open past its start, until its results are in (state-logic.js closedForPlay).
         StateLogic.ensureEpisodeNumber(s, opts.from, false);
         const ep = s.episodes.find((e) => e.number === opts.from);
         if (ep && StateLogic.episodeHasResults(ep)) throw new HttpError(409, `${partAt(opts)}'s results are in already: start from the next one`);
         if (ep) ep.openPastAir = true;
-      }
-      if (to !== null) StateLogic.updateSettings(s, "endEpisode", to);
-      if (opts.kind === "sport") {
-        // The draft of athletes: everyone drafts from the whole grid (the blind draft), and a pool pick survives by scoring.
-        if (choice.key === "weeklyLineup") StateLogic.updateSettings(s, "ownershipMode", "shared");
-        if (choice.key === "survivalPool") s.settings.poolSurvive = "scores";
-      }
-      if (choice.key === "outlast") {
-        // One team each from who's still in: fitted to the couch, so everyone on it could play (Game settings changes it).
-        const stillIn = s.castaways.filter((c) => c.status === "active").length;
-        const each = Math.floor(stillIn / Math.max(2, opts.couch.members + bots));
-        if (stillIn && each >= 1 && each < (s.settings.teamSize || 4)) StateLogic.updateSettings(s, "teamSize", each);
-      }
-      if (kept && opts.again?.key === choice.key) {
-        for (const k of AGAIN_KEEPS) {
-          const v = (kept as unknown as Record<string, unknown>)[k];
-          if (v !== undefined && v !== null) StateLogic.updateSettings(s, k, v);
-        }
       }
       await recordChange(client, id, s, {
         userId: user.id,

@@ -6,6 +6,7 @@ import type { LeagueMembership, SessionUser } from "./auth-helpers";
 import { lockBlindPicks, unlockBlindPicks } from "./blind-draft";
 import { plainChange, settingsSetChange, type ChangeSpec } from "./change-log";
 import { pool, withLeagueLock, HttpError } from "./db";
+import { refused } from "./game-writes";
 import { notifyDraftNudge, notifyDraftTurn } from "./push-events";
 import { roleAtLeast } from "./roles";
 
@@ -147,15 +148,15 @@ export async function setDraftSettings(
         const at = body.scheduledAt === null || body.scheduledAt === "" ? null : String(body.scheduledAt);
         if (at !== null && !Number.isFinite(Date.parse(at))) throw new HttpError(400, "That isn't a time");
         if (at !== null && Date.parse(at) < Date.now() - 60_000) throw new HttpError(400, "Pick a time that hasn't passed");
-        StateLogic.updateSettings(s, "draftScheduledAt", at === null ? null : new Date(at).toISOString());
+        refused(StateLogic.updateSettings(s, "draftScheduledAt", at === null ? null : new Date(at).toISOString()));
       }
       if (body.timer !== undefined) {
         requireSnake(s);
-        StateLogic.updateSettings(s, "draftTimer", body.timer);
+        refused(StateLogic.updateSettings(s, "draftTimer", body.timer));
       }
       if (body.away !== undefined) {
         requireSnake(s);
-        StateLogic.updateSettings(s, "draftAway", body.away);
+        refused(StateLogic.updateSettings(s, "draftAway", body.away));
       }
       changed = JSON.stringify([s.settings.draftTimer, s.settings.draftAway, s.settings.draftScheduledAt]) !== before;
       // The timer counts this turn from now, not from when it began without one.

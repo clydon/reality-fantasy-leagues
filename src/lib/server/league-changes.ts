@@ -9,6 +9,7 @@ import { joinedLeague, requireCouch } from "./couches";
 import { anyLockedDown, FROZEN, FROZEN_FIELDS } from "./backstage-games";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { deletedHere, restoreGame } from "./end-game";
+import { refused } from "./game-writes";
 import { undoRulebookChange } from "./ours";
 import { setLeagueRole } from "./roles";
 import { syncLeagueDecisions } from "./season-decisions";
@@ -237,13 +238,16 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
       if (undo.type === "results") undoResults(s, undo);
       else if (undo.type === "settings") {
         if (JSON.stringify(settings[undo.field] ?? null) !== JSON.stringify(undo.after)) throw new HttpError(409, "That setting has changed since");
-        StateLogic.updateSettings(s, undo.field, undo.before);
+        refused(StateLogic.updateSettings(s, undo.field, undo.before), 409);
       } else if (undo.type === "settingsSet") {
         if (Object.keys(undo.after).some((k) => JSON.stringify(settings[k] ?? null) !== JSON.stringify(undo.after[k]))) throw new HttpError(409, "Those settings have changed since");
         for (const [k, v] of Object.entries(undo.before)) {
           if (v === null) delete settings[k];
           else settings[k] = v;
         }
+        // The fields are back as they were: a league carrying its spec carries theirs (the game-specs flag), before the
+        // waiver switches below are read from it.
+        StateLogic.syncGame(s);
         StateLogic.WaiverLogic.mirrorLegacy(s);
         // An archive taken back (step 10 part 2b): what came in while it stood still reaches it now.
         if ("archivedAt" in undo.before && !settings.archivedAt) await syncLeagueDecisions(client, r.league_id, s);

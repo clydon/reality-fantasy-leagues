@@ -176,6 +176,19 @@ export const PRESET_TYPES: Record<PresetId, LeagueTypeId>;
 export const TYPE_PRESETS: Record<LeagueTypeId, PresetId>;
 export const PRESET_LABELS: Record<PresetId, string>;
 export const NO_WAIVERS: SpecWaivers;
+/** Waivers fit a draft whose castaways can come free (not a shared Outlast). */
+export function waiversFit(spec: Partial<GameSpec>): boolean;
+/** The one set of size limits (an Outlast team; a lineup's starters and bench; a lineup's whole team). */
+export const MAX_TEAM: number;
+export const MAX_STARTERS: number;
+export const MAX_BENCH: number;
+export const MAX_LINEUP_TEAM: number;
+export const MAX_BET_POINTS: number;
+export const DRAFT_TIMERS: number[];
+export const WAIVER_HOURS: number[];
+export const REPLACE_RULES: SpecWaivers["replace"][];
+export const WAIVER_FEELS: SpecWaivers["feel"][];
+export const WAIVER_ORDERS: SpecWaivers["order"][];
 /** Two values the same, whatever order their keys are in. */
 export function sameValue(a: unknown, b: unknown): boolean;
 /** Settings fields a spec can write, and those that aren't the game at all. */
@@ -186,15 +199,27 @@ export const OUTSIDE: string[];
 export function fullSpec(spec: SpecInput | GameSpec): GameSpec;
 /** The league type today's engine plays it as, or null. */
 export function typeOf(spec: SpecInput | GameSpec): LeagueTypeId | null;
+/** typeOf on a spec that's already whole, without copying it. */
+export function playsAs(spec: GameSpec): LeagueTypeId | null;
+/** The league type's flags, worked out from a whole spec. */
+export function flagsOf(spec: GameSpec): {
+  hasRoster: boolean; hasActiveRoster: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasBingo: boolean;
+  supportsReplenish: boolean; supportsTrade: boolean; supportsFinalePredictions: boolean;
+};
 /**
- * What's wrong with it; with ctx, the data-can-settle rule too. opts.league: it's a league's own (A2's writes), so its
- * couch-answered moments (Make it ours) and points for moments its rules don't have stay as they are.
+ * What's wrong with it; with ctx, the data-can-settle rule too. opts.league: it's a league's own (every write to a
+ * league), so its couch-answered moments (Make it ours) and points for moments its rules don't have stay as they are;
+ * opts.was, with it: the spec it's changing from, so the size limits hold for what grows.
  */
-export function specProblems(spec: unknown, ctx?: SpecContext | null, opts?: { league?: boolean }): SpecProblem[];
+export function specProblems(spec: unknown, ctx?: SpecContext | null, opts?: { league?: boolean; was?: SpecInput | GameSpec }): SpecProblem[];
 /** What it needs that isn't built yet; empty when today's engine plays it. */
 export function specWaitsFor(spec: SpecInput | GameSpec): SpecWait[];
-/** The spec a league's settings play. */
+/** The spec a league's settings play, from its fields. */
 export function specOf(settings: Partial<LeagueSettings> | Record<string, unknown> | null | undefined): GameSpec;
+/** The spec a league plays: its carried settings.game, else specOf. Read only. */
+export function gameOf(settings: Partial<LeagueSettings> | Record<string, unknown> | null | undefined): Readonly<GameSpec>;
+/** A side bet's points, 1 to MAX_BET_POINTS. */
+export function clampBet(v: unknown): number;
 /** The settings fields a spec writes, or null when it has problems or no game plays it today. */
 export function settingsOf(spec: SpecInput | GameSpec): SpecFields | null;
 export function ownedFields(spec: SpecInput | GameSpec): string[] | null;

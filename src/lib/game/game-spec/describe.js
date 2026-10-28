@@ -7,7 +7,7 @@
 //             Scored by Survivor 51's rules."
 //   parts     the sentence in pieces, each with the part of the spec it says (`at`: preset, about, get, count, span,
 //             score, ask, rank), so the wizard can show what someone said as theirs and what we chose as ours
-//   rules     How it works. For today's five games, the same lines as the Rules sheet (game-rules.ts gameRules)
+//   rules     How it works: the Rules sheet (game-rules.ts gameRules reads it, step A2)
 //   details   [{ id, label, value, recommended }]: the draft room, who can join, waivers, side bets, finale predictions...
 //
 //   ctx       what the spec refers to, in the show's words: { show: 'Survivor 51', castaway: 'castaway', castaways,
@@ -206,6 +206,10 @@ function rulesOf(s, w) {
   if (rank) rules.push(rank);
   if (isObj(s.extras.bets)) {
     rules.push(`Predictions: a right answer earns its points (usually ${s.extras.bets.points}), once at least two of you have answered.`);
+  }
+  const fin = s.extras.finale;
+  if (isObj(fin)) {
+    rules.push(`Finale predictions: before the finale, name your final three and the winner${fin.from === 'own' ? ' from your own team' : ''}. ${cap(pointsWord(fin.top3))} for each of the three you get, ${pointsWord(fin.winner)} for the winner.`);
   }
   if (!isObj(s.span.from) && s.span.from > 1) rules.push(`Scoring starts at ${w.Part} ${s.span.from}; the ${w.parts} before it are history.`);
   if (isObj(s.span.from)) rules.push(`It starts when the ${s.span.from.phase} does; the ${w.parts} before it are history.`);

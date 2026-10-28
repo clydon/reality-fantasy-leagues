@@ -123,6 +123,8 @@ export function buildPracticeState(raw: LeagueState, botNames: string[], myName:
     finalePredictionsEnabled: false,
     hideStartersUntilLock: false,
   };
+  // Written straight in: a copy carrying its league's spec (the game-specs flag) carries what these play.
+  StateLogic.syncGame(state);
   StateLogic.ensureEpisodeNumber(state, 1, false);
   return state;
 }
