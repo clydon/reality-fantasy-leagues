@@ -17,11 +17,15 @@
 //     Autopilot), its answers from the tape (tapes.js answerer), so what reaches the games is the season sync's own.
 //
 //   node scripts/dev-test/playtest.js matrix <show> <season>        the replays the pairwise set picks for a season, and why
-//   node scripts/dev-test/playtest.js run <show> <season> [--only=1,4] [--keep] [--through=N]
+//   node scripts/dev-test/playtest.js run <show> <season> [--only=1,4] [--keep] [--through=N | --before=N]
 //                                                 play them (all, or those numbers), episode by episode; write each replay
 //                                                 to rfl-tapes\replays\<show>-<season>-<game>-<settings>-<group>.json with
-//                                                 a .md beside it; then down, unless --keep (left for looks at 390)
+//                                                 a .md beside it; then down, unless --keep (left for looks at 390:
+//                                                 playtest-looks.js). --through=N stops after episode N's results,
+//                                                 --before=N before them (N's games drafted and its moves made)
 //   node scripts/dev-test/playtest.js summary                       a line per replay on file, for P4 (also replays\SUMMARY.md)
+//   node scripts/dev-test/playtest.js exits <show> <season>         who left by the quick check and by the full research, per
+//                                                 episode, and where they disagree (the tape only; replays\exits-<show>-<season>.md)
 //   node scripts/dev-test/playtest.js down                          take out everything a replay made (zt-pt- keyed)
 //
 // Players are zt_pt_<role> accounts (password zt-pass-12345), one per seat label ("Tinkerer", "Forgetter 2"): the
@@ -57,7 +61,8 @@ const NA = "-";
 // Each setting and its values. game: Start a game's three for a competition; own: ownership (exclusive = a turn-based
 // draft, shared = the blind draft); size: the team (Outlast) or the lineup and bench (Weekly Lineup); span: the whole
 // season, from a third of the way in, one episode, from the merge, through half; late: someone joins a third of the way
-// in; waivers: Start a game's own (on) or none; group: how many people (1 = you and three computer players).
+// in; waivers: on (Backstage › Waivers › Balanced, since Start a game leaves them off) or off; group: how many people (1 =
+// you and three computer players). A season plays only the games its rulebook fits (dimsFor).
 const DIMENSIONS = {
   game: ["outlast", "weeklyLineup", "survivalPool"],
   own: ["exclusive", "shared"],
@@ -68,11 +73,25 @@ const DIMENSIONS = {
   group: [1, 2, 4, 8, 16],
 };
 
+/**
+ * The games a season's replays play: Start a game's own offer for its rulebook (rulebook-fits.js gamesFor: the games that
+ * fit and can be started now), in DIMENSIONS' order. A series (Below Deck) gets Weekly Lineup only, a competition with no
+ * one going home each episode (Dancing with the Stars' rulebook) no Survival Pool. No rulebook on the tape: all three. Pure.
+ */
+function gamesOf(rulebook) {
+  if (!rulebook || !rulebook.blocks) return [...DIMENSIONS.game];
+  const fit = new Set(require("../../src/lib/game/formats/rulebook-fits.js").gamesFor(rulebook.blocks, rulebook.compiled).filter((g) => g.fits && !g.soon).map((g) => g.key));
+  return DIMENSIONS.game.filter((k) => fit.has(k));
+}
+/** The matrix's dimensions for a season: DIMENSIONS with only the games its rulebook fits. Pure. */
+const dimsFor = (rulebook) => ({ ...DIMENSIONS, game: gamesOf(rulebook) });
+
 /** Which settings mean something for a config (the rest are NA): a pool has no teams, a one-episode game no late joiner. */
 function applies(c, dim) {
   const pool = c.game === "survivalPool";
   if (dim === "own" || dim === "size") return !pool;
-  if (dim === "waivers") return !pool && c.span !== "one";
+  // Shared Outlast has no waivers at all (no free agents: WaiverLogic.supported), so "on" can't be played there.
+  if (dim === "waivers") return !pool && c.span !== "one" && !(c.game === "outlast" && c.own === "shared");
   if (dim === "late") return c.group > 1 && c.span !== "one";
   return true;
 }
@@ -333,13 +352,17 @@ async function copySeason(show, season) {
      SELECT $2, name, tribe_name, photo_url, sort_order, locked_at, role, provider_ids, shown_from FROM season_cast WHERE season_id = $1`,
     [realId, ss.id]
   );
+  // The season's rulebook, as a rulebook of the copy's own (the app reads a season's by its id: rulebooks.js seasonRulebook),
+  // so Start a game offers the copy what it offers the real season, and its games play by the same rules. It goes with the
+  // show at down (rulebooks.season_id cascades).
+  const rulebook = real.rulebook_id ? await require("../../db/rulebooks.js").copyRulebook(pool, real.rulebook_id, { ownerKind: "season", seasonId: ss.id }) : null;
   const schedule = (await appCode().schedules([ss.id])).get(ss.id);
   const episodes = (schedule?.episodes ?? []).map((e) => ({ number: e.number, air_at: e.airAt }));
   const fulls = tape.files.filter((f) => f.kind === "full" && f.ok);
   // A cast the recorder staged and nobody approved (a set-up show's new season: P1's Noticed) is approved on the copy, as
   // the classic admin's Approve would, so its games have someone to draft.
   const approved = !!real.cast_approved_at;
-  return { seasonId: ss.id, showId: sh.id, show, number: season, shiftDays, approved, episodes, tape, merge: mergeOf(fulls), episodeCount: tape.season.episodeCount || episodes.length };
+  return { seasonId: ss.id, showId: sh.id, show, number: season, shiftDays, approved, episodes, tape, rulebook, merge: mergeOf(fulls), episodeCount: tape.season.episodeCount || episodes.length };
 }
 
 /** The zt_pt_ account for a seat (made once): SessionUser's shape. */
@@ -416,6 +439,9 @@ function settingsFor(c, s) {
     out.push({ how: "settings", set: { teamSize: cut(want) }, ...(cut(want) < want ? { cut: `big cut to ${cut(want)}: ${stillIn} still in for ${teams} teams` } : {}) });
   }
   if (c.waivers === "off") out.push({ how: "waivers", set: { replaceRule: "never", waiverWindows: { schedule: "manual", every: 3, swaps: 0 } } });
+  // On: Start a game leaves them off (PLAYTEST-REPORT.md finding 7), so whoever runs it picks Balanced in Backstage › Waivers,
+  // last (the recommendation reads the team and lineup sizes) and before the draft, which fits it to the teams (refit).
+  if (c.waivers === "on") out.push({ how: "waivers", feel: "balanced" });
   return out;
 }
 
@@ -474,24 +500,27 @@ async function startOne(r, season) {
   if (r.asked) r.log.push(`Who can join is Ask me first: ${r.asked} asked to join and were let in by whoever runs it`);
   const writes = settingsFor(r.config, await stateOf(r.leagueId));
   for (const w of writes) {
-    const words = Object.entries(w.set).map(([k, v]) => `${k} ${typeof v === "object" ? JSON.stringify(v) : v}`).join(", ");
+    const words = w.feel ? w.feel[0].toUpperCase() + w.feel.slice(1) : Object.entries(w.set).map(([k, v]) => `${k} ${typeof v === "object" ? JSON.stringify(v) : v}`).join(", ");
     try {
       if (w.how === "classic") {
         await withLeagueLock(r.leagueId, (st) => {
           for (const [k, v] of Object.entries(w.set)) S.updateSettings(st, k, v);
         });
       } else if (w.how === "settings") await backstage.settingsWrite(await scopeOf(r), r.leagueId, { set: w.set });
-      else await backstage.waiverWrite(await scopeOf(r), r.leagueId, { action: "set", set: w.set });
-      r.log.push(`${w.how === "classic" ? "League Settings" : w.how === "settings" ? "Game settings" : "Waivers › Fine-tune"}: ${words}${w.cut ? ` (${w.cut})` : ""}`);
+      else await backstage.waiverWrite(await scopeOf(r), r.leagueId, w.feel ? { action: "feel", feel: w.feel } : { action: "set", set: w.set });
+      r.log.push(`${w.how === "classic" ? "League Settings" : w.how === "settings" ? "Game settings" : w.feel ? "Waivers" : "Waivers › Fine-tune"}: ${words}${w.cut ? ` (${w.cut})` : ""}`);
     } catch (e) {
-      if (/doesn't use waivers/.test(e.message)) r.log.push(`Waivers › Fine-tune: ${e.message} (nothing to turn off)`);
-      else r.problems.push(`Setting ${words} was refused: ${e.message}`);
+      if (/doesn't use waivers/.test(e.message) && !w.feel) r.log.push(`Waivers › Fine-tune: ${e.message} (nothing to turn off)`);
+      else r.problems.push(`Setting ${w.feel ? "waivers to " : ""}${words} was refused: ${e.message}`);
     }
   }
   await seatIds(r);
   if (S.getLeagueType(await stateOf(r.leagueId)).hasRoster) await draft(r);
-  // After the draft: waivers are fitted to the teams once it starts (WaiverLogic.refit).
-  r.settings = pickSettings(await stateOf(r.leagueId), S);
+  // After the draft: waivers are fitted to the teams once it starts (WaiverLogic.refit). A replay asked to play with them on
+  // that ends up without them doesn't cover what it's named for: say so.
+  const after = await stateOf(r.leagueId);
+  if (r.config.waivers === "on" && !S.WaiverLogic.enabled(after)) r.problems.push("Waivers were asked on, but they're off after the draft (the recommendation for these teams has none)");
+  r.settings = pickSettings(after, S);
 }
 
 const pickSettings = (s, S) => ({
@@ -857,12 +886,24 @@ function stillInIt(e, history, episodesLeft) {
 async function run(show, season, opts) {
   const Tapes = require("./tapes");
   const { S } = appCode();
+  if (opts.before !== undefined && opts.through !== undefined) throw new Error("--before or --through, not both");
   console.log(`(first) removed ${await down()}`);
   const copy = await copySeason(show, season);
   const E = copy.episodeCount;
   const through = Math.min(E, Number(opts.through) || E);
-  const set = pairwise(DIMENSIONS, { merge: copy.merge }).picked;
+  if (opts.before !== undefined && !(Number.isInteger(Number(opts.before)) && Number(opts.before) >= 1 && Number(opts.before) <= E)) {
+    await down();
+    throw new Error(`--before needs an episode from 1 to ${E}`);
+  }
+  // What Start a game offers the copy: its own rulebook (the real season's, copied), else the tape's.
+  const dims = dimsFor(copy.rulebook || copy.tape.season.rulebook);
+  const set = pairwise(dims, { merge: copy.merge }).picked;
   const only = opts.only ? String(opts.only).split(",").map(Number) : null;
+  if (!set.some((c, i) => !only || only.includes(i + 1))) {
+    console.log(`No replay to play: ${dims.game.length ? `--only=${opts.only} names none of the ${set.length}` : "Start a game offers none of Outlast, Weekly Lineup or Survival Pool here"}`);
+    console.log(`removed ${await down()}`);
+    return;
+  }
   const answer = Tapes.answerer(show, season);
   const users = {};
   const replays = [];
@@ -891,7 +932,7 @@ async function run(show, season, opts) {
     const r = replays[replays.length - 1];
     if (span.late) r.lateSeat = r.seats[r.seats.length - 1];
   }
-  console.log(`${show} ${season}: ${E} episodes${copy.merge ? `, the merge at ${copy.merge}` : ", no merge"}; ${replays.length} replay(s) on ${SLUG(show)}`);
+  console.log(`${show} ${season}: ${E} episodes${copy.merge ? `, the merge at ${copy.merge}` : ", no merge"}; ${dims.game.join(", ")}; ${replays.length} replay(s) on ${SLUG(show)}`);
   if (!copy.approved) {
     console.log(`  (its cast was staged and never approved: approved on the copy, as the classic admin's Approve would)`);
     for (const r of replays) r.log.push("The season's cast was staged, not approved: approved on the copy (as classic's admin would) so there's a cast to draft");
@@ -919,6 +960,8 @@ async function run(show, season, opts) {
         r.problems.push(`Episode ${ep}: moves failed: ${e.message}`);
       }
     }
+    // --before=N: stop with episode N's games started, drafted and its moves made, before it airs (a look after the draft).
+    if (Number(opts.before) === ep) break;
     // Everyone watched it.
     await appCode().pool.query("UPDATE show_follows SET seen_through = $2 WHERE season_id = $1", [copy.seasonId, ep]);
     const filed = await fileResults(copy, ep, answer);
@@ -952,20 +995,43 @@ async function run(show, season, opts) {
       }
     }
   }
-  fs.mkdirSync(path.join(Tapes.TAPES, "replays"), { recursive: true });
+  // A part of a season (--through, --before: for looks) goes beside the whole ones, never over them or into the summary.
+  const partial = opts.before ? `before${opts.before}` : through < E ? `through${through}` : null;
+  const dir = partial ? path.join(Tapes.TAPES, "replays", "partial") : path.join(Tapes.TAPES, "replays");
+  fs.mkdirSync(dir, { recursive: true });
   for (const r of replays) {
     const s = r.leagueId ? await stateOf(r.leagueId) : null;
-    const file = path.join(Tapes.TAPES, "replays", r.name);
+    const file = path.join(dir, partial ? `${r.name}-${partial}` : r.name);
     const record = summarize(r, s, show, season, copy, results);
     fs.writeFileSync(`${file}.json`, JSON.stringify(record, null, 2) + "\n", "utf8");
     fs.writeFileSync(`${file}.md`, markdown(record), "utf8");
-    console.log(`  ${r.n}. ${r.name}: ${record.final ? `${record.final.winner} won${record.final.over ? "" : " (not over)"}` : "no game"}${r.problems.length ? `, ${r.problems.length} problem(s)` : ""}`);
+    console.log(`  ${r.n}. ${r.name}: ${record.final ? `${record.final.winner} ${partial ? "leads" : "won"}${record.final.over ? "" : " (not over)"}` : r.leagueId ? "started, no results yet" : "no game"}${r.problems.length ? `, ${r.problems.length} problem(s)` : ""}`);
     for (const p of r.problems.slice(0, 5)) console.log(`       ! ${p}`);
   }
   // The pushes the results sent run after their writes (next-after-stub.js): let them finish before the rows go.
   await new Promise((done) => setTimeout(done, 3000));
   if (!opts.keep) console.log(`removed ${await down()}`);
-  else console.log(`kept: the games are on ${SLUG(show)} ${season} (sign in as zt_pt_tinkerer, ${PASSWORD}); down when done`);
+  else {
+    // Kept for looks: the copy's clock set to the moment it stopped, so the show space reads as it would that night (the
+    // replay ran with every episode still to air). --before=N: N airs in two hours; else the last played aired 12 hours ago.
+    const stop = Number(opts.before) || Math.min(through, E);
+    // The episode's time as the app works it out (a listed row, else from the ones before it or the premiere).
+    const at = (await appCode().schedules([copy.seasonId])).get(copy.seasonId)?.episodes.find((e) => e.number === stop)?.airAt;
+    if (at) {
+      const want = Date.now() + (opts.before ? 2 : -12) * 3600_000;
+      const secs = Math.round((want - new Date(at).getTime()) / 1000);
+      // Everything the schedule reads moves together: the listed rows and a drop to the second, the premiere (a date) to the day.
+      await appCode().pool.query("UPDATE season_episodes SET air_at = air_at + make_interval(secs => $2) WHERE season_id = $1", [copy.seasonId, secs]);
+      await appCode().pool.query("UPDATE show_seasons SET premiere_date = premiere_date + ($2::int), drop_at = drop_at + make_interval(secs => $3) WHERE id = $1", [
+        copy.seasonId,
+        Math.round(secs / 86400),
+        secs,
+      ]);
+      console.log(`the copy's clock: episode ${stop} ${opts.before ? "airs in two hours" : "aired 12 hours ago"}`);
+    } else console.log(`the copy's clock wasn't moved: the schedule has no time for episode ${stop}, so the looks read every episode as still to come`);
+    console.log(`kept: the games are on ${SLUG(show)} ${season}, season ${copy.seasonId} (sign in as zt_pt_tinkerer, ${PASSWORD}); down when done`);
+    for (const r of replays) console.log(`  couch ${r.couchId}: ${r.n}. ${r.name}`);
+  }
 }
 
 function summarize(r, s, show, season, copy, results) {
@@ -1069,6 +1135,70 @@ function summary() {
   console.log(lines.join("\n"));
 }
 
+// ---------- who left, by the quick check and by the full research (the tape only) ----------
+
+/**
+ * Per episode on a tape, who left by the bot's quick check (`left`) and by its full research (`leftTheGame: yes`), each
+ * answer's episode title, and where they disagree; then each person both name, with the episode each says they left in.
+ * What reaches a game on Autopilot is the full answer's (it files after the quick and replaces it), so a disagreement is a
+ * result some game gets wrong. `files` is tapes.js readTape's; `cast` the season's names, matched as the app matches a
+ * name to the cast (state-logic.js findCastawayByName: punctuation, accents, a first name), so a spelling isn't a
+ * disagreement. Pure.
+ */
+function exitsOf(files, cast = []) {
+  const { Core } = require("../../src/lib/game/state-logic.js");
+  const roster = { castaways: cast.map((name, i) => ({ id: `c${i}`, name })) };
+  const fold = (name) =>
+    String(name || "")
+      .normalize("NFD")
+      .replace(/[̀-ͯ]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+  const personKey = (name) => fold(Core.findCastawayByName(roster, name).castaway?.name ?? name);
+  const byEp = new Map();
+  const at = (n) => byEp.get(n) || byEp.set(n, { n, quick: null, full: null }).get(n);
+  for (const f of files) {
+    if (!f.ok || f.episode == null) continue;
+    if (f.kind === "quick" && f.parsed) at(f.episode).quick = { title: f.parsed.episodeTitle || null, left: (f.parsed.left || []).map((x) => `${x.name}${x.how ? ` (${x.how})` : ""}`), names: (f.parsed.left || []).map((x) => x.name), headline: f.parsed.headline || "" };
+    // The parse the recorder kept (parsed.parsed), or a stored answer's own JSON (Survivor 49's, kept as filed).
+    const full = f.kind === "full" && f.parsed ? (f.parsed.parsed || (Array.isArray(f.parsed.castaways) ? f.parsed : null)) : null;
+    if (full) {
+      const gone = (full.castaways || []).filter((c) => String(c.leftTheGame).toLowerCase() === "yes");
+      at(f.episode).full = { title: full.episodeTitle || null, left: gone.map((c) => `${c.name}${c.exitMethod ? ` (${c.exitMethod})` : ""}`), names: gone.map((c) => c.name) };
+    }
+  }
+  const episodes = [...byEp.values()].sort((a, b) => a.n - b.n);
+  const people = new Map();
+  for (const e of episodes) {
+    for (const [side, ans] of [["quick", e.quick], ["full", e.full]]) {
+      for (const name of (ans && ans.names) || []) {
+        const p = people.get(personKey(name)) || people.set(personKey(name), { name, quick: null, full: null }).get(personKey(name));
+        if (p[side] === null) p[side] = e.n;
+      }
+    }
+    const q = new Set(((e.quick && e.quick.names) || []).map(personKey));
+    const f = new Set(((e.full && e.full.names) || []).map(personKey));
+    // null: only one of them is on tape yet.
+    e.agree = e.quick && e.full ? q.size === f.size && [...q].every((k) => f.has(k)) : null;
+  }
+  // Only where both were asked: an episode with one answer on tape so far says nothing either way.
+  const both = new Set(episodes.filter((e) => e.agree !== null).map((e) => e.n));
+  const differ = [...people.values()].filter((p) => p.quick !== p.full && (both.has(p.quick) || both.has(p.full)));
+  return { episodes, differ };
+}
+
+function exitsMarkdown(show, season, x) {
+  const lines = [`# Who left: ${show} ${season}, the quick check against the full research`, ``, `| Ep | Quick: who left | Full: who left | Agree | Titles |`, `|---|---|---|---|---|`];
+  for (const e of x.episodes) {
+    const titles = e.quick && e.full && e.quick.title !== e.full.title ? `${e.quick.title} / ${e.full.title}` : (e.quick || e.full || {}).title || "";
+    lines.push(`| ${e.n} | ${e.quick ? e.quick.left.join(", ") || "nobody" : "(not asked)"} | ${e.full ? e.full.left.join(", ") || "nobody" : "(not asked)"} | ${e.agree === null ? "" : e.agree ? "yes" : "**no**"} | ${titles} |`);
+  }
+  lines.push(``, `People the two put in different episodes (or only one names):`, ``);
+  for (const p of x.differ) lines.push(`- ${p.name}: quick ${p.quick ?? "never"}, full ${p.full ?? "never"}`);
+  return lines.join("\n") + "\n";
+}
+
 // ---------- the command line ----------
 
 function argsOf(argv) {
@@ -1090,21 +1220,34 @@ async function main() {
     const tape = Tapes.readTape(rest[0], Number(rest[1]));
     const merge = mergeOf(tape.files.filter((f) => f.kind === "full" && f.ok));
     const E = (tape.season && tape.season.episodeCount) || 13;
-    const { picked, pairs, configs } = pairwise(DIMENSIONS, { merge });
-    console.log(`${configs} configs, ${pairs} pairs of settings; ${picked.length} replays cover every pair${merge ? ` (the merge at ${merge})` : " (no merge)"}:`);
+    const dims = dimsFor(tape.season && tape.season.rulebook);
+    const { picked, pairs, configs } = pairwise(dims, { merge });
+    console.log(`${dims.game.join(", ")} (what Start a game offers); ${configs} configs, ${pairs} pairs of settings; ${picked.length} replays cover every pair${merge ? ` (the merge at ${merge})` : " (no merge)"}:`);
     for (const [i, c] of picked.entries()) {
       const sp = spanOf(c, E, merge);
       console.log(`  ${String(i + 1).padStart(2)}. ${replayName(rest[0], rest[1], c)}  (episodes ${sp.from}-${sp.to ?? E}${sp.late ? `, late at ${sp.late}` : ""})`);
     }
     return;
   }
+  if (cmd === "exits") {
+    const Tapes = require("./tapes");
+    const tape = rest.length === 2 ? Tapes.readTape(rest[0], Number(rest[1])) : null;
+    if (!tape || !tape.files.some((f) => f.kind === "quick" || f.kind === "full")) {
+      process.exitCode = 1;
+      return console.log(`No quick or full answers on tape for ${rest.join(" ") || "(no show)"}: node scripts/dev-test/playtest.js exits <show> <season>`);
+    }
+    const text = exitsMarkdown(rest[0], rest[1], exitsOf(tape.files, ((tape.season && tape.season.cast) || []).map((c) => c.name)));
+    fs.mkdirSync(path.join(Tapes.TAPES, "replays"), { recursive: true });
+    fs.writeFileSync(path.join(Tapes.TAPES, "replays", `exits-${rest[0]}-${rest[1]}.md`), text, "utf8");
+    return console.log(text);
+  }
   if (cmd === "run") return run(rest[0], Number(rest[1]), flags);
   if (cmd === "down") return console.log(`removed ${await down()}`);
   if (cmd === "summary") return summary();
-  console.log("Usage: node scripts/dev-test/playtest.js matrix|run|summary|down <show> <season> (see the header comment)");
+  console.log("Usage: node scripts/dev-test/playtest.js matrix|run|exits|summary|down <show> <season> (see the header comment)");
 }
 
-module.exports = { summaryLine, upgradeStored, shiftAnswer, DIMENSIONS, NA, applies, allConfigs, pairsOf, pairwise, replayName, ROLES, seatsFor, hash01, movesThisWeek, prefer, mergeOf, spanOf, settledAt };
+module.exports = { summaryLine, upgradeStored, shiftAnswer, exitsOf, DIMENSIONS, NA, gamesOf, dimsFor, applies, allConfigs, pairsOf, pairwise, replayName, ROLES, seatsFor, hash01, movesThisWeek, prefer, mergeOf, spanOf, settledAt };
 
 if (require.main === module) {
   main()

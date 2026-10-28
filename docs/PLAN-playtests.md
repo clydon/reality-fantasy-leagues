@@ -2,7 +2,8 @@
 
 For the playtest lane's sessions and the user. Status: planned 2026-10-28, started that night in the playtest lane
 (`../rfl-playtest`, branch `playtest`, database `rfl_playtest`, port 3005). P1 built and recording; P2 started (its corpus waits on
-the recorder); P3 part 1 built (49 replays of Survivor 49 and Traitors 4); findings in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md).
+the recorder); P3 parts 1 and 2 built (96 replays of Survivor 49, the Traitors 4, The Challenge 41 and Dancing with the Stars 34,
+and the looks at 390; Below Deck 12's full research doesn't come back: finding 10); findings in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md).
 
 ## What the user asked for (2026-10-28, going to sleep with the survivor and engine lanes running)
 
@@ -365,6 +366,71 @@ The draft is kept per seat ("picked for them" for the forgetter).
 
 Then P4 judges the replays.
 
+### P3. Replays, part 2 (2026-10-28, playtest lane)
+
+P2's corpus still wasn't on tape (2 of 104 at 07:15 UTC; the recorder reaches it after Below Deck 12's core, about 08:40), so P3's
+rest came first. **What changed in `playtest.js`:**
+- **Each season plays only what Start a game offers it** (`gamesOf`, `dimsFor`: `rulebook-fits.js gamesFor` on the tape's
+  rulebook, the games that fit and can start). The Challenge 41, Survivor 49 and the Traitors 4 get all three; Dancing with the
+  Stars 34 gets Outlast and Weekly Lineup (its rulebook has no one going home each episode: finding 9); Below Deck 12, a series,
+  gets Weekly Lineup only, 20 replays covering every pair of the rest (`matrix below-deck 12`). No special case for a series:
+  it's the app's own rule.
+- **The copy plays by the season's own rulebook.** The app reads a season's rulebook by the season's id (`rulebooks.js
+  seasonRulebook`), and the copy had none, so Start a game on it could read another (the format's). `copySeason` now copies the
+  real season's rulebook to the copy (`copyRulebook`, owner the copy; it goes with the show at `down`), and the matrix is worked
+  out from that copy.
+- **Waivers on means on.** Start a game leaves every game's waivers off (finding 7), so P3 part 1's "waivers on" replays had
+  none. The tinkerer now picks Balanced in Backstage › Waivers before the draft (one more of `settingsFor`'s writes). A refusal,
+  or waivers off again after the draft fits them to the teams (no free agents), is a problem in the replay, so a replay never
+  claims waivers it didn't have. Shared Outlast has no waivers at all, so waivers don't apply to it in the matrix.
+- **`exits <show> <season>`**: who left by the quick check and by the full research, per episode, and where they disagree
+  (`exitsOf`, names matched to the cast as the app matches them; also `replays\exits-<show>-<season>.md`). It's how finding 6
+  was found.
+- **`run --before=N`** stops with episode N's games started, drafted and its moves made, before its results (the look after the
+  draft). A part of a season (`--before`, `--through`) is written to `replays\partial\`, never over the whole replays or into the
+  summary. `--keep` now sets the copy's clock to the moment it stopped (N airs in two hours, or the last episode aired 12 hours
+  ago; the schedule's own time for it, every row, the drop and the premiere moved together) and prints each replay's couch: the
+  replay runs with every episode still to air, so a look without it said "Ep 1 · in 8 days" with three episodes' results in.
+- A run whose matrix (or `--only`) leaves nothing to play stops before filing a season of results.
+- **`scripts/dev-test/playtest-looks.js <label> [--pages=] [--width=]`**: signs in as the tinkerer on the lane's server, picks
+  each kept replay's couch as the switcher does (`gys.couch`), and screenshots each page of the show space full length into
+  `rfl-tapes\replays\shots\` (never committed), with any console errors.
+
+Unit tests (`tests/playtest.test.js`): the games a rulebook fits (a competition, one with no one going home, a series, none) and
+the pairwise set over a series' games; shared Outlast without waivers; who left by each answer (agree, disagree, one side not on
+tape yet, curly quotes, accents, a first name and a hyphen as one person, a stored answer's own JSON).
+
+**The replays now on file** (`rfl-tapes\replays\`, 96 and SUMMARY.md): Survivor 49 (30), the Traitors 4 (22), The Challenge 41
+(22) and Dancing with the Stars 34 (22), every one to its last episode with waivers on where asked. A season replays in 70 to 90
+seconds. The matrix changed (shared Outlast's waivers), so part 1's replay numbers moved: the report's repros give today's.
+
+**What a new show broke in the harness:** nothing. The Challenge's pairs are people in the cast like anyone else (a pair leaving
+together is two exits), and a season with no merge already drops the merge span. Dancing with the Stars' 14 celebrities make the
+16-person drafts dead-end (finding 4). What the new shows found is in the app and its research: findings 6 to 9 in
+[PLAYTEST-REPORT.md](PLAYTEST-REPORT.md), and more evidence for 1 to 5.
+
+**The looks at 390** (the Traitors 4, before the matrix changed: a Weekly Lineup from episode 4 for 4 people, one team each
+with waivers; a whole-season Survival Pool for 4; an Outlast for 8; as the tinkerer; Tonight, Games and Episodes at each
+moment; `rfl-tapes\replays\shots\`):
+- **After the draft** (`--before=4`): Tonight leads with "You're set for Episode 4" and the countdown, episode 3's result card,
+  and the Weekly Lineup card "T1 · 0 pts". Games has the four level at 0 and "All set for Episode 4" with the three starters.
+  Reads right.
+- **Mid-season** (`--through=7`): "Set your lineup · 1 open slot" (a starter went home at 7, the app took them out), 1st on
+  21.5; Outlast's table with each team's people and who's out dimmed; the pool's table with each pick so far. Reads right.
+- **The finale** (all 12): finding 1 as a player sees it. "Season over" in the bar; the Outlast card says "1st · 1 of 2 still
+  in"; nothing names a winner; the Weekly Lineup table says what it says every week.
+- No console errors on any page.
+
+**The recorder, changed and restarted** (07:57 UTC, pid 43768): Below Deck 12's episode 1 full research timed out twice at 420 s
+(a 47,533-character prompt for its crew of 40: finding 10). Three tries with the backoffs after each, for every episode, would
+have held the words corpus for about a day. So a season whose full research gives up with no answer now holds its other
+episodes' full research (`tapes.js fullHeld`; `status` says so, and deleting that episode's `e<NN>-full.json` asks again), and the
+queue goes on: Below Deck's quick checks, then the words corpus. Unit test in `tests/tapes.test.js`.
+
+**Left for P3:** Below Deck 12, once its cast is the season's crew (finding 10): its full research, then `run below-deck 12` (20
+Weekly Lineup replays) and a look. With only quick checks on tape, a Weekly Lineup on it scores nothing, so a replay now would
+only show that. Weekly Calls and Weekly Bingo, which need a talk show. Second seasons as they're recorded.
+
 ## Noticed, not fixed
 
 (Each step adds what it saw and left alone, with the step that could take it.)
@@ -417,3 +483,17 @@ From P3 (2026-10-28):
   at the halfway mark. P4 should judge from the tables, or the count wants each game's own maximum per episode.
 - **Computer players vary between runs** (`bot-logic.js` taste hashes castaway ids, which are new in every game), so a solo
   replay's result isn't repeatable to the seat. Only matters for comparing two runs of the same replay.
+
+From P3 part 2 (2026-10-28):
+- **The Challenge 41's episode 20 has no episode to choose for** in every game: after the finale (19) the games make no next
+  episode until 20's results arrive, then 21 as usual. Nothing's lost (it's a reunion: finding 8), but it's a gap in
+  `ensureNextEpisode` after an episode the listing calls a finale. For the engine lane, if finding 8 doesn't remove it.
+- **A quick check's `left` can be empty while its headline names who went home** (The Challenge 41, episode 11). The app holds
+  it as "says nobody went home", the right call. `bot-research.js parseQuickAnswer` could notice the two disagree and ask once
+  more. For the survivor lane, with finding 6.
+- **The forgetter wins often on Dancing with the Stars** (6 of 21 replays, the forgetter or Forgetter 2): the picks made for
+  them are first on the list, alphabetical, and Alix Earle (the runner-up) is first. The list is alphabetical on every season
+  taped, so nothing leaks. P4 judges whether "first on the list" should be the default pick for someone who's away.
+- **The look's air time is the clock's** ("Wed 5:30 AM": two hours from when the look ran). Only the looks; harmless.
+- **Seats show usernames** (zt_pt_tinkerer) in the tables because the replays' accounts are named that way; a real couch's
+  show their names. Nothing to fix.

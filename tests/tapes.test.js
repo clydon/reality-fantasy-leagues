@@ -218,3 +218,14 @@ test("judging numbers: number words and commas are said; a number as a string is
   assert.deepEqual(W.judge(expect, W.parseRequest('{"about": {"show": "Survivor"}, "game": {"get": {"each": 3}, "score": [{"points": 1000}]}}'), "survivor, draft three each, 1,000 points a win").inventedNumbers, []);
   assert.deepEqual(W.judge(expect, W.parseRequest('{"about": {"show": "Survivor"}, "game": {"score": [{"points": "4"}]}}'), "survivor draft").inventedNumbers, [4]);
 });
+
+test("a season whose full research gave up unanswered holds its other episodes' full research, and only then", () => {
+  const full = (episode, more) => ({ kind: "full", episode, ok: false, ...more });
+  assert.equal(T.fullHeld([]), null);
+  assert.equal(T.fullHeld([{ kind: "quick", episode: 1, ok: true }, full(1, { ok: true, answer: "{}" })]), null);
+  // Given up with something answered (a parse that failed) is a tape like any other: nothing held.
+  assert.equal(T.fullHeld([full(2, { gaveUp: true, answer: "{ half an answer" })]), null);
+  assert.equal(T.fullHeld([full(3, { gaveUp: true, answer: "" }), full(1, { gaveUp: true, answer: null })]), 1);
+  // A failed try that isn't the last (no gaveUp) holds nothing: the queue asks it again.
+  assert.equal(T.fullHeld([full(1, { answer: "" })]), null);
+});

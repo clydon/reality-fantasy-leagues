@@ -26,6 +26,8 @@ test("settings that don't apply are left out of the matrix: a pool has no teams,
     assert.equal(c.waivers, P.NA);
   }
   for (const c of configs.filter((x) => x.group === 1 || x.span === "one")) assert.equal(c.late, P.NA);
+  // Shared Outlast has no waivers at all, so no replay is named for waivers there.
+  for (const c of configs.filter((x) => x.game === "outlast" && x.own === "shared")) assert.equal(c.waivers, P.NA);
   assert.ok(P.allConfigs(P.DIMENSIONS, { merge: 7 }).some((c) => c.span === "merge"));
 });
 
@@ -127,4 +129,47 @@ test("the summary's line: the winner, when it was settled, the forgetter's place
   assert.equal(line.forgetter, "2 of 2");
   assert.equal(line.inItAtHalf, "2 of 2");
   assert.equal(line.tiedTop, false);
+});
+
+test("a season plays only the games Start a game offers for its rulebook: a series Weekly Lineup, a competition all three", () => {
+  const events = { events: [1, 2, 3, 4, 5] };
+  const competition = {
+    kind: "competition",
+    cast: { unit: "people" },
+    waysOut: [{ means: "out" }, { means: "winner" }],
+    segments: [{ id: "vote", often: "everyEpisode", onTheLine: "goingHome" }],
+  };
+  assert.deepEqual(P.gamesOf({ blocks: competition, compiled: events }), ["outlast", "weeklyLineup", "survivalPool"]);
+  // Nobody going home every episode (Dancing with the Stars' rulebook): no Survival Pool.
+  assert.deepEqual(P.gamesOf({ blocks: { ...competition, segments: [] }, compiled: events }), ["outlast", "weeklyLineup"]);
+  // A series (Below Deck): draft the crew, nothing knocks anyone out.
+  assert.deepEqual(P.gamesOf({ blocks: { kind: "series", cast: { unit: "people" } }, compiled: events }), ["weeklyLineup"]);
+  assert.deepEqual(P.gamesOf(null), P.DIMENSIONS.game);
+  // The matrix over a series' games still covers every pair, and names only Weekly Lineup.
+  const dims = P.dimsFor({ blocks: { kind: "series", cast: { unit: "people" } }, compiled: events });
+  const { picked } = P.pairwise(dims, {});
+  assert.ok(picked.length && picked.every((c) => c.game === "weeklyLineup"));
+  const covered = new Set(picked.flatMap(P.pairsOf));
+  for (const c of P.allConfigs(dims, {})) for (const pair of P.pairsOf(c)) assert.ok(covered.has(pair), `${pair} isn't played`);
+});
+
+test("who left, by the quick check and the full research: where they agree, where they don't, and only what's on tape", () => {
+  const quick = (episode, left) => ({ kind: "quick", episode, ok: true, parsed: { episodeTitle: `E${episode}`, left: left.map((name) => ({ name, how: "Eliminated" })) } });
+  const full = (episode, gone, stored = false) => {
+    const answer = { episodeTitle: `E${episode}`, castaways: ["Ann", "Bo", "Cy", "Di"].map((name) => ({ name, leftTheGame: gone.includes(name) ? "yes" : "no", exitMethod: gone.includes(name) ? "Eliminated" : null })) };
+    return { kind: "full", episode, ok: true, parsed: stored ? answer : { parsed: answer } };
+  };
+  const x = P.exitsOf([quick(1, ["Ann"]), full(1, ["Ann"]), quick(2, ["Bo"]), full(2, [], true), quick(3, []), full(3, ["Bo", "Cy"]), quick(4, ["Di"])]);
+  assert.deepEqual(x.episodes.map((e) => e.agree), [true, false, false, null]);
+  assert.deepEqual(x.episodes[2].full.left, ["Bo (Eliminated)", "Cy (Eliminated)"]);
+  // Bo: the quick says 2, the full 3; Cy only the full; Di's episode has no full answer yet, so says nothing.
+  assert.deepEqual(x.differ.map((p) => [p.name, p.quick, p.full]), [["Bo", 2, 3], ["Cy", null, 3]]);
+  // Curly quotes and accents don't make two people of one.
+  const y = P.exitsOf([quick(1, ["Johnny “Bananas” Devenanzio", "Nany González"]), { ...full(1, []), parsed: { parsed: { castaways: [{ name: 'Johnny "Bananas" Devenanzio', leftTheGame: "yes" }, { name: "Nany Gonzalez", leftTheGame: "yes" }] } } }]);
+  assert.equal(y.episodes[0].agree, true);
+  // Matched to the cast as the app matches a name: a first name, a trailing period, a hyphen.
+  const cast = ["Bruce Perreault", "Jean-Luc Picard", "Kim K."];
+  const z = P.exitsOf([quick(2, ["Bruce", "Jean Luc Picard", "Kim K"]), { ...full(2, []), parsed: { parsed: { castaways: cast.map((name) => ({ name, leftTheGame: "yes" })) } } }], cast);
+  assert.equal(z.episodes[0].agree, true);
+  assert.deepEqual(z.differ, []);
 });

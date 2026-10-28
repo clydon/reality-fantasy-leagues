@@ -122,6 +122,17 @@ function planJobs({ shows = SHOWS, episodesOf, words = [], only = null, kinds = 
   return out;
 }
 
+/**
+ * The episode whose full research gave up with no answer at all (three tries timed out), or null. Its season's other full
+ * research waits behind it: Below Deck 12's crew of 40 from every season (P1's Noticed) makes a 47,000-character prompt the
+ * local bot never answered in 420 s, and three tries and the backoffs after each would hold the rest of the queue (the words
+ * corpus) for a day. Delete that episode's e<NN>-full.json to ask again. `files` is readTape's. Pure.
+ */
+function fullHeld(files) {
+  const stuck = files.filter((f) => f.kind === "full" && f.gaveUp && !String(f.answer || "").trim()).sort((a, b) => a.episode - b.episode);
+  return stuck.length ? stuck[0].episode : null;
+}
+
 /** How long to wait (ms) after `failures` failures in a row: 5, 15, then 60 minutes. Pure. */
 function backoffMs(failures) {
   if (failures <= 0) return 0;
@@ -762,10 +773,16 @@ function onlyOf(flag) {
 function nextJob(opts) {
   const jobs = planJobs({ episodesOf: episodesOnTape, words: wordsIds(), only: opts.only, kinds: opts.kinds });
   const stuck = new Set();
+  const held = new Map();
   for (const job of jobs) {
     if (onTape(job)) continue;
     const season = `${job.show}/${job.season}`;
     if (stuck.has(season)) continue;
+    // A season whose full research gave up unanswered: its other episodes' full research waits (fullHeld).
+    if (job.kind === "full") {
+      if (!held.has(season)) held.set(season, fullHeld(readTape(job.show, job.season).files));
+      if (held.get(season) !== null) continue;
+    }
     // A season's questions wait for its setup; its episodes' for its cast.
     if (job.kind !== "season" && job.show !== "words" && !fs.existsSync(path.join(dirOf(job.show, job.season), "season.json"))) {
       stuck.add(season);
@@ -895,7 +912,8 @@ function status() {
       const own = ["rules", "cast", "bingo-season", "recaps"].filter((k) => tape.files.some((f) => f.kind === k && f.ok));
       lines.push(
         `${show.key} ${season}: ${n == null ? "?" : n} episode(s); ${own.join(", ") || "no season questions"}; quick ${count("quick")}, full ${count("full")}, trivia ${count("trivia")}, bingo ${count("bingo")}` +
-          (failed ? `; ${failed} given up` : "")
+          (failed ? `; ${failed} given up` : "") +
+          (fullHeld(tape.files) !== null ? `; full research held: episode ${fullHeld(tape.files)}'s gave up unanswered (delete its e${pad(fullHeld(tape.files))}-full.json to ask again)` : "")
       );
     }
   }
@@ -1027,7 +1045,7 @@ async function main() {
   console.log("Usage: node scripts/dev-test/tapes.js record|plan|status|one|load|unload (see the header comment)");
 }
 
-module.exports = { SHOWS, TRIES, planJobs, backoffMs, looksLimited, holdFor, journalLine, nameOf, keyOf, asksOf, pickAnswer, hashOf, readTape, answerer, TAPES };
+module.exports = { SHOWS, TRIES, planJobs, fullHeld, backoffMs, looksLimited, holdFor, journalLine, nameOf, keyOf, asksOf, pickAnswer, hashOf, readTape, answerer, TAPES };
 
 if (require.main === module) {
   main()
