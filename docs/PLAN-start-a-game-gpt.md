@@ -1,6 +1,8 @@
 # Plan: the Start-a-game GPT, on games as data
 
-Status: **planned 2026-10-27**, nothing built. The user's idea, their decisions and the order are below; each step is its own
+Status: **planned 2026-10-27; hardened 2026-10-28** with the user: the engine first, built to everything in "Where the engine
+is headed", then today's games recreated on it, then the UI last; the GPT's words grow alongside the engine. Built so far, on
+their branches and not yet merged: S1 and S2 (`survivor-data`), A1–A3 (`engine`); A4 in progress. Each step is its own
 session (Opus 5.5 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: live sports, its Sport classes and
 formats, written against this plan's game spec) and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season:
 track S here).
@@ -30,8 +32,11 @@ track S here).
 | The bot's queue | **The GPT's asks go first:** they wait only for the question the bot is already answering, never for jobs queued behind it. A VM change, approved in principle; deployed with the user's OK when it's built. |
 | Who settles a rule | **Only what data can settle.** Sports: box scores and scoreboards. Shows: the show's results research, which counts as data. A moment research already answers scores at once; a new one becomes a question research asks after each episode **only if research rates it reliable**, otherwise the GPT offers the closest moment we have. Never the couch's word or the game maker's call (bingo's honour system and couch-answered moments stay as they are; the GPT just doesn't make rules like them). |
 | Survivor 51 | **Off built-in rules mid-season, once proven:** the test couch plays the new rules for two episodes, every table matching at today's points, then the three real games switch and Survivor's code is deleted. (Was: at Survivor 52.) |
-| Order | **The engine first, the GPT right after it** (shows and today's games), **then the sports branch**; the GPT learns the sports formats when the branch merges. |
+| Order (2026-10-27, revised below) | **The engine first, the GPT right after it** (shows and today's games), **then the sports branch**; the GPT learns the sports formats when the branch merges. |
 | The wizard | **A healthy balance:** people always see what they're making, in plain words; details they don't care about stay out of sight (recommended, changeable later, never asked). |
+| Order, revised (2026-10-28) | **The engine first, to its full target** (every dial in "Where the engine is headed"), **then today's games recreated on it, then the UI, last**: "the finalized UI will certainly be dumbed down while the backend remains ultra powerful". The GPT's words (G1) grow alongside the engine. The sports branch keeps its own lane. |
+| Where the GPT starts (2026-10-28) | **On a show's page**, the show and season known. The bot drafts the spec from a context pack and the engine's manual; our check decides. |
+| Progress (2026-10-28) | **Living tables:** the dials and the stretch requests, each row's status generated from the engine itself (A5), so the user sees what's possible as the engine grows. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -139,7 +144,7 @@ A question in `ask` says what's answered and how data settles it:
 start n, moments, total. Survival Pool = pick, the pick counts, survive, streak. Weekly Calls = generated questions, calls.
 Weekly Bingo = a card, lines. In A4, finale predictions and Weekly Calls become `ask` presets.
 
-**The three examples as specs** (fixtures in A1; end to end in G2 and G3):
+**The three examples as specs** (fixtures in A1; end to end in U1 and G3):
 
 ```jsonc
 // 1. "a fantasy league for Survivor 51": the wizard asked which game (Weekly Lineup, recommended); the rest is the preset's
@@ -232,29 +237,22 @@ The user's examples, as people would type them on a show's page. They go into th
 
 | On the page of | They type | Today's engine (A1–A4) | Needs |
 |---|---|---|---|
-| any show | "bingo cards and trivia every episode, bingo lines are worth 5 points, correct trivia questions earn one point" | No | A6: trivia questions, points per bingo line, a game that scores two ways |
+| any show | "bingo cards and trivia every episode, bingo lines are worth 5 points, correct trivia questions earn one point" | No | A13 (trivia questions), A9 (points per bingo line), A12 (a game that scores two ways) |
 | Red Sox–Yankees series | "a homer draft: everyone picks 3 players they think gets a home run" | The shape: a shared draft, 3 each, scored by stats | The sports branch (`score.by: stats`, rosters, a series span) |
-| Survivor 51 | "each week you must correctly predict the tribe winner and who goes home" | Who goes home, each episode (A4) | A5: which tribe wins immunity (who a moment happened to) |
-| Survivor 51 | "a single episode game where we must predict different things, most correct wins" | Yes: one episode (A3), a game of questions (A4): who goes home, yes or no, how many | A5 for "who wins immunity" questions |
-| Dancing with the Stars 34 | "everyone predicts the scores of each couple; whoever's closest to the average gets a point; ties both get points" | Closest wins and ties all score (A4's number answer) | A5: a question for each couple, settled by research's `judgesScore`. The wizard asks: this episode or the season? The judges' total or their average? |
+| Survivor 51 | "each week you must correctly predict the tribe winner and who goes home" | Who goes home, each episode (A4) | A6: which tribe wins immunity (who a moment happened to) |
+| Survivor 51 | "a single episode game where we must predict different things, most correct wins" | Yes: one episode (A3), a game of questions (A4): who goes home, yes or no, how many | A6 for "who wins immunity" questions |
+| Dancing with the Stars 34 | "everyone predicts the scores of each couple; whoever's closest to the average gets a point; ties both get points" | Closest wins and ties all score (A4's number answer) | A6: a question for each couple, settled by research's `judgesScore`. The wizard asks: this episode or the season? The judges' total or their average? |
 | Survivor 51 | "every week we predict if it's going to rain" | A yes-or-no question each episode, once a moment settles it (A4) | No rain moment: the new-moment path (Our check). Likely rated unreliable, so a can't-yet with the nearest settled questions |
 
-**After A4** (the engine lane, in this order):
-- **A5. Questions about who and about each.**
-  - Person and group answers settled by a moment in the episode ("Which tribe wins immunity?", "Who finds an idol?"), from
-    research's per-person moments and the season's groups as of that episode.
-  - One question asked of each person still in, with an answer per person ("each couple's score"), counting as one of the 12.
-  - A person's number from research (`judgesScore`) for number and over/under answers.
-- **A6. Trivia and two-way scoring** (or a hub game type, `future-game-types-hub`).
-  - Trivia questions, settled by the episode's trivia key (the bot's trivia research, written and checked as it is now).
-  - Points per bingo line.
-  - A game that scores two ways (bingo lines plus answers), or two games whose standings the couch adds up.
+What these need is in the engine track (Steps: A6, A9, A12, A13).
 
 ## Where the engine is headed: the dials (a stress test, 2026-10-28)
 
 The user asked to look past today's app and past fantasy leagues ("we have to not think thru the lens of our app ... so we can
 stress test what we aspire the engine to be able to create"). Every watch-along game is a setting on eight dials. The middle
-column is what the engine plays after A4; the right one is where it's headed. Steps after A5 are chosen against this.
+column is what the engine plays after A4; the right one is where it's headed. The engine track (A5–A14 in Steps) builds toward
+it, and A5's tracker keeps this table and the requests below live (`docs/ENGINE-CAPABILITIES.md`), so the user can watch what's
+possible grow.
 
 | Dial | After A4 | Where it's headed |
 |---|---|---|
@@ -310,9 +308,9 @@ when, what settles it, how it scores, how you win.
 - Winning and groups: a race, co-op, head-to-head, teams, players knocked out.
 - Stages: a game made of phases or mini-games, each with its own rules.
 
-**Cheapest first** (Claude's suggestion): captains and best ball; a pool's lives, buybacks and two-pick nights; a draft slot per
-group; order and confidence answers (with A5); guillotine and cuts at a phase; head-to-head with playoffs; auction and salary
-cap; then the social ones (secret roles, bounties, a stock market).
+**In what order:** the engine track in Steps (A5–A14): the tracker first, then what most pieces stand on (who and each, time,
+answers), then scoring, pools and drafts, winning and groups, stages, trivia, and last the players' own mechanics, which wait on
+the first open question below.
 
 **Open questions for the user:**
 - Game mechanics the players decide, rather than facts about the show (the group votes someone out, matching the majority, the
@@ -320,8 +318,12 @@ cap; then the social ones (secret roles, bounties, a stock market).
   about what happened on the show; the host's questions would still have to be ones data settles.
 - Numbers from outside the show's research (an episode's IMDb rating): fair game, or only what research records?
 
-## The wizard (G0 designs it, with impeccable)
+## The wizard (U0 designs it, last, with impeccable)
 
+- **Simple on top, powerful underneath** (the user, 2026-10-28): the finished UI stays plain (a sentence, chips for what was
+  assumed, the few questions left), while the engine underneath can make everything in "Where the engine is headed". A piece
+  doesn't get a control of its own: it's reached by words, through the GPT ("make it every two episodes"), and Backstage shows
+  the game in plain words.
 - **The game in a sentence or two** at the top: "A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode,
   Episode 7 to the finale. Scored by Survivor 51's rules." What they said reads as theirs and what we chose reads as ours, so
   nothing is assumed silently.
@@ -329,7 +331,7 @@ cap; then the social ones (secret roles, bounties, a stock market).
 - **The details nobody asked about** (draft order, timer, who can join, waivers, ties) are recommended and out of sight, in
   Backstage › Game settings later, as today.
 - **Start** works as today's does (on the couch, linked to its other games, Tell the couch), from the spec.
-- **For G0 to design:** where the field lives (my recommendation: every Start a game entry opens it, the show filled in when
+- **For U0 to design:** where the field lives (my recommendation: every Start a game entry opens it, the show filled in when
   opened from one, today's taps under it); the bot's half-minute wait (what it shows, leaving and coming back); ideas under the
   field from what's on (the guide's shows and games, so "endless" shows before anyone types); the errors (bot away, show not set
   up, a past game, can't count that); How it works for a game someone typed. Walk it through the archetypes
@@ -380,13 +382,54 @@ in `PLAN-researched-survivor.md`'s "What the switch needs", with this plan's dec
   - Answers stored per game (like `episode_calls`), graded on read from the season's results (the shows' settles), with points
     and standings.
   - Weekly Calls and finale predictions become presets of it, scores unchanged.
-  - Answering and results in the new design, with impeccable.
+  - Answering and results on screen move to the UI track (U1); A4 is the engine and storage.
   - Sports' settles are the branch's.
 
-**G. The Start-a-game GPT** (master, after A).
-- **G0. Design.** Impeccable `shape`, then a mock in `.impeccable/mocks/start-a-game/` of the wizard and everything listed under
-  it above, at 390. The user confirms before anything is built. It can run any time.
-- **G1. Words to a spec, no UI** (the ask and our check, above).
+**The engine track after A4** (2026-10-28: the engine to its full target, "Where the engine is headed", before the UI). Every
+step proves itself the same way: unit tests on specs; the tracker (A5) regenerated, and no row it marks ✅ without a spec that
+passes `specProblems` and `specWaitsFor`; the golden replays (every taped season through every game it already plays scores
+exactly as before the step: the playtest lane's `playtest.js`); and a zt- fixture played through the engine's own API, no
+screens. Each step names the research data it needs and checks the tapes have it.
+- **A5. The capability tracker** (small, first). `tests/fixtures/engine-capabilities.json` holds the dials' values and the
+  stretch requests, each with its dial, the spec it needs (once the schema can say it) or the step that brings it.
+  `scripts/engine-capabilities.js` writes `docs/ENGINE-CAPABILITIES.md`: both tables, each row ✅ plays now, ⏳ its step, 🆕 not
+  planned, or ❓ waits on a rule decision. A unit test keeps it honest. Every later step regenerates and commits it, so the git
+  history is the progress. **One list:** the playtest lane's words corpus (rewritten for a page) and the stretch requests
+  become this file, and G1's bank and the recorder read it, so the requests never drift apart.
+- **A6. Questions about who and about each.** Person and group answers settled by a moment in the episode ("Which tribe wins
+  immunity?", "Who finds an idol?"), from research's per-person moments and each episode's groups (after swaps); one question
+  asked of each person still in, an answer per person ("each couple's score"), counting as one of the 12; a person's number
+  from research (`judgesScore`) for number and over/under answers.
+- **A7. Time.** Windows instead of only "each episode" or "once": every N episodes, within N, by phase; which episode something
+  happens in (settled by phases and results); a person's own lock time when they watch late (spoiler-safe).
+- **A8. More answers.** An order (the boot order, a leaderboard), confidence (a ranking with weights), spreading chips, a wager,
+  pairs (who outlasts whom), a vote split (5-2-1).
+- **A9. Scoring that combines.** Per question: split the pot, the only right answer, roll over, multiply, shrink with time,
+  double or nothing. Per lineup: a captain who scores double, best ball (your best N count), scoring in reverse. Points per
+  bingo line.
+- **A10. Pools and drafts.** A pool's lives, buybacks and two-pick nights; a draft slot per group (one per tribe, a guy and a
+  girl); auction and a salary cap; keepers across seasons; teams two people share.
+- **A11. Winning, and who plays with whom.** A race (first to N ends the game), co-op (the group against the show, with shared
+  lives), head-to-head with playoffs, teams of players, players knocked out each week (guillotine) or cut at a phase,
+  handicaps, late joiners.
+- **A12. Stages.** A game made of phases or mini-games, each with its own rules and an overall: a second draft at the merge, a
+  season of mini-games, a game that scores two ways (bingo lines plus answers), one game across two shows.
+- **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
+  and checked as now); episode facts (who said the title quote) through new research questions rated reliable (Our check).
+- **A14. The players' own mechanics**, if the user allows them (the first open question in "Where the engine is headed"):
+  votes among the players, matching the majority, the top scorer's twist, a rotating host's questions (still data-settled),
+  secret roles, bounties, the bot's call as an opponent. Answers stay hidden until the lock once they depend on each other.
+
+**R. Today's games on the new engine** (after the engine track, before the UI).
+- **R1.** Today's five games and their extras (waivers, side bets, finale predictions, calls) rebuilt as compositions of the
+  pieces: no `getLeagueType` branch left in scoring, no game type compared as a literal. Every league scores the same: the local
+  copy, a replay of every taped season, and a Neon branch of production (from the user's terminal).
+- **R2.** The game-specs flag on in production (the user's OK), then a week of watching every table.
+- **R3.** The old type code goes: `LEAGUE_TYPES`, the literal comparisons (45 files), and the UI's flags, read from the spec.
+
+**G. The Start-a-game GPT** (alongside the engine track; its screens are the UI track's).
+- **G1. Words to a spec, no UI** (the ask and our check, above). It starts when A5 lands (the tracker's requests are its test
+  set) and grows with the engine: the manual is generated from the spec's vocabulary, so each engine step teaches it.
   - The context pack, the engine's manual (generated from `VOCAB`) and the prompt.
   - `askBot` with search off and `priority`. In llm-browser-api, `Worker` gets a `PriorityQueue` and `/ask` takes
     `priority: "now"`; deployed to the VM with the user's OK.
@@ -396,13 +439,16 @@ in `PLAN-researched-survivor.md`'s "What the switch needs", with this plan's dec
     104-request corpus rewritten for a page, with the worked examples above. Run on the stand-in bot
     (`scripts/dev-test/fake-bot.js`), and `scripts/dev-test/check-game-words.js` against the real bot (writes nothing).
   - A daily cap per person (Make it a game's is 5).
-- **G2. The GPT in the app.**
-  - The field and the wizard in Start a game, and Start from a spec.
-  - Make it a game, chained for a show that isn't set up.
-  - A sports request gets as far as today's sports games go and says what isn't there yet.
-  - Checked at 390 on Night and Studio with a zt- fixture.
 - **G3. The GPT learns sports** (after the sports branch merges): teams and games from ESPN's schedule, stat words to the
   Sport's keys, sports settles, and the over/under line from ESPN's odds. The Red Sox and 76ers sentences pass end to end.
+
+**U. The UI, last** ("it can get complicated": the user, 2026-10-28). Simple on top, powerful underneath (The wizard, above).
+- **U0. Design.** Impeccable `shape`, then mocks in `.impeccable/mocks/start-a-game/` at 390: the wizard and everything listed
+  under it above (was G0), answering questions and their results (was A4's), and the few controls the pieces need. Everything
+  else is reached by words. The user confirms before anything is built.
+- **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
+  up, a sports request as far as today's sports games go (was G2); answering and results; checked at 390 on Night and Studio
+  with a zt- fixture.
 
 **The sports branch** (`PLAN-sports-live.md`): its design (step 0) and live data (step 2) can go any time. Its framework,
 scoring and formats (steps 1 and 4–6) build on A1–A2, so master gets merged in first. It adds:
@@ -414,9 +460,9 @@ scoring and formats (steps 1 and 4–6) build on A1–A2, so master gets merged 
 - its formats as spec mechanics;
 - the sports' settles.
 
-**Suggested order, one session at a time:** S1 → S2 (the test couch starts proving) → A1 → A2 → S3 (once proven) → A3 → A4
-→ G1 → G2 → the sports branch → G3. G0 can come any time before G2. Run in lanes (next section), the same steps take about
-half the calendar time.
+**Suggested order** (revised 2026-10-28): S1 → S2 → A1 → A2 → A3 → A4 (all built or building), S3 once proven, then A5 (the
+tracker) → A6 → … → A13 (A14 if allowed) → R1 → R2 → R3 → U0 → U1. G1 runs alongside from A5; the sports branch in its own
+lane; G3 after it merges. Run in lanes (next section), it takes about half the calendar time.
 
 ## Running steps at the same time (lanes)
 
@@ -429,28 +475,30 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
 |---|---|---|---|---|---|
 | Main | `reality-fantasy-leagues` | master | `reality_fantasy_leagues` | 3000 | the user's own work, merges, production fixes |
 | Survivor | `../rfl-survivor` | `survivor-data` | `rfl_survivor` | 3001 | S1 → S2 → S3 |
-| Engine | `../rfl-engine` | `engine` | `rfl_engine` | 3002 | A1 → A2 → A3 → A4, then G2 → G3 |
-| GPT words | `../rfl-gpt` | `gpt` | `rfl_gpt` | 3003 | G1, from when A1 is on master |
+| Engine | `../rfl-engine` | `engine` | `rfl_engine` | 3002 | A1 → A4, the engine track A5 → A14, then R1 → R3, then U1 |
+| GPT words | `../rfl-gpt` | `gpt` | `rfl_gpt` | 3003 | G1, alongside the engine from A5 (the tracker's requests are its test set) |
 | Sports | `../reality-fantasy-leagues-sports` | `sports` | `rfl_sports` | 3004 | its steps 0 and 2 now; 1 and 4–6 once A2 is on master |
-| Design | the main folder (the mocks in `.impeccable/mocks/` aren't in git) | – | – | – | G0 and the sports design: with the user there, never unattended |
+| Design | the main folder (the mocks in `.impeccable/mocks/` aren't in git) | – | – | – | U0 (last) and the sports design: with the user there, never unattended |
 | Playtest | `../rfl-playtest` | `playtest` | `rfl_playtest` | 3005 | docs/PLAN-playtests.md: season tapes (recorded from the local bot) and replays of them (since 2026-10-28) |
 
 **What can run alongside what:**
 
 | Step | Needs first | Can run at the same time as |
 |---|---|---|
-| S1 | nothing | A1, G0, sports 0 and 2 |
-| S2 | S1 | A1 or A2, G1, G0, sports 0 and 2 |
+| S1 | nothing | A1, sports 0 and 2 |
+| S2 | S1 | A1 or A2, G1, sports 0 and 2 |
 | S3 | S2, and two episodes proven on the test couch | A3, A4, G1; not while a step is mid-change in `state-logic.js` (S3 touches `formatOf`) |
-| A1 | nothing | S1 or S2, G0, sports 0 and 2 |
-| A2 | A1 | S2, G1, G0, sports 0 and 2 |
+| A1 | nothing | S1 or S2, sports 0 and 2 |
+| A2 | A1 | S2, G1, sports 0 and 2 |
 | A3, A4 | A2 (one after the other: both change `state-logic.js` and Start a game) | S3, G1, the sports branch |
-| G0 | nothing | anything (it needs the user, not a lane) |
-| G1 | A1 (the schema; later starts and questions are already in it, so a draft can name them before A3/A4 build them) | A2–A4, S, the sports branch |
-| G2 | A2, G0 and G1 (A3 and A4 too, so the GPT starts with later starts and questions) | the sports branch |
+| A5 → A14 | A4, one after another (each changes the spec and the engine) | S3, G1, the sports branch, playtests |
+| R1 → R3 | the engine track (today's games are rebuilt from its pieces); R2 and R3 need the user's OK | G1, the sports branch |
+| G1 | A5 (the tracker's requests are its test set; the manual grows as each engine step lands) | A6–A14, R, S, the sports branch |
 | G3 | the sports branch merged | – |
+| U0 | the engine's target settled (it designs for what the engine and the GPT can make) | anything (it needs the user, not a lane) |
+| U1 | U0 and R | the sports branch |
 | Sports 0, 2 | nothing | anything |
-| Sports 1, 4–6 | A2 on master, merged into `sports` | G1, G2, S |
+| Sports 1, 4–6 | A2 on master, merged into `sports` | G1, the engine track, S |
 | Playtests (docs/PLAN-playtests.md) | nothing | anything: it only adds files, but holds the local bot while it records |
 
 **The rules that keep the quality:**
@@ -462,7 +510,7 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
    0250–0279, survivor 0280–0299, sports 0300–0399, playtest 0400–0419. `db/migrate.js` runs them by name, so ranges never
    collide.
 3. **A hot file has one lane at a time:** `state-logic.js` (the engine lane; S3 waits for a step boundary), `start-game.ts` and
-   `start-game.tsx` (the engine lane: A2, A3, then G2), `db/episode-research.js` and the rulebook compiler (the survivor lane).
+   `start-game.tsx` (the engine lane: A2, A3, then U1), `db/episode-research.js` and the rulebook compiler (the survivor lane).
    A step that needs another lane's hot file waits for that lane's step to merge.
 4. **Merge at step boundaries, never mid-step.** A lane merges master in when a step starts, and its finished step merges into
    master (with the user's OK) when it's safe to ship: S1, S2, A1, A2 behind its flag, G1. The sports branch stays a branch until
@@ -474,15 +522,33 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
 7. **One real-bot check at a time** (the bot answers one question at a time); every other check uses the stand-in. While the
    playtest lane records season tapes, the local bot is that lane's.
 8. **What waits for the user, however many lanes run:** production backups and Neon rehearsals, the game-specs flag (A2), the
-   VM deploy (G1), Survivor 51's switch (S3), merges and pushes, and design reviews (G0, the sports design). The user's attention
+   VM deploy (G1), Survivor 51's switch (S3), merges and pushes, and design reviews (U0, the sports design). The user's attention
    is the real limit, so **start with two lanes** (Survivor and Engine: S is time-bound, A is the longest path), add the sports
-   lane's steps 0 and 2 when there's room, and the GPT words lane once A1 is on master.
+   lane's steps 0 and 2 when there's room, and the GPT words lane once A5 lands.
 9. **Lanes share one usage window.** Three lanes at xhigh use it about three times as fast; each session loop pauses itself near
    the limit (`--pause-at`).
 
 ## Risks and open points
 
-- **The half-minute wait.** It's always the bot. G0 designs the wait, and the progress stream already exists. Even with the
+- **The UI comes last, so the engine's pieces have no screens for a while.** The tracker, the golden replays and the zt-
+  fixtures are how each one is seen until then. Open: a plain, admin-only **engine lab** on the desk (type a request on a show's
+  page and see the draft, our check, the spec and its sentence; start it as a test game), built with no design work, so the
+  user can try each piece as it lands.
+- **Every piece multiplies the ways a game can go wrong.** The golden replays are the regression suite: every taped season,
+  through every game the engine already plays, must score exactly as before each step. The playtest lane keeps recording
+  seasons for it.
+- **The spec keeps growing.** `SPEC_VERSION` goes up with each step that changes its shape; every stored spec still reads,
+  through a tested migration per version.
+- **Scoring on read gets heavier** (split pots, co-op and head-to-head read every player's answers). Each step measures a
+  league's read time on the local copy, and caches per episode if it needs to.
+- **Answers that depend on each other** (matching the majority, splitting the pot) are hidden from the other players until the
+  lock, or the game can be gamed.
+- **Production's bot is signed out.** The VM's ChatGPT can be capped the way this PC's was (116 asks in about 3 hours,
+  2026-10-28). The GPT's asks are short, there's a daily cap per person, and the taps make every game without it. Production's
+  bot is never signed in to a personal account.
+- **A person's own lock time** (watching late) has to stay spoiler-safe: nothing about the episode shows them before it, and
+  their lock is still before they watch.
+- **The half-minute wait.** It's always the bot. U0 designs the wait, and the progress stream already exists. Even with the
   queue jump, a busy bot finishes the answer it's on first, which can take up to ~4 minutes.
 - **The bot away** (the VM down, or ChatGPT's page changed): the field says so, and the taps still make every game.
 - **Words are data.** The person's words go into the prompt marked as such. The answer can only describe a game, and we validate
@@ -502,7 +568,7 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
 - The comment at `state-logic.js` 460-462 ("always EliminationOrderScoringStrategy") is out of date, and `migrateLeagueState`
   backfills `replenishOrderBy` 'mostPoints' where the default is 'rolling' (3947 vs 3874). (A2.)
 - Start a game's `SOON` branch is dead (`rulebook-fits.js` 25), and the Games tab's talk line still says "Coming with episode
-  games" (`show/games.tsx` 402). (G2.)
+  games" (`show/games.tsx` 402). (U1.)
 - Sports games score from ChatGPT research, against "ChatGPT never for stats"; `research-asks.ts` 20-21 says a sport's results
   come from its sports data, which isn't built. (The sports branch's stat scoring.)
 - A sport's cast stops growing from ESPN once it's a game (`cast.ts` `castable`). (The sports branch.)
