@@ -14,7 +14,9 @@ approval** (`desk-setup.js`; Mock scenarios › Desk · step 3: a season's Setup
 needs). **Step 4 (a season's Research and the bot) is mocked and waiting for approval** (`desk-research.js`,
 `desk-research.css`; Mock scenarios › Desk · step 4: research and the bot; step 4 below says what it shows, what its build
 needs and how its three questions were settled). **Step 5 (a season's Cast) is mocked and waiting for approval**
-(`desk-cast.js`, `desk-cast.css`; Mock scenarios › Desk · step 5: a season's cast; step 5 below). Classic's admin renders: all 19 of its pages at 390px locally
+(`desk-cast.js`, `desk-cast.css`; Mock scenarios › Desk · step 5: a season's cast; step 5 below). **Step 6 (Find › Games and a
+game's page) is mocked and waiting for approval** (`desk-games.js`, `desk-games.css`; Mock scenarios › Desk · step 6: games; step 6
+below). Classic's admin renders: all 19 of its pages at 390px locally
 (`scripts/dev-test/check-classic-admin.js`, which step 8 can turn round), and in production To do, Users, Leagues, a league's
 page, Shows and Site, with no console errors. The blank `/admin/leagues` seen in production earlier that day didn't come back.
 The likeliest cause is classic's boot screen: it covers the page until the first league loads (about a second locally, longer
@@ -50,6 +52,16 @@ groups un-approves the whole cast, and its hint is out of date (a live league no
 (j) The real desk's season page shows groups with no spoiler guard and no approval state. (k) Nothing detects a cast change
 for the Inbox: the mock's item is mock-only, and the nightly wiki read runs only for seasons with paid auto-research on.
 (l) The season page's Cast row said "18 castaways"; Survivor 51 has 21 (fixed in the mock).
+From step 6's mock (2026-10-28), all for step 6's build unless said: (m) classic's league delete is a hard `DELETE FROM leagues`
+(no 30-day restore), and `leagueDeleted` then deletes the couch if it has no games left; the new design's delete is soft
+(`end-game.ts`, `deleted_at`). Classic goes at step 8. (n) Classic's Remove player (`/api/admin/leagues/[id]/players/[pid]`)
+calls `disablePlayer` without the account id, so the person can never get the seat back by rejoining (`joinLeague` matches
+`disabledFromUserId`), and it disables even before a draft, where the app's `takeOut` removes the seat. (o) Linking an account
+to a seat keeps the seat's own name (`state.players[].name`), and the tables name seats by it (`membersFor`: "Named as the games
+name them"), so kat linked to mo's seat would show as "mo". (p) Classic's unlink (`memberships/[id]` DELETE) has no
+last-Commissioner guard: it can leave a game with nobody running it. (q) Classic's link sheet offers Player and Commissioner
+only (no Game admin, 0105) and lists every account in one select, with no search. (r) A site admin with no seat can't read a
+game in the new design: its reads are membership-scoped (`couchGames`; `membersFor` needs you to run a game there).
 
 **Decisions (the user, 2026-10-27):**
 1. **Act as them.** Opening the app as someone is classic's impersonation as it is: for an hour you are them (Better Auth's
@@ -251,6 +263,51 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    Delete and a castaway's with Remove.
 6. **Games and couches.** Find's Games (by name or join code); a game's page: its seats and who's in each (link an account,
    change a role, unlink, remove a player), its join code, delete for good (tier 3), open it (as an admin, read-only).
+   **As mocked (2026-10-28, `desk-games.js` and `desk-games.css`, waiting for approval):** **Find › Games** searches name, show,
+   couch or join code; a code-shaped search (three characters or more, any case) matches from the start of a code and finds its
+   game whatever the filter, deleted ones too (with Restore), the row leading "Join code 7VMAEC" with what matched marked; no
+   match says "No game has the code QX7P0Z" and why ("codes never have a 0, O, 1 or I", or no code starts that way), and that a
+   deleted game's code finds it for 30 days. (Two small hooks in `desk.js`'s list page: `pin`, a match shown whatever the
+   filter, and `empty`, a list's own no-match.) **A game's page** keeps the shape set with step 1: the lower third, Restore or
+   Hand it on when it needs one, then **Open <game>** ("As its couch sees it, read-only · up to Episode 4, where you are"), Part
+   of, **Join code** (its own section: the code big, Copy, "Anyone with it can join Race Night, then Outlast"), **Seats** ("5 in
+   · 1 empty · 1 out"), History (latest three, All N) and Delete last (as approved: Archive offered, 30 days, then "for good,
+   now"). **A seat** is a place in the game, with its team, picks and scores, and one account signed in to it: *signed in*
+   (face, active, role), *empty* (a dashed chair: "Saved by priya's invite" or "Unlinked Oct 26", nobody signed in, with Link
+   on the row) or *out* (greyed under "Out of it": left, taken out or removed). **A seat's sheet** is the same from the game and
+   from the person: who's in it (their page), the role (as step 1's, the only Commissioner's roles dimmed with Hand it on
+   first), Act as them, Link another account ("its team, picks and scores go to them; fern comes out"), Unlink (tier 1, Undo:
+   the seat keeps playing with nobody signed in), and **Take <name> out of <game>** last, red (tier 3, the app's `takeOut`:
+   after a draft the seat stays in the standings, unplayed; before one, or in a pool, it goes; they stay on the couch; Unlink
+   offered instead). From the person's page it adds Open the game instead of who's in it. **Link an account** ("Who signs in
+   to this seat?"): the couch's people without a seat first, then a search of every account by name or email; each says what
+   linking them does ("Not on Race Night: they join it too", "In Outlast already: their own seat is left empty"); someone
+   waiting, stopped, or out of this game (Put back gives them their own seat) can't be chosen; the role as a segmented choice
+   (the only Commissioner's seat stays Commissioner); a summary of what moves, including that the seat takes their name in the
+   tables, and that they're told; tier 1 with Undo and History lines on the game and the person. **An empty seat's sheet**: who
+   saved it and how it fills, Link an account, Remove the seat (tier 3). **Someone out**: what happened, Put them back (tier 1:
+   their own seat, team and points, rejoining the couch if they'd left it). **Open it read-only**: the app's show space for the
+   game's season under a Read-only bar (a caption plate: "Read-only · Outlast on Spoiler-Free Zone", Back to the desk), at your
+   own spoiler mark; Games, Episodes and Cast show what anyone on the couch sees (no "you" anywhere); **Tonight and Chat aren't
+   shown** ("Tonight is each player's own", "Spoiler-Free Zone's chat is theirs": act as one of them from their seat, logged);
+   anything that would change something (Reveal, a flag, a button, the show's menu, the dock) says "Read-only"; the header's
+   back says Desk; leaving the show space leaves read-only; opening it is a line in the game's History. In the mock, Survivor
+   51's games open (the mock's show space is Survivor 51). Mock scenarios: 15 (`shoot-mock-scenarios.js --group=dsg`).
+   **What the build needs beyond classic** (Noticed m-r): Find's games search by code prefix across every state, deleted ones
+   within 30 days included; seats read from the league's players and memberships: signed in, empty (a live player with no
+   membership; "saved" when an unaccepted invite carries it, `league_invites.player_id`, 0042), out (disabled players, who and when from the change
+   log); Link as classic's upsert plus the Game admin role, joining the couch (`joinedLeague`), renaming the seat to the
+   account's name, telling them, a change-log line with Undo, and the last-Commissioner guard; Unlink with that guard too;
+   Take out as the app's `takeOut` and `outPreview` from the desk (not classic's `disablePlayer`), Put back as `restoreMember`
+   at any time (its MemberUndo lasts 30 days; after that, the reclaim by account id); removing an empty seat (disabled after a
+   draft, removed before); read-only as a site admin's read scope over the couch's game reads (standings, episodes, cast; not
+   Tonight's own jobs or chat), writes refused on the server while it's on, and a desk History line. Act as from a seat is
+   step 1's.
+   **Calls made in the design (Claude's, 2026-10-28):** read-only shows what anyone on the couch sees at your own mark, not
+   Tonight or Chat (Act as, logged, covers one person's view), and players aren't told an admin looked (the desk's History
+   is); the desk's Take out is the app's (reclaimable; the seat stays after a draft), not classic's; a seat linked to another
+   account takes that account's name; a code search matches from three characters across every state; no "new join code"
+   (neither app has one); the seat's sheet is one sheet from both pages.
 7. **Shows and site.** Delete a show (refused while games use it, saying which), restore an archived one, a season's details
    when adding it (number, status, wiki), the connector (wiki API, cast heading, research sites), art by URL with its framing;
    Settings: AI models, What's New preview, the rulebooks flag.
