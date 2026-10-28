@@ -290,5 +290,10 @@ From P1 (2026-10-28):
 - **fake-bot.js `kindOf` doesn't name trivia, its check or recaps** (they're "other"), so a tape answers those only to their exact
   prompt. Naming them in `kindOf` would let a reworded prompt fall back as the others do. That's a small change to a shared file
   (P3, if a replay needs it).
+- **A finale's quick check says everyone left.** Survivor 49 episode 13 came back as "Kristina Mills & Rizo Velovic & Sage
+  Ahrens-Nichols & Sophi Balerdi & Savannah Louie left", the winner included. The finale's "who left the game" reads as "the
+  game ended for everyone". If that's filed (with `send`, a quick answer applies when trusted), the winner shows as gone. The
+  quick prompt (`bot-research.js buildQuickPrompt`) could ask about a finale differently, or the filing could skip the winner.
+  P3 replays the finales to see what reaches the games; then the survivor lane, which owns research.
 - **The review's efficiency note, left.** The queue re-plans and re-reads each season's `season.json` before every question (about
   a hundred small reads a minute). It's harmless at this pace.
