@@ -906,6 +906,11 @@ three days. The loops stop at 90% of the week, so the user's own sessions keep t
   slot, with sports paused at a part boundary, and sports takes it back whenever the desk lane waits on the user.
 - **When there's room:** G1 (needs A5). A third lane only after a weekly reset, with the week mostly unused.
 - **Never unattended:** design (the desk's, U0), merges into master, pushes.
+- **Before a weekly reset, use what's left** (the user, 2026-10-28: "cranking it, safely"). The allowance doesn't carry over, so the
+  main session fills the slots with work that's safe unattended. It doesn't stack more than the user's own session can bear by day,
+  since a full 5-hour window pauses that session too, and it keeps the loops' 90% stop. On 2026-10-28 that meant the engine lane
+  going on past A6 to A8, the A1–A4 merge prepared and checked in a throwaway worktree (`rfl-merge`, port 3006, branch
+  `merge-engine`), and the desk's build as a lane once its first designs are approved.
 The main session records each switch here.
 
 **The rules that keep the quality:**
