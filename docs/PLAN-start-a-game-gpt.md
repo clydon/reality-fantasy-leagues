@@ -1370,6 +1370,10 @@ screens. Each step names the research data it needs and checks the tapes have it
     - start: refused for a spec that doesn't play and on another couch; made on the zt- couch (a game of questions, the admin
       its Commissioner, its spec in step, from Episode 6, its Recent changes line);
     - in the browser: the row picked and checked, started, a row with no spec emptying the box, a refused spec saying why.
+  - **After master's merge** (`lane.js sync engine`: S1, S2, the playtest tools, the plan), the batch again, all passing:
+    `check-questions.js` 97, `check-new-start-game.js` 75, `check-new-backstage-ii.js` 149, `check-phase-starts.js` 58,
+    `check-new-show.js` 81, `check-new-reveal.js` 49, `check-engine-lab.js` 21. `game-specs-flag.js status`: on, 9 of 9, none
+    drifted.
   - **Code review** (`/code-review`, before the commit).
     - Taken:
       - the admin isn't on their own test couch, so it's found by its owner;
