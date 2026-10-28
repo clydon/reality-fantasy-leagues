@@ -186,7 +186,7 @@ test("a request read from an answer, every part there", () => {
 test("judging a reading: the show, the season, the span, numbers invented, a question flagged", () => {
   const expect = { about: { show: "The Traitors (US)", season: "5" }, when: "one", flag: "question", why: "x" };
   const good = W.parseRequest('{"about": {"show": "The Traitors", "season": 5}, "when": {"kind": "one"}, "game": {"get": {"each": 3}}, "unsure": ["season 5 is past episode 2"]}');
-  assert.deepEqual(W.judge(expect, good, "traitors 5, draft 3 each"), { about: true, season: true, when: true, invented: true, flagged: true, inventedNumbers: [], unsure: 1, score: 5, of: 5 });
+  assert.deepEqual(W.judge(expect, good, "traitors 5, draft 3 each"), { about: true, season: true, when: true, invented: true, flagged: true, carried: null, inventedNumbers: [], missed: [], unsure: 1, score: 5, of: 5 });
   const bad = W.parseRequest('{"about": {"show": "Survivor"}, "when": {"kind": "rest"}, "game": {"get": {"each": 4}, "score": [{"for": "a win", "points": 1}]}}');
   const j = W.judge(expect, bad, "traitors, draft 3 each, a point for a win");
   assert.equal(j.about, false);
@@ -217,6 +217,41 @@ test("judging numbers: number words and commas are said; a number as a string is
   const expect = { about: { show: "Survivor" }, when: null, flag: null };
   assert.deepEqual(W.judge(expect, W.parseRequest('{"about": {"show": "Survivor"}, "game": {"get": {"each": 3}, "score": [{"points": 1000}]}}'), "survivor, draft three each, 1,000 points a win").inventedNumbers, []);
   assert.deepEqual(W.judge(expect, W.parseRequest('{"about": {"show": "Survivor"}, "game": {"score": [{"points": "4"}]}}'), "survivor draft").inventedNumbers, [4]);
+});
+
+test("judging what carried over: the sizes, players, order, the scoring lines' points, the questions, a line", () => {
+  const expect = { about: { show: "Survivor", season: "51" }, when: null, flag: null, said: { players: 4, each: 5, start: 3, order: "snake", score: [{ for: "idol", points: 3 }, { for: "vote", points: -2 }], ask: ["winner"], line: 6.5, computer: true } };
+  const all = W.parseRequest('{"about": {"show": "Survivor", "season": 51}, "game": {"players": "4", "get": {"by": "draft", "each": 5, "order": "Snake"}, "count": {"start": 3}, "score": [{"for": "idol found", "points": 3}, {"for": "votes", "points": -2}], "ask": [{"ask": "winner", "line": 6.5}]}}');
+  const j = W.judge(expect, all, "survivor 51 for 4, 5 each start 3, snake, 3 an idol, -2 a vote, winner, 6.5");
+  assert.equal(j.carried, true);
+  assert.deepEqual(j.missed, []);
+  // "computer" has no place in the draft shape: not judged.
+  assert.deepEqual(Object.keys(W.carriedOf(expect.said, all)).sort(), ["ask", "each", "line", "order", "players", "score", "start"]);
+  const lost = W.parseRequest('{"about": {"show": "Survivor", "season": 51}, "game": {"get": {"each": 5}, "score": [{"for": "idol", "points": 3}]}}');
+  const k = W.judge(expect, lost, "survivor 51 for 4, 5 each start 3, snake, 3 an idol, -2 a vote, winner, 6.5");
+  assert.equal(k.carried, false);
+  assert.deepEqual(k.missed, ["players", "start", "order", "score", "ask", "line"]);
+  assert.equal(W.judge({ ...expect, said: { unsure: ["5 each", "3 each"] } }, W.parseRequest('{"about": {"show": "Survivor", "season": 51}, "unsure": ["3 or 5"]}'), "survivor 51, 5 each, 3 each").carried, true);
+});
+
+test("the words report: by group, what's on tape, the checks, and each miss with what was read", () => {
+  const requests = [
+    { id: "a1", group: "casual", words: "survivor league", expect: { about: { show: "Survivor", season: null }, when: null, flag: null } },
+    { id: "a2", group: "casual", words: "traitors 5 draft 3 each", expect: { about: { show: "The Traitors (US)", season: "5" }, when: null, flag: null, said: { each: 3 } } },
+    { id: "a3", group: "nonsense", words: "asdf", expect: { about: {}, when: null, flag: "question", why: "x" } },
+    { id: "a4", group: "nonsense", words: "not asked yet", expect: { about: {}, when: null, flag: null } },
+  ];
+  const tapes = [
+    { id: "a1", ok: true, parsed: W.parseRequest('{"about": {"show": "Survivor"}}') },
+    { id: "a2", ok: true, parsed: W.parseRequest('{"about": {"show": "The Traitors", "season": 5}, "when": {"kind": "season"}, "game": {"get": {"each": 4}}}') },
+    { id: "a3", ok: false, parsed: null, message: "no JSON" },
+  ];
+  const r = W.reportOf(requests, tapes);
+  assert.deepEqual(r.groups.map((g) => [g.group, g.asked, g.of, g.passed, g.checks]), [["casual", 2, 2, 6, 9], ["nonsense", 1, 2, 0, 1]]);
+  assert.deepEqual(r.groups[0].misses, { when: 1, invented: 1, carried: 1 });
+  assert.deepEqual(r.misses.map((m) => [m.id, m.failed]), [["a2", ["when", "invented", "carried"]], ["a3", ["no answer"]]]);
+  assert.deepEqual(r.misses[0].read.invented, [4]);
+  assert.match(W.reportMarkdown(r), /3 of 4 request\(s\) on tape; 6 of 10 checks/);
 });
 
 test("a season whose full research gave up unanswered holds its other episodes' full research, and only then", () => {

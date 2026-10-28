@@ -76,6 +76,179 @@ test("preferences: the list as the app lists it, the contrarian away from the ro
   assert.deepEqual(one, two);
 });
 
+test("the room's favourites for someone away: what the app knows first, then the room's own picks, then the list", () => {
+  const listOrder = ["a", "b", "c", "d"];
+  // Nothing known yet (before any results): the room's picks decide, the most picked first; then the list.
+  const flat = { a: { value: 0 }, b: { value: 0 }, c: { value: 0 }, d: { value: 0 } };
+  assert.deepEqual(P.favourites(listOrder, { ratings: flat, lists: [["c", "d"], ["c", "b"]], listOrder }), ["c", "b", "d", "a"]);
+  assert.deepEqual(P.favourites(listOrder, { ratings: flat, listOrder }), listOrder);
+  // Something known: it comes first, whatever the room picked; out of the game (no rating): never offered.
+  assert.deepEqual(P.favourites([...listOrder, "gone"], { ratings: { ...flat, d: { value: 2 } }, lists: [["c"]], listOrder }), ["d", "c", "a", "b"]);
+});
+
+test("taps a week: a lineup is open, a tap per start or bench, Save; looking 2; a pick 3; a claim 1 + 3 a spot", () => {
+  assert.equal(P.lineupTaps([], ["a", "b", "c"]), 5);
+  assert.equal(P.lineupTaps(["a", "b", "c"], ["a", "b", "d"]), 4);
+  // Someone went home (the app took them out): one start fills the slot.
+  assert.equal(P.lineupTaps(["a", "b"], ["a", "b", "d"]), 3);
+  assert.equal(P.lineupTaps(["a", "b"], ["b", "a"]), P.TAPS.looked);
+  assert.equal(P.claimTaps([]), 0);
+  // Backups for the same spot are one spot.
+  assert.equal(P.claimTaps([{ addId: "x", dropId: "a" }, { addId: "y", dropId: "a" }, { addId: "x", dropId: "b" }]), 7);
+});
+
+test("variants: their names, what they change, and only the replays they change", () => {
+  assert.equal(P.variantOf({}).name, "");
+  assert.equal(P.variantOf({ away: "list" }).name, "");
+  assert.equal(P.variantOf({ away: "favourites", window: "merge" }).name, "away-favourites-window-merge");
+  assert.throws(() => P.variantOf({ away: "random" }));
+  const away = P.variantOf({ away: "favourites" });
+  assert.equal(P.changedBy(away, { group: 1 }, { from: 1, to: null }, 6), false);
+  assert.equal(P.changedBy(away, { group: 2, game: "outlast" }, { from: 1, to: null }, 6), true);
+  assert.equal(P.changedBy(away, { group: 4, game: "survivalPool" }, { from: 1, to: null }, 6), false, "nobody drafts a pool");
+  const win = P.variantOf({ window: "merge" });
+  const outlast = { game: "outlast", own: "exclusive", waivers: "on", group: 4 };
+  assert.equal(P.changedBy(win, outlast, { from: 1, to: null }, 6), true);
+  // Over by the window, or waivers off, or shared, or another game: unchanged.
+  assert.equal(P.changedBy(win, outlast, { from: 1, to: 6 }, 6), false);
+  assert.equal(P.changedBy(win, { ...outlast, waivers: "off" }, { from: 1, to: null }, 6), false);
+  assert.equal(P.changedBy(win, { ...outlast, game: "weeklyLineup" }, { from: 1, to: null }, 6), false);
+  assert.equal(P.changedBy(P.variantOf({}), outlast, { from: 1, to: 6 }, 6), true);
+  // Two of them, the forgetter the late joiner (the group's last seat): nobody away from the draft.
+  assert.equal(P.changedBy(away, { game: "weeklyLineup", group: 2, late: "yes" }, { from: 1, to: null }, 6), false);
+  assert.equal(P.changedBy(away, { game: "weeklyLineup", group: 8, late: "yes" }, { from: 1, to: null }, 6), true, "Forgetter 2 is late; the first drafts");
+  // Both flags: a replay either one changes.
+  const both = P.variantOf({ away: "favourites", window: "merge" });
+  assert.equal(P.changedBy(both, { game: "weeklyLineup", group: 4 }, { from: 1, to: null }, 6), true);
+  assert.equal(P.changedBy(both, { ...outlast, group: 1 }, { from: 1, to: null }, 6), true);
+  assert.equal(P.changedBy(both, { game: "survivalPool", group: 4 }, { from: 1, to: null }, 6), false);
+});
+
+test("how much each week asks: taps and cards by role, a season's taps, and praise for a lineup never set", () => {
+  const seats = [{ label: "Tinkerer", role: "tinkerer" }, { label: "Forgetter", role: "forgetter" }];
+  const x = {
+    seats,
+    config: { span: "season" },
+    episodes: [
+      { n: 1, asks: { Tinkerer: { taps: 5, card: true }, Forgetter: { taps: 0, card: true } }, moves: { Forgetter: "no lineup (forgot)" }, why: { Forgetter: { says: ["Good call benching Bo (voted out)"] } } },
+      { n: 2, asks: { Tinkerer: { taps: 2, card: false }, Forgetter: { taps: 5, card: true } }, moves: { Forgetter: "set Ann" }, why: {} },
+      // Before the asks were recorded: not counted.
+      { n: 3, moves: { Forgetter: "no lineup (forgot)" }, why: {} },
+    ],
+  };
+  const a = P.asksOf([x]);
+  assert.equal(a.weeks, 4);
+  assert.equal(a.taps, 3);
+  assert.equal(a.card, 0.75);
+  assert.deepEqual(a.byRole.tinkerer, { weeks: 2, taps: 3.5, card: 0.5, season: 7 });
+  assert.equal(a.byRole.driveby.weeks, 0);
+  assert.equal(a.most, 5);
+  assert.equal(a.forgot, 2);
+  assert.equal(a.idlePraise, 1);
+  // A game over part of the season: its weeks count, but not toward a whole season's taps.
+  assert.equal(P.asksOf([{ ...x, config: { span: "one" } }]).byRole.tinkerer.season, null);
+});
+
+test("the forgetter with a default lineup: open slots filled from the bench in draft order, from the replay alone", () => {
+  const seats = [{ label: "Tinkerer", role: "tinkerer" }, { label: "Forgetter", role: "forgetter" }];
+  const x = {
+    config: { game: "weeklyLineup" },
+    settings: { activeSlots: 2 },
+    seats,
+    draft: { Forgetter: ["Ann (picked for them)", "Bo (picked for them)", "Cy (picked for them)"] },
+    episodes: [
+      // No lineup: Ann and Bo start (Cy's 5 stays on the bench).
+      { n: 1, out: [], moves: { Forgetter: "no lineup (forgot)" }, why: { Forgetter: { started: [], bench: ["Ann would have scored 2", "Bo would have scored -1", "Cy would have scored 5"] } }, table: [] },
+      // A lineup set: nothing to fill. Ann goes home in it.
+      { n: 2, out: ["Ann (Voted out)"], moves: { Forgetter: "set Ann, Cy" }, why: { Forgetter: { started: ["Ann -3 (Voted out -3)", "Cy 1 (Won 1)"], bench: ["Bo would have scored 4"] } }, table: [] },
+      // Ann's slot is open: Bo fills it (the first still in and not starting).
+      { n: 3, out: [], moves: { Forgetter: "kept last week's lineup (carried)" }, why: { Forgetter: { started: ["Cy 2 (Won 2)"], bench: ["Bo would have scored 3"] } }, table: [{ name: "Tinkerer", total: 5 }, { name: "Forgetter", total: 0 }] },
+    ],
+  };
+  const d = P.defaultLineupOf(x);
+  assert.deepEqual(d, { weeks: 2, extra: 4, place: 1, placeWith: 1 });
+  x.episodes[2].table[1].total = 1;
+  assert.equal(P.defaultLineupOf(x).placeWith, 0, "level with the leader counts as first");
+  assert.equal(P.defaultLineupOf({ ...x, config: { game: "outlast" } }), null);
+  // Nobody from the draft left to fill with: a waiver pickup on the bench fills it.
+  const picked = { ...x, draft: { Forgetter: ["Ann (picked for them)"] }, episodes: [{ n: 1, out: [], moves: { Forgetter: "no lineup (forgot)" }, why: { Forgetter: { started: [], bench: ["Dee would have scored 4"] } }, table: x.episodes[2].table }] };
+  assert.equal(P.defaultLineupOf(picked).extra, 4);
+});
+
+test("a pool's forgetter with picks made for them: the room's most picked they haven't used, streaks counted again", () => {
+  const seats = [{ label: "Tinkerer", role: "tinkerer" }, { label: "Forgetter", role: "forgetter" }, { label: "Fan", role: "fan" }];
+  const ep = (n, out, moves, picks, table = []) => ({ n, out, moves, why: Object.fromEntries(Object.entries(picks).map(([k, v]) => [k, { pick: v }])), table });
+  const x = {
+    config: { game: "survivalPool" },
+    seats,
+    episodes: [
+      ep(1, [], { Tinkerer: "picked Ann", Forgetter: "picked Bo", Fan: "picked Ann" }, { Tinkerer: "Ann", Forgetter: "Bo", Fan: "Ann" }),
+      // Missed: the room's pick is Cy (they haven't used him), who survives.
+      ep(2, ["Dee (Voted out)"], { Tinkerer: "picked Cy", Forgetter: "no pick (forgot)", Fan: "picked Cy" }, { Tinkerer: "Cy", Forgetter: "none", Fan: "Cy" }),
+      // Missed again: Cy's used (and goes home), so Eve, who survives.
+      ep(3, ["Cy (Voted out)"], { Tinkerer: "picked Cy", Forgetter: "no pick (forgot)", Fan: "picked Eve" }, { Tinkerer: "Cy", Forgetter: "none", Fan: "Eve" }, [
+        { name: "Tinkerer", streak: 2, total: 2 },
+        { name: "Fan", streak: 3, total: 3 },
+        { name: "Forgetter", streak: 1, total: 1 },
+      ]),
+    ],
+  };
+  const d = P.poolFallbackOf(x);
+  assert.deepEqual(d.played, { streak: 1, total: 1 }, "the replay's own: matches its table");
+  assert.deepEqual(d.covered, { streak: 3, total: 3 });
+  // Frozen: the two missed weeks left out, so Bo's week stands alone.
+  assert.deepEqual(d.frozen, { streak: 1, total: 1 });
+  assert.equal(d.weeks, 2);
+  assert.equal(d.place, 1);
+  assert.equal(d.placeWith, 0, "level with the fan at the top");
+  assert.equal(P.poolFallbackOf({ ...x, config: { game: "outlast" } }), null);
+  // Nobody twice: a pick made for them earlier spends that castaway, so their own later pick of him becomes the room's.
+  const again = {
+    ...x,
+    episodes: [
+      ep(1, [], { Tinkerer: "picked Cy", Forgetter: "no pick (forgot)", Fan: "picked Cy" }, { Tinkerer: "Cy", Forgetter: "none", Fan: "Cy" }),
+      ep(2, ["Eve (Voted out)"], { Tinkerer: "picked Eve", Forgetter: "picked Cy", Fan: "picked Eve" }, { Tinkerer: "Eve", Forgetter: "Cy", Fan: "Eve" }, x.episodes[2].table),
+    ],
+  };
+  const g = P.poolFallbackOf(again);
+  assert.deepEqual(g.played, { streak: 1, total: 1 });
+  assert.deepEqual(g.covered, { streak: 1, total: 1 }, "Cy for them in 1, then the room's Eve in 2, who went home");
+  assert.equal(g.weeks, 1);
+});
+
+test("Outlast's ties at the top broken by the most still in", () => {
+  const last = (leaders, why) => ({ config: { game: "outlast" }, episodes: [{ n: 1, leaders, why }] });
+  assert.deepEqual(P.stillInBreakOf(last(["A", "B"], { A: { team: ["x", "y (out)"] }, B: { team: ["z (out)", "w (out)"] } })), { tied: true, tiedStill: false });
+  assert.deepEqual(P.stillInBreakOf(last(["A", "B"], { A: { team: ["x"] }, B: { team: ["z"] } })), { tied: true, tiedStill: true });
+  assert.deepEqual(P.stillInBreakOf(last(["A"], { A: { team: ["x"] } })), { tied: false, tiedStill: false });
+  assert.equal(P.stillInBreakOf({ config: { game: "survivalPool" }, episodes: [{ n: 1, leaders: ["A"] }] }), null);
+});
+
+test("a variant beside the whole set: the winner, the forgetter's place, wiped teams, a window's catch", () => {
+  const seats = [{ label: "Tinkerer", role: "tinkerer" }, { label: "Forgetter", role: "forgetter" }];
+  const rec = (winner, order, extra = {}) => ({
+    replay: "r1",
+    seats,
+    final: { winner },
+    episodes: [{ n: 1, table: order.map((name) => ({ name })), teamsWithNobodyLeft: [], ...extra }],
+  });
+  const [row] = P.compareOf([rec("Forgetter", ["Forgetter", "Tinkerer"])], [rec("Tinkerer", ["Tinkerer", "Forgetter"], { waivers: { window: true, byHand: true, episode: 6, wiped: ["Forgetter"], backIn: ["Forgetter"], ran: ["x"] } })]);
+  assert.deepEqual(row.winner, { base: "Forgetter", variant: "Tinkerer" });
+  assert.deepEqual(row.forgetter, { base: { at: 1, of: 2 }, variant: { at: 2, of: 2 } });
+  assert.deepEqual(row.window, { at: 6, wiped: 1, backIn: 1, ran: 1 });
+  assert.equal(P.compareOf([], [rec("Tinkerer", ["Tinkerer"])])[0].base, false);
+  // A record from before `byHand`: the window the log says was opened, not an earlier scheduled one.
+  const older = rec("Tinkerer", ["Tinkerer"]);
+  older.log = ["Waivers: Tinkerer opened a window after episode 6 (Swap anyone)"];
+  older.episodes = [
+    { n: 3, table: [{ name: "Tinkerer" }], waivers: { window: true, episode: 3, wiped: [], backIn: [], ran: [] } },
+    { n: 6, table: [{ name: "Tinkerer" }], waivers: { window: true, episode: 6, wiped: ["x"], backIn: [], ran: [] } },
+  ];
+  assert.deepEqual(P.compareOf([], [older])[0].window, { at: 6, wiped: 1, backIn: 0, ran: 0 });
+  // A window the schedule opened isn't one someone opened.
+  assert.equal(P.compareOf([], [rec("Tinkerer", ["Tinkerer"], { waivers: { window: true, byHand: false, episode: 3, wiped: [], backIn: [], ran: [] } })])[0].window, null);
+});
+
 test("the merge is the first episode anyone won immunity on their own; none, none", () => {
   const tape = (episode, won) => ({ episode, parsed: { castaways: [{ wonIndividualImmunity: won ? "yes" : "no" }] } });
   assert.equal(P.mergeOf([tape(8, true), tape(5, false), tape(7, true)]), 7);

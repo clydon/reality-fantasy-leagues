@@ -256,7 +256,7 @@ on to the quick checks and the words corpus. Delete `e01-full.json` to ask again
 
 ## P4, a first pass: each game judged as a player would (2026-10-28)
 
-From the 96 replays' files, measured by `node scripts/dev-test/playtest.js judge` (`rfl-tapeseplaysJUDGE.md`, by game and by
+From the 96 replays' files, measured by `node scripts/dev-test/playtest.js judge` (`rfl-tapes\replays\JUDGE.md`, by game and by
 show), and read in the tables. "To the end" is a whole-season game or one from episode N or the merge; "short" is one episode
 or through half. Finishes: 0% first, 100% last (the median seat in that role). Findings 1 to 3 run under all of it: no
 season-long game but Dancing with the Stars' says it's over, and held results leave people in.
@@ -302,4 +302,123 @@ season's end is where it doesn't: "Season over" with no winner named (finding 1)
 
 Still for P4 (the next session's): Below Deck, once it has full research (finding 10); how much each week asks (taps) from the
 moves' counts; whether the blind draft's "first on the list" for someone away should be the favourites instead (P3's Noticed);
-and the same measures on second seasons.
+and the same measures on second seasons. (Taps and the favourites: the next section.)
+
+## P4's rest: how much each week asks, someone away, and the directions tried (2026-10-28)
+
+The 96 replays were played again with what each week asks recorded (`playtest.js` TAPS), so `judge`'s numbers above moved a
+little (computer players vary between runs; `rfl-tapes\replays\JUDGE.md` has today's). The report's directions were then tried
+cheaply: two as **variants** (habits changed, the replays they change played again into `replays\variants\<variant>\`, and
+`playtest.js compare <variant>` puts them beside the whole set), and three **worked out from the replay files alone** (each
+forgotten week records what the bench would have scored and what everyone else picked), as `judge` columns.
+
+### How much each week asks
+
+Taps are counted from Tonight's card on the new design's screens: a lineup is open the sheet, a tap per start or bench, Save
+(looking and keeping it, 2); a pool pick 3; a waiver claim 1 plus 3 a spot; opening a window 5. The reveal before them isn't
+counted. "Card" is a week the app showed a move to make. From `judge` (person-weeks in play, all four seasons):
+
+| Game | Taps a week | Weeks with a card | Tinkerer: taps a week, a whole season | Drive-by | Forgetter | Most in a week |
+|---|---|---|---|---|---|---|
+| Outlast | 0 | under 1% | 0, 0 | 0 | 0 | 4 |
+| Survival Pool | 2.2 | 100% | 3, 39 | 3 | 0.9 | 3 |
+| Weekly Lineup | 2.3 | 34% | 3.2, 30 | 1.2 | 1.1 | 10 |
+
+- **Weekly Lineup asks the right amount, and effort pays.** A third of weeks show a card (someone on your lineup went home, or
+  no lineup yet); otherwise last week's carries. The tinkerer spends 3.2 taps a week (about 30 a season) and finishes near the
+  top (13%, median); the drive-by spends 1.2 and finishes 67%. The heaviest week is 10 taps: a lineup rebuilt and a waiver claim.
+- **Outlast asks nothing after the draft** (the few cards are waiver replacements): little effort, and nothing to decide (P4's
+  first pass).
+- **Survival Pool asks the most, every week, of everyone**: 3 taps and a card every week (39 a season), nothing carried over,
+  and missing a week is punished hardest (finding 12).
+
+### 11. The app praises a lineup nobody set (low; whoever owns `episode-team-summary.ts`)
+
+Someone who set no lineup for an episode is told "Good call benching Matt Williams (voted out)". With no lineup, every
+castaway on the team counts as benched (`episodeTeamBullets`: `benched` is the roster minus the starters), so the worst of them
+is a good call. The same reading can say "Perfect lineup: you started your best possible team" with nobody started, on a week
+where the team's best possible total is 0 or less. In the replays: 4 of 51 forgotten Weekly Lineup weeks (all Survivor 49,
+where the forgetter's team had someone voted out; `judge`'s Idle praise column). The forgetter, the player who most needs to
+hear "you didn't set a lineup", reads that they made a good call.
+
+**Repro.** `node scripts/dev-test/playtest.js run survivor 49 --only=2 --through=4 --keep`, then `node
+scripts/dev-test/playtest.js says 4` prints `zt_pt_forgetter, episode 4: lineup none; says ["Good call benching Matt Williams
+(voted out)"]`. `playtest.js down` after.
+
+**A direction.** No lineup, no lines about the calls: say what happened instead ("No lineup for Episode 4: your team would have
+scored 6"), which also tells the forgetter what forgetting cost.
+
+### 12. Survival Pool: the heaviest weekly ask, and one missed week ends a season (medium; design, for P5 or the user)
+
+Every week asks a pick of everyone (above), and a missed one resets the streak the pool ranks by. The forgetter finishes last or
+next to last in the median pool (86%, ties level). Two directions, worked out from the replays (`judge`'s "Forgetter, covered
+while away", from `poolFallbackOf`; its recount of the streaks as played matches the app's table in all 12 pools):
+- **A pick made for whoever forgets** (the room's most picked that week that they haven't used, nobody twice): 86% → 33%.
+  Too generous: copying the room is a strong strategy, and on The Challenge 41's whole-season pool the forgetter, who forgot
+  12 of its 21 weeks, would finish second (a streak of 16 to the drive-by's 17). Missing weeks shouldn't pay that well.
+- **A missed week freezes the streak** (it neither ends nor adds to it): 86% → 69%. The forgetter stays behind those who
+  picked every week, but one busy week no longer ends their season.
+
+**A direction.** Freeze, not fill, for a missed pick. With its weekly ask, Survival Pool suits a couch that wants to play every
+week. The first pass's other directions (tie-breaks, offering it from the merge on a big cast) still stand.
+
+### 13. Weekly Lineup's forgetter loses to open slots, not to the first lineup (medium; Start a game's owner or the engine lane)
+
+The first pass put the forgetter's crushing down to the game scoring nothing until a first lineup is set. The replays say
+otherwise: forgotten weeks are few (51 in 21 replays, one or two each), and after that the lineup carries. What costs them is
+an open slot: someone on their lineup goes home and the slot stays empty until they come back (the forgetter has a card in 43%
+of weeks, the tinkerer in 24%). Filling each open slot from the bench in draft order, then anyone else on it (no lineup, or
+someone gone home), worked out from what each week's bench would have scored (`defaultLineupOf`), moves the forgetter's median
+finish from 67% to 20% (13 replays): up the table, still behind the tinkerer (13%), who sets the best lineup.
+
+**Repro.** `node scripts/dev-test/playtest.js judge`: the Weekly Lineup rows' "Forgetter, covered while away" (67% → 20%); per
+replay, `defaultLineupOf` in `playtest.js` on its JSON.
+
+**A direction.** An open slot fills itself at lock time from the bench, in draft order (or by points so far), and the reveal
+says so ("Ann started for you: Bo went home"). Setting your lineup still wins.
+
+### 14. Someone away from the draft: "first on the list" is the fairer stand-in; the favourites would make missing the draft pay (low; the draft's Pick for them, and the GPT plan's `extras.draft.away`)
+
+P3 asked whether the forgetter's team (picked for them, first on the list) should be the favourites instead. In the app, nothing
+picks for someone away: in the blind draft whoever runs it picks ("Pick for X" starts empty), and the turn-based draft waits
+(or takes from their queue when the timer runs out). The variant `--away=favourites` gave the forgetter the room's favourites
+(what the app knows of each, `bot-logic.js` ratings, then the others' own picks) in the 60 replays with a draft and a forgetter
+who drafts (`compare away-favourites`):
+- **Outlast to the end, starting mid-season** (11 replays): the forgetter's median finish goes from 53% to first, first or
+  level in 6 (3 as played). From a third of the way in or the merge, the app knows who's been safe, and a team of the
+  favourites beats the people who drafted their own.
+- **Outlast from episode 1** (12): 38% → 23%, first or level in 6 (4). Before any results the ratings are level and the
+  room's own picks decide: the consensus team. These move between runs (an earlier run gave 43% → first): Outlast with
+  weekly replacements fills them with a free agent drawn at random (below).
+- **Weekly Lineup** (13): little change; the weekly moves decide it.
+
+First on the list puts the forgetter mid-table on average across the four seasons (Outlast 38 to 53%). Dancing with the Stars'
+lucky alphabet (Alix Earle, the runner-up, first) is one season's names. **Answer:** not the favourites. If the app ever fills a
+team for someone away, it should be middling (the first on the list, or a draw) and said plainly, never the strongest at the
+table. The harness keeps first on the list.
+
+**Repro.** `node scripts/dev-test/playtest.js run survivor 49 --away=favourites` (and the other three seasons), then
+`node scripts/dev-test/playtest.js compare away-favourites`; e.g. `survivor-49-outlast-exclusive-standard-merge-late-nowaivers-g8`:
+the forgetter 7th of 8 → 1st.
+
+### The other directions, tried
+
+- **Outlast: a waiver window after the merge** (`--window=merge`: whoever runs it opens one, "Swap anyone", after the merge or
+  a season's middle episode, in the 20 exclusive Outlast replays with waivers on that play past it). Teams spent 206 weeks
+  wiped out after the window instead of 265, and by the next episode 20 teams had nobody left instead of 28. It helps only
+  where free agents are left: where 16 people hold one each there are none, and nothing changed. "Replace who's out" refills
+  everyone's out castaways, not just wiped teams': by claim, or by autofill when the window closes (Balanced's fallback, the
+  forgetter's way back) if anyone's still free. The winner changed in 9 of the 17 with people, but loosely: Outlast's autofill
+  draws a free agent at random (`WaiverLogic.autoPick`, keyed on the week's id, new each run), so which way it changed is luck
+  as much as choice. The window is the one decision Outlast offers after the draft. A direction for Outlast's waiver
+  recommendation: open one window by itself after the merge (the preset the sheet already suggests then), and say so on
+  Tonight. `compare window-merge`.
+- **Outlast's ties broken by who has most still in** (finding 5's direction): breaks 1 of 36 tied ends (61% of ends tied at
+  the top, 59% after; `judge`'s "Tied top, most still in breaks it"). The ties are the games where nobody's people have left
+  yet, or the same number have. A tie-break needs something else (what their people scored by the rulebook), or Outlast stays
+  off short spans.
+- **A correction to the first pass and finding 7:** Outlast's waiver recommendation isn't only windows the commissioner opens.
+  On a small group (plenty of free agents) it's replacements every week (`replaceRule` "always"): 13 of the whole set's Outlast
+  replays had weekly waiver weeks, the replacements autofilled at random for anyone who doesn't claim. Windows by hand are the
+  recommendation only where free agents are short.
+- **Weekly Lineup's default lineup** and **Survival Pool's made-for-you pick**: findings 13 and 12.

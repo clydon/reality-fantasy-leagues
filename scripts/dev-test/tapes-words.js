@@ -8,6 +8,11 @@
 // these tapes are re-asked; the inputs and expected readings are what last.
 //
 //   const W = require("./tapes-words");  W.wordsPrompt(words, today)  W.parseRequest(answer)  W.judge(expect, parsed, words)
+//
+//   node scripts/dev-test/tapes-words.js report   P2's table: the words tapes (tapes.js's TAPES folder, ~\rfl-tapes unless
+//                                                 .env.local's TAPES_DIR says otherwise) judged with today's judge, by
+//                                                 group, each miss quoted with what was read; also words\REPORT.md there.
+//                                                 Reads the tapes only: no bot, no database.
 const path = require("path");
 const Research = require("../../db/episode-research.js");
 // Whether two names are the same show: the app's own rule (listing.ts sameShow: the name and its country, "The Traitors (US)"
@@ -90,11 +95,36 @@ function numbersIn(game) {
   return out;
 }
 
+// What the corpus says must carry over (expect.said), where the draft request shape has a place for it. The rest (computer,
+// public, finale, repeat, ties, bench, waivers, from, to) has no place in the draft shape: G1's to add (PLAN-playtests.md P2).
+const num = (v) => (v == null || v === "" || Number.isNaN(Number(v)) ? null : Number(v));
+const CARRIED = {
+  named: (want, p) => sameWords(want, p.game.named),
+  players: (want, p) => num(p.game.players) === Number(want),
+  each: (want, p) => num(p.game.get && p.game.get.each) === Number(want),
+  start: (want, p) => num(p.game.count && p.game.count.start) === Number(want),
+  order: (want, p) => !!p.game.get && String(p.game.get.order || "").toLowerCase() === String(want),
+  own: (want, p) => !!p.game.get && String(p.game.get.own || "").toLowerCase() === String(want),
+  // Every scoring line said: as many lines, each said number among their points.
+  score: (want, p) => p.game.score.length >= want.length && want.every((w) => w.points == null || p.game.score.some((s) => num(s && s.points) === w.points)),
+  ask: (want, p) => p.game.ask.length >= want.length,
+  line: (want, p) => p.game.ask.some((a) => a && num(a.line) === Number(want)),
+  unsure: (want, p) => p.unsure.length > 0,
+};
+
+/** Which of a reading's said parts carried over: { key: true | false }, only the keys the draft shape has a place for. Pure. */
+function carriedOf(said, parsed) {
+  const out = {};
+  for (const [k, want] of Object.entries(said || {})) if (CARRIED[k]) out[k] = !!CARRIED[k](want, parsed);
+  return out;
+}
+
 /**
- * How well a parsed request matches its expected reading: { about, season, when, invented, flagged, inventedNumbers, unsure,
- * score, of }. Each check is true or false; `flagged` is null when no question or refusal is expected. What wasn't said must
- * come back empty: a season, a span or a show the words don't name is a miss, not a pass. `flagged`: an expected question or
- * refusal shows as something unsure (or nothing it's about). Pure.
+ * How well a parsed request matches its expected reading: { about, season, when, invented, flagged, carried, inventedNumbers,
+ * missed, unsure, score, of }. Each check is true or false; `flagged` is null when no question or refusal is expected, and
+ * `carried` (everything said that has a place in the shape, carried over: carriedOf; `missed` names what didn't) null when
+ * nothing said has one. What wasn't said must come back empty: a season, a span or a show the words don't name is a miss,
+ * not a pass. `flagged`: an expected question or refusal shows as something unsure (or nothing it's about). Pure.
  */
 function judge(expect, parsed, words) {
   const want = expect.about || {};
@@ -110,8 +140,97 @@ function judge(expect, parsed, words) {
   const invented = numbersIn(parsed.game).filter((n) => !said.has(n) && !said.has(-n) && !(n === 1 && /\b(a|an|each|every|per)\b/i.test(words)));
   checks.invented = invented.length === 0;
   checks.flagged = expect.flag ? parsed.unsure.length > 0 || (!got.show && !got.sport) : null;
+  const carried = carriedOf(expect.said, parsed);
+  const missed = Object.keys(carried).filter((k) => !carried[k]);
+  checks.carried = Object.keys(carried).length ? missed.length === 0 : null;
   const scored = Object.values(checks).filter((v) => v !== null);
-  return { ...checks, inventedNumbers: invented, unsure: parsed.unsure.length, score: scored.filter(Boolean).length, of: scored.length };
+  return { ...checks, inventedNumbers: invented, missed, unsure: parsed.unsure.length, score: scored.filter(Boolean).length, of: scored.length };
 }
 
-module.exports = { wordsPrompt, parseRequest, judge, sameName };
+// ---------- P2's table: how well the bot understood, by group (the tapes only) ----------
+
+const CHECKS = ["about", "season", "when", "invented", "flagged", "carried"];
+
+/**
+ * The words tapes judged with today's judge, by group: { groups: [{ group, asked, of, checks, passed, misses: { check: n } }],
+ * misses: [{ id, group, words, failed, expect, read }] } over `requests` (the corpus's) and `tapes` (words\<id>.json).
+ * A tape that didn't parse is a miss of every check. Pure.
+ */
+function reportOf(requests, tapes) {
+  const byId = new Map(tapes.map((t) => [t.id, t]));
+  const groups = new Map();
+  const misses = [];
+  for (const req of requests) {
+    const g = groups.get(req.group) || groups.set(req.group, { group: req.group, asked: 0, of: 0, checks: 0, passed: 0, misses: {} }).get(req.group);
+    g.of++;
+    const t = byId.get(req.id);
+    if (!t) continue;
+    g.asked++;
+    const ok = t.ok && t.parsed;
+    const j = ok ? judge(req.expect, t.parsed, req.words) : null;
+    const failed = ok ? CHECKS.filter((c) => j[c] === false) : ["no answer"];
+    g.checks += ok ? j.of : 1;
+    g.passed += ok ? j.score : 0;
+    for (const c of failed) g.misses[c] = (g.misses[c] || 0) + 1;
+    if (failed.length) {
+      const p = t.parsed || {};
+      const read = ok
+        ? {
+            about: [p.about.show, p.about.season && `season ${p.about.season}`, p.about.sport, p.about.league, (p.about.teams || []).join(" v "), p.about.event].filter(Boolean).join(", ") || "nothing",
+            when: p.when.kind,
+            game: p.game,
+            unsure: p.unsure,
+            invented: j.inventedNumbers,
+            missed: j.missed,
+          }
+        : { message: t.message };
+      misses.push({ id: req.id, group: req.group, words: req.words, failed, expect: req.expect, read });
+    }
+  }
+  return { groups: [...groups.values()], misses };
+}
+
+function reportMarkdown(r) {
+  const n = (k) => r.groups.reduce((t, g) => t + g[k], 0);
+  const lines = [
+    `# Start a game's words corpus: how well the bot understood`,
+    ``,
+    `${n("asked")} of ${n("of")} request(s) on tape; ${n("passed")} of ${n("checks")} checks as expected (tapes-words.js judge, today's). Checks: about (the show, else the sport or a team), season (as said, else none), when (the span's kind, else none), invented (no number they didn't say), flagged (an expected question or refusal shows as unsure), carried (what they said, where the draft shape has a place for it).`,
+    ``,
+    `| Group | On tape | Checks as expected | Misses |`,
+    `|---|---|---|---|`,
+    ...r.groups.map((g) => `| ${g.group} | ${g.asked} of ${g.of} | ${g.checks ? `${g.passed} of ${g.checks}` : ""} | ${Object.entries(g.misses).map(([k, v]) => `${k} ${v}`).join(", ")} |`),
+    ``,
+    `## The misses`,
+    ``,
+  ];
+  for (const m of r.misses) {
+    lines.push(`- **${m.id}** (${m.group}) "${m.words}": ${m.failed.join(", ")}.`);
+    if (m.read.message) lines.push(`  - ${m.read.message}`);
+    else {
+      lines.push(`  - expected: ${JSON.stringify({ about: m.expect.about, when: m.expect.when, said: m.expect.said, flag: m.expect.flag })}`);
+      lines.push(`  - read: about ${m.read.about}; when ${m.read.when}; game ${JSON.stringify(m.read.game)}; unsure ${JSON.stringify(m.read.unsure)}${m.read.invented.length ? `; invented ${m.read.invented.join(", ")}` : ""}${m.read.missed.length ? `; didn't carry ${m.read.missed.join(", ")}` : ""}`);
+    }
+  }
+  return lines.join("\n") + "\n";
+}
+
+/** `node scripts/dev-test/tapes-words.js report`: P2's table from the tapes (also rfl-tapes\words\REPORT.md). */
+function report() {
+  const fs = require("fs");
+  // The recorder's own folder (tapes.js loads .env.local first, so a TAPES_DIR there counts too).
+  const dir = path.join(require("./tapes").TAPES, "words");
+  const corpus = JSON.parse(fs.readFileSync(path.join(__dirname, "start-a-game-words.json"), "utf8"));
+  const tapes = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => /^[^.]+\.json$/.test(f)).map((f) => JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"))) : [];
+  const text = reportMarkdown(reportOf(corpus.requests, tapes));
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "REPORT.md"), text, "utf8");
+  console.log(text);
+}
+
+module.exports = { wordsPrompt, parseRequest, judge, carriedOf, reportOf, reportMarkdown, sameName };
+
+if (require.main === module) {
+  if (process.argv[2] === "report") report();
+  else console.log("Usage: node scripts/dev-test/tapes-words.js report   (P2's table from the words tapes; see the header)");
+}

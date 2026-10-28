@@ -2,8 +2,9 @@
 
 For the playtest lane's sessions and the user. Status: planned 2026-10-28, started that night in the playtest lane
 (`../rfl-playtest`, branch `playtest`, database `rfl_playtest`, port 3005). P1 built and recording; P2 started (its corpus waits on
-the recorder); P3 parts 1 and 2 built (96 replays of Survivor 49, the Traitors 4, The Challenge 41 and Dancing with the Stars 34,
-and the looks at 390; Below Deck 12's full research doesn't come back: finding 10); P4's first pass done; findings in
+the recorder; its judge and report are ready); P3 parts 1 and 2 built (96 replays of Survivor 49, the Traitors 4, The Challenge 41
+and Dancing with the Stars 34, and the looks at 390; Below Deck 12's full research doesn't come back: finding 10); P4 done for the
+four seasons on tape (taps a week, someone away, the directions tried as variants); findings in
 [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md).
 
 ## What the user asked for (2026-10-28, going to sleep with the survivor and engine lanes running)
@@ -446,6 +447,60 @@ decide; Survival Pool never changes leader and ends tied or with the forgetter l
 
 **Left for P4:** Below Deck once it has full research; taps per week; the forgetter's "first on the list"; second seasons.
 
+### P4's rest, and P2's judge and report (2026-10-28, playtest lane)
+
+The words corpus was still 2 of 104 on tape (the recorder gave Below Deck 12's episode 1 full research up at 08:17 UTC and
+backed off an hour; Below Deck's quick checks, then the corpus, come after), so P4's rest went first, without the bot.
+
+**What changed in `playtest.js`:**
+- **What each week asks.** `moves` and `waivers` record per seat and episode `asks`: whether the app showed a move to make (a
+  lineup with an open slot, a pick not made, a replacement owed) and the taps the move took (`TAPS`, counted from Tonight's
+  card on the new design's screens: `lineupTaps`, `claimTaps`). `judge` adds a table, "How much each week asks", by game and
+  role (`asksOf`), and counts weeks someone set no lineup and the app still praised their calls (finding 11).
+- **Variants** (`run ... --away=favourites`, `--window=merge`, `variantOf`): habits changed from the whole set's, playing only
+  the replays they change (`changedBy`: away needs a draft and a forgetter who drafts, so not a pool and not a group of two
+  whose forgetter is the late joiner; both flags together play what either changes) into `replays\variants\<variant>\`;
+  `compare <variant>` puts each beside the whole set's replay of the same name (`compareOf`). `--away=favourites`: someone away from the draft gets the room's favourites
+  (`favourites`: what the app knows, then the others' own picks), not the first on the list. `--window=merge`: whoever runs
+  an exclusive Outlast game opens one waiver window after the merge (a season with none: its middle episode), "Swap anyone"
+  (`openWindow`); each waiver week now records who had nobody left before it ran and who got someone back.
+- **Directions worked out from the replay files alone**, as `judge` columns: Weekly Lineup's open slots filled from the bench
+  in draft order (`defaultLineupOf`), a pool's missed picks made for them or the streak frozen (`poolFallbackOf`; its recount
+  of the streaks as played is checked against the app's table: all 12 pools match), Outlast's ties broken by the most still in
+  (`stillInBreakOf`).
+- **`says <episode>`**: on kept replays, each seat's lineup and what the app says to them about the episode (finding 11's repro).
+
+The 96 replays were played again first (about 80 s a season), then the two variants (60 and 20 replays); after the code
+review's fixes, all three again from clean folders. Unit tests
+(`tests/playtest.test.js`): the room's favourites, taps, variants and what they change, the asks measure, the default lineup,
+the pool's made-for-you pick and frozen streak, the still-in tie-break, and the compare.
+
+**What P4 found** (details, numbers and repros in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md), "P4's rest"):
+- **Taps a week:** Outlast nothing after the draft, Weekly Lineup 2.3 (a card in a third of weeks; the tinkerer 3.2 and near
+  the top, the drive-by 1.2), Survival Pool 2.2 with a card every week for everyone (3 taps, 39 a season).
+- **Findings 11 to 14:** the app praises a lineup nobody set; Survival Pool's missed week (freeze the streak: 86% → 69%; a
+  made-for-you pick, 86% → 33%, is too generous); Weekly Lineup's forgetter loses to open slots, which filling from the bench
+  would fix (67% → 20%); someone away from the draft should not get the favourites (Outlast from mid-season: 53% → first).
+- **Directions tried:** an Outlast window after the merge cuts the weeks teams sit wiped out by a fifth (265 → 206, only where
+  free agents are left) and changed the winner in 9 of 17 (loosely: autofill is a random draw); "most still in" breaks 1 of
+  Outlast's 36 tied ends. And a correction: on a small group Outlast's waivers are weekly replacements, not only windows.
+
+**The forgetter's draft stays "first on the list"** in the harness: P3's question is answered (finding 14).
+
+**P2's judge and report, while the corpus waits** (`tapes-words.js`):
+- **The judge checks what carried over** (`carried`, `carriedOf`): each part of `expect.said` the draft request shape has a
+  place for (named, players, each, start, order, own, the scoring lines' points, the questions, a line, the unsure bits) must
+  come back in it; `missed` names what didn't. The rest of what the corpus says (computer, public, finale, repeat, ties, bench,
+  waivers, from, to) has no place in the draft shape: for G1 to add. `status` re-judges every tape with it.
+- **`node scripts/dev-test/tapes-words.js report`**: P2's table from the tapes, by group (on tape, checks as expected, misses
+  by check) and each miss quoted with what was read (`reportOf`, `reportMarkdown`; also `rfl-tapes\words\REPORT.md`). Unit
+  tests in `tests/tapes.test.js`.
+- The request prompt is unchanged (G1's draft). The two on tape (w002, w084) read as expected, 11 of 11.
+
+**Left for P2:** the table once the corpus is on tape (`tapes-words.js report`), the expected readings to fix and the judge to
+tune from it, and what G1 should change. **Left for P3 and P4:** Below Deck 12 (finding 10: its cast staged by hand once the
+corpus is on tape, then its full research and 20 replays); second seasons as they're recorded.
+
 ## Noticed, not fixed
 
 (Each step adds what it saw and left alone, with the step that could take it.)
@@ -512,3 +567,30 @@ From P3 part 2 (2026-10-28):
 - **The look's air time is the clock's** ("Wed 5:30 AM": two hours from when the look ran). Only the looks; harmless.
 - **Seats show usernames** (zt_pt_tinkerer) in the tables because the replays' accounts are named that way; a real couch's
   show their names. Nothing to fix.
+
+From P4's rest (2026-10-28):
+- **Autofill happens when a waiver week closes** (at the next episode's results), after Run now, so a waiver week's `backIn`
+  only counts those who claimed; the next episode's "teams with nobody left" shows autofill too. The report's window numbers
+  use the next episode's. Harness only.
+- **A seat whose draft dead-ended has no team at all** (finding 4's 16-person games), and `look` counts it among the "teams with
+  nobody left" every episode; the waiver week's own count leaves it out (nobody to replace). Both right for what they say.
+- **The bots' waiver claim lists every add for every drop** (`bot-logic.js waiverClaim`: up to eight pairs for two spots), so
+  the claim's taps count spots, not pairs: what a person taps is a spot and a pick (backups off).
+- **A pool's made-for-you pick, as worked out, copies the room**, which on a big cast is nearly as good as anyone's own read
+  (the forgetter, missing 12 of 21 weeks, would finish second on The Challenge 41's season pool). Any fallback the app adds
+  should be weaker than playing (finding 12).
+- **Outlast with waivers on isn't repeatable run to run**: its weekly replacements autofill a free agent at random, keyed on
+  the waiver week's id, which is new in every run (`WaiverLogic.autoPick`). A replay's winner can differ between two runs of
+  the same config; compare such replays by their measures over many, not one by one. By design in the app (fixed per week);
+  harness only.
+- **The taps leave out the reveal** (the spoiler-safe "Reveal Episode N" before a lineup or pick can change). It's the same
+  for every game and every week; whether it's a tap or a pleasure is G0's and the looks' to judge, not a count's.
+- **`judge`'s finishes count ties two ways**: the Tinkerer and Forgetter columns by table order (as P4's first pass did), the
+  "covered while away" column with ties level. Each column says which; they aren't to be compared with each other.
+- **The measures read the replays' words** (a starter's "Name 3.5 (moments)", a bench's "would have scored", a move's "picked
+  X", the log's "opened a window after episode N"), so rewording one in `look` or `moves` would quietly zero a measure, and a
+  name with a number in it would be cut short. Recording ids, points and flags beside the words in `look`, `moves` and
+  `waivers` (and reading those) would end it. P5, before the next new measure.
+- **Waiver moves were logged without names since P3** (`waivers` read `addId`/`dropId`; the log's are `addedCastawayId` and
+  `droppedCastawayId`), so every replay's "ran" lines read "zt_pt_tinkerer:  (waivers)". Fixed in P4's rest; the replays were
+  run again.
