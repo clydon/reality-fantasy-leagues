@@ -22,7 +22,8 @@
 //                          on you (a question, or a session stopped partway) or done is left alone, and the weekly limit is
 //                          waited out. Logs to .session-loop/keeper.log; --once only says what it would do. It sees a loop
 //                          by the lane's folder in its command lines (Windows only), so start a watched lane's loop with
-//                          `start`, never by hand in a terminal
+//                          `start`, never by hand in a terminal. While it runs, the PC stays out of idle sleep
+//                          (scripts/keep-awake.ps1 in a minimized window that ends with it)
 //   node scripts/lane.js sync <name>           merges master into the lane's branch (the loop's sessions can't merge);
 //                                              refuses while the lane has uncommitted changes
 //   node scripts/lane.js remove <name> --yes   takes the worktree out and drops its database; the branch stays (git branch
@@ -402,6 +403,13 @@ function keep() {
   };
   check();
   if (once) return;
+  // Lanes waiting out a usage limit run nothing, and a PC that idles to sleep then stays asleep past the reset: the keeper
+  // holds it awake (scripts/keep-awake.ps1, minimized) until its own window is closed.
+  spawn("cmd.exe", ["/c", "start", "Keep awake", "/min", "powershell.exe", "-ExecutionPolicy", "Bypass", "-File", path.join(__dirname, "keep-awake.ps1"), "-WhilePid", String(process.pid)], {
+    detached: true,
+    stdio: "ignore",
+  }).unref();
+  say(null, "keeping the PC awake while this keeper runs (a minimized window, Keep awake)");
   console.log(`Checking every ${every} min, until this window is closed. Log: ${logFile}`);
   setInterval(check, every * 60_000);
 }

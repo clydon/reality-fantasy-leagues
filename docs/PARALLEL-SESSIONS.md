@@ -88,9 +88,13 @@ the memory. The database copy takes about a second (all 99 tables, pgvector incl
   times, 4 by default), checking every 5 minutes. It leaves a lane alone that's waiting for the user, was stopped partway or
   is done, and its log is the main folder's `.session-loop/keeper.log`. The loops wait out the 5-hour window themselves, and
   the keeper waits out the weekly one. First used 2026-10-28, when the user went to sleep with three lanes running.
-- **Keep the PC awake.** The laptop sleeps after an hour idle on power, and nothing a lane runs asks it to stay up. So an
-  unattended night needs `scripts/keep-awake.ps1` in a window of its own (`-Until "<date> 12:00"` to end it by itself). It
-  changes no setting, and closing the window ends it. The lid stays open: a closed lid still sleeps the laptop.
+- **Keep the PC awake.** The laptop sleeps after an hour idle on power, and nothing a lane runs asks it to stay up. The
+  keeper holds it awake while it runs: it opens `scripts/keep-awake.ps1` minimized (a "Keep awake" window, `-WhilePid` its
+  own process), which ends when the keeper's window is closed. Without a keeper, an unattended night needs keep-awake.ps1 in
+  a window of its own (`-Until "<date> 12:00"` to end it by itself). It changes no setting, and closing the window ends it.
+  The lid stays open: a closed lid still sleeps the laptop. On 2026-10-28 the night's window had ended at noon, and the PC
+  slept from 4:12 to 5:49 PM while both lanes waited out a usage limit: the lanes, the bot and the recorder all stood
+  still until a key woke it.
 
 ## Bring a step home
 
