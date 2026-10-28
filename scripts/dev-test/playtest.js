@@ -24,6 +24,7 @@
 //                                                 playtest-looks.js). --through=N stops after episode N's results,
 //                                                 --before=N before them (N's games drafted and its moves made)
 //   node scripts/dev-test/playtest.js summary                       a line per replay on file, for P4 (also replays\SUMMARY.md)
+//   node scripts/dev-test/playtest.js judge                         P4's measures per game, all shows and each (replays\JUDGE.md)
 //   node scripts/dev-test/playtest.js exits <show> <season>         who left by the quick check and by the full research, per
 //                                                 episode, and where they disagree (the tape only; replays\exits-<show>-<season>.md)
 //   node scripts/dev-test/playtest.js down                          take out everything a replay made (zt-pt- keyed)
@@ -1135,6 +1136,94 @@ function summary() {
   console.log(lines.join("\n"));
 }
 
+// ---------- P4's measures, across replays (the replay files only) ----------
+
+const median = (xs) => {
+  const v = xs.filter((x) => Number.isFinite(x)).sort((a, b) => a - b);
+  if (!v.length) return null;
+  const m = Math.floor(v.length / 2);
+  return v.length % 2 ? v[m] : (v[m - 1] + v[m]) / 2;
+};
+const share = (xs) => (xs.length ? xs.filter(Boolean).length / xs.length : null);
+
+/**
+ * P4's questions, measured over a set of replays of one game (docs/PLAN-playtests.md P4), each a fraction or a median:
+ *   Fun          over (the game says it's over), leadChanges, settled (how far in the winner took first place for good,
+ *                0 the first episode, 1 the last), tiedTop (the end level at the top), quiet (episodes where nobody's
+ *                points or streak moved), wiped (replays where someone's team had nobody left before the end)
+ *   Plays well   tinkerer and forgetter (where they finished: 0 first, 1 last), problems (replays with any)
+ *   Makes sense  silent (Weekly Lineup starters who scored with no reason to show: the reveal lists each starter's points with
+ *                its moments, episode-view.ts `why`, so a score with none can't be explained)
+ * Pure.
+ */
+function judgeOf(records) {
+  const place = (x, role) => {
+    const last = x.episodes[x.episodes.length - 1];
+    const seat = x.seats.find((s) => s.role === role);
+    if (!last || !seat || last.table.length < 2) return null;
+    const i = last.table.findIndex((t) => t.name === seat.label);
+    return i < 0 ? null : i / (last.table.length - 1);
+  };
+  const quietOf = (x) =>
+    x.episodes.map((e, i) => {
+      const before = i ? new Map(x.episodes[i - 1].table.map((t) => [t.playerId, t])) : null;
+      return e.table.every((t) => {
+        const b = before ? before.get(t.playerId) : null;
+        return b ? b.total === t.total && (b.streak ?? 0) === (t.streak ?? 0) : !t.total && !t.streak;
+      });
+    });
+  // A starter as look() wrote it: "Name 3.5 (Perfect score 3, Performed multiple dances 0.5)", the brackets only with moments.
+  const scored = records.flatMap((x) =>
+    x.episodes.flatMap((e) => Object.values(e.why || {}).flatMap((w) => (w.started || []).map((s) => /^(.*?) (-?\d+(?:\.\d+)?)( \(.*\))?$/.exec(s)).filter((m) => m && Number(m[2]) !== 0)))
+  );
+  const played = records.filter((x) => x.episodes.length);
+  return {
+    replays: records.length,
+    over: share(played.map((x) => !!(x.final && x.final.over))),
+    leadChanges: median(played.map((x) => (x.final ? x.final.leadChanges : null))),
+    settled: median(
+      played.map((x) => {
+        const i = x.final && x.episodes.length > 1 ? x.episodes.findIndex((e) => e.n === x.final.settledAt) : -1;
+        return i < 0 ? null : i / (x.episodes.length - 1);
+      })
+    ),
+    tiedTop: share(played.map((x) => x.episodes[x.episodes.length - 1].leaders.length > 1)),
+    quiet: share(played.flatMap(quietOf)),
+    wiped: share(played.map((x) => x.episodes.slice(0, -1).some((e) => (e.teamsWithNobodyLeft || []).length))),
+    tinkerer: median(played.map((x) => place(x, "tinkerer"))),
+    forgetter: median(played.map((x) => place(x, "forgetter"))),
+    problems: share(records.map((x) => (x.problems || []).length > 0)),
+    silent: scored.length ? share(scored.map((m) => !m[3])) : null,
+  };
+}
+
+function judge() {
+  const Tapes = require("./tapes");
+  const dir = path.join(Tapes.TAPES, "replays");
+  const all = fs.readdirSync(dir).filter((f) => f.endsWith(".json")).map((f) => JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")));
+  const groups = new Map();
+  for (const x of all) {
+    for (const key of [`${x.config.game} · all`, `${x.config.game} · ${x.show} ${x.season}`]) (groups.get(key) || groups.set(key, []).get(key)).push(x);
+  }
+  const pct = (v) => (v === null ? "" : `${Math.round(v * 100)}%`);
+  const num = (v) => (v === null ? "" : String(Math.round(v * 10) / 10));
+  const lines = [
+    `# Replays judged: P4's measures`,
+    ``,
+    `${all.length} replay(s) in ${dir}, written by playtest.js judge. Over: the game says it's over at the end. Settled: how far in the winner took first place for good (0% the first episode). Tied top: level at the top at the end. Quiet: episodes where nobody's points or streak moved. Wiped: someone's team had nobody left before the end. Tinkerer, Forgetter: median finish (0% first, 100% last). Silent: Weekly Lineup starters who scored with no reason to show.`,
+    ``,
+    `| Game | Replays | Over | Lead changes | Settled | Tied top | Quiet | Wiped | Tinkerer | Forgetter | Problems | Silent |`,
+    `|---|---|---|---|---|---|---|---|---|---|---|---|`,
+  ];
+  for (const [key, xs] of [...groups].sort(([a], [b]) => a.localeCompare(b))) {
+    const j = judgeOf(xs);
+    lines.push(`| ${key} | ${j.replays} | ${pct(j.over)} | ${num(j.leadChanges)} | ${pct(j.settled)} | ${pct(j.tiedTop)} | ${pct(j.quiet)} | ${pct(j.wiped)} | ${pct(j.tinkerer)} | ${pct(j.forgetter)} | ${pct(j.problems)} | ${pct(j.silent)} |`);
+  }
+  lines.push(``);
+  fs.writeFileSync(path.join(dir, "JUDGE.md"), lines.join("\n"), "utf8");
+  console.log(lines.join("\n"));
+}
+
 // ---------- who left, by the quick check and by the full research (the tape only) ----------
 
 /**
@@ -1244,10 +1333,11 @@ async function main() {
   if (cmd === "run") return run(rest[0], Number(rest[1]), flags);
   if (cmd === "down") return console.log(`removed ${await down()}`);
   if (cmd === "summary") return summary();
-  console.log("Usage: node scripts/dev-test/playtest.js matrix|run|exits|summary|down <show> <season> (see the header comment)");
+  if (cmd === "judge") return judge();
+  console.log("Usage: node scripts/dev-test/playtest.js matrix|run|exits|summary|judge|down <show> <season> (see the header comment)");
 }
 
-module.exports = { summaryLine, upgradeStored, shiftAnswer, exitsOf, DIMENSIONS, NA, gamesOf, dimsFor, applies, allConfigs, pairsOf, pairwise, replayName, ROLES, seatsFor, hash01, movesThisWeek, prefer, mergeOf, spanOf, settledAt };
+module.exports = { summaryLine, judgeOf, upgradeStored, shiftAnswer, exitsOf, DIMENSIONS, NA, gamesOf, dimsFor, applies, allConfigs, pairsOf, pairwise, replayName, ROLES, seatsFor, hash01, movesThisWeek, prefer, mergeOf, spanOf, settledAt };
 
 if (require.main === module) {
   main()

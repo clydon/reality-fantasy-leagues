@@ -3,7 +3,8 @@
 For the playtest lane's sessions and the user. Status: planned 2026-10-28, started that night in the playtest lane
 (`../rfl-playtest`, branch `playtest`, database `rfl_playtest`, port 3005). P1 built and recording; P2 started (its corpus waits on
 the recorder); P3 parts 1 and 2 built (96 replays of Survivor 49, the Traitors 4, The Challenge 41 and Dancing with the Stars 34,
-and the looks at 390; Below Deck 12's full research doesn't come back: finding 10); findings in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md).
+and the looks at 390; Below Deck 12's full research doesn't come back: finding 10); P4's first pass done; findings in
+[PLAYTEST-REPORT.md](PLAYTEST-REPORT.md).
 
 ## What the user asked for (2026-10-28, going to sleep with the survivor and engine lanes running)
 
@@ -430,6 +431,20 @@ queue goes on: Below Deck's quick checks, then the words corpus. Unit test in `t
 **Left for P3:** Below Deck 12, once its cast is the season's crew (finding 10): its full research, then `run below-deck 12` (20
 Weekly Lineup replays) and a look. With only quick checks on tape, a Weekly Lineup on it scores nothing, so a replay now would
 only show that. Weekly Calls and Weekly Bingo, which need a talk show. Second seasons as they're recorded.
+
+### P4. Reviews, a first pass (2026-10-28, the same session as P3 part 2)
+
+**`playtest.js judge`** measures P4's questions over the replays on file, per game, for all shows and each (`judgeOf`; also
+`replays\JUDGE.md`): whether the game says it's over, lead changes, how far in the winner took first place for good, a tie at
+the top, quiet weeks (nobody's points or streak moved), teams wiped out before the end, where the tinkerer and the forgetter
+finished, replays with problems, and Weekly Lineup starters who scored with no reason to show (the reveal's `why`). Unit test in
+`tests/playtest.test.js`.
+
+**The first pass** is in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md) ("P4, a first pass"), from the 96 replays: Weekly Lineup plays
+best (choices decide it, every score explained) but crushes the forgetter; Outlast has the most suspense and the least to
+decide; Survival Pool never changes leader and ends tied or with the forgetter last. Each with a direction and who could take it.
+
+**Left for P4:** Below Deck once it has full research; taps per week; the forgetter's "first on the list"; second seasons.
 
 ## Noticed, not fixed
 

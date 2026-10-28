@@ -254,18 +254,52 @@ in it split in two), as the research already asks only for what's missing (`only
 The recorder now holds a season's other full research once one gives up with no answer (`tapes.js fullHeld`), so the queue moves
 on to the quick checks and the words corpus. Delete `e01-full.json` to ask again once the cast is fixed.
 
-## Still to judge (P4)
+## P4, a first pass: each game judged as a player would (2026-10-28)
 
-The replays carry everything P4's questions ask about: fun, makes sense, plays well.
-- Lead changes and when the winner was settled are in `summary`.
-- What the app told each player about their week is in each episode's `why.says`.
-- How the forgetter did (rank, and weeks with no lineup) is in the files.
+From the 96 replays' files, measured by `node scripts/dev-test/playtest.js judge` (`rfl-tapeseplaysJUDGE.md`, by game and by
+show), and read in the tables. "To the end" is a whole-season game or one from episode N or the merge; "short" is one episode
+or through half. Finishes: 0% first, 100% last (the median seat in that role). Findings 1 to 3 run under all of it: no
+season-long game but Dancing with the Stars' says it's over, and held results leave people in.
 
-Already visible, for P4 to weigh:
-- **The forgetter.** Weekly Lineup scores 0 until a first lineup is set (no default lineup), then it carries. A Survival
-  Pool's missed pick costs the streak.
-- **The blind draft's "first on the list"** (the forgetter's picks made for them, and the drive-by's own) decided two
-  Traitors 4 replays.
-- **Survival Pools often end level:**
-  - two-way shared wins in three of the ten;
-  - the half-season solo pools four-way, everyone having survived every pick.
+| Game | Replays | Lead changes | Winner settled | Tied at the top | Quiet weeks | Tinkerer | Forgetter |
+|---|---|---|---|---|---|---|---|
+| Weekly Lineup, to the end | 13 | 2 | 50% of the way | 15% | 19% | 0% | 67% |
+| Weekly Lineup, short | 8 | 0 | 40% | 25% | 3% | 27% | 43% |
+| Outlast, to the end | 30 | 3.5 | 75% | 27% | 11% | 59% | 53% |
+| Outlast, short | 29 | 0 | 23% | 90% | 7% | 0% | 14% |
+| Survival Pool, to the end | 8 | 0 | from the first episode | 25% | 6% | 0% | 100% |
+| Survival Pool, short | 8 | 0 | from the first episode | 100% | 4% | 0% | 67% |
+
+**Weekly Lineup plays best.** Fun: the lead changes twice in a median season and the winner isn't settled until halfway;
+choices decide it (the tinkerer, who sets the sharpest lineup every week, finishes first in the median replay). Makes sense:
+every starter who scored in a reveal comes with the moments that scored ("Perfect score 3 · Reached the finale 3"), none
+without (`judge`'s Silent column: 0%), and what the bench would have scored is there too. Plays well, mostly:
+- **The forgetter is crushed** (67%: last but one in a group of four). The game scores nothing until a first lineup is set,
+  even though the draft (made for them) picked a team. Medium; a default lineup from the draft (its first picks start until
+  you choose) is the fix, for Start a game's owner or the engine lane.
+- **Quiet weeks** are 34% on The Challenge 41: medium-confidence results held (finding 3), so weeks pass with nobody scoring.
+  Fix finding 3 and they go.
+
+**Outlast is suspense with little to decide.** Fun: the most lead changes of any game (3.5) and the winner settled late (75% of
+the way in). But after the draft nothing anyone does matters: the tinkerer finishes no better than the forgetter (59% and 53%),
+and someone whose team is wiped out sits a median 29% of the season with nothing left. Short spans tie (finding 5). Plays well,
+low: it's the game working as designed; the one lever is waivers, and Outlast's recommendation is windows the commissioner has
+to open (finding 7's replays: none opened). A design call: open one window on its own after the merge, so a wiped team gets
+back in.
+
+**Survival Pool is the least fun as played here.** Nobody's lead ever changes, the leader is known from the first episode, and
+a quarter of whole-season pools end tied at the top (every short one does). On The Challenge 41's 32 people, the drive-by
+picking the first name on the list survived 17 weeks in a row: with 30 safe picks and one or two going home, there's little
+to read. The forgetter finishes last in six of the seven whole-season pools with one (14th of 16 in the other):
+one missed pick resets the streak. Medium, a design call for P5 or the user:
+- break ties by picks survived in all, then by the fewest picks of the favourites (or say who's tied, as a shared win);
+- a pick for someone who forgets (the favourite nobody's used, as waivers' fallback does), so a missed week doesn't end a
+  season;
+- offer it on a big cast only from the merge or a third in, where picks run short.
+
+**Makes sense, for every game:** the looks at 390 read right after the draft and mid-season (findings 1 and 8 aside). The
+season's end is where it doesn't: "Season over" with no winner named (finding 1).
+
+Still for P4 (the next session's): Below Deck, once it has full research (finding 10); how much each week asks (taps) from the
+moves' counts; whether the blind draft's "first on the list" for someone away should be the favourites instead (P3's Noticed);
+and the same measures on second seasons.

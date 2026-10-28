@@ -173,3 +173,33 @@ test("who left, by the quick check and the full research: where they agree, wher
   assert.equal(z.episodes[0].agree, true);
   assert.deepEqual(z.differ, []);
 });
+
+test("P4's measures over replays: over, lead changes, when it was settled, ties, quiet weeks, finishes, reasons shown", () => {
+  const row = (name, total, extra = {}) => ({ playerId: name, name, total, ...extra });
+  const ep = (n, leaders, table, why = {}, more = {}) => ({ n, leaders, table, why, teamsWithNobodyLeft: [], leadChange: false, ...more });
+  const seats = [{ label: "Tinkerer", role: "tinkerer" }, { label: "Forgetter", role: "forgetter" }];
+  const lineup = {
+    seats,
+    problems: [],
+    final: { over: true, settledAt: 2, leadChanges: 1 },
+    episodes: [
+      ep(1, ["Forgetter"], [row("Forgetter", 2), row("Tinkerer", 1)], { Tinkerer: { started: ["Ann 1 (Won 1)", "Bo 0"] } }),
+      ep(2, ["Tinkerer"], [row("Tinkerer", 5), row("Forgetter", 2)], { Tinkerer: { started: ["Ann 4 (Won 4)"] } }, { teamsWithNobodyLeft: ["Forgetter"] }),
+      ep(3, ["Tinkerer"], [row("Tinkerer", 5), row("Forgetter", 2)], { Tinkerer: { started: ["Cy -1"] } }),
+    ],
+  };
+  const j = P.judgeOf([lineup, { seats, problems: ["x"], final: null, episodes: [] }]);
+  assert.equal(j.replays, 2);
+  assert.equal(j.over, 1);
+  assert.equal(j.leadChanges, 1);
+  assert.equal(j.settled, 0.5);
+  assert.equal(j.tiedTop, 0);
+  // Episode 3: nobody moved.
+  assert.equal(j.quiet, 1 / 3);
+  assert.equal(j.wiped, 1);
+  assert.equal(j.tinkerer, 0);
+  assert.equal(j.forgetter, 1);
+  assert.equal(j.problems, 0.5);
+  // Ann 1 and Ann 4 came with their moments, Cy's -1 with none; Bo's 0 doesn't count.
+  assert.equal(j.silent, 1 / 3);
+});
