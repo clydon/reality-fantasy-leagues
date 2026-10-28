@@ -919,11 +919,9 @@ function status() {
   }
   const wordsDir = path.join(TAPES, "words");
   const words = fs.existsSync(wordsDir) ? fs.readdirSync(wordsDir).filter((f) => /^[^.]+\.json$/.test(f)).map((f) => readJson(path.join(wordsDir, f))).filter(Boolean) : [];
-  // Judged again with today's judge (tapes-words.js), from what was parsed: a tape's own `judged` is how it read then.
-  const W = require("./tapes-words.js");
-  const judged = words.filter((w) => w.ok && w.parsed && w.result).map((w) => W.judge(w.result.expect, w.parsed, w.result.words));
-  const sum = (k) => judged.reduce((n, j) => n + j[k], 0);
-  lines.push(`words: ${words.length} of ${wordsIds().length} request(s) on tape${judged.length ? `, ${sum("score")} of ${sum("of")} checks as expected` : ""}`);
+  // Judged again from what was parsed, as `tapes-words.js report` judges (today's judge, the corpus's words and expected
+  // readings): a tape's own `judged` is how it read then.
+  lines.push(require("./tapes-words.js").statusLine((wordsCorpus() || {}).requests || [], words));
   const state = loadState();
   if (state.pausedUntil && new Date(state.pausedUntil) > new Date()) lines.push(`paused until ${state.pausedUntil}: ${state.pauseWhy}`);
   if (state.lastError) lines.push(`last error ${state.lastError.at}: ${state.lastError.job}: ${state.lastError.message}`);

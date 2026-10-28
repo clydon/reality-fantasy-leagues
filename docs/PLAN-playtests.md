@@ -1,11 +1,12 @@
 # Season tapes and playtests
 
 For the playtest lane's sessions and the user. Status: planned 2026-10-28, started that night in the playtest lane
-(`../rfl-playtest`, branch `playtest`, database `rfl_playtest`, port 3005). P1 built and recording; P2 started (its corpus waits on
-the recorder; its judge and report are ready); P3 parts 1 and 2 built (96 replays of Survivor 49, the Traitors 4, The Challenge 41
-and Dancing with the Stars 34, and the looks at 390; Below Deck 12's full research doesn't come back: finding 10); P4 done for the
-four seasons on tape (taps a week, someone away, the directions tried as variants); findings in
-[PLAYTEST-REPORT.md](PLAYTEST-REPORT.md).
+(`../rfl-playtest`, branch `playtest`, database `rfl_playtest`, port 3005). P1 built and recording; P2 started (2 of 104 on tape:
+**the local bot stopped answering at 09:17 UTC on 2026-10-28**, so the corpus waits on it; its judge and report are ready, eleven
+expected readings fixed, and what G1 should change written down); P3 parts 1 and 2 built (96 replays of Survivor 49, the Traitors
+4, The Challenge 41 and Dancing with the Stars 34, and the looks at 390; Below Deck 12's full research doesn't come back: finding
+10); P4 done for the four seasons on tape (taps a week, someone away, the directions tried as variants); P5 part 1 done (the
+measures read data; the forgetter's looks at 390); findings in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md).
 
 ## What the user asked for (2026-10-28, going to sleep with the survivor and engine lanes running)
 
@@ -559,6 +560,66 @@ that keep the episode ahead (`--before`: within a day) or aired (`--through`), a
 hours"). The reveal's table beat moves from before to after at 700 ms, so the looks now wait 1.5 s a beat before the screenshot.
 
 Unit tests (`tests/playtest.test.js`): the measures over a replay in data form. `npm test` passes (794).
+
+### P2, part 2: the bot stopped answering; the corpus fixed where it contradicts its own rule; what G1 should change (2026-10-28, the same session)
+
+**The bot stopped answering at 09:17 UTC.** The recorder came out of its hour's backoff at 09:17 and got Below Deck 12's episode 2
+quick check in 18 s, then nothing: episode 3's quick check had no reply in 420 s at 09:25 and again at 09:37. A three-line words
+request (`tapes.js one words w001`, asked in the recorder's 15-minute backoff to tell a stalled prompt from a silent bot) had no
+reply in 420 s at 09:45 either. `/health` says ok, ChatGPT open and busy while asked; its last answer was 09:17:43. The lane
+doesn't restart or change the bot (C:\Users\conor\llm-browser-api), so it's for the user. The recorder keeps backing off (5, 15,
+then 60 minutes; a question that fails three times is given up and the queue moves on) and picks up when the bot answers again.
+A given-up tape is asked again by deleting its `.json` (`status` lists them). It was restarted in its backoffs with this part's
+`tapes.js` and `tapes-words.js`, at 09:27 and again at 09:50 UTC (pid 44428, window "Tapes: recording").
+
+**P2's table, as far as it's on tape:** 2 of 104 (w002, the Red Sox series, and w084, "5 each, everyone gets 3"), 11 of 11 checks
+as expected, no misses (`node scripts/dev-test/tapes-words.js report`, `rfl-tapes\words\REPORT.md`). Left: the other 102, then
+the table by group with the misses quoted, from the same command.
+
+**Expected readings fixed** (`start-a-game-words.json`), where the corpus contradicted its own rule and the draft prompt's ("the
+season as a number when they said one"; the judge's "what wasn't said must come back empty"), whatever the bot answers:
+- **Ten implied seasons** (w064, w066, w068, w069, w071, w072, w073, w074, w083, w102: "tonight's", "this season", "the finale",
+  "next two weeks", or no season at all) expected the season on now ("51", "5", "35", "13"). The request carries none: the bot has
+  no web search and can't know what's on, and picking the season on now is the resolver's (G2, from TVmaze). Their
+  `about.season` is null now and the season moved to a new `expect.resolves` (`{ season, why }`), so the resolver's answer isn't
+  lost. The corpus's header says so. w010 ("tonight's traitors") and w013 ("the Traitors this season") already expected no season
+  and got their `resolves` too. The report's expected line shows it, so a reading of "51" for "tonight's" reads as the request
+  shape's rule, not a wrong answer.
+- **w098** "survivor 50 league, starting next week" expected `when: next` (the next episode only). "Starting next week" runs from
+  then on: `from` (the prompt's "from an episode or a moment on"), as w065 "starting after the merge" and w087 "starting episode
+  3" read.
+
+**The judge** (`tapes-words.js`): `assumed` lists the choices of how picks are got that the bot filled in and nobody said
+(`order`, `own`; said is the corpus's `said` or the words naming the value, "blind"), from w002's tape (`own: "exclusive"` for "a
+draft where we draft 3 players each"). Not a miss: the prompt lets in what they "plainly meant", and a sports draft is usually
+one each. The report lists them under "Assumed". And `tapes.js status` now judges the words tapes as `report` does
+(`statusLine`, over `reportOf`: the corpus's words and expected readings). It used each tape's stored ones, so a fixed reading
+would have read differently in the two. Unit tests in `tests/tapes.test.js`.
+
+**What G1 should change in the request** (the draft's shape is the GPT plan's; the corpus says what it has no place for). Each
+is a field of the spec already, or one the resolver needs:
+1. **The span's bounds:** `when.from` and `when.to`, an episode number or a named moment (merge, finale). Today `when` has a kind
+   and the words only. w044 "from episode 7", w065 "after the merge", w067 "episodes 8 through 10", w087 "only the finale, starting
+   episode 3" (a contradiction G1 can only see with both bounds). w101 "points only count once your castaway makes the merge" is a
+   condition on scoring, not the game's span: the spec's `count` with a phase (A3).
+2. **Who plays, beside how many:** `game.with`, friends, the computer or anyone: w014 "against the computer", w015 "me vs
+   everyone".
+3. **A pick's repeat rule:** `game.get.repeat` (never, cycle), the spec's own: w047 "can't pick the same person twice".
+4. **The bench as said:** `game.count.bench`: w050 "a bench of 2". The spec's bench is what's drafted less who starts, so the
+   request carries the words and the resolver works out the draft.
+5. **The extras as said:** `game.extras` (waivers, trades, finale, and `rank`'s ties): w050 "waivers every tuesday, no trades",
+   w047 "ties split", w046 "double in the finale".
+6. **A doubt that says which:** `doubt: { kind: question | refuse, why }` beside `unsure`. With only `unsure`, a contradiction
+   (w084 to w088), a past game (w003), a season that doesn't exist (w095 to w099) and something no data can settle (w054's MVP
+   pool, w090's weather, w093's injection) read the same, and the judge can only check that something's unsure. 40 of the 104
+   expect a question, 7 a refusal.
+7. **More than one game:** `also: [request]`: w081 to w083 ("a survivor draft and also a traitors pool"). Today the second game
+   has nowhere to go but `unsure`.
+8. **Choices not said stay null,** said plainly in the prompt: w002's `own: exclusive`. Or the resolver shows them as defaults it
+   chose (the wizard's "what we chose reads as ours"), which is what `assumed` is for.
+
+The corpus's `expect.said` keys for these (computer, public, finale, repeat, ties, bench, waivers, from, to) are what the judge
+would check once G1 gives them a place (`tapes-words.js CARRIED`).
 
 ## Noticed, not fixed
 

@@ -144,7 +144,19 @@ function judge(expect, parsed, words) {
   const missed = Object.keys(carried).filter((k) => !carried[k]);
   checks.carried = Object.keys(carried).length ? missed.length === 0 : null;
   const scored = Object.values(checks).filter((v) => v !== null);
-  return { ...checks, inventedNumbers: invented, missed, unsure: parsed.unsure.length, score: scored.filter(Boolean).length, of: scored.length };
+  return { ...checks, inventedNumbers: invented, missed, assumed: assumedOf(expect.said, parsed, words), unsure: parsed.unsure.length, score: scored.filter(Boolean).length, of: scored.length };
+}
+
+/**
+ * The choices of how picks are got that the bot filled in and the words never said (an order or an ownership: "own
+ * exclusive"), as "key value". Said means the corpus's `said` has it or the words name the value ("blind"). Not a miss: the
+ * prompt lets in what they "plainly meant", and a sports draft is usually one each. It's what G1's resolver should show as a
+ * default it chose, not as theirs. Only words count as values (anything else isn't a choice the shape has). Pure.
+ */
+function assumedOf(said, parsed, words = "") {
+  const get = parsed.game.get || {};
+  const named = (v) => new RegExp(`\\b${v.replace(/[^a-z]/gi, "")}\\b`, "i").test(String(words));
+  return ["order", "own"].filter((k) => typeof get[k] === "string" && get[k].trim() && !(said && said[k] !== undefined) && !named(get[k])).map((k) => `${k} ${get[k]}`);
 }
 
 // ---------- P2's table: how well the bot understood, by group (the tapes only) ----------
@@ -160,6 +172,8 @@ function reportOf(requests, tapes) {
   const byId = new Map(tapes.map((t) => [t.id, t]));
   const groups = new Map();
   const misses = [];
+  // Choices the bot filled in that weren't said (assumedOf): not misses, listed for G1.
+  const assumed = [];
   for (const req of requests) {
     const g = groups.get(req.group) || groups.set(req.group, { group: req.group, asked: 0, of: 0, checks: 0, passed: 0, misses: {} }).get(req.group);
     g.of++;
@@ -172,6 +186,7 @@ function reportOf(requests, tapes) {
     g.checks += ok ? j.of : 1;
     g.passed += ok ? j.score : 0;
     for (const c of failed) g.misses[c] = (g.misses[c] || 0) + 1;
+    if (j && j.assumed.length) assumed.push({ id: req.id, words: req.words, assumed: j.assumed });
     if (failed.length) {
       const p = t.parsed || {};
       const read = ok
@@ -187,7 +202,17 @@ function reportOf(requests, tapes) {
       misses.push({ id: req.id, group: req.group, words: req.words, failed, expect: req.expect, read });
     }
   }
-  return { groups: [...groups.values()], misses };
+  return { groups: [...groups.values()], misses, assumed };
+}
+
+/**
+ * `tapes.js status`'s words line, judged as the report judges (reportOf: the corpus's words and expected readings, today's
+ * judge; a tape whose request has left the corpus isn't counted). Pure.
+ */
+function statusLine(requests, tapes) {
+  const r = reportOf(requests, tapes);
+  const n = (k) => r.groups.reduce((t, g) => t + g[k], 0);
+  return `words: ${n("asked")} of ${n("of")} request(s) on tape${n("checks") ? `, ${n("passed")} of ${n("checks")} checks as expected` : ""}`;
 }
 
 function reportMarkdown(r) {
@@ -208,9 +233,13 @@ function reportMarkdown(r) {
     lines.push(`- **${m.id}** (${m.group}) "${m.words}": ${m.failed.join(", ")}.`);
     if (m.read.message) lines.push(`  - ${m.read.message}`);
     else {
-      lines.push(`  - expected: ${JSON.stringify({ about: m.expect.about, when: m.expect.when, said: m.expect.said, flag: m.expect.flag })}`);
+      lines.push(`  - expected: ${JSON.stringify({ about: m.expect.about, ...(m.expect.resolves ? { resolves: m.expect.resolves } : {}), when: m.expect.when, said: m.expect.said, flag: m.expect.flag })}`);
       lines.push(`  - read: about ${m.read.about}; when ${m.read.when}; game ${JSON.stringify(m.read.game)}; unsure ${JSON.stringify(m.read.unsure)}${m.read.invented.length ? `; invented ${m.read.invented.join(", ")}` : ""}${m.read.missed.length ? `; didn't carry ${m.read.missed.join(", ")}` : ""}`);
     }
+  }
+  if ((r.assumed || []).length) {
+    lines.push(``, `## Assumed (filled in, never said; not misses)`, ``);
+    for (const a of r.assumed) lines.push(`- **${a.id}** "${a.words}": ${a.assumed.join(", ")}`);
   }
   return lines.join("\n") + "\n";
 }
@@ -228,7 +257,7 @@ function report() {
   console.log(text);
 }
 
-module.exports = { wordsPrompt, parseRequest, judge, carriedOf, reportOf, reportMarkdown, sameName };
+module.exports = { wordsPrompt, parseRequest, judge, carriedOf, assumedOf, reportOf, reportMarkdown, statusLine, sameName };
 
 if (require.main === module) {
   if (process.argv[2] === "report") report();

@@ -186,7 +186,7 @@ test("a request read from an answer, every part there", () => {
 test("judging a reading: the show, the season, the span, numbers invented, a question flagged", () => {
   const expect = { about: { show: "The Traitors (US)", season: "5" }, when: "one", flag: "question", why: "x" };
   const good = W.parseRequest('{"about": {"show": "The Traitors", "season": 5}, "when": {"kind": "one"}, "game": {"get": {"each": 3}}, "unsure": ["season 5 is past episode 2"]}');
-  assert.deepEqual(W.judge(expect, good, "traitors 5, draft 3 each"), { about: true, season: true, when: true, invented: true, flagged: true, carried: null, inventedNumbers: [], missed: [], unsure: 1, score: 5, of: 5 });
+  assert.deepEqual(W.judge(expect, good, "traitors 5, draft 3 each"), { about: true, season: true, when: true, invented: true, flagged: true, carried: null, inventedNumbers: [], missed: [], assumed: [], unsure: 1, score: 5, of: 5 });
   const bad = W.parseRequest('{"about": {"show": "Survivor"}, "when": {"kind": "rest"}, "game": {"get": {"each": 4}, "score": [{"for": "a win", "points": 1}]}}');
   const j = W.judge(expect, bad, "traitors, draft 3 each, a point for a win");
   assert.equal(j.about, false);
@@ -252,6 +252,26 @@ test("the words report: by group, what's on tape, the checks, and each miss with
   assert.deepEqual(r.misses.map((m) => [m.id, m.failed]), [["a2", ["when", "invented", "carried"]], ["a3", ["no answer"]]]);
   assert.deepEqual(r.misses[0].read.invented, [4]);
   assert.match(W.reportMarkdown(r), /3 of 4 request\(s\) on tape; 6 of 10 checks/);
+
+  // A choice filled in that nobody said is listed, not a miss.
+  const own = W.reportOf([requests[1]], [{ id: "a2", ok: true, parsed: W.parseRequest('{"about": {"show": "The Traitors", "season": 5}, "game": {"get": {"each": 3, "own": "exclusive", "order": null}}}') }]);
+  assert.deepEqual(own.misses, []);
+  assert.deepEqual(own.assumed, [{ id: "a2", words: "traitors 5 draft 3 each", assumed: ["own exclusive"] }]);
+  assert.match(W.reportMarkdown(own), /## Assumed[\s\S]*a2.*own exclusive/);
+  assert.deepEqual(W.assumedOf({ own: "exclusive" }, W.parseRequest('{"game": {"get": {"own": "exclusive", "order": "snake"}}}')), ["order snake"], "said, so not assumed");
+  assert.deepEqual(W.assumedOf({}, W.parseRequest('{"game": {"get": {"order": "blind", "own": {"type": "shared"}}}}'), "a blind draft for 4"), [], "the words name it; not a word");
+});
+
+test("status's words line judges as the report does: the corpus's words and expected readings, not the tape's own", () => {
+  const requests = [{ id: "a1", group: "casual", words: "survivor league", expect: { about: { show: "Survivor", season: null }, when: null, flag: null } }];
+  // Asked when the corpus expected season 51; the corpus now expects none, which is what was read.
+  const tapes = [
+    { id: "a1", ok: true, parsed: W.parseRequest('{"about": {"show": "Survivor"}}'), result: { id: "a1", words: "survivor 51 league", expect: { about: { show: "Survivor", season: "51" }, when: null, flag: null } } },
+    // A request that has left the corpus isn't counted.
+    { id: "gone", ok: true, parsed: W.parseRequest('{"about": {"show": "Survivor"}}'), result: { id: "gone", words: "x", expect: { about: {}, when: null, flag: null } } },
+  ];
+  assert.equal(W.statusLine(requests, tapes), "words: 1 of 1 request(s) on tape, 4 of 4 checks as expected");
+  assert.equal(W.statusLine(requests, []), "words: 0 of 1 request(s) on tape");
 });
 
 test("a season whose full research gave up unanswered holds its other episodes' full research, and only then", () => {
