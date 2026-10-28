@@ -603,6 +603,96 @@ test("quick-exits: who left from the quick check, everything else from the full 
   assert.equal(P.quickExits(JSON.stringify({ castaways: asked }), { asked, quick: { found: true, left: [], sources: [] } }).changes.left.length, 0);
 });
 
+test("placed: an episode's exits filed in the order they rank, the knocked out first and the winner last, nothing else moved", () => {
+  const v = P.variantOf({ results: "placed" });
+  assert.equal(v.name, "results-placed");
+  assert.equal(v.results, "placed");
+  assert.equal(P.changedBy(v, { game: "survivalPool", group: 4 }, { from: 1, to: null }, 6), true);
+  // Dancing with the Stars' finale as its quick check names it, the winner first.
+  const endgame = ["Fifth place", "Fourth place", "Third place", "Runner-up", "Winner"];
+  const exitMethods = ["Eliminated", "Withdrew", ...endgame, "Other"];
+  assert.equal(P.exitRank("Eliminated", endgame), 0);
+  assert.equal(P.exitRank("Winner", endgame), 5);
+  // The winner's exit ranks last wherever the format lists it (a season change can add an endgame exit after it).
+  assert.equal(P.exitRank("Winner", ["Winner", "Runner-up"], "Winner"), 3);
+  assert.equal(P.exitRank("Runner-up", ["Winner", "Runner-up"], "Winner"), 2);
+  const quick = {
+    found: true,
+    headline: "Robert wins",
+    left: [
+      { name: "Robert Irwin", how: "Winner" },
+      { name: "Alix Earle", how: "Runner-up" },
+      { name: "Jordan Chiles", how: "Third place" },
+      { name: "Dylan Efron", how: "Fourth place" },
+      { name: "Elaine Hendrix", how: "Fifth place" },
+    ],
+    sources: ["a", "b"],
+  };
+  const got = P.placeExits("```json\n" + JSON.stringify(quick) + "\n```", "quick", { exitMethods, endgame });
+  assert.deepEqual(got.order.after, ["Elaine Hendrix", "Dylan Efron", "Jordan Chiles", "Alix Earle", "Robert Irwin"]);
+  assert.deepEqual(got.order.before, quick.left.map((p) => p.name));
+  const back = JSON.parse(got.text);
+  assert.equal(back.headline, "Robert wins");
+  assert.deepEqual(back.left.map((p) => p.how), ["Fifth place", "Fourth place", "Third place", "Runner-up", "Winner"]);
+  assert.match(P.placedLine({ quick: got.order, full: null }), /^in the order they rank: the quick check's Elaine Hendrix, .*Robert Irwin \(was Robert Irwin, /);
+  // The winner listed first in the format still goes last.
+  const first = P.placeExits(JSON.stringify(quick), "quick", { exitMethods, endgame: ["Winner", ...endgame.slice(0, 4)], winner: "Winner" });
+  assert.equal(first.order.after.at(-1), "Robert Irwin");
+
+  // The Challenge's: the winners first, the disqualified last. Two of the same keep their order; a "how" too long to be a
+  // label is dropped and filed as the format's first exit (Eliminated), one not in the show's words as Other: both knocked out.
+  const challenge = ["Finalist", "Winner"];
+  const ways = ["Eliminated", "Disqualified", "Finalist", "Winner", "Other"];
+  const pair = { left: [{ name: "Olivia", how: "Winner" }, { name: "Yeremi", how: "Winner" }, { name: "Turbo", how: "Finalist" }, { name: "Theo", how: "Disqualified" }, { name: "Cy", how: "took the final's last leg and won it all, which no one expected" }, { name: "Di", how: "left for good" }] };
+  assert.deepEqual(P.placeExits(JSON.stringify(pair), "quick", { exitMethods: ways, endgame: challenge }).order.after, ["Theo", "Cy", "Di", "Turbo", "Olivia", "Yeremi"]);
+  // In order already, or nobody: the text as it came.
+  const inOrder = JSON.stringify({ left: [{ name: "Theo", how: "Disqualified" }, { name: "Turbo", how: "Finalist" }, { name: "Olivia", how: "Winner" }] });
+  assert.deepEqual(P.placeExits(inOrder, "quick", { exitMethods: ways, endgame: challenge }), { text: inOrder, order: null });
+  assert.deepEqual(P.placeExits("{\"left\": []}", "quick", { exitMethods: ways, endgame: challenge }), { text: "{\"left\": []}", order: null });
+  assert.deepEqual(P.placeExits("no idea", "quick", { exitMethods: ways, endgame: challenge }), { text: "no idea", order: null });
+  assert.equal(P.placedLine({ quick: null, full: null }), null);
+  assert.match(P.placedLine({ quick: null, full: null, error: "no cast" }), /couldn't be worked out \(no cast\), so it's as answered/);
+  // Only what the app files: a quick check that found nothing, and a name not in the cast, stay as they came.
+  const notFound = JSON.stringify({ ...pair, found: false });
+  assert.deepEqual(P.placeExits(notFound, "quick", { exitMethods: ways, endgame: challenge }), { text: notFound, order: null });
+  const stranger = JSON.stringify({ left: [{ name: "Olivia", how: "Winner" }, { name: "Nobody Known", how: "Disqualified" }, { name: "Turbo", how: "Finalist" }] });
+  const s2 = P.placeExits(stranger, "quick", { exitMethods: ways, endgame: challenge, cast: ["Olivia", "Turbo"] });
+  assert.deepEqual(s2.order, { before: ["Olivia", "Turbo"], after: ["Turbo", "Olivia"] });
+  assert.deepEqual(JSON.parse(s2.text).left.map((p) => p.name), ["Turbo", "Nobody Known", "Olivia"]);
+
+  // A full answer: only those the app files as leaving (exactly "yes", with an exit) move, among their own slots; everyone
+  // else, and every other field, stays.
+  const full = {
+    episodeTitle: "Finale",
+    castaways: [
+      { name: "Ann", leftTheGame: "yes", exitMethod: "Winner", wonDailyChallenge: "yes" },
+      { name: "Bo", leftTheGame: "no", exitMethod: null },
+      { name: "Cy", leftTheGame: "yes", exitMethod: "Finalist" },
+      { name: "Di", leftTheGame: "unknown", exitMethod: null },
+      { name: "Ed", leftTheGame: "YES", exitMethod: "Eliminated" },
+      { name: "Flo", leftTheGame: "yes", exitMethod: "Eliminated" },
+    ],
+  };
+  const f = P.placeExits(JSON.stringify(full), "full", { endgame: challenge, winner: "Winner" });
+  assert.deepEqual(f.order, { before: ["Ann", "Cy", "Flo"], after: ["Flo", "Cy", "Ann"] });
+  assert.deepEqual(JSON.parse(f.text).castaways.map((c) => c.name), ["Flo", "Bo", "Cy", "Di", "Ed", "Ann"]);
+  assert.equal(JSON.parse(f.text).castaways[5].wonDailyChallenge, "yes");
+  assert.equal(JSON.parse(f.text).episodeTitle, "Finale");
+  const r = P.rankInPlace([3, "x", 1, "y", 2], (x) => (typeof x === "number" ? x : null));
+  assert.deepEqual(r, { list: [1, "x", 2, "y", 3], moved: true, before: [3, 1, 2], after: [1, 2, 3] });
+  assert.equal(P.rankInPlace([1, "x", 2], (x) => (typeof x === "number" ? x : null)).moved, false);
+
+  // Where the show's winners finished in a replay, as the app numbers them: the last episode's `crowned` (a place moved
+  // later is the later one), else each winner's exit; null for a file from before places were kept.
+  assert.deepEqual(P.crownedOf({ episodes: [{ n: 11, left: [{ name: "Robert", finished: 5, winner: true }], crowned: [{ name: "Robert", finished: 5 }] }, { n: 12, left: [], crowned: [{ name: "Robert", finished: 1 }] }] }), [{ name: "Robert", finished: 1 }]);
+  assert.deepEqual(P.crownedOf({ episodes: [{ n: 3, left: [{ name: "Ann", finished: 9, winner: false }], crowned: [] }] }), []);
+  const rec = (left) => ({ episodes: [{ n: 10, left: [] }, { n: 11, left }] });
+  assert.deepEqual(P.crownedOf(rec([{ name: "Elaine", finished: 1, winner: false }, { name: "Robert", finished: 5, winner: true }])), [{ name: "Robert", finished: 5 }]);
+  assert.deepEqual(P.crownedOf(rec([{ name: "Ann", finished: 9, winner: false }])), []);
+  assert.equal(P.crownedOf(rec([{ name: "Robert", method: "Winner" }])), null);
+  assert.equal(P.crownedOf(null), null);
+});
+
 test("who could still win, from the game's own best possible week: Outlast's people still in, a lineup's team at its best", () => {
   const row = (name, total, extra = {}) => ({ playerId: name, name, total, ...extra });
   const member = (id, out = false) => ({ id, name: id, out });
@@ -689,7 +779,10 @@ test("a results variant beside the whole set: over, points in the table, who wen
   const reshaped = rec(true, [["B", 15]], ["Ann"], 0);
   reshaped.tape.results = [{ episode: 1, reshaped: { left: ["x (Quit)"], stayed: [] } }, { episode: 2, reshaped: { left: ["Ann (Winner)"], stayed: ["Rob (Eliminated)", "Cy (Other)"] } }];
   assert.equal(P.compareOf([rec(false, [["A", 10]], [], 0)], [reshaped])[0].reshaped, 3);
-  assert.deepEqual(P.compareByGame([row]), [{ game: "weeklyLineup", replays: 1, winnerChanged: 1, points: 0.5, out: 1, over: { base: 0, variant: 1 }, ghosted: { base: 0, variant: 0 } }]);
+  assert.deepEqual(P.compareByGame([row]), [{ game: "weeklyLineup", replays: 1, winnerChanged: 1, points: 0.5, out: 1, over: { base: 0, variant: 1 }, ghosted: { base: 0, variant: 0 }, crownedFirst: { base: null, variant: null } }]);
+  // The show's winner's place: of the games that crowned one with a place recorded, those where a winner finished 1st.
+  const crowned = (finished) => ({ ...row, crowned: { base: null, variant: [{ name: "W", finished }] } });
+  assert.deepEqual(P.compareByGame([crowned(1), crowned(5), { ...row, crowned: { base: null, variant: [] } }])[0].crownedFirst, { base: null, variant: { first: 1, of: 2 } });
 });
 
 test("someone gone by one set's answers and never by the other's, still played in the other: drafted after, kept, started, picked", () => {

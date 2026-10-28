@@ -774,7 +774,11 @@ of 18 = 18"). The places on Tonight, the reveal's "Finished 11th" and the medals
     gold medal.
   - **The Challenge 41:** Olivia Kaiser and Yeremi Hykel, the winners, 11th and 10th. The two disqualified in the final, Theo
     Campbell and Adrienne Naylor, 5th and 4th.
-  - **The Traitors 4 and Survivor 49:** their quick checks name the winner last, so they come out right by luck.
+  - **The Traitors 4:** its quick check names the winner last, so it comes out right by luck.
+  - **Survivor 49** (corrected in P5 part 5): its quick check waits (two of its names say "Other"), so the finale is filed from the
+    full research: Kristina Mills, Sage Ahrens-Nichols, Sophi Balerdi, then Savannah Louie, from two answers that listed them in
+    different orders. `episode-research.js candidatesFor` moves the winner last; what orders the rest wasn't traced. Right on this
+    tape.
 
 **What it costs.** For each Outlast replay that reaches a finale, each finale leaver's points were moved from their place as filed
 to their place by their exit, and the winner read again (a one-off over the files, not kept):
@@ -782,6 +786,10 @@ to their place by their exit, and the winner read again (a one-off over the file
   the Autopilot run again, and in quick-exits). In replay 1 (Outlast for two) the Tinkerer won 25 to 21. With the places right, the
   Forgetter wins 27 to 23: they hold the winner and the runner-up.
 - **With the quick check's winner kept** (quick-exits): the Challenge's winner changes too, in 2 of 6.
+- **Played through the app** (P5 part 5, `--results=placed`): every finale's places come out in rank order, and Dancing with the
+  Stars' Outlast winner changes in 5 of 8 against quick-exits and Autopilot. Replay 1, kept, comes out as worked out here (the
+  Forgetter, 27 to 23). The Challenge's change is mostly the run-to-run floor: 1 of the 3 games with the same teams going into
+  the finale changes.
 
 **Someone still in at the end outscores the winner.** When a winner is crowned while someone the research never removed is still in
 (Cara Maria Sorbello, finding 2; Gabe Wai and Leonardo Dionicio, finding 6), they're scored as outlasting everyone: 30 points on the
@@ -832,10 +840,14 @@ account.
 - **Order an episode's exits by what they are,** whatever order they were filed in: anyone knocked out (not an endgame exit) first,
   then the format's `endgameExitMethods` in their own order. Every format lists those lowest place first and the winner last
   (Dancing with the Stars: Fifth place, Fourth place, Third place, Runner-up, Winner). Keep the filed order only between two of the
-  same exit. In `orderPlacementsByEpisode`, which runs after every sync, and `applyEliminationsImport`.
+  same exit. In `orderPlacementsByEpisode`, which runs after every sync, and `applyEliminationsImport`. The full research's
+  own path already moves the winner last (`candidatesFor`); the quick check's (`bot-results.ts botSend.quick`) files in the
+  answer's order with no guard, so it's the one that goes wrong on these tapes. The harness's order (`playtest.js exitRank`,
+  `placeExits`) is the direction as code; lifted beside `orderPlacementsByEpisode`, the harness would call the app's instead.
 - **A belt:** the quick prompt (`bot-research.js buildQuickPrompt`) asks for who left in the order they left, the winner last.
 - **Someone still in when the winner's crowned** can't have outlasted the winner. Hold them as a doubt for whoever runs it ("3
-  people never left: when did they go?"), and don't score them above the winner.
+  people never left: when did they go?"), and don't score them above the winner. With the places right, this decides Outlast in
+  three of the four seasons: finding 21.
 
 ### 18. A game that's over looks like any week: nothing names its winner where the couch looks (medium; the new design: Tonight, Games, the reveal)
 
@@ -925,3 +937,154 @@ something, after the end too (finding 19's card).
 So keeping the winner doesn't wipe out more Outlast teams after all: 39%, the same as on Autopilot. P5 part 3's 39% → 46% was
 the reunions. Its Weekly Lineup wiped share is below Autopilot's (24% against 38%): on Autopilot a game that never says it's over
 runs to the season's last episode, so the teams the finale empties count as wiped before the end. The Challenge's Weekly Lineup was the most quiet; to its own end that's 35% → 29%.
+
+## P5 part 5: finding 17's direction played through the app (2026-10-28)
+
+`playtest.js run <show> <season> --results=placed` is quick-exits (the quick check's who left kept, findings 6 and 1) plus finding
+17's direction. Each episode's exits are filed in the order they rank:
+- anyone knocked out first (an exit that isn't one of the format's endgame exits);
+- then the endgame exits in the format's order, the winner last;
+- the order filed kept only between two of the same.
+
+The app's own numbering then places them. The four seasons were played (96 replays) and compared against quick-exits and
+Autopilot. The replays now keep each leaver's place as the app gives it, so `compare` shows where the show's winner finished
+("Show's winner 1st").
+
+**The places, as the app gives them** (each season's Outlast for two, the whole season):
+
+| Season | The finale's places | Still in at the end |
+|---|---|---|
+| Dancing with the Stars 34 | 1. Robert Irwin (Winner), 2. Alix Earle, 3. Jordan Chiles, 4. Dylan Efron, 5. Elaine Hendrix | nobody |
+| Survivor 49 | 2. Savannah Louie (Sole Survivor), 3. Sophi Balerdi, 4. Sage Ahrens-Nichols ("Other"), 5. Kristina Mills | Rizo Velovic |
+| The Traitors 4 | 2. Rob Rausch (Winner), 3. Maura Higgins (Finalist), 4 to 7 the banished and the murdered | Rob Cesternino |
+| The Challenge 41 | 4. Yeremi Hykel and 5. Olivia Kaiser (Winners), 6 to 9 the finalists, 10 and 11 the disqualified | Cara Maria Sorbello, Gabe Wai, Leonardo Dionicio |
+
+- **The order is right everywhere.** What it moved: Dancing with the Stars' quick check (the winner named first) and the
+  Challenge's (the winners first, the disqualified last). The Traitors' and Survivor's were in order already (finding 17,
+  corrected).
+- **The show's winner finishes 1st only on Dancing with the Stars,** where everyone else left: all 11 games that crowned the
+  winner there. In the 40 elsewhere someone the results never removed holds a place above them: finding 21.
+
+**The one-off's numbers, played.** "The same teams going in" means both runs went into the finale with the same table and the same
+teams, so a changed winner is the finale's alone (a one-off check over the files):
+The variant was played twice (the second after the code review's fixes); the numbers are the second run's, and where the first
+run's differ they're in brackets.
+- **Dancing with the Stars:** the Outlast winner changes in 5 of the 8 games that reach the finale against quick-exits and
+  Autopilot, 6 of 8 against the whole set (the one-off: 5 of 8 on the whole set, 4 of 8 on the others). Of the 4 with the same
+  teams going in, 2 change. Waivers' random autofill leaves the other 4 different before the finale, so a played count can't split
+  the order from the run-to-run floor further. The one-off's arithmetic on one file stays the clean count, and nothing played
+  contradicts it.
+- **The Challenge:** 4 of 6 change (3). The others are solo games, or games whose teams already differ before the finale; of the
+  3 with the same teams going in, 1 changes (to a tie) in both runs. So the one-off's 2 of 6 is about right, and most of it isn't
+  the order.
+- **Survivor (2 of 10) and the Traitors (3 of 6):** none of the changes is in a game with the same teams going in. Noise: their
+  finales were in order already.
+- **Weekly Lineup (4 of 21) and the Survival Pool (2 of 16)** don't score places, and every change there starts before the
+  finale.
+
+**The judge moves within the run-to-run floor.** Outlast's settled is 75% in one run of placed and 88% in the other (quick-exits
+80%); tied at the top 47% and 49% (47%). What moves the same way in both runs is Dancing with the Stars:
+- the forgetter does better still (median finish 20% → 7%): their first on the list is Alix Earle, the runner-up, who now
+  finishes 13th of 14 rather than 11th (finding 14);
+- the tinkerer does worse (33% → 67% and 87%).
+
+### The looks at 390: Dancing with the Stars' and Survivor's finales
+
+With the quick check's winner kept (`--results=quick-exits`), as a player sees it today once finding 1 is fixed. The tinkerer, then
+the forgetter revealing the finale. Screenshots in `rfl-tapes\replays\shots\`: `dancing-with-the-stars-34-<n>-dwts11-*`,
+`-dwtsfinale11-*`, `survivor-49-<n>-surv13-*`, `-survfinale13-*`.
+- **Dancing with the Stars 34, episode 11** (`run dancing-with-the-stars 34 --only=1,5 --results=quick-exits --through=11 --keep`):
+  - **Tonight** says "Season over" and "Nothing due": the finale is the season's last episode, so no next one is set up (unlike
+    the Challenge's and the Traitors' reunions, finding 18). Its plate reads "OUT · Robert Irwin · Winner · finished 5th", "Alix
+    Earle · Runner-up · finished 4th" and so on to "Elaine Hendrix · Fifth place · finished 1st". "Your night" says "Outlast ·
+    All safe · 0 of 2 still in after this episode", while "Your games" says "Outlast 2nd · 2 of 2 still in".
+  - **The forgetter's reveal** has a card per finalist with the show's word over the app's place: "WINNER · Robert Irwin ·
+    Finished 5th", "FOURTH PLACE · Dylan Efron · Finished 2nd". It ends "Outlast standings · You're 1st, 2 ahead of
+    zt_pt_tinkerer": 25 to 23 by Elaine Hendrix's 14. With the places right, the Tinkerer, who holds the winner, wins 25 to 23.
+  - **Elsewhere:** Celebrities has everyone under "OUT 14", the winner among them. Episodes reads "11 · Robert and Alix and J… ·
+    Outlast: All safe" under "0 still in". The hub names no winner ("Best 2nd", Power rankings 2nd).
+  - **Weekly Lineup** (replay 5) reads as any week ("+14.5 · Alix · Perfect score"), which is right: it doesn't score places.
+- **Survivor 49, episode 13** (`run survivor 49 --only=1,5,15 --results=quick-exits --through=13 --keep`):
+  - **Tonight:** "Season over", with "Waivers ran · See who got who · Outlast · after Episode 13" above it (finding 19). The
+    plate: Kristina Mills 5th, Sage Ahrens-Nichols ("Other") 4th, Sophi Balerdi 3rd, Savannah Louie ("Sole Survivor") 2nd.
+  - **Castaways:** Rizo Velovic alone on his tribe, "Your team", still in, above "OUT 17" with the Sole Survivor "Out · Ep 13".
+  - **The pool** (replay 15): the tinkerer's "Survived · You picked Rizo · streak 2", tied 1st; the forgetter's "No pick · Your
+    streak starts again".
+  - **The reveal**, as on Dancing with the Stars: "SOLE SURVIVOR · Savannah Louie · Finished 2nd".
+- **Beyond findings 17 to 20:** finding 21. The rest is findings 18 and 19 again.
+
+### 21. Someone the results never removed outranks the crowned winner, and plays on after the season's over (high; the engine lane, `state-logic.js` scoring and the end of a season, with whoever holds exits: `fact-status.ts` and the survivor lane's research)
+
+Outlast scores someone still in as outlasting every elimination (`EliminationOrderScoringStrategy.stillInPoints`: 1 + everyone out).
+Once the season's winner is crowned, everyone the results never removed is still in:
+- an exit held, finding 2 (Rizo Velovic, Cara Maria Sorbello);
+- one neither answer files, finding 6 (Gabe Wai, Leonardo Dionicio);
+- one the quick check missed (the Traitors' Rob Cesternino, murdered in episode 3).
+
+So they score one more than the winner, who places just below them, and they keep every point for the places they never really
+held: Rob Cesternino earns the Traitors' top score for an exit at 3.
+
+With the places right (`--results=placed`):
+- **The winner is never 1st** in the 40 games outside Dancing with the Stars that crowned one: 2nd on Survivor and the Traitors,
+  4th and 5th on the Challenge.
+- **Someone still in is on a team at the end** in 16 of the 22 Outlast games there that reach the finale, and on the winning team
+  in 13 (18 and 14 in the first run):
+
+  | Season | Outlast games | Someone still in on a team at the end | On the winning team | Who |
+  |---|---|---|---|---|
+  | Survivor 49 | 10 | 8 | 6 | Rizo Velovic |
+  | The Challenge 41 | 6 | 6 | 5 | Cara Maria Sorbello, Leonardo Dionicio, Gabe Wai |
+  | The Traitors 4 | 6 | 2 | 2 | Rob Cesternino |
+
+- **What a player sees:**
+  - the Castaways page lists them still in on their tribe after "Season over";
+  - a pool's pick of them "Survived" at the finale (Survivor's tinkerer, tied 1st with "You picked Rizo");
+  - waivers keep running for them (finding 19).
+
+**Repro.**
+- `node scripts/dev-test/playtest.js run survivor 49 --only=1,15 --results=quick-exits --through=13 --keep`, then
+  `node scripts/dev-test/playtest-looks.js surv13 --pages=tonight,cast`. Rizo is on his tribe, and replay 15's Tonight says "You
+  picked Rizo · Survived". `playtest.js down` after.
+- A failing test, for `tests/` (it fails today: the one still in scores 18, the winner 17):
+
+  ```js
+  const test = require("node:test");
+  const assert = require("node:assert/strict");
+  const path = require("path");
+  const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
+  const { buildDemoState } = jiti("../src/lib/game/demo-season-builder.ts");
+  const { applyDecision, orderPlacementsByEpisode } = jiti("../src/lib/game/decision-apply.ts");
+  const S = require("../src/lib/game/state-logic.js");
+
+  test("someone the results never removed doesn't outscore the crowned winner", () => {
+    const EPISODES = 16; // one boot an episode, the final three at the finale
+    const data = {
+      id: "test", showId: "survivor", showName: "Test", seasonName: "Test", episodeCount: EPISODES,
+      players: ["ann", "bo"].map((key) => ({ key, name: key, color: "#000" })),
+      castaways: Array.from({ length: 18 }, (_, i) => ({
+        key: `k${i}`, name: `Castaway ${i}`, placement: i + 1, exitEpisode: Math.min(i + 1, EPISODES),
+        exitMethod: i === 17 ? "Sole Survivor" : i >= 15 ? "Lost Final Tribal (Jury Vote)" : "Voted Out",
+      })),
+    };
+    const fact = (name, method) => ({ episode_number: EPISODES, post_merge: true, kind: "elimination", castaway_name: name, method, event_type: "", jury_votes: null, units: null, applied: null });
+    const s = S.migrateLeagueState(JSON.parse(JSON.stringify(buildDemoState(data, "classic-draft", EPISODES - 1))));
+    // The finale's results miss one finalist (an exit held, or one neither answer names): Castaway 15 stays in.
+    applyDecision(s, fact("Castaway 16", "Lost Final Tribal (Jury Vote)"), []);
+    applyDecision(s, fact("Castaway 17", "Sole Survivor"), []);
+    orderPlacementsByEpisode(s);
+    const winner = s.castaways.find((c) => c.name === "Castaway 17");
+    const stillIn = s.castaways.find((c) => c.name === "Castaway 15");
+    assert.equal(S.seasonWinner(s)?.name, "Castaway 17");
+    assert.equal(stillIn.status, "active");
+    const points = (c) => S.EliminationOrderScoringStrategy.castawayPoints(s, c);
+    assert.ok(points(stillIn) < points(winner), `still in ${points(stillIn)}, the winner ${points(winner)}`);
+  });
+  ```
+
+**A direction.**
+- **Once the winner's crowned,** nobody still in scores above the winner. They're a doubt for whoever runs the game ("Rizo Velovic
+  never left: when did they go?", as finding 17 says), and until it's settled their points stop below the winner's.
+- **A crowned winner ends the season** for waivers and picks too (finding 19's direction): no "Survived" for a pick of someone who
+  never left, and no castaway shown still on a tribe after "Season over".
+- **Fewer of them:** a full research's exit that the quick check doesn't name (Rob Cesternino at 3, Leonardo Dionicio at 11) held as
+  disputed for the tie-break rather than dropped, as finding 6's refined direction says.

@@ -852,6 +852,132 @@ cut record's lead changes, settled and rough count against an uncut one's. `npm 
 - the hub was shot in the new member's shape;
 - a `home-` page with a typo was shot as the plain hub.
 
+### P5, part 5: finding 17's direction played through the app; the looks at Dancing with the Stars' and Survivor's finales (2026-10-28, playtest lane)
+
+**The bot was still capped.** At 12:26 UTC ChatGPT's last error was the 12:13 ask (no reply in 420 s). The recorder (pid 63680 since
+11:33 UTC, window "Tapes: recording") was paused until 12:54 after giving Below Deck 12's episode 11 quick check up. The main session
+committed the recorder's `BOT_PROVIDER` option (2bb475c6, the user's signed-in Gemini) and wrote in the journal to leave the recorder
+on ChatGPT: Gemini searched in 1 of 6 runs on the full research prompt and answered all-unknown otherwise, which passes the
+checklist as junk. The words corpus is still 2 of 104, so P2's table and Below Deck's cast by hand wait. This part is bot-free.
+
+**`run ... --results=placed`** (`playtest.js`, a variant into `replays\variants\results-placed\`): quick-exits, plus each episode's
+exits filed in the order they rank, so the app's own numbering places them right (finding 17's direction played through the app).
+The order: anyone knocked out first (an exit that isn't one of the format's `endgameExitMethods`), then the endgame exits in the
+format's order (every format lists them lowest place first, the winner last), the filed order kept only between two of the same.
+- **How (`placeExits`, pure):** before the app reads an answer, the quick check's `left` list is put in that order, then the full
+  answer's castaways who left, among their own slots, after the quick-exits reshape. Only what the app would file is ranked:
+  - a quick check that says found false is left alone, and a name the app can't match to the cast stays where it is;
+  - a quick check's exit is the one the app files: its "how" in the show's words, a missing one (or one over 32 characters,
+    which `parseQuickAnswer` drops) the format's first exit, anything else "Other";
+  - a full answer's leaver is one `itemsFromChecklist` files: `leftTheGame` exactly "yes", with an exit.
+
+  The winner's exit ranks last wherever the format lists it (`exitRank`, with the format's `winnerExitMethod`). The text is
+  rewritten only when a ranked leaver moves (`rankInPlace` says so from its own sort); nothing else in either answer changes.
+  `fileResults` reads the format and cast from the research context for the quick check too. If that context can't be read,
+  the quick check keeps its answer as it came and the record says why.
+- **Where:** each episode's record keeps what moved (`tape.results[].placed`: `quick`, `full`, each `{ before, after }`), the run
+  prints a line, and a game's log has a line for each episode it counts in.
+- **The places in every record:**
+  - `look`'s `left` keeps each leaver's `placementOrder`, the place as Tonight's results word it (`finished`, from
+    `episode-view.ts outsOf`: "finished 11th") and whether theirs is the winner's exit (`winner`);
+  - each episode keeps `crowned`: the show's winners so far and where they finish now, since an exit landing later can move a
+    place;
+  - `compare` has a "Show's winner finished" column per replay and, by game, "Show's winner 1st" (`crownedOf`, from the last
+    episode's `crowned`; "–" for files from before, which have no places).
+
+**What it moved on these tapes:**
+- **Dancing with the Stars' finale:** the quick check named the winner first; now Fifth place to Winner.
+- **The Challenge's finale:** the winners came first and the disqualified last; now the disqualified, then the finalists, then
+  the winners.
+- **Survivor 49's and the Traitors 4's finales:** the order filed was already right.
+  - The Traitors' quick check names the winner last and is filed.
+  - Survivor's quick check waits (two of its names say "Other"), so its finale comes from the full research. It was filed
+    Kristina Mills, Sage Ahrens-Nichols, Sophi Balerdi, Savannah Louie from two answers that listed them in different orders
+    (quick-exits' and this variant's). `episode-research.js candidatesFor` moves the winner last; what orders the rest wasn't
+    traced (Noticed). So the full answer's reorder changed nothing filed on these tapes.
+
+**Played** (no bot, about seven minutes for the four seasons): 96 replays, twice. The second run came after the code review's
+fixes, from a clean folder; the numbers are its own, and where the first run's differ it says so. One Dancing with the Stars
+replay was kept at its finale first, to check the app's own places: Robert Irwin `placementOrder` 14 of 14 (finished 1st), Elaine Hendrix 10, and the
+Forgetter won 27 to 23, the one-off's figure. Then:
+- `compare results-placed --base=variants/results-quick-exits` and `--base=variants/results-autopilot` (the two COMPARE files beside
+  it);
+- `judge --dir=variants/results-placed`;
+- two one-off checks over the files (not kept, as they read one variant's question): where each show's winner finished, and, for
+  each Outlast game that reaches the finale, whether its winner changed and whether both runs went into the finale with the same
+  table and teams (then the change is the finale's alone).
+
+The problems recorded are the same as quick-exits' (findings 4 and 7).
+
+**What it found** (details in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md), "P5 part 5" and findings 17 and 21):
+- **Every finale's places come out in rank order:** Dancing with the Stars 1. Robert Irwin, 2. Alix Earle ... 5. Elaine Hendrix.
+- **The show's winner finishes 1st only where everyone else left:** Dancing with the Stars, in all 11 games that crowned one.
+  In the 40 elsewhere someone the results never removed is still in above the winner:
+  - Survivor (Rizo Velovic, held: finding 2) and the Traitors (Rob Cesternino, whose murder the quick check missed): the winner
+    2nd;
+  - the Challenge (Cara Maria Sorbello, Gabe Wai, Leonardo Dionicio): the winners 4th and 5th.
+
+  Someone still in is on a team at the end in 16 of the 22 Outlast games there, and on the winning team in 13 (18 and 14 in the
+  first run). That's the new finding 21 (high), with a failing test for the engine lane.
+- **The one-off's numbers, played:**
+  - Dancing with the Stars: the Outlast winner changes in 5 of 8 against quick-exits and Autopilot, 6 of 8 against the whole
+    set. The one-off said 5 of 8 on the whole set, 4 of 8 on the others. Only 4 of the 8 go into the finale with the same teams
+    and table as quick-exits (waivers' autofill is random), and 2 of those change, in both runs. So played numbers can't split
+    the order from the run-to-run floor any further; the one-off's arithmetic on one file stays the clean count, and nothing
+    played contradicts it.
+  - The Challenge: 4 of 6 change (3 in the first run). The others are solo games, or games whose teams already differ before
+    the finale; of the 3 with the same teams and table going in, 1 changes (to a tie), in both runs. The one-off's 2 of 6 is
+    about right; the order's own part is the smaller.
+  - Survivor (2 of 10) and the Traitors (3 of 6): none in a game with the same teams and table going in. Run-to-run noise:
+    their finales were in order already.
+  - Weekly Lineup (4 of 21) and the pool (2 of 16), which don't score places: every change starts before the finale, in both
+    runs.
+- **The judge moves within the run-to-run floor.** Two runs of placed give Outlast's settled 75% and 88% (quick-exits 80%), tied
+  at the top 47% and 49% (47%). What moves the same way in both runs is Dancing with the Stars:
+  - the forgetter's median finish 20% → 7%: first on the list is Alix Earle, the runner-up, now 13th of 14 rather than 11th;
+  - the tinkerer's 33% → 67% and 87%.
+
+**The looks at 390** (quick-exits, as the seed asked: what a player sees today with the winner kept; details in the report):
+- **Dancing with the Stars 34's finale** (`run dancing-with-the-stars 34 --only=1,5 --results=quick-exits --through=11 --keep`),
+  as the tinkerer, then the forgetter revealing it (`--reveal=11`):
+  - Tonight says "Season over" (no episode is left), but its plate reads "Robert Irwin · Winner · finished 5th" and "Elaine
+    Hendrix · Fifth place · finished 1st";
+  - the reveal's card has "WINNER · Robert Irwin · Finished 5th" and "FOURTH PLACE · Dylan Efron · Finished 2nd";
+  - replay 1's Forgetter wins Outlast 25 to 23 by Elaine's 14 (with the places right, the Tinkerer, holding the winner, would win
+    25 to 23).
+- **Survivor 49's finale** (`--only=1,5,15 --through=13`): the places are right but the Sole Survivor's 2nd. The Castaways page
+  still lists Rizo Velovic on his tribe after "Season over", and the pool's tinkerer "Survived · You picked Rizo", tied 1st.
+- **Beyond findings 17 to 20, only finding 21.** The rest are findings 18 and 19 again ("Waivers ran" after the finale, "All safe
+  · 0 of 2 still in").
+
+**Leaving the sets as compared.** A `--keep` run to a season's last episode writes into the variant's own folder, so the looks'
+runs would have replaced five of quick-exits' records with a new run. They were copied aside first and put back (Noticed).
+`playtest.js down` after, and the lane's dev server stopped.
+
+Unit tests (`tests/playtest.test.js`):
+- the variant's name;
+- the order: Dancing with the Stars' finale, the Challenge's with two of the same, a "how" not in the show's words or too long,
+  and the winner last when the format lists it first;
+- an answer in order, with nobody, or that found nothing, left as it came, and a name not in the cast left where it is;
+- a full answer, only the leavers the app files moving;
+- where the show's winner finished in a record (the last episode's `crowned`, or each winner's exit in an older file), and the
+  by-game column.
+
+`npm test` passes (803).
+
+**The code review's fixes:**
+- each record's results now keep what the order moved (`summarize` had left `placed` out);
+- the winner ranks last wherever the format lists it, not only when the format lists it last;
+- only what the app files is ranked or said to have moved (a quick check that found nothing, a name not in the cast, a full
+  answer's "YES");
+- the quick check's context failing loses only its order;
+- the places come from the app's own `outsOf`;
+- `placementOrder` keeps the app's name (the app's `place` means the finish);
+- `crowned` reads a place as it stands at the end;
+- the app's `ordinal`, and two helpers that shared a name renamed.
+
+The second run above was played after them.
+
 ## Noticed, not fixed
 
 (Each step adds what it saw and left alone, with the step that could take it.)
@@ -1024,5 +1150,37 @@ From P5 part 4 (2026-10-28):
   reveal covers every game you play on the season. That's harness-shaped (one seat on three couches of one season), so it's left
   alone; a look with one couch per season would show it as a player has it.
 - **The finale order's measure assumes the quick check filed first** (Autopilot's early stage), so its order is the order filed.
-  It's true on these tapes: the full research agrees on who left at Dancing with the Stars' finale and skips anyone already out.
+  It's true on these tapes: the full research agrees on who left at Dancing with the Stars' finale and skips anyone already out. **Checked in P5 part 5:** not for Survivor 49, whose quick check waits (two "Other"s), so its finale is
+  filed from the full research in the cast's order with the winner moved last (`candidatesFor`). That order is right on this tape
+  (alphabetical), so the one-off's Survivor numbers stand.
   It's a one-off (not kept), so a fix to finding 17 is checked by playing the replays again.
+
+From P5 part 5 (2026-10-28):
+- **Played counts can't split a finale's own effect from the run-to-run floor in a game with waivers.** Its autofill is random,
+  so two runs go into the finale with different teams though often the same table. The one-off finale check (not kept) counts
+  only games with the same table and teams going in, and that leaves 4 of Dancing with the Stars' 8. For one finale's arithmetic,
+  the one-off over a single file (P5 part 4's) is the clean count; a variant shows what a player gets. P5's next variant over a
+  finale, if it matters.
+- **A kept run to a season's last episode replaces that variant's records** (`--through` equal to the season's last isn't
+  `partial\`). This part's looks copied five quick-exits records aside and put them back. A `--keep` run could write to
+  `partial\` (or a `looks\` folder) whatever its `--through`. Harness only; P5's next pass.
+- **"All safe · 0 of 2 still in after this episode"** (Dancing with the Stars' and Survivor's forgetter, both finalists on the
+  team): P5 part 4's two counts disagreeing, now with nobody left. With finding 18.
+- **A pair of winners gets two places** (the Challenge's Yeremi Hykel 4th and Olivia Kaiser 5th, in the order filed). With
+  finding 18's crown, a pair show's winners would share the top place; for the new design and `orderPlacementsByEpisode`'s
+  owner.
+- **A finalist the quick check words "Other" ranks as knocked out** (Survivor's Sage Ahrens-Nichols, 4th below Sophi Balerdi).
+  The order is right for the exit as filed; the exit's word is findings 2 and 6. Nothing for this variant.
+- **The hub's "zt_pt_tinkerer started an Outlast · tap to join"** sits on the couch feed after the season's over (the game is
+  minutes old in the harness). A real couch's line would be weeks old; whether a feed line offers a game that's over is
+  finding 18's. Harness-shaped; left.
+- **What orders a full research's exits in one episode wasn't traced.** Survivor 49's finale was filed Kristina Mills, Sage
+  Ahrens-Nichols, Sophi Balerdi, Savannah Louie from two answers listing them in different orders. Decisions are stamped
+  `clock_timestamp()` as they're inserted and the sync applies them in that order; `candidatesFor` moves the winner last.
+  Something between the answer and the insert orders the rest. For finding 17's owner, who'll want the order in one place.
+- **Among the knocked out, the filed order stands.** Survivor's format doesn't list "Lost Fire-Making" as an endgame exit, so a
+  finale's fire-making loser and its last boot keep the order filed (on these tapes Rizo Velovic's exit is held, so it didn't
+  come up). A place for every exit would need the format to rank them; for the rulebook's owner, with finding 17.
+- **The order lives only in the harness** (`exitRank`, `placeExits`). Finding 17's fix belongs beside
+  `decision-apply.ts orderPlacementsByEpisode`, as a helper the harness can then call instead of its own, so the variant keeps
+  measuring what the app does. For the engine lane with finding 17; the harness switches once it exists.
