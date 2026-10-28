@@ -257,7 +257,8 @@ quick check, everything else from the full research:
   wrong exit (11) for none: in 8 games he's kept on 5 teams to the end, started 21 times and picked twice after episode 11.
   Episode 11's quick check said nobody left, which the app holds as a doubt on its own; the variant takes it at its word (the
   direction), so Leo and Will staying at 11 rests on an answer the app wouldn't apply by itself.
-- **Gabe Wai and Jonna Mannion still never leave.** Episode 11's quick check names them in its headline, but its list is empty,
+- **Gabe Wai and Jonna Mannion still never leave** (Jonna isn't in the season's cast at all, P5 part 6 found: she arrived in
+  episode 5). Episode 11's quick check names them in its headline, but its list is empty,
   so by its list nobody left at 11 either. Only asking again when the two disagree (the direction's last line) would catch them.
 - **The Traitors 4's Rob Cesternino** goes the other way. The quick check reports episode 3's banishment and misses the murder at
   the top of the episode. The full research has it, citing an episode recap ("Rob Cesternino is murdered after suspecting a
@@ -1088,3 +1089,121 @@ With the places right (`--results=placed`):
   never left, and no castaway shown still on a tribe after "Season over".
 - **Fewer of them:** a full research's exit that the quick check doesn't name (Rob Cesternino at 3, Leonardo Dionicio at 11) held as
   disputed for the tie-break rather than dropped, as finding 6's refined direction says.
+  **Played in P5 part 6** (`--results=both-exits`, the tie-break siding with the full research every time): only Gabe Wai is
+  still in at a crown, on the Challenge; every other show's winner finishes 1st. Survivor's Rizo Velovic had decided 5 of its 10
+  Outlast games that reach the finale.
+
+## P5 part 6: finding 21's "fewer of them" played through the app (2026-10-28)
+
+`playtest.js run <show> <season> --results=both-exits` is placed (P5 part 5) with the full research's exits kept as well. Who
+left is both answers' exits:
+- a full research's exit the quick check doesn't name is added to the quick check, so the app files it (the Traitors' Rob
+  Cesternino at 3, the Challenge's Leonardo Dionicio and Will Gagnon at 11);
+- someone both answers name leaves as the quick check words it, unless its word is a catch-all ("Other", or none); then as
+  the full research words it. Both answers are given that word, so they agree and nothing's held (finding 2): Cara Maria
+  Sorbello "Quit" at the Challenge's 5 (the full said "Other"), Rizo Velovic "Lost Fire-Making" at Survivor's finale (the
+  quick check said "Other");
+- then placed's order, the winner last.
+
+It plays the tie-break run of finding 6's direction siding with the full research every time, so it's the fewest still in
+that direction can give. It changed four episodes in the four seasons; Dancing with the Stars, whose two answers agree, is
+unchanged. The four seasons were played (96 replays, twice: the numbers are the second run's, after the code review's fixes)
+and compared against placed and Autopilot.
+
+**At the crown** (the episode that crowns the show's winner, in the games that reach it):
+
+| Season | Games | Still in at the crown, placed | Both exits | The winner finished, placed | Both exits |
+|---|---|---|---|---|---|
+| Dancing with the Stars 34 | 11 | nobody | nobody | 1st | 1st |
+| Survivor 49 | 18 | Rizo Velovic | nobody | 2nd | 1st |
+| The Traitors 4 | 11 | Rob Cesternino | nobody | 2nd | 1st |
+| The Challenge 41 | 11 | Cara Maria Sorbello, Gabe Wai, Leonardo Dionicio | Gabe Wai | 4th and 5th (the pair) | 2nd and 3rd |
+
+- **One person is left, in one season:** Gabe Wai, whom no answer files. Episode 11's quick check names him only in its
+  headline ("sending Gabe Wai and Jonna Mannion home"), with an empty list; the full research has him staying every week.
+  Asking a quick check again when its headline names someone its list doesn't (finding 6's last line) is what would catch him.
+- **Gone, still played:** in placed, 22 games used someone the full research had out (12 Outlast, 5 pools, 5 Weekly Lineups:
+  drafted after, started, picked or kept to the end). In both-exits, none.
+
+**What changes in Outlast's winners.** 22 of 59 change against placed. The clean test is the games that went into the finale
+with the same table and teams in both sets, where a change is the finale's alone: 11 of them (Survivor's 7, Dancing with the
+Stars' 4). 5 change, all on Survivor, and in every one whoever held Rizo Velovic loses the lead (the Reader in 4 games, the
+Tinkerer in 1). Rizo scored 18 as still in; out 4th he scores 15, and the next team up wins by one or two. The first run,
+before the review's fixes, had a sixth: a tie at the top split as the winner moved up from 2nd to 1st.
+
+Dancing with the Stars' 4 don't change: nothing in its exits differs, so the finale's floor is zero. Every other change starts
+before the finale:
+- the Challenge's and the Traitors' exits move mid-season (Cara Maria at 5, Leo and Will at 11, Rob at 3), so their teams
+  differ going in;
+- Dancing with the Stars' 4 of 17 are the run-to-run floor (waivers' random autofill, computer players).
+
+So on Survivor, finding 21 decided 5 of the 10 Outlast games that reach the finale, for whoever drafted the one finalist the
+results never removed.
+
+**The cost: the full research's wrong exits file too.** On the Challenge it's the one where both answers were wrong (finding 6):
+- Leonardo Dionicio and Will Gagnon leave at 11. Will left at 16, as that episode's quick check says; Leo was competing in
+  episode 14's elimination, by its quick check.
+- At 16 the quick check names Will again. He's gone by then, so the app holds the whole answer as "It named someone we
+  couldn't match to the cast", Aviv Melmed's right exit with it, and nobody is told that Will's exit at 11 is now in doubt.
+  That's finding 22. The full research files Aviv, so the games lose nothing here.
+
+So "fewer of them" by keeping both is right where the full research is (the Traitors' 3) and early where it isn't (the
+Challenge's 11). The tie-break run asking a third time is the direction; this variant is its best case for who's still in.
+
+**The judge moves within the run-to-run floor:** Outlast's settled 73% in both runs (placed's two runs 75% and 88%), tied at
+the top 46% (47% and 49%).
+
+**Repro.**
+- `node scripts/dev-test/playtest.js run the-traitors-us 4 --results=both-exits` (and survivor 49, the-challenge 41,
+  dancing-with-the-stars 34; under a minute each, no bot), then `node scripts/dev-test/playtest.js compare results-both-exits
+  --base=variants/results-placed`. "At the crown, by season" and the by-game "Still in at the crown" and "Same going in" are
+  `compare`'s own now.
+- The run's log has a line for each change ("the full research's exits added to the quick check", "the quick check's
+  catch-all worded as the full research has it", "worded as the quick check has it").
+
+### 22. A quick check naming someone already out holds the whole episode, and the earlier exit it contradicts is never questioned (low; the survivor lane, `bot-research.js parseQuickAnswer` and `results-changes.ts quickVerdict`)
+
+The quick prompt lists who's still in, and the quick check's names are matched against only them (`parseQuickAnswer(answer,
+stillIn)`). Someone the bot names who's in the cast but already out reads as unmatched, so the doubt is "unknown-name": "It named
+someone we couldn't match to the cast." The whole answer waits, the right exits in it too.
+
+**On tape:** the Challenge 41's episode 16. The full research had Will Gagnon out at 11; the quick check at 16 has "Aviv Melmed
+& Will Gagnon left", with three sources ("a shocking elimination that sent Aviv and Will home"), which is when Will really left
+(finding 6). On Autopilot and in both-exits the episode reads "Not sure yet: It named someone we couldn't match to the cast."
+- The words are wrong: he's in the cast.
+- The signal is lost: a later answer saying someone left now is evidence that their earlier exit, from another answer, was
+  wrong. It's the one place on these tapes where an answer contradicts an exit already filed, and it's right.
+
+**Repro.**
+- `node scripts/dev-test/playtest.js run the-challenge 41 --only=1 --results=autopilot --through=16 --keep`; episode 16's quick
+  check says the above (the record's `tape.results`, in `replays\variants\results-autopilot\partial\`). `playtest.js down`
+  after.
+- The tape: `rfl-tapes\the-challenge\41\e16-quick.json`, `parsed.left`: Will Gagnon `matched: false`.
+- A failing test, for `tests/` (it fails today: the doubt is "unknown-name"):
+
+  ```js
+  const test = require("node:test");
+  const assert = require("node:assert/strict");
+  const path = require("path");
+  const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
+  const { parseQuickAnswer } = require("../db/bot-research.js");
+  const { quickVerdict } = jiti("../src/lib/game/results-changes.ts");
+
+  test("a quick check naming someone already out isn't 'someone we couldn't match to the cast'", () => {
+    // The Challenge 41's episode 16: the prompt lists who's still in; Will Gagnon was filed out at 11 (the full research),
+    // and the quick check names him with Aviv Melmed, sourced.
+    const stillIn = ["Aviv Melmed", "Michaela Bradshaw", "Nany González", "Gabe Wai"];
+    const answer = JSON.stringify({
+      found: true,
+      left: [{ name: "Aviv Melmed", how: "Eliminated" }, { name: "Will Gagnon", how: "Eliminated" }],
+      headline: "A shocking elimination sent Aviv and Will home.",
+      sources: ["https://www.tvinsider.com/a", "https://parade.com/b"],
+    });
+    const v = quickVerdict(parseQuickAnswer(answer, stillIn), ["Eliminated", "Disqualified", "Quit", "Other"]);
+    assert.notEqual(v.doubt, "unknown-name");
+  });
+  ```
+
+**A direction.** Match the quick check's names against the whole cast. Someone already out is then a doubt of their own ("It
+says Will Gagnon left tonight; we had him out in episode 11"), one that questions the earlier exit for the tie-break run, while
+the rest of the answer applies as usual. Elsewhere on tape, the only unmatched names are finding 10's (Below Deck's cast).

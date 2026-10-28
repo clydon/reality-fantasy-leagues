@@ -36,7 +36,10 @@
 //                                                 each full research reshaped before the app files it, who left from that
 //                                                 episode's quick check and everything else from the full (quickExits);
 //                                                 [--results=placed]: quick-exits, and each episode's exits filed in the
-//                                                 order they rank, the winner last (placeExits)
+//                                                 order they rank, the winner last (placeExits); [--results=both-exits]:
+//                                                 placed, who left both answers' exits, the quick check's how first
+//                                                 (bothExits). --keep writes to partial\ whatever its --through, so a
+//                                                 look never replaces a set's records
 //   node scripts/dev-test/playtest.js summary                       a line per replay on file, for P4 (also replays\SUMMARY.md)
 //   node scripts/dev-test/playtest.js judge [--dir=variants/<v>]    P4's measures per game, all shows and each, and how much
 //                                                 each week asks (taps, cards; replays\JUDGE.md)
@@ -937,6 +940,44 @@ function shiftAnswer(text, days) {
 }
 
 /**
+ * Names matched to a cast as the app matches them (state-logic.js findCastawayByName: punctuation, accents, a first name),
+ * a name as written first. `idOf(name)`: the cast index a name is (a string), or null. `assign(items, nameOf)`: each item's
+ * index, every exact match before any forgiving one and no index twice, so a gone "Bob" can't take "Bobby Smith"'s place:
+ * Map(item → index). Pure.
+ */
+function castMatcher(names) {
+  const { Core } = require("../../src/lib/game/state-logic.js");
+  const key = (name) => String(name || "").trim().toLowerCase();
+  const roster = { castaways: names.map((name, i) => ({ id: String(i), name })) };
+  const exact = new Map(names.map((name, i) => [key(name), String(i)]));
+  const loose = (name) => (key(name) ? Core.findCastawayByName(roster, String(name).trim()).castaway?.id ?? null : null);
+  const assign = (items, nameOf) => {
+    const out = new Map();
+    const taken = new Set();
+    for (const match of [(name) => exact.get(key(name)) ?? null, loose]) {
+      for (const x of items) {
+        if (out.has(x)) continue;
+        const id = match(nameOf(x));
+        if (id === null || taken.has(id)) continue;
+        out.set(x, id);
+        taken.add(id);
+      }
+    }
+    return out;
+  };
+  return { idOf: (name) => exact.get(key(name)) ?? loose(name), assign };
+}
+
+/** Whether a quick check's "how" says nothing of its own: none, too long to be a label (parseQuickAnswer drops it), not in
+ *  the show's words, or "Other" (results-changes.ts exitMethodFor). Pure. */
+function catchAll(how, exitMethods = []) {
+  const h = String(how || "").trim();
+  if (!h || h.length > 32) return true;
+  const m = tsApp("lib/game/results-changes").exitMethodFor(h, exitMethods);
+  return !m || m === "Other";
+}
+
+/**
  * --results=quick-exits (PLAYTEST-REPORT.md findings 6 and 1): a full answer as the report's directions would file it,
  * who left from the bot's quick check that episode and everything else from the full research. `asked` is who the app's
  * prompt asks about (episode-research.js pasteSkeleton's entries: each name with every answer at its most non-committal),
@@ -956,20 +997,22 @@ function shiftAnswer(text, days) {
  *     someone the prompt doesn't ask about (`unasked`: gone already, or not in the cast) isn't a whole account, so its
  *     matched names leave and nobody's turned back ("unknown-name");
  *   - someone both say left keeps the full research's method and confidence, so an exit the two word differently is held
- *     as before (finding 2, measured by --results=accepted).
+ *     as before (finding 2, measured by --results=accepted); with `quickHow` (--results=both-exits) their exit is the
+ *     quick check's as the app files it, so the two agree (`worded`: "Name (the full's → the quick check's)"), unless the
+ *     quick check's is a catch-all (catchAll) and the full has one: then the full's stands, and bothExits gives the quick
+ *     check the full's.
  * `winners`: whoever leaves with the winner's exit in the answer as filed (the Challenge crowns a pair). Returns { text,
  * changes }; changes is null when the answer isn't JSON with castaways. Pure.
  */
-function quickExits(text, { asked = [], quick = null, exitMethods = [], winnerExit = null } = {}) {
+function quickExits(text, { asked = [], quick = null, exitMethods = [], winnerExit = null, quickHow = false } = {}) {
   const raw = answerJson(text);
   if (!raw || !Array.isArray(raw.castaways)) return { text, changes: null };
-  const { Core } = require("../../src/lib/game/state-logic.js");
   const { quickVerdict } = tsApp("lib/game/results-changes");
-  const roster = { castaways: asked.map((e, i) => ({ id: String(i), name: e.name })) };
-  const key = (name) => String(name || "").trim().toLowerCase();
-  const exact = new Map(asked.map((e, i) => [key(e.name), String(i)]));
-  const idOf = (name) => exact.get(key(name)) ?? Core.findCastawayByName(roster, String(name || "")).castaway?.id ?? null;
+  const cast = castMatcher(asked.map((e) => e.name));
+  const idOf = cast.idOf;
   const verdict = quick && quick.found ? quickVerdict({ ...quick, left: quick.left || [], sources: quick.sources || [] }, exitMethods) : null;
+  // The quick check's own "how" for each person it names (quickHow gives way to the full's exit where it's a catch-all).
+  const howOf = new Map((verdict ? quick.left.filter((p) => p.matched) : []).map((p) => [idOf(p.name), p.how]));
   const changes = {
     quick: !quick ? "none" : !verdict ? "nothing" : verdict.doubt === "nobody" ? "nobody" : "found",
     left: [],
@@ -978,6 +1021,7 @@ function quickExits(text, { asked = [], quick = null, exitMethods = [], winnerEx
     dropped: [],
     unasked: [],
     raised: [],
+    worded: [],
     winners: [],
   };
   // Each asked person's entry: a name as asked first, so a forgiving match (a gone "Bob" for "Bobby Smith") can't take it.
@@ -986,17 +1030,8 @@ function quickExits(text, { asked = [], quick = null, exitMethods = [], winnerEx
     if (c && typeof c === "object") entries.push(c);
     else changes.dropped.push("(no entry)");
   }
-  const byId = new Map();
-  const taken = new Set();
-  for (const match of [(name) => exact.get(key(name)) ?? null, idOf]) {
-    for (const c of entries) {
-      if (taken.has(c)) continue;
-      const id = match(c.name);
-      if (id === null || byId.has(id)) continue;
-      byId.set(id, c);
-      taken.add(c);
-    }
-  }
+  const taken = cast.assign(entries, (c) => c.name);
+  const byId = new Map([...taken].map(([c, id]) => [id, c]));
   for (const c of entries) if (!taken.has(c)) changes.dropped.push(String(c.name || "(no name)"));
   const leaving = new Map();
   for (const o of verdict ? verdict.out : []) {
@@ -1023,6 +1058,9 @@ function quickExits(text, { asked = [], quick = null, exitMethods = [], winnerEx
       if (others.length) changes.raised.push(`${e.name}: ${others.join(", ")}`);
       c = { ...c, leftTheGame: "yes", exitMethod: method, confidence: "high", sources: [...new Set([...list(c.sources), ...list(quick.sources)])] };
       changes.left.push(`${e.name} (${method})`);
+    } else if (method && quickHow && c.exitMethod !== method && !(c.exitMethod && catchAll(howOf.get(id), exitMethods))) {
+      changes.worded.push(`${e.name} (${c.exitMethod || "no exit"} → ${method})`);
+      c = { ...c, exitMethod: method };
     } else if (whole && !method && yes(c)) {
       changes.stayed.push(`${e.name}${c.exitMethod ? ` (${c.exitMethod})` : ""}`);
       c = { ...c, leftTheGame: "no", exitMethod: null };
@@ -1041,6 +1079,7 @@ function reshapeLine(x) {
     x.left.length && `left ${x.left.join(", ")}${kept.length ? ` (the winner kept: ${kept.join(" & ")})` : ""}`,
     x.stayed.length && `stayed ${x.stayed.join(", ")}`,
     x.raised.length && `raised to high with the exit: ${x.raised.join("; ")}`,
+    x.worded && x.worded.length && `worded as the quick check has it: ${x.worded.join(", ")}`,
     x.added.length && `added (still in here) ${x.added.join(", ")}`,
     x.dropped.length && `dropped (gone here) ${x.dropped.join(", ")}`,
     x.unasked.length && `the quick check's ${x.unasked.join(", ")} not asked about, so nobody was turned back`,
@@ -1117,33 +1156,135 @@ function placeExits(text, kind, { exitMethods = [], endgame = [], winner = null,
 }
 
 /** What placeExits moved in an episode (and an order it couldn't work out), in a line for the run's log and the episode's
- *  record, or null when nothing moved. */
+ *  record, or null when nothing moved. `added`: the quick check had the full research's exits added first (bothExits). */
 function placedLine(p) {
-  const said = ["quick", "full"].filter((k) => p && p[k]).map((k) => `the ${k === "quick" ? "quick check's" : "full research's"} ${p[k].after.join(", ")} (was ${p[k].before.join(", ")})`);
+  const whose = (k) => (k === "full" ? "full research's" : p.added ? "quick check's, the full research's exits added to it," : "quick check's");
+  const said = ["quick", "full"].filter((k) => p && p[k]).map((k) => `the ${whose(k)} ${p[k].after.join(", ")} (was ${p[k].before.join(", ")})`);
   const parts = [said.length && `in the order they rank: ${said.join("; ")}`, p && p.error && `the quick check's order couldn't be worked out (${p.error}), so it's as answered`].filter(Boolean);
   return parts.length ? parts.join("; ") : null;
 }
 
-async function fileResults(season, n, answer, { quickExits: reshape = false, placed = false } = {}) {
+/**
+ * --results=both-exits (PLAYTEST-REPORT.md finding 21's "fewer of them", with finding 6's refined direction): who left is
+ * both answers' exits, the quick check's how first. Before the app reads the quick check:
+ *   - its `left` gets everyone the full research has leaving whom it doesn't name (`kept`), each with the full's exit as
+ *     its "how", so the app files them from the quick check too and the two agree. Only what the app would file counts: the
+ *     full answer's castaways with `leftTheGame` exactly "yes" and an exit, matched to `cast` (the people the quick prompt
+ *     asks about) as castMatcher matches, a name as written first;
+ *   - someone both name keeps the quick check's how (quickExits' `quickHow` gives it to the full answer), unless it's a
+ *     catch-all (catchAll: none, not in the show's words, "Other") and the full's exit isn't what the app would file for
+ *     it: then the quick check's how becomes the full's (`worded`), finding 2's direction for a catch-all;
+ *   - an exit over 32 characters can't be a quick check's how (parseQuickAnswer drops it), so it's left out (`skipped`).
+ * That plays the tie-break run siding with the full research. A quick check the app reads as finding nothing (`found`
+ * false, or nobody named and no headline: parseQuickAnswer) is left alone, so the full's exits file as on Autopilot.
+ * Returns { text, kept, worded, skipped } (["Name (exit)"], ["Name (how → exit)"]); the text as it came when nothing's
+ * changed. Pure.
+ */
+function bothExits(quickText, fullText, { cast = [], exitMethods = [] } = {}) {
+  const q = answerJson(quickText);
+  const f = answerJson(fullText);
+  const same = { text: quickText, kept: [], worded: [], skipped: [] };
+  if (!q || !Array.isArray(q.left) || !f || !Array.isArray(f.castaways)) return same;
+  const named = (p) => p && typeof p === "object" && String(p.name || "").trim();
+  if (q.found === false || (!q.left.some(named) && !String(q.headline || "").trim())) return same;
+  const { exitMethodFor } = tsApp("lib/game/results-changes");
+  const m = castMatcher(cast);
+  // The quick check's names as parseQuickAnswer matches them, each on its own.
+  const quickAt = new Map();
+  q.left.forEach((p, i) => {
+    const id = named(p) ? m.idOf(p.name) : null;
+    if (id !== null && !quickAt.has(id)) quickAt.set(id, i);
+  });
+  // Every entry is matched (a name as written first), so a leaver gone here can't take the place of someone it says stayed.
+  const entries = f.castaways.filter((c) => c && typeof c === "object");
+  const ids = m.assign(entries, (c) => c.name);
+  const leavers = entries.filter((c) => c.leftTheGame === "yes" && c.exitMethod);
+  const left = [...q.left];
+  const out = { kept: [], worded: [], skipped: [] };
+  for (const c of leavers) {
+    const id = ids.get(c);
+    if (id === undefined) continue;
+    const exit = String(c.exitMethod);
+    const at = quickAt.get(id);
+    if (at !== undefined) {
+      const how = left[at].how;
+      // What the app would file for it (quickVerdict, after parseQuickAnswer drops a how over 32 characters).
+      const h = String(how || "").trim();
+      const files = exitMethodFor(h && h.length <= 32 ? h : null, exitMethods) ?? "Other";
+      if (!catchAll(how, exitMethods) || files === exit) continue;
+      if (exit.length > 32) out.skipped.push(`${cast[Number(id)]} (${exit})`);
+      else {
+        left[at] = { ...left[at], how: exit };
+        out.worded.push(`${cast[Number(id)]} (${how || "no how"} → ${exit})`);
+      }
+      continue;
+    }
+    if (exit.length > 32) {
+      out.skipped.push(`${cast[Number(id)]} (${exit})`);
+      continue;
+    }
+    left.push({ name: cast[Number(id)], how: exit });
+    out.kept.push(`${cast[Number(id)]} (${exit})`);
+  }
+  const changed = out.kept.length || out.worded.length;
+  return { text: changed ? JSON.stringify({ ...q, left }) : quickText, ...out };
+}
+
+/** What bothExits did in an episode, in a line for the run's log and the episode's record, or null when nothing. Pure. */
+function bothLine(b) {
+  const parts = [
+    b && b.kept.length && `the full research's exits added to the quick check: ${b.kept.join(", ")}`,
+    b && b.worded.length && `the quick check's catch-all worded as the full research has it: ${b.worded.join(", ")}`,
+    b && b.skipped.length && `too long for a quick check's how, so left as the full research has it: ${b.skipped.join(", ")}`,
+  ].filter(Boolean);
+  return parts.length ? parts.join("; ") : null;
+}
+
+/** A season's full research on tape for episode n stored before the tapes (Survivor 49's), or undefined. */
+const storedFull = (season, n) => season.tape.files.find((f) => f.kind === "full" && f.episode === n && f.ok && f.source === "stored");
+
+/** The full research on tape for episode n, as the replay files it: the stored answer for a season researched before the
+ *  tapes, else the last recorded that's ok (the answerer's fallback, and only when fileResults asks one), or null. */
+function tapedFull(season, n) {
+  const stored = storedFull(season, n);
+  if (stored && stored.answer != null) return stored.answer;
+  const fulls = season.tape.files.filter((f) => f.kind === "full" && f.episode === n && f.ok && f.answer != null);
+  return fulls.length ? fulls[fulls.length - 1].answer : null;
+}
+
+/** What each results mode does to an episode's answers before the app files them (--results; autopilot and accepted
+ *  file them as they came). Pure. */
+const resultsSteps = (mode) => ({
+  reshape: ["quick-exits", "placed", "both-exits"].includes(mode),
+  placed: ["placed", "both-exits"].includes(mode),
+  both: mode === "both-exits",
+});
+
+async function fileResults(season, n, answer, mode = "autopilot") {
+  const { reshape, placed, both } = resultsSteps(mode);
   const { BotResearch, botSend, pool } = appCode();
   const Research = require("../../db/episode-research.js");
   const { kindOf } = require("./fake-bot");
   const job = await BotResearch.loadSeasonForJob(pool, season.seasonId);
   const asked = [];
-  const stored = season.tape.files.find((f) => f.kind === "full" && f.episode === n && f.ok && f.source === "stored");
+  const stored = storedFull(season, n);
   // --results=quick-exits: the quick check's answer as asked this episode, for the full answer's reshape.
   let quickSaid = null;
   let reshaped = null;
   // --results=placed: what placeExits moved in each answer, and why the quick check's order couldn't be worked out.
   const moved = { quick: null, full: null, error: null };
+  // --results=both-exits: what bothExits did to the quick check (the full research's exits added, a catch-all worded as
+  // the full's, an exit too long to carry).
+  let bothDid = { kept: [], worded: [], skipped: [] };
   const ask = async (prompt) => {
     const kind = kindOf(prompt);
     let a = answer(prompt, kind);
     // Who the prompt asks about and the format, as runJob's own context has them (for --results=placed the quick check's
     // too, its format's exits; nothing it files changes who's still in, which reads only the stored research). A context
-    // that can't be read fails a full answer as before; a quick check keeps its answer as it came, only its order lost.
+    // that can't be read fails a full answer as before; a quick check keeps its answer as it came, only its order (and
+    // --results=both-exits' additions) lost.
     let ctx = null;
-    if ((kind === "full" && (stored || reshape || placed)) || (kind === "quick" && placed)) {
+    if ((kind === "full" && (stored || reshape || placed)) || (kind === "quick" && (placed || both))) {
       try {
         ctx = await Research.resolveSeasonResearchContext(pool, SLUG(season.show), season.number, n);
       } catch (e) {
@@ -1152,7 +1293,14 @@ async function fileResults(season, n, answer, { quickExits: reshape = false, pla
       }
     }
     const ranks = ctx && { exitMethods: ctx.format.exitMethods || [], endgame: ctx.format.endgameExitMethods || [], winner: ctx.format.winnerExitMethod ?? null };
-    if (kind === "quick" && ctx) ({ text: a, order: moved.quick } = placeExits(a, "quick", { ...ranks, cast: ctx.castNames }));
+    if (kind === "quick" && ctx && both) {
+      const { text, ...did } = bothExits(a, tapedFull(season, n), { cast: ctx.castNames, exitMethods: ranks.exitMethods });
+      a = text;
+      bothDid = did;
+      // placedLine's "was" is the quick check with the full research's exits added, not as the bot named it.
+      moved.added = did.kept.length > 0;
+    }
+    if (kind === "quick" && ctx && placed) ({ text: a, order: moved.quick } = placeExits(a, "quick", { ...ranks, cast: ctx.castNames }));
     if (kind === "quick") quickSaid = a;
     if (kind === "full" && stored) a = upgradeStored(stored.answer, Research.researchSchemaFor(ctx.format)) || a;
     if (kind === "full") a = shiftAnswer(a, season.shiftDays);
@@ -1166,7 +1314,7 @@ async function fileResults(season, n, answer, { quickExits: reshape = false, pla
           quick = { found: false, left: [], sources: [] };
         }
       }
-      const got = quickExits(a, { asked: Research.pasteSkeleton(ctx, []).castaways, quick, exitMethods: ctx.format.exitMethods || [], winnerExit: ctx.format.winnerExitMethod ?? null });
+      const got = quickExits(a, { asked: Research.pasteSkeleton(ctx, []).castaways, quick, exitMethods: ctx.format.exitMethods || [], winnerExit: ctx.format.winnerExitMethod ?? null, quickHow: both });
       a = got.text;
       reshaped = got.changes;
     }
@@ -1187,6 +1335,7 @@ async function fileResults(season, n, answer, { quickExits: reshape = false, pla
   out.asked = asked;
   if (reshape) out.reshaped = reshaped;
   if (placed) out.placed = moved;
+  if (both) out.both = bothDid;
   return out;
 }
 
@@ -1347,6 +1496,8 @@ function look(r, s, n, prev) {
   const totals = table.map(rankKey);
   const tied = [...new Set(totals.filter((t, i) => totals.indexOf(t) !== i))];
   const ties = tied.map((t) => table.filter((x) => rankKey(x) === t).map((x) => x.name));
+  const crowned = s.castaways.filter((c) => S.isWinnerExit(s, c.exitMethod)).map((c) => ({ name: c.name, finished: finished(c) }));
+  const active = view.castaways.filter((c) => c.status === "active");
   return {
     n,
     out,
@@ -1361,9 +1512,11 @@ function look(r, s, n, prev) {
       winner: S.isWinnerExit(s, c.exitMethod),
     })),
     // The show's winners crowned so far and where they finish now (an exit landing later can move a place): crownedOf.
-    crowned: s.castaways.filter((c) => S.isWinnerExit(s, c.exitMethod)).map((c) => ({ name: c.name, finished: finished(c) })),
-    // The cast still in after it, for inItOf's Outlast (its people can outlast at most the rest of them).
-    stillIn: view.castaways.filter((c) => c.status === "active").length,
+    crowned,
+    // The cast still in after it, for inItOf's Outlast (its people can outlast at most the rest of them); by name once the
+    // show's winner is crowned (finding 21: whoever the results never removed, atCrownOf).
+    stillIn: active.length,
+    ...(crowned.length ? { stillInNames: active.map((c) => c.name) } : {}),
     table,
     leaders,
     leadChange: !!prev && prev.leaders.join("|") !== leaders.join("|"),
@@ -1475,9 +1628,11 @@ async function run(show, season, opts) {
     if (Number(opts.before) === ep) break;
     // Everyone watched it.
     await appCode().pool.query("UPDATE show_follows SET seen_through = $2 WHERE season_id = $1", [copy.seasonId, ep]);
-    // --results=placed is quick-exits with each episode's exits filed in the order they rank.
-    const filed = await fileResults(copy, ep, answer, { quickExits: v.results === "quick-exits" || v.results === "placed", placed: v.results === "placed" });
+    // --results=placed is quick-exits with each episode's exits filed in the order they rank; both-exits is placed with
+    // the full research's exits kept as well.
+    const filed = await fileResults(copy, ep, answer, v.results);
     const placedSays = filed.placed ? placedLine(filed.placed) : null;
+    const keptSays = filed.both ? bothLine(filed.both) : null;
     // A safety net: an air time the shift missed (one not in nextEpisode's shape) is a real date, before now, while every
     // one of the copy's lies ahead; laid over the copy's clock (season_episodes.air_at, through the season_air_dates view)
     // it would close the episodes after it at once, so it moves with the rest.
@@ -1522,6 +1677,7 @@ async function run(show, season, opts) {
     results.push({ episode: ep, ...filed });
     console.log(`  episode ${ep}: quick ${filed.quick.ok ? "ok" : "no"} (${filed.quick.message}); full ${filed.full.ok ? "ok" : "no"} (${filed.full.message})${filed.accepted ? `; accepted ${filed.accepted.quick.length ? `who went home (${filed.accepted.quick.join(", ")}), ` : ""}${filed.accepted.full.length} held${filed.accepted.refused.length ? `, ${filed.accepted.refused.length} refused` : ""}` : ""}`);
     if ("reshaped" in filed) console.log(`    reshaped: ${reshapeLine(filed.reshaped)}`);
+    if (keptSays) console.log(`    ${keptSays}`);
     if (placedSays) console.log(`    ${placedSays}`);
     for (const r of replays.filter((x) => x.leagueId && !x.dead)) {
       const s = await stateOf(r.leagueId);
@@ -1532,8 +1688,13 @@ async function run(show, season, opts) {
       e.moves = r.weeks[ep] || {};
       e.did = r.did[ep] || {};
       e.results = { quick: filed.quick.message, full: filed.full.message };
+      // --results=both-exits: the full research's exits the quick check now names too.
+      if (keptSays) {
+        e.results.both = keptSays;
+        r.log.push(`Episode ${ep}: ${keptSays}`);
+      }
       // --results=quick-exits: who left changed by the reshape, in the games this episode counts in.
-      if (filed.reshaped && (filed.reshaped.left.length || filed.reshaped.stayed.length)) {
+      if (filed.reshaped && (filed.reshaped.left.length || filed.reshaped.stayed.length || filed.reshaped.worded.length)) {
         e.results.reshaped = reshapeLine(filed.reshaped);
         r.log.push(`Episode ${ep}'s full research reshaped: ${e.results.reshaped}`);
       }
@@ -1572,9 +1733,10 @@ async function run(show, season, opts) {
       }
     }
   }
-  // A part of a season (--through, --before: for looks) goes beside the whole ones, never over them or into the summary.
-  // A variant's replays go in a folder of their own (replays\variants\<variant>\), beside the whole set's, for `compare`.
-  const partial = opts.before ? `before${opts.before}` : through < E ? `through${through}` : null;
+  // A part of a season (--through, --before: for looks) goes beside the whole ones, never over them or into the summary;
+  // so does a kept run (for looks) to the season's end. A variant's replays go in a folder of their own
+  // (replays\variants\<variant>\), beside the whole set's, for `compare`.
+  const partial = partialOf(opts, through, E);
   const home = v.name ? path.join(Tapes.TAPES, "replays", "variants", v.name) : path.join(Tapes.TAPES, "replays");
   const dir = partial ? path.join(home, "partial") : home;
   fs.mkdirSync(dir, { recursive: true });
@@ -1584,7 +1746,7 @@ async function run(show, season, opts) {
     const record = summarize(r, s, show, season, copy, results);
     fs.writeFileSync(`${file}.json`, JSON.stringify(record, null, 2) + "\n", "utf8");
     fs.writeFileSync(`${file}.md`, markdown(record), "utf8");
-    console.log(`  ${r.n}. ${r.name}: ${record.final ? `${record.final.winner} ${partial ? "leads" : "won"}${record.final.over ? "" : " (not over)"}` : r.leagueId ? "started, no results yet" : "no game"}${r.problems.length ? `, ${r.problems.length} problem(s)` : ""}`);
+    console.log(`  ${r.n}. ${r.name}: ${record.final ? `${record.final.winner} ${partialOf({ before: opts.before }, through, E) ? "leads" : "won"}${record.final.over ? "" : " (not over)"}` : r.leagueId ? "started, no results yet" : "no game"}${r.problems.length ? `, ${r.problems.length} problem(s)` : ""}`);
     for (const p of r.problems.slice(0, 5)) console.log(`       ! ${p}`);
   }
   // The pushes the results sent run after their writes (next-after-stub.js): let them finish before the rows go.
@@ -1606,6 +1768,16 @@ async function run(show, season, opts) {
 }
 
 /**
+ * The name a run's records take in partial\ ("before6", "through11"), or null for a whole season's, which go beside the
+ * set's: --before=N, a --through short of the season's `E` episodes, or --keep whatever its --through (a run kept for
+ * looks, so its records never replace the set's). Pure.
+ */
+function partialOf(opts, through, E) {
+  if (opts.before) return `before${opts.before}`;
+  return through < E || opts.keep ? `through${through}` : null;
+}
+
+/**
  * A run's variant (its habits changed from the whole set's), from its flags: --away=favourites (someone away from the draft
  * gets the room's favourites, not the first on the list) and --window=merge (an Outlast game's runner opens a waiver window
  * after the merge). { name: "" } is the whole set. Pure.
@@ -1618,7 +1790,7 @@ function variantOf(opts = {}) {
   const results = opts.results === undefined ? null : opts.results;
   if (away && away !== "favourites") throw new Error(`--away is list or favourites, not ${away}`);
   if (window && window !== "merge") throw new Error(`--window is merge, not ${window}`);
-  if (results && !["accepted", "autopilot", "quick-exits", "placed"].includes(results)) throw new Error(`--results is autopilot, accepted, quick-exits or placed, not ${results}`);
+  if (results && !["accepted", "autopilot", "quick-exits", "placed", "both-exits"].includes(results)) throw new Error(`--results is autopilot, accepted, quick-exits, placed or both-exits, not ${results}`);
   const name = [away && `away-${away}`, window && `window-${window}`, results && `results-${results}`].filter(Boolean).join("-");
   const says = [
     away && "whoever's away from the draft gets the room's favourites (by what the app knows, then the others' own picks), not the first on the list",
@@ -1627,6 +1799,7 @@ function variantOf(opts = {}) {
     results === "autopilot" && "the whole set played again (results on Autopilot, as the whole set's), for what changes between two runs",
     results === "quick-exits" && "each episode's full research filed as the report's directions would: who left from the bot's quick check that episode, everything else from the full research (findings 6 and 1: at the finale the quick check's winner and finalists kept)",
     results === "placed" && "quick-exits, and each episode's exits filed in the order they rank (finding 17): anyone knocked out first, then the format's endgame exits in their order, the winner last",
+    results === "both-exits" && "placed, and a full research's exit the quick check doesn't name kept as well (finding 21's fewer of them): who left is both answers' exits, the quick check's how first, ranked as placed ranks them",
   ].filter(Boolean).join("; ");
   return { name, says, away: away || "list", window: !!window, results: results || "autopilot" };
 }
@@ -1664,7 +1837,7 @@ function summarize(r, s, show, season, copy, results) {
     problems: r.problems,
     episodes: r.episodes,
     final,
-    tape: { merge: copy.merge, episodes: copy.episodeCount, results: results.map((x) => ({ episode: x.episode, quick: x.quick, full: x.full, ...(x.accepted ? { accepted: x.accepted } : {}), ...("reshaped" in x ? { reshaped: x.reshaped } : {}), ...("placed" in x ? { placed: x.placed } : {}) })) },
+    tape: { merge: copy.merge, episodes: copy.episodeCount, results: results.map((x) => ({ episode: x.episode, quick: x.quick, full: x.full, ...(x.accepted ? { accepted: x.accepted } : {}), ...("reshaped" in x ? { reshaped: x.reshaped } : {}), ...("placed" in x ? { placed: x.placed } : {}), ...("both" in x ? { both: x.both } : {}) })) },
     at: new Date().toISOString(),
   };
 }
@@ -2242,10 +2415,12 @@ function compareOf(base, variant) {
     const eps = new Set(x.episodes.map((e) => e.n));
     return ((x.tape && x.tape.results) || []).filter((r) => r.accepted && eps.has(r.episode)).reduce((t, r) => t + r.accepted.quick.length + r.accepted.full.length, 0);
   };
-  // --results=quick-exits: the people whose leaving the reshape changed (left or stayed) in the episodes it played.
+  // --results=quick-exits: the people whose leaving the reshape changed (left or stayed) in the episodes it played; with
+  // both-exits, the exits worded as the quick check has them and the full research's added to it too.
   const reshapedIn = (x) => {
     const eps = new Set(x.episodes.map((e) => e.n));
-    return ((x.tape && x.tape.results) || []).filter((r) => r.reshaped && eps.has(r.episode)).reduce((t, r) => t + r.reshaped.left.length + r.reshaped.stayed.length, 0);
+    const changed = (r) => (r.reshaped ? r.reshaped.left.length + r.reshaped.stayed.length + (r.reshaped.worded || []).length : 0) + (r.both ? r.both.kept.length + r.both.worded.length : 0);
+    return ((x.tape && x.tape.results) || []).filter((r) => (r.reshaped || r.both) && eps.has(r.episode)).reduce((t, r) => t + changed(r), 0);
   };
   // Who went home in each season by one set's replays and never by the other's: the other's people held in (ghostsOf).
   const exitsB = seasonExits(base);
@@ -2266,6 +2441,7 @@ function compareOf(base, variant) {
     return {
       replay: v.replay,
       game: v.config ? v.config.game : null,
+      season: `${v.show} ${v.season}`,
       base: !!b,
       winner: { base: b && b.final ? b.final.winner : null, variant: v.final ? v.final.winner : null },
       forgetter: { base: finishOf(b, "forgetter"), variant: finishOf(v, "forgetter") },
@@ -2274,6 +2450,8 @@ function compareOf(base, variant) {
       over: { base: !!(b && b.final && b.final.over), variant: !!(v.final && v.final.over) },
       points: { base: pointsOf(b), variant: pointsOf(v) },
       crowned: { base: crownedOf(b), variant: crownedOf(v) },
+      atCrown: { base: atCrownOf(b), variant: atCrownOf(v) },
+      sameGoingIn: b ? sameGoingIn(goingInOf(b), goingInOf(v)) : null,
       out: {
         base: b ? outB.size : null,
         variant: outV.size,
@@ -2300,6 +2478,71 @@ function crownedOf(x) {
   const left = episodes.flatMap((e) => e.left || []);
   if (!left.some((c) => c.finished != null)) return null;
   return left.filter((c) => c.winner).map((c) => ({ name: c.name, finished: c.finished }));
+}
+
+/**
+ * Who was still in when a replay first saw the show's winner crowned (finding 21): { n (the episode), count, names (null
+ * for a file from before they were kept by name) }, or null when it never saw one crowned (a game over before the finale,
+ * or a file from before `crowned`). Pure.
+ */
+function atCrownOf(x) {
+  const e = ((x && x.episodes) || []).find((y) => Array.isArray(y.crowned) && y.crowned.length);
+  if (!e) return null;
+  return { n: e.n, count: Number.isFinite(e.stillIn) ? e.stillIn : null, names: Array.isArray(e.stillInNames) ? e.stillInNames : null };
+}
+
+/**
+ * What a replay went into the episode that crowned the show's winner with: which episode that was, the table (each name's
+ * total, and a pool's longest and current streak) and each seat's team (Outlast's members by name, out or not; a lineup's
+ * starters and bench; a pool's picks so far), after the episode before. A key to compare two runs by (sameGoingIn: a winner that changes between two with the same key changed at the
+ * finale alone), or null with no such episode. Names, not ids: ids are new in every run. Pure.
+ */
+function goingInOf(x) {
+  const crown = atCrownOf(x);
+  if (!crown) return null;
+  const before = [...x.episodes].reverse().find((e) => e.n < crown.n);
+  if (!before) return null;
+  const table = (before.table || []).map((r) => [r.name, r.total, r.streak ?? null, r.current ?? null]);
+  // A pool's "team" is its picks so far (who's used), episode by episode.
+  const picks = (label) => x.episodes.filter((e) => e.n <= before.n && e.why && e.why[label] && "picked" in e.why[label]).map((e) => `${e.n}: ${e.why[label].picked ? e.why[label].picked.name : "none"}`);
+  const teams = Object.entries(before.why || {})
+    .map(([label, w]) => [
+      label,
+      [...(w.members || []).map((m) => `${m.name}${m.out ? " (out)" : ""}`), ...(w.starters || []).map((l) => l.name), ...(w.benched || []).map((l) => `${l.name} (bench)`), ...("picked" in w ? picks(label) : [])].sort(),
+    ])
+    .sort(([a], [b]) => a.localeCompare(b));
+  return JSON.stringify({ crown: crown.n, table, teams });
+}
+
+/** Whether two runs went into the finale with the same table and teams: true, false, or null when either has no finale. */
+const sameGoingIn = (a, b) => (a === null || b === null ? null : a === b);
+
+/**
+ * compareOf's rows by season, at the crown: the replays that crowned the show's winner in each set, who was still in then
+ * (each name and in how many replays, or, for files from before names were kept, how many replays had anyone), and where
+ * those replays' winners finished (each winner counted: a pair is two). Pure.
+ */
+function crownBySeason(rows) {
+  const seasons = new Map();
+  for (const r of rows) (seasons.get(r.season) || seasons.set(r.season, []).get(r.season)).push(r);
+  const side = (xs, k) => {
+    const at = xs.map((r) => r.atCrown && r.atCrown[k]).filter(Boolean);
+    const names = new Map();
+    let unnamed = 0;
+    for (const a of at) {
+      if (a.names) for (const n of a.names) names.set(n, (names.get(n) || 0) + 1);
+      else if (a.count) unnamed++;
+    }
+    const finished = new Map();
+    for (const c of xs.filter((r) => r.atCrown && r.atCrown[k]).map((r) => r.crowned && r.crowned[k]).filter((c) => c && c.length)) for (const w of c) finished.set(w.finished, (finished.get(w.finished) || 0) + 1);
+    return {
+      crowned: at.length,
+      stillIn: [...names].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([name, n]) => ({ name, replays: n })),
+      unnamed,
+      finished: [...finished].sort((a, b) => (a[0] ?? 99) - (b[0] ?? 99)).map(([place, n]) => ({ place, replays: n })),
+    };
+  };
+  return [...seasons].sort(([a], [b]) => a.localeCompare(b)).map(([season, xs]) => ({ season, base: side(xs.filter((r) => r.base), "base"), variant: side(xs, "variant") }));
 }
 
 /** Who went home in each season, by name, from every replay of it: Map "<show> <season>" → Map(name → the first episode). Pure. */
@@ -2367,11 +2610,21 @@ function compareByGame(rows) {
     over: { base: xs.filter((r) => r.over.base).length, variant: xs.filter((r) => r.over.variant).length },
     ghosted: { base: xs.filter((r) => ghosted(r.ghosts.base)).length, variant: xs.filter((r) => ghosted(r.ghosts.variant)).length },
     crownedFirst: { base: crownedFirsts(xs.map((r) => r.crowned && r.crowned.base)), variant: crownedFirsts(xs.map((r) => r.crowned && r.crowned.variant)) },
+    stillInAtCrown: { base: stillIns(xs.map((r) => r.atCrown && r.atCrown.base)), variant: stillIns(xs.map((r) => r.atCrown && r.atCrown.variant)) },
+    // The clean test of a finale's own effect: of the replays that went into it with the same table and teams in both
+    // sets, those whose winner changed.
+    sameGoingIn: { of: xs.filter((r) => r.sameGoingIn === true).length, changed: xs.filter((r) => r.sameGoingIn === true && r.winner.base !== r.winner.variant).length },
   }));
 }
 
+/** Of the replays that saw the show's winner crowned (atCrownOf), those with anyone still in then: { with, of }, or null. */
+function stillIns(xs) {
+  const at = xs.filter((a) => a && a.count !== null);
+  return at.length ? { with: at.filter((a) => a.count > 0).length, of: at.length } : null;
+}
+
 function compare(name, against) {
-  if (!name) throw new Error("compare <variant>: a folder in rfl-tapes\\replays\\variants (away-favourites, window-merge, results-accepted, results-autopilot, results-quick-exits, results-placed)");
+  if (!name) throw new Error("compare <variant>: a folder in rfl-tapes\\replays\\variants (away-favourites, window-merge, results-accepted, results-autopilot, results-quick-exits, results-placed, results-both-exits)");
   if (against !== undefined && typeof against !== "string") throw new Error("--base needs a folder under rfl-tapes\\replays, e.g. --base=variants/results-autopilot");
   const { dir: baseDir, all: base } = replaysIn(against);
   if (!base.length) throw new Error(`No replays in ${baseDir} to compare against`);
@@ -2383,7 +2636,7 @@ function compare(name, against) {
   const results = /(^|-)results-/.test(name);
   // What the variant changed in each replay's episodes: the held results accepted, or who left reshaped (quick-exits, and
   // placed, which builds on it).
-  const reshapes = /(^|-)results-(quick-exits|placed)/.test(name);
+  const reshapes = /(^|-)results-(quick-exits|placed|both-exits)/.test(name);
   // What the variant is set beside: the whole set, or another variant (--base).
   const B = against ? path.basename(String(against)) : "the whole set";
   const ghostLine = (g) =>
@@ -2391,6 +2644,10 @@ function compare(name, against) {
   const firstsLine = (f) => (f ? `${f.first} of ${f.of}` : "–");
   const { ordinal } = tsApp("lib/game/sports-stats");
   const crownLine = (c) => (c === null ? "" : c.length ? c.map((w) => `${w.name} ${w.finished ? ordinal(w.finished) : "?"}`).join(" & ") : "(none)");
+  const stillInsLine = (s) => (s ? `${s.with} of ${s.of}` : "–");
+  const atCrownLine = (s) =>
+    [s.stillIn.map((x) => `${x.name} (${x.replays})`).join(", "), s.unnamed && `anyone in ${s.unnamed} (not named in these files)`].filter(Boolean).join("; ") || (s.crowned ? "nobody" : "–");
+  const finishedLine = (s) => s.finished.map((f) => `${f.place ? ordinal(f.place) : "?"} ×${f.replays}`).join(", ") || "–";
   const lines = [
     `# ${name} against ${B}`,
     ``,
@@ -2398,11 +2655,22 @@ function compare(name, against) {
     ``,
     `## By game`,
     ``,
-    `Winner changed: of the replays with one in ${B}. Points: the median change in the points in the table at the end. Went home: the median change in how many went home in the game. Over: the games that say they're over, ${B} → ${name}. Gone, still played: games where someone who'd gone home by the other set's answers (and never by this one's) was drafted after, started, picked, or still on a team at the end, ${B} → ${name}. Show's winner 1st: of the games that crowned the show's winner with its place recorded (–: none, or files from before places were kept), those where the winner finished 1st, ${B} → ${name}.`,
+    `Winner changed: of the replays with one in ${B}. Points: the median change in the points in the table at the end. Went home: the median change in how many went home in the game. Over: the games that say they're over, ${B} → ${name}. Gone, still played: games where someone who'd gone home by the other set's answers (and never by this one's) was drafted after, started, picked, or still on a team at the end, ${B} → ${name}. Show's winner 1st: of the games that crowned the show's winner with its place recorded (–: none, or files from before places were kept), those where the winner finished 1st, ${B} → ${name}. Still in at the crown: of the games that crowned the show's winner, those with anyone still in then (finding 21), ${B} → ${name}. Same going in: the games that went into the crowning episode with the same table and teams in both sets, and of those, how many changed winner (the finale's own effect; the rest differ before it, which between two runs is mostly waivers' random autofill).`,
     ``,
-    `| Game | Replays | Winner changed | Points | Went home | Over | Gone, still played | Show's winner 1st |`,
-    `|---|---|---|---|---|---|---|---|`,
-    ...compareByGame(rows).map((g) => `| ${g.game} | ${g.replays} | ${g.winnerChanged} | ${pct(g.points)} | ${g.out === null ? "" : `${g.out > 0 ? "+" : ""}${g.out}`} | ${g.over.base} → ${g.over.variant} | ${g.ghosted.base} → ${g.ghosted.variant} | ${firstsLine(g.crownedFirst.base)} → ${firstsLine(g.crownedFirst.variant)} |`),
+    `| Game | Replays | Winner changed | Points | Went home | Over | Gone, still played | Show's winner 1st | Still in at the crown | Same going in: winner changed |`,
+    `|---|---|---|---|---|---|---|---|---|---|`,
+    ...compareByGame(rows).map(
+      (g) =>
+        `| ${g.game} | ${g.replays} | ${g.winnerChanged} | ${pct(g.points)} | ${g.out === null ? "" : `${g.out > 0 ? "+" : ""}${g.out}`} | ${g.over.base} → ${g.over.variant} | ${g.ghosted.base} → ${g.ghosted.variant} | ${firstsLine(g.crownedFirst.base)} → ${firstsLine(g.crownedFirst.variant)} | ${stillInsLine(g.stillInAtCrown.base)} → ${stillInsLine(g.stillInAtCrown.variant)} | ${g.sameGoingIn.changed} of ${g.sameGoingIn.of} |`
+    ),
+    ``,
+    `## At the crown, by season`,
+    ``,
+    `The replays that saw the show's winner crowned in each set; who was still in then, and in how many of them (a file from before names were kept counts only the replays with anyone); and where the show's winners finished, as the app places them.`,
+    ``,
+    `| Season | Crowned | Still in at the crown, ${B} | In ${name} | The winners finished, ${B} | In ${name} |`,
+    `|---|---|---|---|---|---|`,
+    ...crownBySeason(rows).map((s) => `| ${s.season} | ${s.base.crowned} → ${s.variant.crowned} | ${atCrownLine(s.base)} | ${atCrownLine(s.variant)} | ${finishedLine(s.base)} | ${finishedLine(s.variant)} |`),
     ``,
     `## Each replay`,
     ``,
@@ -2573,7 +2841,7 @@ async function main() {
   console.log("Usage: node scripts/dev-test/playtest.js matrix|run|exits|summary|judge|compare|says|down <show> <season> (see the header comment)");
 }
 
-module.exports = { quickExits, reshapeLine, exitRank, rankInPlace, placeExits, placedLine, crownedOf, summaryLine, judgeOf, overAt, endOf, gameEnd, gameEpisodes, gameRecord, roughInItOf, stillInIt, defaultLineupOf, poolFallbackOf, stillInBreakOf, inItOf, asksOf, compareOf, compareByGame, ghostsOf, seasonExits, variantOf, changedBy, favourites, lineupTaps, claimTaps, reviewTaps, TAPS, upgradeStored, shiftAnswer, exitsOf, DIMENSIONS, NA, gamesOf, dimsFor, applies, allConfigs, pairsOf, pairwise, replayName, ROLES, seatsFor, hash01, movesThisWeek, prefer, mergeOf, spanOf, settledAt };
+module.exports = { quickExits, reshapeLine, exitRank, rankInPlace, placeExits, placedLine, bothExits, bothLine, castMatcher, catchAll, resultsSteps, tapedFull, partialOf, crownedOf, atCrownOf, goingInOf, sameGoingIn, crownBySeason, stillIns, summaryLine, judgeOf, overAt, endOf, gameEnd, gameEpisodes, gameRecord, roughInItOf, stillInIt, defaultLineupOf, poolFallbackOf, stillInBreakOf, inItOf, asksOf, compareOf, compareByGame, ghostsOf, seasonExits, variantOf, changedBy, favourites, lineupTaps, claimTaps, reviewTaps, TAPS, upgradeStored, shiftAnswer, exitsOf, DIMENSIONS, NA, gamesOf, dimsFor, applies, allConfigs, pairsOf, pairwise, replayName, ROLES, seatsFor, hash01, movesThisWeek, prefer, mergeOf, spanOf, settledAt };
 
 if (require.main === module) {
   main()

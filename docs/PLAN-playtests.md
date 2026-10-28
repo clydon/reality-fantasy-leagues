@@ -978,6 +978,109 @@ Unit tests (`tests/playtest.test.js`):
 
 The second run above was played after them.
 
+### P5, part 6: finding 21's "fewer of them" played through the app (2026-10-28, playtest lane)
+
+**The bot answers again.** The main session moved the local bot to signed-in ChatGPT (the user's Plus trial: GPT-6 at Instant
+by default, temporary and unpersonalized chats) and restarted the recorder at 13:08 UTC (pid 63768, commit 133d35d7, window
+"Tapes: recording"). Below Deck 12's given-up episode 11 quick check answered at 13:09 and its last quick checks by 13:16. The
+words corpus started at 13:17, about 80 seconds a request with the pause. This part is bot-free; the corpus is P2 part 3's.
+
+**`run ... --results=both-exits`** (`playtest.js`, into `replays\variants\results-both-exits\`): placed, and a full research's
+exit that the quick check doesn't name kept as well. Who left is both answers' exits, the quick check's how first, ranked as
+placed ranks them.
+- **How:**
+  - `bothExits` (pure): before the app reads the quick check, its `left` gets everyone the episode's full research on tape
+    (`tapedFull`: the stored answer, else the last recorded that's ok) has leaving whom it doesn't name, each with the full's
+    exit as its "how". Only those the app would file count (`leftTheGame` exactly "yes", with an exit), matched to who the
+    quick prompt asks about as the app matches a name, a name as written first (`castMatcher`, which `quickExits` uses now
+    too). A quick check the app reads as finding nothing (found false, or nobody named and no headline) is left alone.
+  - Someone both answers name keeps the quick check's how, unless it's a catch-all (`catchAll`: none, not in the show's
+    words, or "Other"). Then the quick check's how becomes the full's exit instead (finding 2's direction). `quickExits`'s
+    `quickHow` gives the quick check's how to the full answer (`worded`), so the two always agree and nothing's held for
+    wording an exit differently.
+  - An exit over 32 characters can't be a quick check's how (`parseQuickAnswer` drops it), so it's left as the full has it
+    (`skipped`; none on these tapes).
+  - Then placed's order, in both answers.
+
+  So the variant plays the tie-break run siding with the full research every time.
+- **Where:** each episode's record keeps what the quick check got (`tape.results[].both`: `kept`, `worded`, `skipped`) and
+  what the full answer got (`reshaped.worded`). The run prints a line, each game's log has one, and placed's line says when
+  its "was" includes names added. Once the show's winner is crowned, each episode keeps who's still in by name
+  (`stillInNames`).
+
+**What it changed on these tapes** (four episodes in the four seasons):
+- the Traitors 4's episode 3: Rob Cesternino (Murdered) added to the quick check, which then filed "Donna Kelce & Rob
+  Cesternino left";
+- the Challenge 41's 5: Cara Maria Sorbello "Quit", the quick check's how (the full research said "Other");
+- the Challenge's 11: Leonardo Dionicio and Will Gagnon (Eliminated) added to a quick check that said nobody;
+- Survivor 49's 13: Rizo Velovic "Lost Fire-Making", the full research's (the quick check's catch-all "Other").
+
+Dancing with the Stars, where the two answers agree on all 11, is unchanged: in this pair it's the run-to-run floor.
+
+**`compare`, two new measures,** kept so the next variant has them (P5 part 5's one-off finale check is one of them now):
+- by game, "Still in at the crown": of the games that crowned the show's winner, those with anyone still in then
+  (`atCrownOf`);
+- by game, "Same going in: winner changed": of the games that went into the same crowning episode with the same table and
+  teams in both sets, how many changed winner (`goingInOf`, `sameGoingIn`). By name, as ids are new in every run; a pool's
+  table has its current streaks and its "team" is its picks so far;
+- a section, "At the crown, by season": who was still in and in how many replays, and where the winners finished
+  (`crownBySeason`). A file from before `stillInNames` counts only the replays with anyone.
+
+**`--keep` writes to `partial\`** whatever its `--through` (`partialOf`; P5 part 5's Noticed), so a look to a season's last
+episode no longer replaces a set's records.
+
+**Played** (no bot; under a minute a season): 96 replays, twice. The second run came after the code review's fixes, and the
+numbers are its own; where the first run's differ, they're in brackets. Then `compare results-both-exits
+--base=variants/results-placed` and `--base=variants/results-autopilot` (the COMPARE files beside it), and `judge
+--dir=variants/results-both-exits`. The problems recorded are placed's (findings 4 and 7).
+
+**What it found** (details in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md), "P5 part 6" and findings 21 and 22):
+- **At the crown:** nobody still in on Dancing with the Stars, Survivor and the Traitors. On the Challenge, only Gabe Wai, in
+  all 11 games that crowned, whose exit no answer files. With placed, someone was in at every crown outside Dancing with the
+  Stars (18, 11 and 11 games).
+- **The show's winner** finishes 1st in every game that crowned one on three shows (11, 18 and 11). The Challenge's pair is
+  2nd and 3rd, below Gabe Wai (placed: 4th and 5th).
+- **Outlast's winners, the clean test:** 11 Outlast games go into the finale with the same table and teams in both sets
+  (Survivor's 7, Dancing with the Stars' 4; 12 in the first run). 5 change, all Survivor's: whoever held Rizo Velovic (the
+  Reader in 4, the Tinkerer in 1) loses the lead, his 18 points as still in 15 as 4th. (The first run had a sixth, a tie
+  at the top split as the winner moved up from 2nd.) Dancing with the Stars' 4 don't change. Every other change (22 of 59
+  Outlast winners against placed; 21) starts before the finale: the Challenge's and the Traitors' exits move mid-season,
+  and Dancing with the Stars' 4 of 17 (5) are the floor.
+- **Gone, still played** (someone gone by one set's answers and still used in the other): 22 of placed's games (12 Outlast, 5
+  pool, 5 Weekly Lineup), none of both-exits'.
+- **The cost:** the full research's wrong exits file too. Leonardo Dionicio and Will Gagnon leave at 11; Will left at 16, and
+  Leo was competing at 14. At 16 the quick check names Will again, who's gone by then, and the app holds the whole quick check
+  as "couldn't match to the cast", Aviv Melmed's right exit with it. That's finding 22 (new; Autopilot does the same).
+- **The judge moves within the floor:** Outlast settled 73% in both runs (placed's two runs 75% and 88%), tied at the top 46%
+  (placed 47% and 49%).
+
+Unit tests (`tests/playtest.test.js`):
+- the variant's name and what each results mode does (`resultsSteps`);
+- `bothExits`: the Traitors' episode 3, a name matched as the app matches one, a gone "Rob" who can't take Rob Cesternino's
+  place, a quick check that said nobody, nothing to add, a quick check the app reads as finding nothing, not an answer, an
+  exit too long to carry, and Survivor's finale (a catch-all "Other" and a missing how worded as the full has them);
+- `quickHow`: Cara Maria's "Other → Quit", a catch-all left as the full has it, and without it as before;
+- `castMatcher`, `catchAll`, `bothLine`, placed's line with names added, `tapedFull` and `partialOf`;
+- `atCrownOf`, `goingInOf` and `sameGoingIn`: by name, a team that differs, a lineup's bench, a crown at another episode, a
+  pool's streaks and picks, a crown with nothing before it;
+- the by-game and by-season columns.
+
+`npm test` passes (805).
+
+**The code review's fixes:**
+- the quick check's how first only where it says one: a catch-all gives way to the full's exit, in the quick check too (the
+  first run had Rizo Velovic filed "Other", and a winner with no how would have lost the crown);
+- one cast matcher, a name as written first, over every entry in the full answer (a gone "Rob" took Rob Cesternino's place);
+- a quick check the app reads as finding nothing is left alone, as `parseQuickAnswer` reads it, not only `found: false`;
+- an exit too long to be a quick check's how is left out, not filed as the format's first exit;
+- the finale's key has the crowning episode, and a pool's current streaks and picks;
+- `tapedFull` takes only what `fileResults` would ask (ok), and falls back when a stored answer is empty;
+- the by-season finishes come only from replays that saw the crown;
+- placed's line says when its "was" has names added;
+- `fileResults` takes the results mode, and three smaller tidy-ups.
+
+The second run above was played after them.
+
 ## Noticed, not fixed
 
 (Each step adds what it saw and left alone, with the step that could take it.)
@@ -1163,7 +1266,8 @@ From P5 part 5 (2026-10-28):
   finale, if it matters.
 - **A kept run to a season's last episode replaces that variant's records** (`--through` equal to the season's last isn't
   `partial\`). This part's looks copied five quick-exits records aside and put them back. A `--keep` run could write to
-  `partial\` (or a `looks\` folder) whatever its `--through`. Harness only; P5's next pass.
+  `partial\` (or a `looks\` folder) whatever its `--through`. Harness only; P5's next pass. **Done in P5 part 6:** `--keep` writes to
+  `partial\` (`partialOf`).
 - **"All safe · 0 of 2 still in after this episode"** (Dancing with the Stars' and Survivor's forgetter, both finalists on the
   team): P5 part 4's two counts disagreeing, now with nobody left. With finding 18.
 - **A pair of winners gets two places** (the Challenge's Yeremi Hykel 4th and Olivia Kaiser 5th, in the order filed). With
@@ -1184,3 +1288,19 @@ From P5 part 5 (2026-10-28):
 - **The order lives only in the harness** (`exitRank`, `placeExits`). Finding 17's fix belongs beside
   `decision-apply.ts orderPlacementsByEpisode`, as a helper the harness can then call instead of its own, so the variant keeps
   measuring what the app does. For the engine lane with finding 17; the harness switches once it exists.
+
+From P5 part 6 (2026-10-28):
+- **Jonna Mannion isn't in the Challenge 41's cast.** It has 32 people without her (she arrived in episode 5), so finding 6's
+  "Jonna Mannion never leaves" is "she was never in": nobody can draft her, and an exit for her has nobody to file against. A
+  mid-season arrival is the cast's (the cast import, `make-game.ts`); for the survivor lane or the merge, with finding 10's
+  per-season cast.
+- **Both-exits plays the tie-break always siding with the full research.** A real tie-break run asks a third time and could
+  side with the quick check (the Challenge's 11, where both are wrong, or the Traitors' 3, where the full is right). So the
+  variant is the "fewest still in" end of finding 6's direction, not the direction itself. Only a tie-break on tape would
+  measure that; the recorder has none (`bot-research.js`'s tie-break prompt isn't asked).
+- **Both-exits' rule lives only in the harness,** with placed's order (`bothExits`, `catchAll`, beside `exitRank` and
+  `placeExits`). If the app takes finding 6's or 21's direction (in `bot-results.ts` or `results-changes.ts`), the variant
+  should call the app's helper instead, as P5 part 5 says for the order, so it keeps measuring what the app does.
+- **The base's names at the crown.** Placed's files are from before `stillInNames`, so beside them `compare` counts only the
+  replays with anyone in. P5 part 5's report names them (Rizo Velovic, Rob Cesternino, Cara Maria Sorbello, Gabe Wai, Leonardo
+  Dionicio). Harness only.

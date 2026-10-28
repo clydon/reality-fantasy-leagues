@@ -529,6 +529,7 @@ test("quick-exits: who left from the quick check, everything else from the full 
     dropped: ["Ed Ray"],
     unasked: [],
     raised: ["Bob Ray: wonDailyChallenge"],
+    worded: [],
     winners: [],
   });
   const out = JSON.parse(got.text);
@@ -693,6 +694,200 @@ test("placed: an episode's exits filed in the order they rank, the knocked out f
   assert.equal(P.crownedOf(null), null);
 });
 
+test("both-exits: who left is both answers' exits, the quick check's how first, so a full research's exit it missed files too", () => {
+  const v = P.variantOf({ results: "both-exits" });
+  assert.equal(v.name, "results-both-exits");
+  assert.equal(v.results, "both-exits");
+  assert.match(v.says, /^placed, and a full research's exit the quick check doesn't name kept as well/);
+  assert.equal(P.changedBy(v, { game: "survivalPool", group: 4 }, { from: 1, to: null }, 6), true);
+  assert.deepEqual(P.resultsSteps("both-exits"), { reshape: true, placed: true, both: true });
+  assert.deepEqual(P.resultsSteps("placed"), { reshape: true, placed: true, both: false });
+  assert.deepEqual(P.resultsSteps("autopilot"), { reshape: false, placed: false, both: false });
+  const none = (text) => ({ text, kept: [], worded: [], skipped: [] });
+  // The Traitors 4's episode 3: the quick check names the banishment, the full research the murder too.
+  const exitMethods = ["Banished", "Murdered", "Winner", "Other"];
+  const cast = ["Donna Kelce", "Rob Cesternino", "Maura Higgins", "Shy"];
+  const quick = { found: true, episodeTitle: "Three", left: [{ name: "Donna Kelce", how: "Banished" }], headline: "Donna banished", sources: ["a", "b"] };
+  const full = {
+    castaways: [
+      { name: "Donna Kelce", leftTheGame: "yes", exitMethod: "Banished" },
+      { name: "Rob Cesternino", leftTheGame: "yes", exitMethod: "Murdered" },
+      { name: "Maura Higgins", leftTheGame: "no", exitMethod: null },
+      // Gone already here (the quick prompt doesn't ask about them), and one the app wouldn't file (not exactly "yes").
+      { name: "Gone Already", leftTheGame: "yes", exitMethod: "Murdered" },
+      { name: "Shy", leftTheGame: "YES", exitMethod: "Banished" },
+    ],
+  };
+  const got = P.bothExits("```json\n" + JSON.stringify(quick) + "\n```", JSON.stringify(full), { cast, exitMethods });
+  assert.deepEqual([got.kept, got.worded, got.skipped], [["Rob Cesternino (Murdered)"], [], []]);
+  const back = JSON.parse(got.text);
+  assert.deepEqual(back.left, [{ name: "Donna Kelce", how: "Banished" }, { name: "Rob Cesternino", how: "Murdered" }]);
+  assert.equal(back.headline, "Donna banished");
+  assert.equal(P.bothLine(got), "the full research's exits added to the quick check: Rob Cesternino (Murdered)");
+  assert.equal(P.bothLine({ kept: [], worded: [], skipped: [] }), null);
+  // A name the app matches as it matches one (a first name) is someone the quick check names: not added twice.
+  assert.deepEqual(P.bothExits(JSON.stringify({ ...quick, left: [{ name: "Rob", how: "Murdered" }] }), JSON.stringify(full), { cast, exitMethods }).kept, ["Donna Kelce (Banished)"]);
+  // A name as written first: a gone "Rob" the full research has leaving can't take Rob Cesternino's place, who stayed.
+  const rob = { castaways: [{ name: "Rob", leftTheGame: "yes", exitMethod: "Murdered" }, { name: "Rob Cesternino", leftTheGame: "no", exitMethod: null }] };
+  assert.deepEqual(P.bothExits(JSON.stringify(quick), JSON.stringify(rob), { cast, exitMethods }), none(JSON.stringify(quick)));
+  // The quick check said nobody: the full research's leavers are its list now (the Challenge's 11).
+  assert.deepEqual(P.bothExits(JSON.stringify({ ...quick, left: [] }), JSON.stringify(full), { cast, exitMethods }).kept, ["Donna Kelce (Banished)", "Rob Cesternino (Murdered)"]);
+  // Nobody to add; a quick check the app reads as finding nothing (found false, or nobody and no headline); not an answer.
+  const same = JSON.stringify({ ...quick, left: [{ name: "Donna Kelce", how: "Banished" }, { name: "Rob Cesternino", how: "Murdered" }] });
+  assert.deepEqual(P.bothExits(same, JSON.stringify(full), { cast, exitMethods }), none(same));
+  for (const nothing of [JSON.stringify({ ...quick, found: false }), JSON.stringify({ ...quick, left: [], headline: "" }), "no idea"]) assert.deepEqual(P.bothExits(nothing, JSON.stringify(full), { cast, exitMethods }), none(nothing));
+  assert.deepEqual(P.bothExits(same, null, { cast, exitMethods }), none(same));
+  // An exit too long to be a quick check's how (parseQuickAnswer drops it) is left out.
+  const long = "Removed by production after the tribal council";
+  const tooLong = P.bothExits(JSON.stringify(quick), JSON.stringify({ castaways: [{ name: "Rob Cesternino", leftTheGame: "yes", exitMethod: long }] }), { cast, exitMethods: [...exitMethods, long] });
+  assert.deepEqual([tooLong.kept, tooLong.skipped, tooLong.text], [[], [`Rob Cesternino (${long})`], JSON.stringify(quick)]);
+
+  // Someone both name: the quick check's how first, unless it's a catch-all (Survivor 49's finale: Rizo Velovic "Other",
+  // and a winner with no how), then the full's, in the quick check too.
+  const survivor = ["Voted Out", "Lost Fire-Making", "Lost Final Tribal (Jury Vote)", "Sole Survivor", "Other"];
+  const finale = {
+    found: true,
+    left: [{ name: "Rizo Velovic", how: "Other" }, { name: "Savannah Louie", how: null }, { name: "Sophi Balerdi", how: "Lost Final Tribal (Jury Vote)" }, { name: "Kristina Mills", how: "Voted Out" }],
+    headline: "Savannah wins",
+    sources: ["a", "b"],
+  };
+  const fullFinale = {
+    castaways: [
+      { name: "Rizo Velovic", leftTheGame: "yes", exitMethod: "Lost Fire-Making" },
+      { name: "Savannah Louie", leftTheGame: "yes", exitMethod: "Sole Survivor" },
+      { name: "Sophi Balerdi", leftTheGame: "yes", exitMethod: "Other" },
+      { name: "Kristina Mills", leftTheGame: "yes", exitMethod: "Voted Out" },
+    ],
+  };
+  const f = P.bothExits(JSON.stringify(finale), JSON.stringify(fullFinale), { cast: ["Rizo Velovic", "Savannah Louie", "Sophi Balerdi", "Kristina Mills"], exitMethods: survivor });
+  assert.deepEqual(f.worded, ["Rizo Velovic (Other → Lost Fire-Making)", "Savannah Louie (no how → Sole Survivor)"]);
+  assert.deepEqual(JSON.parse(f.text).left.map((p) => p.how), ["Lost Fire-Making", "Sole Survivor", "Lost Final Tribal (Jury Vote)", "Voted Out"]);
+  assert.match(P.bothLine(f), /^the quick check's catch-all worded as the full research has it: Rizo Velovic/);
+  assert.equal(P.catchAll("Other", survivor), true);
+  assert.equal(P.catchAll(null, survivor), true);
+  assert.equal(P.catchAll("lost fire-making", survivor), false);
+  assert.equal(P.catchAll("took a boat home", survivor), true);
+
+  // Then the full answer: someone both name gets the quick check's how where it says one (Cara Maria Sorbello: quick
+  // "Quit", full "Other"), so the two agree; a catch-all leaves the full's (bothExits gave it to the quick check); without
+  // quickHow the full's stands (quick-exits, placed).
+  const skel = (name) => ({ name, leftTheGame: "unknown", exitMethod: null, sources: [], confidence: "low" });
+  const asked = ["Cara Maria", "Theo"].map(skel);
+  const ways = ["Eliminated", "Quit", "Other"];
+  const fullCm = JSON.stringify({ castaways: [{ name: "Cara Maria", leftTheGame: "yes", exitMethod: "Other", sources: ["c"], confidence: "high" }, { name: "Theo", leftTheGame: "yes", exitMethod: "Eliminated", sources: [], confidence: "high" }] });
+  const q = { found: true, left: [{ name: "Cara Maria", how: "Quit", matched: true }, { name: "Theo", how: null, matched: true }], sources: ["q1", "q2"] };
+  const worded = P.quickExits(fullCm, { asked, quick: q, exitMethods: ways, quickHow: true });
+  assert.deepEqual(worded.changes.worded, ["Cara Maria (Other → Quit)"]);
+  assert.deepEqual(JSON.parse(worded.text).castaways.map((c) => c.exitMethod), ["Quit", "Eliminated"]);
+  assert.equal(P.reshapeLine(worded.changes), "worded as the quick check has it: Cara Maria (Other → Quit)");
+  const catchAllQuick = P.quickExits(fullCm, { asked, quick: { ...q, left: [{ name: "Cara Maria", how: "Other", matched: true }] }, exitMethods: ways, quickHow: true });
+  assert.deepEqual([catchAllQuick.changes.worded, JSON.parse(catchAllQuick.text).castaways[0].exitMethod], [[], "Other"]);
+  assert.deepEqual(P.quickExits(fullCm, { asked, quick: q, exitMethods: ways }).changes.worded, []);
+  // The order's line says when the quick check had the full research's exits added first.
+  assert.match(P.placedLine({ quick: { before: ["A", "B"], after: ["B", "A"] }, full: null, added: true }), /^in the order they rank: the quick check's, the full research's exits added to it, B, A \(was A, B\)$/);
+
+  // The cast matcher: a name as written first, no place twice, a first name when it's the only one.
+  const m = P.castMatcher(["Bobby Smith", "Bob Ray"]);
+  assert.equal(m.idOf("bob ray"), "1");
+  assert.equal(m.idOf(""), null);
+  const items = [{ name: "Bob" }, { name: "Bobby Smith" }, { name: "Nobody" }];
+  assert.deepEqual([...m.assign(items, (x) => x.name)].map(([x, id]) => [x.name, id]), [["Bobby Smith", "0"], ["Bob", "1"]]);
+
+  // The full research on tape for an episode: the stored answer first, else the last recorded that's ok.
+  const files = [
+    { kind: "full", episode: 3, ok: true, answer: "first" },
+    { kind: "full", episode: 3, ok: true, answer: "second" },
+    { kind: "full", episode: 3, answer: "not ok" },
+    { kind: "full", episode: 4, ok: false, answer: "failed" },
+    { kind: "quick", episode: 4, ok: true, answer: "quick" },
+  ];
+  assert.equal(P.tapedFull({ tape: { files } }, 3), "second");
+  assert.equal(P.tapedFull({ tape: { files } }, 4), null);
+  assert.equal(P.tapedFull({ tape: { files: [{ kind: "full", episode: 3, ok: true, source: "stored", answer: "stored" }, ...files] } }, 3), "stored");
+  assert.equal(P.tapedFull({ tape: { files: [{ kind: "full", episode: 3, ok: true, source: "stored", answer: null }, ...files] } }, 3), "second");
+
+  // A kept run's records go in partial\ whatever its --through, so a look never replaces a set's.
+  assert.equal(P.partialOf({}, 13, 13), null);
+  assert.equal(P.partialOf({}, 11, 13), "through11");
+  assert.equal(P.partialOf({ keep: true }, 13, 13), "through13");
+  assert.equal(P.partialOf({ before: 6, keep: true }, 13, 13), "before6");
+});
+
+test("at the crown: who was still in, where the winners finished, and whether two runs went into the finale the same", () => {
+  const member = (id, name, out = false) => ({ id, name, out });
+  const ep = (n, extra = {}) => ({
+    n,
+    left: [],
+    table: [{ name: "A", total: 10 }, { name: "B", total: 8 }],
+    why: { A: { members: [member("1", "Rizo"), member("2", "Sophi", true)] }, B: { members: [member("3", "Sage")] } },
+    ...extra,
+  });
+  const rec = ({ finished = 2, names = ["Rizo"], before = {}, winner = "A" } = {}) => ({
+    replay: "r",
+    show: "survivor",
+    season: 49,
+    config: { game: "outlast" },
+    seats: [],
+    final: { winner },
+    episodes: [
+      ep(12, before),
+      ep(13, { crowned: [{ name: "Savannah", finished }], stillIn: names ? names.length : 1, ...(names ? { stillInNames: names } : {}) }),
+      ep(14, { crowned: [{ name: "Savannah", finished }], stillIn: names ? names.length : 1 }),
+    ],
+  });
+  assert.deepEqual(P.atCrownOf(rec()), { n: 13, count: 1, names: ["Rizo"] });
+  // A file from before names were kept: the count only. Never crowned: null.
+  assert.deepEqual(P.atCrownOf(rec({ names: null })), { n: 13, count: 1, names: null });
+  assert.equal(P.atCrownOf({ episodes: [ep(12), ep(13, { crowned: [] })] }), null);
+  assert.equal(P.atCrownOf(null), null);
+  // Going in: the table and teams after the episode before the crown, by name (ids are new every run), whatever the finale did.
+  const a = P.goingInOf(rec());
+  assert.equal(P.sameGoingIn(a, P.goingInOf(rec({ finished: 1, names: [] }))), true);
+  assert.equal(P.sameGoingIn(a, P.goingInOf(rec({ before: { why: { A: { members: [member("9", "Rizo"), member("8", "Sophi", true)] }, B: { members: [member("7", "Sage")] } } } }))), true);
+  assert.equal(P.sameGoingIn(a, P.goingInOf(rec({ before: { table: [{ name: "A", total: 11 }, { name: "B", total: 8 }] } }))), false);
+  // Waivers' autofill: a team differs going in.
+  assert.equal(P.sameGoingIn(a, P.goingInOf(rec({ before: { why: { A: { members: [member("1", "Kristina")] }, B: { members: [member("3", "Sage")] } } } }))), false);
+  // A lineup's starters and bench are its team.
+  const lineup = (bench) => P.goingInOf({ episodes: [ep(12, { why: { A: { starters: [{ id: "1", name: "Rizo", points: 3 }], benched: [{ id: "2", name: bench, points: 0 }] } } }), ep(13, { crowned: [{ name: "W", finished: 1 }] })] });
+  assert.equal(P.sameGoingIn(lineup("Sage"), lineup("Sage")), true);
+  assert.equal(P.sameGoingIn(lineup("Sage"), lineup("Sophi")), false);
+  // The crown at another episode isn't the same finale, though the tables match.
+  const later = rec();
+  later.episodes = [ep(12), ep(13), ep(14, { crowned: [{ name: "Savannah", finished: 2 }], stillIn: 1, stillInNames: ["Rizo"] })];
+  assert.equal(P.sameGoingIn(a, P.goingInOf(later)), false);
+  // A pool: its streaks and its picks so far (who's used).
+  const pool = (current, pick) =>
+    P.goingInOf({
+      episodes: [
+        ep(11, { table: [{ name: "A", total: 0, streak: 2, current }], why: { A: { picked: { id: "1", name: pick, correct: true } } } }),
+        ep(12, { table: [{ name: "A", total: 0, streak: 2, current }], why: { A: { picked: { id: "2", name: "Sage", correct: true } } } }),
+        ep(13, { crowned: [{ name: "W", finished: 1 }] }),
+      ],
+    });
+  assert.equal(P.sameGoingIn(pool(2, "Rizo"), pool(2, "Rizo")), true);
+  assert.equal(P.sameGoingIn(pool(2, "Rizo"), pool(0, "Rizo")), false, "a streak broken");
+  assert.equal(P.sameGoingIn(pool(2, "Rizo"), pool(2, "Sophi")), false, "another castaway used");
+  // Crowned at a game's first episode: nothing going in.
+  assert.equal(P.goingInOf({ episodes: [ep(13, { crowned: [{ name: "W", finished: 1 }] })] }), null);
+  assert.equal(P.sameGoingIn(null, a), null);
+
+  // Beside each other: the same going in, the winner changed at the finale; nobody still in once the variant removes Rizo.
+  const [row] = P.compareOf([rec()], [rec({ finished: 1, names: [], winner: "B" })]);
+  assert.deepEqual(row.atCrown, { base: { n: 13, count: 1, names: ["Rizo"] }, variant: { n: 13, count: 0, names: [] } });
+  assert.equal(row.sameGoingIn, true);
+  assert.equal(row.season, "survivor 49");
+  const [g] = P.compareByGame([row]);
+  assert.deepEqual([g.stillInAtCrown, g.sameGoingIn, g.crownedFirst], [{ base: { with: 1, of: 1 }, variant: { with: 0, of: 1 } }, { of: 1, changed: 1 }, { base: { first: 0, of: 1 }, variant: { first: 1, of: 1 } }]);
+  assert.deepEqual(P.crownBySeason([row]), [
+    { season: "survivor 49", base: { crowned: 1, stillIn: [{ name: "Rizo", replays: 1 }], unnamed: 0, finished: [{ place: 2, replays: 1 }] }, variant: { crowned: 1, stillIn: [], unnamed: 0, finished: [{ place: 1, replays: 1 }] } },
+  ]);
+  // A base from before names were kept counts the replays with anyone still in.
+  const [old] = P.compareOf([rec({ names: null })], [rec()]);
+  assert.deepEqual(P.crownBySeason([old])[0].base, { crowned: 1, stillIn: [], unnamed: 1, finished: [{ place: 2, replays: 1 }] });
+  assert.deepEqual(P.stillIns([null, { count: null }, { count: 2 }, { count: 0 }]), { with: 1, of: 2 });
+  assert.equal(P.stillIns([]), null);
+});
+
 test("who could still win, from the game's own best possible week: Outlast's people still in, a lineup's team at its best", () => {
   const row = (name, total, extra = {}) => ({ playerId: name, name, total, ...extra });
   const member = (id, out = false) => ({ id, name: id, out });
@@ -779,7 +974,7 @@ test("a results variant beside the whole set: over, points in the table, who wen
   const reshaped = rec(true, [["B", 15]], ["Ann"], 0);
   reshaped.tape.results = [{ episode: 1, reshaped: { left: ["x (Quit)"], stayed: [] } }, { episode: 2, reshaped: { left: ["Ann (Winner)"], stayed: ["Rob (Eliminated)", "Cy (Other)"] } }];
   assert.equal(P.compareOf([rec(false, [["A", 10]], [], 0)], [reshaped])[0].reshaped, 3);
-  assert.deepEqual(P.compareByGame([row]), [{ game: "weeklyLineup", replays: 1, winnerChanged: 1, points: 0.5, out: 1, over: { base: 0, variant: 1 }, ghosted: { base: 0, variant: 0 }, crownedFirst: { base: null, variant: null } }]);
+  assert.deepEqual(P.compareByGame([row]), [{ game: "weeklyLineup", replays: 1, winnerChanged: 1, points: 0.5, out: 1, over: { base: 0, variant: 1 }, ghosted: { base: 0, variant: 0 }, crownedFirst: { base: null, variant: null }, stillInAtCrown: { base: null, variant: null }, sameGoingIn: { of: 0, changed: 0 } }]);
   // The show's winner's place: of the games that crowned one with a place recorded, those where a winner finished 1st.
   const crowned = (finished) => ({ ...row, crowned: { base: null, variant: [{ name: "W", finished }] } });
   assert.deepEqual(P.compareByGame([crowned(1), crowned(5), { ...row, crowned: { base: null, variant: [] } }])[0].crownedFirst, { base: null, variant: { first: 1, of: 2 } });
