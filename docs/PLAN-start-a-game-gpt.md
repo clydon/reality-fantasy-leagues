@@ -250,6 +250,76 @@ The user's examples, as people would type them on a show's page. They go into th
   - Points per bingo line.
   - A game that scores two ways (bingo lines plus answers), or two games whose standings the couch adds up.
 
+## Where the engine is headed: the dials (a stress test, 2026-10-28)
+
+The user asked to look past today's app and past fantasy leagues ("we have to not think thru the lens of our app ... so we can
+stress test what we aspire the engine to be able to create"). Every watch-along game is a setting on eight dials. The middle
+column is what the engine plays after A4; the right one is where it's headed. Steps after A5 are chosen against this.
+
+| Dial | After A4 | Where it's headed |
+|---|---|---|
+| When you act | before each episode, or once (locks at the start or the finale) | every 2 episodes; per phase; rolling windows ("within the next 3"); live, mid-episode; your own lock time when you watch late |
+| What you predict | who goes home, the winner or top N, did X happen, how many | which tribe or couple; an order; which episode something happens in; who said the title quote; a vote split (5-2-1) |
+| How you answer | pick, yes or no, number, over/under, choice | rank, spread 10 chips, wager points, bid, trade, vote, a random draw |
+| What settles it | results, moments, the show's calls | the group's own answers (majority, minority); the bot's own call as an opponent; phases; episode facts; outside numbers |
+| Scoring | fixed points, closest wins, streaks, draft totals | split the pot (rarer right calls win more), the only right answer, jackpots that roll over, multipliers, double or nothing, points that shrink with time |
+| How you win | highest total, longest streak, last one standing | first to 20 ends it, co-op against the show, head-to-head with playoffs, beat the bot, players knocked out |
+| Who plays with whom | everyone against everyone | teams, co-op, secret roles among the players, a rotating host, handicaps, late joiners |
+| Shape over time | one game, one set of rules, one span | stages (a second draft at the merge), rules per phase, a season of mini-games, carry-over between seasons and shows |
+
+**Requests that push the dials**, typed on a show's page. They join G1's test set as stretch cases: until the engine grows,
+the GPT should answer most of them with a clear can't-yet and the nearest game it can make.
+
+- *From fantasy leagues and pools:*
+  - "Guillotine: everyone drafts 4, the lowest scorer each week is out and their castaways go back in the pool."
+  - "Points every week, but at the merge the bottom half of us is cut."
+  - "Auction draft: everyone gets $100 to bid on castaways." "Salary cap: couples cost more the better they're doing."
+  - "Everyone drafts one castaway from each tribe." "Draft a guy and a girl each, and they score together."
+  - "Reverse draft: the earlier your castaways go home, the more you score."
+  - "Captain each week: one of your castaways scores double." "Best ball: draft 5, your best 3 count, no lineups."
+  - "A pool with 2 lives and one buyback before the merge." "On double-boot nights you pick two."
+  - "Confidence picks: rank everyone from most to least likely to go home; you score your confidence on whoever goes."
+  - "Draft the boot order before the premiere; points for every boot within 2 spots." "Predict the leaderboard each week."
+  - "Parlay: who goes home AND who wins immunity, triple if both." "Bounties: if your castaway votes out mine, you steal 2."
+  - "Dynasty: keep 2 of your players when they come back next season" (The Challenge). "My partner and I share one team."
+  - "Newcomers get 5 bonus points a week." "One league across Survivor and The Traitors." "A kids' version, no points shown."
+  - "Stock market: buy and sell castaways each week." "One mulligan a season."
+  - "Two of us are secretly traitors who score when the faithful's picks get banished" (The Traitors).
+- *Beyond fantasy:*
+  - "Every two episodes, name someone who'll be gone by then." "Within the next 3 episodes, will there be a blindside?"
+  - "Guess which episode the merge happens in." "Each episode, guess who says the episode's title quote."
+  - "10 points an episode, split between everyone who called the boot." "You only score if you're the only one who called it."
+  - "Guess what most of us will pick; you score if you match the majority." "If nobody calls it, the points roll over."
+  - "Spread 10 chips on who wins immunity." "Bet any of your points on your call, double or nothing."
+  - "Beat the bot: the AI makes its call too; you score when you're right and it's wrong." "First to 20 points wins."
+  - "Co-op: together we have 5 lives; every faithful banished we didn't see coming costs one" (The Traitors).
+  - "Names out of a hat: everyone gets a random castaway; last one standing wins."
+  - "Pre-merge and post-merge are separate games with their own drafts, plus an overall winner."
+  - "Each week's top scorer picks a twist for next week" (Big Brother). "My brother watches a day late: let him lock later."
+  - "Predict each episode's IMDb rating" (Dancing with the Stars). "Each week a different one of us writes 3 questions."
+  - "Seal a winner pick before the premiere; every change costs a point." "A season of mini-games: bingo one week, a draft the
+    next." "For 10 random pairs, who outlasts whom?" "Predict the final tribal vote split." "Guess every elimination winner;
+    a wrong guess knocks you out" (The Challenge).
+
+**The pieces.** To make most of these, presets give way to pieces that combine. A4's question is the seed: what's asked,
+when, what settles it, how it scores, how you win.
+- Time: windows instead of only "each episode" or "once": every N episodes, within N, by phase, a person's own lock.
+- Answers: ranks, chip spreads, wagers, an episode number, a quote's speaker, a vote split.
+- Settles: the group's own answers, the bot's own call, phases, episode facts. Outside numbers later, if ever.
+- Scoring that combines: split the pot, the only right answer, roll over, multiply, shrink with time, wager.
+- Winning and groups: a race, co-op, head-to-head, teams, players knocked out.
+- Stages: a game made of phases or mini-games, each with its own rules.
+
+**Cheapest first** (Claude's suggestion): captains and best ball; a pool's lives, buybacks and two-pick nights; a draft slot per
+group; order and confidence answers (with A5); guillotine and cuts at a phase; head-to-head with playoffs; auction and salary
+cap; then the social ones (secret roles, bounties, a stock market).
+
+**Open questions for the user:**
+- Game mechanics the players decide, rather than facts about the show (the group votes someone out, matching the majority, the
+  top scorer's twist, a rotating host's questions): allowed? Claude's reading is yes, since "only what data can settle" is
+  about what happened on the show; the host's questions would still have to be ones data settles.
+- Numbers from outside the show's research (an episode's IMDb rating): fair game, or only what research records?
+
 ## The wizard (G0 designs it, with impeccable)
 
 - **The game in a sentence or two** at the top: "A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode,
