@@ -23,6 +23,7 @@ From the main folder: `node scripts/lane.js new <name> --port <n> [--branch <b>]
 - `check` boots a lane's server and reads from its database;
 - `dev` runs a lane's dev server;
 - `start` opens a window running a lane's session loop;
+- `keep` watches lanes' loops and starts one again when it stops with a hand-off still to run (overnight, below);
 - `sync` merges master into a lane;
 - `remove` takes a lane out;
 - `memory` links a lane's Claude memory.
@@ -32,7 +33,8 @@ Made on 2026-10-27:
 - **engine** (`../rfl-engine`, port 3002)
 - **sports** (the existing worktree, port 3004)
 
-Each one passed `check`.
+Each one passed `check`. On 2026-10-28: **playtest** (`../rfl-playtest`, port 3005; docs/PLAN-playtests.md), whose
+`.env.local` lists only the local bot, since it records from it all night.
 
 **Claude's memory is shared.** Claude's docs say auto memory is one folder per repo, shared by its worktrees. As a
 safeguard, in case a version keys it by the folder a session runs in, `setup` links the lane's folder in `~/.claude/projects`
@@ -81,6 +83,14 @@ the memory. The database copy takes about a second (all 99 tables, pgvector incl
   pushes.
 - **Name the lane in every seed prompt** (its folder, branch, port and plan step), so the session uses its own server and
   database and never edits another lane's files.
+- **Overnight:** a loop stops after `--max-sessions`, even with a hand-off waiting. `node scripts/lane.js keep survivor engine
+  playtest --max-sessions 4` runs in a window of its own and starts any of them again from its hand-off (at most `--restarts`
+  times, 4 by default), checking every 5 minutes. It leaves a lane alone that's waiting for the user, was stopped partway or
+  is done, and its log is the main folder's `.session-loop/keeper.log`. The loops wait out the 5-hour window themselves, and
+  the keeper waits out the weekly one. First used 2026-10-28, when the user went to sleep with three lanes running.
+- **Keep the PC awake.** The laptop sleeps after an hour idle on power, and nothing a lane runs asks it to stay up. So an
+  unattended night needs `scripts/keep-awake.ps1` in a window of its own (`-Until "<date> 12:00"` to end it by itself). It
+  changes no setting, and closing the window ends it. The lid stays open: a closed lid still sleeps the laptop.
 
 ## Bring a step home
 

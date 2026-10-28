@@ -535,6 +535,7 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
 | GPT words | `../rfl-gpt` | `gpt` | `rfl_gpt` | 3003 | G1, from when A1 is on master |
 | Sports | `../reality-fantasy-leagues-sports` | `sports` | `rfl_sports` | 3004 | its steps 0 and 2 now; 1 and 4–6 once A2 is on master |
 | Design | the main folder (the mocks in `.impeccable/mocks/` aren't in git) | – | – | – | G0 and the sports design: with the user there, never unattended |
+| Playtest | `../rfl-playtest` | `playtest` | `rfl_playtest` | 3005 | docs/PLAN-playtests.md: season tapes (recorded from the local bot) and replays of them (since 2026-10-28) |
 
 **What can run alongside what:**
 
@@ -552,6 +553,7 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
 | G3 | the sports branch merged | – |
 | Sports 0, 2 | nothing | anything |
 | Sports 1, 4–6 | A2 on master, merged into `sports` | G1, G2, S |
+| Playtests (docs/PLAN-playtests.md) | nothing | anything: it only adds files, but holds the local bot while it records |
 
 **The rules that keep the quality:**
 1. **One lane, one folder, one database, one port.** The dev-test fixtures (zt- rows) and migrations would collide on a shared
@@ -559,7 +561,8 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
    once). A lane's `.env.local` points `AUTH_DATABASE_URL` at its own copy and `BETTER_AUTH_URL` at its own port, and its checks
    run with `BASE=http://localhost:<port>` (every `scripts/dev-test/` check reads both).
 2. **Migration numbers by range**, as the new-design branch did with 0100: master 0155–0199, engine 0200–0249, GPT words
-   0250–0279, survivor 0280–0299, sports 0300–0399. `db/migrate.js` runs them by name, so ranges never collide.
+   0250–0279, survivor 0280–0299, sports 0300–0399, playtest 0400–0419. `db/migrate.js` runs them by name, so ranges never
+   collide.
 3. **A hot file has one lane at a time:** `state-logic.js` (the engine lane; S3 waits for a step boundary), `start-game.ts` and
    `start-game.tsx` (the engine lane: A2, A3, then G2), `db/episode-research.js` and the rulebook compiler (the survivor lane).
    A step that needs another lane's hot file waits for that lane's step to merge.
@@ -570,7 +573,8 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
    memories change at merge time, so lanes don't fight over them.
 6. **Every step's checks, unchanged:** its unit tests, its browser check at 390 on its own server, and a code review of its diff
    (`/code-review`) before it merges. After merging master in, the full batch again. Opus 5.5 at xhigh in every lane.
-7. **One real-bot check at a time** (the bot answers one question at a time); every other check uses the stand-in.
+7. **One real-bot check at a time** (the bot answers one question at a time); every other check uses the stand-in. While the
+   playtest lane records season tapes, the local bot is that lane's.
 8. **What waits for the user, however many lanes run:** production backups and Neon rehearsals, the game-specs flag (A2), the
    VM deploy (G1), Survivor 51's switch (S3), merges and pushes, and design reviews (G0, the sports design). The user's attention
    is the real limit, so **start with two lanes** (Survivor and Engine: S is time-bound, A is the longest path), add the sports

@@ -15,6 +15,14 @@
 //   node scripts/lane.js start <name> [--prompt-file <path> | --prompt "..."] [--max-sessions 3]
 //                          a new window running the session loop in that lane at Opus / xhigh, to watch, pause (p) or stop
 //                          (s); with no prompt it carries on from the lane's last hand-off
+//   node scripts/lane.js keep <name>... [--every 5] [--max-sessions 3] [--restarts 4] [--once]
+//                          stays open (until its window is closed), checking those lanes' loops every --every minutes: one
+//                          that's stopped with a hand-off still to run (out of --max-sessions, or its window closed between
+//                          sessions) is started again from it, as `start` does, at most --restarts times a lane. One waiting
+//                          on you (a question, or a session stopped partway) or done is left alone, and the weekly limit is
+//                          waited out. Logs to .session-loop/keeper.log; --once only says what it would do. It sees a loop
+//                          by the lane's folder in its command lines (Windows only), so start a watched lane's loop with
+//                          `start`, never by hand in a terminal
 //   node scripts/lane.js sync <name>           merges master into the lane's branch (the loop's sessions can't merge);
 //                                              refuses while the lane has uncommitted changes
 //   node scripts/lane.js remove <name> --yes   takes the worktree out and drops its database; the branch stays (git branch
@@ -309,6 +317,95 @@ function remove(lane) {
   console.log(`Removed ${lane.dir}${db ? ` and database ${db.pathname.slice(1)}` : ""}. The branch ${lane.branch} stays.`);
 }
 
+// ---- keep: a lane's loop started again when it stops with work handed off ----
+
+// The session loops running now, each as its own command line and its parent's (lower case, backslashes), so a lane's is
+// the one naming the lane's folder: `start`'s window runs <lane>\.session-loop\lane-window.ps1, a first run's --prompt-file
+// sits there too, and each session's claude reads the lane's .session-loop\protocol.md. Null: the list couldn't be read.
+function loopsRunning() {
+  const r = spawnSync(
+    "powershell.exe",
+    [
+      "-NoProfile",
+      "-Command",
+      "Get-CimInstance Win32_Process | Where-Object { $_.Name -in 'node.exe','powershell.exe','claude.exe' } | Select-Object ProcessId,ParentProcessId,Name,CommandLine | ConvertTo-Json -Compress",
+    ],
+    { encoding: "utf8" },
+  );
+  if (r.status !== 0 || !r.stdout.trim()) return null;
+  const all = [].concat(JSON.parse(r.stdout));
+  const byId = new Map(all.map((p) => [p.ProcessId, p]));
+  const norm = (s) => (s || "").replace(/\//g, "\\").toLowerCase();
+  return all
+    .filter((p) => (p.Name === "node.exe" && /session-loop\.js/.test(p.CommandLine || "")) || (p.Name === "claude.exe" && /protocol\.md/.test(p.CommandLine || "")))
+    .map((p) => `${norm(p.CommandLine)} ${norm(byId.get(p.ParentProcessId)?.CommandLine)}`);
+}
+
+function keep() {
+  const names = [];
+  for (const a of args.slice(1)) {
+    if (a.startsWith("--")) break;
+    names.push(a);
+  }
+  if (!names.length) fail("keep <name>... [--every 5] [--max-sessions 3] [--restarts 4] [--once]");
+  if (!WIN) fail("keep reads Windows' process list: elsewhere, run each lane's loop again by hand");
+  const every = Number(val("--every") ?? 5);
+  const restarts = Number(val("--restarts") ?? 4);
+  const once = has("--once");
+  const lanes = names.map((name) => ({ name, lane: laneOf(name), restarted: 0, said: null }));
+  const logFile = path.join(ROOT, ".session-loop", "keeper.log");
+  fs.mkdirSync(path.dirname(logFile), { recursive: true });
+  // A lane's state is said when it changes, not at every check.
+  const say = (l, line) => {
+    if (l && l.said === line) return;
+    if (l) l.said = line;
+    const out = `${new Date().toLocaleString()}  ${l ? `${l.name}: ` : ""}${line}`;
+    console.log(out);
+    if (!once) fs.appendFileSync(logFile, `${out}\n`);
+  };
+  const tick = () => {
+    const loops = loopsRunning();
+    if (!loops) return say(null, "couldn't read the process list; trying again at the next check");
+    for (const l of lanes) {
+      if (loops.some((c) => c.includes(`${l.lane.dir.toLowerCase()}\\`))) {
+        say(l, "running");
+        continue;
+      }
+      let state = {};
+      try {
+        state = JSON.parse(fs.readFileSync(path.join(l.lane.dir, ".session-loop", "state.json"), "utf8"));
+      } catch {
+        /* no loop has run there yet */
+      }
+      const week = state.limits?.unifiedWindows?.seven_day;
+      if (state.pending?.question) say(l, `waiting for you (${state.pending.name}): ${String(state.pending.question).split("\n")[0].slice(0, 200)}`);
+      else if (state.pending) say(l, `stopped partway through ${state.pending.name}: run its loop again (start ${l.name}) to resume it`);
+      else if (!state.next) say(l, "done: nothing handed off");
+      else if (week && week.utilization >= 0.9 && week.resetsAt * 1000 > Date.now())
+        say(l, `the weekly usage window is ${Math.round(week.utilization * 100)}% used: waiting until ${new Date(week.resetsAt * 1000).toLocaleString()}`);
+      else if (l.restarted >= restarts) say(l, `stopped with ${state.next.name} handed off, but it's been started again ${restarts} times (--restarts): leaving it`);
+      else if (once) say(l, `stopped with ${state.next.name} handed off: would start it again`);
+      else {
+        l.restarted++;
+        say(l, `stopped with ${state.next.name} handed off: started again (${l.restarted} of ${restarts})`);
+        start(l.lane, l.name);
+      }
+    }
+  };
+  // A check that fails (the process list unreadable, a state.json mid-write) is said, and the next one tries again.
+  const check = () => {
+    try {
+      tick();
+    } catch (e) {
+      say(null, `a check failed: ${e instanceof Error ? e.message : e}`);
+    }
+  };
+  check();
+  if (once) return;
+  console.log(`Checking every ${every} min, until this window is closed. Log: ${logFile}`);
+  setInterval(check, every * 60_000);
+}
+
 (async () => {
   if (cmd === "new") {
     if (!nameArg) fail("new <name> --port <n> [--branch <b>]");
@@ -324,6 +421,7 @@ function remove(lane) {
   else if (cmd === "check") await check(laneOf(nameArg));
   else if (cmd === "dev") dev(nameArg ? laneOf(nameArg) : null);
   else if (cmd === "start") start(laneOf(nameArg), nameArg);
+  else if (cmd === "keep") keep();
   else if (cmd === "sync") sync(laneOf(nameArg));
   else if (cmd === "remove") remove(laneOf(nameArg));
   else if (cmd === "memory") shareMemory(laneOf(nameArg).dir);
