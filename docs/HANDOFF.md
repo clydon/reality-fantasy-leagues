@@ -112,6 +112,19 @@ the page itself fine: waits instead); tests/episode-lock.test.js; unit tests 752
 
 **The desk catches up with classic's admin (planned 2026-10-27): [PLAN-desk-parity.md](PLAN-desk-parity.md).** The gap audit, the user's decisions (Act as them = classic's impersonation, logged; every gap designed now; phone first), eight steps (people and Act as first), and the design brief; the mock designs come next, after the brief is confirmed.
 
+**The Start-a-game GPT, on games as data (planned 2026-10-27): [PLAN-start-a-game-gpt.md](PLAN-start-a-game-gpt.md).**
+Someone types the game they want. Our ChatGPT bot turns the words into a request, our code turns that into a game spec (every
+rule data), and a wizard asks only what can't be guessed. The user's decisions are in its table:
+- always the bot, with its asks first in the bot's queue;
+- only rules that data can settle;
+- Survivor 51 off built-in rules mid-season, once proven;
+- the engine first, then the GPT, then the sports branch.
+
+It has three tracks: S (Survivor off built-ins, time-bound), A (the engine: games as specs) and G (the GPT). They run in lanes,
+each a worktree with its own database, port and session loop (the plan's lanes section, and [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md)).
+Start with S1 and A1. The sports branch's plan (`docs/PLAN-sports-live.md`, on `sports`) now builds the sports parts of the same
+spec.
+
 **Next: the merge-and-deploy step, which is the user's** (decided 2026-10-25: one merge after step 15). In order, from your own terminal (Claude never handles the connection strings), as 0b's As built in the plan describes:
 1. **If master has moved** since the branch was cut, merge master into `new-design` first and run the checks (`C:/Users/conor/AppData/Local/Temp/gys15b/batch.sh` lists them all).
 2. **A fresh production backup** into a new folder, restored until it prints "everything matches": `$env:BACKUP_DATABASE_URL = "<production string>"`; `node scripts/backup-leagues.js backups/prod-<date>-pre-merge`; `Remove-Item Env:BACKUP_DATABASE_URL`; `node scripts/restore-leagues.js backups/prod-<date>-pre-merge --into=restore_prod`.
