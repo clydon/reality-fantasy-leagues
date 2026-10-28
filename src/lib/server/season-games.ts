@@ -4,6 +4,7 @@ import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { leagueBingo } from "./bingo";
 import { leagueCalls } from "./calls";
+import { leaguePhases } from "./phase-starts";
 import { pool } from "./db";
 import { EVERYTHING, seenThrough } from "./guard";
 import { readyLeague } from "./league-read";
@@ -108,7 +109,11 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
     console.error(`[season-games] calls ${h.game.leagueId}:`, e);
     return null;
   });
-  return gameView(h.ref, h.state, h.playerId, h.mark, h.userOf, calls ?? undefined);
+  const view = gameView(h.ref, h.state, h.playerId, h.mark, h.userOf, calls ?? undefined);
+  // A game that starts when a phase does (step A3 of docs/PLAN-start-a-game-gpt.md): the phase by name, from its rulebook.
+  const phase = StateLogic.startPhase(h.state);
+  if (phase) view.phase = (await leaguePhases(pool, h.game.leagueId, seasonId)).find((p) => p.id === phase)?.name ?? phase;
+  return view;
 }
 
 function refOf(g: Game): GameRefIn {

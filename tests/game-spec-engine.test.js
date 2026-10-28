@@ -162,8 +162,65 @@ test("setGame writes a whole spec: Start a game's presets, its span, and nothing
   const was = clone(s.settings);
   assert.deepEqual(ats(S.setGame(s, { ...G.PRESETS.outlast, get: { ...G.PRESETS.outlast.get, each: 30 } })), ["get.each"]);
   assert.deepEqual(ats(S.setGame(s, { ...G.PRESETS["weekly-lineup"], count: { all: true } })), [""], "no game plays a draft where all score moments yet");
-  assert.deepEqual(ats(S.setGame(s, { ...G.PRESETS.outlast, span: { from: { phase: "merge" }, to: null } })), ["span.from"], "a phase start is A3's");
+  assert.deepEqual(ats(S.setGame(s, { ...G.PRESETS.outlast, span: { from: { phase: "" }, to: null } })), ["span.from.phase"]);
   assert.deepEqual(s.settings, was, "nothing written");
+  // A phase start (A3 part 2): it waits for the phase (startPhase, no episode), and the fields say it whole.
+  assert.deepEqual(S.setGame(s, { ...G.PRESETS.outlast, span: { from: { phase: "merged" }, to: null } }), []);
+  assert.deepEqual([s.settings.startPhase, s.settings.startEpisode, S.startEpisode(s), S.startPhase(s), S.waitsForPhase(s)], ["merged", null, null, "merged", true]);
+  assert.deepEqual(s.settings.game.span, { from: { phase: "merged" }, to: null });
+  assert.deepEqual(G.specOf(s.settings), s.settings.game, "the fields still say the whole game");
+});
+
+test("a game that starts at a phase waits for it, then plays from where it's settled (settleStart), never once that's aired", () => {
+  const pool = carried(made("pickem"));
+  for (let i = 0; i < 10; i++) S.addCastaway(pool, `Castaway ${i}`);
+  for (let n = 1; n <= 6; n++) S.ensureEpisodeNumber(pool, n, false);
+  assert.deepEqual(S.updateSettings(pool, "startPhase", "merged"), []);
+  // While it waits: nothing in play, nothing asked, no bets, not over, late joiners join live.
+  assert.deepEqual([S.startEpisode(pool), S.inPlay(pool, 1), S.inPlay(pool, 6), S.currentEpisode(pool), S.BetLogic.target(pool), S.gameOver(pool)], [null, false, false, null, null, false]);
+  assert.deepEqual(S.GhostLogic.startChoices(pool), [1], "nothing's in: they'd join live");
+  assert.equal(S.GhostLogic.isUnderway(pool), false);
+  // Unknown: nothing to settle; it waits.
+  assert.deepEqual(S.settleStart(pool, { from: null, open: 3 }), []);
+  assert.equal(S.startEpisode(pool), null);
+  // Known and ahead: it plays from there (its first episode made, the spec carried in step).
+  assert.deepEqual(S.settleStart(pool, { from: 8, open: 3 }), []);
+  assert.deepEqual([S.startEpisode(pool), S.startPhase(pool), pool.settings.startEpisode, S.currentEpisode(pool)?.number], [8, "merged", 8, 8]);
+  assert.ok(pool.episodes.some((e) => e.number === 8));
+  assert.deepEqual(pool.settings.game.span, { from: { phase: "merged", at: 8 }, to: null });
+  // A correction before it airs moves it; one confirmed only after its first episode aired starts with the next open one.
+  assert.deepEqual(S.settleStart(pool, { from: 6, open: 3 }), []);
+  assert.equal(S.startEpisode(pool), 6);
+  assert.deepEqual(S.settleStart(pool, { from: 4, open: 5 }), []);
+  assert.equal(S.startEpisode(pool), 5, "Episode 4 aired: nobody could make moves for it");
+  // Cleared before it airs: it waits again. Settled again, then aired: it never moves.
+  assert.deepEqual(S.settleStart(pool, { from: null, open: 5 }), []);
+  assert.equal(S.startEpisode(pool), null);
+  assert.deepEqual(S.settleStart(pool, { from: 5, open: 5 }), []);
+  const settled = clone(pool.settings);
+  for (const where of [{ from: null, open: 6 }, { from: 7, open: 6 }, { from: 3, open: 9 }]) {
+    assert.deepEqual(S.settleStart(pool, where), []);
+    assert.deepEqual(pool.settings, settled, JSON.stringify(where));
+  }
+  // An end the new start passes goes (to the season's end); an episode start never settles.
+  const lineup = made("active-roster", (x) => { S.updateSettings(x, "startPhase", "merged"); S.settleStart(x, { from: 4, open: 1 }); S.updateSettings(x, "endEpisode", 6); });
+  assert.deepEqual([S.startEpisode(lineup), S.endEpisode(lineup)], [4, 6]);
+  assert.deepEqual(S.settleStart(lineup, { from: 9, open: 2 }), []);
+  assert.deepEqual([S.startEpisode(lineup), S.endEpisode(lineup)], [9, null]);
+  const plain = made("classic-draft");
+  const before = clone(plain.settings);
+  assert.deepEqual(S.settleStart(plain, { from: 9, open: 2 }), []);
+  assert.deepEqual(plain.settings, before);
+  // A clear sends it back to waiting with no end: it can't be over before it starts.
+  S.updateSettings(lineup, "endEpisode", 12);
+  assert.deepEqual(S.settleStart(lineup, { from: null, open: 2 }), []);
+  assert.deepEqual([S.startEpisode(lineup), S.endEpisode(lineup)], [null, null]);
+  // Switching to an episode drops the phase; back to a phase, it waits, and its end goes.
+  assert.deepEqual(S.updateSettings(lineup, "startEpisode", 3), []);
+  assert.deepEqual(S.updateSettings(lineup, "endEpisode", 5), []);
+  assert.deepEqual([lineup.settings.startPhase, S.startEpisode(lineup), S.startPhase(lineup), S.endEpisode(lineup)], [undefined, 3, null, 5]);
+  assert.deepEqual(S.updateSettings(lineup, "startPhase", "merged"), []);
+  assert.deepEqual([S.startEpisode(lineup), S.startPhase(lineup), S.endEpisode(lineup)], [null, "merged", null]);
 });
 
 test("migrateLeagueState keeps a carried spec in step, and backfills an old save's waiver order as it was", () => {
@@ -192,6 +249,13 @@ test("the flag's check (scripts/game-specs-flag.js): every kind of league plays 
     "survival pool, by scoring, a call": made("pickem", (x) => S.setGame(x, { ...S.gameOf(x), score: { by: "survive", means: "scores", points: 2 }, extras: { ...S.gameOf(x).extras, calls: true } })),
     "weekly calls": made("weekly-calls"),
     "weekly bingo, locked down": made("weekly-bingo", (x) => S.updateSettings(x, "lockedDown", true)),
+    // A phase start (A3 part 2), waiting and settled: the fields say it whole, so carrying it plays the same.
+    "weekly lineup, waiting for the merge": made("active-roster", (x) => S.updateSettings(x, "startPhase", "merged")),
+    "outlast, from the merge, settled at 9 through 11": made("classic-draft", (x) => {
+      S.updateSettings(x, "startPhase", "merged");
+      S.settleStart(x, { from: 9, open: 2 });
+      S.updateSettings(x, "endEpisode", 11);
+    }),
   };
   for (const [label, state] of Object.entries(kinds)) {
     const r = checkLeague(state);

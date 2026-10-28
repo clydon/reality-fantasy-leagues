@@ -478,6 +478,83 @@ in `PLAN-researched-survivor.md`'s "What the switch needs", with this plan's dec
     started"; switchable between a phase and an episode until it airs. Its check: a phase game started, its desk confirmation
     settling it, a correction moving it, a clear sending it back, the season sync settling one the desk walk missed, and the
     flag's check over a waiting and a settled league.
+
+  **As built (A3 part 2, 2026-10-28, on `engine`, not merged; no migration).** One session, as decided above. Master merged in
+  first (`lane.js sync engine`: the playtest lane's docs, `scripts/lane.js` and `keep-awake.ps1`); 781 then.
+  - **The spec** (`schema.js`): `span.from` is an episode or `{ phase, at? }`; `spanStart(span)` is the episode it plays from
+    (null while it waits) and `spanPhase(span)` its phase. `specProblems`: the phase named, `at` 1 or more, `to` from `at` on
+    (any while it waits: nothing to check it against), only `phase` and `at` in `span.from`; with `ctx.phases`, one of the
+    season's and never the first. `specWaitsFor` has no A3 any more (gone from its order), and `plainParts` accepts it, so every
+    preset plays one. `describeSpec` says it by the phase's name (`ctx.phases`, else its id): "from when Merged starts", once
+    settled "Episode 9 to the finale, starting with Merged"; How it works "It starts when Merged starts: nothing before then
+    scores." or "It starts with Merged, at Episode 9: the episodes before it are history." (Words that hold whether that
+    episode has aired or is still to come: a start the rulebook fixes, or the desk confirms ahead, settles before it airs.)
+  - **The fields** (`settings.js`): `startPhase` beside `startEpisode`, in the span part (so `OWNED`): waiting is `startPhase`
+    with `startEpisode` null, settled is both. `spanOf` reads them back into `{ phase }` / `{ phase, at }`, so `withSpec`,
+    `settingsOf`, `syncGame`, `carryGame` and the flag's `check` keep the phase with no case of their own (the check's snapshot
+    reads `startPhase` too), and a league without the flag plays it the same from its fields.
+  - **The engine while it waits** (`state-logic.js`): `startEpisode(state)` null, `startPhase`, `waitsForPhase`. No episode in
+    play, `currentEpisode` null (so no lineup, pick, bet target, computer player's move or lock push), no waiver week or
+    window, `isUnderway` only by its draft (results before it are history), `startChoices` the next live episode (a newcomer
+    joins live), `startFor` null, the waiver recommendation counts from after the latest results, a lineup refused with "This
+    game hasn't started: it waits for its phase of the season". Over only when the season ends first (over, never started).
+    **`RosterLogic.settleStart(state, { from, open })`** (`StateLogic.settleStart`) is the rule, through `setGame`: the later of
+    the phase's first episode and the first episode still open; unknown again (cleared) waits again; never once it has
+    aired; an end the new start passes goes (to the season's end). A game waiting for its phase has no end (so it can't be
+    over before it starts): a clear drops it, and so does switching to a phase (`writeSetting`: a `startEpisode` drops the
+    phase, a `startPhase` waits with no end). `setGame` makes a first episode only for a known start.
+  - **Settling** (`src/lib/server/phase-starts.ts`, new): `phasesOf` (rulebook-compile.js `phaseRanges` over the rulebook's
+    confirmed starts), `seasonBlocks` (moved from start-game.ts, now with the confirmed starts), `phasesFrom` / `leaguePhases`
+    (a couch's own copy, Make it ours, with the season's confirmed starts under its own: the desk confirms on the season's
+    and a copy keeps those it was made with; else the season's), `openEpisode` (the one after the latest that's aired or has
+    results), `settleIn`, `settleLeague` (with a Recent changes line, kind `game.settled`, tier 1, no Undo: "Starts with
+    Merged, at Episode 6", "Waits for Merged to start again") and `settleSeasonStarts` (only games whose start could still
+    move: one that's aired isn't locked and rewritten). Called at Start a game; from `desk-rulebooks.ts writePhase`, which the
+    desk's confirm, correction, clear and History Undo all go through (every game on the season, a league's own rulebook
+    through its league's season); and in `syncSeasonLeagues` after each league's results,
+    loaded lazily as bingo is, after the season's rulebook is brought up to date (`ensureSeasonRulebook`), so a merge its
+    results confirm (`knownPhaseStarts`) settles in the same sync.
+  - **Start a game**: options carry `phases` (by the rules the couch's games here play by; each still to come, never the
+    first; `at` when known and ahead); POST takes
+    `phase` (refused with a later episode, Include it or an end, and for the first phase or one the season hasn't got); a start
+    known and ahead is settled there and then. Recent changes "started Weekly Lineup from when Merged starts"; the push "from
+    when Merged starts". The sheet: Starts gains "When Merged starts" with the phase's summary ("· Episode 9" when known), a
+    note that it waits and runs to the season's end, the title "ZT Survivor · when Merged starts", and no How long. Run it
+    back keeps a phase start the season still has to come (`again.phase`, preselected).
+  - **Game settings**: `span.from` null while it waits, `span.phase` and `span.phases` (still to come, until it's started);
+    `startPhase` is a settings field (refused once started, for the first phase, by someone who doesn't run it, or locked
+    down), settled at once, its end gone. The screen: "When Merged starts, to the season's end" and that it waits, no Ends
+    until it's settled; then "Episode 6 to the season's end" and "Starts with Merged, at Episode 6" ("Started" once it's
+    aired); Starts lists the phases and the episodes. Game settings reads the season's book once for all its games. Part 1's
+    Noticed item taken: `span.starts` and `span.ends` carry numbers only.
+  - **Every reader of a null start**: the Games tab "Starts when Merged starts ·" (`GameView.from` null, `GameView.phase` the
+    phase's name, filled in by season-games.ts) and its Run it back filter (a waiting game starts after anything over),
+    `show-space.ts games` and couch-joins (`start` null, no span), the couch hub (no span; Weekly Calls and Bingo count nothing),
+    bingo and calls (nothing counted, no card or calls to make), How it works (the start row from the premiere: "The game
+    starts when Merged starts."), episode view ("Before the game started"), the side bet route ("This game hasn't started:
+    predictions open once it does"), solo (a public pool never waits), research's ranges, classic's setup (a locked "Starts"
+    line: Game settings changes it) and the waiver tools.
+  - **Tests**: `game-spec.test.js` (round trips of a waiting lineup, a played pool waiting, a played Outlast settled at 8 and a
+    played lineup settled at 4 through 10; the shape; the waits; the words), `game-spec-engine.test.js` (+1, settleStart's rule
+    end to end; setGame writes a phase start; the flag's check over a waiting and a settled league), `spans.test.js` (+1, every
+    kind while it waits, then settled; over, never started). `npm test` 783.
+  - **Browser** (`scripts/dev-test/check-phase-starts.js`, new, on new-fixture.js, with the desk's own admin; 58 PASS at 390):
+    the options and their refusals; a Weekly Lineup when Merged starts started in the sheet, a pool too, an Outlast from 9
+    switched in Game settings; nothing asked, scored or bet while they wait; Game settings switching to Episode 9 and Undo
+    back; the desk confirming Episode 5 in the browser (all three settle at 6), a correction to 8, one to 4 (back to 6), a clear;
+    Episode 6's results coming in all post-merge (the sync confirms Merged at 6 and settles all three at 7); nothing moving
+    once 7 aired; a game settled at Start a game (Episode 9); Run it back's phase; the flag's check and no drift. Part 1's,
+    unchanged: `check-spans.js` 99, `check-new-start-game.js` 75, `check-new-backstage-ii.js` 149, `check-new-show.js` 81 (one
+    run back to back with the others lost its browser at 42; alone, 81). `game-specs-flag.js status`: on, 9 of 9 carry their
+    spec, none drifted; `check` PASS.
+  - **Code review** (`/code-review`, before the commit): taken: a couch's own copy never got the desk's confirmed starts (its
+    games would have waited for good: the season's now sit under the copy's, and Start a game lists the copy's phases); a stale
+    end on a game switched to a phase or cleared back to waiting (it could be over before it started); the desk walk locking
+    and rewriting games whose start had aired; the past tense for a start settled ahead of its episode; a one-episode question
+    game settled at a phase; the solo screen's "from Episode null"; Game settings reading the season's book per game; a second
+    schedule read and a duplicate `leagueSeason` (push-events.ts has it). Declined: one shared fallback for a null start
+    (research ranges over every episode while a game waits, waivers count from the next live one: each says what waiting
+    means for it, as decided). The checks above are from after these fixes.
 - **A4. Questions settled by data** (`ask`).
   - The answer kinds and the lock (`closedForPlay`).
   - Answers stored per game (like `episode_calls`), graded on read from the season's results (the shows' settles), with points
@@ -635,6 +712,25 @@ From A3 part 1 (2026-10-28):
   only numbers (the start sheet's are held back now). (Part 2, which touches the same read.)
 - How it works' updates say "Ep" over each number whatever the show calls an episode (the screen's own label; the words now
   are the show's). (Whoever next touches How it works.)
+
+Taken by A3 part 2 (2026-10-28): Game settings' starts and ends carry numbers only.
+
+From A3 part 2 (2026-10-28):
+- Outlast scores by place (the boot order) whatever its start: a castaway drafted early and voted out while the game waits for
+  its phase, or before a later start, earns their place on your team. A pool and a lineup score nothing before the start.
+  That was already so for part 1's later starts; whether Outlast should count only boots from its start is the user's call.
+  (Whoever next touches Outlast's scoring.)
+- A game settling at its phase tells everyone the phase has begun, whatever they've seen: its lineups open for that
+  episode, and Game settings and Recent changes say "Starts with Merged, at Episode 9". It's what the game is, but someone
+  behind learns the merge happened. (G0 or the user's call.)
+- Undo of a start switched in Game settings puts back the start as it stood then, even if the desk moved the phase since;
+  the next result's season sync settles it again. (Whoever next touches Undo.)
+- Weekly Calls and Weekly Bingo can start at a phase (every preset can), but no talk show's rulebook has a second phase, so
+  Start a game never offers one there yet. (G2, if a series gets phases.)
+- A couch's own copy of the rules (Make it ours) keeps the phase starts it was made with: the desk confirms on the season's,
+  and nothing passes them on, so the copy's scoring phase gates (its segments that wait for Merged) never learn when it
+  began. A game's start now reads the season's under the copy's own; the scoring doesn't. (S2, or whoever next touches Make it
+  ours.)
 
 From A2 (2026-10-28):
 - Start a game still makes a Weekly Lineup with `defaultState`'s copy of the points (a map), not the preset's null. A copy

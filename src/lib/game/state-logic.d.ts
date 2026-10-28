@@ -260,7 +260,8 @@ declare const StateLogic: {
     isCatchingUp(state: LeagueState, playerId: string | null | undefined): boolean;
     /** Still has to choose a start episode (and draft) before playing. */
     needsStart(state: LeagueState, playerId: string | null | undefined): boolean;
-    startFor(state: LeagueState, playerId: string): number;
+    /** Where their own season starts; null while the league waits for its phase (step A3). */
+    startFor(state: LeagueState, playerId: string): number | null;
     isUnderway(state: LeagueState): boolean;
     /** Late joining is on unless the commissioner switched it off. */
     allowed(state: LeagueState): boolean;
@@ -312,8 +313,13 @@ declare const StateLogic: {
   originalDraftPicks(state: LeagueState, playerId: string): Castaway[];
   /** The league's show format (exit methods, scoring events, merge, winner). See formats/index.js. */
   formatOf(state: LeagueState): GameFormat;
-  /** The episode this league starts playing at (the spec's span.from: settings.startEpisode, default 1). */
-  startEpisode(state: LeagueState): number;
+  /** The episode this league starts playing at (the spec's span.from: settings.startEpisode, default 1); null while a game
+   *  that starts at a phase of the season (step A3) waits for it. */
+  startEpisode(state: LeagueState): number | null;
+  /** The phase of the season's rulebook it starts at (its id), or null: it starts at an episode. */
+  startPhase(state: LeagueState): string | null;
+  /** Waiting for its phase to start: nothing is in play, asked or scored yet. */
+  waitsForPhase(state: LeagueState): boolean;
   /** The last episode a game over a span plays (settings.endEpisode), or null: to the season's end. */
   endEpisode(state: LeagueState): number | null;
   /** Whether an episode counts for this league -- from its start episode through its end, if it has one. */
@@ -491,6 +497,10 @@ declare const StateLogic: {
   setGame(state: LeagueState, spec: SpecInput | GameSpec, opts?: { ctx?: SpecContext | null }): SpecProblem[];
   /** A league carrying its spec (settings.game) carries what its fields play. */
   syncGame(state: LeagueState): void;
+  /** Where a game that starts at a phase plays from (step A3): the later of the phase's first episode (`from`, null while
+   *  unknown: it waits again) and the first episode still open for moves (`open`); never once that's aired. Through
+   *  setGame: its problems, [] when written or nothing changed. */
+  settleStart(state: LeagueState, where: { from: number | null; open: number }): SpecProblem[];
   /** A new bet on an episode this game plays; undefined for one outside its span (before its start, after its end). */
   addBet(state: LeagueState, epId: string, label: string, points: number, createdByPlayerId: string | null): Bet | undefined;
   /** A new bet on the episode about to be played (betTarget); undefined once the game is over. */

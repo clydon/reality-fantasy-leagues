@@ -5,7 +5,9 @@
 //   { spec: 1, preset, span, pool, get, count, score, rank, ask, closes, extras }
 //
 //   preset   the preset it started from (its name, Run it back), or null
-//   span     { from, to }: episodes of the season; to null = the season's end. A3: from { phase } waits for that phase
+//   span     { from, to }: episodes of the season; to null = the season's end. from is an episode number, or a phase of
+//            the season's rulebook (A3): { phase } while the game waits for it to start, { phase, at } once data says
+//            where it does (at: the episode it plays from). The phase stays: its words, Game settings, Run it back
 //   pool     { of: 'cast', where }: who can be picked. where { stillIn: true } (today: nobody gone before the start);
 //            sports: { teams: [ids] }; later: { group: id }
 //   get      how you get yours. { by: 'draft', each, order: snake | blind, own: exclusive | shared } (the order follows
@@ -23,8 +25,8 @@
 //   closes   'start': moves lock at each episode's start (today's airtime lock); sports: 'daily' | 'weekly'
 //   extras   the details nobody asked about, recommended and out of sight (EXTRAS below)
 //
-// Who builds each value is in VOCAB: 'now' the engine plays it today (after A2, through the spec), 'A3' / 'A4' those
-// steps, 'sports' the sports branch, 'later' no step yet. specProblems says what's wrong with a spec, specWaitsFor what
+// Who builds each value is in VOCAB: 'now' the engine plays it today (after A2, through the spec; a phase start since A3),
+// 'A4' that step, 'sports' the sports branch, 'later' no step yet. specProblems says what's wrong with a spec, specWaitsFor what
 // it needs that isn't built. Pure, plain CommonJS like formats/, so state-logic.js can read it (A2).
 
 const SPEC_VERSION = 1;
@@ -305,16 +307,31 @@ function playsAs(s) {
   if (by('get') === 'card' && !count && by('score') === 'lines' && by('rank') === 'total') return 'weekly-bingo';
   return null;
 }
-/** The parts every game today shares: a numbered span, the cast still in, no questions, moves locking at the start. */
+/** The parts every game today shares: a span (from an episode, or a phase), the cast still in, no questions, moves locking
+ *  at the start. */
 function plainParts(s) {
   const where = s.pool && s.pool.where;
   return (
-    isObj(s.span) && isInt(s.span.from, 1) &&
+    isObj(s.span) && (isInt(s.span.from, 1) || phaseFrom(s.span.from)) &&
     isObj(s.pool) && s.pool.of === 'cast' && (where === null || (isObj(where) && where.stillIn === true && Object.keys(where).length === 1)) &&
     Array.isArray(s.ask) && s.ask.length === 0 &&
     s.closes === 'start'
   );
 }
+
+/** A start at a phase, well formed: { phase: an id, at?: the episode it plays from }. */
+const phaseFrom = (f) => isObj(f) && typeof f.phase === 'string' && !!f.phase && (f.at === undefined || isInt(f.at, 1));
+/**
+ * The episode a span plays from: its number, a phase start's `at` once it's settled, or null while it waits for its phase
+ * (or isn't a span).
+ */
+function spanStart(span) {
+  const f = isObj(span) ? span.from : undefined;
+  if (isInt(f, 1)) return f;
+  return isObj(f) && isInt(f.at, 1) ? f.at : null;
+}
+/** The phase a span starts at (its id), or null for one that starts at an episode. */
+const spanPhase = (span) => (isObj(span) && isObj(span.from) && typeof span.from.phase === 'string' && span.from.phase ? span.from.phase : null);
 
 /**
  * The flags state-logic.js's league types carry (hasRoster, supportsReplenish, ...), worked out from a whole spec: a team
@@ -355,6 +372,8 @@ function sizesOf(s) {
  *   ctx.stats    the sport's stat keys ({ key }, the Sport's: the sports branch): a stat the spec scores or asks about
  *                must be one. Absent: there are none, so nothing settles a stat.
  *   ctx.results  false when the show's results don't say who goes home or wins (a series, a talk show)
+ *   ctx.phases   the season's rulebook's phases, in order ([{ id }], its blocks' season.phases): a start at a phase must
+ *                be one of them, and not the first (that's Episode 1)
  *
  * opts.league: the spec is a league's own (every write to a league: RosterLogic.setGame), so what it already plays stays
  * as it is: a couch-answered moment of its rules (Make it ours) and points for moments its rules don't have
@@ -377,9 +396,11 @@ function specProblems(spec, ctx, opts) {
   else {
     const from = s.span.from;
     if (isObj(from)) {
-      if (typeof from.phase !== 'string' || !from.phase) add('span.from', 'A start at a phase names the phase');
+      if (typeof from.phase !== 'string' || !from.phase) add('span.from.phase', 'A start at a phase names the phase');
+      if (from.at !== undefined && !isInt(from.at, 1)) add('span.from.at', "Where a phase start plays from is an episode number, 1 or later (left out while it's unknown)");
     } else if (!isInt(from, 1)) add('span.from', 'It starts at an episode number, 1 or later');
-    if (s.span.to !== null && !(isInt(s.span.to, 1) && (!isInt(from, 1) || s.span.to >= from))) add('span.to', 'It ends at an episode from its start on, or null for the season\'s end');
+    const first = spanStart(s.span);
+    if (s.span.to !== null && !(isInt(s.span.to, 1) && (first === null || s.span.to >= first))) add('span.to', 'It ends at an episode from its start on, or null for the season\'s end');
   }
 
   // pool
@@ -518,6 +539,7 @@ const isInstant = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2
 const KEYS = {
   top: ['spec', 'preset', 'span', 'pool', 'get', 'count', 'score', 'rank', 'ask', 'closes', 'extras'],
   span: ['from', 'to'],
+  from: ['phase', 'at'],
   pool: ['of', 'where'],
   get: { draft: ['by', 'each', 'order', 'own'], pick: ['by', 'each', 'repeat'], card: ['by'], none: ['by'], squares: ['by'] },
   score: { moments: ['by', 'points'], place: ['by'], survive: ['by', 'means', 'points'], calls: ['by'], lines: ['by'], answers: ['by'], stats: ['by', 'points'] },
@@ -540,6 +562,7 @@ function unknownKeys(s) {
   };
   check(s, KEYS.top, '');
   check(s.span, KEYS.span, 'span');
+  if (isObj(s.span)) check(s.span.from, KEYS.from, 'span.from');
   check(s.pool, KEYS.pool, 'pool');
   if (isObj(s.get)) check(s.get, own(KEYS.get, s.get.by), 'get');
   if (isObj(s.score)) check(s.score, own(KEYS.score, s.score.by), 'score');
@@ -583,6 +606,13 @@ function waiverProblems(w, s) {
 // scoreboards (the Sport's stat keys, finals). Shows: the results research, which counts as data.
 function settleProblems(s, ctx, opts) {
   const out = [];
+  // A start at a phase: one of the season's, never its first (that one starts with Episode 1).
+  const phase = spanPhase(s.span);
+  if (phase && Array.isArray(ctx.phases)) {
+    const at = ctx.phases.findIndex((p) => (isObj(p) ? p.id : p) === phase);
+    if (at < 0) out.push(['span.from.phase', `"${phase}" isn't one of the season's phases`]);
+    else if (at === 0) out.push(['span.from.phase', 'The first phase starts with Episode 1: start it there']);
+  }
   const moments = Array.isArray(ctx.moments) ? ctx.moments : [];
   const momentById = new Map(moments.map((m) => [m.id, m]));
   const stats = new Set((Array.isArray(ctx.stats) ? ctx.stats : []).map((x) => (isObj(x) ? x.key : x)));
@@ -628,17 +658,16 @@ function settleProblems(s, ctx, opts) {
 /** A moment's own points for the draft's ownership (a format may give { exclusive, shared }). */
 const defaultOf = (d, shared) => (isObj(d) ? d[shared ? 'shared' : 'exclusive'] || 0 : d || 0);
 
-/** "A3", "A4", "sports", "later" in the order a spec waits for them. */
-const STEP_ORDER = ['A3', 'A4', 'sports', 'later'];
+/** "A4", "sports", "later" in the order a spec waits for them. */
+const STEP_ORDER = ['A4', 'sports', 'later'];
 const STEP_NAMES = {
-  A3: 'starts that wait for a phase (step A3)',
   A4: 'questions settled by data (step A4)',
   sports: 'the sports branch',
   later: 'no step yet',
 };
 
 /**
- * What a well-formed spec needs that isn't built, as [{ at, step, problem }]: a value only a later step builds ('A3', 'A4',
+ * What a well-formed spec needs that isn't built, as [{ at, step, problem }]: a value only a later step builds ('A4',
  * 'sports', 'later'), or, with every value built, a combination no game plays yet (step null). Empty: today's engine plays
  * it (typeOf gives its league type). For the wizard to say what isn't there yet, and G2's sports requests.
  */
@@ -650,7 +679,6 @@ function specWaitsFor(spec) {
     const step = own(VOCAB[key], v);
     if (step && step !== 'now') need(at, step, what);
   };
-  if (isObj(s.span) && isObj(s.span.from)) need('span.from', 'A3', 'Starting when a phase starts');
   const where = isObj(s.pool) && isObj(s.pool.where) ? Object.keys(s.pool.where)[0] : null;
   if (where) val('pool.where', 'pool.where', where, where === 'teams' ? 'Picking from teams' : 'Picking from a group');
   if (isObj(s.get)) val('get.by', 'get.by', s.get.by, 'Squares');
@@ -676,4 +704,5 @@ module.exports = {
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM,
   fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, specWaitsFor, waiversFit, finaleFits, countKind, presetOf, sameValue, own,
+  spanStart, spanPhase,
 };

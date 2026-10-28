@@ -127,8 +127,9 @@ export interface GameRef {
   archived?: boolean;
   /** A game over a span (step 6 of docs/PLAN-sports-data.md): its first and last episode; null or absent to the season's end. */
   span?: { from: number; to: number } | null;
-  /** The episode it starts with: a game started after a span ended is its run back. */
-  start?: number;
+  /** The episode it starts with: a game started after a span ended is its run back. Null while a game that starts when a phase
+   *  of the season does waits for it (step A3 of docs/PLAN-start-a-game-gpt.md): it'll start after anything that's over. */
+  start?: number | null;
 }
 
 export interface SeasonHeader {
@@ -1306,7 +1307,7 @@ export function useEndGames(seasonId: string, couchId: string | null, enabled = 
 
 export const gamesApi = {
   /** `to`: the last episode it plays (a span, step 6 of docs/PLAN-sports-data.md); null to the season's end. */
-  start: (seasonId: string, couchId: string, body: { game: string; tell: boolean; again?: string | null; from?: number; to?: number | null; bots?: number; level?: BotLevel; late?: boolean }) =>
+  start: (seasonId: string, couchId: string, body: { game: string; tell: boolean; again?: string | null; from?: number; phase?: string; to?: number | null; bots?: number; level?: BotLevel; late?: boolean }) =>
     post<Started>(seasonUrl(seasonId, "/start", { couch: couchId }), body),
   archive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "archive", leagueId }),
   unarchive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "unarchive", leagueId }),

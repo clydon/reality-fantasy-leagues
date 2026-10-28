@@ -4,6 +4,7 @@ import { rulebookFor } from "@/lib/game/formats/blocks/index.js";
 import { howItWorks, type HowItWorks } from "@/lib/game/formats/rulebook-describe.js";
 import type { RulebookUpdate } from "@/lib/game/formats/rulebook-describe";
 import type { GameFormat } from "@/lib/game/formats/index";
+import type { RulebookBlocks } from "@/lib/game/formats/rulebook-schema";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import { showWords } from "@/lib/game/show-words";
 import { blocksAt } from "@/lib/game/formats/rulebook-patch.js";
@@ -61,7 +62,13 @@ export async function seasonHowItWorks(user: SessionUser, seasonId: string, couc
     cast = view.castaways.map((c) => ({ name: c.name, photo: publicMediaSrc(c.photoUrl), colour: tribes.get(c.startTribeId || c.tribeId) ?? null }));
     if (game.gameType === "active-roster") points = state.settings.eventPoints;
     ownership = state.settings.ownershipMode;
-    updates.push({ episode: StateLogic.startEpisode(state), kind: "start", detail: `Plays by the ${format.name.replace(/^The /, "")} rulebook.` });
+    // A game that starts when a phase does (step A3 of docs/PLAN-start-a-game-gpt.md) says which; while it waits, the rules are
+    // in force from the premiere and the game from that phase.
+    const start = StateLogic.startEpisode(state);
+    const phaseId = StateLogic.startPhase(state);
+    const phase = phaseId ? (((row?.blocks as RulebookBlocks | undefined)?.season?.phases ?? []).find((p) => p.id === phaseId)?.name ?? phaseId) : null;
+    const when = phase ? (start === null ? ` The game starts when ${phase} starts.` : ` The game starts with ${phase}.`) : "";
+    updates.push({ episode: start ?? 1, kind: "start", detail: `Plays by the ${format.name.replace(/^The /, "")} rulebook.${when}` });
     // A game over a span (docs/PLAN-sports-data.md step 6) says where it ends too.
     const end = StateLogic.endEpisode(state);
     if (end !== null) updates.push({ episode: end, kind: "end", detail: "Nothing after it scores." });

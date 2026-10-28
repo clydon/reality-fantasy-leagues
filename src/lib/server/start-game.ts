@@ -1,6 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import { addBot, MAX_BOTS, type BotLevel } from "@/lib/game/computer-players";
-import { rulebookFor } from "@/lib/game/formats/blocks/index.js";
 import { gameLine, gamesFor, noFitLine } from "@/lib/game/formats/rulebook-fits.js";
 import type { GameFit, SeasonGameKey } from "@/lib/game/formats/rulebook-fits";
 import type { RulebookBlocks, RulebookKind } from "@/lib/game/formats/rulebook-schema";
@@ -9,8 +8,6 @@ import { nextSpan, spanChoices, spanEnds, spanName, type SpanChoice, type SpanEp
 import type { LeagueState } from "@/lib/game/types";
 import { MAX_BENCH, MAX_STARTERS, MAX_TEAM, NO_WAIVERS, waiversFit } from "@/lib/game/game-spec/index.js";
 import type { GameSpec } from "@/lib/game/game-spec/index.js";
-import { seasonRulebook } from "@db/rulebooks.js";
-import { resolveFormat } from "@db/show-formats.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { recordChange } from "./change-log";
 import { couchMembers, requireCouch } from "./couches";
@@ -21,6 +18,7 @@ import { linkProblem } from "./league-groups";
 import { leagueStates } from "./league-states";
 import { makeLeague } from "./new-game";
 import { copyOf } from "./ours";
+import { leaguePhases, phasesFrom, scheduleOf, seasonBlocks, settleIn } from "./phase-starts";
 import { notifyGameStarted } from "./push-events";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import { followsOf, games, seasonHeaders, type Game } from "./show-space";
@@ -56,7 +54,10 @@ import { followsOf, games, seasonHeaders, type Game } from "./show-space";
 //
 // Starts (docs/PLAN-start-a-game-gpt.md step A3): with the next episode to air, or any later one the listing has
 // (settings.startEpisode): the game waits until then (nothing before it scores, its moves are for its first episode) and its
-// draft can happen first. How long then counts from there. Game settings moves the start until it airs.
+// draft can happen first. How long then counts from there. Game settings moves the start until it airs. Or when a phase of the
+// season's rulebook starts (part 2, phase-starts.ts: "When Merged starts", each phase still to come): the game waits for it
+// (settings.startPhase) and plays from where data says it starts, settled now when that's known and ahead. It runs to the
+// season's end (an end can be set in Game settings once its start is settled).
 //
 // Its episodes are called what the show calls them (shows.episode_term, as the hub, plaques and Game settings say), not
 // what its rulebook does: one word for an episode (docs/BACKLOG.md item 10).
@@ -91,6 +92,9 @@ export interface StartOptions {
   /** The listed episodes it can start with (Starts), the next to air first, then any later one, with their air times; a
    *  title only where it gives nothing away (spanEpisodes). */
   starts: { number: number; title: string | null; airAt: string | null }[];
+  /** The phases of the season's rulebook it can start with instead (Starts' "When Merged starts", step A3): each one still to
+   *  come, never the first (that's Episode 1); `at` the episode it would play from when that's known and ahead, else null. */
+  phases: { id: string; name: string; summary: string | null; at: number | null }[];
   /** An episode that's started but may still be on (in the last ON_AIR_MS): Include it starts the game there. */
   onAir: { number: number; airAt: string } | null;
   /** These options start with the episode on now (asked with `late`). */
@@ -109,8 +113,9 @@ export interface StartOptions {
   blocked: string | null;
   couch: { id: string; name: string; members: number };
   /** Run it back: the game it plays again (the same game, name and settings), and, when that was a span, the next one's last
-   *  episode (to start with; null: to the season's end). `label` says which it was ("ZT Survivor 51 · Episodes 6–7"). */
-  again: { leagueId: string; name: string; gameName: string; key: SeasonGameKey; label: string; to: number | null } | null;
+   *  episode (to start with; null: to the season's end). `label` says which it was ("ZT Survivor 51 · Episodes 6–7"). `phase`:
+   *  it started when a phase did, and this season has that phase still to come (the sheet starts it there too). */
+  again: { leagueId: string; name: string; gameName: string; key: SeasonGameKey; label: string; to: number | null; phase: string | null } | null;
   /** Once this season's over: the show's next season to run a game back on (set up, still to finish), or null. */
   nextSeason: { seasonId: string; label: string } | null;
 }
@@ -139,15 +144,6 @@ const plain = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").replace(/^T
 function startFrom(schedule: SeasonSchedule | undefined, now: Date): number {
   for (const ep of schedule?.episodes ?? []) if (ep.airAt && new Date(ep.airAt).getTime() > now.getTime()) return ep.number;
   return latestAired(schedule, now) + 1;
-}
-
-/** The season's rules as blocks, for what fits: its rulebook, else its show's format read back as blocks. */
-async function seasonBlocks(seasonId: string): Promise<{ blocks: RulebookBlocks; compiled: { events?: unknown[]; winnerExitMethod?: string | null } | null }> {
-  const row = await seasonRulebook(pool, seasonId);
-  if (row?.blocks) return { blocks: row.blocks as RulebookBlocks, compiled: row.compiled ?? null };
-  const { rows } = await pool.query("SELECT s.format FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [seasonId]);
-  const format = await resolveFormat(pool, rows[0]?.format ?? null);
-  return { blocks: rulebookFor(format.id, format.data).blocks as RulebookBlocks, compiled: format.data };
 }
 
 /**
@@ -197,7 +193,8 @@ export async function startOptions(
   const people = members.get(couchId) ?? [];
   const here = await couchGamesOn(user, couchId, seasonId);
 
-  const { blocks: book, compiled } = await seasonBlocks(seasonId);
+  const season = await seasonBlocks(seasonId);
+  const { blocks: book, compiled } = season;
   // One word for an episode: the show's (episode_term), in every line the rulebook words too.
   const words = showWords(h.show.terms);
   const part = { singular: words.episode.toLowerCase(), plural: words.episodes.toLowerCase() };
@@ -228,6 +225,11 @@ export async function startOptions(
   const later = !late && start !== null && starts.some((e) => e.number === start) ? start : null;
   const from = late && onAir ? onAir.number : (later ?? next);
   const over = h.status === "completed" || (h.status !== "upcoming" && eps.length > 0 && eps.every((e) => e.airAt && new Date(e.airAt).getTime() <= now.getTime()));
+  // The phases still to come (step A3), by the rules its games here play by (the couch's own copy, else the season's): not the
+  // first, and either not started yet as far as anyone's said, or starting at an episode still to air.
+  const phases = phasesFrom(season, await copyOf(here.map((g) => g.leagueId)))
+    .filter((p) => !p.first && (p.from === null || p.from >= next))
+    .map((p) => ({ id: p.id, name: p.name, summary: p.summary, at: p.from }));
   const blocked = h.ready === false ? `Make ${show} a game first` : over ? "The season's over: every episode has aired" : null;
 
   let again: StartOptions["again"] = null;
@@ -235,7 +237,8 @@ export async function startOptions(
     if (!isUuid(againId)) throw new HttpError(404, "That game isn't here");
     const { rows } = await pool.query(
       `SELECT l.id, l.name, l.state->'settings'->>'leagueTypeId' AS type, s.name AS show, ss.season_number, ss.id AS season_id,
-              l.state->'settings'->'startEpisode' AS start_episode, l.state->'settings'->'endEpisode' AS end_episode
+              l.state->'settings'->'startEpisode' AS start_episode, l.state->'settings'->'endEpisode' AS end_episode,
+              l.state->'settings'->>'startPhase' AS start_phase
          FROM leagues l JOIN league_memberships m ON m.league_id = l.id AND m.user_id = $2
          JOIN shows s ON s.slug = l.state->'settings'->>'showId'
          JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
@@ -245,8 +248,9 @@ export async function startOptions(
     const r = rows[0];
     const key = r ? KEY_OF[r.type || "classic-draft"] : undefined;
     if (!r || !key) throw new HttpError(404, "That game isn't one of yours on this show");
-    // A span runs back on the next one (from the next episode to air); a season game on the season's end, as before.
-    const last = Number.isInteger(r.end_episode) ? { from: Number.isInteger(r.start_episode) ? (r.start_episode as number) : 1, to: r.end_episode as number } : null;
+    // A span runs back on the next one (from the next episode to air); a season game on the season's end, as before; a game that
+    // started with a phase (step A3) from the same phase, when it's still to come here (else as a season game).
+    const last = Number.isInteger(r.end_episode) && !r.start_phase ? { from: Number.isInteger(r.start_episode) ? (r.start_episode as number) : 1, to: r.end_episode as number } : null;
     const to = last ? (nextSpan(spanEps, from, last) ?? null) : null;
     again = {
       leagueId: r.id,
@@ -256,6 +260,7 @@ export async function startOptions(
       // The same season's: just its span ("Episodes 6–7"); another's, the season too.
       label: last && r.season_id === seasonId ? spanName(last.from, last.to, part) : `${plain(r.show)} ${r.season_number}${last ? ` · ${spanName(last.from, last.to, part)}` : ""}`,
       to,
+      phase: r.start_phase && phases.some((p) => p.id === r.start_phase) ? (r.start_phase as string) : null,
     };
   }
 
@@ -282,6 +287,7 @@ export async function startOptions(
     from,
     nextEpisode: next,
     starts,
+    phases,
     spans: spanChoices(spanEps, from, part),
     ends: spanEnds(spanEps, from),
     games: choices,
@@ -351,8 +357,10 @@ export interface Started {
   leagueId: string;
   name: string;
   gameName: string;
-  /** The episode it starts with. */
-  from: number;
+  /** The episode it starts with; null while it waits for its phase. */
+  from: number | null;
+  /** The phase it starts at (step A3), or null. */
+  phase: string | null;
   /** The last episode it plays, or null: to the season's end. */
   to: number | null;
   linked: boolean;
@@ -362,23 +370,28 @@ export interface Started {
 
 /**
  * Start a game on a season for a couch (POST /api/seasons/[id]/start): `game` a key that fits, `tell` the couch, `again` a game
- * to run back, `to` the last episode it plays (none: to the season's end).
+ * to run back, `from` a later episode to start with or `phase` a phase of the season's rulebook to start when it does (step A3),
+ * `to` the last episode it plays (none: to the season's end).
  */
 export async function startGame(
   user: SessionUser,
   seasonId: string,
   couchId: string | null,
-  body: { game?: unknown; tell?: unknown; again?: unknown; from?: unknown; to?: unknown; bots?: unknown; level?: unknown; late?: unknown },
+  body: { game?: unknown; tell?: unknown; again?: unknown; from?: unknown; phase?: unknown; to?: unknown; bots?: unknown; level?: unknown; late?: unknown },
   now = new Date()
 ): Promise<Started> {
   const againId = typeof body.again === "string" ? body.again : null;
   const start = typeof body.from === "number" ? body.from : null;
   if (body.late === true && start !== null) throw new HttpError(400, "Include the one on now, or start later: not both");
+  if (body.phase != null && (body.late === true || start !== null || body.to != null)) throw new HttpError(400, "A game that starts with a phase runs from it to the season's end: no other start or end");
   const opts = await startOptions(user, seasonId, couchId, againId, now, body.late === true, start);
   if (opts.blocked) throw new HttpError(409, opts.blocked);
   if (body.late === true && !opts.late) throw new HttpError(409, `Nothing's on now to include: it starts with ${opts.part.singular} ${opts.from}`);
   // Where it starts: the next to air, or a later episode the listing has.
   if (body.from != null && opts.from !== body.from) throw new HttpError(400, `Pick a start the listing has, from ${partAt({ part: opts.part, from: opts.nextEpisode })} on`);
+  // Or when a phase still to come starts (step A3): it waits for it.
+  const phase = body.phase == null ? null : opts.phases.find((p) => p.id === body.phase) ?? null;
+  if (body.phase != null && !phase) throw new HttpError(400, "Pick a phase of the season still to come");
   const choice = opts.games.find((g) => g.key === body.game);
   if (!choice || !choice.fits) throw new HttpError(400, choice ? `${choice.name} doesn't fit ${opts.show}: it needs ${choice.needs}` : "Pick a game");
   if (choice.soon || !choice.type) throw new HttpError(409, `${choice.name} comes with this week's episode games, soon`);
@@ -387,8 +400,8 @@ export async function startGame(
   const to = typeof body.to === "number" && ends.has(body.to) ? body.to : null;
   if (body.to != null && to === null) throw new HttpError(400, `Pick an end the listing has, from ${opts.part.singular} ${opts.from} on`);
   const span = to === null ? null : spanName(opts.from, to, opts.part);
-  // A season game that starts later says where ("from Episode 9").
-  const when = span ? ` for ${span}` : opts.from > opts.nextEpisode ? ` from ${partAt(opts)}` : "";
+  // A season game that starts later says where ("from Episode 9"), or with a phase, which ("from when Merged starts").
+  const when = phase ? ` from when ${phase.name} starts` : span ? ` for ${span}` : opts.from > opts.nextEpisode ? ` from ${partAt(opts)}` : "";
   // Computer players in the seats (computer-players.ts), seated before anyone joins, at one level.
   const bots = typeof body.bots === "number" && Number.isInteger(body.bots) ? body.bots : 0;
   if (bots < 0 || bots > MAX_BOTS) throw new HttpError(400, `Up to ${MAX_BOTS} computer players`);
@@ -405,6 +418,7 @@ export async function startGame(
   const kept = opts.again ? (await leagueStates([opts.again.leagueId])).get(opts.again.leagueId)?.settings : undefined;
   let seat = "";
   let made: string | null = null;
+  let settled: number | null = null;
   const leagueId = await makeLeague(row, {
     name,
     createdBy: user.id,
@@ -422,7 +436,7 @@ export async function startGame(
       // The game, as a spec (docs/PLAN-start-a-game-gpt.md step A2): the made league's own (its type's preset, as makeLeague
       // set it up), then what Start a game decides, written once through the game's writer (RosterLogic.setGame: checked
       // as the league's own, today's fields written from it, its first episode made).
-      const spec: GameSpec = { ...StateLogic.gameOf(s), span: { from: opts.from, to } };
+      const spec: GameSpec = { ...StateLogic.gameOf(s), span: { from: phase ? { phase: phase.id } : opts.from, to } };
       if (opts.kind === "sport") {
         // The draft of athletes: everyone drafts from the whole grid (the blind draft), and a pool pick survives by scoring.
         if (spec.get.by === "draft") spec.get = { ...spec.get, own: "shared", order: "blind" };
@@ -436,6 +450,12 @@ export async function startGame(
       }
       if (kept && opts.again?.key === choice.key) Object.assign(spec, againParts(StateLogic.gameOf({ settings: kept } as LeagueState), spec));
       refused(StateLogic.setGame(s, spec), 409);
+      // A phase start already known and ahead is settled now (by the rulebook it plays by: its couch's own copy, else the
+      // season's), as the desk and the season sync settle it later.
+      if (phase) {
+        settleIn(s, await leaguePhases(client, id, seasonId), await scheduleOf(seasonId, now), now);
+        settled = StateLogic.startEpisode(s);
+      }
       if (opts.late) {
         // Include it: the episode on now stays open past its start, until its results are in (state-logic.js closedForPlay).
         StateLogic.ensureEpisodeNumber(s, opts.from, false);
@@ -448,7 +468,7 @@ export async function startGame(
         kind: "game.start",
         tier: 1,
         text: `${starter} started ${choice.name}${when}${opts.again ? `, again after ${opts.again.label}` : ""}${bots ? ` with ${bots} computer ${bots === 1 ? "player" : "players"}` : ""}`,
-        detail: { game: choice.key, from: opts.from, to, bots },
+        detail: { game: choice.key, from: phase ? settled : opts.from, ...(phase ? { phase: phase.id } : {}), to, bots },
       });
     },
   }).catch(async (e) => {
@@ -473,10 +493,10 @@ export async function startGame(
     show: opts.show,
     gameName: choice.name,
     label: opts.label,
-    from: `${opts.part.singular === "episode" ? "Episode" : opts.part.singular.replace(/^./, (c) => c.toUpperCase())} ${opts.from}`,
+    from: phase ? `when ${phase.name} starts` : `${opts.part.singular === "episode" ? "Episode" : opts.part.singular.replace(/^./, (c) => c.toUpperCase())} ${opts.from}`,
     span,
   });
-  return { leagueId, name, gameName: choice.name, from: opts.from, to, linked, told: audience.length };
+  return { leagueId, name, gameName: choice.name, from: phase ? settled : opts.from, phase: phase?.id ?? null, to, linked, told: audience.length };
 }
 
 /**
@@ -496,7 +516,7 @@ export async function runItBack(
   const out: { leagueId: string; seasonId: string; label: string }[] = [];
   // Spans: the latest of each kind on each season, when nothing of its kind has started since.
   const spans = finished.filter(
-    (f) => f.span && !finished.some((x) => x.seasonId === f.seasonId && x.gameType === f.gameType && x.span && x.span.from > f.span!.to) && !there.some((g) => g.seasonId === f.seasonId && g.gameType === f.gameType && g.start > f.span!.to)
+    (f) => f.span && !finished.some((x) => x.seasonId === f.seasonId && x.gameType === f.gameType && x.span && x.span.from > f.span!.to) && !there.some((g) => g.seasonId === f.seasonId && g.gameType === f.gameType && (g.start === null || g.start > f.span!.to))
   );
   // A span's season still airing: its run back is on that season (or none yet), never the next one.
   const airing = new Set<string>();

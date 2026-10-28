@@ -98,10 +98,11 @@ export interface Game {
   /** Archived (step 10 part 2b, settings.archivedAt): on the couch and the trophy shelf as it stood; nothing scores it. */
   archived: boolean;
   /** A game over a span (settings.startEpisode through settings.endEpisode; docs/PLAN-sports-data.md step 6), or null: to the
-   *  season's end. */
+   *  season's end (or a game still waiting for its phase: its span isn't known yet). */
   span: { from: number; to: number } | null;
-  /** The episode it starts with (settings.startEpisode): a game started after a span ended is its run back. */
-  start: number;
+  /** The episode it starts with (settings.startEpisode): a game started after a span ended is its run back. Null while a game
+   *  that starts at a phase of the season (settings.startPhase: step A3 of docs/PLAN-start-a-game-gpt.md) waits for it. */
+  start: number | null;
 }
 
 /**
@@ -122,7 +123,8 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
   const { rows } = await pool.query(
     `SELECT l.id, l.name, l.couch_id, l.group_id, l.solo, l.state->'settings'->>'leagueTypeId' AS type_id, ss.id AS season_id, me.role AS your_role,
             COALESCE(l.state->'settings'->>'archivedAt', '') <> '' AS archived,
-            l.state->'settings'->'startEpisode' AS start_episode, l.state->'settings'->'endEpisode' AS end_episode
+            l.state->'settings'->'startEpisode' AS start_episode, l.state->'settings'->'endEpisode' AS end_episode,
+            l.state->'settings'->>'startPhase' AS start_phase
        FROM leagues l
        LEFT JOIN shows s ON s.slug = l.state->'settings'->>'showId'
        LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
@@ -131,6 +133,8 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
       ORDER BY l.solo NULLS FIRST, l.group_id NULLS LAST, l.group_position NULLS LAST, l.name, l.id`,
     params
   );
+  // A phase start with no episode yet waits for its phase (state-logic.js startEpisode); else no start is Episode 1.
+  const startOf = (r: { start_episode: unknown; start_phase: string | null }) => (Number.isInteger(r.start_episode) ? (r.start_episode as number) : r.start_phase ? null : 1);
   return rows.map((r) => ({
     leagueId: r.id,
     name: r.name,
@@ -142,8 +146,8 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
     yourRole: r.your_role,
     solo: r.solo ?? null,
     archived: !!r.archived,
-    span: Number.isInteger(r.end_episode) ? { from: Number.isInteger(r.start_episode) ? r.start_episode : 1, to: r.end_episode } : null,
-    start: Number.isInteger(r.start_episode) ? r.start_episode : 1,
+    span: Number.isInteger(r.end_episode) && startOf(r) !== null ? { from: startOf(r) as number, to: r.end_episode } : null,
+    start: startOf(r),
   }));
 }
 

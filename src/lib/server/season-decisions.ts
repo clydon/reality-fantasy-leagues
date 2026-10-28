@@ -8,6 +8,7 @@ import { recordChange, type ChangeUndo } from "./change-log";
 import { pool, withLeagueLock } from "./db";
 import { applyHeldTribesIfDue } from "./season-cast";
 import { notifyBingoLines, notifyEpisodeResults, notifyFlagsSettled } from "./push-events";
+import type { SeasonSchedule } from "./schedule";
 
 // Applying a season's ACCEPTED episode decisions (db/migrations/0019) to its leagues.
 //
@@ -343,7 +344,7 @@ async function logSync(client: PoolClient, leagueId: string, before: LeagueState
  */
 export async function syncSeasonLeagues(seasonId: string, actorUserId: string | null, opts: SyncOptions = {}): Promise<(LeagueDecisionSync & { couchId: string | null; episodes: number[] })[]> {
   const { rows: leagues } = await pool.query(
-    `SELECT l.id, l.name, l.couch_id FROM leagues l
+    `SELECT l.id, l.name, l.couch_id, s.episode_term FROM leagues l
        JOIN shows s ON s.slug = l.state->'settings'->>'showId'
        JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
       WHERE ss.id = $1 AND l.deleted_at IS NULL AND COALESCE(l.state->'settings'->>'archivedAt', '') = ''
@@ -353,6 +354,8 @@ export async function syncSeasonLeagues(seasonId: string, actorUserId: string | 
   const sync = { ...opts, correctionBatch: opts.correctionBatch ?? crypto.randomUUID() };
   const results: (LeagueDecisionSync & { couchId: string | null; episodes: number[] })[] = [];
   const bingoAfter = new Set<number>();
+  // Read once, for the first game that starts when a phase does.
+  let schedule: SeasonSchedule | undefined | null = null;
   for (const league of leagues) {
     try {
       let out: SyncResult | null = null;
@@ -361,6 +364,17 @@ export async function syncSeasonLeagues(seasonId: string, actorUserId: string | 
       const state = await withLeagueLock(league.id, async (s, client) => {
         before = new Map(s.episodes.map((e) => [e.number, StateLogic.resultsStage(e)]));
         out = await syncLeagueDecisions(client, league.id, s, sync);
+        // The backstop for a game that starts when a phase does (step A3 of docs/PLAN-start-a-game-gpt.md; phase-starts.ts): its
+        // start settled after every result, should the desk's walk have missed it.
+        // Loaded only for such a game: it reads rulebooks (a heavier module graph, as bingo's below).
+        if (StateLogic.startPhase(s) && !s.settings.archivedAt) {
+          const P = await import("./phase-starts");
+          if (schedule === null) {
+            await P.freshStarts(seasonId);
+            schedule = await P.scheduleOf(seasonId);
+          }
+          await P.settleLeague(client, league.id, s, seasonId, schedule, league.episode_term);
+        }
       });
       const r = out as unknown as SyncResult;
       for (const ep of state.episodes) {

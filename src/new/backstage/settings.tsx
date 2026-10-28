@@ -323,7 +323,9 @@ function LockRow({ seasonId, couchId, g, lock, word }: { seasonId: string; couch
 /**
  * How long it runs (step 6 of docs/PLAN-sports-data.md): to the season's end or through an episode, changed before its end is
  * reached, to one still to come; frozen once it's over, or while it's locked down. Where it starts (step A3 of
- * docs/PLAN-start-a-game-gpt.md): any episode still to come, up to its end, until its first one airs.
+ * docs/PLAN-start-a-game-gpt.md): any episode still to come, up to its end, or when a phase of the season still to come starts,
+ * until its first one airs. A game waiting for its phase says so ("Starts when Merged starts") and has no end to choose until
+ * its start is settled; once it is, "Starts with Merged, at Episode 9".
  */
 function HowLong({
   g,
@@ -338,11 +340,21 @@ function HowLong({
 }) {
   const part = { singular: words.episode.toLowerCase(), plural: words.episodes.toLowerCase() };
   const sp = g.span;
-  const now = sp.to === null ? `${words.episode} ${sp.from} to the season's end` : spanName(sp.from, sp.to, part);
   const say = (to: number | null) => (to === null ? "to the season's end" : `through ${words.episode} ${to}`);
+  const now =
+    sp.from === null
+      ? `When ${sp.phase?.name ?? "its phase"} starts, ${say(sp.to)}`
+      : sp.to === null
+        ? `${words.episode} ${sp.from} to the season's end`
+        : spanName(sp.from, sp.to, part);
+  // A phase start (step A3), waiting or settled (its first episode still to come, or aired).
+  const phaseLine = sp.phase ? (sp.from === null ? `Starts when ${sp.phase.name} starts` : `${sp.started ? "Started" : "Starts"} with ${sp.phase.name}, at ${words.episode} ${sp.from}`) : null;
   const open = can && !sp.over;
-  // Its start moves until its first episode airs, to another still to come.
-  const moveStart = open && !sp.started && sp.starts.some((e) => e.number !== sp.from);
+  // The phases it can start with: those still to come, and the one it starts with now.
+  const phases = sp.phase && !sp.phases.some((p) => p.id === sp.phase?.id) ? [{ ...sp.phase, at: sp.from }, ...sp.phases] : sp.phases;
+  // Its start moves until its first episode airs, to another still to come, or to a phase.
+  const moveStart = open && !sp.started && (sp.starts.some((e) => e.number !== sp.from || !!sp.phase) || phases.some((p) => p.id !== sp.phase?.id));
+  const startValue = sp.phase ? `phase:${sp.phase.id}` : String(sp.from);
   return (
     <div data-settings="span" className="mb-5">
       <h3 className="type-caption mb-2 text-[15px] tracking-[0.04em] text-muted-foreground">How long</h3>
@@ -350,27 +362,47 @@ function HowLong({
         <b data-span-now className="block text-[15px]">
           {sp.over ? `Final · ${now}` : now}
         </b>
+        {phaseLine && sp.from !== null && (
+          <small data-span-phase className="block text-[13px] leading-snug">
+            {phaseLine}
+          </small>
+        )}
         <small className="block text-[13px] leading-snug text-muted-foreground">
           {sp.over
-            ? "It's over: its last one is in, so its end stays."
+            ? sp.from === null
+              ? "The season ended before its phase started."
+              : "It's over: its last one is in, so its end stays."
             : g.lockedDown
               ? "Frozen for the season"
-              : moveStart
-                ? `Move its start before ${words.episode} ${sp.from} airs, its end before it's reached. Only what's between them scores.`
-                : `Change its end before it's reached. Nothing after its last ${part.singular} scores.`}
+              : sp.from === null
+                ? `It waits for ${sp.phase?.name ?? "its phase"} to start, then plays from the first ${part.singular} it can. Nothing before then counts; the draft can happen first.`
+                : moveStart
+                  ? `Move its start before ${words.episode} ${sp.from} airs, its end before it's reached. Only what's between them scores.`
+                  : `Change its end before it's reached. Nothing after its last ${part.singular} scores.`}
         </small>
         {moveStart && (
           <label className="mt-2 flex min-h-11 items-center gap-2.5 border-t border-border pt-2">
             <span className="flex-none text-[14px] text-muted-foreground">Starts</span>
             <select
               data-span-start
-              value={String(sp.from)}
+              value={startValue}
               onChange={(e) => {
-                const from = Number(e.target.value);
+                const v = e.target.value;
+                const p = v.startsWith("phase:") ? phases.find((x) => x.id === v.slice(6)) : undefined;
+                if (p) {
+                  void write(g, { set: { startPhase: p.id }, text: `Changed where ${g.gameName} starts: when ${p.name} starts` }, `${g.gameName} starts when ${p.name} starts`);
+                  return;
+                }
+                const from = Number(v);
                 void write(g, { set: { startEpisode: from }, text: `Changed where ${g.gameName} starts: ${words.episode} ${from}` }, `${g.gameName} starts with ${words.episode} ${from}`);
               }}
               className="min-w-0 flex-1 truncate rounded-[3px] bg-card px-2.5 py-2 text-[15px] font-semibold"
             >
+              {phases.map((p) => (
+                <option key={`phase:${p.id}`} value={`phase:${p.id}`}>
+                  When {p.name} starts{p.at !== null ? ` · ${words.episode} ${p.at}` : ""}
+                </option>
+              ))}
               {sp.starts.map((e) => (
                 <option key={e.number} value={e.number}>
                   With {words.episode} {e.number}
@@ -379,7 +411,7 @@ function HowLong({
             </select>
           </label>
         )}
-        {open && (
+        {open && sp.from !== null && (
           <label className="mt-2 flex min-h-11 items-center gap-2.5 border-t border-border pt-2">
             <span className="flex-none text-[14px] text-muted-foreground">Ends</span>
             <select

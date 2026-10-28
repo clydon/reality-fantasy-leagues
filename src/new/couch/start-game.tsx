@@ -157,6 +157,8 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   // listed episode instead (null: the next to air), the options again from there.
   const [late, setLate] = useState(false);
   const [startAt, setStartAt] = useState<number | null>(null);
+  // Or when a phase of the season starts (step A3): its id; undefined until chosen (Run it back starts where it did).
+  const [phaseChosen, setPhase] = useState<string | null | undefined>(undefined);
   const opts = useStartOptions(target?.seasonId ?? null, couchId, target?.again ?? null, !!target, late, startAt);
   const o = opts.data;
   const nav = useNav();
@@ -173,6 +175,8 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   const [level, setLevel] = useState<BotLevel>("normal");
   const [busy, setBusy] = useState(false);
   const pick = picked ?? o?.again?.key ?? startable[0]?.key ?? null;
+  const phaseId = late ? null : phaseChosen !== undefined ? phaseChosen : (o?.again?.phase ?? null);
+  const phase = (phaseId && o?.phases.find((p) => p.id === phaseId)) || null;
   const me = home?.user.name ?? "you";
   const botsHere = !!fits.find((g) => g.key === pick)?.bots;
   const again = o?.again;
@@ -185,9 +189,10 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
         game: pick,
         tell,
         again: target?.again ?? null,
-        // The start you chose, not the options on screen (they may still be the last start's while they reload).
-        ...(!late && startAt !== null ? { from: startAt } : {}),
-        to,
+        // The start you chose, not the options on screen (they may still be the last start's while they reload); a phase runs to
+        // the season's end.
+        ...(phase ? { phase: phase.id } : !late && startAt !== null ? { from: startAt } : {}),
+        ...(phase ? {} : { to }),
         ...(botsHere && bots ? { bots, level } : {}),
         ...(late && o.late ? { late: true } : {}),
       });
@@ -212,7 +217,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
         o
           ? again
             ? `${o.label}${to === null ? "" : ` · ${spanName(o.from, to, o.part)}`} · the same ${again.gameName} as ${again.label}`
-            : `${o.show} · ${to === null ? `from ${partAt(o)}` : spanName(o.from, to, o.part)}`
+            : `${o.show} · ${phase ? `when ${phase.name} starts` : to === null ? `from ${partAt(o)}` : spanName(o.from, to, o.part)}`
           : undefined
       }
     >
@@ -289,6 +294,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 onClick={() => {
                   setLate(!late);
                   setStartAt(null);
+                  setPhase(null);
                   setTo(undefined);
                 }}
                 className="flex min-h-[64px] w-full items-center gap-3 border-t border-border pt-2 text-left"
@@ -309,16 +315,23 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 </span>
               </button>
             )}
-            {startable.length > 0 && !o.late && o.starts.length > 1 && (
+            {startable.length > 0 && !o.late && (o.starts.length > 1 || o.phases.length > 0) && (
               <Starts
                 o={o}
+                phase={phase?.id ?? null}
                 setAt={(n) => {
                   setStartAt(n);
+                  setPhase(null);
+                  setTo(undefined);
+                }}
+                setPhase={(id) => {
+                  setPhase(id);
+                  setStartAt(null);
                   setTo(undefined);
                 }}
               />
             )}
-            {startable.length > 0 && (o.spans.length > 1 || o.ends.length > 0) && <HowLong o={o} to={to} setTo={setTo} />}
+            {startable.length > 0 && !phase && (o.spans.length > 1 || o.ends.length > 0) && <HowLong o={o} to={to} setTo={setTo} />}
             {botsHere && <Computers n={bots} setN={setBots} level={level} setLevel={setLevel} />}
             {startable.length > 0 && (
               <button
@@ -373,31 +386,52 @@ const episodeLine = (o: StartOptions, e: { number: number; title: string | null 
 };
 
 /**
- * Where the game starts (docs/PLAN-start-a-game-gpt.md step A3): with the next episode to air, or any later one the listing
- * has, from a list. It waits until then (nothing before it counts), and its draft can happen first.
+ * Where the game starts (docs/PLAN-start-a-game-gpt.md step A3): with the next episode to air, when a phase of the season still to
+ * come starts (each with its summary, and the episode once that's known), or any later episode the listing has, from a list. It
+ * waits until then (nothing before it counts), and its draft can happen first. A phase start runs to the season's end.
  */
-function Starts({ o, setAt }: { o: StartOptions; setAt: (n: number | null) => void }) {
+function Starts({ o, phase, setAt, setPhase }: { o: StartOptions; phase: string | null; setAt: (n: number | null) => void; setPhase: (id: string) => void }) {
   const P = o.part.singular.replace(/^./, (c) => c.toUpperCase());
-  const later = o.from !== o.nextEpisode;
+  const later = !phase && o.from !== o.nextEpisode;
   const first = o.starts[0];
+  const chosen = o.phases.find((p) => p.id === phase) ?? null;
   return (
     <section data-start-from className="mt-1 flex flex-col gap-1.5 border-t border-border pt-3" role="radiogroup" aria-label="Starts">
       <b className="text-[15px] font-semibold">Starts</b>
       <button
         type="button"
         role="radio"
-        aria-checked={!later}
+        aria-checked={!later && !chosen}
         data-start-from-choice="next"
         onClick={() => setAt(null)}
-        className={`flex min-h-[52px] w-full flex-col justify-center rounded-[4px] px-3 py-2 text-left ${!later ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron-line" : "bg-secondary/60"}`}
+        className={`flex min-h-[52px] w-full flex-col justify-center rounded-[4px] px-3 py-2 text-left ${!later && !chosen ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron-line" : "bg-secondary/60"}`}
       >
         <b className="block text-[15px]">
           With the next one · {P} {o.nextEpisode}
         </b>
-        <small className={`block truncate text-[13px] leading-snug ${!later ? "text-plate-muted" : "text-muted-foreground"}`}>
+        <small className={`block truncate text-[13px] leading-snug ${!later && !chosen ? "text-plate-muted" : "text-muted-foreground"}`}>
           {first?.airAt ? calmWhen(Date.parse(first.airAt)) : `The next ${o.part.singular} to air`}
         </small>
       </button>
+      {o.phases.map((p) => {
+        const on = p.id === phase;
+        return (
+          <button
+            key={p.id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            data-start-from-choice={`phase:${p.id}`}
+            onClick={() => setPhase(p.id)}
+            className={`flex min-h-[52px] w-full flex-col justify-center rounded-[4px] px-3 py-2 text-left ${on ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron-line" : "bg-secondary/60"}`}
+          >
+            <b className="block text-[15px]">
+              When {p.name} starts{p.at !== null ? ` · ${P} ${p.at}` : ""}
+            </b>
+            {p.summary && <small className={`block text-[13px] leading-snug ${on ? "text-plate-muted" : "text-muted-foreground"}`}>{p.summary}</small>}
+          </button>
+        );
+      })}
       <label
         data-start-from-choice="later"
         className={`flex min-h-[52px] w-full items-center gap-2 rounded-[4px] px-3 py-2 ${later ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron-line" : "bg-secondary/60"}`}
@@ -421,6 +455,13 @@ function Starts({ o, setAt }: { o: StartOptions; setAt: (n: number | null) => vo
       {later && (
         <small data-start-from-note className="text-[13px] leading-snug text-muted-foreground">
           It waits for {P} {o.from}: nothing before it counts, and the draft can happen any time before then.
+        </small>
+      )}
+      {chosen && (
+        <small data-start-from-note className="text-[13px] leading-snug text-muted-foreground">
+          {chosen.at !== null
+            ? `It waits for ${chosen.name}, from ${P} ${chosen.at}: nothing before it counts, and the draft can happen any time before then. It runs to the season's end.`
+            : `It waits for ${chosen.name} to start, then plays from the first ${o.part.singular} it can: nothing before then counts, and the draft can happen any time before. It runs to the season's end.`}
         </small>
       )}
     </section>

@@ -102,7 +102,11 @@ const exitNumber = (view: LeagueState, c: Castaway) => view.episodes.find((e) =>
 /** Your line in one game for an episode you've seen (a copy at or past it). */
 export function nightIn(game: GameRefIn, view: LeagueState, me: string, ep: Episode): GameNight {
   const base = { leagueId: game.leagueId, gameName: game.gameName, gameType: game.gameType };
-  if (!StateLogic.inPlay(view, ep.number)) return { ...base, big: "—", line: ep.number < StateLogic.startEpisode(view) ? "Before the game started" : "After the game ended" };
+  if (!StateLogic.inPlay(view, ep.number)) {
+    // A game waiting for its phase (step A3) hasn't started either.
+    const start = StateLogic.startEpisode(view);
+    return { ...base, big: "—", line: start === null || ep.number < start ? "Before the game started" : "After the game ended" };
+  }
   const type = StateLogic.getLeagueType(view);
   if (type.hasActiveRoster) {
     const b = teamEpisodeBreakdown(view, ep.id, me);

@@ -1,15 +1,22 @@
 // Types for game-spec/index.js: a game as data (docs/PLAN-start-a-game-gpt.md, "The game spec", step A1). Values marked
-// A3, A4 or sports are in the schema now and built by those steps (VOCAB says which); today's engine plays the rest.
+// A4 or sports are in the schema now and built by those steps (VOCAB says which); today's engine plays the rest.
 import type { LeagueSettings } from "../types";
 
 export type PresetId = "outlast" | "weekly-lineup" | "survival-pool" | "weekly-calls" | "weekly-bingo";
 export type LeagueTypeId = "classic-draft" | "active-roster" | "pickem" | "weekly-calls" | "weekly-bingo";
 /** Who builds a value: today's engine, a later step, the sports branch, or no step yet. */
-export type Builder = "now" | "A3" | "A4" | "sports" | "later";
+export type Builder = "now" | "A4" | "sports" | "later";
+
+/** A start at a phase of the season's rulebook (A3): { phase } while it waits for it, { phase, at } once data says where it
+ *  starts (at: the episode it plays from). */
+export interface PhaseFrom {
+  phase: string;
+  at?: number;
+}
 
 export interface SpecSpan {
-  /** The episode it starts at; A3: { phase } waits for a rulebook phase. */
-  from: number | { phase: string };
+  /** The episode it starts at, or a phase start. */
+  from: number | PhaseFrom;
   /** Its last episode, or null: the season's end. */
   to: number | null;
 }
@@ -141,6 +148,8 @@ export interface SpecContext {
   stats?: ({ key: string; label?: string } | string)[];
   /** false when the show's results don't say who goes home or wins. */
   results?: boolean;
+  /** The season's rulebook's phases, in order (its blocks' season.phases): a phase start is one of them, never the first. */
+  phases?: { id: string; name?: string }[];
 }
 
 export interface SpecProblem {
@@ -194,6 +203,11 @@ export function sameValue(a: unknown, b: unknown): boolean;
 /** Settings fields a spec can write, and those that aren't the game at all. */
 export const OWNED: string[];
 export const OUTSIDE: string[];
+
+/** The episode a span plays from: its number, a phase start's `at`, or null while it waits for its phase. */
+export function spanStart(span: SpecSpan | null | undefined): number | null;
+/** The phase a span starts at, or null. */
+export function spanPhase(span: SpecSpan | null | undefined): string | null;
 
 /** The spec with everything it leaves out filled in (the preset's, or the defaults); never mutates it. */
 export function fullSpec(spec: SpecInput | GameSpec): GameSpec;

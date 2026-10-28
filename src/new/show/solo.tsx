@@ -31,7 +31,7 @@ export function standing(place: number, of: number): string {
 }
 
 /** Whether an episode this game counts has been decided yet (before, every place is a tie at nothing). */
-const scored = (g: GameView) => g.through >= g.from;
+const scored = (g: GameView) => g.from !== null && g.through >= g.from;
 
 const day = (iso: string | null) => (iso ? airTime(Date.parse(iso)).split(" ")[0] : null);
 
@@ -358,7 +358,7 @@ function PoolIn({ info, game: g }: { info: PoolInfo; game: GameView }) {
         </div>
         <p className="pt-3 text-[13px] text-muted-foreground">
           {g.players === 1 ? "1 person" : `${g.players} people`} · ranked by the longest streak, then right picks.{" "}
-          {scored(g) ? `Through Episode ${g.through}.` : `Picks count from Episode ${g.from}.`}
+          {scored(g) ? `Through Episode ${g.through}.` : g.from === null ? "Picks count once it starts." : `Picks count from Episode ${g.from}.`}
         </p>
       </Block>
 

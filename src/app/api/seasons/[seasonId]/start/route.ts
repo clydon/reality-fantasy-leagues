@@ -7,11 +7,12 @@ import { startGame, startOptions } from "@/lib/server/start-game";
 //   GET ?again=<leagueId>&late=1&start=<n>   what can start here (late: from the episode on now, Include it; start: from a later
 //                           listed episode, Starts): the season games and whether each fits, the line for each, why the rest
 //                           don't, who on the couch watches it, where it starts, how long it can run (spans, ends: step 6 of
-//                           docs/PLAN-sports-data.md), the later episodes it can start with (starts), and (Run it back) the
-//                           game it plays again
-//   POST { game, tell, again, from, to, bots, level }  start it: `game` a key that fits (survivalPool, weeklyLineup, outlast),
+//                           docs/PLAN-sports-data.md), the later episodes it can start with (starts), the phases of the
+//                           season it can start with instead (phases: step A3), and (Run it back) the game it plays again
+//   POST { game, tell, again, from, phase, to, bots, level }  start it: `game` a key that fits (survivalPool, weeklyLineup, outlast),
 //                           `tell` the couch (one push; default on), `again` a finished game of yours to run back, `from` a
-//                           later listed episode to start with (none: the next to air), `to` the last episode it plays (none:
+//                           later listed episode to start with (none: the next to air), or `phase` one of `phases` to start
+//                           when it does (it waits for it, to the season's end), `to` the last episode it plays (none:
 //                           to the season's end), `bots` computer players (0-5, a game whose `bots` is true) at `level` (easy,
 //                           normal, sharp), `late` from the episode on now, open past its start.
 //                           -> { leagueId, name, ... }
@@ -29,6 +30,6 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ seasonId: string }> }) => {
   const { seasonId } = await params;
   const user = await requireAuth(req);
-  const body = (await req.json().catch(() => ({}))) as { game?: unknown; tell?: unknown; again?: unknown; from?: unknown; to?: unknown; bots?: unknown; level?: unknown; late?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { game?: unknown; tell?: unknown; again?: unknown; from?: unknown; phase?: unknown; to?: unknown; bots?: unknown; level?: unknown; late?: unknown };
   return NextResponse.json(await startGame(user, seasonId, new URL(req.url).searchParams.get("couch"), body));
 });

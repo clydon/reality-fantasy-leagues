@@ -21,6 +21,7 @@ import { EVERYTHING, seenThrough } from "./guard";
 import { readyLeague } from "./league-read";
 import { leagueStates } from "./league-states";
 import { endedThrough } from "./calls";
+import { leaguePhases, seasonBlocks, settleIn, type SeasonPhase } from "./phase-starts";
 import { notifyWaiverWindow } from "./push-events";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import type { Game } from "./show-space";
@@ -471,16 +472,22 @@ export interface GameSettings {
   lockedDown: boolean;
   /** How long it runs (step 6 of docs/PLAN-sports-data.md) and where it starts (step A3 of docs/PLAN-start-a-game-gpt.md): from
    *  its start to its last episode (null: the season's end); `over` once that's in, when its end doesn't change; `ends`: the
-   *  episodes still to come, from its start, it can end with instead; `started` once its first episode has aired (or has
-   *  results), when its start doesn't change; `starts`: until then, the episodes still to come it can start with instead (up to
-   *  its end). */
+   *  episodes still to come, from its start, it can end with instead (none while it waits for its phase); `started` once its
+   *  first episode has aired (or has results), when its start doesn't change; `starts`: until then, the episodes still to come
+   *  it can start with instead (up to its end). Numbers only: a later episode's title can be a quote from it.
+   *
+   *  A game that starts when a phase of the season does (`phase`): `from` is null while it waits for it, then the episode it
+   *  plays from once data says where the phase starts (phase-starts.ts). `phases`: until it's started, the phases still to come
+   *  it can start with instead (never the first: that's Episode 1), each with the episode it would play from when that's known. */
   span: {
-    from: number;
+    from: number | null;
     to: number | null;
     over: boolean;
-    ends: { number: number; title: string | null }[];
+    ends: { number: number }[];
     started: boolean;
-    starts: { number: number; title: string | null }[];
+    starts: { number: number }[];
+    phase: { id: string; name: string } | null;
+    phases: { id: string; name: string; at: number | null }[];
   };
   /**
    * The lock on its current episode's lineups or picks (a game with either; else null): closed at its start, unless whoever runs
@@ -542,30 +549,32 @@ export async function lockWrite(scope: BackstageScope, leagueId: unknown, closed
  * Where a game is on its season for How long: the latest episode it's played (a game scored outside its state, Weekly Calls and
  * Weekly Bingo, by what's aired), whether it's over, and the episodes it could end with: still to come, from its start, listed.
  * Whether it's started (its first episode has aired, or has results), and until then the episodes it could start with: still to
- * come, listed, up to its end.
+ * come, listed, up to its end, and the phases of the season still to come (`phases`, its rulebook's: step A3). A game waiting for
+ * its phase hasn't started, and has no end to choose until its start is settled.
  */
-function spanState(s: LeagueState, schedule: SeasonSchedule | undefined) {
+function spanState(s: LeagueState, schedule: SeasonSchedule | undefined, phases: SeasonPhase[]): GameSettings["span"] {
   const type = StateLogic.getLeagueType(s);
   const outside = !!type.hasCalls || !!type.hasBingo;
   const played = outside ? latestAired(schedule) : StateLogic.SpoilerLogic.latestWithResults(s);
   const end = StateLogic.endEpisode(s);
   const over = outside ? endedThrough(schedule, played, end) : StateLogic.gameOver(s);
   const from = StateLogic.startEpisode(s);
-  const ends = (schedule?.episodes ?? []).filter((e) => e.number >= from && e.number > played).map((e) => ({ number: e.number, title: e.title ?? null }));
+  const ends = from === null ? [] : (schedule?.episodes ?? []).filter((e) => e.number >= from && e.number > played).map((e) => ({ number: e.number }));
   const gone = Math.max(played, latestAired(schedule));
-  const started = gone >= from;
-  const starts = started
-    ? []
-    : (schedule?.episodes ?? []).filter((e) => e.number > gone && (end === null || e.number <= end)).map((e) => ({ number: e.number, title: e.title ?? null }));
-  return { from, to: end, over, ends, started, starts };
+  const started = from !== null && gone >= from;
+  const starts = started ? [] : (schedule?.episodes ?? []).filter((e) => e.number > gone && (end === null || e.number <= end)).map((e) => ({ number: e.number }));
+  const id = StateLogic.startPhase(s);
+  const phase = id ? { id, name: phases.find((p) => p.id === id)?.name ?? id } : null;
+  const later = started || over ? [] : phases.filter((p) => !p.first && (p.from === null || p.from > gone)).map((p) => ({ id: p.id, name: p.name, at: p.from }));
+  return { from, to: end, over, ends, started, starts, phase, phases: later };
 }
 
 /** A game locked down (step 15 part 4): its rules don't change for the season. */
 export const FROZEN = "Locked down for the season: the rules are frozen. Turn off Lock it down in Game settings first.";
 
 // What Game settings may change, and the limits (the bench and Outlast's team are set at the draft; a game's end only before
-// it's reached, its start only before it airs).
-const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode", "endEpisode", "startEpisode"];
+// it's reached, its start only before it airs: an episode, or a phase of the season, step A3).
+const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode", "endEpisode", "startEpisode", "startPhase"];
 
 /** The settings Lock it down freezes: Game settings' and the points (waivers stay the week's business). Undo asks too. */
 export const FROZEN_FIELDS = new Set([...SETTING_FIELDS, "eventPoints"]);
@@ -573,8 +582,11 @@ export const FROZEN_FIELDS = new Set([...SETTING_FIELDS, "eventPoints"]);
 export async function gameSettings(scope: BackstageScope): Promise<{ games: GameSettings[] }> {
   const [loaded, schedules] = await Promise.all([load(scope), seasonSchedules([scope.seasonId])]);
   const schedule = schedules.get(scope.seasonId);
+  // Each game's phases, from the rulebook it plays by (its couch's own copy, else the season's, read once): Starts' phases.
+  const season = await seasonBlocks(scope.seasonId);
+  const phases = await Promise.all(loaded.map((l) => leaguePhases(pool, l.game.leagueId, scope.seasonId, season)));
   return {
-    games: loaded.map((l) => {
+    games: loaded.map((l, i) => {
       const s = l.state;
       const type = StateLogic.getLeagueType(s);
       const W = StateLogic.WaiverLogic;
@@ -594,7 +606,7 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         joining: { mode: StateLogic.GhostLogic.joinMode(s), rec: StateLogic.GhostLogic.recommendedJoinMode(s) },
         waivers: c ? `${RULE_WORDS[c.replaceRule]} · ${c.waiverWindows.swaps > 0 ? `${c.waiverWindows.swaps} optional swap${c.waiverWindows.swaps === 1 ? "" : "s"} per window` : "no optional swaps"}` : null,
         lockedDown: StateLogic.GhostLogic.lockedDown(s),
-        span: spanState(s, schedule),
+        span: spanState(s, schedule, phases[i]),
         lock: lockOf(s),
       };
     }),
@@ -631,14 +643,16 @@ export async function settingsWrite(
           ? { joinMode: "recommended" }
           : (body.set ?? {});
   if (!Object.keys(set).length || Object.keys(set).some((k) => !SETTING_FIELDS.includes(k))) throw new HttpError(400, `set may change ${SETTING_FIELDS.join(", ")}`);
-  const schedule = "endEpisode" in set || "startEpisode" in set ? (await seasonSchedules([scope.seasonId])).get(scope.seasonId) : undefined;
+  const spanned = "endEpisode" in set || "startEpisode" in set || "startPhase" in set;
+  const schedule = spanned ? (await seasonSchedules([scope.seasonId])).get(scope.seasonId) : undefined;
   const batch = crypto.randomUUID();
   let changed = false;
   await withLeagueLock(
     game.leagueId,
-    (s) => {
+    async (s, client) => {
       if (StateLogic.GhostLogic.lockedDown(s)) throw new HttpError(409, FROZEN);
       const drafted = StateLogic.DraftLogic.isStarted(s);
+      const phases = spanned ? await leaguePhases(client, game.leagueId, scope.seasonId) : [];
       for (const [k, v] of Object.entries(set)) {
         if (k === "allowLateJoiners") {
           refused(StateLogic.updateSettings(s, k, v !== false));
@@ -647,7 +661,7 @@ export async function settingsWrite(
         // How long it runs (step 6 of docs/PLAN-sports-data.md): only before its end is reached, and only to an episode still
         // to come, from its start, that the listing has (null: the season's end).
         if (k === "endEpisode") {
-          const now = spanState(s, schedule);
+          const now = spanState(s, schedule, phases);
           if (now.over) throw new HttpError(409, "It's over: its last episode is in");
           if (v !== null && !now.ends.some((e) => e.number === v)) throw new HttpError(400, "Pick an episode still to come, from where it starts");
           refused(StateLogic.updateSettings(s, k, v));
@@ -656,10 +670,20 @@ export async function settingsWrite(
         // Where it starts (step A3 of docs/PLAN-start-a-game-gpt.md): only before its first episode airs, and only to an episode
         // still to come that the listing has, up to its end. Nothing before it scores; its draft can happen first.
         if (k === "startEpisode") {
-          const now = spanState(s, schedule);
+          const now = spanState(s, schedule, phases);
           if (now.started) throw new HttpError(409, "It's started: its first episode has aired, so its start stays");
           if (!now.starts.some((e) => e.number === v)) throw new HttpError(400, "Pick an episode still to come, up to where it ends");
           refused(StateLogic.updateSettings(s, k, v));
+          continue;
+        }
+        // Or when a phase of the season still to come starts (step A3): it waits for it, and plays from where data says it
+        // starts, settled now when that's known (phase-starts.ts). Switching back to an episode is startEpisode's.
+        if (k === "startPhase") {
+          const now = spanState(s, schedule, phases);
+          if (now.started) throw new HttpError(409, "It's started: its first episode has aired, so its start stays");
+          if (typeof v !== "string" || !now.phases.some((p) => p.id === v)) throw new HttpError(400, "Pick a phase of the season still to come");
+          refused(StateLogic.updateSettings(s, k, v));
+          settleIn(s, phases, schedule);
           continue;
         }
         // Who can join (step 9): open, ask or locked; anything else is the recommended one. An exclusive game can't be

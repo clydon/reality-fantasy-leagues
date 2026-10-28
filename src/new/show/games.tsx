@@ -37,9 +37,13 @@ import { TriviaRow } from "./trivia";
 const lineOf = (g: GameView) => (isGameName(g.gameName) ? GAME_STYLE[g.gameName].line : g.name);
 /** A game over a span (step 6 of docs/PLAN-sports-data.md), in the show's words: "Games 4–6", "Final · Game 4"; a season game
  *  that starts later than the next episode to air (step A3 of docs/PLAN-start-a-game-gpt.md), by the schedule, not by what
- *  you've seen: "Starts with Episode 9"; else null. */
+ *  you've seen: "Starts with Episode 9"; one waiting for a phase of the season: "Starts when Merged starts"; else null. */
 const spanOf = (g: GameView, words: ShowData["words"], aired: number) =>
-  g.to === null
+  g.from === null
+    ? g.over
+      ? null
+      : `Starts when ${g.phase ?? "its phase"} starts`
+    : g.to === null
     ? g.from > aired + 1 && !g.over
       ? `Starts with ${words.episode} ${g.from}`
       : null
@@ -454,10 +458,11 @@ export function PlayIt({ show }: { show: ShowData }) {
  * once a game of its kind has started here since it ended (yours or the couch's).
  */
 function spanToRunBack(show: ShowData, others: JoinGame[]): GameView | null {
-  const started = [...show.games.map((x) => ({ id: x.leagueId, type: x.gameType, start: x.start ?? 1 })), ...others.map((x) => ({ id: x.leagueId, type: x.gameType, start: x.start }))];
+  // A game waiting for its phase (start null) starts after anything that's over.
+  const started = [...show.games.map((x) => ({ id: x.leagueId, type: x.gameType, start: x.start === undefined ? 1 : x.start })), ...others.map((x) => ({ id: x.leagueId, type: x.gameType, start: x.start }))];
   return (
     (show.play ?? [])
-      .filter((g) => !g.solo && g.to !== null && g.over && !started.some((x) => x.id !== g.leagueId && x.type === g.gameType && x.start > (g.to as number)))
+      .filter((g) => !g.solo && g.to !== null && g.over && !started.some((x) => x.id !== g.leagueId && x.type === g.gameType && (x.start === null || x.start > (g.to as number))))
       .sort((a, b) => (b.to ?? 0) - (a.to ?? 0))[0] ?? null
   );
 }

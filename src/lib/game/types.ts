@@ -272,9 +272,14 @@ export interface LeagueSettings {
   lockedDown?: boolean;
   /**
    * The episode this league starts playing at (default 1): a league formed mid-season drafts and picks
-   * from here, and nothing in earlier episodes scores. Read it through StateLogic.startEpisode.
+   * from here, and nothing in earlier episodes scores. Read it through StateLogic.startEpisode. A game that starts when a
+   * phase of the season's rulebook does (startPhase) has null here while it waits for that phase, then the episode it plays
+   * from once that's settled (docs/PLAN-start-a-game-gpt.md step A3).
    */
-  startEpisode?: number;
+  startEpisode?: number | null;
+  /** The phase of the season's rulebook it starts at (its id), or absent: it starts at startEpisode. Read it through
+   *  StateLogic.startPhase. */
+  startPhase?: string;
   /**
    * The last episode a game over a span plays (docs/PLAN-sports-data.md step 6): one game, a series, a stretch of the
    * season. Nothing after it scores, and the game's over once it has results. Absent or null: to the season's end. Read

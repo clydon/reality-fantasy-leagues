@@ -230,3 +230,36 @@ test("a side bet on an episode the start has moved past neither pays nor takes g
   S.addBetPrediction(s, nine.id, bet.id, s.players[2].id, "Castaway 9");
   assert.equal(bet.predictions.length, 2, "and nobody else guesses on it");
 });
+
+// Step A3 part 2: a game that starts when a phase of the season does (span.from { phase }, settings.startPhase).
+test("a game waiting for its phase plays nothing: no episode in play, nothing asked, scored or opened, not over; settled, it plays from there", () => {
+  for (const type of ["classic-draft", "active-roster", "pickem"]) {
+    const s = league(type);
+    assert.deepEqual(S.updateSettings(s, "startPhase", "merged"), [], type);
+    assert.deepEqual([S.startEpisode(s), S.waitsForPhase(s), S.currentEpisode(s), S.betTarget(s), S.gameOver(s)], [null, true, null, null, false], type);
+    assert.ok(s.episodes.every((e) => !S.inPlay(s, e.number)), `${type}: no episode in play`);
+    // Outlast scores by place, the boot order, as a game that starts at a later episode does: no episode's moments count.
+    if (type !== "classic-draft") assert.ok(S.computeScores(s).every((r) => r.total === 0), `${type}: nothing scores while it waits`);
+    assert.equal(S.WaiverLogic.due(s, Date.now()), null, `${type}: no waiver week`);
+    assert.ok([1, 4, 8, 9].every((n) => !S.WaiverLogic.isWindowEpisode(s, n)), `${type}: no windows`);
+    assert.equal(S.GhostLogic.isUnderway(s), !!S.DraftLogic.currentTurn(s)?.isComplete, `${type}: underway only by its draft, never by results before it starts`);
+    assert.deepEqual(S.GhostLogic.startChoices(s), [THROUGH + 1], `${type}: a newcomer joins live`);
+    if (type === "pickem") assert.deepEqual(S.PickEmLogic.history(s, s.players[0].id).rows, [], "no pick rows before it starts");
+    // Settled at 10: it plays from 10, its moves are for 10, and episodes before it stay history.
+    assert.deepEqual(S.settleStart(s, { from: 10, open: THROUGH + 1 }), [], type);
+    assert.deepEqual([S.startEpisode(s), S.currentEpisode(s)?.number, S.betTarget(s)], [10, 10, 10], type);
+    if (type !== "classic-draft") assert.ok(S.computeScores(s).every((r) => r.total === 0), `${type}: nothing before 10 scores`);
+  }
+  const lineup = league("active-roster");
+  S.updateSettings(lineup, "startPhase", "merged");
+  const nine = S.ensureEpisodeNumber(lineup, 9, false);
+  assert.equal(S.ActiveRosterLogic.validateLineup(lineup, nine.id, lineup.players[0].id, []), "This game hasn't started: it waits for its phase of the season");
+  // The season ends before the phase starts: over, never started.
+  const ended = league("classic-draft");
+  S.updateSettings(ended, "startPhase", "merged");
+  const last = S.SpoilerLogic.viewThrough(league("classic-draft"), THROUGH);
+  assert.equal(S.gameOver(last), false);
+  const whole = S.migrateLeagueState(JSON.parse(JSON.stringify(buildDemoState(data, "classic-draft", EPISODES))));
+  S.updateSettings(whole, "startPhase", "merged");
+  assert.deepEqual([S.gameOver(whole), S.startEpisode(whole)], [true, null], "over, never started");
+});

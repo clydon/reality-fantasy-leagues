@@ -36,7 +36,7 @@ function playedSnapshot(state) {
     type: [t.id, t.name, t.draftStrategy.name, t.scoringStrategy.name],
     flags: ["hasRoster", "hasWeeklyPicks", "hasActiveRoster", "hasCalls", "hasBingo", "supportsReplenish", "supportsTrade", "supportsFinalePredictions"].map((f) => !!t[f]),
     sizes: [S.rosterSize(state), A.activeSlots(state), A.benchSlots(state), S.GhostLogic.teamSize(state)],
-    span: [S.startEpisode(state), S.endEpisode(state), S.gameOver(state), numbers.map((n) => S.inPlay(state, n))],
+    span: [S.startEpisode(state), S.startPhase(state), S.endEpisode(state), S.gameOver(state), numbers.map((n) => S.inPlay(state, n))],
     waivers: waivers
       ? [W.config(state), W.replaceRule(state), W.windows(state), W.processHours(state), W.freeAgencyOn(state), W.rolling(state), W.shortAt(state), W.enabled(state), S.replenishAvailable(state), S.tradeAvailable(state), S.MidSeasonLogic.swapEvery(state), S.MidSeasonLogic.isShared(state)]
       : null,

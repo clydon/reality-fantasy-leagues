@@ -180,11 +180,13 @@ export async function joinPool(user: SessionUser, seasonId: string, now = new Da
     if (rows[0].n >= POOL_CAP) throw new HttpError(409, `The ${label(row)} pool is full`);
     // Where a pick is still open: this episode's until it airs, else the next.
     const { ep, open } = poolWindow(s);
-    start = Math.max(StateLogic.startEpisode(s), ep ? (open ? ep.number : ep.number + 1) : 1);
+    // A public pool starts at an episode, never when a phase does (step A3): its start is a number.
+    const first = StateLogic.startEpisode(s) ?? 1;
+    start = Math.max(first, ep ? (open ? ep.number : ep.number + 1) : 1);
     const p = StateLogic.addPlayer(s, name);
     // Its own season starts here: earlier episodes are history, not missed picks (PickEmLogic.history). Seen at once (no
     // ghost: a pool has nobody to let them in), and never catching up.
-    if (start > StateLogic.startEpisode(s)) {
+    if (start > first) {
       p.lateJoin = { startEpisode: start, catchingUp: false };
       StateLogic.ensureEpisodeNumber(s, start, false);
     } else delete p.lateJoin;
@@ -234,7 +236,7 @@ export async function callPool(user: SessionUser, seasonId: string, castawayId: 
   const { ep, open } = poolWindow(state);
   if (!ep || !open) throw new HttpError(409, "Calls for this episode closed when it started");
   const start = StateLogic.GhostLogic.startFor(state, playerId);
-  if (start > ep.number) throw new HttpError(409, `Your pool starts with Episode ${start}`);
+  if (start === null || start > ep.number) throw new HttpError(409, start === null ? "Your pool hasn't started yet" : `Your pool starts with Episode ${start}`);
   if (castawayId === null) {
     await pool.query("DELETE FROM episode_calls WHERE user_id = $1 AND season_id = $2 AND episode = $3 AND question = 'out'", [user.id, seasonId, ep.number]);
     return { call: null };

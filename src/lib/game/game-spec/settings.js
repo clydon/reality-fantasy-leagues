@@ -17,7 +17,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
 const {
   SPEC_VERSION, TYPE_PRESETS, REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS,
-  MAX_BET_POINTS, ORDER_OF, fullSpec, typeOf, playsAs, specProblems, waiversFit, sameValue,
+  MAX_BET_POINTS, ORDER_OF, fullSpec, typeOf, playsAs, specProblems, waiversFit, sameValue, spanStart, spanPhase,
 } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -42,12 +42,19 @@ const clampBet = (v) => {
   return Number.isFinite(n) ? Math.min(MAX_BET_POINTS, Math.max(1, n)) : 1;
 };
 
-/** The episode it starts at (startEpisode, default 1) and its last (endEpisode: null, or one from the start on). */
+/**
+ * Where it starts and its last episode (endEpisode: null, or one from the start on). A start at an episode is startEpisode
+ * (default 1); a start at a phase of the season's rulebook (A3) is startPhase, with startEpisode null while it waits for
+ * that phase ({ phase }) and the episode it plays from once that's settled ({ phase, at }).
+ */
 function spanOf(st) {
-  const from = Number(st.startEpisode);
-  const start = Number.isInteger(from) && from >= 1 ? from : 1;
+  const n = Number(st.startEpisode);
+  const at = Number.isInteger(n) && n >= 1 ? n : null;
+  const phase = typeof st.startPhase === 'string' && st.startPhase ? st.startPhase : null;
+  const from = phase ? (at === null ? { phase } : { phase, at }) : (at === null ? 1 : at);
+  const first = phase ? at : from;
   const to = Number(st.endEpisode);
-  return { from: start, to: Number.isInteger(to) && to >= start ? to : null };
+  return { from, to: Number.isInteger(to) && to >= (first === null ? 1 : first) ? to : null };
 }
 
 // How a league's settings say its waivers, on settings alone (R: the roster size). The one definition: state-logic.js's
@@ -199,7 +206,9 @@ function settingsOf(spec) {
   const e = s.extras;
   const out = {
     leagueTypeId: type,
-    startEpisode: s.span.from,
+    // A phase start (A3): startPhase, with startEpisode null while it waits (spanOf reads both back).
+    startEpisode: spanStart(s.span),
+    startPhase: spanPhase(s.span) || undefined,
     endEpisode: s.span.to,
     allowLateJoiners: e.join !== 'locked',
     joinMode: e.join === null ? undefined : e.join,
@@ -294,7 +303,7 @@ function withSpec(settings, spec) {
 const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFeel', 'autoFill', 'replenishOrderBy', 'waiverProcessHours', 'freeAgencyEnabled', 'replenishEnabled', 'tradeEnabled', 'swapEvery'];
 const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
-  { fields: ['startEpisode', 'endEpisode'], read: (s) => s.span },
+  { fields: ['startEpisode', 'startPhase', 'endEpisode'], read: (s) => s.span },
   { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots'], read: (s) => [s.get, s.count] },
   { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive'], read: (s) => s.score },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },

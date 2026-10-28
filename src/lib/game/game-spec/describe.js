@@ -12,11 +12,12 @@
 //
 //   ctx       what the spec refers to, in the show's words: { show: 'Survivor 51', castaway: 'castaway', castaways,
 //             part: { singular: 'episode', plural: 'episodes' }, groups: the scoring groups' labels, moments: [{ id,
-//             label, defaultPoints }], stats: [{ key, label: 'home run' }] }. All optional.
+//             label, defaultPoints }], stats: [{ key, label: 'home run' }], phases: [{ id, name: 'Merged' }] }. All
+//             optional.
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, fullSpec, countKind, presetOf, sameValue, own } = require('./schema.js');
+const { PRESET_LABELS, fullSpec, countKind, presetOf, sameValue, own, spanStart } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -42,12 +43,21 @@ function wordsOf(ctx) {
     groups: Array.isArray(c.groups) ? c.groups.filter(Boolean) : [],
     moments: Array.isArray(c.moments) ? c.moments : null,
     stats: new Map((Array.isArray(c.stats) ? c.stats : []).map((x) => (isObj(x) ? [x.key, x.label || x.key] : [x, x]))),
+    phases: new Map((Array.isArray(c.phases) ? c.phases : []).filter(isObj).map((p) => [p.id, p.name || p.id])),
   };
 }
+/** A phase by its name ("Merged"), else its id. */
+const phaseWord = (id, w) => w.phases.get(id) || id;
 
-/** "Episode 7 to the finale", "Games 1–3", "just Game 1", "all season"; A3's phase start: "from the merge". */
+/** "Episode 7 to the finale", "Games 1–3", "just Game 1", "all season"; a phase start (A3): "from when Merged starts",
+ *  and once that's settled "Episode 9 to the finale, starting with Merged" (aired or still to come). */
 function spanWords(span, w) {
-  if (isObj(span.from)) return `from the ${span.from.phase}${span.to === null ? '' : ` to ${w.Part} ${span.to}`}`;
+  if (isObj(span.from)) {
+    const name = phaseWord(span.from.phase, w);
+    const at = spanStart(span);
+    const end = span.to === null ? ' to the finale' : ` to ${w.Part} ${span.to}`;
+    return at === null ? `from when ${name} starts${span.to === null ? '' : end}` : `${w.Part} ${at}${end}, starting with ${name}`;
+  }
   if (span.to === null) return span.from === 1 ? 'all season' : `${w.Part} ${span.from} to the finale`;
   return span.to === span.from ? `just ${w.Part} ${span.from}` : `${w.Parts} ${span.from}–${span.to}`;
 }
@@ -94,7 +104,8 @@ function sentenceParts(s, w) {
   put(': ');
   const by = s.get.by;
   const count = countKind(s.count);
-  const one = !isObj(s.span.from) && s.span.to === s.span.from;
+  const first = spanStart(s.span);
+  const one = first !== null && s.span.to === first;
   let spanSaid = false;
   if (by === 'draft') {
     put(`everyone drafts ${s.get.each}`, 'get');
@@ -110,7 +121,7 @@ function sentenceParts(s, w) {
     put(`two calls before every ${w.part}`, 'get');
   } else if (s.score.by === 'answers') {
     const n = s.ask.length;
-    put(`everyone answers ${say(n)} ${n === 1 ? 'question' : 'questions'} before ${one ? `${w.Part} ${s.span.from}` : `each ${w.part}`}`, 'ask');
+    put(`everyone answers ${say(n)} ${n === 1 ? 'question' : 'questions'} before ${one ? `${w.Part} ${first}` : `each ${w.part}`}`, 'ask');
     if (n) put(`: ${listOf(s.ask.map(questionPhrase))}`, 'ask');
     spanSaid = one;
   } else {
@@ -212,9 +223,15 @@ function rulesOf(s, w) {
     rules.push(`Finale predictions: before the finale, name your final three and the winner${fin.from === 'own' ? ' from your own team' : ''}. ${cap(pointsWord(fin.top3))} for each of the three you get, ${pointsWord(fin.winner)} for the winner.`);
   }
   if (!isObj(s.span.from) && s.span.from > 1) rules.push(`Scoring starts at ${w.Part} ${s.span.from}; the ${w.parts} before it are history.`);
-  if (isObj(s.span.from)) rules.push(`It starts when the ${s.span.from.phase} does; the ${w.parts} before it are history.`);
+  if (isObj(s.span.from)) {
+    const name = phaseWord(s.span.from.phase, w);
+    const at = spanStart(s.span);
+    rules.push(at === null
+      ? `It starts when ${name} starts: nothing before then scores.`
+      : `It starts with ${name}, at ${w.Part} ${at}: the ${w.parts} before it are history.`);
+  }
   const end = s.span.to;
-  if (end !== null) rules.push(end === s.span.from ? `It's one ${w.part}: ${w.Part} ${end}, then it's over.` : `It ends with ${w.Part} ${end}: nothing after it scores, and the table there is final.`);
+  if (end !== null) rules.push(end === spanStart(s.span) ? `It's one ${w.part}: ${w.Part} ${end}, then it's over.` : `It ends with ${w.Part} ${end}: nothing after it scores, and the table there is final.`);
   return rules;
 }
 

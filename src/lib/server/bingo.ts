@@ -764,11 +764,12 @@ export async function leagueBingo(o: {
   // A game over a span counts its own episodes only (settings.endEpisode), and hands no card past its last.
   const end = StateLogic.endEpisode(o.state);
   const through = Math.min(mark, latestAired(schedule, now), end ?? Number.POSITIVE_INFINITY);
+  // A game waiting for its phase (step A3 of docs/PLAN-start-a-game-gpt.md) counts no lines yet, and hands no card.
   const from = StateLogic.startEpisode(o.state);
   const userIds = o.state.players.map((p) => o.userOf(p.id)).filter((id): id is string => !!id);
   const [lines, move] = await Promise.all([
-    bingoLines(o.seasonId, userIds, { from, through, couchId: o.couchId, book: o.book }),
-    o.playerId ? bingoMove(o.userId, o.seasonId, mark, from, schedule, now) : Promise.resolve(null),
+    from === null ? new Map<string, number>() : bingoLines(o.seasonId, userIds, { from, through, couchId: o.couchId, book: o.book }),
+    o.playerId && from !== null ? bingoMove(o.userId, o.seasonId, mark, from, schedule, now) : Promise.resolve(null),
   ]);
   return {
     right: (p) => lines.get(o.userOf(p) ?? "") ?? 0,

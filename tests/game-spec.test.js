@@ -52,7 +52,7 @@ const demo = (type, after) => {
 const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFeel", "autoFill", "replenishOrderBy", "waiverProcessHours", "freeAgencyEnabled", "replenishEnabled", "tradeEnabled", "swapEvery"];
 const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope"];
 const GAME_FIELDS = {
-  every: ["leagueTypeId", "startEpisode", "endEpisode", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints"],
+  every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints"],
   "classic-draft": [...DRAFT_FIELDS, "teamSize"],
   "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock"],
   pickem: ["pickemCorrectPoints", "poolSurvive", "calls"],
@@ -74,7 +74,7 @@ function readings(state) {
     type: [t.id, t.draftStrategy.name, t.scoringStrategy.name],
     flags: ["hasRoster", "hasWeeklyPicks", "hasActiveRoster", "hasCalls", "hasBingo", "supportsReplenish", "supportsTrade", "supportsFinalePredictions"].map((f) => !!t[f]),
     roster: [S.rosterSize(state), A.activeSlots(state), A.benchSlots(state), st.ownershipMode === "shared"],
-    span: [S.startEpisode(state), S.endEpisode(state), S.gameOver(state), state.episodes.map((e) => S.inPlay(state, e.number))],
+    span: [S.startEpisode(state), S.startPhase(state), S.endEpisode(state), S.gameOver(state), state.episodes.map((e) => S.inPlay(state, e.number))],
     waivers: W.supported(state)
       ? {
           config: W.config(state), rule: W.replaceRule(state), windows: W.windows(state), hours: W.processHours(state),
@@ -191,6 +191,18 @@ test("every kind of league round-trips through its spec", () => {
     "Survival Pool, nobody new": made("pickem", (s) => S.updateSettings(s, "joinMode", "locked")),
     "Weekly Calls": made("weekly-calls"),
     "Weekly Bingo": made("weekly-bingo", (s) => S.updateSettings(s, "endEpisode", 9)),
+    // A phase start (step A3 part 2): waiting for the merge (nothing in play), and settled where it starts.
+    "Weekly Lineup, waiting for the merge": made("active-roster", (s) => S.updateSettings(s, "startPhase", "merged")),
+    "Survival Pool, played, waiting for the merge": demo("pickem", (s) => S.updateSettings(s, "startPhase", "merged")),
+    "Outlast, played, from the merge (settled at 8)": demo("classic-draft", (s) => {
+      S.updateSettings(s, "startPhase", "merged");
+      S.settleStart(s, { from: 8, open: 7 });
+    }),
+    "Weekly Lineup, played, from the merge (settled at 4), through 10": demo("active-roster", (s) => {
+      S.updateSettings(s, "startPhase", "merged");
+      S.settleStart(s, { from: 3, open: 4 });
+      S.updateSettings(s, "endEpisode", 10);
+    }),
     "classic's late-joiner switch off": made("classic-draft", (s) => S.updateSettings(s, "allowLateJoiners", false)),
     "pre-v2 waiver switches only": demo("classic-draft", (s) => {
       for (const k of ["replaceRule", "waiverWindows", "waiverFeel", "autoFill"]) delete s.settings[k];
@@ -198,6 +210,11 @@ test("every kind of league round-trips through its spec", () => {
     }),
   };
   for (const [label, state] of Object.entries(kinds)) roundTrip(state, label);
+  // The phase starts read as they were written: waiting is the phase with no episode, settled is both.
+  assert.deepEqual(G.specOf(kinds["Weekly Lineup, waiting for the merge"].settings).span, { from: { phase: "merged" }, to: null });
+  assert.deepEqual([kinds["Weekly Lineup, waiting for the merge"].settings.startEpisode, kinds["Weekly Lineup, waiting for the merge"].settings.startPhase], [null, "merged"]);
+  assert.deepEqual(G.specOf(kinds["Outlast, played, from the merge (settled at 8)"].settings).span, { from: { phase: "merged", at: 8 }, to: null });
+  assert.deepEqual(G.specOf(kinds["Weekly Lineup, played, from the merge (settled at 4), through 10"].settings).span, { from: { phase: "merged", at: 4 }, to: 10 });
 });
 
 test("the Rules sheet (game-rules.ts, describeSpec since A2) says what it always did, and now a sport's pool and finale predictions", () => {
@@ -316,6 +333,20 @@ test("specProblems: what's wrong with a spec's shape", () => {
   assert.deepEqual(at({ ...P.outlast, preset: "fantasy" }), ["preset"]);
   assert.deepEqual(at({ ...P.outlast, span: { from: 0, to: null } }), ["span.from"]);
   assert.deepEqual(at({ ...P.outlast, span: { from: 5, to: 4 } }), ["span.to"]);
+  // A phase start (A3): the phase named, `at` an episode once it's settled, an end from there on (any, while it waits).
+  assert.deepEqual(at({ ...P.outlast, span: { from: { phase: "merged" }, to: null } }), []);
+  assert.deepEqual(at({ ...P.outlast, span: { from: { phase: "merged", at: 9 }, to: 9 } }), []);
+  assert.deepEqual(at({ ...P.outlast, span: { from: { phase: "merged" }, to: 4 } }), [], "while it waits its end can't be checked");
+  assert.deepEqual(at({ ...P.outlast, span: { from: { phase: "" }, to: null } }), ["span.from.phase"]);
+  assert.deepEqual(at({ ...P.outlast, span: { from: { phase: "merged", at: 0 }, to: null } }), ["span.from.at"]);
+  assert.deepEqual(at({ ...P.outlast, span: { from: { phase: "merged", at: 9 }, to: 8 } }), ["span.to"]);
+  assert.deepEqual(at({ ...P.outlast, span: { from: { phase: "merged", when: 3 }, to: null } }), ["span.from.when"]);
+  // With the season's phases: one of them, never the first (that's Episode 1).
+  const phases = [{ id: "tribes" }, { id: "merged" }];
+  const phaseAt = (phase) => G.specProblems({ ...P.outlast, span: { from: { phase }, to: null } }, { phases }).map((p) => p.at);
+  assert.deepEqual(phaseAt("merged"), []);
+  assert.deepEqual(phaseAt("tribes"), ["span.from.phase"]);
+  assert.deepEqual(phaseAt("finale"), ["span.from.phase"]);
   assert.deepEqual(at({ ...P.outlast, pool: { of: "cast", where: { tribe: "x" } } }), ["pool.where"]);
   assert.deepEqual(at({ ...P.outlast, get: { ...P.outlast.get, order: "blind" } }), ["get.order"], "exclusive drafts snake");
   assert.deepEqual(at({ ...P.outlast, get: { ...P.outlast.get, each: 0 } }), ["get.each"]);
@@ -377,7 +408,9 @@ test("specProblems: what's wrong with a spec's shape", () => {
 test("specWaitsFor: what a spec needs that isn't built, and the step that builds it", () => {
   const P = G.PRESETS;
   const waits = (spec) => G.specWaitsFor(spec).map(({ at, step }) => `${at}:${step}`);
-  assert.deepEqual(waits({ ...P.outlast, span: { from: { phase: "merge" }, to: null } }), ["span.from:A3"]);
+  // A phase start is built (A3 part 2): every preset plays one.
+  for (const p of Object.values(P)) assert.deepEqual(waits({ ...p, span: { from: { phase: "merged" }, to: null } }), [], p.preset);
+  assert.equal(G.typeOf({ ...P.outlast, span: { from: { phase: "merged", at: 9 }, to: null } }), "classic-draft");
   assert.deepEqual(waits({ ...P["weekly-lineup"], count: { best: 3 } }), ["count:sports"]);
   assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "matchups" }, closes: "daily" }), ["rank.by:sports", "closes:sports"]);
   assert.deepEqual(waits({ spec: 1, get: { by: "squares" }, score: { by: "stats", points: { PTS: 1 } } }), ["get.by:sports", "score.by:sports"]);
@@ -470,7 +503,18 @@ test("describeSpec: the sentence for each game, and the details nobody asked abo
     "A Survival Pool for Formula 1: everyone picks one driver to score each race, all season. Longest streak wins.");
   assert.equal(say(G.PRESETS["weekly-calls"], { show: "Late Night" }), "A Weekly Calls for Late Night: two calls before every episode, all season. Most right by the finale wins.");
   assert.equal(say(G.PRESETS["weekly-bingo"], {}), "A Weekly Bingo: a new bingo card every episode, all season. Most lines by the finale wins.");
-  assert.equal(say({ ...G.PRESETS["weekly-lineup"], span: { from: { phase: "merge" }, to: null } }), "A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, from the merge. Scored by Survivor 51's rules.");
+  // A phase start, by the phase's name when the rulebook's phases are given (else its id); once settled, where it plays from.
+  const lineupFrom = (from, to = null) => ({ ...G.PRESETS["weekly-lineup"], span: { from, to } });
+  const phases = [{ id: "tribes", name: "Tribes" }, { id: "merged", name: "Merged" }];
+  assert.equal(say(lineupFrom({ phase: "merged" }), { ...ctx, phases }), "A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, from when Merged starts. Scored by Survivor 51's rules.");
+  assert.equal(say(lineupFrom({ phase: "merged" })), "A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, from when merged starts. Scored by Survivor 51's rules.");
+  assert.equal(say(lineupFrom({ phase: "merged" }, 12), { ...ctx, phases }), "A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, from when Merged starts to Episode 12. Scored by Survivor 51's rules.");
+  assert.equal(say(lineupFrom({ phase: "merged", at: 9 }), { ...ctx, phases }), "A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, Episode 9 to the finale, starting with Merged. Scored by Survivor 51's rules.");
+  assert.ok(G.describeSpec(lineupFrom({ phase: "merged" }), { ...ctx, phases }).rules.includes("It starts when Merged starts: nothing before then scores."));
+  assert.ok(G.describeSpec(lineupFrom({ phase: "merged", at: 9 }, 9), { ...ctx, phases }).rules.includes("It's one episode: Episode 9, then it's over."));
+  assert.ok(G.describeSpec(lineupFrom({ phase: "merged", at: 9 }), { ...ctx, phases }).rules.includes("It starts with Merged, at Episode 9: the episodes before it are history."));
+  // A question game over one episode, settled at a phase, asks before that episode.
+  assert.match(say({ spec: 1, get: { by: "none" }, score: { by: "answers" }, span: { from: { phase: "merged", at: 9 }, to: 9 }, ask: [{ id: "w", ask: "Who goes?", answer: "person", points: 1, settle: { by: "results", take: "out" } }] }, { ...ctx, phases }), /before Episode 9/);
   const moments = [{ id: "votedOut", defaultPoints: -3 }, { id: "immunity", defaultPoints: { exclusive: 2, shared: 3 } }];
   const points = (p) => ({ ...G.PRESETS["weekly-lineup"], score: { by: "moments", points: p } });
   assert.match(say(points({ votedOut: -3, immunity: 3 }), { ...ctx, moments }), /Scored by Survivor 51's rules\.$/, "the shared draft's own defaults");

@@ -182,8 +182,11 @@ export interface GameView extends GameRefIn {
   /** Standings are through this episode: they move when you reveal. */
   through: number;
   /** The first episode this game counts for you (its start, or yours as a late joiner): standings mean something once
-   *  `through` reaches it. */
-  from: number;
+   *  `through` reaches it. Null while a game that starts when a phase of the season does waits for it (step A3). */
+  from: number | null;
+  /** The phase of the season it starts at, by name ("Merged"), or null: it starts at an episode. Filled in by the server
+   *  (season-games.ts), which reads the league's rulebook. */
+  phase: string | null;
   /** A game over a span (docs/PLAN-sports-data.md step 6): its last episode; null to the season's end. */
   to: number | null;
   /** It's over as far as you've seen: its season, or its span's last episode (StateLogic.gameOver). */
@@ -233,6 +236,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string, s
     playerId,
     through: type.hasCalls || type.hasBingo ? (calls?.through ?? 0) : StateLogic.SpoilerLogic.latestWithResults(view),
     from: StateLogic.GhostLogic.startFor(view, playerId),
+    phase: null,
     to: end,
     over: type.hasCalls || type.hasBingo ? !!calls?.ended : StateLogic.gameOver(view),
     table,

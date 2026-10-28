@@ -118,14 +118,24 @@ function gameOf(state){ return Spec.gameOf(state && state.settings); }
 // mid-season -- "we've all watched episode 1, we'll draft before episode 2" -- starts at 2: earlier
 // episodes are history everyone has seen, so they're shown but nothing in them scores, and no picks
 // or lineups are made for them.
-function startEpisode(state){ return gameOf(state).span.from; }
+//
+// A game can start when a phase of the season's rulebook does instead (step A3: "when Merged starts", span.from
+// { phase }): while it waits for that phase this is null -- no episode is in play, nothing is asked or scored, no waiver
+// window opens, and it isn't over unless the season ends first (over, never started); the draft room and joining are as
+// before any start. Once data says where the phase starts (RosterLogic.settleStart), it's the episode it plays from.
+function startEpisode(state){ return Spec.spanStart(gameOf(state).span); }
+// The phase this league starts at (its id), or null: it starts at an episode.
+function startPhase(state){ return Spec.spanPhase(gameOf(state).span); }
+// Waiting for its phase to start: a phase start with no episode yet.
+function waitsForPhase(state){ return startEpisode(state) === null; }
 // The episode this league plays through (span.to; settings.endEpisode): a game over a span -- one game, a series, a
 // stretch of the season (docs/PLAN-sports-data.md step 6) -- ends there. Nothing after it scores, no picks or
 // lineups are made for it, and the game is over once it has results. Null (the default): to the season's end.
 function endEpisode(state){ return gameOf(state).span.to; }
 function inPlay(state, episodeNumber){
   const span = gameOf(state).span;
-  return episodeNumber >= span.from && (span.to === null || episodeNumber <= span.to);
+  const from = Spec.spanStart(span);
+  return from !== null && episodeNumber >= from && (span.to === null || episodeNumber <= span.to);
 }
 // The league as its span saw it: results after its last episode taken out (as the spoiler guard takes out what
 // someone hasn't seen), so a game over a span scores, and is shown, as it stood at its end, whatever came after
@@ -200,7 +210,9 @@ function lastCompletedEpisode(state){
 // one first). One shared definition so all three agree on which episode is "now": its number
 // (null past a span's last episode: nothing left to choose for), and the episode itself.
 function currentEpisodeNumber(state){
-  const number = Math.max(BetLogic.upcomingEpisodeNumber(state), startEpisode(state));
+  const start = startEpisode(state);
+  if(start === null) return null; // waiting for its phase: nothing to choose for yet
+  const number = Math.max(BetLogic.upcomingEpisodeNumber(state), start);
   return inPlay(state, number) ? number : null;
 }
 function currentEpisode(state){
@@ -868,7 +880,11 @@ class ActiveRosterLogic {
     const ep = state.episodes.find(e => e.id === epId);
     if(!ep) return 'No such episode';
     if(ActiveRosterLogic.isLineupLocked(state, epId)) return 'This episode has started -- lineups are locked';
-    if(!inPlay(state, ep.number)) return ep.number < startEpisode(state) ? 'This league starts at episode ' + startEpisode(state) : 'This game ended with episode ' + endEpisode(state);
+    if(!inPlay(state, ep.number)){
+      const start = startEpisode(state);
+      if(start === null) return "This game hasn't started: it waits for its phase of the season";
+      return ep.number < start ? 'This league starts at episode ' + start : 'This game ended with episode ' + endEpisode(state);
+    }
     if(!Core.getPlayer(state, playerId)) return 'No such player';
     const ids = Array.isArray(castawayIds) ? castawayIds : [];
     if(new Set(ids).size !== ids.length) return 'Same castaway listed twice';
@@ -1861,8 +1877,32 @@ class RosterLogic {
       else delete st[k];
     });
     RosterLogic.syncGame(state);
-    if(want.span.from !== was.span.from) EpisodeLogic.ensureEpisodeNumber(state, want.span.from, false);
+    const first = Spec.spanStart(want.span);
+    if(first !== null && first !== Spec.spanStart(was.span)) EpisodeLogic.ensureEpisodeNumber(state, first, false);
     return [];
+  }
+  // Where a game that starts at a phase plays from (step A3: docs/PLAN-start-a-game-gpt.md, "The phase start, decided"),
+  // written through setGame. `where.from`: the phase's first episode by the league's rulebook (rulebook-compile.js
+  // phaseRanges: a start a person confirmed on the desk, or one the rulebook fixes), or null while that's unknown;
+  // `where.open`: the first episode still open for moves (the one after the latest that's aired or has results). It plays
+  // from the later of the two -- a phase confirmed once its first episode has aired starts with the next, so nobody is
+  // scored on an episode they couldn't make moves for -- or waits again when the phase's start is cleared. Never once the
+  // episode it plays from has aired. An end the new start passes goes (to the season's end), and so does any end when it
+  // waits again: a game waiting for its phase has none (Start a game and Game settings set one only once it's settled), so it
+  // can't be over before it starts. Returns setGame's problems ([] when it's written, or when there's nothing to change: a
+  // game that starts at an episode, or one already right).
+  static settleStart(state, where){
+    const game = gameOf(state);
+    const phase = Spec.spanPhase(game.span);
+    const open = Number(where && where.open);
+    if(!phase || !Number.isInteger(open) || open < 1) return [];
+    const at = Spec.spanStart(game.span);
+    if(at !== null && at < open) return [];
+    const known = where && Number.isInteger(where.from) && where.from >= 1 ? where.from : null;
+    const want = known === null ? null : Math.max(known, open);
+    if(want === at) return [];
+    const to = want === null || (game.span.to !== null && game.span.to < want) ? null : game.span.to;
+    return RosterLogic.setGame(state, { ...game, span: { from: want === null ? { phase } : { phase, at: want }, to } });
   }
   // A change made the way the settings always were: `fn(copy)` changes a copy of the league (its settings a copy, without
   // the spec it carries, so everything reads the change), and what the copy's settings then play is written through
@@ -1923,9 +1963,22 @@ function writeSetting(state, field, value){
   // (wait for them, or pick from their queue). Casual first: off and wait.
   if(field === 'draftTimer') value = Spec.DRAFT_TIMERS.includes(Number(value)) ? Number(value) : 0;
   if(field === 'draftAway') value = value === 'queue' ? 'queue' : 'wait';
+  // Where it starts: an episode (a phase start it had goes), or a phase of the season's rulebook (startPhase: it waits for
+  // that phase until RosterLogic.settleStart says where it plays from, with no end until then; an empty phase starts it at
+  // Episode 1).
   if(field === 'startEpisode'){
     const n = Math.floor(Number(value));
     value = Number.isFinite(n) && n >= 1 ? n : 1;
+    delete state.settings.startPhase;
+  }
+  if(field === 'startPhase'){
+    if(typeof value !== 'string' || !value){
+      delete state.settings.startPhase;
+      state.settings.startEpisode = 1;
+      return;
+    }
+    state.settings.startEpisode = null;
+    state.settings.endEpisode = null;
   }
   // A span's last episode (endEpisode): a whole number, else none (to the season's end).
   if(field === 'endEpisode'){
@@ -2342,7 +2395,8 @@ class WaiverLogic {
   }
   static recommendFor(state, feel, opts){
     const o = opts || {};
-    const start = startEpisode(state);
+    // A game waiting for its phase (step A3) starts after the latest results at the earliest.
+    const start = startEpisode(state) ?? SpoilerLogic.latestWithResults(state) + 1;
     const numberOf = id => { const e = state.episodes.find(x => x.id === id); return e ? e.number : Infinity; };
     const C = o.castSize || state.castaways.filter(c => !(c.status === 'eliminated' && numberOf(c.exitEpisodeId) < start)).length;
     const roster = !!getLeagueType(state).hasActiveRoster;
@@ -2411,7 +2465,9 @@ class WaiverLogic {
     const end = endEpisode(state);
     if(end !== null && n >= end) return false;
     if(!(w.swaps > 0 || WaiverLogic.replaceRule(state) === 'windows')) return false;
-    const k = n - startEpisode(state) + 1;
+    const start = startEpisode(state);
+    if(start === null) return false; // waiting for its phase (step A3): no windows before it starts
+    const k = n - start + 1;
     return k >= 1 && (w.schedule === 'everyEpisode' || k % w.every === 0);
   }
   /** A window with swaps opens after episode n (pre-v2's "add/drop week"). */
@@ -3550,18 +3606,23 @@ class GhostLogic {
     const lj = GhostLogic.lateJoinOf(state, playerId);
     return !!lj && !Number.isInteger(lj.startEpisode);
   }
-  // The episode a player's own season starts at: the league's, or a late joiner's own (later) one.
+  // The episode a player's own season starts at: the league's, or a late joiner's own (later) one. Null while the
+  // league waits for its phase (step A3): nobody's season has started.
   static startFor(state, playerId){
+    const start = startEpisode(state);
+    if(start === null) return null;
     const lj = GhostLogic.lateJoinOf(state, playerId);
     const own = lj && Number.isInteger(lj.startEpisode) ? lj.startEpisode : 1;
-    return Math.max(startEpisode(state), own);
+    return Math.max(start, own);
   }
   // A league is underway -- too late to just slot in -- once its draft is done or an episode has results.
   static isUnderway(state){
     const turn = DraftLogic.currentTurn(state);
     // Results before the league's own start are history, not play: a game started mid-season (step 10 part 2b) takes
     // newcomers into its draft until it has a result of its own.
-    return !!(turn && turn.isComplete) || SpoilerLogic.latestWithResults(state) >= startEpisode(state);
+    // One waiting for its phase (step A3) has no results of its own yet.
+    const start = startEpisode(state);
+    return !!(turn && turn.isComplete) || (start !== null && SpoilerLogic.latestWithResults(state) >= start);
   }
   // On unless a commissioner switched it off (absent = on, so it covers every league that predates it), or locked the game down.
   static allowed(state){ return gameOf(state).extras.join !== 'locked' && !GhostLogic.lockedDown(state); }
@@ -3590,11 +3651,14 @@ class GhostLogic {
   // Shared ownership (or no teams): anyone on the couch; exclusive: ask first.
   static recommendedJoinMode(state){ return GhostLogic.sharedJoin(state) ? 'open' : 'ask'; }
   // The episodes a late joiner may start at: the league's first through the one after the latest with
-  // results (starting there means joining live, nothing to catch up on).
+  // results (starting there means joining live, nothing to catch up on). While the league waits for its phase (step A3)
+  // there's nothing to catch up on: they join live, with the league's own start.
   static startChoices(state){
     const latest = SpoilerLogic.latestWithResults(state);
+    const start = startEpisode(state);
+    if(start === null) return [latest + 1];
     const out = [];
-    for(let n = startEpisode(state); n <= latest + 1; n++) out.push(n);
+    for(let n = start; n <= latest + 1; n++) out.push(n);
     return out;
   }
   // The cast a late joiner starting at `start` drafts from: everyone still in the game before that
@@ -4090,7 +4154,7 @@ return {
   // ---- constants ----
   PALETTE, SEED_CASTAWAYS,
   LEAGUE_TYPES, SHOWS, getLeagueType, gameOf, replenishAvailable, tradeAvailable, finalePredictionsAvailable, rosterSize, originalDraftPicks,
-  formatOf, startEpisode, endEpisode, inPlay, spanView, gameOver, hasAired, closedForPlay, isWinnerExit, seasonWinner, seasonEnded,
+  formatOf, startEpisode, startPhase, waitsForPhase, endEpisode, inPlay, spanView, gameOver, hasAired, closedForPlay, isWinnerExit, seasonWinner, seasonEnded,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
   // (public/app.js's 95+ call sites, every server route) needs to change. Each is a direct
@@ -4111,7 +4175,7 @@ return {
   castTribesDue: RosterLogic.castTribesDue, castawayInUse: RosterLogic.castawayInUse, applySeasonCast: RosterLogic.applySeasonCast,
   applyEliminationsImport: EpisodeLogic.applyEliminationsImport,
   applyScoringEventsImport: EpisodeLogic.applyScoringEventsImport,
-  updateSettings: RosterLogic.updateSettings, setGame: RosterLogic.setGame, syncGame: RosterLogic.syncGame,
+  updateSettings: RosterLogic.updateSettings, setGame: RosterLogic.setGame, syncGame: RosterLogic.syncGame, settleStart: RosterLogic.settleStart,
   reorderDraft: DraftLogic.reorder, moveDraftOrder: DraftLogic.move, draftToCurrentTurn: DraftLogic.pick, undraft: DraftLogic.undo,
   MidSeasonLogic, availableFor: MidSeasonLogic.availableFor, replenishNeed: MidSeasonLogic.replenishNeed,
   addEpisode: EpisodeLogic.add, removeEpisode: EpisodeLogic.remove, updateEpisode: EpisodeLogic.update,

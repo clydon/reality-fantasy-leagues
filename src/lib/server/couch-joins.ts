@@ -294,8 +294,9 @@ export interface JoinGame {
   ended: boolean;
   /** A game over a span (step 6 of docs/PLAN-sports-data.md): its first and last episode; null to the season's end. */
   span: { from: number; to: number } | null;
-  /** The episode it starts with: a game started after a span ended is its run back. */
-  start: number;
+  /** The episode it starts with: a game started after a span ended is its run back. Null while it waits for its phase (step A3
+   *  of docs/PLAN-start-a-game-gpt.md). */
+  start: number | null;
   /** Locked down for the season (step 15 part 4: competitive mode): nobody new, whatever Who can join said. */
   lockedDown: boolean;
   /** You, signed in: in it, your request waiting, let in (yours to use). */
@@ -353,7 +354,7 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
       // An archived game (step 10 part 2b) takes nobody new, as a season that's over doesn't. A game scored outside its state
       // (Weekly Calls, Weekly Bingo: step 12) is over once its season's last episode has aired.
       ended: gameOver(s, g.seasonId ? schedules.get(g.seasonId) : undefined) || g.archived,
-      span: StateLogic.endEpisode(s) === null ? null : { from: StateLogic.startEpisode(s), to: StateLogic.endEpisode(s) as number },
+      span: StateLogic.endEpisode(s) === null || StateLogic.startEpisode(s) === null ? null : { from: StateLogic.startEpisode(s) as number, to: StateLogic.endEpisode(s) as number },
       start: StateLogic.startEpisode(s),
       lockedDown: G.lockedDown(s),
       you: viewer ? { playing: !!g.yourRole, asked: !!ask && !ask.decided_at, letIn: ask?.outcome === "let-in" } : null,

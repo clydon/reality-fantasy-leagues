@@ -121,8 +121,9 @@ function standingOf(
 /** A game over a span (docs/PLAN-sports-data.md step 6), named in the show's own word ("Games 4–6"); null for a season game. */
 function spanOf(state: LeagueState, episodeTerm: string | null | undefined): GameStanding["span"] {
   const to = StateLogic.endEpisode(state);
-  if (to === null) return null;
   const from = StateLogic.startEpisode(state);
+  // A game still waiting for its phase (step A3) has no span to name yet.
+  if (to === null || from === null) return null;
   const w = showWords({ episode: episodeTerm });
   return { from, to, name: spanName(from, to, { singular: w.episode.toLowerCase(), plural: w.episodes.toLowerCase() }) };
 }
@@ -134,8 +135,10 @@ async function callsThrough(state: LeagueState, g: Game & { seasonId: string }, 
   // A game over a span counts its own episodes only.
   const end = StateLogic.endEpisode(state);
   const upTo = end === null ? through : Math.min(through, end);
-  const opts = { from: StateLogic.startEpisode(state), through: upTo, couchId: g.couchId };
-  const rights = StateLogic.getLeagueType(state).hasBingo ? await bingoLines(g.seasonId, userIds, opts) : await callRights(g.seasonId, userIds, opts);
+  // Nothing counts while it waits for its phase (step A3).
+  const from = StateLogic.startEpisode(state);
+  const opts = { from: from ?? 0, through: upTo, couchId: g.couchId };
+  const rights = from === null ? new Map<string, number>() : StateLogic.getLeagueType(state).hasBingo ? await bingoLines(g.seasonId, userIds, opts) : await callRights(g.seasonId, userIds, opts);
   return { right: (p: string) => rights.get(who(p) ?? "") ?? 0, through: upTo, ended: endedThrough(schedule, through, end) };
 }
 
