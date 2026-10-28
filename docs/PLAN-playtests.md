@@ -1,7 +1,8 @@
 # Season tapes and playtests
 
 For the playtest lane's sessions and the user. Status: planned 2026-10-28, started that night in the playtest lane
-(`../rfl-playtest`, branch `playtest`, database `rfl_playtest`, port 3005).
+(`../rfl-playtest`, branch `playtest`, database `rfl_playtest`, port 3005). P1 built and recording; P2 started (its corpus waits on
+the recorder); P3 part 1 built (49 replays of Survivor 49 and Traitors 4); findings in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md).
 
 ## What the user asked for (2026-10-28, going to sleep with the survivor and engine lanes running)
 
@@ -262,6 +263,108 @@ judges every words tape again with today's judge. A reading that's off is still 
 - the table here of how well it understood, by group;
 - whether the expected readings need changing once the bot's are seen (they're a first draft too).
 
+### P3. Replays, part 1 (2026-10-28, playtest lane)
+
+P2's corpus wasn't on tape yet (2 of 104 at 05:00 UTC: the recorder asks it after every show's first season's core), so P3 came
+first. **`scripts/dev-test/playtest.js`** (its header says it all) plays a recorded season through today's engine, all through the
+app's own code loaded with jiti (no dev server):
+
+- **The season** is a zt- copy (show slug `zt-pt-<show>`, the same name, format, rulebook and cast). The recorder's tapes keep
+  writing to the real rows, and the lane's copy of Survivor 49 has a league of its own, so the copy keeps both untouched.
+- **The copy is the real season moved forward whole weeks** (to start about a week from today, weekdays and same-night double
+  episodes kept), and every date inside its recorded answers moves the same (`shiftAnswer`: `airDate`, `nextEpisode.airsAt`).
+  - Nothing has aired by the clock, so an episode closes when its results land.
+  - A waiver week runs until whoever runs the game says Run now.
+  - Start a game's `now` (an hour before an episode) starts a game at any episode.
+  - The bot's own same-night check still reads an answer against the schedule: Traitors 4 premiered with three episodes on
+    one night.
+  - It's marked airing (Start a game refuses a finished season).
+- **A cast nobody approved** is approved on the copy, as classic's Approve would, and each replay's log says so. Traitors 4's
+  was staged by the recorder (P1's Noticed).
+- **Each game** goes through:
+  - Start a game (`startGame`, on a couch of its own, Tell the couch off; three Normal computer players for a solo group);
+  - everyone else through Join (`joinGame`; Ask me first is asked and let in);
+  - ownership through classic's League Settings (the new design has no choice for it);
+  - team and lineup sizes through Backstage's Game settings (`settingsWrite`), waivers off through Fine-tune (`waiverWrite`);
+  - the draft through the draft room's own writes (`startDraft`, `pickInDraft`, `lockBlindFor`);
+  - a late joiner through Join with a team from Join's own pool (`joinOptions`).
+- **Each week's moves** are the lineup and pick routes' own writes under `withLeagueLock`, then waiver claims (`saveClaim`)
+  and Backstage's Run now.
+- **Each episode's results** come from the bot's own run: `runJob` quick, then full, with `bot-results.ts` `botSend`, which is
+  Autopilot. Its answers come from the tape (`tapes.answerer`), so what reaches every game is the season sync's own.
+- **Survivor 49's stored answers** (production's, pasted under an older prompt) lack fields today's schema requires
+  (`sourcesRead` and others). `upgradeStored` adds them, empty, so the app's own parse reads them. Nothing they said changes.
+
+**The players** are zt_pt_ accounts named by role. Their habits are deterministic: a role's share of weeks, spread evenly, and
+taste by castaway name.
+- **Tinkerer**: runs every game; the sharpest read every week; claims on waivers.
+- **Forgetter**: misses the draft, so whoever runs it picks for them, first on the list. Remembers one week in three.
+- **Drive-by**: first on the list for everything; sets a lineup once, then only when it's short.
+- **Fan**: favourites, every other week.
+- **Reader**: a solid read; skips one week in ten.
+- **Contrarian**: never the room's top third.
+- **Steady**: solid, every week.
+
+Bigger groups add more forgetters and drive-bys. A late joiner is the group's last seat. Computer players' own picks hash
+castaway ids (`bot-logic.js` taste), so they vary between runs; the people's don't.
+
+**The matrix** is a greedy pairwise set over game (Outlast, Weekly Lineup, Survival Pool), ownership, size (small, standard,
+big), span (season, from a third in, one episode, from the merge, through half), late joiner, waivers and group (1, 2, 4, 8,
+16).
+- Settings that don't apply are left out: a pool has no teams, a one-episode game has no late joiner, a season with no merge
+  has no merge span.
+- Every pair that can go together is played once. That's 27 replays for Survivor 49 (the merge read from the tape: the
+  first episode anyone won immunity alone, 6) and 22 for Traitors 4, instead of 965 and 740.
+- "standard" is whatever Start a game gives. small and big are what someone sensible would pick: big on a one-team-each game
+  is cut to what the cast still in can fill, and the log says so.
+- Waivers mean Start a game's own: shared games have none ("This game doesn't use waivers").
+
+**Commands**: `matrix <show> <season>` (the set and why), `run <show> <season> [--only=] [--through=] [--keep]` (down first, and
+again after unless `--keep`), `summary` (a line per replay, also `replays\SUMMARY.md`), `down`. A season runs in about 80 s.
+Unit tests: `tests/playtest.test.js` (the matrix covers every pair and is stable, what doesn't apply, names, seats, habits' weeks,
+preferences, the merge, spans, the answer shift, the stored-answer upgrade, the summary's line).
+
+**What's on file** (`rfl-tapes\replays\`, 49 replays and SUMMARY.md): Survivor 49 and The Traitors (US) 4, every replay
+through its last episode. Each keeps, per episode:
+- who went home;
+- the table (labels, never usernames);
+- the leader and lead changes;
+- ties;
+- teams with nobody left;
+- each seat's move ("set", "kept (carried)", "no lineup (forgot)", "picked X");
+- points and why (a lineup's starters with each scoring moment, the bench's what-ifs, and what the app tells the player:
+  `episodeTeamBullets`; a pool's pick and whether it survived; an Outlast team's who's out);
+- a rough "still in it";
+- the results' messages and waiver claims and runs.
+
+The draft is kept per seat ("picked for them" for the forgetter).
+
+**What the replays found** (details, repros and owners in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md)):
+1. **No season-long game ever ends.** Every finale's full answer, on all three seasons recorded so far (Survivor 49 stored,
+   Traitors 4 and Challenge 41 asked with today's prompt), leaves the winner and finalists in the game. The quick check gets
+   them right (Savannah "Sole Survivor", Rob "Winner"). On Autopilot the full answer replaces the quick's, the winner's exit
+   is removed, `seasonWinner` finds nobody, and every game says it isn't over. The Noticed item below (the quick check
+   reporting every finalist as gone) was the right answer: leaving with the winner's exit is how a season crowns someone.
+2. **The bot's own quick and full answers disagreeing on how someone left holds the exit forever** on a season nobody else
+   answers. Survivor 49's Rizo: quick "Other", full "Lost Fire-Making"; he stays in every game.
+3. **Medium-confidence answers never reach a game the bot alone answers.**
+   - Traitors 4: 58 of 169 castaway answers, holding 80 of 247 scoring events.
+   - Challenge 41: 203 of 431.
+   - Survivor 49's stored answers were all high.
+4. **Outlast with more people than castaways still in can't finish its draft.** Start a game offers it; the draft stops with
+   nobody able to pick (three 16-person Survivor 49 games).
+5. **Outlast over a short span ends in a mass tie** (one episode: 7 to 15-way ties; through half: 10-way). Nobody's people
+   have left yet, so nothing tells the teams apart.
+
+**Left for P3's rest:**
+- the looks at 390 (as a player, after the draft, mid-season and the finale: `run --keep --through=N` leaves a replay's games
+  standing);
+- the next seasons as they're recorded (The Challenge 41 is complete; Below Deck 12, a series, needs its own game list:
+  Survival Pool and Outlast don't fit);
+- Weekly Calls and Weekly Bingo, which need a talk show.
+
+Then P4 judges the replays.
+
 ## Noticed, not fixed
 
 (Each step adds what it saw and left alone, with the step that could take it.)
@@ -297,3 +400,20 @@ From P1 (2026-10-28):
   P3 replays the finales to see what reaches the games; then the survivor lane, which owns research.
 - **The review's efficiency note, left.** The queue re-plans and re-reads each season's `season.json` before every question (about
   a hundred small reads a minute). It's harmless at this pace.
+
+From P3 (2026-10-28):
+- **The finale item above, replayed:** the quick check was right; the full answer is the one that's wrong. It's PLAYTEST-REPORT.md's
+  first finding, for the survivor lane (it owns research).
+- **`season_air_dates` is a view over `show_seasons`, and Postgres lets you delete through it.** A `DELETE FROM season_air_dates
+  WHERE season_id = $1` deletes the season itself. playtest.js did that to its own copy once, while clearing dates. Nothing in the
+  app deletes from it today. A trigger refusing writes (or a `security_barrier` view) would close the trap. For the merge.
+- **Survivor 49's stored research doesn't pass today's schema** (`sourcesRead`, `nextEpisode`, `rulesNote` and others are required
+  now), so an old paste can't be filed again through `researchFromPaste` as it stands. The stored rows are fine; only re-filing
+  fails. The replays add the missing fields, empty. P5, if a re-research of old seasons is ever wanted.
+- **The forgetter's blind-draft team is whoever's first on the list**, because Pick for someone left has no "best available". On
+  Traitors 4 that was Candiace, Caroline and Colton (alphabetical, and two lasted long), so the forgetter won two replays. P4
+  judges whether luck decides too much there.
+- **The "still in it" count is rough** (the best week anyone has had, times the episodes left), so most replays read "everyone"
+  at the halfway mark. P4 should judge from the tables, or the count wants each game's own maximum per episode.
+- **Computer players vary between runs** (`bot-logic.js` taste hashes castaway ids, which are new in every game), so a solo
+  replay's result isn't repeatable to the seat. Only matters for comparing two runs of the same replay.
