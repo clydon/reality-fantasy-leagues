@@ -752,6 +752,9 @@ export const gameAdmin = {
     sendJson<T>(seasonUrl(seasonId, "/backstage/waivers", { couch: couchId }), "POST", { leagueId, ...body }),
   settings: (seasonId: string, couchId: string, leagueId: string, body: { set?: Record<string, unknown>; reset?: "lineup" | "team" | "joining"; text?: string }) =>
     sendJson<{ batch: string | null }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, ...body }),
+  /** Its current episode's lineups or picks, locked or unlocked by hand (past its start too): backstage-games.ts lockWrite. */
+  lock: (seasonId: string, couchId: string, leagueId: string, closed: boolean) =>
+    sendJson<{ closed: boolean }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, lock: closed }),
   /** Lock it down (step 15 part 4): competitive mode for every game you run here, one batch. */
   lockDown: (seasonId: string, couchId: string, on: boolean) =>
     sendJson<{ batch: string | null; games: number }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { lockDown: on }),
@@ -1280,10 +1283,11 @@ export const make = {
 // or Game settings opens; nothing polls. ----
 
 /** What can start on a season for a couch: the season games and whether each fits, why the rest don't, Run it back's game. */
-export function useStartOptions(seasonId: string | null, couchId: string | null, again: string | null, enabled = true) {
+export function useStartOptions(seasonId: string | null, couchId: string | null, again: string | null, enabled = true, late = false) {
   return useQuery({
-    queryKey: ["new-design", "start", seasonId, couchId, again],
-    queryFn: () => get<StartOptions>(seasonUrl(seasonId!, "/start", { couch: couchId!, ...(again ? { again } : {}) })),
+    queryKey: ["new-design", "start", seasonId, couchId, again, late],
+    queryFn: () => get<StartOptions>(seasonUrl(seasonId!, "/start", { couch: couchId!, ...(again ? { again } : {}), ...(late ? { late: "1" } : {}) })),
+    placeholderData: (prev) => prev,
     enabled: enabled && !!seasonId && !!couchId,
     staleTime: 0,
   });
@@ -1300,7 +1304,7 @@ export function useEndGames(seasonId: string, couchId: string | null, enabled = 
 
 export const gamesApi = {
   /** `to`: the last episode it plays (a span, step 6 of docs/PLAN-sports-data.md); null to the season's end. */
-  start: (seasonId: string, couchId: string, body: { game: string; tell: boolean; again?: string | null; to?: number | null; bots?: number; level?: BotLevel }) =>
+  start: (seasonId: string, couchId: string, body: { game: string; tell: boolean; again?: string | null; to?: number | null; bots?: number; level?: BotLevel; late?: boolean }) =>
     post<Started>(seasonUrl(seasonId, "/start", { couch: couchId }), body),
   archive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "archive", leagueId }),
   unarchive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "unarchive", leagueId }),

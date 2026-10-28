@@ -2,7 +2,8 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, Bot, ChevronRight, Plus, RotateCcw, Trophy, Users } from "lucide-react";
+import { Bell, Bot, ChevronRight, Plus, Radio, RotateCcw, Trophy, Users } from "lucide-react";
+import { airTime } from "../clock";
 import { LEVEL_WORDS, type BotLevel } from "@/lib/game/computer-players";
 import { spanName } from "@/lib/game/spans";
 import { gamesApi, useAfterReveal, useCurrentCouch, useHome, useStartOptions, type HomeShow, type StartChoice, type StartOptions } from "../data";
@@ -22,8 +23,9 @@ import { openCouchSheet } from "./couch-sheets";
 //     talk show's Weekly Bingo (step 12 part 3: a card a show, bingo.tsx) and Weekly Calls (part 2: two calls a show); How long
 //     (docs/PLAN-sports-data.md step 6, spans.ts: the rest of the season, just the next one, this series for a sport, or
 //     through any later episode the listing has); Computer players (none to three, at one level, in the drafts and Survival
-//     Pool: computer-players.ts; Backstage › Members adds more or takes them out); Tell the couch (one alert, on by default);
-//     Start it.
+//     Pool: computer-players.ts; Backstage › Members adds more or takes them out); Include it (an episode on now: the game
+//     starts there, its lineups and picks open past its start, Backstage › Settings' lock on Override); Tell the couch (one
+//     alert, on by default); Start it.
 //   - without one (the hub's foot, Commercial break, Get the couch going with nothing to suggest): Pick the show first, from
 //     your shows still airing; one that isn't a game yet goes to Make it a game.
 //   - `again` (Run it back): the same game, its name and settings, on the show's next season.
@@ -150,7 +152,9 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   if (asked && asked !== shown) setShown(asked);
   const target = asked ?? shown;
   const couchId = target?.couchId ?? current?.id ?? null;
-  const opts = useStartOptions(target?.seasonId ?? null, couchId, target?.again ?? null, !!target);
+  // Include it: the options again from the episode on now (its spans, How long), when there is one.
+  const [late, setLate] = useState(false);
+  const opts = useStartOptions(target?.seasonId ?? null, couchId, target?.again ?? null, !!target, late);
   const o = opts.data;
   const nav = useNav();
   const pathname = usePathname();
@@ -180,6 +184,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
         again: target?.again ?? null,
         to,
         ...(botsHere && bots ? { bots, level } : {}),
+        ...(late && o.late ? { late: true } : {}),
       });
       await refresh();
       toast(`${r.gameName} started${r.told ? " · the couch has been told" : ""}`);
@@ -269,6 +274,34 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 <Trophy className="mt-px size-4 flex-none" aria-hidden />
                 <span>{o.noFit}</span>
               </p>
+            )}
+            {startable.length > 0 && o.onAir && (
+              <button
+                type="button"
+                role="switch"
+                aria-checked={late}
+                data-start-late={late ? "on" : "off"}
+                onClick={() => {
+                  setLate(!late);
+                  setTo(undefined);
+                }}
+                className="flex min-h-[64px] w-full items-center gap-3 border-t border-border pt-2 text-left"
+              >
+                <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-live">
+                  <Radio className="size-5" aria-hidden />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <b className="block text-[15px] font-semibold">
+                    Include {o.part.singular.replace(/^./, (c) => c.toUpperCase())} {o.onAir.number} · on now
+                  </b>
+                  <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
+                    It started {airTime(Date.parse(o.onAir.airAt))}. Picks stay open past the start, on the honour system, until you lock them in Backstage or its results are in.
+                  </small>
+                </span>
+                <span aria-hidden className={`relative h-[30px] w-[52px] flex-none rounded-full transition-colors ${late ? "bg-chyron" : "bg-secondary"}`}>
+                  <i className={`absolute top-[3px] size-6 rounded-full bg-foreground transition-[left] ${late ? "left-[25px]" : "left-[3px]"}`} />
+                </span>
+              </button>
             )}
             {startable.length > 0 && (o.spans.length > 1 || o.ends.length > 0) && <HowLong o={o} to={to} setTo={setTo} />}
             {botsHere && <Computers n={bots} setN={setBots} level={level} setLevel={setLevel} />}

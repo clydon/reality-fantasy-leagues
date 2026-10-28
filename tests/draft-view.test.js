@@ -25,6 +25,22 @@ function league({ shared = false, size = 2 } = {}) {
 const ref = (role = "member") => ({ leagueId: "L", name: "Cup", gameType: "classic-draft", gameName: "Outlast", yourRole: role });
 const view = (s, me, role, own = { queue: [], mine: null }) => draftView(ref(role), s, me, null, (p) => `u-${p}`, own, (u) => (u === "u-admin" ? "admin" : null));
 
+test("behind: the draft waits for a reveal only when someone left in what you haven't seen", () => {
+  const s = league();
+  S.forceStartDraft(s);
+  // Episode 2's results are in (a sport's game fills in live); you're on Episode 1.
+  s.episodes.push({ id: "ep2", number: 2, events: [], scoringEvents: [{ id: "e1", type: "individualImmunity", castawayId: "c3" }], bets: [], picks: [], lineups: {} });
+  const behind = (st) => draftView(ref(), st, "ann", 1, (p) => `u-${p}`, { queue: [], mine: null }, () => null);
+  let g = behind(s);
+  assert.equal(g.revealFirst, null, "nobody left: draft away");
+  assert.equal(g.cast.length, 8);
+  assert.ok(g.cast.every((c) => !c.points), "and no points past where you are");
+  // Someone goes home in Episode 2: the list would give it away.
+  Object.assign(s.castaways.find((c) => c.id === "c8"), { status: "eliminated", exitEpisodeId: "ep2", exitMethod: "Voted Out", placementOrder: 8 });
+  g = behind(s);
+  assert.equal(g.revealFirst, 2);
+});
+
 test("the snake order runs down the list and back up", () => {
   assert.deepEqual(Array.from({ length: 6 }, (_, i) => snakeOwner(PEOPLE, i)), ["ann", "bo", "cy", "cy", "bo", "ann"]);
 });

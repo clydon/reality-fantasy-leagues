@@ -196,7 +196,7 @@ export async function joinPool(user: SessionUser, seasonId: string, now = new Da
 
 function poolWindow(s: LeagueState) {
   const ep = StateLogic.pickEmUpcomingEpisode(s);
-  return { ep, open: !!ep && !StateLogic.pickEmDecided(ep, s) && !StateLogic.hasAired(ep) };
+  return { ep, open: !!ep && !StateLogic.pickEmDecided(ep, s) && !StateLogic.closedForPlay(ep) };
 }
 
 async function seatIn(leagueId: string, userId: string): Promise<string> {

@@ -166,6 +166,15 @@ function finaleEpisodeOf(state){
 // schedule (src/lib/server/air-times.ts) and absent when there's no schedule or the league is
 // catching up -- then nothing is "aired" by the clock, only by its results.
 function hasAired(ep, now){ return !!(ep && ep.airsAt) && (now || Date.now()) >= Date.parse(ep.airsAt); }
+// Whether an episode's lineups and picks are closed: at its start, unless whoever runs the game overrode that (Backstage ›
+// Settings' lock, 2026-10-27): ep.lineupsLocked locks it early, ep.openPastAir keeps it open past its start (the honour
+// system: a couch that sat down after it began, or Start a game's Include it). Results close it whatever the lock says
+// (isLineupLocked, PickEmLogic.decided).
+function closedForPlay(ep, now){
+  if(!ep) return false;
+  if(ep.lineupsLocked) return true;
+  return hasAired(ep, now) && !ep.openPastAir;
+}
 
 // The most recent in-play episode that has actually aired/been logged (EpisodeLogic.hasResults) --
 // what a pickup or add/drop made "now" is really tied to: the episode whose results just created the
@@ -807,7 +816,7 @@ class ActiveRosterLogic {
   // schedule), or when a commissioner locked it by hand (the same fallback, kept for old leagues).
   static isLineupLocked(state, epId){
     const ep = state.episodes.find(e => e.id === epId);
-    return !!ep && (!!ep.lineupsLocked || hasAired(ep) || EpisodeLogic.hasResults(ep));
+    return !!ep && (closedForPlay(ep) || EpisodeLogic.hasResults(ep));
   }
   // Returns null if the lineup is acceptable, else a human-readable reason. Like blind draft (and
   // unlike most of this file) this reports WHY rather than silently no-opping -- a rejected lineup is
@@ -1196,7 +1205,7 @@ class PickEmLogic {
     const c = Core.getCastaway(state, castawayId);
     const player = Core.getPlayer(state, playerId);
     if(!ep || !c || !player || c.status!=='active' || !inPlay(state, ep.number)) return;
-    if(hasAired(ep) || PickEmLogic.decided(ep, state)) return; // picks close when the episode starts
+    if(closedForPlay(ep) || PickEmLogic.decided(ep, state)) return; // picks close when the episode starts (or its lock says)
     if(!PickEmLogic.eligibility(state, epId, playerId).available.includes(castawayId)) return;
     ep.picks = ep.picks || [];
     const existing = ep.picks.find(pk=>pk.playerId===playerId);
@@ -3999,7 +4008,7 @@ return {
   // ---- constants ----
   PALETTE, SEED_CASTAWAYS,
   LEAGUE_TYPES, SHOWS, getLeagueType, replenishAvailable, tradeAvailable, finalePredictionsAvailable, rosterSize, originalDraftPicks,
-  formatOf, startEpisode, endEpisode, inPlay, spanView, gameOver, hasAired, isWinnerExit, seasonWinner, seasonEnded,
+  formatOf, startEpisode, endEpisode, inPlay, spanView, gameOver, hasAired, closedForPlay, isWinnerExit, seasonWinner, seasonEnded,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
   // (public/app.js's 95+ call sites, every server route) needs to change. Each is a direct

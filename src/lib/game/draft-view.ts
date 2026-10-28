@@ -82,7 +82,7 @@ export interface DraftGame extends GameRefIn {
   seats: DraftSeat[];
   /** Who can be drafted (everyone still in), grouped by tribe; on a finished draft, everyone on a team too. */
   cast: DraftFace[];
-  /** Results you haven't revealed stand in the way of seeing who's left to draft: the first of them. */
+  /** Results you haven't revealed stand in the way of seeing who's left to draft (someone left in them): the first of them. */
   revealFirst: number | null;
   /** Turn-based: who picks at each overall pick (0-based), the picks made, and who's on the clock. */
   turns: string[];
@@ -177,6 +177,10 @@ export function draftView(
   const phase = phaseOf(full, kind);
   const view = StateLogic.GhostLogic.viewFor(full, playerId, seen) as LeagueState;
   const hidden = StateLogic.SpoilerLogic.hiddenEpisodes(full, seen);
+  // Results past your mark only shut the draft when someone left in them: who's left to draft would give it away. Otherwise
+  // (a sport, whose games fill in live; an episode nobody went home in) you draft from the cast and points as you've seen them.
+  const hiddenIds = new Set(hidden.map((e) => e.id));
+  const leftUnseen = full.castaways.some((c) => c.exitEpisodeId && hiddenIds.has(c.exitEpisodeId));
   const size = StateLogic.rosterSize(full);
   const role = game.yourRole;
   const nameOf = (id: string) => full.players.find((p) => p.id === id)?.name ?? "someone";
@@ -217,7 +221,7 @@ export function draftView(
     castReady: full.castaways.some((c) => c.status === "active"),
     size,
     cast,
-    revealFirst: phase !== "done" && hidden.length ? hidden[0].number : null,
+    revealFirst: phase !== "done" && leftUnseen ? hidden[0].number : null,
     ...draftTimer(full),
     owners,
     queue: own.queue.filter((id) => faces.has(id)),

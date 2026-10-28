@@ -188,7 +188,7 @@ function liveItems(state, playerId) {
     if (
       ep &&
       !StateLogic.pickEmDecided(ep, state) &&
-      !StateLogic.hasAired(ep) &&
+      !StateLogic.closedForPlay(ep) &&
       !StateLogic.pickEmPickFor(state, ep.id, playerId) &&
       StateLogic.pickEmEligibility(state, ep.id, playerId).available.length > 0
     ) {

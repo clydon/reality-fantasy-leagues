@@ -9,7 +9,7 @@ import StateLogic from "./state-logic.js";
 export function pickWindow(state: LeagueState) {
   const ep = StateLogic.pickEmUpcomingEpisode(state);
   const decided = StateLogic.pickEmDecided(ep, state);
-  const open = !!ep && !decided && !StateLogic.hasAired(ep);
+  const open = !!ep && !decided && !StateLogic.closedForPlay(ep);
   return { ep, open };
 }
 

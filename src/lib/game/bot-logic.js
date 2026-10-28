@@ -23,7 +23,7 @@ const StateLogic = require("./state-logic.js");
 
 const {
   Core, DraftLogic, BlindDraftLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
-  EpisodeLogic, FinaleLogic, getLeagueType, rosterSize, inPlay, hasAired,
+  EpisodeLogic, FinaleLogic, getLeagueType, rosterSize, inPlay, closedForPlay,
   currentEpisode, finalePredictionsAvailable,
 } = StateLogic;
 
@@ -275,7 +275,7 @@ function lineups(state) {
 function eliminatorPicks(state) {
   if (!getLeagueType(state).hasWeeklyPicks) return 0;
   const ep = currentEpisode(state);
-  if (!ep || !inPlay(state, ep.number) || hasAired(ep) || PickEmLogic.decided(ep, state)) return 0;
+  if (!ep || !inPlay(state, ep.number) || closedForPlay(ep) || PickEmLogic.decided(ep, state)) return 0;
   let made = 0;
   botIds(state).forEach((pid) => {
     const { available } = PickEmLogic.eligibility(state, ep.id, pid);

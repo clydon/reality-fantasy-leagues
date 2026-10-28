@@ -320,6 +320,8 @@ declare const StateLogic: {
   gameOver(state: LeagueState): boolean;
   /** Whether the episode has started airing (its server-stamped airsAt has passed). */
   hasAired(ep: Episode | null | undefined, now?: number): boolean;
+  /** Whether its lineups and picks are closed: from its start, unless its lock says otherwise (lineupsLocked, openPastAir). */
+  closedForPlay(ep: Episode | null | undefined, now?: number): boolean;
   /** Whether an exit method crowns the winner (never, for a format nobody wins, or a null method). */
   isWinnerExit(state: LeagueState, method: string | null | undefined): boolean;
   /** Whoever won the season, or null (not yet, or a format nobody wins). */

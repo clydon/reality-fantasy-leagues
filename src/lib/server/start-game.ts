@@ -44,6 +44,10 @@ import { followsOf, games, seasonHeaders, type Game } from "./show-space";
 // game over a span that's over, on the next span of its season (spans.ts nextSpan: the next series after a series, else the
 // same number of episodes again), until a game of its kind has started there since.
 //
+// Include it (2026-10-27): an episode that started in the last ON_AIR_MS can be the game's first (`late`): it starts there, and
+// that episode's lineups and picks stay open past its start (ep.openPastAir, state-logic.js closedForPlay; Backstage ›
+// Settings' lock locks it) until its results are in. Honour system: for a couch that sat down after the start and wants to play tonight's anyway.
+//
 // How long (docs/PLAN-sports-data.md step 6, spans.ts): a game runs to the season's end, or through a chosen episode
 // (settings.endEpisode): just the next one, this series (a sport's consecutive linked games between the same teams), or any
 // later episode the listing has. Nothing after its last episode scores, and it's over once that one has results.
@@ -69,8 +73,12 @@ export interface StartOptions {
   start: "reality" | "scripted" | null;
   /** What one part of the season is called ("episode", a sport's "race"). */
   part: { singular: string; plural: string };
-  /** The game starts with this episode (the next to air; 1 before the premiere). */
+  /** The game starts with this episode (the next to air; 1 before the premiere; with `late`, the one on now). */
   from: number;
+  /** An episode that's started but may still be on (in the last ON_AIR_MS): Include it starts the game there. */
+  onAir: { number: number; airAt: string } | null;
+  /** These options start with the episode on now (asked with `late`). */
+  late: boolean;
   /** How long it can run (spans.ts): the rest of the season first, then just `from`, then this series when there's one. */
   spans: SpanChoice[];
   /** Any later episode the listing has, to end with instead ("Through Game 6"). */
@@ -98,6 +106,12 @@ const KEY_OF: Record<string, SeasonGameKey> = {
   "weekly-calls": "weeklyCalls",
   "weekly-bingo": "weeklyBingo",
 };
+
+/** "Game 4": a part of the season by its number, in the show's word. */
+const partAt = (o: Pick<StartOptions, "part" | "from">) => `${o.part.singular.replace(/^./, (c) => c.toUpperCase())} ${o.from}`;
+
+/** How long after it starts an episode counts as on now, for Include it (a ballgame runs three hours and more). */
+const ON_AIR_MS = 6 * 3600 * 1000;
 
 /** The games computer players play (bot-logic.js): the drafts and Survival Pool. */
 const BOT_GAMES = new Set<SeasonGameKey>(["survivalPool", "weeklyLineup", "outlast"]);
@@ -131,7 +145,7 @@ async function spanEpisodes(seasonId: string, schedule: SeasonSchedule | undefin
 const couchGamesOn = (user: SessionUser, couchId: string, seasonId: string) => games(user.id, { couchIds: [couchId], seasonId });
 
 /** What can be started on a season for a couch (GET /api/seasons/[id]/start?couch=&again=). */
-export async function startOptions(user: SessionUser, seasonId: string, couchId: string | null, againId?: string | null, now = new Date()): Promise<StartOptions> {
+export async function startOptions(user: SessionUser, seasonId: string, couchId: string | null, againId?: string | null, now = new Date(), late = false): Promise<StartOptions> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
   if (!couchId || !isUuid(couchId)) throw new HttpError(400, "couch required");
   const role = await requireCouch(user, couchId);
@@ -165,8 +179,11 @@ export async function startOptions(user: SessionUser, seasonId: string, couchId:
   );
   const watchers = others.filter((p) => players.has(p.userId) || follows.some((f) => f.userId === p.userId && f.seasonId === seasonId && f.following && !f.private)).map((p) => p.name);
 
-  const from = startFrom(schedule, now);
+  const next = startFrom(schedule, now);
   const eps = schedule?.episodes ?? [];
+  const started = eps.filter((e) => e.number < next && e.airAt && Date.parse(e.airAt) <= now.getTime()).at(-1);
+  const onAir = started && now.getTime() - Date.parse(started.airAt!) < ON_AIR_MS ? { number: started.number, airAt: started.airAt! } : null;
+  const from = late && onAir ? onAir.number : next;
   const spanEps = await spanEpisodes(seasonId, schedule);
   const part = partWord(blocks);
   const over = h.status === "completed" || (h.status !== "upcoming" && eps.length > 0 && eps.every((e) => e.airAt && new Date(e.airAt).getTime() <= now.getTime()));
@@ -201,18 +218,20 @@ export async function startOptions(user: SessionUser, seasonId: string, couchId:
     };
   }
 
-  let next: StartOptions["next"] = null;
+  let nextSeason: StartOptions["next"] = null;
   if (over && h.ready !== false) {
     const { rows } = await pool.query(
       `SELECT id, season_number FROM show_seasons WHERE show_id = $1 AND season_number > $2 AND status <> 'completed' ORDER BY season_number LIMIT 1`,
       [h.show.id, h.seasonNumber ?? 0]
     );
-    if (rows.length) next = { seasonId: rows[0].id, label: `${show} ${rows[0].season_number}` };
+    if (rows.length) nextSeason = { seasonId: rows[0].id, label: `${show} ${rows[0].season_number}` };
   }
 
   return {
     seasonId,
-    next,
+    next: nextSeason,
+    onAir,
+    late: late && !!onAir,
     label: `${show}${h.seasonNumber ? ` ${h.seasonNumber}` : ""}`,
     show,
     artUrl: h.show.artUrl,
@@ -281,9 +300,10 @@ export interface Started {
  * Start a game on a season for a couch (POST /api/seasons/[id]/start): `game` a key that fits, `tell` the couch, `again` a game
  * to run back, `to` the last episode it plays (none: to the season's end).
  */
-export async function startGame(user: SessionUser, seasonId: string, couchId: string | null, body: { game?: unknown; tell?: unknown; again?: unknown; to?: unknown; bots?: unknown; level?: unknown }, now = new Date()): Promise<Started> {
+export async function startGame(user: SessionUser, seasonId: string, couchId: string | null, body: { game?: unknown; tell?: unknown; again?: unknown; to?: unknown; bots?: unknown; level?: unknown; late?: unknown }, now = new Date()): Promise<Started> {
   const againId = typeof body.again === "string" ? body.again : null;
-  const opts = await startOptions(user, seasonId, couchId, againId, now);
+  const opts = await startOptions(user, seasonId, couchId, againId, now, body.late === true);
+  if (body.late === true && !opts.late) throw new HttpError(409, `Nothing's on now to include: it starts with ${opts.part.singular} ${opts.from}`);
   if (opts.blocked) throw new HttpError(409, opts.blocked);
   const choice = opts.games.find((g) => g.key === body.game);
   if (!choice || !choice.fits) throw new HttpError(400, choice ? `${choice.name} doesn't fit ${opts.show}: it needs ${choice.needs}` : "Pick a game");
@@ -308,6 +328,7 @@ export async function startGame(user: SessionUser, seasonId: string, couchId: st
   const copy = await copyOf(here.map((g) => g.leagueId));
   const kept = opts.again ? (await leagueStates([opts.again.leagueId])).get(opts.again.leagueId)?.settings : undefined;
   let seat = "";
+  let made: string | null = null;
   const leagueId = await makeLeague(row, {
     name,
     createdBy: user.id,
@@ -321,7 +342,15 @@ export async function startGame(user: SessionUser, seasonId: string, couchId: st
     after: async (s, client, id) => {
       // Theirs from the start: a game of yours never exists without you in it.
       await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, $3, 'commissioner')", [id, user.id, seat]);
+      made = id;
       if (opts.from > 1) StateLogic.updateSettings(s, "startEpisode", opts.from);
+      if (opts.late) {
+        // Include it: the episode on now stays open past its start, until its results are in (state-logic.js closedForPlay).
+        StateLogic.ensureEpisodeNumber(s, opts.from, false);
+        const ep = s.episodes.find((e) => e.number === opts.from);
+        if (ep && StateLogic.episodeHasResults(ep)) throw new HttpError(409, `${partAt(opts)}'s results are in already: start from the next one`);
+        if (ep) ep.openPastAir = true;
+      }
       if (to !== null) StateLogic.updateSettings(s, "endEpisode", to);
       if (opts.kind === "sport") {
         // The draft of athletes: everyone drafts from the whole grid (the blind draft), and a pool pick survives by scoring.
@@ -348,6 +377,10 @@ export async function startGame(user: SessionUser, seasonId: string, couchId: st
         detail: { game: choice.key, from: opts.from, to, bots },
       });
     },
+  }).catch(async (e) => {
+    // A refused setup leaves its half-made league behind: take it away.
+    if (made) await pool.query("DELETE FROM leagues WHERE id = $1 AND created_by = $2", [made, user.id]);
+    throw e;
   });
   if (!leagueId) throw new HttpError(500, "Couldn't make the game, try again");
   const linked = await linkIn(leagueId, here, user.id).catch((e) => {

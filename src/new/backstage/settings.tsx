@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Archive, CalendarDays, ChevronRight, KeyRound, RotateCcw, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Archive, CalendarDays, ChevronRight, KeyRound, Lock, LockOpen, RotateCcw, SlidersHorizontal, Trash2 } from "lucide-react";
+import { airTime } from "../clock";
 import { backstage, gameAdmin, gamesApi, useEndGames, useGameSettings, type DeletePreview, type EndGame, type GameSettings } from "../data";
 import { spanName } from "@/lib/game/spans";
 import { gameColour } from "../games";
@@ -24,7 +25,9 @@ import { Stepper } from "./waivers";
 // delete a game (step 10 part 2b: archive is tier 1 with Undo, delete tier 3 after a hold, restorable for 30 days from Recent
 // changes). A Commissioner changes these; a Game admin reads them. Competitive mode (step 15 part 4, the mock's Lock it down):
 // one switch for every game you run here; while it's on, nobody new joins and the lineup sizes, Who can join and Scoring rules
-// are frozen for the season.
+// are frozen for the season. First in each game with lineups or picks, its lock (2026-10-27): the icon and label say whether
+// this episode's are locked; Auto locks them at its start, Override (whoever runs the game: Commissioner or Game admin) does
+// the opposite: open past the start (the honour system, for a couch that sat down late) or locked early. Results lock it for good.
 
 function useAfter() {
   const client = useQueryClient();
@@ -66,7 +69,7 @@ export function SettingsPage({ seasonId, show }: { seasonId: string; show: ShowD
   return (
     <div className="pb-12">
       {data.data.games.map((g) => (
-        <GameBlock key={g.leagueId} seasonId={seasonId} g={g} words={show.words} write={write} />
+        <GameBlock key={g.leagueId} seasonId={seasonId} couchId={couchId} g={g} words={show.words} write={write} />
       ))}
       <LockDown seasonId={seasonId} couchId={couchId} games={data.data.games} />
       <EndGames seasonId={seasonId} couchId={couchId} />
@@ -77,11 +80,13 @@ export function SettingsPage({ seasonId, show }: { seasonId: string; show: ShowD
 
 function GameBlock({
   seasonId,
+  couchId,
   g,
   words,
   write,
 }: {
   seasonId: string;
+  couchId: string;
   g: GameSettings;
   words: ShowData["words"];
   write: (g: GameSettings, body: Parameters<typeof gameAdmin.settings>[3], said: string) => Promise<void>;
@@ -102,6 +107,8 @@ function GameBlock({
           </small>
         </div>
       </div>
+
+      {g.lock && <LockRow seasonId={seasonId} couchId={couchId} g={g} lock={g.lock} word={words.episode} />}
 
       {L && (
         <div data-settings="lineup" className="mb-5">
@@ -242,6 +249,70 @@ function GameBlock({
         </div>
       )}
     </section>
+  );
+}
+
+/**
+ * The current episode's lineups or picks: the icon and label say locked or open; the switch is Auto (they lock at its start)
+ * or Override (the opposite: open past the start, or locked early). backstage-games.ts lockWrite.
+ */
+function LockRow({ seasonId, couchId, g, lock, word }: { seasonId: string; couchId: string; g: GameSettings; lock: NonNullable<GameSettings["lock"]>; word: string }) {
+  const after = useAfter();
+  const [busy, setBusy] = useState(false);
+  const ep = `${word} ${lock.episode}`;
+  const at = lock.airsAt ? airTime(Date.parse(lock.airsAt)) : null;
+  const final = lock.why === "results";
+  const line = final
+    ? "Its results are in: locked for good"
+    : lock.overridden
+      ? lock.closed
+        ? "Override: locked before its start"
+        : "Override: open past its start, on the honour system"
+      : lock.closed
+        ? `Auto: locked at its start${at ? `, ${at}` : ""}`
+        : `Auto: locks at its start${at ? `, ${at}` : ""}`;
+  const flip = async () => {
+    if (final || busy) return;
+    setBusy(true);
+    try {
+      // An override is always the opposite of what Auto does, so flipping the state turns it on or off.
+      await gameAdmin.lock(seasonId, couchId, g.leagueId, !lock.closed);
+      await after();
+      toast(`${ep}'s ${lock.what} ${lock.closed ? "are open" : "are locked"}${lock.overridden ? " · back to Auto" : ""}`);
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const Icon = lock.closed ? Lock : LockOpen;
+  return (
+    <div data-settings-lock={lock.closed ? "locked" : "open"} className={`mb-5 flex min-h-[64px] items-center gap-3 rounded-[4px] bg-card p-3 ${final ? "opacity-60" : ""}`}>
+      <span className={`grid size-11 flex-none place-items-center rounded-[3px] ${lock.closed ? "bg-secondary text-foreground" : "bg-good/15 text-good"}`}>
+        <Icon className="size-5" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <b className="block text-[16px]">
+          {ep}&rsquo;s {lock.what}: {lock.closed ? "Locked" : "Open"}
+        </b>
+        <small className="block text-[13px] leading-snug text-muted-foreground">{line}</small>
+      </span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={lock.overridden}
+        aria-label={`Override the lock on ${ep}'s ${lock.what}`}
+        data-settings-override={lock.overridden ? "on" : "off"}
+        disabled={final || busy}
+        onClick={flip}
+        className="flex flex-none flex-col items-center gap-1 disabled:opacity-60"
+      >
+        <span aria-hidden className={`relative h-[30px] w-[52px] rounded-full transition-colors ${lock.overridden ? "bg-chyron" : "bg-secondary"}`}>
+          <i className={`absolute top-[3px] size-6 rounded-full bg-foreground transition-[left] ${lock.overridden ? "left-[25px]" : "left-[3px]"}`} />
+        </span>
+        <small className="type-caption text-[11px] tracking-[0.06em] text-muted-foreground">{lock.overridden ? "Override" : "Auto"}</small>
+      </button>
+    </div>
   );
 }
 

@@ -100,6 +100,16 @@ whoever's scoring (tests/computer-players.test.js). The practice couch stays com
 repeats a game name when the couch has two of a kind ("Commissioner in Outlast" for Outlast and Outlast 2): `roleLine` uses
 `gameName`, not the game's own name (BACKLOG).
 
+**Playing an episode that's already started (2026-10-27, pushed; no migration):** an episode's lineups and picks lock at its
+start on their own (Auto); **Backstage › Settings** has a lock row per game (icon and label: Open / Locked; a switch: Auto /
+Override) where whoever runs it (Commissioner or Game admin) keeps them open past the start (`ep.openPastAir`, the honour
+system) or locks them early (`ep.lineupsLocked`). Results lock them for good. **Start a game** offers **Include Episode N ·
+on now** for an episode that started in the last 6 hours: the game starts there, open past its start. Engine:
+`state-logic.js closedForPlay` (every airtime lock goes through it); `backstage-games.ts lockWrite`. The draft room no longer
+waits for a reveal unless someone left in what you haven't seen (a sport's games fill in live). Checks:
+`scripts/dev-test/check-episode-lock.js` 22 PASS at 390 (its `b.settle()` crashed headless Chromium on the Start sheet,
+the page itself fine: waits instead); tests/episode-lock.test.js; unit tests 752.
+
 **The desk catches up with classic's admin (planned 2026-10-27): [PLAN-desk-parity.md](PLAN-desk-parity.md).** The gap audit, the user's decisions (Act as them = classic's impersonation, logged; every gap designed now; phone first), eight steps (people and Act as first), and the design brief; the mock designs come next, after the brief is confirmed.
 
 **Next: the merge-and-deploy step, which is the user's** (decided 2026-10-25: one merge after step 15). In order, from your own terminal (Claude never handles the connection strings), as 0b's As built in the plan describes:

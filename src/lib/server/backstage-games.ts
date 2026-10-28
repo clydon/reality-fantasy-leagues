@@ -469,6 +469,60 @@ export interface GameSettings {
   /** How long it runs (step 6 of docs/PLAN-sports-data.md): from its start to its last episode (null: the season's end); `over`
    *  once that's in, when its end doesn't change; `ends`: the episodes still to come, from its start, it can end with instead. */
   span: { from: number; to: number | null; over: boolean; ends: { number: number; title: string | null }[] };
+  /**
+   * The lock on its current episode's lineups or picks (a game with either; else null): closed at its start, unless whoever runs
+   * it overrode that (state-logic.js closedForPlay). `why`: its start, by hand, or its results (which no override opens).
+   */
+  lock: { episode: number; what: "lineups" | "picks"; closed: boolean; why: "air" | "hand" | "results" | null; overridden: boolean; airsAt: string | null } | null;
+}
+
+/** A game's lock for Game settings (GameSettings.lock). */
+function lockOf(s: LeagueState): GameSettings["lock"] {
+  const type = StateLogic.getLeagueType(s);
+  if (!type.hasActiveRoster && !type.hasWeeklyPicks) return null;
+  const ep = StateLogic.currentEpisode(s);
+  if (!ep) return null;
+  const results = StateLogic.episodeHasResults(ep) || (type.hasWeeklyPicks && StateLogic.pickEmDecided(ep, s));
+  const closed = results || StateLogic.closedForPlay(ep);
+  return {
+    episode: ep.number,
+    what: type.hasActiveRoster ? "lineups" : "picks",
+    closed,
+    why: results ? "results" : !closed ? null : ep.lineupsLocked ? "hand" : "air",
+    overridden: !!ep.openPastAir || !!ep.lineupsLocked,
+    airsAt: ep.airsAt ?? null,
+  };
+}
+
+/**
+ * Lock or unlock the current episode's lineups or picks by hand (whoever runs the game; tier 1, a line in Recent changes):
+ * locking before its start closes it early (ep.lineupsLocked); unlocking after its start keeps it open past it
+ * (ep.openPastAir), on the honour system; either way back undoes the override. Never once its results are in.
+ */
+export async function lockWrite(scope: BackstageScope, leagueId: unknown, closed: unknown): Promise<{ closed: boolean }> {
+  if (typeof closed !== "boolean") throw new HttpError(400, "lock must be true or false");
+  const game = gameIn(scope, leagueId);
+  let text = "";
+  await withLeagueLock(
+    game.leagueId,
+    (s) => {
+      const lock = lockOf(s);
+      const ep = StateLogic.currentEpisode(s);
+      if (!lock || !ep) throw new HttpError(409, "This game has no lineups or picks to lock");
+      if (lock.why === "results") throw new HttpError(409, `Episode ${ep.number}'s results are in: it stays locked`);
+      const aired = StateLogic.hasAired(ep);
+      if (closed) {
+        delete ep.openPastAir;
+        ep.lineupsLocked = !aired;
+      } else {
+        ep.lineupsLocked = false;
+        if (aired) ep.openPastAir = true;
+      }
+      text = `${closed ? "Locked" : "Unlocked"} Episode ${ep.number}'s ${lock.what}${!closed && aired ? " past its start" : ""}`;
+    },
+    () => plainChange(scope.user.id, "settings", text)
+  );
+  return { closed };
 }
 
 /**
@@ -523,6 +577,7 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         waivers: c ? `${RULE_WORDS[c.replaceRule]} · ${c.waiverWindows.swaps > 0 ? `${c.waiverWindows.swaps} optional swap${c.waiverWindows.swaps === 1 ? "" : "s"} per window` : "no optional swaps"}` : null,
         lockedDown: StateLogic.GhostLogic.lockedDown(s),
         span: spanState(s, schedule),
+        lock: lockOf(s),
       };
     }),
   };

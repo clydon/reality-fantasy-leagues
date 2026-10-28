@@ -200,6 +200,8 @@ export interface Episode {
   scoringEvents: ScoringEvent[];
   lineups: Record<string, string[]>;
   lineupsLocked: boolean;
+  /** Kept open past its start by whoever runs the game (Backstage › Settings' lock; StateLogic.closedForPlay). */
+  openPastAir?: boolean;
 }
 
 export interface FinalePrediction {
