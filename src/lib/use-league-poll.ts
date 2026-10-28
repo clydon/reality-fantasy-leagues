@@ -71,14 +71,15 @@ export function useLeaguePoll() {
 
     // Bets needing your guess -- recomputed fresh every poll (including the very first one right
     // after login), so a backlog from before you logged in shows up too, not just new arrivals.
-    if (fresh.settings.bonusEnabled && myPlayerId) {
+    // Only where side bets count (beside a draft), and only until a bet's episode locks (step A4).
+    if (StateLogic.betsOn(fresh) && myPlayerId) {
       const pendingBetIds = new Set<string>();
       const betById = new Map<string, string>();
       fresh.episodes.forEach((ep) =>
         (ep.bets || []).forEach((bet) => {
           betById.set(bet.id, bet.label);
           const alreadyGuessed = (bet.predictions || []).some((p) => p.playerId === myPlayerId);
-          if (!alreadyGuessed && !isBetSettled(bet)) pendingBetIds.add(bet.id);
+          if (!alreadyGuessed && !isBetSettled(bet) && !StateLogic.BetLogic.closed(ep)) pendingBetIds.add(bet.id);
         })
       );
       setBetGuessNotifications(pendingBetIds, (id) => betById.get(id) || "?");

@@ -1,4 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
+import { leagueAnswers } from "./answer-points";
 import { gameView, weekProgress, type GameRefIn, type GameView, type UserOf, type WeekProgress } from "@/lib/game/game-view";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
@@ -64,10 +65,10 @@ export interface GameHere {
 /**
  * Your games on a season (with `couchId`, that couch's that you play), each with its ready state and your mark, in
  * the couch's order; and your season mark (guard.ts). Read by /games, /episodes and the reveal. One league's
- * unreadable state costs that game, not the show space.
+ * unreadable state costs that game, not the show space. `only`: just that one (a game's questions, answers.ts).
  */
-export async function gamesHere(user: SessionUser, seasonId: string, couchId: string | null): Promise<{ seen: number; here: GameHere[] }> {
-  const list = (await games(user.id, couchId ? { couchIds: [couchId], seasonId, withSolo: true } : { mine: true, seasonId })).filter((g) => g.yourRole);
+export async function gamesHere(user: SessionUser, seasonId: string, couchId: string | null, only?: string): Promise<{ seen: number; here: GameHere[] }> {
+  const list = (await games(user.id, couchId ? { couchIds: [couchId], seasonId, withSolo: true } : { mine: true, seasonId })).filter((g) => g.yourRole && (!only || g.leagueId === only));
   const seen = await seenThrough(user.id, seasonId);
   const here: GameHere[] = [];
   if (list.length) {
@@ -102,10 +103,12 @@ export async function seasonGames(user: SessionUser, seasonId: string, couchId: 
 }
 
 /** One of your games as you may see it, with the calls or bingo cards it reads (step 12: a pool's Who goes home?, Weekly Calls,
- *  Weekly Bingo). */
+ *  Weekly Bingo), or a game of questions' answers (step A4). */
 export async function viewWithCalls(user: SessionUser, seasonId: string, h: GameHere): Promise<GameView> {
   const o = { state: h.state, couchId: h.game.couchId, seasonId, playerId: h.playerId, userId: user.id, mark: h.mark, userOf: h.userOf };
-  const calls = await (StateLogic.getLeagueType(h.state).hasBingo ? leagueBingo(o) : leagueCalls(o)).catch((e) => {
+  const type = StateLogic.getLeagueType(h.state);
+  // A game of questions (step A4) ranks by its answers' points, graded at your mark (answer-points.ts).
+  const calls = await (type.hasQuestions ? leagueAnswers({ ...o, leagueId: h.game.leagueId }) : type.hasBingo ? leagueBingo(o) : leagueCalls(o)).catch((e) => {
     console.error(`[season-games] calls ${h.game.leagueId}:`, e);
     return null;
   });

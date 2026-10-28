@@ -97,7 +97,7 @@ function SettingsList({ state }: { state: LeagueState }) {
 
   const midSeason = type.supportsReplenish || type.supportsTrade;
   const predLine = [
-    s.bonusEnabled ? "Predictions on" : "Predictions off",
+    StateLogic.betsOn(state) ? "Predictions on" : "Predictions off",
     type.supportsFinalePredictions ? (s.finalePredictionsEnabled ? "finale on" : "finale off") : null,
   ]
     .filter(Boolean)
@@ -135,7 +135,8 @@ function SettingsList({ state }: { state: LeagueState }) {
     <IndexRow key="teams" href="/setup/teams" icon={Flag} title="Teams & draft" value={teamsLine} alert={todo.has("draft")} />
   ) : null;
   const scoring = <IndexRow key="rules" href="/setup/rules" icon={Calculator} title="Scoring & rules" value={rulesLine} alert={pendingChanges > 0} />;
-  const predictions = <IndexRow key="predictions" href="/setup/predictions" icon={Target} title="Predictions" value={predLine} />;
+  // Side bets and finale predictions go with a draft: nothing else scores them (step A4 of docs/PLAN-start-a-game-gpt.md).
+  const predictions = type.hasRoster ? <IndexRow key="predictions" href="/setup/predictions" icon={Target} title="Predictions" value={predLine} /> : null;
   // Replacements and swaps, run as waivers (docs/PLAN-waivers-v2.md), shared ownership included. They
   // follow from everything above (the cast, the teams, who owns whom), so a new league doesn't answer them:
   // the suggestion is worked out when the draft starts.

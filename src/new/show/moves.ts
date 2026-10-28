@@ -130,7 +130,8 @@ export function sheetTabs(play: GameView[]): SheetTab[] {
     ...play.filter((g) => g.gameType === "pickem").map((g) => tab(g, "pool")),
     ...(play.some((g) => g.predictions.length) ? [{ key: "predict", kind: "predict" as const, label: "Predictions", leagueId: null }] : []),
     // Weekly Calls' calls are Call it's sheet (calls.tsx), Weekly Bingo's cards the bingo sheet (bingo.tsx): neither is a tab here.
-    ...play.filter((g) => !["active-roster", "pickem", "weekly-calls", "weekly-bingo"].includes(g.gameType)).map((g) => tab(g, "outlast")),
+    // A game of questions is answered on its own screen (step A4 part 2).
+    ...play.filter((g) => !["active-roster", "pickem", "weekly-calls", "weekly-bingo", "questions"].includes(g.gameType)).map((g) => tab(g, "outlast")),
   ];
 }
 

@@ -3,7 +3,7 @@
 // as more of the file gets used.
 import type { LeagueState, ScoreRow, DraftTurn, Player, LateJoin, Castaway, Tribe, Bet, Episode, PickEmPick, ScoringEvent, EpisodeProposalPayload, MidSeasonLogEntry, WaiverPeriod, WaiverRun, WaiverClaim, WaiverPair, WaiverWindows, ReplaceRule, WaiverFeel, WaiverRecommendation } from "./types";
 import type { GameFormat, SeasonChange, SeasonChangeSkip } from "./formats/index.js";
-import type { GameSpec, SpecContext, SpecInput, SpecProblem } from "./game-spec/index.js";
+import type { GameSpec, SpecContext, SpecInput, SpecProblem, Question, AnswerFacts, Verdict } from "./game-spec/index.js";
 
 /** One question in guided first-time setup, in the order it should be asked. */
 /** A season_cast row as the cast-linking functions read it. */
@@ -53,6 +53,8 @@ export interface LeagueType {
   hasActiveRoster: boolean;
   /** Weekly Calls: scored from each person's calls (Call it, src/lib/server/calls.ts), which aren't in the state. */
   hasCalls?: boolean;
+  /** A game of questions (step A4): scored by its own answers (game_answers, answers.ts), not the state. */
+  hasQuestions?: boolean;
   /** Weekly Bingo: scored from each person's bingo lines (src/lib/server/bingo.ts), which aren't in the state either. */
   hasBingo?: boolean;
 }
@@ -305,6 +307,10 @@ declare const StateLogic: {
   replenishAvailable(state: LeagueState): boolean;
   tradeAvailable(state: LeagueState): boolean;
   finalePredictionsAvailable(state: LeagueState): boolean;
+  /** A draft's finale predictions, as its spec's two questions say them (their points), or null. */
+  finaleOfGame(state: LeagueState): { top3: number; winner: number; from: "any" | "own" } | null;
+  /** Side bets where they count (only beside a draft: A4), or null. What everything that shows or takes a bet asks. */
+  betsOn(state: LeagueState): { points: number } | null;
   /** Castaways per player in the draft. Derived from activeSlots+benchSlots for Active Roster. */
   rosterSize(state: LeagueState): number;
   /** The most a prediction can be worth (1 to this, whole points). */
@@ -566,8 +572,6 @@ declare const StateLogic: {
   };
   setFinalePick(state: LeagueState, playerId: string, idx: number, value: string | null): void;
   setFinaleWinnerPick(state: LeagueState, playerId: string, value: string | null): void;
-  setActualTop3(state: LeagueState, idx: number, value: string | null): void;
-  setActualWinner(state: LeagueState, value: string | null): void;
   // Blind draft (shared-ownership classic-draft). Note there is nothing here for reading the
   // submitted picks: those never enter league state -- the server reads them straight out of
   // blind_draft_picks (src/lib/server/blind-draft.ts). These are the state-side pieces only.
@@ -625,6 +629,27 @@ declare const StateLogic: {
   removePickEmPick(state: LeagueState, epId: string, playerId: string): void;
   /** Whether this Survival Pool takes a weekly Who goes home? call (settings.calls): the person's Call it (calls.ts). */
   pickEmCallsOn(state: LeagueState): boolean;
+  BetLogic: {
+    /** A side bet's lock: its episode's start (closedForPlay), and for good once it has results. */
+    closed(ep: Episode | null | undefined): boolean;
+  };
+  /** A game's questions (step A4 of docs/PLAN-start-a-game-gpt.md): graded from the league's own results, never stored. */
+  AnswerLogic: {
+    facts(state: LeagueState): AnswerFacts;
+    finishOrder(state: LeagueState): string[];
+    questions(state: LeagueState): Question[];
+    closesAt(state: LeagueState, q: Question, episode: number, finale?: number | null): number | null;
+    closed(state: LeagueState, q: Question, episode: number, o?: { now?: number; finale?: number | null; airAt?: string | null }): boolean;
+    episodeNow(state: LeagueState): number | null;
+    grade(
+      state: LeagueState,
+      answers: { playerId: string; question: string; episode: number; answer: unknown }[],
+      facts?: AnswerFacts
+    ): { points: Map<string, number>; verdicts: Map<string, Verdict> };
+    finaleAnswers(state: LeagueState): { playerId: string; question: string; episode: number; answer: string | string[] }[];
+    finalePoints(state: LeagueState): Map<string, number>;
+    finaleActual(state: LeagueState): { top3: (string | null)[]; winner: string | null };
+  };
 };
 
 export default StateLogic;

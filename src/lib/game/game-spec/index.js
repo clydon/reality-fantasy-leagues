@@ -5,10 +5,12 @@
 //   ./schema.js    the schema, VOCAB (who builds each value), PRESETS, fullSpec, typeOf, specProblems, specWaitsFor
 //   ./settings.js  specOf(settings), settingsOf(spec), withSpec, ownedFields; OWNED and OUTSIDE
 //   ./describe.js  describeSpec: the wizard's sentence, How it works and the details
+//   ./answers.js   grading its questions (A4): verdictOf, pointsFor, isRight, answerProblem
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
 const schema = require('./schema.js');
 const settings = require('./settings.js');
 const { describeSpec } = require('./describe.js');
+const answers = require('./answers.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
-module.exports = { ...schema, ...settings, describeSpec };
+module.exports = { ...schema, ...settings, describeSpec, ...answers };

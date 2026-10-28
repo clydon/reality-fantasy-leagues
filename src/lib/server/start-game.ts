@@ -511,6 +511,8 @@ export async function runItBack(
   finished: { leagueId: string; seasonId: string; gameType: string; span?: { from: number; to: number } | null }[],
   now = new Date()
 ): Promise<{ leagueId: string; seasonId: string; label: string }[]> {
+  // Only the games Start a game makes (a game of questions has no preset to start again: step A4).
+  finished = finished.filter((f) => !!KEY_OF[f.gameType]);
   if (!finished.length) return [];
   const there = await games(user.id, { couchIds: [couchId] });
   const out: { leagueId: string; seasonId: string; label: string }[] = [];

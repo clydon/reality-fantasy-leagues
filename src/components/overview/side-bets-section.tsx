@@ -1,6 +1,7 @@
 "use client";
 
 import type { LeagueState } from "@/lib/game/types";
+import StateLogic from "@/lib/game/state-logic.js";
 import { getActiveBets } from "@/lib/game/selectors";
 import { useCanGuess, useMyPlayerId } from "@/lib/store";
 import { BetCard } from "./bet-card";
@@ -14,7 +15,7 @@ export function SideBetsSection({ state }: { state: LeagueState }) {
   const myPlayerId = useMyPlayerId();
   const canGuessBets = useCanGuess();
 
-  if (!state.settings.bonusEnabled) return null;
+  if (!StateLogic.betsOn(state)) return null;
   const rows = getActiveBets(state);
   if (rows.length === 0) return null;
   const needsCount =

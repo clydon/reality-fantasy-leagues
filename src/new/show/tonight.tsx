@@ -795,6 +795,7 @@ export function yourLine(g: GameView): string {
   if (g.gameType === "pickem") return `streak ${me.week ?? 0}`;
   if (g.gameType === "weekly-calls") return `${me.total} ${me.total === 1 ? "call" : "calls"} right`;
   if (g.gameType === "weekly-bingo") return `${me.total} ${me.total === 1 ? "line" : "lines"}`;
+  if (g.gameType === "questions") return `${me.total} ${me.total === 1 ? "pt" : "pts"}`;
   if (g.gameType === "active-roster") return `${me.total} pts`;
   const team = me.team.map((id) => g.cast.find((c) => c.id === id)).filter((c) => !!c);
   return `${team.filter((c) => !c.knocked).length} of ${team.length} still in`;

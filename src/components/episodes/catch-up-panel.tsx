@@ -161,5 +161,5 @@ function nextDetail(state: LeagueState, number: number): string {
       return `${picked} of ${players.length} have made their picks`;
     }
   }
-  return state.settings.bonusEnabled ? "Predictions go in now" : "Its results stay hidden until it's revealed";
+  return !!StateLogic.betsOn(state) ? "Predictions go in now" : "Its results stay hidden until it's revealed";
 }

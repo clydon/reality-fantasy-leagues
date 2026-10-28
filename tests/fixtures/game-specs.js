@@ -57,7 +57,6 @@ module.exports = [
     sentence: "A game for the 76ers home opener: everyone answers three questions before Game 1: who wins, who scores the most points and total points: over or under. A point for each right answer.",
     type: null,
     waits: [
-      { at: "score.by", step: "A4" },
       { at: "pool.where", step: "sports" },
       { at: "ask[0]", step: "sports" },
       { at: "ask[1]", step: "sports" },

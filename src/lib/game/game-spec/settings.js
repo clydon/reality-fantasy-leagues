@@ -17,7 +17,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
 const {
   SPEC_VERSION, TYPE_PRESETS, REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS,
-  MAX_BET_POINTS, ORDER_OF, fullSpec, typeOf, playsAs, specProblems, waiversFit, sameValue, spanStart, spanPhase,
+  MAX_BET_POINTS, ORDER_OF, CALLS, fullSpec, typeOf, playsAs, specProblems, waiversFit, sameValue, spanStart, spanPhase,
+  finaleQuestions, finaleOf,
 } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -101,9 +102,12 @@ function waiversOf(st, lineup, R) {
   };
 }
 
+/** Today's league types: the five presets', and a game of questions (A4: no preset, its questions in settings.questions). */
+const LEAGUE_TYPES = [...Object.keys(TYPE_PRESETS), 'questions'];
+
 /**
- * The spec a league's settings play: its league type's mechanics, their parameters, its span and its extras. An unknown or
- * missing league type plays Outlast, as getLeagueType does.
+ * The spec a league's settings play: its league type's mechanics, their parameters, its span, its questions and its extras.
+ * An unknown or missing league type plays Outlast, as getLeagueType does.
  */
 function specOf(settings) {
   return readSpec(isObj(settings) ? settings : {}, true);
@@ -134,12 +138,12 @@ function usable(g) {
 }
 /** specOf's reading; `copy`: the points map copied (specOf), else the stored one (gameOf, read only). */
 function readSpec(st, copy) {
-  const type = Object.prototype.hasOwnProperty.call(TYPE_PRESETS, st.leagueTypeId) ? st.leagueTypeId : 'classic-draft';
+  const type = LEAGUE_TYPES.includes(st.leagueTypeId) ? st.leagueTypeId : 'classic-draft';
   const own = st.ownershipMode === 'shared' ? 'shared' : 'exclusive';
   const draft = type === 'classic-draft' || type === 'active-roster';
   const spec = {
     spec: SPEC_VERSION,
-    preset: TYPE_PRESETS[type],
+    preset: TYPE_PRESETS[type] || null,
     span: spanOf(st),
     pool: { of: 'cast', where: { stillIn: true } },
   };
@@ -163,12 +167,18 @@ function readSpec(st, copy) {
       score: { by: 'survive', means: st.poolSurvive === 'scores' ? 'scores' : 'staysIn', points: typeof st.pickemCorrectPoints === 'number' ? st.pickemCorrectPoints : 1 },
       rank: { by: 'streak' },
     });
-  } else if (type === 'weekly-calls') {
-    Object.assign(spec, { get: { by: 'none' }, count: null, score: { by: 'calls' }, rank: { by: 'total' } });
+  } else if (type === 'weekly-calls' || type === 'questions') {
+    Object.assign(spec, { get: { by: 'none' }, count: null, score: { by: 'answers' }, rank: { by: 'total' } });
   } else {
     Object.assign(spec, { get: { by: 'card' }, count: null, score: { by: 'lines' }, rank: { by: 'total' } });
   }
-  spec.ask = [];
+  // The questions (A4): Weekly Calls' is the show's calls; a game of questions keeps its own (settings.questions, as its
+  // spec says them); a draft's are its finale predictions while they're on.
+  if (type === 'weekly-calls') spec.ask = [clone(CALLS)];
+  else if (type === 'questions') spec.ask = Array.isArray(st.questions) ? (copy ? clone(st.questions) : st.questions) : [];
+  else if (draft && st.finalePredictionsEnabled === true) {
+    spec.ask = finaleQuestions({ top3: st.finaleTop3Points || 0, winner: st.finaleWinnerPoints || 0, from: st.finalePredictionScope === 'ownPicksOnly' ? 'own' : 'any' });
+  } else spec.ask = [];
   spec.closes = 'start';
 
   // Who can join (GhostLogic.joinMode): classic's late-joiner switch off locks it; open only where castaways can be on
@@ -178,10 +188,9 @@ function readSpec(st, copy) {
   const timer = Number(st.draftTimer);
   spec.extras = {
     waivers: waiversFit(spec) ? waiversOf(st, type === 'active-roster', R) : null,
-    bets: st.bonusEnabled ? { points: clampBet(st.defaultBetPoints) } : null,
-    finale: draft && st.finalePredictionsEnabled === true
-      ? { top3: st.finaleTop3Points || 0, winner: st.finaleWinnerPoints || 0, from: st.finalePredictionScope === 'ownPicksOnly' ? 'own' : 'any' }
-      : null,
+    // Side bets only beside a draft, the games that score them (a pool's, Weekly Calls' and Weekly Bingo's never counted:
+    // their switch stays as it's stored, and nothing reads it).
+    bets: draft && st.bonusEnabled ? { points: clampBet(st.defaultBetPoints) } : null,
     calls: type === 'pickem' && !!st.calls,
     draft: draft ? { at: typeof st.draftScheduledAt === 'string' ? st.draftScheduledAt : null, timer: DRAFT_TIMERS.includes(timer) ? timer : 0, away: st.draftAway === 'queue' ? 'queue' : 'wait' } : null,
     join,
@@ -204,6 +213,7 @@ function settingsOf(spec) {
   // A league's own rules hold (a team bigger than a new game's): what the engine can't play is never written.
   if (!type || specProblems(s, null, { league: true }).length) return null;
   const e = s.extras;
+  const finale = s.get.by === 'draft' ? finaleOf(s.ask) : null;
   const out = {
     leagueTypeId: type,
     // A phase start (A3): startPhase, with startEpisode null while it waits (spanOf reads both back).
@@ -222,10 +232,10 @@ function settingsOf(spec) {
       draftScheduledAt: e.draft ? e.draft.at : null,
       draftTimer: e.draft ? e.draft.timer : 0,
       draftAway: e.draft ? e.draft.away : 'wait',
-      finalePredictionsEnabled: !!e.finale,
+      finalePredictionsEnabled: !!finale,
     });
-    if (e.finale) {
-      Object.assign(out, { finaleTop3Points: e.finale.top3, finaleWinnerPoints: e.finale.winner, finalePredictionScope: e.finale.from === 'own' ? 'ownPicksOnly' : 'open' });
+    if (finale) {
+      Object.assign(out, { finaleTop3Points: finale.top3, finaleWinnerPoints: finale.winner, finalePredictionScope: finale.from === 'own' ? 'ownPicksOnly' : 'open' });
     }
     if (type === 'classic-draft') out.teamSize = s.get.each;
     else {
@@ -257,6 +267,7 @@ function settingsOf(spec) {
   if (type === 'pickem') {
     Object.assign(out, { pickemCorrectPoints: s.score.points, poolSurvive: s.score.means === 'scores' ? 'scores' : undefined, calls: e.calls === true });
   }
+  if (type === 'questions') out.questions = clone(s.ask);
   return out;
 }
 
@@ -310,7 +321,10 @@ const PARTS = [
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },
   { fields: ['bonusEnabled', 'defaultBetPoints'], read: (s) => s.extras.bets },
   { fields: ['draftScheduledAt', 'draftTimer', 'draftAway'], read: (s) => s.extras.draft },
-  { fields: ['finalePredictionsEnabled', 'finaleTop3Points', 'finaleWinnerPoints', 'finalePredictionScope'], read: (s) => s.extras.finale },
+  // The questions: a draft's finale predictions in their fields, a game of questions' own in settings.questions (Weekly
+  // Calls' is its type's).
+  { fields: ['finalePredictionsEnabled', 'finaleTop3Points', 'finaleWinnerPoints', 'finalePredictionScope'], read: (s) => (s.get.by === 'draft' ? finaleOf(s.ask) : null) },
+  { fields: ['questions'], read: (s) => (typeOf(s) === 'questions' ? s.ask : null) },
   { fields: ['hideStartersUntilLock'], read: (s) => s.extras.hideStarters },
   { fields: ['calls'], read: (s) => s.extras.calls },
   { fields: WAIVER_FIELDS, read: (s) => s.extras.waivers, written: (out) => delete out.waiverFit },
@@ -320,6 +334,6 @@ const PARTS = [
 const OWNED = PARTS.flatMap((p) => p.fields);
 
 module.exports = {
-  OUTSIDE, OWNED, specOf, gameOf, settingsOf, ownedFields, withSpec,
+  OUTSIDE, OWNED, LEAGUE_TYPES, specOf, gameOf, settingsOf, ownedFields, withSpec,
   spanOf, waiversOf, legacyWaivers, normalizeWindows, swapEveryOf, clampBet,
 };

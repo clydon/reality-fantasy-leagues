@@ -45,7 +45,7 @@ export function teamEpisodeBreakdown(state: LeagueState, epId: string, playerId:
   const byPoints = (a: TeamEpisodeLine, b: TeamEpisodeLine) => b.points - a.points || a.c.name.localeCompare(b.c.name);
   const started = roster.filter((c) => startedIds.includes(c.id)).map(line).sort(byPoints);
   const benched = roster.filter((c) => !startedIds.includes(c.id)).map(line).sort(byPoints);
-  const bets = state.settings.bonusEnabled ? playerBetRows(state, playerId).filter((b) => b.episode === ep.number) : [];
+  const bets = StateLogic.betsOn(state) ? playerBetRows(state, playerId).filter((b) => b.episode === ep.number) : [];
   const lineup = StateLogic.roundPoints(started.reduce((t, s) => t + s.points, 0));
   const predictions = StateLogic.roundPoints(bets.reduce((t, b) => t + b.points, 0));
   return { started, benched, bets, lineup, predictions, total: StateLogic.roundPoints(lineup + predictions) };

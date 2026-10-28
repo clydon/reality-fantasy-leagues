@@ -131,7 +131,7 @@ export function nightIn(game: GameRefIn, view: LeagueState, me: string, ep: Epis
 
 /** Your predictions on an episode, once graded: "1 of 2 · +2". Null when you made none that are graded. */
 function predictionsIn(game: GameRefIn, view: LeagueState, me: string, ep: Episode): GameNight | null {
-  if (!view.settings.bonusEnabled) return null;
+  if (!StateLogic.betsOn(view)) return null;
   const mine = (ep.bets || [])
     .filter((b) => isBetSettled(b))
     .map((b) => ({ bet: b, guess: (b.predictions || []).find((p) => p.playerId === me) }))

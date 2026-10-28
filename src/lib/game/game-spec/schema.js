@@ -18,15 +18,17 @@
 //            (nothing held); sports: { best: n } (best ball)
 //   score    { by: 'moments', points } (points: moment id -> points over the rulebook's own; null = its own)
 //            | { by: 'place' } (Outlast: 1, plus 1 for every boot outlasted) | { by: 'survive', means: staysIn | scores,
-//            points } (Survival Pool) | { by: 'calls' } | { by: 'lines' } (bingo); A4: { by: 'answers' } (the ask's);
-//            sports: { by: 'stats', points: { HR: 5 } } (the Sport's stat keys)
+//            points } (Survival Pool) | { by: 'lines' } (bingo) | { by: 'answers' } (only the ask's questions: Weekly
+//            Calls, a game of questions); sports: { by: 'stats', points: { HR: 5 } } (the Sport's stat keys)
 //   rank     { by: 'total' } | { by: 'streak' } (longest, ties to the total); sports: matchups | categories | roto
-//   ask      A4: questions answered before the lock, each settled by data (QUESTION below)
+//   ask      questions answered before their lock, each settled by data (A4: the question below). Beside a draft, its
+//            finale predictions (finaleQuestions); a game scored by answers, its own (Weekly Calls': the show's calls,
+//            CALLS)
 //   closes   'start': moves lock at each episode's start (today's airtime lock); sports: 'daily' | 'weekly'
 //   extras   the details nobody asked about, recommended and out of sight (EXTRAS below)
 //
-// Who builds each value is in VOCAB: 'now' the engine plays it today (after A2, through the spec; a phase start since A3),
-// 'A4' that step, 'sports' the sports branch, 'later' no step yet. specProblems says what's wrong with a spec, specWaitsFor what
+// Who builds each value is in VOCAB: 'now' the engine plays it today (after A2, through the spec; a phase start since A3;
+// questions since A4), 'sports' the sports branch, 'later' no step yet. specProblems says what's wrong with a spec, specWaitsFor what
 // it needs that isn't built. Pure, plain CommonJS like formats/, so state-logic.js can read it (A2).
 
 const SPEC_VERSION = 1;
@@ -38,38 +40,59 @@ const VOCAB = {
   'get.own': { exclusive: 'now', shared: 'now' },
   'get.repeat': { cycle: 'now' },
   count: { start: 'now', all: 'now', pick: 'now', best: 'sports' },
-  'score.by': { moments: 'now', place: 'now', survive: 'now', calls: 'now', lines: 'now', answers: 'A4', stats: 'sports' },
+  'score.by': { moments: 'now', place: 'now', survive: 'now', lines: 'now', answers: 'now', stats: 'sports' },
   'score.means': { staysIn: 'now', scores: 'now' },
   'rank.by': { total: 'now', streak: 'now', matchups: 'sports', categories: 'sports', roto: 'sports' },
   closes: { start: 'now', daily: 'sports', weekly: 'sports' },
   'pool.where': { stillIn: 'now', teams: 'sports', group: 'later' },
-  'ask.answer': { person: 'A4', yesNo: 'A4', number: 'A4', overUnder: 'A4', choice: 'A4', side: 'sports' },
-  'ask.settle': { results: 'A4', moment: 'A4', final: 'sports', stat: 'sports' },
+  'ask.answer': { person: 'now', yesNo: 'now', number: 'now', overUnder: 'now', choice: 'now', calls: 'now', side: 'sports' },
+  'ask.settle': { results: 'now', moment: 'now', calls: 'now', final: 'sports', stat: 'sports' },
+  'ask.asked': { once: 'now', each: 'now' },
+  'ask.closes': { start: 'now', finale: 'now' },
+  'ask.from': { cast: 'now', team: 'now' },
 };
 
-// A question in `ask`:
-//   { id, ask: 'Who scores the most points?', answer, points, settle, line?, options? }
-//   answer  person | side | yesNo | number (closest wins) | overUnder (with line: a number, or null for the wizard to
-//           ask) | choice (with options)
-//   settle  shows (A4): { by: 'results', take: winner | out | placed } | { by: 'moment', moment: id, take: happened |
-//           count }; sports: { by: 'final', take: winner | total | margin } | { by: 'stat', stat, take: most | least |
-//           value }
+// A question in `ask` (A4):
+//   { id, ask: 'Who goes home?', answer, points, settle, asked, closes, pick?, from?, line?, options? }
+//   id      its key, for its answers (game_answers.question): letters, digits, '.', '_' or '-', up to 40
+//   answer  person (`pick` of them, each right one scores; `from` the cast still in, or a draft's own team) | yesNo |
+//           number (the closest wins, ties all) | overUnder (with line: a number, or null for the wizard to ask) |
+//           choice (with options) | calls (the show's two calls each episode, Call it's: CALLS); sports: side
+//   points  a right answer's (a right pick's), 0 to MAX_QUESTION_POINTS
+//   asked   once (for the game) | each (every episode it plays, each its own answer)
+//   closes  start: when its episode starts (asked each), or the game's first does (asked once) | finale: when the
+//           season's last episode starts (asked once). Never once data has settled it. The lock is the engine's
+//           closedForPlay, so whoever runs the game can keep an episode open past its start or lock it early
+//   settle  shows: { by: 'results', take: winner | out | placed | top, place? } (out: who goes home in the episode, or,
+//           asked once, the first to go in the game; winner, placed and top are the season's: asked once, in a game
+//           that runs to the season's end; placed: who finished `place`th, top: in the top `place`) | { by: 'moment',
+//           moment: id, take: happened | count } (in the episode; asked once, over the game) | { by: 'calls' } (Call
+//           it's); sports: { by: 'final', take: winner | total | margin } | { by: 'stat', stat, take: most | least | value }
 const TAKES = {
-  results: ['winner', 'out', 'placed'],
+  results: ['winner', 'out', 'placed', 'top'],
   moment: ['happened', 'count'],
+  calls: [],
   final: ['winner', 'total', 'margin'],
   stat: ['most', 'least', 'value'],
 };
+/** The settles that are the season's (known at its end): asked once, in a game that runs to the season's end. */
+const SEASON_TAKES = ['results:winner', 'results:placed', 'results:top'];
 /** The settles each kind of answer can be graded by ('by:take'). A choice is matched to whatever settles it. */
 const NUMBERS = ['moment:count', 'final:total', 'final:margin', 'stat:value'];
 const SETTLES_FOR = {
-  person: ['results:winner', 'results:out', 'results:placed', 'stat:most', 'stat:least'],
+  person: ['results:winner', 'results:out', 'results:placed', 'results:top', 'stat:most', 'stat:least'],
   side: ['final:winner'],
   yesNo: ['moment:happened'],
   number: NUMBERS,
   overUnder: NUMBERS,
   choice: null,
+  calls: ['calls:'],
 };
+const MAX_QUESTIONS = 12;
+const MAX_PICK = 10;
+const MAX_QUESTION_POINTS = 100;
+const MAX_OPTIONS = 12;
+const QUESTION_ID = /^[A-Za-z0-9][\w.-]{0,39}$/;
 
 // The settings' own vocabularies, as state-logic.js reads them (WaiverLogic, the draft timer, side bets).
 const REPLACE_RULES = ['always', 'whenShort', 'windows', 'never'];
@@ -81,12 +104,12 @@ const DRAFT_TIMERS = [0, 60, 120];
 const MAX_BET_POINTS = 3;
 const JOINS = ['open', 'ask', 'locked'];
 
-// The extras: { waivers, bets, finale, calls, draft, join, hideStarters, lockedDown }
+// The extras: { waivers, bets, calls, draft, join, hideStarters, lockedDown }
 //   waivers       a draft's mid-season moves, or null (no waivers: shared Outlast, no draft):
 //                 { feel, replace, short, windows: { schedule, every, swaps }, order, hours, freeAgency, autoFill }
 //                 (replaceRule, replenishAt, waiverWindows, replenishOrderBy, waiverProcessHours, ...: WaiverLogic)
-//   bets          side bets ("Predictions", graded by whoever runs the game): { points } (each new one's), or null
-//   finale        a draft's finale predictions: { top3, winner, from: any | own } (points each; own = your team only)
+//   bets          side bets ("Predictions", graded by whoever runs the game): { points } (each new one's), or null. Only
+//                 beside a draft, the games that score them (A4: a pool, Weekly Calls and Weekly Bingo never did)
 //   calls         a Survival Pool's weekly Who goes home? call beside the pick (the public pool): counted, not ranked
 //   draft         a draft's room: { at: ISO | null, timer: 0 | 60 | 120 (seconds a pick), away: wait | queue }
 //   join          who can join: open (anyone on the couch) | ask | locked (nobody new) | null (recommended: open where
@@ -108,7 +131,70 @@ const NO_WAIVERS = {
 const DRAFT_ROOM = { at: null, timer: 0, away: 'wait' };
 const BETS = { points: 1 };
 
-const extrasOf = (o) => ({ waivers: null, bets: BETS, finale: null, calls: false, draft: null, join: null, hideStarters: false, lockedDown: false, ...o });
+const extrasOf = (o) => ({ waivers: null, bets: null, calls: false, draft: null, join: null, hideStarters: false, lockedDown: false, ...o });
+
+// The ask presets (A4: "Weekly Calls and finale predictions become presets of ask").
+//
+// CALLS, Weekly Calls' one question: the show's two calls each episode (calls.ts callQuestions: who goes home, where someone
+// does every episode, and a yes or no on one of the show's moments, round its callable ones; a talk show's two moments). Its
+// answers are Call it's, a person's whichever couch they're on (episode_calls), so a call is made once for every game that
+// counts it; settled by the season's results, or a talk show's by the couch (its word: a league's own only, never the GPT's).
+const CALLS = { id: 'calls', ask: 'Two calls before each episode', answer: 'calls', points: 1, settle: { by: 'calls' }, asked: 'each', closes: 'start' };
+/**
+ * A draft's finale predictions as two questions: name the final three (any order, each right one scores its points) and
+ * the winner, from the cast still in or only your own team (`from`: any | own, as the settings say it). Asked once, until
+ * the season's last episode starts; settled by the results (the winner's exit, the order everyone finished in). Their
+ * answers stay in the league's state (state.finalePredictions), where classic's finale panel writes them.
+ */
+function finaleQuestions(f) {
+  const from = f && f.from === 'own' ? 'team' : 'cast';
+  const pts = (v) => (isNum(v) ? v : 0);
+  return [
+    { id: 'top3', ask: 'Who makes the final three?', answer: 'person', points: pts(f && f.top3), settle: { by: 'results', take: 'top', place: 3 }, asked: 'once', closes: 'finale', pick: 3, from },
+    { id: 'winner', ask: 'Who wins?', answer: 'person', points: pts(f && f.winner), settle: { by: 'results', take: 'winner' }, asked: 'once', closes: 'finale', pick: 1, from },
+  ];
+}
+/** The finale predictions an ask is ({ top3, winner, from: any | own }, their points), or null when it isn't exactly them. */
+function finaleOf(ask) {
+  if (!Array.isArray(ask) || ask.length !== 2) return null;
+  const top3 = ask.find((q) => isObj(q) && q.id === 'top3');
+  const winner = ask.find((q) => isObj(q) && q.id === 'winner');
+  if (!top3 || !winner || !isNum(top3.points) || !isNum(winner.points)) return null;
+  const f = { top3: top3.points, winner: winner.points, from: top3.from === 'team' ? 'own' : 'any' };
+  const want = finaleQuestions(f);
+  return sameValue(ask, want) ? f : null;
+}
+/** Weekly Calls' question (the show's calls). */
+const isCalls = (q) => isObj(q) && q.answer === 'calls';
+/** An ask that's exactly the show's calls (Weekly Calls). */
+const callsAsk = (ask) => Array.isArray(ask) && ask.length === 1 && sameValue(ask[0], CALLS);
+
+/** A question with what it leaves out filled in: asked once, closing at the start; a person answer one pick from the cast. */
+function fullQuestion(q) {
+  if (!isObj(q)) return q;
+  const out = { ...q };
+  if (out.asked === undefined) out.asked = 'once';
+  if (out.closes === undefined) out.closes = 'start';
+  if (out.answer === 'person') {
+    if (out.pick === undefined) out.pick = 1;
+    if (out.from === undefined) out.from = 'cast';
+  }
+  return out;
+}
+
+/** A choice option as a range a count falls in: "2" (exactly), "3+" (3 or more), "0-1" (0 to 1); else null. */
+function optionRange(o) {
+  const t = String(o).trim();
+  let m = /^(\d+)$/.exec(t);
+  if (m) return { min: +m[1], max: +m[1] };
+  m = /^(\d+)\s*\+$/.exec(t);
+  if (m) return { min: +m[1], max: Infinity };
+  m = /^(\d+)\s*[-\u2013]\s*(\d+)$/.exec(t);
+  if (m && +m[1] <= +m[2]) return { min: +m[1], max: +m[2] };
+  return null;
+}
+/** A yes-or-no answer, as it's stored. */
+const YES_NO = ['yes', 'no'];
 
 /**
  * Today's five games, as Start a game makes them (StateLogic.defaultState, then makeLeague's type): each a spec with
@@ -120,13 +206,13 @@ const PRESETS = {
     spec: SPEC_VERSION, preset: 'outlast', span: { from: 1, to: null }, pool: { of: 'cast', where: { stillIn: true } },
     get: { by: 'draft', each: 3, order: 'snake', own: 'exclusive' }, count: { all: true }, score: { by: 'place' },
     rank: { by: 'total' }, ask: [], closes: 'start',
-    extras: extrasOf({ waivers: NO_WAIVERS, draft: DRAFT_ROOM }),
+    extras: extrasOf({ waivers: NO_WAIVERS, bets: BETS, draft: DRAFT_ROOM }),
   },
   'weekly-lineup': {
     spec: SPEC_VERSION, preset: 'weekly-lineup', span: { from: 1, to: null }, pool: { of: 'cast', where: { stillIn: true } },
     get: { by: 'draft', each: 5, order: 'blind', own: 'shared' }, count: { start: 3 }, score: { by: 'moments', points: null },
     rank: { by: 'total' }, ask: [], closes: 'start',
-    extras: extrasOf({ waivers: NO_WAIVERS, draft: DRAFT_ROOM }),
+    extras: extrasOf({ waivers: NO_WAIVERS, bets: BETS, draft: DRAFT_ROOM }),
   },
   'survival-pool': {
     spec: SPEC_VERSION, preset: 'survival-pool', span: { from: 1, to: null }, pool: { of: 'cast', where: { stillIn: true } },
@@ -136,7 +222,7 @@ const PRESETS = {
   },
   'weekly-calls': {
     spec: SPEC_VERSION, preset: 'weekly-calls', span: { from: 1, to: null }, pool: { of: 'cast', where: { stillIn: true } },
-    get: { by: 'none' }, count: null, score: { by: 'calls' }, rank: { by: 'total' }, ask: [], closes: 'start',
+    get: { by: 'none' }, count: null, score: { by: 'answers' }, rank: { by: 'total' }, ask: [CALLS], closes: 'start',
     extras: extrasOf({}),
   },
   'weekly-bingo': {
@@ -210,6 +296,9 @@ function waiversFit(spec) {
 }
 /** Finale predictions go with a draft (supportsFinalePredictions: Outlast and Weekly Lineup). */
 const finaleFits = (spec) => !!(spec && spec.get && spec.get.by === 'draft');
+/** Side bets go with a draft: Outlast's and Weekly Lineup's scoring are the only ones that count them (state-logic.js
+ *  addSideLayers). */
+const betsFit = (spec) => !!(spec && spec.get && spec.get.by === 'draft');
 
 /**
  * The spec with everything it leaves out filled in: the preset's (when it fits what the spec says) or the defaults for its
@@ -244,6 +333,7 @@ function fullSpec(spec) {
     if (s.span.to === undefined) s.span.to = null;
   }
   if (isObj(s.pool) && s.pool.where === undefined) s.pool.where = null;
+  if (Array.isArray(s.ask)) s.ask = s.ask.map(fullQuestion);
   const by = isObj(s.get) ? s.get.by : undefined;
   if (by === 'draft') {
     if (!s.get.own && s.get.order) s.get.own = own(OWN_OF, s.get.order);
@@ -269,7 +359,6 @@ function fullSpec(spec) {
   const dflt = {
     waivers: waiversFit(s) ? NO_WAIVERS : null,
     bets: pe ? pe.bets : null,
-    finale: pe ? pe.finale : null,
     calls: pe ? pe.calls : false,
     draft: isObj(s.get) && s.get.by === 'draft' ? DRAFT_ROOM : null,
     join: pe ? pe.join : null,
@@ -296,27 +385,39 @@ function playsAs(s) {
   const by = (k) => (isObj(s[k]) ? s[k].by : undefined);
   const count = countKind(s.count);
   if (!plainParts(s)) return null;
-  if (by('get') === 'draft' && own(ORDER_OF, s.get.own) === s.get.order) {
+  const none = s.ask.length === 0;
+  if (by('get') === 'draft' && own(ORDER_OF, s.get.own) === s.get.order && (none || finaleOf(s.ask))) {
     if (count === 'all' && by('score') === 'place' && by('rank') === 'total') return 'classic-draft';
     if (count === 'start' && by('score') === 'moments' && by('rank') === 'total') return 'active-roster';
   }
-  if (by('get') === 'pick' && s.get.each === 1 && s.get.repeat === 'cycle' && count === 'pick' && by('score') === 'survive' && by('rank') === 'streak') {
+  if (by('get') === 'pick' && s.get.each === 1 && s.get.repeat === 'cycle' && count === 'pick' && by('score') === 'survive' && by('rank') === 'streak' && none) {
     return 'pickem';
   }
-  if (by('get') === 'none' && !count && by('score') === 'calls' && by('rank') === 'total') return 'weekly-calls';
-  if (by('get') === 'card' && !count && by('score') === 'lines' && by('rank') === 'total') return 'weekly-bingo';
+  if (by('get') === 'none' && !count && by('score') === 'answers' && by('rank') === 'total') {
+    if (callsAsk(s.ask)) return 'weekly-calls';
+    if (!none && s.ask.length <= MAX_QUESTIONS && s.ask.every(playable)) return 'questions';
+  }
+  if (by('get') === 'card' && !count && by('score') === 'lines' && by('rank') === 'total' && none) return 'weekly-bingo';
   return null;
 }
-/** The parts every game today shares: a span (from an episode, or a phase), the cast still in, no questions, moves locking
- *  at the start. */
+/** The parts every game today shares: a span (from an episode, or a phase), the cast still in, a list of questions (each
+ *  game says which it plays), moves locking at the start. */
 function plainParts(s) {
   const where = s.pool && s.pool.where;
   return (
     isObj(s.span) && (isInt(s.span.from, 1) || phaseFrom(s.span.from)) &&
     isObj(s.pool) && s.pool.of === 'cast' && (where === null || (isObj(where) && where.stillIn === true && Object.keys(where).length === 1)) &&
-    Array.isArray(s.ask) && s.ask.length === 0 &&
+    Array.isArray(s.ask) &&
     s.closes === 'start'
   );
+}
+/** A question a game of questions plays today: a show's (graded from its results or its moments), its line set when it's an
+ *  over/under, nobody's own team to pick from (there are no teams). Its shape is specProblems'. */
+function playable(q) {
+  if (!isObj(q) || isCalls(q) || !isObj(q.settle)) return false;
+  if (own(VOCAB['ask.answer'], q.answer) !== 'now' || own(VOCAB['ask.settle'], q.settle.by) !== 'now') return false;
+  if (q.answer === 'overUnder' && !isNum(q.line)) return false;
+  return !(q.answer === 'person' && q.from === 'team');
 }
 
 /** A start at a phase, well formed: { phase: an id, at?: the episode it plays from }. */
@@ -346,7 +447,9 @@ function flagsOf(s) {
     hasRoster: get.by === 'draft',
     hasActiveRoster: get.by === 'draft' && countKind(s.count) === 'start',
     hasWeeklyPicks: get.by === 'pick',
-    hasCalls: score.by === 'calls',
+    hasCalls: score.by === 'answers' && callsAsk(s && s.ask),
+    // A game of questions (A4): scored by its answers, not the show's calls.
+    hasQuestions: score.by === 'answers' && !callsAsk(s && s.ask),
     hasBingo: score.by === 'lines',
     supportsReplenish: waivers,
     supportsTrade: waivers,
@@ -453,7 +556,7 @@ function specProblems(spec, ctx, opts) {
 
   // score and rank
   const score = isObj(s.score) ? s.score : {};
-  if (!one('score.by', score.by)) add('score.by', 'How it scores: moments, place, survive, calls, lines, answers or stats');
+  if (!one('score.by', score.by)) add('score.by', 'How it scores: moments, place, survive, lines, answers or stats');
   if (score.by === 'moments' && score.points !== null && !pointsMap(score.points)) add('score.points', 'Points are moment id to a number, or null for the rulebook\'s own');
   if (score.by === 'stats' && !(pointsMap(score.points) && Object.keys(score.points).length)) add('score.points', 'Stats score as stat key to points');
   if (score.by === 'survive') {
@@ -463,7 +566,7 @@ function specProblems(spec, ctx, opts) {
   if ((score.by === 'moments' || score.by === 'stats') && !['draft', 'pick', 'squares'].includes(get.by)) add('score.by', `Scoring ${score.by} needs someone of yours: a draft or a pick`);
   if (score.by === 'place' && !(get.by === 'draft' && count === 'all')) add('score.by', 'Scoring by place counts everyone drafted: a draft, { all: true }');
   if (score.by === 'survive' && get.by !== 'pick') add('score.by', 'Surviving scores a pick');
-  if (score.by === 'calls' && get.by !== 'none') add('score.by', 'Calls are made with nothing held: get none');
+  if (score.by === 'answers' && get.by !== 'none') add('score.by', 'A game scored by its answers has nothing to hold: get none');
   if (score.by === 'lines' && get.by !== 'card') add('score.by', 'Lines are a bingo card\'s: get card');
   if (score.by === 'answers' && !(Array.isArray(s.ask) && s.ask.length)) add('ask', 'A game scored by answers asks at least one question');
   const rank = isObj(s.rank) ? s.rank : {};
@@ -474,26 +577,9 @@ function specProblems(spec, ctx, opts) {
   // ask
   if (!Array.isArray(s.ask)) add('ask', 'ask is a list of questions');
   else {
+    if (s.ask.length > MAX_QUESTIONS) add('ask', `A game asks at most ${MAX_QUESTIONS} questions`);
     const ids = new Set();
-    s.ask.forEach((q, i) => {
-      const at = `ask[${i}]`;
-      if (!isObj(q)) return add(at, 'A question is an object');
-      if (typeof q.id !== 'string' || !q.id) add(`${at}.id`, 'A question has an id');
-      else if (ids.has(q.id)) add(`${at}.id`, `Two questions are "${q.id}"`);
-      else ids.add(q.id);
-      if (typeof q.ask !== 'string' || !q.ask.trim()) add(`${at}.ask`, 'A question asks something');
-      if (!one('ask.answer', q.answer)) add(`${at}.answer`, 'The answer is a person, side, yesNo, number, overUnder or choice');
-      if (!(isNum(q.points) && q.points >= 0)) add(`${at}.points`, 'A right answer is worth 0 or more');
-      if (q.answer === 'overUnder' && q.line !== null && q.line !== undefined && !isNum(q.line)) add(`${at}.line`, 'The line is a number, or null (or left out) for the wizard to ask');
-      if (q.answer === 'choice' && !(Array.isArray(q.options) && q.options.length >= 2 && q.options.every((o) => typeof o === 'string' && o))) add(`${at}.options`, 'A choice has two or more options');
-      const st = isObj(q.settle) ? q.settle : {};
-      if (!one('ask.settle', st.by)) add(`${at}.settle`, 'Data settles every question: results, moment, final or stat');
-      else if (!TAKES[st.by].includes(st.take)) add(`${at}.settle.take`, `${st.by} takes ${TAKES[st.by].join(', ')}`);
-      else if (one('ask.answer', q.answer) && SETTLES_FOR[q.answer] && !SETTLES_FOR[q.answer].includes(`${st.by}:${st.take}`)) add(`${at}.settle`, `A ${q.answer} answer isn't graded by ${st.by} ${st.take}`);
-      if (st.by === 'moment' && (typeof st.moment !== 'string' || !st.moment)) add(`${at}.settle.moment`, 'Which moment settles it');
-      if (st.by === 'stat' && (typeof st.stat !== 'string' || !st.stat)) add(`${at}.settle.stat`, 'Which stat settles it');
-      if (st.by === 'results' && st.take === 'placed' && !isInt(st.place, 1)) add(`${at}.settle.place`, 'Which place: 1 or more');
-    });
+    s.ask.forEach((q, i) => questionProblems(q, `ask[${i}]`, s, ids, league).forEach(([at, p]) => add(at, p)));
   }
 
   // extras
@@ -507,10 +593,9 @@ function specProblems(spec, ctx, opts) {
       // null is "no waivers can happen here"; a draft with free agents says what it does, even if that's nothing.
       add('extras.waivers', "A draft whose castaways can come free has waivers: replace 'never' and manual windows with no swaps for none");
     }
-    if (e.bets !== null && !(isObj(e.bets) && isInt(e.bets.points, 1) && e.bets.points <= MAX_BET_POINTS)) add('extras.bets', `Side bets are { points: 1 to ${MAX_BET_POINTS} }, or null`);
-    if (e.finale !== null) {
-      if (!finaleFits(s)) add('extras.finale', 'Finale predictions go with a draft');
-      else if (!(isObj(e.finale) && isNum(e.finale.top3) && isNum(e.finale.winner) && (e.finale.from === 'any' || e.finale.from === 'own'))) add('extras.finale', 'Finale predictions are { top3, winner, from: any | own }');
+    if (e.bets !== null) {
+      if (!(isObj(e.bets) && isInt(e.bets.points, 1) && e.bets.points <= MAX_BET_POINTS)) add('extras.bets', `Side bets are { points: 1 to ${MAX_BET_POINTS} }, or null`);
+      else if (!betsFit(s)) add('extras.bets', "Side bets go beside a draft: nothing else scores them");
     }
     if (typeof e.calls !== 'boolean') add('extras.calls', 'calls is true or false');
     else if (e.calls && get.by !== 'pick') add('extras.calls', 'The weekly call goes beside a pick');
@@ -532,6 +617,85 @@ function specProblems(spec, ctx, opts) {
   return out;
 }
 
+/**
+ * One question's problems, as [[at, problem]]: its shape, and what it says that the game it's in can't be (`s`, whole).
+ * `ids` collects the ids seen, so two questions can't share one. `league`: it's a league's own (specProblems' opts.league),
+ * which keeps what it already plays: finale predictions on a game with an end of its own (classic always let them be on;
+ * they never settle there) and points past a new question's most. The data-can-settle rule is settleProblems'.
+ */
+function questionProblems(q, at, s, ids, league) {
+  const out = [];
+  const add = (where, p) => out.push([where ? `${at}.${where}` : at, p]);
+  const one = (key, v) => own(VOCAB[key], v) !== undefined;
+  if (!isObj(q)) return [[at, 'A question is an object']];
+  if (typeof q.id !== 'string' || !q.id) add('id', 'A question has an id');
+  else if (!QUESTION_ID.test(q.id)) add('id', "A question's id is letters, digits, '.', '_' or '-', up to 40");
+  else if (ids.has(q.id)) add('id', `Two questions are "${q.id}"`);
+  else ids.add(q.id);
+  if (typeof q.ask !== 'string' || !q.ask.trim()) add('ask', 'A question asks something');
+  else if (q.ask.length > 200) add('ask', 'A question is 200 characters at most');
+  if (!one('ask.answer', q.answer)) add('answer', 'The answer is a person, side, yesNo, number, overUnder, choice or calls');
+  if (!(isNum(q.points) && q.points >= 0 && (league || q.points <= MAX_QUESTION_POINTS))) add('points', `A right answer is worth 0 to ${MAX_QUESTION_POINTS}`);
+  if (!one('ask.asked', q.asked)) add('asked', 'A question is asked once, or each episode');
+  if (!one('ask.closes', q.closes)) add('closes', 'Its answers close at the start, or the finale');
+  else if (q.closes === 'finale' && q.asked !== 'once') add('closes', 'Only a question asked once waits for the finale: one asked each episode closes as it starts');
+  const st = isObj(q.settle) ? q.settle : {};
+  let settled = false;
+  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, calls, final or stat');
+  else if (st.by === 'calls') {
+    if (st.take !== undefined) add('settle.take', 'The calls settle themselves: no take');
+    else settled = true;
+  } else if (!TAKES[st.by].includes(st.take)) add('settle.take', `${st.by} takes ${TAKES[st.by].join(', ')}`);
+  else settled = true;
+  const how = `${st.by}:${st.by === 'calls' ? '' : st.take}`;
+  if (settled && one('ask.answer', q.answer) && SETTLES_FOR[q.answer] && !SETTLES_FOR[q.answer].includes(how)) {
+    add('settle', `A ${q.answer} answer isn't graded by ${st.by}${st.by === 'calls' ? '' : ` ${st.take}`}`);
+  }
+  if (q.answer !== 'calls' && st.by === 'calls') add('answer', "Only the show's calls are settled as calls");
+  if (st.by === 'moment' && (typeof st.moment !== 'string' || !st.moment)) add('settle.moment', 'Which moment settles it');
+  if (st.by === 'stat' && (typeof st.stat !== 'string' || !st.stat)) add('settle.stat', 'Which stat settles it');
+  if (st.by === 'results' && (st.take === 'placed' || st.take === 'top') && !isInt(st.place, 1)) add('settle.place', 'Which place: 1 or more');
+  if (st.place !== undefined && !(st.by === 'results' && (st.take === 'placed' || st.take === 'top'))) add('settle.place', 'Only a place or a top settles by a place');
+  // What the season's results say only at its end: asked once, in a game that runs to it.
+  if (SEASON_TAKES.includes(how)) {
+    if (q.asked === 'each') add('asked', `${st.take === 'winner' ? 'Who wins' : 'Where they finish'} is the season's: ask it once`);
+    if (!league && isObj(s.span) && s.span.to !== null) add('settle', "It's known at the season's end, so the game runs to it: no end of its own");
+  }
+  // Only what the finale decides waits for it: anything else could be settled before then (an idol played this season, who
+  // finished fifth), and answered once it's known.
+  if (q.closes === 'finale' && q.asked === 'once') {
+    if (!(how === 'results:winner' || how === 'results:top')) add('closes', 'Only who wins, or who makes the final few, waits for the finale');
+    else if (!league && isObj(s.span) && s.span.to !== null) add('closes', 'Waiting for the finale needs a game that runs to it');
+  }
+  // The answer's own parts.
+  if (q.answer === 'person') {
+    if (!(isInt(q.pick, 1) && q.pick <= MAX_PICK)) add('pick', `Name 1 to ${MAX_PICK}`);
+    if (!one('ask.from', q.from)) add('from', 'Pick from the cast still in, or your own team');
+    else if (q.from === 'team' && !(isObj(s.get) && s.get.by === 'draft')) add('from', 'Only a draft has teams to pick from');
+  } else {
+    if (q.pick !== undefined) add('pick', "Only a person answer names a number of them");
+    if (q.from !== undefined) add('from', 'Only a person answer picks from someone');
+  }
+  if (q.answer === 'overUnder') {
+    if (q.line !== null && q.line !== undefined && !isNum(q.line)) add('line', 'The line is a number, or null (or left out) for the wizard to ask');
+  } else if (q.line !== undefined) add('line', "Only an over/under has a line");
+  if (q.answer === 'choice') {
+    const opts = q.options;
+    if (!(Array.isArray(opts) && opts.length >= 2 && opts.length <= MAX_OPTIONS && opts.every((o) => typeof o === 'string' && o.trim() && o.length <= 80))) {
+      add('options', `A choice has 2 to ${MAX_OPTIONS} options, each a few words`);
+    } else if (new Set(opts.map((o) => o.trim().toLowerCase())).size !== opts.length) add('options', 'Two of its options are the same');
+    else if (how === 'moment:happened' && !opts.every((o) => YES_NO.includes(o.trim().toLowerCase()))) add('options', 'Whether it happened is Yes or No');
+    else if (how === 'moment:count' && !opts.every((o) => optionRange(o))) add('options', 'A count\'s options are numbers or ranges: "0", "1-2", "3+"');
+  } else if (q.options !== undefined) add('options', 'Only a choice has options');
+  // The show's calls: Weekly Calls' one question.
+  if (q.answer === 'calls') {
+    if (!(isObj(s.get) && s.get.by === 'none' && isObj(s.score) && s.score.by === 'answers' && s.ask.length === 1)) add('', "The show's calls are a game of their own: nothing held, scored by them alone");
+    if (q.asked !== 'each') add('asked', 'The calls are made each episode');
+    if (q.points !== 1) add('points', 'A right call is a point');
+  }
+  return out;
+}
+
 /** An instant with its time zone, as a draft's time is stored (toISOString): "2026-10-28T23:00:00.000Z". */
 const isInstant = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d{2}:\d{2})$/.test(v) && !Number.isNaN(Date.parse(v));
 
@@ -542,15 +706,14 @@ const KEYS = {
   from: ['phase', 'at'],
   pool: ['of', 'where'],
   get: { draft: ['by', 'each', 'order', 'own'], pick: ['by', 'each', 'repeat'], card: ['by'], none: ['by'], squares: ['by'] },
-  score: { moments: ['by', 'points'], place: ['by'], survive: ['by', 'means', 'points'], calls: ['by'], lines: ['by'], answers: ['by'], stats: ['by', 'points'] },
+  score: { moments: ['by', 'points'], place: ['by'], survive: ['by', 'means', 'points'], lines: ['by'], answers: ['by'], stats: ['by', 'points'] },
   rank: ['by'],
-  extras: ['waivers', 'bets', 'finale', 'calls', 'draft', 'join', 'hideStarters', 'lockedDown'],
+  extras: ['waivers', 'bets', 'calls', 'draft', 'join', 'hideStarters', 'lockedDown'],
   waivers: ['feel', 'replace', 'short', 'windows', 'order', 'hours', 'freeAgency', 'autoFill'],
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away'],
-  finale: ['top3', 'winner', 'from'],
   bets: ['points'],
-  question: ['id', 'ask', 'answer', 'points', 'settle', 'line', 'options'],
+  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options'],
   settle: ['by', 'take', 'moment', 'stat', 'place'],
 };
 /** The paths of keys a spec has that no game spec does. */
@@ -574,7 +737,7 @@ function unknownKeys(s) {
   const e = s.extras;
   check(e, KEYS.extras, 'extras');
   if (isObj(e)) {
-    for (const k of ['waivers', 'draft', 'finale', 'bets']) check(e[k], KEYS[k], `extras.${k}`);
+    for (const k of ['waivers', 'draft', 'bets']) check(e[k], KEYS[k], `extras.${k}`);
     if (isObj(e.waivers)) check(e.waivers.windows, KEYS.windows, 'extras.waivers.windows');
   }
   return out;
@@ -618,10 +781,12 @@ function settleProblems(s, ctx, opts) {
   const stats = new Set((Array.isArray(ctx.stats) ? ctx.stats : []).map((x) => (isObj(x) ? x.key : x)));
   const byData = (m) => m.answeredBy === 'research' || (!!m.auto && m.answeredBy !== 'league');
   const couchWord = (m) => `${m.label || m.id} is the couch's word: research doesn't answer it, so data can't settle it`;
-  const momentProblem = (id) => {
+  // `strict`: the couch's word never settles it, even in a league's own rules (a question: only Weekly Calls' calls on a talk
+  // show keep the couch's word, below).
+  const momentProblem = (id, strict) => {
     const m = momentById.get(id);
     if (!m) return `"${id}" isn't one of the show's moments`;
-    if (!opts.league && !byData(m)) return couchWord(m);
+    if ((strict || !opts.league) && !byData(m)) return couchWord(m);
     return null;
   };
   const score = isObj(s.score) ? s.score : {};
@@ -647,29 +812,32 @@ function settleProblems(s, ctx, opts) {
   (Array.isArray(s.ask) ? s.ask : []).forEach((q, i) => {
     const st = (q && q.settle) || {};
     if (st.by === 'moment' && typeof st.moment === 'string') {
-      const p = momentProblem(st.moment);
+      const p = momentProblem(st.moment, true);
       if (p) out.push([`ask[${i}].settle.moment`, p]);
     }
     if (st.by === 'stat' && typeof st.stat === 'string' && !stats.has(st.stat)) out.push([`ask[${i}].settle.stat`, `Nothing counts "${st.stat}": it isn't one of the sport's stats`]);
     if (st.by === 'results' && ctx.results === false) out.push([`ask[${i}].settle`, "The show's results don't say who goes home or wins"]);
+    else if (st.by === 'results' && ['winner', 'placed', 'top'].includes(st.take) && ctx.winner === false) out.push([`ask[${i}].settle`, "Nobody wins this show: its results don't crown a winner"]);
+    // A talk show's calls are what the couch says happened: its word, which only a league's own keeps (Weekly Calls).
+    if (st.by === 'calls' && ctx.calls === 'couch' && !opts.league) out.push([`ask[${i}].settle`, "The show's calls are settled by the couch's word here, not its results"]);
   });
   return out;
 }
 /** A moment's own points for the draft's ownership (a format may give { exclusive, shared }). */
 const defaultOf = (d, shared) => (isObj(d) ? d[shared ? 'shared' : 'exclusive'] || 0 : d || 0);
 
-/** "A4", "sports", "later" in the order a spec waits for them. */
-const STEP_ORDER = ['A4', 'sports', 'later'];
+/** "sports", "later" in the order a spec waits for them. */
+const STEP_ORDER = ['sports', 'later'];
 const STEP_NAMES = {
-  A4: 'questions settled by data (step A4)',
   sports: 'the sports branch',
   later: 'no step yet',
 };
 
 /**
- * What a well-formed spec needs that isn't built, as [{ at, step, problem }]: a value only a later step builds ('A4',
- * 'sports', 'later'), or, with every value built, a combination no game plays yet (step null). Empty: today's engine plays
- * it (typeOf gives its league type). For the wizard to say what isn't there yet, and G2's sports requests.
+ * What a well-formed spec needs that isn't built, as [{ at, step, problem }]: a value only a later step builds ('sports',
+ * 'later'), or, with every value built, what's still to say (an over/under's line: step null) or a combination no game
+ * plays yet (step null). Empty: today's engine plays it (typeOf gives its league type). For the wizard to say what isn't
+ * there yet, and G2's sports requests.
  */
 function specWaitsFor(spec) {
   const s = fullSpec(spec);
@@ -684,7 +852,7 @@ function specWaitsFor(spec) {
   if (isObj(s.get)) val('get.by', 'get.by', s.get.by, 'Squares');
   const count = countKind(s.count);
   if (count) val('count', 'count', count, 'Best ball');
-  if (isObj(s.score)) val('score.by', 'score.by', s.score.by, s.score.by === 'stats' ? 'Scoring by stats' : 'Scoring by answers');
+  if (isObj(s.score)) val('score.by', 'score.by', s.score.by, 'Scoring by stats');
   if (isObj(s.rank)) val('rank.by', 'rank.by', s.rank.by, `Ranking by ${s.rank.by}`);
   val('closes', 'closes', s.closes, `Locking ${s.closes}`);
   (Array.isArray(s.ask) ? s.ask : []).forEach((q, i) => {
@@ -692,17 +860,21 @@ function specWaitsFor(spec) {
     const step = STEP_ORDER.slice().reverse().find((x) => steps.includes(x));
     if (step) need(`ask[${i}]`, step, `"${(q && q.ask) || q.id}"`);
   });
+  // Said, but not all of it yet: an over/under with no line (ESPN's, or the wizard asks).
+  const lines = (Array.isArray(s.ask) ? s.ask : []).map((q, i) => [q, i]).filter(([q]) => isObj(q) && q.answer === 'overUnder' && !isNum(q.line));
   const seen = new Set();
   const steps = out.filter((x) => !seen.has(`${x.at}|${x.step}`) && seen.add(`${x.at}|${x.step}`));
   steps.sort((a, b) => STEP_ORDER.indexOf(a.step) - STEP_ORDER.indexOf(b.step));
-  if (!steps.length && !typeOf(s)) steps.push({ at: '', step: null, problem: 'No game plays this way yet: it isn\'t one of today\'s five' });
+  if (!steps.length) for (const [q, i] of lines) steps.push({ at: `ask[${i}].line`, step: null, problem: `"${q.ask || q.id}" needs its line` });
+  if (!steps.length && !typeOf(s)) steps.push({ at: '', step: null, problem: 'No game plays this way yet' });
   return steps;
 }
 
 module.exports = {
-  SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
+  SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
-  MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM,
-  fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, specWaitsFor, waiversFit, finaleFits, countKind, presetOf, sameValue, own,
+  MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
+  CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,
+  fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, specWaitsFor, waiversFit, finaleFits, betsFit, countKind, presetOf, sameValue, own,
   spanStart, spanPhase,
 };

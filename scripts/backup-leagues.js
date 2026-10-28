@@ -42,6 +42,8 @@ const GROUP_SLICES = {
   blind_draft_picks: "league_id = ANY($L::uuid[])",
   // The draft room's queues (0117): who each player starred, private like the blind picks.
   draft_queues: "league_id = ANY($L::uuid[])",
+  // A game of questions' answers (0200, step A4 of docs/PLAN-start-a-game-gpt.md): its players' own.
+  game_answers: "league_id = ANY($L::uuid[])",
   // Asking to join a game (0119, step 9): its requests, answered or not.
   game_join_requests: "league_id = ANY($L::uuid[])",
   episode_team_notes: "league_id = ANY($L::uuid[])",

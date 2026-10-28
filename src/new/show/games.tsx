@@ -218,7 +218,7 @@ function Standings({
               type="button"
               data-player={r.name}
               // A public pool's strangers, and the talk show's games (a count of right calls or lines, nothing more to open: step 12).
-              disabled={(g.solo === "public" && !r.you) || g.gameType === "weekly-calls" || g.gameType === "weekly-bingo"}
+              disabled={(g.solo === "public" && !r.you) || g.gameType === "weekly-calls" || g.gameType === "weekly-bingo" || g.gameType === "questions"}
               onClick={() => onPlayer(r, g)}
               className={`flex min-h-14 items-center gap-2.5 border-t text-left ${r.you ? "-mx-2 w-[calc(100%+16px)] rounded-[2px] border-transparent bg-secondary px-2" : "w-full border-border"}`}
             >

@@ -31,10 +31,10 @@ export const botsIn = (s: LeagueState): Seat[] => s.players.filter((p) => p.auto
 
 export const levelOf = (p: Seat): BotLevel => LEVEL_OF[p.botLevel ?? "solid"] ?? "normal";
 
-/** Whether bot-logic.js plays this kind of game: a draft or Survival Pool, not a calls or bingo game. */
+/** Whether bot-logic.js plays this kind of game: a draft or Survival Pool, not a calls, bingo or questions game. */
 export function botsPlay(s: LeagueState): boolean {
-  const t = StateLogic.getLeagueType(s) as { hasRoster?: boolean; hasWeeklyPicks?: boolean; hasCalls?: boolean; hasBingo?: boolean };
-  return !t.hasCalls && !t.hasBingo && !!(t.hasRoster || t.hasWeeklyPicks);
+  const t = StateLogic.getLeagueType(s) as { hasRoster?: boolean; hasWeeklyPicks?: boolean; hasCalls?: boolean; hasBingo?: boolean; hasQuestions?: boolean };
+  return !t.hasCalls && !t.hasBingo && !t.hasQuestions && !!(t.hasRoster || t.hasWeeklyPicks);
 }
 
 /** A draft that's open: started, and not yet done (every pick made, or the blind draft revealed). */

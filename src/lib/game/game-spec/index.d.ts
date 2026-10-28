@@ -1,11 +1,12 @@
 // Types for game-spec/index.js: a game as data (docs/PLAN-start-a-game-gpt.md, "The game spec", step A1). Values marked
-// A4 or sports are in the schema now and built by those steps (VOCAB says which); today's engine plays the rest.
+// sports are in the schema now and built by the sports branch (VOCAB says which); today's engine plays the rest (questions
+// since step A4).
 import type { LeagueSettings } from "../types";
 
 export type PresetId = "outlast" | "weekly-lineup" | "survival-pool" | "weekly-calls" | "weekly-bingo";
-export type LeagueTypeId = "classic-draft" | "active-roster" | "pickem" | "weekly-calls" | "weekly-bingo";
+export type LeagueTypeId = "classic-draft" | "active-roster" | "pickem" | "weekly-calls" | "weekly-bingo" | "questions";
 /** Who builds a value: today's engine, a later step, the sports branch, or no step yet. */
-export type Builder = "now" | "A4" | "sports" | "later";
+export type Builder = "now" | "sports" | "later";
 
 /** A start at a phase of the season's rulebook (A3): { phase } while it waits for it, { phase, at } once data says where it
  *  starts (at: the episode it plays from). */
@@ -48,9 +49,8 @@ export type SpecScore =
   | { by: "moments"; points: Record<string, number> | null }
   | { by: "place" }
   | { by: "survive"; means: "staysIn" | "scores"; points: number }
-  | { by: "calls" }
   | { by: "lines" }
-  /** A4 */
+  /** Only the ask's questions (A4): Weekly Calls (the show's calls), a game of questions. */
   | { by: "answers" }
   /** sports: the Sport's stat keys -> points */
   | { by: "stats"; points: Record<string, number> };
@@ -61,26 +61,55 @@ export interface SpecRank {
 }
 
 export type SpecSettle =
-  | { by: "results"; take: "winner" | "out" | "placed"; place?: number }
+  /** out: who goes home (asked once: the first in the game); winner, placed (`place`th) and top (in the top `place`): the season's. */
+  | { by: "results"; take: "winner" | "out" | "placed" | "top"; place?: number }
   | { by: "moment"; moment: string; take: "happened" | "count" }
+  /** The show's calls (Call it's: calls.ts), Weekly Calls' one question. */
+  | { by: "calls" }
   /** sports */
   | { by: "final"; take: "winner" | "total" | "margin" }
   /** sports */
   | { by: "stat"; stat: string; take: "most" | "least" | "value" };
 
-/** A question answered before the lock (A4), each settled by data. */
+/** A question answered before its lock (A4), each settled by data. */
 export interface SpecQuestion {
+  /** Its key, for its answers (game_answers.question): letters, digits, ".", "_" or "-", up to 40. */
   id: string;
   ask: string;
-  /** side: sports. */
-  answer: "person" | "side" | "yesNo" | "number" | "overUnder" | "choice";
+  /** side: sports. calls: the show's calls (Weekly Calls'). */
+  answer: "person" | "side" | "yesNo" | "number" | "overUnder" | "choice" | "calls";
+  /** A right answer's (a right pick's). */
   points: number;
   settle: SpecSettle;
+  /** once (for the game; the default) | each (every episode it plays). */
+  asked?: "once" | "each";
+  /** start: when its episode starts (asked each) or the game's first does (the default) | finale: the season's last (asked once). */
+  closes?: "start" | "finale";
+  /** A person answer: how many to name (default 1), each right one scores. */
+  pick?: number;
+  /** A person answer: the cast still in (default), or your own team (a draft's). */
+  from?: "cast" | "team";
   /** overUnder's line; null: the wizard asks (or ESPN's, the sports branch). */
   line?: number | null;
   /** choice's options. */
   options?: string[];
 }
+/** A question as a spec holds it once it's whole (fullSpec): asked and closes always said. */
+export type Question = SpecQuestion & { asked: "once" | "each"; closes: "start" | "finale" };
+
+/** What a game's results say, for grading its questions (answers.js). */
+export interface AnswerFacts {
+  from: number | null;
+  to: number | null;
+  over: boolean;
+  episodes: Map<number, { out: string[] | null; events: Map<string, number> | null }>;
+  winner: string | null;
+  ended: boolean;
+  order: string[] | null;
+  names: Map<string, string>;
+}
+/** How a question stands: still to settle, off (nobody went home, right on the line), or what was right (and a count). */
+export type Verdict = { state: "waiting" } | { state: "off"; why: string } | { state: "known"; right: string[]; value?: number };
 
 export interface SpecWaivers {
   feel: "casual" | "balanced" | "competitive";
@@ -99,8 +128,6 @@ export interface SpecExtras {
   waivers: SpecWaivers | null;
   /** Side bets ("Predictions", graded by whoever runs the game): each new one's points; null: off. */
   bets: { points: number } | null;
-  /** A draft's finale predictions; null: off. */
-  finale: { top3: number; winner: number; from: "any" | "own" } | null;
   /** A Survival Pool's weekly Who goes home? call (the public pool): counted, not ranked. */
   calls: boolean;
   /** A draft's room; null: no draft. */
@@ -122,14 +149,14 @@ export interface GameSpec {
   count: SpecCount;
   score: SpecScore;
   rank: SpecRank;
-  ask: SpecQuestion[];
+  ask: Question[];
   /** start: today. sports: daily, weekly. */
   closes: "start" | "daily" | "weekly";
   extras: SpecExtras;
 }
 
 /** A spec as written: anything left out is the preset's, or the defaults (fullSpec). */
-export type SpecInput = Partial<Omit<GameSpec, "extras">> & { extras?: Partial<SpecExtras> };
+export type SpecInput = Partial<Omit<GameSpec, "extras" | "ask">> & { extras?: Partial<SpecExtras>; ask?: SpecQuestion[] };
 
 /** What a spec refers to, in the show's words, and the data that settles it. All optional. */
 export interface SpecContext {
@@ -148,6 +175,10 @@ export interface SpecContext {
   stats?: ({ key: string; label?: string } | string)[];
   /** false when the show's results don't say who goes home or wins. */
   results?: boolean;
+  /** false when nobody wins the show (no way out that means winning): who wins, where they finish and a top can't settle. */
+  winner?: boolean;
+  /** Who settles the show's calls: its results, or (a talk show) the couch, whose word only a league's own keeps. */
+  calls?: "results" | "couch";
   /** The season's rulebook's phases, in order (its blocks' season.phases): a phase start is one of them, never the first. */
   phases?: { id: string; name?: string }[];
 }
@@ -182,11 +213,31 @@ export const SPEC_VERSION: 1;
 export const VOCAB: Record<string, Record<string, Builder>>;
 export const PRESETS: Record<PresetId, GameSpec>;
 export const PRESET_TYPES: Record<PresetId, LeagueTypeId>;
-export const TYPE_PRESETS: Record<LeagueTypeId, PresetId>;
+export const TYPE_PRESETS: Partial<Record<LeagueTypeId, PresetId>>;
 export const PRESET_LABELS: Record<PresetId, string>;
 export const NO_WAIVERS: SpecWaivers;
 /** Waivers fit a draft whose castaways can come free (not a shared Outlast). */
 export function waiversFit(spec: Partial<GameSpec>): boolean;
+/** Side bets go with a draft: nothing else scores them (A4). */
+export function betsFit(spec: Partial<GameSpec>): boolean;
+/** The ask presets (A4): Weekly Calls' question (the show's calls), and a draft's finale predictions as two questions. */
+export const CALLS: Question;
+export function finaleQuestions(f: { top3: number; winner: number; from: "any" | "own" }): Question[];
+export function finaleOf(ask: SpecQuestion[] | null | undefined): { top3: number; winner: number; from: "any" | "own" } | null;
+export function isCalls(q: unknown): boolean;
+export function callsAsk(ask: unknown): boolean;
+export function fullQuestion(q: SpecQuestion): Question;
+/** A choice option as the range a count falls in ("2", "3+", "0-1"), else null. */
+export function optionRange(o: string): { min: number; max: number } | null;
+export const MAX_QUESTIONS: number;
+export const MAX_PICK: number;
+export const MAX_QUESTION_POINTS: number;
+/** Grading (answers.js): how a question stands, what each answer earns, whether one was right, why one can't be given. */
+export function verdictOf(q: Question, episode: number, facts: AnswerFacts): Verdict;
+export function rightAnswers(q: Question, v: Verdict, facts?: AnswerFacts): string[] | null;
+export function pointsFor(q: Question, v: Verdict, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): Map<string, number>;
+export function isRight(q: Question, v: Verdict, mine: { playerId: string; answer: unknown }, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): boolean | null;
+export function answerProblem(q: Question, value: unknown, faces?: Set<string> | null): string | null;
 /** The one set of size limits (an Outlast team; a lineup's starters and bench; a lineup's whole team). */
 export const MAX_TEAM: number;
 export const MAX_STARTERS: number;
@@ -217,7 +268,7 @@ export function typeOf(spec: SpecInput | GameSpec): LeagueTypeId | null;
 export function playsAs(spec: GameSpec): LeagueTypeId | null;
 /** The league type's flags, worked out from a whole spec. */
 export function flagsOf(spec: GameSpec): {
-  hasRoster: boolean; hasActiveRoster: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasBingo: boolean;
+  hasRoster: boolean; hasActiveRoster: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasBingo: boolean;
   supportsReplenish: boolean; supportsTrade: boolean; supportsFinalePredictions: boolean;
 };
 /**

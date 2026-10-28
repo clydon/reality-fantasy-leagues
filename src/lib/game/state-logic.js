@@ -428,9 +428,10 @@ class EliminationOrderScoringStrategy {
     return Object.values(results).sort((a,b)=>b.total-a.total);
   }
 }
-// The layers both drafts carry over how they score, as the spec says them (extras): side bets while they're on (a bet
-// needs company: it won't pay out unless two guessed), and finale predictions while they're on, at their points. Adds
-// each player's into `bonus` and `finale`; true when side bets count.
+// The layers both drafts carry over how they score, as the spec says them: side bets while they're on (extras.bets: a bet
+// needs company, it won't pay out unless two guessed), and finale predictions while they're on (the spec's two finale
+// questions, A4), at their points, settled by the results (AnswerLogic). Adds each player's into `bonus` and `finale`;
+// true when side bets count.
 function addSideLayers(state, results){
   const extras = gameOf(state).extras;
   if(extras.bets){
@@ -448,15 +449,7 @@ function addSideLayers(state, results){
       });
     });
   }
-  const finale = extras.finale;
-  if(finale && state.finaleActual && state.finaleActual.winner){
-    (state.finalePredictions||[]).forEach(fp=>{
-      if(!results[fp.playerId]) return;
-      const correctTop3 = (fp.top3||[]).filter(id=>id && (state.finaleActual.top3||[]).includes(id)).length;
-      results[fp.playerId].finale += correctTop3*(finale.top3||0);
-      if(fp.winner && fp.winner===state.finaleActual.winner) results[fp.playerId].finale += (finale.winner||0);
-    });
-  }
+  AnswerLogic.finalePoints(state).forEach((pts, playerId) => { if(results[playerId]) results[playerId].finale += pts; });
   return !!extras.bets;
 }
 // ---------- PickEmScoringStrategy: the 'pickem' league type's scoring ----------
@@ -1301,6 +1294,17 @@ const LEAGUE_TYPES = {
     draftStrategy: NoDraftStrategy,
     scoringStrategy: CallsScoringStrategy
   },
+  // A game of questions (docs/PLAN-start-a-game-gpt.md step A4): no draft and no team, the spec's own questions answered
+  // before their lock and settled by the results (AnswerLogic), most points wins. The answers live in game_answers, not
+  // the state (private until each locks), so the server's game view grades and ranks them (answers.ts); in here everyone
+  // is level at 0, as in Weekly Calls.
+  'questions': {
+    id: 'questions',
+    name: 'Questions',
+    description: 'No draft, no team -- questions answered before they lock, settled by the results. Most points wins.',
+    draftStrategy: NoDraftStrategy,
+    scoringStrategy: CallsScoringStrategy
+  },
   // The talk show's other season game (step 12 part 3): no draft and no team, a new bingo card every show (bingo.ts), most
   // lines by the finale wins. The cards aren't in the state either (CallsScoringStrategy).
   'weekly-bingo': {
@@ -1321,7 +1325,8 @@ const LEAGUE_TYPES = {
   }
 };
 // The flags, from each type's preset (its exclusive draft, for the two drafts: the shared variants below are the other).
-Object.values(LEAGUE_TYPES).forEach(lt => Object.assign(lt, Spec.flagsOf(Spec.PRESETS[Spec.TYPE_PRESETS[lt.id]])));
+// A game of questions has no preset: its flags are any such game's (nothing held, scored by its own answers).
+Object.values(LEAGUE_TYPES).forEach(lt => Object.assign(lt, Spec.flagsOf(Spec.PRESETS[Spec.TYPE_PRESETS[lt.id]] || { get: { by: 'none' }, count: null, score: { by: 'answers' }, ask: [] })));
 // NOT the catalog, and no longer a default either: a new league starts with showId null and the
 // commissioner picks from the catalog (defaultState / SetupLogic). The real catalog of shows and
 // seasons lives in Postgres (db/migrations/0006_shows_and_seasons.sql), is managed by a super-admin
@@ -1404,7 +1409,18 @@ function tradeAvailable(state){
   return (w.schedule !== 'manual' && w.swaps > 0) || WaiverLogic.swapsAllowed(WaiverLogic.current(state)) > 0;
 }
 function finalePredictionsAvailable(state){
-  return !!gameOf(state).extras.finale;
+  return !!finaleOfGame(state);
+}
+// A draft's finale predictions, as the spec's two questions say them ({ top3, winner, from }: their points), or null.
+function finaleOfGame(state){
+  const g = gameOf(state);
+  return g.get.by === 'draft' ? Spec.finaleOf(g.ask) : null;
+}
+// Side bets, where they count ({ points }: each new one's), or null: only beside a draft (A4: a pool, Weekly Calls and
+// Weekly Bingo never scored them, so they don't offer them). What everything that shows or takes a bet asks.
+function betsOn(state){
+  const g = gameOf(state);
+  return Spec.betsFit(g) ? g.extras.bets : null;
 }
 
 // ---------- DraftLogic ----------
@@ -1845,6 +1861,12 @@ class RosterLogic {
     const was = gameOf(state);
     const want = Spec.fullSpec(spec);
     const ctx = o.ctx || null;
+    // The data-can-settle rule holds for every question (A4): a game's own questions are checked against what the show's
+    // results can settle, so writing new or changed ones needs what the show is (ctx: its moments, whether it crowns a
+    // winner). The presets' questions (a draft's finale predictions, the show's calls) are today's games.
+    if(!ctx && ownQuestions(want) && !Spec.sameValue(want.ask, was.ask)){
+      return [{ at: 'ask', problem: "A game's own questions are checked against what the show's results can settle: write them with the show's moments" }];
+    }
     const had = new Set(Spec.specProblems(was, ctx, { league: true, was }).map(problemKey));
     const problems = Spec.specProblems(want, ctx, { league: true, was }).filter(p => !had.has(problemKey(p)));
     if(problems.length) return problems;
@@ -1927,6 +1949,12 @@ class RosterLogic {
     const st = state && state.settings;
     if(st && st.game !== undefined) st.game = Spec.specOf(st);
   }
+}
+
+// A game's own questions (A4): any but the presets' (a draft's finale predictions, Weekly Calls' calls).
+function ownQuestions(spec){
+  const ask = Array.isArray(spec.ask) ? spec.ask : [];
+  return ask.length > 0 && !Spec.callsAsk(ask) && !(spec.get && spec.get.by === 'draft' && Spec.finaleOf(ask));
 }
 
 // The settings fields a game is made of (game-spec OWNED) and the waiver suggestion's mark (waiverFit, which withSpec
@@ -3314,10 +3342,14 @@ class EpisodeLogic {
 const MAX_BET_POINTS = Spec.MAX_BET_POINTS;
 const clampBetPoints = Spec.clampBet;
 class BetLogic {
+  // A bet's lock (A4): its episode's, as a lineup's (closedForPlay: at its start, unless whoever runs the game kept it open
+  // or locked it early), and for good once it has results. Nothing is bet, guessed or taken back after it.
+  static closed(ep){ return !!ep && (closedForPlay(ep) || EpisodeLogic.hasResults(ep)); }
   // A bet goes on an episode this game plays (inPlay): one before its start or after a span's last episode would never pay.
+  // Never once it's locked.
   static add(state, epId, label, points, createdByPlayerId){
     const ep = state.episodes.find(e=>e.id===epId);
-    if(!ep || !label || !inPlay(state, ep.number)) return;
+    if(!ep || !label || !inPlay(state, ep.number) || BetLogic.closed(ep)) return;
     ep.bets = ep.bets || [];
     const bet = { id: Core.uid('bet'), label, points: clampBetPoints(points), predictions: [], createdByPlayerId: createdByPlayerId || null };
     ep.bets.push(bet);
@@ -3335,20 +3367,22 @@ class BetLogic {
     const ep = state.episodes.find(e=>e.id===epId);
     if(ep) ep.bets = ep.bets.filter(b=>b.id!==betId);
   }
-  // A guess on a bet this game plays (one on an episode now outside its span, its start moved past it, never pays).
+  // A guess on a bet this game plays (one on an episode now outside its span, its start moved past it, never pays), until
+  // its episode locks.
   static addPrediction(state, epId, betId, playerId, guess){
     const ep = state.episodes.find(e=>e.id===epId);
     const bet = ep && (ep.bets||[]).find(b=>b.id===betId);
-    if(!bet || !guess || !inPlay(state, ep.number)) return;
+    if(!bet || !guess || !inPlay(state, ep.number) || BetLogic.closed(ep)) return;
     bet.predictions = bet.predictions || [];
     const pred = { id: Core.uid('pred'), playerId, guess, correct: null };
     bet.predictions.push(pred);
     return pred;
   }
+  // Taken back only until its episode locks.
   static removePrediction(state, epId, betId, predId){
     const ep = state.episodes.find(e=>e.id===epId);
     const bet = ep && (ep.bets||[]).find(b=>b.id===betId);
-    if(bet) bet.predictions = bet.predictions.filter(p=>p.id!==predId);
+    if(bet && !BetLogic.closed(ep)) bet.predictions = bet.predictions.filter(p=>p.id!==predId);
   }
   // Which episode a new side bet belongs to when someone proposes one from the Overview: the one
   // about to be played. A league catching up bets on the next episode it hasn't revealed yet; a live
@@ -3401,11 +3435,151 @@ class FinaleLogic {
     fp.top3[idx]=value;
   }
   static setWinnerPick(state, playerId, value){ const fp=FinaleLogic.getOrCreatePrediction(state,playerId); fp.winner=value; }
-  static setActualTop3(state, idx, value){
-    if(value && state.finaleActual.top3.some((id,i)=>i!==idx && id===value)) return;
-    state.finaleActual.top3[idx]=value;
+  // The finale's real answers come from the results (AnswerLogic.finaleActual, step A4): state.finaleActual, where whoever
+  // ran the game used to type them in, is read by nothing now.
+}
+
+// ---------- AnswerLogic: a game's questions (docs/PLAN-start-a-game-gpt.md step A4) ----------
+// The spec's `ask` (game-spec schema.js): a draft's finale predictions, Weekly Calls' calls (Call it's, graded in
+// src/lib/server/calls.ts) or a game of questions' own. Graded from the league's own results, as the viewer's state says
+// them (pass the spoiler guard's view, and nothing past their mark is graded), by game-spec answers.js; never stored.
+// Answers to a game of questions live in game_answers (src/lib/server/answers.ts reads them in); a draft's finale
+// predictions in state.finalePredictions, where classic's finale panel writes them.
+class AnswerLogic {
+  // What the results say, for grading (answers.js's facts): the game's own episodes with results (who went home in each,
+  // and once the full results are in, every moment's count), the season's winner and, once it's over, the order everyone
+  // finished in.
+  static facts(state){
+    const span = gameOf(state).span;
+    const from = Spec.spanStart(span);
+    const episodes = new Map();
+    const winnerOut = (method) => isWinnerExit(state, method);
+    (state.episodes || []).forEach(ep => {
+      if(!inPlay(state, ep.number)) return;
+      const stage = EpisodeLogic.resultsStage(ep);
+      if(!stage) return;
+      const out = (ep.events || []).filter(ev => !winnerOut(ev.method)).map(ev => ev.castawayId);
+      let events = null;
+      if(stage === 'final'){
+        events = new Map();
+        ActiveRosterLogic.episodeEvents(state, ep).forEach(ev => {
+          const n = Number.isFinite(ev.units) && ev.units > 0 ? ev.units : 1;
+          events.set(ev.type, (events.get(ev.type) || 0) + n);
+        });
+      }
+      episodes.set(ep.number, { out, events });
+    });
+    const winner = seasonWinner(state);
+    const ended = seasonEnded(state);
+    return {
+      from, to: span.to, over: gameOver(state), episodes,
+      winner: winner ? winner.id : null, ended, order: ended ? AnswerLogic.finishOrder(state) : null,
+      names: new Map((state.castaways || []).map(c => [c.id, c.name])),
+    };
   }
-  static setActualWinner(state, value){ state.finaleActual.winner=value; }
+  // Everyone by where they finished, the winner first: the later they left the better, and in the same episode a finalist
+  // (the format's endgame exits: lost the final vote, or won it) above whoever left before the final vote, the finalists by
+  // their jury votes; then the order their results came in (placementOrder). Only who has left.
+  static finishOrder(state){
+    const f = formatOf(state);
+    const endgame = new Set(f.endgameExitMethods || []);
+    const epNo = new Map((state.episodes || []).map(e => [e.id, e.number]));
+    const votes = new Map();
+    (state.episodes || []).forEach(e => (e.events || []).forEach(ev => { if(Number.isInteger(ev.juryVotes)) votes.set(ev.castawayId, ev.juryVotes); }));
+    const key = c => [isWinnerExit(state, c.exitMethod) ? 1 : 0, epNo.get(c.exitEpisodeId) || 0, endgame.has(c.exitMethod) ? 1 : 0, votes.get(c.id) || 0, c.placementOrder];
+    return (state.castaways || [])
+      .filter(c => c.status === 'eliminated' && typeof c.placementOrder === 'number')
+      .map(c => ({ id: c.id, k: key(c) }))
+      .sort((a, b) => { for(let i = 0; i < a.k.length; i++){ if(a.k[i] !== b.k[i]) return b.k[i] - a.k[i]; } return 0; })
+      .map(x => x.id);
+  }
+  // The spec's questions, whole (each with its defaults).
+  static questions(state){ return gameOf(state).ask; }
+  // The episode whose start closes a question's answers: its own (asked each), the game's first (asked once: null while
+  // it waits for its phase), or the season's last (closes at the finale: `finale`, from its schedule; null when unknown).
+  static closesAt(state, q, episode, finale){
+    if(q.asked === 'each') return episode;
+    if(q.closes === 'finale') return Number.isInteger(finale) ? finale : null;
+    return startEpisode(state);
+  }
+  // Whether a question's answers are closed (for an episode, asked each): at the start of the episode that closes it
+  // (closedForPlay, so whoever runs the game can keep it open past its start or lock it early; `airAt` that episode's air
+  // time from the schedule, for one the league hasn't made yet, never for a league catching up at its own pace, which
+  // air-times.ts leaves off the broadcast's clock), once it has results, once the game is over, and for an episode the game
+  // doesn't play. Nothing settles a question before it closes (each episode's closes at its start; one asked once at the
+  // game's first, or, for who wins or makes the final few, the season's last: specProblems), so the lock never needs the
+  // results, and says nothing of them to someone who hasn't seen them. A finale nobody's listed yet: at the game's end.
+  //   o: { now, finale (the season's last episode, from its schedule), airAt }
+  static closed(state, q, episode, o){
+    const opt = o || {};
+    if(q.asked === 'each' && !inPlay(state, episode)) return true;
+    if(gameOver(state)) return true;
+    const at = AnswerLogic.closesAt(state, q, episode, opt.finale);
+    if(at === null) return false;
+    const ep = state.episodes.find(e => e.number === at) || { number: at };
+    const airsAt = ep.airsAt || (RevealLogic.isCatchingUp(state) ? null : opt.airAt || null);
+    return EpisodeLogic.hasResults(ep) || closedForPlay({ ...ep, airsAt }, opt.now);
+  }
+  // The episode a question asked each episode is answered for now: this week's (currentEpisodeNumber: the one picks and
+  // lineups are for), or null (waiting for its phase, past its end).
+  static episodeNow(state){ return currentEpisodeNumber(state); }
+  // Grading a set of answers ([{ playerId, question, episode, answer }]: episode 0 for one asked once) to the spec's
+  // questions: { points: Map playerId -> points, verdicts: Map 'question|episode' -> verdict }. An answer to a question the
+  // game doesn't ask, or for an episode it doesn't play, earns nothing.
+  static grade(state, answers, facts){
+    const f = facts || AnswerLogic.facts(state);
+    const qs = new Map(AnswerLogic.questions(state).filter(q => !Spec.isCalls(q)).map(q => [q.id, q]));
+    // Only the players this copy of the league has: a viewer's has the late joiners they can't see taken out (viewFor).
+    const seats = new Set((state.players || []).map(p => p.id));
+    const groups = new Map();
+    (answers || []).forEach(a => {
+      const q = qs.get(a.question);
+      if(!q || !seats.has(a.playerId)) return;
+      const ep = q.asked === 'each' ? a.episode : 0;
+      if(q.asked === 'each' && !inPlay(state, ep)) return;
+      const key = q.id + '|' + ep;
+      if(!groups.has(key)) groups.set(key, { q, ep, list: [] });
+      groups.get(key).list.push({ playerId: a.playerId, answer: a.answer });
+    });
+    const points = new Map();
+    const verdicts = new Map();
+    groups.forEach(({ q, ep, list }, key) => {
+      const v = Spec.verdictOf(q, ep, f);
+      verdicts.set(key, v);
+      Spec.pointsFor(q, v, list, f).forEach((n, pid) => points.set(pid, (points.get(pid) || 0) + n));
+    });
+    return { points, verdicts };
+  }
+  // A draft's finale predictions as answers to its two questions (state.finalePredictions: the final three and the winner
+  // each player named), or none when it has no finale predictions.
+  static finaleAnswers(state){
+    if(!finaleOfGame(state)) return [];
+    const out = [];
+    (state.finalePredictions || []).forEach(fp => {
+      const top3 = (fp.top3 || []).filter(Boolean);
+      if(top3.length) out.push({ playerId: fp.playerId, question: 'top3', episode: 0, answer: top3 });
+      if(fp.winner) out.push({ playerId: fp.playerId, question: 'winner', episode: 0, answer: fp.winner });
+    });
+    return out;
+  }
+  // A draft's finale predictions graded: Map playerId -> points. Settled by the results once the season is over (before A4,
+  // by the result whoever ran it entered by hand). Read on every score, so only what the season's end says is worked out:
+  // its two questions are the season's (who wins, who makes the final three), never an episode's.
+  static finalePoints(state){
+    const answers = AnswerLogic.finaleAnswers(state);
+    if(!answers.length) return new Map();
+    const winner = seasonWinner(state);
+    const ended = seasonEnded(state);
+    const facts = { from: null, to: null, over: ended, episodes: new Map(), winner: winner ? winner.id : null, ended, order: ended ? AnswerLogic.finishOrder(state) : null, names: new Map() };
+    return AnswerLogic.grade(state, answers, facts).points;
+  }
+  // The finale's real answers, as the results say them (the season's winner, and its final three by where they finished),
+  // or nulls while the season runs: what classic's finale panel shows, where whoever ran it used to type them in.
+  static finaleActual(state){
+    const f = AnswerLogic.facts(state);
+    const top3 = f.order ? f.order.slice(0, 3) : [];
+    return { top3: [0, 1, 2].map(i => top3[i] || null), winner: f.winner };
+  }
 }
 
 // ---------- SetupLogic: guided first-time setup ----------
@@ -4153,7 +4327,7 @@ class Migrations {
 return {
   // ---- constants ----
   PALETTE, SEED_CASTAWAYS,
-  LEAGUE_TYPES, SHOWS, getLeagueType, gameOf, replenishAvailable, tradeAvailable, finalePredictionsAvailable, rosterSize, originalDraftPicks,
+  LEAGUE_TYPES, SHOWS, getLeagueType, gameOf, replenishAvailable, tradeAvailable, finalePredictionsAvailable, finaleOfGame, betsOn, rosterSize, originalDraftPicks,
   formatOf, startEpisode, startPhase, waitsForPhase, endEpisode, inPlay, spanView, gameOver, hasAired, closedForPlay, isWinnerExit, seasonWinner, seasonEnded,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
@@ -4192,7 +4366,6 @@ return {
   MAX_BET_POINTS,
   addBetPrediction: BetLogic.addPrediction, removeBetPrediction: BetLogic.removePrediction, setBetPredictionCorrect: BetLogic.setPredictionCorrect,
   getOrCreateFinalePred: FinaleLogic.getOrCreatePrediction, setFinalePick: FinaleLogic.setPick, setFinaleWinnerPick: FinaleLogic.setWinnerPick,
-  setActualTop3: FinaleLogic.setActualTop3, setActualWinner: FinaleLogic.setActualWinner,
   // Named setPickEmPick/removePickEmPick rather than the shorter setPick/removePick -- "pick" is
   // already heavily overloaded in this file (draft picks, blind-draft picks) and the longer name
   // keeps call sites unambiguous about which kind.
@@ -4209,7 +4382,7 @@ return {
   // the top of this file); SnakeDraftStrategy/BlindDraftStrategy/NoDraftStrategy and
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
-  Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
+  Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
   SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy
 };
 

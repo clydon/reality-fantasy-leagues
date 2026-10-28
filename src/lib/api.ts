@@ -380,16 +380,6 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ value }),
     }),
-  setActualTop3: (leagueId: string, idx: number, value: string | null) =>
-    localFetch<LeagueState>(`/api/leagues/${leagueId}/finale/actual/top3`, {
-      method: "PATCH",
-      body: JSON.stringify({ idx, value }),
-    }),
-  setActualWinner: (leagueId: string, value: string | null) =>
-    localFetch<LeagueState>(`/api/leagues/${leagueId}/finale/actual/winner`, {
-      method: "PATCH",
-      body: JSON.stringify({ value }),
-    }),
 
   // Chat lives in its own Postgres tables (chat_messages/chat_reactions), not the JSONB league
   // state, so these return their own shapes rather than a LeagueState.

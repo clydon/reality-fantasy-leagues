@@ -1,4 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
+import { answerStanding, storedAnswers } from "./answer-points";
 import { foldFor, isFolded, revealedThrough } from "@/lib/game/chat-fold";
 import { accoladesOf, rankingsOf, trophiesOf, yourNumbers, type Accolade, type GameStanding, type Person, type Rankings, type StandingRow, type TrophyShelf, type YourNumbers } from "@/lib/game/couch-standings";
 import { tableOf } from "@/lib/game/game-view";
@@ -102,7 +103,8 @@ function standingOf(
   const view = StateLogic.GhostLogic.viewFor(state, playerId, mark);
   const pool = StateLogic.getLeagueType(view).hasWeeklyPicks;
   const called = new Map<string, number>();
-  for (const ep of view.episodes) for (const b of ep.bets || []) for (const p of b.predictions || []) if (p.correct === true) called.set(p.playerId, (called.get(p.playerId) ?? 0) + 1);
+  // Side bets called right, where they count (beside a draft: a pool's or Weekly Calls' never scored).
+  if (StateLogic.betsOn(view)) for (const ep of view.episodes) for (const b of ep.bets || []) for (const p of b.predictions || []) if (p.correct === true) called.set(p.playerId, (called.get(p.playerId) ?? 0) + 1);
   const rows = tableOf(view, playerId ?? "", userOf, calls?.right).map((r) => ({
     userId: r.userId,
     name: r.name,
@@ -176,9 +178,13 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
       // Weekly Calls and Weekly Bingo are through the latest show that's aired and you've seen, scored from the couch's calls or cards.
       const type = StateLogic.getLeagueType(state);
       const schedule = schedules.get(g.seasonId);
-      const calls = type.hasCalls || type.hasBingo ? await callsThrough(state, g, who, Math.min(seen, latestAired(schedule)), schedule) : undefined;
-      const now = standingOf(state, mine.get(g.leagueId) ?? null, mark, who, calls);
-      const back = calls && now.through >= 2 ? await callsThrough(state, g, who, now.through - 1, schedule) : undefined;
+      const me = mine.get(g.leagueId) ?? null;
+      // A game of questions (step A4) by its answers' points, graded at the mark, as its own table is.
+      const rows = type.hasQuestions ? await storedAnswers(g.leagueId) : [];
+      const answers = (m: number | null) => answerStanding({ leagueId: g.leagueId, state, playerId: me, mark: m, rows });
+      const calls = type.hasQuestions ? await answers(mark) : type.hasCalls || type.hasBingo ? await callsThrough(state, g, who, Math.min(seen, latestAired(schedule)), schedule) : undefined;
+      const now = standingOf(state, me, mark, who, calls);
+      const back = calls && now.through >= 2 ? (type.hasQuestions ? await answers(now.through - 1) : await callsThrough(state, g, who, now.through - 1, schedule)) : undefined;
       const before = now.through >= 2 ? standingOf(state, mine.get(g.leagueId) ?? null, now.through - 1, who, back).rows : null;
       standings.push({
         leagueId: g.leagueId,

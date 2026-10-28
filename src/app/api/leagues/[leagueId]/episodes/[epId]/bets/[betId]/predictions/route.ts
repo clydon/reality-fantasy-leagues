@@ -4,6 +4,7 @@ import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { refuseWhileCatchingUp } from "@/lib/server/late-join";
 import { forPlayerChange } from "@/lib/server/change-log";
+import { refuseLockedBet } from "@/lib/server/game-writes";
 
 // Port of SurvivorDraft's server/routes/episodes.js POST /:epId/bets/:betId/predictions -- any
 // member can add their own guess; commissioner/super-admin can add on anyone's behalf.
@@ -18,6 +19,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
 
   const state = await withLeagueLock(leagueId, (s) => {
     refuseWhileCatchingUp(s, playerId, "Predictions");
+    refuseLockedBet(s, epId);
     StateLogic.addBetPrediction(s, epId, betId, playerId, guess);
   }, forPlayerChange(user.id, membership.playerId, playerId ?? "", "prediction", (name) => `Made ${name}'s prediction`));
   return stateResponse(req, state);

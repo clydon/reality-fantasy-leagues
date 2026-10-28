@@ -2,7 +2,9 @@
 
 Status: **planned 2026-10-27**. **A1 built** the same day and **A2 built** on 2026-10-28, both on the `engine` lane, not
 merged (their As built under track A). **A3 runs in two parts:** part 1 (later episode starts, moving a start, the rest of
-BACKLOG item 10, and the phase start's design) built 2026-10-28 on `engine`; part 2 (phase starts) next. The rest not started. **Waiting on the user (A2):** the game-specs flag in production
+BACKLOG item 10, and the phase start's design) and part 2 (phase starts), both built 2026-10-28 on `engine`. **A4 runs in two
+parts:** part 1 (the engine and storage: questions settled by data, `game_answers`, Weekly Calls and finale predictions as
+`ask` presets) built 2026-10-28 on `engine`; part 2 (the screens, with impeccable) next. The rest not started. **Waiting on the user (A2):** the game-specs flag in production
 (a Neon branch check from your terminal, then on), after the merge. The user's idea, their decisions and the order are below; each step is its own
 session (Opus 5.5 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: live sports, its Sport classes and
 formats, written against this plan's game spec) and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season:
@@ -563,6 +565,157 @@ in `PLAN-researched-survivor.md`'s "What the switch needs", with this plan's dec
   - Answering and results in the new design, with impeccable.
   - Sports' settles are the branch's.
 
+  **Split in two (2026-10-28).** Part 1 is the engine and storage: the question's shape, the answer kinds, the lock, the
+  grader, `game_answers`, the answers API, a game of questions' standings, Weekly Calls and finale predictions as `ask`
+  presets with their scores proven unchanged, side bets' lock and Predictions only where they count. Part 2 is the screens:
+  answering and results, designed with impeccable at 390 first, finale predictions in the new design, and starting a game
+  of questions.
+
+  **As built (A4 part 1, 2026-10-28, on `engine`, not merged; migration 0200).** One session. Master hadn't moved since A3
+  part 2's merge (783 tests then).
+  - **The question** (`schema.js`): `{ id, ask, answer, points, settle, asked, closes, pick?, from?, line?, options? }`.
+    - `asked`: `once` (the default) or `each` episode the game plays.
+    - `closes`: `start` (its episode's start, or the game's first for one asked once) or `finale` (the season's last
+      episode's start).
+    - A person answer names `pick` of them (default 1; each right one scores) `from` the cast still in or a draft's own team.
+    - Results settle `out` (asked once: the first to go in the game), `winner`, `placed` (who finished `place`th) and the
+      new `top` (in the top `place`); a moment settles `happened` or `count` (asked once: over the game).
+    - The rules (`questionProblems`): who wins, placed and top are the season's (asked once, in a game that runs to its end);
+      only who wins or the final few wait for the finale (anything else could be settled before it); `team` needs a draft;
+      ids, at most 12 questions, points 0 to 100, choices of 2 to 12 options (yes/no for whether it happened, numbers or
+      ranges like "3+" for a count).
+    - A league's own keeps what it already plays (finale predictions on a game with an end, points past 100).
+    - **The data rule holds for every question**: a moment settles only if research answers it, even in a league's own
+      (`strict`; only Weekly Calls' talk-show calls keep the couch's word, `ctx.calls`), results need `ctx.results`, a
+      winner `ctx.winner`. `RosterLogic.setGame` refuses a game's own new or changed questions without the show's ctx, so
+      every write checks them; the presets are today's games.
+    - `specWaitsFor` has no A4 any more (only the sports branch, and an over/under's line still to set).
+  - **The ask presets.** `CALLS`, Weekly Calls' one question (the show's two calls, Call it's, a person's): the Weekly
+    Calls preset is now `score: { by: 'answers' }, ask: [CALLS]` (`score.by: 'calls'` is gone), still graded by `calls.ts
+    callRights`, so its scores are unchanged by construction. `finaleQuestions({ top3, winner, from })`: a draft's finale
+    predictions as two questions (`top3`: pick 3, top 3; `winner`), asked once, closing at the finale; `extras.finale` is
+    gone. `finaleOf(ask)` reads them back. `playsAs`: a draft plays an empty ask or exactly the finale pair; `weekly-calls`
+    is `[CALLS]`; a new league type **`questions`** plays nothing held, scored by its own questions (each a show's, its line
+    set). Flags: `hasQuestions`; `hasCalls` from the calls question.
+  - **Side bets only where they count** (A1's and A2's Noticed item): `betsFit` (a draft) and `StateLogic.betsOn(state)`, which
+    every reader of side bets asks now, in the new design and classic alike (`predictionsOf`, `actionItems`, the hub's "Called
+    it", the Rules sheet, the details, the classic overview, episode pages, scoreboards, setup, the explainer, the poll's
+    nudges). `specOf` reads a pool's, Weekly Calls' or Weekly Bingo's switch as off; the stored `bonusEnabled` stays as it is,
+    read by nothing. The presets for those three have `bets: null`.
+  - **The fields** (`settings.js`): a game of questions keeps its questions in `settings.questions` (owned); finale
+    predictions are their four fields, as before; Weekly Calls' question is its type's. So the fields still say the whole
+    game, and a league without the flag plays it the same.
+  - **The grader** (`game-spec/answers.js`, pure): `verdictOf(q, episode, facts)` (waiting, off with why, or known with the
+    right answers and a count), `pointsFor` (a person answer per right pick; a number the closest, ties all; an over/under
+    against its line, right on it off; a choice matched to names, yes/no or ranges), `isRight`, `answerProblem`.
+  - **The engine** (`state-logic.js` `AnswerLogic`):
+    - `facts(state)`: from the league's own results as the viewer's copy says them, so nothing past their mark is graded.
+      It includes who went home in each of the game's episodes, each moment's count once the results are final, the
+      winner, and the finish order once the season is over. The finish order (`finishOrder`) is the winner first, then by
+      exit episode, finalists above others in the same episode, by jury votes, then the order the results came in.
+    - The lock (`closesAt`, `closed`): the closing episode's `closedForPlay`, so whoever runs the game can keep it open or
+      lock it early. For an episode the league hasn't made yet, the schedule's air time is used, except in a league
+      catching up at its own pace. It also closes once the episode has results, or the game is over. Nothing settles a
+      question before it closes, so the lock never reads the results. With no finale listed, a finale question closes at
+      the game's end.
+    - `episodeNow` (this week's: the one picks and lineups are for).
+    - `grade(state, answers)`: only the copy's own players, so a late joiner someone can't see counts for nothing.
+    - `finaleAnswers` and `finalePoints`: **finale predictions are settled by the results**, no longer by the result
+      typed in by hand. `finaleActual` gives the results' answer.
+    - `addSideLayers` scores the finale through it.
+    - `BetLogic.closed`: a side bet locks at its episode's start, and `add`, `addPrediction` and `removePrediction` refuse
+      after it (A4's Noticed item).
+    - `FinaleLogic.setActual*` are gone. Computer players make no finale picks once this week's episode has started.
+  - **Storage** (migration 0200): `game_answers` (league, player, question, episode (0 for once), answer as jsonb, who
+    wrote it), keyed on all four, cascading with the league, backed up (`backup-common.js`, its slice in
+    `backup-leagues.js`). Graded on read, never stored.
+  - **The server.**
+    - `answers.ts`: `GET` and `POST` `/api/seasons/[id]/answers?league=`, for one of your games on the season (`gamesHere`
+      now takes `only`). The GET gives this week's questions (the game's, not your mark's) and the game's own, each with:
+      its status (open, behind: see the episode before it first, or closed), when it closes, who you can name, yours, and
+      how many have answered. Once it closes: everyone's answers, you first, and how each stands at your mark.
+    - Nobody else's answer leaves the server before the lock.
+    - The POST refuses 409 (locked, or not this week's episode), 403 (naming someone while behind) and 400 (a wrong
+      answer). A game of questions' answers are written in one transaction, the lock checked again as they're written. A
+      draft's finale picks go into its state through the engine.
+    - `questionContext` builds the show's ctx for `setGame`: the moments of the rules it plays by, by the ids its results
+      record, whether its results say who goes home, whether anyone wins, who settles its calls, and its phases.
+    - `answer-points.ts`: `leagueAnswers` gives the Games tab a game of questions ranked by points (`game-view.ts tableOf`
+      treats it as Weekly Calls), `answerStanding` gives the hub its standing now and an episode back (its answers read
+      once), `finaleEpisode`, and `finaleLock` (classic's finale routes).
+  - **Classic:**
+    - Finale predictions lock when the season's last episode starts (409).
+    - Typing in the result is refused (409 "The results settle the finale now").
+    - The finale panel shows the results' final three and winner, read only.
+    - The bet routes refuse after the lock (`game-writes.ts refuseLockedBet`).
+    - Classic's game-type list leaves out `questions`.
+  - **Where a game of questions is like Weekly Calls:**
+    - Computer players don't play it.
+    - Classic's league list leaves it out.
+    - Its name is "Questions" (`league-season.ts`).
+    - Your moves gives it no tab (its own screen is part 2's).
+    - Its table rows don't open, and your line says points.
+    - Run it back skips it (no preset to start again).
+  - **What reads differently** (each intended):
+    - Finale predictions are graded against the results, not a result typed in. This lane's copy has none typed in, nor
+      any finale picks.
+    - Finale predictions and side bets lock.
+    - A pool, Weekly Calls and Weekly Bingo no longer offer or mention side bets they never scored.
+    - Weekly Calls' and the finale's spec shape changed. This lane's nine carried specs (stored by A2 in the old shape) all
+      drifted. `game-specs-flag.js on` carried them again, and they now read as their fields.
+  - **The proof** (as A2's): the pre-A4 engine (ee0942ca's `src/lib/game`, extracted) against today's, on this lane's 9
+    leagues and 10 played demos (every kind, part-played and to the end, the drafts with finale predictions scoring 7, 4
+    and 2). Every reading and score was the same, after every episode, with the old engine given the results' answer as
+    the typed-in result: PASS. A one-off script, kept out of the repo as A2's was.
+  - **Tests:**
+    - `tests/answers.test.js`, 8 tests: the shape; the data rule for every question through `setGame`; each kind graded; a
+      game of questions at two viewers' marks, its table and How it works; the lock, including a league catching up; side
+      bets' lock and where they count; finale predictions against the pre-A4 formula, spoiler-safe, the finish order by
+      jury votes; Weekly Calls.
+    - `game-spec.test.js` updated: no Predictions line on a pool's, Weekly Calls' or Bingo's sheet; bets as the engine reads
+      them; the questions field.
+    - `npm test` 791.
+  - **Browser.** `scripts/dev-test/check-questions.js` is new, on new-fixture.js; 47 PASS at 390. It covers:
+    - jordan's Survival Pool, joined by riley and sam, made a game of questions through `setGame`: refused without the
+      show's moments, written with them.
+    - Answering: the refusals, the privacy, sam behind, the lock at Episode 6's start.
+    - Episode 6's results graded only once jordan has seen it: 3 points, the Games tab ranks by them, riley at 5 sees none.
+    - The flag's check on it.
+    - A side bet guessed before Episode 6 and refused after; the pool's Rules sheet without Predictions.
+    - The Outlast's finale predictions through classic and the answers API, and typing the result in refused.
+    - In the browser: the table, its Rules sheet and the pool's.
+    - Re-runs after the code review's fixes: `check-new-start-game.js` 75, `check-new-backstage-ii.js` 149,
+      `check-phase-starts.js` 58.
+    - `game-specs-flag.js status`: on, 9 of 9 carry their spec, none drifted. `check` PASS.
+  - **Code review** (`/code-review`, before the commit).
+    - Taken:
+      - A league catching up was locked on the broadcast's clock.
+      - "This week" came from the viewer's cut view, so anyone behind got a long-locked episode.
+      - "Closed once settled" told someone behind that something had been settled. Now nothing settles before its lock,
+        and only who wins or the final few wait for the finale.
+      - Late joiners' answers counted for others.
+      - New rules refused existing leagues' finale predictions (on a span, big points).
+      - Classic still offered bets after their lock, or read the switch directly.
+      - Answer writes weren't one transaction.
+      - Computer players could make finale picks during the finale.
+      - Classic offered `questions` in its type list, and Run it back offered it.
+      - Scoring worked out every episode's facts for the finale on every read.
+      - The answers API loaded every game on the season.
+      - Duplicate helpers; dead setters; an unused index.
+    - Declined: a finale result typed in by hand still counts for nothing when the results never record a winner. Only data
+      settles it (the user's rule), and the season sync records the winner's exit.
+  - **For the merge:** 0200 is rehearsed with the other migrations, and goes in HOSTING.md (`game_answers`: a row per
+    answer, tiny; nothing polls or runs on a schedule). Production's flag is off, so no carried spec there has A2's shape;
+    if it were turned on before this merges, `game-specs-flag.js on` would carry them again.
+  - **For part 2** (impeccable `shape` first, at 390, then build):
+    - Answering a game's questions: where they live (Tonight's card, Your moves' tab, the dock), the lock's countdown,
+      who you can name without spoiling anyone behind, and taking an answer back.
+    - Results: how each question went and the couch's answers, at your mark.
+    - Finale predictions in the new design (on the same API).
+    - Starting a game of questions with taps (its questions from the show's moments, through `questionContext`), its name,
+      and Backstage's view of it.
+    - The home's due moves for it.
+
 **G. The Start-a-game GPT** (master, after A).
 - **G0. Design.** Impeccable `shape`, then a mock in `.impeccable/mocks/start-a-game/` of the wizard and everything listed under
   it above, at 390. The user confirms before anything is built. It can run any time.
@@ -731,6 +884,24 @@ From A3 part 2 (2026-10-28):
   and nothing passes them on, so the copy's scoring phase gates (its segments that wait for Merged) never learn when it
   began. A game's start now reads the season's under the copy's own; the scoring doesn't. (S2, or whoever next touches Make it
   ours.)
+
+Taken by A4 part 1 (2026-10-28): side bets have no lock (the map's item), and Predictions shown on games that never score
+them (A1's and A2's).
+
+From A4 part 1 (2026-10-28):
+- Finale predictions wait for the season's last episode by its schedule's episode count; a season whose count isn't known
+  leaves them open until the season is over (classic had no lock at all). (Part 2, or whoever next touches the schedule.)
+- Computer players don't answer a game of questions (they don't play it, as Weekly Calls), and a draft's computer players
+  pick their finale once. (Part 2 or later.)
+- Weekly Calls' calls lock at airtime, Call it's own rule: whoever runs the game can't keep them open past the start or lock
+  them early, as its other moves can (they're a person's, across couches). (The user's call, if it matters.)
+- A game's own questions beside a draft (anything but its finale predictions) aren't played yet: `specWaitsFor` says no game
+  plays them, since a draft's scores live in its state and their answers in `game_answers`. (G2, if the GPT makes them.)
+- Who finished second and third, two runner-ups with no jury votes recorded, falls to the order their results came in
+  (`finishOrder`); a question asking for exactly second is only as good as that. (Whoever next touches the finale's results.)
+- `state.finaleActual` is read by nothing now but stays in every league's state (types, `defaultState`, migrate, the spoiler
+  guard's reset), as do the finale's actual routes, which answer 409 for an old phone's bundle. (Step C, with classic.)
+- The hub's "Called it" accolade counts side bets only where they count now, so a pool's graded guesses no longer add to it.
 
 From A2 (2026-10-28):
 - Start a game still makes a Weekly Lineup with `defaultState`'s copy of the points (a map), not the preset's null. A copy

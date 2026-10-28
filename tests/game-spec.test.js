@@ -58,10 +58,10 @@ const GAME_FIELDS = {
   pickem: ["pickemCorrectPoints", "poolSurvive", "calls"],
   "weekly-calls": [],
   "weekly-bingo": [],
+  questions: ["questions"],
 };
 const gameFields = (state) => [...GAME_FIELDS.every, ...GAME_FIELDS[S.getLeagueType(state).id], ...(S.WaiverLogic.supported(state) ? WAIVER_FIELDS : [])];
 
-const clampBet = (v) => Math.min(3, Math.max(1, Math.round(Number(v)) || 1));
 /** Everything state-logic.js reads of a league's settings, as it reads it (what's switched off, not what it would be). */
 function readings(state) {
   const t = S.getLeagueType(state);
@@ -72,7 +72,7 @@ function readings(state) {
   const finale = S.finalePredictionsAvailable(state);
   return {
     type: [t.id, t.draftStrategy.name, t.scoringStrategy.name],
-    flags: ["hasRoster", "hasWeeklyPicks", "hasActiveRoster", "hasCalls", "hasBingo", "supportsReplenish", "supportsTrade", "supportsFinalePredictions"].map((f) => !!t[f]),
+    flags: ["hasRoster", "hasWeeklyPicks", "hasActiveRoster", "hasCalls", "hasQuestions", "hasBingo", "supportsReplenish", "supportsTrade", "supportsFinalePredictions"].map((f) => !!t[f]),
     roster: [S.rosterSize(state), A.activeSlots(state), A.benchSlots(state), st.ownershipMode === "shared"],
     span: [S.startEpisode(state), S.startPhase(state), S.endEpisode(state), S.gameOver(state), state.episodes.map((e) => S.inPlay(state, e.number))],
     waivers: W.supported(state)
@@ -84,7 +84,9 @@ function readings(state) {
       : null,
     join: [S.GhostLogic.joinMode(state), S.GhostLogic.allowed(state), S.GhostLogic.lockedDown(state)],
     finale: finale ? [st.finaleTop3Points || 0, st.finaleWinnerPoints || 0, st.finalePredictionScope === "ownPicksOnly"] : null,
-    bets: [!!st.bonusEnabled, st.bonusEnabled ? clampBet(st.defaultBetPoints) : null],
+    // As the engine reads them (A4): only beside a draft, the games that score them.
+    bets: S.betsOn(state) ? [true, S.betsOn(state).points] : [false, null],
+    questions: S.gameOf(state).ask,
     draft: [draftTimer(state), st.draftScheduledAt || null],
     pool: [typeof st.pickemCorrectPoints === "number" ? st.pickemCorrectPoints : 1, S.PickEmLogic.byScore(state), S.PickEmLogic.callsOn(state)],
     points: ids.map((id) => [id, A.pointsFor(state, id)]),
@@ -236,7 +238,9 @@ test("the Rules sheet (game-rules.ts, describeSpec since A2) says what it always
     "Scoring starts at Episode 3; the episodes before it are history.",
     "It ends with Episode 9: nothing after it scores, and the table there is final.",
   ]);
-  assert.deepEqual(sheet("pickem", (s) => S.updateSettings(s, "bonusEnabled", false)), [
+  // A pool never scored side bets, so its sheet says nothing of them, switched on or not (A4).
+  assert.deepEqual(sheet("pickem"), sheet("pickem", (s) => S.updateSettings(s, "bonusEnabled", false)));
+  assert.deepEqual(sheet("pickem"), [
     "No draft. Before each episode, pick one castaway you think stays in.",
     "Right: your streak grows. Wrong, or no pick: it resets. Your best streak still counts.",
     "You can't pick the same castaway again until you've used everyone still in, and never two episodes in a row.",
@@ -247,14 +251,12 @@ test("the Rules sheet (game-rules.ts, describeSpec since A2) says what it always
     "The couch says what happened as it watches: two of you agreeing settles a call.",
     "Change your calls until it starts. Nobody sees them until then.",
     "Most right calls by the finale wins.",
-    BETS,
   ]);
   assert.deepEqual(sheet("weekly-bingo", (s) => S.updateSettings(s, "endEpisode", 1)), [
     "No draft, no team. Every show you get a new bingo card: eight things that might happen, the middle one free.",
     "Tick a square when it happens. Three in a row, down or across makes a line.",
     "A square counts once the couch agrees it happened: two of you ticking it, or saying so, settles it.",
     "Most lines by the finale wins.",
-    BETS,
     "It's one episode: Episode 1, then it's over.",
   ]);
   // A sport's pool survives by scoring, and the sheet says so; finale predictions are on it when they're on.
@@ -360,8 +362,8 @@ test("specProblems: what's wrong with a spec's shape", () => {
   assert.deepEqual(at({ ...P["survival-pool"], count: { start: 1 } }), ["count", "count"]);
   assert.deepEqual(at({ ...P["survival-pool"], rank: { by: "total" }, score: { by: "place" } }), ["score.by"]);
   assert.deepEqual(at({ ...P.outlast, rank: { by: "streak" } }), ["rank.by"]);
-  assert.deepEqual(at({ ...P["weekly-calls"], score: { by: "moments", points: null } }), ["score.by"], "nothing of yours to score");
-  assert.deepEqual(at({ ...P["weekly-calls"], score: { by: "answers" } }), ["ask"]);
+  assert.deepEqual(at({ ...P["weekly-calls"], score: { by: "moments", points: null } }), ["score.by", "ask[0]"], "nothing of yours to score, and the calls are a game of their own");
+  assert.deepEqual(at({ ...P["weekly-calls"], ask: [] }), ["ask"]);
   assert.deepEqual(at({ ...P["weekly-calls"], closes: "never" }), ["closes"]);
   assert.deepEqual(at({ ...P["survival-pool"], extras: { ...P["survival-pool"].extras, waivers: G.NO_WAIVERS } }), ["extras.waivers"]);
   assert.deepEqual(at({ ...P.outlast, get: { by: "draft", each: 3, order: "blind", own: "shared" }, extras: { ...P.outlast.extras, waivers: G.NO_WAIVERS } }), ["extras.waivers"], "a shared Outlast has no free agents");
@@ -478,7 +480,7 @@ test("withSpec writes only the parts that change, and the result always reads as
   // A stored value another part hid shows through once that part changes: written too. A pool with an old finale switch
   // on becoming a draft; an exclusive draft's "open" (read as ask) going shared.
   const pool = { ...made("pickem").settings, finalePredictionsEnabled: true };
-  assert.equal(G.specOf(G.withSpec(pool, P["weekly-lineup"])).extras.finale, null);
+  assert.deepEqual(G.specOf(G.withSpec(pool, P["weekly-lineup"])).ask, []);
   assert.equal(G.withSpec(pool, P["weekly-lineup"]).finalePredictionsEnabled, false);
   const exclusive = { ...made("active-roster", (s) => S.updateSettings(s, "ownershipMode", "exclusive")).settings, joinMode: "open" };
   const ask = G.specOf(exclusive);

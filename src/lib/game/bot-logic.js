@@ -24,7 +24,7 @@ const StateLogic = require("./state-logic.js");
 const {
   Core, DraftLogic, BlindDraftLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
   EpisodeLogic, FinaleLogic, getLeagueType, rosterSize, inPlay, closedForPlay,
-  currentEpisode, finalePredictionsAvailable,
+  currentEpisode, finalePredictionsAvailable, seasonWinner,
 } = StateLogic;
 
 // A seat the bot plays: flagged automated, and still in the game (a disabled or not-yet-activated
@@ -324,11 +324,14 @@ function waiverClaim(state, playerId, period) {
 }
 
 // Finale picks, once there's something to go on: after the merge, or with ten or fewer left. Set once
-// and left alone -- nothing locks finale picks, so a bot that kept "improving" them would end up
-// picking the winner after the fact.
+// and left alone -- a bot that kept "improving" them would end up picking the winner after the fact.
+// Never once the results have a winner (they settle the finale, step A4), nor while this week's episode is on: picks lock
+// when the season's last episode starts (the routes' finale lock), and this week's could be it.
 function finalePicks(state) {
   if (!finalePredictionsAvailable(state)) return 0;
-  if (state.finaleActual && state.finaleActual.winner) return 0;
+  if (seasonWinner(state)) return 0;
+  const week = currentEpisode(state);
+  if (week && closedForPlay(week)) return 0;
   const active = state.castaways.filter((c) => c.status === "active").map((c) => c.id);
   if (active.length < 3) return 0;
   if (!isMerged(state) && active.length > 10) return 0;

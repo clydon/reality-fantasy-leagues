@@ -12,6 +12,8 @@ const GAME_NAMES: Record<string, string> = {
   pickem: "Survival Pool",
   "weekly-calls": "Weekly Calls",
   "weekly-bingo": "Weekly Bingo",
+  // A game of questions (step A4 of docs/PLAN-start-a-game-gpt.md): no preset, so its own name for now.
+  questions: "Questions",
 };
 
 /** A league type's name in the new design ("Weekly Lineup"), from settings.leagueTypeId. */

@@ -300,7 +300,8 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
         ) : (
           <Field label="League type" htmlFor="ls-type" hint={leagueType.description}>
             <select id="ls-type" className={fieldCls} value={leagueType.id} onChange={(e) => updateSetting("leagueTypeId", e.target.value)}>
-              {Object.values(StateLogic.LEAGUE_TYPES).map((lt) => (
+              {/* A game of questions is made with its questions (step A4), never by switching a league to it. */}
+              {Object.values(StateLogic.LEAGUE_TYPES).filter((lt) => lt.id !== "questions").map((lt) => (
                 <option key={lt.id} value={lt.id}>
                   {lt.name}
                 </option>

@@ -8,7 +8,8 @@
 //   parts     the sentence in pieces, each with the part of the spec it says (`at`: preset, about, get, count, span,
 //             score, ask, rank), so the wizard can show what someone said as theirs and what we chose as ours
 //   rules     How it works: the Rules sheet (game-rules.ts gameRules reads it, step A2)
-//   details   [{ id, label, value, recommended }]: the draft room, who can join, waivers, side bets, finale predictions...
+//   details   [{ id, label, value, recommended }]: the draft room, who can join, waivers, side bets (beside a draft), finale
+//             predictions (a draft's questions)...
 //
 //   ctx       what the spec refers to, in the show's words: { show: 'Survivor 51', castaway: 'castaway', castaways,
 //             part: { singular: 'episode', plural: 'episodes' }, groups: the scoring groups' labels, moments: [{ id,
@@ -17,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, fullSpec, countKind, presetOf, sameValue, own, spanStart } = require('./schema.js');
+const { PRESET_LABELS, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -117,11 +118,12 @@ function sentenceParts(s, w) {
     put(`a new bingo card every ${w.part}`, 'get');
   } else if (by === 'squares') {
     put('everyone takes squares on the grid', 'get');
-  } else if (s.score.by === 'calls') {
+  } else if (s.score.by === 'answers' && callsAsk(s.ask)) {
     put(`two calls before every ${w.part}`, 'get');
   } else if (s.score.by === 'answers') {
     const n = s.ask.length;
-    put(`everyone answers ${say(n)} ${n === 1 ? 'question' : 'questions'} before ${one ? `${w.Part} ${first}` : `each ${w.part}`}`, 'ask');
+    const each = s.ask.some((q) => q.asked === 'each');
+    put(`everyone answers ${say(n)} ${n === 1 ? 'question' : 'questions'} before ${one ? `${w.Part} ${first}` : each ? `each ${w.part}` : 'it starts'}`, 'ask');
     if (n) put(`: ${listOf(s.ask.map(questionPhrase))}`, 'ask');
     spanSaid = one;
   } else {
@@ -139,7 +141,7 @@ function sentenceParts(s, w) {
     put(changed === null ? ` Scored by ${rules}, with the game's own points.` : changed ? ` Scored by ${rules}, with ${say(changed)} ${changed === 1 ? "moment's" : "moments'"} points changed.` : ` Scored by ${rules}.`, 'score');
   } else if (sc.by === 'place') put(' Each scores by how long they last: the last one standing carries you.', 'score');
   else if (sc.by === 'survive') put(' Longest streak wins.', 'rank');
-  else if (sc.by === 'calls') put(' Most right by the finale wins.', 'score');
+  else if (sc.by === 'answers' && callsAsk(s.ask)) put(' Most right by the finale wins.', 'score');
   else if (sc.by === 'lines') put(' Most lines by the finale wins.', 'score');
   else if (sc.by === 'stats' && isObj(sc.points)) put(` Scored ${statsWords(sc.points, w)}.`, 'score');
   else if (sc.by === 'answers') {
@@ -149,6 +151,18 @@ function sentenceParts(s, w) {
   const rank = { matchups: ' Played head to head.', categories: ' Ranked by category.', roto: ' Ranked roto-style.' }[s.rank.by];
   if (rank) put(rank, 'rank');
   return parts;
+}
+
+/** One question as How it works says it: when it's asked, what it is, and what a right answer earns. */
+function questionRule(q, w, each) {
+  const when = q.asked === 'each' ? `Before each ${w.part}: ` : q.closes === 'finale' ? 'Before the finale: ' : each ? 'Before it starts: ' : '';
+  const pts = typeof q.points === 'number' ? q.points : null;
+  let earn = pts === null ? '' : ` ${cap(pointsWord(pts))} if you're right.`;
+  if (q.answer === 'person' && q.pick > 1 && pts !== null) earn = ` Name ${say(q.pick)}: ${pointsWord(pts)} for each one right.`;
+  if (q.answer === 'number' && pts !== null) earn = ` The closest wins ${pointsWord(pts)}.`;
+  const line = q.answer === 'overUnder' && typeof q.line === 'number' ? ` The line is ${q.line}.` : '';
+  const from = q.answer === 'person' && q.from === 'team' ? ' From your own team.' : '';
+  return `${when}${askOf(q)}${line}${from}${earn}`;
 }
 
 /** How it works: today's five games say what the Rules sheet says (game-rules.ts), the rest in the same voice. */
@@ -187,7 +201,7 @@ function rulesOf(s, w) {
     rules.push('Right: your streak grows. Wrong, or no pick: it resets. Your best streak still counts.');
     rules.push(`You can't pick the same ${w.castaway} again until you've used everyone still in, and never two ${w.parts} in a row.`);
     rules.push('Longest streak wins; ties go to the most right picks.');
-  } else if (s.score.by === 'calls') {
+  } else if (s.score.by === 'answers' && callsAsk(s.ask)) {
     rules.push('No draft, no team. Before each show starts, make two calls about what will happen in it.');
     rules.push('The couch says what happened as it watches: two of you agreeing settles a call.');
     rules.push('Change your calls until it starts. Nobody sees them until then.');
@@ -200,13 +214,11 @@ function rulesOf(s, w) {
   } else if (by === 'squares') {
     rules.push('Take your squares on the grid before it starts.');
   }
-  if (s.score.by === 'answers') {
-    rules.push(`No draft, no team. Before it starts, answer ${say(s.ask.length)} ${s.ask.length === 1 ? 'question' : 'questions'}:`);
-    for (const q of s.ask) {
-      const line = q.answer === 'overUnder' && typeof q.line === 'number' ? ` The line is ${q.line}.` : '';
-      rules.push(`${askOf(q)}${line}${typeof q.points === 'number' ? ` ${cap(pointsWord(q.points))} if you're right.` : ''}`);
-    }
-    rules.push('Change your answers until it starts. Nobody sees them until then.');
+  if (s.score.by === 'answers' && !callsAsk(s.ask)) {
+    const each = s.ask.some((q) => q.asked === 'each');
+    rules.push(`No draft, no team. Answer ${say(s.ask.length)} ${s.ask.length === 1 ? 'question' : 'questions'}${each ? '' : ' before it starts'}:`);
+    for (const q of s.ask) rules.push(questionRule(q, w, each));
+    rules.push(each ? `Change an answer until its ${w.part} starts. Nobody sees them until then.` : 'Change your answers until it starts. Nobody sees them until then.');
     rules.push('Most points wins.');
   }
   const rank = {
@@ -215,11 +227,12 @@ function rulesOf(s, w) {
     roto: 'Ranked roto-style: each stat ranks everyone, and the ranks add up.',
   }[s.rank.by];
   if (rank) rules.push(rank);
-  if (isObj(s.extras.bets)) {
+  // Side bets count only beside a draft (a pool, Weekly Calls and Weekly Bingo never scored them).
+  if (isObj(s.extras.bets) && betsFit(s)) {
     rules.push(`Predictions: a right answer earns its points (usually ${s.extras.bets.points}), once at least two of you have answered.`);
   }
-  const fin = s.extras.finale;
-  if (isObj(fin)) {
+  const fin = s.get.by === 'draft' ? finaleOf(s.ask) : null;
+  if (fin) {
     rules.push(`Finale predictions: before the finale, name your final three and the winner${fin.from === 'own' ? ' from your own team' : ''}. ${cap(pointsWord(fin.top3))} for each of the three you get, ${pointsWord(fin.winner)} for the winner.`);
   }
   if (!isObj(s.span.from) && s.span.from > 1) rules.push(`Scoring starts at ${w.Part} ${s.span.from}; the ${w.parts} before it are history.`);
@@ -262,10 +275,12 @@ function detailsOf(s, w) {
       : `a window ${win.schedule === 'everyEpisode' ? `after every ${w.part}` : `every ${win.every} ${w.parts}`}${win.swaps ? `, ${win.swaps === 1 ? 'one swap' : `${win.swaps} swaps`}` : ''}`;
     out.push({ id: 'waivers', label: 'Waivers', recommended: rec('waivers'), value: `${own(REPLACE_WORDS, e.waivers.replace) || 'Replacements as set'} · ${windows}` });
   }
-  out.push({ id: 'bets', label: 'Side bets', recommended: rec('bets'), value: isObj(e.bets) ? `On, ${pointsWord(e.bets.points)} each` : 'Off' });
+  // Side bets and finale predictions go with a draft: nothing else scores them.
+  if (betsFit(s)) out.push({ id: 'bets', label: 'Side bets', recommended: rec('bets'), value: isObj(e.bets) ? `On, ${pointsWord(e.bets.points)} each` : 'Off' });
   if (s.get.by === 'draft') {
-    const f = e.finale;
-    out.push({ id: 'finale', label: 'Finale predictions', recommended: rec('finale'), value: isObj(f) ? `Top 3: ${pointsWord(f.top3)} each, the winner: ${pointsWord(f.winner)}${f.from === 'own' ? ', from your own team' : ''}` : 'Off' });
+    const f = finaleOf(s.ask);
+    const presetAsk = presetOf(s) ? presetOf(s).ask : [];
+    out.push({ id: 'finale', label: 'Finale predictions', recommended: sameValue(s.ask, presetAsk), value: f ? `Top 3: ${pointsWord(f.top3)} each, the winner: ${pointsWord(f.winner)}${f.from === 'own' ? ', from your own team' : ''}` : 'Off' });
   }
   if (s.get.by === 'pick') out.push({ id: 'calls', label: 'Who goes home?', recommended: rec('calls'), value: e.calls ? `A call every ${w.part}, beside the pick` : 'Off' });
   if (countKind(s.count) === 'start') out.push({ id: 'hideStarters', label: 'Starters', recommended: rec('hideStarters'), value: e.hideStarters ? 'Hidden until the lock' : "Shown as they're set" });

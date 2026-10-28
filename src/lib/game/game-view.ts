@@ -267,7 +267,8 @@ export function poolTop(rows: TableRow[]): TableRow[] {
 export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (playerId: string) => number = () => 0): TableRow[] {
   const type = StateLogic.getLeagueType(view);
   const pool = type.hasWeeklyPicks;
-  const callsGame = !!type.hasCalls || !!type.hasBingo;
+  // Weekly Calls, Weekly Bingo and a game of questions (A4) rank by what `right` counts: calls, lines, points.
+  const callsGame = !!type.hasCalls || !!type.hasBingo || !!type.hasQuestions;
   const calls = StateLogic.pickEmCallsOn(view) || callsGame;
   const bots = new Set(view.players.filter((p) => p.automated).map((p) => p.id));
   const key = (r: ScoreRow) => (callsGame ? [right(r.playerId)] : pool ? [r.longestStreak ?? 0, r.total] : [r.total]);
@@ -379,16 +380,17 @@ export function poolCallOf(view: LeagueState, mine: string | null, right: number
   return { epId: ep.id, episode: ep.number, airsAt: ep.airsAt ?? null, open, call, available, made: call ? 1 : 0, of: 1, right };
 }
 
-/** Open predictions (the home's prediction move, action-items.js): unsettled, on an episode with no results yet. */
+/** Open predictions (the home's prediction move, action-items.js): unsettled, on an episode that hasn't locked yet (A4: a
+ *  bet locks as its episode's lineups do, BetLogic.closed), and only where side bets count (beside a draft: betsOn). */
 function predictionsOf(view: LeagueState, me: string): PredictionMove[] {
-  if (!view.settings.bonusEnabled) return [];
+  if (!StateLogic.betsOn(view)) return [];
   const stillIn = view.castaways.filter((c) => c.status !== "eliminated").map((c) => c.name);
   const optionsFor = (label: string) => {
     const kind = predictionKind(label);
     return kind === "cast" ? (stillIn.length ? stillIn : null) : kind === "yesno" ? ["Yes", "No"] : null;
   };
   return [...view.episodes]
-    .filter((ep) => !ep.resultsHidden && !StateLogic.episodeHasResults(ep) && StateLogic.inPlay(view, ep.number))
+    .filter((ep) => !ep.resultsHidden && !StateLogic.BetLogic.closed(ep) && StateLogic.inPlay(view, ep.number))
     .sort((a, b) => a.number - b.number)
     .flatMap((ep) =>
       (ep.bets || [])
