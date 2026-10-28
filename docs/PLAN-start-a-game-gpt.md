@@ -1295,8 +1295,8 @@ Nothing scores differently on any league today, and the computer players choose 
 **The engine track after A4** (2026-10-28: the engine to its full target, "Where the engine is headed", before the UI). Every
 step proves itself the same way: unit tests on specs; the tracker (A5) regenerated, and no row it marks ✅ without a spec that
 passes `specProblems` and `specWaitsFor`; the golden replays (every taped season through every game it already plays scores
-exactly as before the step: the playtest lane's `playtest.js`); and a zt- fixture played through the engine's own API, no
-screens. Each step names the research data it needs and checks the tapes have it.
+exactly as before the step: the playtest lane's `playtest.js`, read engine against engine by `node scripts/dev-test/golden.js`
+since A8); and a zt- fixture played through the engine's own API, no screens. Each step names the research data it needs and checks the tapes have it.
 - **A5. The capability tracker** (small, first). `tests/fixtures/engine-capabilities.json` holds the dials' values and the
   stretch requests, each with its dial, the spec it needs (once the schema can say it) or the step that brings it.
   `scripts/engine-capabilities.js` writes `docs/ENGINE-CAPABILITIES.md`: both tables, each row ✅ plays now, ⏳ its step, 🆕 not
@@ -1959,9 +1959,8 @@ From A6 (2026-10-28):
   Deck 12's tape predates `notableTwist`, so its load stops at Episode 1 (playtest.js fills such fields; load doesn't). (The
   playtest lane's tools.)
 - The replays aren't the same run to run (waiver auto-fills and computer players choose differently among equals: the playtest
-  lane's floor), so a step's "scores exactly as before" is shown engine against engine on the same kept leagues (a one-off,
-  below each As built). A `playtest.js golden` that keeps each season's leagues and reads them with two trees would make it a
-  command. (R1, or the playtest lane.)
+  lane's floor), so a step's "scores exactly as before" is shown engine against engine on the same kept leagues. Taken after
+  A8 (42345eb6): `node scripts/dev-test/golden.js`, the code at HEAD against the working tree, on every season loaded here.
 
 From A8 (2026-10-28):
 - A vote split at an ordinary Tribal can't be settled: research asks `votesReceived` per person, but no moment counts it, so it
