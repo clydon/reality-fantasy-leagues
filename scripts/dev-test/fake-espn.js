@@ -5,7 +5,10 @@
 //   GET /apis/site/v2/sports/:sport/:league/scoreboard?dates=YYYYMMDD   that league's events starting that day in the East
 //   GET /apis/site/v2/sports/:sport/:league/teams/:id/roster            a team's players (`roster` on the team; [] for none, as
 //                                     ESPN's AFL rosters come back), its manager apart (ESPN's `coach`), else 404
-//   GET /apis/site/v2/sports/:sport/:league/summary?event=              a game's box score from its `box` (each team's lines), else 404
+//   GET /apis/site/v2/sports/:sport/:league/teams/:id/schedule          a team's games in that league (only the stage asked, with
+//                                     seasontype), as ESPN's schedule lists them, else 404
+//   GET /apis/site/v2/sports/:sport/:league/summary?event=              a game's box score from its `box` (each team's lines) and its
+//                                     line (`odds`, as ESPN's pickcenter), else 404
 //   GET /apis/common/v3/sports/:sport/:league/athletes/:id/stats?season= an athlete's season lines from `seasons` (ESPN's
 //                                     categories, each with that year's row), { categories: [] } for one it has none for
 //   GET /v2/sports, /v2/sports/:sport/leagues                           the index, as refs
@@ -15,6 +18,7 @@
 //   // leagues: [{ league: "baseball/zt-little", name: "ZT Little League World Series" }]
 //   // events:  [{ league, id, at (ISO), home: teamId, away: teamId, state: "pre" | "in" | "post", score?: [home, away], note?,
 //   //             stage?: "pre" | "regular" | "post" (its season's, as ESPN's slug says it; "regular" unless said),
+//   //             odds?: { details: "ZPH -2.5", overUnder: 237.5, spread: -2.5, provider? } (on the scoreboard while "pre"),
 //   //             box?: { [teamId]: { labels: ["D", "G"], rows: [{ id, name, position, stats: ["21", "2"] }] }
 //   //                            or { tables: [{ name: "batting", labels, rows }, { name: "pitching", labels, rows }] } } }]
 //   //          or a field's event (a race): [{ league, id, at, name, state, field: [{ id, name, headshot? }] }] (its order the place)
@@ -42,6 +46,39 @@ async function start(opts = {}) {
     const [type, slug] = SLUGS[e.stage || "regular"];
     return { year: new Date(e.at).getUTCFullYear(), type, slug };
   };
+  /** A game's line as ESPN writes it (a scoreboard's odds[], a summary's pickcenter[]). */
+  const line = (o) => ({ provider: { name: o.provider || "ZT Book", displayName: o.provider || "ZT Book" }, details: o.details, overUnder: o.overUnder, spread: o.spread });
+  /** An event as a scoreboard lists it; a game still to play with its line (ESPN drops it once it starts). */
+  const rawEvent = (e) => {
+    const status = { type: { state: e.state, completed: e.state === "post" } };
+    if (e.field) {
+      const competitors = e.field.map((p, i) => ({ order: i + 1, athlete: { id: p.id, displayName: p.name, ...(p.headshot ? { headshot: { href: p.headshot } } : {}) } }));
+      return { id: e.id, date: e.at, name: e.name, shortName: e.name, season: seasonOf(e), status, competitions: [{ id: e.id, date: e.at, status, competitors }] };
+    }
+    const home = teamOf(e.home);
+    const away = teamOf(e.away);
+    return {
+      id: e.id,
+      date: e.at,
+      name: `${away.name} at ${home.name}`,
+      shortName: `${away.abbreviation} @ ${home.abbreviation}`,
+      season: seasonOf(e),
+      status,
+      competitions: [
+        {
+          id: e.id,
+          date: e.at,
+          status,
+          notes: e.note ? [{ headline: e.note }] : [],
+          competitors: [
+            { homeAway: "home", team: rawTeam(home), score: e.score ? String(e.score[0]) : "0", winner: e.state === "post" && e.score ? e.score[0] > e.score[1] : undefined },
+            { homeAway: "away", team: rawTeam(away), score: e.score ? String(e.score[1]) : "0", winner: e.state === "post" && e.score ? e.score[1] > e.score[0] : undefined },
+          ],
+          ...(e.odds && e.state === "pre" ? { odds: [line(e.odds)] } : {}),
+        },
+      ],
+    };
+  };
   const server = http.createServer((req, res) => {
     const send = (status, body) => {
       res.writeHead(status, { "content-type": "application/json" });
@@ -66,38 +103,25 @@ async function start(opts = {}) {
     if ((m = u.pathname.match(/^\/apis\/site\/v2\/sports\/([^/]+)\/([^/]+)\/scoreboard$/))) {
       const league = `${m[1]}/${m[2]}`;
       const day = (u.searchParams.get("dates") || "").replace(/^(\d{4})(\d{2})(\d{2})$/, "$1-$2-$3");
-      const events = espn.events
-        .filter((e) => e.league === league && eastern(Date.parse(e.at)).date === day)
-        .map((e) => {
-          const status = { type: { state: e.state, completed: e.state === "post" } };
-          if (e.field) {
-            const competitors = e.field.map((p, i) => ({ order: i + 1, athlete: { id: p.id, displayName: p.name, ...(p.headshot ? { headshot: { href: p.headshot } } : {}) } }));
-            return { id: e.id, date: e.at, name: e.name, shortName: e.name, season: seasonOf(e), status, competitions: [{ id: e.id, date: e.at, status, competitors }] };
-          }
-          const home = teamOf(e.home);
-          const away = teamOf(e.away);
-          return {
-            id: e.id,
-            date: e.at,
-            name: `${away.name} at ${home.name}`,
-            shortName: `${away.abbreviation} @ ${home.abbreviation}`,
-            season: seasonOf(e),
-            status,
-            competitions: [
-              {
-                id: e.id,
-                date: e.at,
-                status,
-                notes: e.note ? [{ headline: e.note }] : [],
-                competitors: [
-                  { homeAway: "home", team: rawTeam(home), score: e.score ? String(e.score[0]) : "0", winner: e.state === "post" && e.score ? e.score[0] > e.score[1] : undefined },
-                  { homeAway: "away", team: rawTeam(away), score: e.score ? String(e.score[1]) : "0", winner: e.state === "post" && e.score ? e.score[1] > e.score[0] : undefined },
-                ],
-              },
-            ],
-          };
-        });
+      const events = espn.events.filter((e) => e.league === league && eastern(Date.parse(e.at)).date === day).map(rawEvent);
       return send(200, { leagues: [{ slug: m[2] }], events });
+    }
+    if ((m = u.pathname.match(/^\/apis\/site\/v2\/sports\/([^/]+)\/([^/]+)\/teams\/([^/]+)\/schedule$/))) {
+      // A team's games, as ESPN's schedule lists them: its season's stage in `seasonType`, only the stage asked (seasontype).
+      const league = `${m[1]}/${m[2]}`;
+      const id = decodeURIComponent(m[3]);
+      const t = teamOf(id);
+      if (!t || t.league !== league) return send(404, { code: 404 });
+      const type = Number(u.searchParams.get("seasontype")) || null;
+      const events = espn.events
+        .filter((e) => e.league === league && (e.home === id || e.away === id) && (!type || SLUGS[e.stage || "regular"][0] === type))
+        .map((e) => {
+          const { season, ...rest } = rawEvent(e);
+          // Its scores as ESPN's schedule writes them, and no line (the schedule has none).
+          rest.competitions = rest.competitions.map(({ odds, ...c }) => ({ ...c, competitors: c.competitors.map((x) => ({ ...x, score: e.score ? { value: Number(x.score), displayValue: x.score } : undefined })) }));
+          return { ...rest, season: { year: season.year }, seasonType: { type: season.type } };
+        });
+      return send(200, { team: { id, displayName: t.name }, events });
     }
     if ((m = u.pathname.match(/^\/apis\/site\/v2\/sports\/([^/]+)\/([^/]+)\/teams\/([^/]+)\/roster$/))) {
       const t = teamOf(decodeURIComponent(m[3]));
@@ -114,7 +138,7 @@ async function start(opts = {}) {
         team: rawTeam(teamOf(id)),
         statistics: (t.tables || [t]).map((x) => ({ type: x.name, labels: x.labels, athletes: x.rows.map((r) => ({ starter: true, athlete: { id: r.id, displayName: r.name, position: { displayName: r.position } }, stats: r.stats })) })),
       }));
-      return send(200, { header: { id: e.id, season: seasonOf(e), competitions: [{ status, competitors: [side(e.home, "home", e.score?.[0]), side(e.away, "away", e.score?.[1])] }] }, boxscore: { players } });
+      return send(200, { header: { id: e.id, season: seasonOf(e), competitions: [{ status, competitors: [side(e.home, "home", e.score?.[0]), side(e.away, "away", e.score?.[1])] }] }, boxscore: { players }, ...(e.odds ? { pickcenter: [line(e.odds)] } : {}) });
     }
     if ((m = u.pathname.match(/^\/apis\/common\/v3\/sports\/([^/]+)\/([^/]+)\/athletes\/([^/]+)\/stats$/))) {
       const year = Number(u.searchParams.get("season"));

@@ -10,6 +10,8 @@ import { SportsUnavailable, type SportsEvent, type SportsProvider } from "./type
 //   a day's games        3 minutes while one is being played; 30 days once the day is two days gone and every game on it is over;
 //                        an hour otherwise (today's, a future day's: games get added and moved)
 //   a roster             a day
+//   a team's schedule    3 minutes while one of its games is being played; an hour when one starts within the day; else 12
+//                        hours (times move, games get added)
 //   a game's box score   for good once it's final; 3 minutes while it's being played; an hour before it starts
 //   a season line        a day
 // When the provider doesn't answer (SportsUnavailable), an answer past its time is served instead (stale beats nothing); with
@@ -66,6 +68,13 @@ export function keepDay(events: SportsEvent[], date: string, now: number): Keep 
   return HOUR;
 }
 
+/** How long a team's schedule is good for (see the top). */
+export function keepSchedule(events: SportsEvent[] | null, now: number): Keep {
+  if (events?.some((e) => e.state === "in")) return 3 * MIN;
+  if (events?.some((e) => e.state === "pre" && e.at && Date.parse(e.at) < now + DAY)) return HOUR;
+  return 12 * HOUR;
+}
+
 /**
  * A provider whose every answer goes through the cache. `prefix` keeps a check's rows apart ("zt-sports:"), so it can remove
  * them after; `db` and `now` are for checks too.
@@ -81,6 +90,10 @@ export function withCache(p: SportsProvider, opts: { prefix?: string; db?: Query
     eventsOn: (league, date) => {
       const o = at();
       return cached(key("events", league, date), () => p.eventsOn(league, date), (events) => keepDay(events, date, o.now ?? Date.now()), o);
+    },
+    schedule: (league, team, sopts = {}) => {
+      const o = at();
+      return cached(key("schedule", league, team, sopts.season ?? "now", sopts.type ?? "now"), () => p.schedule(league, team, sopts), (events) => keepSchedule(events, o.now ?? Date.now()), o);
     },
     roster: (league, team) => cached(key("roster", league, team), () => p.roster(league, team), () => DAY, at()),
     boxScore: (league, event) =>

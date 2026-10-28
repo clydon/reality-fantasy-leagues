@@ -55,6 +55,18 @@ export interface Competitor {
 /** "pre": not started; "in": being played; "post": over (final, or called off). */
 export type EventState = "pre" | "in" | "post";
 
+/** A sportsbook's line on a game, as the provider shows it (ESPN's DraftKings): an over/under's default line (L1 part 3). */
+export interface Odds {
+  /** Whose line it is ("DraftKings"). */
+  provider: string | null;
+  /** The favourite and the spread, as the book writes it ("PHI -2.5"). */
+  details: string | null;
+  /** The total points (runs, goals) line. */
+  overUnder: number | null;
+  /** The home side's spread (-2.5: the home side gives 2.5). */
+  spread: number | null;
+}
+
 /** A season's stages, in order. */
 export type SeasonStage = "pre" | "regular" | "post";
 
@@ -89,6 +101,8 @@ export interface SportsEvent {
   competitors: Competitor[];
   /** Its parts, when it has more than one; else empty. */
   parts: EventPart[];
+  /** The line on it, while the provider shows one (ESPN's scoreboard: only before the game); else null. */
+  odds: Odds | null;
 }
 
 /** A player on a team's roster (players only: a provider's coaches and staff are left out). */
@@ -113,6 +127,8 @@ export interface BoxScore {
   state: EventState;
   final: boolean;
   teams: { team: Team; score: string | null; winner: boolean | null; tables: StatTable[] }[];
+  /** The line before the game (ESPN's summary keeps it after, in its pickcenter), when the provider has one. */
+  odds?: Odds | null;
 }
 
 /** A player's regular-season line in one of the provider's categories ("Batting", "Expanded Batting"). */
@@ -143,6 +159,12 @@ export interface SportsProvider {
   find(text: string): Promise<Found[]>;
   /** A league's events on a day (YYYY-MM-DD, the provider's own calendar day). */
   eventsOn(league: string, date: string): Promise<SportsEvent[]>;
+  /**
+   * A team's games in a season, in order (L1 part 3: a matchup's games straight from it), or null when the provider has no such
+   * team. `season` is the provider's year for it (ESPN's 2027 for the NBA's 2026-27), `type` its stage (2 the regular season, 3
+   * the postseason); without them, the provider's season and stage now.
+   */
+  schedule(league: string, team: string, opts?: { season?: number; type?: number }): Promise<SportsEvent[] | null>;
   /** A team's players, or null when the provider has no such team. Can be empty (AFL's rosters on ESPN are). */
   roster(league: string, team: string): Promise<RosterPlayer[] | null>;
   /** Each team's player lines in a game, in the provider's own columns, or null when it has none. */

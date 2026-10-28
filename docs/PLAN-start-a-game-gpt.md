@@ -416,7 +416,8 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   - **Split in three (2026-10-28):** part 1, the framework with baseball (built: As built below); part 2, basketball, hockey
     and football on it (all three built: As built below; football, whose plays are text only, in a session of its own);
     part 3, games straight from ESPN's schedule as a season of their own, finals and odds stored (the migration,
-    HOSTING.md) and the 76ers example's game from the schedule (its recorded game is part 2's fixture).
+    HOSTING.md) and the 76ers example's game from the schedule (its recorded game is part 2's fixture) (built: As built
+    below). L1 is done but its spec parts, which wait for A1-A4 on master.
 - **L2. The live clock.** The phone's poller and `GameClock` (live, synced, snapped), shared with A15; fake-espn replaying a
   recorded game in real time or 60x; HOSTING.md.
 - **L3. Live scoring through the spec.** Points per stat from box scores and plays (`score.by: stats`), live on the phone and
@@ -768,6 +769,83 @@ stored).** Part 2 is done: L1 part 3 (games from ESPN's schedule) is next, or L2
 - **A muffed punt's foul** (a holding call at the recovery spot): ESPN kept the return whole and the punt where it was, the one
   such case seen; the reader does too. Rare. (L3.)
 - **Baseball's reader on days part 1 didn't tune it on**: done since, in part 1's addendum (above).
+
+**L1 part 3 as built: games straight from ESPN's schedule (2026-10-28, `sports`, not merged; migration 0300; HOSTING.md
+updated).** A matchup (one game, a series, a team's next few) is a season of its own, made from a team's ESPN schedule, keyed
+by its games and shared by everyone who asks for them; each linked game's final and line are kept. No UI, no API route: the
+GPT (G3) and the wizard (U1) will call `makeMatchup`.
+- **`src/lib/sports/matchup.ts`** (new, pure: the server, the phone and the tests share it). `pickMatchup(team, schedule, ask)`:
+  `games` (by ESPN's ids), `opener` (the first regular-season game; `home: true` for the home opener), `series` (the whole run of
+  games in a row against a team, at most 3 days apart, that the next one still to play is in: asked mid-series it's still the
+  whole series, never a run weeks on), `next` (the next few, against one team if asked); "still to play" is ESPN's state, or as
+  of `from` (an ISO time: "the upcoming series" asked on a schedule read after it). `matchupKey` (provider, league, the event
+  ids sorted: "espn:basketball/nba:401909093"), `matchupName` ("Cavaliers at 76ers, Oct 22", "Red Sox at Yankees, Sep 29 –
+  Sep 30", "Yankees vs Red Sox, ..." home and away, "76ers, 3 games, ..."; dates in the East), `matchupStatus`, `leagueName`
+  ("NBA"), `factsOf` (a game's sides, final and line as kept) and `finalOf` (what a final settles: the winner, each score, the
+  total, and against a line over, under or a push).
+- **ESPN** (`server/sports/espn.ts`, `types.ts`, `cache.ts`): `schedule(league, team, { season, type })`, a team's schedule
+  (`teams/{id}/schedule`, the scoreboard's own event shape: `readScoreboard` reads it, its stage from `seasonType`, its scores
+  from `{ value, displayValue }`), cached 12 hours (an hour when a game is within the day, 3 minutes while one's on). **Lines**
+  (`Odds`: provider, details, overUnder, spread, the home side's): the scoreboard's `competitions[0].odds[0]` before a game
+  (ESPN drops it from the scoreboard once the game's over, and a schedule has none), and a summary's `pickcenter[0]` (kept
+  after: the box score now carries it).
+- **`server/sports/matchup.ts`** (new): `makeMatchup({ league, team, ask, season?, type? })` reads the schedule, picks the
+  games and makes or finds their season: `matchupSeason` puts it on its league's show (`shows.sports_league`, "espn:basketball/
+  nba": made once, "NBA", kind sport, Players, Teams and Games, "Not a game yet" like a show added from its listing), the next
+  season number, named by `matchupName`, its status from its games; an episode per game (air time, ESPN's name, its note),
+  each linked to its event at once (`season_events` with the teams; `sports_links` saying all linked, so the daily linking never
+  looks for it); `sports_matchups` keys it (two people asking at once: the second gets the first's). Its people are the teams'
+  rosters after the answer (`castFromEvents`; `castable` now lets a matchup season's people come from its teams even once its
+  league's show is a game). **Each game's facts** (`storeEvents`, `sports_events`: its sides and state, its final once over,
+  never changed after, and its line: taken while the game is still to play, after only when none was kept): made for a
+  matchup's games (the line from the game's day's scoreboard, or a finished game's summary), and **the daily listings job**
+  (`refreshSportsEvents`) reads every linked game's day's scoreboard from three days back to a week ahead until it's final (a
+  matchup's or a TV listing's, at most 40 days a run, each cached), then sets each matchup season's status from its games.
+- **Migration 0300** (`sports_events`, `sports_matchups`, `shows.sports_league`), applied to `rfl_sports`.
+- **The user's examples from the schedule**: `tests/fixtures/sports-examples.js` gains each one's `matchup` (the 76ers: team 20,
+  `opener` at home; the Red Sox–Yankees: team 10, the 2026 postseason, `series` against 2 as of 2026-09-29). Fixtures recorded
+  by `scripts/dev-test/record-espn-schedule.js` (new, reusable: `--league --team [--season --seasontype --note]`, ~55 KB from
+  ~815 KB): the 76ers' 2026-27 (`nba-schedule-20.json`, 80 games) and the Yankees' 2026 postseason (`mlb-schedule-10-2026-3.json`).
+- **Checks.**
+  - `tests/sports-matchup.test.js` (8): a schedule read as games, lines from a scoreboard and a pickcenter, the picks on the
+    76ers' real schedule (the home opener 401909093, the opener at the Knicks, the next few, against one team, by ids) and on a
+    made-up series, the key, names, status and league names, the schedule's cache time, **the Red Sox–Yankees example's two
+    games from the Yankees' postseason**, and **the 76ers example made from the schedule settling as typed**: the home opener
+    is the example's game, its final from the schedule (114-106, the summary's own), DraftKings' 237.5 from its summary is the
+    spec's line, and the final settles it: the 76ers, 220, under (the top scorers, the box score's, part 2's test).
+  - `scripts/dev-test/check-matchup.js` (new, reusable; this lane's database and the stand-in ESPN, keyed `zt-`, cleaned up):
+    19 checks, all pass: the home opener made (the league's show, the season, its linked episode, its link, its key, both
+    teams' players with ESPN's ids, its final and its line from the summary: under), asked again (the same season), a series
+    and the next game (seasons 2 and 3 of the same show, the next game's line from its scoreboard), the daily job's part (a
+    line moved before the game taken, the final once played with the line before it kept, each matchup's status, a final
+    kept once, a linked game first seen after it ended given its summary's line), and a matchup's people once its show is a
+    game. `fake-espn.js` gains a team's schedule and lines (a
+    scoreboard's before the game, a summary's pickcenter). `check-sports-links.js` still passes.
+  - Measured on the real ESPN (the 76ers opener): 5 calls in 0.5 s, none a second time (HOSTING.md).
+  - 896 unit tests; `tsc` clean; eslint clean on `src/lib/sports`, `src/lib/server/sports` and `tv-listings.ts`.
+  - `/code-review` on the diff (its fixes: a line is only a default, so ESPN not answering for one leaves it out, never the
+    matchup; lines looked for only within the week; the daily job's refresh reads past days first and gives a game first seen
+    after it started its summary's line (the box score stats.ts reads, cached for good); a matchup is completed only when
+    every game has a row and is over; a postseason series stays whole however many days off; `num` for scores; the daily job's
+    three sports steps each on its own).
+
+**L1 part 3 noticed, not fixed:**
+- **The line kept is the last one read before the game**, and the daily job reads once a day, so it can be up to a day older
+  than the game's start. A spec's line is fixed when its game is made (from the kept one); a live game's lock could read the
+  scoreboard's line itself. (L2, the phone's poller; L3.)
+- **A postponed game** comes from ESPN as `post` but not completed: its matchup reads as completed and its final never comes.
+  ESPN moves it to a new event or date; the matchup would need its new game. (L3.)
+- **A game not final three days after it starts** (suspended, resumed later) isn't read again by the daily job, and **a game
+  moved to another day** is looked for on its first day's scoreboard (`season_events.starts_at` isn't updated for a matchup).
+  (L3, with postponements.)
+- **A league's show is named from its slug** ("NBA", "Mens College Basketball"; soccer's "eng.1" would be "Eng 1"): L5 should
+  take ESPN's own (the scoreboard's `leagues[0].name` and `abbreviation`). And it's always its own show: a TV listing's show
+  already called "NBA" would sit beside it in search as a second "NBA" (`nba-2`). Whether a league's matchups join a listing's
+  show of the same league is a call for the wizard (U0) or the GPT's context pack (G1).
+- **A full season's schedule is ~60 KB of cache row** (the read shape keeps every side's logo and names): fine kept 12 hours;
+  trim it if many teams' schedules are asked. (When the GPT asks for them, G3.)
+- **Nothing makes a matchup yet** but code: the GPT's ask (G3), the wizard (U1) or an engine lab page (A5) will call
+  `makeMatchup`; a route for it comes with the first of them.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

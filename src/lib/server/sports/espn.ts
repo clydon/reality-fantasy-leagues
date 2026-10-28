@@ -1,9 +1,10 @@
-import { idOf, str } from "@/lib/sports/sport";
-import { SportsUnavailable, type BoxScore, type Competitor, type EventState, type Found, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
+import { idOf, num, str } from "@/lib/sports/sport";
+import { SportsUnavailable, type BoxScore, type Competitor, type EventState, type Found, type League, type Odds, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
 
 // ESPN (docs/PLAN-sports-data.md, docs/HOSTING.md): free, no key, but unofficial and undocumented, with no stated rate limit or
 // terms, so it's asked little (every call is cached: cache.ts) and credited in Credits. Three hosts:
-//   site.api.espn.com       a league's scoreboard on a day, a team's roster, a game's summary (its box score)
+//   site.api.espn.com       a league's scoreboard on a day (with its line before a game), a team's roster and schedule, a game's
+//                           summary (its box score, and its line in pickcenter)
 //   site.web.api.espn.com   search (teams and leagues by name), an athlete's stats by season
 //   sports.core.api.espn.com the index of every sport and league
 // A league's id is ESPN's own path for it ("baseball/mlb", "australian-football/afl", "soccer/eng.1", "racing/f1"), read from
@@ -55,6 +56,15 @@ interface RawCompetition {
   status?: RawStatus;
   competitors?: RawCompetitor[];
   notes?: { headline?: string }[];
+  /** The line, on a scoreboard before the game. */
+  odds?: RawOdds[];
+}
+/** A sportsbook's line: a scoreboard's `odds[]`, a summary's `pickcenter[]`. */
+interface RawOdds {
+  provider?: { name?: string; displayName?: string };
+  details?: string;
+  overUnder?: number | string;
+  spread?: number | string;
 }
 interface RawEvent {
   id?: string | number;
@@ -62,6 +72,8 @@ interface RawEvent {
   name?: string;
   shortName?: string;
   season?: { year?: number; type?: number; slug?: string };
+  /** A team schedule's word for the stage (its `season` has only the year). */
+  seasonType?: { type?: number };
   status?: RawStatus;
   competitions?: RawCompetition[];
 }
@@ -81,6 +93,7 @@ interface RawStatTable {
 interface RawSummary {
   header?: { id?: string | number; competitions?: RawCompetition[] };
   boxscore?: { players?: { team?: RawTeam; statistics?: RawStatTable[] }[] };
+  pickcenter?: RawOdds[];
   rosters?: { team?: RawTeam; roster?: (RawStatRow & { stats?: { abbreviation?: string; shortDisplayName?: string; displayValue?: string }[] })[] }[];
 }
 
@@ -143,7 +156,19 @@ function readCompetitor(c: RawCompetitor): Competitor {
   };
 }
 
-/** A scoreboard's events (site.api …/scoreboard). An event in parts (an F1 weekend) keeps each part's field on the part. */
+/** A sportsbook's line, from a scoreboard's `competitions[0].odds[0]` (before the game; ESPN drops it after) or a summary's
+ *  `pickcenter[0]` (kept after): DraftKings' "PHI -2.5" and 237.5. Null when it says nothing. */
+export function readOdds(o: RawOdds | undefined): Odds | null {
+  if (!o) return null;
+  const odds = { provider: str(o.provider?.displayName) ?? str(o.provider?.name), details: str(o.details), overUnder: num(o.overUnder), spread: num(o.spread) };
+  return odds.details || odds.overUnder != null || odds.spread != null ? odds : null;
+}
+
+/**
+ * A scoreboard's events (site.api …/scoreboard), or a team's schedule's (site.api …/teams/{id}/schedule: the same events, its
+ * stage in `seasonType`, its scores as { value, displayValue }). An event in parts (an F1 weekend) keeps each part's field on
+ * the part.
+ */
 export function readScoreboard(league: string, raw: { events?: RawEvent[] } | null): SportsEvent[] {
   const out: SportsEvent[] = [];
   for (const e of raw?.events ?? []) {
@@ -164,10 +189,11 @@ export function readScoreboard(league: string, raw: { events?: RawEvent[] } | nu
       state: whole.state,
       final: whole.final,
       season: Number.isInteger(e.season?.year) ? (e.season!.year as number) : null,
-      stage: stageOf(e.season),
+      stage: stageOf({ ...e.season, type: e.season?.type ?? e.seasonType?.type }),
       note: str(comps[0]?.notes?.[0]?.headline),
       competitors: comps.length === 1 ? (comps[0].competitors ?? []).map(readCompetitor) : [],
       parts,
+      odds: readOdds(comps[0]?.odds?.[0]),
     });
   }
   return out;
@@ -256,7 +282,7 @@ export function readBoxScore(raw: RawSummary | null): BoxScore | null {
     }
   }
   if (!teams.some((t) => t.tables.length)) return null;
-  return { event: idOf(raw.header.id), state, final, teams };
+  return { event: idOf(raw.header.id), state, final, teams, odds: readOdds(raw.pickcenter?.[0]) };
 }
 
 /**
@@ -323,6 +349,11 @@ export function espn(base?: string): SportsProvider {
     },
     async eventsOn(league, date) {
       return readScoreboard(league, await get(`${site}/apis/site/v2/sports/${path(league)}/scoreboard?dates=${date.replace(/-/g, "")}&limit=300`));
+    },
+    async schedule(league, team, opts = {}) {
+      const q = [opts.season ? `season=${opts.season}` : "", opts.type ? `seasontype=${opts.type}` : ""].filter(Boolean).join("&");
+      const raw = await get<{ events?: RawEvent[] }>(`${site}/apis/site/v2/sports/${path(league)}/teams/${encodeURIComponent(team)}/schedule${q ? `?${q}` : ""}`);
+      return raw ? readScoreboard(league, raw).sort((a, b) => (a.at ?? "").localeCompare(b.at ?? "")) : null;
     },
     async roster(league, team) {
       const raw = await get<Parameters<typeof readRoster>[0]>(`${site}/apis/site/v2/sports/${path(league)}/teams/${encodeURIComponent(team)}/roster`);
