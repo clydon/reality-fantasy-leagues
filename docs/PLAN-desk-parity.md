@@ -13,7 +13,8 @@ Inbox, `desk-inbox.js`) is done in the mock (the user, 2026-10-28). **Step 3 (a 
 approval** (`desk-setup.js`; Mock scenarios › Desk · step 3: a season's Setup; step 3 below says what it shows and what its build
 needs). **Step 4 (a season's Research and the bot) is mocked and waiting for approval** (`desk-research.js`,
 `desk-research.css`; Mock scenarios › Desk · step 4: research and the bot; step 4 below says what it shows, what its build
-needs and the user's open questions). Classic's admin renders: all 19 of its pages at 390px locally
+needs and how its three questions were settled). **Step 5 (a season's Cast) is mocked and waiting for approval**
+(`desk-cast.js`, `desk-cast.css`; Mock scenarios › Desk · step 5: a season's cast; step 5 below). Classic's admin renders: all 19 of its pages at 390px locally
 (`scripts/dev-test/check-classic-admin.js`, which step 8 can turn round), and in production To do, Users, Leagues, a league's
 page, Shows and Site, with no console errors. The blank `/admin/leagues` seen in production earlier that day didn't come back.
 The likeliest cause is classic's boot screen: it covers the page until the first league loads (about a second locally, longer
@@ -40,6 +41,15 @@ From step 4's mock (2026-10-28): (d) HANDOFF.md says asked results go who went h
 lists asked runs. (e) Classic's Run now says "up to two minutes" while a full run takes about 2½-4 (classic goes at step 8,
 so left). (f) `shoot-mock-scenarios.js` claimed a fresh load per scenario, but its hash-only `goto` kept the mock's state from
 one scenario to the next; it reloads now (fixed in step 4's design pass).
+From step 5's mock (2026-10-28), all for step 5's build unless said: (g) classic's Pull again is additive only
+(`wiki-sync.js` upserts on the lowercased name, keeps the old group and photo): it never sees who's gone or changed, and a
+new spelling inserts a second person; its confirm says it "replaces what's staged", which it doesn't. (h) Classic's Remove
+deletes the `season_cast` row and un-approves the season but never reaches the games (the person stays in every league on a
+dead id; `episode_calls` and `couch_polls` keep the id with no foreign key), with no in-use guard. (i) Changing Hold starting
+groups un-approves the whole cast, and its hint is out of date (a live league now waits for the episode's results too).
+(j) The real desk's season page shows groups with no spoiler guard and no approval state. (k) Nothing detects a cast change
+for the Inbox: the mock's item is mock-only, and the nightly wiki read runs only for seasons with paid auto-research on.
+(l) The season page's Cast row said "18 castaways"; Survivor 51 has 21 (fixed in the mock).
 
 **Decisions (the user, 2026-10-27):**
 1. **Act as them.** Opening the app as someone is classic's impersonation as it is: for an hour you are them (Better Auth's
@@ -196,11 +206,49 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    mapped to classic's (everything = `scope=everything`; only what's waiting = the facts not live); Show it again on a square
    two people flagged overruling their flags (`bingo.ts` counts two flags or an admin's, so an admin's unhide must outrank
    them); trivia's questions per episode on the desk with the admin's flag (classic lists them only in the run's row).
-   **Open questions for the user:** (1) the season's Delete ends Research and the bot and the Bingo bank as it ends Setup, and
-   an episode ends with Clear its results: right for decision 4? (2) Hide names starts off: should it start on for an episode
-   you haven't seen? (3) trivia's questions and Take it out on an episode's page are beyond classic: keep them?
+   **Its three questions, settled (Claude's calls; the user asked for the best choices, 2026-10-28):** (1) every page under a
+   season ends with the season's Delete, the same row and sheet (Setup, Research and the bot, the Bingo bank, and step 5's
+   Cast), so wherever you are on a season its delete is last; an episode, which can't be deleted on its own (Setup's Episodes
+   count removes it), ends with Clear its results. (2) Hide names starts on for an episode you haven't seen ("Never spoil":
+   the desk knows your mark like any page) and off for one you have, with the switch either way; it also hides names in Accept
+   all, Take it back and a paste's preview. (3) Trivia's questions and Take it out stay on an episode's page: the admin's flag
+   already exists (`trivia.ts`), and it's where you'd look after a "Wrong?".
 5. **Seasons: cast.** Pull from the wiki and pull again, approve and send to the games, remove someone, hold starting groups
    until Episode 1.
+   **As mocked (2026-10-28, `desk-cast.js` and `desk-cast.css`, waiting for approval):** Running it › Cast opens a page of its
+   own (`/desk/.../cast`; the row says "21 castaways · in all 15 games", or carries the dot when a pull wasn't sent). Its lower
+   third is In the games, Not sent or No cast. **A pull that found changes leads**: "Pulled again: 2 changes, not sent" (its
+   games keep the cast as sent; sending never takes anyone out) with See what changed (the yellow): a new spelling asks
+   "Same person / Someone new" (same: renamed in every game, teams, picks and results keep them; new: joins as nobody's), a
+   group the wiki has differently says what it may mean ("A swap moved Carter to Toka: the wiki may mean his tribe now"; Keep
+   ours first), someone new joins as nobody's, and someone the wiki stops listing shows there to remove from their page;
+   then Send to its games (tier 2: each change, then "Teams, picks and results: stay as they are" and the cast's size). The
+   Inbox's cast item now opens this page; sending clears it. **Getting it**: Pull it again (reads names, groups and photos;
+   shows what changed before anything is sent), its wiki page (Setup's row), Ask our bot instead. A season with **no cast**
+   leads with Pull it from the wiki, or, with no wiki connector, Ask our bot for it and Paste it (their answer opens the same
+   review, with everyone new). **Starting groups**, in the show's own word (tribes, factions): each with how many start in it
+   and Not a tribe (a quiet link; a button where the group is named like a secret role, which says it gives the role away and
+   keeps its people hidden: the faces show Still in and Out instead); secret-role groups go out together, since one left
+   behind still gives the role away (tier 2, Undo from History). **Hold them until Episode 1** (tier 1): someone who hasn't seen
+   Episode 1 sees the cast with no groups; they arrive with its reveal. A note says a swap's groups come from results, game by
+   game. Then **the cast** by starting group (four across, as the real desk's grid, Out · Ep N greyed), History and the season's
+   Delete. **A castaway's page** (`/desk/.../c/<name>`): their photo in the lower third (Still in, Out, or New), how many teams
+   have them, Part of (the cast), Name, Photo (a link, No photo, or Look on TMDB and TVmaze) and Starting group, each with
+   Override reaching every game with Undo, Lock, History, and **Remove <name> from the cast** last: refused while a team, pick
+   or result has them ("Remove is for someone listed by mistake", their teams listed, Override their name offered); otherwise a
+   hold (out of the cast and every game; a pull would bring them back as someone new). The old castaway page sends here.
+   Mock scenarios: 11 (`shoot-mock-scenarios.js --group=dsc`). The Inbox's example moved from The Challenge 41 (no cast in the
+   mock) to Survivor 51.
+   **What the build needs beyond classic** (Noticed g-l): a pull that compares (added, gone, renamed with a same-person guess,
+   group changed, photo changed) and stages the differences until they're sent, instead of upserting by name; a scheduled pull
+   for seasons on Autopilot too, so the Inbox's item is real; Send as classic's approve (`applyApprovedCastToLeagues`, then the
+   season sync) with its preview, a rename applied by id; Remove reaching every game, refused while in use (the commissioner
+   path's guard, `season-cast-write.ts`), without un-approving; Hold (`tribes_from_episode`) changed without un-approving, worded
+   by the new rule; Not a group for secret-role groups together (`desk-cast.ts clearGroup` takes one); a person's Look on TMDB
+   and TVmaze (`castPhotosFor`); our bot's cast ask and a paste on the desk (classic's admin has neither).
+   **Calls made in the design (Claude's, 2026-10-28):** pulling never removes anyone; a new spelling defaults to Same person;
+   a group the wiki has differently defaults to ours; Remove is refused while in use; the Cast page ends with the season's
+   Delete and a castaway's with Remove.
 6. **Games and couches.** Find's Games (by name or join code); a game's page: its seats and who's in each (link an account,
    change a role, unlink, remove a player), its join code, delete for good (tier 3), open it (as an admin, read-only).
 7. **Shows and site.** Delete a show (refused while games use it, saying which), restore an archived one, a season's details
