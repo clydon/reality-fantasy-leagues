@@ -915,7 +915,9 @@ three days. The loops stop at 90% of the week, so the user's own sessions keep t
   going on past A6 to A8, the A1–A4 merge prepared and checked in a throwaway worktree (`rfl-merge`, port 3006, branch
   `merge-engine`), and the desk's build as a lane once its first designs are approved. That evening, with A8 done, the user
   sent the engine on through A9–A14 overnight, one fresh session a step, stopping before A15 (the watch along's concept is
-  still open). A step that needs the user partway leaves its question in its Noticed, and the next step goes on.
+  still open). A step that needs the user partway leaves its question in its Noticed, and the next step goes on. At 7:45 PM
+  the user started the desk's build early (its lane was set up for Thursday's reset): it took sports' slot, sports stops after
+  L5 part 2 (a STOP file), and the keeper watches the engine and the desk.
 - **No big merge on an episode night** (the user, 2026-10-28). A push to master deploys production and runs its migrations,
   so a big merge or a migration doesn't ship on the evening of an episode the couch plays (Survivor 51: Wednesdays, 8 PM
   ET). The A1–A4 merge moved to 2026-10-29, after that night's results are accepted and the test couch is compared. A small
