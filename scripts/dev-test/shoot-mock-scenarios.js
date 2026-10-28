@@ -1,12 +1,14 @@
 // Screenshots every scenario in one group of the full-site mock's Mock scenarios menu (.impeccable/mocks/site/index.html),
 // each from a fresh load, at phone size by default: the page a screen at a time, and an open sheet scrolled through its
-// body. For design steps that add a scenario group (the desk parity steps: dks, dps, dis, dss, ...). Prints page errors.
+// body. For design steps that add a scenario group (the desk parity steps: dks, dps, dis, dss, dsr, ...). Prints page errors.
 // No dev server, login or DB.
 //
 //   node scripts/dev-test/shoot-mock-scenarios.js <outDir> --group=dss [--width=390] [--height=844] [--screens=3] [--n=4] [--only=ds2,ds5]
 //
 // --group is the scenario buttons' data attribute without "data-" (desk-setup.js's are data-dss). --screens caps how many
 // screens of a long page are shot (sheets are shot until their end). Writes <outDir>/<key>[-s<k>|-sheet<k>].png.
+// --mock=<folder> is the mock's site folder, for a lane's worktree, which has no mock (it's gitignored): pass the main
+// folder's, e.g. --mock=C:\Users\conor\reality-fantasy-leagues\.impeccable\mocks\site. Default: this folder's.
 const fs = require("fs");
 const path = require("path");
 const { pathToFileURL } = require("url");
@@ -23,13 +25,15 @@ const { open } = require("./browser");
   const { page, close } = await open({ width, height });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  const base = pathToFileURL(path.resolve(".impeccable/mocks/site/index.html")).href + `?n=${opt("n", "4")}`;
+  const base = pathToFileURL(path.resolve(opt("mock", ".impeccable/mocks/site"), "index.html")).href + `?n=${opt("n", "4")}`;
   await page.goto(base, { waitUntil: "networkidle" });
   const keys = (await page.$$eval(`[data-${group}]`, (b, g) => b.map((x) => x.dataset[g]), group)).filter((k) => !only.length || only.includes(k));
   if (!keys.length) throw new Error(`no [data-${group}] scenarios in the mock menu`);
   const shot = async (f) => { await page.screenshot({ path: path.join(out, f) }); console.log("wrote", f); };
   for (const k of keys) {
+    // a hash-only goto is a same-document navigation: reload so each scenario starts from the mock's own state
     await page.goto(base + "#/hub", { waitUntil: "networkidle" });
+    await page.reload({ waitUntil: "networkidle" });
     await page.addStyleTag({ content: ".mockfab{display:none!important}" });
     await page.$eval(`[data-${group}="${k}"]`, (b) => b.click());
     await page.waitForTimeout(1700);

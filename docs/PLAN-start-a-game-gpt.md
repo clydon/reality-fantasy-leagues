@@ -1770,13 +1770,21 @@ three days. The loops stop at 90% of the week, so the user's own sessions keep t
 - **The second slot:** the Sports lane until the desk's designs are approved (docs/PLAN-desk-parity.md). Its order: L1, then L2,
   then L1's spec parts and L3 once A1–A4 is on master and synced into `sports` (L5 meanwhile). Then the desk's build takes the
   slot, with sports paused at a part boundary, and sports takes it back whenever the desk lane waits on the user.
+  **2026-10-28:** the user approved the desk's steps 1–7, so the desk lane (`rfl-desk`, port 3003; made and checked) takes this
+  slot at the weekly reset, Thursday 2026-10-29 at 4 PM ET, sports stopping after its session then. The switch's four
+  commands are in PLAN-desk-parity.md, The build lane.
 - **When there's room:** G1 (needs A5). A third lane only after a weekly reset, with the week mostly unused.
 - **Never unattended:** design (the desk's, U0), merges into master, pushes.
 - **Before a weekly reset, use what's left** (the user, 2026-10-28: "cranking it, safely"). The allowance doesn't carry over, so the
   main session fills the slots with work that's safe unattended. It doesn't stack more than the user's own session can bear by day,
   since a full 5-hour window pauses that session too, and it keeps the loops' 90% stop. On 2026-10-28 that meant the engine lane
   going on past A6 to A8, the A1–A4 merge prepared and checked in a throwaway worktree (`rfl-merge`, port 3006, branch
-  `merge-engine`), and the desk's build as a lane once its first designs are approved.
+  `merge-engine`), and the desk's build as a lane once its first designs are approved. That evening, with A8 done, the user
+  sent the engine on through A9–A14 overnight, one fresh session a step, stopping before A15 (the watch along's concept is
+  still open). A step that needs the user partway leaves its question in its Noticed, and the next step goes on.
+- **No push on an episode night** (the user, 2026-10-28). A push to master deploys production and runs its migrations, so
+  nothing ships on the evening of an episode the couch plays (Survivor 51: Wednesdays, 8 PM ET). The A1–A4 merge moved to
+  2026-10-29, after that night's results are accepted and the test couch is compared.
 The main session records each switch here.
 
 **The rules that keep the quality:**
@@ -1785,7 +1793,7 @@ The main session records each switch here.
    once). A lane's `.env.local` points `AUTH_DATABASE_URL` at its own copy and `BETTER_AUTH_URL` at its own port, and its checks
    run with `BASE=http://localhost:<port>` (every `scripts/dev-test/` check reads both).
 2. **Migration numbers by range**, as the new-design branch did with 0100: master 0155–0199, engine 0200–0249, GPT words
-   0250–0279, survivor 0280–0299, sports 0300–0399, playtest 0400–0419. `db/migrate.js` runs them by name, so ranges never
+   0250–0279, survivor 0280–0299, sports 0300–0399, playtest 0400–0419, desk 0420–0449. `db/migrate.js` runs them by name, so ranges never
    collide.
 3. **A hot file has one lane at a time:** `state-logic.js` (the engine lane; S3 waits for a step boundary), `start-game.ts` and
    `start-game.tsx` (the engine lane: A2, A3, then U1), `db/episode-research.js` and the rulebook compiler (the survivor lane).

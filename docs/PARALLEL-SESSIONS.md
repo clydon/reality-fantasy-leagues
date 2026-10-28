@@ -34,7 +34,8 @@ Made on 2026-10-27:
 - **sports** (the existing worktree, port 3004)
 
 Each one passed `check`. On 2026-10-28: **playtest** (`../rfl-playtest`, port 3005; docs/PLAN-playtests.md), whose
-`.env.local` lists only the local bot, since it records from it all night.
+`.env.local` lists only the local bot, since it records from it all night; and **desk** (`../rfl-desk`, port 3003; the
+build of docs/PLAN-desk-parity.md, from the weekly reset), whose `.env.local` lists no bot at all: its checks use the stand-in.
 
 **Claude's memory is shared.** Claude's docs say auto memory is one folder per repo, shared by its worktrees. As a
 safeguard, in case a version keys it by the folder a session runs in, `setup` links the lane's folder in `~/.claude/projects`
@@ -71,6 +72,8 @@ the memory. The database copy takes about a second (all 99 tables, pgvector incl
 **What a worktree doesn't have:** anything git ignores. That means the production backups (`backups/`), the mocks
 (`.impeccable/mocks/`) and `.env.local`. A lane reaches the backups by full path (e.g. `shadow-leagues.js sync
 --from=C:\Users\conor\reality-fantasy-leagues\backups\<backup>`). Design work, which lives in the mocks, stays in the main folder.
+A lane that builds to the mock reads it there by full path, read only, and shoots its scenarios with
+`shoot-mock-scenarios.js --mock=C:\Users\conor\reality-fantasy-leagues\.impeccable\mocks\site`.
 
 ## Work in a lane
 
@@ -88,14 +91,18 @@ the memory. The database copy takes about a second (all 99 tables, pgvector incl
   times, 4 by default), checking every 5 minutes. It leaves a lane alone that's waiting for the user, was stopped partway or
   is done, and its log is the main folder's `.session-loop/keeper.log`. The loops wait out the 5-hour window themselves, and
   the keeper waits out the weekly one. First used 2026-10-28, when the user went to sleep with three lanes running.
-- **Keep the PC awake.** The laptop sleeps after an hour idle on power, and nothing a lane runs asks it to stay up. So an
-  unattended night needs `scripts/keep-awake.ps1` in a window of its own (`-Until "<date> 12:00"` to end it by itself). It
-  changes no setting, and closing the window ends it. The lid stays open: a closed lid still sleeps the laptop.
+- **Keep the PC awake.** The laptop sleeps after an hour idle on power, and nothing a lane runs asks it to stay up. The
+  keeper holds it awake while it runs: it opens `scripts/keep-awake.ps1` minimized (a "Keep awake" window, `-WhilePid` its
+  own process), which ends when the keeper's window is closed. Without a keeper, an unattended night needs keep-awake.ps1 in
+  a window of its own (`-Until "<date> 12:00"` to end it by itself). It changes no setting, and closing the window ends it.
+  The lid stays open: a closed lid still sleeps the laptop. On 2026-10-28 the night's window had ended at noon, and the PC
+  slept from 4:12 to 5:49 PM while both lanes waited out a usage limit: the lanes, the bot and the recorder all stood
+  still until a key woke it.
 
 ## Bring a step home
 
-1. **Between steps**, the lane takes master in: `node scripts/lane.js sync <name>`. The loop's sessions can't merge, so the
-   user (or a session they're talking to) runs it.
+1. **Between steps**, the lane takes master in: `node scripts/lane.js sync <name>`. A lane's own session runs it at a step's
+   start when its seed says so (the engine's and the desk's do); merges into master stay the user's.
 2. **When the step is done** (its checks pass, and `/code-review` on its diff is clean), the user merges it into master from the
    main folder (`git merge engine`), runs the full check batch there, and pushes. The session loop never pushes or merges.
 3. **Shared docs and memories** (HANDOFF.md, BACKLOG.md, the shared memories) are updated at that merge, not mid-step in a lane.
