@@ -453,6 +453,108 @@ test("the results variants: accepted plays every replay, autopilot is the whole 
   assert.equal(P.reviewTaps({ quick: ["nobody"], full: ["a"] }), 7);
 });
 
+test("quick-exits: who left from the quick check, everything else from the full research, the answer fitted to its prompt", () => {
+  const v = P.variantOf({ results: "quick-exits" });
+  assert.equal(v.name, "results-quick-exits");
+  assert.equal(P.changedBy(v, { game: "outlast", own: "shared", group: 16 }, { from: 1, to: null }, 6), true);
+  // Who the prompt asks about, as pasteSkeleton gives them: every answer at its most non-committal.
+  const skel = (name) => ({ name, leftTheGame: "unknown", exitMethod: null, wonDailyChallenge: "unknown", sources: [], confidence: "low" });
+  const asked = ["Ann Lee", "Bob Ray", "Cy Fox", "Di Moe"].map(skel);
+  const full = {
+    episodeTitle: "Three",
+    summary: "kept as it was",
+    castaways: [
+      { name: "Ann Lee", leftTheGame: "yes", exitMethod: "Eliminated", wonDailyChallenge: "yes", sources: ["a1"], confidence: "high" },
+      { name: "Bob Ray", leftTheGame: "no", exitMethod: null, wonDailyChallenge: "yes", sources: ["b1"], confidence: "medium" },
+      { name: "Cy Fox", leftTheGame: "yes", exitMethod: "Other", wonDailyChallenge: "no", sources: ["c1"], confidence: "medium" },
+      { name: "Ed Ray", leftTheGame: "no", exitMethod: null, wonDailyChallenge: "yes", sources: ["e1"], confidence: "high" },
+    ],
+  };
+  const exitMethods = ["Eliminated", "Disqualified", "Quit", "Winner", "Finalist", "Other"];
+  const quick = { found: true, left: [{ name: "Bob Ray", how: "Disqualified", matched: true }, { name: "Cy Fox", how: "Quit", matched: true }], sources: ["q1", "q2"] };
+  const got = P.quickExits(JSON.stringify(full), { asked, quick, exitMethods, winnerExit: "Winner" });
+  assert.deepEqual(got.changes, {
+    quick: "found",
+    left: ["Bob Ray (Disqualified)"],
+    stayed: ["Ann Lee (Eliminated)"],
+    added: ["Di Moe"],
+    dropped: ["Ed Ray"],
+    unasked: [],
+    raised: ["Bob Ray: wonDailyChallenge"],
+    winners: [],
+  });
+  const out = JSON.parse(got.text);
+  assert.equal(out.summary, "kept as it was");
+  assert.deepEqual(out.castaways.map((c) => c.name), ["Ann Lee", "Bob Ray", "Cy Fox", "Di Moe"]);
+  const [ann, bob, cy, di] = out.castaways;
+  // The full research's leaver the quick check doesn't name stays, and keeps everything else it said.
+  assert.deepEqual(ann, { ...full.castaways[0], leftTheGame: "no", exitMethod: null });
+  // The quick check's leaver leaves as the app files a quick check: its method, high (the entry's other answers with it), its
+  // sources beside the entry's.
+  assert.deepEqual(bob, { ...full.castaways[1], leftTheGame: "yes", exitMethod: "Disqualified", confidence: "high", sources: ["b1", "q1", "q2"] });
+  // Both say they left: the full research's method and confidence stand (finding 2 stays as it was).
+  assert.deepEqual(cy, full.castaways[2]);
+  // Still in here, gone by the recording: the prompt's own non-committal entry, staying in.
+  assert.deepEqual(di, { ...skel("Di Moe"), leftTheGame: "no" });
+  assert.match(P.reshapeLine(got.changes), /^left Bob Ray \(Disqualified\); stayed Ann Lee \(Eliminated\); raised to high with the exit: Bob Ray: wonDailyChallenge; added/);
+
+  // A name it can't match (a nickname, someone gone): not a whole account, so its matched names leave and nobody's turned back.
+  const partial = P.quickExits(JSON.stringify(full), { asked, quick: { ...quick, left: [...quick.left, { name: "Annie", how: "Eliminated", matched: false }] }, exitMethods });
+  assert.equal(partial.changes.quick, "unknown-name");
+  assert.deepEqual([partial.changes.left, partial.changes.stayed, partial.changes.unasked], [["Bob Ray (Disqualified)"], [], ["Annie"]]);
+  assert.equal(JSON.parse(partial.text).castaways[0].leftTheGame, "yes");
+  assert.match(P.reshapeLine(partial.changes), /the quick check's Annie not asked about, so nobody was turned back$/);
+
+  // A finale: the quick check's winner and finalists kept (finding 1's belt); a how not in the show's words is "Other".
+  const finale = { castaways: [{ name: "Rob Ray", leftTheGame: "no", exitMethod: null, sources: [], confidence: "high" }, { name: "Mo Dee", leftTheGame: "unknown", exitMethod: null, sources: [], confidence: "low" }, { name: "Al Bo", leftTheGame: "no", exitMethod: null, sources: [], confidence: "high" }] };
+  const finalists = ["Rob Ray", "Mo Dee", "Al Bo"].map(skel);
+  const won = P.quickExits(JSON.stringify(finale), {
+    asked: finalists,
+    quick: { found: true, left: [{ name: "Rob Ray", how: "Winner", matched: true }, { name: "Mo Dee", how: "Finalist", matched: true }, { name: "Al Bo", how: "walked off in the night", matched: true }], sources: ["q"] },
+    exitMethods,
+    winnerExit: "Winner",
+  });
+  assert.deepEqual(won.changes.left, ["Rob Ray (Winner)", "Mo Dee (Finalist)", "Al Bo (Other)"]);
+  assert.deepEqual(won.changes.winners, ["Rob Ray"]);
+  assert.match(P.reshapeLine(won.changes), /^left Rob Ray \(Winner\), Mo Dee \(Finalist\), Al Bo \(Other\) \(the winner kept: Rob Ray\)$/);
+  // Both crown the winner: nothing to change, but the answer as filed has its winner.
+  const both = P.quickExits(JSON.stringify({ castaways: [{ ...finale.castaways[0], leftTheGame: "yes", exitMethod: "Winner" }, finale.castaways[1], finale.castaways[2]] }), {
+    asked: finalists,
+    quick: { found: true, left: [{ name: "Rob Ray", how: "Winner", matched: true }], sources: ["q"] },
+    exitMethods,
+    winnerExit: "Winner",
+  });
+  assert.deepEqual([both.changes.left, both.changes.winners, P.reshapeLine(both.changes)], [[], ["Rob Ray"], "nothing changed"]);
+
+  // The quick check said nobody: taken at its word (the app holds it as a doubt), so the full research's leavers stay.
+  const nobody = P.quickExits(JSON.stringify(full), { asked, quick: { found: true, left: [], sources: [] }, exitMethods });
+  assert.equal(nobody.changes.quick, "nobody");
+  assert.deepEqual([nobody.changes.stayed, nobody.changes.left], [["Ann Lee (Eliminated)", "Cy Fox (Other)"], []]);
+  assert.match(P.reshapeLine(nobody.changes), /^the quick check says nobody left \(taken at its word\); stayed Ann Lee/);
+  // It found nothing, or none was asked: who left is the full research's, but the answer still fits its prompt.
+  for (const [q, says] of [[{ found: false, left: [], sources: [] }, "nothing"], [null, "none"]]) {
+    const x = P.quickExits(JSON.stringify(full), { asked, quick: q, exitMethods });
+    assert.equal(x.changes.quick, says);
+    assert.deepEqual([x.changes.left, x.changes.stayed, x.changes.added, x.changes.dropped], [[], [], ["Di Moe"], ["Ed Ray"]]);
+    assert.equal(JSON.parse(x.text).castaways[0].leftTheGame, "yes");
+    assert.match(P.reshapeLine(x.changes), says === "none" ? /^no quick check asked: who left is the full research's; added/ : /^the quick check found nothing: who left/);
+  }
+
+  // A name as asked wins its place before a forgiving match: a gone "Bob" can't take "Bobby Smith"'s entry.
+  const bobby = P.quickExits(JSON.stringify({ castaways: [{ name: "Bob", leftTheGame: "no", sources: [], confidence: "high" }, 0, { name: "Bobby Smith", leftTheGame: "no", wonDailyChallenge: "yes", sources: "https://ab", confidence: "low" }] }), {
+    asked: [skel("Bobby Smith")],
+    quick: { found: true, left: [{ name: "Bobby Smith", how: "Quit", matched: true }], sources: ["q1"] },
+    exitMethods,
+  });
+  assert.deepEqual(bobby.changes.dropped, ["(no entry)", "Bob"]);
+  // A source given as a string is one source, not its letters.
+  assert.deepEqual(JSON.parse(bobby.text).castaways, [{ name: "Bobby Smith", leftTheGame: "yes", exitMethod: "Quit", wonDailyChallenge: "yes", sources: ["https://ab", "q1"], confidence: "high" }]);
+
+  // Not an answer with castaways: left alone.
+  assert.deepEqual(P.quickExits("no idea", { asked, quick, exitMethods }), { text: "no idea", changes: null });
+  assert.equal(P.quickExits(JSON.stringify({ castaways: asked }), { asked, quick: { found: true, left: [], sources: [] } }).changes.left.length, 0);
+});
+
 test("who could still win, from the game's own best possible week: Outlast's people still in, a lineup's team at its best", () => {
   const row = (name, total, extra = {}) => ({ playerId: name, name, total, ...extra });
   const member = (id, out = false) => ({ id, name: id, out });
@@ -534,6 +636,11 @@ test("a results variant beside the whole set: over, points in the table, who wen
   assert.deepEqual(row.out, { base: 1, variant: 2, onlyVariant: ["Rob (2)"], onlyBase: [] });
   // Only the episodes it played (episode 1 was before it started).
   assert.equal(row.accepted, 2);
+  assert.equal(row.reshaped, 0);
+  // quick-exits: who left changed by the reshape, in the episodes it played.
+  const reshaped = rec(true, [["B", 15]], ["Ann"], 0);
+  reshaped.tape.results = [{ episode: 1, reshaped: { left: ["x (Quit)"], stayed: [] } }, { episode: 2, reshaped: { left: ["Ann (Winner)"], stayed: ["Rob (Eliminated)", "Cy (Other)"] } }];
+  assert.equal(P.compareOf([rec(false, [["A", 10]], [], 0)], [reshaped])[0].reshaped, 3);
   assert.deepEqual(P.compareByGame([row]), [{ game: "weeklyLineup", replays: 1, winnerChanged: 1, points: 0.5, out: 1, over: { base: 0, variant: 1 }, ghosted: { base: 0, variant: 0 } }]);
 });
 

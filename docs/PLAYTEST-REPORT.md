@@ -60,6 +60,22 @@ with the winner's exit. The prompt does list "Sole Survivor" and asks `juryVotes
 game" as "was eliminated". A belt to go with it: a full answer that names a winner's exit nowhere, for an episode the listing
 calls the finale, keeps the quick check's winner.
 
+**What it costs** (P5 part 3, `--results=quick-exits`: each full answer reshaped before the app files it, who left from that
+episode's quick check, so at each finale the quick check's winner and finalists are kept; beside the same replays played again
+unchanged). A season-long game ends only when the format's winner exit lands (`state-logic.js` `seasonEnded`):
+- **Every game ends.** On Autopilot 40 of the 96 replays never say they're over: Survivor 49's 18 of 30, the Challenge's 11 of
+  22, the Traitors' 11 of 22 (Dancing with the Stars' 22 all end). With the finale's winner kept, all 96 do.
+- **The last places score.** Outlast's ties at the top at the end fall from 58% to 47% (Survivor 49: 67% to 39%, the finale's
+  three exits being Outlast's last places). Three of Survivor 49's Outlast games with only people in them change winner, against
+  none between two runs with nothing changed.
+- **The finalists stop being played.** On Autopilot the Challenge's eight finalists and the Traitors' winner, Rob Rausch, stay on
+  36 teams to the end and are started 66 times after the finale (the reunions: finding 8).
+- **The reunions stop asking.** On Autopilot, 7 games still ask for a lineup or a pick after the finale (23 person-weeks, 84
+  taps). With the finale's winner kept, the games are over and nobody makes a move after the finale (two Outlast
+  games with weekly waivers still show a replacement owed there).
+
+Survivor 49's games end even though Rizo Velovic's exit is still held (finding 2): a crowned winner is enough.
+
 ### 2. The bot's own quick and full answers disagreeing on how someone left holds the exit back for good (medium; whoever owns `fact-status.ts`, with the survivor lane)
 
 `fact-status.ts` trusts a single source's fact only if no answer for the episode says otherwise, "any of them, not just each
@@ -229,6 +245,33 @@ exit as disputed, and let the tie-break run ask a third time. Or take who left f
 else from the full research. Separately, a quick answer whose headline says someone was sent home while its list is empty
 could be asked again once, not just held.
 
+**What it costs** (P5 part 3, `--results=quick-exits`, beside the same replays played again unchanged). Who left taken from the
+quick check, everything else from the full research:
+- **Nia Moore** leaves at 3 (Disqualified) in every game, not 9. A game from episode 7 on no longer sees her go mid-game.
+- **Dee Valladares** leaves at 12, as the quick check and its headline say ("sending both Derrick and his partner Dee
+  home"). On Autopilot she never leaves: in 7 games she's started 45 times after episode 12, kept on 4 teams to the end, and
+  picked once in a pool.
+- **Will Gagnon** leaves at 16, not 11.
+- **Leonardo Dionicio never leaves.** No quick check names him. Episode 14's headline has him on the losing side of an
+  elimination, but only Ashley is sent home, and he isn't among the finale's eight. Taking the quick check's word swaps one
+  wrong exit (11) for none: in 8 games he's kept on 5 teams to the end, started 21 times and picked twice after episode 11.
+  Episode 11's quick check said nobody left, which the app holds as a doubt on its own; the variant takes it at its word (the
+  direction), so Leo and Will staying at 11 rests on an answer the app wouldn't apply by itself.
+- **Gabe Wai and Jonna Mannion still never leave.** Episode 11's quick check names them in its headline, but its list is empty,
+  so by its list nobody left at 11 either. Only asking again when the two disagree (the direction's last line) would catch them.
+- **The Traitors 4's Rob Cesternino** goes the other way. The quick check reports episode 3's banishment and misses the murder at
+  the top of the episode. The full research has it, citing an episode recap ("Rob Cesternino is murdered after suspecting a
+  murder in plain sight"). Taken from the quick check, he stays in all season. That's the same as Autopilot for the games (held
+  there, finding 2), and worse than accepting what was held (out at 3).
+
+Across the four seasons' tapes the two disagree on who left in 9 episodes. The quick check is right in 7 (the Challenge's 3, 9,
+12, 16 and 19, and the Traitors' and Survivor's finales), the full research in 1 (the Traitors' 3), and both are wrong in 1 (the
+Challenge's 11). Confidence doesn't tell them apart: every wrong exit in the full research (Nia at 9, Leo and Will at 11) is
+high, as Rob Cesternino's right one is. So the quick check is the better reader of who left, but not a safe one alone. The
+direction the evidence supports: take who left from the quick check, and hold a full answer's exit the quick check doesn't name
+as disputed for the tie-break run, rather than dropping it (the Traitors' 3) or filing it (the Challenge's 9 and 11). And ask a
+quick check again when its headline names someone its list doesn't (the Challenge's 11).
+
 ### 7. Start a game starts every game with waivers off (medium; Start a game's owner, `start-game.ts`, and the GPT plan's presets)
 
 Classic's Create a league turns the waiver recommendation on for a drafted game (`create-league-flow.tsx`: `waiverRecommendation`
@@ -260,6 +303,11 @@ else scores, so it's up to two weeks with nothing at stake, asked for anyway.
 **A direction.** An episode the listing titles a reunion (or the research says had no competition) is a special: games skip it
 and a season game's span ends at the finale.
 
+**Most of it is finding 1** (P5 part 3). Once the finale's winner is crowned, the season is over and the reunions ask nothing: on
+Autopilot 7 games ask for a lineup or a pick after the finale (23 person-weeks, 84 taps), against no move made once the
+winner is kept (`--results=quick-exits`). A season whose finale doesn't crown anyone (Dancing with the Stars 34 crowns its
+winner, so it's every show taped) would still run through them.
+
 ### 9. Dancing with the Stars gets no Survival Pool (low; the rulebook, the desk)
 
 Someone went home in 8 of the season's 11 episodes, but the season's rulebook doesn't say so: its segments ("Scoring",
@@ -272,25 +320,36 @@ offers)". The rulebook is on the tape: `rfl-tapes\dancing-with-the-stars\34\seas
 **A direction.** The desk's rulebook page fixes it for this show (the results show's segment sends someone home, decided by the
 vote). The rulebook prompt could ask plainly whether someone goes home most episodes.
 
-### 10. Below Deck's full research never comes back: a crew of 40 from every season makes a prompt too big to answer (high for a series made from a listing; whoever owns `make-game.ts`, the survivor lane or the merge)
+### 10. Below Deck's cast is every season's crew and leaves out this season's, so its research comes back nearly empty (high for a series made from a listing; whoever owns `make-game.ts`, the survivor lane or the merge)
 
 Make it a game took Below Deck's cast from TVmaze's show cast: 40 people from every season (P1's Noticed). Each episode's full
 research asks about all 40, so its prompt is 47,533 characters. The others that answered: Dancing with the Stars 15,046 (55 s),
-The Challenge 22,873 (107 s), the Traitors 31,397 (42 s). The local bot gave no reply to Below Deck 12's episode 1 in 420 s,
-twice (07:43 and 07:55 UTC); the quick check, which names nobody, answered in 20 s. Production's bot stops at 285 s (`askBot`),
-so Autopilot and One tap would fail the same way, every episode. A Weekly Lineup on Below Deck, the one game a series gets,
-would never score.
+The Challenge 22,873 (107 s), the Traitors 31,397 (42 s).
 
-**Repro.** `rfl-tapes\below-deck\12\e01-full.try1.json` (`prompt`, 47,533 characters; `message` "No reply after 420s"), or
-`node scripts/dev-test/tapes.js one below-deck 12 full 1` (asks the local bot again, up to 7 minutes; not while the recorder is
-asking: the bot takes one question at a time).
+**Corrected (P5 part 3): the length isn't the problem.** P3 said this prompt never came back: the local bot gave no reply in
+420 s, twice (07:43 and 07:55 UTC). That was the bot's ChatGPT profile, capped from 07:43 (no message box), not the prompt. On a
+fresh profile at 11:00 UTC the same 47,533 characters answered in 52 s, and episode 2's in 36 s. What it costs is the cast:
+- **3 of the 40 are on season 12** (Captain Kerry Titheradge, Fraser Olender, Rainbeau de Roos). The other 37 are from other
+  seasons (Kate Chastain, Ben Robinson...), and this season's bosun Caio Poltronieri, Solène and Chef Lawrence Snowden aren't in
+  it at all.
+- **The answers are nearly empty.** Episode 1's has 40 entries: 39 "didn't leave" at medium confidence, and two "yes" answers in
+  all (a crew party for Fraser and Rainbeau). Episode 2's has all 40 "unknown" at low confidence: "The available episode
+  synopsis does not establish individual event counts, tip details, or departures for the 40 people in the supplied
+  checklist."
+- **The quick check names this season's crew, so it waits.** Episode 5's "Caio Poltronieri left" (fired by Captain Kerry) names
+  someone not in the cast, so it waits in Backstage (a name it can't match), and no game hears of it.
+- A Weekly Lineup on Below Deck, the one game a series gets, would draft from 40 names of whom 37 never appear, and barely score.
+
+**Repro.** `rfl-tapes\below-deck\12\e01-full.json` and `e02-full.json` (`parsed.parsed.castaways`; `season.json`'s `cast` is
+the 40), and `e05-quick.json` (Caio). The capped profile's tries are kept in `below-deck\12\gave-up-capped-bot\`.
 
 **A direction.** A series' cast from the season's own episodes (TVmaze's per-episode guest cast, or the season's cast once the
-listing has one), not the show's whole history. Then, for any show, a full prompt over a size could be asked in parts (who's
-in it split in two), as the research already asks only for what's missing (`only: missing`).
+listing has one), not the show's whole history. Asking in parts isn't needed for length.
 
-The recorder now holds a season's other full research once one gives up with no answer (`tapes.js fullHeld`), so the queue moves
-on to the quick checks and the words corpus. Delete `e01-full.json` to ask again once the cast is fixed.
+The recorder holds a season's full research while its cast is the listing's (`tapes.js castHeld`, since P5 part 3), so the
+queue goes on to the quick checks and the words corpus. Episodes 1 and 2 are on tape with the listing's cast, as the evidence.
+The season's cast is to be staged by hand once the words corpus is on tape (docs/PLAN-playtests.md), then the full research
+asked again.
 
 ## P4, a first pass: each game judged as a player would (2026-10-28)
 
@@ -588,3 +647,78 @@ and Outlast or pools with only people in them never. A first pair of runs, earli
 Weekly Lineups). Earlier variants' winner counts sit on that floor: P4's window after the merge changed 9 of 17 Outlast-with-waivers
 winners, against 6 of 30 between two runs. From now on, compare a variant against a fresh run
 (`compare <variant> --base=variants/results-autopilot`).
+
+## P5 part 3: what findings 1 and 6 cost (2026-10-28)
+
+P5 part 2 showed a review can't reach findings 1 and 6: the finale's winner is removed, not held, and the Challenge's wrong exits
+are applied. So P5 part 3 played every replay again with each episode's full research **filed as the report's directions
+would**: who left from the bot's quick check that episode, everything else from the full research, so at each finale the quick
+check's winner and finalists are kept (`playtest.js run <show> <season> --results=quick-exits`;
+`rfl-tapes\replays\variants\results-quick-exits\`). The harness reshapes each full answer before the app's own `runJob` files it
+(`playtest.js quickExits`), never the tape:
+- someone the quick check names whom the full research has staying (or doesn't know about) leaves, with the quick check's method
+  in the show's words, at high confidence (as the app files a quick check), with its sources. The confidence is the whole
+  entry's, so the entry's other answers go to high with it; on these tapes that raised one answer (Nia Moore's "nominated" at
+  3), which scores nothing once she's left;
+- someone the full research has leaving whom the quick check doesn't name stays, unless the quick check found nothing or names
+  someone it can't match to the cast. A quick check that says nobody left is taken at its word, though the app holds one as a
+  doubt on its own: that's the Challenge's episode 11, where it keeps Leo and Will in;
+- someone both name keeps the full research's method and confidence, so finding 2's holds (Rizo, Cara Maria) stay as they were;
+- the answer fits its prompt. Once who's still in differs from the recording, the app asks about other people than the tape's
+  answer covers: someone still in here gets the prompt's own non-committal entry, and an answer about someone gone here is
+  dropped. Every recorded full answer names exactly who its prompt asked, so nothing else moves.
+
+What it reshaped:
+- **Survivor 49:** the finale (Sophi Balerdi, Sage Ahrens-Nichols and Savannah Louie left; Savannah crowned).
+- **The Traitors 4:** episode 3 (Rob Cesternino stayed) and the finale (Rob Rausch crowned).
+- **The Challenge 41:** episodes 3 (Nia Moore left), 11 (Leonardo Dionicio and Will Gagnon stayed), 12 (Dee Valladares left), 16
+  (Will Gagnon left) and 19 (all eight; Olivia Kaiser and Yeremi Hykel crowned).
+- **Dancing with the Stars 34:** nothing, since its two answers agree every episode. Its 22 replays are a control: 2 winners
+  changed there, one in a game with computer players and one in a Weekly Lineup with only people in it (the 1 in 17 that runs
+  vary by).
+
+Beside the same replays played again unchanged (`compare results-quick-exits --base=variants/results-autopilot`):
+
+| Game | Replays | Winner changed | Points | Went home | Says it's over | Gone, still played |
+|---|---|---|---|---|---|---|
+| Outlast | 59 | 18 | 0% | the same | 37 → 59 | 12 → 5 |
+| Survival Pool | 16 | 3 | 0% | +0.5 a game | 8 → 16 | 3 → 1 |
+| Weekly Lineup | 21 | 4 | +1% | the same | 11 → 21 | 5 → 2 |
+
+"Gone, still played" counts each side by the other's answers. On Autopilot it's people gone by the quick check's word: Dee
+Valladares, the Challenge's finalists and the Traitors' winner after the finale. With quick-exits it's people gone by the full
+research's word: only Leonardo Dionicio.
+
+Winners changed in games with only people in them (the clean test), against between two runs with nothing changed:
+- **Outlast:** 6 of 21 (0 of 21). Survivor 49's finale breaks three ties at the top, and the Challenge's episode 11 games tie once
+  Leo and Will stay.
+- **Weekly Lineup:** 2 of 17 (1 of 17): the Traitors 4's, and one on Dancing with the Stars, where nothing was reshaped.
+- **Survival Pool:** 1 of 12 (0 of 12), the Challenge's episode 11 pool, where nobody goes home now.
+
+**How season-long games end.** A season-long game ends when the winner's exit lands, and on three of the four seasons the full
+research drops it. With the quick check's winner kept:
+- every game ends, 96 of 96 against 56;
+- the finale's last places score (Outlast's ties at the top at the end: 58% → 47%; Survivor 49: 67% → 39%);
+- nobody makes a move at the reunions (finding 8: on Autopilot 7 games still ask for moves after the finale).
+
+It's the cheapest of the fixes found so far: one rule at the finale, and every game on the season plays to a result. It's in
+finding 1, "What it costs".
+
+**The Challenge's wrong exits** (finding 6, "What it costs"):
+- Nia Moore leaves at 3, not 9.
+- Dee Valladares leaves at 12. On Autopilot she never left, and was started 45 times after it.
+- Will Gagnon leaves at 16, not 11.
+- Leonardo Dionicio never leaves, because no quick check names him: one wrong exit traded for none.
+- Gabe Wai and Jonna Mannion still never leave: episode 11's list is empty, though its headline names them.
+- On the Traitors 4, Rob Cesternino's murder in episode 3 is lost. The full research had it right; the quick check missed it.
+
+Of the 9 episodes where the two answers disagree on who left, the quick check is right in 7, the full research in 1, and both
+are wrong in 1. Confidence doesn't separate them. So taking who left from the quick check fixes most of finding 6 but not all
+of it. The direction in finding 6: the quick check's who left, any exit only the full research names held as disputed for the
+tie-break run, and a quick check asked again when its headline names someone its list doesn't.
+
+**Repro.**
+- `node scripts/dev-test/playtest.js run the-challenge 41 --results=quick-exits` (and `--results=autopilot`). The run prints what
+  each episode's reshape changed ("reshaped: left Nia Moore (Disqualified)"), and each record keeps it (`tape.results[].reshaped`).
+- `node scripts/dev-test/playtest.js compare results-quick-exits --base=variants/results-autopilot` (`COMPARE-results-autopilot.md`
+  in the variant's folder), and `judge --dir=variants/results-quick-exits`.

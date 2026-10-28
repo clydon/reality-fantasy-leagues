@@ -1,13 +1,15 @@
 # Season tapes and playtests
 
 For the playtest lane's sessions and the user. Status: planned 2026-10-28, started that night in the playtest lane
-(`../rfl-playtest`, branch `playtest`, database `rfl_playtest`, port 3005). P1 built and recording; P2 started (2 of 104 on tape:
-**the local bot stopped answering at 09:17 UTC on 2026-10-28**, so the corpus waits on it; its judge and report are ready, eleven
-expected readings fixed, and what G1 should change written down); P3 parts 1 and 2 built (96 replays of Survivor 49, the Traitors
-4, The Challenge 41 and Dancing with the Stars 34, and the looks at 390; Below Deck 12's full research doesn't come back: finding
-10); P4 done for the four seasons on tape (taps a week, someone away, the directions tried as variants); P5 part 1 done (the
-measures read data; the forgetter's looks at 390); P5 part 2 done (what accepting the bot's held results changes, and who can
-still win by each game's own best week); findings in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md).
+(`../rfl-playtest`, branch `playtest`, database `rfl_playtest`, port 3005). P1 built and recording; P2 started (the local bot
+was silent from 09:17 to 11:00 UTC on 2026-10-28, its ChatGPT profile capped, and answers again on a fresh one; the corpus records
+behind Below Deck 12's quick checks; its judge and report are ready, eleven expected readings fixed, and what G1 should change
+written down); P3 parts 1 and 2 built (96 replays of Survivor 49, the Traitors 4, The Challenge 41 and Dancing with the Stars 34,
+and the looks at 390; Below Deck 12's full research comes back but its cast is every season's crew: finding 10, corrected); P4
+done for the four seasons on tape (taps a week, someone away, the directions tried as variants); P5 part 1 done (the measures
+read data; the forgetter's looks at 390); P5 part 2 done (what accepting the bot's held results changes, and who can still win
+by each game's own best week); P5 part 3 done (what findings 1 and 6 cost: who left from the quick check); findings in
+[PLAYTEST-REPORT.md](PLAYTEST-REPORT.md).
 
 ## What the user asked for (2026-10-28, going to sleep with the survivor and engine lanes running)
 
@@ -708,6 +710,79 @@ gone still played (a late joiner's team, a computer player's draft, a file from 
 
   These are the whole set on file. The rough count said nearly everyone at the half.
 
+### P5, part 3: what findings 1 and 6 cost; the bot back; Below Deck's full research held for its cast (2026-10-28, playtest lane)
+
+**The bot answers again.** At 11:00 UTC the main session, with the user's OK, restarted the local bot on a fresh ChatGPT profile:
+the old one was capped from 07:43 (no message box; one quick check got through at 09:17). Below Deck 12's episode 1 and episode 3
+quick check, given up while it was capped, were moved to `below-deck\12\gave-up-capped-bot\` and asked again: episode 3's quick
+check in 13 s, episode 1's full research (47,533 characters) in 52 s, episode 2's in 36 s. So finding 10 was the profile, not the
+prompt's length; the report's finding 10 is corrected (what the 40-person listing cast costs is an answer that's nearly empty).
+
+**`castHeld`** (`tapes.js`): a series whose cast came from its TV listing (`season-cast.json`'s `fromListing`, Make it a game
+asking no cast question, on a season whose rulebook kind is `series`) holds its questions about its people: full research,
+trivia, bingo and recaps (`CAST_HELD_KINDS`). Below Deck 12's cast is every season's crew (40, of whom 3 are on season 12), so
+its episodes 3 to 16 would have been asked with the wrong cast and asked again once the season's cast is staged by hand
+(finding 10): about half an hour of the bot, which the cap counts. Episodes 1 and 2 stay on tape as the evidence; the quick
+checks go on (who left, in the show's own words), then the words corpus. `status` says why it's held and how to lift it
+(`CAST_HELD_HOW`: the season's cast staged by hand, below). The recorder was restarted with it at 11:04 UTC between two
+questions (pid 64528, window "Tapes: recording"); the code review's narrowing (a series only, and trivia and bingo too) came
+after, and the recorder reads it at its next restart.
+
+**`run ... --results=quick-exits`** (`playtest.js`, a variant into `replays\variants\results-quick-exits\`): each episode's full
+research filed as the report's directions would, who left from the bot's quick check that episode and everything else from the
+full research, so at each finale the quick check's winner and finalists are kept (findings 6 and 1). `fileResults`' `ask` keeps
+the quick check's answer as asked, reads it as the app does (`bot-research.js parseQuickAnswer`), and reshapes the full answer
+before `runJob` files it (`quickExits`, pure); the tape isn't touched. Exactly what it changes:
+- **Who left:** someone the quick check names whom the full research has staying (or "unknown") leaves as `bot-results.ts
+  botSend` files a quick check: `results-changes.ts quickVerdict`'s method (the show's words, else "Other"), confidence "high"
+  and its sources beside the entry's own. Confidence is the entry's, so its other "yes" answers go to high with it (`raised`:
+  on these tapes only Nia Moore's "nominated" at 3, which scores nothing once she's left). Someone the full research has leaving
+  whom the quick check doesn't name stays (`leftTheGame` "no", no method). A quick check that found nothing (or none asked, or
+  one the app can't read) leaves who left as the full research has it. One that names someone the prompt doesn't ask about
+  isn't a whole account: its matched names leave and nobody's turned back. One that says nobody left is taken at its word
+  (the direction), though the app holds it as a doubt on its own: the Challenge's episode 11, where Leo and Will stay.
+- **Not how:** someone both name keeps the full research's method and confidence, so an exit the two word differently (Rizo
+  Velovic, Cara Maria Sorbello: finding 2) is held as before. That keeps this variant to findings 1 and 6; `--results=accepted`
+  measured 2.
+- **The answer fits its prompt:** an entry for exactly who the app's prompt asks about (`episode-research.js pasteSkeleton`'s
+  entries, from `resolveSeasonResearchContext`, as `runJob` builds the prompt), a name as asked first, then the app's
+  forgiving match (`findCastawayByName`). Once a replay's exits differ from the recording's
+  (Nia Moore out at 3, not 9), the prompt asks about other people than the tape's answer covers. Someone still in here who'd gone
+  by the recording gets the prompt's own non-committal entry, staying in ("added"), else `validateResearch` refuses the whole
+  answer for a missing person. An answer about someone gone here is dropped (the app wouldn't have asked). A one-off check
+  (`asked-vs-answered`, not kept) found every recorded full answer names exactly who its prompt asked, so nothing moves on
+  episodes where who's still in agrees.
+- **Everything else** (events, votes, the summary, the next episode) is the full research's, untouched.
+
+Each episode's record keeps what its reshape did (`tape.results[].reshaped`: `left`, `stayed`, `raised`, `added`, `dropped`,
+`unasked`, `winners`, and `quick`: found, nobody, unknown-name, nothing or none), the run prints it a line an episode, and a game's log has a line for each episode it counts in where who
+left changed. `compare` shows the people reshaped per replay for this variant (instead of "accepted").
+
+**Played** (no bot, about 75 s a season): the four seasons on tape, 96 replays, then `compare results-quick-exits
+--base=variants/results-autopilot` and `judge --dir=variants/results-quick-exits`; played again after the code review's fixes
+(the numbers here and in the report are that second run's). The review's other fixes: one jiti loader for the app's TypeScript
+(`tsApp`, shared by `appCode` and the pure helpers), the season's research context read once per full answer, a source given
+as a string kept whole, and a stray non-entry in an answer listed as dropped.
+
+Unit tests: `tests/playtest.test.js` (the reshape: who left both ways, both naming someone, a finale's winners, a how not in the
+show's words, nobody, nothing found or no quick check, the prompt's fit, an answer that isn't JSON; the variant's name; the
+reshaped count in `compare`), `tests/tapes.test.js` (`castHeld`). `npm test` passes.
+
+**What it found** (details in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md), "P5 part 3" and findings 1, 6, 8 and 10):
+- **Every season-long game ends** (96 of 96, against 56 on Autopilot) once the quick check's winner is kept at the finale.
+  Outlast's ties at the top at the end fall from 58% to 47%, and nobody makes a move at the reunions (7 games asked, 84 taps).
+- **The Challenge's wrong exits:**
+  - put right: Nia Moore (3), Dee Valladares (12; on Autopilot she never left and was started 45 times after), Will Gagnon (16);
+  - not put right: Leonardo Dionicio never leaves (no quick check names him), and Gabe Wai and Jonna Mannion still never leave
+    (episode 11's quick list is empty, though its headline names them);
+  - made wrong: the Traitors 4's Rob Cesternino, murdered at the top of episode 3, stays in (the quick check misses it).
+- **The quick check is right in 7 of the 9 disagreements** on who left, the full research in 1, both wrong in 1, and
+  confidence doesn't separate them. Finding 6's direction is refined: the quick check's who left, a full research's extra exit
+  held as disputed for the tie-break, and a quick check asked again when its headline and list disagree.
+- **Finding 10 corrected:** Below Deck's full research comes back. Its 40-person listing cast has 3 of season 12's crew and misses
+  the rest (Caio, Solène, Chef Lawrence). The answers are nearly empty (episode 1: two "yes" answers in all; episode 2: every
+  entry "unknown"), and episode 5's quick check ("Caio Poltronieri left") names someone not in the cast, so it waits.
+
 ## Noticed, not fixed
 
 (Each step adds what it saw and left alone, with the step that could take it.)
@@ -839,3 +914,25 @@ From P5 part 2 (2026-10-28):
 - **The whole set was played again at the end of P5 part 2** (with `stillIn` and `joinedWith` in every record), so JUDGE.md and
   the earlier variants' `compare` against it moved by the run-to-run floor. The away-favourites and window-merge COMPARE.md
   files are from their own runs; `compare <variant>` again sets them beside today's whole set.
+
+From P5 part 3 (2026-10-28):
+- **`validateResearch` says an answer about someone not asked is "dropped", but a first full research keeps it** (read, not run:
+  only a merge filters `parsed.castaways` to who was asked, in `researchFromPaste`; `storeResearch`, `stageResearchDecisions`
+  and `botSend.full` take the rest as it came). No recorded answer has one (every full answer on tape names exactly who its
+  prompt asked), so it costs nothing today. The survivor lane, if a bot ever volunteers someone already gone.
+- **Leonardo Dionicio's real exit is on no tape.** The full research has him out at 11; episode 14's quick check has him losing
+  an elimination with Ashley Mitchell, who alone went home; he isn't among the finale's eight. Pairs, partner swaps and a final
+  with stages are where both answers slip (finding 6). A wiki check by hand would settle it; the replays don't need it.
+- **"Wiped before the end" counts the reunions** for a game that's over at the finale (the replays look at every episode to the
+  season's last), so with the winner kept Outlast's wiped share rises (39% → 46%, part of it between runs: Dancing with the Stars,
+  which nothing reshaped, 29% → 35%; the finale's exits empty teams with two
+  reunions still to come). A measure's quirk, not the game's. P5's next measure pass, if "wiped" is ever leaned on.
+- **The Challenge crowns a pair** (Olivia Kaiser and Yeremi Hykel, both "Winner"); `seasonWinner` takes the first it finds,
+  which is enough to end the season. Who the app names as the winner on a pair show (the looks) is for a look at 390, not done here.
+- **A waiver replacement owed after the season's over.** With the finale's winner kept, two Outlast games with weekly waivers
+  (the Challenge's and the Traitors' for two) still have a replacement owed at the reunions: the finale's exits leave teams with
+  someone out, and the waiver week runs after every episode. The harness counts it as a card (no taps). Whether the app shows
+  it on Tonight once a game is over is for a look at 390 (`run the-challenge 41 --only=1 --results=quick-exits --keep`), then
+  the engine lane (`WaiverLogic`), if it does.
+- **The working copy's scripts and tests are LF** after this part's edits (the docs stay CRLF); git stores LF either way
+  (`core.autocrlf`), so the commit's diff is clean.

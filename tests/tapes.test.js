@@ -284,3 +284,14 @@ test("a season whose full research gave up unanswered holds its other episodes' 
   // A failed try that isn't the last (no gaveUp) holds nothing: the queue asks it again.
   assert.equal(T.fullHeld([full(1, { answer: "" })]), null);
 });
+
+test("a series whose cast is its TV listing's (every season's crew) holds its questions about people; a staged cast doesn't", () => {
+  const listing = { kind: "cast", ok: true, parsed: { fromListing: true }, message: "Looks right: 40 in the cast (from the listing, no question)" };
+  assert.equal(T.castHeld(listing, "series"), true);
+  // A competition whose cast came with no question (the rules answer had it) isn't a series' listing.
+  assert.equal(T.castHeld(listing, "competition"), false);
+  assert.equal(T.castHeld({ kind: "cast", ok: true, parsed: { castaways: [{ name: "Ann Lee" }] } }, "series"), false);
+  // No cast yet, or one that failed: the queue's own rules (a season waits for its cast) apply, not this hold.
+  assert.equal(T.castHeld(null, "series"), false);
+  assert.equal(T.castHeld({ kind: "cast", ok: false, parsed: { fromListing: true } }, "series"), false);
+});

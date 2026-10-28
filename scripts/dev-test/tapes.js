@@ -124,14 +124,31 @@ function planJobs({ shows = SHOWS, episodesOf, words = [], only = null, kinds = 
 
 /**
  * The episode whose full research gave up with no answer at all (three tries timed out), or null. Its season's other full
- * research waits behind it: Below Deck 12's crew of 40 from every season (P1's Noticed) makes a 47,000-character prompt the
- * local bot never answered in 420 s, and three tries and the backoffs after each would hold the rest of the queue (the words
- * corpus) for a day. Delete that episode's e<NN>-full.json to ask again. `files` is readTape's. Pure.
+ * research waits behind it: three tries and the backoffs after each, for every episode, would hold the rest of the queue (the
+ * words corpus) for a day. Built when Below Deck 12's 47,000-character prompt had no reply in 420 s; that was the bot's
+ * ChatGPT profile, capped from 07:43 UTC on 2026-10-28, not the prompt (a fresh profile answered it in 52 s). Delete that
+ * episode's e<NN>-full.json to ask again. `files` is readTape's. Pure.
  */
 function fullHeld(files) {
   const stuck = files.filter((f) => f.kind === "full" && f.gaveUp && !String(f.answer || "").trim()).sort((a, b) => a.episode - b.episode);
   return stuck.length ? stuck[0].episode : null;
 }
+
+/**
+ * Whether a season's questions about its people wait for its cast: a series' cast taken from its TV listing (the cast
+ * record's `fromListing`, Make it a game asking no cast question, on a season whose rulebook is a series: make-game.ts
+ * listingCast) is every season's crew, 40 people for Below Deck 12 with 3 of its own (PLAYTEST-REPORT.md finding 10). Each
+ * full research, trivia and bingo prompt would ask about people who aren't on the season, to be asked again once a season
+ * cast is staged. The quick checks go on (who left, in the show's own words), and what's on tape stays (Below Deck 12's
+ * episodes 1 and 2, as the evidence). To lift it, stage the season's cast by hand (CAST_HELD_HOW). `cast` is season-cast.json's
+ * record, `kind` the season's rulebook kind (season.json's rulebook.kind). Pure.
+ */
+function castHeld(cast, kind) {
+  return !!(cast && cast.ok && cast.parsed && cast.parsed.fromListing && kind === "series");
+}
+const CAST_HELD_KINDS = ["full", "trivia", "bingo", "bingo-season", "recaps"];
+const CAST_HELD_HOW =
+  "stop the recorder, move season-cast.json to season-cast.listing.json, delete the season's season_cast rows, tapes.js one <show> <season> cast (the cast import), delete its e<NN>-full.json, start the recorder";
 
 /** How long to wait (ms) after `failures` failures in a row: 5, 15, then 60 minutes. Pure. */
 function backoffMs(failures) {
@@ -774,11 +791,20 @@ function nextJob(opts) {
   const jobs = planJobs({ episodesOf: episodesOnTape, words: wordsIds(), only: opts.only, kinds: opts.kinds });
   const stuck = new Set();
   const held = new Map();
+  const byCast = new Map();
   for (const job of jobs) {
     if (onTape(job)) continue;
     const season = `${job.show}/${job.season}`;
     if (stuck.has(season)) continue;
-    // A season whose full research gave up unanswered: its other episodes' full research waits (fullHeld).
+    // A series whose cast is its listing's: its questions about its people wait (castHeld). A season whose full research
+    // gave up unanswered: its other episodes' full research waits (fullHeld).
+    if (CAST_HELD_KINDS.includes(job.kind)) {
+      if (!byCast.has(season)) {
+        const dir = dirOf(job.show, job.season);
+        byCast.set(season, castHeld(readJson(path.join(dir, "season-cast.json")), (readJson(path.join(dir, "season.json")) || {}).rulebook?.kind));
+      }
+      if (byCast.get(season)) continue;
+    }
     if (job.kind === "full") {
       if (!held.has(season)) held.set(season, fullHeld(readTape(job.show, job.season).files));
       if (held.get(season) !== null) continue;
@@ -913,7 +939,10 @@ function status() {
       lines.push(
         `${show.key} ${season}: ${n == null ? "?" : n} episode(s); ${own.join(", ") || "no season questions"}; quick ${count("quick")}, full ${count("full")}, trivia ${count("trivia")}, bingo ${count("bingo")}` +
           (failed ? `; ${failed} given up` : "") +
-          (fullHeld(tape.files) !== null ? `; full research held: episode ${fullHeld(tape.files)}'s gave up unanswered (delete its e${pad(fullHeld(tape.files))}-full.json to ask again)` : "")
+          (fullHeld(tape.files) !== null ? `; full research held: episode ${fullHeld(tape.files)}'s gave up unanswered (delete its e${pad(fullHeld(tape.files))}-full.json to ask again)` : "") +
+          (castHeld(tape.files.find((f) => f.kind === "cast"), tape.season && tape.season.rulebook && tape.season.rulebook.kind)
+            ? `; full research, trivia and bingo held: its cast is the TV listing's, every season's crew (finding 10; to ask them: ${CAST_HELD_HOW})`
+            : "")
       );
     }
   }
@@ -1043,7 +1072,7 @@ async function main() {
   console.log("Usage: node scripts/dev-test/tapes.js record|plan|status|one|load|unload (see the header comment)");
 }
 
-module.exports = { SHOWS, TRIES, planJobs, fullHeld, backoffMs, looksLimited, holdFor, journalLine, nameOf, keyOf, asksOf, pickAnswer, hashOf, readTape, answerer, TAPES };
+module.exports = { SHOWS, TRIES, planJobs, fullHeld, castHeld, backoffMs, looksLimited, holdFor, journalLine, nameOf, keyOf, asksOf, pickAnswer, hashOf, readTape, answerer, TAPES };
 
 if (require.main === module) {
   main()
