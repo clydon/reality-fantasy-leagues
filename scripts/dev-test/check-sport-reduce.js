@@ -9,10 +9,14 @@
 //
 //   node scripts/dev-test/check-sport-reduce.js --league=baseball/mlb --from=2026-09-01 [--days=3] [--max=40]
 //   node scripts/dev-test/check-sport-reduce.js --league=baseball/mlb --events=401907924,401907963
+//   node scripts/dev-test/check-sport-reduce.js --league=football/nfl --weeks=5-8 [--season=2026] [--seasontype=2] [--max=80]
+//   node scripts/dev-test/check-sport-reduce.js --league=football/nfl --weeks=1-5 --season=2025 --seasontype=3
 //        [--cache=<dir>] [--verbose]
 //   (any league a sport reads: basketball/nba, basketball/wnba, hockey/nhl ...)
 //
-// --from/--days: the finished games on those days' scoreboards (ESPN's days), at most --max; --events: just these. --cache keeps
+// --from/--days: the finished games on those days' scoreboards (ESPN's days), at most --max; --weeks: football's weeks instead
+// (its scoreboards go by week; --season and --seasontype with it, and --groups=80 for college football's FBS games once a sport
+// reads it); --events: just these. --cache keeps
 // each finished answer as a file (default: rfl-espn-cache in the OS temp folder: a final game, a day whose games are all over),
 // so running it again asks ESPN nothing. Prints each game
 // OK or its differences (with the reader's notes under --verbose), then a total; exits 1 on any difference.
@@ -49,6 +53,19 @@ const dayOver = (b) => (b.events ?? []).length > 0 && b.events.every((e) => e.st
 async function events() {
   if (args.events) return String(args.events).split(",").filter(Boolean);
   const out = [];
+  // Football's scoreboards go by week: a season (its year), a season type (2 the regular season, 3 the postseason) and its
+  // weeks, "5-8" or "7"; college football's only list its FBS games with groups=80.
+  if (args.weeks) {
+    const [a, b] = String(args.weeks).split("-").map(Number);
+    const season = args.season || "2026";
+    const type = args.seasontype || "2";
+    for (let w = a; w <= (b || a) && out.length < Number(args.max || 40); w++) {
+      const groups = args.groups ? `&groups=${args.groups}` : "";
+      const board = await get(`${SITE}/${league}/scoreboard?dates=${season}&seasontype=${type}&week=${w}${groups}&limit=300`, `${league.replace("/", "-")}-board-${season}-${type}-${w}${args.groups ? `-g${args.groups}` : ""}.json`, dayOver);
+      for (const e of board.events ?? []) if (e.status?.type?.completed) out.push(String(e.id));
+    }
+    return out.slice(0, Number(args.max || 40));
+  }
   const from = new Date(`${args.from || "2026-09-01"}T12:00:00Z`);
   for (let d = 0; d < Number(args.days || 1); d++) {
     const day = new Date(from.getTime() + d * 86400000).toISOString().slice(0, 10).replace(/-/g, "");

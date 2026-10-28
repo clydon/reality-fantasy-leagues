@@ -414,8 +414,8 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   fixtures and tests (the user's two examples among them). The sports parts of the spec (`score.by: stats`, the sports
   settles, the default specs) once master has A2.
   - **Split in three (2026-10-28):** part 1, the framework with baseball (built: As built below); part 2, basketball, hockey
-    and football on it (basketball and hockey built: As built below; football, whose plays are text only, in a session of its
-    own); part 3, games straight from ESPN's schedule as a season of their own, finals and odds stored (the migration,
+    and football on it (all three built: As built below; football, whose plays are text only, in a session of its own);
+    part 3, games straight from ESPN's schedule as a season of their own, finals and odds stored (the migration,
     HOSTING.md) and the 76ers example's game from the schedule (its recorded game is part 2's fixture).
 - **L2. The live clock.** The phone's poller and `GameClock` (live, synced, snapped), shared with A15; fake-espn replaying a
   recorded game in real time or 60x; HOSTING.md.
@@ -627,6 +627,114 @@ nothing stored).** Football, whose plays are text only, is part 2's next session
   one, a walk charged to the wrong reliever, one more steal only the team total has. They're counts, not the scorer's calls,
   so they matter for L3's live points: fix them with those days as the check's (`--from=2026-05-12 --days=3`, cached). (L1,
   after football.)
+
+**L1 part 2 as built: football (2026-10-28, `sports`, not merged; no migration, no ESPN calls from the app, nothing
+stored).** Part 2 is done: L1 part 3 (games from ESPN's schedule) is next, or L2.
+- **`Football`** (`football.ts`; **the NFL only**: college football's plays are another grammar, below), registered in
+  `index.ts` with `defenseId` exported. Positions as ESPN's rosters say them (QB RB FB WR TE OT G C OL; DE DT NT DL LB CB S
+  DB; PK P LS; DEF, the team defense) in offense, defense, kicking and team; four quarters ("2nd quarter, 5:32", "overtime");
+  **weekly locks**. Stat keys, unique in the sport: passing CMP PATT PYDS (gross, as a passer's line) PTD INT SACKED SACKYDS,
+  NPYDS (net) worked out, CMP% YPA; rushing RATT RYDS RTD, YPC; receiving REC RECYDS RECTD TGT, YPR; two-point P2PT R2PT
+  RE2PT and 2PT (Yahoo's: the passer and the catcher both); fumbles FUM FUML FREC FRTD; defense TCK SOLO SACK (halves)
+  TFL PD QBH DTD FF SAF BLKK; interceptions DINT DINTYDS DINTTD; returns KR KRYDS KRTD PR PRYDS PRTD, RETTD; kicking FGM FGA,
+  **made by distance** FGM0 FGM20 FGM30 FGM40 FGM50 (from the plays: ESPN's box has only totals), XPM XPA, FGMISS XPMISS
+  KPTS FG%; punting PUNT PUNTYDS PUNTTB PUNTIN20, PUNTAVG.
+  - **The team defense is a line of its own per side** (`def:<ESPN team id>`, Yahoo's DEF): DSTG (its game, so a shutout
+    still has a line), DSTSACK DSTINT DSTFR (the other side's fumbles it recovered, a muffed punt's too) DSTTD (defense and
+    special teams touchdowns) DSTSAF DSTBLK, and PA, **points allowed as Yahoo counts them** (not a safety, a turnover's
+    return touchdown or a defensive two-point return; a kick's or punt's return touchdown is), with Yahoo's brackets PA0
+    PA1_6 ... PA35 worked out from it. The box score gives each side's DEF its sacks, interceptions, the other side's fumbles
+    lost and ESPN's "Defensive / Special Teams TDs"; safeties, blocks and points allowed only the plays say. Checked on 236
+    team defenses: never more allowed than the other side scored, the gaps exactly their return touchdowns and safeties.
+  - **Known at the final: nothing** (every count ESPN's box has, the plays carry). **Judged** (the stat crew's calls, which
+    ESPN's box makes otherwise after the play: it splits a sack the text gives one player, or counts a tackle, a tackle for
+    loss, a hit or a target the text doesn't name): **TGT, TCK, SOLO, SACK, TFL, PD, QBH, FF, DSTSACK**.
+- **The box score**: its ten tables by name and label (only the columns a table has, zeros kept; "27/40" and "2-11" two counts
+  each); no positions (ESPN's NFL box has none: the roster's say); the team's totals (completions, attempts, net passing
+  yards, sacks, interceptions, carries, rushing yards, fumbles lost).
+- **The plays** sit in `drives.previous[].plays` (and live `drives.current`, read once); each Play's unit is its drive, its team
+  the side with the ball at the snap, its score ESPN's after it (which never goes down: ESPN gives a two-minute warning 0-0).
+  They're text only, read sentence by sentence: names become placeholders, each matched on the side its place says (the
+  passer, runner and receiver the offense's, tacklers the other side's, a kick's returner the receiving side's, "RECOVERED by
+  ATL-G.Dexter" whoever ATL is), by first-name letters and last name ("Bi.Robinson", "A.St. Brown", "J.van den Berg", a
+  suffix dropped, a hyphenated name's first part: "S.Joseph" is Sebastian Joseph-Day), else by last name alone on that side (a
+  box score's nickname: "Bam Knight" is "Z.Knight"). **The text's team codes are the league's** (HST, BLT, CLV, ARZ, LA, WAS),
+  learned per game from its kickoffs; spots are placed from the home side's goal line, as ESPN's `start.yardLine` is.
+  - **Tackles**: "(A)" solo, "(A; B)" shared, "(A, B)" A's with B's help (A solo); a tackle for loss the first tackler's
+    when the play ends behind the line; "[A]" a hit on the quarterback, and a sacker's unless he fumbled or ran out ("sacked
+    ob"); "sack split by A and B" half each, no tackle for loss; a pass defended from "incomplete ... (A)" and the
+    interceptor's.
+  - **Yards as ESPN's box counts them** (each rule from the data, checked on every case seen): a spot foul by the side with the
+    ball behind where its gain ended counts the gain to the spot (a return's too, and a negative return whose foul is at the
+    catch counts nothing); "TOUCHDOWN NULLIFIED by Penalty" is no touchdown but the run to the foul's spot; a fumble the other
+    side (or a teammate) got counts to where it was first touched or recovered, but never past the fumble spot when that was a
+    gain, while the fumbler's own recovery moves it either way, and one out of bounds forward comes back to its spot (the
+    rules'); a sack's yards with a fumble are to where the other side first touched it, or where the play ended for the
+    quarterback's side, never a gain; a lateral's yards are the second man's and all the passer's, the catch the first's;
+    a punt's yards run to "impetus ends at", and on a muff on to where the ball ended when that's farther; "inside the 20" is
+    where the ball ended, a receiving side's foul during the return ending it at the foul's spot.
+  - **ESPN's quirks, handled**: the quarter's last play recorded twice (the next play from scrimmage starts at the same down
+    and spot: the first is left out); a fumbled snap told as a move ("C.Stroud to HST 11 for -5 yards. FUMBLES, and recovers")
+    isn't a run when a pass or sack follows; an aborted snap is the quarterback's carry for no gain, from the line when he runs
+    with it, never below nothing; a muffed punt is a fumble and a return of nothing (a kickoff's kept isn't a fumble, but is a
+    return); a blocked punt isn't a punt; "Illegal Forward Pass" isn't an attempt; "Fumble Forced by 55-D.Hunter" moves the
+    forced fumble; a reversed call reads what follows "REVERSED."; replay, injury and "reported in" notes are skipped; a
+    scoring play ESPN tells only as a summary with full names ("Dallas Goedert 9 Yd pass from Jalen Hurts (Jake Elliott
+    Kick)") and the phrases it writes when the league's text is missing ("Kirk Cousins Pass Complete for 5 Yds to Michael
+    Mayer", "Incomplete Pass, Intended For", "Team Safety") are read for what they say.
+- **Defaults as data** (`defaults/football.json`): **Yahoo's default half-PPR** (help.yahoo.com/kb/SLN6489.html): PYDS 0.04,
+  PTD 4, INT −1, RYDS 0.1, RTD 6, REC 0.5, RECYDS 0.1, RECTD 6, RETTD 6, FRTD 6, 2PT 2, FUML −2; kickers FG 0-39 3, 40-49 4, 50+
+  5, XPM 1; team defense sack 1, interception 2, fumble recovery 2, touchdown 6, safety 2, blocked kick 2, points allowed 0: 10,
+  1-6: 7, 7-13: 4, 14-20: 1, 21-27: 0, 28-34: −1, 35+: −4. No categories (Yahoo's football is points). Yahoo's roster: QB, 2 WR,
+  2 RB, TE, W/R/T, K (takes PK), DEF, 6 bench; weekly; `season` drafts 15 and starts 9 head to head, `short` drafts 3, all count.
+- **Fixtures** (`record-espn.js` keeps football's drives, only the fields the reader reads, one drive a line: 74-80 KB from
+  ~570 KB): 49ers at Falcons 2026-10-25 (`nfl-401873017.json`) and Cardinals at 49ers 2026-09-27 (`nfl-401872958.json`). No
+  college fixture: college isn't read (below).
+- **Checks.**
+  - `tests/sports-football.test.js` (16): the vocabulary, derived and rate stats (points allowed's brackets), the names and
+    sentences, the box score, **the proof** on each recorded game (471 and 458 numbers: the plays alone come to ESPN's box
+    score, every team total and the score, with no notes; the second's only differences four of the crew's tackles), the plays
+    (a sack, shared and helped tackles, an interception, a spot foul, a lateral, a fumble short of the catch's end, an aborted
+    snap), the 49ers' quirks (a lateral touchdown, a nullified touchdown, a muffed punt, a play recorded twice), `stateAt` at
+    the half, the final's correction (only judged stats in it; with it every number; a live game has none, its current drive
+    read once), and on made-up games the fumble and snap rules, the scoring summaries and phrases, two points, a pick-six and a
+    safety and the points allowed, sacks, tackles, punts and kickoffs, whose a safety or a muff's touchdown is, a name on its
+    own side; the defaults.
+  - `check-sport-reduce.js` takes `--weeks`, `--season`, `--seasontype` (and `--groups` for college once read). On real NFL
+    games: **weeks 3-7, 62 of 75; the 2025-26 playoffs, 11 of 14; weeks 1-2, 22 of 32** (15 of 32 on its first run there, before
+    the phrases only those weeks had): **95 of 121, ~22,300 plays**, with a judged count otherwise in 91 (tackles in most;
+    settled at the final), and **with the final's correction every game equals ESPN's box on every number**. The 26 left are
+    ESPN's own: 3 games with no box score at all (one the Pro Bowl), ~14 one-yard differences where its box was corrected after
+    the game but the play's text wasn't, fumbles and a sack no text describes (summary-only plays, three fumbles), an aborted
+    snap credited to the back who picked it up (in another game to the quarterback), a punt typed "-12 yards" (38 in the box).
+  - 887 unit tests; `tsc` clean; eslint clean on `src/lib/sports`.
+  - `/code-review` on the diff (its fixes: a safety on a return is the kicking side's; a muff the coverage recovers and scores
+    is its defense and special teams' touchdown, not an offensive fumble return; a phrase's fumble a teammate recovered isn't
+    lost; a name looked up on its own side by last name before the other side exactly; a two-point pass only when complete,
+    and a defensive two-point return's 2 points; one penalty regex; the check's `--weeks` stops at `--max`; the recorder's play
+    count with a live drive).
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data (the dev check asked ESPN ~170 times,
+    every finished answer cached).
+
+**L1 part 2 (football) noticed, not fixed:**
+- **College football isn't read**: its plays are another grammar ("#12 K.Russell pass complete short right to #40 J.Ford caught
+  at ALA40, for 16 yards to the ALA41 (#7 D.Brooks), 1ST DOWN", "QB hurried by"), all 30 games checked, and its box has no sacks
+  taken or targets, "QB HUR" for hits and half tackles for loss. A `CollegeFootball` reader on Football's vocabulary and box
+  reader, its own text grammar. (L5, with college.)
+- **A one-yard difference ESPN corrected after the game** (~14 lines in 121 games): its box is right and the play's text isn't,
+  so a live point can be a tenth off until the final settles it. (L3, nothing to do but the final.)
+- **A box score ESPN never filled in** (3 of 121 games, tables named "xfl", "nfl", "ufl" with no one in them): no final's
+  correction is possible; the plays would have to be the final. (L3, when it saves a final: fall back to the plays.)
+- **Plays only the plays carry**: forced fumbles, safeties, blocked kicks, offensive fumble return touchdowns, two-point
+  conversions, field goals by distance and points allowed have no ESPN number to prove them against; they're checked on
+  made-up plays and (points allowed) the 236 defenses' sanity check. The Yahoo points that read them can't be proven against
+  a box. (L3.)
+- **A team defense needs a cast entry**: its line is `def:<team>`, so a game's cast needs one per team for a DEF slot
+  (`season_cast.provider_ids.espn = "def:12"`). (L4, with slots.)
+- **Live drives are untested**: every check is on finished games; `drives.current` is read but never seen live. (L2.)
+- **A muffed punt's foul** (a holding call at the recovery spot): ESPN kept the return whole and the punt where it was, the one
+  such case seen; the reader does too. Rare. (L3.)
+- **Baseball's reader on days part 1 didn't tune it on** is still open (above): not taken this session.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

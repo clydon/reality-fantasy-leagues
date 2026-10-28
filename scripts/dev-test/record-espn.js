@@ -1,7 +1,7 @@
 // Dev-only: records a finished game's ESPN summary as a test fixture (tests/fixtures/espn/; docs/PLAN-start-a-game-gpt.md track L,
 // step L1), trimmed to what the sports' readers read (src/lib/sports/): the header (teams, score, status, a hockey game's
 // goalies of record), the box score's tables and team totals, ESPN's line before the game, and the plays with their times,
-// periods, people and the fields each sport's reader uses (PLAYS, by ESPN's sport slug). A raw summary is ~0.5-1 MB (pitch
+// periods, people and the fields each sport's reader uses (PLAYS, by ESPN's sport slug; football's sit in its drives). A raw summary is ~0.5-1 MB (pitch
 // coordinates, win probability, news, videos); a trimmed one 150-230 KB. One real call (or none, from the cache
 // check-sport-reduce.js keeps); no app server, no database.
 //
@@ -62,6 +62,8 @@ const KEEP = {
   pickcenter: [{ provider: { name: true }, details: true, overUnder: true, spread: true }],
   // The play fields each sport's reader reads (its ESPN sport slug; a sport not here keeps them all).
   plays: null,
+  // Football's plays sit in its drives (the finished ones, and live the one going on): set below for football.
+  drives: null,
 };
 
 const PLAY = { id: true, type: { type: true }, text: true, period: { type: true, number: true }, wallclock: true, participants: [{ athlete: { id: true }, type: true }] };
@@ -73,9 +75,19 @@ const PLAYS = {
   basketball: { ...CLOCKED, type: { id: true, text: true }, participants: [{ athlete: { id: true } }], shootingPlay: true, pointsAttempted: true },
   // Hockey by its type's abbreviation (a penalty's minutes), its people's roles, and a goal's strength and net.
   hockey: { ...CLOCKED, type: { id: true, text: true, abbreviation: true, penaltyMinutes: true, penaltyType: true }, participants: [{ athlete: { id: true }, type: true }], strength: { abbreviation: true }, shotInfo: { abbreviation: true } },
+  // Football reads a play's text (its people are only there), the score after it, and who had the ball on which down where.
+  football: { id: true, type: { text: true }, text: true, awayScore: true, homeScore: true, period: { number: true }, clock: { displayValue: true }, wallclock: true, start: { team: { id: true }, down: true, distance: true, yardLine: true } },
   any: { ...PLAY, awayScore: true, homeScore: true, clock: { displayValue: true }, scoringPlay: true, scoreValue: true, team: { id: true } },
 };
-KEEP.plays = [PLAYS[league.split("/")[0]] ?? PLAYS.any];
+const sportSlug = league.split("/")[0];
+if (sportSlug === "football") {
+  const drive = { id: true, team: { id: true }, plays: [PLAYS.football] };
+  KEEP.drives = { previous: [drive], current: drive };
+  delete KEEP.plays;
+} else {
+  KEEP.plays = [PLAYS[sportSlug] ?? PLAYS.any];
+  delete KEEP.drives;
+}
 
 function trim(value, shape) {
   if (shape === true || value == null) return value;
@@ -110,15 +122,21 @@ function trim(value, shape) {
     _recorded: { league, event, from: `site.api.espn.com/apis/site/v2/sports/${league}/summary?event=${event}`, at: new Date().toISOString().slice(0, 10), ...(args.note ? { note: args.note } : {}), by: "scripts/dev-test/record-espn.js" },
     ...trim(summary, KEEP),
   };
-  // Each part on a line of its own, and each play: small diffs when it's recorded again.
+  // Each part on a line of its own, and each play (football's: each drive): small diffs when it's recorded again.
   const plays = trimmed.plays ?? [];
+  const drives = trimmed.drives ?? null;
   delete trimmed.plays;
+  delete trimmed.drives;
   const parts = Object.entries(trimmed).map(([k, v]) => ` ${JSON.stringify(k)}: ${JSON.stringify(v)}`);
-  const body = `{\n${parts.join(",\n")},\n "plays": [\n${plays.map((p) => `  ${JSON.stringify(p)}`).join(",\n")}\n ]\n}\n`;
+  const tail = drives
+    ? ` "drives": {\n  "previous": [\n${(drives.previous ?? []).map((d) => `   ${JSON.stringify(d)}`).join(",\n")}\n  ]${drives.current ? `,\n  "current": ${JSON.stringify(drives.current)}` : ""}\n }`
+    : ` "plays": [\n${plays.map((p) => `  ${JSON.stringify(p)}`).join(",\n")}\n ]`;
+  const body = `{\n${parts.join(",\n")},\n${tail}\n}\n`;
   JSON.parse(body);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, body);
-  console.log(`${path.relative(process.cwd(), out)}: ${plays.length} plays, ${(body.length / 1024).toFixed(0)} KB (from ${(JSON.stringify(summary).length / 1024).toFixed(0)} KB)`);
+  const count = drives ? [...(drives.previous ?? []), ...(drives.current ? [drives.current] : [])].reduce((n, d) => n + (d.plays ?? []).length, 0) : plays.length;
+  console.log(`${path.relative(process.cwd(), out)}: ${count} plays, ${(body.length / 1024).toFixed(0)} KB (from ${(JSON.stringify(summary).length / 1024).toFixed(0)} KB)`);
 })().catch((e) => {
   console.error(e.message);
   process.exit(1);

@@ -1,21 +1,24 @@
 // The sports (docs/PLAN-start-a-game-gpt.md track L): one class per sport, found by ESPN's sport slug, the first half of a
 // league's path ("baseball" of "baseball/mlb", and of "baseball/college-baseball"; "basketball" of "basketball/nba" and
-// "basketball/wnba", but not college basketball, which plays halves: a sport can name the leagues it reads). Football joins in
-// L1 part 2's next session; soccer, golf, racing, MMA and tennis in L5.
+// "basketball/wnba", but not college basketball, which plays halves: a sport can name the leagues it reads; "football" of
+// "football/nfl", not college football, whose plays are written otherwise). Soccer, golf, racing, MMA and tennis come in L5.
 import { Baseball } from "./baseball";
 import { Basketball } from "./basketball";
+import { Football } from "./football";
 import { Hockey } from "./hockey";
 import baseballDefaults from "./defaults/baseball.json";
 import basketballDefaults from "./defaults/basketball.json";
+import footballDefaults from "./defaults/football.json";
 import hockeyDefaults from "./defaults/hockey.json";
 import type { LockCadence, TeamSport } from "./sport";
 
 export * from "./sport";
 export { Baseball } from "./baseball";
 export { Basketball } from "./basketball";
+export { Football, defenseId } from "./football";
 export { Hockey } from "./hockey";
 
-const SPORTS: TeamSport[] = [new Baseball(), new Basketball(), new Hockey()];
+const SPORTS: TeamSport[] = [new Baseball(), new Basketball(), new Football(), new Hockey()];
 
 /** The sport by its id ("baseball"), or null for one not built yet. */
 export function sportById(id: string): TeamSport | null {
@@ -59,6 +62,7 @@ export interface SportDefaults {
 const DEFAULTS: Record<string, SportDefaults> = {
   baseball: baseballDefaults as SportDefaults,
   basketball: basketballDefaults as SportDefaults,
+  football: footballDefaults as SportDefaults,
   hockey: hockeyDefaults as SportDefaults,
 };
 

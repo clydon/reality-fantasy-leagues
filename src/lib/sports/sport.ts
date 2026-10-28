@@ -189,6 +189,15 @@ export interface EspnSummary {
     players?: { team?: EspnTeam; statistics?: EspnTable[] }[];
   };
   plays?: EspnPlay[];
+  /** Football's plays sit in its drives: the finished ones, and live, the one going on. */
+  drives?: { previous?: EspnDrive[]; current?: EspnDrive };
+}
+
+/** A football drive: its team (the offense) and its plays, in order. */
+export interface EspnDrive {
+  id?: string | number;
+  team?: { id?: string | number; abbreviation?: string };
+  plays?: EspnPlay[];
 }
 
 export interface EspnTeam {
@@ -241,6 +250,9 @@ export interface EspnPlay {
   // Hockey's: the scoring or shooting side's strength ("power-play"), and the net ("empty-net").
   strength?: { abbreviation?: string };
   shotInfo?: { abbreviation?: string };
+  // Football's: who had the ball when it began, on which down and distance, and where (yardLine: from the home side's goal
+  // line).
+  start?: { team?: { id?: string | number }; yardLine?: number; down?: number; distance?: number };
 }
 
 export const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : typeof v === "number" && Number.isFinite(v) ? String(v) : null);
