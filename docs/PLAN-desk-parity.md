@@ -65,7 +65,14 @@ can change someone's site role or ban them; that stays out until it's needed.
    sorted (newest, last active, name). A person's page: Act as them (decision 1), Approve, Reset password (a temporary one,
    shown once), Edit name and email, Stop them signing in and let them back (decision 6), their couches and games with each
    seat's role (change, unlink), Delete account last (decision 4; what it does to their seats said first; tier 3, hold to
-   confirm). No new account (decision 5). Who gets in lets them in from the desk.
+   confirm). No new account (decision 5). Who gets in lets them in from the desk. **Hand on** (from the user's review of the
+   mock): when the account's owner is a game's only Commissioner, the delete says so and hands the games on first: one person
+   for them all (only someone who plays every one) or game by game, most active first; tier 1 with Undo, the new Commissioner
+   told. The same sheet serves a seat ("runs it alone"), step 2's couch nobody runs and step 6's game page.
+   **Find › Browse** (the user, 2026-10-28: "something for everything that's searchable"): Find lists every kind it searches,
+   each opening a list like People's (search, filters, sort, paging): People here, Reports with step 2, Couches and Games
+   (with Deleted: restorable for 30 days, with Restore) with step 6, Shows with step 7, and the Library as it is. Seasons,
+   episodes, castaways and results stay inside their show; the search finds them.
 2. **Inbox catches up.** Reports (read, mark done, open the game or screen it came from), accounts waiting, results waiting for
    review (an episode's, all at once), casts pulled and not approved, airing seasons with no schedule, and Coming up (the next
    episode of each airing season, and whether research will run on its own).
