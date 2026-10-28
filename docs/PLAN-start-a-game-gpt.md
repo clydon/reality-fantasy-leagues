@@ -916,9 +916,11 @@ three days. The loops stop at 90% of the week, so the user's own sessions keep t
   `merge-engine`), and the desk's build as a lane once its first designs are approved. That evening, with A8 done, the user
   sent the engine on through A9–A14 overnight, one fresh session a step, stopping before A15 (the watch along's concept is
   still open). A step that needs the user partway leaves its question in its Noticed, and the next step goes on.
-- **No push on an episode night** (the user, 2026-10-28). A push to master deploys production and runs its migrations, so
-  nothing ships on the evening of an episode the couch plays (Survivor 51: Wednesdays, 8 PM ET). The A1–A4 merge moved to
-  2026-10-29, after that night's results are accepted and the test couch is compared.
+- **No big merge on an episode night** (the user, 2026-10-28). A push to master deploys production and runs its migrations,
+  so a big merge or a migration doesn't ship on the evening of an episode the couch plays (Survivor 51: Wednesdays, 8 PM
+  ET). The A1–A4 merge moved to 2026-10-29, after that night's results are accepted and the test couch is compared. A small
+  push that's been checked is the user's call: that evening, before the episode, they pushed four small app files (no
+  migrations).
 The main session records each switch here.
 
 **The rules that keep the quality:**
