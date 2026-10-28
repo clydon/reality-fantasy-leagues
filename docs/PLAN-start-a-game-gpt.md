@@ -39,6 +39,9 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Where the GPT starts (2026-10-28) | **On a show's page**, the show and season known. The bot drafts the spec from a context pack and the engine's manual; our check decides. |
 | Progress (2026-10-28) | **Living tables:** the dials and the stretch requests, each row's status generated from the engine itself (A5), so the user sees what's possible as the engine grows. |
 | Live sports (2026-10-28) | **Folded into this plan** ("Live sports in the same engine"): one engine for shows and sports. The difference is when results arrive: a sport's live, play by play, a show's after the episode. The sports plan's own decisions stand. |
+| Mechanics the players decide (2026-10-28) | **Allowed** (the user's hunch, Claude's call): votes among the players, matching the majority, the top scorer's twist, a rotating host, secret roles, bounties. Guardrails: facts about the show are still settled only by data (a host's questions must be data-settled; the couch never decides what happened); answers that depend on each other stay hidden until the lock; a player-decided outcome changes the game only, never someone's place on the couch. |
+| Numbers from outside research (2026-10-28) | **Allowed from vetted sources** (the user's hunch, Claude's call): free, with terms that allow it (TVmaze's episode ratings, ESPN's stats), settled once at a fixed moment (a rating seven days after airing) and stored, because outside numbers drift. A new source goes into HOSTING.md first. |
+| The engine lab (2026-10-28) | **Yes**, in A5: an admin-only, plain page on the desk for trying the engine's pieces before the UI exists. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -332,14 +335,11 @@ when, what settles it, how it scores, how you win.
   standings can be worked out at anyone's moment (`stateAt(t)`, as the sports plan does it).
 
 **In what order:** the engine track in Steps (A5–A14): the tracker first, then what most pieces stand on (who and each, time,
-answers), then scoring, pools and drafts, winning and groups, stages, trivia, and last the players' own mechanics, which wait on
-the first open question below.
+answers), then scoring, pools and drafts, winning and groups, stages, trivia, and last the players' own mechanics (allowed, with
+guardrails: below).
 
-**Open questions for the user:**
-- Game mechanics the players decide, rather than facts about the show (the group votes someone out, matching the majority, the
-  top scorer's twist, a rotating host's questions): allowed? Claude's reading is yes, since "only what data can settle" is
-  about what happened on the show; the host's questions would still have to be ones data settles.
-- Numbers from outside the show's research (an episode's IMDb rating): fair game, or only what research records?
+**Decided 2026-10-28** (Decisions, above): mechanics the players decide are allowed, with guardrails; numbers from outside
+research are allowed from vetted sources, settled once at a fixed moment. A14 is planned, no longer waiting.
 
 ## Live sports in the same engine (folded in 2026-10-28)
 
@@ -755,6 +755,10 @@ screens. Each step names the research data it needs and checks the tapes have it
   planned, or ❓ waits on a rule decision. A unit test keeps it honest. Every later step regenerates and commits it, so the git
   history is the progress. **One list:** the playtest lane's words corpus (rewritten for a page) and the stretch requests
   become this file, and G1's bank and the recorder read it, so the requests never drift apart.
+  **The engine lab** (decided 2026-10-28): an admin-only, plain page on the desk (`/desk/lab`, no design work). Pick a season, then
+  paste a spec or pick a tracker request: it shows the validator's verdict (`specProblems`, `specWaitsFor`), the sentence and How
+  it works (`describeSpec`), the tracker row's status, and "Start it as a test game" on a zt- fixture or the test couch. G1 plugs
+  the GPT into it later (words, the draft, our check, the spec), so every piece can be tried as it lands, long before U.
 - **A6. Questions about who and about each.** Person and group answers settled by a moment in the episode ("Which tribe wins
   immunity?", "Who finds an idol?"), from research's per-person moments and each episode's groups (after swaps); one question
   asked of each person still in, an answer per person ("each couple's score"), counting as one of the 12; a person's number
@@ -775,9 +779,10 @@ screens. Each step names the research data it needs and checks the tapes have it
   season of mini-games, a game that scores two ways (bingo lines plus answers), one game across two shows.
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
   and checked as now); episode facts (who said the title quote) through new research questions rated reliable (Our check).
-- **A14. The players' own mechanics**, if the user allows them (the first open question in "Where the engine is headed"):
-  votes among the players, matching the majority, the top scorer's twist, a rotating host's questions (still data-settled),
-  secret roles, bounties, the bot's call as an opponent. Answers stay hidden until the lock once they depend on each other.
+- **A14. The players' own mechanics** (allowed 2026-10-28, with the Decisions table's guardrails): votes among the players,
+  matching the majority, the top scorer's twist, a rotating host's questions (still data-settled), secret roles, bounties, the
+  bot's call as an opponent; and numbers from vetted outside sources (an episode's TVmaze rating, settled once at a fixed
+  moment). Answers stay hidden until the lock once they depend on each other.
 - **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
   `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
   connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
@@ -859,9 +864,9 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
 | Survivor | `../rfl-survivor` | `survivor-data` | `rfl_survivor` | 3001 | S1 → S2 → S3 |
 | Engine | `../rfl-engine` | `engine` | `rfl_engine` | 3002 | A1 → A4, the engine track A5 → A14, then R1 → R3, then U1 |
 | GPT words | `../rfl-gpt` | `gpt` | `rfl_gpt` | 3003 | G1, alongside the engine from A5 (the tracker's requests are its test set) |
-| Sports | `../reality-fantasy-leagues-sports` | `sports` | `rfl_sports` | 3004 | track L: L1 (its spec parts once A2 is on master) and L2 now; L3 and L4 with the engine's pieces; L5; L6 releases it |
+| Sports | `../reality-fantasy-leagues-sports` | `sports` | `rfl_sports` | 3004 | track L: L1 (its spec parts once A2 is on master) and L2 now (**running since 2026-10-28**, in the playtest lane's place); L3 and L4 with the engine's pieces; L5; L6 releases it |
 | Design | the main folder (the mocks in `.impeccable/mocks/` aren't in git) | – | – | – | U0 (last, the sports screens in it): with the user there, never unattended |
-| Playtest | `../rfl-playtest` | `playtest` | `rfl_playtest` | 3005 | docs/PLAN-playtests.md: season tapes (recorded from the local bot) and replays of them (since 2026-10-28) |
+| Playtest | `../rfl-playtest` | `playtest` | `rfl_playtest` | 3005 | docs/PLAN-playtests.md: season tapes (recorded from the local bot) and replays of them (since 2026-10-28). **Its Claude sessions paused 2026-10-28** for the sports lane (its replays had paid off until the engine changes); the recorder keeps recording seasons (not the old-shape words) as a plain script, and its tools merge into master for the engine's golden replays |
 
 **What can run alongside what:**
 
