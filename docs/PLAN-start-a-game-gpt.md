@@ -249,7 +249,8 @@ What these need is in the engine track (Steps: A6, A9, A12, A13).
 ## Where the engine is headed: the dials (a stress test, 2026-10-28)
 
 The user asked to look past today's app and past fantasy leagues ("we have to not think thru the lens of our app ... so we can
-stress test what we aspire the engine to be able to create"). Every watch-along game is a setting on eight dials. The middle
+stress test what we aspire the engine to be able to create"). Every watch-along game is a setting on nine dials (the ninth,
+live, added the same day: games played while watching together, on TV now or later in sync). The middle
 column is what the engine plays after A4; the right one is where it's headed. The engine track (A5–A14 in Steps) builds toward
 it, and A5's tracker keeps this table and the requests below live (`docs/ENGINE-CAPABILITIES.md`), so the user can watch what's
 possible grow.
@@ -264,6 +265,7 @@ possible grow.
 | How you win | highest total, longest streak, last one standing | first to 20 ends it, co-op against the show, head-to-head with playoffs, beat the bot, players knocked out |
 | Who plays with whom | everyone against everyone | teams, co-op, secret roles among the players, a rotating host, handicaps, late joiners |
 | Shape over time | one game, one set of rules, one span | stages (a second draft at the merge), rules per phase, a season of mini-games, carry-over between seasons and shows |
+| Live (watching together, live or later in sync) | nothing inside an episode: a game moves an episode at a time and locks at airtime | the episode's own clock (the watch along's runtime): questions that open and close at a point in it (the halfway mark, the last 10 minutes, before an ad break), a call pinned to when you made it (earlier is worth more), your own clock when you watch later (spoiler-safe, biased late), the couch's live answers replayed as a ghost to play against; sports: a call on every play, settled by ESPN's timestamped plays (this at-bat, the next drive) |
 
 **Requests that push the dials**, typed on a show's page. They join G1's test set as stretch cases: until the engine grows,
 the GPT should answer most of them with a clear can't-yet and the nearest game it can make.
@@ -298,6 +300,22 @@ the GPT should answer most of them with a clear can't-yet and the nearest game i
   - "Seal a winner pick before the premiere; every change costs a point." "A season of mini-games: bingo one week, a draft the
     next." "For 10 random pairs, who outlasts whom?" "Predict the final tribal vote split." "Guess every elimination winner;
     a wrong guess knocks you out" (The Challenge).
+- *Live, with the watch along* (on TV now, or later in sync with the episode's runtime):
+  - "At the halfway mark everyone calls who goes home; it locks at minute 30 of the episode."
+  - "Lock in your boot call any time during the episode; the earlier you call it, the more it's worth."
+  - "With 10 minutes left you get one chance to change your call, for half points."
+  - "Before each ad break, call what happens after it" (live on TV: the watch along's ad-break taps).
+  - "Bet your points on the immunity challenge before it starts; the pot splits between everyone who called it" (Twitch's
+    predictions: a pool, a window of 1 to 30 minutes).
+  - "Quiz cards pop up as we watch; answer each before the next one."
+  - "Bingo by segment: the first line in each segment wins it."
+  - "My sister watched live, we're watching Thursday: we play against her answers as we reach them" (a ghost).
+  - "Only the people watching together right now can play; everyone later just sees how it went."
+  - "Score each dance 1–10 as you watch; closest to the judges wins" (Dancing with the Stars: a lock inside the episode that
+    data can't place, since nothing records when each dance airs).
+  - Sports: "Every at-bat: hit or out?" (YES Network's Pick-N-Play). "Next drive: touchdown, field goal or punt?"
+    (Simplebet's Playbook). "Predict the minute of the first goal." "Our fantasy players' points tick live, head to head."
+    "Replay last night's game in sync and play its live calls as if it were on" (ESPN's timestamped plays).
 
 **The pieces.** To make most of these, presets give way to pieces that combine. A4's question is the seed: what's asked,
 when, what settles it, how it scores, how you win.
@@ -307,6 +325,9 @@ when, what settles it, how it scores, how you win.
 - Scoring that combines: split the pot, the only right answer, roll over, multiply, shrink with time, wager.
 - Winning and groups: a race, co-op, head-to-head, teams, players knocked out.
 - Stages: a game made of phases or mini-games, each with its own rules.
+- Live: a clock inside the episode, shared with the watch along (shows: the runtime; sports: the plays). Questions open and
+  close on it, each viewer's own clock decides their lock and what they're shown, answers carry the moment they were made, and
+  standings can be worked out at anyone's moment (`stateAt(t)`, as the sports plan does it).
 
 **In what order:** the engine track in Steps (A5–A14): the tracker first, then what most pieces stand on (who and each, time,
 answers), then scoring, pools and drafts, winning and groups, stages, trivia, and last the players' own mechanics, which wait on
@@ -419,6 +440,35 @@ screens. Each step names the research data it needs and checks the tapes have it
 - **A14. The players' own mechanics**, if the user allows them (the first open question in "Where the engine is headed"):
   votes among the players, matching the majority, the top scorer's twist, a rotating host's questions (still data-settled),
   secret roles, bounties, the bot's call as an opponent. Answers stay hidden until the lock once they depend on each other.
+- **A15. Live and replay** (with the watch along, docs/PLAN-couch-and-episode-night.md §6, and the sports branch's
+  `GameClock`). It needs A7. The watch along is in its infancy (the user, 2026-10-28): its concept, how it's built and how it
+  connects to games are all open, so A15 is where the games shape it, not only where they plug into it.
+  - **One clock for every game:** episodes (today), the runtime inside an episode (the watch along's clock), and plays (sports,
+    timestamped). A question's opening and closing can name any of them: "minute 30", "the last 10 minutes", "the next ad
+    break" (live TV), "this at-bat".
+  - **Each viewer's clock:** live (now), synced (the watch along: start, pause, nudge, ad breaks) or snapped (sports: tap the last
+    play you saw). A person's lock is their own clock reaching the close, and every answer carries the runtime it was made at,
+    so a call can be worth more the earlier it came.
+  - **Settles stay data.** A runtime-pinned question about a show is settled by research after the episode: what happened, not
+    when. In-episode timing settles only sports, from ESPN's timestamped plays. Show research has no timestamps. The watch
+    along's first concept rejected "moment buttons" (tapping when something happens: spoiler-prone, and nobody does it); they
+    come back only if a game needs them and the user allows players' own mechanics (the first open question).
+  - **What a viewer sees stops at their clock:** other people's answers, results and standings appear as they reach them,
+    biased late (the watch along's 30 s). Someone watching later can play against the couch's live answers, replayed as a
+    ghost at the same runtime.
+  - **Cost:** a show's live answers are small writes; sports' live scoring stays on the phone (the sports plan: nothing reaches
+    our server while a game is live).
+  - **Proof:** taped episodes replayed at 60x with made-up viewers, one live and one a day late, through the playtest lane's
+    replay harness with clocks added: their locks, what each one sees, and their scores.
+  - **What games could ask of the watch along** (ideas, for its redesign):
+    - **A host's clock:** one person's clock drives the room, so a watch party moves together and nobody drifts.
+    - **Games come to you while you watch:** live calls, quiz cards and bingo by segment appear on the watch along at their
+      runtime, instead of in a separate tab.
+    - **The ghost:** later viewers play against the couch's live answers at the same runtime, and see their reactions.
+    - **A heat strip behind you:** where the couch reacted most, drawn only for the part you've already watched.
+    - **Marks the episode itself gives:** opening credits, ad breaks and the end credits as anchors that games can use and a
+      drifting clock can snap to.
+    - **Joining a room late:** you start at the room's clock, and the games' answered questions show as "missed".
 
 **R. Today's games on the new engine** (after the engine track, before the UI).
 - **R1.** Today's five games and their extras (waivers, side bets, finale predictions, calls) rebuilt as compositions of the
@@ -548,6 +598,10 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
   bot is never signed in to a personal account.
 - **A person's own lock time** (watching late) has to stay spoiler-safe: nothing about the episode shows them before it, and
   their lock is still before they watch.
+- **Live games trust the viewer's clock** (A15). Someone can pause, look ahead and answer late. Runtime locks make that a
+  deliberate act rather than an accident, and the stakes stay social (no prizes), as everywhere in the app.
+- **A show's events have no times** in research, so a live window tied to an event ("before tribal", "before the judges score
+  this dance") can only be a runtime guess. The GPT says so and offers a runtime point instead ("the last 10 minutes").
 - **The half-minute wait.** It's always the bot. U0 designs the wait, and the progress stream already exists. Even with the
   queue jump, a busy bot finishes the answer it's on first, which can take up to ~4 minutes.
 - **The bot away** (the VM down, or ChatGPT's page changed): the field says so, and the taps still make every game.
