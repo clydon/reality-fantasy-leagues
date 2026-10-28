@@ -19,12 +19,16 @@
 //                                              refuses while the lane has uncommitted changes
 //   node scripts/lane.js remove <name> --yes   takes the worktree out and drops its database; the branch stays (git branch
 //                                              -d it once it's merged)
+//   node scripts/lane.js memory <name>         links the lane's Claude memory to this folder's (setup does it too):
+//                                              Claude keeps memory per folder (~/.claude/projects/<folder>/memory), so a
+//                                              lane's sessions would otherwise start with none of this project's notes
 //
 // <name> is a lane's branch or its folder's name (engine, rfl-engine, sports). `new` and `setup` run from the main folder
 // (the one on master): they copy its .env.local and its database, and only from a database on localhost. The copy runs
 // inside the local Postgres container (survivor-draft-pg, or LANE_PG_CONTAINER) as the user in AUTH_DATABASE_URL.
 // `start` opens a PowerShell window on Windows; elsewhere it prints the command to run.
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const http = require("http");
 const { spawn, spawnSync } = require("child_process");
@@ -128,6 +132,30 @@ function copyDatabase(user, from, to) {
   console.log(`  database ${to}: a copy of ${from} (${got} tables)`);
 }
 
+// ---- Claude's memory, shared ----
+
+// Claude names a project's folder in ~/.claude/projects after the folder it runs in, every character that isn't a letter
+// or digit a dash (Windows ignores the case). One link per lane, to this folder's memory, so every lane reads and writes
+// the same notes. Only ever a link: removing it never touches the notes.
+const PROJECTS = path.join(os.homedir(), ".claude", "projects");
+const memoryOf = (dir) => path.join(PROJECTS, dir.replace(/[^A-Za-z0-9]/g, "-"), "memory");
+function shareMemory(dir) {
+  const mine = memoryOf(ROOT);
+  if (!fs.existsSync(mine) || fs.lstatSync(mine).isSymbolicLink()) return console.log("  memory: this folder has none to share");
+  const link = memoryOf(dir);
+  if (fs.existsSync(link)) {
+    const same = fs.lstatSync(link).isSymbolicLink() && path.resolve(fs.readlinkSync(link)).toLowerCase() === path.resolve(mine).toLowerCase();
+    return console.log(same ? "  memory: shared already" : `  memory: ${link} exists and isn't a link to this folder's: left as it is`);
+  }
+  fs.mkdirSync(path.dirname(link), { recursive: true });
+  fs.symlinkSync(mine, link, "junction");
+  console.log("  memory: linked to the main folder's (Claude's notes for this project)");
+}
+function unshareMemory(dir) {
+  const link = memoryOf(dir);
+  if (fs.existsSync(link) && fs.lstatSync(link).isSymbolicLink()) fs.unlinkSync(link);
+}
+
 // ---- commands ----
 
 function checkPort(port, dir) {
@@ -153,6 +181,7 @@ function setup(lane, name, port) {
   fs.writeFileSync(path.join(lane.dir, ".env.local"), next);
   console.log(`  .env.local: database ${to}, sign-in and checks on port ${port}`);
 
+  shareMemory(lane.dir);
   const models = path.join(ROOT, ".models");
   if (fs.existsSync(models) && !fs.existsSync(path.join(lane.dir, ".models"))) {
     fs.symlinkSync(models, path.join(lane.dir, ".models"), "junction");
@@ -273,6 +302,7 @@ function remove(lane) {
   const db = dbOf(readEnv(lane.dir));
   const models = path.join(lane.dir, ".models");
   if (fs.existsSync(models) && fs.lstatSync(models).isSymbolicLink()) fs.unlinkSync(models); // the link, never the model
+  unshareMemory(lane.dir); // the link, never the notes
   run("git", ["worktree", "remove", ...(n ? ["--force"] : []), lane.dir], { cwd: ROOT });
   if (db && ["localhost", "127.0.0.1"].includes(db.hostname) && db.pathname.slice(1).startsWith("rfl_"))
     run("docker", ["exec", CONTAINER, "dropdb", "-U", decodeURIComponent(db.username), "--if-exists", db.pathname.slice(1)]);
@@ -296,6 +326,7 @@ function remove(lane) {
   else if (cmd === "start") start(laneOf(nameArg), nameArg);
   else if (cmd === "sync") sync(laneOf(nameArg));
   else if (cmd === "remove") remove(laneOf(nameArg));
+  else if (cmd === "memory") shareMemory(laneOf(nameArg).dir);
   else {
     console.log(fs.readFileSync(__filename, "utf8").split("\nconst fs")[0].replace(/^\/\/ ?/gm, ""));
     process.exit(cmd ? 1 : 0);

@@ -15,10 +15,30 @@ A lane is one line of work with its own:
 Sessions in different lanes can run at the same time. Within a lane they run one after another, exactly as now. The main folder
 stays on master, for the user's own work, merges and production fixes.
 
-## Make a lane
+## Make a lane: `scripts/lane.js`
 
-From the main folder, in PowerShell. The engine lane is the example; take each lane's name, branch and port from the plan's
-lanes table.
+From the main folder: `node scripts/lane.js new <name> --port <n> [--branch <b>]`. The script's header lists every command:
+- `new` and `setup` make a lane;
+- `list` shows them all;
+- `check` boots a lane's server and reads from its database;
+- `dev` runs a lane's dev server;
+- `start` opens a window running a lane's session loop;
+- `sync` merges master into a lane;
+- `remove` takes a lane out;
+- `memory` links a lane's Claude memory.
+
+Made on 2026-10-27:
+- **survivor** (`../rfl-survivor`, branch `survivor-data`, port 3001)
+- **engine** (`../rfl-engine`, port 3002)
+- **sports** (the existing worktree, port 3004)
+
+Each one passed `check`.
+
+**Claude's memory is shared.** Claude keeps a project's memory by folder (`~/.claude/projects/<folder>/memory`), so a lane's
+sessions would start with none of this project's notes. `setup` links the lane's memory folder to the main one: every lane
+reads and writes the same notes, and `remove` takes out the link, never the notes.
+
+What `new` does, by hand, for the engine lane (take each lane's name, branch and port from the plan's lanes table):
 
 1. **The folder and its branch, from master:** `git worktree add ..\rfl-engine -b engine master`
 2. **Its database**, a copy of the local one. The dev server can stay up; `<user>` is the user in `AUTH_DATABASE_URL`.
@@ -32,8 +52,8 @@ lanes table.
 6. **Its checks:** run `$env:BASE = "http://localhost:3002"` in the lane's terminal first. Every `scripts/dev-test/` check reads
    `BASE`, and reads the database from the `.env.local` of the folder it runs in.
 
-A `scripts/lane.js` could do steps 1–4 in one command (offered 2026-10-27, not built). Step 2 was tried on 2026-10-27 on a
-throwaway copy: 1.3 s, all 99 tables, pgvector included.
+It also links `.models/` (the embedding model) to the main folder's, adds `BASE` to `.env.local` for the checks, and links
+the memory. The database copy takes about a second (all 99 tables, pgvector included) and `npm ci` about 50 s.
 
 **What a worktree doesn't have:** anything git ignores. That means the production backups (`backups/`), the mocks
 (`.impeccable/mocks/`) and `.env.local`. A lane reaches the backups by full path (e.g. `shadow-leagues.js sync
@@ -43,23 +63,26 @@ throwaway copy: 1.3 s, all 99 tables, pgvector included.
 
 - **With the user there:** open the lane's folder in its own VS Code window and start Claude in that window, so the session
   works in that worktree.
-- **Unattended:** in a terminal in the lane's folder, run `node scripts/session-loop.js --prompt "..."` with the plan step's
-  seed prompt. Each lane's loop is separate (`node scripts/session-loop.js status` in that folder).
+- **Unattended:** `node scripts/lane.js start <name> --prompt "<the step's seed prompt>"` opens a window running the session
+  loop in that lane, at Opus / xhigh and at most 3 sessions (`--max-sessions`). Each lane's loop is separate: in its window,
+  `p` pauses, `s` stops after the session, `q` quits; from anywhere, `node scripts/session-loop.js status` in the lane's
+  folder. A session stops for the user where it needs them (its question shows in that window); the loop never merges or
+  pushes.
 - **Name the lane in every seed prompt** (its folder, branch, port and plan step), so the session uses its own server and
   database and never edits another lane's files.
 
 ## Bring a step home
 
-1. **At the start of each step**, the lane merges master in: `git merge master`.
+1. **Between steps**, the lane takes master in: `node scripts/lane.js sync <name>`. The loop's sessions can't merge, so the
+   user (or a session they're talking to) runs it.
 2. **When the step is done** (its checks pass, and `/code-review` on its diff is clean), the user merges it into master from the
    main folder (`git merge engine`), runs the full check batch there, and pushes. The session loop never pushes or merges.
 3. **Shared docs and memories** (HANDOFF.md, BACKLOG.md, the shared memories) are updated at that merge, not mid-step in a lane.
 
 ## Remove a lane
 
-- `git worktree remove ..\rfl-engine`
-- `git branch -d engine`, once it's merged
-- `docker exec survivor-draft-pg dropdb -U <user> rfl_engine`
+`node scripts/lane.js remove <name> --yes` takes out the worktree, its database and its links (the model's and the memory's;
+never what they point to). The branch stays: `git branch -d <branch>` once it's merged.
 
 ## Speed-ups inside one session
 
