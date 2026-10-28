@@ -10,7 +10,7 @@ free plan stops being enough, choosing the cheapest fit is arithmetic, not resea
 | Service | What it does for us | Plan | Cost now |
 |---|---|---|---|
 | **Vercel** (team `reality-fantasy-leagues`, project `tvleagues`) | The Next.js app, its API routes, `/mock` | Hobby | $0 |
-| **Neon** (project `reality-fanatsy-leagues`, AWS us-east-2, Postgres 18) | Every table, auth included | Free | $0 |
+| **Neon** (project `reality-fanatsy-leagues`, AWS us-east-2, Postgres 18) | Every table, auth included | **Launch since 2026-10-28** (the user upgraded it at 98.3% of the free 5 GB transfer, three days before the reset): usage-based, $0.106 a CU-hour, $0.35 a GB-month, 500 GB of transfer, no minimum | ~$5 a month at today's use |
 | **Oracle Cloud** (`gys-bot`, VM.Standard.E2.1.Micro: x86, 1 GB) | The ChatGPT bot (`C:\Users\conor\llm-browser-api`) and the bot research clock | Always Free | $0 |
 | **Cloudflare** tunnels | `bot.gameyourshow.com` (the VM), `bot-home.gameyourshow.com` (the PC fallback) | Free | $0 |
 | The PC's bot (`127.0.0.1:8765`, local work only) | Since 2026-10-28 its ChatGPT is **signed in to the user's own account** (a Plus trial) and its Gemini to their Google account, and it can ask Claude through the user's Claude Code. **Never list it in production's `LLM_BROWSER_API_URL`** (nor tunnel it for production): production's research would run on the user's personal accounts. The VM's bot stays signed out | – | $0 (the trial renews as paid Plus unless cancelled) |
@@ -65,7 +65,7 @@ Snapshot **2026-10-24**. Neon's numbers are since its period start (Sep 30); Ver
 | Neon compute | 100 CU-hours a month per project | 35.38 CU-h | Running out suspends the database. Free computes sleep after 5 minutes idle and can't be kept awake |
 | Neon storage | 1 GB per project (the billing page; one FAQ says 0.5) | 38.77 MB | Plus 254 kB of history |
 | Neon history (point-in-time restore) | 6 hours | | So the JSON backups (`scripts/backup-leagues.js`) and named branches are the real safety nets |
-| Neon branches | 10 per project | 2 | `production`, and `pre-new-design-2026-10-24` (made before migration 0066 shipped; never auto-deletes) |
+| Neon branches | 10 per project | 4 (2026-10-28) | `production`; `pre-new-design-2026-10-24` (made before migration 0066 shipped), `pre-merge-2026-10-26` and `pre-s2-2026-10-28` (made in the console before S1 and S2 deployed; a snapshot of production, no credentials handled): none auto-delete |
 | Vercel function invocations | 1M | 92K | |
 | Vercel Fluid Active CPU | 4 h | 1 h 24 m | |
 | Vercel CDN requests | 1M | 168K | |
