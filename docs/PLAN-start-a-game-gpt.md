@@ -519,6 +519,43 @@ score is the truth.
     and `ordinal`, `str` and `idOf` shared, not copied: `server/sports/espn.ts` reads the last two from `sport.ts`).
   - No HOSTING.md change: nothing here calls ESPN from the app, adds a table or stores data (part 3 does).
 
+**L1 part 1 addendum: baseball on days it wasn't tuned on (2026-10-28, `sports`, not merged; no migration, nothing stored).**
+Part 2's Noticed item, taken. Each difference was a count, read against ESPN's data before changing the reader:
+- **A dropped third strike** ("Friedl struck out, Friedl to first on passed ball by Ruiz"): ESPN lists the batter only on
+  first, so the strikeout was lost. The batter is now the at-bat's (from its start and pitches) when a clause starts with him
+  doing a batter's thing; reaching on a passed ball or an error is an out the fielders missed (his run unearned), on a wild
+  pitch it isn't. ESPN's outs on such a play are left alone.
+- **A pitch challenged under ABS is filed twice** ("Ball 2", then "Strike 1 Looking" typed `strike-looking---overturned`), and
+  **so is a result the scorer changed** ("struck out, to first on passed ball", then "safe at first on throwing error"): the
+  last filing stands (every case seen: 6 pitches and 1 result). This replaces part 1's "a pitch once, the first".
+- **A walk a relief pitcher came in to at 2-0, 2-1, 3-0, 3-1 or 3-2** is the pitcher's before him (the rules' 9.16(h)), and
+  so is that runner's run; ESPN's box agrees.
+- **A muffed foul fly** ("Wells continues to at bat after dropped foul ball by catcher Rutschman") isn't a plate appearance;
+  the batter reaching afterwards is an out the fielders missed.
+- **MLB's own words after a challenge or review**: "steals (6) 2nd base", "steals (4) home" (a run), "catcher Henry Davis picks
+  off Mickey Moniak at 3rd", "Umpire reviewed (home run), call on the field was upheld:", two challenges in a row. A typed play's
+  twin is now also the play-result on the same pitch of the same at-bat that tells it otherwise (in MLB's words, or with the
+  batter's result naming the runner: "Young struck out swinging, Abrams caught stealing second", which had counted a caught
+  stealing twice). The review note after a play no longer eats the name before it ("...by Jensen. Kansas City Royals
+  challenged").
+- **A ground ball's double play is grounded into (GIDP) only as a force or a reverse force**: a runner who had to run, put out
+  at the base he had to reach. Not "Holliday grounded into double play, ..., Alonso out at third" (Alonso from first), nor a
+  runner on second with first empty run down; ESPN's totals agree.
+- **The first pitcher listed is the starter whatever ESPN's `starter` flag says**: it's false for Ohtani starting on the mound
+  as a two-way player (2026-06-17); the only such row in 680 pitching tables.
+- **The numbers.** The days part 2 named: May 12-14 **41 of 41** (was 33), September 1-3 **39 of 39** (was 37). Part 1's days
+  as before: May 2-4 41 of 42, July 18-20 45 of 46, September 10-12 35 of 35, the six Wild Card and World Series games 6 of 6
+  (the two left: ESPN's team totals counting a steal no play shows). **New days, honestly, on their first run**: April 14-16
+  37 of 40, June 16-18 35 of 37, August 11-13 37 of 39; after the GIDP, twin and starter fixes 38 of 40, 36 of 37, 39 of 39.
+  **Every cached MLB game: 335 of 340** (314 before; ~163,000 plays); the five left are ESPN's own: four team totals with a
+  steal no play shows (one a double steal's runner who "scored on throwing error"), and a suspended game (stopped June 16,
+  resumed June 17) whose plays lack two at-bats. The scorer's calls, apart: earned runs right on 2,861 of 2,928 pitcher lines
+  (2,857 before), RBIs on 7,276 of 7,290 (unchanged).
+- `tests/sports-baseball.test.js` (14): a test of these quirks on made-up games (a challenged pitch, a dropped third strike,
+  a muffed foul fly, steals in MLB's words with their typed twins, an inherited walk at 2-0 and one at 1-0, a force and a
+  non-force double play, a result filed twice, a caught stealing told twice), and the new clause shapes in the reader's words.
+  Both fail on part 1's reader.
+
 **L1 part 1 noticed, not fixed:**
 - **Earned runs are the scorer's reconstruction**: 97% of pitcher lines from the rules as the plays say them; the rest come
   right at the final. A full inning-by-inning reconstruction (each error's would-be out and the runners it moved) could close
@@ -621,12 +658,8 @@ nothing stored).** Football, whose plays are text only, is part 2's next session
   if "this possession" needs them exact.)
 - **A shutout in a 0-0 game won in a shootout** goes to the winner's goalie only; the NHL's own rule wasn't checked. Rare.
   (L4.)
-- **Baseball's reader does less well on days part 1 didn't tune it on** (part 1's own code, unchanged here; its days were
-  May 2-4, July 18-20 and September 10-12, 126 of 128): May 12-14 reduce 33 of 41, September 1-3 37 of 39, July 15-17 15 of
-  15. The differences: a strikeout missed (the batter's at-bat and K, the pitcher's), an at-bat too many, a strike thrown off by
-  one, a walk charged to the wrong reliever, one more steal only the team total has. They're counts, not the scorer's calls,
-  so they matter for L3's live points: fix them with those days as the check's (`--from=2026-05-12 --days=3`, cached). (L1,
-  after football.)
+- ~~**Baseball's reader does less well on days part 1 didn't tune it on**~~ (May 12-14 33 of 41, September 1-3 37 of 39):
+  **done** in part 1's addendum (above): 41 of 41 and 39 of 39, every cached MLB game 335 of 340.
 
 **L1 part 2 as built: football (2026-10-28, `sports`, not merged; no migration, no ESPN calls from the app, nothing
 stored).** Part 2 is done: L1 part 3 (games from ESPN's schedule) is next, or L2.
@@ -734,7 +767,7 @@ stored).** Part 2 is done: L1 part 3 (games from ESPN's schedule) is next, or L2
 - **Live drives are untested**: every check is on finished games; `drives.current` is read but never seen live. (L2.)
 - **A muffed punt's foul** (a holding call at the recovery spot): ESPN kept the return whole and the punt where it was, the one
   such case seen; the reader does too. Rare. (L3.)
-- **Baseball's reader on days part 1 didn't tune it on** is still open (above): not taken this session.
+- **Baseball's reader on days part 1 didn't tune it on**: done since, in part 1's addendum (above).
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

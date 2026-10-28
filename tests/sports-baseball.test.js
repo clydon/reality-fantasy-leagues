@@ -296,6 +296,14 @@ test("the reader's words: names as ESPN's text writes them, clauses with their s
     { id: "r", rest: "scores" },
     { id: "j", rest: "to 3rd" },
   ]);
+  // A review note after a name keeps the name; a review's result, and two challenges in a row; MLB's steals and pickoffs.
+  assert.deepEqual(clausesOf("Jones to second on passed ball by Rice. Kansas City Royals challenged: call on the field was overturned.", who), [{ id: "j", rest: "to second on passed ball by Rice" }]);
+  assert.deepEqual(clausesOf("ZT challenged (tag play), call on the field was upheld: Steven Kwan steals (2) 2nd base. Ben Rice steals (4) home.", who), [
+    { id: "k", rest: "steals (2) 2nd base" },
+    { id: "r", rest: "steals (4) home" },
+  ]);
+  assert.deepEqual(clausesOf("Umpire reviewed (tag play), call on the field was upheld: catcher Ben Rice picks off Steven Kwan at 3rd on throw to third baseman Spencer Jones.", who), [{ id: "k", rest: "picked off 3rd on throw to third baseman Spencer Jones" }]);
+  assert.deepEqual(clausesOf("ZT challenged (tag play), call on the field was overturned: Ryan McMahon challenged (pitch result), call on the field was overturned: Steven Kwan caught stealing 3rd base, catcher Ben Rice to third baseman Spencer Jones.", who)[0], { id: "k", rest: "caught stealing 3rd base" });
   const outcomes = {
     "singled to right": "single",
     "reached on infield single to shortstop": "single",
@@ -330,8 +338,8 @@ function quirk(plays) {
     header: { id: "zt1", competitions: [{ status: { type: { state: "in", completed: false } }, competitors: [{ homeAway: "away", score: "0", team: { id: "1", displayName: "ZT Away", abbreviation: "ZTA" } }, { homeAway: "home", score: "0", team: { id: "2", displayName: "ZT Home", abbreviation: "ZTH" } }] }] },
     boxscore: {
       players: [
-        { team: { id: "1" }, statistics: [{ type: "batting", labels: [], athletes: [athlete("b1", "Al Able", "SS"), athlete("b2", "Bo Baker", "CF"), athlete("b3", "Cy Cole", "PR"), athlete("b4", "Di Dunn", "1B")] }] },
-        { team: { id: "2" }, statistics: [{ type: "pitching", labels: [], athletes: [athlete("p1", "Ed Ewing", "P")] }] },
+        { team: { id: "1" }, statistics: [{ type: "batting", labels: [], athletes: [athlete("b1", "Al Able", "SS"), athlete("b2", "Bo Baker", "CF"), athlete("b3", "Cy Cole", "PR"), athlete("b4", "Di Dunn", "1B"), athlete("b5", "Ty Pérez", "LF")] }] },
+        { team: { id: "2" }, statistics: [{ type: "pitching", labels: [], athletes: [athlete("p1", "Ed Ewing", "P"), athlete("p2", "Fy Fox", "P"), athlete("p3", "Gus Gray", "P")] }] },
       ],
     },
     plays: [{ id: "s", type: { type: "start-inning" }, period: { type: "Top", number: 1 }, wallclock: "2026-10-01T00:00:00Z" }, ...plays],
@@ -339,9 +347,12 @@ function quirk(plays) {
 }
 const at = (n) => `2026-10-01T00:0${Math.floor(n / 60)}:${String(n % 60).padStart(2, "0")}Z`;
 const role = (...pairs) => pairs.map(([type, id]) => ({ type, athlete: { id } }));
-const start = (ab, t, batter, on = []) => ({ id: `${ab}a`, type: { type: "start-batterpitcher" }, summaryType: "A", atBatId: ab, wallclock: at(t), participants: role(["pitcher", "p1"], ["batter", batter], ...on) });
-const pitch = (ab, t, n, type, batter) => ({ id: `${ab}p${n}-${type}`, type: { type }, summaryType: "P", atBatId: ab, atBatPitchNumber: n, wallclock: at(t), participants: role(["pitcher", "p1"], ["batter", batter]) });
-const result = (ab, t, n, text, batter, on = [], extra = {}) => ({ id: `${ab}r`, type: { type: "play-result" }, summaryType: extra.scoreValue ? "S" : "N", atBatId: ab, atBatPitchNumber: n, text, wallclock: at(t), participants: role(["pitcher", "p1"], ...(batter ? [["batter", batter]] : []), ...on), ...extra });
+const start = (ab, t, batter, on = [], pitcher = "p1") => ({ id: `${ab}a`, type: { type: "start-batterpitcher" }, summaryType: "A", atBatId: ab, wallclock: at(t), participants: role(["pitcher", pitcher], ["batter", batter], ...on) });
+const pitch = (ab, t, n, type, batter, pitcher = "p1") => ({ id: `${ab}p${n}-${type}`, type: { type }, summaryType: "P", atBatId: ab, atBatPitchNumber: n, wallclock: at(t), participants: role(["pitcher", pitcher], ["batter", batter]) });
+const result = (ab, t, n, text, batter, on = [], { pitcher = "p1", ...extra } = {}) => ({ id: `${ab}r`, type: { type: "play-result" }, summaryType: extra.scoreValue ? "S" : "N", atBatId: ab, atBatPitchNumber: n, text, wallclock: at(t), participants: role(["pitcher", pitcher], ...(batter ? [["batter", batter]] : []), ...on), ...extra });
+// A typed play (a steal, a pickoff) ESPN also tells as a play-result.
+const typed = (ab, t, n, type, text, on = []) => ({ id: `${ab}t${n}-${type}`, type: { type }, atBatId: ab, atBatPitchNumber: n, text, wallclock: at(t), participants: role(["pitcher", "p1"], ...on) });
+const relieved = (ab, t, text, pitcher) => ({ id: `${ab}c`, type: { type: "play-result" }, summaryType: "C", atBatId: ab, text, wallclock: at(t), participants: role(["pitcher", pitcher]) });
 
 test("ESPN's quirks: a pitch filed twice, pitches past an at-bat's end, a pinch runner its at-bat starts don't show, an out never recorded", () => {
   const game = quirk([
@@ -385,6 +396,120 @@ test("ESPN's quirks: a pitch filed twice, pitches past an at-bat's end, a pinch 
     { id: "sbr", type: { type: "play-result" }, summaryType: "N", atBatId: "2", text: "Able stole second. ZT Home challenged: call on the field was upheld.", wallclock: at(4), participants: role(["pitcher", "p1"], ["onSecond", "b1"]), outs: 0 },
   ]);
   assert.equal(baseball.reduce(baseball.readPlays(steal)).lines.b1.SB, 1);
+});
+
+test("ESPN's quirks from days the reader wasn't tuned on: a challenged pitch, a dropped third strike, a muffed foul fly, MLB's words", () => {
+  const game = quirk([
+    // Pitch 2 called a ball, challenged under ABS and overturned: filed again as a strike, which stands.
+    start("1", 1, "b1"),
+    pitch("1", 2, 1, "ball", "b1"),
+    pitch("1", 3, 2, "ball", "b1"),
+    pitch("1", 4, 2, "strike-looking---overturned", "b1"),
+    pitch("1", 5, 3, "foul-ball", "b1"),
+    pitch("1", 6, 4, "strike-swinging", "b1"),
+    // The third strike gets by the catcher: Able struck out and reached first, and ESPN lists him only on first.
+    result("1", 7, 4, "Able struck out, Able to first on passed ball by Ewing.", null, [["onFirst", "b1"]], { outs: 0 }),
+    // A foul fly dropped: Baker's at-bat goes on (typed, and told again), then he strikes out: one plate appearance.
+    start("2", 8, "b2", [["onFirst", "b1"]]),
+    pitch("2", 9, 1, "foul-ball", "b2"),
+    typed("2", 10, 1, "error-on-a-dropped-foul-ball", "Baker continues to at bat after dropped foul ball by catcher Ewing.", [["batter", "b2"]]),
+    result("2", 10, 1, "Baker continues to at bat after dropped foul ball by catcher Ewing.", "b2", [["onFirst", "b1"]], { outs: 0, id: "2r1" }),
+    pitch("2", 11, 2, "strike-swinging", "b2"),
+    pitch("2", 12, 3, "strike-swinging", "b2"),
+    result("2", 13, 3, "Baker struck out swinging.", "b2", [["onFirst", "b1"]], { outs: 1 }),
+    // Steals ESPN types and tells again in MLB's words after a challenge: one each, and the steal of home a run.
+    start("3", 14, "b4", [["onFirst", "b1"]]),
+    pitch("3", 15, 1, "ball", "b4"),
+    typed("3", 16, 1, "stolen-base", "Able stole second.", [["onSecond", "b1"]]),
+    result("3", 16, 1, "ZT Home challenged (tag play), call on the field was upheld: Al Able steals (2) 2nd base.", null, [["onSecond", "b1"]], { id: "3r1" }),
+    pitch("3", 17, 2, "ball", "b4"),
+    typed("3", 18, 2, "stolen-base", "Able stole third.", [["onThird", "b1"]]),
+    result("3", 18, 2, "Able stole third.", null, [["onThird", "b1"]], { id: "3r2" }),
+    pitch("3", 19, 3, "ball", "b4"),
+    typed("3", 20, 3, "stolen-base", "Able stole home.", []),
+    result("3", 20, 3, "ZT Home challenged (tag play), call on the field was overturned: Al Able steals (3) home.", null, [], { id: "3r3", scoreValue: 1 }),
+  ]);
+  const lines = baseball.reduce(baseball.readPlays(game)).lines;
+  assert.deepEqual(lines.b1, { NP: 4, PA: 1, AB: 1, K: 1, SB: 3, R: 1 }, "four pitches (pitch 2 once), a strikeout though he reached, three steals, the run");
+  assert.deepEqual(lines.b2, { NP: 3, PA: 1, AB: 1, K: 1 }, "the dropped foul fly isn't a plate appearance");
+  // Ten pitches, six strikes (pitch 2 as overturned); two strikeouts, one out (Able reached); Able's run unearned (he reached
+  // on the passed ball).
+  assert.deepEqual(lines.p1, { GS: 1, PC: 10, PST: 6, PK: 2, OUTS: 1, PR: 1 });
+
+  const relief = quirk([
+    // Fox comes in at 2-0 and walks Able: Ewing's walk (the rules' 9.16(h)), and Ewing's run when Able scores.
+    start("1", 1, "b1"),
+    pitch("1", 2, 1, "ball", "b1"),
+    pitch("1", 3, 2, "ball", "b1"),
+    relieved("1", 4, "Fox relieved Ewing", "p2"),
+    pitch("1", 5, 3, "ball", "b1", "p2"),
+    pitch("1", 6, 4, "ball", "b1", "p2"),
+    result("1", 7, 4, "Able walked.", "b1", [["onFirst", "b1"]], { outs: 0, pitcher: "p2" }),
+    // Gray comes in at 1-0 and walks Baker: his own.
+    start("2", 8, "b2", [["onFirst", "b1"]], "p2"),
+    pitch("2", 9, 1, "ball", "b2", "p2"),
+    relieved("2", 10, "Gray relieved Fox", "p3"),
+    pitch("2", 11, 2, "ball", "b2", "p3"),
+    pitch("2", 12, 3, "ball", "b2", "p3"),
+    pitch("2", 13, 4, "ball", "b2", "p3"),
+    result("2", 14, 4, "Baker walked, Able to second.", "b2", [["onFirst", "b2"], ["onSecond", "b1"]], { outs: 0, pitcher: "p3" }),
+    // A force double play (Baker, forced from first, out at second) is grounded into.
+    start("3", 15, "b4", [["onFirst", "b2"], ["onSecond", "b1"]], "p3"),
+    result("3", 16, 1, "Dunn grounded into double play, second to shortstop to first, Baker out at second, Able to third.", "b4", [["onThird", "b1"]], { outs: 2, pitcher: "p3" }),
+    start("4", 17, "b3", [["onThird", "b1"]], "p3"),
+    result("4", 18, 1, "Cole singled to center, Able scored.", "b3", [["onFirst", "b3"]], { outs: 2, pitcher: "p3", scoreValue: 1 }),
+  ]);
+  const r = baseball.reduce(baseball.readPlays(relief)).lines;
+  assert.equal(r.p1.PBB, 1, "the walk Fox inherited at 2-0 is Ewing's");
+  assert.equal(r.p1.PR, 1, "and so is the run");
+  assert.ok(!r.p2?.PBB && !r.p2?.PR);
+  assert.equal(r.p3.PBB, 1, "Gray came in at 1-0: the walk is his");
+  assert.equal(r.b4.GIDP, 1, "a force double play is grounded into");
+
+  const more = quirk([
+    // A ground ball's double play with no force (Able on second, first empty, run down at third) isn't grounded into.
+    start("1", 1, "b1"),
+    result("1", 2, 1, "Able doubled to left.", "b1", [["onSecond", "b1"]], { outs: 0 }),
+    start("2", 3, "b2", [["onSecond", "b1"]]),
+    result("2", 4, 1, "Baker grounded into double play, shortstop to third to second, Baker out at second, Able out at third in rundown.", "b2", [], { outs: 2 }),
+    start("3", 5, "b4"),
+    result("3", 6, 1, "Dunn grounded out to second.", "b4", [], { outs: 3 }),
+    { id: "end", type: { type: "end-inning" }, text: "Middle of the 1st inning", wallclock: at(7) },
+    // The scorer's change filed again: "struck out, to first on passed ball", then "safe at first on throwing error". One
+    // strikeout.
+    { id: "s2", type: { type: "start-inning" }, period: { type: "Top", number: 2 }, wallclock: at(8) },
+    start("4", 9, "b1"),
+    pitch("4", 10, 1, "strike-swinging", "b1"),
+    result("4", 11, 1, "Able struck out, Able to first on passed ball by Ewing.", null, [["onFirst", "b1"]], { outs: 0 }),
+    result("4", 12, 1, "Able struck out swinging, Able safe at first on throwing error by catcher Ewing.", "b1", [["onFirst", "b1"]], { outs: 0, id: "4r2" }),
+    // A caught stealing ESPN types on its own and tells again in the strikeout's play-result, which lists the batter: one.
+    start("5", 13, "b3", [["onFirst", "b1"]]),
+    typed("5", 14, 1, "pickoff-caught-stealing", "Able picked off and caught stealing second.", []),
+    result("5", 14, 1, "Cole struck out swinging, Able caught stealing second, catcher to second.", "b3", [], { outs: 2 }),
+  ]);
+  const m = baseball.reduce(baseball.readPlays(more)).lines;
+  assert.ok(!m.b2.GIDP, "no force, no GIDP");
+  assert.deepEqual(m.b1, { PA: 2, AB: 2, H: 1, "2B": 1, K: 1, NP: 1, CS: 1 }, "one strikeout for the result filed twice, one caught stealing");
+  assert.equal(m.p1.OUTS, 5);
+
+  const last = quirk([
+    // The caught stealing told twice, the runner's name accented.
+    start("1", 1, "b5"),
+    result("1", 2, 1, "Pérez singled to left.", "b5", [["onFirst", "b5"]], { outs: 0 }),
+    start("2", 3, "b3", [["onFirst", "b5"]]),
+    typed("2", 4, 1, "pickoff-caught-stealing", "Pérez picked off and caught stealing second.", []),
+    result("2", 4, 1, "Cole struck out swinging, Pérez caught stealing second, catcher to second.", "b3", [], { outs: 2 }),
+    // Fox comes in at 2-0 and the walk is signalled, no pitch thrown: still Ewing's.
+    start("3", 5, "b1"),
+    pitch("3", 6, 1, "ball", "b1"),
+    pitch("3", 7, 2, "ball", "b1"),
+    relieved("3", 8, "Fox relieved Ewing", "p2"),
+    result("3", 9, 2, "Able intentionally walked.", "b1", [["onFirst", "b1"]], { outs: 2, pitcher: "p2" }),
+  ]);
+  const l = baseball.reduce(baseball.readPlays(last)).lines;
+  assert.equal(l.b5.CS, 1);
+  assert.equal(l.p1.PBB, 1);
+  assert.ok(!l.p2?.PBB);
 });
 
 test("the Red Sox–Yankees series as the user typed it: 5 a home run and 1 a total base, over the two recorded games", () => {
