@@ -23,27 +23,43 @@ const R = require("../db/rulebooks.js");
 const ShowFormats = require("../db/show-formats.js");
 const { backfill, BACKFILL_LOCK } = require("../db/backfill-rulebooks.js");
 
-/** Everything a league's rules decide, for comparing two states: standings, each episode's events and points, the end. */
-function scoringSnapshot(state) {
+// A list compared as a set: each item by its content, whatever order its keys came back in (jsonb's own).
+const sortKeys = (v) => (Array.isArray(v) ? v.map(sortKeys) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])])) : v);
+const asSet = (list) => list.map((x) => JSON.stringify(sortKeys(x))).sort();
+
+/**
+ * Everything a league's rules decide, for comparing two states: standings, each episode's events and points, the end. With
+ * `sets`, each episode's events and the catalog are sets: a built-in's blocks compiled list them in their own order.
+ */
+function scoringSnapshot(state, { sets = false } = {}) {
   const format = S.formatOf(state);
+  const events = (state.episodes || []).map((ep) => S.ActiveRosterLogic.episodeEvents(state, ep).map((e) => [e.type, e.castawayId, S.ActiveRosterLogic.eventPoints(state, e)]));
+  const catalog = format.events.map((e) => [e.id, e.defaultPoints, !!e.implied]);
   return {
     scores: S.computeScores(state),
-    events: (state.episodes || []).map((ep) => S.ActiveRosterLogic.episodeEvents(state, ep).map((e) => [e.type, e.castawayId, S.ActiveRosterLogic.eventPoints(state, e)])),
+    events: sets ? events.map(asSet) : events,
     ended: S.seasonEnded(state),
     winner: (S.seasonWinner(state) || {}).id || null,
-    catalog: format.events.map((e) => [e.id, e.defaultPoints, !!e.implied]),
+    catalog: sets ? asSet(catalog) : catalog,
     exits: [format.exitMethods, format.winnerExitMethod, format.endgameExitMethods],
   };
 }
 
-/** Whether `state` with its settings.rulebook scores as it does without one: { same, rules, differs? }. */
-function comparePlayed(state) {
+/**
+ * Whether `state` with its settings.rulebook scores as it does without one: { same, rules, differs? }. A rulebook that's
+ * its built-in's blocks compiled (a season made since docs/PLAN-start-a-game-gpt.md S2, at its `phaseStarts`) has those
+ * blocks' rules, not the format's data, in their order: its events and catalog compare as sets.
+ */
+function comparePlayed(state, { phaseStarts = {} } = {}) {
   const plain = structuredClone(state);
   delete plain.settings.rulebook;
-  const a = scoringSnapshot(state);
-  const b = scoringSnapshot(plain);
+  const book = state.settings.rulebook;
+  const blocks = book && book.reader === "research" ? R.builtInBlocksCompile(S.formatOf(plain).id, phaseStarts) : null;
+  const fromBlocks = !!blocks && R.sameData(book.data, blocks);
+  const a = scoringSnapshot(state, { sets: fromBlocks });
+  const b = scoringSnapshot(plain, { sets: fromBlocks });
   const differs = Object.keys(a).filter((k) => !R.sameData(a[k], b[k]));
-  return { same: !differs.length, rules: R.sameData(S.formatOf(state).data, S.formatOf(plain).data), differs };
+  return { same: !differs.length, rules: fromBlocks || R.sameData(S.formatOf(state).data, S.formatOf(plain).data), differs };
 }
 
 const leagueList = async (pool) => (await pool.query("SELECT id, slug FROM leagues ORDER BY created_at")).rows;
@@ -58,7 +74,7 @@ async function check(pool, { log = console.log } = {}) {
       const { rows } = await client.query("SELECT state FROM leagues WHERE id=$1", [l.id]);
       const state = rows[0].state;
       const result = await R.syncLeagueRulebook(client, l.id, state.settings, { on: true });
-      const compared = result.written ? comparePlayed(state) : null;
+      const compared = result.written ? comparePlayed(state, { phaseStarts: (await R.getRulebook(client, result.id)).phaseStarts }) : null;
       leagues.push({ slug: l.slug, ...result, ...(compared || {}) });
     } finally {
       await client.query("ROLLBACK");
@@ -74,7 +90,7 @@ async function check(pool, { log = console.log } = {}) {
       const { row } = await R.ensureSeasonRulebook(client, ss.id);
       const ruled = await R.seasonRulebookFormat(client, ss.id, { formatId: ss.format, on: true });
       const today = await ShowFormats.resolveFormat(client, ss.format);
-      seasons.push({ season: `${ss.slug} ${ss.season_number}`, ruled: !!ruled, same: !ruled || (R.sameData(ruled.data, today.data) && row.reader === R.readerOf(today)) });
+      seasons.push({ season: `${ss.slug} ${ss.season_number}`, ruled: !!ruled, same: !ruled || R.isFormatsRules(row, today) });
     } finally {
       await client.query("ROLLBACK");
       client.release();

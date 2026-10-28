@@ -18,8 +18,10 @@
 // and keep two bots from drafting identically, but no randomness, so running it twice on the same
 // state does nothing the second time. That property is what lets the server check "is there a bot
 // move waiting?" by running it on a copy.
-// eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, see above
+/* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see above */
 const StateLogic = require("./state-logic.js");
+const Formats = require("./formats/index.js");
+/* eslint-enable @typescript-eslint/no-require-imports */
 
 const {
   Core, DraftLogic, BlindDraftLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
@@ -79,27 +81,21 @@ function isMerged(state) {
   return !!(latest && latest.postMerge);
 }
 
-// What the bots read from each show's scoring events (formats/*.js), by event id. Ids don't collide in
-// meaning across formats, so one table serves Survivor, The Traitors and The Challenge; a format added
-// later with none of these ids still works, on form alone. Add its ids here to sharpen it.
-const SIGNALS = {
-  // In the firing line and lived: the likeliest to go next.
-  danger: new Set(["survivedVotes", "survivedRoundTable", "nominatedSurvived", "accusedAtRoundTable", "onMurderShortlist", "consideredForMurder"]),
-  // Safely with the numbers.
-  safe: new Set(["zeroVotesSafe", "votedWithMajority", "votedOutTraitor", "zeroVotes"]),
-  // Wins that make someone a target once they can't win their way out (after a merge).
-  threat: new Set(["individualImmunity", "dailyWin", "eliminationWin"]),
-  // Protection carried into the next vote, and what uses it up.
-  protectionGained: new Set(["idolFound"]),
-  protectionUsed: new Set(["idolPlayed", "votesNegated"]),
-};
+// What the bots read from each show's moments: their tags (formats/moment-tags.js), which every show's rules carry
+// as data, so any show gets them:
+//   danger            in the firing line and lived: the likeliest to go next
+//   safe              safely with the numbers
+//   threat            wins that make someone a target once they can't win their way out (after a merge)
+//   protectionGained  protection carried into the next vote, and protectionUsed what uses it up
+// A show whose moments have none of these still works, on form alone.
 
-// How each tribe's numbers compare, pre-merge, in a show where tribes vote their own out (Survivor):
-// being on the tribe that's down in numbers is the most reliable sign someone's in danger. Elsewhere
-// (The Challenge's teams and pairs, The Traitors' none) group size says little, so it's left out.
+// How each tribe's numbers compare, pre-merge, in a show where tribes vote their own out (Survivor: a vote one group
+// goes to at a time, the format's groupVotes): being on the tribe that's down in numbers is the most reliable sign
+// someone's in danger. Elsewhere (The Challenge's teams and pairs, The Traitors' none) group size says little, so it's
+// left out.
 function tribeEdges(state) {
   const edges = {};
-  if (StateLogic.formatOf(state).id !== "survivor" || isMerged(state)) return edges;
+  if (!Formats.groupVotesOf(StateLogic.formatOf(state)).length || isMerged(state)) return edges;
   const sizes = {};
   state.castaways.forEach((c) => {
     if (c.status === "active" && c.tribeId) sizes[c.tribeId] = (sizes[c.tribeId] || 0) + 1;
@@ -114,12 +110,13 @@ function tribeEdges(state) {
 // One read over every played episode, with recent episodes counting most (each one back is worth 70%
 // of the one after it): last week's vote matters more than week one's.
 //   form   -- points per episode this league's scoring would have given them, recency-weighted
-//   danger / safe / threat -- the SIGNALS above, recency-weighted
+//   danger / safe / threat -- the moments' tags above, recency-weighted
 //   idols  -- protection found and not yet used
 function profiles(state) {
   const out = {};
   state.castaways.forEach((c) => { out[c.id] = { form: 0, danger: 0, safe: 0, idols: 0, threat: 0 }; });
   const played = playedEpisodes(state);
+  const tagsOf = Formats.momentTags(StateLogic.formatOf(state));
   let weightSum = 0;
   played.forEach((ep, age) => {
     const w = Math.pow(0.7, age);
@@ -128,11 +125,12 @@ function profiles(state) {
       const p = out[ev.castawayId];
       if (!p) return;
       p.form += w * ActiveRosterLogic.eventPoints(state, ev);
-      if (SIGNALS.danger.has(ev.type)) p.danger += w;
-      if (SIGNALS.safe.has(ev.type)) p.safe += w;
-      if (SIGNALS.threat.has(ev.type)) p.threat += w;
-      if (SIGNALS.protectionGained.has(ev.type)) p.idols += 1;
-      if (SIGNALS.protectionUsed.has(ev.type)) p.idols -= 1;
+      const tags = tagsOf(ev.type);
+      if (tags.includes("danger")) p.danger += w;
+      if (tags.includes("safe")) p.safe += w;
+      if (tags.includes("threat")) p.threat += w;
+      if (tags.includes("protectionGained")) p.idols += 1;
+      if (tags.includes("protectionUsed")) p.idols -= 1;
     });
   });
   if (weightSum > 0) Object.values(out).forEach((p) => { p.form /= weightSum; });

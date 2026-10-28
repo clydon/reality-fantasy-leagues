@@ -332,183 +332,222 @@
       {
         "id": "teamSwitchesDetour",
         "label": "Team Switches Detour Tasks",
-        "defaultPoints": -1
+        "defaultPoints": -1,
+        "tags": []
       },
       {
         "id": "driversSeatPicked",
         "label": "Picked at the Driver's Seat",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "driversSeatPickedFirst",
         "label": "Picked first at the Driver's Seat",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "driversSeatNotPicked",
         "label": "Not picked at the Driver's Seat",
-        "defaultPoints": -1
+        "defaultPoints": -1,
+        "tags": []
       },
       {
         "id": "driversSeatAtRisk",
         "label": "Put at risk at the Driver's Seat",
-        "defaultPoints": -0.5
+        "defaultPoints": -0.5,
+        "tags": [
+          "danger"
+        ]
       },
       {
         "id": "pitStopFirst",
         "label": "First in the Pit Stop",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "pitStopLast",
         "label": "Last in the Pit Stop",
-        "defaultPoints": -1
+        "defaultPoints": -1,
+        "tags": []
       },
       {
         "id": "pitStopAtRisk",
         "label": "Put at risk at the Pit Stop",
-        "defaultPoints": -0.5
+        "defaultPoints": -0.5,
+        "tags": [
+          "danger"
+        ]
       },
       {
         "id": "finalLegFirst",
         "label": "First in the Final Leg",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "finalLegLast",
         "label": "Last in the Final Leg",
-        "defaultPoints": -1
+        "defaultPoints": -1,
+        "tags": []
       },
       {
         "id": "expressPassGot",
         "label": "Got an Express Pass",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "expressPassPlayed",
         "label": "Played an Express Pass",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "expressPassSkippedTask",
         "label": "Skipped a task with an Express Pass",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "roadsideAssistanceGot",
         "label": "Got Roadside Assistance",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "roadsideAssistancePlayed",
         "label": "Played Roadside Assistance",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "roadsideAssistanceSavedSomeone",
         "label": "Used Roadside Assistance to save someone",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "driversSeatAdvantageGot",
         "label": "Got the Driver's Seat",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "driversSeatAdvantagePlayed",
         "label": "Played the Driver's Seat",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "driversSeatAdvantageUsedAgainst",
         "label": "Had the Driver's Seat used against them",
-        "defaultPoints": -1
+        "defaultPoints": -1,
+        "tags": []
       },
       {
         "id": "eliminatedAtPitStop",
         "label": "Eliminated at the Pit Stop",
         "defaultPoints": -3,
-        "implied": true
+        "implied": true,
+        "tags": []
       },
       {
         "id": "withdrawal",
         "label": "Withdraws from the Race",
         "defaultPoints": -3,
-        "implied": true
+        "implied": true,
+        "tags": []
       },
       {
         "id": "medicalWithdrawal",
         "label": "Medical Withdrawal",
         "defaultPoints": -3,
-        "implied": true
+        "implied": true,
+        "tags": []
       },
       {
         "id": "removedFromRace",
         "label": "Removed from the Race",
         "defaultPoints": -3,
-        "implied": true
+        "implied": true,
+        "tags": []
       },
       {
         "id": "finalist",
         "label": "Finalist",
         "defaultPoints": 2,
-        "implied": true
+        "implied": true,
+        "tags": []
       },
       {
         "id": "seasonWinner",
         "label": "Season Winner",
         "defaultPoints": 5,
-        "implied": true
+        "implied": true,
+        "tags": []
       },
       {
         "id": "teamGetsLost",
         "label": "Team Gets Lost",
-        "defaultPoints": -2
+        "defaultPoints": -2,
+        "tags": []
       },
       {
         "id": "teamMakesNavigationMistake",
         "label": "Team Makes a Navigation Mistake",
-        "defaultPoints": -1
+        "defaultPoints": -1,
+        "tags": []
       },
       {
         "id": "teamUsesWrongTransportation",
         "label": "Team Takes the Wrong Transportation",
-        "defaultPoints": -2
+        "defaultPoints": -2,
+        "tags": []
       },
       {
         "id": "teamHelpsAnotherTeam",
         "label": "Team Helps Another Team",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "teamArgues",
         "label": "Team Argues",
-        "defaultPoints": -1
+        "defaultPoints": -1,
+        "tags": []
       },
       {
         "id": "teamHasEmotionalBreakdown",
         "label": "Team Has an Emotional Breakdown",
-        "defaultPoints": -1
+        "defaultPoints": -1,
+        "tags": []
       },
       {
         "id": "teamReceivesPenalty",
         "label": "Team Receives a Time Penalty",
-        "defaultPoints": -3
+        "defaultPoints": -3,
+        "tags": []
       },
       {
         "id": "teamCooperatesStrategically",
         "label": "Teams Cooperate Strategically",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "teamCompletesTaskFirstTry",
         "label": "Team Completes a Task on the First Try",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "teamGetsTaskHelp",
         "label": "Team Receives Help from Another Team",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       }
     ],
     "eventCategories": [
@@ -818,6 +857,13 @@
           "nullable": true,
           "description": "This leg, how many times did each person: team Receives Help from Another Team? This person's number; 0 if none, null if unknown.",
           "note": "team Receives Help from Another Team"
+        },
+        {
+          "key": "notableTwist",
+          "type": "string",
+          "nullable": true,
+          "note": "{value}",
+          "description": "Any other notable, checkable thing that happened to this person this leg, in one short phrase. Null if nothing."
         },
         {
           "key": "sources",

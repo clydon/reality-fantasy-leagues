@@ -81,6 +81,9 @@ test("just what's new (docs/PLAN-maker-scoring.md step 5): only the questions st
   const old = { castaways: [Object.fromEntries(["name", "confidence", ...keys.filter((k) => k !== "votesReceived" && k !== "wentOnJourney")].map((k) => [k, "no"]))] };
   assert.deepEqual(R.unaskedKeys(survivor, old), ["votesReceived", "wentOnJourney"]);
   assert.deepEqual(R.unaskedKeys(survivor, { castaways: [Object.fromEntries(keys.map((k) => [k, "no"]))] }), []);
+  // A question asked besides, which scores nothing (anything else notable, what was found), isn't asked again for.
+  const noNotes = { castaways: [Object.fromEntries(keys.filter((k) => !["notableTwist", "advantageFoundName"].includes(k)).map((k) => [k, "no"]))] };
+  assert.deepEqual(R.unaskedKeys(survivor, noNotes), []);
   // The cut-down checklist: the core fields and those keys, nothing per episode, no groups or merge.
   const only = R.onlyFormat(survivor, ["votesReceived"]);
   const schema = R.researchSchemaFor(only);
@@ -116,34 +119,55 @@ test("the admin store replaces wholesale and never merges (no read, no lock -- o
 
 // ---------- piece 3: coverage ----------
 
-const stored = (castaways, format = "survivor") => ({ payload: { castaways }, provenance: { format }, researched_at: "t" });
+const stored = (castaways, format = "survivor", rulebook) => ({ payload: { castaways }, provenance: { format, ...(rulebook ? { rulebook } : {}) }, researched_at: "t" });
+// What asks now (contextFrom): the format, and the season's rulebook when it's what asks.
+const asks = (formatId, rulebook = null) => ({ format: { id: formatId }, rulebook });
 
 test("coverage: fully covered -- nobody to ask", () => {
-  const c = R.researchCoverage(stored(CAST.map((n) => entry(n, "medium"))), CAST, "survivor");
+  const c = R.researchCoverage(stored(CAST.map((n) => entry(n, "medium"))), CAST, asks("survivor"));
   assert.equal(c.researched, true);
   assert.deepEqual(c.covered, CAST);
   assert.deepEqual(c.needsAsking, []);
 });
 
 test("coverage: partially covered -- only the missing are asked", () => {
-  const c = R.researchCoverage(stored([entry("Ada Lovelace", "high"), entry("Grace", "medium")]), CAST, "survivor");
+  const c = R.researchCoverage(stored([entry("Ada Lovelace", "high"), entry("Grace", "medium")]), CAST, asks("survivor"));
   assert.deepEqual(c.covered, ["Ada Lovelace", "Grace Hopper"], "matched by the same forgiving name match as everything else");
   assert.deepEqual(c.missing, ["Alan Turing", "Katherine Johnson"]);
   assert.deepEqual(c.needsAsking, ["Alan Turing", "Katherine Johnson"]);
 });
 
 test("coverage: fully answered but some low-confidence -- those are asked again", () => {
-  const c = R.researchCoverage(stored(CAST.map((n, i) => entry(n, i < 2 ? "low" : "high"))), CAST, "survivor");
+  const c = R.researchCoverage(stored(CAST.map((n, i) => entry(n, i < 2 ? "low" : "high"))), CAST, asks("survivor"));
   assert.deepEqual(c.missing, []);
   assert.deepEqual(c.lowConfidence, ["Ada Lovelace", "Grace Hopper"]);
   assert.deepEqual(c.needsAsking, ["Ada Lovelace", "Grace Hopper"]);
 });
 
 test("coverage: nothing stored, or answers to another format's checklist, settle nobody", () => {
-  assert.deepEqual(R.researchCoverage(null, CAST, "survivor").needsAsking, CAST);
-  const other = R.researchCoverage(stored(CAST.map((n) => entry(n, "high")), "traitors"), CAST, "survivor");
+  assert.deepEqual(R.researchCoverage(null, CAST, asks("survivor")).needsAsking, CAST);
+  const other = R.researchCoverage(stored(CAST.map((n) => entry(n, "high")), "traitors"), CAST, asks("survivor"));
   assert.equal(other.researched, false);
   assert.deepEqual(other.needsAsking, CAST);
+});
+
+test("coverage: stored answers are matched by the rulebook that asked them, whatever its format is called now", () => {
+  const all = CAST.map((n) => entry(n, "high"));
+  const X = { id: "rulebook-x", version: 3 };
+  // The season's rulebook moved onto new rules (its question map keeps the keys) under another format id: still its answers.
+  assert.equal(R.researchCoverage(stored(all, "survivor", X), CAST, asks("survivor-blocks", { id: "rulebook-x", version: 4 })).researched, true);
+  // Another rulebook of the same format (a show switched away and back: the same questions) reads them as ever.
+  assert.equal(R.researchCoverage(stored(all, "survivor", X), CAST, asks("survivor", { id: "rulebook-y", version: 1 })).researched, true);
+  // Another rulebook and another format: not its answers.
+  assert.equal(R.researchCoverage(stored(all, "survivor", X), CAST, asks("traitors", { id: "rulebook-y", version: 1 })).researched, false);
+  // Answers from before the rulebook was recorded, or asked with none, go by the format that asked them.
+  assert.equal(R.researchCoverage(stored(all, "survivor"), CAST, asks("survivor", X)).researched, true);
+  assert.equal(R.researchCoverage(stored(all, "traitors"), CAST, asks("survivor", X)).researched, false);
+  assert.equal(R.researchCoverage(stored(all, "survivor", X), CAST, asks("survivor")).researched, true);
+  // From before formats recorded one: the default's.
+  const old = { payload: { castaways: all }, provenance: {}, researched_at: "t" };
+  assert.equal(R.researchCoverage(old, CAST, asks("survivor")).researched, true);
+  assert.equal(R.researchCoverage(old, CAST, asks("traitors")).researched, false);
 });
 
 // ---------- pieces 2 + 3 end to end: a self-serve season nobody catalogued ----------

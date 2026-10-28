@@ -3,7 +3,7 @@ import type { FormatData } from "./index";
 import type { RulebookAliases, RulebookBlocks } from "./rulebook-schema";
 
 export interface CompileOptions {
-  /** Moment ids and ways out to the event ids and exit methods leagues have recorded. */
+  /** Moment ids, ways out and questions to the event ids, exit methods and answer keys leagues have recorded. */
   aliases?: RulebookAliases;
   /** The format id when there's no base ("the-amazing-race"); otherwise the base's. */
   id?: string;

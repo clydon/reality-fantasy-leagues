@@ -28,9 +28,12 @@ const MAX_POINTS = 20;
 const CORE = new Set(["name", "leftTheGame", "exitMethod", "sources", "confidence"]);
 
 export interface ScoringMoment {
+  /** The moment's own id (rulebook-moments.js), which its points are saved by: not the event id it's recorded under. */
   id: string;
   label: string;
+  /** What it's worth; `shared` when it's worth something else where castaways can be on several teams (else null). */
   points: number;
+  shared: number | null;
   /** Added by hand: removable; `uses` when it's scored from a question the rulebook already asks. */
   custom: boolean;
   uses: string | null;
@@ -56,7 +59,11 @@ export interface ScoringPage {
 
 type Row = NonNullable<Awaited<ReturnType<typeof seasonRulebook>>>;
 
-const pointsOf = (p: unknown): number => (typeof p === "number" ? p : p && typeof p === "object" && typeof (p as { exclusive?: number }).exclusive === "number" ? (p as { exclusive: number }).exclusive : 0);
+type Split = { exclusive: number; shared: number };
+const isSplit = (p: unknown): p is Split => !!p && typeof p === "object" && typeof (p as Split).exclusive === "number" && typeof (p as Split).shared === "number";
+/** A moment's worth as the page shows it: one number, or two where it's worth something else on several teams. */
+const worthOf = (p: unknown): { points: number; shared: number | null } =>
+  typeof p === "number" ? { points: p, shared: null } : isSplit(p) ? { points: p.exclusive, shared: p.shared === p.exclusive ? null : p.shared } : { points: 0, shared: null };
 const capFirst = (s: string) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 /** The season's rulebook, and whether `user` may change its scoring (and why not). */
@@ -90,12 +97,14 @@ async function blocksNow(row: Row): Promise<RulebookBlocks> {
 async function pageOf(seasonId: string, row: Row, editable: boolean, why: string | null): Promise<ScoringPage> {
   const now = await blocksNow(row);
   const moments = new Map(momentsFor(now).map((m) => [m.id, m]));
+  // Each by its moment's own id, which points are saved by, not the event id it's recorded under (a built-in's aliases:
+  // Survivor's "individualImmunity" is "immunityChallengeWon"), and its worth as the compiled rules score it.
   const groups = pointGroups(now, { compiled: row.compiled as never, aliases: row.aliases as never }).map((g) => ({
     id: g.id,
     label: g.label,
     moments: g.items.map((it) => {
-      const m = moments.get(it.id);
-      return { id: it.id, label: it.label, points: pointsOf(it.points), custom: !!m?.custom, uses: m?.uses ?? null, auto: !!it.auto };
+      const m = moments.get(it.momentId);
+      return { id: it.momentId, label: it.label, ...worthOf(it.defaultPoints), custom: !!m?.custom, uses: m?.uses ?? null, auto: !!it.auto };
     }),
   }));
   const checklist = ((row.compiled as { research?: { checklist?: { key: string; type: string; note?: string; description?: string }[] } } | null)?.research?.checklist ?? []).filter(
@@ -160,7 +169,8 @@ export async function scoringPageIfAny(user: SessionUser, seasonId: string): Pro
 }
 
 export interface ScoringSave {
-  /** A moment's new worth, by id: any moment. */
+  /** A moment's new worth, by its moment id: any moment. A number, or { exclusive, shared } for one worth something else where
+   *  castaways can be on several teams. */
   points?: Record<string, unknown>;
   /** Moments to add: their name, how they count, their worth, and what scores them (an answer already asked, by its key, or
    *  a question of their own: their name asks it). */
@@ -174,6 +184,9 @@ const worth = (v: unknown, what: string): number => {
   if (!Number.isFinite(n) || n < MIN_POINTS || n > MAX_POINTS || Math.round(n * 2) !== n * 2) throw new HttpError(400, `${what}: points from ${MIN_POINTS} to ${MAX_POINTS}, in halves`);
   return n;
 };
+/** One worth, or two: { exclusive, shared }, each checked as one. */
+const worthOrSplit = (v: unknown, what: string): number | Split =>
+  v && typeof v === "object" ? { exclusive: worth((v as Split).exclusive, what), shared: worth((v as Split).shared, what) } : worth(v, what);
 
 /**
  * Saves the maker's changes as a fix from the premiere, keeps the stored format in step and reads every stored answer again.
@@ -200,7 +213,7 @@ export async function saveScoring(user: SessionUser, seasonId: string, body: Sco
 
   for (const [id, v] of Object.entries(body.points ?? {})) {
     if (!known.has(id)) throw new HttpError(400, later.has(id) ? `${id} came with a later change to the show: the desk changes its points` : `There's no moment "${id}"`);
-    next.points[id] = worth(v, id);
+    next.points[id] = worthOrSplit(v, id);
   }
   for (const v of body.remove ?? []) {
     const id = String(v);

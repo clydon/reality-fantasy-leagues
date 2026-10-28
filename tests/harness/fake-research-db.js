@@ -99,8 +99,9 @@ function fakeResearchDb({ shows = [], seasons = [], seasonCast = [], leagues = [
       return rows(db.research.filter((r) => r.show_id === params[0] && r.season_number === params[1] && r.episode_number === params[2]));
     }
     if (s.startsWith("SELECT id, version, effective_episode, summary, delta FROM season_rule_changes")) return rows([]);
-    // Research asks a season by its own rulebook when it plays by one (db/rulebooks.js seasonRulebookFormat): here the
-    // rulebooks switch is off and no season plays by its own, so the show's format is what's asked.
+    // Research asks a season by its own rulebook when it plays by one (db/rulebooks.js seasonResearchRulebook): here no
+    // season has a rulebook and the rulebooks switch is off, so the show's format is what's asked.
+    if (s.startsWith("SELECT r.id, r.version, r.compiled_source, r.compiled->>'id' AS data_id FROM rulebooks r")) return rows([]);
     if (s.startsWith("SELECT value FROM app_settings WHERE key=$1")) return rows([]);
     if (s.startsWith("SELECT rulebook_live FROM show_seasons WHERE id=$1")) return rows([]);
     if (s.startsWith("SELECT id FROM show_seasons WHERE show_id=$1 AND season_number=$2")) {

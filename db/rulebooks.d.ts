@@ -119,9 +119,21 @@ export function lineage(
 } | null>;
 export function compiledFor(db: Db, id: string): Promise<{ id: string; version: number; data: FormatData; reader: RulebookReader } | null>;
 export function seasonRulebookFormat(db: Db, seasonId: string | null, opts?: { formatId?: string | null; on?: boolean }): Promise<GameFormat | null>;
+/** What asks a season's research: its rulebook's format when it asks by it, and the rulebook research records (or null). */
+export function seasonResearchRulebook(
+  db: Db,
+  seasonId: string | null,
+  opts?: { formatId?: string | null; on?: boolean }
+): Promise<{ format: GameFormat | null; rulebook: { id: string; version: number } | null }>;
 
 export function sourceFor(db: Db, formatId: string | null | undefined): Promise<RulebookSource>;
 export function ensureTemplate(db: Db, source: RulebookSource): Promise<Ensured>;
+/** A format's rules as a frozen (legacy) rulebook's columns: how every season was made before S2, which test fixtures rebuild. */
+export function legacyFields(source: RulebookSource): Record<string, unknown>;
+/** Whether a season's rulebook is its format's rules as they stand: frozen equal to it, or a standing-alone built-in's blocks compiled. */
+export function isFormatsRules(row: Rulebook, today: GameFormat): boolean;
+/** What a built-in's blocks compile to as a season's rulebook, or null for a format whose blocks don't stand alone. */
+export function builtInBlocksCompile(formatId: string, phaseStarts?: Record<string, number>): FormatData | null;
 export function ensureLibraryEntry(db: Db, entry: { id: string; show: string; blocks: RulebookBlocks; compiled: FormatData; researched?: unknown; leftOut?: string[] }): Promise<Ensured>;
 export function knownPhaseStarts(db: Db, seasonId: string, blocks: RulebookBlocks): Promise<Record<string, number>>;
 /** Where each phase not set to an episode may have begun, by the season so far; a phase nothing points to yet is left out. */

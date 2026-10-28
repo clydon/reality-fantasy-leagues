@@ -7,7 +7,7 @@
 import { BUILT_IN_BLOCKS } from "./formats/blocks/index.js";
 import { libraryRulebook } from "./formats/library/index.js";
 import { momentsFor } from "./formats/rulebook-moments.js";
-import { KINDS, blocksProblems, kindOf, partWord, pluralOf, type BlocksProblem, type RulebookBlocks, type RulebookKind } from "./formats/rulebook-schema.js";
+import { KINDS, blocksProblems, dropMisfitRefinements, kindOf, partWord, pluralOf, type BlocksProblem, type RulebookBlocks, type RulebookKind } from "./formats/rulebook-schema.js";
 import { sameFamily } from "./formats/rulebook-shapes.js";
 
 export type SeriesStart = "reality" | "scripted";
@@ -124,14 +124,15 @@ type Named = { id?: string; name?: string; label?: string };
 /**
  * An answer that doesn't quite fit, made usable by leaving out what doesn't: a moment, twist, way out or part of an
  * episode with a problem is dropped (an episode keeps at least one part), then what pointed at a dropped part lets go of
- * it (a way out keeps its name, without the cause). What's dropped is listed for the review. Problems left (the cast, the
- * season, the kind) can't be: the answer is asked for again.
+ * it (a way out keeps its name, without the cause). A refinement that doesn't fit (a vote skipped by a part that's gone)
+ * goes first, and its item stays. What's dropped is listed for the review. Problems left (the cast, the season, the kind)
+ * can't be: the answer is asked for again.
  */
 export function salvage(blocks: RulebookBlocks): { blocks: RulebookBlocks; dropped: string[]; problems: BlocksProblem[] } {
   const b = clone(blocks);
   const dropped: string[] = [];
   for (let round = 0; round < 4; round++) {
-    const problems = blocksProblems(b);
+    const { problems } = dropMisfitRefinements(b);
     if (!problems.length) return { blocks: b, dropped, problems };
     let changed = false;
     for (const key of ["customMoments", "twists", "waysOut", "segments"] as const) {
@@ -152,6 +153,12 @@ export function salvage(blocks: RulebookBlocks): { blocks: RulebookBlocks; dropp
       }
     }
     if (!changed) return { blocks: b, dropped, problems };
+    // A dropped part's moments go with it: their suggested points and notes too.
+    const still = new Set(momentsFor(b, { includeOff: true }).map((m) => m.id));
+    for (const id of Object.keys(b.points ?? {})) if (!still.has(id)) delete b.points![id];
+    // (A note that only says a moment a later change brings is off stays: blocksProblems takes it.)
+    const offOnly = (n: object | undefined) => !!n && Object.keys(n).length === 1 && (n as { off?: unknown }).off === true;
+    for (const id of Object.keys(b.momentNotes ?? {})) if (!still.has(id) && !offOnly(b.momentNotes![id])) delete b.momentNotes![id];
   }
   return { blocks: b, dropped, problems: blocksProblems(b) };
 }

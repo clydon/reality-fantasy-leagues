@@ -168,6 +168,9 @@ function pointGroups(blocks, { compiled, aliases, points, ownership, seen } = {}
   const value = (id, def) => (points && Number.isFinite(points[id]) ? points[id] : pointsOf(def, ownership));
   if (compiled && Array.isArray(compiled.events)) {
     const byId = new Map(compiled.events.map((e) => [e.id, e]));
+    // The moment each event is (its first, as the compiler has it), through the rulebook's aliases.
+    const momentOf = new Map();
+    for (const m of moments) if (!momentOf.has(legacy(m))) momentOf.set(legacy(m), m.id);
     return list(compiled.eventCategories)
       .map((c) => ({
         id: c.id,
@@ -179,7 +182,10 @@ function pointGroups(blocks, { compiled, aliases, points, ownership, seen } = {}
             const from = startsFrom(e.id, compiled);
             return from === null || from <= s;
           })
-          .map((e) => ({ id: e.id, label: e.label, points: value(e.id, e.defaultPoints), auto: !!e.implied, league: leagueAnswers.has(e.id) })),
+          .map((e) => ({
+            id: e.id, momentId: momentOf.get(e.id) ?? e.id, label: e.label, points: value(e.id, e.defaultPoints), defaultPoints: e.defaultPoints,
+            auto: !!e.implied, league: leagueAnswers.has(e.id),
+          })),
       }))
       .filter((g) => g.items.length);
   }
@@ -187,7 +193,7 @@ function pointGroups(blocks, { compiled, aliases, points, ownership, seen } = {}
   const into = (id, label, m) => {
     let g = groups.find((x) => x.id === id);
     if (!g) groups.push((g = { id, label, items: [] }));
-    g.items.push({ id: m.id, label: m.label, points: value(m.id, m.defaultPoints), auto: !!m.auto, league: m.answeredBy === 'league' });
+    g.items.push({ id: m.id, momentId: m.id, label: m.label, points: value(m.id, m.defaultPoints), defaultPoints: m.defaultPoints, auto: !!m.auto, league: m.answeredBy === 'league' });
   };
   const segName = (id) => (list(blocks.segments).find((x) => x.id === id) || {}).name;
   const twistName = (id) => (list(blocks.twists).find((x) => x.id === id) || {}).name;

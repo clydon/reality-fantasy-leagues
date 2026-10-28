@@ -28,7 +28,9 @@
 // Plain CommonJS with no dependencies outside formats/, like everything here.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js */
 const { defineFormat, formatProblems } = require('./define.js');
-const { buildDataFormat, questionPhrases } = require('./custom.js');
+const { buildDataFormat } = require('./custom.js');
+// Each added question in its own words (a built-in's own notes don't know them).
+const { phrasesOf } = require('./research-review.js');
 const { fieldProblems } = require('./checklist.js');
 const { rulesProblems } = require('./rules.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
@@ -174,8 +176,8 @@ function mergeOne(data, { effectiveEpisode: ep, delta }, skip) {
 // generic phrasing data-only formats use, after the format's own.
 function codeWithAddedQuestions(code, added) {
   if (!added.length) return code;
-  const withAdded = (fn) => (c, ...rest) => [...fn(c, ...rest), ...questionPhrases(added, c)];
-  return { ...code, research: { ...code.research, notes: withAdded(code.research.notes), sentences: withAdded(code.research.sentences) } };
+  const withAdded = (fn, sentence) => (c, ...rest) => [...fn(c, ...rest), ...phrasesOf(added, c, { sentence })];
+  return { ...code, research: { ...code.research, notes: withAdded(code.research.notes, false), sentences: withAdded(code.research.sentences, true) } };
 }
 
 const built = new WeakMap();

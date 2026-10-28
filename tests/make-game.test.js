@@ -67,6 +67,16 @@ test("an answer that doesn't quite fit: what doesn't is left out and listed, a p
   const voted = r.blocks.waysOut.find((w) => w.name === "Voted out");
   assert.ok(voted && voted.cause === undefined, "the way out stays, without its cause");
   assert.deepEqual(compileRulebook(r.blocks, { id: "x" }).problems, []);
+  // A part with a problem goes, but what only pointed at it lets go: Tribal Council stays without the tribe that skipped it,
+  // and being chosen for a reward stays without leaving out the reward's winners.
+  const broken = JSON.parse(JSON.stringify(BUILT_IN_BLOCKS.survivor.blocks));
+  broken.segments.find((s) => s.id === "immunityChallenge").often = "sometimes";
+  broken.segments.find((s) => s.id === "rewardChallenge").often = "sometimes";
+  const kept = M.salvage(broken);
+  assert.deepEqual(kept.problems, []);
+  assert.deepEqual(kept.dropped.sort(), ["Immunity challenge", "Reward challenge"]);
+  assert.ok(kept.blocks.segments.some((s) => s.id === "tribalCouncil" && s.skippedBy === undefined));
+  assert.ok(kept.blocks.customMoments.some((m) => m.id === "chosenForReward" && m.exceptWinners === undefined));
   // What can't be left out stays a problem.
   const noCast = JSON.parse(JSON.stringify(BUILT_IN_BLOCKS.survivor.blocks));
   noCast.cast.unit = "robots";

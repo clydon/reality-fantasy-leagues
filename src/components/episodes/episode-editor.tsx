@@ -27,8 +27,10 @@ export function EpisodeEditor({ ep, state, onDone }: { ep: Episode; state: Leagu
   const [elimCastawayId, setElimCastawayId] = useState("");
   const [elimMethod, setElimMethod] = useState(format.exitMethods[0]);
   const [elimJury, setElimJury] = useState("");
-  // Survivor scores each jury vote a finalist gets (formats/survivor.js), so a finalist's exit asks.
-  const isFinalistExit = (m: string) => format.id === "survivor" && (m === "Lost Final Tribal (Jury Vote)" || m === format.winnerExitMethod);
+  // A format that scores a finalist's jury votes (an implied rule per vote, or one for none: the goat) asks for them on
+  // every exit that reaches the end: its finalist and winner ways out.
+  const scoresJuryVotes = format.data.rules.implied.some((r) => r.per === "juryVotes" || JSON.stringify(r.when ?? {}).includes('"fact":"juryVotes"'));
+  const isFinalistExit = (m: string) => scoresJuryVotes && format.endgameExitMethods.includes(m);
   const [roleCastawayId, setRoleCastawayId] = useState("");
   const [roleValue, setRoleValue] = useState(format.roles?.values[0] ?? "");
   const [moveCastawayId, setMoveCastawayId] = useState("");

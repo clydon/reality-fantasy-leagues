@@ -40,6 +40,8 @@ const RECRUITED = 'Recruited Traitor';
 // Every value is a default: a league's own settings override it, and 0 switches a category off.
 // Murdered stays 0: it usually means the Traitors saw you as a threat, and nobody can see it coming
 // to bench you. Being banished either way, or walking out, costs points.
+// `tags` say what a moment means for someone's place in the game (moment-tags.js), which the computer players read. A
+// shield is gone by the next night, so it's no protection carried into a vote; and The Traitors has no Safety ranking.
 const events = [
   // --- Missions ---
   { id: 'shieldWon', label: 'Won a shield or immunity', defaultPoints: 2 },
@@ -50,9 +52,9 @@ const events = [
   { id: 'missionBlunder', label: 'Blamed for a mission failure or lost money', defaultPoints: -1 },
   // --- Murder & the Turret ---
   { id: 'shieldSavedThem', label: 'Chosen for murder but saved by a shield', defaultPoints: 4 },
-  { id: 'onMurderShortlist', label: 'On the murder shortlist and survived the night', defaultPoints: 1 },
+  { id: 'onMurderShortlist', label: 'On the murder shortlist and survived the night', defaultPoints: 1, tags: ['danger'] },
   // Lower than a formal shortlist: recaps report the turret's options most weeks, so it's frequent.
-  { id: 'consideredForMurder', label: 'Considered for murder by the Traitors and survived', defaultPoints: 0.5 },
+  { id: 'consideredForMurder', label: 'Considered for murder by the Traitors and survived', defaultPoints: 0.5, tags: ['danger'] },
   { id: 'declinedRecruitment', label: "Turned down the Traitors' offer", defaultPoints: 2 },
   { id: 'recruited', label: 'Recruited as a Traitor', defaultPoints: 4, implied: true },
   { id: 'murdered', label: 'Murdered', defaultPoints: 0, implied: true },
@@ -63,7 +65,7 @@ const events = [
   // Voting out a Faithful is good Traitor play, but for a Faithful it's 0, not a penalty: the average
   // Faithful casts 2 such votes a season, and penalising them made every measure worse. LEADING that
   // case is one person's deliberate push, so misleading the table does cost a little.
-  { id: 'votedOutTraitor', label: 'As a Faithful, voted for a Traitor who was banished', defaultPoints: 4 },
+  { id: 'votedOutTraitor', label: 'As a Faithful, voted for a Traitor who was banished', defaultPoints: 4, tags: ['safe'] },
   { id: 'turnedOnTraitor', label: 'As a Traitor, voted out a fellow Traitor', defaultPoints: { exclusive: 3, shared: 4 } },
   { id: 'traitorVotedOutFaithful', label: 'As a Traitor, voted for a Faithful who was banished', defaultPoints: { exclusive: 0.5, shared: 1 } },
   { id: 'votedOutFaithful', label: 'As a Faithful, voted for a Faithful who was banished', defaultPoints: 0 },
@@ -71,9 +73,9 @@ const events = [
   { id: 'ledCaseAgainstPartner', label: 'As a Traitor, led the case that banished a fellow Traitor', defaultPoints: 2 },
   { id: 'framedFaithful', label: 'As a Traitor, led the case that banished a Faithful', defaultPoints: 2 },
   { id: 'ledCaseAgainstFaithful', label: 'As a Faithful, led the case that banished a Faithful', defaultPoints: -1 },
-  { id: 'accusedAtRoundTable', label: 'Accused at the Round Table and survived it', defaultPoints: 1 },
-  { id: 'survivedRoundTable', label: 'Received banishment votes but survived', defaultPoints: 1 },
-  { id: 'zeroVotes', label: 'At the Round Table, zero votes against', defaultPoints: 1 },
+  { id: 'accusedAtRoundTable', label: 'Accused at the Round Table and survived it', defaultPoints: 1, tags: ['danger'] },
+  { id: 'survivedRoundTable', label: 'Received banishment votes but survived', defaultPoints: 1, tags: ['danger'] },
+  { id: 'zeroVotes', label: 'At the Round Table, zero votes against', defaultPoints: 1, tags: ['safe'] },
   { id: 'banishedAsFaithful', label: 'Banished as a Faithful', defaultPoints: -6, implied: true },
   { id: 'banishedAsTraitor', label: 'Banished as a Traitor (caught)', defaultPoints: -6, implied: true },
   // --- Leaving and the end ---

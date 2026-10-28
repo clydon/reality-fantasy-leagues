@@ -138,7 +138,8 @@ async function backfill(db) {
     const { row, change, source } = await R.ensureSeasonRulebook(db, ss.id);
     report.count("seasons", change);
     const today = await ShowFormats.resolveFormat(db, ss.format);
-    const same = R.sameData(row.compiled, today.data) && row.reader === R.readerOf(today);
+    // Its format's rules as they stand: frozen equal to it, or (a season made since S2) a built-in's blocks compiled.
+    const same = R.isFormatsRules(row, today);
     report.checks.push({ season: `${ss.slug} ${ss.season_number}`, rulebook: row.id, version: row.version, reader: row.reader, phaseStarts: row.phaseStarts, same });
     const open = ((row.blocks.season && row.blocks.season.phases) || []).filter((p) => !(p.starts && p.starts.type === "episode") && row.phaseStarts[p.id] == null);
     if (open.length) report.notes.push(`${ss.slug} ${ss.season_number}: when ${open.map((p) => p.name).join(", ")} began isn't confirmed yet (for a person to set, step 6b)`);

@@ -16,6 +16,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js */
 const { buildChecklist, buildShape, checklistProblems, fieldProblems } = require('./checklist.js');
 const { researchItemsFrom, impliedEventsFrom, rulesProblems } = require('./rules.js');
+const { reviewProblems } = require('./research-review.js');
+const { tagsProblem } = require('./moment-tags.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 // What each half may hold, in the order the assembled object lists them.
@@ -26,7 +28,10 @@ const ORDER = ['id', 'name', 'exitMethods', 'terms', 'winnerExitMethod', 'endgam
 const WIKI_DATA = ['version', 'voteSections', 'guideSections', 'contextSections', 'missingVotesNote', 'missingGuideNote', 'castNote', 'eventTypes', 'routineEliminations'];
 const WIKI_CODE = ['episodesSchema', 'episodesPrompt', 'rejectEvent', 'derivedEvents', 'roles'];
 const WIKI_ORDER = ['version', 'voteSections', 'guideSections', 'contextSections', 'missingVotesNote', 'missingGuideNote', 'castNote', 'eventTypes', 'episodesSchema', 'episodesPrompt', 'rejectEvent', 'derivedEvents', 'roles', 'routineEliminations'];
-const RESEARCH_DATA = ['checklist', 'episodeFields', 'searchHint', 'claims'];
+// checks (research-review.js): conditions over the answers that report a contradiction or repair it, which a data-only
+// format's research runs (a built-in's code half has its own). groupVotes: who was at each vote one group goes to at a
+// time, which research reads to fill in a missed group move (db/episode-research.js tribalGroupProblems).
+const RESEARCH_DATA = ['checklist', 'episodeFields', 'searchHint', 'claims', 'checks', 'groupVotes'];
 const RESEARCH_CODE = ['entryProblems', 'notes', 'sentences'];
 // Code a format MAY supply: episodeProblems(payload) checks answers against each other across the whole
 // cast (who attended Tribal against who won immunity, say), repairing what it must and reporting it.
@@ -83,7 +88,7 @@ function formatProblems(data) {
   for (const [i, e] of (Array.isArray(data.events) ? data.events : []).entries()) {
     const at = `events[${e && isText(e.id) ? e.id : i}]`;
     if (!e || typeof e !== 'object') { p.push(`${at}: not an object`); continue; }
-    p.push(...unknownKeys(e, ['id', 'label', 'defaultPoints', 'implied', 'retiredFrom'], at));
+    p.push(...unknownKeys(e, ['id', 'label', 'defaultPoints', 'implied', 'retiredFrom', 'tags'], at));
     if (!isText(e.id) || !/^[a-z][A-Za-z0-9]*$/.test(e.id)) p.push(`${at}: id must be a camelCase identifier`);
     else if (ids.has(e.id)) p.push(`${at}: id used twice`);
     ids.add(e.id);
@@ -92,6 +97,9 @@ function formatProblems(data) {
     if ('implied' in e && typeof e.implied !== 'boolean') p.push(`${at}: implied must be true or false`);
     // Set by a season rule change (season-changes.js): nothing awards it from this episode on.
     if ('retiredFrom' in e && !(Number.isInteger(e.retiredFrom) && e.retiredFrom >= 1)) p.push(`${at}: retiredFrom must be an episode number from 1`);
+    // What it says about someone's place in the game (moment-tags.js), which the computer players and the Safety ranking
+    // read. Data from before tags has none, and reads the built-ins' by id (index.js momentTags).
+    if ('tags' in e && tagsProblem(e.tags)) p.push(`${at}: ${tagsProblem(e.tags)}`);
   }
   const eventList = (v) => isTextList(v) && v.every((id) => ids.has(id));
 
@@ -160,6 +168,7 @@ function formatProblems(data) {
     }
     const answers = (Array.isArray(r.checklist) ? r.checklist : []).filter((f) => f && f.type === 'answer').map((f) => f.key);
     if (!isTextList(r.claims) || !r.claims.every((k) => answers.includes(k))) p.push('research.claims: must all be yes/no/unknown checklist questions');
+    if (!p.some((m) => m.startsWith('research.checklist') || m.startsWith('research.episodeFields'))) p.push(...reviewProblems(data));
   }
   if (!('rules' in data)) p.push('rules: missing (how the format scores: { research: [...], implied: [...] })');
   else p.push(...rulesProblems(data.rules, data));

@@ -21,6 +21,20 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## Now (2026-10-28): the Start-a-game GPT plan, run in lanes
+- **Read [PLAN-start-a-game-gpt.md](PLAN-start-a-game-gpt.md) first.** Hardened with the user on 2026-10-28: the engine to its
+  full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
+  GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
+  [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and deployed 2026-10-28** (`eb1e19f0`): S1 and S2 (Survivor's blocks and research's checks as rulebook data). A Neon
+  snapshot branch, `pre-s2-2026-10-28`, was made first. Then the **test couch was made in production** (Settings › Test couch:
+  "Test · Survivor 51", copied from the couch's three Survivor 51 games, on Today's rules as a rulebook). Tonight's episode is
+  the first of the two S3 needs, with every table matching the real games at today's points.
+- **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
+- **On branches, not merged:** A1–A3 and A4 part 1 (`engine`; A4 part 2 in progress), the playtests (`playtest`), the sports
+  plan's pointer (`sports`). Waiting on the user: S3 after two matching episodes, A2's game-specs flag on a Neon branch, the
+  rule questions in the plan's "Where the engine is headed", and an engine lab (yes or no).
+
 ## Next: moving the app onto the new design (plan written 2026-10-23)
 Steps can run back to back, unattended: `node scripts/session-loop.js` (its header comment says how: each session hands off to the next, stops only for a question, and can be paused and resumed).
 
@@ -111,6 +125,19 @@ waits for a reveal unless someone left in what you haven't seen (a sport's games
 the page itself fine: waits instead); tests/episode-lock.test.js; unit tests 752.
 
 **The desk catches up with classic's admin (planned 2026-10-27): [PLAN-desk-parity.md](PLAN-desk-parity.md).** The gap audit, the user's decisions (Act as them = classic's impersonation, logged; every gap designed now; phone first), eight steps (people and Act as first), and the design brief; the mock designs come next, after the brief is confirmed.
+
+**The Start-a-game GPT, on games as data (planned 2026-10-27): [PLAN-start-a-game-gpt.md](PLAN-start-a-game-gpt.md).**
+Someone types the game they want. Our ChatGPT bot turns the words into a request, our code turns that into a game spec (every
+rule data), and a wizard asks only what can't be guessed. The user's decisions are in its table:
+- always the bot, with its asks first in the bot's queue;
+- only rules that data can settle;
+- Survivor 51 off built-in rules mid-season, once proven;
+- the engine first, then the GPT, then the sports branch.
+
+It has three tracks: S (Survivor off built-ins, time-bound), A (the engine: games as specs) and G (the GPT). They run in lanes,
+each a worktree with its own database, port and session loop (the plan's lanes section, and [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md)).
+Start with S1 and A1. The sports branch's plan (`docs/PLAN-sports-live.md`, on `sports`) now builds the sports parts of the same
+spec.
 
 **Next: the merge-and-deploy step, which is the user's** (decided 2026-10-25: one merge after step 15). In order, from your own terminal (Claude never handles the connection strings), as 0b's As built in the plan describes:
 1. **If master has moved** since the branch was cut, merge master into `new-design` first and run the checks (`C:/Users/conor/AppData/Local/Temp/gys15b/batch.sh` lists them all).

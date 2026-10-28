@@ -311,86 +311,102 @@
       {
         "id": "guestComplaint",
         "label": "A guest complains about the service",
-        "defaultPoints": -2
+        "defaultPoints": -2,
+        "tags": []
       },
       {
         "id": "guestSpecialRequest",
         "label": "A guest makes an unusual or demanding special request",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "serviceMistake",
         "label": "A service or operational mistake is identified",
-        "defaultPoints": -2
+        "defaultPoints": -2,
+        "tags": []
       },
       {
         "id": "safetyIncident",
         "label": "A guest safety incident requires crew intervention",
-        "defaultPoints": -3
+        "defaultPoints": -3,
+        "tags": []
       },
       {
         "id": "tipRevealed",
         "label": "The charter gratuity amount is revealed",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "individualTipShare",
         "label": "Individual charter gratuity share",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "lateNightSocializing",
         "label": "Crew members continue socializing late into the night",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "captainReprimand",
         "label": "The captain issues a warning or reprimand",
-        "defaultPoints": -2
+        "defaultPoints": -2,
+        "tags": []
       },
       {
         "id": "dismissed",
         "label": "Dismissed by Management",
         "defaultPoints": -3,
-        "implied": true
+        "implied": true,
+        "tags": []
       },
       {
         "id": "quits",
         "label": "Leaves by Choice",
         "defaultPoints": -3,
-        "implied": true
+        "implied": true,
+        "tags": []
       },
       {
         "id": "medicalDeparture",
         "label": "Medical Departure",
         "defaultPoints": -3,
-        "implied": true
+        "implied": true,
+        "tags": []
       },
       {
         "id": "seasonEnds",
         "label": "Season Ends",
         "defaultPoints": 3,
-        "implied": true
+        "implied": true,
+        "tags": []
       },
       {
         "id": "crewArgument",
         "label": "Crew members have an argument",
-        "defaultPoints": -1
+        "defaultPoints": -1,
+        "tags": []
       },
       {
         "id": "romanticDevelopment",
         "label": "A romantic development between crew members is shown",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "crewApology",
         "label": "A crew member apologizes for their conduct or a mistake",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "confessionalComment",
         "label": "A crew member comments directly on another crew member's behavior in a confessional",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       }
     ],
     "eventCategories": [
@@ -563,6 +579,13 @@
           "nullable": true,
           "description": "This episode, how many times did each person: a crew member comments directly on another crew member's behavior in a confessional? This person's number; 0 if none, null if unknown.",
           "note": "a crew member comments directly on another crew member's behavior in a confessional"
+        },
+        {
+          "key": "notableTwist",
+          "type": "string",
+          "nullable": true,
+          "note": "{value}",
+          "description": "Any other notable, checkable thing that happened to this person this episode, in one short phrase. Null if nothing."
         },
         {
           "key": "sources",

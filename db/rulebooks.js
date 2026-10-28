@@ -13,8 +13,11 @@
 // format's data, a season's of its show's format, a league's own of its league_rulesets copy. ensureTemplate,
 // ensureSeasonRulebook and ensureLeagueRulebook make one if it's missing and bring a legacy one up to date when
 // its source moved (a stored format re-approved, a show switched format, a commissioner's copy edited), with a
-// version bump; one saved from blocks is never touched. The backfill (db/backfill-rulebooks.js) is these, run
-// over everything; with the flag on, every write path that changes a league's rules runs them again.
+// version bump; one saved from blocks is never touched. Since docs/PLAN-start-a-game-gpt.md S2, a new season of a built-in
+// whose blocks stand alone (Survivor's) isn't a mirror: it's those blocks compiled (ensureSeasonRulebook); a show switched
+// to another format gets that format's rulebook anew rather than its old one rewritten. The backfill
+// (db/backfill-rulebooks.js) is these, run over everything; with the flag on, every write path that changes a league's
+// rules runs them again.
 //
 // AND CHECKED, NOT TRUSTED. syncLeagueRulebook writes a legacy rulebook into a league only when its data and
 // reader are exactly what the league plays by today (legacyBase: the same choice formatOf makes without one),
@@ -25,7 +28,7 @@
 //
 // Plain CommonJS (bare-node scripts and the Next routes both use it). `db` is a pool or a client.
 const Formats = require("../src/lib/game/formats/index.js");
-const { rulebookFor } = require("../src/lib/game/formats/blocks/index.js");
+const { BUILT_IN_BLOCKS, rulebookFor } = require("../src/lib/game/formats/blocks/index.js");
 const { blocksFromFormat } = require("../src/lib/game/formats/rulebook-from-format.js");
 const { compileRulebook } = require("../src/lib/game/formats/rulebook-compile.js");
 const { applyOps, blocksAt, mergeAtEpisode } = require("../src/lib/game/formats/rulebook-patch.js");
@@ -413,15 +416,30 @@ async function compiledFor(db, id) {
  */
 async function seasonRulebookFormat(db, seasonId, { formatId, on } = {}) {
   if (!seasonId || !(on === undefined ? await seasonLive(db, seasonId) : on)) return null;
+  return (await seasonResearchRulebook(db, seasonId, { formatId, on: true })).format;
+}
+
+/**
+ * What asks a season's research: { format, rulebook }. `format` is seasonRulebookFormat's (null for today's path, the
+ * show's format); `rulebook` ({ id, version }) is the season's rulebook when research asks by it, or when research asks by
+ * the format an unedited one mirrors (the same questions), else null. Research records it with what it stores, and stored
+ * answers are matched by it (db/episode-research.js askedAlike), not by format id.
+ */
+async function seasonResearchRulebook(db, seasonId, { formatId, on } = {}) {
+  const none = { format: null, rulebook: null };
+  if (!seasonId) return none;
   const head = await one(
     db,
-    `SELECT r.id, r.compiled_source, r.compiled->>'id' AS data_id FROM rulebooks r JOIN show_seasons ss ON ss.rulebook_id = r.id
+    `SELECT r.id, r.version, r.compiled_source, r.compiled->>'id' AS data_id FROM rulebooks r JOIN show_seasons ss ON ss.rulebook_id = r.id
       WHERE ss.id=$1 AND r.compiled IS NOT NULL AND r.status <> 'archived'`,
     [seasonId]
   );
-  if (!head || (head.compiled_source === "legacy" && head.data_id !== (formatId || null))) return null;
-  const c = await compiledFor(db, head.id);
-  return c ? Formats.formatForRulebook(c.data, c.reader) : null;
+  const mirror = !!head && head.compiled_source === "legacy";
+  if (!head || (mirror && head.data_id !== (formatId || null))) return none;
+  const live = on === undefined ? await seasonLive(db, seasonId) : on;
+  const c = live ? await compiledFor(db, head.id) : null;
+  if (c) return { format: Formats.formatForRulebook(c.data, c.reader), rulebook: { id: head.id, version: c.version } };
+  return { format: null, rulebook: mirror ? { id: head.id, version: head.version } : null };
 }
 
 // ---------- kept in step with today's rules ----------
@@ -609,9 +627,55 @@ async function sameAsLastSeason(db, seasonId, name) {
   return row;
 }
 
+// A built-in whose blocks say everything its code does (`standsAlone`, which the golden tests prove: Survivor's), so its
+// seasons' rulebooks are compiled from them. The Traitors' and The Challenge's don't yet, and stay frozen until they do.
+const ownBlocks = (source) => {
+  const own = source.kind === "builtin" && Object.prototype.hasOwnProperty.call(BUILT_IN_BLOCKS, source.id) ? BUILT_IN_BLOCKS[source.id] : null;
+  return own && own.standsAlone === true ? own : null;
+};
+
 /**
- * The season's rulebook: made from its show's format's template if it has none, and while unedited kept equal to
- * that format (a show switched format, a stored format re-approved). Phase starts its results confirm are filled in
+ * A built-in's rules as a new season's rulebook (docs/PLAN-start-a-game-gpt.md S2): never frozen from its code again, but
+ * its blocks compiled with the generic reader and no base, under their aliases, so recorded results and stored answers keep
+ * their ids. The season's leagues play by it once they're on rulebooks (the flag, or the season's own switch); until then
+ * they play the built-in, and research asks by it. Throws if the blocks don't compile (that's a bug).
+ */
+function fromBuiltInBlocks(source, phaseStarts) {
+  const { blocks, aliases = {} } = ownBlocks(source);
+  const { data, problems } = compileRulebook(blocks, { aliases, reader: "research", phaseStarts });
+  if (problems.length) throw new Error(`${source.data.name}'s blocks don't compile: ${problems.join("; ")}`);
+  return { kind: kindOf(blocks), reader: "research", blocks, aliases, compiled: data, base: null, compiledSource: "blocks" };
+}
+
+// Compiled from a built-in's blocks and never edited: what fromBuiltInBlocks made, which follows the blocks as they stand.
+const fromBlocksUnedited = (row) =>
+  !!row && row.compiledSource === "blocks" && !row.base && row.reader === "research" && !!row.provenance && row.provenance.from === "builtin" && !row.provenance.editedAt;
+
+/**
+ * Whether a season's rulebook is its format's rules as they stand (`today`: the runtime format research reads without
+ * it): a frozen one equal to the format's data, read by its family's reader; or, for a built-in whose blocks stand alone, an
+ * unedited one equal to those blocks compiled (which the golden tests prove score the same, in the blocks' own order and
+ * words). The backfill and the flag's check (scripts/rulebooks-flag.js) hold every season to it.
+ */
+function isFormatsRules(row, today) {
+  const own = fromBlocksUnedited(row) && row.provenance.id === today.id ? ownBlocks({ kind: "builtin", id: today.id }) : null;
+  if (own) return sameData(row.compiled, fromBuiltInBlocks({ kind: "builtin", id: today.id, data: today.data }, row.phaseStarts || {}).compiled);
+  return sameData(row.compiled, today.data) && row.reader === readerOf(today);
+}
+
+/** What a built-in's blocks compile to as a season's rulebook, at these phase starts; null for a format whose blocks don't stand alone. */
+function builtInBlocksCompile(formatId, phaseStarts = {}) {
+  return ownBlocks({ kind: "builtin", id: formatId })
+    ? fromBuiltInBlocks({ kind: "builtin", id: formatId, data: Formats.FORMATS[formatId].data }, phaseStarts).compiled
+    : null;
+}
+
+/**
+ * The season's rulebook: made from its show's format if it has none, and kept to that format while unedited. A built-in
+ * whose blocks stand alone is never frozen any more: a new season's is its blocks, compiled (fromBuiltInBlocks). One frozen
+ * before (compiled_source 'legacy': Survivor 51's) stays as it is until the switch (docs/PLAN-start-a-game-gpt.md S3),
+ * refreshed when its format's data moved (a stored format re-approved, a built-in's data changed). A show switched to
+ * another format gets that format's as a new rulebook, the old one archived. Phase starts its results confirm are filled in
  * (without a version bump: a legacy compile doesn't read them). A made show's season is its own (never a template's):
  * one with none starts as the last season's (sameAsLastSeason). { row, change, source } or null for no such season.
  */
@@ -643,12 +707,24 @@ async function ensureSeasonRulebook(db, seasonId) {
   };
   const find = () => one(db, "SELECT * FROM rulebooks WHERE owner_kind='season' AND season_id=$1 AND status <> 'archived'", [seasonId]);
   let found = rowOut(await find());
+  // Made from a format and never edited, but the show plays another format now: that format's rules are a rulebook of their
+  // own, so answers the old one asked aren't read as its (db/episode-research.js askedAlike matches stored answers by it).
+  const made = found && found.provenance && ["builtin", "show_format"].includes(found.provenance.from) && !found.provenance.editedAt;
+  if (made && (found.provenance.from !== source.kind || found.provenance.id !== source.id)) {
+    await updateRulebook(db, found.id, { status: "archived" });
+    found = null;
+  }
   let row;
   let change = "unchanged";
   if (!found) {
+    const own = ownBlocks(source);
+    const phaseStarts = await knownPhaseStarts(db, seasonId, own ? own.blocks : want.blocks);
     row = await insertRulebook(
       db,
-      { ...want, ownerKind: "season", seasonId, status: "in_force", reviewStatus: "approved", phaseStarts: await knownPhaseStarts(db, seasonId, want.blocks) },
+      {
+        ...want, ...(own ? fromBuiltInBlocks(source, phaseStarts) : {}),
+        ownerKind: "season", seasonId, status: "in_force", reviewStatus: "approved", phaseStarts,
+      },
       { onConflict: "(season_id) WHERE owner_kind = 'season' AND status <> 'archived'" }
     );
     if (row) change = "created";
@@ -658,10 +734,27 @@ async function ensureSeasonRulebook(db, seasonId) {
     row = await updateRulebook(db, found.id, want, { bump: true });
     change = "updated";
   }
+  // Compiled from the built-in's blocks and never edited: it follows them, as a frozen one follows its format, so when the
+  // blocks or the compiler moved on it's compiled again, a version on.
+  if (!row && fromBlocksUnedited(found) && ownBlocks(source)) {
+    const now = fromBuiltInBlocks(source, found.phaseStarts || {});
+    if (!sameData(found.compiled, now.compiled) || !sameData(found.blocks, now.blocks) || !sameData(found.aliases, now.aliases)) {
+      row = await updateRulebook(db, found.id, now, { bump: true });
+      change = "updated";
+    }
+  }
   row = row || found;
   const starts = await knownPhaseStarts(db, seasonId, row.blocks);
   const missing = Object.keys(starts).filter((k) => row.phaseStarts[k] == null);
-  if (missing.length) row = await updateRulebook(db, row.id, { phaseStarts: { ...row.phaseStarts, ...Object.fromEntries(missing.map((k) => [k, starts[k]])) } });
+  if (missing.length) {
+    const phaseStarts = { ...row.phaseStarts, ...Object.fromEntries(missing.map((k) => [k, starts[k]])) };
+    // A legacy compile doesn't read them; one from blocks scores its phase-limited segments from there, so it's compiled
+    // again, a version on (as setPhaseStart does).
+    const again = row.compiledSource === "blocks" ? compileChain(row, row.blocks, await inForceEdits(db, row.id), phaseStarts) : null;
+    row = again && again.data && !sameData(again.data, row.compiled)
+      ? await updateRulebook(db, row.id, { phaseStarts, compiled: again.data }, { bump: true })
+      : await updateRulebook(db, row.id, { phaseStarts });
+  }
   if (info.rulebook_id !== row.id) await db.query("UPDATE show_seasons SET rulebook_id=$1 WHERE id=$2", [row.id, seasonId]);
   return { row, change, source };
 }
@@ -801,7 +894,7 @@ async function refreshShowRulebooks(db, slug) {
 module.exports = {
   rulebooksOn, seasonLive, setRulebooksOn, sameData, legacyBase, readerOf, inForceEdits, compileChain, saveChain,
   getRulebook, listLibrary, seasonRulebook, seasonIdOf, rulebookForLeague, createRulebook, copyRulebook, saveBlocks, setPhaseStart,
-  leaguesUsing, lineage, compiledFor, seasonRulebookFormat,
+  leaguesUsing, lineage, compiledFor, seasonRulebookFormat, seasonResearchRulebook,
   sourceFor, ensureTemplate, ensureLibraryEntry, knownPhaseStarts, phaseCues, ensureSeasonRulebook, ensureLeagueRulebook, madeFormat,
-  syncLeagueRulebook, syncLeagueRow, refreshShowRulebooks, oursOf,
+  syncLeagueRulebook, syncLeagueRow, refreshShowRulebooks, oursOf, legacyFields, isFormatsRules, builtInBlocksCompile,
 };

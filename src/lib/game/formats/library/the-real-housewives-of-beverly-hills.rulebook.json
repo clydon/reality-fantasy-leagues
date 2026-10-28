@@ -341,108 +341,129 @@
       {
         "id": "heatedExchange",
         "label": "Had a heated exchange at a group gathering",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "surpriseGuest",
         "label": "A surprise guest appeared",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "toastOrSpeech",
         "label": "Delivered a toast or public speech",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "reunionWalkOff",
         "label": "Walked away during the reunion",
-        "defaultPoints": 3
+        "defaultPoints": 3,
+        "tags": []
       },
       {
         "id": "reunionDisagreement",
         "label": "Directly challenged another cast member's account during the reunion",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "reunionTears",
         "label": "Cried during the reunion",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "newCastArrivalsArrived",
         "label": "Arrived partway through",
-        "defaultPoints": 0
+        "defaultPoints": 0,
+        "tags": []
       },
       {
         "id": "seasonEnds",
         "label": "Season Ends",
         "defaultPoints": 3,
-        "implied": true
+        "implied": true,
+        "tags": []
       },
       {
         "id": "argument",
         "label": "Got into an argument",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "stormedOut",
         "label": "Stormed out of a conversation or gathering",
-        "defaultPoints": 3
+        "defaultPoints": 3,
+        "tags": []
       },
       {
         "id": "walkedAway",
         "label": "Walked away from a tense conversation",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "cried",
         "label": "Cried on camera",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "apologized",
         "label": "Apologized to another cast member",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "accusation",
         "label": "Made a direct accusation",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "denial",
         "label": "Denied an accusation or disputed an account",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "gossipShared",
         "label": "Shared information about an absent cast member",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "secretRevealed",
         "label": "Disclosed previously private information",
-        "defaultPoints": 3
+        "defaultPoints": 3,
+        "tags": []
       },
       {
         "id": "friendshipQuestioned",
         "label": "Questioned the loyalty or authenticity of a friendship",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "relationshipAnnouncement",
         "label": "Made a relationship or family announcement",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "unexpectedArrival",
         "label": "An unexpected person joined a gathering",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "awkwardSilence",
         "label": "A conversation ended in conspicuous awkward silence",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       }
     ],
     "eventCategories": [
@@ -665,6 +686,13 @@
           "nullable": true,
           "description": "This episode, how many times did each person: a conversation ended in conspicuous awkward silence? This person's number; 0 if none, null if unknown.",
           "note": "a conversation ended in conspicuous awkward silence"
+        },
+        {
+          "key": "notableTwist",
+          "type": "string",
+          "nullable": true,
+          "note": "{value}",
+          "description": "Any other notable, checkable thing that happened to this person this episode, in one short phrase. Null if nothing."
         },
         {
           "key": "sources",

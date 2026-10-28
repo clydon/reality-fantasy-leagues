@@ -1,7 +1,8 @@
 # Plan: Survivor on researched rules, tested on shadow leagues during Season 51
 
 Status: **shadow leagues built 2026-10-27** (`scripts/dev-test/shadow-leagues.js`), and **the test couch** the same day (the same
-idea in production, in the app: below; pushed 2026-10-27); the switch itself is not started. The goal
+idea in production, in the app: below; pushed 2026-10-27); the switch itself is not started, and is now planned mid-season
+(item 4 below; track S of `docs/PLAN-start-a-game-gpt.md`). The goal
 (the user, 2026-10-27): every show plays by researched rules, nothing baked into the app. Survivor is the last big built-in
 in use, so it's the test: does it still score and research the same once its rules are researched, and what breaks if not?
 
@@ -91,7 +92,13 @@ owns the couch; the real you isn't on it, so your own home doesn't change.
    like the event map, built the same way.
 3. **Whole-episode checks as rulebook data** (memory: research checks as data): Survivor's three checks expressed as
    conditions over checklist answers, so the research reader runs them for any show.
-4. **Switch at a season boundary** (Survivor 52), with the shadow leagues green on Survivor 51's last episodes first.
+4. ~~**Switch at a season boundary** (Survivor 52), with the shadow leagues green on Survivor 51's last episodes first.~~
+   **Changed (the user, 2026-10-27): mid-season, once proven.** The test couch plays the data rules for two episodes with every
+   table matching at today's points, then Survivor 51's three games switch and Survivor's code is deleted. The steps are track S
+   of `docs/PLAN-start-a-game-gpt.md` (S1 blocks that say everything the code half does, S2 checks as data and no shared code
+   naming Survivor, S3 the switch). That plan's "What's there today" lists every place that still names Survivor. For Survivor
+   51 itself the ids stay as they are (the template's aliases, plus a question map), so items 1 and 2 above matter for a freshly
+   researched rulebook, not for this switch.
 
 ## Noticed, not fixed
 

@@ -16,13 +16,17 @@
 //   asking; Everything again asks the whole checklist, merged.
 //   Step 4 (with <outDir>, a real browser): the Scoring page, its way in, a save, Add a moment, the re-run sheet, the line
 //   while episodes are behind or asked again, and the Episodes tab's roll call saying what they're asked again for.
+//   Step 6 (docs/PLAN-start-a-game-gpt.md S2 part 2): a Survivor season made today (season 993, zt-maker-survivor: Survivor's
+//   blocks compiled, under its aliases): the page lists each moment by its own id and keeps both worths of one worth more on
+//   several teams, an event id is refused; in the browser, + moves both, says what they were, and they save whole.
 //
 //   npm run dev                                                  (in another terminal; CRON_SECRET in .env.local)
 //   node scripts/dev-test/check-maker-scoring.js [<outDir> [--width=390] [--theme=light|dark]] [--keep]   (<outDir>: the browser half too)
 //   node scripts/dev-test/check-maker-scoring.js down            (removes what it made)
 //
 // It drives the bot's clock route, which plans every season: it stops before calling it if anything that isn't its own is
-// due locally. Touches zt rows only; refuses a non-local database. Prints PASS/FAIL. Shares castle-fixture.js with
+// due locally. Touches zt rows only (step 6's season rulebook brings Survivor's library template up to date if Survivor's
+// rules moved, as any season read in the app does); refuses a non-local database. Prints PASS/FAIL. Shares castle-fixture.js with
 // check-research-asks.js: never run the two at once.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const { Pool } = require("pg");
@@ -56,9 +60,25 @@ const BROKE = { id: "brokeDownAtBreakfast", label: "Broke down at breakfast", qu
 const WORE = { id: "woreACloak", label: "Wore a cloak" };
 const WHO = "Eli Hall";
 
+// Step 6: a Survivor season made today (993, named zt-maker-survivor, on the real Survivor show), its rulebook made as every
+// new one is (db/rulebooks.js ensureSeasonRulebook: Survivor's blocks compiled), the watcher its maker.
+const SURVIVOR_SEASON = { number: 993, name: "zt-maker-survivor" };
+const dropSurvivor = (pool) => pool.query("DELETE FROM show_seasons WHERE season_number = $1 AND name = $2", [SURVIVOR_SEASON.number, SURVIVOR_SEASON.name]);
+async function freshSurvivor(pool) {
+  await dropSurvivor(pool);
+  const { rows } = await pool.query(
+    `INSERT INTO show_seasons (show_id, season_number, name, status, episode_count) SELECT id, $1, $2, 'airing', 6 FROM shows WHERE slug = 'survivor' RETURNING id`,
+    [SURVIVOR_SEASON.number, SURVIVOR_SEASON.name]
+  );
+  const { row } = await Rulebooks.ensureSeasonRulebook(pool, rows[0].id);
+  await pool.query(`UPDATE rulebooks SET created_by = (SELECT id FROM "user" WHERE username = 'zt_ra_watcher') WHERE id = $1`, [row.id]);
+  return rows[0].id;
+}
+
 (async () => {
   const pool = new Pool({ connectionString: DB });
   if (args[0] === "down") {
+    await dropSurvivor(pool);
     await fx.down(pool);
     await pool.end();
     console.log("down: zt_ra_ people and the show 990041 removed");
@@ -262,6 +282,32 @@ const WHO = "Eli Hall";
     const nowF = await facts();
     check(!now5.filter((f) => !nowF.includes(f)).length, "and every result still counts", JSON.stringify(now5.filter((f) => !nowF.includes(f))));
 
+    // ---- step 6 (docs/PLAN-start-a-game-gpt.md S2 part 2): a new Survivor season, Survivor's blocks compiled ----
+    // Its moments are recorded under Survivor's event ids (its aliases): the page lists each by its own id, which is what's
+    // saved, and a moment worth something else where castaways can be on several teams keeps both worths. Its maker here is
+    // the watcher (on a real one it's a site admin, until a game is played on it).
+    const survivorSeason = await freshSurvivor(pool);
+    const sv = (body) => (body ? as.watcher.call("POST", `/api/seasons/${survivorSeason}/scoring`, body) : as.watcher.call("GET", `/api/seasons/${survivorSeason}/scoring`));
+    const svPage = (await sv()).body;
+    const imm = moment(svPage, "immunityChallengeWon");
+    check(
+      svPage?.editable === true && imm?.points === 3 && imm?.shared === 4 && !moment(svPage, "individualImmunity") && moment(svPage, "tribalCouncilZeroVotes")?.shared === 1,
+      "a Survivor season from its blocks: each moment by its own id (not the event id it's recorded under), both worths",
+      JSON.stringify({ editable: svPage?.editable, imm })
+    );
+    const split = await sv({ points: { immunityChallengeWon: { exclusive: 3.5, shared: 4.5 } } });
+    const svRow = async () => (await pool.query("SELECT r.blocks, r.compiled FROM rulebooks r JOIN show_seasons ss ON ss.rulebook_id = r.id WHERE ss.id = $1", [survivorSeason])).rows[0];
+    // (jsonb gives { shared, exclusive } back in its own key order.)
+    const worth = (p, exclusive, shared) => !!p && p.exclusive === exclusive && p.shared === shared;
+    let stored = await svRow();
+    check(
+      split.status === 200 && worth(stored.blocks.points.immunityChallengeWon, 3.5, 4.5) &&
+        worth(stored.compiled.events.find((e) => e.id === "individualImmunity")?.defaultPoints, 3.5, 4.5),
+      "saved by its own id, both worths kept: what the recorded event scores",
+      JSON.stringify({ status: split.status, points: stored.blocks.points.immunityChallengeWon })
+    );
+    check((await sv({ points: { individualImmunity: 5 } })).status === 400, "an event id isn't a moment: refused");
+
     // ---- step 4: the Scoring page, in a real browser ----
     if (out) {
       fs.mkdirSync(out, { recursive: true });
@@ -345,10 +391,35 @@ const WHO = "Eli Hall";
           await b.close();
         }
       }
+      // Step 6 in the browser: the Survivor season's split worth, moved with + and saved whole.
+      const b = await open({ user: "zt_ra_watcher", pass: fx.PASSWORD, width, headers });
+      b.page.on("pageerror", (e) => check(false, "no page errors (the Survivor season)", e.message));
+      if (theme) await b.page.context().addCookies([{ name: "gys_theme", value: theme === "light" ? "studio" : "night", url: BASE }]);
+      try {
+        const { page } = b;
+        await page.goto(`${BASE}/show/${survivorSeason}/scoring`);
+        await page.locator('[data-scoring="edit"]').waitFor({ timeout: 20_000 });
+        const row = page.locator('[data-scoring-moment="immunityChallengeWon"]');
+        const value = () => row.locator("b.type-num").innerText();
+        check(/\+4\.5 if on several teams/.test(await row.innerText()) && (await value()) === "+3.5" && (await wide(page)) <= width, "a moment worth more on several teams says so, and the page fits", await row.innerText());
+        await shot(page, "scoring-split");
+        await row.locator('button[aria-label="More"]').click();
+        await page.locator("[data-scoring-bar]").waitFor({ timeout: 5_000 });
+        const moved = await row.innerText();
+        check((await value()) === "+4" && /Was \+3\.5 \/ \+4\.5/.test(moved) && /\+5 if on several teams/.test(moved) && (await wide(page)) <= width, "+ moves both, and says what they were", moved);
+        await shot(page, "scoring-split-moved");
+        await page.locator("[data-scoring-save]").click();
+        await page.locator("[data-scoring-bar]").waitFor({ state: "detached", timeout: 15_000 }).catch(() => {});
+        stored = await svRow();
+        check(worth(stored.blocks.points.immunityChallengeWon, 4, 5), "saved: 4, and 5 on several teams", JSON.stringify(stored.blocks.points.immunityChallengeWon));
+      } finally {
+        await b.close();
+      }
     }
   } finally {
     await bot.close();
     await tv.close();
+    if (!keep) await dropSurvivor(pool);
     if (!keep) await fx.down(pool);
     await pool.end();
   }

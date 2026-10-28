@@ -16,6 +16,10 @@
 //   whose cache didn't follow is refused, not mis-scored);
 //   saved from unedited blocks, a rulebook compiles on its base and still scores the same, and a real edit plays;
 //   phase starts, lineage, leagues using, a copy;
+//   a season made today (docs/PLAN-start-a-game-gpt.md S2): Survivor's is its blocks compiled, never frozen, and its
+//   league scores as on survivor.js; The Traitors' is still frozen; what asks research (seasonResearchRulebook); a frozen
+//   season from before its built-in's data moved refreshes and stays frozen; a show switched to another format gets that
+//   format's rulebook anew, the old one archived;
 //   the flag off takes settings.rulebook out and leaves each league exactly as it was.
 //
 // Needs the local database (Docker survivor-draft-pg) with migration 0107 applied; no dev server. Refuses a
@@ -24,6 +28,9 @@
 require("dotenv").config({ path: ".env.local", quiet: true });
 const { Pool } = require("pg");
 const S = require("../../src/lib/game/state-logic.js");
+const Formats = require("../../src/lib/game/formats/index.js");
+const { compileRulebook } = require("../../src/lib/game/formats/rulebook-compile.js");
+const survivorBlocks = require("../../src/lib/game/formats/blocks/survivor.blocks.js");
 const R = require("../../db/rulebooks.js");
 const ShowFormats = require("../../db/show-formats.js");
 const { backfill, BACKFILL_LOCK } = require("../../db/backfill-rulebooks.js");
@@ -82,6 +89,8 @@ async function run(pool) {
     }
     const zt = report.checks.filter((c) => c.season.endsWith(` ${fixture.SEASON}`));
     eq("the backfill makes a rulebook for each zt season", zt.map((c) => c.season).sort(), Object.keys(READERS).map((s) => `${s} ${fixture.SEASON}`).sort());
+    const made = report.checks.filter((c) => c.season.endsWith(` ${fixture.FRESH}`));
+    check("and one for each made today, each its format's rules (Survivor's: its blocks compiled)", made.length === 2 && made.every((c) => c.same), JSON.stringify(made));
     check("each is exactly the format its research reads", zt.every((c) => c.same), JSON.stringify(zt));
     eq("with the season's reader", Object.fromEntries(zt.map((c) => [c.season.split(" ")[0], c.reader])), READERS);
     const books = {};
@@ -105,7 +114,11 @@ async function run(pool) {
     for (const l of fx.leagues) states[l.slug] = await stateOf(pool, l.leagueId);
     eq("settings.rulebook is { id, version, data, reader }", Object.keys(states["zt-rb-survivor-pickem"].settings.rulebook).sort(), ["data", "id", "reader", "version"]);
     eq("each with its family's reader", Object.fromEntries(seasonOnes.map((l) => [l.slug, states[l.slug].settings.rulebook.reader])), Object.fromEntries(seasonOnes.map((l) => [l.slug, READERS[l.show]])));
-    const played = fx.leagues.filter((l) => on[l.slug].written).map((l) => [l.slug, comparePlayed(states[l.slug])]);
+    // (A season made today plays by its built-in's blocks: comparePlayed compares its events and catalog as sets.)
+    const played = [];
+    for (const l of fx.leagues.filter((x) => on[x.slug].written)) {
+      played.push([l.slug, comparePlayed(states[l.slug], { phaseStarts: (await R.getRulebook(pool, on[l.slug].id)).phaseStarts })]);
+    }
     check(`all ${played.length} written leagues score exactly the same`, played.every(([, c]) => c.same && c.rules), JSON.stringify(played.filter(([, c]) => !(c.same && c.rules))));
     const bonus = scoringSnapshot(states["zt-rb-adopted"]).events.slice(2).every((ep) => ep.some(([type]) => type === "ztBonus"));
     check("an adopted season change still scores on top of the rulebook", bonus);
@@ -186,6 +199,76 @@ async function run(pool) {
     const copy = await R.copyRulebook(pool, books["the-traitors-us"].id, { ownerKind: "league", leagueId: by["zt-rb-noseason"].leagueId });
     const { rows: copied } = await pool.query("SELECT rulebook_id FROM leagues WHERE id=$1", [by["zt-rb-noseason"].leagueId]);
     check("a copy points at what it was made from, at its version", copy.parentKind === "rulebook" && copy.parentId === books["the-traitors-us"].id && copy.parentVersion === 1 && copied[0].rulebook_id === copy.id);
+
+    // A season made today (docs/PLAN-start-a-game-gpt.md S2): a built-in whose blocks stand alone is compiled from them,
+    // never frozen; the others still are, until theirs do.
+    const fresh = await R.seasonRulebook(pool, fx.fresh.survivor);
+    const blocksWant = compileRulebook(survivorBlocks.blocks, { aliases: survivorBlocks.aliases, reader: "research", phaseStarts: fresh.phaseStarts }).data;
+    check(
+      "a new Survivor season is its blocks compiled, never survivor.js frozen",
+      fresh.compiledSource === "blocks" && fresh.reader === "research" && !fresh.base && R.sameData(fresh.aliases, survivorBlocks.aliases) &&
+        R.sameData(fresh.compiled, blocksWant) && fresh.provenance.from === "builtin" && fresh.provenance.id === "survivor",
+      JSON.stringify({ source: fresh.compiledSource, reader: fresh.reader, provenance: fresh.provenance })
+    );
+    const freshTraitors = await R.seasonRulebook(pool, fx.fresh["the-traitors-us"]);
+    check("a new Traitors season is still frozen: its blocks don't stand alone yet", freshTraitors.compiledSource === "legacy" && freshTraitors.reader === "traitors");
+    // Its league plays by it with the flag on, and scores as on survivor.js (each episode's events and the catalog as sets:
+    // their order and labels are the blocks').
+    const freshSlug = "zt-rb-fresh-survivor";
+    check("its league plays by it with the flag on", on[freshSlug].written && on[freshSlug].id === fresh.id, JSON.stringify(on[freshSlug]));
+    const freshPlayed = comparePlayed(states[freshSlug], { phaseStarts: fresh.phaseStarts });
+    check("and scores exactly as on survivor.js, by its blocks' rules", freshPlayed.same && freshPlayed.rules, JSON.stringify(freshPlayed));
+    check("which the backfill and the flag hold it to", R.isFormatsRules(fresh, Formats.FORMATS.survivor) && !R.isFormatsRules({ ...fresh, compiled: Formats.FORMATS.survivor.data }, Formats.FORMATS.survivor));
+    // Unedited, it follows its blocks as a frozen one follows its format: compiled before the blocks or the compiler moved on
+    // (here, without the tags), it's compiled again, a version on.
+    const stale = structuredClone(fresh.compiled);
+    for (const e of stale.events) delete e.tags;
+    await pool.query("UPDATE rulebooks SET compiled=$2 WHERE id=$1", [fresh.id, JSON.stringify(stale)]);
+    const followed2 = await R.ensureSeasonRulebook(pool, fx.fresh.survivor);
+    check(
+      "unedited, it follows its blocks: compiled again when they moved on, a version on",
+      followed2.change === "updated" && followed2.row.id === fresh.id && followed2.row.version === fresh.version + 1 && R.sameData(followed2.row.compiled, blocksWant),
+      JSON.stringify({ change: followed2.change, version: followed2.row.version })
+    );
+    check("and left alone when they haven't", (await R.ensureSeasonRulebook(pool, fx.fresh.survivor)).change === "unchanged");
+    // What asks a season's research, recorded with what it stores (db/episode-research.js askedAlike): a frozen season's
+    // rulebook asks what its format asks, so it's recorded with the flag off too; one from blocks only once it's live.
+    const challengeBook = books["the-challenge"];
+    const frozenOff = await R.seasonResearchRulebook(pool, fx.seasons["the-challenge"], { formatId: "challenge", on: false });
+    check("research on a frozen season asks by its format and records its rulebook", !frozenOff.format && !!frozenOff.rulebook && frozenOff.rulebook.id === challengeBook.id);
+    const frozenOn = await R.seasonResearchRulebook(pool, fx.seasons["the-challenge"], { formatId: "challenge", on: true });
+    check("and with the flag on asks by the rulebook", !!frozenOn.format && R.sameData(frozenOn.format.data, challengeBook.compiled) && frozenOn.rulebook.id === challengeBook.id);
+    const otherFormat = await R.seasonResearchRulebook(pool, fx.seasons["the-challenge"], { formatId: "survivor", on: true });
+    check("but not a frozen rulebook of another format", !otherFormat.format && !otherFormat.rulebook);
+    const freshOff = await R.seasonResearchRulebook(pool, fx.fresh.survivor, { formatId: "survivor", on: false });
+    check("a rulebook from blocks that isn't live asks nothing, so it isn't recorded", !freshOff.format && !freshOff.rulebook);
+    const freshOn = await R.seasonResearchRulebook(pool, fx.fresh.survivor, { formatId: "survivor", on: true });
+    check("live, it asks and is recorded", !!freshOn.format && R.sameData(freshOn.format.data, fresh.compiled) && freshOn.rulebook.id === fresh.id);
+    // A frozen season whose data is from before its built-in's moved on (the tags, S2): refreshed, a version on, still frozen.
+    const old = structuredClone(challengeBook.compiled);
+    for (const e of old.events) delete e.tags;
+    await pool.query("UPDATE rulebooks SET compiled=$2, base=$2 WHERE id=$1", [challengeBook.id, JSON.stringify(old)]);
+    const refreshed = await R.ensureSeasonRulebook(pool, fx.seasons["the-challenge"]);
+    check(
+      "a frozen season from before its built-in's data moved refreshes, and stays frozen",
+      refreshed.change === "updated" && refreshed.row.id === challengeBook.id && refreshed.row.compiledSource === "legacy" && refreshed.row.reader === "challenge" &&
+        refreshed.row.version === challengeBook.version + 1 && R.sameData(refreshed.row.compiled, Formats.FORMATS.challenge.data),
+      JSON.stringify({ change: refreshed.change, version: refreshed.row.version })
+    );
+    // The zt show switched to Survivor's format: Survivor's rulebook anew (its blocks), the stored format's archived.
+    const storedSeason = fx.seasons[fx.showSlug];
+    const was = await R.seasonRulebook(pool, storedSeason);
+    await pool.query("UPDATE shows SET format='survivor' WHERE slug=$1", [fx.showSlug]);
+    const switched = await R.ensureSeasonRulebook(pool, storedSeason);
+    const { rows: wasRow } = await pool.query("SELECT status FROM rulebooks WHERE id=$1", [was.id]);
+    const { rows: pointsAt } = await pool.query("SELECT rulebook_id FROM show_seasons WHERE id=$1", [storedSeason]);
+    check(
+      "a show switched to another format gets that format's rulebook anew, the old one archived",
+      switched.change === "created" && switched.row.id !== was.id && wasRow[0].status === "archived" && switched.row.compiledSource === "blocks" &&
+        switched.row.provenance.id === "survivor" && pointsAt[0].rulebook_id === switched.row.id,
+      JSON.stringify({ change: switched.change, was: wasRow[0], source: switched.row.compiledSource })
+    );
+    await pool.query("UPDATE shows SET format=$2 WHERE slug=$1", [fx.showSlug, fx.formatId]);
 
     // The flag off: settings.rulebook out of every league, and each back exactly as it was.
     const off = {};

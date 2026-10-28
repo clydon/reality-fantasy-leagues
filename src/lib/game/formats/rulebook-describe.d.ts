@@ -1,12 +1,17 @@
 // Types for formats/rulebook-describe.js: the How it works page's view model and its pieces.
 import type { FormatData } from "./index";
-import type { BlockKey, RulebookAliases, RulebookBlocks, RulebookKind, RulebookPhase, RulebookSegment, RulebookTwist } from "./rulebook-schema";
+import type { BlockKey, Points, RulebookAliases, RulebookBlocks, RulebookKind, RulebookPhase, RulebookSegment, RulebookTwist } from "./rulebook-schema";
 
 export interface PointItem {
+  /** The event id it's recorded and scored under (the compiled rules'), or the moment's own with no compiled rules. */
   id: string;
+  /** The moment it is (rulebook-moments.js), which a rulebook's points are keyed by: not the event id an alias records. */
+  momentId: string;
   label: string;
   /** Absent on a talk show: its moments don't score. */
   points?: number;
+  /** Its points as the rules have them: a number, or { exclusive, shared } (`points` is the one for this league). */
+  defaultPoints: Points;
   /** Known without asking: how they left, a role. */
   auto: boolean;
   /** The league answers it. */

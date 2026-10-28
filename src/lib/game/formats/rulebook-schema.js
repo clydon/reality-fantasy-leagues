@@ -7,16 +7,32 @@
 //   { schema: 1, kind, start?, show?, tagline?, premise?, parts?, derivedFrom?,
 //     cast:     { unit, singular, plural, usualSize?, groups: null | { type, singular, change } },
 //     season:   { phases: [{ id, name, starts: { type, n? }, changes: [], summary? }], finale?: { decidedBy, finalists?, summary? } },
-//     segments: [{ id, name, summary?, decidedBy, voters?, pickers?, takesPart?, decides?, onTheLine?, often, phase?, momentsOff? }],
-//     waysOut:  [{ id, name, means, cause?: { segment } | ownChoice | medical | removed | story }],
-//     twists:   [{ id, type, name, summary?, ...that type's answers }],
-//     customMoments: [{ id, label, question?, uses?, during?: { segment } | { twist }, counted, answeredBy, reliability? }],
+//     segments: [{ id, name, summary?, decidedBy, voters?, pickers?, takesPart?, decides?, onTheLine?, often, phase?, momentsOff?,
+//                  groupWin?, places?, skippedBy? }],
+//     waysOut:  [{ id, name, means, cause?: { segment } | ownChoice | medical | removed | story, winnerToo? }],
+//     twists:   [{ id, type, name, summary?, ...that type's answers (an advantage's cancelled?, a side trip's away?) }],
+//     customMoments: [{ id, label, question?, uses?, during?: { segment } | { twist }, counted, answeredBy, reliability?, exceptWinners? }],
 //       (uses: the key of a question the rulebook already asks, scored instead of asking one of its own:
 //       "−0.5 a vote received at the Round Table" on roundTableVotesReceived; docs/PLAN-maker-scoring.md)
 //     points:   { [momentId]: number | { exclusive, shared } },   suggested-point overrides
-//     momentNotes: { [momentId]: { reliability?, answeredBy?, off? } }, research's rating of a built moment;
-//               off: a couch's own copy doesn't count it (Make it ours)
+//     momentNotes: { [momentId]: { reliability?, answeredBy?, off?, tags? } }, research's rating of a built moment;
+//               off: a couch's own copy doesn't count it (Make it ours); tags: what it says about someone's place
+//               in the game, in place of what its structure says (moment-tags.js; [] for none)
+//     research: { searchHint?: ['a line of the research prompt'],
+//                 questions?: { [questionKey]: { words?, needsSource?, type?, of?, note?, sentence?, shown? } },
+//                 checks?: { [checkId]: { words?, when?, set?, off? } } },
+//               how research asks: its own words for a question the rulebook asks (the compiler writes its own
+//               otherwise), whether a yes needs a source, and questions it asks besides that score nothing (with a type);
+//               how each answer reads to a reviewer (note, sentence and when they're said: research-review.js); and its
+//               checks: words, a condition or off for one the compiler makes from the blocks, or one of its own (a
+//               condition on one person's answers, and its words; rulebook-compile.js)
 //     leftOut:  ['anything that didn't fit, one sentence each'] }
+//
+// The refinements a show's own rules need (docs/PLAN-start-a-game-gpt.md S1), each optional, absent meaning what it
+// always did: a group's win that counts as winning it (groupWin), 2nd and 3rd asked as a place (places), a group
+// that wins one segment skipping a vote (skippedBy), the winner scoring as a finalist too (winnerToo), cancelled
+// votes asked as a count (cancelled), a side trip that takes someone away from their group (away: exile), and a
+// moment the segment's winners can't have (exceptWinners).
 //
 // Every answer with fixed choices is an OPT list here, each option [value, label, help]: the editor shows
 // the label and help, the research prompt lists the values with the same help, and blocksProblems accepts
@@ -30,6 +46,7 @@
 // browser-safe, like everything here.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js */
 const { camelId } = require('./proposal.js');
+const { tagsProblem } = require('./moment-tags.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const SCHEMA_VERSION = 1;
@@ -136,6 +153,16 @@ const OPT = {
     ['someEpisodes', 'Some episodes', ''],
     ['onePhase', 'Only in one phase', ''],
   ],
+  // When groups take part in a segment someone wins.
+  groupWin: [
+    ['own', 'A moment of its own', "Winning as a group scores apart from winning alone."],
+    ['won', 'Counts as winning it', 'Everyone in the winning group won it: one moment, alone or as a group.'],
+  ],
+  // How 2nd and 3rd are known, for a segment that decides the top three.
+  places: [
+    ['each', 'One question each', 'Came 2nd? Came 3rd? Each asked yes or no.'],
+    ['place', 'Their finishing place', 'One number for each person, 2 for the runner-up and 3 for third, only when a source gives the order.'],
+  ],
   means: [
     ['out', "They're out", ''],
     ['finalist', 'They reached the end', 'A finalist or runner-up.'],
@@ -184,6 +211,11 @@ const OPT = {
     ['oneUse', 'One use', ''],
     ['oneEpisode', 'One episode', ''],
   ],
+  // How cancelled votes are known, for an advantage that cancels them.
+  cancelled: [
+    ['yesNo', 'Did it cancel votes?', 'Asked yes or no.'],
+    ['count', 'How many votes it cancelled', 'A number, for whoever played one. It scores once it cancelled any.'],
+  ],
   comebackWho: [
     ['peopleWhoLeft', 'People who left', ''],
     ['newPeople', 'New people', ''],
@@ -203,6 +235,11 @@ const OPT = {
     ['disadvantage', 'A disadvantage, like losing their vote', ''],
     ['nothing', 'Nothing', ''],
   ],
+  // Whether a side trip takes someone away from their group while they stay in the game.
+  away: [
+    ['no', 'No, they come back', ''],
+    ['yes', 'Yes, for a while', "Like Exile Island: still in the game, away from their group. It's recorded on the episode they're sent, and scores from that."],
+  ],
   counted: [
     ['yesNo', 'Once an episode', 'Did it happen? Yes or no.'],
     ['eachTime', 'Each time it happens', ''],
@@ -220,6 +257,10 @@ const OPT = {
 };
 
 const valuesOf = (key) => (OPT[key] || []).map((o) => o[0]);
+// A research block's question asked besides (not an answer the editor or the research prompt offers): its kind of answer,
+// and whether it's about each person or the episode.
+const QUESTION_TYPES = ['answer', 'string', 'integer'];
+const QUESTION_OF = ['person', 'episode'];
 const optionOf = (key, value) => (OPT[key] || []).find((o) => o[0] === value) || null;
 /** The label people see for a stored value ("goingHome" -> "Sends someone home"); the value itself if unknown. */
 function labelOf(key, value) {
@@ -288,17 +329,19 @@ const QUESTIONS = {
     name: "What's it called?", summary: 'In a sentence', decidedBy: 'Who decides it?', voters: 'Who votes?', pickers: 'Who picks?',
     takesPart: 'Who takes part?', decides: 'What does it decide?', onTheLine: "What's on the line?", often: 'How often?', phase: 'Which phase?',
     moments: 'What it scores', addMoment: 'Add a moment to it',
+    groupWin: 'When a group wins it', places: 'How are 2nd and 3rd known?', skippedBy: 'Does a winning group skip it?',
   },
-  wayOut: { name: "What's it called?", means: 'What does it mean?', cause: 'What causes it?', points: 'Suggested points' },
+  wayOut: { name: "What's it called?", means: 'What does it mean?', cause: 'What causes it?', points: 'Suggested points', winnerToo: 'Does the winner get it too?' },
   twist: {
     type: 'What kind of twist?', name: "What's it called?", summary: 'In a sentence',
     roles: 'What are the roles?', revealed: 'When is it revealed?', canSwitch: 'Can someone switch?',
     oneIsCalled: "What's one called?", gotBy: 'How do they get it?', wonAt: 'Which segment?', does: 'What does it do?', lasts: 'How long does it last?',
     comebackWho: 'Who comes in?', comebackHow: 'How?', tripWho: 'Who goes?', canGet: 'What can they come back with?',
+    cancelled: 'How are cancelled votes known?', away: 'Does it take them away from their group?',
   },
   moment: {
     label: 'What happens?', during: 'Where does it happen?', counted: 'How is it counted?', answeredBy: 'Who answers it?',
-    reliability: 'How reliably do recaps report it?', points: 'Suggested points',
+    reliability: 'How reliably do recaps report it?', points: 'Suggested points', exceptWinners: 'Leave out whoever won it?',
   },
 };
 
@@ -318,6 +361,15 @@ const ID = /^[a-z][A-Za-z0-9]*$/;
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 const list = (v) => (Array.isArray(v) ? v : []);
 const kindOf = (blocks) => (KINDS[blocks && blocks.kind] ? blocks.kind : 'competition');
+
+/** Whether groups take part in segment `s` and it's decided by a result: it builds a group's win ("Tribe won the Immunity challenge"). */
+function hasGroupWin(s, blocks) {
+  return !!(blocks && blocks.cast && blocks.cast.groups) && !!s && ['result', 'judges', 'headToHead'].includes(s.decidedBy) && ['groups', 'groupsThenEach'].includes(s.takesPart);
+}
+/** Whether segment `s` has a winner: it builds "Won the <segment>". */
+function winsOf(s) {
+  return !!s && ['result', 'judges', 'headToHead'].includes(s.decidedBy) && ['winner', 'topThree', 'bestAndWorst'].includes(s.decides);
+}
 
 /** "castaway" -> "castaways", "celebrity" -> "celebrities", "crew member" -> "crew members". */
 function pluralOf(word) {
@@ -350,6 +402,10 @@ function optionsFor(key, blocks) {
   if (key === 'phase') return [...phases.map((p) => [p.id, p.name, '']), ['finale', 'The finale', '']];
   if (key === 'cause') return [...segs.filter((s) => s.decidedBy !== 'nobody').map((s) => [s.id, s.name, '']), ...OPT.cause];
   if (key === 'wonAt') return segs.filter((s) => s.decidedBy !== 'nobody').map((s) => [s.id, s.name, '']);
+  if (key === 'skippedBy') {
+    const group = (blocks && blocks.cast && blocks.cast.groups && blocks.cast.groups.singular) || 'group';
+    return segs.filter((s) => hasGroupWin(s, blocks)).map((s) => [s.id, `The ${group} that wins ${s.name}`, '']);
+  }
   if (key === 'during') return [['anywhere', 'Anywhere', ''], ...segs.map((s) => [s.id, s.name, '']), ...list(blocks && blocks.twists).map((t) => [t.id, t.name, ''])];
   return OPT[key] || [];
 }
@@ -473,6 +529,24 @@ function blocksProblems(blocks) {
       if (s.phase !== 'finale' && !phaseIds.has(s.phase)) add(`${at}.phase`, `${name}: which phase isn't one of the season's`);
     } else if (s.phase !== undefined) add(`${at}.phase`, `${name}: a phase only goes with "only in one phase"`);
     if (s.momentsOff !== undefined && !Array.isArray(s.momentsOff)) add(`${at}.momentsOff`, `${name}: the moments turned off should be a list`);
+    if (s.groupWin !== undefined) {
+      if (!hasGroupWin(s, blocks) || !winsOf(s)) add(`${at}.groupWin`, `${name}: what a group's win counts as only goes with groups taking part in a contest someone wins`);
+      else oneOf(`${at}.groupWin`, name, 'groupWin', s.groupWin, "what a group's win counts as");
+    }
+    if (s.places !== undefined) {
+      if (s.decides !== 'topThree') add(`${at}.places`, `${name}: how 2nd and 3rd are known only goes with the top three`);
+      else oneOf(`${at}.places`, name, 'places', s.places, 'how 2nd and 3rd are known');
+    }
+  }
+  // A group that wins one segment skips a vote: a segment groups win, and not the vote itself.
+  for (const s of segs) {
+    if (!isObj(s) || s.skippedBy === undefined) continue;
+    const at = `${loc('segments', s.id)}.skippedBy`;
+    const name = isText(s.name) ? s.name : 'A segment';
+    const by = segs.find((x) => isObj(x) && x.id === s.skippedBy);
+    // (Who votes, when it isn't one of the choices, is said already.)
+    if (s.decidedBy !== 'vote' || (valuesOf('voters').includes(s.voters) && s.voters !== 'cast')) add(at, `${name}: a group skipping it only goes with a vote by the cast`);
+    else if (!by || by === s || !hasGroupWin(by, blocks)) add(at, `${name}: the segment its skippers win isn't one a group wins`);
   }
 
   // 4. Ways out.
@@ -490,6 +564,10 @@ function blocksProblems(blocks) {
       if (isObj(w.cause)) {
         if (!segIds.has(w.cause.segment)) add(`${at}.cause`, `${name}: what causes it isn't one of the segments`);
       } else oneOf(`${at}.cause`, name, 'cause', w.cause, 'what causes it');
+    }
+    if (w.winnerToo !== undefined) {
+      if (typeof w.winnerToo !== 'boolean') add(`${at}.winnerToo`, `${name}: whether the winner gets it too should be yes or no`);
+      else if (w.winnerToo && w.means !== 'finalist') add(`${at}.winnerToo`, `${name}: the winner getting it too only goes with reaching the end`);
     }
   }
 
@@ -516,6 +594,16 @@ function blocksProblems(blocks) {
     if ((t.type === 'advantage' || t.type === 'sideTrip') && !isText(t.oneIsCalled)) add(`${at}.oneIsCalled`, `${name}: what one is called is missing`);
     if (t.type === 'advantage' && t.gotBy === 'wonAt' && !segIds.has(t.wonAt)) add(`${at}.wonAt`, `${name}: which segment it's won in isn't one of the segments`);
     if (t.wonAt !== undefined && t.gotBy !== 'wonAt') add(`${at}.wonAt`, `${name}: a segment only goes with "they win it in a segment"`);
+    if (t.cancelled !== undefined) {
+      if (t.type !== 'advantage' || !list(t.does).includes('cancelsVotes')) add(`${at}.cancelled`, `${name}: how cancelled votes are known only goes with an advantage that cancels votes`);
+      else oneOf(`${at}.cancelled`, name, 'cancelled', t.cancelled, 'how cancelled votes are known');
+    }
+    if (t.away !== undefined) {
+      if (t.type !== 'sideTrip') add(`${at}.away`, `${name}: being away from their group only goes with a side trip`);
+      else oneOf(`${at}.away`, name, 'away', t.away, 'whether it takes them away from their group');
+      // An episode records who was away, not on which trip, so only one trip can be it.
+      if (t.type === 'sideTrip' && t.away === 'yes' && twists.find((x) => isObj(x) && x.type === 'sideTrip' && x.away === 'yes') !== t) add(`${at}.away`, `${name}: only one side trip can take them away from their group`);
+    }
   }
 
   // Moments added by hand.
@@ -538,6 +626,52 @@ function blocksProblems(blocks) {
     oneOf(`${at}.counted`, name, 'counted', m.counted, 'how it is counted');
     oneOf(`${at}.answeredBy`, name, 'answeredBy', m.answeredBy, 'who answers it');
     if (m.reliability !== undefined) oneOf(`${at}.reliability`, name, 'reliability', m.reliability, 'how reliably recaps report it');
+    if (m.exceptWinners !== undefined) {
+      const seg = isObj(m.during) ? segs.find((s) => isObj(s) && s.id === m.during.segment) : null;
+      // A segment that isn't there is already said, above.
+      const dangling = isObj(m.during) && m.during.segment !== undefined && !seg;
+      if (typeof m.exceptWinners !== 'boolean') add(`${at}.exceptWinners`, `${name}: whether its winners are left out should be yes or no`);
+      else if (m.exceptWinners && !dangling && !winsOf(seg)) add(`${at}.exceptWinners`, `${name}: leaving out the winners only goes with a moment during a segment someone wins`);
+    }
+  }
+
+  // How research asks: its words for a question, whether a yes needs a source, and questions it asks besides.
+  const research = blocks.research;
+  if (research !== undefined) {
+    if (!isObj(research)) add('research', 'How research asks should be an object');
+    else {
+      for (const k of Object.keys(research)) if (!['searchHint', 'questions', 'checks'].includes(k)) add(`research.${k}`, `How research asks: "${k}" isn't something it takes`);
+      if (research.searchHint !== undefined && !(Array.isArray(research.searchHint) && research.searchHint.length && research.searchHint.every((l) => typeof l === 'string'))) {
+        add('research.searchHint', 'What research searches for should be a list of lines');
+      }
+      if (research.questions !== undefined && !isObj(research.questions)) add('research.questions', 'The questions should be a map of their keys');
+      for (const [k, q] of Object.entries(isObj(research.questions) ? research.questions : {})) {
+        const at = `research.questions.${k}`;
+        if (!ID.test(k)) add(at, `"${k}": a question's key should be camelCase letters and digits`);
+        if (!isObj(q)) { add(at, `${k}: how it's asked isn't filled in`); continue; }
+        for (const f of Object.keys(q)) if (!['words', 'needsSource', 'type', 'of', 'note', 'sentence', 'shown'].includes(f)) add(`${at}.${f}`, `${k}: "${f}" isn't something a question takes`);
+        for (const f of ['note', 'sentence']) if (q[f] !== undefined && q[f] !== false && !isText(q[f])) add(`${at}.${f}`, `${k}: how it reads to a reviewer should be text, or false for nothing`);
+        if (q.shown !== undefined && !isObj(q.shown)) add(`${at}.shown`, `${k}: when it's said should be a condition`);
+        if (q.words !== undefined && !isText(q.words)) add(`${at}.words`, `${k}: its words should be text`);
+        else if (q.type !== undefined && q.words === undefined) add(`${at}.words`, `${k}: a question asked besides needs its words`);
+        if (q.needsSource !== undefined && typeof q.needsSource !== 'boolean') add(`${at}.needsSource`, `${k}: whether a yes needs a source should be yes or no`);
+        if (q.type !== undefined && !QUESTION_TYPES.includes(q.type)) add(`${at}.type`, `${k}: what kind of answer it is isn't one of ${QUESTION_TYPES.join(', ')}`);
+        if (q.of !== undefined) {
+          if (q.type === undefined) add(`${at}.of`, `${k}: what it's about only goes with a question asked besides`);
+          else if (!QUESTION_OF.includes(q.of)) add(`${at}.of`, `${k}: what it's about isn't one of ${QUESTION_OF.join(', ')}`);
+        }
+      }
+      if (research.checks !== undefined && !isObj(research.checks)) add('research.checks', 'The checks should be a map of their ids');
+      for (const [k, c] of Object.entries(isObj(research.checks) ? research.checks : {})) {
+        const at = `research.checks.${k}`;
+        if (!ID.test(k)) add(at, `"${k}": a check's id should be camelCase letters and digits`);
+        if (!isObj(c)) { add(at, `${k}: the check isn't filled in`); continue; }
+        for (const f of Object.keys(c)) if (!['words', 'when', 'set', 'off'].includes(f)) add(`${at}.${f}`, `${k}: "${f}" isn't something a check takes`);
+        if (c.words !== undefined && !isText(c.words)) add(`${at}.words`, `${k}: its words should be text`);
+        for (const f of ['when', 'set']) if (c[f] !== undefined && !isObj(c[f])) add(`${at}.${f}`, `${k}: ${f === 'when' ? 'its condition' : 'what it repairs'} should be an object`);
+        if (c.off !== undefined && typeof c.off !== 'boolean') add(`${at}.off`, `${k}: whether it's off should be yes or no`);
+      }
+    }
   }
 
   // What the kind hides isn't there.
@@ -579,6 +713,7 @@ function blocksProblems(blocks) {
         const offOnly = field === 'momentNotes' && isObj(v) && v.off === true && Object.keys(v).length === 1;
         if (!known.has(id) && !offOnly) add(`${field}.${id}`, `"${id}" isn't one of this rulebook's moments`);
         else if (field === 'points' && !(Number.isFinite(v) || (isObj(v) && Number.isFinite(v.exclusive) && Number.isFinite(v.shared)))) add(`${field}.${id}`, `${id}: points should be a number`);
+        else if (field === 'momentNotes' && isObj(v) && v.tags !== undefined && tagsProblem(v.tags)) add(`${field}.${id}.tags`, `${id}: ${tagsProblem(v.tags)}`);
       }
     }
   }
@@ -586,7 +721,36 @@ function blocksProblems(blocks) {
   return p;
 }
 
+// The optional refinements an item can carry (the header), and where blocksProblems locates each one.
+const REFINEMENTS = ['groupWin', 'places', 'skippedBy', 'winnerToo', 'cancelled', 'away', 'exceptWinners'];
+const REFINED_AT = new RegExp(`^(segments|waysOut|twists|customMoments)\\[([^\\]]+)\\]\\.(${REFINEMENTS.join('|')})$`);
+
+/**
+ * Takes out, in place, each refinement that doesn't go with its item: a finishing place on a segment that no longer
+ * decides the top three, a group skipping a segment that's gone, a second side trip away from the group. A refinement
+ * only ever adds to what its item says, so the item stays whole without it; the editor, a chat's rulebook and Make it a
+ * game's salvage all keep the item rather than lose it. -> { dropped: the problems taken out, problems: what's left }
+ */
+function dropMisfitRefinements(blocks) {
+  const dropped = [];
+  for (let round = 0; round < 3; round++) {
+    const problems = blocksProblems(blocks);
+    let changed = false;
+    for (const pr of problems) {
+      const m = REFINED_AT.exec(pr.at);
+      const item = m && list(blocks[m[1]]).find((x) => isObj(x) && x.id === m[2]);
+      if (!item || !(m[3] in item)) continue;
+      delete item[m[3]];
+      dropped.push(pr);
+      changed = true;
+    }
+    if (!changed) return { dropped, problems };
+  }
+  return { dropped, problems: blocksProblems(blocks) };
+}
+
 module.exports = {
   SCHEMA_VERSION, OPT, KINDS, BLOCKS, GAME_LABELS, DECIDED_TAG, QUESTIONS, TWIST_FIELDS,
-  labelOf, helpOf, valuesOf, optionsFor, partWord, blockLabel, blocksProblems, kindOf, camelId, cap, pluralOf,
+  labelOf, helpOf, valuesOf, optionsFor, partWord, blockLabel, blocksProblems, kindOf, camelId, cap, pluralOf, hasGroupWin, winsOf,
+  REFINEMENTS, dropMisfitRefinements,
 };

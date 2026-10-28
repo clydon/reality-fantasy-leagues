@@ -15,10 +15,12 @@ const exitMethods = ['Eliminated', 'Disqualified', 'Quit', 'Medically removed', 
 
 // Leaving, finishing and winning score through impliedEvents, so they follow the exit if it's ever
 // corrected. The four ways of leaving default to 0: whether they cost points is a league's call.
+// `tags` say what a moment means for someone's place in the game (moment-tags.js), which the computer players read. The
+// Challenge has no Safety ranking.
 const events = [
-  { id: 'dailyWin', label: 'Won a daily challenge', defaultPoints: 2 },
-  { id: 'eliminationWin', label: 'Won an elimination', defaultPoints: 3 },
-  { id: 'nominatedSurvived', label: 'Nominated for elimination and survived', defaultPoints: 1 },
+  { id: 'dailyWin', label: 'Won a daily challenge', defaultPoints: 2, tags: ['threat'] },
+  { id: 'eliminationWin', label: 'Won an elimination', defaultPoints: 3, tags: ['threat'] },
+  { id: 'nominatedSurvived', label: 'Nominated for elimination and survived', defaultPoints: 1, tags: ['danger'] },
   { id: 'captain', label: 'Served as team captain / leader', defaultPoints: { exclusive: 0.5, shared: 1 } },
   { id: 'finalist', label: 'Reached and completed the Final', defaultPoints: { exclusive: 3, shared: 5 }, implied: true },
   { id: 'seasonWinner', label: 'Won the season', defaultPoints: { exclusive: 5, shared: 10 }, implied: true },

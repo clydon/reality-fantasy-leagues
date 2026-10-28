@@ -52,7 +52,8 @@ Last updated 2026-10-27.
    - Only if a test keeps failing (free signups): CricketData, football-data.org. Not used: TheSportsDB (free team lists stop at 10
      players), API-Sports (free is old seasons only), FotMob (didn't answer).
 
-10. **Games over a span: what's still open** (2026-10-27; docs/PLAN-sports-data.md step 6, its As built and follow-up). Built: a
+10. **Games over a span: what's still open** (2026-10-27; docs/PLAN-sports-data.md step 6, its As built and follow-up). Planned
+    since 2026-10-27 as step A3 of docs/PLAN-start-a-game-gpt.md (a later start, and the rest of this list). Built: a
     game from the next episode through a chosen one, Run it back on the next span, plaques that name it, and its end in Game
     settings. Open:
    - **Moving its start.** Only the end moves (Game settings' How long). A start that moves before its first episode airs would

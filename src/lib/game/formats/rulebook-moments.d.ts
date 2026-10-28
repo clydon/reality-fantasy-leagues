@@ -1,5 +1,17 @@
 // Types for formats/rulebook-moments.js: what a rulebook's answers build.
+import type { MomentTag } from "./moment-tags";
 import type { Points, RulebookBlocks } from "./rulebook-schema";
+
+/** A question a moment is known by, or one its condition reads. */
+export interface MomentAsk {
+  key: string;
+  type: "answer" | "integer" | "number" | "string";
+  question: string;
+  /** What it's called in a condition's own question ("Tribe won the Immunity challenge"). */
+  label?: string;
+  /** A number's own test, scored once (came 2nd: { equals: 2 }); without it a number scores per unit. */
+  when?: { equals: number } | { greaterThan: number };
+}
 
 export interface Moment {
   id: string;
@@ -8,7 +20,15 @@ export interface Moment {
   from: { segment?: string; twist?: string; wayOut?: string; finale?: true; custom?: string };
   defaultPoints: Points;
   /** What research asks to know it. Several moments can share one question. */
-  ask?: { key: string; type: "answer" | "integer" | "number" | "string"; question: string };
+  ask?: MomentAsk;
+  /** Yes-or-no answers that score it too, any one of them (a group's win counted as winning). */
+  also?: MomentAsk[];
+  /** Answers that must be yes as well (an advantage played). */
+  needs?: MomentAsk[];
+  /** Answers that mustn't be yes (a group's win that skips the vote; the segment's winners). */
+  unless?: MomentAsk[];
+  /** Recorded as the episode's exile, and scored from that record. */
+  exile?: true;
   /** Known without asking about it: how someone left, a role, other answers. */
   auto?: true;
   custom?: true;
@@ -16,6 +36,8 @@ export interface Moment {
   uses?: string;
   answeredBy?: "research" | "league";
   reliability?: "reliable" | "usually" | "patchy";
+  /** What it says about someone's place in the game (moment-tags.js): its structure's, or the rulebook's own for it. */
+  tags?: MomentTag[];
   /** Only with includeOff: built, but switched off. */
   off?: true;
 }
