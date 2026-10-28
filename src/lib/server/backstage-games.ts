@@ -469,9 +469,19 @@ export interface GameSettings {
   waivers: string | null;
   /** Lock it down (step 15 part 4): competitive mode, nobody new, rules frozen for the season. */
   lockedDown: boolean;
-  /** How long it runs (step 6 of docs/PLAN-sports-data.md): from its start to its last episode (null: the season's end); `over`
-   *  once that's in, when its end doesn't change; `ends`: the episodes still to come, from its start, it can end with instead. */
-  span: { from: number; to: number | null; over: boolean; ends: { number: number; title: string | null }[] };
+  /** How long it runs (step 6 of docs/PLAN-sports-data.md) and where it starts (step A3 of docs/PLAN-start-a-game-gpt.md): from
+   *  its start to its last episode (null: the season's end); `over` once that's in, when its end doesn't change; `ends`: the
+   *  episodes still to come, from its start, it can end with instead; `started` once its first episode has aired (or has
+   *  results), when its start doesn't change; `starts`: until then, the episodes still to come it can start with instead (up to
+   *  its end). */
+  span: {
+    from: number;
+    to: number | null;
+    over: boolean;
+    ends: { number: number; title: string | null }[];
+    started: boolean;
+    starts: { number: number; title: string | null }[];
+  };
   /**
    * The lock on its current episode's lineups or picks (a game with either; else null): closed at its start, unless whoever runs
    * it overrode that (state-logic.js closedForPlay). `why`: its start, by hand, or its results (which no override opens).
@@ -531,6 +541,8 @@ export async function lockWrite(scope: BackstageScope, leagueId: unknown, closed
 /**
  * Where a game is on its season for How long: the latest episode it's played (a game scored outside its state, Weekly Calls and
  * Weekly Bingo, by what's aired), whether it's over, and the episodes it could end with: still to come, from its start, listed.
+ * Whether it's started (its first episode has aired, or has results), and until then the episodes it could start with: still to
+ * come, listed, up to its end.
  */
 function spanState(s: LeagueState, schedule: SeasonSchedule | undefined) {
   const type = StateLogic.getLeagueType(s);
@@ -540,15 +552,20 @@ function spanState(s: LeagueState, schedule: SeasonSchedule | undefined) {
   const over = outside ? endedThrough(schedule, played, end) : StateLogic.gameOver(s);
   const from = StateLogic.startEpisode(s);
   const ends = (schedule?.episodes ?? []).filter((e) => e.number >= from && e.number > played).map((e) => ({ number: e.number, title: e.title ?? null }));
-  return { from, to: end, over, ends };
+  const gone = Math.max(played, latestAired(schedule));
+  const started = gone >= from;
+  const starts = started
+    ? []
+    : (schedule?.episodes ?? []).filter((e) => e.number > gone && (end === null || e.number <= end)).map((e) => ({ number: e.number, title: e.title ?? null }));
+  return { from, to: end, over, ends, started, starts };
 }
 
 /** A game locked down (step 15 part 4): its rules don't change for the season. */
 export const FROZEN = "Locked down for the season: the rules are frozen. Turn off Lock it down in Game settings first.";
 
 // What Game settings may change, and the limits (the bench and Outlast's team are set at the draft; a game's end only before
-// it's reached).
-const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode", "endEpisode"];
+// it's reached, its start only before it airs).
+const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode", "endEpisode", "startEpisode"];
 
 /** The settings Lock it down freezes: Game settings' and the points (waivers stay the week's business). Undo asks too. */
 export const FROZEN_FIELDS = new Set([...SETTING_FIELDS, "eventPoints"]);
@@ -614,7 +631,7 @@ export async function settingsWrite(
           ? { joinMode: "recommended" }
           : (body.set ?? {});
   if (!Object.keys(set).length || Object.keys(set).some((k) => !SETTING_FIELDS.includes(k))) throw new HttpError(400, `set may change ${SETTING_FIELDS.join(", ")}`);
-  const schedule = "endEpisode" in set ? (await seasonSchedules([scope.seasonId])).get(scope.seasonId) : undefined;
+  const schedule = "endEpisode" in set || "startEpisode" in set ? (await seasonSchedules([scope.seasonId])).get(scope.seasonId) : undefined;
   const batch = crypto.randomUUID();
   let changed = false;
   await withLeagueLock(
@@ -633,6 +650,15 @@ export async function settingsWrite(
           const now = spanState(s, schedule);
           if (now.over) throw new HttpError(409, "It's over: its last episode is in");
           if (v !== null && !now.ends.some((e) => e.number === v)) throw new HttpError(400, "Pick an episode still to come, from where it starts");
+          refused(StateLogic.updateSettings(s, k, v));
+          continue;
+        }
+        // Where it starts (step A3 of docs/PLAN-start-a-game-gpt.md): only before its first episode airs, and only to an episode
+        // still to come that the listing has, up to its end. Nothing before it scores; its draft can happen first.
+        if (k === "startEpisode") {
+          const now = spanState(s, schedule);
+          if (now.started) throw new HttpError(409, "It's started: its first episode has aired, so its start stays");
+          if (!now.starts.some((e) => e.number === v)) throw new HttpError(400, "Pick an episode still to come, up to where it ends");
           refused(StateLogic.updateSettings(s, k, v));
           continue;
         }

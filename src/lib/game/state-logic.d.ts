@@ -491,8 +491,12 @@ declare const StateLogic: {
   setGame(state: LeagueState, spec: SpecInput | GameSpec, opts?: { ctx?: SpecContext | null }): SpecProblem[];
   /** A league carrying its spec (settings.game) carries what its fields play. */
   syncGame(state: LeagueState): void;
-  addBet(state: LeagueState, epId: string, label: string, points: number, createdByPlayerId: string | null): Bet;
-  addBetToUpcoming(state: LeagueState, label: string, points: number, createdByPlayerId: string | null): Bet;
+  /** A new bet on an episode this game plays; undefined for one outside its span (before its start, after its end). */
+  addBet(state: LeagueState, epId: string, label: string, points: number, createdByPlayerId: string | null): Bet | undefined;
+  /** A new bet on the episode about to be played (betTarget); undefined once the game is over. */
+  addBetToUpcoming(state: LeagueState, label: string, points: number, createdByPlayerId: string | null): Bet | undefined;
+  /** The episode a bet proposed now goes on (never before the game's start), or null once a span's last episode is past. */
+  betTarget(state: LeagueState): number | null;
   removeBet(state: LeagueState, epId: string, betId: string): void;
   addBetPrediction(state: LeagueState, epId: string, betId: string, playerId: string, guess: string): void;
   setBetPredictionCorrect(state: LeagueState, epId: string, betId: string, predId: string, value: boolean | null): void;

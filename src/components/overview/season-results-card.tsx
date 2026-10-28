@@ -31,7 +31,8 @@ export function SeasonResultsCard({ state }: { state: LeagueState }) {
     <div ref={cardRef} className="relative mb-4 rounded-lg border-2 bg-card p-4 text-center shadow-sm" style={{ borderColor: PODIUM_COLORS[0] }}>
       {/* Not in a peeked neighbour (league swipe): it's display-only, and the burst is for when you land. */}
       {!peek && <Confetti anchor={cardRef} />}
-      <div className="section-title">Season complete</div>
+      {/* A game over a span ends before its season does (RevealLogic.isComplete): it's final, not the season. */}
+      <div className="section-title">{StateLogic.seasonEnded(state) ? "Season complete" : "Final"}</div>
       <div className="mt-2 text-3xl" aria-hidden>
         🏆
       </div>

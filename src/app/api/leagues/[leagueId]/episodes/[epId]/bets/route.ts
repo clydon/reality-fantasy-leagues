@@ -23,7 +23,11 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
       epId === "upcoming"
         ? StateLogic.addBetToUpcoming(s, label, points, membership.playerId)
         : StateLogic.addBet(s, epId, label, points, membership.playerId);
-    if (!bet) throw new HttpError(404, "Episode not found");
+    if (bet) return;
+    // A bet goes on an episode the game plays: never after a span's last one, or before its start (BetLogic.add).
+    if (epId === "upcoming" && StateLogic.betTarget(s) === null) throw new HttpError(409, "This game is over: no new predictions");
+    if (s.episodes.some((e) => e.id === epId)) throw new HttpError(409, "This game doesn't play that episode, so no prediction goes on it");
+    throw new HttpError(404, "Episode not found");
   }, plainChange(user.id, "predictions", "Added a prediction question"));
   notifyNewBet(leagueId, label.trim(), user.id);
   return NextResponse.json(state);

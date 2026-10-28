@@ -97,7 +97,7 @@ function GameBlock({
   // Locked down: frozen for the season, shown as it stands.
   const can = g.commissioner && !g.lockedDown;
   return (
-    <section data-settings-game={g.gameName} className="mt-7 px-4">
+    <section data-settings-game={g.gameName} data-settings-league={g.leagueId} className="mt-7 px-4">
       <div className="mb-3 flex items-center gap-3">
         <i className="h-9 w-1.5 flex-none rounded-[2px]" style={{ background: gameColour(g.gameName) }} aria-hidden />
         <div className="min-w-0 flex-1">
@@ -322,7 +322,8 @@ function LockRow({ seasonId, couchId, g, lock, word }: { seasonId: string; couch
 
 /**
  * How long it runs (step 6 of docs/PLAN-sports-data.md): to the season's end or through an episode, changed before its end is
- * reached, to one still to come; frozen once it's over, or while it's locked down.
+ * reached, to one still to come; frozen once it's over, or while it's locked down. Where it starts (step A3 of
+ * docs/PLAN-start-a-game-gpt.md): any episode still to come, up to its end, until its first one airs.
  */
 function HowLong({
   g,
@@ -340,6 +341,8 @@ function HowLong({
   const now = sp.to === null ? `${words.episode} ${sp.from} to the season's end` : spanName(sp.from, sp.to, part);
   const say = (to: number | null) => (to === null ? "to the season's end" : `through ${words.episode} ${to}`);
   const open = can && !sp.over;
+  // Its start moves until its first episode airs, to another still to come.
+  const moveStart = open && !sp.started && sp.starts.some((e) => e.number !== sp.from);
   return (
     <div data-settings="span" className="mb-5">
       <h3 className="type-caption mb-2 text-[15px] tracking-[0.04em] text-muted-foreground">How long</h3>
@@ -352,8 +355,30 @@ function HowLong({
             ? "It's over: its last one is in, so its end stays."
             : g.lockedDown
               ? "Frozen for the season"
-              : `Change its end before it's reached. Nothing after its last ${part.singular} scores.`}
+              : moveStart
+                ? `Move its start before ${words.episode} ${sp.from} airs, its end before it's reached. Only what's between them scores.`
+                : `Change its end before it's reached. Nothing after its last ${part.singular} scores.`}
         </small>
+        {moveStart && (
+          <label className="mt-2 flex min-h-11 items-center gap-2.5 border-t border-border pt-2">
+            <span className="flex-none text-[14px] text-muted-foreground">Starts</span>
+            <select
+              data-span-start
+              value={String(sp.from)}
+              onChange={(e) => {
+                const from = Number(e.target.value);
+                void write(g, { set: { startEpisode: from }, text: `Changed where ${g.gameName} starts: ${words.episode} ${from}` }, `${g.gameName} starts with ${words.episode} ${from}`);
+              }}
+              className="min-w-0 flex-1 truncate rounded-[3px] bg-card px-2.5 py-2 text-[15px] font-semibold"
+            >
+              {sp.starts.map((e) => (
+                <option key={e.number} value={e.number}>
+                  With {words.episode} {e.number}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         {open && (
           <label className="mt-2 flex min-h-11 items-center gap-2.5 border-t border-border pt-2">
             <span className="flex-none text-[14px] text-muted-foreground">Ends</span>

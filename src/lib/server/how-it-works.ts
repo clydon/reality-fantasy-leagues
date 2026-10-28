@@ -5,6 +5,7 @@ import { howItWorks, type HowItWorks } from "@/lib/game/formats/rulebook-describ
 import type { RulebookUpdate } from "@/lib/game/formats/rulebook-describe";
 import type { GameFormat } from "@/lib/game/formats/index";
 import { publicMediaSrc } from "@/lib/game/selectors";
+import { showWords } from "@/lib/game/show-words";
 import { blocksAt } from "@/lib/game/formats/rulebook-patch.js";
 import { inForceEdits, knownPhaseStarts, lineage, rulebookForLeague, seasonRulebook, type Rulebook } from "@db/rulebooks.js";
 import { resolveFormat } from "@db/show-formats.js";
@@ -61,6 +62,9 @@ export async function seasonHowItWorks(user: SessionUser, seasonId: string, couc
     if (game.gameType === "active-roster") points = state.settings.eventPoints;
     ownership = state.settings.ownershipMode;
     updates.push({ episode: StateLogic.startEpisode(state), kind: "start", detail: `Plays by the ${format.name.replace(/^The /, "")} rulebook.` });
+    // A game over a span (docs/PLAN-sports-data.md step 6) says where it ends too.
+    const end = StateLogic.endEpisode(state);
+    if (end !== null) updates.push({ episode: end, kind: "end", detail: "Nothing after it scores." });
     // Every change the game adopted, from the full state: one from an episode they haven't seen is only counted.
     for (const c of state.settings.adoptedRuleChanges ?? []) updates.push({ episode: c.effectiveEpisode, kind: "showChanged", detail: c.summary ?? "" });
   } else {
@@ -92,7 +96,11 @@ export async function seasonHowItWorks(user: SessionUser, seasonId: string, couc
     made = `${how}${by[0]?.who && !desk ? ` by ${by[0].who}` : ""}${state}`;
   }
   const seasonBook = row?.ownerKind === "season" ? row : await seasonRulebook(pool, seasonId);
-  const how = howItWorks(book.blocks, {
+  // One word for an episode (docs/BACKLOG.md item 10): the show's (episode_term), as Start a game, the hub and Game settings say
+  // it, wherever the rulebook would say its own ("Ends with Game 6", "Each game").
+  const words = showWords(header.show.terms);
+  const said = { ...book.blocks, parts: { ...book.blocks.parts, singular: words.episode.toLowerCase(), plural: words.episodes.toLowerCase() } };
+  const how = howItWorks(said, {
     compiled: format.data,
     aliases: book.aliases,
     points,

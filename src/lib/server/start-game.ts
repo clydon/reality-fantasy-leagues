@@ -3,7 +3,6 @@ import { addBot, MAX_BOTS, type BotLevel } from "@/lib/game/computer-players";
 import { rulebookFor } from "@/lib/game/formats/blocks/index.js";
 import { gameLine, gamesFor, noFitLine } from "@/lib/game/formats/rulebook-fits.js";
 import type { GameFit, SeasonGameKey } from "@/lib/game/formats/rulebook-fits";
-import { partWord } from "@/lib/game/formats/rulebook-schema.js";
 import type { RulebookBlocks, RulebookKind } from "@/lib/game/formats/rulebook-schema";
 import { showWords } from "@/lib/game/show-words";
 import { nextSpan, spanChoices, spanEnds, spanName, type SpanChoice, type SpanEpisode } from "@/lib/game/spans";
@@ -54,6 +53,13 @@ import { followsOf, games, seasonHeaders, type Game } from "./show-space";
 // How long (docs/PLAN-sports-data.md step 6, spans.ts): a game runs to the season's end, or through a chosen episode
 // (settings.endEpisode): just the next one, this series (a sport's consecutive linked games between the same teams), or any
 // later episode the listing has. Nothing after its last episode scores, and it's over once that one has results.
+//
+// Starts (docs/PLAN-start-a-game-gpt.md step A3): with the next episode to air, or any later one the listing has
+// (settings.startEpisode): the game waits until then (nothing before it scores, its moves are for its first episode) and its
+// draft can happen first. How long then counts from there. Game settings moves the start until it airs.
+//
+// Its episodes are called what the show calls them (shows.episode_term, as the hub, plaques and Game settings say), not
+// what its rulebook does: one word for an episode (docs/BACKLOG.md item 10).
 
 export interface StartChoice extends GameFit {
   /** What it is on this show, in a line ("Draft five drivers, start three each race"). */
@@ -76,8 +82,15 @@ export interface StartOptions {
   start: "reality" | "scripted" | null;
   /** What one part of the season is called ("episode", a sport's "race"). */
   part: { singular: string; plural: string };
-  /** The game starts with this episode (the next to air; 1 before the premiere; with `late`, the one on now). */
+  /** The game starts with this episode (the next to air; 1 before the premiere; with `late`, the one on now; or the later one
+   *  asked with `start`). */
   from: number;
+  /** The next episode to air: where a game starts unless it's told otherwise. (Not `next`, which was the next season's
+   *  until step A3: a phone still on the bundle before it reads that name.) */
+  nextEpisode: number;
+  /** The listed episodes it can start with (Starts), the next to air first, then any later one, with their air times; a
+   *  title only where it gives nothing away (spanEpisodes). */
+  starts: { number: number; title: string | null; airAt: string | null }[];
   /** An episode that's started but may still be on (in the last ON_AIR_MS): Include it starts the game there. */
   onAir: { number: number; airAt: string } | null;
   /** These options start with the episode on now (asked with `late`). */
@@ -99,7 +112,7 @@ export interface StartOptions {
    *  episode (to start with; null: to the season's end). `label` says which it was ("ZT Survivor 51 · Episodes 6–7"). */
   again: { leagueId: string; name: string; gameName: string; key: SeasonGameKey; label: string; to: number | null } | null;
   /** Once this season's over: the show's next season to run a game back on (set up, still to finish), or null. */
-  next: { seasonId: string; label: string } | null;
+  nextSeason: { seasonId: string; label: string } | null;
 }
 
 const KEY_OF: Record<string, SeasonGameKey> = {
@@ -137,18 +150,37 @@ async function seasonBlocks(seasonId: string): Promise<{ blocks: RulebookBlocks;
   return { blocks: rulebookFor(format.id, format.data).blocks as RulebookBlocks, compiled: format.data };
 }
 
-/** The season's listed episodes, each with its linked game's teams (season_events: a sport's provider games), for the spans. */
-async function spanEpisodes(seasonId: string, schedule: SeasonSchedule | undefined): Promise<SpanEpisode[]> {
+/**
+ * The season's listed episodes, each with its linked game's teams (season_events: a sport's provider games), for the spans and
+ * the starts. Every one listed here is still to come, so a title stays only where it gives nothing away (as schedule.ts
+ * titledFor and stepEpisodes keep them): a sport's, or a linked game's ("Game 6: Rays at Brewers", the matchup). A reality
+ * show's titles are quotes from the episode.
+ */
+async function spanEpisodes(seasonId: string, schedule: SeasonSchedule | undefined, sport: boolean): Promise<SpanEpisode[]> {
   const { rows } = await pool.query("SELECT episode, teams FROM season_events WHERE season_id = $1", [seasonId]);
   const teams = new Map(rows.map((r) => [r.episode as number, (r.teams as SpanEpisode["teams"]) ?? null]));
-  return (schedule?.episodes ?? []).map((e) => ({ number: e.number, title: e.title ?? null, teams: teams.get(e.number) ?? null }));
+  return (schedule?.episodes ?? []).map((e) => {
+    const linked = teams.get(e.number) ?? null;
+    return { number: e.number, title: sport || linked ? (e.title ?? null) : null, teams: linked };
+  });
 }
 
 /** The couch's games on a season (not deleted), in its order. */
 const couchGamesOn = (user: SessionUser, couchId: string, seasonId: string) => games(user.id, { couchIds: [couchId], seasonId });
 
-/** What can be started on a season for a couch (GET /api/seasons/[id]/start?couch=&again=). */
-export async function startOptions(user: SessionUser, seasonId: string, couchId: string | null, againId?: string | null, now = new Date(), late = false): Promise<StartOptions> {
+/**
+ * What can be started on a season for a couch (GET /api/seasons/[id]/start?couch=&again=&late=&start=): `late` from the episode
+ * on now (Include it), else `start` a later listed episode to start with (Starts), else the next to air.
+ */
+export async function startOptions(
+  user: SessionUser,
+  seasonId: string,
+  couchId: string | null,
+  againId?: string | null,
+  now = new Date(),
+  late = false,
+  start: number | null = null
+): Promise<StartOptions> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
   if (!couchId || !isUuid(couchId)) throw new HttpError(400, "couch required");
   const role = await requireCouch(user, couchId);
@@ -165,7 +197,11 @@ export async function startOptions(user: SessionUser, seasonId: string, couchId:
   const people = members.get(couchId) ?? [];
   const here = await couchGamesOn(user, couchId, seasonId);
 
-  const { blocks, compiled } = await seasonBlocks(seasonId);
+  const { blocks: book, compiled } = await seasonBlocks(seasonId);
+  // One word for an episode: the show's (episode_term), in every line the rulebook words too.
+  const words = showWords(h.show.terms);
+  const part = { singular: words.episode.toLowerCase(), plural: words.episodes.toLowerCase() };
+  const blocks: RulebookBlocks = { ...book, parts: { ...book.parts, ...part } };
   const fits = gamesFor(blocks, compiled);
   const have = (key: SeasonGameKey) => here.filter((g) => KEY_OF[g.gameType] === key && !g.archived).length;
   const show = plain(h.show.name);
@@ -186,9 +222,11 @@ export async function startOptions(user: SessionUser, seasonId: string, couchId:
   const eps = schedule?.episodes ?? [];
   const started = eps.filter((e) => e.number < next && e.airAt && Date.parse(e.airAt) <= now.getTime()).at(-1);
   const onAir = started && now.getTime() - Date.parse(started.airAt!) < ON_AIR_MS ? { number: started.number, airAt: started.airAt! } : null;
-  const from = late && onAir ? onAir.number : next;
-  const spanEps = await spanEpisodes(seasonId, schedule);
-  const part = partWord(blocks);
+  const spanEps = await spanEpisodes(seasonId, schedule, (blocks.kind ?? h.show.kind) === "sport");
+  const airAt = new Map(eps.map((e) => [e.number, e.airAt ?? null]));
+  const starts = spanEps.filter((e) => e.number >= next).map((e) => ({ number: e.number, title: e.title, airAt: airAt.get(e.number) ?? null }));
+  const later = !late && start !== null && starts.some((e) => e.number === start) ? start : null;
+  const from = late && onAir ? onAir.number : (later ?? next);
   const over = h.status === "completed" || (h.status !== "upcoming" && eps.length > 0 && eps.every((e) => e.airAt && new Date(e.airAt).getTime() <= now.getTime()));
   const blocked = h.ready === false ? `Make ${show} a game first` : over ? "The season's over: every episode has aired" : null;
 
@@ -216,12 +254,12 @@ export async function startOptions(user: SessionUser, seasonId: string, couchId:
       gameName: fits.find((g) => g.key === key)?.name ?? r.name,
       key,
       // The same season's: just its span ("Episodes 6–7"); another's, the season too.
-      label: last && r.season_id === seasonId ? spanName(last.from, last.to, partWord(blocks)) : `${plain(r.show)} ${r.season_number}${last ? ` · ${spanName(last.from, last.to, partWord(blocks))}` : ""}`,
+      label: last && r.season_id === seasonId ? spanName(last.from, last.to, part) : `${plain(r.show)} ${r.season_number}${last ? ` · ${spanName(last.from, last.to, part)}` : ""}`,
       to,
     };
   }
 
-  let nextSeason: StartOptions["next"] = null;
+  let nextSeason: StartOptions["nextSeason"] = null;
   if (over && h.ready !== false) {
     const { rows } = await pool.query(
       `SELECT id, season_number FROM show_seasons WHERE show_id = $1 AND season_number > $2 AND status <> 'completed' ORDER BY season_number LIMIT 1`,
@@ -232,7 +270,7 @@ export async function startOptions(user: SessionUser, seasonId: string, couchId:
 
   return {
     seasonId,
-    next: nextSeason,
+    nextSeason,
     onAir,
     late: late && !!onAir,
     label: `${show}${h.seasonNumber ? ` ${h.seasonNumber}` : ""}`,
@@ -242,6 +280,8 @@ export async function startOptions(user: SessionUser, seasonId: string, couchId:
     start: blocks.kind === "series" ? (blocks.start ?? "reality") : null,
     part,
     from,
+    nextEpisode: next,
+    starts,
     spans: spanChoices(spanEps, from, part),
     ends: spanEnds(spanEps, from),
     games: choices,
@@ -324,11 +364,21 @@ export interface Started {
  * Start a game on a season for a couch (POST /api/seasons/[id]/start): `game` a key that fits, `tell` the couch, `again` a game
  * to run back, `to` the last episode it plays (none: to the season's end).
  */
-export async function startGame(user: SessionUser, seasonId: string, couchId: string | null, body: { game?: unknown; tell?: unknown; again?: unknown; to?: unknown; bots?: unknown; level?: unknown; late?: unknown }, now = new Date()): Promise<Started> {
+export async function startGame(
+  user: SessionUser,
+  seasonId: string,
+  couchId: string | null,
+  body: { game?: unknown; tell?: unknown; again?: unknown; from?: unknown; to?: unknown; bots?: unknown; level?: unknown; late?: unknown },
+  now = new Date()
+): Promise<Started> {
   const againId = typeof body.again === "string" ? body.again : null;
-  const opts = await startOptions(user, seasonId, couchId, againId, now, body.late === true);
-  if (body.late === true && !opts.late) throw new HttpError(409, `Nothing's on now to include: it starts with ${opts.part.singular} ${opts.from}`);
+  const start = typeof body.from === "number" ? body.from : null;
+  if (body.late === true && start !== null) throw new HttpError(400, "Include the one on now, or start later: not both");
+  const opts = await startOptions(user, seasonId, couchId, againId, now, body.late === true, start);
   if (opts.blocked) throw new HttpError(409, opts.blocked);
+  if (body.late === true && !opts.late) throw new HttpError(409, `Nothing's on now to include: it starts with ${opts.part.singular} ${opts.from}`);
+  // Where it starts: the next to air, or a later episode the listing has.
+  if (body.from != null && opts.from !== body.from) throw new HttpError(400, `Pick a start the listing has, from ${partAt({ part: opts.part, from: opts.nextEpisode })} on`);
   const choice = opts.games.find((g) => g.key === body.game);
   if (!choice || !choice.fits) throw new HttpError(400, choice ? `${choice.name} doesn't fit ${opts.show}: it needs ${choice.needs}` : "Pick a game");
   if (choice.soon || !choice.type) throw new HttpError(409, `${choice.name} comes with this week's episode games, soon`);
@@ -337,6 +387,8 @@ export async function startGame(user: SessionUser, seasonId: string, couchId: st
   const to = typeof body.to === "number" && ends.has(body.to) ? body.to : null;
   if (body.to != null && to === null) throw new HttpError(400, `Pick an end the listing has, from ${opts.part.singular} ${opts.from} on`);
   const span = to === null ? null : spanName(opts.from, to, opts.part);
+  // A season game that starts later says where ("from Episode 9").
+  const when = span ? ` for ${span}` : opts.from > opts.nextEpisode ? ` from ${partAt(opts)}` : "";
   // Computer players in the seats (computer-players.ts), seated before anyone joins, at one level.
   const bots = typeof body.bots === "number" && Number.isInteger(body.bots) ? body.bots : 0;
   if (bots < 0 || bots > MAX_BOTS) throw new HttpError(400, `Up to ${MAX_BOTS} computer players`);
@@ -395,7 +447,7 @@ export async function startGame(user: SessionUser, seasonId: string, couchId: st
         userId: user.id,
         kind: "game.start",
         tier: 1,
-        text: `${starter} started ${choice.name}${span ? ` for ${span}` : ""}${opts.again ? `, again after ${opts.again.label}` : ""}${bots ? ` with ${bots} computer ${bots === 1 ? "player" : "players"}` : ""}`,
+        text: `${starter} started ${choice.name}${when}${opts.again ? `, again after ${opts.again.label}` : ""}${bots ? ` with ${bots} computer ${bots === 1 ? "player" : "players"}` : ""}`,
         detail: { game: choice.key, from: opts.from, to, bots },
       });
     },
@@ -460,7 +512,8 @@ export async function runItBack(
       if (!season) continue;
       const schedule = schedules.get(f.seasonId);
       const from = startFrom(schedule, now);
-      const to = nextSpan(await spanEpisodes(f.seasonId, schedule), from, f.span!);
+      // nextSpan reads the linked games' teams, never a title.
+      const to = nextSpan(await spanEpisodes(f.seasonId, schedule, false), from, f.span!);
       if (to === null) continue;
       const w = showWords({ episode: season.episode_term });
       out.push({ leagueId: f.leagueId, seasonId: f.seasonId, label: `${plain(season.name)} ${season.season_number} · ${spanName(from, to, { singular: w.episode.toLowerCase(), plural: w.episodes.toLowerCase() })}` });

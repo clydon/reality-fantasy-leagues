@@ -43,12 +43,18 @@ export function CatchUpPanel({ state }: { state: LeagueState }) {
   if (!StateLogic.RevealLogic.isCatchingUp(state)) return null;
 
   const revealed = StateLogic.RevealLogic.revealedThrough(state) as number;
-  // Winner revealed: the season is over for this league, so there's no "next episode" to offer.
+  // Winner revealed: the season is over for this league, so there's no "next episode" to offer. Or a game over a span has
+  // revealed its last episode: it's over before its season is.
   if (StateLogic.RevealLogic.isComplete(state)) {
+    const season = StateLogic.seasonEnded(state);
     return (
       <section className="mb-6 flex flex-col gap-1.5">
-        <h3 className="section-title">Season complete</h3>
-        <p className="text-sm text-muted-foreground">This league has caught up through the finale. Every episode&rsquo;s results are revealed.</p>
+        <h3 className="section-title">{season ? "Season complete" : "Game over"}</h3>
+        <p className="text-sm text-muted-foreground">
+          {season
+            ? "This league has caught up through the finale. Every episode’s results are revealed."
+            : `This game ended with episode ${StateLogic.endEpisode(state)}, and every one of its episodes’ results is revealed.`}
+        </p>
       </section>
     );
   }

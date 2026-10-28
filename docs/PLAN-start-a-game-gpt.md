@@ -1,7 +1,8 @@
 # Plan: the Start-a-game GPT, on games as data
 
 Status: **planned 2026-10-27**. **A1 built** the same day and **A2 built** on 2026-10-28, both on the `engine` lane, not
-merged (their As built under track A); the rest not started. **Waiting on the user (A2):** the game-specs flag in production
+merged (their As built under track A). **A3 runs in two parts:** part 1 (later episode starts, moving a start, the rest of
+BACKLOG item 10, and the phase start's design) built 2026-10-28 on `engine`; part 2 (phase starts) next. The rest not started. **Waiting on the user (A2):** the game-specs flag in production
 (a Neon branch check from your terminal, then on), after the merge. The user's idea, their decisions and the order are below; each step is its own
 session (Opus 5.5 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: live sports, its Sport classes and
 formats, written against this plan's game spec) and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season:
@@ -387,6 +388,96 @@ in `PLAN-researched-survivor.md`'s "What the switch needs", with this plan's dec
 - **A3. Spans that start later.** "Starts" on Start a game: any later listed episode, or when a rulebook phase starts (the game
   waits, and its draft can happen first). Game settings moves a start before it airs. Also the rest of BACKLOG item 10: side
   bets after the end, one word for an episode, and the places that don't know the end.
+
+  **Split in two (2026-10-28).** A phase's start lives only on the season's rulebook row (`rulebooks.phase_starts`, a person's
+  on the desk), never in a league's state, so a phase start needs a server write to settle it and its own engine, fields, Start
+  a game and Game settings work. Part 1 is everything with an episode number. Part 2 is the phase start, designed below.
+
+  **As built (A3 part 1, 2026-10-28, on `engine`, not merged; no migration).** One session.
+  - **Starts on Start a game** (`start-game.ts`, `start-game.tsx` `Starts`): "With the next one · Episode 6" (when it airs)
+    or Later, any listed episode after it, from a list by date ("Episode 9 · Sat, Nov 21"), with "It waits for Episode 9:
+    nothing before it counts, and the draft can happen any time before then." Choosing one reads the options again from there
+    (`?start=9`, as Include it does), so How long counts from it; Start waits while they reload, and sends the start you chose
+    (`from`). The server takes `from` only as a listed episode from the next on, not with Include it, and checks it after the
+    season's own refusals; Recent changes says "started Outlast from Episode 9". `startOptions` returns `nextEpisode` and
+    `starts`; the next season it used to call `next` is `nextSeason` (a phone on the old bundle reading `next` finds nothing,
+    not a number). A game that starts later is only `settings.startEpisode`: the engine already played that (a league formed
+    mid-season), and `setGame` makes its first episode.
+  - **Game settings moves a start** until its first episode airs (`backstage-games.ts`: `startEpisode` is a Game settings
+    field, frozen by Lock it down; `span.started` and `span.starts`, the episodes still to come up to its end): a Starts list
+    above Ends, "Move its start before Episode 9 airs, its end before it's reached. Only what's between them scores.", Undo on
+    the toast. Undo can't put back a start that's aired: a change undoes only until the next episode airs, and a start moves
+    only before it does. The Games tab says "Starts with Episode 9 ·" while a game waits for a start later than the next
+    episode (by the schedule, not what you've seen).
+  - **This week is never past the episode after the latest results** (`BetLogic.upcomingEpisodeNumber`): moving a start later
+    makes every episode up to it, so a start moved back used to leave this week's picks, lineups and bets on the later one.
+    `currentEpisodeNumber` is the one definition of this week's episode, for moves and bets alike.
+  - **Side bets** (`BetLogic.target`, `add`, `addPrediction`, `addSideLayers`; classic's bets route): a bet goes on the game's
+    own episode (its first, for a game that starts later), never one before its start or after a span's end, and none once the
+    game is over (409 "This game is over: no new predictions"); no guesses on a bet outside the span; and **bets outside the
+    span no longer pay** (one made before a start moved later did). Classic only offered the box on `currentEpisode`, so only
+    the API could reach these. The guided tour's practice round plays its own Episodes 1-2 whatever span the real game has.
+  - **The places that didn't know the end:** classic's catch-up reveal stops at a span's last episode (`RevealLogic.isComplete`,
+    `revealNext`), saying "Game over" / "Final" / "This game is over" where it said the season was (catch-up panel, results
+    card, reveal route); Backstage's open episodes count only games still waiting on an episode, so one past a span's end holds
+    nothing open (`backstage.ts` `needs`; results still reach it); How it works' updates say "Ends with Episode 7 · Nothing
+    after it scores", always shown like the start, in episode order around the hidden ones (`UpdateRow`).
+  - **One word for an episode:** Start a game and How it works say the show's (`episode_term`, through `showWords`), as the
+    hub, plaques and Game settings do, in every line the rulebook words too (its `parts` replaced by the show's).
+  - **Titles held back:** the start sheet's later episodes (and How long's ends) carry a title only for a sport or a linked
+    game, the matchup; a show's later titles are quotes from the episode (`schedule.ts titledFor`'s rule).
+  - **Code review** (`/code-review`, before the commit): taken: the start moved back, bets outside the span paying, the
+    sheet's start sent from stale options, the Games tab's line from what you've seen, the renamed field, the check order,
+    titles, the updates' order, How it works' word, the season-complete wording, one this-week definition. Declined: Undo of a
+    start after it airs (can't happen, above); `BetLogic.add` returning reasons (the route asks the engine's `betTarget` and
+    `inPlay` itself); reading only the spans again on a start change (as Include it does; Start waits meanwhile).
+  - **Checks:** `tests/spans.test.js` (+6: a later start's moves, scores and bets; bets after the end, including a last
+    episode that's the latest; the catch-up reveal; How it works' end; a start moved back; a bet the start moved past);
+    `npm test` 781. `scripts/dev-test/check-spans.js` grows A3's (99 PASS at 390: Starts' options and refusals, an Outlast
+    from Episode 9 started in the sheet, its first episode made, its bet on 9, "Starts with Episode 9", Game settings moving it
+    to 11 and Undo, its refusals, bets refused on the finished pool and lineup game, and every game jordan started still
+    carrying the spec its fields play); `check-new-start-game.js` 75, `check-new-backstage-ii.js` 149, `check-new-show.js` 81,
+    `check-settings.js` (classic, both drafts) clean. `game-specs-flag.js status`: on, 9 of 9 carry their spec, none drifted;
+    `check` PASS.
+  - **Not merged in:** master's two commits since the branch was cut (lanes overnight, the playtest lane: docs and
+    `scripts/lane.js` only); the session loop can't merge. `node scripts/lane.js sync engine` before part 2.
+
+  **The phase start, decided (2026-10-28), for part 2.**
+  - **The spec:** `span.from` is an episode number, or `{ phase }` while the game waits for that phase of the season's
+    rulebook, then `{ phase, at }` once data says where it starts: `at` is the episode it plays from. The phase stays (the
+    words, "When Merged starts"; Game settings; Run it back from the same phase next season).
+  - **Where a phase starts:** the season's rulebook (the league's own copy when it plays by one: `rulebookForLeague`),
+    `phaseRanges(blocks, row.phaseStarts)[phase].from`: a start a person confirmed on the desk (from research's
+    `phaseStarted`, results or "when N are left" cues) or a phase that starts at a fixed episode. The same start the scoring's
+    phase gates use, so a game "from the merge" starts where the rulebook's merged phase does. Never guessed.
+  - **Settling `at`** is a write through `setGame`: `at` = the later of the phase's first episode and the first episode still
+    open for moves when it's learned (an announced phase is confirmed only after its first episode airs, and nobody is scored
+    on an episode they couldn't make moves for). Written at Start a game when the start is already known and ahead; when the
+    desk confirms, corrects or clears a phase start (`confirmPhase` then a settle of every league on the season waiting on it,
+    or settled to an episode that hasn't aired: cleared goes back to waiting); and as a backstop in the season sync
+    (`syncSeasonLeagues`, after every result). Never once `at` has aired.
+  - **While it waits** the engine plays nothing: no episode in play, nothing asked (`currentEpisode` null), nothing scores, no
+    waiver windows, not over (unless the season ends first: over, never started); the draft room and joining as before a
+    start. `startEpisode(state)` is null then, and its callers (state-logic's this week, the pool's rows, the waiver
+    recommendation and windows, `GhostLogic.startFor` / `isUnderway` / `startChoices`, the lineup message; bingo, calls,
+    couch-hub, couch-joins, How it works, solo, episode-view) each say what waiting means for them.
+  - **The fields meanwhile:** one more owned field, `startPhase` (the phase id), beside `startEpisode`: waiting is
+    `startPhase` with no `startEpisode`, settled is both. `specOf` reads them back into `{ phase }` / `{ phase, at }`, so the
+    fields still say the whole game: `withSpec` and `settingsOf` write both (the span part's fields), `syncGame` (which
+    rebuilds the spec from the fields) and `carryGame` keep the phase, the flag's `check` needs no new case (its round trip
+    and same-play hold), and **a league without the flag plays it the same from its fields**. Why not the spec alone: every
+    path that rebuilds the spec from the fields (an Undo, a flag sync, `editSettings`) would drop it, and phase games couldn't
+    exist in production until the flag is on. One more mirrored field until classic goes (step C) is the cheaper price. The two
+    raw SQL reads of `startEpisode` (`show-space.ts games`, `start-game.ts`'s Run it back) take a null start as waiting.
+  - **The schema:** `span.from: n | { phase, at? }`; `specProblems` checks the phase is a non-empty id, `at` 1 or more, `to`
+    from `at` on; with `ctx.phases`, a phase of the rulebook that isn't its first (that's Episode 1). `specWaitsFor` drops
+    `A3`; `plainParts` accepts it, so every preset plays a phase start.
+  - **Start a game:** Starts adds "When Merged starts" for each phase of the season's rulebook still to come (its start
+    unknown, or known and ahead: then "· Episode 9"), with its summary; How long is the rest of the season (an end once it's
+    settled, in Game settings). **Game settings:** "Starts when Merged starts" (waiting) or "Starts with Episode 9, when Merged
+    started"; switchable between a phase and an episode until it airs. Its check: a phase game started, its desk confirmation
+    settling it, a correction moving it, a clear sending it back, the season sync settling one the desk walk missed, and the
+    flag's check over a waiting and a settled league.
 - **A4. Questions settled by data** (`ask`).
   - The answer kinds and the lock (`closedForPlay`).
   - Answers stored per game (like `episode_calls`), graded on read from the season's results (the shows' settles), with points
@@ -532,6 +623,14 @@ From A1 (2026-10-27):
 Taken by A2 (2026-10-28): the stale comment, the replenishOrderBy backfill (kept, with why), the Rules sheet (describeSpec),
 the points copy (a league's own is validated with `opts.league`; a game that doesn't score by moments no longer reads it),
 one set of limits.
+
+From A3 part 1 (2026-10-28):
+- Run it back's "same length again" counts episodes, not nights: a span over a double-header night is two (BACKLOG item 10's
+  last open line). (Whoever next touches spans.)
+- Game settings' `span.starts` and `span.ends` still carry every later episode's title in the API, though the screen shows
+  only numbers (the start sheet's are held back now). (Part 2, which touches the same read.)
+- How it works' updates say "Ep" over each number whatever the show calls an episode (the screen's own label; the words now
+  are the show's). (Whoever next touches How it works.)
 
 From A2 (2026-10-28):
 - Start a game still makes a Weekly Lineup with `defaultState`'s copy of the points (a map), not the preset's null. A copy

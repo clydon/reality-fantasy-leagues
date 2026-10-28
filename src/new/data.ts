@@ -1282,11 +1282,13 @@ export const make = {
 // ---- Start a game that fits (step 10 part 2b; start-game.ts) and archive or delete one (end-game.ts). Read when the sheet
 // or Game settings opens; nothing polls. ----
 
-/** What can start on a season for a couch: the season games and whether each fits, why the rest don't, Run it back's game. */
-export function useStartOptions(seasonId: string | null, couchId: string | null, again: string | null, enabled = true, late = false) {
+/** What can start on a season for a couch (start-game.ts startOptions): the season games and whether each fits, why the rest
+ *  don't, Run it back's game; `late` from the episode on now, else `start` a later listed one (Starts). */
+export function useStartOptions(seasonId: string | null, couchId: string | null, again: string | null, enabled = true, late = false, start: number | null = null) {
   return useQuery({
-    queryKey: ["new-design", "start", seasonId, couchId, again, late],
-    queryFn: () => get<StartOptions>(seasonUrl(seasonId!, "/start", { couch: couchId!, ...(again ? { again } : {}), ...(late ? { late: "1" } : {}) })),
+    queryKey: ["new-design", "start", seasonId, couchId, again, late, start],
+    queryFn: () =>
+      get<StartOptions>(seasonUrl(seasonId!, "/start", { couch: couchId!, ...(again ? { again } : {}), ...(late ? { late: "1" } : start !== null ? { start: String(start) } : {}) })),
     placeholderData: (prev) => prev,
     enabled: enabled && !!seasonId && !!couchId,
     staleTime: 0,
@@ -1304,7 +1306,7 @@ export function useEndGames(seasonId: string, couchId: string | null, enabled = 
 
 export const gamesApi = {
   /** `to`: the last episode it plays (a span, step 6 of docs/PLAN-sports-data.md); null to the season's end. */
-  start: (seasonId: string, couchId: string, body: { game: string; tell: boolean; again?: string | null; to?: number | null; bots?: number; level?: BotLevel; late?: boolean }) =>
+  start: (seasonId: string, couchId: string, body: { game: string; tell: boolean; again?: string | null; from?: number; to?: number | null; bots?: number; level?: BotLevel; late?: boolean }) =>
     post<Started>(seasonUrl(seasonId, "/start", { couch: couchId }), body),
   archive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "archive", leagueId }),
   unarchive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "unarchive", leagueId }),

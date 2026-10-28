@@ -35,10 +35,15 @@ import { TriviaRow } from "./trivia";
 
 /** A game's line under its name: what it is, for a game the new design knows. */
 const lineOf = (g: GameView) => (isGameName(g.gameName) ? GAME_STYLE[g.gameName].line : g.name);
-/** A game over a span (step 6 of docs/PLAN-sports-data.md), in the show's words: "Games 4–6", "Final · Game 4"; null for a
- *  season game. */
-const spanOf = (g: GameView, words: ShowData["words"]) =>
-  g.to === null ? null : `${g.over ? "Final · " : ""}${spanName(g.from, g.to, { singular: words.episode.toLowerCase(), plural: words.episodes.toLowerCase() })}`;
+/** A game over a span (step 6 of docs/PLAN-sports-data.md), in the show's words: "Games 4–6", "Final · Game 4"; a season game
+ *  that starts later than the next episode to air (step A3 of docs/PLAN-start-a-game-gpt.md), by the schedule, not by what
+ *  you've seen: "Starts with Episode 9"; else null. */
+const spanOf = (g: GameView, words: ShowData["words"], aired: number) =>
+  g.to === null
+    ? g.from > aired + 1 && !g.over
+      ? `Starts with ${words.episode} ${g.from}`
+      : null
+    : `${g.over ? "Final · " : ""}${spanName(g.from, g.to, { singular: words.episode.toLowerCase(), plural: words.episodes.toLowerCase() })}`;
 const anchor = (g: GameView) => `game-${g.leagueId}`;
 
 export function Games({ show }: { show: ShowData }) {
@@ -60,6 +65,7 @@ export function Games({ show }: { show: ShowData }) {
           <Standings
             play={show.play}
             words={show.words}
+            aired={show.latestAired}
             scope={show.header && show.couch ? { seasonId: show.header.seasonId, couchId: show.couch.id } : null}
             onPlayer={(row, game) => setPlayer({ row, game })}
             onRules={setRules}
@@ -147,12 +153,15 @@ type Scope = { seasonId: string; couchId: string } | null;
 function Standings({
   play,
   words,
+  aired,
   scope,
   onPlayer,
   onRules,
 }: {
   play: GameView[];
   words: ShowData["words"];
+  /** The latest episode that's aired, by the schedule. */
+  aired: number;
   scope: Scope;
   onPlayer: (row: TableRow, game: GameView) => void;
   onRules: (g: GameView) => void;
@@ -184,9 +193,9 @@ function Standings({
             <div className="min-w-0 flex-1">
               <h2 className="type-caption text-[26px]">{g.gameName}</h2>
               <small className="mt-1 block text-[13px] text-muted-foreground">
-                {spanOf(g, words) && (
+                {spanOf(g, words, aired) && (
                   <b data-span={g.leagueId} className="font-semibold text-foreground">
-                    {spanOf(g, words)}
+                    {spanOf(g, words, aired)}
                     {" · "}
                   </b>
                 )}
@@ -459,7 +468,7 @@ function StartRow({ show, others }: { show: ShowData; others: JoinGame[] }) {
   const done = over ? null : spanToRunBack(show, others);
   const opts = useStartOptions(h?.seasonId ?? null, show.couch?.id ?? null, done?.leagueId ?? null, over || !!done);
   const finished = (show.play ?? []).find((g) => !g.solo);
-  const next = opts.data?.next ?? null;
+  const next = opts.data?.nextSeason ?? null;
   if (over && !next) return null;
   // Run it back on the next span, when there's one listed.
   const back = done && opts.data?.again && opts.data.again.to !== null && !opts.data.blocked ? opts.data : null;

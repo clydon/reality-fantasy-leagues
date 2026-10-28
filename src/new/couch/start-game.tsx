@@ -3,7 +3,7 @@
 import { useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
 import { Bell, Bot, ChevronRight, Plus, Radio, RotateCcw, Trophy, Users } from "lucide-react";
-import { airTime } from "../clock";
+import { airTime, calmWhen } from "../clock";
 import { LEVEL_WORDS, type BotLevel } from "@/lib/game/computer-players";
 import { spanName } from "@/lib/game/spans";
 import { gamesApi, useAfterReveal, useCurrentCouch, useHome, useStartOptions, type HomeShow, type StartChoice, type StartOptions } from "../data";
@@ -22,7 +22,8 @@ import { openCouchSheet } from "./couch-sheets";
 //     each in a line in the show's own words ("Draft five drivers, start three each race"); what doesn't fit, in a line; a
 //     talk show's Weekly Bingo (step 12 part 3: a card a show, bingo.tsx) and Weekly Calls (part 2: two calls a show); How long
 //     (docs/PLAN-sports-data.md step 6, spans.ts: the rest of the season, just the next one, this series for a sport, or
-//     through any later episode the listing has); Computer players (none to three, at one level, in the drafts and Survival
+//     through any later episode the listing has); Starts (step A3 of docs/PLAN-start-a-game-gpt.md: with the next episode, or any
+//     later listed one: it waits until then); Computer players (none to three, at one level, in the drafts and Survival
 //     Pool: computer-players.ts; Backstage › Members adds more or takes them out); Include it (an episode on now: the game
 //     starts there, its lineups and picks open past its start, Backstage › Settings' lock on Override); Tell the couch (one
 //     alert, on by default); Start it.
@@ -152,9 +153,11 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   if (asked && asked !== shown) setShown(asked);
   const target = asked ?? shown;
   const couchId = target?.couchId ?? current?.id ?? null;
-  // Include it: the options again from the episode on now (its spans, How long), when there is one.
+  // Include it: the options again from the episode on now (its spans, How long), when there is one. Starts: from a later
+  // listed episode instead (null: the next to air), the options again from there.
   const [late, setLate] = useState(false);
-  const opts = useStartOptions(target?.seasonId ?? null, couchId, target?.again ?? null, !!target, late);
+  const [startAt, setStartAt] = useState<number | null>(null);
+  const opts = useStartOptions(target?.seasonId ?? null, couchId, target?.again ?? null, !!target, late, startAt);
   const o = opts.data;
   const nav = useNav();
   const pathname = usePathname();
@@ -182,6 +185,8 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
         game: pick,
         tell,
         again: target?.again ?? null,
+        // The start you chose, not the options on screen (they may still be the last start's while they reload).
+        ...(!late && startAt !== null ? { from: startAt } : {}),
         to,
         ...(botsHere && bots ? { bots, level } : {}),
         ...(late && o.late ? { late: true } : {}),
@@ -283,6 +288,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 data-start-late={late ? "on" : "off"}
                 onClick={() => {
                   setLate(!late);
+                  setStartAt(null);
                   setTo(undefined);
                 }}
                 className="flex min-h-[64px] w-full items-center gap-3 border-t border-border pt-2 text-left"
@@ -302,6 +308,15 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                   <i className={`absolute top-[3px] size-6 rounded-full bg-foreground transition-[left] ${late ? "left-[25px]" : "left-[3px]"}`} />
                 </span>
               </button>
+            )}
+            {startable.length > 0 && !o.late && o.starts.length > 1 && (
+              <Starts
+                o={o}
+                setAt={(n) => {
+                  setStartAt(n);
+                  setTo(undefined);
+                }}
+              />
             )}
             {startable.length > 0 && (o.spans.length > 1 || o.ends.length > 0) && <HowLong o={o} to={to} setTo={setTo} />}
             {botsHere && <Computers n={bots} setN={setBots} level={level} setLevel={setLevel} />}
@@ -329,7 +344,15 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 </span>
               </button>
             )}
-            <Btn tone="must" wide data-start-go disabled={busy || !pick || !startable.some((g) => g.key === pick)} onClick={start} className="mt-2">
+            <Btn
+              tone="must"
+              wide
+              data-start-go
+              // Not while the options reload for a new start (Include it, Starts): what's on screen is still the last one's.
+              disabled={busy || opts.isPlaceholderData || !pick || !startable.some((g) => g.key === pick)}
+              onClick={start}
+              className="mt-2"
+            >
               {again ? <RotateCcw className="size-5" aria-hidden /> : <Plus className="size-5" aria-hidden />}
               {busy ? "Starting…" : startable.length ? "Start it" : "Coming soon"}
             </Btn>
@@ -340,13 +363,76 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   );
 }
 
+/** "Sat, Nov 22": a later episode's day, weeks out, where a weekday alone wouldn't say which. */
+const dateOf = (t: number) => new Date(t).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+/** "Game 6: Rays at Brewers" when its title says which, else "Episode 6 · its title" (or nothing more). */
+const episodeLine = (o: StartOptions, e: { number: number; title: string | null }) => {
+  const P = o.part.singular.replace(/^./, (c) => c.toUpperCase());
+  return e.title?.toLowerCase().startsWith(`${o.part.singular} ${e.number}`) ? e.title : `${P} ${e.number}${e.title ? ` · ${e.title}` : ""}`;
+};
+
+/**
+ * Where the game starts (docs/PLAN-start-a-game-gpt.md step A3): with the next episode to air, or any later one the listing
+ * has, from a list. It waits until then (nothing before it counts), and its draft can happen first.
+ */
+function Starts({ o, setAt }: { o: StartOptions; setAt: (n: number | null) => void }) {
+  const P = o.part.singular.replace(/^./, (c) => c.toUpperCase());
+  const later = o.from !== o.nextEpisode;
+  const first = o.starts[0];
+  return (
+    <section data-start-from className="mt-1 flex flex-col gap-1.5 border-t border-border pt-3" role="radiogroup" aria-label="Starts">
+      <b className="text-[15px] font-semibold">Starts</b>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={!later}
+        data-start-from-choice="next"
+        onClick={() => setAt(null)}
+        className={`flex min-h-[52px] w-full flex-col justify-center rounded-[4px] px-3 py-2 text-left ${!later ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron-line" : "bg-secondary/60"}`}
+      >
+        <b className="block text-[15px]">
+          With the next one · {P} {o.nextEpisode}
+        </b>
+        <small className={`block truncate text-[13px] leading-snug ${!later ? "text-plate-muted" : "text-muted-foreground"}`}>
+          {first?.airAt ? calmWhen(Date.parse(first.airAt)) : `The next ${o.part.singular} to air`}
+        </small>
+      </button>
+      <label
+        data-start-from-choice="later"
+        className={`flex min-h-[52px] w-full items-center gap-2 rounded-[4px] px-3 py-2 ${later ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron-line" : "bg-secondary/60"}`}
+      >
+        <b className="flex-none text-[15px]">Later</b>
+        <select
+          data-start-from-later
+          value={later ? String(o.from) : ""}
+          onChange={(e) => setAt(e.target.value ? Number(e.target.value) : null)}
+          className="min-w-0 flex-1 truncate rounded-[3px] bg-transparent py-1.5 text-[15px] font-semibold outline-none"
+        >
+          <option value="">A later {o.part.singular}…</option>
+          {o.starts.slice(1).map((e) => (
+            <option key={e.number} value={e.number}>
+              {episodeLine(o, e)}
+              {e.airAt ? ` · ${dateOf(Date.parse(e.airAt))}` : ""}
+            </option>
+          ))}
+        </select>
+      </label>
+      {later && (
+        <small data-start-from-note className="text-[13px] leading-snug text-muted-foreground">
+          It waits for {P} {o.from}: nothing before it counts, and the draft can happen any time before then.
+        </small>
+      )}
+    </section>
+  );
+}
+
 /**
  * How long the game runs (spans.ts): the rest of the season, just the next one, this series (a sport's games between the same
  * teams), or through any later episode the listing has, from a list. Nothing after its last one scores.
  */
 function HowLong({ o, to, setTo }: { o: StartOptions; to: number | null; setTo: (to: number | null) => void }) {
   const preset = o.spans.some((sp) => sp.to === to);
-  const P = o.part.singular.replace(/^./, (c) => c.toUpperCase());
   return (
     <section data-start-span className="mt-1 flex flex-col gap-1.5 border-t border-border pt-3" role="radiogroup" aria-label="How long">
       <b className="text-[15px] font-semibold">How long</b>
@@ -382,8 +468,7 @@ function HowLong({ o, to, setTo }: { o: StartOptions; to: number | null; setTo: 
             <option value="">A later {o.part.singular}…</option>
             {o.ends.map((e) => (
               <option key={e.number} value={e.number}>
-                {/* Its title when that says which ("Game 6: Rays at Brewers"), else "Game 6 · its title". */}
-                {e.title?.toLowerCase().startsWith(`${o.part.singular} ${e.number}`) ? e.title : `${P} ${e.number}${e.title ? ` · ${e.title}` : ""}`}
+                {episodeLine(o, e)}
               </option>
             ))}
           </select>

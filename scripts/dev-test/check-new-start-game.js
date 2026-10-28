@@ -251,7 +251,7 @@ function lateNight(shows) {
     check(Array.isArray(hub.again) && hub.again.length === 0, "the trophy shelf offers nothing to run back while the couch plays Survivor 51's games", JSON.stringify(hub.again));
     await pool.query("UPDATE show_seasons SET status = 'completed' WHERE id = $1", [sid]);
     const over = (await opts("alex", sid)).body;
-    check(over.blocked === "The season's over: every episode has aired" && over.next?.seasonId === s52 && over.next.label === "ZT Survivor 52", "a season that's over: nothing starts, and its next season is offered", JSON.stringify({ b: over.blocked, n: over.next }));
+    check(over.blocked === "The season's over: every episode has aired" && over.nextSeason?.seasonId === s52 && over.nextSeason.label === "ZT Survivor 52", "a season that's over: nothing starts, and its next season is offered", JSON.stringify({ b: over.blocked, n: over.nextSeason }));
     hub = (await as.alex.call("GET", `/api/couches/${couch}/hub`)).body;
     const cup50 = hub.trophies?.plaques.find((p) => p.label === "ZT Survivor 50" && p.gameName === "Outlast");
     check(cup50 && hub.again.some((a) => a.leagueId === cup50.leagueId && a.seasonId === s52 && a.label === "ZT Survivor 52"), "the trophy shelf: run ZT Survivor 50's Outlast back on Survivor 52", JSON.stringify(hub.again));

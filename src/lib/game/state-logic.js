@@ -197,11 +197,15 @@ function lastCompletedEpisode(state){
 // The episode "this week's choice" is being made for -- Eliminator Pool's pick, Active Roster's
 // lineup, Overview's side bets: the next one to reveal when catching up, otherwise the latest, but
 // never before the league's own start episode (a league set to start later picks/fields for that
-// one first). One shared definition so all three agree on which episode is "now".
-function currentEpisode(state){
+// one first). One shared definition so all three agree on which episode is "now": its number
+// (null past a span's last episode: nothing left to choose for), and the episode itself.
+function currentEpisodeNumber(state){
   const number = Math.max(BetLogic.upcomingEpisodeNumber(state), startEpisode(state));
-  // Past a span's last episode there's nothing left to choose for.
-  if(!inPlay(state, number)) return null;
+  return inPlay(state, number) ? number : null;
+}
+function currentEpisode(state){
+  const number = currentEpisodeNumber(state);
+  if(number === null) return null;
   return state.episodes.find(e => e.number === number) || null;
 }
 
@@ -419,6 +423,9 @@ function addSideLayers(state, results){
   const extras = gameOf(state).extras;
   if(extras.bets){
     state.episodes.forEach(ep=>{
+      // Only the game's own episodes: nothing before its start scores (a bet made there before the start moved later), and
+      // one past a span's end has had its results taken out (spanView).
+      if(!inPlay(state, ep.number)) return;
       (ep.bets||[]).forEach(bet=>{
         if((bet.predictions||[]).length < 2) return; // needs company: won't pay out if nobody else guessed
         (bet.predictions||[]).forEach(pred=>{
@@ -3251,9 +3258,10 @@ class EpisodeLogic {
 const MAX_BET_POINTS = Spec.MAX_BET_POINTS;
 const clampBetPoints = Spec.clampBet;
 class BetLogic {
+  // A bet goes on an episode this game plays (inPlay): one before its start or after a span's last episode would never pay.
   static add(state, epId, label, points, createdByPlayerId){
     const ep = state.episodes.find(e=>e.id===epId);
-    if(!ep || !label) return;
+    if(!ep || !label || !inPlay(state, ep.number)) return;
     ep.bets = ep.bets || [];
     const bet = { id: Core.uid('bet'), label, points: clampBetPoints(points), predictions: [], createdByPlayerId: createdByPlayerId || null };
     ep.bets.push(bet);
@@ -3271,10 +3279,11 @@ class BetLogic {
     const ep = state.episodes.find(e=>e.id===epId);
     if(ep) ep.bets = ep.bets.filter(b=>b.id!==betId);
   }
+  // A guess on a bet this game plays (one on an episode now outside its span, its start moved past it, never pays).
   static addPrediction(state, epId, betId, playerId, guess){
     const ep = state.episodes.find(e=>e.id===epId);
     const bet = ep && (ep.bets||[]).find(b=>b.id===betId);
-    if(!bet || !guess) return;
+    if(!bet || !guess || !inPlay(state, ep.number)) return;
     bet.predictions = bet.predictions || [];
     const pred = { id: Core.uid('pred'), playerId, guess, correct: null };
     bet.predictions.push(pred);
@@ -3289,17 +3298,27 @@ class BetLogic {
   // about to be played. A league catching up bets on the next episode it hasn't revealed yet; a live
   // league bets on its latest episode. Returns a NUMBER, not an episode, because in a brand-new league
   // there may be no episode at all yet -- see addToUpcoming.
+  // Live, never past the one after the latest with results: an episode made ahead of that (a game's start moved later
+  // makes every episode up to it, and the start can move back) is still to come, not this week's.
   static upcomingEpisodeNumber(state){
     const next = RevealLogic.nextEpisode(state);
     if(next !== null) return next;
     const nums = state.episodes.map(e=>e.number);
-    return nums.length ? Math.max(...nums) : 1;
+    return nums.length ? Math.min(Math.max(...nums), SpoilerLogic.latestWithResults(state) + 1) : 1;
+  }
+  // The episode a bet proposed now goes on: the one about to be played, never before the game's start (a game that
+  // starts later takes bets on its first episode, as currentEpisode asks for its picks), and null once a span's last
+  // episode is past (docs/BACKLOG.md item 10: a bet after the end went on a later episode and never paid), or the game is
+  // over (gameOver: its last episode has results, which a live league's latest episode can be until the next is made).
+  static target(state){
+    return gameOver(state) ? null : currentEpisodeNumber(state);
   }
   // Proposing a bet from the Overview. Creates the target episode first if it doesn't exist -- a new
   // league has no episodes until the first one is opened or revealed, and a bet proposed before then
-  // used to have nothing to attach to and failed with a bare "Request failed".
+  // used to have nothing to attach to and failed with a bare "Request failed". Nothing once the game is over.
   static addToUpcoming(state, label, points, createdByPlayerId){
-    const number = BetLogic.upcomingEpisodeNumber(state);
+    const number = BetLogic.target(state);
+    if(number === null) return;
     const ep = EpisodeLogic.ensureEpisodeNumber(state, number, false);
     return BetLogic.add(state, ep.id, label, points, createdByPlayerId);
   }
@@ -3385,9 +3404,14 @@ class RevealLogic {
   }
   static isCatchingUp(state){ return RevealLogic.revealedThrough(state) !== null; }
   // True once the revealed results have crowned a winner (results only land in state when their
-  // episode is revealed, so a winner here is one the league has seen). Nothing is left to reveal
-  // then -- without this the panel kept offering "episode N+1" past the finale.
-  static isComplete(state){ return seasonEnded(state); }
+  // episode is revealed, so a winner here is one the league has seen), or a game over a span has revealed
+  // its last episode (gameOver). Nothing is left to reveal then -- without this the panel kept offering
+  // "episode N+1" past the finale, and past a span's end (docs/BACKLOG.md item 10).
+  static isComplete(state){
+    const end = endEpisode(state);
+    const r = RevealLogic.revealedThrough(state);
+    return gameOver(state) || (end !== null && r !== null && r >= end);
+  }
   // The episode a reveal would show next, or null in live mode (nothing to reveal -- it's already
   // all visible).
   static nextEpisode(state){
@@ -4100,7 +4124,7 @@ return {
   ensureUpcomingEpisode: EpisodeLogic.ensureUpcoming, ensureEpisodeNumber: EpisodeLogic.ensureEpisodeNumber,
   ensureNextEpisode: EpisodeLogic.ensureNextEpisode, seasonUnderway: EpisodeLogic.seasonUnderway, episodeHasResults: EpisodeLogic.hasResults,
   resultsStage: EpisodeLogic.resultsStage, setResultsStage: EpisodeLogic.setResultsStage, setNoExit: EpisodeLogic.setNoExit,
-  addBet: BetLogic.add, addBetToUpcoming: BetLogic.addToUpcoming, updateBet: BetLogic.update, removeBet: BetLogic.remove,
+  addBet: BetLogic.add, addBetToUpcoming: BetLogic.addToUpcoming, betTarget: BetLogic.target, updateBet: BetLogic.update, removeBet: BetLogic.remove,
   MAX_BET_POINTS,
   addBetPrediction: BetLogic.addPrediction, removeBetPrediction: BetLogic.removePrediction, setBetPredictionCorrect: BetLogic.setPredictionCorrect,
   getOrCreateFinalePred: FinaleLogic.getOrCreatePrediction, setFinalePick: FinaleLogic.setPick, setFinaleWinnerPick: FinaleLogic.setWinnerPick,
