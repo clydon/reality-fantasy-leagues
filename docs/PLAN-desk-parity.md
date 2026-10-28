@@ -6,7 +6,8 @@ History), but a site admin still has to go back to classic for about 25 things, 
 admin at all (only Settings › Back to the classic design, or typing `/admin`). Nothing in `src/new` calls `/api/admin/*`. This
 plan closes that gap, then retires classic's admin.
 
-**Status (2026-10-28): step 0 done; the design pass is next.** Classic's admin renders: all 19 of its pages at 390px locally
+**Status (2026-10-28): step 0 done; in the design pass, step 1 (People) is mocked and waiting for the user's approval**
+(`.impeccable/mocks/site/desk.js` and `desk.css`; Mock scenarios › Desk · step 1: people). Classic's admin renders: all 19 of its pages at 390px locally
 (`scripts/dev-test/check-classic-admin.js`, which step 8 can turn round), and in production To do, Users, Leagues, a league's
 page, Shows and Site, with no console errors. The blank `/admin/leagues` seen in production earlier that day didn't come back.
 The likeliest cause is classic's boot screen: it covers the page until the first league loads (about a second locally, longer
@@ -21,6 +22,9 @@ classic. Make every delete easy to find in the design.
 shows in its dark theme until a reload whatever its own theme is. It reads fine, and classic's admin goes at step 8; a full
 page load (`window.location.assign`) would fix it at the cost of the row being a link.
 
+**Noticed, not fixed (design pass):** the new design's "Viewing as" bar (`src/new/session.tsx`) is white 13px text on #5089c4,
+about 3.7:1, under the 4.5:1 floor. The step 1 mock uses #3c6ea6 (about 5:1); step 1's build takes it.
+
 **Decisions (the user, 2026-10-27):**
 1. **Act as them.** Opening the app as someone is classic's impersonation as it is: for an hour you are them (Better Auth's
    admin plugin, `impersonateUser`), anything you do is done as them, a bar says so, one tap returns you. Two additions: it's
@@ -28,6 +32,15 @@ page load (`window.location.assign`) would fix it at the cost of the row being a
 2. **Every gap, designed now**, in this plan's order, so each step has its screens when it's built.
 3. **Phone first, wide later.** Designed at 390px like the rest of the mock; a wide layout (a list beside its detail) is part of
    the app's desktop pass, after the flows settle.
+
+**Decisions (the user, 2026-10-28, for the design pass):**
+4. **Delete is always the last thing on a page, named.** Every desk page (a person, a game, a season, a show) ends with a red
+   "Delete <the thing>" row and one line of what it does, visible without opening anything; History above it shows its
+   latest three. Same place and words on every kind of page.
+5. **No Create account on the desk.** People make their own from a couch invite or sign-up; Who gets in lets them in; Reset
+   password covers someone who can't get in. (Closes the brief's first open question.)
+6. **Stopping someone signing in joins step 1; site roles don't.** From their page, with an optional reason only admins see;
+   reversible (Let them back in), so no hold. (Closes the brief's second open question.)
 
 **Not brought over:** classic's formats (`show_formats`: rulebooks replace them; retired at cut-over), classic's Overview layouts
 (a classic screen), the Site page's Paid AI and spoiler switches (browser-only, and the desk has no paid actions). Neither app
@@ -50,8 +63,9 @@ can change someone's site role or ban them; that stays out until it's needed.
 0. **A way to classic meanwhile**: the desk's Settings gets "Classic admin" (one row, to `/admin`) until step 8.
 1. **People.** Find's People: everyone, searchable by name, username or email, filtered (Waiting · Site admins · Everyone),
    sorted (newest, last active, name). A person's page: Act as them (decision 1), Approve, Reset password (a temporary one,
-   shown once), Edit name and email, their couches and games with each seat's role (change, unlink), Delete account (what it
-   does to their seats said first; tier 3, hold to confirm). New account from Find. Who gets in lets them in from the desk.
+   shown once), Edit name and email, Stop them signing in and let them back (decision 6), their couches and games with each
+   seat's role (change, unlink), Delete account last (decision 4; what it does to their seats said first; tier 3, hold to
+   confirm). No new account (decision 5). Who gets in lets them in from the desk.
 2. **Inbox catches up.** Reports (read, mark done, open the game or screen it came from), accounts waiting, results waiting for
    review (an episode's, all at once), casts pulled and not approved, airing seasons with no schedule, and Coming up (the next
    episode of each airing season, and whether research will run on its own).
@@ -90,5 +104,4 @@ can change someone's site role or ban them; that stays out until it's needed.
 6. **Interaction and layout.** One column; lists of rows (a face or tag, two lines, a chevron); entity pages as a caption plate
    header, then facts, then actions (danger last, set apart); sheets for edits; Undo toasts. Wide later: list beside detail.
 7. **Constraints.** 44px targets, 16px in fields, no horizontal scroll at 390; real names never in the mock (demo names only).
-   Open: whether Create account belongs on the desk at all (sign-up and invites may cover it), and whether site roles and bans
-   join step 1.
+   Create account and site roles stay out; stopping someone signing in is in step 1 (decisions 5 and 6).
