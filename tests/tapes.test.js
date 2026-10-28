@@ -88,6 +88,15 @@ test("backing off: 5, 15, then 60 minutes", () => {
   assert.equal(T.backoffMs(9), 60 * 60_000);
 });
 
+test("a question the bot answered but that didn't pass waits only its own tries; no answer at all counts in a row", () => {
+  const now = Date.parse("2026-10-28T17:22:42Z");
+  const after = (failuresInARow, tries, answered) => T.afterFailure({ failuresInARow }, { tries, answered, now });
+  assert.deepEqual(after(2, 1, true), { failuresInARow: 0, pausedUntil: new Date(now + 5 * 60_000).toISOString(), pauseWhy: `try 1 of ${T.TRIES} didn't pass` });
+  assert.equal(after(0, 2, true).pausedUntil, new Date(now + 15 * 60_000).toISOString());
+  assert.deepEqual(after(0, T.TRIES, true), { failuresInARow: 0, pausedUntil: null, pauseWhy: null }, "gave up: the queue moves straight on");
+  assert.deepEqual(after(2, 1, false), { failuresInARow: 3, pausedUntil: new Date(now + 60 * 60_000).toISOString(), pauseWhy: "3 failure(s) in a row" });
+});
+
 test("a pause holds the queue until it's over", () => {
   const now = Date.parse("2026-10-28T05:00:00Z");
   assert.equal(T.holdFor({ pausedUntil: null }, now), null);
