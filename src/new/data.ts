@@ -41,6 +41,7 @@ import type { WeekListing } from "@/lib/game/tv-listings";
 import type { PlanAnswerOut, PlanHow, PlanOptions, WatchPlan } from "@/lib/server/watch-plans";
 import type { EpisodeVerdict, ShowVerdict } from "@/lib/server/ratings";
 import type { EpisodeCalls } from "@/lib/server/calls";
+import type { GameQuestions } from "@/lib/server/answers";
 import type { Poll, SeasonPolls, ThisWeekShow } from "@/lib/server/polls";
 import type { EpisodeBingo } from "@/lib/server/bingo";
 import type { TriviaCard, TriviaRound } from "@/lib/server/trivia";
@@ -83,7 +84,9 @@ export type { CatchUpReveal } from "@/lib/server/season-episodes";
 export type { CallMove } from "@/lib/game/game-view";
 export type { BotLevel, PoolInfo, PracticeGame, PracticeInfo, SoloSeason } from "@/lib/server/solo";
 export type { MakeReview, MakeState } from "@/lib/server/make-game";
-export type { StartChoice, Started, StartOptions } from "@/lib/server/start-game";
+export type { StartChoice, Started, StartOptions, StartQuestion } from "@/lib/server/start-game";
+export type { GameQuestions, QuestionFace, QuestionPerson, QuestionView } from "@/lib/server/answers";
+export type { SheetMove } from "@/lib/game/game-view";
 export type { DeletePreview, EndGame } from "@/lib/server/end-game";
 export type { HiddenShow, WeekEpisode } from "@/lib/server/guide";
 export type { PlanAnswer, PlanEpisode, PlanHow, PlanOptions, PlanPerson, WatchPlan } from "@/lib/server/watch-plans";
@@ -753,6 +756,9 @@ export const gameAdmin = {
     sendJson<T>(seasonUrl(seasonId, "/backstage/waivers", { couch: couchId }), "POST", { leagueId, ...body }),
   settings: (seasonId: string, couchId: string, leagueId: string, body: { set?: Record<string, unknown>; reset?: "lineup" | "team" | "joining"; text?: string }) =>
     sendJson<{ batch: string | null }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, ...body }),
+  /** A Prediction Sheet's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md), until it starts: backstage-games.ts questionsWrite. */
+  questions: (seasonId: string, couchId: string, leagueId: string, ids: string[]) =>
+    sendJson<{ questions: string[] }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, questions: ids }),
   /** Its current episode's lineups or picks, locked or unlocked by hand (past its start too): backstage-games.ts lockWrite. */
   lock: (seasonId: string, couchId: string, leagueId: string, closed: boolean) =>
     sendJson<{ closed: boolean }>(seasonUrl(seasonId, "/backstage/settings", { couch: couchId }), "PATCH", { leagueId, lock: closed }),
@@ -1307,7 +1313,11 @@ export function useEndGames(seasonId: string, couchId: string | null, enabled = 
 
 export const gamesApi = {
   /** `to`: the last episode it plays (a span, step 6 of docs/PLAN-sports-data.md); null to the season's end. */
-  start: (seasonId: string, couchId: string, body: { game: string; tell: boolean; again?: string | null; from?: number; phase?: string; to?: number | null; bots?: number; level?: BotLevel; late?: boolean }) =>
+  start: (
+    seasonId: string,
+    couchId: string,
+    body: { game: string; tell: boolean; again?: string | null; from?: number; phase?: string; to?: number | null; bots?: number; level?: BotLevel; late?: boolean; questions?: string[] }
+  ) =>
     post<Started>(seasonUrl(seasonId, "/start", { couch: couchId }), body),
   archive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "archive", leagueId }),
   unarchive: (seasonId: string, couchId: string, leagueId: string) => post<{ batch: string }>(seasonUrl(seasonId, "/backstage/end", { couch: couchId }), { action: "unarchive", leagueId }),
@@ -1429,6 +1439,42 @@ export function useAfterCalls() {
       void client.invalidateQueries({ queryKey: ["new-design", "pool", c.seasonId] });
       void client.invalidateQueries({ queryKey: ["new-design", "this-week"] });
       void client.invalidateQueries({ queryKey: ["new-design", "episodes", c.seasonId] });
+      void client.invalidateQueries({ queryKey: HOME_KEY });
+    },
+    [client]
+  );
+}
+
+// ---- a game's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md; answers.ts): a Prediction Sheet's, or a draft's finale
+// predictions. The sheet reads its game's when it opens (this week's, or an episode's for how it went); Tonight's rows read the
+// latest episode's for how you did. Nothing polls. ----
+
+/** A game's questions as you may see them: this week's (no episode) or an episode's, yours, how many have answered, and once
+ *  each locks everyone's answers and how it stands at your mark. */
+export function useGameQuestions(seasonId: string | null, leagueId: string | null, episode: number | null, enabled = true) {
+  return useQuery({
+    queryKey: ["new-design", "answers", seasonId, leagueId, episode],
+    queryFn: () => get<GameQuestions>(seasonUrl(seasonId!, "/answers", { league: leagueId!, ...(episode ? { episode: String(episode) } : {}) })),
+    enabled: enabled && !!seasonId && !!leagueId,
+    staleTime: 30_000,
+    retry: (n, e) => n < 2 && ![400, 403, 404, 409].includes((e as { status?: number }).status ?? 0),
+  });
+}
+
+export const answersApi = {
+  /** Answer, change or take back (null) yours before each locks. */
+  answer: (seasonId: string, leagueId: string, episode: number | null, answers: Record<string, unknown>) =>
+    post<GameQuestions>(seasonUrl(seasonId, "/answers", { league: leagueId }), { ...(episode ? { episode } : {}), answers }),
+};
+
+/** After answers: the sheet's read put in place, and what counts them read again (the games, the home's moves). */
+export function useAfterAnswers() {
+  const client = useQueryClient();
+  return useCallback(
+    (g: GameQuestions, seasonId: string, episode: number | null) => {
+      client.setQueryData(["new-design", "answers", seasonId, g.leagueId, episode], g);
+      void client.invalidateQueries({ queryKey: ["new-design", "answers", seasonId, g.leagueId] });
+      void client.invalidateQueries({ queryKey: ["new-design", "games", seasonId] });
       void client.invalidateQueries({ queryKey: HOME_KEY });
     },
     [client]

@@ -7,7 +7,9 @@ import { showWords } from "@/lib/game/show-words";
 import { nextSpan, spanChoices, spanEnds, spanName, type SpanChoice, type SpanEpisode } from "@/lib/game/spans";
 import type { LeagueState } from "@/lib/game/types";
 import { MAX_BENCH, MAX_STARTERS, MAX_TEAM, NO_WAIVERS, waiversFit } from "@/lib/game/game-spec/index.js";
-import type { GameSpec } from "@/lib/game/game-spec/index.js";
+import type { GameSpec, Question, SpecContext } from "@/lib/game/game-spec/index.js";
+import { chosenQuestions, questionChoices, type QuestionChoice } from "@/lib/game/question-choices";
+import { contextOf, questionBook } from "./answers";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { recordChange } from "./change-log";
 import { couchMembers, requireCouch } from "./couches";
@@ -62,13 +64,30 @@ import { followsOf, games, seasonHeaders, type Game } from "./show-space";
 // Its episodes are called what the show calls them (shows.episode_term, as the hub, plaques and Game settings say), not
 // what its rulebook does: one word for an episode (docs/BACKLOG.md item 10).
 
-export interface StartChoice extends GameFit {
+/** A game Start a game makes: a season game that fits the rulebook, or a Prediction Sheet (a game of questions, step A4 part 2). */
+export type StartKey = SeasonGameKey | "questions";
+
+export interface StartChoice extends Omit<GameFit, "key" | "type"> {
+  key: StartKey;
+  type: GameFit["type"] | "questions";
   /** What it is on this show, in a line ("Draft five drivers, start three each race"). */
   line: string;
   /** How many of this game the couch already plays here. */
   have: number;
   /** Computer players can join it (computer-players.ts botsPlay: the drafts and Survival Pool, on any show). */
   bots: boolean;
+}
+
+/** A question a Prediction Sheet can ask on this show (question-choices.ts), as Start a game lists it. */
+export interface StartQuestion {
+  id: string;
+  ask: string;
+  /** "Each episode · 2 points". */
+  line: string;
+  /** On by default. */
+  on: boolean;
+  /** The season's to settle: only in a game that runs to the season's end. */
+  season: boolean;
 }
 
 export interface StartOptions {
@@ -107,6 +126,8 @@ export interface StartOptions {
   games: StartChoice[];
   /** Why the games that don't fit don't (the mock's RB_NOFIT), or null. */
   noFit: string | null;
+  /** A Prediction Sheet's questions on this show, from its moments (step A4 part 2): only what data settles. */
+  questions: StartQuestion[];
   /** Others on the couch who watch it or play it (Tell the couch's line). */
   watchers: string[];
   /** Why nothing can start here, or null. */
@@ -115,12 +136,32 @@ export interface StartOptions {
   /** Run it back: the game it plays again (the same game, name and settings), and, when that was a span, the next one's last
    *  episode (to start with; null: to the season's end). `label` says which it was ("ZT Survivor 51 · Episodes 6–7"). `phase`:
    *  it started when a phase did, and this season has that phase still to come (the sheet starts it there too). */
-  again: { leagueId: string; name: string; gameName: string; key: SeasonGameKey; label: string; to: number | null; phase: string | null } | null;
+  again: {
+    leagueId: string;
+    name: string;
+    gameName: string;
+    key: StartKey;
+    label: string;
+    to: number | null;
+    phase: string | null;
+    /** A Prediction Sheet's questions it asked that this season can still ask (step A4 part 2): what it starts with again. */
+    questions: string[] | null;
+  } | null;
   /** Once this season's over: the show's next season to run a game back on (set up, still to finish), or null. */
   nextSeason: { seasonId: string; label: string } | null;
 }
 
-const KEY_OF: Record<string, SeasonGameKey> = {
+/** A game of questions' name (league-season.ts). */
+const SHEET = "Prediction Sheet";
+
+/** A Prediction Sheet's questions on a season, by the rules a couch's games there play by (its own copy, else the season's). */
+async function sheetChoices(seasonId: string, copy: Awaited<ReturnType<typeof copyOf>>, part: string): Promise<QuestionChoice[]> {
+  const book = await questionBook(seasonId, copy);
+  return questionChoices({ ...book, blocks: { ...book.blocks, parts: { ...book.blocks.parts, singular: part, plural: `${part}s` } } }, contextOf(book));
+}
+
+const KEY_OF: Record<string, StartKey> = {
+  questions: "questions",
   pickem: "survivalPool",
   "active-roster": "weeklyLineup",
   "classic-draft": "outlast",
@@ -200,10 +241,26 @@ export async function startOptions(
   const part = { singular: words.episode.toLowerCase(), plural: words.episodes.toLowerCase() };
   const blocks: RulebookBlocks = { ...book, parts: { ...book.parts, ...part } };
   const fits = gamesFor(blocks, compiled);
-  const have = (key: SeasonGameKey) => here.filter((g) => KEY_OF[g.gameType] === key && !g.archived).length;
+  const have = (key: StartKey) => here.filter((g) => KEY_OF[g.gameType] === key && !g.archived).length;
   const show = plain(h.show.name);
   // Every season game with whether it fits (the sheet shows the ones that do; the rest are the doesn't-fit line).
   const choices: StartChoice[] = fits.map((g) => ({ ...g, line: gameLine(g.key, blocks) ?? "", have: have(g.key), bots: BOT_GAMES.has(g.key) }));
+  // A Prediction Sheet (step A4 part 2): questions from the show's moments, by the rules its games here play by. Not a sport's
+  // (its settles are the sports branch's) nor a talk show's (whose moments are the couch's word).
+  const copy = await copyOf(here.map((g) => g.leagueId));
+  const kind = (blocks.kind ?? h.show.kind) as RulebookKind;
+  const asks = kind === "sport" || kind === "talk" ? [] : await sheetChoices(seasonId, copy, part.singular);
+  choices.push({
+    key: "questions",
+    name: SHEET,
+    type: "questions",
+    fits: asks.length > 0,
+    needs: "moments the show's research answers",
+    soon: null,
+    line: `No draft · a few questions before each ${part.singular}${asks.some((q) => q.question.id === "wins") ? ", and who wins" : ""}`,
+    have: have("questions"),
+    bots: false,
+  });
 
   // Who on the couch watches it openly or plays it, for Tell the couch's line (never how far: the guard).
   const others = people.filter((p) => p.userId !== user.id);
@@ -227,7 +284,7 @@ export async function startOptions(
   const over = h.status === "completed" || (h.status !== "upcoming" && eps.length > 0 && eps.every((e) => e.airAt && new Date(e.airAt).getTime() <= now.getTime()));
   // The phases still to come (step A3), by the rules its games here play by (the couch's own copy, else the season's): not the
   // first, and either not started yet as far as anyone's said, or starting at an episode still to air.
-  const phases = phasesFrom(season, await copyOf(here.map((g) => g.leagueId)))
+  const phases = phasesFrom(season, copy)
     .filter((p) => !p.first && (p.from === null || p.from >= next))
     .map((p) => ({ id: p.id, name: p.name, summary: p.summary, at: p.from }));
   const blocked = h.ready === false ? `Make ${show} a game first` : over ? "The season's over: every episode has aired" : null;
@@ -238,7 +295,7 @@ export async function startOptions(
     const { rows } = await pool.query(
       `SELECT l.id, l.name, l.state->'settings'->>'leagueTypeId' AS type, s.name AS show, ss.season_number, ss.id AS season_id,
               l.state->'settings'->'startEpisode' AS start_episode, l.state->'settings'->'endEpisode' AS end_episode,
-              l.state->'settings'->>'startPhase' AS start_phase
+              l.state->'settings'->>'startPhase' AS start_phase, l.state->'settings'->'questions' AS questions
          FROM leagues l JOIN league_memberships m ON m.league_id = l.id AND m.user_id = $2
          JOIN shows s ON s.slug = l.state->'settings'->>'showId'
          JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
@@ -255,12 +312,19 @@ export async function startOptions(
     again = {
       leagueId: r.id,
       name: r.name,
-      gameName: fits.find((g) => g.key === key)?.name ?? r.name,
+      gameName: key === "questions" ? SHEET : (fits.find((g) => g.key === key)?.name ?? r.name),
       key,
       // The same season's: just its span ("Episodes 6–7"); another's, the season too.
       label: last && r.season_id === seasonId ? spanName(last.from, last.to, part) : `${plain(r.show)} ${r.season_number}${last ? ` · ${spanName(last.from, last.to, part)}` : ""}`,
       to,
       phase: r.start_phase && phases.some((p) => p.id === r.start_phase) ? (r.start_phase as string) : null,
+      // A Prediction Sheet asks again what it asked, as far as this season's rules can (the season's only to its end).
+      questions:
+        key === "questions"
+          ? ((Array.isArray(r.questions) ? r.questions : []) as { id?: string }[])
+              .map((x) => x.id)
+              .filter((id): id is string => !!id && asks.some((c) => c.question.id === id && (to === null || !c.season)))
+          : null,
     };
   }
 
@@ -292,6 +356,7 @@ export async function startOptions(
     ends: spanEnds(spanEps, from),
     games: choices,
     noFit: noFitLine(fits, blocks, show),
+    questions: asks.map((c) => ({ id: c.question.id, ask: c.question.ask, line: c.line, on: c.on, season: c.season })),
     watchers,
     blocked,
     couch: { id: couchId, name: couchRows[0]?.name ?? "Your couch", members: people.length },
@@ -377,7 +442,7 @@ export async function startGame(
   user: SessionUser,
   seasonId: string,
   couchId: string | null,
-  body: { game?: unknown; tell?: unknown; again?: unknown; from?: unknown; phase?: unknown; to?: unknown; bots?: unknown; level?: unknown; late?: unknown },
+  body: { game?: unknown; tell?: unknown; again?: unknown; from?: unknown; phase?: unknown; to?: unknown; bots?: unknown; level?: unknown; late?: unknown; questions?: unknown },
   now = new Date()
 ): Promise<Started> {
   const againId = typeof body.again === "string" ? body.again : null;
@@ -415,6 +480,25 @@ export async function startGame(
   const row = { id: seasonId, number: seasonRow[0].season_number as number, slug: seasonRow[0].slug as string };
   // The couch's own rules (Make it ours), when its games here play by them.
   const copy = await copyOf(here.map((g) => g.leagueId));
+  // A Prediction Sheet's questions (step A4 part 2): the ones chosen, of those offered (none sent: the ones on by default), by the
+  // rules it will play by. The season's (who wins, the final three) only in a game that runs to the season's end.
+  let sheet: { ask: Question[]; ctx: SpecContext } | null = null;
+  if (choice.key === "questions") {
+    if (body.questions != null && !(Array.isArray(body.questions) && body.questions.every((x) => typeof x === "string"))) throw new HttpError(400, "questions is a list of the questions' ids");
+    // None sent: what a game run back asked, else the ones on by default; over a span, never the season's.
+    const ids =
+      (body.questions as string[] | undefined) ??
+      (opts.again?.key === "questions" && opts.again.questions?.length ? opts.again.questions : opts.questions.filter((q) => q.on && (to === null || !q.season)).map((q) => q.id));
+    const offered = new Map(opts.questions.map((q) => [q.id, q]));
+    const off = ids.find((id) => !offered.has(id));
+    if (off) throw new HttpError(400, `"${off}" isn't a question ${opts.show} can settle`);
+    if (to !== null && ids.some((id) => offered.get(id)?.season)) throw new HttpError(400, "Who wins and the final three are the season's: only in a game that runs to its end");
+    const book = await questionBook(seasonId, copy);
+    const ctx = contextOf(book);
+    const ask = chosenQuestions(questionChoices(book, ctx), ids, to === null);
+    if (!ask.length) throw new HttpError(400, "Pick at least one question");
+    sheet = { ask, ctx };
+  }
   const kept = opts.again ? (await leagueStates([opts.again.leagueId])).get(opts.again.leagueId)?.settings : undefined;
   let seat = "";
   let made: string | null = null;
@@ -422,7 +506,9 @@ export async function startGame(
   const leagueId = await makeLeague(row, {
     name,
     createdBy: user.id,
-    type: choice.type,
+    // A Prediction Sheet starts as a game with nothing held whose results come into its state (Survival Pool's type: a game of
+    // questions has no preset to start from), its questions written below through the game's writer.
+    type: choice.type === "questions" ? "pickem" : choice.type,
     couchId: couch,
     rulebookId: copy?.id ?? null,
     before: (s) => {
@@ -449,7 +535,12 @@ export async function startGame(
         if (stillIn && each >= 1 && each < (spec.get.each || 4)) spec.get = { ...spec.get, each };
       }
       if (kept && opts.again?.key === choice.key) Object.assign(spec, againParts(StateLogic.gameOf({ settings: kept } as LeagueState), spec));
-      refused(StateLogic.setGame(s, spec), 409);
+      if (sheet) {
+        // A game of questions (step A4 part 2): nothing held, scored by its own questions, each one data settles (the show's ctx:
+        // setGame refuses a game's own questions without it).
+        Object.assign(spec, { preset: null, get: { by: "none" }, count: null, score: { by: "answers" }, rank: { by: "total" }, ask: sheet.ask });
+      }
+      refused(StateLogic.setGame(s, spec, sheet ? { ctx: sheet.ctx } : undefined), 409);
       // A phase start already known and ahead is settled now (by the rulebook it plays by: its couch's own copy, else the
       // season's), as the desk and the season sync settle it later.
       if (phase) {
@@ -511,7 +602,7 @@ export async function runItBack(
   finished: { leagueId: string; seasonId: string; gameType: string; span?: { from: number; to: number } | null }[],
   now = new Date()
 ): Promise<{ leagueId: string; seasonId: string; label: string }[]> {
-  // Only the games Start a game makes (a game of questions has no preset to start again: step A4).
+  // Only the games Start a game makes (a Prediction Sheet too since step A4 part 2: it asks its questions again).
   finished = finished.filter((f) => !!KEY_OF[f.gameType]);
   if (!finished.length) return [];
   const there = await games(user.id, { couchIds: [couchId] });

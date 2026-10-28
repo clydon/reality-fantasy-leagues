@@ -13,8 +13,9 @@ import { paths } from "../routes";
 
 export type MovesTab = "lineup" | "pool" | "predict" | "outlast";
 
-/** Moves that are cards on Tonight, in the order a tie goes ("calls": Weekly Calls' two calls on the next show, step 12 part 2). */
-const REQUIRED = ["lineup", "pickup", "pick", "calls", "draftTurn", "blindDraft"];
+/** Moves that are cards on Tonight, in the order a tie goes ("calls": Weekly Calls' two calls on the next show, step 12 part 2;
+ *  "questions": a Prediction Sheet's, step A4 part 2 of docs/PLAN-start-a-game-gpt.md). */
+const REQUIRED = ["lineup", "pickup", "pick", "calls", "questions", "draftTurn", "blindDraft"];
 export const isRequired = (m: Move) => REQUIRED.includes(m.kind);
 
 /** "Set your episode 5 lineup (2 empty slots)" → 2. */
@@ -34,6 +35,8 @@ export interface MoveCard {
   call?: number;
   /** Opens the bingo card for this episode (Weekly Bingo, step 12 part 3). */
   bingo?: number;
+  /** Opens this game's sheet of questions (a Prediction Sheet, step A4 part 2). */
+  sheet?: { leagueId: string; game: string };
 }
 
 /** A required move as Tonight's card. `twin`: another move of the same kind is due here (two leagues), so name it. */
@@ -54,6 +57,11 @@ export function moveCard(m: Move, seasonId: string, twin: boolean): MoveCard {
       return { key, title: "Lock in your draft picks", line: `Pick in private, reveal together${which}`, action: "Pick my team", href: `${paths.showPage(seasonId, "blind")}?game=${m.leagueId}` };
     case "calls":
       return { key, title: m.text, line: `Weekly Calls · closes at airtime${when ? ` · ${when}` : ""}${which}`, action: "Call it", call: m.episode ?? undefined, leagueId: m.leagueId };
+    case "questions": {
+      // "Fill in your sheet (3 questions)": the title, and how many in the line.
+      const [, title, more] = /^(.*?)\s*\((.*)\)$/.exec(m.text) ?? [null, m.text, null];
+      return { key, title, line: `${more ? `${more} · ` : ""}${when ? `locks ${when}` : "locks at airtime"}${which}`, action: "Fill it in", sheet: { leagueId: m.leagueId, game: m.leagueName }, leagueId: m.leagueId };
+    }
     default:
       return { key, title: m.text, line: m.leagueName, action: "Open", tab: "lineup" };
   }
@@ -93,6 +101,12 @@ export function doneCards(play: GameView[]): MoveCard[] {
         ? `${b.ticked ? `${b.ticked} ticked${b.lines ? ` · ${b.lines} ${b.lines === 1 ? "line" : "lines"}` : ""}` : "Tap squares as it happens"}${which}`
         : `Opens ${b.airsAt ? airTime(Date.parse(b.airsAt)) : "at airtime"} · tap squares as it happens${which}`;
       cards.push({ key: `bingo-${g.leagueId}`, title: `Your card for Episode ${b.episode}`, line, action: "Open my card", bingo: b.episode, leagueId: g.leagueId });
+    }
+    // A Prediction Sheet you've filled in (step A4 part 2): change it until it locks.
+    const sh = g.sheet;
+    if (g.gameType === "questions" && sh && sh.of > 0 && sh.answered === sh.of) {
+      const until = sh.closesAt ? ` · change until ${airTime(Date.parse(sh.closesAt))}` : "";
+      cards.push({ key: `sheet-done-${g.leagueId}`, title: "Your sheet is in", line: `${sh.of} ${sh.of === 1 ? "answer" : "answers"}${until}${which}`, action: "Change", sheet: { leagueId: g.leagueId, game: g.name }, leagueId: g.leagueId });
     }
     const p = g.pick;
     if (p && p.open && p.pick) {
@@ -142,6 +156,7 @@ export function dockWords(moves: Move[]): string {
     if (m.kind === "pick") return "no pick";
     if (m.kind === "prediction") return plural(Number(/^(\d+) predictions/.exec(m.text)?.[1] ?? 1), "prediction");
     if (m.kind === "calls") return "your calls";
+    if (m.kind === "questions") return "your sheet";
     if (m.kind === "pickup") return m.text.charAt(0).toLowerCase() + m.text.slice(1);
     if (m.kind === "draftTurn") return "your draft turn";
     if (m.kind === "blindDraft") return "draft picks";

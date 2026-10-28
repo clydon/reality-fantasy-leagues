@@ -7,6 +7,7 @@ import { StartGameSheets } from "@/new/couch/start-game";
 import { PlanSheets } from "@/new/couch/watch-plans";
 import { BingoSheets } from "@/new/show/bingo";
 import { CallSheets } from "@/new/show/calls";
+import { QuestionSheets } from "@/new/show/questions";
 import { PollSheets } from "@/new/show/polls";
 import { RateSheets } from "@/new/show/rate";
 import { TriviaSheets } from "@/new/show/trivia";
@@ -29,7 +30,8 @@ export default async function SignedInLayout({ children }: { children: React.Rea
   };
   // The couch sheets (switch, details, invite, start, join, leave: step 9), the watching ones (Add a show, where you are:
   // step 10), Start a game (step 10 part 2b), planned nights (step 11 part 3), Rate it (step 12 part 1), Call it and the couch's
-  // polls (part 2), bingo and trivia (part 3) open from anywhere signed in.
+  // polls (part 2), bingo and trivia (part 3), and a game's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md: a
+  // Prediction Sheet, finale predictions) open from anywhere signed in.
   return (
     <SessionProvider me={me}>
       {children}
@@ -39,6 +41,7 @@ export default async function SignedInLayout({ children }: { children: React.Rea
       <PlanSheets />
       <RateSheets />
       <CallSheets />
+      <QuestionSheets />
       <PollSheets />
       <BingoSheets />
       <TriviaSheets />

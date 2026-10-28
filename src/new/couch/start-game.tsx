@@ -2,7 +2,7 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, Bot, ChevronRight, Plus, Radio, RotateCcw, Trophy, Users } from "lucide-react";
+import { Bell, Bot, Check, ChevronRight, Plus, Radio, RotateCcw, Trophy, Users } from "lucide-react";
 import { airTime, calmWhen } from "../clock";
 import { LEVEL_WORDS, type BotLevel } from "@/lib/game/computer-players";
 import { spanName } from "@/lib/game/spans";
@@ -173,6 +173,8 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   const [tell, setTell] = useState(true);
   const [bots, setBots] = useState(0);
   const [level, setLevel] = useState<BotLevel>("normal");
+  // A Prediction Sheet's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md): the ones switched on (null: the defaults).
+  const [asks, setAsks] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const pick = picked ?? o?.again?.key ?? startable[0]?.key ?? null;
   const phaseId = late ? null : phaseChosen !== undefined ? phaseChosen : (o?.again?.phase ?? null);
@@ -180,6 +182,13 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   const me = home?.user.name ?? "you";
   const botsHere = !!fits.find((g) => g.key === pick)?.bots;
   const again = o?.again;
+  const sheet = pick === "questions";
+  // The season's questions (who wins) only in a game to the season's end: a phase start runs to it, How long may not.
+  const toEnd = !!phase || to === null;
+  // Run it back asks what it asked; else the ones on by default.
+  const askOn = (asks ?? (again?.key === "questions" && again.questions?.length ? again.questions : (o?.questions ?? []).filter((q) => q.on).map((q) => q.id))).filter(
+    (id) => toEnd || !o?.questions.find((q) => q.id === id)?.season
+  );
 
   const start = async () => {
     if (!o || !couchId || !pick) return;
@@ -194,6 +203,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
         ...(phase ? { phase: phase.id } : !late && startAt !== null ? { from: startAt } : {}),
         ...(phase ? {} : { to }),
         ...(botsHere && bots ? { bots, level } : {}),
+        ...(sheet ? { questions: askOn } : {}),
         ...(late && o.late ? { late: true } : {}),
       });
       await refresh();
@@ -333,6 +343,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
             )}
             {startable.length > 0 && !phase && (o.spans.length > 1 || o.ends.length > 0) && <HowLong o={o} to={to} setTo={setTo} />}
             {botsHere && <Computers n={bots} setN={setBots} level={level} setLevel={setLevel} />}
+            {sheet && <SheetQuestions o={o} on={askOn} toEnd={toEnd} setOn={setAsks} />}
             {startable.length > 0 && (
               <button
                 type="button"
@@ -362,7 +373,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
               wide
               data-start-go
               // Not while the options reload for a new start (Include it, Starts): what's on screen is still the last one's.
-              disabled={busy || opts.isPlaceholderData || !pick || !startable.some((g) => g.key === pick)}
+              disabled={busy || opts.isPlaceholderData || !pick || !startable.some((g) => g.key === pick) || (sheet && !askOn.length)}
               onClick={start}
               className="mt-2"
             >
@@ -515,6 +526,55 @@ function HowLong({ o, to, setTo }: { o: StartOptions; to: number | null; setTo: 
           </select>
         </label>
       )}
+    </section>
+  );
+}
+
+/**
+ * A Prediction Sheet's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md): what the show's moments can ask, each settled by
+ * its results, the recommended ones on. A tap switches one; at least one stays. The season's (who wins) need a game that runs to
+ * the season's end. Backstage › Game settings changes them until the game starts.
+ */
+function SheetQuestions({ o, on, toEnd, setOn }: { o: StartOptions; on: string[]; toEnd: boolean; setOn: (ids: string[]) => void }) {
+  return (
+    <section data-start-questions className="mt-1 flex flex-col border-t border-border pt-3" aria-label="The questions">
+      <div className="flex items-baseline justify-between gap-3">
+        <b className="text-[15px] font-semibold">The questions</b>
+        <span className="text-[13px] text-muted-foreground">{on.length} on</span>
+      </div>
+      <small className="mb-1 mt-0.5 text-[13px] leading-snug text-muted-foreground">
+        The results settle every one. Each {o.part.singular}&rsquo;s questions lock as it starts, the season&rsquo;s as the game does.
+      </small>
+      {o.questions.map((q) => {
+        const can = toEnd || !q.season;
+        const ticked = can && on.includes(q.id);
+        return (
+          <button
+            key={q.id}
+            type="button"
+            role="checkbox"
+            aria-checked={ticked}
+            disabled={!can}
+            data-start-question={q.id}
+            onClick={() => {
+              if (ticked && on.length === 1) return toast.quiet("A Prediction Sheet asks at least one question");
+              setOn(ticked ? on.filter((x) => x !== q.id) : [...on, q.id]);
+            }}
+            className="flex min-h-[56px] w-full items-center gap-3 border-t border-border py-2 text-left first-of-type:border-t-0 disabled:opacity-50"
+          >
+            <span
+              aria-hidden
+              className={`grid size-6 flex-none place-items-center rounded-[3px] ${ticked ? "bg-foreground text-background" : "outline-[1.5px] -outline-offset-[1.5px] outline-input"}`}
+            >
+              {ticked && <Check className="size-4" strokeWidth={3} />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <b className="block text-[15px] font-semibold leading-snug">{q.ask}</b>
+              <small className="block text-[13px] text-muted-foreground">{can ? q.line : "Only in a game that runs to the season's end"}</small>
+            </span>
+          </button>
+        );
+      })}
     </section>
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Archive, CalendarDays, ChevronRight, KeyRound, Lock, LockOpen, RotateCcw, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Archive, CalendarDays, Check, ChevronRight, KeyRound, Lock, LockOpen, RotateCcw, SlidersHorizontal, Trash2 } from "lucide-react";
 import { airTime } from "../clock";
 import { backstage, gameAdmin, gamesApi, useEndGames, useGameSettings, type DeletePreview, type EndGame, type GameSettings } from "../data";
 import { spanName } from "@/lib/game/spans";
@@ -78,6 +78,68 @@ export function SettingsPage({ seasonId, show }: { seasonId: string; show: ShowD
   );
 }
 
+/**
+ * A Prediction Sheet's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md): its own, then what else the show's moments can
+ * ask, each with when it's asked and what it earns. A Commissioner switches them until the game starts (its first lock, when
+ * answers are in), never while it's locked down; at least one stays on. Saved at once, with Undo on the toast (the list as it was,
+ * sent back: a set of questions is only written with the show's ctx, so Recent changes keeps the line without an Undo of its own).
+ */
+function SheetQuestions({ seasonId, couchId, g, q }: { seasonId: string; couchId: string; g: GameSettings; q: NonNullable<GameSettings["questions"]> }) {
+  const after = useAfter();
+  const [busy, setBusy] = useState(false);
+  const on = q.list.filter((x) => x.on).map((x) => x.id);
+  const send = async (ids: string[], said: string, undo?: string[]) => {
+    setBusy(true);
+    try {
+      await gameAdmin.questions(seasonId, couchId, g.leagueId, ids);
+      await after();
+      toast(said, undo ? { undo: () => void send(undo, "Undone") } : undefined);
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div data-settings="questions" className="mb-5">
+      <div className="mb-1 flex items-baseline justify-between">
+        <h3 className="type-caption text-[15px] tracking-[0.04em] text-muted-foreground">The questions</h3>
+        <span className="text-[13px] text-muted-foreground">{on.length} on</span>
+      </div>
+      <small className="mb-1.5 block text-[13px] leading-snug text-muted-foreground">
+        {q.why ?? "The results settle every one. Switch them until the game starts: after that, answers are in."}
+      </small>
+      {q.list.map((x) => (
+        <button
+          key={x.id}
+          type="button"
+          role="checkbox"
+          aria-checked={x.on}
+          disabled={!q.editable || busy}
+          data-settings-question={x.id}
+          onClick={() => {
+            if (x.on && on.length === 1) return toast.quiet("A Prediction Sheet asks at least one question");
+            const ids = x.on ? on.filter((id) => id !== x.id) : [...on, x.id];
+            void send(ids, x.on ? `Took off "${x.ask}"` : `Added "${x.ask}"`, on);
+          }}
+          className="mb-1.5 flex w-full items-center gap-3 rounded-[3px] bg-background p-2.5 text-left disabled:cursor-default"
+        >
+          <span
+            aria-hidden
+            className={`grid size-6 flex-none place-items-center rounded-[3px] ${x.on ? (q.editable ? "bg-foreground text-background" : "bg-muted-foreground text-background") : "outline-[1.5px] -outline-offset-[1.5px] outline-input"}`}
+          >
+            {x.on && <Check className="size-4" strokeWidth={3} />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px] leading-snug">{x.ask}</b>
+            <small className="text-[13px] text-muted-foreground">{x.line}</small>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function GameBlock({
   seasonId,
   couchId,
@@ -103,7 +165,14 @@ function GameBlock({
         <div className="min-w-0 flex-1">
           <h2 className="type-caption text-[24px] leading-none">{g.gameName}</h2>
           <small className="text-[13px] text-muted-foreground">
-            {g.name} · {g.gameType === "pickem" ? "everyone picks from the whole cast" : g.shared ? "castaways can be on several teams" : "each castaway on one team"}
+            {g.name} ·{" "}
+            {g.gameType === "pickem"
+              ? "everyone picks from the whole cast"
+              : g.questions
+                ? "no draft, no team: a few questions each episode"
+                : g.shared
+                  ? "castaways can be on several teams"
+                  : "each castaway on one team"}
           </small>
         </div>
       </div>
@@ -180,6 +249,8 @@ function GameBlock({
         </div>
       )}
 
+      {g.questions && <SheetQuestions seasonId={seasonId} couchId={couchId} g={g} q={g.questions} />}
+
       <div data-settings="joining" className="mb-5">
         <div className="mb-2 flex items-baseline justify-between">
           <h3 className="type-caption text-[15px] tracking-[0.04em] text-muted-foreground">
@@ -200,7 +271,7 @@ function GameBlock({
         <small className="mb-2 block text-[13px] text-muted-foreground">
           {g.lockedDown
             ? "Locked down for the season: nobody new joins or catches up."
-            : g.gameType === "pickem"
+            : g.gameType === "pickem" || g.questions
               ? "There are no teams, so new players can jump in."
               : g.joining.rec === "open"
                 ? "Castaways can be on several teams, so new players can jump in."

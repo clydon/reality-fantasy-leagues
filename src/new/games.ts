@@ -10,6 +10,8 @@ export const GAME_STYLE = {
   "Weekly Calls": { colour: "#e56b9f", line: "Two calls every show. Most right by the finale wins." },
   // The mock's GAMES.wbingo.
   "Weekly Bingo": { colour: "#a76bb0", line: "A new card every show. Most lines by the finale wins." },
+  // A game of questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md): lime, the one colour the other five leave.
+  "Prediction Sheet": { colour: "#9bc25b", line: "A few questions before each episode. Most points by the finale wins." },
 } as const;
 
 export type GameName = keyof typeof GAME_STYLE;
@@ -46,6 +48,12 @@ export const HOW_EACH_GAME: Record<GameName, string[]> = {
     "For talk and variety shows. Every show you get a new card: nine of its moments, the middle one free.",
     "Tick a square when it happens. Three in a row makes a line.",
     "Most lines by the finale wins.",
+  ],
+  "Prediction Sheet": [
+    "No draft, no team. Before each episode, answer a few questions about it: who goes home, whether something happens.",
+    "A few are for the whole season, like who wins: answer them before the game starts.",
+    "Nobody sees your answers until they lock. The results settle every one, and each right answer scores its points.",
+    "Most points by the finale wins.",
   ],
 };
 

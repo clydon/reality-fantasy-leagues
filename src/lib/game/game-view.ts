@@ -118,6 +118,22 @@ export interface BingoMove {
   lines: number;
 }
 
+/** A game's sheet of questions to answer now (step A4 part 2 of docs/PLAN-start-a-game-gpt.md; answers.ts sheetOf): a game of
+ *  questions' this week (and its own), or a draft's finale predictions. */
+export interface SheetMove {
+  /** The episode this week's questions are for, or null (only the game's own). */
+  episode: number | null;
+  /** Questions you can answer now, and how many of them you have. */
+  of: number;
+  answered: number;
+  /** The soonest of their locks, when it's known. */
+  closesAt: string | null;
+  /** A question waits until you've seen this episode (it says who's still in), or null. */
+  behind: number | null;
+  /** A draft's finale predictions, not a game of questions. */
+  finale: boolean;
+}
+
 /** What a game reads of its players' calls or bingo cards (they aren't in its state): each one's right calls (Weekly Bingo: lines
  *  that count), your move, and (Weekly Calls, Weekly Bingo) the episode its table is through and whether the season's over. */
 export interface GameCalls {
@@ -202,6 +218,8 @@ export interface GameView extends GameRefIn {
   call: CallMove | null;
   /** Weekly Bingo's card to hand (step 12 part 3). */
   bingo: BingoMove | null;
+  /** A sheet of questions to answer now (step A4 part 2): filled in by the server (season-games.ts), which reads the answers. */
+  sheet: SheetMove | null;
   predictions: PredictionMove[];
   progress: WeekProgress | null;
   /** Results you haven't revealed stand in the way of this week's lineup or pick: the first of them. */
@@ -248,6 +266,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string, s
     pick: type.hasWeeklyPicks ? pickOf(view, playerId) : null,
     call: calls?.move ?? null,
     bingo: calls?.bingo ?? null,
+    sheet: null,
     predictions: catchingUp ? [] : predictionsOf(view, playerId),
     progress: catchingUp ? null : weekProgress(full, playerId, userOf, { counts: isPublic }),
     revealFirst: hidden.length && !catchingUp ? hidden[0].number : null,

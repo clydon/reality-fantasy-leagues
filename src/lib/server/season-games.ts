@@ -1,5 +1,6 @@
 import StateLogic from "@/lib/game/state-logic.js";
-import { leagueAnswers } from "./answer-points";
+import { leagueAnswers, storedAnswers } from "./answer-points";
+import { sheetOf } from "./answers";
 import { gameView, weekProgress, type GameRefIn, type GameView, type UserOf, type WeekProgress } from "@/lib/game/game-view";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
@@ -108,7 +109,9 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
   const o = { state: h.state, couchId: h.game.couchId, seasonId, playerId: h.playerId, userId: user.id, mark: h.mark, userOf: h.userOf };
   const type = StateLogic.getLeagueType(h.state);
   // A game of questions (step A4) ranks by its answers' points, graded at your mark (answer-points.ts).
-  const calls = await (type.hasQuestions ? leagueAnswers({ ...o, leagueId: h.game.leagueId }) : type.hasBingo ? leagueBingo(o) : leagueCalls(o)).catch((e) => {
+  // A game of questions' answers, read once for its table and its sheet.
+  const rows = type.hasQuestions ? await storedAnswers(h.game.leagueId).catch(() => undefined) : undefined;
+  const calls = await (type.hasQuestions ? leagueAnswers({ ...o, leagueId: h.game.leagueId, rows }) : type.hasBingo ? leagueBingo(o) : leagueCalls(o)).catch((e) => {
     console.error(`[season-games] calls ${h.game.leagueId}:`, e);
     return null;
   });
@@ -116,6 +119,13 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
   // A game that starts when a phase does (step A3 of docs/PLAN-start-a-game-gpt.md): the phase by name, from its rulebook.
   const phase = StateLogic.startPhase(h.state);
   if (phase) view.phase = (await leaguePhases(pool, h.game.leagueId, seasonId)).find((p) => p.id === phase)?.name ?? phase;
+  // A sheet of questions to answer now (step A4 part 2): a game of questions', or a draft's finale predictions (answers.ts).
+  if (type.hasQuestions || StateLogic.finaleOfGame(h.state)) {
+    view.sheet = await sheetOf(user, seasonId, h, undefined, rows).catch((e) => {
+      console.error(`[season-games] sheet ${h.game.leagueId}:`, e);
+      return null;
+    });
+  }
   return view;
 }
 

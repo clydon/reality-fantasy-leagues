@@ -28,6 +28,10 @@ import type { Game } from "./show-space";
 import { windowSnapshot, type WindowSnapshot } from "./waiver-pushes";
 import { openWindow, processNow, saveClaim } from "./waivers";
 import { ourRules, type OurRules } from "./ours";
+import { contextOf, leagueBook } from "./answers";
+import { questionChoices, questionLine } from "@/lib/game/question-choices";
+import { showWords } from "@/lib/game/show-words";
+import type { Question } from "@/lib/game/game-spec/index.js";
 
 // Backstage II (docs/PLAN-new-design.md step 6a): the game's own pages for whoever runs it. Waivers (the week running,
 // who has picks in, Run now, a window, the feel and Fine-tune), Game settings (lineup size, who can join, each with
@@ -494,6 +498,70 @@ export interface GameSettings {
    * it overrode that (state-logic.js closedForPlay). `why`: its start, by hand, or its results (which no override opens).
    */
   lock: { episode: number; what: "lineups" | "picks"; closed: boolean; why: "air" | "hand" | "results" | null; overridden: boolean; airsAt: string | null } | null;
+  /**
+   * A Prediction Sheet's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md): its own (on), then the rest the show's
+   * moments can ask (question-choices.ts, off). `editable` until the game starts (its first episode's start locks the questions
+   * asked once, and answers are in): by a Commissioner, unless it's locked down; `why` says what stops it. Null for any other game.
+   */
+  questions: { list: { id: string; ask: string; line: string; on: boolean; season: boolean }[]; editable: boolean; why: string | null } | null;
+}
+
+/** A Prediction Sheet's questions for Game settings: its own, then what else the show's moments can ask. */
+async function questionsOf(l: Loaded, seasonId: string, started: boolean, part: string): Promise<GameSettings["questions"]> {
+  const s = l.state;
+  if (!StateLogic.getLeagueType(s).hasQuestions) return null;
+  const { own, offered } = await sheetQuestions(s, l.game.leagueId, seasonId);
+  const ids = new Set(own.map((q) => q.id));
+  const toEnd = StateLogic.endEpisode(s) === null;
+  const list = [
+    ...own.map((q) => ({ id: q.id, ask: q.ask, line: questionLine(q, part), on: true, season: !!offered.find((c) => c.question.id === q.id)?.season })),
+    ...offered.filter((c) => !ids.has(c.question.id) && (toEnd || !c.season)).map((c) => ({ id: c.question.id, ask: c.question.ask, line: questionLine(c.question, part), on: false, season: c.season })),
+  ];
+  const why = !l.commissioner ? "Only a Commissioner changes the questions" : StateLogic.GhostLogic.lockedDown(s) ? FROZEN : started ? "Its questions are set: the game has started, and answers are in" : null;
+  return { list, editable: !why, why };
+}
+
+/** A game of questions' own questions, and what the show's moments can ask (by the rules it plays by), with the show's ctx. */
+async function sheetQuestions(s: LeagueState, leagueId: string, seasonId: string) {
+  const book = await leagueBook(leagueId, seasonId);
+  const ctx = contextOf(book);
+  const own = StateLogic.AnswerLogic.questions(s) as Question[];
+  return { own, offered: questionChoices(book, ctx), ctx };
+}
+
+/**
+ * A Prediction Sheet's questions changed in Game settings (step A4 part 2): `ids` are the ones it asks, of its own and what the
+ * show's moments can ask, in that order. A Commissioner's, until the game starts, not while it's locked down; written through
+ * the game's writer with the show's ctx (RosterLogic.setGame: data settles every question). A line in Recent changes; Undo is the
+ * screen's (the earlier list sent back), since a set of questions can only be written with the show's ctx.
+ */
+export async function questionsWrite(scope: BackstageScope, leagueId: unknown, ids: unknown): Promise<{ questions: string[] }> {
+  if (!Array.isArray(ids) || !ids.every((x) => typeof x === "string")) throw new HttpError(400, "questions is a list of the questions' ids");
+  const game = gameIn(scope, leagueId, { commissioner: true });
+  const schedule = (await seasonSchedules([scope.seasonId])).get(scope.seasonId);
+  let text = "";
+  let out: string[] = [];
+  await withLeagueLock(
+    game.leagueId,
+    async (s) => {
+      if (!StateLogic.getLeagueType(s).hasQuestions) throw new HttpError(409, "Only a Prediction Sheet has questions to change");
+      if (StateLogic.GhostLogic.lockedDown(s)) throw new HttpError(409, FROZEN);
+      if (spanState(s, schedule, []).started) throw new HttpError(409, "Its questions are set: the game has started, and answers are in");
+      const { own, offered, ctx } = await sheetQuestions(s, game.leagueId, scope.seasonId);
+      const toEnd = StateLogic.endEpisode(s) === null;
+      const all = [...own, ...offered.filter((c) => !own.some((q) => q.id === c.question.id) && (toEnd || !c.season)).map((c) => c.question)];
+      const want = new Set(ids as string[]);
+      const unknown = (ids as string[]).find((id) => !all.some((q) => q.id === id));
+      if (unknown) throw new HttpError(400, `"${unknown}" isn't one of its questions`);
+      const ask = all.filter((q) => want.has(q.id));
+      if (!ask.length) throw new HttpError(400, "A Prediction Sheet asks at least one question");
+      refused(StateLogic.setGame(s, { ...StateLogic.gameOf(s), ask }, { ctx }), 409);
+      out = ask.map((q) => q.id);
+      text = `Changed ${game.name}'s questions: ${ask.map((q) => q.ask).join(" · ")}`;
+    },
+    () => plainChange(scope.user.id, "settings", text)
+  );
+  return { questions: out };
 }
 
 /** A game's lock for Game settings (GameSettings.lock). */
@@ -585,6 +653,14 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
   // Each game's phases, from the rulebook it plays by (its couch's own copy, else the season's, read once): Starts' phases.
   const season = await seasonBlocks(scope.seasonId);
   const phases = await Promise.all(loaded.map((l) => leaguePhases(pool, l.game.leagueId, scope.seasonId, season)));
+  // A Prediction Sheet's questions (step A4 part 2), switchable until it starts, in the show's word for an episode (as Start a game).
+  const sheets = loaded.some((l) => StateLogic.getLeagueType(l.state).hasQuestions)
+    ? await (async () => {
+        const { rows } = await pool.query("SELECT s.episode_term FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [scope.seasonId]);
+        const part = showWords({ episode: rows[0]?.episode_term ?? null }).episode.toLowerCase();
+        return Promise.all(loaded.map((l, i) => questionsOf(l, scope.seasonId, spanState(l.state, schedule, phases[i]).started, part)));
+      })()
+    : loaded.map(() => null);
   return {
     games: loaded.map((l, i) => {
       const s = l.state;
@@ -608,6 +684,7 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         lockedDown: StateLogic.GhostLogic.lockedDown(s),
         span: spanState(s, schedule, phases[i]),
         lock: lockOf(s),
+        questions: sheets[i],
       };
     }),
   };

@@ -353,3 +353,69 @@ test("Weekly Calls is the show's calls, an ask preset scored by its answers, as 
   assert.deepEqual(S.gameOf(o).ask.map((q) => [q.id, q.from, q.closes, q.pick]), [["top3", "team", "finale", 3], ["winner", "team", "finale", 1]]);
   assert.equal(G.typeOf({ ...S.gameOf(o), ask: [S.gameOf(o).ask[1]] }), null, "half of them isn't a game today");
 });
+
+test("a Prediction Sheet's questions from the show's moments: only what data settles, the recommended ones on (A4 part 2)", () => {
+  const { questionChoices, chosenQuestions, contextOf, questionLine } = jiti("../src/lib/game/question-choices.ts");
+  const { BUILT_IN_BLOCKS } = require("../src/lib/game/formats/blocks/index.js");
+  const SAMPLES = require("./fixtures/rulebook-samples.js");
+  const book = (b) => (b.blocks ? b : { blocks: b, aliases: null });
+  const survivor = BUILT_IN_BLOCKS.survivor;
+  const ctx = contextOf(survivor);
+  const choices = questionChoices(survivor, ctx);
+  const ids = choices.map((c) => c.question.id);
+  assert.deepEqual(ids.slice(0, 1), ["out"]);
+  assert.ok(ids.includes("wins") && ids.includes("final3") && ids.includes("first"), ids.join());
+  assert.deepEqual(choices.filter((c) => c.on).map((c) => c.question.id), ["out", ids.find((id) => id.startsWith("m.")), "wins"], "Who goes home?, the first moment and Who wins? are on");
+  // Every moment question is one research answers, by the id the results record.
+  for (const c of choices.filter((x) => x.question.settle.by === "moment")) {
+    const m = ctx.moments.find((x) => x.id === c.question.settle.moment);
+    assert.ok(m && (m.answeredBy === "research" || m.auto), c.question.id);
+    assert.equal(c.question.answer, "yesNo");
+  }
+  assert.equal(questionLine(choices[0].question), "Each episode · 2 points");
+  assert.equal(choices.find((c) => c.question.id === "final3").line, "Once, before it starts · 1 point each");
+  // The couch's word never settles one: a moment the couch answers isn't offered.
+  const moment = choices.find((c) => c.question.settle.by === "moment").question.settle.moment;
+  const couch = { ...ctx, moments: ctx.moments.map((m) => (m.id === moment ? { ...m, answeredBy: "league" } : m)) };
+  assert.ok(!questionChoices(survivor, couch).some((c) => c.question.settle.moment === moment));
+  // Nobody wins: no Who wins? or final three. A series: its moments only. A talk show: nothing (its moments are the couch's word).
+  assert.ok(!questionChoices(survivor, { ...ctx, winner: false }).some((c) => c.season));
+  const series = questionChoices(book(SAMPLES.belowDeck), contextOf(book(SAMPLES.belowDeck)));
+  assert.ok(series.length > 0 && series.every((c) => c.question.answer === "yesNo"), series.map((c) => c.question.id).join());
+  assert.deepEqual(questionChoices(book(SAMPLES.snl), contextOf(book(SAMPLES.snl))), []);
+  // A game over a span leaves out the season's.
+  assert.deepEqual(chosenQuestions(choices, ["out", "wins"], false).map((q) => q.id), ["out"]);
+  assert.deepEqual(chosenQuestions(choices, ["wins", "out", "nope"], true).map((q) => q.id), ["out", "wins"], "in the order offered, unknown ids left out");
+  // Written through the game's writer with the show's ctx: a game of questions, its spec carried; refused without the ctx.
+  const s = league("weekly-calls");
+  const ask = chosenQuestions(choices, choices.filter((c) => c.on).map((c) => c.question.id), true);
+  const spec = { ...S.gameOf(s), preset: null, get: { by: "none" }, count: null, score: { by: "answers" }, ask };
+  assert.ok(S.setGame(clone(s), spec).some((p) => p.at.startsWith("ask")), "the data rule: no ctx, no new questions");
+  assert.deepEqual(S.setGame(s, spec, { ctx }), []);
+  assert.equal(s.settings.leagueTypeId, "questions");
+  assert.deepEqual(S.AnswerLogic.questions(s).map((q) => q.id), ask.map((q) => q.id));
+  assert.ok(S.getLeagueType(s).hasQuestions);
+});
+
+test("a Prediction Sheet's night: its points and how many were right, a night that didn't count, a sheet only for the season (A4 part 2)", () => {
+  const { nightIn } = jiti("../src/lib/game/episode-view.ts");
+  const s = league("pickem");
+  const ask = [
+    { id: "out", ask: "Who goes home?", answer: "person", points: 2, asked: "each", settle: { by: "results", take: "out" } },
+    { id: "wins", ask: "Who wins?", answer: "person", points: 5, settle: { by: "results", take: "winner" } },
+  ];
+  const ctx = { moments: [], results: true, winner: true };
+  assert.deepEqual(S.setGame(s, { ...S.gameOf(s), preset: null, get: { by: "none" }, count: null, score: { by: "answers" }, rank: { by: "total" }, ask }, { ctx }), []);
+  const e = results(s, 1, [0]);
+  const game = { leagueId: "g", name: "Prediction Sheet", gameType: "questions", gameName: "Prediction Sheet" };
+  const night = (n) => nightIn(game, s, "ann", e, new Map(n ? [[1, n]] : []));
+  assert.deepEqual([night({ answered: 1, settled: 1, off: 0, right: 1, earned: 2 }).big, night({ answered: 1, settled: 1, off: 0, right: 1, earned: 2 }).line], ["+2 pts", "1 of 1 right"]);
+  assert.equal(night({ answered: 1, settled: 1, off: 1, right: 0, earned: 0 }).line, "It didn't count", "nobody went home: not a wrong answer");
+  assert.equal(night({ answered: 1, settled: 0, off: 0, right: 0, earned: 0 }).big, "Waiting");
+  assert.ok(night(null).missed, "no answer from you: a miss");
+  assert.equal(nightIn(game, s, "ann", e).line, "See how your sheet went", "its answers unread: never called a miss");
+  // A sheet that asks only for the season has nothing for an episode, and that isn't a miss.
+  assert.deepEqual(S.setGame(s, { ...S.gameOf(s), ask: [ask[1]] }, { ctx }), []);
+  const only = night(null);
+  assert.deepEqual([only.line, !!only.missed], ["Its questions are for the season", false]);
+});

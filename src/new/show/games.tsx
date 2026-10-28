@@ -14,13 +14,14 @@ import { usePushedPage } from "../ui/page";
 import { Chip, Row } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { faceIn, first } from "./moves";
-import { placeOf } from "./tonight";
+import { placeOf, sheetAsks } from "./tonight";
 import { Block, Face, IconBox } from "./parts";
 import { playsWaivers, WaiversHowBody } from "./waivers";
 import { useOpenReveal } from "./reveal";
 import { CouchPractice, SoloGames } from "./solo";
 import { useOpenMake } from "./make-game";
 import { CallRow } from "./calls";
+import { SheetRow } from "./questions";
 import { PollRow, StartPollRow } from "./polls";
 import { rateLabel } from "./rate";
 import { bingoEpisode, BingoRow } from "./bingo";
@@ -580,11 +581,15 @@ function ThisWeek({ show }: { show: ShowData }) {
   const polls = useSeasonPolls(seasonId, couchId, onCouch);
   // Your bingo card for the episode (step 12 part 3), and this week's trivia on the show.
   const bingo = bingoEpisode(show);
+  // Each Prediction Sheet you play here with something to answer (step A4 part 2): this week's to fill in. One that asks about the
+  // next episode stands in for Call it.
+  const sheets = (show.play ?? []).filter((g) => g.gameType === "questions" && !g.archived && !!g.sheet);
   return (
     <Block title="This week" aside="One night each">
       <div data-this-week>
         {bingo && seasonId && <BingoRow icon target={{ seasonId, couchId, episode: bingo, label: rateLabel(show), solo: show.solo }} />}
-        {call && seasonId && <CallRow icon target={{ seasonId, couchId, episode: call, label: rateLabel(show), solo: show.solo }} />}
+        {call && seasonId && !sheetAsks(show, call) && <CallRow icon target={{ seasonId, couchId, episode: call, label: rateLabel(show), solo: show.solo }} />}
+        {seasonId && sheets.map((g) => <SheetRow key={g.leagueId} icon move={g.sheet!} target={{ seasonId, leagueId: g.leagueId, episode: null, game: g.name }} />)}
         {onCouch && (polls.data?.polls ?? []).map((p) => <PollRow key={p.id} icon p={p} couchId={couchId!} />)}
         {seasonId && <TriviaRow icon target={{ seasonId, couchId: show.solo ? null : couchId }} />}
         {onCouch && <StartPollRow seasonId={seasonId!} couchId={couchId!} label={rateLabel(show)} />}

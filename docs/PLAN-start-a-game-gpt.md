@@ -4,7 +4,8 @@ Status: **planned 2026-10-27**. **A1 built** the same day and **A2 built** on 20
 merged (their As built under track A). **A3 runs in two parts:** part 1 (later episode starts, moving a start, the rest of
 BACKLOG item 10, and the phase start's design) and part 2 (phase starts), both built 2026-10-28 on `engine`. **A4 runs in two
 parts:** part 1 (the engine and storage: questions settled by data, `game_answers`, Weekly Calls and finale predictions as
-`ask` presets) built 2026-10-28 on `engine`; part 2 (the screens, with impeccable) next. The rest not started. **Waiting on the user (A2):** the game-specs flag in production
+`ask` presets) built 2026-10-28 on `engine`; part 2 (the screens, with impeccable: the Prediction Sheet) built 2026-10-28 on
+`engine`, which finishes A. The rest not started. **Waiting on the user (A2):** the game-specs flag in production
 (a Neon branch check from your terminal, then on), after the merge. The user's idea, their decisions and the order are below; each step is its own
 session (Opus 5.5 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: live sports, its Sport classes and
 formats, written against this plan's game spec) and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season:
@@ -716,6 +717,104 @@ in `PLAN-researched-survivor.md`'s "What the switch needs", with this plan's dec
       and Backstage's view of it.
     - The home's due moves for it.
 
+  **As built (A4 part 2, 2026-10-28, on `engine`, not merged; no migration).** One session. Master hadn't moved since A4 part 1
+  (791 tests then).
+  - **Designed first** (impeccable `shape`, at 390, in the Lower Third system; the session loop can't ask, so the brief's
+    decisions were inferred from this plan and are the session's): Operate mode inside the established world, Call it's sheet
+    (`calls.tsx`) as the pattern.
+  - **Its name: Prediction Sheet** (`league-season.ts`; lime `#9bc25b` in `games.ts`, the one colour the other five leave; How each
+    game works in Settings' Help and the solo hub). Finale predictions are the same kind of thing now (data-settled questions), so
+    the names sit together.
+  - **The sheet** (`src/new/show/questions.tsx`, `openSheet`, hosted in the signed-in layout), one for a Prediction Sheet's
+    questions and a draft's finale predictions, on part 1's API:
+    - Before they lock: grouped by when they lock ("Episode 6 · Locks Sat 8:00 PM · in 3 days", ticking inside the last day;
+      "For the season"; "The finale"), each with its points.
+    - The controls: a person as faces (who's still in at your mark, from the server; pick-N counts "2 of 3 named" and refuses
+      a fourth), yes or no, over or under and choices as chips, a number on a stepper.
+    - A tap again takes an answer back; Save sends what changed (null for one taken back): "Saved · change until Sat 8:00 PM".
+    - Someone behind sees "Who's still in decides this one, so it waits until you've seen Episode 5" where the faces would
+      be; a late joiner catching up, "Catch up on the game first" (the server now marks every open question of theirs
+      behind, `catchUp` null, since the POST refuses them).
+    - Once locked: everyone's answers, yours first, with faces; once settled at your mark, what was right ("Cristian went
+      home" with the face, "It happened", "The final 3: ..."), ticks and crosses, what each earned, and your points on a plate
+      ("Your sheet · 3 points · 2 of 2 right"). Waiting says why: "See Episode 6 to find out" past your mark (the read's new
+      `mark`), "Settles when the season ends" for the season's.
+    - The read gained `cast` (every castaway's name and face, no status, for answers naming someone who's gone), `mark`,
+      each question's `settle` (the words for what was right) and each person's `userId` (their face).
+  - **Where it lives:**
+    - The home's moves (`answers.ts questionMoves`, beside Weekly Calls' in `/api/me/home`): "Fill in your sheet (3
+      questions)", "Finish your sheet (1 to go)", with its lock.
+    - Tonight's required card ("Fill it in", the one yellow when it's first), its done card ("Your sheet is in · change
+      until ..."), the dock's words ("your sheet") and the hub's Up next ("your Survivor sheet locks Sat 8:00 PM").
+    - The Games tab's This week, which stands in for Call it whenever a sheet asks about that episode; Tonight's Extras
+      hides Call it the same way.
+    - A draft's finale predictions are an Extras row while they're open, as before an optional extra, never a move.
+    - Results: Tonight's Extras ("Episode 6: your sheet, 3 points") and the episode page (under the game's name).
+    - The Games read carries each game's `sheet` (`GameView.sheet`, a `SheetMove`: this week's open count, answered,
+      lock, behind, finale), so the cards and rows cost no read of their own.
+  - **Its night and the reveal:**
+    - Episodes' "Your night" and the reveal's part read a sheet's answers (`answer-points.ts sheetNights`, through
+      `episode-view.ts nightIn`/`revealIn`'s new optional `sheet`): "+3 pts · 2 of 2 right", "It didn't count" when nobody
+      went home, "Its questions are for the season" for a sheet with none per episode.
+    - The reveal's table moves by its points (`leagueAnswers` at the marks before and after); before this step it read
+      "All safe · 0 of 0 still in" and a table of zeros.
+    - A failed read of the answers never fails the reveal (its mark has moved already) and is never called a miss.
+  - **Start a game** (`start-game.ts`, `start-game.tsx`): a Prediction Sheet is offered, last, on a competition or a series
+    whose moments research answers (not a sport's, whose settles are the sports branch's, nor a talk show's, the couch's
+    word). **The questions** are toggles from the show's moments (`src/lib/game/question-choices.ts`, pure, with `contextOf`
+    moved there from answers.ts):
+    - Who goes home? (each episode, 2 points, on), up to three of the show's most callable research moments (calls.ts
+      `callMoments`; the first on, 1 point), Who goes home first? (once, 2), Who wins? (once, 5, on) and Who makes the final
+      three? (once, three names, 1 each).
+    - Each offered only if `specProblems` passes it against the show's ctx, so the data-can-settle rule holds for every
+      question offered.
+    - The season's questions only in a game that runs to the season's end (dimmed otherwise; defaults drop them over a span).
+    - At least one stays on.
+    - POST `questions` (ids of those offered; none: the defaults, or Run it back's), written once through
+      `RosterLogic.setGame` with that ctx, on Survival Pool's type as its base (nothing held, results in its state;
+      `rank: total` set with it).
+    - Run it back keeps a sheet's questions (`again.questions`).
+  - **Backstage › Game settings** (`backstage-games.ts`): a sheet's questions, its own on, the rest the show can ask off,
+    each line in the show's word for an episode. A Commissioner switches them until the game starts, never while it's
+    locked down; it's read only after that, saying why. `questionsWrite`, PATCH `{ leagueId, questions }`, goes through
+    `setGame` with the show's ctx, with a line in Recent changes; Undo is the toast's (the list sent back), since a set of
+    questions can only be written with the ctx. Its Who can join says there are no teams.
+  - **Tests:**
+    - `tests/answers.test.js` +2: the choices for every built-in and sample show, the data rule, spans, written through
+      `setGame`; the night line.
+    - `npm test` 793.
+  - **Browser:** `scripts/dev-test/check-questions.js` grew part 2's (see its header) and a `--theme=light|dark` option: 97
+    PASS at 390 on Night, and again on Studio.
+    - Start a game's options and refusals; jordan starts one by taps; the home's moves, the Games read's sheet, sam behind.
+    - Backstage's list, add and take off, the refusals, Recent changes, Run it back's options.
+    - The dock and This week, then the sheet: answer, take back, save, the done card.
+    - After the lock and the results: the night line, riley's reveal (her part, the table moving), the results sheet from
+      Extras, finale predictions from Extras into the league's state, the episode page, and Backstage read only.
+  - **Re-run, after the code review's fixes:**
+    - `check-new-start-game.js` 75 (its game lists now include the sheet: four on a competition, two on a series).
+    - `check-new-backstage-ii.js` 149, `check-phase-starts.js` 58, `check-new-show.js` 81, `check-new-reveal.js` 49.
+    - `game-specs-flag.js status`: on, 9 of 9 carry their spec, none drifted; `check` PASS.
+    - impeccable's detector: advisories only (type sizes, the same as Call it's sheet).
+  - **Code review** (`/code-review`, before the commit).
+    - Taken:
+      - A late joiner catching up was offered questions the POST refuses.
+      - A night where nobody went home stayed "Waiting" for good.
+      - The reveal could fail after the mark had moved.
+      - Call it was hidden by any sheet, not one asking that episode, and This week skipped even the span.
+      - Run it back on a sheet 404'd; it now runs it back with its questions.
+      - The defaults over a span were refused instead of dropping the season's questions.
+      - A season-only sheet read as a miss every night.
+      - Errors were swallowed with nothing logged.
+      - Backstage worded the episode differently from Start a game.
+      - The home read each sheet one after another (now at once).
+      - The Games read read a sheet's answers twice and a draft's finale for nothing.
+      - Rows fetched what the Games read already had.
+      - The copy's rules were read again by id.
+      - Weekly Calls' type as the base (now Survival Pool's, with `rank: total`, which a unit test caught).
+    - Declined: none.
+  - **For the merge:** no migration. HOSTING.md: the home read now reads each Prediction Sheet's answers (at once, only for
+    someone who plays one), the Games read a sheet's once, the reveal its points; nothing new polls or runs.
+
 **G. The Start-a-game GPT** (master, after A).
 - **G0. Design.** Impeccable `shape`, then a mock in `.impeccable/mocks/start-a-game/` of the wizard and everything listed under
   it above, at 390. The user confirms before anything is built. It can run any time.
@@ -902,6 +1001,21 @@ From A4 part 1 (2026-10-28):
 - `state.finaleActual` is read by nothing now but stays in every league's state (types, `defaultState`, migrate, the spoiler
   guard's reset), as do the finale's actual routes, which answer 409 for an old phone's bundle. (Step C, with classic.)
 - The hub's "Called it" accolade counts side bets only where they count now, so a pool's graded guesses no longer add to it.
+
+Taken by A4 part 2 (2026-10-28): none of part 1's items (computer players still don't answer a Prediction Sheet).
+
+From A4 part 2 (2026-10-28):
+- The reminders (`db/reminders.js`) come from `actionItems` only, so nothing nudges anyone before a Prediction Sheet locks, and the
+  sheet doesn't offer the reminder ask after a save (its picture is a lineup's or a pick's). (Whoever next touches reminders.)
+- A question's points are fixed per kind (2, 1, 5, 1 each): neither Start a game nor Game settings changes them. (G2, if the GPT
+  makes "5 points for who wins" from words.)
+- A moment's question is its label asked ("Got an idol or advantage?"); a series' per-person moments can read oddly as an
+  episode's yes or no ("In the episode?", off by default). (S2's words from each question, or whoever next touches
+  `callMoments`.)
+- The episode page still shows Call it's results for an episode a sheet asked about (only This week and Tonight's Extras stand
+  the sheet in for Call it). (Whoever next touches Call it.)
+- The hub's couch pages (power rankings, By the numbers) weren't looked at with a Prediction Sheet on the couch; its standings
+  come from `answerStanding` (part 1). (The next hub pass.)
 
 From A2 (2026-10-28):
 - Start a game still makes a Weekly Lineup with `defaultState`'s copy of the points (a map), not the preset's null. A copy

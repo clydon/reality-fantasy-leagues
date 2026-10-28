@@ -15,6 +15,7 @@ import { useOpenReveal } from "./reveal";
 import { CouchMomentsCard } from "./couch-moments";
 import { openRate, rateLabel, RateRow, VerdictMark, type RateTarget } from "./rate";
 import { CallResults } from "./calls";
+import { SheetResultRow } from "./questions";
 import { BingoResults } from "./bingo";
 import { ShowChangeCard } from "./show-change";
 import { CorrectionPlates, CorrectionRow, SomethingWrong } from "./something-wrong";
@@ -292,6 +293,7 @@ function EpisodePage({ seasonId, show }: { seasonId: string; show: ShowData }) {
           e={e}
           seasonName={show.header ? `${show.header.show.name} ${show.header.seasonNumber}` : "this season"}
           rate={{ seasonId, couchId: show.couch?.id ?? null, episode: e.number, label: rateLabel(show), solo: show.solo }}
+          sheets={show.games.filter((g) => g.yourRole && g.gameType === "questions" && !g.archived).map((g) => ({ leagueId: g.leagueId, name: g.name }))}
         />
       ) : (
         <p className="px-4 pt-6 text-sm text-muted-foreground">Reveal this episode to see it.</p>
@@ -315,7 +317,21 @@ function GameLine({ l }: { l: GameNight }) {
   );
 }
 
-function EpisodeBody({ seasonId, couchId, e, seasonName, rate }: { seasonId: string; couchId: string | null; e: EpisodeRow; seasonName: string; rate: RateTarget }) {
+function EpisodeBody({
+  seasonId,
+  couchId,
+  e,
+  seasonName,
+  rate,
+  sheets,
+}: {
+  seasonId: string;
+  couchId: string | null;
+  e: EpisodeRow;
+  seasonName: string;
+  rate: RateTarget;
+  sheets: { leagueId: string; name: string }[];
+}) {
   const out = e.out ?? [];
   const results = useEpisodeResults(seasonId, couchId, e.number);
   return (
@@ -384,6 +400,10 @@ function EpisodeBody({ seasonId, couchId, e, seasonName, rate }: { seasonId: str
         <RateRow target={rate} verdict={e.verdict} />
       </section>
       <CallResults target={rate} />
+      {/* Each Prediction Sheet of yours here (step A4 part 2): how its questions went on this episode, at your mark. */}
+      {sheets.map((g) => (
+        <SheetResultRow key={g.leagueId} heading target={{ seasonId, leagueId: g.leagueId, episode: e.number, game: g.name }} />
+      ))}
       <BingoResults target={rate} />
       <CouchMomentsCard seasonId={seasonId} couchId={couchId} episode={e.number} />
       <ShowChangeCard seasonId={seasonId} couchId={couchId} episode={e.number} seasonName={seasonName} />

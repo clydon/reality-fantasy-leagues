@@ -5,7 +5,7 @@
 // this check adds) and a stand-in for our bot (fake-bot.js), which make those shows games through Make it a game first.
 //   API:
 //   - what fits each kind (rulebook-fits.js through GET /start): a competition all three (Survival Pool recommended), a
-//     series Weekly Lineup (draft the crew), a sport the draft of athletes and Survival Pool (its own word for an event), a
+//     series Weekly Lineup (draft the crew), both with a Prediction Sheet last (step A4 part 2: check-questions.js), a sport the draft of athletes and Survival Pool (its own word for an event), a
 //     talk show Weekly Bingo and Weekly Calls (both startable since step 12); the doesn't-fit line; who
 //     watches it; where it starts;
 //     a show that isn't a game yet, and a season that's over (with the show's next season to run it back on);
@@ -155,9 +155,9 @@ function lateNight(shows) {
     // ---------- what fits: a competition ----------
     let r = await opts("alex", sid);
     const o = r.body;
-    check(r.status === 200 && o.kind === "competition" && keys(o) === "survivalPool,weeklyLineup,outlast" && o.noFit === null && o.blocked === null, "a competition: Survival Pool, Weekly Lineup and Outlast all fit", JSON.stringify(o).slice(0, 300));
+    check(r.status === 200 && o.kind === "competition" && keys(o) === "survivalPool,weeklyLineup,outlast,questions" && o.noFit === null && o.blocked === null, "a competition: Survival Pool, Weekly Lineup and Outlast all fit, and a Prediction Sheet (step A4 part 2)", JSON.stringify(o).slice(0, 300));
     check(o.from === 6 && o.part.singular === "episode" && o.label === "ZT Survivor 51" && o.couch.members === 4, "it starts with Episode 6, the next to air", `${o.from} ${o.label}`);
-    check(o.games.every((g) => g.have === 1) && /^No draft · pick one/.test(o.games[0].line), "the couch plays one of each already; each says what it is", o.games.map((g) => `${g.key}:${g.have}`).join());
+    check(o.games.every((g) => g.have === (g.key === "questions" ? 0 : 1)) && /^No draft · pick one/.test(o.games[0].line), "the couch plays one of each already (no Prediction Sheet); each says what it is", o.games.map((g) => `${g.key}:${g.have}`).join());
     check(["zt_nd_riley", "zt_nd_jordan", "zt_nd_sam"].every((n) => o.watchers.includes(n)) && !o.watchers.includes("zt_nd_alex"), "Tell the couch names who plays it", o.watchers.join());
     check((await opts("casey", sid)).status === 404, "someone off the couch can't start one there");
     check((await start("alex", sid, { game: "weeklyBingo" })).status === 400, "a game that isn't one of this show's is refused");
@@ -191,7 +191,7 @@ function lateNight(shows) {
 
     // ---------- what fits: a series, a sport, a talk show, one that isn't a game ----------
     const so = (await opts("alex", yacht)).body;
-    check(so.kind === "series" && so.start === "reality" && keys(so) === "weeklyLineup" && /^Draft the crew members, start three each week/.test(so.games.find((g) => g.key === "weeklyLineup").line), "a reality series: Weekly Lineup, drafting the crew", JSON.stringify(so.games.map((g) => [g.key, g.fits, g.line])));
+    check(so.kind === "series" && so.start === "reality" && keys(so) === "weeklyLineup,questions" && /^Draft the crew members, start three each week/.test(so.games.find((g) => g.key === "weeklyLineup").line), "a reality series: Weekly Lineup, drafting the crew", JSON.stringify(so.games.map((g) => [g.key, g.fits, g.line])));
     check(so.noFit === "Survival Pool and Outlast need someone knocked out most episodes. Nobody is, on ZT Yacht Life.", "and why the others don't fit", so.noFit);
     check((await start("alex", yacht, { game: "survivalPool" })).status === 400, "Survival Pool on a series is refused");
     r = await start("alex", yacht, { game: "weeklyLineup" });
@@ -344,7 +344,7 @@ function lateNight(shows) {
       await page.locator("[data-start-row]").waitFor();
       await page.locator("[data-start-row]").click();
       await page.locator('[data-start-sheet="competition"]').waitFor();
-      check((await sheet.locator("[data-start-game]").count()) === 3 && /Recommended/.test(await sheet.locator('[data-start-game="survivalPool"]').innerText()), "the Games tab's Start a game: three games, Survival Pool recommended");
+      check((await sheet.locator("[data-start-game]").count()) === 4 && /Recommended/.test(await sheet.locator('[data-start-game="survivalPool"]').innerText()), "the Games tab's Start a game: four games (a Prediction Sheet last), Survival Pool recommended");
       check(/zt_nd_alex started a game for ZT Survivor/.test(await sheet.locator("[data-start-tell]").innerText()) && (await sheet.locator('[data-start-tell="on"]').count()) === 1, "Tell the couch, on");
       await shot("start-competition");
       await wide("Start a game");

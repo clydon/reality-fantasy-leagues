@@ -1,15 +1,16 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import * as Spec from "@/lib/game/game-spec/index.js";
 import type { AnswerFacts, Question, SpecContext, Verdict } from "@/lib/game/game-spec/index.js";
-import { momentsFor } from "@/lib/game/formats/rulebook-moments.js";
-import { kindOf } from "@/lib/game/formats/rulebook-schema.js";
 import type { RulebookBlocks } from "@/lib/game/formats/rulebook-schema";
 import type { LeagueState } from "@/lib/game/types";
+import type { CallBook } from "@/lib/game/calls";
+import { contextOf } from "@/lib/game/question-choices";
+import type { SheetMove } from "@/lib/game/game-view";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { HttpError, pool, withLeagueLock } from "./db";
 import { seasonSchedules, type SeasonSchedule } from "./schedule";
-import { finaleEpisode, storedAnswers, viewOf } from "./answer-points";
+import { finaleEpisode, storedAnswers, viewOf, type AnswerRow } from "./answer-points";
 import { seasonBook } from "./calls";
 import { gamesHere, type GameHere } from "./season-games";
 
@@ -36,6 +37,8 @@ export interface QuestionFace {
 
 export interface QuestionPerson {
   playerId: string;
+  /** Their account, for their face (null: a seat with none). */
+  userId: string | null;
   name: string;
   you: boolean;
   answer: unknown;
@@ -48,6 +51,8 @@ export interface QuestionView {
   id: string;
   ask: string;
   answer: Question["answer"];
+  /** What settles it (the results' who went home or won, a moment): the screen's words for what was right. */
+  settle: Question["settle"];
   points: number;
   asked: "once" | "each";
   closes: "start" | "finale";
@@ -57,7 +62,8 @@ export interface QuestionView {
   options: string[] | null;
   /** The episode it's answered for (asked each), or null (the game's own). */
   episode: number | null;
-  /** open: yours to answer; behind: see Episode `catchUp` first (it says who's still in); closed: locked. */
+  /** open: yours to answer; behind: see Episode `catchUp` first (it says who's still in), or catch up on the game first (null);
+   *  closed: locked. */
   status: "open" | "behind" | "closed";
   catchUp: number | null;
   /** When it locks (the closing episode's air time), when that's known. */
@@ -80,6 +86,11 @@ export interface GameQuestions {
   questions: QuestionView[];
   /** Your points from them so far, as far as you've seen. */
   points: number;
+  /** Every castaway by id, name and face (no status: who's still in is `faces`), for the answers and what was right. */
+  cast: QuestionFace[];
+  /** Where you are (the last episode you've seen), or null when you see results as they come: a locked question past it says
+   *  "once you've seen it", not "waiting". */
+  mark: number | null;
 }
 
 
@@ -118,7 +129,11 @@ interface Read {
 }
 
 async function readOf(user: SessionUser, seasonId: string, leagueId: unknown, now: Date): Promise<Read> {
-  const h = await gameHere(user, seasonId, leagueId);
+  return readFrom(await gameHere(user, seasonId, leagueId), seasonId, now);
+}
+
+/** A game already read (season-games.ts gamesHere) ready for its questions. */
+async function readFrom(h: GameHere, seasonId: string, now: Date): Promise<Read> {
   const schedule = (await seasonSchedules([seasonId], now)).get(seasonId);
   const view = viewOf(h);
   return { h, view, facts: StateLogic.AnswerLogic.facts(view), schedule, finale: finaleEpisode(schedule), now };
@@ -151,7 +166,7 @@ export async function gameQuestions(user: SessionUser, seasonId: string, leagueI
   return readQuestions(r, episodeIn);
 }
 
-async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestions> {
+async function readQuestions(r: Read, episodeIn?: unknown, rows?: AnswerRow[]): Promise<GameQuestions> {
   const { h, view, facts } = r;
   const me = h.playerId;
   const qs = questionsOf(h.state);
@@ -167,7 +182,12 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
   // Only the players your copy of the league has: a late joiner you can't see (viewFor takes them out) isn't counted,
   // listed or graded.
   const names = new Map(view.players.map((p) => [p.id, p.name]));
-  const all = [...(await storedAnswers(h.game.leagueId)), ...StateLogic.AnswerLogic.finaleAnswers(h.state)].filter((a) => names.has(a.playerId));
+  // A draft's finale predictions are in its state; only a game of questions keeps its answers in game_answers.
+  const stored = StateLogic.getLeagueType(h.state).hasQuestions ? (rows ?? (await storedAnswers(h.game.leagueId))) : [];
+  const all = [...stored, ...StateLogic.AnswerLogic.finaleAnswers(h.state)].filter((a) => names.has(a.playerId));
+  // A late joiner catching up answers nothing until they're on the live episode (answerQuestions refuses it): each open
+  // question waits for them, with no episode to see (catchUp null).
+  const catching = StateLogic.GhostLogic.isCatchingUp(h.state, me);
   const mark = h.mark ?? Number.POSITIVE_INFINITY;
   const graded = StateLogic.AnswerLogic.grade(view, all, facts);
   const out: QuestionView[] = [];
@@ -182,11 +202,12 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
     const closed = isClosed(r, q, ep);
     const { airAt } = closing(r, q, ep);
     const seen = needsSeen(r, q, ep);
-    const behind = !closed && seen !== null && mark < seen;
+    const behind = !closed && (catching || (seen !== null && mark < seen));
     const view1: QuestionView = {
       id: q.id,
       ask: q.ask,
       answer: q.answer,
+      settle: q.settle,
       points: q.points,
       asked: q.asked,
       closes: q.closes,
@@ -196,7 +217,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       options: q.options ?? null,
       episode: each ? ep : null,
       status: closed ? "closed" : behind ? "behind" : "open",
-      catchUp: behind ? seen : null,
+      catchUp: behind && !catching ? seen : null,
       closesAt: airAt,
       faces: q.answer === "person" && !behind ? facesFor(view, q, me) : null,
       mine,
@@ -213,6 +234,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
       view1.people = theirs
         .map((a) => ({
           playerId: a.playerId,
+          userId: h.userOf(a.playerId),
           name: names.get(a.playerId) ?? "Someone",
           you: a.playerId === me,
           answer: a.answer,
@@ -223,7 +245,8 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
     }
     out.push(view1);
   }
-  return { leagueId: h.game.leagueId, episode, questions: out, points };
+  const cast = view.castaways.map((c) => ({ id: c.id, name: c.name, photo: publicMediaSrc(c.photoUrl) }));
+  return { leagueId: h.game.leagueId, episode, questions: out, points, cast, mark: h.mark };
 }
 
 /** Answer, change or take back your answers before each question locks. */
@@ -311,18 +334,94 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
  * whether anyone wins, who settles the show's calls, and its phases.
  */
 export async function questionContext(leagueId: string, seasonId: string): Promise<SpecContext> {
+  return contextOf(await leagueBook(leagueId, seasonId));
+}
+
+/** The rules a game plays by: the couch's own copy (Make it ours), else the season's rulebook, else its show's format read back
+ *  as blocks (with a built-in's aliases): calls.ts seasonBook. */
+export async function leagueBook(leagueId: string, seasonId: string): Promise<CallBook> {
   const { rows } = await pool.query("SELECT r.blocks, r.aliases FROM rulebooks r JOIN leagues l ON l.rulebook_id = r.id WHERE l.id = $1 AND r.status <> 'archived'", [leagueId]);
-  // The couch's own copy (Make it ours), else the season's rulebook, else its show's format read back as blocks (with a
-  // built-in's aliases): calls.ts seasonBook.
-  const book = rows[0]?.blocks ? { blocks: rows[0].blocks as RulebookBlocks, aliases: rows[0].aliases } : await seasonBook(seasonId);
-  const blocks = book.blocks;
-  const aliases = book.aliases as { events?: Record<string, string> } | null | undefined;
-  const kind = kindOf(blocks);
+  return rows[0]?.blocks ? { blocks: rows[0].blocks as RulebookBlocks, aliases: rows[0].aliases } : seasonBook(seasonId);
+}
+
+/** The rules a game will play by for its questions: a couch's own copy (Make it ours, ours.ts copyOf, already read), else the
+ *  season's (as leagueBook says for a game that exists). */
+export async function questionBook(seasonId: string, copy: { blocks?: unknown; aliases?: unknown } | null): Promise<CallBook> {
+  return copy?.blocks ? { blocks: copy.blocks as RulebookBlocks, aliases: copy.aliases as CallBook["aliases"] } : seasonBook(seasonId);
+}
+
+/** questionContext's ctx from the rules themselves (question-choices.ts, pure). */
+export { contextOf };
+
+// ---------- what's due, for the screens (step A4 part 2) ----------
+
+/**
+ * A game's sheet as its move: this week's questions you can answer now (open, not behind), how many of them you have, the
+ * earliest one's lock, and whether it's a draft's finale predictions. Null when it asks nothing of you now (nothing open, or a
+ * game that has no questions). For the Games read (GameView.sheet: Tonight's cards, the dock) and the home's moves.
+ */
+export async function sheetOf(user: SessionUser, seasonId: string, h: GameHere, now = new Date(), rows?: AnswerRow[]): Promise<SheetMove | null> {
+  const qs = questionsOf(h.state);
+  if (!qs.length) return null;
+  const g = await readQuestions(await readFrom(h, seasonId, now), undefined, rows);
+  return summaryOf(g, !!StateLogic.finaleOfGame(h.state));
+}
+
+/** A read's questions as a move. */
+function summaryOf(g: GameQuestions, finale: boolean): SheetMove | null {
+  const open = g.questions.filter((q) => q.status === "open");
+  const behind = g.questions.find((q) => q.status === "behind")?.catchUp ?? null;
+  if (!open.length && behind === null) return null;
+  const locks = open.map((q) => (q.closesAt ? Date.parse(q.closesAt) : Infinity));
+  const first = Math.min(...locks);
   return {
-    moments: momentsFor(blocks).map((m) => ({ id: aliases?.events?.[m.id] ?? m.id, label: m.label, defaultPoints: m.defaultPoints, answeredBy: m.answeredBy, auto: !!m.auto, off: !!m.off })),
-    results: kind !== "series" && kind !== "talk",
-    winner: (blocks.waysOut ?? []).some((w) => w.means === "winner"),
-    calls: kind === "talk" ? "couch" : "results",
-    phases: (blocks.season?.phases ?? []).map((p) => ({ id: p.id, name: p.name })),
+    episode: g.episode,
+    of: open.length,
+    answered: open.filter((q) => answered(q.mine)).length,
+    closesAt: Number.isFinite(first) ? new Date(first).toISOString() : null,
+    behind,
+    finale,
   };
+}
+
+/** Whether an answer is in (an empty list is none). */
+const answered = (v: unknown) => v !== null && v !== undefined && !(Array.isArray(v) && v.length === 0);
+
+/**
+ * A game of questions' move on the home (/api/me/home), beside actionItems' (whose league states don't hold the answers): this
+ * week's sheet while some of it you could answer now is still blank. A draft's finale predictions are an extra, never a move.
+ */
+export async function questionMoves(
+  user: SessionUser,
+  games: { leagueId: string; name: string; gameType: string; seasonId: string | null; archived?: boolean }[],
+  now = new Date()
+): Promise<{ kind: "questions"; text: string; href: string; leagueId: string; leagueName: string; episode?: number; deadline: string | null; who: "you" }[]> {
+  const sheets = games.filter((g) => g.gameType === "questions" && !!g.seasonId && !g.archived);
+  // Each read at once: a Prediction Sheet is rare, and these are the home's only per-game reads of answers.
+  const reads = await Promise.all(
+    sheets.map((g) =>
+      gameQuestions(user, g.seasonId!, g.leagueId, undefined, now)
+        .then((q) => summaryOf(q, false))
+        .catch((e) => {
+          console.error(`[answers] home move ${g.leagueId}:`, e);
+          return null;
+        })
+    )
+  );
+  const out = [];
+  for (const [i, g] of sheets.entries()) {
+    const m = reads[i];
+    if (!m || m.answered >= m.of) continue;
+    out.push({
+      kind: "questions" as const,
+      text: m.answered ? `Finish your sheet (${m.of - m.answered} to go)` : `Fill in your sheet (${m.of} ${m.of === 1 ? "question" : "questions"})`,
+      href: `/show/${g.seasonId}/tonight`,
+      leagueId: g.leagueId,
+      leagueName: g.name,
+      ...(m.episode !== null ? { episode: m.episode } : {}),
+      deadline: m.closesAt,
+      who: "you" as const,
+    });
+  }
+  return out;
 }

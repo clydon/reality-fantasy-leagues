@@ -1,4 +1,6 @@
 import StateLogic from "@/lib/game/state-logic.js";
+import * as Spec from "@/lib/game/game-spec/index.js";
+import type { SheetNights } from "@/lib/game/episode-view";
 import type { GameCalls } from "@/lib/game/game-view";
 import type { LeagueState } from "@/lib/game/types";
 import { HttpError, pool } from "./db";
@@ -53,6 +55,38 @@ export async function answerStanding(o: { leagueId: string; state: LeagueState; 
   const end = StateLogic.endEpisode(view);
   const seen = StateLogic.SpoilerLogic.latestWithResults(view);
   return { right: (p: string) => points.get(p) ?? 0, through: end === null ? seen : Math.min(seen, end), ended: StateLogic.gameOver(view) };
+}
+
+/**
+ * A Prediction Sheet's nights for one player (step A4 part 2), by episode: the questions asked that episode they answered, how
+ * many of those are settled as far as they've seen (the view at their mark), right, and what they earned. For the episodes'
+ * "Your night" line (episode-view.ts nightIn); the game's own questions (asked once) are the sheet's, not a night's.
+ */
+export async function sheetNights(o: { leagueId: string; state: LeagueState; playerId: string; mark: number | null; rows?: AnswerRow[] }): Promise<SheetNights> {
+  const view = viewOf(o);
+  const facts = StateLogic.AnswerLogic.facts(view);
+  const seats = new Set(view.players.map((p) => p.id));
+  const rows = (o.rows ?? (await storedAnswers(o.leagueId))).filter((r) => r.episode > 0 && seats.has(r.playerId));
+  const out: SheetNights = new Map();
+  for (const q of StateLogic.AnswerLogic.questions(view).filter((x) => x.asked === "each" && !Spec.isCalls(x))) {
+    for (const ep of new Set(rows.filter((r) => r.question === q.id).map((r) => r.episode))) {
+      const list = rows.filter((r) => r.question === q.id && r.episode === ep).map((r) => ({ playerId: r.playerId, answer: r.answer }));
+      const mine = list.find((r) => r.playerId === o.playerId);
+      if (!mine) continue;
+      const n = out.get(ep) ?? { answered: 0, settled: 0, off: 0, right: 0, earned: 0 };
+      n.answered++;
+      const v = Spec.verdictOf(q, ep, facts);
+      // Off (nobody went home, right on the line): settled, but it doesn't count either way.
+      if (v.state !== "waiting") n.settled++;
+      if (v.state === "off") n.off++;
+      if (v.state === "known") {
+        if (Spec.isRight(q, v, mine, list, facts)) n.right++;
+        n.earned += Spec.pointsFor(q, v, list, facts).get(o.playerId) ?? 0;
+      }
+      out.set(ep, n);
+    }
+  }
+  return out;
 }
 
 /**
