@@ -19,9 +19,9 @@
 //                                              refuses while the lane has uncommitted changes
 //   node scripts/lane.js remove <name> --yes   takes the worktree out and drops its database; the branch stays (git branch
 //                                              -d it once it's merged)
-//   node scripts/lane.js memory <name>         links the lane's Claude memory to this folder's (setup does it too):
-//                                              Claude keeps memory per folder (~/.claude/projects/<folder>/memory), so a
-//                                              lane's sessions would otherwise start with none of this project's notes
+//   node scripts/lane.js memory <name>         links the lane's Claude memory folder to this folder's (setup does it too):
+//                                              Claude's docs say auto memory is one folder per repo, shared by worktrees;
+//                                              the link makes sure, in case a version keys it by the folder a session runs in
 //
 // <name> is a lane's branch or its folder's name (engine, rfl-engine, sports). `new` and `setup` run from the main folder
 // (the one on master): they copy its .env.local and its database, and only from a database on localhost. The copy runs
@@ -134,9 +134,9 @@ function copyDatabase(user, from, to) {
 
 // ---- Claude's memory, shared ----
 
-// Claude names a project's folder in ~/.claude/projects after the folder it runs in, every character that isn't a letter
-// or digit a dash (Windows ignores the case). One link per lane, to this folder's memory, so every lane reads and writes
-// the same notes. Only ever a link: removing it never touches the notes.
+// A folder in ~/.claude/projects is named after the folder a session runs in, every character that isn't a letter or
+// digit a dash (Windows ignores the case). Claude's docs say auto memory is shared per repo anyway; this link is the
+// safeguard, so every lane reads and writes the same notes either way. Only ever a link: removing it never touches the notes.
 const PROJECTS = path.join(os.homedir(), ".claude", "projects");
 const memoryOf = (dir) => path.join(PROJECTS, dir.replace(/[^A-Za-z0-9]/g, "-"), "memory");
 function shareMemory(dir) {

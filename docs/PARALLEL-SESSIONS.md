@@ -34,9 +34,20 @@ Made on 2026-10-27:
 
 Each one passed `check`.
 
-**Claude's memory is shared.** Claude keeps a project's memory by folder (`~/.claude/projects/<folder>/memory`), so a lane's
-sessions would start with none of this project's notes. `setup` links the lane's memory folder to the main one: every lane
-reads and writes the same notes, and `remove` takes out the link, never the notes.
+**Claude's memory is shared.** Claude's docs say auto memory is one folder per repo, shared by its worktrees. As a
+safeguard, in case a version keys it by the folder a session runs in, `setup` links the lane's folder in `~/.claude/projects`
+to the main one's memory. Every lane reads and writes the same notes, and `remove` takes out the link, never the notes.
+
+**What Claude Code itself offers, and why lanes don't use it** (from its docs, checked 2026-10-27):
+- `claude --worktree <name>` makes a worktree under `.claude/worktrees/`, but on a branch from GitHub's master, not the local
+  one, and without this project's database, port or `.env.local`.
+- The VS Code extension opens several conversations at once (Command Palette › "Claude Code: Open in New Tab" or "Open in New
+  Window"). Each one works in the folder its window has open: open a lane's folder in its own window to talk to a session
+  there, and trust the folder when VS Code asks.
+- The desktop app has split views and a per-session worktree switch, with the same gaps as `--worktree`.
+- Cloud sessions clone GitHub, so they can't reach the local database.
+- **On Windows, "don't ask again" approvals stay with the folder they were given in**, so a lane's interactive sessions may ask
+  for permissions the main folder already has. The loop's sessions run in auto mode without prompts.
 
 What `new` does, by hand, for the engine lane (take each lane's name, branch and port from the plan's lanes table):
 
