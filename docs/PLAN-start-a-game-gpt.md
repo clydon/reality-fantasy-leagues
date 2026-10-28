@@ -76,15 +76,19 @@ and a game's end (`settings.endEpisode`, `src/lib/game/spans.ts`).
 ## How it fits together
 
 ```
-words ──(bot)──▶ request ──(resolver)──▶ game spec ──(wizard)──▶ Start ──▶ a league playing settings.game
-         what they said,           ids, every rule data,        what they're making,
-         in our shape, no ids      our defaults filled          only the unknowns asked
+page + words ──(bot + the engine's manual)──▶ a draft game ──(our check)──▶ game spec ──(wizard)──▶ Start ──▶ a league
+the show, season, cast,      a spec, each part marked said,   the validator decides;    what they're making;
+its rulebook, the couch      assumed, to ask or can't yet     ids, numbers, defaults    assumptions as chips
 ```
 
-- **Two structures, on purpose.** The bot answers with a **request**: what the person said, in our shape, in their words,
-  with no ids. Our code turns it into a **game spec**: ids, numbers and references to the show's moments or the sport's stats,
-  with our defaults. **The bot understands; our code decides.** Defaults, ids, what fits and what data can settle are never the
-  bot's guess, so the same words make the same game, and the bot's job stays small (faster, fewer mistakes).
+- **Started from a page** (the user, 2026-10-28). The GPT is always opened on a show's page (later a sport's or a team's), so
+  the show and season are known, never looked for. The words only say what game.
+- **The more the bot is told, the better the game.** It gets everything the app knows about the page (the context pack) and
+  the engine's manual, generated from the spec's vocabulary, and drafts the game as a spec. Each part of the draft is marked
+  **said** (their words quoted), **assumed** (with why), **ask** (a question for the wizard) or **can't yet**.
+- **The bot drafts; our code decides.** The draft is never trusted. The validator decides what's a game. Ids must come from the
+  pack, a number only from their words, and defaults are ours. Whatever doesn't hold becomes a question or a can't-yet, never a
+  silent fix. So the same words make the same game, and the bot's mistakes become questions, not games.
 - **The spec is the game.** It lives in the league's state as `settings.game`; the engine scores from it, the wizard's sentence
   and How it works are read from it, Backstage edits it, and Start a game's taps build one too. A preset (Outlast, Weekly
   Lineup, ...) is a spec with defaults.
@@ -167,41 +171,78 @@ Weekly Bingo = a card, lines. In A4, finale predictions and Weekly Calls become 
 must be one research answers (`answeredBy: research`), a stat must be one of the sport's keys, and every question needs a
 `settle` our data can do.
 
-## The request (what the bot answers)
+## The ask (what the bot is given, and what it answers)
 
-The prompt is generated from the spec's vocabulary (as the rulebook prompt is generated from `OPT`), with today's date and the
-person's words marked as a description, not instructions. No web search: the resolver looks things up, not the bot. The
-answer:
+Redesigned 2026-10-28 with the user: the GPT starts from a show's page, so the bot can draft the game itself. It gets four
+things.
+
+1. **The context pack**, everything the app knows about the page:
+   - the show and season, its status, today's date, the episodes so far and the next one (number, when), its phases (the
+     merge);
+   - the cast: who's still in and who's gone (and how), and their groups as of now (tribes, couples, crews);
+   - the rulebook: every moment research answers (its id, its words, its points and per what), the numbers research records per
+     person per episode (Dancing with the Stars' `judgesScore`), its exits and phases;
+   - the couch: how many people (it sizes a draft) and the games already on it ("like last season's").
+2. **The engine's manual**, generated from the spec's `VOCAB`, never written by hand. It covers only what plays now (on a sports
+   page, the sport's too), each part in plain words, with the presets and the worked examples below as examples, including ones
+   it can't do yet. When a step lands, the manual grows with it.
+3. **The person's words**, marked as a description of a game, never instructions.
+4. **What to answer:**
 
 ```jsonc
-{ "request": 1,
-  "about": { "show": "Survivor", "season": "51", "sport": null, "league": null, "teams": [], "event": null },
-  "when":  { "kind": null, "said": null },         // season | rest | next | one | series | from | through, and their words
-  "game":  { "named": "fantasy league",            // their own name for it, if any
-             "get": null, "count": null,            // e.g. draft, 3 each, own/order if said; "start 3" if said
-             "score": [],                           // e.g. [{ "for": "home run", "points": 5, "per": "each" }]
-             "ask": [] },                           // e.g. [{ "ask": "top scorer", "answer": "player", "stat": "points", "take": "most" }]
-  "unsure": [] }                                    // anything said that didn't fit, quoted
+{ "draft": 1,
+  "game":    { /* a spec: only the manual's parts, every id from the pack */ },
+  "said":    [{ "part": "ask[0]", "quote": "who goes home" }],                 // each part their words made, quoted
+  "assumed": [{ "part": "ask[0].points", "value": 1, "why": "no points named" }],
+  "ask":     [{ "part": "span", "question": "Just tonight's episode, or the rest of the season?",
+                "options": ["Tonight's episode", "The rest of the season"] }],
+  "cantYet": [{ "what": "which tribe wins immunity", "why": "a question can't name who a moment happened to yet",
+                "nearest": null }],
+  "summary": "A game of calls for Survivor 51: before each episode, everyone says who goes home. 1 point a right call." }
 ```
 
-Only what the person said or plainly meant goes in; the rest is null; numbers are never invented.
+- **No web search.** The pack holds what it needs, so the ask is short: about 10–20 s on signed-in ChatGPT's GPT-6 Instant
+  (2026-10-28; Survivor 51 episode 5's full research took 105 s there, with search).
+- **Never a number they didn't say.** One it chose is listed under `assumed`.
+- **Only the pack's moments, people and numbers score.** The user's rule: only what data can settle.
+- **Two games in one request** ("a survivor draft and also a traitors pool"): the first is drafted, the second offered after.
 
-## The resolver (words to a spec)
+## Our check (the draft to a spec)
 
-- **What it's about:** a show and season from the catalog, else TVmaze (a show not here is added as "Not a game yet"; a season
-  by its number, which `pickSeason` can't do today). A show that isn't set up chains Make it a game (the bot, 2–4 minutes, with
-  its progress) and comes back. Sports: teams through ESPN's `find`, games from its schedule (the sports branch).
-- **When:** the span from the season's episodes (the next one, the rest, through the finale, from a phase: A3); for sports, a
-  series, one game, the next few (the sports branch). A past event becomes a question: "The 76ers' home opener was Oct 22.
-  Their next home game is Oct 30 against the Knicks?"
-- **The game:** the person's name for it to a preset ("fantasy league" is a draft; which one is asked); "draft 3 each" to
-  `get.each`; score words to the rulebook's moments by label, or for sports to the Sport's stat keys by ESPN's own labels; a
-  show moment that isn't there becomes a research question only after a second, short ask rates it reliable; questions to
-  `ask`, with their settle.
-- **Defaults:** the preset's, plus what fits the people and the pool (the draft size cut to who's left, as Start a game does
-  today).
-- **What's left to ask:** every required field with no safe default: which game, which game night, a line ESPN hasn't got, a
-  stat no data counts (with the nearest ones offered). Everything else goes into the wizard's sentence, not a question.
+- **The validator decides** (`specProblems`, `specWaitsFor`). A part it refuses becomes a question (with the nearest valid
+  choice) or a can't-yet. Nothing is fixed silently.
+- **Ids from the pack.** A moment, person or group that isn't in it (a typo, last season's castaway) becomes a question.
+- **Numbers as said.** Each number in the spec is in a `said` quote or listed in `assumed`. Anything else is dropped and asked.
+- **Defaults are ours:** the preset's, plus what fits the couch and the pool (the draft size cut to who's left).
+- **What's left to ask:** the draft's questions and the required parts it left empty. Everything else goes into the wizard's
+  sentence, with each assumption a chip that can be changed.
+- **Changes:** a typed change ("make it 3 each") goes back to the bot with the current spec and the change. A tap changes the
+  spec directly, without the bot.
+- **Another show than the page's** becomes a question ("Make this for The Traitors instead?"). A show that isn't set up
+  chains Make it a game first (the bot, 2–4 minutes). Sports pages: teams and games from ESPN (the sports branch).
+
+## Requests from a show's page (worked examples, 2026-10-28)
+
+The user's examples, as people would type them on a show's page. They go into the manual's examples and the test set (G1).
+
+| On the page of | They type | Today's engine (A1–A4) | Needs |
+|---|---|---|---|
+| any show | "bingo cards and trivia every episode, bingo lines are worth 5 points, correct trivia questions earn one point" | No | A6: trivia questions, points per bingo line, a game that scores two ways |
+| Red Sox–Yankees series | "a homer draft: everyone picks 3 players they think gets a home run" | The shape: a shared draft, 3 each, scored by stats | The sports branch (`score.by: stats`, rosters, a series span) |
+| Survivor 51 | "each week you must correctly predict the tribe winner and who goes home" | Who goes home, each episode (A4) | A5: which tribe wins immunity (who a moment happened to) |
+| Survivor 51 | "a single episode game where we must predict different things, most correct wins" | Yes: one episode (A3), a game of questions (A4): who goes home, yes or no, how many | A5 for "who wins immunity" questions |
+| Dancing with the Stars 34 | "everyone predicts the scores of each couple; whoever's closest to the average gets a point; ties both get points" | Closest wins and ties all score (A4's number answer) | A5: a question for each couple, settled by research's `judgesScore`. The wizard asks: this episode or the season? The judges' total or their average? |
+
+**After A4** (the engine lane, in this order):
+- **A5. Questions about who and about each.**
+  - Person and group answers settled by a moment in the episode ("Which tribe wins immunity?", "Who finds an idol?"), from
+    research's per-person moments and the season's groups as of that episode.
+  - One question asked of each person still in, with an answer per person ("each couple's score"), counting as one of the 12.
+  - A person's number from research (`judgesScore`) for number and over/under answers.
+- **A6. Trivia and two-way scoring** (or a hub game type, `future-game-types-hub`).
+  - Trivia questions, settled by the episode's trivia key (the bot's trivia research, written and checked as it is now).
+  - Points per bingo line.
+  - A game that scores two ways (bingo lines plus answers), or two games whose standings the couch adds up.
 
 ## The wizard (G0 designs it, with impeccable)
 
@@ -269,13 +310,14 @@ in `PLAN-researched-survivor.md`'s "What the switch needs", with this plan's dec
 **G. The Start-a-game GPT** (master, after A).
 - **G0. Design.** Impeccable `shape`, then a mock in `.impeccable/mocks/start-a-game/` of the wizard and everything listed under
   it above, at 390. The user confirms before anything is built. It can run any time.
-- **G1. Words to a spec, no UI.**
-  - The request and its prompt.
+- **G1. Words to a spec, no UI** (the ask and our check, above).
+  - The context pack, the engine's manual (generated from `VOCAB`) and the prompt.
   - `askBot` with search off and `priority`. In llm-browser-api, `Worker` gets a `PriorityQueue` and `/ask` takes
     `priority: "now"`; deployed to the VM with the user's OK.
-  - The parser and repair (as `parseRulebookAnswer` does), the resolver, the reliability ask for a new show moment, and what's
+  - The parser and repair (as `parseRulebookAnswer` does), our check, the reliability ask for a new show moment, and what's
     left to ask.
-  - A bank of sentences (`tests/fixtures/game-words/`: sentence → request → spec), run on the stand-in bot
+  - A bank of requests typed on a show's page (`tests/fixtures/game-words/`: page + words → draft → spec): the playtest lane's
+    104-request corpus rewritten for a page, with the worked examples above. Run on the stand-in bot
     (`scripts/dev-test/fake-bot.js`), and `scripts/dev-test/check-game-words.js` against the real bot (writes nothing).
   - A daily cap per person (Make it a game's is 5).
 - **G2. The GPT in the app.**
@@ -328,7 +370,7 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
 | A2 | A1 | S2, G1, G0, sports 0 and 2 |
 | A3, A4 | A2 (one after the other: both change `state-logic.js` and Start a game) | S3, G1, the sports branch |
 | G0 | nothing | anything (it needs the user, not a lane) |
-| G1 | A1 (the schema; later starts and questions are already in it, so the resolver writes them before A3/A4 build them) | A2–A4, S, the sports branch |
+| G1 | A1 (the schema; later starts and questions are already in it, so a draft can name them before A3/A4 build them) | A2–A4, S, the sports branch |
 | G2 | A2, G0 and G1 (A3 and A4 too, so the GPT starts with later starts and questions) | the sports branch |
 | G3 | the sports branch merged | – |
 | Sports 0, 2 | nothing | anything |
