@@ -3,7 +3,8 @@
 **Keep this current.** Update it in the same commit as any change that adds or changes polling, a scheduled
 job, stored data, or a service, and whenever usage is checked (date the numbers). It exists so that, when a
 free plan stops being enough, choosing the cheapest fit is arithmetic, not research. Last updated
-**2026-10-28** (Cost by size; live games' polling from phones, L2 on the `sports` branch).
+**2026-10-28** (Cost by size; live games' polling from phones, L2 on the `sports` branch; a live soccer match measured, L5
+part 1).
 
 ## The stack
 
@@ -230,7 +231,8 @@ before (`game_lines`). **ESPN's side:** 240 calls an hour for each phone watchin
 phones mostly share an answer). **A phone's data:** every answer is the whole summary (ESPN sends no ETag, so no 304s), 45-80 KB
 over the wire for a finished game (measured 2026-10-28: NBA 49, NHL 45, NFL 53, MLB 80 KB; 0.5-1 MB unzipped), growing from a few
 KB at the start, so an estimated **15-30 MB a game** watched live with the screen on (`scripts/dev-test/record-espn-live.js`
-measures a real game). ESPN answers browsers (`Access-Control-Allow-Origin: *`) but its CDN refuses a headless browser's user
+measures a real game). **Measured live** (L5 part 1, 2026-10-28, two cup ties through extra time and their shootouts): a soccer
+answer is 21-29 KB over the wire (260-350 KB unzipped), so 5-7 MB an hour at 15 s, ~17 MB for a match that goes to extra time. ESPN answers browsers (`Access-Control-Allow-Origin: *`) but its CDN refuses a headless browser's user
 agent, so a person's own browser is the real check (`scripts/dev-test/check-espn-browser.js`'s header). **If ESPN ever stops
 answering phones**, the fallback (not built; its shape in the plan's L2 As built) is one Vercel route forwarding the summary with
 `s-maxage=15`, so Vercel's CDN shares one ESPN call per game every 15 s per region: ~240 function invocations an hour a game a
@@ -563,6 +565,10 @@ never handles it: the user does the reset and the pasting.
   for the couch's three Survivor 51 games, three more league rows (~the real ones' state each) and a handful of users, and every
   result accepted for the season syncs three more leagues (a few more writes on an episode night). Researched rules ask our bot
   once (the answer is kept). Remove it when done.
+- **2026-10-28, `sports` branch (not merged).** L5 part 1 (docs/PLAN-start-a-game-gpt.md track L): soccer read from ESPN's
+  answers (its match sheets, key events and commentary). No new ESPN call from the app, no table, nothing new stored but a
+  league's own name on the read shapes already cached (a few bytes; a league's show is named from it). A live soccer answer
+  measured: 21-29 KB over the wire, 5-7 MB an hour a phone at 15 s (Live games).
 - **2026-10-28, `sports` branch (not merged).** L2 (docs/PLAN-start-a-game-gpt.md track L): the phone's live poller
   (`src/lib/sports/live.ts`): phones ask ESPN's summary themselves, every 15 s while a game is on and the screen visible. Nothing
   new on Vercel or Neon (no route, no table, no writes); ESPN's calls 240 an hour a phone watching; a phone's data an estimated

@@ -59,17 +59,26 @@ export interface LiveOptions {
 
 const STATUS_ORDER: Record<LiveStatus, number> = { pre: 0, in: 1, post: 2 };
 
+/** An answer missing more of the plays had than this is cut short, not ESPN changing its mind, which drops a play at a time (a
+ *  goal or basket wiped on review, a challenged pitch filed again): every sport's, since any answer could come cut. */
+const CUT = 3;
+
 /**
  * The timeline after an answer. Each answer holds every play so far, read in its context, so the answer's own plays win: a
  * scoring change, a call changed on review or a play ESPN dropped reads as ESPN has it now. Unless the answer is behind what's
  * already had (one from a cache edge a few seconds older): the newest play had isn't in it and its own newest is one had
- * before, or is earlier. Then the timeline stays, so times never go back (the plays' are in order: inOrder).
+ * before, or is earlier. Or it's cut short: it has the newest play but lacks more than CUT of the others (ESPN's live soccer
+ * answer once came with its commentary cut to its first 40 entries, its key events whole: Liverpool–Chelsea, 2026-10-28, an
+ * answer between two whole ones). Then the timeline stays, so times never go back (the plays' are in order: inOrder).
  */
 export function mergeTimeline(have: Play[], fresh: Play[]): Play[] {
   if (!have.length) return fresh;
   if (!fresh.length) return have;
   const newest = have[have.length - 1];
-  if (fresh.some((p) => p.id === newest.id)) return fresh;
+  if (fresh.some((p) => p.id === newest.id)) {
+    const ids = new Set(fresh.map((p) => p.id));
+    return have.filter((p) => !p.final && !ids.has(p.id)).length > CUT ? have : fresh;
+  }
   const theirs = fresh[fresh.length - 1];
   if (have.some((p) => p.id === theirs.id)) return have;
   const [t, mine] = [msOf(theirs.at), msOf(newest.at)];

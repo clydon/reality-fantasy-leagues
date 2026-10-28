@@ -112,7 +112,16 @@ test("a matchup's key (its games, in any order), its name and its status", () =>
   assert.equal(matchupStatus(series.slice(1, 3), now), "upcoming");
   assert.equal(matchupStatus(series.slice(0, 3), now), "airing");
   assert.equal(matchupStatus(series.slice(0, 1), now), "completed");
-  assert.deepEqual(["basketball/nba", "baseball/mlb", "basketball/wnba", "basketball/mens-college-basketball", "soccer/eng.1"].map(leagueName), ["NBA", "MLB", "WNBA", "Mens College Basketball", "Eng 1"]);
+  // ESPN's own name when its answer says (a scoreboard's league, a soccer schedule's events'): what people call it.
+  assert.equal(leagueName("soccer/eng.1", { name: "English Premier League", short: "Premier League" }), "Premier League");
+  assert.equal(leagueName("basketball/nba", { name: "National Basketball Association", short: "NBA" }), "NBA");
+  assert.equal(leagueName("soccer/ger.dfb_pokal", { name: "German Cup", short: null }), "German Cup");
+  assert.equal(leagueName("soccer/mex.1", { name: "Mexican Liga BBVA MX", short: "Liga MX" }), "Liga MX");
+  // Not a code nobody says: college's are its full name.
+  assert.equal(leagueName("basketball/mens-college-basketball", { name: "NCAA Men's Basketball", short: "NCAAM" }), "NCAA Men's Basketball");
+  assert.equal(leagueName("football/college-football", { name: "NCAA - Football", short: "NCAAF" }), "NCAA Football");
+  // Else its slug, as people write it.
+  assert.deepEqual(["basketball/nba", "baseball/mlb", "basketball/wnba", "basketball/mens-college-basketball", "soccer/eng.1"].map((l) => leagueName(l)), ["NBA", "MLB", "WNBA", "Mens College Basketball", "Eng 1"]);
 });
 
 test("how long the cache keeps a team's schedule: a game on, a game within the day, else half a day", () => {

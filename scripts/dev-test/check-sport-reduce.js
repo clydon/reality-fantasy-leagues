@@ -12,7 +12,7 @@
 //   node scripts/dev-test/check-sport-reduce.js --league=football/nfl --weeks=5-8 [--season=2026] [--seasontype=2] [--max=80]
 //   node scripts/dev-test/check-sport-reduce.js --league=football/nfl --weeks=1-5 --season=2025 --seasontype=3
 //        [--cache=<dir>] [--verbose]
-//   (any league a sport reads: basketball/nba, basketball/wnba, hockey/nhl ...)
+//   (any league a sport reads: basketball/nba, basketball/wnba, hockey/nhl, soccer/eng.1, soccer/usa.1, soccer/fifa.world ...)
 //
 // --from/--days: the finished games on those days' scoreboards (ESPN's days), at most --max; --weeks: football's weeks instead
 // (its scoreboards go by week; --season and --seasontype with it, and --groups=80 for college football's FBS games once a sport

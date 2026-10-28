@@ -112,7 +112,8 @@ export interface Play {
   score: Record<string, number>;
   /** What it adds to whose line: { [athlete]: { [stat key]: n } }. Empty when it changes nothing (a ball, a substitution). */
   deltas: Record<string, Stats>;
-  /** The final's correction (Sport.timeline): its deltas make the plays' box score the final box score. */
+  /** The final's correction (Sport.timeline): its deltas make the plays' box score the final box score. Or what else only the
+   *  final says (soccer's minutes to the end, in a feed with no event for it). */
   final?: boolean;
   /** Part of a shootout after extra time (hockey's; soccer's penalties in L5): its goals and saves aren't the game's, and its
    *  winner's one goal comes at its end. */
@@ -182,7 +183,8 @@ export interface EspnSummary {
         /** A finished hockey game's goalies of record ("winningGoalie", "losingGoalie"). */
         featuredAthletes?: { name?: string; athlete?: { id?: string | number }; team?: { id?: string | number } }[];
       };
-      competitors?: { homeAway?: string; winner?: boolean; score?: string | number; team?: EspnTeam }[];
+      /** `shootoutScore`: a soccer match's penalty shootout, apart from its score. */
+      competitors?: { homeAway?: string; winner?: boolean; score?: string | number; shootoutScore?: number; team?: EspnTeam }[];
     }[];
   };
   boxscore?: {

@@ -1,8 +1,9 @@
 // Dev-only: records a finished game's ESPN summary as a test fixture (tests/fixtures/espn/; docs/PLAN-start-a-game-gpt.md track L,
 // step L1), trimmed to what the sports' readers read (src/lib/sports/): the header (teams, score, status, a hockey game's
 // goalies of record), the box score's tables and team totals, ESPN's line before the game, and the plays with their times,
-// periods, people and the fields each sport's reader uses (PLAYS, by ESPN's sport slug; football's sit in its drives). A raw summary is ~0.5-1 MB (pitch
-// coordinates, win probability, news, videos); a trimmed one 150-230 KB. One real call (or none, from the cache
+// periods, people and the fields each sport's reader uses (PLAYS, by ESPN's sport slug; football's sit in its drives; soccer's
+// are its commentary and key events, its lines its match sheets, `rosters`). A raw summary is ~0.3-1 MB (pitch
+// coordinates, win probability, news, videos); a trimmed one 60-230 KB. One real call (or none, from the cache
 // check-sport-reduce.js keeps); no app server, no database.
 //
 //   node scripts/dev-test/record-espn.js --league=baseball/mlb --event=401907924 [--out=tests/fixtures/espn/mlb-401907924.json]
@@ -35,7 +36,8 @@ const KEEP = {
       {
         // The period it ended in and its detail ("Final/SO"), and a hockey game's goalies of record.
         status: { period: true, type: { state: true, completed: true, detail: true }, featuredAthletes: [{ name: true, athlete: { id: true }, team: { id: true } }] },
-        competitors: [{ homeAway: true, winner: true, score: true, team: TEAM }],
+        // A soccer match's shootout is its own score.
+        competitors: [{ homeAway: true, winner: true, score: true, shootoutScore: true, team: TEAM }],
       },
     ],
   },
@@ -80,7 +82,17 @@ const PLAYS = {
   any: { ...PLAY, awayScore: true, homeScore: true, clock: { displayValue: true }, scoringPlay: true, scoreValue: true, team: { id: true } },
 };
 const sportSlug = league.split("/")[0];
-if (sportSlug === "football") {
+// Soccer's play by play (src/lib/sports/soccer.ts): each match sheet's players with their lines, the key events (ESPN's ids),
+// and the commentary (every sentence, a play's people by name only); its half's length.
+const SOCCER_PLAY = { id: true, type: { type: true, text: true }, text: true, period: { number: true }, clock: { value: true, displayValue: true }, team: { id: true, displayName: true }, participants: [{ athlete: { id: true, displayName: true } }], wallclock: true, shootout: true };
+if (sportSlug === "soccer") {
+  KEEP.format = { regulation: { periods: true, clock: true } };
+  KEEP.rosters = [{ homeAway: true, team: TEAM, roster: [{ starter: true, athlete: { id: true, displayName: true, fullName: true, lastName: true }, position: { abbreviation: true }, stats: [{ name: true, value: true }] }] }];
+  KEEP.keyEvents = [SOCCER_PLAY];
+  KEEP.commentary = [{ sequence: true, time: { value: true, displayValue: true }, text: true, play: SOCCER_PLAY }];
+  delete KEEP.plays;
+  delete KEEP.drives;
+} else if (sportSlug === "football") {
   const drive = { id: true, team: { id: true }, plays: [PLAYS.football] };
   KEEP.drives = { previous: [drive], current: drive };
   delete KEEP.plays;
@@ -122,20 +134,25 @@ function trim(value, shape) {
     _recorded: { league, event, from: `site.api.espn.com/apis/site/v2/sports/${league}/summary?event=${event}`, at: new Date().toISOString().slice(0, 10), ...(args.note ? { note: args.note } : {}), by: "scripts/dev-test/record-espn.js" },
     ...trim(summary, KEEP),
   };
-  // Each part on a line of its own, and each play (football's: each drive): small diffs when it's recorded again.
+  // Each part on a line of its own, and each play (football's: each drive; soccer's: each commentary entry, each key event, each
+  // side's match sheet): small diffs when it's recorded again.
   const plays = trimmed.plays ?? [];
   const drives = trimmed.drives ?? null;
+  const lists = sportSlug === "soccer" ? Object.fromEntries(["rosters", "keyEvents", "commentary"].map((k) => [k, trimmed[k] ?? []])) : null;
   delete trimmed.plays;
   delete trimmed.drives;
+  for (const k of Object.keys(lists ?? {})) delete trimmed[k];
   const parts = Object.entries(trimmed).map(([k, v]) => ` ${JSON.stringify(k)}: ${JSON.stringify(v)}`);
-  const tail = drives
+  const tail = lists
+    ? Object.entries(lists).map(([k, v]) => ` ${JSON.stringify(k)}: [\n${v.map((x) => `  ${JSON.stringify(x)}`).join(",\n")}\n ]`).join(",\n")
+    : drives
     ? ` "drives": {\n  "previous": [\n${(drives.previous ?? []).map((d) => `   ${JSON.stringify(d)}`).join(",\n")}\n  ]${drives.current ? `,\n  "current": ${JSON.stringify(drives.current)}` : ""}\n }`
     : ` "plays": [\n${plays.map((p) => `  ${JSON.stringify(p)}`).join(",\n")}\n ]`;
   const body = `{\n${parts.join(",\n")},\n${tail}\n}\n`;
   JSON.parse(body);
   fs.mkdirSync(path.dirname(out), { recursive: true });
   fs.writeFileSync(out, body);
-  const count = drives ? [...(drives.previous ?? []), ...(drives.current ? [drives.current] : [])].reduce((n, d) => n + (d.plays ?? []).length, 0) : plays.length;
+  const count = lists ? lists.commentary.length + lists.keyEvents.length : drives ? [...(drives.previous ?? []), ...(drives.current ? [drives.current] : [])].reduce((n, d) => n + (d.plays ?? []).length, 0) : plays.length;
   console.log(`${path.relative(process.cwd(), out)}: ${count} plays, ${(body.length / 1024).toFixed(0)} KB (from ${(JSON.stringify(summary).length / 1024).toFixed(0)} KB)`);
 })().catch((e) => {
   console.error(e.message);

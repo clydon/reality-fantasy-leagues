@@ -99,8 +99,15 @@ export function pickMatchup(team: string, schedule: Game[], ask: MatchupAsk): Ga
   return mine.slice(first, last + 1);
 }
 
-/** The league's show's name: its slug as people write it ("nba" is "NBA"; "mens-college-basketball" is "Mens College Basketball"). */
-export function leagueName(league: string): string {
+/**
+ * The league's show's name: what people call it as ESPN says, its abbreviation when that's words or a short one ("Premier
+ * League" of "English Premier League", "Liga MX", "NBA", "NWSL"), else its full name (college's codes nobody says: "NCAA Men's
+ * Basketball", not "NCAAM"; "NCAA Football" of "NCAA - Football"); else (an answer that doesn't say: a basketball team's
+ * schedule, one cached before) its slug as people write it ("nba" is "NBA"; "mens-college-basketball" is "Mens College
+ * Basketball").
+ */
+export function leagueName(league: string, named?: { name: string; short: string | null } | null): string {
+  if (named) return (named.short && (/[a-z]/.test(named.short) || /^[A-Z0-9]{1,4}$/.test(named.short)) ? named.short : named.name).replace(/\s+-\s+/g, " ");
   const slug = league.split("/").pop() ?? league;
   if (/^[a-z]+$/.test(slug) && slug.length <= 5) return slug.toUpperCase();
   return slug

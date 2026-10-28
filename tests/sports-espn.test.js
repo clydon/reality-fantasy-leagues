@@ -54,6 +54,20 @@ test("a scoreboard: each game with its teams, scores, winner and note; final fro
   );
   assert.deepEqual(e.parts, []);
   assert.deepEqual(readScoreboard("baseball/mlb", null), []);
+  assert.equal(e.leagueName, null, "an answer that doesn't name its league");
+});
+
+test("a game's league as ESPN names it: the scoreboard's, else a soccer team schedule's own on each game (a club's cups apart)", () => {
+  const [mlb] = readScoreboard("baseball/mlb", { leagues: [{ name: "Major League Baseball", abbreviation: "MLB", slug: "mlb" }], events: [G1] });
+  assert.deepEqual(mlb.leagueName, { name: "Major League Baseball", short: "MLB" });
+  const [epl, cup] = readScoreboard("soccer/eng.1", {
+    events: [
+      { ...G1, id: "1", league: { name: "English Premier League", abbreviation: "Premier League", slug: "eng.1" } },
+      { ...G1, id: "2", league: { name: "UEFA Champions League", abbreviation: "UEFA Champions League", slug: "uefa.champions" } },
+    ],
+  });
+  assert.deepEqual(epl.leagueName, { name: "English Premier League", short: "Premier League" });
+  assert.equal(cup.leagueName, null, "another competition's game doesn't name this league");
 });
 
 test("the stage of its season a game is in: ESPN's slug, else its type; a soccer league's own season says none", () => {

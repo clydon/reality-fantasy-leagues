@@ -17,10 +17,11 @@
 //  - plays ESPN listed live and dropped by the final, and plays the final reads otherwise (its deltas, its time, its score);
 //  - the game as of each live answer's newest play against the final's at that moment (what a phone showed, against the
 //    truth), as streaks of answers that differ, with how long each took to settle;
-//  - ESPN's lag: how long after a play's wallclock it was first in an answer (median, 90th percentile, most);
+//  - ESPN's lag: how long after a play's wallclock it was first in an answer (median, 90th percentile, most), for the plays
+//    that came after the first answer recorded (a recording started mid-game has the rest in its first answer already);
 //  - the raw fields the readers don't trust live: baseball's outs and score on an at-bat's start and the plays in it (the
 //    final's carry the at-bat's end), football's drives.current (and whether drives.previous also lists it), a hockey box's
-//    goalies who hadn't played yet;
+//    goalies who hadn't played yet; soccer's answers whose commentary came cut short (fewer entries than the answer before);
 //  - a phone's data: the bytes over the wire per answer and per hour at 15 s.
 // Exits 1 if it can't compare (no final answer kept).
 const fs = require("fs");
@@ -42,7 +43,8 @@ const HOURS = Number(args.hours || 5);
 const HEAVY = ["news", "videos", "article", "winprobability", "standings", "seasonseries", "againstTheSpread", "broadcasts", "leaders", "injuries", "predictor", "ticketsInfo", "meta"];
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const stateOf = (s) => s?.header?.competitions?.[0]?.status?.type ?? {};
-const playCount = (s) => (s.plays ?? []).length + [...(s.drives?.previous ?? []), ...(s.drives?.current ? [s.drives.current] : [])].reduce((n, d) => n + (d.plays ?? []).length, 0);
+// Soccer's plays are its commentary entries (its key events are mostly the same plays again), not `plays`.
+const playCount = (s) => (s.plays ?? []).length + (s.commentary ?? []).length + [...(s.drives?.previous ?? []), ...(s.drives?.current ? [s.drives.current] : [])].reduce((n, d) => n + (d.plays ?? []).length, 0);
 
 async function record() {
   fs.mkdirSync(dir, { recursive: true });
@@ -88,7 +90,7 @@ function quantile(xs, q) {
 
 function compare() {
   const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } });
-  const { sportOf } = jiti("../../src/lib/sports/index.ts");
+  const { sportOf, LiveGame } = jiti("../../src/lib/sports/index.ts");
   const { differences, settles } = require("./espn-replay");
   const sport = sportOf(league);
   if (!sport) throw new Error(`no sport reads ${league} yet`);
@@ -104,9 +106,12 @@ function compare() {
   const finalPlays = sport.readPlays(final);
   const byId = new Map(finalPlays.map((p) => [p.id, p]));
   const firstSeen = new Map();
+  const already = new Set(live.length ? sport.readPlays(live[0]).map((p) => p.id) : []);
   const dropped = new Map();
   const otherwise = new Map();
   const log = [];
+  // What a phone had: each answer taken by the poller itself (an answer behind or cut short only the second time in a row).
+  const phone = new LiveGame({ sport, league, event, now: () => 0 });
   for (const a of live) {
     const asked = Date.parse(a._asked);
     const plays = sport.readPlays(a);
@@ -123,10 +128,12 @@ function compare() {
       if (JSON.stringify(p.score) !== JSON.stringify(f.score)) why.push(`score ${JSON.stringify(p.score)} then ${JSON.stringify(f.score)}`);
       if (why.length && !otherwise.has(p.id)) otherwise.set(p.id, `${p.text.slice(0, 80)}: ${why.join("; ")}`);
     }
+    phone.take(a);
+    const had = phone.plays;
     // What the phone showed (the game as of its newest play) against the final's plays at that moment.
-    const newest = plays[plays.length - 1];
+    const newest = had[had.length - 1];
     if (newest) {
-      const shown = sport.reduce(plays, null, sides);
+      const shown = sport.reduce(had, null, sides);
       const truth = sport.reduce(finalPlays, newest.at, sides);
       log.push({ at: Date.parse(newest.at), diffs: differences(shown, truth) });
     }
@@ -139,7 +146,7 @@ function compare() {
   const { streaks } = settles(log, { within: 10 * 60_000 });
   console.log(`\nThe game as a phone showed it, against the final at the same moment: ${log.length - log.filter((x) => x.diffs.length).length} of ${log.length} answers equal`);
   for (const s of streaks) console.log(`  from ${new Date(s.from).toISOString()} for ${s.ms === Infinity ? "ever" : `${Math.round(s.ms / 1000)} s`}: ${s.diffs.slice(0, 5).join("; ")}`);
-  const lags = [...firstSeen.values()].filter((x) => Number.isFinite(x.at)).map((x) => (x.asked - x.at) / 1000);
+  const lags = [...firstSeen].filter(([id, x]) => !already.has(id) && Number.isFinite(x.at)).map(([, x]) => (x.asked - x.at) / 1000);
   const every = quantile(live.slice(1).map((a, i) => (Date.parse(a._asked) - Date.parse(live[i]._asked)) / 1000), 0.5);
   console.log(`\nESPN's lag (first in an answer after its wallclock, s; answers every ${every} s): median ${quantile(lags, 0.5)}, 90th ${quantile(lags, 0.9)}, most ${Math.max(...lags)}`);
 
@@ -175,6 +182,12 @@ function compare() {
       for (const side of a.boxscore?.players ?? []) for (const t of side.statistics ?? []) if (t.name === "goalies") for (const row of t.athletes ?? []) if (!(row.stats ?? []).some((v) => /[1-9]/.test(String(v)))) unplayed.add(row.athlete?.displayName);
     }
     console.log(`\nHockey: goalies the live box listed with nothing yet in the game's first answers: ${[...unplayed].join(", ") || "none"} (with none, a goal on the first shot finds its goalie as the side's only one)`);
+  }
+  if (league.startsWith("soccer/")) {
+    const cut = live.filter((a, i) => i > 0 && (a.commentary ?? []).length < (live[i - 1].commentary ?? []).length);
+    const bare = live.filter((a) => !(a.commentary ?? []).length);
+    console.log(`
+Soccer: ${cut.length} of ${live.length} live answers came with fewer commentary entries than the one before (${cut.map((a) => `${a._asked}: ${(a.commentary ?? []).length}`).join(", ") || "none"}); ${bare.length} with none (a thinner feed's are its key events only)`);
   }
   const lines = fs.existsSync(path.join(dir, "log.jsonl")) ? fs.readFileSync(path.join(dir, "log.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)) : [];
   const wire = lines.filter((l) => l.state === "in" && l.bytes).map((l) => l.bytes);

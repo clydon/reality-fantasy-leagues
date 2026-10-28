@@ -52,6 +52,13 @@ export interface Competitor {
   place: number | null;
 }
 
+/** A league as the provider names it: in full ("English Premier League", "National Basketball Association") and as people say
+ *  it ("Premier League", "NBA"). */
+export interface LeagueName {
+  name: string;
+  short: string | null;
+}
+
 /** "pre": not started; "in": being played; "post": over (final, or called off). */
 export type EventState = "pre" | "in" | "post";
 
@@ -103,6 +110,9 @@ export interface SportsEvent {
   parts: EventPart[];
   /** The line on it, while the provider shows one (ESPN's scoreboard: only before the game); else null. */
   odds: Odds | null;
+  /** Its league as the provider names it, when its answer says (ESPN's scoreboard, and a soccer team's schedule); an answer
+   *  cached before L5 has none. */
+  leagueName?: LeagueName | null;
 }
 
 /** A player on a team's roster (players only: a provider's coaches and staff are left out). */

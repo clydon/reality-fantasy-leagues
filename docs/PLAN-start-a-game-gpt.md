@@ -426,7 +426,9 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
 - **L4. The formats, as the engine's pieces with sports data:** head-to-head, categories and roto (A11), best ball (A9),
   pick'em and pick a few (A4's questions with the sports settles), brackets (A8), squares (a sports way to `get`), live calls
   (A15); lineup locks per sport.
-- **L5. More of ESPN:** soccer; college and the WNBA; golf, racing, MMA and tennis (the field and bout shapes).
+- **L5. More of ESPN:** soccer; college and the WNBA; golf, racing, MMA and tennis (the field and bout shapes). A part per
+  session: part 1, soccer (built 2026-10-28: As built below); part 2, college (basketball, football, baseball, hockey) and the
+  WNBA; then golf and racing (FieldSport); then MMA and tennis (BoutSport).
 - **L6. Release:** `sports` merges into master at once (migrations checked against a production backup first), then G3
   teaches the GPT these formats.
 - Its screens (the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync, each format's
@@ -959,6 +961,11 @@ UI.
   the 5.5-minute wait above goes); ESPN's lag from a play's wallclock to its first answer (how fair a live call's moment is:
   A15); the bytes per answer (a phone's data). Next chances: the NBA and NHL every night, the World Series, and the NFL on
   Thursday 2026-10-29 (Panthers at Packers, 8:15 PM ET). (The next session in this lane that runs during a game.)
+  **L5 part 1 (2026-10-28):** two soccer cup ties recorded live and compared (L5 part 1's As built: one answer came cut short,
+  and the poller now keeps what it had; ESPN's commentary ~48 s behind the play), and the night's 76ers at Pacers (NBA
+  401909884), Flyers at Capitals (NHL 401892596) and World Series Game 5, Brewers at Rays (MLB 401908046), being recorded by
+  detached recorders that stop themselves at each final (in the OS temp folder's `rfl-espn-live/`, a log `.out.txt` beside
+  each): the next session runs `--compare` on each (`--league --event` as above) and writes what it shows here.
 - **A phone's data**: an estimated 15-30 MB a game at 15 s, since every answer is the whole summary (no ETag, so no 304s).
   ESPN's core API pages a game's plays (`sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}/events/{id}/competitions/
   {id}/plays?limit=&page=`, CORS `*`, cached 15 minutes once final), so a poll could fetch only the newest page and a small
@@ -976,6 +983,147 @@ UI.
   at the lock is A4's or L3's call. (L3.)
 - **A phone's IP reaches ESPN** when it asks (a plain cross-origin fetch sends no cookies): a line for a privacy note when
   there is one. (U1.)
+
+**L5 part 1 as built: soccer (2026-10-28, `sports`, not merged; no migration, no new ESPN call from the app, nothing stored but
+a league's own name on read shapes already cached; HOSTING.md updated).** Master still hadn't A1-A4, so L5 came before L1's
+spec parts and L3 (the main session's order).
+- **What ESPN gives** (checked on 315 finished matches across 17 competitions, and two cup ties live). A soccer summary has no
+  `boxscore.players` and no `plays`:
+  - `rosters`, each side's match sheet: every player's line by stat name (appearances, sub appearances, goals, assists, shots,
+    shots on target, own goals, yellows, reds, fouls committed and suffered, offsides, goals conceded **while he was on**, a
+    keeper's saves; `shotsFaced` is always 0), his formation slot (CD-L, AM-R, CF-R; "SUB" for the bench) and whether he
+    started. **No minutes.** A team's own roster says G, D, M or F.
+  - `commentary`: the play by play, every foul, shot, offside, corner, card, substitution, goal and shootout kick, each entry
+    with its `play` (type, period, clock: `value` in seconds held at the half's end, so stoppage time is "45'+2'" at 2700;
+    wallclock; its team and people **by name only**, always exactly the match sheet's names, while its text's can differ: "Pascal
+    Groß" for "Pascal Gross", "Tasos Douvikas" for "Anastasios Douvikas"). A foul is two entries sharing one play.
+  - `keyEvents`: the goals, cards and substitutions again with ESPN's ids, and what the commentary leaves out (the kickoff, half
+    time, the end of normal time, extra time's halves, the shootout's start, the end).
+  - Every league writes it alike (the Premier League, the Championship, MLS, the NWSL, Liga MX, the Champions and Europa Leagues,
+    La Liga, the Bundesliga, Serie A, Ligue 1, the Eredivisie, the Brasileirão, the World Cup, the Carabao Cup), so `Sport.leagues`
+    is null: Soccer reads every soccer league. **The DFB-Pokal's is thinner**: its commentary is its key events again ("Nicolas
+    Seiwald (RB Leipzig) Red Card at 44'"), so its shots, fouls, offsides, saves and assists come only from the final, and its
+    shootout's kicks are filed in period 0 after extra time ("Penalty - Scored at 122'": read as the shootout's).
+- **A play is the commentary's**, once each, its ids from the key event of the same id (else the match sheet's names); the key
+  events it hasn't are placed by period and time. Key events alone couldn't reduce: shots, fouls and offsides are only in the
+  commentary. Also read: a commentary sentence with **no play of its own** that ESPN's lines count (a foul's other sentence,
+  joined to its play at the same time; else a foul of its own; "has gone down, but the referee deems it simulation", "Back pass
+  by", "Penalty conceded by ... with a handball"), and **a foul filed twice** under two ids, a sentence each (counted once).
+- **What a line counts**, read off ESPN's data, each rule from a difference it closed: a goal is a shot on target (a header, a
+  volley, a penalty); a saved penalty is too, a missed one only a shot; off the woodwork or blocked is a shot; **"Attempt saved."
+  is a save even on a play typed "Shot Blocked"**; the save is the keeper's the text names (else the side's keeper on the
+  pitch); a handball is a foul committed; **a foul's names are its sentences'** ("Foul by Boubacar Kamara" where its people say
+  Ross Barkley: Kamara's line has it); an offside is the one its text says was caught (its person played the pass); **a second
+  yellow is a red and the first yellow comes off** (ESPN's line: RC 1, YC 0), told by "Second yellow" or, in the thinner feed, by
+  a red to someone already booked ("is shown the red card" is a straight red); **goals conceded are everyone's on the pitch** in
+  ESPN's order (the lineup at the kickoff, substitutions, reds, "went off injured after ... had used all subs"); an own goal is
+  its scorer's and the other side's goal; the shootout (period 5, or 0 once the match is played) is its own (shootout goals,
+  misses, saves and goals against:
+  never the match's goals, shots or score; the header's `shootoutScore` is the team total). ESPN's team penalty goals are 0 for
+  every converted penalty (left out), and its team penalty kicks too in the thinner feed (left out).
+- **`Soccer`** (`src/lib/sports/soccer.ts`, registered in `index.ts`): groups GK, DEF, MID, FWD; positions as ESPN says them (G,
+  D, M, F from a team's roster; CD, CD-L, CD-R, SW, LB, RB, DM, CM, CM-L, CM-R, LM, RM, AM, AM-L, AM-R, CF-L, CF-R, LF, RF from a
+  match sheet; "SUB" is no position). Stats, keys unique in the sport: playing time APP GS SUB **MIN** MIN60; attacking G A SHOT
+  SOG PKG PKA PKM (missed or saved: FPL's) OF, SOG%; defending GA (conceded while on) CS GA2 OG; goalkeeping SV PKSV SV3, SV%;
+  discipline FC FA YC RC; the shootout SOGOAL SOMISS SOSV SOGA. Derived game by game: MIN60 (60 minutes or more), **CS** (FPL's:
+  60 minutes and nothing conceded while on; `full` works it out for anyone who played, though he has nothing in defending's
+  counts), GA2 (every two conceded), SV3 (every three saves). **Minutes come from the plays** (ESPN's lines have none): the
+  minute shown, stoppage time held at the half's end as FPL counts it, credited at each substitution, red card and period's end
+  (a starter 45 at half time, 90 at full time, 120 after extra time); a finished match whose end no event says (the thinner feed
+  has no kickoff, half time or end) ends with a play of the final's, "Full time", counting everyone on to the end (both halves
+  always, extra time's when either of its halves had a play). **Known at the final: nothing.** **Judged: A, SHOT, SOG, OF,
+  SV, FC, FA** (the data provider's calls, which ESPN's lines can count otherwise after the play). Two halves, extra time's two
+  ("extra time, 1st half, 98'") and "penalty shootout"; **weekly locks** (FPL's deadline is per gameweek, about a week; ESPN's
+  soccer scoreboards don't number rounds).
+- **Defaults as data** (`defaults/soccer.json`): FPL's 2025/26 points: playing 1, 60 minutes 1 more, an assist 3, every 3 saves
+  1, a penalty saved 5, missed −2, a yellow −1, a red −3, an own goal −2; a goal 10/6/5/4 and a clean sheet 4/4/1/0 by GK, DEF,
+  MID, FWD, every 2 conceded −1 for keepers and defenders. **The spec's points are one number a stat**, so `scoring.points` (and
+  the specs') has a midfielder's, and `scoring.byPosition` the rest. **What `score.by: stats` would need for points by position**
+  (for the engine lane, not changed here): a stat's points as a number or a map from the sport's position groups to numbers
+  (`{ "G": { "GK": 10, "DEF": 6, "MID": 5, "FWD": 4 }, "A": 3 }`), the group being the player's roster position's
+  (`season_cast.role`'s G, D, M or F through the Sport's positions), fixed for the span (FPL keeps a player's position all
+  season). Not FPL's defensive contributions (2 for 10 clearances, blocks, interceptions and tackles; 12 with recoveries for
+  midfielders and forwards) or its bonus points: ESPN's lines have neither. Slots: FPL's squad of 15 (`slots.squad`: 2 GK, 5
+  DEF, 5 MID, 3 FWD), 11 starting (GK 1, DEF 3, MID 2, FWD 1 and 4 outfield slots: any formation FPL allows), 4 on the bench;
+  `season` (FPL Draft's: draft 15, start 11, head to head, weekly) and `short` (draft 3 each, all count, most points). No
+  categories.
+- **A league's show is named from ESPN's own name** (L1 part 3's Noticed): `SportsEvent.leagueName` (`server/sports/types.ts`)
+  from a scoreboard's league or, on a soccer team's schedule, each game's own (a club's cups are other leagues: only a game of the
+  same slug names it); the matchup's day scoreboard names it too when its schedule doesn't (a basketball team's). `leagueName`
+  takes what people call it: ESPN's abbreviation when that's words or four letters at most ("Premier League" of "English Premier
+  League", "Liga MX", "NBA", "NWSL"), else its full name (college's codes nobody says: "NCAA Men's Basketball", not "NCAAM";
+  "NCAA Football" of "NCAA - Football"; checked on 31 leagues' scoreboards), else the slug's name as before. No migration: a show
+  already made keeps its name.
+- **Live**, recorded (L2's open check, for soccer): Liverpool–Chelsea in the Carabao Cup from 90'+2' through the shootout, and
+  Holstein Kiel–Hoffenheim in the DFB-Pokal through extra time (both 2026-10-28). **One of ESPN's live answers came cut short**
+  (22:14:41: 40 commentary entries between answers of 119, its key events whole and its newest play still in it), which the
+  poller would have taken; now `mergeTimeline` (`live.ts`) also treats an answer missing more than 3 of the plays had as behind
+  (taken only the second time in a row, as before). Through the poller, 84 of 85 answers equal the final at their moment (the
+  other a wallclock ESPN moved a second later); the DFB-Pokal's, 164 of 164. **ESPN's commentary came a median 48 s after its
+  wallclock** (90th percentile 76 s; the plays after the recording began: the end of normal time and the shootout), **the thinner
+  feed's 73 s** (90th 104 s). 21-29 KB an answer over the wire, 5-7 MB an hour at 15 s (HOSTING.md). The night's NBA, NHL and World Series games are being recorded (L2's Noticed).
+- **Fixtures** (`record-espn.js` keeps soccer's match sheets, key events, commentary and the half's length, a list entry a line;
+  88-129 KB from 370-470 KB): Chelsea 0-2 Tottenham (`epl-401878767.json`: the keeper's own goal, Palmer's second yellow, two
+  handballs), San Diego 2-2 Seattle in MLS (`mls-761901.json`: a penalty saved, one scored in stoppage time), Australia 1-1 Egypt
+  in the World Cup's Round of 32 (`wc-760499.json`: an own goal, extra time, a keeper brought on at 119' for the shootout, Egypt
+  through 4-2) and the World Cup final, Spain 1-0 Argentina (`wc-760517.json`: a second yellow in stoppage time, extra time's
+  winner), and the thinner feed's Holstein Kiel 1-1 Hoffenheim in the DFB-Pokal (`dfb-401917034.json`, 50 KB: extra time, Kiel
+  through 4-3 on kicks filed in period 0; recorded live too). `espn-replay.js` replays soccer (its commentary and key events cut by
+  time, the match sheets' numbers 0 until the end).
+- **Checks.**
+  - `tests/sports-soccer.test.js` (17): the vocabulary (every soccer league is Soccer); the derived stats and names; the match
+    sheets; **the proof** on each fixture (the plays alone come to ESPN's lines, 420-476 numbers each, the team totals and the
+    score, with no notes, nobody credited who didn't play, at most one judged count); the plays (the kickoff's lineup, the own
+    goal, the second yellow and the ten men left, handballs, offsides by the text, saves, minutes); penalties; extra time and the
+    shootout; `stateAt` at the final's 90th minute and its end; the final's correction (only judged stats; with it every number;
+    none live); the thinner feed (goals, cards, substitutions and minutes exact, the rest at the final, its period-0 shootout,
+    its full time counted at the final); and on made-up matches the commentary's sentences (names, a sentence with no play, a foul filed twice,
+    simulation, a handball's penalty) and the thinner feed (a red after a yellow, a straight red, a substitution then a goal, a
+    player off injured); the defaults. `tests/sports-live.test.js` gains the cut answer; `tests/sports-espn.test.js` and
+    `tests/sports-matchup.test.js` a league's own name.
+  - `check-sport-reduce.js` on real matches: **313 of 315 reduce exactly** to ESPN's lines on every non-judged count (~28,000
+    plays): the Premier League's August, September and October matchdays 39 of 39, MLS 44 of 45, the Champions League 18 of 18,
+    the Europa League 18 of 18, the Carabao Cup 7 of 7 (two shootouts), the Championship 11 of 11, La Liga, the Bundesliga, Serie
+    A, Ligue 1 and the Eredivisie 43 of 43, the Brasileirão 2 of 2, Liga MX 7 of 7, the NWSL 5 of 5, the 2026 World Cup 103 of 104
+    (the group stage and every knockout, nine with extra time), the DFB-Pokal's thinner feed 16 of 16. **156 of 156 on days read
+    only after the reader's last change** (the first run there). The two left are ESPN's own (Noticed). Judged counts otherwise
+    in about a third of matches, almost all a shot ESPN's lines count on target and saved that its commentary calls blocked.
+  - `check-live-clock.js` replays the five fixtures through the poller over HTTP at 60x unchanged: 5 of 5, every number of
+    ESPN's lines at the end. `record-espn-live.js` counts soccer's plays, reads what a phone had through the poller's
+    merge, measures ESPN's lag only on plays after the first answer, and reports cut answers.
+  - 928 unit tests; `tsc` clean; eslint clean on `src/lib/sports` and `src/lib/server/sports`; `check-matchup.js` still passes.
+  - `/code-review` on the diff (its fixes: the thinner feed's full time counted at the final, where a full match had given 45
+    minutes; the day scoreboard's league name reaching the show, which it hadn't; college's league codes; a key event in period
+    0 placed after the match, not before the kickoff; a missing side never the home side; two fouls with no people never merged;
+    the "Rear Center Forward" slot, the only one missing in 315 matches; the compare taking answers through a LiveGame itself, not
+    a copy of its rule; the replay's soccer cut done once. Kept, after reading the data: the cut-short rule for every sport, since
+    any answer can come cut and a review drops one play at a time; a sub's position as null, his roster's being `season_cast`'s).
+
+**L5 part 1 noticed, not fixed:**
+- **Two matches ESPN's own data can't settle** (the final's correction does): D.C. United–Cincinnati (MLS, 2026-10-24), an
+  injury substitution at 34:10 and a goal at 34:56, which ESPN's lines give to the player who went off (everywhere else, the 2026
+  World Cup's Brazil–Norway among them, the one who came on concedes a goal after his substitution); and Argentina–Switzerland
+  at the World Cup, whose team total counts the first yellow of a second yellow that Embolo's own line takes off.
+- **Shots on target and saves the commentary calls blocked** (ESPN's lines count them saved): no cue in the commentary (a corner
+  conceded by the keeper follows 2 of 1,016 blocked shots). Live, a keeper's saves (FPL's every 3) can be one or two short until
+  the final. (L3.)
+- **Minutes, and so 60 minutes and clean sheets, move only at a substitution, a red card or a period's end**: a starter is on 45
+  until full time, so a clean sheet shows at full time (FPL's live shows it from the 60th minute). The phone could add the
+  running minute from the game clock to everyone on. (L3.)
+- **The thinner feed (the DFB-Pokal's)**: its shots, fouls, offsides, saves and assists come only at the final, a saved
+  penalty in its shootout is only "Penalty - Missed" (no keeper's save), its plays come ~73 s late, its minutes for the last
+  period only at the final, and an extra time with nothing in either half would be missed (30 minutes short; none seen). How many competitions
+  ESPN carries this way isn't known (one of 17 checked). (L3, if a game scores them live.)
+- **Points by position need the spec** (above): the engine lane's call; until then a game scores goals at a midfielder's 5.
+  And FPL's defensive contributions and bonus points have no ESPN data (team totals only: tackles, interceptions, clearances).
+- **A gameweek lock needs rounds**: FPL's deadline is 90 minutes before a gameweek's first kickoff, and ESPN's soccer
+  scoreboards don't number gameweeks; a weekly lock by dates is close but not a matchday (midweek rounds). (L4, with locks.)
+- **ESPN's soccer commentary is ~48 s behind the play** (median; the thinner feed's ~73 s): a live call's moment, and how late
+  one may lock, should allow for it (A15).
+- **A keeper sent off, or out injured with no subs left**: the next save goes to the keeper the text names; one it doesn't name
+  waits for the final (no case seen).
+- **A sub's position is his roster's** (a match sheet says "SUB"): slots read `season_cast.role` (G, D, M, F), as L1's Noticed
+  says for every sport. (L4.)
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

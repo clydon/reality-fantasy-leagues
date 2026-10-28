@@ -241,6 +241,32 @@ test("each answer's plays win, unless the answer is behind (an older cache edge'
   assert.equal(mergeTimeline(have, older), have, "behind: its newest is earlier than the newest had");
 });
 
+test("merging: an answer cut short (ESPN's live soccer answer with its commentary cut to its first 40 entries, its key events whole) changes nothing", () => {
+  // Liverpool–Chelsea, 2026-10-28, 22:14:41: 40 commentary entries between answers of 119, its newest play (the end, a key
+  // event) still in it. Here the same, cut from a recorded match.
+  const s = load("epl-401878767");
+  const sport = sportFor(s);
+  const whole = sport.readPlays(s);
+  const cut = sport.readPlays({ ...s, commentary: s.commentary.slice(0, 40) });
+  assert.equal(cut[cut.length - 1].id, whole[whole.length - 1].id, "its newest play is the newest had");
+  assert.ok(whole.length - cut.length > 30, "a third of the plays gone");
+  assert.equal(mergeTimeline(whole, cut), whole, "cut short: kept as had");
+  // ESPN dropping a play or two (a goal wiped on review) is still taken.
+  const two = whole.filter((p) => p.kind !== "handball");
+  assert.equal(whole.length - two.length, 2);
+  assert.equal(mergeTimeline(whole, two), two);
+  // And the poller takes a cut answer only if it comes twice in a row (ESPN's truth then).
+  const g = new LiveGame({ sport, league: "soccer/eng.1", event: "401878767", now: () => 0 });
+  const live = JSON.parse(JSON.stringify(s));
+  live.header.competitions[0].status.type = { state: "in", completed: false };
+  g.take(live);
+  const short = { ...live, commentary: live.commentary.slice(0, 40) };
+  g.take(short);
+  assert.equal(g.plays.length, whole.length, "once: ignored");
+  g.take(short);
+  assert.equal(g.plays.length, cut.length, "twice: taken");
+});
+
 /* ---- The poller. ---- */
 
 test("asking: once at the start, then not until the game's start; every 15 s (±10%) while it's on; doubling while ESPN fails; never while hidden; stops when final", async () => {

@@ -5,7 +5,7 @@ import { pool } from "../db";
 import { castFromEvents } from "./cast";
 import { sportsProviders } from "./index";
 import { fillLater } from "./season";
-import { SportsUnavailable, type SportsEvent, type SportsProvider } from "./types";
+import { SportsUnavailable, type LeagueName, type SportsEvent, type SportsProvider } from "./types";
 
 // Games straight from a team's schedule, as a season of their own (docs/PLAN-start-a-game-gpt.md track L, L1 part 3;
 // db/migrations/0300). A matchup (one game, a series, a team's next few: src/lib/sports/matchup.ts picks them) is a season of
@@ -79,8 +79,9 @@ export async function matchupSeason(
   const sorted = [...games].sort((a, b) => (a.at ?? "").localeCompare(b.at ?? ""));
   const ids = sorted.map((g) => g.id);
   const key = `${opts.prefix ?? ""}${matchupKey(provider.id, league, ids)}`;
-  // Their lines first (outside the transaction: these may ask the provider).
-  await storeEvents(provider.id, league, await withOdds(provider, league, sorted, now.getTime()));
+  // Their lines first (outside the transaction: these may ask the provider), and the league's name a day's scoreboard gave.
+  const lined = await withOdds(provider, league, sorted, now.getTime());
+  await storeEvents(provider.id, league, lined);
   const found = await pool.query("SELECT m.season_id, ss.name FROM sports_matchups m JOIN show_seasons ss ON ss.id = m.season_id WHERE m.key = $1", [key]);
   if (found.rows[0]) return { seasonId: found.rows[0].season_id, made: false, name: found.rows[0].name ?? "", games: ids };
 
@@ -89,7 +90,7 @@ export async function matchupSeason(
   let seasonId: string;
   try {
     await c.query("BEGIN");
-    const showId = await leagueShow(c, provider.id, league, opts.prefix ?? "", opts.userId ?? null);
+    const showId = await leagueShow(c, provider.id, league, opts.prefix ?? "", opts.userId ?? null, lined.map((g) => g.leagueName).find(Boolean) ?? null);
     await c.query("SELECT id FROM shows WHERE id = $1 FOR UPDATE", [showId]);
     const { rows: n } = await c.query("SELECT COALESCE(max(season_number), 0) + 1 AS n FROM show_seasons WHERE show_id = $1", [showId]);
     const dates = sorted.map((g) => g.at).filter((x): x is string => !!x);
@@ -133,11 +134,11 @@ export async function matchupSeason(
 }
 
 /** The league's show (made once, "Not a game yet" until someone makes it one, as a show added from its listing is). */
-async function leagueShow(db: Queryable, provider: string, league: string, prefix: string, userId: string | null): Promise<string> {
+async function leagueShow(db: Queryable, provider: string, league: string, prefix: string, userId: string | null, named: LeagueName | null): Promise<string> {
   const tag = `${prefix}${provider}:${league}`;
   const { rows } = await db.query("SELECT id FROM shows WHERE sports_league = $1", [tag]);
   if (rows[0]) return rows[0].id as string;
-  const name = leagueName(league);
+  const name = leagueName(league, named);
   const base = `${prefix}${slugOf(name)}`;
   const { rows: taken } = await db.query("SELECT slug FROM shows WHERE slug = $1 OR slug LIKE $2", [base, `${base}-%`]);
   const slugs = new Set(taken.map((r) => r.slug as string));
@@ -164,11 +165,16 @@ async function withOdds(p: SportsProvider, league: string, games: SportsEvent[],
   const { rows } = await db.query("SELECT event_id FROM sports_events WHERE provider = $1 AND league = $2 AND event_id = ANY($3::text[]) AND odds IS NOT NULL", [p.id, league, games.map((g) => g.id)]);
   const have = new Set(rows.map((r) => r.event_id as string));
   const out: SportsEvent[] = [];
-  for (const g of games) {
+  for (let g of games) {
     let odds = g.odds;
     try {
       if (odds || have.has(g.id) || !g.at) odds = g.odds;
-      else if (g.state === "pre" && Date.parse(g.at) <= now + WEEK_MS) odds = (await p.eventsOn(league, easternDay(new Date(g.at)))).find((e) => e.id === g.id)?.odds ?? null;
+      else if (g.state === "pre" && Date.parse(g.at) <= now + WEEK_MS) {
+        const day = (await p.eventsOn(league, easternDay(new Date(g.at)))).find((e) => e.id === g.id);
+        odds = day?.odds ?? null;
+        // The day's scoreboard names the league too (a team's schedule, in most sports, doesn't).
+        if (!g.leagueName && day?.leagueName) g = { ...g, leagueName: day.leagueName };
+      }
       else if (g.final) odds = (await p.boxScore(league, g.id))?.odds ?? null;
     } catch (e) {
       if (!(e instanceof SportsUnavailable)) throw e;

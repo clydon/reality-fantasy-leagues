@@ -1,6 +1,6 @@
 import { readOdds, type EspnOdds } from "@/lib/sports/matchup";
 import { idOf, str } from "@/lib/sports/sport";
-import { SportsUnavailable, type BoxScore, type Competitor, type EventState, type Found, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
+import { SportsUnavailable, type LeagueName, type BoxScore, type Competitor, type EventState, type Found, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
 
 // ESPN (docs/PLAN-sports-data.md, docs/HOSTING.md): free, no key, but unofficial and undocumented, with no stated rate limit or
 // terms, so it's asked little (every call is cached: cache.ts) and credited in Credits. Three hosts:
@@ -72,6 +72,14 @@ interface RawEvent {
   seasonType?: { type?: number };
   status?: RawStatus;
   competitions?: RawCompetition[];
+  /** A soccer team's schedule names each game's competition (a club's cups are other leagues). */
+  league?: RawLeague;
+}
+/** A scoreboard's league ("English Premier League", abbreviation "Premier League"; "National Basketball Association", "NBA"). */
+interface RawLeague {
+  name?: string;
+  abbreviation?: string;
+  slug?: string;
 }
 interface RawStatRow {
   athlete?: RawAthlete;
@@ -160,8 +168,15 @@ export { readOdds };
  * stage in `seasonType`, its scores as { value, displayValue }). An event in parts (an F1 weekend) keeps each part's field on
  * the part.
  */
-export function readScoreboard(league: string, raw: { events?: RawEvent[] } | null): SportsEvent[] {
+export function readScoreboard(league: string, raw: { events?: RawEvent[]; leagues?: RawLeague[] } | null): SportsEvent[] {
   const out: SportsEvent[] = [];
+  // Its league as ESPN names it: the event's own (a soccer schedule's), else the scoreboard's of the same slug.
+  const slug = league.split("/").pop();
+  const named = (l: RawLeague | undefined): LeagueName | null => {
+    const name = str(l?.name) ?? str(l?.abbreviation);
+    return name ? { name, short: str(l?.abbreviation) } : null;
+  };
+  const board = named(raw?.leagues?.find((l) => l.slug === slug) ?? (raw?.leagues?.length === 1 ? raw.leagues[0] : undefined));
   for (const e of raw?.events ?? []) {
     const id = idOf(e.id);
     if (!id) continue;
@@ -185,6 +200,7 @@ export function readScoreboard(league: string, raw: { events?: RawEvent[] } | nu
       competitors: comps.length === 1 ? (comps[0].competitors ?? []).map(readCompetitor) : [],
       parts,
       odds: readOdds(comps[0]?.odds?.[0]),
+      leagueName: (e.league && (!e.league.slug || e.league.slug === slug) ? named(e.league) : null) ?? board,
     });
   }
   return out;
