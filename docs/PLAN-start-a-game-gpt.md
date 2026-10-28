@@ -910,7 +910,12 @@ three days. The loops stop at 90% of the week, so the user's own sessions keep t
   main session fills the slots with work that's safe unattended. It doesn't stack more than the user's own session can bear by day,
   since a full 5-hour window pauses that session too, and it keeps the loops' 90% stop. On 2026-10-28 that meant the engine lane
   going on past A6 to A8, the A1–A4 merge prepared and checked in a throwaway worktree (`rfl-merge`, port 3006, branch
-  `merge-engine`), and the desk's build as a lane once its first designs are approved.
+  `merge-engine`), and the desk's build as a lane once its first designs are approved. That evening, with A8 done, the user
+  sent the engine on through A9–A14 overnight, one fresh session a step, stopping before A15 (the watch along's concept is
+  still open). A step that needs the user partway leaves its question in its Noticed, and the next step goes on.
+- **No push on an episode night** (the user, 2026-10-28). A push to master deploys production and runs its migrations, so
+  nothing ships on the evening of an episode the couch plays (Survivor 51: Wednesdays, 8 PM ET). The A1–A4 merge moved to
+  2026-10-29, after that night's results are accepted and the test couch is compared.
 The main session records each switch here.
 
 **The rules that keep the quality:**
