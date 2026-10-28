@@ -56,6 +56,8 @@ const SCREENS = path.join(DIR, "screens");
 const GALLERY = path.join(DIR, "screens.html");
 const NEXT = path.join(DIR, "next-prompt.md");
 const IMAGE = /\.(png|jpe?g|gif|webp)$/i;
+/** How long a session's process may stay open after its result: then what it left running is ended (runSession). */
+const LINGER_MS = 60 * 1000;
 
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 // Never from the loop, whatever a prompt says: shipping is the user's call (CLAUDE.md, the plan's Rules).
@@ -331,6 +333,8 @@ function runSession({ prompt, model, effort, name, resume, opts, logBase, onLimi
     let final = null;
     let limited = null;
     let errText = "";
+    let lingering = null;
+    let lingered = false;
     child.stdin.end(prompt);
     child.stderr.on("data", (d) => (errText += d));
     // `pause` / `stop` from another terminal.
@@ -379,9 +383,18 @@ function runSession({ prompt, model, effort, name, resume, opts, logBase, onLimi
         }
       } else if (e.type === "result") {
         final = e;
+        // The session is over once its result is in, but a background command it left running (the dev server it started
+        // for its checks) keeps `claude -p` open, and the loop would wait on it for good (the engine lane, 2026-10-28: an
+        // hour). A minute to close on its own, then what's left of it is ended; its result stands.
+        lingering = setTimeout(() => {
+          lingered = true;
+          say(dim(`[${clock()}] the session's over, but something it started is still running: ending it`));
+          killTree(child);
+        }, LINGER_MS);
       }
     });
     child.on("close", (code) => {
+      clearTimeout(lingering);
       clearInterval(files);
       ctl.child = null;
       raw.end();
@@ -390,7 +403,7 @@ function runSession({ prompt, model, effort, name, resume, opts, logBase, onLimi
       const paused = ctl.pause || ctl.quit;
       say(dim(`[${clock()}] ${paused ? "stopped" : "ended"}${mins != null ? ` after ${mins} min` : ""} · $${cost.toFixed(2)} · ${final?.num_turns ?? "?"} turns`));
       text.end();
-      const failed = final?.is_error || (code !== 0 && !paused);
+      const failed = final?.is_error || (code !== 0 && !paused && !lingered);
       const why = oneLine(final?.result || errText || `claude exited with ${code}`, 300);
       // A usage limit: the CLI said so in its stream, or its error says so.
       const limit = failed && (limited || /usage limit|rate limit|limit reached|resets? at/i.test(why)) ? (limited ?? { resetsAt: null }) : null;

@@ -6,8 +6,12 @@ History), but a site admin still has to go back to classic for about 25 things, 
 admin at all (only Settings › Back to the classic design, or typing `/admin`). Nothing in `src/new` calls `/api/admin/*`. This
 plan closes that gap, then retires classic's admin.
 
-**Status (2026-10-28): step 0 done; in the design pass, step 1 (People) is mocked and waiting for the user's approval**
-(`.impeccable/mocks/site/desk.js` and `desk.css`; Mock scenarios › Desk · step 1: people). Classic's admin renders: all 19 of its pages at 390px locally
+**Status (2026-10-28): step 0 done; in the design pass, step 1 (People) is approved by the user**, with Find › Browse, Hand
+on, the desk's pages and how they link, and Settings regrouped (`.impeccable/mocks/site/desk.js`, `desk-pages.js`, `desk.css`;
+Mock scenarios › Desk · step 1 and Desk · pages and Settings). A couch's delete stays (approved with the rest). Step 2 (the
+Inbox, `desk-inbox.js`) is done in the mock (the user, 2026-10-28). **Step 3 (a season's Setup) is mocked and waiting for
+approval** (`desk-setup.js`; Mock scenarios › Desk · step 3: a season's Setup; step 3 below says what it shows and what its build
+needs). Classic's admin renders: all 19 of its pages at 390px locally
 (`scripts/dev-test/check-classic-admin.js`, which step 8 can turn round), and in production To do, Users, Leagues, a league's
 page, Shows and Site, with no console errors. The blank `/admin/leagues` seen in production earlier that day didn't come back.
 The likeliest cause is classic's boot screen: it covers the page until the first league loads (about a second locally, longer
@@ -24,6 +28,11 @@ page load (`window.location.assign`) would fix it at the cost of the row being a
 
 **Noticed, not fixed (design pass):** the new design's "Viewing as" bar (`src/new/session.tsx`) is white 13px text on #5089c4,
 about 3.7:1, under the 4.5:1 floor. The step 1 mock uses #3c6ea6 (about 5:1); step 1's build takes it.
+From step 3's mock (2026-10-28), all for step 3's build: (a) the daily listings job (`tv-listings.ts statusesByDate`) sets every
+season linked to a TV listing to its status by date each morning, so a status an admin changes in classic is undone the next
+day; (b) a schedule set by hand doesn't move the episodes a TV listing dated: their `season_episodes` rows (source 'listing',
+`air_at`) sit over the weekly guess in `season_air_dates` (0067, 0104), so classic's "Airs at" changes nothing for them; (c)
+classic's season route (`/api/admin/seasons/[id]` PATCH) can't set `release` or `drop_at` (nightly, all at once; 0104).
 
 **Decisions (the user, 2026-10-27):**
 1. **Act as them.** Opening the app as someone is classic's impersonation as it is: for an hour you are them (Better Auth's
@@ -41,6 +50,8 @@ about 3.7:1, under the 4.5:1 floor. The step 1 mock uses #3c6ea6 (about 5:1); st
    password covers someone who can't get in. (Closes the brief's first open question.)
 6. **Stopping someone signing in joins step 1; site roles don't.** From their page, with an optional reason only admins see;
    reversible (Let them back in), so no hold. (Closes the brief's second open question.)
+7. **Staged results stay out of the Inbox** (the user, 2026-10-28, as on 2026-10-24): results settle when sources agree and
+   only disputes reach the desk; step 4's queue on a season's page is there for anyone who wants to look, with no badge.
 
 **Not brought over:** classic's formats (`show_formats`: rulebooks replace them; retired at cut-over), classic's Overview layouts
 (a classic screen), the Site page's Paid AI and spoiler switches (browser-only, and the desk has no paid actions). Neither app
@@ -65,12 +76,75 @@ can change someone's site role or ban them; that stays out until it's needed.
    sorted (newest, last active, name). A person's page: Act as them (decision 1), Approve, Reset password (a temporary one,
    shown once), Edit name and email, Stop them signing in and let them back (decision 6), their couches and games with each
    seat's role (change, unlink), Delete account last (decision 4; what it does to their seats said first; tier 3, hold to
-   confirm). No new account (decision 5). Who gets in lets them in from the desk.
-2. **Inbox catches up.** Reports (read, mark done, open the game or screen it came from), accounts waiting, results waiting for
-   review (an episode's, all at once), casts pulled and not approved, airing seasons with no schedule, and Coming up (the next
-   episode of each airing season, and whether research will run on its own).
+   confirm). No new account (decision 5). Who gets in lets them in from the desk. **Hand on** (from the user's review of the
+   mock): when the account's owner is a game's only Commissioner, the delete says so and hands the games on first: one person
+   for them all (only someone who plays every one) or game by game, most active first; tier 1 with Undo, the new Commissioner
+   told. The same sheet serves a seat ("runs it alone"), step 2's couch nobody runs and step 6's game page.
+   **Find › Browse** (the user, 2026-10-28: "something for everything that's searchable"): Find lists every kind it searches,
+   each opening a list like People's (search, filters, sort, paging): People here, Reports with step 2, Couches and Games
+   (with Deleted: restorable for 30 days, with Restore) with step 6, Shows with step 7, and the Library as it is. Seasons,
+   episodes, castaways and results stay inside their show; the search finds them.
+
+**The desk's pages and how they link** (mocked 2026-10-28 at the user's ask, `desk-pages.js`; each step builds its own page's
+actions, but the shape and links are set here). Every page: a lower third naming it, a facts line, **Part of** (what it
+belongs to) and what it's made of, each a link; its actions; History (latest three); its Delete, last and named. Back names
+the page you came from (a trail, as the app's nav-trail does); the tabs start a trail.
+
+| Page | Part of / made of (links) | Its Delete | Built in |
+|---|---|---|---|
+| Person | their couches › games (a seat's sheet: role, unlink, Open the game); reports they sent | tier 3; hand on games they run alone first | 1 |
+| Couch | its people; its games; who fills in results (Override); Hand them on when nobody runs it | its games go too; restorable 30 days (Couches › Deleted) | 6 |
+| Game | its couch, season and rulebook; join code; seats (each a person); Open it read-only; Hand it on | Archive offered; restorable 30 days (Games › Deleted, Restore); then "for good, now" | 6 |
+| Show | its seasons; Add a season; connector, art and photos, its words | refused while games play it, listing them | 7 |
+| Season | its show and rulebook; Setup (3), Research and the bot (4), Cast (5), Bingo bank (4); episodes; its games | refused while games play it, listing them | 3-5 |
+| Report | the sender, the couch or game or season it came from; Mark done; Act as them | gone for good; Mark done offered | 2 |
+
+**A couch's delete is new** (neither app has one; added for decision 4, approved with step 1's screens on 2026-10-28).
+
+**Settings, regrouped** (the user, 2026-10-28: "hard to figure out where everything is"): by the question you have, each row
+with its value and a dot when it's off its recommended setting (its sheet has Reset to recommended), each change a toast with
+Undo and a line in Settings history. **People** (Who gets in, with who's waiting) · **Results** (sources to confirm a result,
+when a result is disputed, who fills in results on new couches; "who went home is always checked for free" is said, not a
+row) · **Our bot** (Autopilot: the seasons it's on for, each a link; which AI it asks, step 7) · **Rulebooks** (games on
+their season's rulebook, each a link; the library) · **Telling players** (What's New: paused, drafts, step 7's preview) ·
+**Changes** (Settings history, its own sheet, not a long inline list) · **Not on the desk yet** (Classic admin).
+2. **Inbox catches up.** Reports (read, mark done, open the game or screen it came from), accounts waiting, casts pulled and
+   not approved, airing seasons with no schedule, and Coming up (the next episode of each airing season, and whether research
+   will run on its own). Not staged results (decision 7). As mocked: Needs you is one list, most urgent first (a dispute, a
+   couch nobody runs, no schedule, a cast changed, accounts waiting, reports, a rulebook nobody else checked, a show added by
+   name), each tagged with its kind and opening the page that deals with it, where the row to act on carries a dot; dealing
+   with it there clears it here and from the tab's count. Coming up is the week as a rundown (day and time, the season, the
+   episode, and how its results come in: Autopilot, ESPN, or the couches).
 3. **Seasons: setup.** A season page's Setup: name, status, wiki page, the schedule (episode count, premiere, air time, zone),
    who decides results (the admin, or each game), delete (tier 3).
+   **As mocked (2026-10-28, `desk-setup.js`, waiting for approval):** Running it › Setup opens a page of its own
+   (`/desk/.../setup`; the season page's Setup row now says "Wednesdays 8:05 PM Eastern · 13 episodes · results from sources").
+   Its lower third is the season as set (status tag, name, the next episode). **The season**: Name (blank shows the show and
+   its number), Status (Upcoming · Airing · Ended, each saying what it does), Wiki page (what the connector reads; optional for a
+   show with no connector; a bad URL is refused with an example). **Schedule** (the aside says "Set by hand, by alex" or "From
+   its TV listing"): the next two episodes and the finale as a rundown like the Inbox's Coming up, All N episodes (a sheet of
+   dates and times), When it airs, Episodes, TV listing. **Results**: Who decides results. Then History (latest three, All N)
+   and the season's Delete, the same row and sheet as the season page's (`dkSeasonDel`: refused while games play it, else a
+   hold). Guards: name, status, wiki page, the listing and who decides are tier 1 (a toast with Undo, a History line); **When it
+   airs** and **Episodes** are tier 2: Weekly · Nightly · All at once, the first episode (or the drop), the time and zone, with
+   "What moves" (each episode's old and new time; lineups and picks in its games lock at the new times; reminders, the guide
+   and Coming up move; the bot's check runs after each new end) and a warning when aired episodes would land in the future;
+   lowering the count lists what's cleared (classic's prune) and turns the button red ("Clear and save") when aired episodes'
+   research goes, with a check when it's fewer than have aired; Not known yet is a choice. **TV listing**: linked (its times,
+   its dates moving the status, Find another listing, Unlink it: the times stay) or searched (TVmaze, as Add a show searches;
+   other seasons' and ended look-alikes greyed; "What it fills"; Use this listing). A season with **no schedule** leads with
+   "Find it in the TV listings" (the yellow) and "Set it by hand"; the Inbox's no-schedule item now opens Setup, and a season
+   given a schedule leaves the Inbox and joins Coming up. **Who decides results**: "Sources that agree" (Recommended;
+   `results_by = 'leagues'`: couches' and the bot's answers, two agreeing reach every game) or "You decide" (`'admin'`: what
+   you accept on the desk reaches every game even with no other source, from the switch on, `results_admin_since`); either
+   way a dispute you settle reaches every game (the words follow `season-decisions.ts`; the build confirms them).
+   **What the build needs beyond classic** (Noticed, not fixed, a-c): a status set by hand on a linked season holds over the
+   listing's dates until "Back to its listing's dates" (statusesByDate skips it: a column, so a migration); times set by hand
+   win over the listing's per-episode times; the route takes `release` and `drop_at`; linking and unlinking a season's listing
+   (`listing_id`) from the desk. Mock scenarios: Setup (Survivor 51), Change when it airs (to 9:00 PM), Fewer episodes (to 4),
+   Who decides results, No schedule (Dancing with the Stars 34, from the Inbox), Find it in the TV listings, Nightly from its
+   listing (Love Island USA 7), An ended season (Survivor 49, deletable). `scripts/dev-test/shoot-mock-scenarios.js
+   --group=dss` shoots them all at 390.
 4. **Seasons: research and the bot.** Run now (quick, full, schedule, trivia, bingo), the bot's episode length, each run's
    timing, add or remove a run, reset; an episode's research (paste an answer, discard, clear); auto research; the bingo bank
    (an episode's squares and the season's, hide or show, write by paste). The results queue: an episode's pending results with
