@@ -56,7 +56,7 @@ export interface CheckVerdict {
   likelihood: Likelihood | null;
   note: string | null;
 }
-export function buildCheckPrompt(o: { showName: string; season: number; part?: { singular: string; plural: string }; episode?: number | null; squares: { label: string; likelihood: string }[]; avoid?: string[] }): string;
+export function buildCheckPrompt(o: { showName: string; season: number; part?: { singular: string; plural: string }; episode?: number | null; count?: number | null; title?: string | null; note?: string | null; squares: { label: string; likelihood: string }[]; avoid?: string[] }): string;
 export function parseCheckAnswer(text: string, count: number): (CheckVerdict | null)[];
 export function judged(squares: ParsedSquare[], checks: (CheckVerdict | null)[]): ParsedSquare[];
 export function hasBank(pool: Pool, seasonId: string, episode: number | null): Promise<boolean>;

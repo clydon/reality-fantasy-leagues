@@ -127,6 +127,16 @@ test("the check's prompt: every square numbered, each judgement asked, the scori
   const season = B.buildCheckPrompt({ ...base, episode: null, squares: [sq("It rains")] });
   assert.match(season, /for any episode of the season/);
   assert.ok(!/hasn't aired/.test(season));
+  assert.ok(!/It's the season's/.test(p) && !/It's the season's/.test(season), "a regular episode and the season's own: as before");
+});
+
+test("the check's prompt for a finale, premiere or reunion: judged against others of its kind, not regular episodes", () => {
+  const finale = B.buildCheckPrompt({ ...base, episode: 13, squares: [sq("A finalist makes a closing plea")] });
+  assert.match(finale, /It's the season's finale, so judge each square against finales of a show like this, not its regular episodes\./);
+  assert.match(finale, /- likely: true if it comes up in about every finale or every other one of a show like this\. False if it happens in every single\n  finale \(certain/);
+  assert.match(finale, /likely \(most finales\), maybe \(about every other\)/);
+  assert.match(B.buildCheckPrompt({ ...base, episode: 1, squares: [sq("It rains")] }), /It's the season's premiere, so judge each square against premieres/);
+  assert.match(B.buildCheckPrompt({ ...base, count: 14, episode: 14, title: "Reunion", squares: [sq("It rains")] }), /It's the season's reunion/);
 });
 
 test("the check's answer: given outright to pass, an earlier square for sameAs, a likelihood it can correct", () => {

@@ -321,3 +321,10 @@ Browser checks at 390px for steps 1 and 3 (scripts/dev-test/, reusing the headle
   line can lag (Tribes after the merge). The AI searches anyway; step 2's check prompt could flag a phase that doesn't match.
 - **The Weekly Bingo rules line** (`game-rules.ts`) still says a square settles by "two of you ticking it, or saying so": true
   now, but step 3's "Did it?" list is the way to say so (word it there).
+- **Fixed 2026-10-28: a finale's squares failed their check.** The writer was told "It's the finale. Lean towards finale moments",
+  but the check judged every square against regular episodes, so finale moments read as rare: Survivor 49's finale passed 12 and
+  then 4 of 30 in the recorder (a bank needs 16). `buildCheckPrompt` now judges a premiere, finale or reunion against others of its
+  kind (episodeKind, from the count, title and note the bot already passed). The same squares, re-checked through the local bot:
+  24 and 22 of 30. **Noticed, left:** the finale's lean suggests "a crowd, confetti" and loved ones, which modern Survivor finales
+  don't have (an on-location after-show). The check drops them, so it costs a few squares, not a bank. The writer could be told
+  to lean on what this show's own finales have.
