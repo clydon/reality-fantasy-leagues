@@ -501,6 +501,65 @@ the pool's made-for-you pick and frozen streak, the still-in tie-break, and the 
 tune from it, and what G1 should change. **Left for P3 and P4:** Below Deck 12 (finding 10: its cast staged by hand once the
 corpus is on tape, then its full research and 20 replays); second seasons as they're recorded.
 
+### P5, part 1: the measures read data, and the forgetter's looks (2026-10-28, playtest lane)
+
+The words corpus was still 2 of 104 on tape at 08:50 UTC (the recorder backing off until 09:17 after Below Deck 12's episode 1
+full research gave up), so P5's first Noticed item and the looks for findings 11 and 13 went first, without the bot.
+
+**Ids, points and flags beside the words** (`playtest.js`). Each replay still writes its words for reading, and now the same as
+data beside them:
+- an episode's `left` (who went home: `{ id, name, method }`) beside `out`, and `did` (each seat's move: `{ kind: "lineup" |
+  "pick", act, ids }`, act set, looked, kept, carried, forgot, refused, picked, notTaken, nobodyLeft or noEpisode) beside
+  `moves`;
+- a Weekly Lineup line's `starters` (`{ id, name, points, items }`), `benched` (everyone on the bench, those who'd have scored
+  nothing too) and `saysKinds` (the reveal lines' kinds: perfect, best, costly, benchSaved) beside `started`, `bench`, `says`;
+  a pool line's `picked` (`{ id, name, correct }`) beside `pick`; an Outlast line's `members` (`{ id, name, out }`) beside `team`;
+- the record's `drafted` (each seat's picks, `{ id, name, forThem }`) beside `draft`;
+- a waiver week's `pairs` (each seat's claim) and `moved` (what ran: `{ seat, addId, dropId, via }`) beside `claims` and `ran`.
+
+The measures read them through small readers (`leftKeys`, `startersOf`, `benchOf`, `pickOf`, `stillInOf`, `praisedOf`,
+`poolMoveOf`, `forgotLineup`, `draftedOf`), each the data when a file has it, else that file's words, read as before. A castaway
+is a key either way: its id from the data, its name from the words. `defaultLineupOf`, `poolFallbackOf`, `stillInBreakOf`,
+`asksOf` and `judgeOf`'s silent count use them. `compareOf` already read `byHand` before the log's words.
+
+**Checked three ways:**
+- On the files from before (words only), `judge` and both `compare`s wrote JUDGE.md and COMPARE.md byte for byte as they were.
+- The 96 replays and both variants (60 and 20) were played again (about 10 minutes, no bot), so every file on record has the
+  data. Each measure was then read from the data and from the same file with the data stripped (a scratchpad one-off): every
+  measure on all 176 is the same both ways but one `weeks` count. The data's bench lists everyone, so a week whose open slot
+  only a 0-point pickup could fill now counts as covered; points and places are unchanged. `judgeOf` over all is the same.
+- A unit test reads a replay in data form (ids that aren't names, a name with a number in it, which the words would read
+  wrongly) and gets what the words tests get.
+
+The second run moved `judge`'s numbers by the computer players' variation between runs (JUDGE.md has today's): Weekly Lineup's
+covered forgetter 67% → 29% (P4's run: 20%), the tinkerer's median finish 13% → 0%. The away-favourites comparison came out the
+same as P4's (Outlast to the end from mid-season: 53% → first, first or level in 6 against 3).
+
+**The looks at 390 as the forgetter** (`playtest-looks.js`, now `--as=<seat>`, `--reveal=N`, `--moves`). The replays mark
+every episode watched for everyone, and the app never moves a player's mark back (`follows.ts setFollow`), so `--reveal=N`
+first puts that seat where someone who has watched through N - 1 is, in both designs' marks (`watchedThrough`: its follow of the
+kept zt- copy with `finished_at` kept as follows.ts keeps it, and its `results_seen_through` on the kept games), before each
+couch's pages so every couch's shots start from the same place. Then it taps Reveal Episode N on Tonight and screenshots each
+beat. `--moves` opens Tonight's Set lineup. What they showed (details and repros in
+[PLAYTEST-REPORT.md](PLAYTEST-REPORT.md)):
+- **Finding 11, corrected.** The praise for a lineup nobody set is only in classic's team-lines prompt (`buildLeaguePrompt`'s
+  "Notable:", for an AI chat). The new design's reveal of the forgotten episode says "Nobody started this episode · 0" and the
+  table, honestly, but not what forgetting cost.
+- **Finding 13, as the forgetter sees it:** "Set your lineup · 1 open slot" on Tonight, and the sheet with Steven on the bench
+  (15.5 points) beside the open slot, two weeks running.
+- **Finding 4, as a player sees it:** a draft that dead-ended at pick 15 leaves "Your turn to draft" at the top of the
+  forgetter's Tonight every week after, and the late joiner on 0 with no team.
+- **Finding 15 (new, low):** the Games page heads every Weekly Lineup "Start your best three each week", whatever its lineup
+  (4 here).
+
+**A harness bug the looks found, fixed:** `run --keep` set the clock on Survivor 49's copy wrong. That season has no listed
+episode rows (its times come from the premiere and its air time), and the premiere moved by a rounded number of days, so
+"episode 10 airs in two hours" put it in the past: locked, no Set lineup card. Such a season's premiere now moves by the days
+that keep the episode ahead (`--before`: within a day) or aired (`--through`), and the run says how far it is ("airs in 14.8
+hours"). The reveal's table beat moves from before to after at 700 ms, so the looks now wait 1.5 s a beat before the screenshot.
+
+Unit tests (`tests/playtest.test.js`): the measures over a replay in data form. `npm test` passes (794).
+
 ## Noticed, not fixed
 
 (Each step adds what it saw and left alone, with the step that could take it.)
@@ -590,7 +649,18 @@ From P4's rest (2026-10-28):
 - **The measures read the replays' words** (a starter's "Name 3.5 (moments)", a bench's "would have scored", a move's "picked
   X", the log's "opened a window after episode N"), so rewording one in `look` or `moves` would quietly zero a measure, and a
   name with a number in it would be cut short. Recording ids, points and flags beside the words in `look`, `moves` and
-  `waivers` (and reading those) would end it. P5, before the next new measure.
+  `waivers` (and reading those) would end it. P5, before the next new measure. **Done in P5 part 1.**
 - **Waiver moves were logged without names since P3** (`waivers` read `addId`/`dropId`; the log's are `addedCastawayId` and
   `droppedCastawayId`), so every replay's "ran" lines read "zt_pt_tinkerer:  (waivers)". Fixed in P4's rest; the replays were
   run again.
+
+From P5 part 1 (2026-10-28):
+- **The away-favourites variant's Weekly Lineup rows moved on the second run**: the forgetter's median (ties level) 67% → 43%
+  with the favourites, where P4's report says "little change". Outlast's rows came out exactly as P4's. Weekly Lineup's weekly
+  moves and the computer players' picks vary between runs; finding 14's answer (not the favourites) doesn't rest on it. P5's
+  next pass over the variants, if it matters.
+- **Full-length screenshots draw fixed bars mid-page** (the tab bar and the dock land where the viewport ended): Playwright's
+  full-page capture with fixed elements. Harness only; read the page's top for what a phone shows first.
+- **The forgetter forgot two weeks running from the start** in replay 3 (episodes 6 and 7, the game's first two): the
+  forgetter's weeks are a fixed third, spread from a starting point of its own (`movesThisWeek`), and a game that starts mid-season
+  can begin on two off weeks. As designed; the forgetter's first lineup came at episode 8.

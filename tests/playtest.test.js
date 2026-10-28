@@ -376,3 +376,62 @@ test("P4's measures over replays: over, lead changes, when it was settled, ties,
   // Ann 1 and Ann 4 came with their moments, Cy's -1 with none; Bo's 0 doesn't count.
   assert.equal(j.silent, 1 / 3);
 });
+
+test("the measures read a replay's data (ids, points, flags) where it has it, and give what its words give", () => {
+  const seats = [{ label: "Tinkerer", role: "tinkerer" }, { label: "Forgetter", role: "forgetter" }, { label: "Fan", role: "fan" }];
+  // A name with a number in it, which the words' "Name 3.5 (moments)" would read wrongly, and ids that aren't names.
+  const c = { ann: { id: "c1", name: "Ann" }, bo: { id: "c2", name: "Bo 2" }, cy: { id: "c3", name: "Cy" }, dee: { id: "c4", name: "Dee" }, eve: { id: "c5", name: "Eve" } };
+  const start = (k, points, items = []) => ({ ...c[k], points, items });
+  const bench = (k, points) => ({ ...c[k], points });
+  const did = (kind, act, ...ks) => ({ kind, act, ids: ks.map((k) => c[k].id) });
+  const lineup = {
+    config: { game: "weeklyLineup", span: "season" },
+    settings: { activeSlots: 2 },
+    seats,
+    drafted: { Forgetter: ["ann", "bo", "cy"].map((k) => ({ ...c[k], forThem: true })) },
+    episodes: [
+      // No lineup (and the app still says "Perfect lineup"): Ann and Bo 2 start by default (Cy's 5 stays on the bench).
+      { n: 1, left: [], did: { Forgetter: did("lineup", "forgot") }, asks: { Forgetter: { taps: 0, card: true } }, why: { Forgetter: { starters: [], benched: [bench("ann", 2), bench("bo", -1), bench("cy", 5)], saysKinds: ["perfect"] } }, table: [] },
+      { n: 2, left: [{ ...c.ann, method: "Voted out" }], did: { Forgetter: did("lineup", "set", "ann", "cy") }, why: { Forgetter: { starters: [start("ann", -3, [{ label: "Voted out", points: -3 }]), start("cy", 1, [{ label: "Won", points: 1 }])], benched: [bench("bo", 4)] } }, table: [] },
+      // Ann's slot is open: Bo 2 fills it.
+      { n: 3, left: [], did: { Forgetter: did("lineup", "carried", "cy") }, why: { Forgetter: { starters: [start("cy", 2, [])], benched: [bench("bo", 3)] } }, table: [{ name: "Tinkerer", total: 5 }, { name: "Forgetter", total: 0 }] },
+    ],
+  };
+  assert.deepEqual(P.defaultLineupOf(lineup), { weeks: 2, extra: 4, place: 1, placeWith: 1 });
+  const a = P.asksOf([lineup]);
+  assert.equal(a.forgot, 1);
+  assert.equal(a.idlePraise, 1);
+  // Cy's 2 came with no moments: one of the three starters who scored is silent.
+  assert.equal(P.judgeOf([{ ...lineup, problems: [], final: null, episodes: lineup.episodes.map((e) => ({ ...e, leaders: [], teamsWithNobodyLeft: [] })) }]).silent, 1 / 3);
+
+  // A pool, as the words test above has it, in data.
+  const pick = (k, correct = null) => ({ picked: k ? { id: c[k].id, name: c[k].name, correct } : null });
+  const ep = (n, left, moves, picks, table = []) => ({ n, left: left.map((k) => ({ ...c[k], method: "Voted out" })), did: moves, why: Object.fromEntries(Object.entries(picks).map(([s, k]) => [s, pick(k)])), table });
+  const pool = {
+    config: { game: "survivalPool" },
+    seats,
+    episodes: [
+      ep(1, [], { Tinkerer: did("pick", "picked", "ann"), Forgetter: did("pick", "picked", "bo"), Fan: did("pick", "picked", "ann") }, { Tinkerer: "ann", Forgetter: "bo", Fan: "ann" }),
+      ep(2, ["dee"], { Tinkerer: did("pick", "picked", "cy"), Forgetter: did("pick", "forgot"), Fan: did("pick", "picked", "cy") }, { Tinkerer: "cy", Forgetter: null, Fan: "cy" }),
+      ep(3, ["cy"], { Tinkerer: did("pick", "picked", "cy"), Forgetter: did("pick", "forgot"), Fan: did("pick", "picked", "eve") }, { Tinkerer: "cy", Forgetter: null, Fan: "eve" }, [
+        { name: "Tinkerer", streak: 2, total: 2 },
+        { name: "Fan", streak: 3, total: 3 },
+        { name: "Forgetter", streak: 1, total: 1 },
+      ]),
+    ],
+  };
+  const d = P.poolFallbackOf(pool);
+  assert.deepEqual([d.played, d.covered, d.frozen, d.weeks, d.place, d.placeWith], [{ streak: 1, total: 1 }, { streak: 3, total: 3 }, { streak: 1, total: 1 }, 2, 1, 0]);
+  // A new pick refused leaves the old one standing, and that's the pick (Bo, who survives episode 1).
+  const refused = { ...pool, episodes: [{ ...pool.episodes[0], did: { ...pool.episodes[0].did, Forgetter: did("pick", "refused", "bo") } }, ...pool.episodes.slice(1)] };
+  assert.deepEqual(P.poolFallbackOf(refused).played, { streak: 1, total: 1 });
+  // An episode with data is read only from it: a seat missing there isn't looked up in the words (names, not ids).
+  const missing = { ...pool, episodes: pool.episodes.map((e) => ({ ...e, did: { Tinkerer: e.did.Tinkerer, Fan: e.did.Fan }, moves: { Forgetter: "picked Bo 2" } })) };
+  assert.deepEqual(P.poolFallbackOf(missing).played, { streak: 0, total: 0 });
+
+  // Outlast: members' flags, not "(out)" in a name.
+  const outlast = (why) => ({ config: { game: "outlast" }, episodes: [{ n: 1, leaders: ["A", "B"], why }] });
+  const team = (...outs) => ({ members: outs.map((out, i) => ({ id: `m${i}`, name: `Ann (out) ${i}`, out })) });
+  assert.deepEqual(P.stillInBreakOf(outlast({ A: team(false, true), B: team(true, true) })), { tied: true, tiedStill: false });
+  assert.deepEqual(P.stillInBreakOf(outlast({ A: team(false), B: team(false) })), { tied: true, tiedStill: true });
+});

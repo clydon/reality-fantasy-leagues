@@ -136,6 +136,14 @@ castaways at pick 13: 16 teams of 1 need 16, and 12 are still in". (P3 part 1 nu
 
 `node scripts/dev-test/playtest.js run dancing-with-the-stars 34 --only=2,4` prints the last two.
 
+**What a player sees** (P5's look at 390, 2026-10-28: Survivor 49's replay 2, a Weekly Lineup from episode 4 for four, one team
+each, whose draft stopped at pick 15 with the forgetter's fifth pick to make). Six episodes later, the night before episode 10,
+the forgetter's Tonight still leads with "Your turn to draft · Weekly Lineup · Draft" ("1 to do before Wed"), and the Games
+page's dock says "Your draft turn · Draft". Nobody's left to pick, so the move can never be made, and it's been the top of
+Tonight every week since the draft. The fan, who joined late at episode 7, is 4th on 0 with no team at all. Repro: `node
+scripts/dev-test/playtest.js run survivor 49 --only=2 --before=10 --keep`, then `node scripts/dev-test/playtest-looks.js
+deadend10 --as=forgetter --pages=tonight,games` (the lane's server); `playtest.js down` after.
+
 **A direction.** Don't offer one-team-each Outlast when people outnumber the cast still in, or offer castaways on several teams
 (shared) instead. Classic's ownership switch (and Game settings' team size) could refuse a shape the cast can't fill, as the
 waiver recommendation's feasibility check already does (`WaiverLogic.recommend`: `T * R > C`).
@@ -348,6 +356,16 @@ scripts/dev-test/playtest.js says 4` prints `zt_pt_forgetter, episode 4: lineup 
 **A direction.** No lineup, no lines about the calls: say what happened instead ("No lineup for Episode 4: your team would have
 scored 6"), which also tells the forgetter what forgetting cost.
 
+**Where it reaches a player** (P5's look at 390 as the forgetter, 2026-10-28; corrects the above). `episodeTeamBullets` is read
+only by `buildLeaguePrompt`: classic's Scoreboard "why it mattered" lines, where the commissioner copies one prompt into an AI
+chat and pastes its lines back. The praise is the prompt's "Notable:" line, so it reaches the forgetter only if the AI repeats
+it. The new design never shows those lines. Its reveal of the forgotten episode is honest: "Your Weekly Lineup · Nobody started
+this episode · 0", then the table ("You're 3rd, 4.5 behind zt_pt_driveby"), and Tonight's "Your night" reads "0 · Nobody
+started". What it doesn't say is what forgetting cost (the direction's "your team would have scored 6"). So: low, and only in
+classic's team lines; the cost line is the new design's to add. Repro: `node scripts/dev-test/playtest.js run survivor 49
+--only=2 --through=4 --keep`, then `node scripts/dev-test/playtest-looks.js forgot4 --as=forgetter --reveal=4` (the lane's
+server; it sets the forgetter's own progress on the zt- copy back to episode 3 so Tonight offers the reveal).
+
 ### 12. Survival Pool: the heaviest weekly ask, and one missed week ends a season (medium; design, for P5 or the user)
 
 Every week asks a pick of everyone (above), and a missed one resets the streak the pool ranks by. The forgetter finishes last or
@@ -376,6 +394,17 @@ replay, `defaultLineupOf` in `playtest.js` on its JSON.
 
 **A direction.** An open slot fills itself at lock time from the bench, in draft order (or by points so far), and the reveal
 says so ("Ann started for you: Bo went home"). Setting your lineup still wins.
+
+**As the forgetter sees it** (P5's look at 390, 2026-10-28: Survivor 49's replay 3, a blind-draft Weekly Lineup from the merge
+for eight, 4 start and 2 on the bench, the night before episode 10). Tonight leads with "Set your lineup · 1 open slot · locks
+Wed 8:00 PM". The moves sheet says "Start 4 of your 4": Kristina, Sophi and Sophie starting, Steven on the bench with 15.5
+points, Alex (out at 9) and MC (out at 8) greyed, and an "Open slot · Start someone". The slot has been open since MC went
+home at 8, with Steven beside it on the bench both weeks. Games has them 8th of 8 on 30 with the dock "1 open slot · Set". For
+someone who opens the app it's two taps; for the forgetter it's nothing, and the direction above would have started Steven.
+On the second run of the replays (P5, the measures reading data), the covered forgetter's median moved 67% → 29% (20% on P4's
+run): computer players vary between runs; the direction holds. Repro: `node scripts/dev-test/playtest.js run survivor 49
+--only=3 --before=10 --keep`, then `node scripts/dev-test/playtest-looks.js openslot10 --as=forgetter --moves
+--pages=tonight,games`.
 
 ### 14. Someone away from the draft: "first on the list" is the fairer stand-in; the favourites would make missing the draft pay (low; the draft's Pick for them, and the GPT plan's `extras.draft.away`)
 
@@ -422,3 +451,20 @@ the forgetter 7th of 8 → 1st.
   replays had weekly waiver weeks, the replacements autofilled at random for anyone who doesn't claim. Windows by hand are the
   recommendation only where free agents are short.
 - **Weekly Lineup's default lineup** and **Survival Pool's made-for-you pick**: findings 13 and 12.
+
+## From P5's looks (2026-10-28: the forgetter at 390)
+
+### 15. The Games page says "Start your best three each week" whatever the game's lineup (low; the new design, `src/new/games.ts`)
+
+The Games page heads each game with its one-liner (`GAME_STYLE`, `games.ts`; read by `lineOf` in the show's Games page), and
+Weekly Lineup's is fixed: "Start your best three each week." A game with another lineup says the same. On Survivor 49's replay 3
+(4 start, 2 on the bench: "big" in the matrix) the Games page says "best three" while the moves sheet above it says "Start 4 of
+your 4". A small one (2 start) would read the same. The landing and the solo hub say "three" too, but there it's the preset
+described, which is fine.
+
+**Repro.** `node scripts/dev-test/playtest.js run survivor 49 --only=3 --before=10 --keep`, then `node
+scripts/dev-test/playtest-looks.js openslot10 --as=forgetter --pages=games --moves`
+(`rfl-tapes\replays\shots\survivor-49-3-openslot10-games.png` and `-moves.png`). `playtest.js down` after.
+
+**A direction.** The line from the game's own settings ("Start your best 4 each week"), as the moves sheet's "Start 4 of your 4"
+already is, or a line without the number.

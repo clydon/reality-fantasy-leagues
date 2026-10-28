@@ -594,7 +594,10 @@ const castName = (s, id) => s.castaways.find((c) => c.id === id)?.name ?? id;
 const listOrder = (s) => s.castaways.map((c) => c.id);
 const namesOf = (s) => Object.fromEntries(s.castaways.map((c) => [c.id, c.name]));
 
-/** The draft, through the draft room's writes: the turn-based one turn by turn, the blind one each locking in. */
+/**
+ * The draft, through the draft room's writes: the turn-based one turn by turn, the blind one each locking in. Each seat's
+ * picks in words (r.draft: "Ann (picked for them)") and as data (r.drafted: [{ id, name, forThem }]).
+ */
 async function draft(r) {
   const { draft: D, S, Bots } = appCode();
   const lead = r.users[r.seats[0].username];
@@ -602,6 +605,7 @@ async function draft(r) {
   let s = await D.startDraft(leadActor, r.leagueId);
   const shared = s.settings.ownershipMode === "shared";
   const picks = {};
+  const drafted = {};
   // A seat's order over `ids` by its habit, and someone away's when they get the room's favourites (--away=favourites: what
   // the app knows, then `lists`, the others' own orders or locked teams).
   const orderOf = (seat, ids) => prefer(seat, ids, { ratings: Bots.ratings(s, LEVELS[ROLES[seat.role].level]), listOrder: listOrder(s), names: namesOf(s) });
@@ -628,6 +632,7 @@ async function draft(r) {
       const actor = forgot ? leadActor : { user: r.users[seat.username], membership: await memberOf(r.leagueId, r.users[seat.username].id) };
       ({ state: s } = await D.pickInDraft(actor, r.leagueId, order[0]));
       (picks[seat.label] ||= []).push(`${castName(s, order[0])}${forgot ? " (picked for them)" : ""}`);
+      (drafted[seat.label] ||= []).push({ id: order[0], name: castName(s, order[0]), forThem: forgot });
     }
     const turn = S.currentDraftTurn(s);
     if (turn && !turn.isComplete) r.problems.push(`The draft stopped at pick ${s.draftPicksMade + 1}: nobody's turn the replay could take`);
@@ -650,12 +655,18 @@ async function draft(r) {
       const actor = forgot ? leadActor : { user: r.users[seat.username], membership: await memberOf(r.leagueId, r.users[seat.username].id) };
       s = await D.lockBlindFor(actor, r.leagueId, pid, ids);
       picks[seat.label] = ids.map((id) => castName(s, id) + (forgot ? " (locked in for them)" : ""));
+      drafted[seat.label] = ids.map((id) => ({ id, name: castName(s, id), forThem: forgot }));
     }
     if (!S.BlindDraftLogic.isRevealed(s)) r.problems.push("The blind draft didn't reveal once everyone had locked in");
   }
   s = await stateOf(r.leagueId);
-  for (const b of r.bots) picks[`${b.name} (computer)`] = s.castaways.filter((c) => (c.ownerIds || []).includes(b.id)).map((c) => c.name);
+  for (const b of r.bots) {
+    const team = s.castaways.filter((c) => (c.ownerIds || []).includes(b.id));
+    picks[`${b.name} (computer)`] = team.map((c) => c.name);
+    drafted[`${b.name} (computer)`] = team.map((c) => ({ id: c.id, name: c.name, forThem: false }));
+  }
   r.draft = picks;
+  r.drafted = drafted;
 }
 
 // ---------- each week ----------
@@ -667,13 +678,20 @@ function teamOf(s, pid) {
 
 /**
  * Every seat's move for the episode coming up, by its habit, through the routes' own writes. Each seat's move in words
- * (returned), and in r.asks[n] what the week asked of it: { kind, card (the app showed a move to make: a lineup with an
- * open slot, a pick not made), taps (TAPS) }.
+ * (returned), the same as data in r.did[n] ({ kind: "lineup" | "pick", act, ids }: act set, looked, kept, carried, forgot,
+ * refused, picked, notTaken, nobodyLeft or noEpisode; ids the lineup or pick it left), and in r.asks[n] what the week asked
+ * of it: { kind, card (the app showed a move to make: a lineup with an open slot, a pick not made), taps (TAPS) }.
  */
 async function moves(r, n) {
   const { S, Bots, withLeagueLock } = appCode();
   const week = {};
   const asks = ((r.asks ||= {})[n] = {});
+  const did = ((r.did ||= {})[n] = {});
+  // A seat's move, in words and as data.
+  const say = (label, words, kind, act, ids = []) => {
+    week[label] = words;
+    did[label] = { kind, act, ids };
+  };
   let s = await stateOf(r.leagueId);
   if (!S.inPlay(s, n)) return week;
   const type = S.getLeagueType(s);
@@ -685,7 +703,7 @@ async function moves(r, n) {
     s = await stateOf(r.leagueId);
     const episode = s.episodes.find((e) => e.number === n);
     if (!episode) {
-      week[seat.label] = "no episode to choose for";
+      say(seat.label, "no episode to choose for", null, "noEpisode");
       continue;
     }
     // Outlast: nothing to do between episodes.
@@ -708,12 +726,13 @@ async function moves(r, n) {
         want = prefer(seat, mine, { ratings, key: "points", how: role.moves === "best" ? "rank" : role.moves, listOrder: listOrder(s), names: namesOf(s) }).slice(0, slots);
       }
       if (!want) {
-        week[seat.label] = current.length ? `kept ${carried ? "last week's lineup (carried)" : "its lineup"}: ${current.map((id) => castName(s, id)).join(", ")}` : "no lineup (forgot)";
+        if (current.length) say(seat.label, `kept ${carried ? "last week's lineup (carried)" : "its lineup"}: ${current.map((id) => castName(s, id)).join(", ")}`, "lineup", carried ? "carried" : "kept", current);
+        else say(seat.label, "no lineup (forgot)", "lineup", "forgot");
         continue;
       }
       ask.taps = lineupTaps(current, want);
       if (current.length && !carried && want.length === current.length && want.every((id) => current.includes(id))) {
-        week[seat.label] = `looked, kept ${want.map((id) => castName(s, id)).join(", ")}`;
+        say(seat.label, `looked, kept ${want.map((id) => castName(s, id)).join(", ")}`, "lineup", "looked", want);
         continue;
       }
       try {
@@ -722,9 +741,9 @@ async function moves(r, n) {
           if (problem) throw new Error(problem);
           S.setActiveRosterLineup(st, episode.id, pid, want);
         });
-        week[seat.label] = `set ${want.map((id) => castName(s, id)).join(", ")}`;
+        say(seat.label, `set ${want.map((id) => castName(s, id)).join(", ")}`, "lineup", "set", want);
       } catch (e) {
-        week[seat.label] = `couldn't set a lineup: ${e.message}`;
+        say(seat.label, `couldn't set a lineup: ${e.message}`, "lineup", "refused", current);
         r.problems.push(`Episode ${n}: ${seat.label}'s lineup refused: ${e.message}`);
       }
     } else if (type.hasWeeklyPicks) {
@@ -732,13 +751,16 @@ async function moves(r, n) {
       const existing = S.PickEmLogic.pickFor(s, episode.id, pid);
       // Tonight's "Pick who survives" card: every episode, until a pick is in.
       const ask = (asks[seat.label] = { kind: "pick", card: !existing && available.length > 0, taps: 0 });
+      const kept = () => say(seat.label, `kept ${castName(s, existing.castawayId)}`, "pick", "kept", [existing.castawayId]);
       if (!available.length) {
-        week[seat.label] = existing ? `kept ${castName(s, existing.castawayId)}` : "nobody left to pick";
+        if (existing) kept();
+        else say(seat.label, "nobody left to pick", "pick", "nobodyLeft");
         continue;
       }
       const lazy = role.moves === "once";
       if (!on && !lazy) {
-        week[seat.label] = existing ? `kept ${castName(s, existing.castawayId)}` : "no pick (forgot)";
+        if (existing) kept();
+        else say(seat.label, "no pick (forgot)", "pick", "forgot");
         continue;
       }
       const ratings = Bots.ratings(s, LEVELS[role.level]);
@@ -749,9 +771,10 @@ async function moves(r, n) {
           S.setPickEmPick(st, episode.id, pid, pick);
         });
         const now = S.PickEmLogic.pickFor(await stateOf(r.leagueId), episode.id, pid);
-        week[seat.label] = now && now.castawayId === pick ? `picked ${castName(s, pick)}` : `tried ${castName(s, pick)}, not taken`;
+        if (now && now.castawayId === pick) say(seat.label, `picked ${castName(s, pick)}`, "pick", "picked", [pick]);
+        else say(seat.label, `tried ${castName(s, pick)}, not taken`, "pick", "notTaken", now ? [now.castawayId] : []);
       } catch (e) {
-        week[seat.label] = `couldn't pick: ${e.message}`;
+        say(seat.label, `couldn't pick: ${e.message}`, "pick", "refused", existing ? [existing.castawayId] : []);
         r.problems.push(`Episode ${n}: ${seat.label}'s pick refused: ${e.message}`);
       }
     }
@@ -765,7 +788,8 @@ const wipedOut = (r, s) => r.seats.filter((x) => pidOf(r, x) && s.castaways.some
 /**
  * A waiver week that's open: each seat's claim by habit (the forgetter none: autofill decides), then Process now. Also what
  * it asked of each seat (`asks`: the "Pick who comes in" card when a replacement's owed, the claim's taps) and the teams
- * with nobody left before and after it ran (`backIn`: who got someone back).
+ * with nobody left before and after it ran (`backIn`: who got someone back). The claims and what ran in words (`claims`,
+ * `ran`) and as data beside them (`pairs`: each seat's claim, { addId, dropId }; `moved`: { seat, addId, dropId, via }).
  */
 async function waivers(r, n) {
   const { S, Bots, Waivers, withLeagueLock } = appCode();
@@ -773,7 +797,7 @@ async function waivers(r, n) {
   const W = S.WaiverLogic;
   const period = W.current(s);
   if (!period || period.phase !== "open") return null;
-  const out = { episode: period.episode, window: !!period.window, byHand: period.openedBy === "commissioner", claims: {}, asks: {}, wiped: wipedOut(r, s) };
+  const out = { episode: period.episode, window: !!period.window, byHand: period.openedBy === "commissioner", claims: {}, pairs: {}, asks: {}, wiped: wipedOut(r, s) };
   for (const seat of r.seats) {
     const pid = pidOf(r, seat);
     if (!pid) continue;
@@ -797,6 +821,7 @@ async function waivers(r, n) {
         if (res.error) throw new Error(res.error);
       });
       out.claims[seat.label] = pairs.map((p) => `${castName(s, p.addId)} for ${castName(s, p.dropId)}`).join("; ");
+      out.pairs[seat.label] = pairs.map((p) => ({ addId: p.addId, dropId: p.dropId }));
     } catch (e) {
       out.claims[seat.label] = `refused: ${e.message}`;
     }
@@ -807,6 +832,7 @@ async function waivers(r, n) {
   const after = await stateOf(r.leagueId);
   const log = (after.midSeason?.log || []).filter((x) => x.periodId === period.id || x.episode === n);
   out.ran = log.map((x) => `${nameIn(after, x.playerId)}: ${x.addedCastawayId ? `+${castName(after, x.addedCastawayId)}` : ""}${x.droppedCastawayId ? ` -${castName(after, x.droppedCastawayId)}` : ""}${x.via ? ` (${x.via})` : ""}`);
+  out.moved = log.map((x) => ({ seat: seatOf(r, x.playerId)?.label ?? nameIn(after, x.playerId), addId: x.addedCastawayId || null, dropId: x.droppedCastawayId || null, via: x.via || null }));
   const still = wipedOut(r, after);
   out.backIn = out.wiped.filter((label) => !still.includes(label));
   return out;
@@ -926,7 +952,11 @@ function standings(s, S) {
 }
 const rankKey = (x) => (x.streak !== undefined ? x.streak * 1000 + x.total : x.total);
 
-/** One episode in one game: standings, points and why, who went home, teams with nobody left, the lead, ties. */
+/**
+ * One episode in one game: standings, points and why, who went home, teams with nobody left, the lead, ties. Each in
+ * words for reading (`out`, a line's `started`, `bench`, `says`, `pick`, `team`) and, for the measures, as data beside
+ * them (`left`, a line's `starters`, `benched`, `saysKinds`, `picked`, `members`: ids, points, flags).
+ */
 function look(r, s, n, prev) {
   const { S, breakdown, bullets } = appCode();
   const view = S.SpoilerLogic.viewThrough(s, n);
@@ -935,7 +965,8 @@ function look(r, s, n, prev) {
   const table = standings(view, S).map((x) => ({ ...x, name: label(x.name) }));
   const before = prev ? new Map(prev.table.map((x) => [x.playerId, x])) : new Map();
   const ep = s.episodes.find((e) => e.number === n);
-  const out = ep ? s.castaways.filter((c) => c.exitEpisodeId === ep.id).map((c) => `${c.name} (${c.exitMethod || "out"})`) : [];
+  const gone = ep ? s.castaways.filter((c) => c.exitEpisodeId === ep.id) : [];
+  const out = gone.map((c) => `${c.name} (${c.exitMethod || "out"})`);
   const top = table.length ? rankKey(table[0]) : 0;
   const leaders = table.filter((x) => rankKey(x) === top).map((x) => x.name);
   const type = S.getLeagueType(s);
@@ -945,15 +976,22 @@ function look(r, s, n, prev) {
     const line = { gained };
     if (ep && type.hasActiveRoster) {
       const b = breakdown(view, ep.id, x.playerId);
+      const said = bullets(view, ep.id, x.playerId);
       line.started = b.started.map((l) => `${l.c.name} ${l.points}${l.items.length ? ` (${l.items.map((i) => `${i.label} ${i.points}`).join(", ")})` : ""}`);
       line.bench = b.benched.filter((l) => l.points).map((l) => `${l.c.name} would have scored ${l.points}`);
-      line.says = bullets(view, ep.id, x.playerId).map((b2) => b2.text);
+      line.says = said.map((b2) => b2.text);
+      line.starters = b.started.map((l) => ({ id: l.c.id, name: l.c.name, points: l.points, items: l.items.map((i) => ({ label: i.label, points: i.points })) }));
+      // Everyone on the bench, those who'd have scored nothing too (the words list only those who would have).
+      line.benched = b.benched.map((l) => ({ id: l.c.id, name: l.c.name, points: l.points }));
+      line.saysKinds = said.map((b2) => b2.kind);
     } else if (ep && type.hasWeeklyPicks) {
       const pick = S.PickEmLogic.pickFor(view, ep.id, x.playerId);
       line.pick = pick ? `${castName(s, pick.castawayId)}${pick.correct === false ? " (went home)" : pick.correct === true ? " (survived)" : ""}` : "none";
+      line.picked = pick ? { id: pick.castawayId, name: castName(s, pick.castawayId), correct: pick.correct ?? null } : null;
     } else {
       const team = view.castaways.filter((c) => (c.ownerIds || []).includes(x.playerId));
       line.team = team.map((c) => `${c.name}${c.status === "eliminated" ? " (out)" : ""}`);
+      line.members = team.map((c) => ({ id: c.id, name: c.name, out: c.status === "eliminated" }));
     }
     why[x.name] = line;
   }
@@ -965,6 +1003,7 @@ function look(r, s, n, prev) {
   return {
     n,
     out,
+    left: gone.map((c) => ({ id: c.id, name: c.name, method: c.exitMethod || null })),
     table,
     leaders,
     leadChange: !!prev && prev.leaders.join("|") !== leaders.join("|"),
@@ -1033,6 +1072,7 @@ async function run(show, season, opts) {
       problems: [],
       episodes: [],
       weeks: {},
+      did: {},
       asks: {},
       waivers: [],
       opts: v,
@@ -1089,6 +1129,7 @@ async function run(show, season, opts) {
       const prev = r.episodes[r.episodes.length - 1] || null;
       const e = look(r, s, ep, prev);
       e.moves = r.weeks[ep] || {};
+      e.did = r.did[ep] || {};
       e.results = { quick: filed.quick.message, full: filed.full.message };
       e.stillInIt = stillInIt(e, [...r.episodes, e], (s.settings.endEpisode ?? E) - ep);
       e.asks = r.asks[ep] || {};
@@ -1136,18 +1177,28 @@ async function run(show, season, opts) {
     // replay ran with every episode still to air). --before=N: N airs in two hours; else the last played aired 12 hours ago.
     const stop = Number(opts.before) || Math.min(through, E);
     // The episode's time as the app works it out (a listed row, else from the ones before it or the premiere).
-    const at = (await appCode().schedules([copy.seasonId])).get(copy.seasonId)?.episodes.find((e) => e.number === stop)?.airAt;
+    const airAtOf = async () => (await appCode().schedules([copy.seasonId])).get(copy.seasonId)?.episodes.find((e) => e.number === stop)?.airAt;
+    const at = await airAtOf();
     if (at) {
       const want = Date.now() + (opts.before ? 2 : -12) * 3600_000;
       const secs = Math.round((want - new Date(at).getTime()) / 1000);
-      // Everything the schedule reads moves together: the listed rows and a drop to the second, the premiere (a date) to the day.
+      // Everything the schedule reads moves together: the listed rows and a drop to the second, the premiere (a date) by
+      // whole days. A season with no listed rows (Survivor 49's copy) has its times from the premiere and its air time, so
+      // its days are the ones that keep the episode at least two hours ahead (--before: within a day) or two hours aired
+      // (--through), never a rounding (or a clock change) that puts it on the wrong side of now (aired, so locked, when the
+      // look is before it).
+      const listed = (await one("SELECT count(*)::int AS n FROM season_episodes WHERE season_id = $1", [copy.seasonId])).n > 0;
+      const late = (Date.now() - new Date(at).getTime()) / DAY;
+      const days = listed ? Math.round(secs / 86400) : opts.before ? Math.ceil(late + 2 / 24) : Math.floor(late - 2 / 24);
       await appCode().pool.query("UPDATE season_episodes SET air_at = air_at + make_interval(secs => $2) WHERE season_id = $1", [copy.seasonId, secs]);
       await appCode().pool.query("UPDATE show_seasons SET premiere_date = premiere_date + ($2::int), drop_at = drop_at + make_interval(secs => $3) WHERE id = $1", [
         copy.seasonId,
-        Math.round(secs / 86400),
-        secs,
+        days,
+        listed ? secs : days * 86400,
       ]);
-      console.log(`the copy's clock: episode ${stop} ${opts.before ? "airs in two hours" : "aired 12 hours ago"}`);
+      const now = await airAtOf();
+      const hours = now ? Math.round((new Date(now).getTime() - Date.now()) / 360_000) / 10 : null;
+      console.log(`the copy's clock: episode ${stop} ${hours === null ? "(no time)" : hours >= 0 ? `airs in ${hours} hours` : `aired ${-hours} hours ago`}`);
     } else console.log(`the copy's clock wasn't moved: the schedule has no time for episode ${stop}, so the looks read every episode as still to come`);
     console.log(`kept: the games are on ${SLUG(show)} ${season}, season ${copy.seasonId} (sign in as zt_pt_tinkerer, ${PASSWORD}); down when done`);
     for (const r of replays) console.log(`  couch ${r.couchId}: ${r.n}. ${r.name}`);
@@ -1198,6 +1249,7 @@ function summarize(r, s, show, season, copy, results) {
     computer: r.bots || [],
     settings: r.settings || null,
     draft: r.draft || null,
+    drafted: r.drafted || null,
     log: r.log,
     problems: r.problems,
     episodes: r.episodes,
@@ -1297,6 +1349,63 @@ const share = (xs) => (xs.length ? xs.filter(Boolean).length / xs.length : null)
 /** A name as a replay wrote it, without its bracket: "Ann Lee (Voted out)" → "Ann Lee". */
 const bare = (text) => String(text).replace(/ \([^)]*\)$/, "");
 
+// ---------- a replay's facts, for the measures: its data, else (a file from before it had any) its words ----------
+// Since P5, look, moves, the draft and waivers record ids, points and flags beside their words (an episode's `left` and
+// `did`, a line's `starters`, `benched`, `saysKinds`, `picked`, `members`, the record's `drafted`). A file from before has
+// only the words, read as they were. Either way a castaway is a key: its id from the data, else its name from the words
+// (a file is all one or all the other). Pure.
+
+/** Who left in an episode, as keys. */
+const leftKeys = (e) => (e.left ? e.left.map((c) => c.id) : (e.out || []).map(bare));
+/** A lineup line's starters: [{ key, points, explained (it came with the moments that scored) }]. */
+function startersOf(w) {
+  if (!w) return [];
+  if (w.starters) return w.starters.map((l) => ({ key: l.id, points: l.points, explained: l.items.length > 0 }));
+  // As look() writes one: "Name 3.5 (Perfect score 3, Performed multiple dances 0.5)", the brackets only with moments.
+  return (w.started || []).map((t) => /^(.*?) (-?\d+(?:\.\d+)?)( \(.*\))?$/.exec(t)).filter(Boolean).map((m) => ({ key: m[1], points: Number(m[2]), explained: !!m[3] }));
+}
+/** A lineup line's bench: Map key → what they'd have scored (the words list only those who'd have scored something). */
+function benchOf(w) {
+  if (!w) return new Map();
+  if (w.benched) return new Map(w.benched.map((l) => [l.id, l.points]));
+  return new Map((w.bench || []).map((b) => /^(.*) would have scored (-?\d+(?:\.\d+)?)$/.exec(b)).filter(Boolean).map((m) => [m[1], Number(m[2])]));
+}
+/** A pool line's pick: { key, name } or null (none). */
+function pickOf(w) {
+  if (!w) return null;
+  if ("picked" in w) return w.picked ? { key: w.picked.id, name: w.picked.name } : null;
+  return w.pick && w.pick !== "none" ? { key: bare(w.pick), name: bare(w.pick) } : null;
+}
+/** An Outlast line's team: how many of them are still in. */
+const stillInOf = (w) => (!w ? 0 : w.members ? w.members.filter((c) => !c.out).length : (w.team || []).filter((t) => !/ \(out\)$/.test(t)).length);
+/** Whether the app praised a lineup line's calls ("Good call benching ...", "Perfect lineup"). */
+const praisedOf = (w) => !!w && (w.saysKinds ? w.saysKinds.some((k) => k === "benchSaved" || k === "perfect") : (w.says || []).some((t) => /^(Good call benching|Perfect lineup)/.test(t)));
+/**
+ * A pool seat's move in an episode: { pick (a key, or null), forgot }, or null (no move that week). The data's pick is the
+ * one that stands (a refused or not-taken new pick leaves the old one in `ids`); the words read only "picked" and "kept".
+ * An episode with data is read only from it, so its keys are ids throughout.
+ */
+function poolMoveOf(e, label) {
+  if (e.did) {
+    const d = e.did[label];
+    return d ? { pick: d.ids[0] ?? null, forgot: d.act === "forgot" } : null;
+  }
+  const move = (e.moves || {})[label];
+  if (!move) return null;
+  const m = /^(?:picked|kept) (.*)$/.exec(move);
+  return { pick: m ? m[1] : null, forgot: move === "no pick (forgot)" };
+}
+/** Whether a seat set no lineup for an episode (forgot). */
+function forgotLineup(e, label) {
+  if (e.did) return !!e.did[label] && e.did[label].kind === "lineup" && e.did[label].act === "forgot";
+  return (e.moves || {})[label] === "no lineup (forgot)";
+}
+/** A seat's draft, as keys in the order picked, or null (no draft for them). */
+function draftedOf(x, label) {
+  if (x.drafted) return x.drafted[label] ? x.drafted[label].map((d) => d.id) : null;
+  return x.draft && x.draft[label] ? x.draft[label].map((n) => n.replace(/ \((picked|locked in) for them\)$/, "")) : null;
+}
+
 /**
  * A Weekly Lineup replay's forgetter with a default lineup (the report's direction: the draft's first picks start until you
  * choose, and an open slot fills itself), worked out from the replay alone: each week their lineup was short (none set, or
@@ -1307,23 +1416,21 @@ const bare = (text) => String(text).replace(/ \([^)]*\)$/, "");
 function defaultLineupOf(x) {
   const seat = x.seats.find((s) => s.role === "forgetter");
   const last = x.episodes[x.episodes.length - 1];
-  const picks = seat && x.draft && x.draft[seat.label];
-  if (!x.config || x.config.game !== "weeklyLineup" || !seat || !last || !picks || last.table.length < 2) return null;
+  const drafted = seat && draftedOf(x, seat.label);
+  if (!x.config || x.config.game !== "weeklyLineup" || !seat || !last || !drafted || last.table.length < 2) return null;
   const slots = (x.settings && x.settings.activeSlots) || 3;
-  const drafted = picks.map((n) => n.replace(/ \((picked|locked in) for them\)$/, ""));
   const outAt = new Map();
-  for (const e of x.episodes) for (const o of e.out || []) if (!outAt.has(bare(o))) outAt.set(bare(o), e.n);
+  for (const e of x.episodes) for (const k of leftKeys(e)) if (!outAt.has(k)) outAt.set(k, e.n);
   let weeks = 0;
   let extra = 0;
   for (const e of x.episodes) {
     const why = (e.why || {})[seat.label];
     if (!why) continue;
-    // A starter as look() wrote it: "Name 3.5 (moments)".
-    const started = (why.started || []).map((t) => /^(.*?) -?\d+(?:\.\d+)?(?: \(.*\))?$/.exec(t)).filter(Boolean).map((m) => m[1]);
+    const started = startersOf(why).map((l) => l.key);
     const open = slots - started.length;
     if (open <= 0) continue;
-    const bench = new Map((why.bench || []).map((b) => /^(.*) would have scored (-?\d+(?:\.\d+)?)$/.exec(b)).filter(Boolean).map((m) => [m[1], Number(m[2])]));
-    // The draft first, then anyone else on the bench (a waiver pickup; the bench lists only those who'd have scored).
+    const bench = benchOf(why);
+    // The draft first, then anyone else on the bench (a waiver pickup; an older file's bench lists only those who'd have scored).
     const fill = [...drafted.filter((n) => !(outAt.get(n) < e.n)), ...[...bench.keys()].filter((n) => !drafted.includes(n))].filter((n) => !started.includes(n)).slice(0, open);
     if (!fill.length) continue;
     weeks++;
@@ -1357,18 +1464,19 @@ function poolFallbackOf(x) {
   const roomPick = (e) => {
     const count = new Map();
     for (const [label, w] of Object.entries(e.why || {})) {
-      if (label === seat.label || !w.pick || w.pick === "none" || used.has(bare(w.pick))) continue;
-      count.set(bare(w.pick), (count.get(bare(w.pick)) || 0) + 1);
+      const p = pickOf(w);
+      if (label === seat.label || !p || used.has(p.key)) continue;
+      const c = count.get(p.key) || { name: p.name, n: 0 };
+      c.n++;
+      count.set(p.key, c);
     }
-    return [...count].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0]?.[0] ?? null;
+    return [...count].sort((a, b) => b[1].n - a[1].n || a[1].name.localeCompare(b[1].name))[0]?.[0] ?? null;
   };
   for (const e of x.episodes) {
-    const move = (e.moves || {})[seat.label];
+    const move = poolMoveOf(e, seat.label);
     if (!move) continue;
-    const out = new Set((e.out || []).map(bare));
-    const picked = /^(?:picked|kept) (.*)$/.exec(move);
-    const pick = picked ? picked[1] : null;
-    const forgot = move === "no pick (forgot)";
+    const out = new Set(leftKeys(e));
+    const { pick, forgot } = move;
     runs.played.push(!!pick && !out.has(pick));
     if (!forgot) runs.frozen.push(!!pick && !out.has(pick));
     // Covered: their own pick, unless one made for them earlier used it (then the room's, as they'd have had to pick again).
@@ -1405,7 +1513,7 @@ function stillInBreakOf(x) {
   const last = x.episodes[x.episodes.length - 1];
   if (!x.config || x.config.game !== "outlast" || !last) return null;
   const tied = last.leaders.length > 1;
-  const left = (name) => (((last.why || {})[name] || {}).team || []).filter((t) => !/ \(out\)$/.test(t)).length;
+  const left = (name) => stillInOf((last.why || {})[name]);
   const most = Math.max(...last.leaders.map(left));
   return { tied, tiedStill: tied && last.leaders.filter((n) => left(n) === most).length > 1 };
 }
@@ -1446,10 +1554,8 @@ function judgeOf(records) {
         return b ? b.total === t.total && (b.streak ?? 0) === (t.streak ?? 0) : !t.total && !t.streak;
       });
     });
-  // A starter as look() wrote it: "Name 3.5 (Perfect score 3, Performed multiple dances 0.5)", the brackets only with moments.
-  const scored = records.flatMap((x) =>
-    x.episodes.flatMap((e) => Object.values(e.why || {}).flatMap((w) => (w.started || []).map((s) => /^(.*?) (-?\d+(?:\.\d+)?)( \(.*\))?$/.exec(s)).filter((m) => m && Number(m[2]) !== 0)))
-  );
+  // Every starter who scored (startersOf), and whether their points came with the moments that scored them.
+  const scored = records.flatMap((x) => x.episodes.flatMap((e) => Object.values(e.why || {}).flatMap((w) => startersOf(w).filter((l) => l.points !== 0))));
   const played = records.filter((x) => x.episodes.length);
   return {
     replays: records.length,
@@ -1467,7 +1573,7 @@ function judgeOf(records) {
     tinkerer: median(played.map((x) => place(x, "tinkerer"))),
     forgetter: median(played.map((x) => place(x, "forgetter"))),
     problems: share(records.map((x) => (x.problems || []).length > 0)),
-    silent: scored.length ? share(scored.map((m) => !m[3])) : null,
+    silent: scored.length ? share(scored.map((l) => !l.explained)) : null,
     // The forgetter's median place (ties level) as played and covered while away: Weekly Lineup's open slots filled
     // (defaultLineupOf), a pool's missed picks made (poolFallbackOf).
     forgetterCovered: (() => {
@@ -1506,10 +1612,10 @@ function asksOf(records) {
         rows.push({ role: seat.role, taps: a.taps, card: !!a.card });
         sums[label] = { role: seat.role, taps: (sums[label]?.taps ?? 0) + a.taps };
       }
-      for (const [label, move] of Object.entries(e.moves || {})) {
-        if (move !== "no lineup (forgot)") continue;
+      for (const label of new Set([...Object.keys(e.did || {}), ...Object.keys(e.moves || {})])) {
+        if (!forgotLineup(e, label)) continue;
         forgot++;
-        if (((e.why || {})[label]?.says || []).some((t) => /^(Good call benching|Perfect lineup)/.test(t))) idlePraise++;
+        if (praisedOf((e.why || {})[label])) idlePraise++;
       }
     }
     // A whole season's taps: only from games that run the whole season (a one-episode game's would pull it down).
