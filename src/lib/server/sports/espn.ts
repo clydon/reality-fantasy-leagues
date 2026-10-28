@@ -1,5 +1,6 @@
-import { idOf, num, str } from "@/lib/sports/sport";
-import { SportsUnavailable, type BoxScore, type Competitor, type EventState, type Found, type League, type Odds, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
+import { readOdds, type EspnOdds } from "@/lib/sports/matchup";
+import { idOf, str } from "@/lib/sports/sport";
+import { SportsUnavailable, type BoxScore, type Competitor, type EventState, type Found, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
 
 // ESPN (docs/PLAN-sports-data.md, docs/HOSTING.md): free, no key, but unofficial and undocumented, with no stated rate limit or
 // terms, so it's asked little (every call is cached: cache.ts) and credited in Credits. Three hosts:
@@ -59,13 +60,8 @@ interface RawCompetition {
   /** The line, on a scoreboard before the game. */
   odds?: RawOdds[];
 }
-/** A sportsbook's line: a scoreboard's `odds[]`, a summary's `pickcenter[]`. */
-interface RawOdds {
-  provider?: { name?: string; displayName?: string };
-  details?: string;
-  overUnder?: number | string;
-  spread?: number | string;
-}
+/** A sportsbook's line: a scoreboard's `odds[]`, a summary's `pickcenter[]` (read by matchup.ts's readOdds). */
+type RawOdds = EspnOdds;
 interface RawEvent {
   id?: string | number;
   date?: string;
@@ -156,13 +152,8 @@ function readCompetitor(c: RawCompetitor): Competitor {
   };
 }
 
-/** A sportsbook's line, from a scoreboard's `competitions[0].odds[0]` (before the game; ESPN drops it after) or a summary's
- *  `pickcenter[0]` (kept after): DraftKings' "PHI -2.5" and 237.5. Null when it says nothing. */
-export function readOdds(o: RawOdds | undefined): Odds | null {
-  if (!o) return null;
-  const odds = { provider: str(o.provider?.displayName) ?? str(o.provider?.name), details: str(o.details), overUnder: num(o.overUnder), spread: num(o.spread) };
-  return odds.details || odds.overUnder != null || odds.spread != null ? odds : null;
-}
+/** A sportsbook's line (src/lib/sports/matchup.ts, shared with the phone's poller). */
+export { readOdds };
 
 /**
  * A scoreboard's events (site.api …/scoreboard), or a team's schedule's (site.api …/teams/{id}/schedule: the same events, its

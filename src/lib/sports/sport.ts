@@ -173,6 +173,8 @@ export interface EspnSummary {
     /** ESPN's season type: 1 preseason, 2 regular season, 3 postseason. */
     season?: { year?: number; type?: number };
     competitions?: {
+      /** When it starts (ISO 8601): the scheduled time before it, the first pitch or tip-off's after. */
+      date?: string;
       status?: {
         /** The period it's in or ended in (past regulation: extra time, a shootout). */
         period?: number;
@@ -313,7 +315,7 @@ export function addStats(into: Stats, d: Stats): Stats {
 }
 
 /** A wallclock as milliseconds, or null. */
-const msOf = (t: string | number | Date | null | undefined): number | null => {
+export const msOf = (t: string | number | Date | null | undefined): number | null => {
   if (t == null) return null;
   const ms = t instanceof Date ? t.getTime() : typeof t === "number" ? t : Date.parse(t);
   return Number.isFinite(ms) ? ms : null;
@@ -417,11 +419,16 @@ export abstract class TeamSport extends Sport {
   /**
    * The game as of a moment: the plays up to `at` (their times never go back: inOrder), added up. No `at`: every play. A play
    * with no time (only when none before it has one: a final with no timed plays, its correction) counts only then, so a moment
-   * never sees what can't be placed before it.
+   * never sees what can't be placed before it. Infinity is the end too; a moment that isn't one (NaN, a date that doesn't parse:
+   * a clock stored badly) counts nothing, never the whole game (a later watch's spoiler). `sides` (the teams' ids, from the
+   * header: headerTeams) start the score at 0 each, so a game before its first play still has one (a scorebug's 0-0), never the
+   * header's own.
    */
-  reduce(plays: Play[], at?: string | number | Date | null): GameState {
-    const until = msOf(at);
-    const state: GameState = { plays: 0, last: null, score: {}, lines: {} };
+  reduce(plays: Play[], at?: string | number | Date | null, sides: string[] = []): GameState {
+    const end = at == null || at === Infinity;
+    const until = end ? null : msOf(at);
+    const state: GameState = { plays: 0, last: null, score: Object.fromEntries(sides.map((id) => [id, 0])), lines: {} };
+    if (!end && until == null) return state;
     for (const p of plays) {
       const t = msOf(p.at);
       if (until != null && (t == null || t > until)) break;
@@ -476,9 +483,9 @@ export abstract class TeamSport extends Sport {
     return plays;
   }
 
-  /** The game as of a moment, from ESPN's summary: `reduce(timeline(summary), at)`. */
+  /** The game as of a moment, from ESPN's summary: `reduce(timeline(summary), at)`, its score 0-0 before the first play. */
   stateAt(summary: EspnSummary, at?: string | number | Date | null): GameState {
-    return this.reduce(this.timeline(summary), at);
+    return this.reduce(this.timeline(summary), at, headerTeams(summary).map((t) => t.id));
   }
 }
 

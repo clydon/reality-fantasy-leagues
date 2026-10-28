@@ -6,7 +6,7 @@
 //
 // Pure, and shared by the server, the phone and the tests: it reads a schedule someone already has (the provider's, read by
 // src/lib/server/sports/espn.ts) and never asks for one.
-import { num } from "./sport";
+import { num, str } from "./sport";
 
 /** A game as a schedule lists it: the provider's SportsEvent has this shape (src/lib/server/sports/types.ts). */
 export interface Game {
@@ -32,6 +32,23 @@ export interface Odds {
   details: string | null;
   overUnder: number | null;
   spread: number | null;
+}
+
+/** A sportsbook's line as ESPN writes it: a scoreboard's `competitions[0].odds[]`, a summary's `pickcenter[]`. */
+export interface EspnOdds {
+  provider?: { name?: string; displayName?: string };
+  details?: string;
+  overUnder?: number | string;
+  spread?: number | string;
+}
+
+/** A sportsbook's line, from a scoreboard's `competitions[0].odds[0]` (before the game; ESPN drops it after) or a summary's
+ *  `pickcenter[0]` (kept after): DraftKings' "PHI -2.5" and 237.5. Null when it says nothing. Pure: the server's reader
+ *  (src/lib/server/sports/espn.ts) and the phone's poller (live.ts) share it. */
+export function readOdds(o: EspnOdds | undefined): Odds | null {
+  if (!o) return null;
+  const odds = { provider: str(o.provider?.displayName) ?? str(o.provider?.name), details: str(o.details), overUnder: num(o.overUnder), spread: num(o.spread) };
+  return odds.details || odds.overUnder != null || odds.spread != null ? odds : null;
 }
 
 /**

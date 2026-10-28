@@ -92,4 +92,9 @@ async function api({ user, pass, headers = {} }) {
   return { user, call, raw };
 }
 
-module.exports = { open, api, BASE };
+// The headless Chromium alone, for a check with no app server (check-espn-browser.js: a page on its own origin asking ESPN).
+async function launch() {
+  return findPlaywright().chromium.launch({ executablePath: findChrome() });
+}
+
+module.exports = { open, api, launch, BASE };

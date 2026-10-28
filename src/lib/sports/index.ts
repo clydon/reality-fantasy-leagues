@@ -2,6 +2,7 @@
 // league's path ("baseball" of "baseball/mlb", and of "baseball/college-baseball"; "basketball" of "basketball/nba" and
 // "basketball/wnba", but not college basketball, which plays halves: a sport can name the leagues it reads; "football" of
 // "football/nfl", not college football, whose plays are written otherwise). Soccer, golf, racing, MMA and tennis come in L5.
+// A game's clock for someone (clock.ts) and a game live on the phone (live.ts) are L2's.
 import { Baseball } from "./baseball";
 import { Basketball } from "./basketball";
 import { Football } from "./football";
@@ -13,6 +14,8 @@ import hockeyDefaults from "./defaults/hockey.json";
 import type { LockCadence, TeamSport } from "./sport";
 
 export * from "./sport";
+export * from "./clock";
+export * from "./live";
 export { Baseball } from "./baseball";
 export { Basketball } from "./basketball";
 export { Football, defenseId } from "./football";

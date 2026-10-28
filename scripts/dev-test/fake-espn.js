@@ -8,7 +8,8 @@
 //   GET /apis/site/v2/sports/:sport/:league/teams/:id/schedule          a team's games in that league (only the stage asked, with
 //                                     seasontype), as ESPN's schedule lists them, else 404
 //   GET /apis/site/v2/sports/:sport/:league/summary?event=              a game's box score from its `box` (each team's lines) and its
-//                                     line (`odds`, as ESPN's pickcenter), else 404
+//                                     line (`odds`, as ESPN's pickcenter), else 404; a replayed game's summary as of its replay
+//                                     clock (below)
 //   GET /apis/common/v3/sports/:sport/:league/athletes/:id/stats?season= an athlete's season lines from `seasons` (ESPN's
 //                                     categories, each with that year's row), { categories: [] } for one it has none for
 //   GET /v2/sports, /v2/sports/:sport/leagues                           the index, as refs
@@ -26,9 +27,24 @@
 //   espn.url (pass to espn(base));  espn.asked (paths asked, in order);  espn.down = true (every call 503s);
 //   espn.events.push(...) (a game scheduled later);  await espn.close();
 //
+// A recorded game replayed live (docs/PLAN-start-a-game-gpt.md track L, step L2): its summary answers as of a replay clock, from a
+// fixture in tests/fixtures/espn/ (scripts/dev-test/espn-replay.js: the plays up to then, status pre, then in, then the recording
+// itself, final, a minute after the last play), in real time or faster:
+//   const r = espn.replay(require("../../tests/fixtures/espn/nba-401909093.json"), { speed: 60, from });
+//   // from: the game's moment it starts at (default 5 minutes before the first play); speed 1 is real time, 60 a minute a second
+//   r.at() (the replay's moment now), r.set(at), r.pause(), r.resume(), r.first / r.last / r.end (its bounds, ms), r.sport,
+//   r.down = true (its summary 503s, the others' don't)
+//   espn.answers: every replayed answer, { event, at, plays } (`at`: the moment it was as of)
+//
 // No database and no app server. Names start "ZT " so nothing it answers can be mistaken for a real team.
 const http = require("http");
+const path = require("path");
 const { eastern } = require("./fake-listings");
+const replay = require("./espn-replay");
+
+/** The sports (src/lib/sports), loaded only for a replay. */
+let sports = null;
+const sportsCode = () => (sports ??= require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } })("../../src/lib/sports/index.ts"));
 
 const words = (s) => s.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
 const holds = (name, q) => {
@@ -38,7 +54,17 @@ const holds = (name, q) => {
 };
 
 async function start(opts = {}) {
-  const espn = { asked: [], down: false, url: null, teams: opts.teams || [], leagues: opts.leagues || [], events: opts.events || [], seasons: opts.seasons || {} };
+  const espn = { asked: [], down: false, url: null, teams: opts.teams || [], leagues: opts.leagues || [], events: opts.events || [], seasons: opts.seasons || {}, replays: [], answers: [] };
+  espn.replay = (summary, { speed = 60, from } = {}) => {
+    const { league, event } = summary._recorded ?? {};
+    const sport = sportsCode().sportOf(league);
+    if (!sport) throw new Error(`no sport reads ${league}`);
+    const b = replay.bounds(summary);
+    const clock = replay.replayClock({ from: from ?? b.first - 5 * 60_000, speed });
+    const r = { ...clock, ...b, league, event: String(event), summary, sport };
+    espn.replays.push(r);
+    return r;
+  };
   const teamOf = (id) => espn.teams.find((t) => t.id === id);
   const rawTeam = (t) => ({ id: t.id, displayName: t.name, shortDisplayName: t.short, name: t.short, location: t.location, abbreviation: t.abbreviation });
   const SLUGS = { pre: [1, "preseason"], regular: [2, "regular-season"], post: [3, "post-season"] };
@@ -130,6 +156,15 @@ async function start(opts = {}) {
       return send(200, { athletes: (t.roster || []).map(athlete), coach: [{ id: "1", firstName: "ZT", lastName: "Manager" }] });
     }
     if ((m = u.pathname.match(/^\/apis\/site\/v2\/sports\/([^/]+)\/([^/]+)\/summary$/))) {
+      const r = espn.replays.find((x) => x.league === `${m[1]}/${m[2]}` && x.event === u.searchParams.get("event"));
+      if (r) {
+        if (r.down) return send(503, { message: "the stand-in ESPN is down for this game" });
+        const at = r.at();
+        const body = replay.asOf(r.summary, at, { sport: r.sport });
+        espn.answers.push({ event: r.event, at, plays: (body.plays ?? []).length + [...(body.drives?.previous ?? []), ...(body.drives?.current ? [body.drives.current] : [])].reduce((n, d) => n + (d.plays ?? []).length, 0) });
+        res.writeHead(200, { "content-type": "application/json", "access-control-allow-origin": "*", "cache-control": "max-age=5" });
+        return res.end(JSON.stringify(body));
+      }
       const e = espn.events.find((x) => x.league === `${m[1]}/${m[2]}` && x.id === u.searchParams.get("event"));
       if (!e || !e.box) return send(404, { code: 404 });
       const status = { type: { state: e.state, completed: e.state === "post" } };

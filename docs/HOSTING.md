@@ -3,7 +3,7 @@
 **Keep this current.** Update it in the same commit as any change that adds or changes polling, a scheduled
 job, stored data, or a service, and whenever usage is checked (date the numbers). It exists so that, when a
 free plan stops being enough, choosing the cheapest fit is arithmetic, not research. Last updated
-**2026-10-28** (Cost by size).
+**2026-10-28** (Cost by size; live games' polling from phones, L2 on the `sports` branch).
 
 ## The stack
 
@@ -22,7 +22,7 @@ free plan stops being enough, choosing the cheapest fit is arithmetic, not resea
 | **GIPHY** API (**no key yet**: the user's, new design step 13 part 1, on the branch) | GIFs in a watch along: what's trending and a search, asked by our server (`/api/gifs`, kept at the edge an hour per search); the pictures load from GIPHY's media CDN straight into the browser. Off until `GIPHY_API_KEY` is set (no key, no GIF button). Tenor, the other choice, closed its API on 2026-06-30 | Free. A new key is a beta key: 100 calls an hour (each distinct search, and trending, at most once an hour per edge region); past that, GIPHY's production key (applied for from its dashboard, reviewed, and they may talk pricing). "Powered by GIPHY" shown under the picker; ratings PG-13 at most | $0 |
 | **TMDB** API (`api.themoviedb.org`, show art and cast photos, 2026-10-26, on the branch) | Show posters, header images (backdrops) and logos, season posters, and a season's cast photos by name (`src/lib/server/show-art.ts`). Images hotlinked from `image.tmdb.org`, stored as plain URLs. Off until `TMDB_READ_TOKEN` is set (the user's; in `.env.local`, and Vercel needs it too) | Free key, **non-commercial only**: charging users (or ads) needs TMDB's written agreement, price on request. Data kept at most 6 months (the daily job re-asks at 150 days); on a licence ending, everything on `image.tmdb.org` must go: `UPDATE ... WHERE url LIKE 'https://image.tmdb.org/%'`. Attribution: its logo and notice on Settings › Credits. About 40 requests a second allowed | $0 |
 | **Wikipedia / Wikidata** API and **Jolpica** (`api.jolpi.ca`, F1) (2026-10-26, on the branch) | Athletes' photos for sport shows: Wikipedia's page image API returns only freely licensed (Commons) photos; Jolpica gives Formula 1's field with Wikipedia links | Free, no keys. Wikipedia rate-limits bursts (a probe got 429s after ~15 quick calls): batched, one call at a time, at most 30 searches a sweep. Commons photos need their photographer's credit | $0 |
-| **ESPN** (`site.api.espn.com`, `site.web.api.espn.com`, `sports.core.api.espn.com`; sports data, 2026-10-27, local only) | A sport season's games (each day's scoreboard), linked to its episodes; each team's roster with headshots, the Players tab's players (headshots hotlinked from `a.espncdn.com` through ESPN's resizer); a game's box score in the sport's own columns and a player's regular-season line, the Players tab's stats (or a race's places, from its scoreboard); its search (which league a season's teams are in); a team's schedule (a matchup's games, since L1 part 3) and each linked game's final and sportsbook line (`sports_events`) (`src/lib/server/sports/`, docs/PLAN-sports-data.md). Asked by our server only; every answer cached in Neon (`sports_cache`) | Free, no key, but **unofficial and undocumented**: no published terms or rate limit, and it can change without notice. Asked little (cached hard), credited in Settings › Credits and under the Players tab's roster, other sources planned for when it fails (docs/BACKLOG.md). It refuses a User-Agent with a URL in it (403), so ours is a bare `GameYourShow/1.0` | $0 |
+| **ESPN** (`site.api.espn.com`, `site.web.api.espn.com`, `sports.core.api.espn.com`; sports data, 2026-10-27, local only) | A sport season's games (each day's scoreboard), linked to its episodes; each team's roster with headshots, the Players tab's players (headshots hotlinked from `a.espncdn.com` through ESPN's resizer); a game's box score in the sport's own columns and a player's regular-season line, the Players tab's stats (or a race's places, from its scoreboard); its search (which league a season's teams are in); a team's schedule (a matchup's games, since L1 part 3) and each linked game's final and sportsbook line (`sports_events`) (`src/lib/server/sports/`, docs/PLAN-sports-data.md). Asked by our server, every answer cached in Neon (`sports_cache`); and, live (L2, on the `sports` branch, no screen yet), by phones themselves: a game's summary every 15 s while it's on and the screen's visible, straight from the browser, none of it through our server or Neon (Live games, below; a phone's IP reaches ESPN, no cookies) | Free, no key, but **unofficial and undocumented**: no published terms or rate limit, and it can change without notice. Asked little (cached hard), credited in Settings › Credits and under the Players tab's roster, other sources planned for when it fails (docs/BACKLOG.md). It refuses a User-Agent with a URL in it (403), so ours is a bare `GameYourShow/1.0`; its CDN (Akamai) also refuses a headless browser's (403), not a normal browser's, which gets `Access-Control-Allow-Origin: *` | $0 |
 | Anthropic API | Paid auto-research (Claude), only for seasons switched on | Pay per use | per episode researched |
 | Domain `gameyourshow.com` | Bought 2026-10-12 | not recorded | yearly |
 
@@ -221,6 +221,22 @@ scoreboard from three days back to a week ahead until it's final (at most 40 day
 cached), a game first seen after it started taking its summary's line (the box score the stats read anyway, cached for good), and
 sets each matchup season's status. Measured on the real 76ers home opener (2026-10-28): 5 ESPN calls in 0.5 s (the schedule, its summary for
 the line, two rosters, the next game's scoreboard), none a second time. Not backed up (asked again).
+**Live games (docs/PLAN-start-a-game-gpt.md track L, L2; on the `sports` branch, not merged; no screen uses it yet, U1)** cost
+nothing on Vercel or Neon. The phone asks ESPN's summary itself (`src/lib/sports/live.ts`): once when the page opens, then from
+the game's start every 15 s (±10%) while it's on and the screen is visible, never while hidden, backing off to 5 minutes while ESPN
+fails, and not after the final; a later watch of a finished game asks once. Live points are worked out on the phone, so nothing
+reaches our server or Neon while a game is live (no invocations, no wakers, no writes); the final box score is saved once, as
+before (`game_lines`). **ESPN's side:** 240 calls an hour for each phone watching (its CDN caches the summary 1-7 s, so a couch's
+phones mostly share an answer). **A phone's data:** every answer is the whole summary (ESPN sends no ETag, so no 304s), 45-80 KB
+over the wire for a finished game (measured 2026-10-28: NBA 49, NHL 45, NFL 53, MLB 80 KB; 0.5-1 MB unzipped), growing from a few
+KB at the start, so an estimated **15-30 MB a game** watched live with the screen on (`scripts/dev-test/record-espn-live.js`
+measures a real game). ESPN answers browsers (`Access-Control-Allow-Origin: *`) but its CDN refuses a headless browser's user
+agent, so a person's own browser is the real check (`scripts/dev-test/check-espn-browser.js`'s header). **If ESPN ever stops
+answering phones**, the fallback (not built; its shape in the plan's L2 As built) is one Vercel route forwarding the summary with
+`s-maxage=15`, so Vercel's CDN shares one ESPN call per game every 15 s per region: ~240 function invocations an hour a game a
+region; every phone's ask a CDN request (240 an hour a phone: 10 phones for 3 hours is 7,200 of Hobby's 1M a month); and its
+bytes Vercel's Fast Data Transfer (trimmed to what the readers read, ~5x smaller: a few MB a phone a game; check Hobby's
+allowance on vercel.com/pricing). Still nothing in Neon.
 
 **All of TV and the daily listings job (new design, step 11 part 2)** poll nothing and wake nothing of their own. **The job**
 (`src/lib/server/tv-listings.ts`) runs at most once an Eastern day, after the answer of a bot clock call
@@ -547,6 +563,10 @@ never handles it: the user does the reset and the pasting.
   for the couch's three Survivor 51 games, three more league rows (~the real ones' state each) and a handful of users, and every
   result accepted for the season syncs three more leagues (a few more writes on an episode night). Researched rules ask our bot
   once (the answer is kept). Remove it when done.
+- **2026-10-28, `sports` branch (not merged).** L2 (docs/PLAN-start-a-game-gpt.md track L): the phone's live poller
+  (`src/lib/sports/live.ts`): phones ask ESPN's summary themselves, every 15 s while a game is on and the screen visible. Nothing
+  new on Vercel or Neon (no route, no table, no writes); ESPN's calls 240 an hour a phone watching; a phone's data an estimated
+  15-30 MB a game. The fallback route's shape and cost written down (Live games), not built. No screen uses it yet (U1).
 - **2026-10-28, `sports` branch (not merged).** L1 part 3 (docs/PLAN-start-a-game-gpt.md track L; migration 0300): a matchup's
   games from a team's ESPN schedule (a new ESPN call: `teams/{id}/schedule`, cached 12 hours), each linked game's final and line
   kept (`sports_events`, ~430 bytes a game; the line from the scoreboard before the game, else the summary's pickcenter), matchups

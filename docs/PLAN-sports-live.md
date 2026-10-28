@@ -5,7 +5,8 @@ same engine": that's the plan now, and its order wins. The formats are built onc
 with L bringing each sport's data to them; the screens wait for its UI track (U0, U1); the steps here are renumbered there
 (0 → U0, 1 → L1, 2 → L2, 4 → L3, 5 and 6 → L4, 7 → L5, 8 → L6; 3, the Players tab, → U). This file keeps the details.
 
-Status: **planned 2026-10-27; L1 part 1 built 2026-10-28** (the framework and baseball, in `src/lib/sports/`), **and part 2:
+Status: **L2, the live clock, built 2026-10-28** (`GameClock` and the phone's poller, `src/lib/sports/clock.ts` and `live.ts`;
+fake-espn's replay; As built under track L in `docs/PLAN-start-a-game-gpt.md`), after **L1** (below). **Planned 2026-10-27; L1 part 1 built 2026-10-28** (the framework and baseball, in `src/lib/sports/`), **and part 2:
 basketball, hockey and football** (the NFL; college football later, in L5): their As built is under track L in `docs/PLAN-start-a-game-gpt.md`. Everything here lands on the `sports` branch and is **released at once** (one merge
 into master) once it's hammered into shape. Builds on `docs/PLAN-sports-data.md` (ESPN as the provider, the cache, linking a
 season's episodes to games, the cast from rosters, box-score stats once final, spans), which is live on master.
@@ -82,7 +83,12 @@ bout-by-bout or session-by-session for the rest.
   the phone.
 - **Fallback** if ESPN ever stops answering browsers: one Vercel route that forwards the summary, cached at the CDN for 15 s
   (`s-maxage`), so everyone watching a game shares one call. Still nothing in Neon.
-- docs/HOSTING.md gets the numbers when step 2 lands.
+- docs/HOSTING.md gets the numbers when step 2 lands. **Landed (L2, 2026-10-28):** `src/lib/sports/live.ts` is the poller
+  (15 s ±10% while on and visible, waiting for the start, doubling to 5 minutes while ESPN fails, stopping at the final). ESPN
+  answers a browser's request with `Access-Control-Allow-Origin: *` and `max-age` 1-7 s, no ETag; its CDN refuses a headless
+  browser's user agent (a 403), so the real-browser check is a person's (the one-liner in
+  `scripts/dev-test/check-espn-browser.js`). A phone's data: an estimated 15-30 MB a game at 15 s (the whole summary each
+  time, 45-80 KB over the wire by the end).
 
 ## The design: classes
 

@@ -419,7 +419,8 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
     HOSTING.md) and the 76ers example's game from the schedule (its recorded game is part 2's fixture) (built: As built
     below). L1 is done but its spec parts, which wait for A1-A4 on master.
 - **L2. The live clock.** The phone's poller and `GameClock` (live, synced, snapped), shared with A15; fake-espn replaying a
-  recorded game in real time or 60x; HOSTING.md.
+  recorded game in real time or 60x; HOSTING.md. (Built 2026-10-28, in one session: As built below. Its one open check, a
+  real game recorded in progress against its final, is a script waiting for a game: L2's Noticed.)
 - **L3. Live scoring through the spec.** Points per stat from box scores and plays (`score.by: stats`), live on the phone and
   saved once when final, replacing today's ChatGPT research of sports moments.
 - **L4. The formats, as the engine's pieces with sports data:** head-to-head, categories and roto (A11), best ball (A9),
@@ -565,15 +566,17 @@ Part 2's Noticed item, taken. Each difference was a count, read against ESPN's d
   for a team's question.
 - **Live plays are untested**: every check is on finished games. A live summary's at-bat start may carry the outs and score
   so far rather than the at-bat's end (ESPN updates it as the at-bat goes); the reader doesn't trust either, but L2 should
-  check a live game's plays against the same game's final (fake-espn's replay can't show it). (L2.)
+  check a live game's plays against the same game's final (fake-espn's replay can't show it). (L2.) **L2:** every answer of
+  the recorded games, cut as live, reads as the recording does but for two runs a later play settles; a real game in
+  progress is still to record (`record-espn-live.js`, L2's Noticed).
 - **Slots should take the roster's position, not the game's**: the box score gives the position played that day (DH, PH,
   PR), the roster ESPN's (SP, RP, OF: `season_cast.role`). A slot's eligibility reads the roster's. (L4.)
 - **A tie for "the most"**: the 76ers opener's top scorers tied at 32. The `stat: most` settle needs its rule (both right, as
   A4's closest number does). (L4, with A4's questions.)
-- **`GameState.score` is empty before the first play** (no teams yet): the scorebug would seed it from the header. (L2.)
+- ~~**`GameState.score` is empty before the first play**~~ (no teams yet): **done** in L2 (each side at 0 from the header).
 - **College baseball reads as Baseball but isn't checked**: its box scores are thinner (L5, with college).
-- **A game's plays are ~60% pitches** (~450 Plays, a few hundred KB as JSON): fine for the phone, which reads ESPN's summary
-  (~1 MB) anyway. (L2.)
+- ~~**A game's plays are ~60% pitches**~~ (~450 Plays, a few hundred KB as JSON): fine for the phone, which reads ESPN's summary
+  (~1 MB) anyway. **L2:** reading a whole answer takes 2-5 ms in Node, every 15 s.
 
 **L1 part 2 as built: basketball and hockey (2026-10-28, `sports`, not merged; no migration, no ESPN calls from the app,
 nothing stored).** Football, whose plays are text only, is part 2's next session.
@@ -765,7 +768,8 @@ stored).** Part 2 is done: L1 part 3 (games from ESPN's schedule) is next, or L2
   a box. (L3.)
 - **A team defense needs a cast entry**: its line is `def:<team>`, so a game's cast needs one per team for a DEF slot
   (`season_cast.provider_ids.espn = "def:12"`). (L4, with slots.)
-- **Live drives are untested**: every check is on finished games; `drives.current` is read but never seen live. (L2.)
+- **Live drives are untested**: every check is on finished games; `drives.current` is read but never seen live. (L2.) **L2:**
+  read once on the replay (also when `drives.previous` lists it too); a real game is still to record (L2's Noticed).
 - **A muffed punt's foul** (a holding call at the recovery spot): ESPN kept the return whole and the punt where it was, the one
   such case seen; the reader does too. Rare. (L3.)
 - **Baseball's reader on days part 1 didn't tune it on**: done since, in part 1's addendum (above).
@@ -832,7 +836,8 @@ GPT (G3) and the wizard (U1) will call `makeMatchup`.
 **L1 part 3 noticed, not fixed:**
 - **The line kept is the last one read before the game**, and the daily job reads once a day, so it can be up to a day older
   than the game's start. A spec's line is fixed when its game is made (from the kept one); a live game's lock could read the
-  scoreboard's line itself. (L2, the phone's poller; L3.)
+  scoreboard's line itself. (L2, the phone's poller; L3.) **L2:** the poller keeps the last line read before the start
+  (`lineAtStart`), on the phone only; the server's is L3's.
 - **A postponed game** comes from ESPN as `post` but not completed: its matchup reads as completed and its final never comes.
   ESPN moves it to a new event or date; the matchup would need its new game. (L3.)
 - **A game not final three days after it starts** (suspended, resumed later) isn't read again by the daily job, and **a game
@@ -846,6 +851,131 @@ GPT (G3) and the wizard (U1) will call `makeMatchup`.
   trim it if many teams' schedules are asked. (When the GPT asks for them, G3.)
 - **Nothing makes a matchup yet** but code: the GPT's ask (G3), the wizard (U1) or an engine lab page (A5) will call
   `makeMatchup`; a route for it comes with the first of them.
+
+**L2 as built: the live clock (2026-10-28, `sports`, not merged; no migration, nothing stored, no ESPN calls from our server;
+HOSTING.md updated).** A game's clock for someone, a game live on the phone, and every recorded game replayed through them. No
+UI.
+- **`src/lib/sports/clock.ts`** (new; pure, plain data; A15 uses it unchanged: its shape is under A15 in Steps). A `Moment` is
+  ms on the game's own clock (a sport's: ESPN's wallclock on each play; a show's: its airing's start plus the runtime). A
+  `GameClock` is `live` (now), `synced` (`{ at, wall, running }`: at the viewer's real time `wall` the game was at `at`,
+  running on or paused; never ahead of live) or `snapped` (`{ at }`; null is the end, for anyone not watching). Every function
+  takes the viewer's real time rather than reading one: `startAt` (press play), `pause`, `resume`, `nudge` (±30 s: back from
+  live is a stream's delay; forward never passes live, and a running clock that catches up is live again), `setTo` (tap the
+  last play you saw: its `playMoment`), `momentOf`, `behind`, `playAt` (the last play at or before a moment: a snapped clock's
+  play) and `stateOn` (`reduce` through a clock). For A15: `GameWindow { opens, closes }`, `isOpen`, `isLocked` (each viewer's
+  own lock), `stamp` (a call's moment on its caller's clock, the real time and which clock), `earliness` (1 at the opening, 0
+  at the close) and `unitWindow` (an at-bat, a drive or a possession, from its first play to its last).
+- **`src/lib/sports/live.ts`** (new; pure: fetch, the time, timers and the screen's visibility are passed in): `LiveGame`, the
+  phone's poller. It asks ESPN's summary (`base` plus ESPN's own path: ESPN's site API, a stand-in, or the fallback route) once
+  at `start()`, then waits for the game's start (ESPN's start time wins while it's still to start: a start moved later; asking
+  again at least every 10 minutes: one moved earlier; 0-3 s more, so a couch's phones don't ask at the start's second), then
+  every 15 s ±10% while the screen is visible; it doubles from 30 s to 5 minutes while ESPN fails (15 s again on an answer),
+  never asks while hidden (`visibilityChanged()`: back on, the next ask when it's due by the same rhythm, at once if it already
+  is), and stops once the game is final or called off (`post`). One ask at a time; a page's callback that throws never stops it. Each answer is read
+  whole by the game's Sport (`timeline`: its plays, and the final's correction once final) and **merged** (`mergeTimeline`):
+  the answer's plays win (each answer holds every play so far, read in its context, so a scoring change or a play ESPN dropped
+  reads as ESPN has it now), unless it's behind what's had (an older cache edge's: the newest play had isn't in it and its own
+  newest is one had before, or earlier) or its status goes back ("in" after "post"); then nothing changes, so times never go
+  back. An answer behind twice in a row, 15 s apart, isn't an old edge's: it's ESPN dropping its newest play (a basket wiped on
+  review), and it's taken. `state(clock)` is the game on someone's clock now, 0-0 before the first play. It keeps the sides (the
+  header's, without its score or winner), who's who (the box score's people, without their numbers) and the line: the latest,
+  and the last one read before the start (`lineAtStart`: L1 part 3's Noticed, on the phone only). Its `status`, `final` and
+  `detail` are the game's now, for asking and for someone watching live; anyone else is shown only `state(clock)`, since the
+  rest can be ahead of their clock (a later watch's spoiler). `readOdds` moved to `src/lib/sports/matchup.ts` (pure) so the phone reads the line without a server file;
+  `server/sports/espn.ts` re-exports it.
+- **`sport.ts`**: `reduce(plays, at, sides)` starts each side at 0, and `stateAt` passes the header's sides, so a game before
+  its first play has a score (L1's Noticed), never the header's own (a later watch's spoiler). Infinity is the end, as no moment
+  is; a moment that isn't one (NaN: a clock stored badly) counts nothing, never the whole game. `msOf` exported; the header's
+  `date` typed.
+- **ESPN answers browsers, as far as its headers show**: `Access-Control-Allow-Origin: *` to a request with an `Origin` (a local
+  one too) and a normal browser's user agent; `Cache-Control: max-age=1` to `7`; no ETag (so no 304s); gzip. **But its CDN
+  (Akamai) refuses a headless browser's user agent** ("HeadlessChrome": a 403 with no CORS header, which a page reports as
+  "blocked by CORS policy"). So a headless check can't ask the real ESPN, and dressing it up as a phone would be circumventing
+  a bot check (the session's auto mode refused it, rightly). A person's own browser is the real check: the one-liner in
+  `check-espn-browser.js`'s header comment, run in a phone's or a desktop's browser console before U1 ships a live screen.
+- **The fallback's shape** (built only if phones are ever refused): `GET /api/espn/apis/site/v2/sports/{sport}/{league}/summary
+  ?event=` (`src/app/api/espn/[...path]/route.ts`, that one path only): our server asks ESPN with our user agent and answers
+  with `Cache-Control: public, max-age=0, s-maxage=15, stale-while-revalidate=15`, trimmed to what the readers read
+  (record-espn.js's KEEP, ~5x smaller), so Vercel's CDN shares one ESPN call per game every 15 s per region; the poller's
+  `base` becomes `/api/espn`. Nothing in Neon. Its cost is in HOSTING.md.
+- **Every recorded game replayed through it.** `scripts/dev-test/espn-replay.js` (new): a recording as ESPN would have answered
+  at a moment (the plays in ESPN's order up to where their times pass it, football's drive going on in `drives.current`, the
+  score so far, status pre then in, and a minute after the last play the recording itself, final; the box score's people kept,
+  every number 0 until then), a replay clock, and the checks' shared reference: the recording **as known** at a moment (its
+  plays up to then, and the final's correction only once it's final, since that's when it becomes known: the timeline stamps it
+  at the last play's moment). `fake-espn.js` replays recordings (`espn.replay(fixture, { speed, from })`, real time or 60x, a
+  game's own `down`, every answer logged with its moment).
+- **What a later play settles, live** (found by the replay). The readers read a play in the context of the plays after it, and
+  the recordings show it twice: a third-quarter-ending play wiped in the break (Cardinals at 49ers: the next quarter's first
+  play starts at the same down and spot, so the first is left out; live it counts for the break's 166-170 s), and a goal on the
+  game's first shot, before any shot named the goalie in that net (Kings at Rangers: his goal against waits ~5.5 minutes for
+  the next shot at him). Live, the phone shows what ESPN's feed said then, and both settle when the later play comes. Every
+  other moment of the seven games equals the recording.
+- **Checks.**
+  - `tests/sports-live.test.js` (13): the clock (live, synced, snapped and every move; plain JSON); a clock's game (`playAt`,
+    `stateOn`, 0-0 before the first play); the seeded score in every recorded game; A15's pieces (a viewer 30 minutes behind
+    locks 30 minutes later); the replay's answers (pre; in with the score so far and ESPN's words for where; the box's people
+    and no numbers; then the recording); football's current drive, read once (also when ESPN lists it in previous too); the
+    merge (an answer behind ignored, a dropped or re-filed play taken); the asks in virtual time (once, then at the start;
+    15 s ±10%; 30, 60, 120, 240, 300, 300 s while failing and 15 s again; none while hidden; one at once when back, the backoff
+    kept while failing; none after the final; the line before the start); an answer behind changing nothing, and ESPN's dropped
+    newest play taken the second time; ESPN's start time winning, and a throwing callback not stopping it; a bad moment counting
+    nothing; and **every recorded game through the poller in
+    virtual time**: each answer equal to the recording as known then but for the two runs above, each settled within 6 minutes;
+    someone 20 minutes behind always equal; the end ESPN's box score on every number.
+  - `scripts/dev-test/check-live-clock.js` (new, reusable: `--speed --games --every --within`): the same through real HTTP at
+    60x, the seven games at once (198 s): every answer, a viewer 20 minutes behind and one who tapped a play, the asks' rhythm
+    (a 16.7 s median, with the check's own work at 60x), the stand-in failing for 3 minutes (30, 60, 120 s) and the screen
+    hidden for 5 (no asks; one at once after), none after the final, and the end: **7 of 7, all 3,237 numbers of ESPN's box
+    scores**.
+  - `scripts/dev-test/check-espn-browser.js` (new, reusable): the poller in headless Chromium, its TypeScript transpiled as the
+    page asks for it (no bundler), against the stand-in at another origin (a real cross-origin fetch, answered with ESPN's CORS
+    header) at 240x: a game of each sport to its final, each end ESPN's box score on every number (50 s). `--espn` asks the
+    real ESPN as the browser is (refused by its CDN: above). `browser.js` gains `launch()`.
+  - `scripts/dev-test/record-espn-live.js` (new, reusable): a real game recorded in progress and compared with its final
+    (L2's Noticed); checked end to end on the stand-in's replay.
+  - 909 unit tests; `tsc` clean; eslint clean on `src/lib/sports` and `src/lib/server/sports`; `check-matchup.js` still passes.
+  - `/code-review` on the diff (its fixes: a page's callback that throws no longer stops the asking; who's who without ESPN's
+    numbers, not its box score, and the header's status said to be now's, not a later watch's; ESPN dropping its newest play
+    taken the second time; ESPN's start time winning while it's still to start; the screen back on keeping the backoff and the
+    wait for the start; 0-3 s more at the start; a moment that isn't one counting nothing; `state` through `stateOn`; the
+    replay clock's `resume` on a running clock; the browser check's time cap by its speed).
+- **Cost** (HOSTING.md): nothing on Vercel or Neon while a game is live; ESPN's calls come from phones, 240 an hour for each
+  phone watching (cached by ESPN's CDN). A phone's data: a finished game's summary is 45-80 KB over the wire, so an estimated
+  15-30 MB for a game watched live with the screen on (`record-espn-live.js` measures it).
+- **L1's Noticed items marked L2**: the score before the first play, done; a game's plays being ~60% pitches, fine (reading a
+  whole answer takes 2-5 ms in Node, every 15 s); live plays and football's `drives.current`, done on the replay, with the real
+  game still to record (below); the line up to a day old at the start, kept on the phone (below).
+
+**L2 noticed, not fixed:**
+- **A real game recorded in progress, against its final, is still to do.** fake-espn's replay cuts a finished game, so it
+  can't show how ESPN's live answers differ (L1's "Live plays are untested", football's "Live drives are untested"). No game of
+  the four sports was on during the session (the NBA's and NHL's started at 7 PM ET, the World Series' at 8). During a game:
+  `node scripts/dev-test/record-espn-live.js --league=<league> --event=<id>`, then `--compare` once it's final. What to read
+  in its report: plays ESPN listed live and dropped; plays the final reads otherwise (a pitch filed twice, a scoring change);
+  baseball's outs and score on an at-bat's start live (the final's carry the at-bat's end; the reader reads neither); football's
+  `drives.current`, and whether `drives.previous` lists it too (the reader reads a play once either way); whether a hockey box
+  lists a goalie who hasn't played (if it doesn't, a goal on the first shot finds its goalie as the side's only one live, and
+  the 5.5-minute wait above goes); ESPN's lag from a play's wallclock to its first answer (how fair a live call's moment is:
+  A15); the bytes per answer (a phone's data). Next chances: the NBA and NHL every night, the World Series, and the NFL on
+  Thursday 2026-10-29 (Panthers at Packers, 8:15 PM ET). (The next session in this lane that runs during a game.)
+- **A phone's data**: an estimated 15-30 MB a game at 15 s, since every answer is the whole summary (no ETag, so no 304s).
+  ESPN's core API pages a game's plays (`sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}/events/{id}/competitions/
+  {id}/plays?limit=&page=`, CORS `*`, cached 15 minutes once final), so a poll could fetch only the newest page and a small
+  status, but its plays are another shape (refs), needing readers of their own. Or ask every 30 s when nothing on the screen
+  ticks. (U1, or L3 if the measured numbers say so.)
+- **The final's correction is stamped at the last play's moment** (TeamSport.timeline), but live it's known only when ESPN says
+  final, a minute or more later: a later watch sees a pitcher's win at the last out, live it comes with the final. Fine as is;
+  the checks compare against the recording as known.
+- **What a later play settles can be more than the two the recordings show**: baseball's last filing standing (an ABS
+  challenge's pitch), its missing third out filled in when the next inning starts, football's fumbled snap told as a move. The
+  poller reads every answer whole, so they settle the same way; the live recording would show how often. (L3, if live points
+  need them sooner.)
+- **The over/under's line at the start** is on the phone only (`lineAtStart`; nothing reaches our server while live), so the
+  server's kept line can still be a day old at the lock. Whether a game's line is the one when it was made (today) or the one
+  at the lock is A4's or L3's call. (L3.)
+- **A phone's IP reaches ESPN** when it asks (a plain cross-origin fetch sends no cookies): a line for a privacy note when
+  there is one. (U1.)
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;
@@ -1213,6 +1343,25 @@ screens. Each step names the research data it needs and checks the tapes have it
   - **Each viewer's clock:** live (now), synced (the watch along: start, pause, nudge, ad breaks) or snapped (sports: tap the last
     play you saw). A person's lock is their own clock reaching the close, and every answer carries the runtime it was made at,
     so a call can be worth more the earlier it came.
+  - **The clock is built** (L2, `src/lib/sports/clock.ts` on `sports`, merged with L6 or sooner; pure, plain data: use it as it
+    is; its As built is under track L). Its shape:
+    - `Moment`: ms on the game's own clock. A sport's is ESPN's wallclock on each play (`Play.at`, `playMoment`); a show's is its
+      airing's start plus the runtime, so the engine turns "minute 30" into `start + 30 min` and the clock only compares.
+    - `GameClock`, kept as JSON: `{ mode: "live" }`; `{ mode: "synced", at, wall, running }` (at the viewer's real time `wall`
+      the game was at `at`; it runs on in real time, or stays while paused; never ahead of live); `{ mode: "snapped", at }`
+      (fixed; `at: null` is the end, for anyone not watching). Moves, each taking the viewer's real time `wall`: `startAt(from,
+      wall)` (press play), `pause`, `resume`, `nudge(clock, wall, ±30_000)`, `setTo(clock, wall, moment)` (a tapped play, or a
+      host's clock for a watch party); reads: `momentOf(clock, wall)`, `behind`, `playAt(plays, moment)`, `stateOn(sport, plays,
+      clock, wall, sides)`.
+    - `GameWindow { opens, closes }` (null: from the start, to the end): `isOpen(window, moment)` (from the opening up to, not
+      at, the close) and `isLocked(window, clock, wall)` (someone's own clock has reached the close).
+    - `stamp(clock, wall)` → `{ at, wall, mode }`: a call's moment on its caller's clock (what it's judged by), the real time it
+      was made, and which clock (live calls trust the viewer's clock: the risk below).
+    - `earliness(window, moment)`: 1 at the opening, 0 at the close, null outside it (what "earlier is worth more" pays is the
+      engine's scoring).
+    - `unitWindow(plays, unit)`: an at-bat, a drive or a possession, from its first play's moment to its last's.
+    - Not in it, A15's own: resolving a spec's words to windows, what a call is worth, the watch along's 30 s late bias on what
+      others' answers show, the ghost's replay, the episode's marks (credits, ad breaks).
   - **Settles stay data.** A runtime-pinned question about a show is settled by research after the episode: what happened, not
     when. In-episode timing settles only sports, from ESPN's timestamped plays. Show research has no timestamps. The watch
     along's first concept rejected "moment buttons" (tapping when something happens: spoiler-prone, and nobody does it); they
