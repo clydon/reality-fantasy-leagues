@@ -96,7 +96,8 @@ export interface Play {
   period: number;
   /** Baseball's half of the inning; null for a sport without halves. */
   half: "top" | "bottom" | null;
-  /** The game clock at it ("5:32"), for a sport with one; null for baseball. */
+  /** The game clock at it as ESPN shows it ("5:32": basketball's counts down, hockey's up), for a sport with one; null for
+   *  baseball. */
   clock: string | null;
   text: string;
   /** What kind of play it is, in the sport's words ("single", "strikeout", "ball", "pitching-change", "final"). */
@@ -113,6 +114,9 @@ export interface Play {
   deltas: Record<string, Stats>;
   /** The final's correction (Sport.timeline): its deltas make the plays' box score the final box score. */
   final?: boolean;
+  /** Part of a shootout after extra time (hockey's; soccer's penalties in L5): its goals and saves aren't the game's, and its
+   *  winner's one goal comes at its end. */
+  shootout?: boolean;
 }
 
 /** One side of a game in a box score. */
@@ -166,13 +170,22 @@ export interface GameState {
 export interface EspnSummary {
   header?: {
     id?: string | number;
+    /** ESPN's season type: 1 preseason, 2 regular season, 3 postseason. */
+    season?: { year?: number; type?: number };
     competitions?: {
-      status?: { type?: { state?: string; completed?: boolean } };
+      status?: {
+        /** The period it's in or ended in (past regulation: extra time, a shootout). */
+        period?: number;
+        type?: { state?: string; completed?: boolean; detail?: string };
+        /** A finished hockey game's goalies of record ("winningGoalie", "losingGoalie"). */
+        featuredAthletes?: { name?: string; athlete?: { id?: string | number }; team?: { id?: string | number } }[];
+      };
       competitors?: { homeAway?: string; winner?: boolean; score?: string | number; team?: EspnTeam }[];
     }[];
   };
   boxscore?: {
-    teams?: { team?: EspnTeam; statistics?: { name?: string; stats?: { name?: string; value?: number; displayValue?: string }[] }[] }[];
+    // Baseball's come in groups (batting's stats, pitching's); basketball's and hockey's as one list.
+    teams?: { team?: EspnTeam; statistics?: { name?: string; value?: number; displayValue?: string; stats?: { name?: string; value?: number; displayValue?: string }[] }[] }[];
     players?: { team?: EspnTeam; statistics?: EspnTable[] }[];
   };
   plays?: EspnPlay[];
@@ -192,9 +205,10 @@ export interface EspnTable {
   keys?: string[];
   totals?: (string | number)[];
   athletes?: {
-    athlete?: { id?: string | number; displayName?: string };
+    athlete?: { id?: string | number; displayName?: string; position?: { abbreviation?: string } };
     position?: { abbreviation?: string; name?: string };
     starter?: boolean;
+    didNotPlay?: boolean;
     batOrder?: number;
     stats?: (string | number)[];
     notes?: { type?: string; text?: string }[];
@@ -203,7 +217,7 @@ export interface EspnTable {
 
 export interface EspnPlay {
   id?: string | number;
-  type?: { id?: string | number; text?: string; type?: string };
+  type?: { id?: string | number; text?: string; type?: string; abbreviation?: string; penaltyMinutes?: string | number; penaltyType?: string };
   text?: string;
   awayScore?: number;
   homeScore?: number;
@@ -221,6 +235,12 @@ export interface EspnPlay {
   pitchCount?: { balls?: number; strikes?: number };
   resultCount?: { balls?: number; strikes?: number };
   outs?: number;
+  // Basketball's.
+  shootingPlay?: boolean;
+  pointsAttempted?: number;
+  // Hockey's: the scoring or shooting side's strength ("power-play"), and the net ("empty-net").
+  strength?: { abbreviation?: string };
+  shotInfo?: { abbreviation?: string };
 }
 
 export const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : typeof v === "number" && Number.isFinite(v) ? String(v) : null);
@@ -230,6 +250,44 @@ export const num = (v: unknown): number | null => {
   const n = typeof v === "number" ? v : typeof v === "string" && /^[+-]?\d+(\.\d+)?$/.test(v.trim()) ? Number(v) : NaN;
   return Number.isFinite(n) ? n : null;
 };
+
+/** A made-attempted pair from ESPN's "6-10" (or "27/40"), else null. */
+export const pair = (v: unknown): [number, number] | null => {
+  const m = /^\s*(\d+)\s*[-/]\s*(\d+)\s*$/.exec(String(v ?? ""));
+  return m ? [Number(m[1]), Number(m[2])] : null;
+};
+
+/* ---- What every sport's vocabulary and readers share. ---- */
+
+/** A count stat (it adds, and plays carry it), in a stat group. */
+export const count = (key: string, label: string, short: string, noun: string, group: string, better: Better = "higher", known?: "final"): StatDef => ({ key, label, short, noun, group, better, kind: "count", ...(known ? { known } : {}) });
+/** A position in a position group. */
+export const position = (key: string, label: string, group: string): Position => ({ key, label, group });
+/** Someone's count of a stat, 0 when they have none. */
+export const val = (s: Stats, k: string) => s[k] ?? 0;
+/** A rate's fraction, null when there's nothing to divide by (an AVG with no at-bats). */
+export const ratio = (top: number, bottom: number) => (bottom > 0 ? top / bottom : null);
+
+/** Everyone in a game's box score, by ESPN's athlete id, to their team's id: who's on which side. */
+export function rosterOf(summary: EspnSummary): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const side of summary.boxscore?.players ?? []) {
+    for (const table of side.statistics ?? []) {
+      for (const row of table.athletes ?? []) if (idOf(row.athlete?.id)) out.set(idOf(row.athlete?.id), idOf(side.team?.id));
+    }
+  }
+  return out;
+}
+
+/** A play's deltas with nothing empty: no person with no counts, no zero. */
+export function cleanDeltas(deltas: Record<string, Stats>): Record<string, Stats> {
+  const out: Record<string, Stats> = {};
+  for (const [who, d] of Object.entries(deltas)) {
+    const s = addStats({}, d);
+    if (who && Object.keys(s).length) out[who] = s;
+  }
+  return out;
+}
 
 /** Add `d` into `into` (a person's counts), dropping zeros. */
 export function addStats(into: Stats, d: Stats): Stats {
@@ -265,6 +323,9 @@ export abstract class Sport {
   abstract readonly stats: StatDef[];
   abstract readonly periods: Periods;
   abstract readonly lock: LockCadence;
+  /** The ESPN leagues it reads (the second half of "basketball/nba"), when not every league of its sport plays the same way
+   *  (college basketball plays halves); null for every one. */
+  readonly leagues: string[] | null = null;
 
   private byKey: Map<string, StatDef> | null = null;
 
@@ -276,6 +337,11 @@ export abstract class Sport {
 
   position(key: string): Position | null {
     return this.positions.find((p) => p.key === key) ?? null;
+  }
+
+  /** A position from ESPN's abbreviation: the sports' keys are ESPN's own ("SS", "PG", "LW"). */
+  positionKey(abbreviation: string | null | undefined): string | null {
+    return str(abbreviation)?.toUpperCase() ?? null;
   }
 
   /** The stats a spec can name, for the game spec's context pack (ctx.stats: [{ key, label: "home run" }]). */
@@ -299,8 +365,9 @@ export abstract class Sport {
     return out;
   }
 
-  /** Where a play is, in the sport's words: "2nd quarter, 5:32", "overtime", "2nd overtime" (Baseball's own: "Top 3rd"). */
-  where(play: Pick<Play, "period" | "half" | "clock">): string {
+  /** Where a play is, in the sport's words: "2nd quarter, 5:32", "overtime", "2nd overtime" (Baseball's own: "Top 3rd";
+   *  Hockey's: "5:32 into the 2nd period", "shootout"). */
+  where(play: Pick<Play, "period" | "half" | "clock" | "shootout">): string {
     const over = play.period - this.periods.regulation;
     const name = over > 1 ? `${ordinal(over)} ${this.periods.extra}` : over === 1 ? this.periods.extra : `${ordinal(play.period)} ${this.periods.word}`;
     return play.clock ? `${name}, ${play.clock}` : name;
@@ -362,9 +429,10 @@ export abstract class TeamSport extends Sport {
    */
   correction(state: GameState, box: Box): Record<string, Stats> {
     const out: Record<string, Stats> = {};
-    // Someone the plays credited who isn't in ESPN's box score at all: every count taken back.
+    // Someone the plays credited who isn't in ESPN's box score at all, or is there with no line (a basketball player who
+    // didn't play): every count taken back.
     for (const [who, have] of Object.entries(state.lines)) {
-      if (box.people[who]) continue;
+      if (box.people[who] && Object.keys(box.people[who].stats).length) continue;
       const d = Object.fromEntries(Object.entries(have).map(([k, v]) => [k, -v]));
       if (Object.keys(d).length) out[who] = d;
     }
@@ -392,7 +460,7 @@ export abstract class TeamSport extends Sport {
     const deltas = this.correction(this.reduce(plays), box);
     const last = plays[plays.length - 1] ?? null;
     const score = Object.fromEntries(box.teams.map((t) => [t.id, t.score]));
-    plays.push({ id: `${box.event}:final`, at: last?.at ?? null, period: last?.period ?? this.periods.regulation, half: last?.half ?? null, clock: null, text: "Final", kind: "final", team: null, unit: null, people: Object.keys(deltas), score, deltas, final: true });
+    plays.push({ id: `${box.event}:final`, at: last?.at ?? null, period: last?.period ?? this.periods.regulation, half: last?.half ?? null, clock: null, text: "Final", kind: "final", team: null, unit: null, people: Object.keys(deltas), score, deltas, final: true, ...(last?.shootout ? { shootout: true } : {}) });
     return plays;
   }
 

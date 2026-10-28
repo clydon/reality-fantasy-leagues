@@ -21,8 +21,8 @@ test("Baseball's vocabulary: unique stat keys in its groups, positions in its gr
   assert.equal(baseball.id, "baseball");
   assert.equal(sportOf("baseball/college-baseball"), baseball);
   assert.equal(sportById("baseball"), baseball);
-  assert.equal(sportOf("basketball/nba"), null, "not built yet");
-  assert.deepEqual(allSports().map((s) => s.id), ["baseball"]);
+  assert.equal(sportOf("curling/olympics"), null, "not a sport here");
+  assert.ok(allSports().includes(baseball));
   const keys = baseball.stats.map((s) => s.key);
   assert.equal(new Set(keys).size, keys.length, "keys are unique: a spec names a stat by its key alone");
   const groups = new Set(baseball.statGroups.map((g) => g.key));

@@ -1,4 +1,4 @@
-import { TeamSport, addStats, headerTeams, idOf, inOrder, isFinal, num, ordinal, str, type Box, type BoxPerson, type EspnPlay, type EspnSummary, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
+import { TeamSport, addStats, count, headerTeams, idOf, inOrder, isFinal, num, ordinal, position as pos, ratio, str, val as n, type Box, type BoxPerson, type EspnPlay, type EspnSummary, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
 
 // Baseball (MLB; college baseball reads the same, thinner): its vocabulary and ESPN's readers. ESPN's per-player batting lines
 // have no doubles, triples or total bases (its labels are H-AB AB R H RBI HR BB K #P AVG OBP SLG; only the team totals have
@@ -16,9 +16,6 @@ import { TeamSport, addStats, headerTeams, idOf, inOrder, isFinal, num, ordinal,
 const BATTING = "batting";
 const PITCHING = "pitching";
 
-const count = (key: string, label: string, short: string, noun: string, group: string, better: "higher" | "lower" = "higher", known?: "final"): StatDef => ({ key, label, short, noun, group, better, kind: "count", ...(known ? { known } : {}) });
-const n = (s: Stats, k: string) => s[k] ?? 0;
-const ratio = (top: number, bottom: number) => (bottom > 0 ? top / bottom : null);
 
 const STATS: StatDef[] = [
   count("PA", "Plate appearances", "PA", "plate appearance", BATTING),
@@ -72,7 +69,6 @@ const GROUPS: PositionGroup[] = [
   { key: "pitchers", label: "Pitchers", stats: [PITCHING] },
 ];
 
-const pos = (key: string, label: string, group: string): Position => ({ key, label, group });
 const POSITIONS: Position[] = [
   pos("C", "Catcher", "batters"),
   pos("1B", "First base", "batters"),
@@ -261,7 +257,7 @@ export class Baseball extends TeamSport {
   readonly lock: LockCadence = "daily";
 
   /** "Top 3rd", "Bottom 10th". */
-  where(play: Pick<Play, "period" | "half" | "clock">): string {
+  where(play: Pick<Play, "period" | "half" | "clock" | "shootout">): string {
     return `${play.half === "bottom" ? "Bottom" : "Top"} ${ordinal(play.period)}`;
   }
 
@@ -327,11 +323,6 @@ export class Baseball extends TeamSport {
     }
     if (!teams.length || !Object.keys(people).length) return null;
     return { event: idOf(summary.header.id), final: isFinal(summary), teams, people };
-  }
-
-  /** A position from ESPN's abbreviation: ours are ESPN's ("SS", "DH", "PH"), so it's the key as it is. */
-  positionKey(abbreviation: string | null | undefined): string | null {
-    return str(abbreviation)?.toUpperCase() ?? null;
   }
 
   readPlays(summary: EspnSummary, issues?: string[]): Play[] {

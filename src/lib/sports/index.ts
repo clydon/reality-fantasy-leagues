@@ -1,23 +1,32 @@
 // The sports (docs/PLAN-start-a-game-gpt.md track L): one class per sport, found by ESPN's sport slug, the first half of a
-// league's path ("baseball" of "baseball/mlb", and of "baseball/college-baseball"). Football, basketball and hockey join in
-// L1's next part; soccer, golf, racing, MMA and tennis in L5.
+// league's path ("baseball" of "baseball/mlb", and of "baseball/college-baseball"; "basketball" of "basketball/nba" and
+// "basketball/wnba", but not college basketball, which plays halves: a sport can name the leagues it reads). Football joins in
+// L1 part 2's next session; soccer, golf, racing, MMA and tennis in L5.
 import { Baseball } from "./baseball";
+import { Basketball } from "./basketball";
+import { Hockey } from "./hockey";
 import baseballDefaults from "./defaults/baseball.json";
+import basketballDefaults from "./defaults/basketball.json";
+import hockeyDefaults from "./defaults/hockey.json";
 import type { LockCadence, TeamSport } from "./sport";
 
 export * from "./sport";
 export { Baseball } from "./baseball";
+export { Basketball } from "./basketball";
+export { Hockey } from "./hockey";
 
-const SPORTS: TeamSport[] = [new Baseball()];
+const SPORTS: TeamSport[] = [new Baseball(), new Basketball(), new Hockey()];
 
 /** The sport by its id ("baseball"), or null for one not built yet. */
 export function sportById(id: string): TeamSport | null {
   return SPORTS.find((s) => s.id === id) ?? null;
 }
 
-/** The sport an ESPN league plays ("baseball/mlb" is Baseball), or null for one not built yet. */
+/** The sport an ESPN league plays ("baseball/mlb" is Baseball, "hockey/nhl" Hockey), or null for one not built yet. */
 export function sportOf(league: string): TeamSport | null {
-  return sportById(String(league).split("/")[0]);
+  const [id, name] = String(league).split("/");
+  const sport = sportById(id);
+  return sport && (!sport.leagues || sport.leagues.includes(name)) ? sport : null;
 }
 
 /** Every sport built so far. */
@@ -47,7 +56,11 @@ export interface SportDefaults {
   specs: Record<string, { about: string; spec: Record<string, unknown> }>;
 }
 
-const DEFAULTS: Record<string, SportDefaults> = { baseball: baseballDefaults as SportDefaults };
+const DEFAULTS: Record<string, SportDefaults> = {
+  baseball: baseballDefaults as SportDefaults,
+  basketball: basketballDefaults as SportDefaults,
+  hockey: hockeyDefaults as SportDefaults,
+};
 
 /** A sport's defaults, or null for one that has none yet. */
 export function defaultsFor(sportId: string): SportDefaults | null {

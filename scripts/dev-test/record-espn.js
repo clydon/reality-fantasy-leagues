@@ -1,8 +1,9 @@
 // Dev-only: records a finished game's ESPN summary as a test fixture (tests/fixtures/espn/; docs/PLAN-start-a-game-gpt.md track L,
-// step L1), trimmed to what the sports' readers read (src/lib/sports/): the header (teams, score, status), the box score's
-// tables and team totals, and the plays with their times, periods, people and the fields each sport's reader uses. A raw
-// summary is ~1 MB (pitch coordinates, win probability, news, videos); a trimmed one ~150 KB. One real call (or none, from the
-// cache check-sport-reduce.js keeps); no app server, no database.
+// step L1), trimmed to what the sports' readers read (src/lib/sports/): the header (teams, score, status, a hockey game's
+// goalies of record), the box score's tables and team totals, ESPN's line before the game, and the plays with their times,
+// periods, people and the fields each sport's reader uses (PLAYS, by ESPN's sport slug). A raw summary is ~0.5-1 MB (pitch
+// coordinates, win probability, news, videos); a trimmed one 150-230 KB. One real call (or none, from the cache
+// check-sport-reduce.js keeps); no app server, no database.
 //
 //   node scripts/dev-test/record-espn.js --league=baseball/mlb --event=401907924 [--out=tests/fixtures/espn/mlb-401907924.json]
 //        [--note="the 2026 Wild Card, Game 1"] [--cache=<dir>]
@@ -29,10 +30,18 @@ const TEAM = { id: true, displayName: true, abbreviation: true };
 const KEEP = {
   header: {
     id: true,
-    competitions: [{ status: { type: { state: true, completed: true } }, competitors: [{ homeAway: true, winner: true, score: true, team: TEAM }] }],
+    season: { year: true, type: true },
+    competitions: [
+      {
+        // The period it ended in and its detail ("Final/SO"), and a hockey game's goalies of record.
+        status: { period: true, type: { state: true, completed: true, detail: true }, featuredAthletes: [{ name: true, athlete: { id: true }, team: { id: true } }] },
+        competitors: [{ homeAway: true, winner: true, score: true, team: TEAM }],
+      },
+    ],
   },
   boxscore: {
-    teams: [{ team: TEAM, statistics: [{ name: true, stats: [{ name: true, value: true }] }] }],
+    // Baseball's team totals come in groups; basketball's and hockey's as one list, some only as text ("39-87").
+    teams: [{ team: TEAM, statistics: [{ name: true, value: true, displayValue: true, stats: [{ name: true, value: true }] }] }],
     players: [
       {
         team: TEAM,
@@ -43,20 +52,27 @@ const KEEP = {
             labels: true,
             keys: true,
             totals: true,
-            athletes: [{ athlete: { id: true, displayName: true }, position: { abbreviation: true }, starter: true, batOrder: true, stats: true, notes: true }],
+            athletes: [{ athlete: { id: true, displayName: true, position: { abbreviation: true } }, position: { abbreviation: true }, starter: true, didNotPlay: true, batOrder: true, stats: true, notes: true }],
           },
         ],
       },
     ],
   },
+  // ESPN's line before the game (DraftKings'): the over/under's default (part 3 stores it).
+  pickcenter: [{ provider: { name: true }, details: true, overUnder: true, spread: true }],
   // The play fields each sport's reader reads (its ESPN sport slug; a sport not here keeps them all).
   plays: null,
 };
 
 const PLAY = { id: true, type: { type: true }, text: true, period: { type: true, number: true }, wallclock: true, participants: [{ athlete: { id: true }, type: true }] };
+const CLOCKED = { id: true, text: true, period: { number: true, displayValue: true }, clock: { displayValue: true }, wallclock: true, team: { id: true }, scoringPlay: true, scoreValue: true };
 const PLAYS = {
   // Baseball counts runs from scoreValue and outs from outs, never a play's score (an at-bat's start carries its end's).
   baseball: { ...PLAY, scoreValue: true, atBatId: true, summaryType: true, atBatPitchNumber: true, outs: true },
+  // Basketball reads a play by its type's text and its shot flags; its people have no roles.
+  basketball: { ...CLOCKED, type: { id: true, text: true }, participants: [{ athlete: { id: true } }], shootingPlay: true, pointsAttempted: true },
+  // Hockey by its type's abbreviation (a penalty's minutes), its people's roles, and a goal's strength and net.
+  hockey: { ...CLOCKED, type: { id: true, text: true, abbreviation: true, penaltyMinutes: true, penaltyType: true }, participants: [{ athlete: { id: true }, type: true }], strength: { abbreviation: true }, shotInfo: { abbreviation: true } },
   any: { ...PLAY, awayScore: true, homeScore: true, clock: { displayValue: true }, scoringPlay: true, scoreValue: true, team: { id: true } },
 };
 KEEP.plays = [PLAYS[league.split("/")[0]] ?? PLAYS.any];

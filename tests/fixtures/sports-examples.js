@@ -3,7 +3,8 @@
 // team ids where the plan has placeholders), the games it spans (ESPN's event ids: a matchup is a season of its own, L1's
 // schedule part) and what those games settle it to, from the recorded box scores. Fixtures for later: G3 (the GPT learns
 // sports) checks its draft against `spec`; L3 and L4 score `spec` over the recorded games and must come to `settles`.
-// tests/sports-baseball.test.js already checks the Red Sox–Yankees scoring against its two recorded games.
+// tests/sports-baseball.test.js already checks the Red Sox–Yankees scoring against its two recorded games, and
+// tests/sports-basketball.test.js the 76ers opener's three answers against its recorded game.
 module.exports = {
   redSoxYankees: {
     words: "For this upcoming Red Sox–Yankees series I want a draft where we draft 3 players each. We'll score 5 points for every home run and 1 point for each total base.",
@@ -39,8 +40,8 @@ module.exports = {
     teams: { PHI: "20", CLE: "5" },
     // 2026-10-22, Cleveland Cavaliers at Philadelphia 76ers: their first home game of 2026-27 (ESPN's team schedule).
     games: ["401909093"],
-    // Recorded with Basketball, in L1's next part.
-    recorded: [],
+    // Recorded with Basketball in L1 part 2 (with ESPN's line, its summary's pickcenter).
+    recorded: ["espn/nba-401909093.json"],
     // ESPN's line before it (its summary's pickcenter): the over/under's default.
     line: { provider: "DraftKings", details: "PHI -2.5", overUnder: 237.5 },
     spec: {

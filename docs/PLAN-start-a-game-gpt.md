@@ -414,8 +414,9 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   fixtures and tests (the user's two examples among them). The sports parts of the spec (`score.by: stats`, the sports
   settles, the default specs) once master has A2.
   - **Split in three (2026-10-28):** part 1, the framework with baseball (built: As built below); part 2, basketball, hockey
-    and football on it; part 3, games straight from ESPN's schedule as a season of their own, finals and odds stored (the
-    migration, HOSTING.md) and the 76ers example's own fixture.
+    and football on it (basketball and hockey built: As built below; football, whose plays are text only, in a session of its
+    own); part 3, games straight from ESPN's schedule as a season of their own, finals and odds stored (the migration,
+    HOSTING.md) and the 76ers example's game from the schedule (its recorded game is part 2's fixture).
 - **L2. The live clock.** The phone's poller and `GameClock` (live, synced, snapped), shared with A15; fake-espn replaying a
   recorded game in real time or 60x; HOSTING.md.
 - **L3. Live scoring through the spec.** Points per stat from box scores and plays (`score.by: stats`), live on the phone and
@@ -535,6 +536,97 @@ score is the truth.
 - **College baseball reads as Baseball but isn't checked**: its box scores are thinner (L5, with college).
 - **A game's plays are ~60% pitches** (~450 Plays, a few hundred KB as JSON): fine for the phone, which reads ESPN's summary
   (~1 MB) anyway. (L2.)
+
+**L1 part 2 as built: basketball and hockey (2026-10-28, `sports`, not merged; no migration, no ESPN calls from the app,
+nothing stored).** Football, whose plays are text only, is part 2's next session.
+- **`sport.ts`** gains what they need: the header's season type, status detail and a hockey game's goalies of record
+  (`featuredAthletes`); basketball's shot flags and hockey's strength and net on a play; `Play.shootout`; `pair` ("6-10");
+  the helpers every sport shares (`count`, `position`, `val`, `ratio`, `rosterOf`, `cleanDeltas`, a default `positionKey`:
+  Baseball uses them now); `Sport.leagues`, the ESPN leagues a sport reads when not all of its sport's play alike. The final's
+  correction also takes back what the plays credit to someone ESPN's box lists with no line (a player who didn't play), and
+  the final keeps the shootout flag.
+- **`Basketball`** (`basketball.ts`; the NBA and the WNBA; college basketball plays halves, so `sportOf` gives it null until
+  L5): guards, forwards, centers (PG SG G, SF PF F, C: a box score says G, F or C, a roster PG to C); MIN PTS FGM FGA 3PM 3PA
+  FTM FTA OREB DREB REB AST STL BLK TO PF PM (+/−), FG% 3P% FT%, DD and TD game by game; four quarters ("2nd quarter, 5:32");
+  daily locks. **Known at the final: MIN and PM** (who's on the floor, which ESPN's substitutions only mostly say).
+  **Judged: REB, OREB, DREB, AST, STL, BLK, TO** (the statistician's calls, which ESPN's box can credit to a teammate after the
+  play).
+  - The box score: its one table by label, made-attempted pairs, zeros kept, a player who didn't play with no line at all; the
+    team's totals (its pairs from their text).
+  - The plays: typed, their people with no roles but in a set order (the shooter, then the assister or blocker; who turned it
+    over, then who stole it; who enters, then who leaves). Counts come from the type and the shot flags (`shootingPlay`,
+    `pointsAttempted`, `scoringPlay`, `scoreValue`); a free throw by its type alone; **a missed heave isn't an attempt** (the
+    NBA's rule since 2025-26; ESPN's box agrees in every quarter, the 4th's included); a team rebound or team turnover is
+    nobody's; personal fouls include a flagrant, not a technical, a defensive three seconds or a delay; a double personal
+    foul comes as two plays, each its fouler's. The unit is **a possession**: a new one when the ball changes hands, or after a
+    made basket, a turnover or the last free throw (an and-one's free throw stays in its basket's, a technical's in whoever's
+    it is, and a held ball won back keeps it).
+- **`Hockey`** (`hockey.ts`; the NHL; college hockey ends a tie otherwise, so null until L5): forwards, defense, goalies (C LW
+  RW F, D, G); skating G A PTS PM PPG PPA PPP SHG SHA SHP SOG SM BLK HIT TK GV FW FL FO% SHFT SOGOAL; goaltending GA SA SV SV%
+  GAA ESSV PPSV SHSV W L OTL SO SOSV SOGA; ice time and penalties TOI PPTOI SHTOI ESTOI (in seconds, so they add) PN PIM; three
+  periods ("2nd period, 5:32 in": ESPN's hockey clock counts up; "overtime, 1:10 in"; "shootout"); daily locks. **Known at the
+  final: PM, TOI and its kinds, SHFT, and the goalies of record** (W; L, or OTL past regulation in the regular season; SO, the
+  winner's when he was his side's only goalie and the other side scored none). **Judged: SOG, SM (and so SA, SV and the
+  strength saves), HIT, BLK, TK, GV** (the real-time scorer's).
+  - The box score: forwards, defenses and goalies by label, zeros kept, but not its shootout columns (ESPN leaves them at 0);
+    the decisions from the header's `featuredAthletes`, overtime from the detail ("Final/OT", "Final/SO": the summary's header
+    has no period); the team's totals, but not its penalties (a bench minor is nobody's).
+  - The plays: by type and the people's roles (scorer, assister, shooter, saver, defender, hit-credited, giver, taker,
+    face-off-winner; a penalty's committer first). **A goal is against** the goalie the last shot at that net named (a missed
+    shot's goalie comes untyped), or after an intermission the one the next shot names; an empty net's is nobody's. Power-play
+    and shorthanded goals and assists by the goal's strength (the scoring side's); an empty-net goal's from the play before it
+    (a play's strength is its own side's, so the other side's is flipped). A shot blocked by a teammate isn't a block; saves
+    count by the shot's strength. **The shootout** ("SO") is its own: shootout goals, saves and goals against, never the game's
+    goals, shots or score, and its winner's one goal at its end. The unit is **the run of play from a faceoff**.
+- **Defaults as data**: `defaults/basketball.json` (Yahoo's head-to-head points PTS 1, REB 1.2, AST 1.5, STL 3, BLK 3, TO −1;
+  its 9 categories; PG, SG, G, SF, PF, F, 2 C, 2 Util, 3 bench; daily; `season` drafts 13 and starts 10 head to head, `short`
+  drafts 3, all count) and `defaults/hockey.json` (Yahoo's G 6, A 4, +/− 2, PPP 2, SOG 0.9, BLK 1, and for goalies W 5,
+  GA −3, SV 0.6, SO 5; its 10 categories; 2 C, 2 LW, 2 RW, 4 D, 2 G, 4 bench; daily; drafts 16 and starts 12).
+- **Fixtures** (`record-espn.js` now keeps each sport's play fields, the status detail, the goalies of record and ESPN's line,
+  `pickcenter`): the 76ers opener (`nba-401909093.json`, 201 KB, now in `sports-examples.js`'s `recorded`), Kings at Rangers
+  2026-10-26 (`nhl-401892582.json`: the Rangers' goalie pulled after the 1st, an empty-net goal, power plays) and Red Wings at
+  Kraken 2026-10-20 (`nhl-401892547.json`: overtime, then a shootout).
+- **Checks.**
+  - `tests/sports-basketball.test.js` (10) and `tests/sports-hockey.test.js` (12): the vocabulary, derived and rate stats, the
+    box score, **the proof** on each recorded game (the plays alone come to ESPN's box score: 285, 453 and 446 numbers, every
+    team total and the score, with no notes from the reader and nobody credited who didn't play), the plays and their units,
+    `stateAt` at moments, the final's correction (only final-only stats in it; with it, every number), the rules the
+    recordings don't show on made-up games, and the defaults. **The 76ers example settles as typed**: PHI wins 114-106, 220 is
+    under DraftKings' 237.5 (read from the fixture's own line), and Maxey and Mitchell tie at 32.
+  - `check-sport-reduce.js` now fails a count the plays credit to someone who didn't play, and sets apart only stats a sport
+    marks `judged`. On real games: **basketball 59 of 73** (the NBA's first eight days, four days of last May's playoffs, three
+    July days of the WNBA; ~36,200 plays; one more game ESPN answered 404), with a judged count in 20 (settled at the final);
+    the 14 left are ESPN's own: 7 a shot attempt its plays have and its box doesn't, or the other way round (a buzzer shot the
+    official count wiped, a putback missing from the plays), 5 a personal foul (a double technical its box counts as a foul in
+    some games and not others, or a foul missing from the plays), and 2 a basket its box credits to a teammate. **Hockey 63 of
+    64** (eight October days and four playoff days, ~20,600 plays), a judged shot in 3; the one left is ESPN's "Penalty Shot
+    Infraction", charged in its box to a teammate of the one its play names. Baseball reads as before.
+  - 871 unit tests; `tsc` clean; eslint clean on `src/lib/sports`.
+  - `/code-review` on the diff (its fixes: a player who didn't play taken back at the final and failed by the check; Hockey
+    for the NHL only; the check's "credited to a teammate" bucket replaced by the sports' own `judged`; a goalie changed at the
+    intermission; the shootout read from the period's name before the 5th-period rule; the final keeping the shootout flag; a
+    free throw by its type; a held ball's possession; the shared helpers; one set of goalies, read once. Two it raised were
+    checked against ESPN's data and kept: a missed 4th-quarter heave isn't an attempt either, and a penalty typed "Bench" can be
+    a player's own, so whoever a penalty names is charged).
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data.
+
+**L1 part 2 (basketball and hockey) noticed, not fixed:**
+- **Minutes and plus/minus, time on ice and shifts come only at the final.** ESPN's NBA substitutions cover the floor in most
+  games (quarter-start changes too), so tracking who's on could give live minutes and +/−; hockey's plays say nothing of
+  shifts. (L3, if live points need them.)
+- **A goalie changed mid-period whose first shot faced is a goal** is charged to the one pulled until the final: no play says
+  a goalie changed (the intermission's case is handled). (L3.)
+- **The heave rule is checked on the NBA only**: the WNBA's ten games had none. (L5, with the WNBA's next season.)
+- **A possession's neutral plays** (the defense's foul right after a steal) stay in the possession before. (L4's live calls,
+  if "this possession" needs them exact.)
+- **A shutout in a 0-0 game won in a shootout** goes to the winner's goalie only; the NHL's own rule wasn't checked. Rare.
+  (L4.)
+- **Baseball's reader does less well on days part 1 didn't tune it on** (part 1's own code, unchanged here; its days were
+  May 2-4, July 18-20 and September 10-12, 126 of 128): May 12-14 reduce 33 of 41, September 1-3 37 of 39, July 15-17 15 of
+  15. The differences: a strikeout missed (the batter's at-bat and K, the pitcher's), an at-bat too many, a strike thrown off by
+  one, a walk charged to the wrong reliever, one more steal only the team total has. They're counts, not the scorer's calls,
+  so they matter for L3's live points: fix them with those days as the check's (`--from=2026-05-12 --days=3`, cached). (L1,
+  after football.)
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

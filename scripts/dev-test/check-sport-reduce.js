@@ -1,13 +1,16 @@
 // Dev-only check of the sports' readers and reducers (src/lib/sports/; docs/PLAN-start-a-game-gpt.md track L, step L1) against
 // the REAL ESPN, on as many finished games as asked: each game's plays, reduced, must come to ESPN's own box score (every
 // player's counts, the team totals ESPN gives, the score), as tests/sports-*.test.js prove on the recorded games. Stats known
-// only at the final (a pitcher's win) come from the final's correction and aren't compared; the official scorer's calls (a
-// stat marked `judged`: baseball's earned runs and RBIs) are listed apart and don't fail a game, since the final's correction
-// settles them. Real calls, no app server, no database, nothing written but its cache.
+// only at the final (a pitcher's win, a basketball player's minutes) come from the final's correction and aren't compared. The
+// scorer's calls (a stat marked `judged`: baseball's earned runs and RBIs, basketball's assists and rebounds, hockey's shots on
+// goal and hits) are listed apart and don't fail a game, since the final's correction settles them; any other difference
+// fails it, and so does a count the plays credit to someone who isn't in ESPN's box score or is there with no line (didn't
+// play). Real calls, no app server, no database, nothing written but its cache.
 //
 //   node scripts/dev-test/check-sport-reduce.js --league=baseball/mlb --from=2026-09-01 [--days=3] [--max=40]
 //   node scripts/dev-test/check-sport-reduce.js --league=baseball/mlb --events=401907924,401907963
 //        [--cache=<dir>] [--verbose]
+//   (any league a sport reads: basketball/nba, basketball/wnba, hockey/nhl ...)
 //
 // --from/--days: the finished games on those days' scoreboards (ESPN's days), at most --max; --events: just these. --cache keeps
 // each finished answer as a file (default: rfl-espn-cache in the OS temp folder: a final game, a day whose games are all over),
@@ -69,11 +72,14 @@ function differences(summary) {
     const have = state.lines[id] ?? {};
     for (const [k, v] of Object.entries(p.stats)) {
       const stat = sport.stat(k);
-      if (stat?.known === "final") continue;
-      if ((have[k] ?? 0) !== v) (stat?.judged ? judged : out).push(`${p.name} ${k}: ESPN ${v}, plays ${have[k] ?? 0}`);
+      if (stat?.known === "final" || (have[k] ?? 0) === v) continue;
+      (stat?.judged ? judged : out).push(`${p.name} ${k}: ESPN ${v}, plays ${have[k] ?? 0}`);
     }
   }
-  for (const [id, have] of Object.entries(state.lines)) if (!box.people[id]) out.push(`the plays credit ${id} (${Object.keys(have).join(" ")}), who isn't in ESPN's box score`);
+  for (const [id, have] of Object.entries(state.lines)) {
+    if (!box.people[id]) out.push(`the plays credit ${id} (${Object.keys(have).join(" ")}), who isn't in ESPN's box score`);
+    else if (!Object.keys(box.people[id].stats).length) out.push(`the plays credit ${box.people[id].name} (${Object.keys(have).join(" ")}), who didn't play`);
+  }
   for (const t of box.teams) {
     const sum = {};
     for (const [id, p] of Object.entries(box.people)) {
@@ -87,6 +93,7 @@ function differences(summary) {
   const end = sport.reduce(sport.timeline(summary));
   for (const [id, p] of Object.entries(box.people)) {
     for (const [k, v] of Object.entries(p.stats)) if ((end.lines[id]?.[k] ?? 0) !== v) out.push(`timeline: ${p.name} ${k}: ESPN ${v}, ${end.lines[id]?.[k] ?? 0}`);
+    if (!Object.keys(p.stats).length && end.lines[id]) out.push(`timeline: ${p.name} didn't play but has ${Object.keys(end.lines[id]).join(" ")}`);
   }
   return { out, judged, notes, plays };
 }
@@ -127,6 +134,6 @@ function differences(summary) {
     for (const d of r.judged) console.log(`        judged: ${d}`);
     if (args.verbose || r.out.length) for (const n of r.notes) console.log(`        note: ${n}`);
   }
-  console.log(`\n${ids.length - bad} of ${ids.length} games reduce to ESPN's box score (${plays} plays read); in ${calls}, the scorer judged an earned run or RBI otherwise (the final's correction settles it).`);
+  console.log(`\n${ids.length - bad} of ${ids.length} games reduce to ESPN's box score (${plays} plays read); in ${calls}, the scorer judged a count otherwise (the final's correction settles it).`);
   process.exit(bad ? 1 : 0);
 })();

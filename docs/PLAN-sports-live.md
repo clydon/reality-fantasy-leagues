@@ -5,8 +5,8 @@ same engine": that's the plan now, and its order wins. The formats are built onc
 with L bringing each sport's data to them; the screens wait for its UI track (U0, U1); the steps here are renumbered there
 (0 → U0, 1 → L1, 2 → L2, 4 → L3, 5 and 6 → L4, 7 → L5, 8 → L6; 3, the Players tab, → U). This file keeps the details.
 
-Status: **planned 2026-10-27; L1 part 1 built 2026-10-28** (the framework and baseball, in `src/lib/sports/`: its As built is
-under track L in `docs/PLAN-start-a-game-gpt.md`). Everything here lands on the `sports` branch and is **released at once** (one merge
+Status: **planned 2026-10-27; L1 part 1 built 2026-10-28** (the framework and baseball, in `src/lib/sports/`), **and part 2's
+basketball and hockey** (football next): their As built is under track L in `docs/PLAN-start-a-game-gpt.md`. Everything here lands on the `sports` branch and is **released at once** (one merge
 into master) once it's hammered into shape. Builds on `docs/PLAN-sports-data.md` (ESPN as the provider, the cache, linking a
 season's episodes to games, the cast from rosters, box-score stats once final, spans), which is live on master.
 
