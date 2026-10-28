@@ -48,6 +48,22 @@ Decisions (the user's answers):
 So "live and replayable" is exact for the team sports (every play has its real time), round-by-round for golf, and
 bout-by-bout or session-by-session for the rest.
 
+### What the Start-a-game GPT needs from ESPN (found 2026-10-27, from that plan's mapping)
+
+- **Games straight from ESPN's schedule.** Today a sport's games exist only as a TV listing's episodes (`season_events` needs a
+  `season_episodes` row, migration 0148) and link only 8 days ahead (`link.ts` `AHEAD_MS`). So a regular-season series, or a
+  game on local TV, has nothing to link to, and "the upcoming Red Sox–Yankees series" or "the 76ers home opener" can't be made.
+  - ESPN's team schedule can be the source: `site.api.espn.com/apis/site/v2/sports/<sport>/<league>/teams/<team>/schedule`, the
+    same shape for every sport. Checked: the 76ers' 2026-27 has 80 games, with dates, home or away, and status.
+  - Proposed: a matchup (one game, a series, a team's next few games) becomes a season of its own, made from the schedule and
+    shared by every couch that plays it (keyed by its ESPN event ids). Its cast is the teams' rosters, its episodes the games.
+- **Finals stored.** Each game's final score and winner, for questions settled by the final. They're in `BoxScore.teams[]` and
+  `Competitor`, but today only in `sports_cache`.
+- **Odds.** The scoreboard lists a line for upcoming games in `competitions[0].odds[0]` (DraftKings via ESPN; checked for Oct 28:
+  `details` "PHI -4.5", `overUnder` 237.5). It's the over/under's default line.
+- **Total bases.** ESPN's per-player batting has no 2B, 3B or TB (its labels are `H-AB AB R H RBI HR BB K #P AVG OBP SLG`; only
+  the team totals have them). The plays do, so `Baseball`'s reducer counts them: single 1, double 2, triple 3, home run 4.
+
 ## How live stays free
 
 - **Phones ask ESPN themselves.** While a linked game is on and the screen is open (and visible), the phone polls ESPN's summary
@@ -104,7 +120,17 @@ the rest" work. That and "built in per sport is fine" fit together like this:
   1 per total base" = format draft, span the series, roster 3, scoring `{ HR: 5, TB: 1 }`; "for the 76ers home opener, predict
   the winner, top scorer and over/under total points" = format predictions, span one game, three questions over the sport's
   stats. Both are test fixtures for the spec's schema (step 1).
-- The spec's schema is the sports part of the Start-a-game data structure: design it with that plan, not apart from it.
+- **The spec's schema is `docs/PLAN-start-a-game-gpt.md`'s** (on master: its step A1, read by the engine from its A2). This
+  branch doesn't define its own: it merges master in once A2 is there, and builds the parts the schema marks as this branch's:
+  - `score.by: "stats"` (points per stat key);
+  - `count.best` (best ball);
+  - `rank` by matchups, categories or roto;
+  - `get.by: "squares"`;
+  - `closes` daily or weekly;
+  - the sports settles for a question: `final` (winner, total, margin) and `stat` (most, least, value).
+
+  Pick'em each game, brackets and live calls are questions (the engine's `ask`, its step A4) using those settles. Each sport's
+  default spec is a preset, stored as data. (Lined up 2026-10-27, from the GPT plan's mapping of the code.)
 
 ## The screens (designed first, with impeccable, in the site mock)
 
@@ -120,19 +146,28 @@ Phone first (390), the show space's flavour. To design in step 0, not decided he
 
 ## Steps (each its own session, Opus at xhigh)
 
+This branch is the **Sports lane** in `docs/PLAN-start-a-game-gpt.md`'s lanes: its own database (`rfl_sports`), port 3004 and
+migration numbers 0300–0399. The setup is `docs/PARALLEL-SESSIONS.md`, on master. Steps 0 and 2 can run any time; steps 1 and
+4–6 wait until the GPT plan's A2 (the engine reading specs) is on master and merged in here.
+
 0. **Design** (impeccable `shape`, then the mock): the live game, the players list, the sync, one format. The user confirms
-   before building.
+   before building. Any time: nothing in it waits on the engine.
 1. **The framework**: `Sport` and the big four (`Football`, `Baseball`, `Basketball`, `Hockey`), their ESPN readers and reducers,
-   the **game spec schema** and each sport's default spec (data), fixtures and tests (the user's two GPT examples among them).
-   No UI. Decide here how a sport's Make it a game starts from its default spec instead of asking ChatGPT.
+   the sports parts of the **game spec** (the schema is the GPT plan's A1; merge master in once its A2 lands) and each sport's
+   default spec (data), fixtures and tests (the user's two GPT examples among them). Also games straight from ESPN's schedule,
+   and finals and odds stored (the section above). No UI. Decide here how a sport's Make it a game starts from its default spec
+   instead of asking ChatGPT.
 2. **Live**: the phone's poller and `GameClock` (live, synced, snapped), the scorebug and the live box score on the show space;
-   fake-espn's replay; HOSTING.md.
+   fake-espn's replay; HOSTING.md. Any time: it's display only, and points come in step 4.
 3. **Players, organised**: the Players tab rebuilt on the sport's groups, chips and the player sheet.
-4. **Scoring**: built-in tables, Game settings to edit them, live points, the couch's play feed.
-5. **Formats**: head-to-head, best ball, pick'em each game, categories / roto; lineup locks per sport.
-6. **Casual**: squares, brackets, pick a few, live calls.
+4. **Scoring**: built-in tables, Game settings to edit them, live points, the couch's play feed. Scored from box scores and plays
+   through the spec (`score.by: "stats"`), replacing today's ChatGPT research of sports moments.
+5. **Formats**: head-to-head, best ball, pick'em each game, categories / roto; lineup locks per sport. Pick'em is the engine's
+   `ask` with the sports settles.
+6. **Casual**: squares, brackets, pick a few, live calls. Brackets and live calls are the engine's `ask` too.
 7. **More of ESPN**: soccer; college and WNBA; golf, racing, MMA, tennis (the field and bout shapes).
-8. **Release**: merge `sports` into master at once (migrations checked against a production backup first).
+8. **Release**: merge `sports` into master at once (migrations checked against a production backup first). Then the GPT plan's
+   G3, on master, teaches the GPT these formats.
 
 ## Open questions (ask when the step comes)
 
