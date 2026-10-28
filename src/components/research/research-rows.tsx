@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { ChevronDown } from "lucide-react";
 import type { Castaway, LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
+import { momentTags } from "@/lib/game/formats/index.js";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { cn } from "cn";
 
@@ -25,7 +26,7 @@ export interface EpisodeLine {
   /** Still in the game for it. */
   played: boolean;
   events: { type: string; label: string; points: number }[];
-  /** Safe moments this episode (see SAFETY_EVENTS), counted even where the league scores them 0. */
+  /** Safe moments this episode (tagged safety: see hasSafety), counted even where the league scores them 0. */
   safe: number;
 }
 
@@ -52,8 +53,10 @@ export function airedEpisodes(state: LeagueState, includePreseason: boolean) {
 }
 
 export function buildRows(state: LeagueState, aired: LeagueState["episodes"], window: Window): Row[] {
-  const defs = StateLogic.formatOf(state).events;
+  const format = StateLogic.formatOf(state);
+  const defs = format.events;
   const label = (type: string) => defs.find((d) => d.id === type)?.label ?? type;
+  const tagsOf = momentTags(format);
   const inWindow = window === "season" ? aired : aired.slice(-Number(window));
   const rank = eventRank(state);
 
@@ -66,7 +69,7 @@ export function buildRows(state: LeagueState, aired: LeagueState["episodes"], wi
       const line: EpisodeLine = { n: ep.number, points: 0, played: !(exitEp[c.id] < ep.number), events: [], safe: 0 };
       for (const sev of StateLogic.ActiveRosterLogic.episodeEvents(state, ep)) {
         if (sev.castawayId !== c.id) continue;
-        if (SAFETY_EVENTS.includes(sev.type)) line.safe++;
+        if (tagsOf(sev.type).includes("safety")) line.safe++;
         const pts = StateLogic.ActiveRosterLogic.eventPoints(state, sev);
         line.points = StateLogic.roundPoints(line.points + pts);
         // An event this league scores at 0 is noise in the breakdown.
@@ -83,15 +86,15 @@ export function buildRows(state: LeagueState, aired: LeagueState["episodes"], wi
   });
 }
 
-/** What keeps someone off the chopping block, for an Eliminator Pool where surviving beats scoring:
- *  winning individual immunity, Tribal with no votes against, and votes survived. A show whose format
- *  has none of these has no Safety ranking (hasSafety). */
-export const SAFETY_EVENTS = ["individualImmunity", "zeroVotesSafe", "survivedVotes"];
+/** What keeps someone off the chopping block, for an Eliminator Pool where surviving beats scoring: the moments tagged
+ *  safety (formats/moment-tags.js), Survivor's individual immunity, Tribal with no votes against, and votes survived. A
+ *  show whose rules have none has no Safety ranking. */
 export const SAFETY_RULE_ID = "__safety";
 export const SAFETY_RULE: Rule = { type: SAFETY_RULE_ID, label: "Safety", points: 0 };
 export function hasSafety(state: LeagueState): boolean {
-  const defs: { id: string }[] = StateLogic.formatOf(state).events;
-  return SAFETY_EVENTS.some((id) => defs.some((d) => d.id === id));
+  const format = StateLogic.formatOf(state);
+  const tagsOf = momentTags(format);
+  return format.events.some((d: { id: string }) => tagsOf(d.id).includes("safety"));
 }
 
 /** Where an event sits in the show's scoring groups (format.eventCategories, the League Scoring

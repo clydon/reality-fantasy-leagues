@@ -13,5 +13,9 @@ export interface RulebookSource {
   base?: FormatData;
 }
 
-export const BUILT_IN_BLOCKS: Record<"survivor" | "traitors" | "challenge", { blocks: RulebookBlocks; aliases: RulebookAliases }>;
+export const BUILT_IN_BLOCKS: Record<
+  "survivor" | "traitors" | "challenge",
+  /** standsAlone: the blocks say everything the built-in's code does (the golden test), so a new season compiles from them. */
+  { blocks: RulebookBlocks; aliases: RulebookAliases; standsAlone?: boolean }
+>;
 export function rulebookFor(formatId: string | null | undefined, data?: FormatData | null): RulebookSource;

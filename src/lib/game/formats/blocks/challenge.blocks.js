@@ -48,6 +48,14 @@ module.exports = {
       finalist: { exclusive: 3, shared: 5 },
       winner: { exclusive: 5, shared: 10 },
     },
+    // What a moment says about someone's place in the game, as challenge.js has it (moment-tags.js; the computer players
+    // read them): winning a daily or an elimination makes a threat, and a nomination survived is danger. Its daily win keeps
+    // nobody off the chopping block for a Safety ranking (Survivor's immunity does).
+    momentNotes: {
+      dailyChallengeWon: { tags: ['threat'] },
+      eliminationWon: { tags: ['threat'] },
+      nominatedSurvived: { tags: ['danger'] },
+    },
     leftOut: [],
   },
   aliases: {

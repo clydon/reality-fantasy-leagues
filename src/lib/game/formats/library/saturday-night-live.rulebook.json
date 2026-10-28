@@ -290,92 +290,110 @@
       {
         "id": "monologueAudienceParticipation",
         "label": "An audience member participates in the opening monologue",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "topicalPoliticalImpression",
         "label": "A recognizable political figure is impersonated",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "recurringCharacterReturns",
         "label": "A recurring character returns",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "costumeTransformation",
         "label": "A performer makes a conspicuous costume or character transformation",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "sketchParodiesPopularMedia",
         "label": "A sketch parodies a recognizable film, television show or popular-media format",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "fourthWallBreak",
         "label": "A performer directly acknowledges the live broadcast or audience outside the apparent scene",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "weekendUpdateGuest",
         "label": "A character or guest joins Weekend Update",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "topicalNewsReference",
         "label": "A joke directly references a current news event",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "hostJoinsMusicalPerformance",
         "label": "The host joins a musical performance",
-        "defaultPoints": 3
+        "defaultPoints": 3,
+        "tags": []
       },
       {
         "id": "hostBreaksCharacter",
         "label": "The host breaks character",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "castMemberBreaksCharacter",
         "label": "A cast member breaks character",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "surpriseCameo",
         "label": "A surprise cameo appears",
-        "defaultPoints": 3
+        "defaultPoints": 3,
+        "tags": []
       },
       {
         "id": "unexpectedGuestAppearance",
         "label": "An unexpected guest appears in a sketch",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "hostSings",
         "label": "The host sings during a comedy segment",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "hostDances",
         "label": "The host performs a dance during a comedy segment",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "sketchBreaks",
         "label": "A sketch visibly breaks down into laughter",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "improvisedMoment",
         "label": "An unscripted moment occurs during a live performance",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "audienceReactionInterrupts",
         "label": "Audience reaction audibly interrupts a performance",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       }
     ],
     "eventCategories": [
