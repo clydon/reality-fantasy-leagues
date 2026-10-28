@@ -14,7 +14,7 @@ const { compileRulebook } = require("../src/lib/game/formats/rulebook-compile.js
 const { rulebookFor } = require("../src/lib/game/formats/blocks/index.js");
 const R = require("../db/episode-research.js");
 const S = require("../src/lib/game/state-logic.js");
-const { CAST, TERM_SETS, patterned, scenarios } = require("./harness/research-fixtures.js");
+const { CAST, TERM_SETS, ctxFor, patterned, scenarios } = require("./harness/research-fixtures.js");
 const { buildDemoState } = jiti("../src/lib/game/demo-season-builder.ts");
 const STORED = require("./fixtures/stored-formats.json");
 
@@ -168,8 +168,9 @@ test("a league of every type scores the same played by the frozen format or by i
 //
 // What Survivor 51 switches onto (S3): Survivor's blocks with no base and the generic reader, so nothing of survivor.js is
 // read. They give its events, questions and rules: by id, key and condition rather than in its order, and in the blocks'
-// own labels (How it works already shows them). Research's notes and whole-episode checks are still survivor.js's code
-// half (S2), so answers are staged here as given, before any check repairs them.
+// own labels (How it works already shows them). Research is reviewed the same way too (S2): the same problems, the same
+// repairs, and the same notes and sentences, from checks and words that are the rulebook's data. Problems, notes and
+// sentences are compared as sets: their order is the blocks'.
 function onItsOwn() {
   const { blocks, aliases } = rulebookFor("survivor");
   const { data, problems, warnings } = compileRulebook(blocks, { aliases, reader: "research" });
@@ -186,11 +187,11 @@ function canon(v) {
 }
 const asSet = (xs) => xs.map((x) => JSON.stringify(canon(x))).sort();
 const byId = (events) => asSet(events.map((e) => ({ id: e.id, points: e.defaultPoints, implied: !!e.implied })));
-// A question as research is asked it (its reviewer's note is S2's).
+// A question as research is asked it (how it reads to a reviewer is compared as notes, below).
 const questions = (fields) =>
   asSet(fields.map((f) => {
     const q = { ...f };
-    delete q.note;
+    for (const k of ["note", "sentence", "shown"]) delete q[k];
     return q;
   }));
 
@@ -206,6 +207,7 @@ test("with no base and the generic reader, Survivor's blocks give survivor.js's 
   assert.deepEqual(data.research.episodeFields, [{ key: "tribalCouncilHeld", type: "answer", description: "Was there a Tribal Council this episode?" }]);
   assert.deepEqual([...data.research.claims].sort(), [...f.research.claims].sort(), "the yeses that need a source");
   assert.deepEqual(data.research.searchHint, f.research.searchHint);
+  assert.deepEqual(data.research.groupVotes, f.research.groupVotes, "the vote one tribe goes to at a time, and its words for a missed move");
   const schema = (fmt) => {
     const s = z.toJSONSchema(fmt.research.checklistSchema(z, z.enum(["yes", "no", "unknown"])), { io: "output" });
     return canon({ ...s, required: [...s.required].sort() });
@@ -231,6 +233,98 @@ test("Survivor on its own blocks: the harness's answers stage the same results, 
   }
   assert.ok(episodes.some((ep) => ep.exiled.length && frozen.impliedEvents(ep, {}).some((e) => e.type === "wentToExile")), "exile is in there");
   for (const ep of episodes) assert.deepEqual(asSet(format.impliedEvents(ep, {})), asSet(frozen.impliedEvents(ep, {})), `episode ${ep.number}`);
+});
+
+// The tribes going into the episode, so research fills in a missed tribe move as well.
+const GROUPS = { "Ada Lovelace": "Kele", "Grace Hopper": "Kele", "Alan Turing": "Kele", "Katherine Johnson": "Kele", "Hedy Lamarr": "Lavo", "Claude Shannon": "Lavo" };
+
+// Answers that trip each of survivor.js's checks, and the missed move, which the patterned ones may not reach.
+function checkScenarios(frozen) {
+  const out = [];
+  const one = (label, fill) => {
+    const skel = R.pasteSkeleton(ctxFor(frozen), []);
+    const at = (name, fields) => Object.assign(skel.castaways.find((c) => c.name === name), { sources: ["x"], confidence: "high" }, fields);
+    fill(skel, at);
+    out.push([label, skel]);
+  };
+  one("no Tribal held", (p, at) => {
+    p.tribalCouncilHeld = "no";
+    at("Ada Lovelace", { attendedTribal: "yes", votesReceived: 2, votedFor: "Grace Hopper" });
+    at("Grace Hopper", { attendedTribal: "yes", votesReceived: 0, wonTribeImmunity: "yes" });
+  });
+  one("the tribe that won immunity, at Tribal", (p, at) => {
+    p.tribalCouncilHeld = "yes";
+    at("Ada Lovelace", { attendedTribal: "yes", votesReceived: 0, wonTribeImmunity: "yes", votedFor: "Hedy Lamarr" });
+    at("Grace Hopper", { attendedTribal: "yes", votesReceived: 3, wonTribeImmunity: "no", votedFor: "Hedy Lamarr" });
+    at("Hedy Lamarr", { attendedTribal: "yes", votesReceived: 1, leftTheGame: "yes", exitMethod: "Voted Out" });
+  });
+  one("everyone at Tribal on zero", (p, at) => {
+    for (const n of ["Ada Lovelace", "Grace Hopper", "Alan Turing"]) at(n, { attendedTribal: "yes", votesReceived: 0, votedFor: "Hedy Lamarr" });
+  });
+  one("votes against and voters disagree", (p, at) => {
+    at("Ada Lovelace", { attendedTribal: "yes", votesReceived: 4, votedFor: "Grace Hopper" });
+    at("Grace Hopper", { attendedTribal: "yes", votesReceived: 1, votedFor: "Ada Lovelace" });
+  });
+  one("one person contradicting themselves", (p, at) => {
+    at("Ada Lovelace", { attendedTribal: "no", votesReceived: 2 });
+    at("Grace Hopper", { wonIndividualImmunity: "yes", leftTheGame: "yes", exitMethod: "Voted Out" });
+    at("Alan Turing", { foundAdvantage: "yes", advantageFoundName: null });
+    at("Katherine Johnson", { individualChallengeFinish: 1, wonIndividualImmunity: "no", wonIndividualReward: "no" });
+    at("Hedy Lamarr", { votesNullified: 2, playedAdvantage: "no" });
+    at("Claude Shannon", { individualChallengeFinish: 1, wonIndividualReward: "yes", foundAdvantage: "yes", advantageFoundName: "an idol", notableTwist: "Lost a shoe" });
+  });
+  one("a missed tribe move", (p, at) => {
+    for (const n of ["Ada Lovelace", "Grace Hopper", "Alan Turing"]) at(n, { attendedTribal: "yes", votesReceived: 1, votedFor: "Hedy Lamarr" });
+    at("Hedy Lamarr", { attendedTribal: "yes", votesReceived: 3, leftTheGame: "yes", exitMethod: "Voted Out" });
+  });
+  return out;
+}
+
+// One answer through research's review: what's refused and reported, what's repaired, each person's notes and sentences,
+// and what it stages afterwards.
+function reviewed(format, payload) {
+  let parsed;
+  try {
+    parsed = R.parseJsonAnswer(JSON.stringify(payload), R.researchSchemaFor(format, false), "golden");
+  } catch (e) {
+    return { parseError: e.message };
+  }
+  const review = R.validateResearch(parsed, CAST, TERM_SETS.default, format, { groups: GROUPS });
+  // The claims with no source are listed in the checklist's order, which is the blocks'.
+  const claims = (p) => p.replace(/claims (.+) with no source cited$/, (_, keys) => `claims ${keys.split(", ").sort().join(", ")} with no source cited`);
+  return {
+    problems: review.problems.map(claims).sort(),
+    fatal: review.fatal,
+    counts: review.counts,
+    repaired: review.entries.map(canon),
+    notes: review.entries.map((e) => [[...format.research.notes(e)].sort(), [...format.research.sentences(e)].sort()]),
+    staged: asSet(R.candidatesFor(parsed, format, 4)),
+  };
+}
+
+test("Survivor on its own blocks: research is reviewed the same, problems, repairs, notes and sentences", () => {
+  const { frozen, format } = onItsOwn();
+  assert.notEqual(format.research.episodeProblems, frozen.research.episodeProblems, "nothing of survivor.js's code half");
+  const payloads = [...[0, 1, 2, 3, 4, 5].map((o) => [`patterned ${o}`, patterned(frozen, o)]), ...scenarios(frozen), ...checkScenarios(frozen)];
+  const seen = [];
+  for (const [label, payload] of payloads) {
+    const ours = reviewed(format, JSON.parse(JSON.stringify(payload)));
+    const theirs = reviewed(frozen, JSON.parse(JSON.stringify(payload)));
+    assert.deepEqual(ours, theirs, label);
+    seen.push(...(theirs.problems || []));
+  }
+  // Every check, and the missed move, was reached somewhere: taking one out of the rulebook fails a case above.
+  const reached = [
+    /votes against someone who didn't attend Tribal$/, /voted out despite winning individual immunity$/, /found an advantage but didn't say what$/,
+    /finished 1st in an individual challenge but isn't marked as winning it$/, /votes cancelled by an advantage they aren't marked as playing$/,
+    /^No Tribal Council this episode/, /on the tribe that won immunity \(attendance cleared to unknown\)$/, /^Everyone at Tribal was given zero votes/,
+    /people at Tribal are recorded voting: check who attended$/, /was at Kele's Tribal but was still on Lavo/,
+  ];
+  for (const re of reached) assert.ok(seen.some((p) => re.test(p)), `reached: ${re}`);
+  // Notes say what happened, in survivor.js's words (a few, spelled out).
+  const notes = reviewed(format, checkScenarios(frozen).find(([l]) => l === "one person contradicting themselves")[1]).notes;
+  assert.deepEqual(notes[2][0], ["found an advantage"], "a find with no name says so");
+  assert.deepEqual(notes[5][0], ["Lost a shoe", "found an idol", "individual reward"]);
 });
 
 test("Survivor on its own blocks: a league of every type scores the same", () => {

@@ -17,9 +17,14 @@
 //     points:   { [momentId]: number | { exclusive, shared } },   suggested-point overrides
 //     momentNotes: { [momentId]: { reliability?, answeredBy?, off? } }, research's rating of a built moment;
 //               off: a couch's own copy doesn't count it (Make it ours)
-//     research: { searchHint?: ['a line of the research prompt'], questions?: { [questionKey]: { words?, needsSource?, type?, of? } } },
+//     research: { searchHint?: ['a line of the research prompt'],
+//                 questions?: { [questionKey]: { words?, needsSource?, type?, of?, note?, sentence?, shown? } },
+//                 checks?: { [checkId]: { words?, when?, set?, off? } } },
 //               how research asks: its own words for a question the rulebook asks (the compiler writes its own
-//               otherwise), whether a yes needs a source, and questions it asks besides that score nothing (with a type)
+//               otherwise), whether a yes needs a source, and questions it asks besides that score nothing (with a type);
+//               how each answer reads to a reviewer (note, sentence and when they're said: research-review.js); and its
+//               checks: words, a condition or off for one the compiler makes from the blocks, or one of its own (a
+//               condition on one person's answers, and its words; rulebook-compile.js)
 //     leftOut:  ['anything that didn't fit, one sentence each'] }
 //
 // The refinements a show's own rules need (docs/PLAN-start-a-game-gpt.md S1), each optional, absent meaning what it
@@ -633,7 +638,7 @@ function blocksProblems(blocks) {
   if (research !== undefined) {
     if (!isObj(research)) add('research', 'How research asks should be an object');
     else {
-      for (const k of Object.keys(research)) if (!['searchHint', 'questions'].includes(k)) add(`research.${k}`, `How research asks: "${k}" isn't something it takes`);
+      for (const k of Object.keys(research)) if (!['searchHint', 'questions', 'checks'].includes(k)) add(`research.${k}`, `How research asks: "${k}" isn't something it takes`);
       if (research.searchHint !== undefined && !(Array.isArray(research.searchHint) && research.searchHint.length && research.searchHint.every((l) => typeof l === 'string'))) {
         add('research.searchHint', 'What research searches for should be a list of lines');
       }
@@ -642,7 +647,9 @@ function blocksProblems(blocks) {
         const at = `research.questions.${k}`;
         if (!ID.test(k)) add(at, `"${k}": a question's key should be camelCase letters and digits`);
         if (!isObj(q)) { add(at, `${k}: how it's asked isn't filled in`); continue; }
-        for (const f of Object.keys(q)) if (!['words', 'needsSource', 'type', 'of'].includes(f)) add(`${at}.${f}`, `${k}: "${f}" isn't something a question takes`);
+        for (const f of Object.keys(q)) if (!['words', 'needsSource', 'type', 'of', 'note', 'sentence', 'shown'].includes(f)) add(`${at}.${f}`, `${k}: "${f}" isn't something a question takes`);
+        for (const f of ['note', 'sentence']) if (q[f] !== undefined && q[f] !== false && !isText(q[f])) add(`${at}.${f}`, `${k}: how it reads to a reviewer should be text, or false for nothing`);
+        if (q.shown !== undefined && !isObj(q.shown)) add(`${at}.shown`, `${k}: when it's said should be a condition`);
         if (q.words !== undefined && !isText(q.words)) add(`${at}.words`, `${k}: its words should be text`);
         else if (q.type !== undefined && q.words === undefined) add(`${at}.words`, `${k}: a question asked besides needs its words`);
         if (q.needsSource !== undefined && typeof q.needsSource !== 'boolean') add(`${at}.needsSource`, `${k}: whether a yes needs a source should be yes or no`);
@@ -651,6 +658,16 @@ function blocksProblems(blocks) {
           if (q.type === undefined) add(`${at}.of`, `${k}: what it's about only goes with a question asked besides`);
           else if (!QUESTION_OF.includes(q.of)) add(`${at}.of`, `${k}: what it's about isn't one of ${QUESTION_OF.join(', ')}`);
         }
+      }
+      if (research.checks !== undefined && !isObj(research.checks)) add('research.checks', 'The checks should be a map of their ids');
+      for (const [k, c] of Object.entries(isObj(research.checks) ? research.checks : {})) {
+        const at = `research.checks.${k}`;
+        if (!ID.test(k)) add(at, `"${k}": a check's id should be camelCase letters and digits`);
+        if (!isObj(c)) { add(at, `${k}: the check isn't filled in`); continue; }
+        for (const f of Object.keys(c)) if (!['words', 'when', 'set', 'off'].includes(f)) add(`${at}.${f}`, `${k}: "${f}" isn't something a check takes`);
+        if (c.words !== undefined && !isText(c.words)) add(`${at}.words`, `${k}: its words should be text`);
+        for (const f of ['when', 'set']) if (c[f] !== undefined && !isObj(c[f])) add(`${at}.${f}`, `${k}: ${f === 'when' ? 'its condition' : 'what it repairs'} should be an object`);
+        if (c.off !== undefined && typeof c.off !== 'boolean') add(`${at}.off`, `${k}: whether it's off should be yes or no`);
       }
     }
   }

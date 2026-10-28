@@ -80,12 +80,25 @@ export interface RulebookCustomMoment {
   exceptWinners?: boolean;
 }
 
-/** How research asks one question: its own words, whether a yes needs a source, or (with a type) a question asked besides. */
+/** How research asks one question: its own words, whether a yes needs a source, or (with a type) a question asked besides;
+ *  and how its answer reads to a reviewer (a template of it, research-review.js), and when that's said. */
 export interface RulebookQuestion {
   words?: string;
   needsSource?: boolean;
   type?: "answer" | "string" | "integer";
   of?: "person" | "episode";
+  note?: string | false;
+  sentence?: string | false;
+  shown?: Record<string, unknown>;
+}
+
+/** One of research's checks, by its id (rulebook-compile.js): its own words or condition for one the compiler makes from the
+ *  blocks, off, or one of the rulebook's own (a condition on one person's answers, and its words). */
+export interface RulebookCheck {
+  words?: string;
+  when?: Record<string, unknown>;
+  set?: Record<string, string | number | null>;
+  off?: boolean;
 }
 
 export interface RulebookBlocks {
@@ -124,7 +137,7 @@ export interface RulebookBlocks {
   /** off: a couch's own copy doesn't count it (Make it ours). */
   momentNotes?: Record<string, { reliability?: "reliable" | "usually" | "patchy"; answeredBy?: "research" | "league"; off?: boolean }>;
   /** How research asks: the search hint's lines, and each question by the blocks' own key. */
-  research?: { searchHint?: string[]; questions?: Record<string, RulebookQuestion> };
+  research?: { searchHint?: string[]; questions?: Record<string, RulebookQuestion>; checks?: Record<string, RulebookCheck> };
   leftOut?: string[];
 }
 

@@ -646,6 +646,11 @@ const data = {
     episodeFields,
     searchHint: researchSearchHint,
     claims: researchClaims,
+    // Before the merge each Tribal is one tribe's, so someone at it on another tribe is most likely a missed swap
+    // (db/episode-research.js tribalGroupProblems).
+    groupVotes: [
+      { attended: 'attendedTribal', say: "{name} was at {group}'s Tribal but was still on {was}: added a move to {group} (reject it in review if that's wrong)" },
+    ],
   },
   rules: { research: researchRules, implied: impliedRules },
 };

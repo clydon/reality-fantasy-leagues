@@ -1,6 +1,8 @@
 # Plan: the Start-a-game GPT, on games as data
 
-Status: **planned 2026-10-27**. **S1 built 2026-10-27** on `survivor-data` (not merged; its As built is under track S). The
+Status: **planned 2026-10-27**. **S1 built 2026-10-27** on `survivor-data` (not merged; its As built is under track S).
+**S2 part 1 built 2026-10-28** on `survivor-data` (checks and words as data; not merged; As built under track S); S2 part 2
+(the shared-code clean-up) is next. The
 user's idea, their decisions and the order are below; each step is its own session (Opus 5.5 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: live sports, its Sport classes and
 formats, written against this plan's game spec) and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season:
 track S here).
@@ -235,6 +237,9 @@ in `PLAN-researched-survivor.md`'s "What the switch needs", with this plan's dec
   - `ensureSeasonRulebook` never freezes a built-in again.
   - Maker scoring's event-id vs moment-id mismatch is fixed.
   - Then the test couch plays it.
+  - **Split in two (2026-10-28):** part 1, checks and notes (the first two bullets, plus the research reader's own Survivor
+    names: `tribalGroupProblems`' key, `notableTwist`, and the episode editor's finalist exits); part 2, the shared-code
+    clean-up (moment tags, stored answers by rulebook, `ensureSeasonRulebook`, maker scoring).
 - **S3. The switch.** After two episodes with every table matching at today's points, the three real games move onto the data
   rules (with the user's OK). Then `survivor.js`'s code half, `BUILT_IN_READERS` and legacy freezing go, and Traitors' and the
   Challenge's built-ins with them once nothing plays them.
@@ -307,6 +312,85 @@ reader (`compileRulebook(blocks, { aliases, reader: 'research' })`), now give `s
   - Until then, How it works differs between a season read from its row and one read from `rulebookFor`. (S3.)
 - **The desk editor has no controls for the refinements or the research block.** They're kept through edits and dropped when an
   edit makes one not fit, but nobody can set them by hand. (The desk-parity plan, or after S2.)
+
+**S2 part 1 as built (2026-10-28, `survivor-data`, not merged; no migration).** Research's review is the rulebook's data:
+Survivor's blocks with the generic reader review research exactly as `survivor.js`'s code half does (its problems, its
+repairs, its notes and sentences), and so can any show's.
+- **`src/lib/game/formats/research-review.js`** (new, browser-safe): the words and the checks, their runner and their
+  validation.
+  - **Words.** A checklist field can carry `note` (the reviewer's phrase) and `sentence` (semantic search's, the note when
+    absent), each a template: `{value}`, `{s}` (plural unless 1), `{nth}` (2nd), another answer (`{advantageFoundName|an
+    advantage}`, with what to say when it's empty); `shown` (a condition) says when it's said, and `false` says nothing. A note
+    with no placeholder is a label, read as before (stored formats unchanged), and so is one whose braces name nothing it can
+    say (a moment labelled "Said {catchphrase}"), so a label can never break a compile.
+  - **Checks** (`research.checks` in FormatData, run in order): a person's (`when`, `say`, optional `set`, run where
+    `entryProblems` ran) or the episode's (`of: 'episode'`: `values` counts and sums over the cast, `when` on them and the
+    episode's answers, `who` it repairs, `each` for one line per person; run where `episodeProblems` ran). Conditions are
+    rules.js's, plus `{ value }` and `{ episode }` leaves and a number compared with another value.
+  - `formatProblems` validates every check's placeholders, conditions and repairs, and each `shown`, against the checklist (a
+    repair can't touch the questions every checklist has).
+- **The generic reader** (`custom.js`) runs them: `entryProblems`, `episodeProblems` (new for data-only formats), notes and
+  sentences from each question's words. A season rule change's added questions read their sentences too.
+- **The compiler derives the checks from the blocks' structure**, for any show (no base only; on a base the base's stay,
+  since a built-in's code half has its own):
+  - a vote by the cast: votes against someone who wasn't there, everyone there on zero (cleared: nobody marked safe), votes
+    against people vs people voting (reported);
+  - asked whether it was held (`<segment>Held`, a question asked besides of the episode: Survivor's `tribalCouncilHeld`):
+    attendance cleared when it wasn't;
+  - `skippedBy`: whoever is in the group whose win skips it cleared to unknown, one line each;
+  - a segment with safety on the line: won it yet went home by a vote's exit;
+  - `places: 'place'`: 1st without the win;
+  - an advantage's `cancelled: 'count'`: votes cancelled with nothing played.
+  - The research block's `checks` (by id) give one its own words, its own condition or `off`, and add checks of their own (a
+    condition on a person's answers, and words). One that reads a question the rulebook doesn't ask is left out with a
+    warning, so taking a moment out never gets stuck on it; an override of the blocks' own that does falls back to the blocks'
+    version, with a warning.
+  - Default words name the segment ("No Tribal Council this episode, but ..." is `survivor.js`'s sentence word for word).
+- **Survivor's blocks** carry `survivor.js`'s words for every question's note and sentence and for its checks, one condition of
+  their own (a 1st place excuses a reward win too: Survivor's finishing place covers every individual challenge) and one
+  check of their own (found an advantage without saying what).
+- **The missed tribe move** (`db/episode-research.js tribalGroupProblems`) reads `research.groupVotes`: `[{ attended, say }]`,
+  each vote one group goes to at a time (compiled from a cast vote with `skippedBy`) and its words for the move ({name},
+  {group}, {was}). `survivor.js`'s data gains `groupVotes` (attendedTribal, its own sentence) and the on-a-base compile
+  carries it. **So Survivor's legacy rulebook rows** (the library template and Survivor 51's season row) are behind their
+  source and refresh once, with a version bump, the next time `ensureSeasonRulebook`/`ensureTemplate` runs: the data is the
+  same bar that key, and nothing scores differently. Until then (and for a base saved before) `formatForRulebook` gives data
+  read by a built-in reader the family's `groupVotes` for the votes it asks about, so the repair never lapses. Research on a
+  legacy season that isn't live reads the built-in anyway (the local copy's Survivor 51: not live, flag off).
+- **`notableTwist`**: the research prompt only tells a chat to put conflicts there when the ask has it (every built-in does; a
+  rulebook only when its research block asks it; a re-ask of a few questions, `onlyFormat`, doesn't), read from the ask's own
+  schema. Prompts for the built-ins are unchanged. (Making it a core field was tried and dropped in review: a stored format
+  using the key for something else would stop building.)
+- **Finalist exits** (classic's episode editor): a finalist's exit asks for jury votes wherever the format scores them (an
+  implied rule per vote, or one for none) and the exit reaches the end (`endgameExitMethods`, from the ways out's `means`),
+  not by format id. The same two exits as before for Survivor.
+- **What other rulebooks get:** any compiled rulebook with a cast vote gets the vote's checks when it's next compiled (a
+  stored one, like The Traitors 5's, only when edited); from then on an answer with everyone at its vote on zero is cleared
+  rather than scoring everyone "zero votes".
+- **Different from `survivor.js` on purpose:** problems, notes and sentences come in the blocks' order (the claims message
+  lists its questions in the checklist's order); the golden test compares them as sets.
+- **Checks:**
+  - the golden test's new "research is reviewed the same" compares every harness answer plus six scenarios (no Tribal held,
+    the immunity tribe at Tribal, everyone on zero, votes vs voters, one person contradicting themselves, a missed tribe
+    move): problems, repairs, counts, notes, sentences and what stages after, and asserts each of the nine checks and the
+    move was reached. Switching off any check, or a question's words, fails it (checked by hand);
+  - `tests/research-review.test.js` (9): a made-up show's derived checks and their default words, held/not held, the research
+    block's words, condition, off and own check (the two it leaves out, the override it falls back from), a talk show with
+    none, `formatProblems` refusing bad checks, the templates (and braces in a label), the missed move on a show that isn't
+    Survivor, data frozen before `groupVotes`, the prompt's notableTwist (a re-ask too);
+  - 771 unit tests; `tsc` and eslint clean; `/code-review` on the diff (its fixes: the fallback, frozen data's `groupVotes`,
+    labels with braces, notableTwist from the ask's schema, the goat's jury votes, one `the` and one `words`);
+  - `scripts/dev-test/check-episode-editor.js` (new, reusable: `--league`, `--episode`, width) 9 PASS at 390 on this lane's
+    server; `check-maker-scoring.js` (it recompiles rulebooks and asks research again) 57 PASS at 390, as before.
+
+**S2 part 1 noticed, not fixed:**
+- The research harness's `patterned()` never fills a nullable text answer (its JSON schema's type is a list), so votedFor, the
+  advantage names and notableTwist are only ever null there; the golden test's own scenarios cover them. (Any later step
+  touching `tests/harness/research-fixtures.js`; it feeds the format-regression harness too.)
+- A fresh researched rulebook doesn't ask `notableTwist`, so its research has nowhere for conflicts; the compiler could ask an
+  anything-else question for every show. (S2 part 2 or G1.)
+- The desk editor has no controls for the research block's words or checks (S1's noticed item, now bigger). (The desk-parity
+  plan.)
 
 **A. The engine: games as specs** (master).
 - **A1. The game spec, pure, no engine change.**

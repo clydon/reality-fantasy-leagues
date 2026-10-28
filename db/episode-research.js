@@ -54,6 +54,7 @@ const StateLogic = require("../src/lib/game/state-logic.js");
 // flag, and which answers become which results are the format's. The run, the providers, the
 // coverage rules and the cache are the same for every format.
 const Formats = require("../src/lib/game/formats/index.js");
+const Review = require("../src/lib/game/formats/research-review.js");
 const ShowFormats = require("./show-formats.js");
 // A season's approved rule changes (docs/PLAN-season-rule-changes.md): research asks what the season's
 // rules ask by the episode it's researching, not just what the show's format asks.
@@ -233,6 +234,9 @@ function buildPrompt({ showName, season, episodeNumber, castNames, castGroups = 
   const group = String(terms.tribe || "tribe").toLowerCase();
   const groupOf = (n) => (format.hasGroups && castGroups[n] ? castGroups[n] : null);
   const anyGroups = castNames.some(groupOf);
+  // Where a chat puts what it couldn't settle: the anything-else question (notableTwist), when this ask has one (a
+  // rulebook asks it only if its research block does; a re-ask of a few questions, onlyFormat, may leave it out).
+  const anythingElse = "notableTwist" in format.research.checklistSchema(z, z.enum(["yes", "no", "unknown"])).shape;
   const system = [
     `You research reality-TV episodes and answer a fixed checklist about every ${terms.castaway} still in the game.`,
     "",
@@ -249,7 +253,7 @@ function buildPrompt({ showName, season, episodeNumber, castNames, castGroups = 
     "4. Cite the URLs you actually read, per person.",
     "",
     "Recaps disagree with each other and with fan wikis. Where they conflict, prefer the most",
-    "specific and most recent source, lower the confidence, and say so in notableTwist.",
+    `specific and most recent source, lower the confidence${anythingElse ? ", and say so in notableTwist" : ""}.`,
   ].join("\n");
 
   const user = [
@@ -263,8 +267,8 @@ function buildPrompt({ showName, season, episodeNumber, castNames, castGroups = 
       ? [
           `The ${group} after each name is the one they were on going INTO this episode, as far as we know.`,
           `If ${group}s were swapped, re-divided, dissolved or merged in this episode, give each person's new`,
-          `${group} in newGroup -- that is the only place a ${group} change is recorded, so don't leave it in`,
-          "notableTwist alone.",
+          `${group} in newGroup -- that is the only place a ${group} change is recorded${anythingElse ? ", so don't leave it in" : "."}`,
+          ...(anythingElse ? ["notableTwist alone."] : []),
           "",
         ]
       : format.hasGroups
@@ -1122,15 +1126,22 @@ function validateResearch(parsed, castNames, terms, format, opts = {}) {
   return { entries: answered, problems, fatal, counts };
 }
 
-// Before the merge, one Tribal is one group's: someone there whose group (after this episode's moves)
-// isn't the others' is most likely a missed move -- a swapped castaway voted out the same night, whose
-// move a chat leaves out because they're gone. The move is filled in, so it stages as a group change the
-// reviewer can reject, and reported. Only where the format has groups and the answers say who attended.
+// Before the groups end, a vote one group goes to at a time (the format's research.groupVotes: Survivor's
+// Tribal, which the tribe that wins immunity skips) is one group's: someone there whose group (after this
+// episode's moves) isn't the others' is most likely a missed move -- a swapped castaway voted out the same
+// night, whose move a chat leaves out because they're gone. The move is filled in, so it stages as a group
+// change the reviewer can reject, and reported in the vote's own words. Only where the format has groups
+// and the answers say who attended.
 function tribalGroupProblems(parsed, castNames, format, groups) {
-  if (!format.hasGroups || !groups || (parsed && parsed.merged === "yes")) return [];
+  const votes = (format.data && format.data.research && format.data.research.groupVotes) || [];
+  if (!format.hasGroups || !groups || !votes.length || (parsed && parsed.merged === "yes")) return [];
+  return votes.flatMap((vote) => groupMoves(parsed, castNames, vote, groups));
+}
+
+function groupMoves(parsed, castNames, vote, groups) {
   const asked = (name) => castNames.find((n) => n.toLowerCase() === String(name || "").trim().toLowerCase());
   const at = ((parsed && parsed.castaways) || [])
-    .filter((c) => c.attendedTribal === "yes")
+    .filter((c) => c[vote.attended] === "yes")
     .map((c) => ({ entry: c, name: c.name, group: (typeof c.newGroup === "string" && c.newGroup.trim()) || groups[asked(c.name)] || null }))
     .filter((c) => c.group);
   if (at.length < 3) return [];
@@ -1145,7 +1156,7 @@ function tribalGroupProblems(parsed, castNames, format, groups) {
     .filter((c) => c.group.toLowerCase() !== top)
     .map((c) => {
       c.entry.newGroup = tribe;
-      return `${c.name} was at ${tribe}'s Tribal but was still on ${c.group}: added a move to ${tribe} (reject it in review if that's wrong)`;
+      return Review.fill(vote.say, (key) => ({ name: c.name, group: tribe, was: c.group })[key]);
     });
 }
 

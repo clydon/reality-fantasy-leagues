@@ -26,8 +26,19 @@
 // THE QUESTIONS' KEYS AND WORDS. `aliases.questions` maps a question these blocks build to the key stored answers
 // already use ("tribalCouncilAttended" -> "attendedTribal"), beside the event and exit maps, so research answered
 // before keeps reading. The rulebook's `research` block can give a question research's own words, say a yes needs
-// no source, ask questions besides that score nothing (each with a type and its words), and set the search hint. On a
-// base, the base's questions keep the base's words and search hint (the legacy freeze asks what it always asked).
+// no source, ask questions besides that score nothing (each with a type and its words), and set the search hint. It
+// also says how each answer reads to a reviewer (`note`, `sentence`, `shown`: research-review.js). On a base, the
+// base's questions keep the base's words and search hint (the legacy freeze asks what it always asked).
+//
+// RESEARCH'S CHECKS (docs/PLAN-start-a-game-gpt.md S2). Answers that contradict each other are caught from the blocks'
+// structure, for any show: a vote by the cast checks votes against someone who wasn't there, everyone at it on zero
+// (cleared), and the votes against people against the people voting; asked whether it was held (`<segment>Held`, a
+// question asked besides), it clears attendance when it wasn't; skipped by a group's win, it clears that group's
+// attendance (and research fills in a missed group move, `groupVotes`). Winning a segment that keeps you safe and going
+// home by a vote, finishing 1st and not winning, and votes cancelled by an advantage nobody played are reported. The
+// research block's `checks` give a check its own words, its own condition, or switch it off, and add checks of their
+// own (a condition on one person's answers); one that reads a question these blocks don't ask is left out, with a
+// warning. On a base, the base's checks stay (a built-in's code half has its own).
 //
 // ON TOP OF THE DATA IT WAS FROZEN FROM. A rulebook migrated from a format (decision 2's legacy freeze: a
 // built-in's data half, or a stored format's) compiles with that data as its `base`, and a built-in `reader`
@@ -54,7 +65,8 @@ const { formatProblems } = require('./define.js');
 const { BUILT_INS } = require('./rules.js');
 const { formatIdFor } = require('./proposal.js');
 const { kindOf, partWord, blockLabel, cap, camelId } = require('./rulebook-schema.js');
-const { momentsFor } = require('./rulebook-moments.js');
+const { momentsFor, the } = require('./rulebook-moments.js');
+const { checksProblems, renamePlaceholders, renameAnswers } = require('./research-review.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const list = (v) => (Array.isArray(v) ? v : []);
@@ -101,6 +113,14 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
   // How research asks, from the rulebook's own research block: a question's words, and whether a yes needs a source.
   const said = isObj(b.research) && isObj(b.research.questions) ? b.research.questions : {};
   const wordsOf = (key) => (isObj(said[key]) && typeof said[key].words === 'string' && said[key].words.trim() ? said[key].words : null);
+  // How an answer reads to a reviewer, in the research block's words: its placeholders and condition on the stored keys.
+  const reviewWords = (key) => {
+    const q = isObj(said[key]) ? said[key] : {};
+    const out = {};
+    for (const k of ['note', 'sentence']) if (q[k] === false || (typeof q[k] === 'string' && q[k].trim())) out[k] = q[k] === false ? false : renamePlaceholders(q[k], qk);
+    if (isObj(q.shown)) out.shown = renameAnswers(q.shown, qk);
+    return out;
+  };
   const segs = list(b.segments);
   const segById = new Map(segs.map((s) => [s.id, s]));
   const twists = list(b.twists);
@@ -197,7 +217,7 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
     fieldKeys.add(key);
     if (isObj(said[f.key]) && said[f.key].needsSource === false) unsourced.add(key);
     const words = wordsOf(f.key);
-    into.push({ ...f, key, ...(words ? { description: words } : {}) });
+    into.push({ ...f, key, ...(words ? { description: words } : {}), ...(into === fields ? reviewWords(f.key) : {}) });
   };
   // A whole ask a condition reads ({ key, type, question, label }), as a checklist question.
   const askField = (a) =>
@@ -481,6 +501,115 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
   // own questions keep the base's words, so nothing is said.
   if (!legacy) for (const key of Object.keys(said)) if (!asked.has(key)) warnings.push(`How research asks "${key}": this rulebook doesn't ask it, so its words aren't used`);
 
+  // ---------- research's checks ----------
+  // The contradictions the blocks' structure can tell, in its order, then the research block's own (the header); and
+  // who was at each vote one group goes to at a time (its skippers stay away), for research's missed group moves.
+  function researchChecks() {
+    const out = [];
+    const votes = [];
+    const asks = (key) => fields.some((f) => f.key === qk(key));
+    const asksEpisode = (key) => episodeFields.some((f) => f.key === qk(key) && f.type === 'answer');
+    const exitIs = (names) => (names.length === 1 ? { answer: 'exitMethod', is: names[0] } : { any: names.map((n) => ({ answer: 'exitMethod', is: n })) });
+    const castVotes = segs.filter((s) => !talk && s.decidedBy === 'vote' && s.voters === 'cast');
+    const byVote = [...new Set(castVotes.flatMap((s) => causedBy(s)))];
+    const group = (groups && groups.singular) || 'group';
+    for (const s of segs) {
+      if (talk) break;
+      const won = `${s.id}Won`;
+      // Safe for winning it, yet voted out.
+      if (s.onTheLine === 'safety' && asks(won) && byVote.length) {
+        out.push({ id: `${s.id}WonVotedOut`, when: { all: [Y(won), Y('leftTheGame'), exitIs(byVote)] }, say: `{name}: went home ({exitMethod}) despite winning ${the(s.name)}` });
+      }
+      // A finishing place of 1 is a win.
+      if (s.decides === 'topThree' && s.places === 'place' && asks(`${s.id}Place`) && asks(won)) {
+        out.push({ id: `${s.id}FirstNotWon`, when: { all: [{ answer: qk(`${s.id}Place`), equals: 1 }, N(won)] }, say: `{name}: finished 1st in ${the(s.name)} but isn't marked as winning it` });
+      }
+      if (!castVotes.includes(s) || !asks(`${s.id}Attended`)) continue;
+      const [A, V, F] = ['Attended', 'VotesReceived', 'VotedFor'].map((x) => qk(`${s.id}${x}`));
+      const at = { answer: A, is: 'yes' };
+      out.push({ id: `${s.id}VotesWhileAway`, when: { all: [{ answer: A, is: 'no' }, { answer: V, greaterThan: 0 }] }, say: `{name}: {${V}} votes against someone who wasn't at ${s.name}` });
+      if (asksEpisode(`${s.id}Held`)) {
+        out.push({
+          id: `${s.id}NotHeld`, of: 'episode', values: { attending: { count: at } },
+          when: { all: [{ episode: qk(`${s.id}Held`), is: 'no' }, { value: 'attending', greaterThan: 0 }] }, who: at, set: { [A]: 'no', [V]: null },
+          say: `No ${s.name} this ${part}, but some people were marked as attending it (cleared)`,
+        });
+      }
+      // A group whose win skips the vote was never at it, and the rest go one group at a time.
+      const by = s.skippedBy ? segById.get(s.skippedBy) : null;
+      if (by) votes.push({ id: `${s.id}GroupMove`, attended: A, say: `{name} was at {group}'s ${s.name} but was still on {was}: added a move to {group} (reject it in review if that's wrong)` });
+      if (by && asks(`${by.id}GroupWon`)) {
+        out.push({
+          id: `${s.id}SkippedBy`, of: 'episode', who: { all: [at, Y(`${by.id}GroupWon`)] }, each: true, set: { [A]: 'unknown' },
+          say: `{name}: marked as at ${s.name}, but in the ${group} that won ${the(by.name)} (cleared to unknown)`,
+        });
+      }
+      // A real vote puts votes on someone: everyone there on zero means the counts weren't found, not that all were safe.
+      out.push({
+        id: `${s.id}NoVotesFound`, of: 'episode',
+        values: { attending: { count: at }, attendingWithVotes: { count: { all: [at, { not: { answer: V, equals: 0 } }] } }, anyVotes: { count: { answer: V, greaterThan: 0 } } },
+        when: { all: [{ value: 'attending', greaterThan: 0 }, { value: 'attendingWithVotes', equals: 0 }, { value: 'anyVotes', equals: 0 }] }, who: at, set: { [V]: null },
+        say: `Everyone at ${s.name} was given zero votes, so the vote counts look missing (cleared, nobody marked safe)`,
+      });
+      // Votes against people should roughly match the people voting: only reported (revotes, extra votes and idols differ).
+      out.push({
+        id: `${s.id}VoteCount`, of: 'episode', values: { voters: { count: { all: [at, { answer: F, present: true }] } }, against: { sum: V } },
+        when: { all: [{ value: 'voters', greaterThan: 0 }, { value: 'against', greaterThan: 0 }, { not: { value: 'against', equals: { value: 'voters' } } }] },
+        say: `{against} votes counted against people, but {voters} people at ${s.name} are recorded voting: check who was there`,
+      });
+    }
+    for (const t of twists) {
+      const [C, P] = [`${t.id}VotesCancelled`, `${t.id}Played`];
+      if (t.type === 'advantage' && t.cancelled === 'count' && asks(C) && asks(P)) {
+        out.push({ id: `${t.id}CancelledUnplayed`, when: { all: [{ answer: qk(C), greaterThan: 0 }, N(P)] }, say: `{name}: votes cancelled by ${t.oneIsCalled || 'an advantage'} they aren't marked as playing` });
+      }
+    }
+    // The research block's: words, a condition or off for one of these, and checks of its own.
+    const own = isObj(b.research) && isObj(b.research.checks) ? b.research.checks : {};
+    const derived = new Set([...out, ...votes].map((k) => k.id));
+    const groupVotes = votes
+      .filter((v) => !(isObj(own[v.id]) && own[v.id].off === true))
+      .map(({ id, attended, say }) => ({ attended, say: isObj(own[id]) && typeof own[id].words === 'string' && own[id].words.trim() ? own[id].words : say }));
+    const shaped = (id, c, base) => {
+      const k = { ...(base || { id }) };
+      if (typeof c.words === 'string' && c.words.trim()) k.say = renamePlaceholders(c.words, qk);
+      if (isObj(c.when)) k.when = renameAnswers(c.when, qk);
+      if (isObj(c.set)) k.set = Object.fromEntries(Object.entries(c.set).map(([key, v]) => [qk(key), v]));
+      return k;
+    };
+    const all = [];
+    for (const k of out) {
+      const c = isObj(own[k.id]) ? own[k.id] : null;
+      if (c && c.off === true) continue;
+      all.push(c ? shaped(k.id, c, k) : k);
+    }
+    for (const [id, c] of Object.entries(own)) {
+      if (derived.has(id) || !isObj(c) || c.off === true) continue;
+      if (!isObj(c.when) || !(typeof c.words === 'string' && c.words.trim())) {
+        warnings.push(`How research checks "${id}": this rulebook makes no such check, and a check of its own needs its condition and words`);
+        continue;
+      }
+      all.push(shaped(id, c));
+    }
+    // One that reads a question these blocks don't ask (its moment taken out, say) is left out.
+    const asked = { research: { checklist, episodeFields }, exitMethods };
+    const why = (bad) => bad[0].replace(/^research\.checks\[[^\]]+\]\.?\s*:?\s*/, '');
+    const checks = [];
+    for (const k of all) {
+      const bad = checksProblems([k], asked);
+      if (!bad.length) checks.push(k);
+      else if (!own[k.id]) problems.push(...bad);
+      else {
+        // The rulebook's own words or condition for one of these read a question it doesn't ask: the compiler's own, if that's still sound.
+        const mine = derived.has(k.id) ? out.find((x) => x.id === k.id) : null;
+        const fallback = mine && !checksProblems([mine], asked).length;
+        if (fallback) checks.push(mine);
+        warnings.push(`How research checks "${k.id}": ${why(bad)}, so ${fallback ? "it's checked as the blocks make it" : "it's left out"}`);
+      }
+    }
+    return { checks, groupVotes };
+  }
+
   const core = (key) => ['sources', 'confidence'].includes(key);
   // The questions every checklist has, in research's words where the rulebook gives them.
   const say = (key, words) => wordsOf(key) || words;
@@ -498,6 +627,7 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
       },
     ];
   const newClaims = fields.filter((f) => f.type === 'answer' && !unsourced.has(f.key)).map((f) => f.key);
+  const { checks, groupVotes } = legacy ? { checks: legacy.research.checks || null, groupVotes: legacy.research.groupVotes || null } : researchChecks();
 
   // ---------- how it's grouped and headlined ----------
   const categories = legacy ? legacy.eventCategories.map((c) => ({ ...c, events: c.events.filter((e) => built.has(e)) })).filter((c) => c.events.length) : [];
@@ -579,6 +709,8 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
       episodeFields: legacy ? [...legacy.research.episodeFields, ...episodeFields] : episodeFields,
       searchHint: legacy ? legacy.research.searchHint : ownHint(b) || searchHint(b, part),
       claims: legacy ? [...legacy.research.claims, ...newClaims] : ['leftTheGame', ...newClaims],
+      ...(checks && (legacy || checks.length) ? { checks } : {}),
+      ...(groupVotes && groupVotes.length ? { groupVotes } : {}),
     },
     rules: { research, implied },
   };

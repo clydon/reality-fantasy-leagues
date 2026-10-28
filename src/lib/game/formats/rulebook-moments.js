@@ -283,4 +283,4 @@ function momentsFor(blocks, { includeOff = false } = {}) {
     });
 }
 
-module.exports = { momentsFor, questionFor, WAY_POINTS };
+module.exports = { momentsFor, questionFor, the, WAY_POINTS };

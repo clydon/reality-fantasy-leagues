@@ -11,7 +11,10 @@
 // (cancelled), Exile is a side trip away from the tribe (away), and chosen for a reward leaves out its winners
 // (exceptWinners). `research` carries survivor.js's own words for each question, which yeses need a source, the
 // questions it asks besides (what was found or played, anything else notable, whether Tribal was held) and its
-// search hint, so research is asked exactly what it always was.
+// search hint, so research is asked exactly what it always was. It also says how each answer reads to a reviewer, and
+// its checks' words (docs/PLAN-start-a-game-gpt.md S2): the compiler makes survivor.js's checks from these blocks (the
+// vote, the tribe its immunity win keeps away, the safety immunity gives, its finishing place, the votes an advantage
+// cancels), so with the generic reader research is reviewed exactly as survivor.js reviews it.
 //
 // `points` carries survivor.js's own values, so How it works and a compiled rulebook score as it does, and
 // `aliases` keeps every recorded result working: `events` maps a moment these blocks build to the event id
@@ -122,7 +125,8 @@ module.exports = {
       finaleNoJuryVotes: { exclusive: -2, shared: -3 },
     },
     momentNotes: { exileWent: { reliability: 'reliable' } },
-    // survivor.js's own words for what research is asked, by these blocks' question keys.
+    // survivor.js's own words for what research is asked, how each answer reads to a reviewer (its notes, and the fuller
+    // sentences semantic search reads), and its checks' words, by these blocks' question keys.
     research: {
       searchHint: [
         "Search for the episode recap, the episode's wiki page, and any reporting on idols or advantages",
@@ -132,6 +136,7 @@ module.exports = {
       questions: {
         tribalCouncilAttended: {
           needsSource: false,
+          note: false,
           words:
             "Were they AT Tribal Council this episode, as one of the people voting? Before the merge only the " +
             "tribe(s) that lost immunity go: everyone on a tribe that won immunity did NOT attend ('no'), and " +
@@ -139,46 +144,66 @@ module.exports = {
         },
         tribalCouncilVotesReceived: {
           words: 'How many votes were cast against them at Tribal this episode. 0 if they attended and got none. Null if unknown or no Tribal.',
+          note: '{value} vote{s} against',
+          sentence: 'received {value} vote(s) at Tribal',
         },
         tribalCouncilVotedFor: {
           words:
             "Who they voted for at Tribal this episode, written exactly as that person's name appears in the " +
             "list you were sent. If there was a revote, their vote in the FINAL round. Null if unknown, no " +
             "Tribal, or they didn't vote.",
+          note: 'voted {value}',
+          sentence: 'voted for {value}',
         },
         juryVotesReceived: {
           words:
             'Only for a finalist at Final Tribal Council this episode: how many jury votes they received to ' +
             "win. 0 if they got none. Null if they weren't a finalist this episode or it isn't reported.",
+          note: '{value} jury vote{s}',
+          sentence: 'received {value} jury vote(s) at Final Tribal',
+          // None is worth saying too: the goat.
+          shown: { any: [{ answer: 'juryVotesReceived', equals: 0 }, { answer: 'juryVotesReceived', greaterThan: 0 }] },
         },
-        immunityChallengeWon: { words: 'Did they win INDIVIDUAL immunity (not as part of a tribe)?' },
-        immunityChallengeGroupWon: { needsSource: false, words: 'Were they on the tribe/team that won immunity?' },
-        rewardChallengeWon: { words: 'Did they win an INDIVIDUAL reward challenge (not as part of a tribe)?' },
-        rewardChallengeGroupWon: { needsSource: false, words: 'Were they on the tribe/team that won reward?' },
+        immunityChallengeWon: { words: 'Did they win INDIVIDUAL immunity (not as part of a tribe)?', note: 'individual immunity', sentence: 'won individual immunity' },
+        immunityChallengeGroupWon: {
+          needsSource: false, words: 'Were they on the tribe/team that won immunity?', note: 'tribe immunity', sentence: 'was on the tribe that won immunity',
+        },
+        rewardChallengeWon: { words: 'Did they win an INDIVIDUAL reward challenge (not as part of a tribe)?', note: 'individual reward', sentence: 'won individual reward' },
+        rewardChallengeGroupWon: { needsSource: false, words: 'Were they on the tribe/team that won reward?', note: 'tribe reward', sentence: 'was on the tribe that won reward' },
         immunityChallengePlace: {
           words:
             "Their best finishing place in THIS episode's INDIVIDUAL challenge(s) -- 1 if they won, 2 for " +
             "runner-up, 3 for third -- only when a source states the order. Null for tribe/team challenges, " +
             "if they finished below third, or if the order isn't reported.",
+          note: '{nth} in an individual challenge',
+          sentence: 'finished {nth} in an individual challenge',
+          shown: { any: [{ answer: 'immunityChallengePlace', equals: 2 }, { answer: 'immunityChallengePlace', equals: 3 }] },
         },
-        satOut: { words: 'Did they sit out of a challenge this episode?' },
+        satOut: { words: 'Did they sit out of a challenge this episode?', note: 'sat out a challenge' },
         chosenForReward: {
           words: "Did a reward WINNER choose them to come along on the reward, without them winning it themselves? 'no' if they won it.",
+          note: 'chosen to join a reward',
         },
-        fireMakingWon: { words: 'Did they WIN a fire-making challenge this episode (the final-four fire-making duel)?' },
-        advantagesGot: { words: 'Did they FIND a hidden immunity idol or any advantage this episode?' },
+        fireMakingWon: { words: 'Did they WIN a fire-making challenge this episode (the final-four fire-making duel)?', note: 'won fire-making' },
+        advantagesGot: { words: 'Did they FIND a hidden immunity idol or any advantage this episode?', note: 'found {advantageFoundName|an advantage}' },
         advantageFoundName: {
           type: 'string',
           words: "What they found, in the show's own words ('hidden immunity idol', 'Beware Advantage', 'Shot in the Dark'). Null if nothing.",
+          note: false,
         },
-        advantagesPlayed: { words: 'Did they PLAY an idol or advantage this episode (their own or on someone else)?' },
-        advantagePlayedName: { type: 'string', words: "What they played, in the show's own words. Null if nothing." },
+        advantagesPlayed: { words: 'Did they PLAY an idol or advantage this episode (their own or on someone else)?', note: 'played {advantagePlayedName|an advantage}' },
+        advantagePlayedName: { type: 'string', words: "What they played, in the show's own words. Null if nothing.", note: false },
         advantagesVotesCancelled: {
           words:
             'If they PLAYED an idol or advantage (on themselves or someone else), how many votes it cancelled ' +
             "-- 0 if it cancelled none. Null if they played nothing or it isn't reported.",
+          note: 'nullified {value} vote{s}',
+          sentence: false,
         },
-        advantagesUsedAgainst: { needsSource: false, words: 'Was an advantage used against them (a vote stolen, blocked, nullified)?' },
+        advantagesUsedAgainst: {
+          needsSource: false, words: 'Was an advantage used against them (a vote stolen, blocked, nullified)?',
+          note: 'advantage used against them', sentence: 'had an advantage used against them',
+        },
         learnedOfAdvantage: {
           words:
             'Did they find out, this episode, that ANOTHER player has a hidden immunity idol or advantage -- ' +
@@ -187,19 +212,43 @@ module.exports = {
             'alliance or small group, not something the whole tribe or everyone at Tribal learned at once ' +
             '(e.g. an idol played at Tribal Council is not this). And only the FIRST time they learn about ' +
             "that particular idol or advantage -- 'no' if they already knew about it from an earlier episode.",
+          note: "privately learned of someone's idol/advantage",
         },
         journeysWent: {
           words:
             'Were they sent on a JOURNEY this episode -- taken away from camp (often by boat) to a separate ' +
             'location, usually with a chance at an advantage or a risk to their vote?',
+          note: 'went on a journey',
         },
-        exileWent: { needsSource: false, words: 'Were they sent away from their tribe by an Exile Island-style twist while staying in the game?' },
+        exileWent: {
+          needsSource: false, words: 'Were they sent away from their tribe by an Exile Island-style twist while staying in the game?', note: 'exiled', sentence: 'was exiled',
+        },
         notableTwist: {
           type: 'string',
           words: 'Any other notable, checkable thing that happened to this person this episode, in one short phrase. Null if nothing.',
+          note: '{value}',
         },
         // survivor.js asked it by its key alone; a question asked besides says what it asks.
         tribalCouncilHeld: { type: 'answer', of: 'episode', words: 'Was there a Tribal Council this episode?' },
+      },
+      // The checks the compiler makes from these blocks, in survivor.js's words, and one of its own.
+      checks: {
+        immunityChallengeWonVotedOut: { words: '{name}: voted out despite winning individual immunity' },
+        // Its finishing place is in any individual challenge, so a reward won is a 1st too.
+        immunityChallengeFirstNotWon: {
+          when: { all: [{ answer: 'immunityChallengePlace', equals: 1 }, { answer: 'immunityChallengeWon', isNot: 'yes' }, { answer: 'rewardChallengeWon', isNot: 'yes' }] },
+          words: "{name}: finished 1st in an individual challenge but isn't marked as winning it",
+        },
+        tribalCouncilVotesWhileAway: { words: "{name}: {tribalCouncilVotesReceived} votes against someone who didn't attend Tribal" },
+        tribalCouncilSkippedBy: { words: '{name}: marked as at Tribal, but on the tribe that won immunity (attendance cleared to unknown)' },
+        tribalCouncilNoVotesFound: { words: 'Everyone at Tribal was given zero votes, so the vote counts look missing (cleared, nobody marked safe)' },
+        tribalCouncilVoteCount: { words: '{against} votes counted against people, but {voters} people at Tribal are recorded voting: check who attended' },
+        advantagesCancelledUnplayed: { words: "{name}: votes cancelled by an advantage they aren't marked as playing" },
+        tribalCouncilGroupMove: { words: "{name} was at {group}'s Tribal but was still on {was}: added a move to {group} (reject it in review if that's wrong)" },
+        advantagesGotUnnamed: {
+          when: { all: [{ answer: 'advantagesGot', is: 'yes' }, { answer: 'advantageFoundName', present: false }] },
+          words: "{name}: found an advantage but didn't say what",
+        },
       },
     },
     leftOut: [],

@@ -16,6 +16,7 @@
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js */
 const { buildChecklist, buildShape, checklistProblems, fieldProblems } = require('./checklist.js');
 const { researchItemsFrom, impliedEventsFrom, rulesProblems } = require('./rules.js');
+const { reviewProblems } = require('./research-review.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 // What each half may hold, in the order the assembled object lists them.
@@ -26,7 +27,10 @@ const ORDER = ['id', 'name', 'exitMethods', 'terms', 'winnerExitMethod', 'endgam
 const WIKI_DATA = ['version', 'voteSections', 'guideSections', 'contextSections', 'missingVotesNote', 'missingGuideNote', 'castNote', 'eventTypes', 'routineEliminations'];
 const WIKI_CODE = ['episodesSchema', 'episodesPrompt', 'rejectEvent', 'derivedEvents', 'roles'];
 const WIKI_ORDER = ['version', 'voteSections', 'guideSections', 'contextSections', 'missingVotesNote', 'missingGuideNote', 'castNote', 'eventTypes', 'episodesSchema', 'episodesPrompt', 'rejectEvent', 'derivedEvents', 'roles', 'routineEliminations'];
-const RESEARCH_DATA = ['checklist', 'episodeFields', 'searchHint', 'claims'];
+// checks (research-review.js): conditions over the answers that report a contradiction or repair it, which a data-only
+// format's research runs (a built-in's code half has its own). groupVotes: who was at each vote one group goes to at a
+// time, which research reads to fill in a missed group move (db/episode-research.js tribalGroupProblems).
+const RESEARCH_DATA = ['checklist', 'episodeFields', 'searchHint', 'claims', 'checks', 'groupVotes'];
 const RESEARCH_CODE = ['entryProblems', 'notes', 'sentences'];
 // Code a format MAY supply: episodeProblems(payload) checks answers against each other across the whole
 // cast (who attended Tribal against who won immunity, say), repairing what it must and reporting it.
@@ -160,6 +164,7 @@ function formatProblems(data) {
     }
     const answers = (Array.isArray(r.checklist) ? r.checklist : []).filter((f) => f && f.type === 'answer').map((f) => f.key);
     if (!isTextList(r.claims) || !r.claims.every((k) => answers.includes(k))) p.push('research.claims: must all be yes/no/unknown checklist questions');
+    if (!p.some((m) => m.startsWith('research.checklist') || m.startsWith('research.episodeFields'))) p.push(...reviewProblems(data));
   }
   if (!('rules' in data)) p.push('rules: missing (how the format scores: { research: [...], implied: [...] })');
   else p.push(...rulesProblems(data.rules, data));

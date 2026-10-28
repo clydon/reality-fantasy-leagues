@@ -602,4 +602,18 @@ function ruleCounts(rules) {
   return { data: list.length - builtIns.length, builtIn: builtIns.length, builtIns };
 }
 
-module.exports = { BUILT_INS, EXIT_FACTS, COUNT_TYPES, researchItemsFrom, impliedEventsFrom, rulesProblems, ruleCounts, describeRule, describeCondition, listOf, isWinnerExit };
+/**
+ * Why `cond` isn't a usable condition on one person's answers (`data`'s checklist): [] when it is. Research's checks and
+ * reviewer words read answers the same way a research rule does (research-review.js).
+ */
+function answerConditionProblems(cond, data) {
+  const fields = new Map();
+  const research = data && isObj(data.research) ? data.research : {};
+  for (const f of Array.isArray(research.checklist) ? research.checklist : []) if (f && typeof f.key === 'string') fields.set(f.key, f);
+  return conditionProblems(cond, 'research', { fields, events: new Map(), exitMethods: Array.isArray(data && data.exitMethods) ? data.exitMethods : [], roles: null });
+}
+
+module.exports = {
+  BUILT_INS, EXIT_FACTS, COUNT_TYPES, OPS, OPS_FOR, researchItemsFrom, impliedEventsFrom, rulesProblems, ruleCounts, describeRule, describeCondition, listOf,
+  isWinnerExit, test, answerConditionProblems, words,
+};

@@ -74,6 +74,16 @@ function formatForRuleset(data) {
 // family without them (a secret role added to Survivor) gets the generic one. Built once per data and reader.
 const BUILT_IN_READERS = ['survivor', 'traitors', 'challenge'];
 const builtForRulebook = new WeakMap();
+// Data frozen from a family before the family's data said which votes one group goes to at a time (research.groupVotes:
+// a legacy row's compile, or a base saved then) reads the family's, for the ones it asks who was at, as the family does.
+function withFamilyGroupVotes(data, key) {
+  const family = FORMATS[key].data.research.groupVotes;
+  const r = data && data.research;
+  if (!family || !r || r.groupVotes !== undefined) return data;
+  const asked = new Set((r.checklist || []).map((f) => f && f.key));
+  const votes = family.filter((v) => asked.has(v.attended));
+  return votes.length ? { ...data, research: { ...r, groupVotes: votes } } : data;
+}
 function formatForRulebook(data, reader) {
   let byReader = builtForRulebook.get(data);
   if (!byReader) builtForRulebook.set(data, (byReader = new Map()));
@@ -83,7 +93,7 @@ function formatForRulebook(data, reader) {
     if (!key) format = buildDataFormat(data);
     else {
       const { roles, ...code } = FORMATS[key].code;
-      format = defineFormat(data, data && data.roles ? { ...code, roles: roles || rolesCode(data) } : code);
+      format = defineFormat(withFamilyGroupVotes(data, key), data && data.roles ? { ...code, roles: roles || rolesCode(data) } : code);
     }
     byReader.set(key, format);
   }

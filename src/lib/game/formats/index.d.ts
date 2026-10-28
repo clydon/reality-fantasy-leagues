@@ -30,8 +30,26 @@ export interface ChecklistField {
   /** Only for type "enum". */
   values?: string[];
   description?: string;
-  /** A short phrase for a reviewer (data-only formats build their research notes from it). */
-  note?: string;
+  /** A short phrase for a reviewer, or a template of the answer ("{value} vote{s} against"), or false for none
+   *  (data-only formats build their research notes from it: research-review.js). */
+  note?: string | false;
+  /** The same for semantic search, when it reads differently from the note. */
+  sentence?: string | false;
+  /** When the note is said: a condition on the person's answers (a yes, a count above 0, text that's there otherwise). */
+  shown?: RuleCondition;
+}
+
+/** A check on research's answers (formats/research-review.js): a condition that reports a contradiction, and may repair it.
+ *  One person's (`when`, `say`, `set`), or the whole episode's (`of: "episode"`, with counts and sums in `values`). */
+export interface ResearchCheck {
+  id: string;
+  of?: "episode";
+  values?: Record<string, { count: RuleCondition } | { sum: string }>;
+  when?: RuleCondition | Record<string, unknown>;
+  who?: RuleCondition;
+  each?: boolean;
+  set?: Record<string, string | number | null>;
+  say: string;
 }
 
 /** One test in a scoring rule (formats/rules.js): an answer (research) or fact (implied) and one test,
@@ -87,7 +105,16 @@ export interface FormatData {
     eventTypes: string[];
     routineEliminations: number;
   };
-  research: { checklist: ChecklistField[]; episodeFields: ChecklistField[]; searchHint: string[]; claims: string[] };
+  research: {
+    checklist: ChecklistField[];
+    episodeFields: ChecklistField[];
+    searchHint: string[];
+    claims: string[];
+    /** Answers that contradict each other, reported or repaired (a data-only format's research runs them). */
+    checks?: ResearchCheck[];
+    /** Each vote one group goes to at a time: who was at it, and the words for a missed group move ({name}, {group}, {was}). */
+    groupVotes?: { attended: string; say: string }[];
+  };
   /** How the format scores: research answers -> results, and events implied by exits, exile and roles. */
   rules: { research: ScoringRule[]; implied: ScoringRule[] };
 }
