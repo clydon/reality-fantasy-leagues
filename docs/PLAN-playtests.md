@@ -787,8 +787,12 @@ reshaped count in `compare`), `tests/tapes.test.js` (`castHeld`). `npm test` pas
 ### P5, part 4: what a player sees when a game ends; the judge to the game's own end (2026-10-28, playtest lane)
 
 **The bot was still capped.** Its last answer was at 11:11:47 UTC. The recorder (pid 63680 since 11:33 UTC, window "Tapes:
-recording") asked Below Deck 12's episode 11 quick check a third time at 11:47 and backs off. The words corpus is still 2 of 104,
-so P2's table and Below Deck's cast by hand (step 3 of the seed) wait. This part is P5's work without the bot.
+recording") gave Below Deck 12's episode 11 quick check up at 11:54 and paused until 12:54. By then `/health`'s history had been
+cleared (the bot restarted by someone else; this lane leaves it alone). One ask inside the pause (`tapes.js one below-deck 12 quick
+11`, 12:13 UTC) had no reply in 420 s either. Once the bot answers, delete `below-deck
+\e11-quick.json` so it's asked again.
+The words corpus is still 2 of 104, so P2's table and Below Deck's cast by hand (step 3 of the seed) wait. This part is P5's work
+without the bot.
 
 **The looks at 390 once a season-long game ends** (details in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md), "P5 part 4"):
 - **What was looked at:** three whole-season games kept at each finale with the quick check's winner kept (`run the-challenge 41
