@@ -115,7 +115,7 @@ export function nightIn(game: GameRefIn, view: LeagueState, me: string, ep: Epis
   if (type.hasQuestions) {
     // A Prediction Sheet (step A4 part 2): its answers aren't in the state, so the server says how the night went (sheet).
     // A sheet that asks only for the season (who wins) has nothing for an episode: that isn't a miss.
-    if (!StateLogic.AnswerLogic.questions(view).some((q: { asked: string }) => q.asked === "each")) return { ...base, big: "—", line: "Its questions are for the season" };
+    if (!StateLogic.AnswerLogic.questions(view).some((q: { asked: string }) => q.asked !== "once")) return { ...base, big: "—", line: "Its questions are for the season" };
     // Its answers couldn't be read: say nothing rather than call it a miss.
     if (!sheet) return { ...base, big: "—", line: "See how your sheet went" };
     const n = sheet.get(ep.number);

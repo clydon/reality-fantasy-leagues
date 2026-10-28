@@ -54,7 +54,7 @@ export interface QuestionView {
   /** What settles it (the results' who went home or won, a moment): the screen's words for what was right. */
   settle: Question["settle"];
   points: number;
-  asked: "once" | "each";
+  asked: Question["asked"];
   closes: "start" | "finale";
   pick: number | null;
   from: "cast" | "team" | null;
@@ -161,17 +161,28 @@ function closing(r: Read, q: Question, episode: number): { at: number | null; ai
   return { at, airAt: ep?.airsAt ?? r.schedule?.episodes.find((e) => e.number === at)?.airAt ?? null };
 }
 
-/** Whether a question is closed for an episode (the full state's lock: StateLogic.AnswerLogic.closed). */
+/** Whether a question is closed for an episode (the full state's lock: StateLogic.AnswerLogic.closed), for you: a game with a late
+ *  lock (step A7) keeps it open while you haven't seen it. */
 function isClosed(r: Read, q: Question, episode: number): boolean {
   const { airAt } = closing(r, q, episode);
-  return StateLogic.AnswerLogic.closed(r.h.state, q, episode, { now: r.now.getTime(), finale: r.finale?.number ?? null, airAt });
+  return StateLogic.AnswerLogic.closed(r.h.state, q, episode, { now: r.now.getTime(), finale: r.finale?.number ?? null, airAt, mark: r.h.mark });
 }
+
+/** The episode you answer for now: this week's (the game's, not where you are), or with a late lock (step A7) the one after
+ *  your mark while it's still open for you. */
+const weekOf = (r: Read) =>
+  StateLogic.AnswerLogic.lateEpisode(r.h.state, r.h.mark, { now: r.now.getTime(), airAtOf: (n) => r.schedule?.episodes.find((e) => e.number === n)?.airAt ?? null });
+
+/** The window a question is answered for at an episode (step A7: its own asked each; the run or phase it's in), or 0 asked once,
+ *  or null when it has none there. A phase's window shows once you're up to the episode before it: someone further behind never
+ *  learns the phase began. */
+const windowFor = (r: Read, q: Question, episode: number | null) => (q.asked === "once" ? 0 : StateLogic.AnswerLogic.windowAt(r.h.state, q, episode, r.h.mark));
 
 /** The episode before the one a person or group answer (or a question about each person) needs to have been seen (who's still in,
  *  and on what group), or null when nothing is needed. */
 function needsSeen(r: Read, q: Question, episode: number): number | null {
   if (!namesSomeone(q) || q.closes === "finale") return null;
-  const at = q.asked === "each" ? episode : StateLogic.startEpisode(r.h.state);
+  const at = q.asked !== "once" ? episode : StateLogic.startEpisode(r.h.state);
   return at === null || at <= 1 ? null : at - 1;
 }
 
@@ -186,8 +197,8 @@ async function readQuestions(r: Read, episodeIn?: unknown, rows?: AnswerRow[]): 
   const me = h.playerId;
   const qs = questionsOf(h.state);
   // This week's is the game's (the league's own state), not where you are: someone behind sees it as behind, not an
-  // earlier episode that's long locked.
-  const thisWeek = StateLogic.AnswerLogic.episodeNow(h.state);
+  // earlier episode that's long locked. With a late lock (A7), the one after your mark while it's open for you.
+  const thisWeek = weekOf(r);
   let episode = thisWeek;
   if (episodeIn !== undefined && episodeIn !== null && episodeIn !== "") {
     const n = Number(episodeIn);
@@ -209,9 +220,11 @@ async function readQuestions(r: Read, episodeIn?: unknown, rows?: AnswerRow[]): 
   let points = 0;
   for (const [pid, n] of graded.points) if (pid === me) points += n;
   for (const q of qs) {
-    const each = q.asked === "each";
-    if (each && episode === null) continue;
-    const ep = each ? (episode as number) : 0;
+    // Its window this week (A7: asked each, its episode; every few or by phase, the run it's in), or the game's own (0).
+    const each = q.asked !== "once";
+    const at = windowFor(r, q, episode);
+    if (at === null) continue;
+    const ep = at;
     const mine = all.find((a) => a.playerId === me && a.question === q.id && a.episode === ep)?.answer ?? null;
     const theirs = all.filter((a) => a.question === q.id && a.episode === ep);
     const closed = isClosed(r, q, ep);
@@ -279,17 +292,19 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
   if (!isMap(body.answers)) throw new HttpError(400, "answers must be { question: answer }");
   if (StateLogic.GhostLogic.isCatchingUp(h.state, h.playerId)) throw new HttpError(409, "Catch up first: questions open once you're on the live episode");
   const qs = questionsOf(h.state);
-  const thisWeek = StateLogic.AnswerLogic.episodeNow(h.state);
+  const thisWeek = weekOf(r);
   const mark = h.mark ?? Number.POSITIVE_INFINITY;
   const writes: { q: Question; ep: number; value: unknown }[] = [];
   for (const [key, value] of Object.entries(body.answers)) {
     const q = qs.find((x) => x.id === key);
     if (!q) throw new HttpError(400, `"${key}" isn't one of this game's questions`);
     let ep = 0;
-    if (q.asked === "each") {
+    if (q.asked !== "once") {
+      // Its window this week (A7): an episode named is this week's, or the one its window opens at.
+      const at = windowFor(r, q, thisWeek);
       const asked = body.episode === undefined || body.episode === null ? thisWeek : Number(body.episode);
-      if (thisWeek === null || asked !== thisWeek) throw new HttpError(409, thisWeek === null ? "There's nothing to answer for yet" : `Answers are open for Episode ${thisWeek}`);
-      ep = thisWeek;
+      if (thisWeek === null || at === null || (asked !== thisWeek && asked !== at)) throw new HttpError(409, thisWeek === null || at === null ? "There's nothing to answer for yet" : `Answers are open for Episode ${thisWeek}`);
+      ep = at;
     }
     if (isClosed(r, q, ep)) {
       const { at } = closing(r, q, ep);

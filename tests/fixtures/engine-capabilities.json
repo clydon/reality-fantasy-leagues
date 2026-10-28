@@ -166,22 +166,148 @@
         {
           "id": "when.everyN",
           "what": "Every 2 episodes",
-          "step": "A7"
+          "step": "A7",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "gone",
+                "ask": "Name someone who'll be gone in the next two",
+                "answer": "person",
+                "points": 2,
+                "asked": "every",
+                "every": 2,
+                "settle": {
+                  "by": "results",
+                  "take": "out"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "when.perPhase",
           "what": "Once per phase",
-          "step": "A7"
+          "step": "A7",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "phase",
+                "ask": "Who finds an idol this phase?",
+                "answer": "person",
+                "points": 1,
+                "pick": 2,
+                "asked": "phase",
+                "settle": {
+                  "by": "moment",
+                  "moment": "idolFound",
+                  "take": "who"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "when.within",
           "what": "A rolling window (within the next 3 episodes)",
-          "step": "A7"
+          "step": "A7",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "within",
+                "ask": "Will an idol be played within the next three?",
+                "answer": "yesNo",
+                "points": 1,
+                "asked": "each",
+                "over": 3,
+                "settle": {
+                  "by": "moment",
+                  "moment": "idolPlayed",
+                  "take": "happened"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "when.ownLock",
           "what": "Your own lock when you watch late",
-          "step": "A7"
+          "step": "A7",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "out",
+                "ask": "Who goes home?",
+                "answer": "person",
+                "points": 2,
+                "asked": "each",
+                "settle": {
+                  "by": "results",
+                  "take": "out"
+                }
+              }
+            ],
+            "extras": {
+              "lateLock": {
+                "hours": 24
+              }
+            }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "when.live",
@@ -511,7 +637,36 @@
         {
           "id": "what.whichEpisode",
           "what": "Which episode something happens in (the merge)",
-          "step": "A7"
+          "step": "A7",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "merge",
+                "ask": "Which episode does the merge happen in?",
+                "answer": "number",
+                "points": 3,
+                "settle": {
+                  "by": "phase",
+                  "phase": "merged",
+                  "take": "starts"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "what.split",
@@ -869,7 +1024,38 @@
         {
           "id": "settle.phase",
           "what": "A phase of the season (the merge happened)",
-          "step": "A7"
+          "step": "A7",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "soon",
+                "ask": "Will the merge happen within the next two?",
+                "answer": "yesNo",
+                "points": 1,
+                "asked": "each",
+                "over": 2,
+                "settle": {
+                  "by": "phase",
+                  "phase": "merged",
+                  "take": "happened"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "settle.facts",
@@ -1825,7 +2011,32 @@
       "step": "A7",
       "dials": [
         "when"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "gone",
+            "ask": "Name someone who'll be gone in the next two",
+            "answer": "person",
+            "points": 2,
+            "asked": "every",
+            "every": 2,
+            "settle": {
+              "by": "results",
+              "take": "out"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s26",
@@ -1835,11 +2046,37 @@
         "rulebook": "survivor"
       },
       "words": "Within the next 3 episodes, will there be a blindside?",
-      "step": "A7",
+      "step": "G1",
       "dials": [
         "when"
       ],
-      "note": "a blindside isn't a moment research answers yet: the new-moment path too"
+      "note": "the window plays now (A7); a blindside isn't a moment research answers, so it's the new-moment path (G1: rated reliable, or the nearest settled question)",
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "blindside",
+            "ask": "Within the next three, will there be a blindside?",
+            "answer": "yesNo",
+            "points": 1,
+            "asked": "each",
+            "over": 3,
+            "settle": {
+              "by": "moment",
+              "moment": "blindside",
+              "take": "happened"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s27",
@@ -1852,7 +2089,31 @@
       "step": "A7",
       "dials": [
         "what"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "merge",
+            "ask": "Which episode does the merge happen in?",
+            "answer": "number",
+            "points": 3,
+            "settle": {
+              "by": "phase",
+              "phase": "merged",
+              "take": "starts"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s28",
@@ -2035,7 +2296,36 @@
       "step": "A7",
       "dials": [
         "when"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "out",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 2,
+            "asked": "each",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            }
+          }
+        ],
+        "extras": {
+          "lateLock": {
+            "hours": 24
+          }
+        }
+      }
     },
     {
       "id": "s42",
@@ -5090,6 +5380,30 @@
           "flag": "question",
           "flagBy": "resolver",
           "why": "one judge's 10 may not be in the results research"
+        },
+        "spec": {
+          "get": {
+            "by": "none"
+          },
+          "score": {
+            "by": "answers"
+          },
+          "rank": {
+            "by": "total"
+          },
+          "ask": [
+            {
+              "id": "ten",
+              "ask": "Who gets the first perfect score?",
+              "answer": "person",
+              "points": 2,
+              "settle": {
+                "by": "moment",
+                "moment": "perfectScore",
+                "take": "first"
+              }
+            }
+          ]
         }
       },
       {

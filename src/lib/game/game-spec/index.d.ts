@@ -64,9 +64,11 @@ export type SpecSettle =
   /** out: who goes home (asked once: the first in the game; a group answer: the groups they were on); stays: who doesn't (an
    *  episode's); winner, placed (`place`th) and top (in the top `place`): the season's. */
   | { by: "results"; take: "winner" | "out" | "placed" | "top" | "stays"; place?: number }
-  /** In the episode (asked once, over the game): whether it happened, how many times (a per-unit moment's units), who it
-   *  happened to (a group answer: their groups), who most (A6). */
-  | { by: "moment"; moment: string; take: "happened" | "count" | "who" | "most" }
+  /** In the episode (asked once, over the game; over a window, A7): whether it happened, how many times (a per-unit moment's
+   *  units), who it happened to (a group answer: their groups), who most (A6), first (A7: who, or which episode). */
+  | { by: "moment"; moment: string; take: "happened" | "count" | "who" | "most" | "first" }
+  /** A7: a phase of the season (not its first): the episode it starts (asked once), or whether it starts in the window. */
+  | { by: "phase"; phase: string; take: "starts" | "happened" }
   /** A secret role (A6): who held it, who held it among those still in at the end, how many of them. */
   | { by: "role"; role: string; take: "who" | "end" | "count" }
   /** The show's calls (Call it's: calls.ts), Weekly Calls' one question. */
@@ -86,9 +88,15 @@ export interface SpecQuestion {
   /** A right answer's (a right pick's). */
   points: number;
   settle: SpecSettle;
-  /** once (for the game; the default) | each (every episode it plays). */
-  asked?: "once" | "each";
-  /** start: when its episode starts (asked each) or the game's first does (the default) | finale: the season's last (asked once). */
+  /** once (for the game; the default) | each (every episode it plays) | every (A7: each run of `every` episodes) | phase (A7:
+   *  once a phase of the season). Its answers are for the window they open at. */
+  asked?: "once" | "each" | "every" | "phase";
+  /** A7, asked every: how many episodes each run is (2 to 10). */
+  every?: number;
+  /** A7, asked each: about that episode and the next over - 1 (2 to 10). */
+  over?: number;
+  /** start: when its window's first episode starts (asked each, every or by phase) or the game's first does (the default) |
+   *  finale: the season's last (asked once). */
   closes?: "start" | "finale";
   /** A person or group answer: how many to name (default 1), each right one scores. */
   pick?: number;
@@ -103,7 +111,7 @@ export interface SpecQuestion {
   each?: "person";
 }
 /** A question as a spec holds it once it's whole (fullSpec): asked and closes always said. */
-export type Question = SpecQuestion & { asked: "once" | "each"; closes: "start" | "finale" };
+export type Question = SpecQuestion & { asked: "once" | "each" | "every" | "phase"; closes: "start" | "finale" };
 
 /** What a game's results say, for grading its questions (answers.js). */
 export interface AnswerFacts {
@@ -128,6 +136,10 @@ export interface AnswerFacts {
   order: string[] | null;
   names: Map<string, string>;
   groupNames?: Map<string, string>;
+  /** A7: each phase's start the viewer has seen; the game's later phase windows; the last episode they've seen with results. */
+  phases?: Map<string, number>;
+  windows?: { phase: string; at: number; from: number }[];
+  seen?: number;
 }
 /** How a question stands: still to settle, off (nobody went home, right on the line), or what was right (and a count; the
  *  groups the right people were on; a question about each person, each one's verdict by castaway id). */
@@ -163,6 +175,9 @@ export interface SpecExtras {
   hideStarters: boolean;
   /** Lock it down: nobody new joins, the rules don't change for the season. */
   lockedDown: boolean;
+  /** A7, a game of questions': someone who hasn't seen an episode answers its questions until they have, up to these hours past
+   *  its air time; null: none. */
+  lateLock: { hours: 12 | 24 | 48 | 72 } | null;
 }
 
 export interface GameSpec {

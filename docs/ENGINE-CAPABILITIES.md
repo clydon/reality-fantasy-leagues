@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 103 ✅ · 136 ⏳ · 1 🆕 · 1 ❓ · 23 💬, of 264.
-**Waiting, by step:** A7 11 · A8 11 · A9 20 · A10 16 · A11 14 · A12 9 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 3.
+**Now:** 113 ✅ · 126 ⏳ · 1 🆕 · 1 ❓ · 23 💬, of 264.
+**Waiting, by step:** A8 11 · A9 20 · A10 16 · A11 14 · A12 9 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -26,10 +26,10 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | From a later episode | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, Episode 9 to the finale. Scored by Survivor 51's rules. |
 | ✅ | When a phase of the season starts (the merge) | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, from when Merged starts. Scored by Survivor 51's rules. |
 | ✅ | For a stretch (just tonight, episodes 8 to 10) | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, Episodes 8–10. Longest streak wins. |
-| ⏳ | Every 2 episodes | A7 |
-| ⏳ | Once per phase | A7 |
-| ⏳ | A rolling window (within the next 3 episodes) | A7 |
-| ⏳ | Your own lock when you watch late | A7 |
+| ✅ | Every 2 episodes | A game for Survivor 51: everyone answers one question before every two episodes: name someone who'll be gone in the next two, all season. 2 points for each right answer. |
+| ✅ | Once per phase | A game for Survivor 51: everyone answers one question before each phase: who finds an idol this phase, all season. A point for each right answer. |
+| ✅ | A rolling window (within the next 3 episodes) | A game for Survivor 51: everyone answers one question before each episode: will an idol be played within the next three, all season. A point for each right answer. |
+| ✅ | Your own lock when you watch late | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 2 points for each right answer. |
 | ⏳ | Live, mid-episode | A15 |
 
 ### What you predict
@@ -46,7 +46,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | One question about each person still in (each couple's score) | A game for Dancing with the Stars 35: everyone answers one question before each episode: each couple's judges' score, all season. A point for each right answer. |
 | ✅ | A person's number from research (a couple's judges' score) | A game for Dancing with the Stars 35: everyone answers one question before each episode: each couple's judges' score: over or under 24.5 (24.5), all season. A point for each right answer. |
 | ⏳ | An order (the boot order, a leaderboard) | A8 |
-| ⏳ | Which episode something happens in (the merge) | A7 |
+| ✅ | Which episode something happens in (the merge) | A game for Survivor 51: everyone answers one question before it starts: which episode does the merge happen in, all season. 3 points for each right answer. |
 | ⏳ | A vote split (5-2-1) | A8 |
 | ⏳ | Who says the episode's title quote | A13 |
 
@@ -75,7 +75,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | The results (who went home, who won) | A game for Survivor 51: everyone answers two questions before each episode: who goes home and who wins, all season. Points for each right answer. |
 | ✅ | A moment research answers | A game for Survivor 51: everyone answers one question before each episode: an idol played, all season. A point for each right answer. |
 | ✅ | The show's calls (Weekly Calls) | A Weekly Calls for Survivor 51: two calls before every episode, all season. Most right by the finale wins. |
-| ⏳ | A phase of the season (the merge happened) | A7 |
+| ✅ | A phase of the season (the merge happened) | A game for Survivor 51: everyone answers one question before each episode: will the merge happen within the next two, all season. A point for each right answer. |
 | ⏳ | Episode facts (the title quote) | A13 |
 | ⏳ | The group's own answers (match the majority) | A14 |
 | ⏳ | The bot's own call, as an opponent | A14 |
@@ -195,9 +195,9 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ⏳ | s22 | Survivor 51 | Stock market: buy and sell castaways each week. | answer | A10 |
 | ⏳ | s23 | Survivor 51 | One mulligan a season. | answer | A10 |
 | ⏳ | s24 | The Traitors (US) 5 | Two of us are secretly traitors who score when the faithful's picks get banished. | who | A14 |
-| ⏳ | s25 | Survivor 51 | Every two episodes, name someone who'll be gone by then. | when | A7 |
-| ⏳ | s26 | Survivor 51 | Within the next 3 episodes, will there be a blindside? | when | A7: a blindside isn't a moment research answers yet: the new-moment path too |
-| ⏳ | s27 | Survivor 51 | Guess which episode the merge happens in. | what | A7 |
+| ✅ | s25 | Survivor 51 | Every two episodes, name someone who'll be gone by then. | when | A game for Survivor 51: everyone answers one question before every two episodes: name someone who'll be gone in the next two, all season. 2 points for each right answer. |
+| ⏳ | s26 | Survivor 51 | Within the next 3 episodes, will there be a blindside? | when | G1: the window plays now (A7); a blindside isn't a moment research answers, so it's the new-moment path (G1: rated reliable, or the nearest settled question) |
+| ✅ | s27 | Survivor 51 | Guess which episode the merge happens in. | what | A game for Survivor 51: everyone answers one question before it starts: which episode does the merge happen in, all season. 3 points for each right answer. |
 | ⏳ | s28 | Survivor 51 | Each episode, guess who says the episode's title quote. | what, settle | A13 |
 | ⏳ | s29 | Survivor 51 | 10 points an episode, split between everyone who called the boot. | score | A9 |
 | ⏳ | s30 | Survivor 51 | You only score if you're the only one who called it. | score | A9 |
@@ -211,7 +211,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ⏳ | s38 | Survivor 51 | Names out of a hat: everyone gets a random castaway; last one standing wins. | answer | A10 |
 | ⏳ | s39 | Survivor 51 | Pre-merge and post-merge are separate games with their own drafts, plus an overall winner. | shape | A12 |
 | ⏳ | s40 | Big Brother | Each week's top scorer picks a twist for next week. | who | A14 |
-| ⏳ | s41 | Survivor 51 | My brother watches a day late: let him lock later. | when | A7 |
+| ✅ | s41 | Survivor 51 | My brother watches a day late: let him lock later. | when | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 2 points for each right answer. |
 | ⏳ | s42 | Dancing with the Stars 35 | Predict each episode's IMDb rating. | settle | A14: outside numbers from a vetted source: TVmaze's rating, not IMDb's |
 | ⏳ | s43 | Survivor 51 | Each week a different one of us writes 3 questions. | who | A14 |
 | ⏳ | s44 | Survivor 51 | Seal a winner pick before the premiere; every change costs a point. | score | A9 |
@@ -314,7 +314,7 @@ Start a game's eval set (the playtest lane's P2, 2026-10-28), each request now t
 | ✅ | w071 | The Traitors (US) 5 | everyone guess the traitors winner and how many traitors make the end | A game for The Traitors (US) 5: everyone answers two questions before it starts: who wins and how many Traitors make the end, all season. Points for each right answer. |
 | ✅ | w072 | Survivor 51 | will anyone quit survivor this season yes or no | A game for Survivor 51: everyone answers one question before it starts: will anyone quit this season, all season. 2 points for each right answer. |
 | ✅ | w073 | Survivor 51 | over under on number of idols played this season, line is 6.5 | A game for Survivor 51: everyone answers one question before it starts: idols played this season: over or under 6.5 (6.5), all season. 2 points for each right answer. |
-| ⏳ | w074 | Dancing with the Stars 35 | who gets the first 10 on dwts | A7: who gets the first 10: a person's number (A6) and when it happens (A7) |
+| ✅ | w074 | Dancing with the Stars 35 | who gets the first 10 on dwts | A game for Dancing with the Stars 35: everyone answers one question before it starts: who gets the first perfect score, all season. 2 points for each right answer. |
 | ✅ | w075 | Survivor 51 | survivr leag 4 me n da boys | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. |
 | ✅ | w076 | The Traitors (US) 5 | tratiors fantsy draft plz | A Weekly Lineup for The Traitors (US) 5: everyone drafts 5 and starts 3 each episode, all season. Scored by The Traitors (US) 5's rules. |
 | ✅ | w077 | Dancing with the Stars 35 | yo set up a lowkey dwts thing no cap just vibes | A Survival Pool for Dancing with the Stars 35: everyone picks one person to stay in each episode, all season. Longest streak wins. (Checked against The Amazing Race's rules, a show of its kind.) |

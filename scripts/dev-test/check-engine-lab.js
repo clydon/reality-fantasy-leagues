@@ -8,9 +8,11 @@
 //     status there ✅); a question the show's research doesn't answer is refused (the data rule); a sport's stats wait for L3;
 //     what isn't JSON is a 400. A6's: the tribe winner and who goes home, and who finds an idol, play there; a Traitors
 //     question is refused (no secret roles on this show), and so is each couple's judges' score (Dancing with the Stars').
+//     A7's: a question every two episodes, a late lock (in its details), which episode the merge happens in.
 //   - Start it as a test game: on the zt- couch, through the game's writer (a game of questions asking just that, the admin its
 //     Commissioner, its spec carried, the game-specs flag's check passing); refused on a couch that isn't a test couch or a
-//     zt- fixture's (403), and for a spec that doesn't play (409). Which tribe wins immunity starts too, its faces the tribes.
+//     zt- fixture's (403), and for a spec that doesn't play (409). Which tribe wins immunity starts too, its faces the tribes;
+//     and a question once a phase, the season's phases recorded in it (A7).
 //   - In a real browser at --width (390 by default), as the admin: the lab, a season picked, a tracker row filtered and picked
 //     (its spec fills the box), Check (plays now, the sentence), the couch picked, Start (the link to its Games tab); a refused
 //     spec shows what's wrong. Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
@@ -29,6 +31,7 @@ const { open, api, BASE } = require("./browser");
 const fixture = require("./new-fixture");
 const S = require("../../src/lib/game/state-logic.js");
 const C = require("../../src/lib/game/game-spec/capabilities.js");
+const G = require("../../src/lib/game/game-spec/index.js");
 const { checkLeague } = require("../game-specs-flag.js");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
@@ -99,6 +102,13 @@ function check(ok, what, detail = "") {
     check(r.status === 200 && !r.body.startable && r.body.problems.some((p) => p.at === "ask[0].settle.role") && r.body.row?.state !== "yes", "  a Traitors question (who are the Traitors) is refused: this show has no secret roles", JSON.stringify(r.body.problems));
     r = await labCheck({ spec: JSON.stringify(rowSpec("what.each")), row: "what.each" });
     check(r.status === 200 && !r.body.startable && r.body.problems.some((p) => p.at === "ask[0].settle.moment"), "  each couple's judges' score is Dancing with the Stars': no such moment here", JSON.stringify(r.body.problems));
+    // A7: windows, which episode the merge is, and a late lock.
+    r = await labCheck({ spec: JSON.stringify(rowSpec("when.everyN")), row: "when.everyN" });
+    check(r.status === 200 && r.body.startable && r.body.row?.state === "yes" && /every two episodes/.test(r.body.describe?.sentence ?? ""), "A7: a question every two episodes plays on ZT Survivor 51", JSON.stringify({ s: r.body.describe?.sentence, p: r.body.problems }));
+    r = await labCheck({ spec: JSON.stringify(rowSpec("when.ownLock")), row: "when.ownLock" });
+    check(r.status === 200 && r.body.startable && r.body.describe?.details?.some((d) => d.id === "lateLock" && /24 hours/.test(d.value)), "  a late lock plays, said in its details", JSON.stringify(r.body.describe?.details));
+    r = await labCheck({ spec: JSON.stringify(rowSpec("what.whichEpisode")), row: "what.whichEpisode" });
+    check(r.status === 200 && r.body.startable, "  which episode the merge happens in plays", JSON.stringify(r.body.problems));
 
     // ---------- start it as a test game ----------
     const labStart = (body) => desk.call("POST", "/api/desk/lab", { action: "start", seasonId: sid, couchId: couch, ...body });
@@ -125,6 +135,9 @@ function check(ok, what, detail = "") {
     await pool.query("INSERT INTO show_follows (user_id, season_id, seen_through) VALUES ($1, $2, 5) ON CONFLICT (user_id, season_id) DO UPDATE SET seen_through = 5", [deskId, sid]);
     const tribeRead = r.body.leagueId ? (await desk.call("GET", `/api/seasons/${sid}/answers?league=${r.body.leagueId}`)).body : null;
     check((tribeRead?.questions?.[0]?.faces ?? []).length === 3, "  its question names the three tribes, once the admin has seen Episode 5", JSON.stringify(tribeRead?.questions?.[0]).slice(0, 300));
+    r = await labStart({ spec: rowSpec("when.perPhase") });
+    const phased = r.body.leagueId ? (await pool.query("SELECT state FROM leagues WHERE id = $1", [r.body.leagueId])).rows[0]?.state : null;
+    check(r.status === 200 && !!phased && G.sameValue(phased.phaseStarts, { tribes: 1 }) && G.sameValue(phased.phaseWindows, {}), "A7: a question once a phase starts as a test game, the season's phases recorded (the merge not known yet)", JSON.stringify(phased && { starts: phased.phaseStarts, windows: phased.phaseWindows }));
 
     // ---------- in the browser ----------
     if (!apiOnly) {
@@ -158,8 +171,8 @@ function check(ok, what, detail = "") {
       check(/Started Lab/.test((await page.locator("[data-lab-started]").textContent()) ?? ""), "  Start it as a test game: started, with a link to its Games tab");
       // A row with no spec empties the box: its status is never read with another row's spec.
       await page.locator("[data-lab-filter]").fill("");
-      await page.locator("[data-lab-row]").selectOption("when.everyN");
-      check((await page.locator("[data-lab-spec]").inputValue()) === "" && /⏳ A7/.test((await page.locator("[data-lab-picked='when.everyN']").textContent()) ?? ""), "  a row with no spec (every 2 episodes, ⏳ A7) empties the box");
+      await page.locator("[data-lab-row]").selectOption("when.live");
+      check((await page.locator("[data-lab-spec]").inputValue()) === "" && /⏳ A15/.test((await page.locator("[data-lab-picked='when.live']").textContent()) ?? ""), "  a row with no spec (live, mid-episode, ⏳ A15) empties the box");
       await page.locator("[data-lab-row]").selectOption("");
       await page.locator("[data-lab-spec]").fill(JSON.stringify({ ...sheet, ask: [{ id: "rain", ask: "Will it rain?", answer: "yesNo", points: 1, asked: "each", settle: { by: "moment", moment: "itRained", take: "happened" } }] }, null, 2));
       await page.locator("[data-lab-check]").click();

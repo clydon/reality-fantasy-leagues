@@ -68,7 +68,8 @@ export async function sheetNights(o: { leagueId: string; state: LeagueState; pla
   const seats = new Set(view.players.map((p) => p.id));
   const rows = (o.rows ?? (await storedAnswers(o.leagueId))).filter((r) => r.episode > 0 && seats.has(r.playerId));
   const out: SheetNights = new Map();
-  for (const q of StateLogic.AnswerLogic.questions(view).filter((x) => x.asked === "each" && !Spec.isCalls(x))) {
+  // Asked each episode, or over a run or a phase (A7: a night is the episode its window opens at).
+  for (const q of StateLogic.AnswerLogic.questions(view).filter((x) => x.asked !== "once" && !Spec.isCalls(x))) {
     for (const ep of new Set(rows.filter((r) => r.question === q.id).map((r) => r.episode))) {
       const list = rows.filter((r) => r.question === q.id && r.episode === ep).map((r) => ({ playerId: r.playerId, answer: r.answer }));
       const mine = list.find((r) => r.playerId === o.playerId);

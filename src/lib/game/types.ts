@@ -270,6 +270,9 @@ export interface LeagueSettings {
   /** Lock it down (the new design's competitive mode, step 15 part 4): nobody new joins (GhostLogic.allowed), nobody catches up,
    *  and the rules don't change for the season. Absent means off. */
   lockedDown?: boolean;
+  /** A game of questions' late lock (step A7, the spec's extras.lateLock): hours past an episode's air time someone who
+   *  hasn't seen it can still answer its questions. */
+  lateLockHours?: number;
   /**
    * The episode this league starts playing at (default 1): a league formed mid-season drafts and picks
    * from here, and nothing in earlier episodes scores. Read it through StateLogic.startEpisode. A game that starts when a
@@ -1111,6 +1114,10 @@ export interface LeagueState {
   /** Whoever runs the game nudged the player on the clock (one per turn: the next pick clears it). */
   draftNudge?: { n: number; at: string; by: string };
   blindDraft: BlindDraftState;
+  /** A game that asks by phase (step A7, StateLogic.settlePhases): the season's phase starts it plays by, and where each later
+   *  phase's window of questions opens. */
+  phaseStarts?: Record<string, number>;
+  phaseWindows?: Record<string, number>;
   settings: LeagueSettings;
 }
 

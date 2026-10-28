@@ -182,7 +182,8 @@ function SheetBody({ target, d, onDone }: { target: SheetTarget; d: GameQuestion
   const open = d.questions.filter((q) => q.status === "open");
   const changed = open.filter((q) => !same(isIn(picked[q.id]) ? picked[q.id] : null, isIn(q.mine) ? q.mine : null));
   const groups = [
-    { key: "each", label: d.episode ? `Episode ${d.episode}` : "This episode", list: d.questions.filter((q) => q.asked === "each") },
+    // Asked each episode, and over a run or a phase (A7): this week's.
+    { key: "each", label: d.episode ? `Episode ${d.episode}` : "This episode", list: d.questions.filter((q) => q.asked !== "once") },
     { key: "once", label: target.finale ? "The finale" : "For the season", list: d.questions.filter((q) => q.asked === "once") },
   ].filter((g) => g.list.length);
   const closedOnes = d.questions.filter((q) => q.status === "closed");
@@ -440,7 +441,7 @@ export function SheetRow({ target, move: m, icon }: { target: SheetTarget; move:
 export function SheetResultRow({ target, heading }: { target: SheetTarget & { episode: number }; heading?: boolean }) {
   const r = useGameQuestions(target.seasonId, target.leagueId, target.episode);
   const d = r.data;
-  const each = (d?.questions ?? []).filter((q) => q.asked === "each" && q.status === "closed");
+  const each = (d?.questions ?? []).filter((q) => q.asked !== "once" && q.status === "closed");
   if (!d || !each.length || !each.some((q) => q.people.length)) return null;
   const mine = each.flatMap((q) => q.people.filter((p) => p.you));
   const known = each.filter((q) => q.verdict?.state === "known");

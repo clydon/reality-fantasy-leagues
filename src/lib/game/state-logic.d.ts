@@ -507,6 +507,8 @@ declare const StateLogic: {
    *  unknown: it waits again) and the first episode still open for moves (`open`); never once that's aired. Through
    *  setGame: its problems, [] when written or nothing changed. */
   settleStart(state: LeagueState, where: { from: number | null; open: number }): SpecProblem[];
+  /** A7: a game that asks by phase records the season's phase starts and its phase windows; whether anything changed. */
+  settlePhases(state: LeagueState, where: { phases: { id: string; from: number | null }[]; open: number }): boolean;
   /** A new bet on an episode this game plays; undefined for one outside its span (before its start, after its end). */
   addBet(state: LeagueState, epId: string, label: string, points: number, createdByPlayerId: string | null): Bet | undefined;
   /** A new bet on the episode about to be played (betTarget); undefined once the game is over. */
@@ -638,9 +640,19 @@ declare const StateLogic: {
     facts(state: LeagueState): AnswerFacts;
     finishOrder(state: LeagueState): string[];
     questions(state: LeagueState): Question[];
+    /** A7: whether the game asks anything by phase (asked once a phase, or settled by where a phase starts). */
+    byPhase(state: LeagueState): boolean;
+    /** A7: where a question's windows open, in order (none asked once). */
+    windowStarts(state: LeagueState, q: Question, seen?: number | null): number[];
+    /** A7: whether a question's window opens at `episode` (its answers' key; 0 asked once). */
+    opensAt(state: LeagueState, q: Question, episode: number): boolean;
+    /** A7: the window an episode is in (where it opens), or null. */
+    windowAt(state: LeagueState, q: Question, episode: number | null, seen?: number | null): number | null;
     closesAt(state: LeagueState, q: Question, episode: number, finale?: number | null): number | null;
-    closed(state: LeagueState, q: Question, episode: number, o?: { now?: number; finale?: number | null; airAt?: string | null }): boolean;
+    closed(state: LeagueState, q: Question, episode: number, o?: { now?: number; finale?: number | null; airAt?: string | null; mark?: number | null }): boolean;
     episodeNow(state: LeagueState): number | null;
+    /** A7: the episode someone answers for now with a late lock (the one after their mark while it's open for them). */
+    lateEpisode(state: LeagueState, mark: number | null, o?: { now?: number; airAtOf?: (episode: number) => string | null }): number | null;
     grade(
       state: LeagueState,
       answers: { playerId: string; question: string; episode: number; answer: unknown }[],

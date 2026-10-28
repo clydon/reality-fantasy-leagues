@@ -123,7 +123,10 @@ function sentenceParts(s, w) {
   } else if (s.score.by === 'answers') {
     const n = s.ask.length;
     const each = s.ask.some((q) => q.asked === 'each');
-    put(`everyone answers ${say(n)} ${n === 1 ? 'question' : 'questions'} before ${one ? `${w.Part} ${first}` : each ? `each ${w.part}` : 'it starts'}`, 'ask');
+    // A7's windows: every few episodes, or once a phase, when nothing's asked every episode.
+    const every = s.ask.find((q) => q.asked === 'every');
+    const when = each ? `each ${w.part}` : every ? `every ${say(every.every)} ${w.parts}` : s.ask.some((q) => q.asked === 'phase') ? 'each phase' : 'it starts';
+    put(`everyone answers ${say(n)} ${n === 1 ? 'question' : 'questions'} before ${one ? `${w.Part} ${first}` : when}`, 'ask');
     if (n) put(`: ${listOf(s.ask.map(questionPhrase))}`, 'ask');
     spanSaid = one;
   } else {
@@ -153,9 +156,16 @@ function sentenceParts(s, w) {
   return parts;
 }
 
+/** When a question is asked, as How it works says it (A7's windows too). */
+function whenWords(q, w, each) {
+  if (q.asked === 'each') return Number.isInteger(q.over) && q.over > 1 ? `Before each ${w.part}, about it and the next ${say(q.over - 1)}: ` : `Before each ${w.part}: `;
+  if (q.asked === 'every') return `Every ${say(q.every)} ${w.parts}, before the first: `;
+  if (q.asked === 'phase') return 'Once a phase, as it begins: ';
+  return q.closes === 'finale' ? 'Before the finale: ' : each ? 'Before it starts: ' : '';
+}
 /** One question as How it works says it: when it's asked, what it is, and what a right answer earns. */
 function questionRule(q, w, each) {
-  const when = q.asked === 'each' ? `Before each ${w.part}: ` : q.closes === 'finale' ? 'Before the finale: ' : each ? 'Before it starts: ' : '';
+  const when = whenWords(q, w, each);
   const pts = typeof q.points === 'number' ? q.points : null;
   let earn = pts === null ? '' : ` ${cap(pointsWord(pts))} if you're right.`;
   if (NAMES.includes(q.answer) && q.pick > 1 && pts !== null) earn = ` Name ${say(q.pick)}: ${pointsWord(pts)} for each one right.`;
@@ -221,10 +231,12 @@ function rulesOf(s, w) {
     rules.push('Take your squares on the grid before it starts.');
   }
   if (s.score.by === 'answers' && !callsAsk(s.ask)) {
-    const each = s.ask.some((q) => q.asked === 'each');
+    const each = s.ask.some((q) => q.asked !== 'once');
     rules.push(`No draft, no team. Answer ${say(s.ask.length)} ${s.ask.length === 1 ? 'question' : 'questions'}${each ? '' : ' before it starts'}:`);
     for (const q of s.ask) rules.push(questionRule(q, w, each));
     rules.push(each ? `Change an answer until its ${w.part} starts. Nobody sees them until then.` : 'Change your answers until it starts. Nobody sees them until then.');
+    // A late lock (A7).
+    if (isObj(s.extras.lateLock)) rules.push(`Watching late? Answer before you watch: until you've seen it, up to ${s.extras.lateLock.hours} hours after it airs.`);
     rules.push('Most points wins.');
   }
   const rank = {
@@ -290,6 +302,8 @@ function detailsOf(s, w) {
   }
   if (s.get.by === 'pick') out.push({ id: 'calls', label: 'Who goes home?', recommended: rec('calls'), value: e.calls ? `A call every ${w.part}, beside the pick` : 'Off' });
   if (countKind(s.count) === 'start') out.push({ id: 'hideStarters', label: 'Starters', recommended: rec('hideStarters'), value: e.hideStarters ? 'Hidden until the lock' : "Shown as they're set" });
+  // A game of questions' late lock (A7).
+  if (s.score.by === 'answers' && !callsAsk(s.ask)) out.push({ id: 'lateLock', label: 'Watching late', recommended: rec('lateLock'), value: isObj(e.lateLock) ? `Answer until you've seen it, up to ${e.lateLock.hours} hours after it airs` : 'Answers lock as it starts' });
   out.push({ id: 'lockedDown', label: 'Locked down', recommended: rec('lockedDown'), value: e.lockedDown ? 'Nobody new, and the rules stay as they are' : 'No' });
   return out;
 }

@@ -58,7 +58,7 @@ const GAME_FIELDS = {
   pickem: ["pickemCorrectPoints", "poolSurvive", "calls"],
   "weekly-calls": [],
   "weekly-bingo": [],
-  questions: ["questions"],
+  questions: ["questions", "lateLockHours"],
 };
 const gameFields = (state) => [...GAME_FIELDS.every, ...GAME_FIELDS[S.getLeagueType(state).id], ...(S.WaiverLogic.supported(state) ? WAIVER_FIELDS : [])];
 

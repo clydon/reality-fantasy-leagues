@@ -18,7 +18,15 @@
 //     order         everyone by where they finished, the winner first, once the season is over (null before)
 //     names         Map castaway id -> name (a choice's options are matched to names)
 //     groupNames    Map group id -> name (a choice's options are matched to them too)
+//     phases        (A7) Map phase id -> the episode it started, for each phase whose start the viewer has seen
+//     windows       (A7) the game's later phase windows, in order: [{ phase, at (where it opens), from (its phase's start) }]
+//     seen          (A7) the last episode the viewer has seen with results
 //   }
+//
+// A question's window (A7): asked once, the game's episodes; asked each, its episode (and, over N, the next N - 1); every N,
+// the run of N from the one it opens at; by phase, from the one it opens at to where the next phase's opens (once the viewer
+// has seen that phase begin). Its answers' key is the episode it opens at (0 asked once). It settles once every episode of it
+// has its results (and its end is known).
 //
 //   verdictOf(q, episode, facts)  { state: 'waiting' } | { state: 'off', why } | { state: 'known', right, value?, groups?, each? }
 //                                 (right: the right answers: castaway ids, 'yes'/'no', 'over'/'under', options; value: a count;
@@ -56,6 +64,30 @@ function spanEpisodes(facts) {
   return out;
 }
 
+/**
+ * A question's window from the episode it opens at (A7): { eps, ended }, its episodes in order and whether its last is known
+ * (its own end, the game's, or the next phase's start once the viewer has seen it). Asked once, the game's episodes. Past the
+ * game's end, or past the season's last results once it's over, it stops there.
+ */
+function windowOf(q, start, facts) {
+  if (q.asked === 'once') return { eps: spanEpisodes(facts), ended: !!facts.over };
+  let end = null;
+  if (q.asked === 'every') end = start + q.every - 1;
+  else if (q.asked === 'phase') {
+    // To where the next phase's window opens, once the viewer has seen that phase begin.
+    const next = (facts.windows || []).find((x) => x.at > start);
+    end = next && Number.isInteger(facts.seen) && facts.seen >= next.from ? next.at - 1 : null;
+  } else end = start + (Number.isInteger(q.over) && q.over > 1 ? q.over : 1) - 1;
+  if (facts.to !== null && (end === null || end > facts.to)) end = facts.to;
+  const seen = [...facts.episodes.keys()];
+  const last = seen.length ? Math.max(...seen) : start - 1;
+  // Over: what the game had is all it has.
+  if (facts.over && (end === null || end > last)) end = Math.max(start, last);
+  const eps = [];
+  for (let n = start; n <= (end === null ? last : end); n++) eps.push(n);
+  return { eps, ended: end !== null };
+}
+
 /** The groups (distinct, none for nobody's) a list of people were on in an episode. */
 function groupsIn(ids, e) {
   const out = [];
@@ -84,36 +116,67 @@ function forGroups(q, v) {
   return off("Nobody it happened to was on a group");
 }
 
-/** What the results say for a question asked once, over the game's episodes. */
-function overGame(q, facts) {
+/**
+ * What the results say over a window (`w`, windowOf): asked once, the game; over N, every N, by phase (A7). Who went home: asked
+ * once, the first to go in the game; over a window, anyone who went home in it.
+ */
+function overWindow(q, w, facts) {
   const st = q.settle;
-  const eps = spanEpisodes(facts);
+  const eps = w.eps;
+  const at = (n) => facts.episodes.get(n);
   if (st.by === 'results') {
-    // The first to go home in the game: the first episode someone did, once every one before it is in.
-    for (const n of eps) {
-      const e = facts.episodes.get(n);
-      if (!e || e.out === null) return WAITING;
-      if (e.out.length) return known(e.out, undefined, groupsIn(e.out, e));
+    if (q.asked === 'once') {
+      // The first to go home in the game: the first episode someone did, once every one before it is in.
+      for (const n of eps) {
+        const e = at(n);
+        if (!e || e.out === null) return WAITING;
+        if (e.out.length) return known(e.out, undefined, groupsIn(e.out, e));
+      }
+      return facts.over ? off('Nobody went home') : WAITING;
     }
-    return facts.over ? off('Nobody went home') : WAITING;
+    if (!w.ended || !eps.every((n) => { const e = at(n); return !!e && e.out !== null; })) return WAITING;
+    const gone = [];
+    const groups = [];
+    for (const n of eps) {
+      gone.push(...at(n).out);
+      for (const g of groupsIn(at(n).out, at(n))) if (!groups.includes(g)) groups.push(g);
+    }
+    return gone.length ? known(gone, undefined, groups) : off('Nobody went home');
   }
-  // Every one of the game's episodes with its full results, once the game is over: what's only known at the end.
-  const whole = facts.over && eps.every((n) => { const e = facts.episodes.get(n); return !!e && e.events !== null; });
+  // Every one of the window's episodes with its full results, once its end is known: what's only known at the end.
+  const whole = w.ended && eps.every((n) => { const e = at(n); return !!e && e.events !== null; });
+  if (st.by === 'phase') {
+    // Whether a phase started in the window: yes once its start is known there; no once it's known elsewhere, or the game is
+    // over without it (a start the desk confirms late is never read as "no").
+    const s = facts.phases ? facts.phases.get(st.phase) : undefined;
+    if (Number.isInteger(s)) return known([eps.includes(s) ? 'yes' : 'no']);
+    return facts.over && whole ? known(['no']) : WAITING;
+  }
   if (st.by === 'role') {
     if (!whole || !eps.length) return WAITING;
     if (st.take === 'who') {
-      // Anyone who held it in the game.
+      // Anyone who held it in the window.
       const who = [];
-      for (const n of eps) { const e = facts.episodes.get(n); for (const id of holding(e, inAt(e), st.role)) if (!who.includes(id)) who.push(id); }
+      for (const n of eps) { const e = at(n); for (const id of holding(e, inAt(e), st.role)) if (!who.includes(id)) who.push(id); }
       return who.length ? known(who) : off(`Nobody was a ${st.role}`);
     }
-    // Who held it among those in at the game's last episode.
-    const last = facts.episodes.get(eps[eps.length - 1]);
+    // Who held it among those in at the window's last episode.
+    const last = at(eps[eps.length - 1]);
     const end = holding(last, inAt(last), st.role);
     return st.take === 'count' ? known([], end.length) : end.length ? known(end) : off(`No ${st.role} made it to the end`);
   }
-  // A moment over the game: it happened as soon as it does; it didn't, its count, who it happened to and who most, once the
-  // game is over and every one of its episodes has its full results.
+  if (st.take === 'first') {
+    // The first episode it happened in (its number), and who it happened to there, once every episode before it is in.
+    for (const n of eps) {
+      const e = at(n);
+      if (!e || e.events === null) return WAITING;
+      const who = [...tally(e, st.moment)].filter(([, k]) => k > 0).map(([id]) => id);
+      if (who.length || (e.events.get(st.moment) || 0) > 0) return known(who, n, groupsIn(who, e));
+    }
+    return whole ? off(NOBODY) : WAITING;
+  }
+  // A moment over the window: it happened as soon as it does; it didn't, its count, who it happened to and who most, once
+  // every one of its episodes has its full results.
   let count = 0;
   const counts = new Map();
   const groups = [];
@@ -137,10 +200,11 @@ function overGame(q, facts) {
   return m.who.length ? known(m.who, m.best) : off(NOBODY);
 }
 
-/** How a question stands for an episode (asked each) or the game (asked once; `episode` ignored). */
+/** How a question stands for the window it opens at `episode` (asked each, every N or by phase) or the game (asked once;
+ *  `episode` ignored). */
 function verdictOf(q, episode, facts) {
   const st = q && q.settle;
-  if (!st || (st.by !== 'results' && st.by !== 'moment' && st.by !== 'role')) return WAITING; // the sports branch's settles, and the calls
+  if (!st || !['results', 'moment', 'role', 'phase'].includes(st.by)) return WAITING; // the sports branch's settles, and the calls
   if (q.each) return eachVerdict(q, episode, facts);
   return forGroups(q, verdictFor(q, episode, facts));
 }
@@ -154,7 +218,12 @@ function verdictFor(q, episode, facts) {
     const who = facts.order[st.place - 1];
     return who ? known([who]) : off(`Nobody finished ${ORDINAL(st.place)}`);
   }
-  if (q.asked !== 'each') return overGame(q, facts);
+  if (how === 'phase:starts') {
+    // Which episode a phase starts in (A7): once the viewer has seen it start; none, once the game is over without it.
+    const s = facts.phases ? facts.phases.get(st.phase) : undefined;
+    return Number.isInteger(s) ? known([], s) : facts.over ? off("It didn't start while the game was on") : WAITING;
+  }
+  if (q.asked !== 'each' || st.by === 'phase' || st.take === 'first' || (Number.isInteger(q.over) && q.over > 1)) return overWindow(q, windowOf(q, episode, facts), facts);
   const e = facts.episodes.get(episode);
   if (st.by === 'results') {
     if (!e || e.out === null) return WAITING;
@@ -179,20 +248,20 @@ function verdictFor(q, episode, facts) {
 }
 
 /**
- * A question about each person (q.each): one verdict for each of those still in when it closes (at its episode's start, or,
+ * A question about each person (q.each): one verdict for each of those still in when it closes (at its window's start, or,
  * asked once, the game's first), from their own moment or whether they went home or stayed. Waiting until every one of
- * them is known: in the episode once its results are in (its full results, for a moment); over the game, once it's over.
+ * them is known: once every episode of its window has its results (its full results, for a moment) and its end is known.
  */
 function eachVerdict(q, episode, facts) {
   const st = q.settle;
   const how = `${st.by}:${st.take}`;
   const moment = st.by === 'moment';
-  const first = facts.episodes.get(q.asked === 'each' ? episode : facts.from);
+  const first = facts.episodes.get(q.asked === 'once' ? facts.from : episode);
   if (!first) return WAITING;
   const people = inAt(first);
-  const eps = q.asked === 'each' ? [episode] : spanEpisodes(facts);
-  const list = eps.map((n) => facts.episodes.get(n));
-  const ready = list.every((e) => !!e && (moment ? e.events !== null : e.out !== null)) && (q.asked === 'each' || facts.over);
+  const w = windowOf(q, q.asked === 'once' ? facts.from : episode, facts);
+  const list = w.eps.map((n) => facts.episodes.get(n));
+  const ready = w.ended && list.every((e) => !!e && (moment ? e.events !== null : e.out !== null));
   if (!ready) return WAITING;
   const each = {};
   for (const id of people) {

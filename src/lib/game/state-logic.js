@@ -1926,6 +1926,44 @@ class RosterLogic {
     const to = want === null || (game.span.to !== null && game.span.to < want) ? null : game.span.to;
     return RosterLogic.setGame(state, { ...game, span: { from: want === null ? { phase } : { phase, at: want }, to } });
   }
+  // A game that asks by phase (A7, AnswerLogic.byPhase) records what it needs of the season's phases, as a start at a phase
+  // does (settleStart): `where` { phases: [{ id, from }] in order (the rulebook it plays by: phase-starts.ts), open: the first
+  // episode still open for moves }.
+  //   state.phaseStarts  { phaseId: the episode it starts } for each start known (the grader counts one only once the viewer has
+  //                      seen it: AnswerLogic.facts)
+  //   state.phaseWindows { phaseId: the episode its window opens at }, for each later phase that starts inside the game: where it
+  //                      starts, or the first episode still open when that's only known once it's begun (an answer is never
+  //                      given after what it's about has aired). One that's opened (this week's, or past) never moves, and
+  //                      keeps its start, so answers given for it are always graded.
+  // Whether anything changed.
+  static settlePhases(state, where){
+    if(!AnswerLogic.byPhase(state)) return false;
+    const list = (where && Array.isArray(where.phases) ? where.phases : []).filter(p => p && typeof p.id === 'string');
+    const open = Number(where && where.open);
+    const starts = {};
+    list.forEach(p => { if(Number.isInteger(p.from) && p.from >= 1) starts[p.id] = p.from; });
+    const first = startEpisode(state);
+    const last = endEpisode(state);
+    const was = state.phaseWindows || {};
+    const windows = {};
+    list.forEach((p, i) => {
+      const had = was[p.id];
+      // Opened (this week's, or past): it stays where it is, answers and all, and so does the start it opened for.
+      if(Number.isInteger(had) && Number.isInteger(open) && had <= open){
+        windows[p.id] = had;
+        if(!Number.isInteger(starts[p.id]) && state.phaseStarts && Number.isInteger(state.phaseStarts[p.id])) starts[p.id] = state.phaseStarts[p.id];
+        return;
+      }
+      const from = starts[p.id];
+      if(i === 0 || !Number.isInteger(from) || first === null || from <= first) return;
+      const at = Math.max(from, Number.isInteger(open) ? open : from);
+      if(last === null || at <= last) windows[p.id] = at;
+    });
+    const changed = !Spec.sameValue(starts, state.phaseStarts || {}) || !Spec.sameValue(windows, was);
+    state.phaseStarts = starts;
+    state.phaseWindows = windows;
+    return changed;
+  }
   // A change made the way the settings always were: `fn(copy)` changes a copy of the league (its settings a copy, without
   // the spec it carries, so everything reads the change), and what the copy's settings then play is written through
   // setGame. What it changed outside the game (the teams a suggestion is for, ...) is written as it was made. Returns
@@ -3494,11 +3532,23 @@ class AnswerLogic {
     });
     const winner = seasonWinner(state);
     const ended = seasonEnded(state);
+    // Where each phase started (A7: state.phaseStarts, recorded from the season's confirmed starts), once the viewer has seen
+    // that episode: a start confirmed ahead, or past their mark, says nothing yet.
+    const seen = SpoilerLogic.latestWithResults(state);
+    const starts = state.phaseStarts || {};
+    const phases = new Map(Object.entries(starts).filter(([, n]) => Number.isInteger(n) && n <= seen));
+    // The game's phase windows (state.phaseWindows), in order, each with the start it opened for: one ends where the next opens,
+    // once the viewer has seen that next phase begin.
+    const windows = Object.entries(state.phaseWindows || {})
+      .filter(([, at]) => Number.isInteger(at))
+      .map(([phase, at]) => ({ phase, at, from: Number.isInteger(starts[phase]) ? starts[phase] : at }))
+      .sort((a, b) => a.at - b.at);
     return {
       from, to: span.to, over: gameOver(state), episodes,
       winner: winner ? winner.id : null, ended, order: ended ? AnswerLogic.finishOrder(state) : null,
       names: new Map(cast.map(c => [c.id, c.name])),
       groupNames: new Map((state.tribes || []).map(t => [t.id, t.name])),
+      phases, windows, seen,
     };
   }
   // Everyone by where they finished, the winner first: the later they left the better, and in the same episode a finalist
@@ -3519,10 +3569,46 @@ class AnswerLogic {
   }
   // The spec's questions, whole (each with its defaults).
   static questions(state){ return gameOf(state).ask; }
-  // The episode whose start closes a question's answers: its own (asked each), the game's first (asked once: null while
-  // it waits for its phase), or the season's last (closes at the finale: `finale`, from its schedule; null when unknown).
+  // Whether the game asks anything by phase (A7: asked once a phase, or settled by where a phase starts): what the season sync
+  // and the desk record phase starts and windows for (phase-starts.ts settleIn, StateLogic.settlePhases).
+  static byPhase(state){ return AnswerLogic.questions(state).some(q => q.asked === 'phase' || (q.settle && q.settle.by === 'phase')); }
+  // Where a question's windows open (A7), in order: asked each, every episode the game plays; every N, each run of N from its
+  // first; by phase, its first, then where each later phase's opened (state.phaseWindows); asked once, none (its key is 0).
+  // `seen` (a viewer's mark; none: everything): a phase window shows only once they're up to the episode before it, so someone
+  // further behind never learns a phase began.
+  static windowStarts(state, q, seen){
+    const first = startEpisode(state);
+    if(q.asked === 'once' || first === null) return [];
+    const last = endEpisode(state);
+    const upTo = last !== null ? last : Math.max(first, ...(state.episodes || []).map(e => e.number));
+    if(q.asked === 'phase'){
+      const shown = (n) => !Number.isInteger(seen) || n <= seen + 1;
+      const later = Object.values(state.phaseWindows || {}).filter(n => Number.isInteger(n) && n > first && (last === null || n <= last) && shown(n));
+      return [first, ...[...new Set(later)].sort((a, b) => a - b)];
+    }
+    const step = q.asked === 'every' ? q.every : 1;
+    const out = [];
+    for(let n = first; n <= upTo; n += step) out.push(n);
+    return out;
+  }
+  // Whether a question's window opens at `episode` (its answers' key), and the one an episode is in (the latest that opens at or
+  // before it), or null.
+  static opensAt(state, q, episode){
+    if(q.asked === 'once') return episode === 0;
+    if(q.asked === 'each') return inPlay(state, episode);
+    return inPlay(state, episode) && AnswerLogic.windowStarts(state, q).includes(episode);
+  }
+  static windowAt(state, q, episode, seen){
+    if(q.asked === 'once' || !Number.isInteger(episode)) return null;
+    if(q.asked === 'each') return inPlay(state, episode) ? episode : null;
+    const at = AnswerLogic.windowStarts(state, q, seen).filter(n => n <= episode);
+    return at.length ? at[at.length - 1] : null;
+  }
+  // The episode whose start closes a question's answers: its window's first (asked each, every N or by phase: `episode`, the
+  // answers' key), the game's first (asked once: null while it waits for its phase), or the season's last (closes at the
+  // finale: `finale`, from its schedule; null when unknown).
   static closesAt(state, q, episode, finale){
-    if(q.asked === 'each') return episode;
+    if(q.asked !== 'once') return episode;
     if(q.closes === 'finale') return Number.isInteger(finale) ? finale : null;
     return startEpisode(state);
   }
@@ -3533,16 +3619,34 @@ class AnswerLogic {
   // doesn't play. Nothing settles a question before it closes (each episode's closes at its start; one asked once at the
   // game's first, or, for who wins or makes the final few, the season's last: specProblems), so the lock never needs the
   // results, and says nothing of them to someone who hasn't seen them. A finale nobody's listed yet: at the game's end.
-  //   o: { now, finale (the season's last episode, from its schedule), airAt }
+  // A game with a late lock (A7: extras.lateLock) keeps a question open for someone who hasn't seen the episode that closes it
+  // (`mark`, their spoiler mark, before it) until its air time plus the lock's hours: they answer before they watch.
+  //   o: { now, finale (the season's last episode, from its schedule), airAt, mark (the one answering's; null: sees all) }
   static closed(state, q, episode, o){
     const opt = o || {};
-    if(q.asked === 'each' && !inPlay(state, episode)) return true;
+    if(q.asked !== 'once' && !AnswerLogic.opensAt(state, q, episode)) return true;
     if(gameOver(state)) return true;
     const at = AnswerLogic.closesAt(state, q, episode, opt.finale);
     if(at === null) return false;
     const ep = state.episodes.find(e => e.number === at) || { number: at };
     const airsAt = ep.airsAt || (RevealLogic.isCatchingUp(state) ? null : opt.airAt || null);
+    const late = gameOf(state).extras.lateLock;
+    if(late && Number.isInteger(opt.mark) && opt.mark < at && airsAt && !ep.lineupsLocked){
+      const now = opt.now !== undefined ? Number(opt.now) : Date.now();
+      if(now < Date.parse(airsAt) + late.hours * 3600 * 1000) return false;
+    }
     return EpisodeLogic.hasResults(ep) || closedForPlay({ ...ep, airsAt }, opt.now);
+  }
+  // The episode someone answers for now with a late lock (A7): the one after their mark while it's still open for them, else
+  // this week's (episodeNow).
+  //   o: { now, airAtOf (an episode's air time from the schedule, for one the league hasn't stamped) }
+  static lateEpisode(state, mark, o){
+    const now = AnswerLogic.episodeNow(state);
+    if(!gameOf(state).extras.lateLock || !Number.isInteger(mark) || now === null || mark + 1 >= now) return now;
+    const next = mark + 1;
+    const opt = { now: o && o.now, airAt: o && o.airAtOf ? o.airAtOf(next) : null, mark };
+    const open = AnswerLogic.questions(state).some(q => q.asked !== 'once' && AnswerLogic.opensAt(state, q, next) && !AnswerLogic.closed(state, q, next, opt));
+    return open ? next : now;
   }
   // The episode a question asked each episode is answered for now: this week's (currentEpisodeNumber: the one picks and
   // lineups are for), or null (waiting for its phase, past its end).
@@ -3556,11 +3660,19 @@ class AnswerLogic {
     // Only the players this copy of the league has: a viewer's has the late joiners they can't see taken out (viewFor).
     const seats = new Set((state.players || []).map(p => p.id));
     const groups = new Map();
+    // Each question's windows, worked out once (A7).
+    const starts = new Map();
+    const opens = (q, ep) => {
+      if(q.asked === 'each') return inPlay(state, ep);
+      if(!starts.has(q.id)) starts.set(q.id, new Set(AnswerLogic.windowStarts(state, q)));
+      return starts.get(q.id).has(ep) && inPlay(state, ep);
+    };
     (answers || []).forEach(a => {
       const q = qs.get(a.question);
       if(!q || !seats.has(a.playerId)) return;
-      const ep = q.asked === 'each' ? a.episode : 0;
-      if(q.asked === 'each' && !inPlay(state, ep)) return;
+      // An answer is for its window (the episode it opens at; 0 asked once): one that opens nowhere earns nothing.
+      const ep = q.asked === 'once' ? 0 : a.episode;
+      if(q.asked !== 'once' && !opens(q, ep)) return;
       const key = q.id + '|' + ep;
       if(!groups.has(key)) groups.set(key, { q, ep, list: [] });
       groups.get(key).list.push({ playerId: a.playerId, answer: a.answer });
@@ -4373,7 +4485,7 @@ return {
   castTribesDue: RosterLogic.castTribesDue, castawayInUse: RosterLogic.castawayInUse, applySeasonCast: RosterLogic.applySeasonCast,
   applyEliminationsImport: EpisodeLogic.applyEliminationsImport,
   applyScoringEventsImport: EpisodeLogic.applyScoringEventsImport,
-  updateSettings: RosterLogic.updateSettings, setGame: RosterLogic.setGame, syncGame: RosterLogic.syncGame, settleStart: RosterLogic.settleStart,
+  updateSettings: RosterLogic.updateSettings, setGame: RosterLogic.setGame, syncGame: RosterLogic.syncGame, settleStart: RosterLogic.settleStart, settlePhases: RosterLogic.settlePhases,
   reorderDraft: DraftLogic.reorder, moveDraftOrder: DraftLogic.move, draftToCurrentTurn: DraftLogic.pick, undraft: DraftLogic.undo,
   MidSeasonLogic, availableFor: MidSeasonLogic.availableFor, replenishNeed: MidSeasonLogic.replenishNeed,
   addEpisode: EpisodeLogic.add, removeEpisode: EpisodeLogic.remove, updateEpisode: EpisodeLogic.update,

@@ -365,9 +365,10 @@ export async function syncSeasonLeagues(seasonId: string, actorUserId: string | 
         before = new Map(s.episodes.map((e) => [e.number, StateLogic.resultsStage(e)]));
         out = await syncLeagueDecisions(client, league.id, s, sync);
         // The backstop for a game that starts when a phase does (step A3 of docs/PLAN-start-a-game-gpt.md; phase-starts.ts): its
-        // start settled after every result, should the desk's walk have missed it.
+        // start settled after every result, should the desk's walk have missed it. And a game that asks by phase (A7): the
+        // phases' starts and its windows.
         // Loaded only for such a game: it reads rulebooks (a heavier module graph, as bingo's below).
-        if (StateLogic.startPhase(s) && !s.settings.archivedAt) {
+        if ((StateLogic.startPhase(s) || StateLogic.AnswerLogic.byPhase(s)) && !s.settings.archivedAt) {
           const P = await import("./phase-starts");
           if (schedule === null) {
             await P.freshStarts(seasonId);

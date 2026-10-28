@@ -542,8 +542,8 @@ export async function startGame(
       }
       refused(StateLogic.setGame(s, spec, sheet ? { ctx: sheet.ctx } : undefined), 409);
       // A phase start already known and ahead is settled now (by the rulebook it plays by: its couch's own copy, else the
-      // season's), as the desk and the season sync settle it later.
-      if (phase) {
+      // season's), as the desk and the season sync settle it later; so are a game's questions asked by phase (step A7).
+      if (phase || StateLogic.AnswerLogic.byPhase(s)) {
         settleIn(s, await leaguePhases(client, id, seasonId), await scheduleOf(seasonId, now), now);
         settled = StateLogic.startEpisode(s);
       }

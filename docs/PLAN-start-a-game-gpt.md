@@ -5,7 +5,7 @@ is headed", then today's games recreated on it, then the UI last; the GPT's word
 and S2 (both parts, 2026-10-28) are built and merged into master** (their As built is under track S); the test couch plays
 them next (the user's, in production). A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), not yet merged: the main folder merges them (review, checks, the Neon rehearsal, the user's OK).
-A5 and A6 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each); A7 next, then A8. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+A5, A6 and A7 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time); A8 next. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -1488,6 +1488,77 @@ screens. Each step names the research data it needs and checks the tapes have it
     - Declined: none.
 - **A7. Time.** Windows instead of only "each episode" or "once": every N episodes, within N, by phase; which episode something
   happens in (settled by phases and results); a person's own lock time when they watch late (spoiler-safe).
+
+  **As built (A7, 2026-10-28, on `engine`, not merged; no migration).** The same session as A6, after its commit.
+  - **Windows** (`schema.js`): a question is asked `once`, `each` episode (and with `over: N`, about that episode and the next
+    N - 1: "within the next three"), `every` N episodes (`every: N`, each run of N from the game's first), or once a `phase`.
+    An answer is for its window: the episode it opens at (`game_answers.episode`; 0 asked once), and it closes as that episode
+    starts. Over a window, who went home is anyone who did (asked once it stays A4's first to go); a moment, a role or who it
+    happened to most is over the window's episodes, known once they all have their results and the window's end is known.
+  - **Which episode:** `{ by: 'phase', phase, take: 'starts' }` (a number, or a choice of ranges: asked once) and a moment's
+    `first` (a number: which episode it first happened in; a person: who it happened to then). Whether a phase starts in an
+    episode or a window: `{ by: 'phase', take: 'happened' }`, yes once its start is known there, no once it's known elsewhere
+    or the game is over without it, so a start the desk confirms late is never read as no.
+  - **Phases are data the desk confirms** (A3's starts, from research's `phaseStarted`, results or "when N are left"). The same
+    settle pass that settles a game's start at a phase (Start a game, Game settings, the desk's confirm, the season sync after
+    every result, and now the lab) records, for a game that asks by phase (`AnswerLogic.byPhase`):
+    - `state.phaseStarts`, the season's confirmed starts, which the grader counts only once the viewer has seen that episode;
+    - `state.phaseWindows`, where each later phase's window opens: its start, or the first episode still open when it's only
+      known once it's begun (nobody answers about what's aired). One that's opened (this week's or past) never moves and keeps
+      its start, so its answers are always graded. A window runs to where the next opens. It shows to a viewer once they're up
+      to the episode before it, so someone further behind never learns a phase began (A3's Noticed is the same kind of thing).
+    - The desk's settle pass locks and writes such a game only when something would change (tried on a copy first).
+  - **A late lock** (`extras.lateLock: { hours: 12 | 24 | 48 | 72 }`, `settings.lateLockHours`, a game of questions' own):
+    someone who hasn't seen an episode can answer its questions after it starts, until they've seen it, up to that many hours
+    past its air time (the league's, or the schedule's). Whoever runs it locking the episode closes it. Nobody's answers show
+    to them while they can still answer; everyone else sees theirs. "This week" for them is the episode after their mark while
+    it's open (`AnswerLogic.lateEpisode`). Only a game's questions: lineups and picks keep the airtime lock (A15's own clock).
+  - **The engine:** `AnswerLogic.windowStarts`, `opensAt`, `windowAt` (where each window opens, whether an answer's key is
+    one, the window an episode's in); `closed` takes the viewer's mark; `grade` keys answers by window (worked out once a
+    question); `facts` gains the phase starts the viewer has seen, the phase windows and their mark. `StateLogic.settlePhases`.
+  - **The server:** `answers.ts` answers this week's window of each question (a run's or a phase's, not only the episode's),
+    with the late lock; `phase-starts.ts` settles phases for games that ask by phase (the desk's pass and the season sync);
+    the sheet and its night lines treat a windowed question as the week's.
+  - **The shape changed** (a new extra): this lane's nine carried specs drifted and were carried again (`game-specs-flag.js
+    on`), as A4's were. Production's flag is off, so nothing there carries a spec.
+  - **Words:** "Every two episodes, before the first:", "Before each episode, about it and the next two:", "Once a phase, as it
+    begins:"; the sentence says "before every two episodes" or "each phase"; the late lock in How it works ("Watching late?
+    Answer before you watch...") and in the details.
+  - **The tracker:** A7's 11 rows: 10 ✅ (every two episodes, once a phase, within three, your own lock, which episode the
+    merge is, the merge within two; name someone gone in the next two; guess the merge's episode; a brother watching a day
+    late; who gets the first perfect score). "Within the next 3, will there be a blindside?" moves to G1: its window plays
+    now, but a blindside isn't a moment research answers (the new-moment path). **Now: 113 ✅** · 126 ⏳ · 1 🆕 · 1 ❓ · 23 💬.
+  - **Research data the tapes lack:** where the merge was. Survivor 49's tapes have no episode-level `phaseStarted` (today's
+    research asks it), so a replay settles no phase question unless someone confirms the start; the desk does in the app.
+  - **Tests:** `tests/answers-time.test.js` (new, 4): the shape and the data rule; grading over windows on facts (every two,
+    over three, by phase with a start known late, which episode, a moment's first, each person over a run); the engine's
+    windows (where each opens, which an answer is for, phase windows recorded, frozen once open, hidden from someone further
+    behind, a start counted once seen); the late lock (open while unseen and within its hours, closed once seen, past the
+    hours or locked by whoever runs it; from the schedule's air time). `game-spec.test.js`: the late lock's field. `npm test`
+    890.
+  - **API:** `scripts/dev-test/check-questions-time.js` (new, on new-fixture.js with the desk's admin), 25 PASS: a game of four
+    (every two, over two, the merge's episode, once a phase) with a late lock of 72 hours; the desk confirming the merge at 7
+    ahead (recorded, its window there); the lock (jordan, who's seen 6, refused; riley at 5 answering late and seeing nobody's
+    answers, jordan seeing hers); Episode 6's results (Merged's window opens at 7, answered); 7's; graded at each mark (jordan
+    7, riley nothing at 5 and her late answer once she's seen 7). `check-engine-lab.js` grew A7's specs: 31 PASS.
+  - **Re-runs** (after the code review's fixes): `check-questions-time.js` 25, `check-phase-starts.js` 58, `check-questions.js`
+    97, `check-questions-who.js` 42, `check-engine-lab.js` 31, `check-new-start-game.js` 75, `check-new-show.js` 81.
+  - **Golden replays** (as A6's, engine against engine on each taped season's kept games; the code before A7 and after the
+    review's fixes): the same 116 games, **11,981 reads, every one the same.**
+  - **`game-specs-flag.js`:** `status` on, 9 of 9, none drifted (after carrying them again); `check` PASS.
+  - **Code review** (`/code-review`, before the commit).
+    - Taken:
+      - the sheet, its night lines and the episode's line only knew questions asked each or once (a windowed one vanished);
+      - Start a game's own path didn't record phases for a game that asks by phase;
+      - the window shown came from the league's state, so someone behind saw a new phase window open (a spoiler);
+      - an open window with answers could move on a desk correction (frozen once it's this week's now, its start kept);
+      - a phase window ended at the next phase's start but opened at its window (one source now: where the next opens);
+      - the late episode ignored the schedule's air time;
+      - the desk's pass locked and rewrote every game that asks by phase;
+      - each answer worked its question's windows out again;
+      - the types still said "once" or "each".
+    - Declined: a Recent changes line when a phase's window opens. It would tell everyone, behind or not, that the phase
+      began; the sheet shows each person the window at their own mark.
 - **A8. More answers.** An order (the boot order, a leaderboard), confidence (a ranking with weights), spreading chips, a wager,
   pairs (who outlasts whom), a vote split (5-2-1).
 - **A9. Scoring that combines.** Per question: split the pot, the only right answer, roll over, multiply, shrink with time,
@@ -1819,6 +1890,15 @@ From A6 (2026-10-28):
   lane's floor), so a step's "scores exactly as before" is shown engine against engine on the same kept leagues (a one-off,
   below each As built). A `playtest.js golden` that keeps each season's leagues and reads them with two trees would make it a
   command. (R1, or the playtest lane.)
+
+From A7 (2026-10-28):
+- The late lock is a game of questions' only: lineups and picks still lock at airtime, whoever watches when. (A15, each
+  viewer's own clock.)
+- When a phase's start is only known once it's begun, the episodes between its start and where its window opens count in the
+  previous phase's window (a window runs to where the next opens). (Whoever next touches phase windows.)
+- A window over the whole game (a boot order, who it happened to most) settles only at the end; nothing scores as it goes.
+  (A8's orders show it most; U1's results screens may want "so far".)
+- Start a game doesn't offer windows, a phase question or the late lock (no screens: U1).
 
 From A2 (2026-10-28):
 - Start a game still makes a Weekly Lineup with `defaultState`'s copy of the points (a map), not the preset's null. A copy

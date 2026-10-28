@@ -18,7 +18,7 @@
 const {
   SPEC_VERSION, TYPE_PRESETS, REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS,
   MAX_BET_POINTS, ORDER_OF, CALLS, fullSpec, typeOf, playsAs, specProblems, waiversFit, sameValue, spanStart, spanPhase,
-  finaleQuestions, finaleOf,
+  finaleQuestions, finaleOf, LATE_HOURS,
 } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -196,6 +196,8 @@ function readSpec(st, copy) {
     join,
     hideStarters: type === 'active-roster' && st.hideStartersUntilLock === true,
     lockedDown: st.lockedDown === true,
+    // A game of questions' late lock (A7): its hours, else none.
+    lateLock: type === 'questions' && LATE_HOURS.includes(st.lateLockHours) ? { hours: st.lateLockHours } : null,
   };
   return spec;
 }
@@ -268,6 +270,7 @@ function settingsOf(spec) {
     Object.assign(out, { pickemCorrectPoints: s.score.points, poolSurvive: s.score.means === 'scores' ? 'scores' : undefined, calls: e.calls === true });
   }
   if (type === 'questions') out.questions = clone(s.ask);
+  out.lateLockHours = type === 'questions' && e.lateLock ? e.lateLock.hours : undefined;
   return out;
 }
 
@@ -325,6 +328,7 @@ const PARTS = [
   // Calls' is its type's).
   { fields: ['finalePredictionsEnabled', 'finaleTop3Points', 'finaleWinnerPoints', 'finalePredictionScope'], read: (s) => (s.get.by === 'draft' ? finaleOf(s.ask) : null) },
   { fields: ['questions'], read: (s) => (typeOf(s) === 'questions' ? s.ask : null) },
+  { fields: ['lateLockHours'], read: (s) => s.extras.lateLock },
   { fields: ['hideStartersUntilLock'], read: (s) => s.extras.hideStarters },
   { fields: ['calls'], read: (s) => s.extras.calls },
   { fields: WAIVER_FIELDS, read: (s) => s.extras.waivers, written: (out) => delete out.waiverFit },

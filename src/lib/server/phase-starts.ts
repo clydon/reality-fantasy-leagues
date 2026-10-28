@@ -82,7 +82,12 @@ export function openEpisode(state: LeagueState, schedule: SeasonSchedule | undef
  */
 export function settleIn(state: LeagueState, phases: SeasonPhase[], schedule: SeasonSchedule | undefined, now = new Date()): { from: number | null; to: number | null } | null {
   const phase = StateLogic.startPhase(state);
-  if (!phase) return null;
+  // A game that asks by phase (step A7) records the phases' starts and its windows (StateLogic.settlePhases), after its own start.
+  const questions = () => StateLogic.settlePhases(state, { phases: phases.map((p) => ({ id: p.id, from: p.from })), open: openEpisode(state, schedule, now) });
+  if (!phase) {
+    questions();
+    return null;
+  }
   const before = StateLogic.startEpisode(state);
   const p = phases.find((x) => x.id === phase && !x.first);
   const problems = StateLogic.settleStart(state, { from: p?.from ?? null, open: openEpisode(state, schedule, now) });
@@ -90,6 +95,7 @@ export function settleIn(state: LeagueState, phases: SeasonPhase[], schedule: Se
     console.error(`[phase-starts] couldn't settle where a game starts: ${problems.map((x) => x.problem).join("; ")}`);
     return null;
   }
+  questions();
   const after = StateLogic.startEpisode(state);
   return after === before ? null : { from: after, to: StateLogic.endEpisode(state) };
 }
@@ -127,7 +133,7 @@ export async function scheduleOf(seasonId: string, now = new Date()): Promise<Se
  * Recent changes when it moved. True when it did.
  */
 export async function settleLeague(client: PoolClient, leagueId: string, state: LeagueState, seasonId: string, schedule: SeasonSchedule | undefined, episodeTerm: string | null, now = new Date(), season?: SeasonBook): Promise<boolean> {
-  if (!StateLogic.startPhase(state)) return false;
+  if (!StateLogic.startPhase(state) && !StateLogic.AnswerLogic.byPhase(state)) return false;
   const phases = await leaguePhases(client, leagueId, seasonId, season);
   if (!settleIn(state, phases, schedule, now)) return false;
   await recordChange(client, leagueId, state, { userId: null, kind: "game.settled", tier: 1, text: settledLine(state, phases, showWords({ episode: episodeTerm }).episode) });
@@ -141,12 +147,16 @@ export async function settleLeague(client: PoolClient, leagueId: string, state: 
  * failing is logged and never stops the rest. How many moved.
  */
 export async function settleSeasonStarts(seasonId: string, now = new Date()): Promise<number> {
+  // Games that start at a phase, and games of questions that ask by phase (step A7: their phase starts and windows).
   const { rows: leagues } = await pool.query(
-    `SELECT l.id, s.episode_term, l.state->'settings'->'startEpisode' AS start_episode FROM leagues l
+    `SELECT l.id, s.episode_term, l.state->'settings'->'startEpisode' AS start_episode,
+            (l.state->'settings'->'questions' @> '[{"asked":"phase"}]'::jsonb OR l.state->'settings'->'questions' @> '[{"settle":{"by":"phase"}}]'::jsonb) AS by_phase
+       FROM leagues l
        JOIN shows s ON s.slug = l.state->'settings'->>'showId'
        JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
       WHERE ss.id = $1 AND l.deleted_at IS NULL AND COALESCE(l.state->'settings'->>'archivedAt', '') = ''
-        AND COALESCE(l.state->'settings'->>'startPhase', '') <> ''`,
+        AND (COALESCE(l.state->'settings'->>'startPhase', '') <> ''
+             OR l.state->'settings'->'questions' @> '[{"asked":"phase"}]'::jsonb OR l.state->'settings'->'questions' @> '[{"settle":{"by":"phase"}}]'::jsonb)`,
     [seasonId]
   );
   if (!leagues.length) return 0;
@@ -155,7 +165,17 @@ export async function settleSeasonStarts(seasonId: string, now = new Date()): Pr
   const season = await seasonBlocks(seasonId);
   let moved = 0;
   for (const l of leagues) {
-    if (Number.isInteger(l.start_episode) && l.start_episode <= aired) continue;
+    const startAired = Number.isInteger(l.start_episode) && l.start_episode <= aired;
+    if (!l.by_phase && startAired) continue;
+    if (l.by_phase) {
+      // Locked and written only when something would change: its start, or its phases (tried on a copy first).
+      const { rows } = await pool.query("SELECT state FROM leagues WHERE id = $1", [l.id]);
+      const copy = rows[0]?.state as LeagueState | undefined;
+      if (!copy) continue;
+      const startMoves = !!StateLogic.startPhase(copy) && !startAired;
+      const phases = (await leaguePhases(pool, l.id, seasonId, season)).map((p) => ({ id: p.id, from: p.from }));
+      if (!startMoves && (StateLogic.gameOver(copy) || !StateLogic.settlePhases(copy, { phases, open: openEpisode(copy, schedule, now) }))) continue;
+    }
     try {
       await withLeagueLock(l.id, async (s, client) => {
         if (await settleLeague(client, l.id, s, seasonId, schedule, l.episode_term, now, season)) moved++;

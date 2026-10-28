@@ -12,6 +12,7 @@ import { followLeagueProgress } from "./follows";
 import { refused } from "./game-writes";
 import { makeLeague } from "./new-game";
 import { copyOf } from "./ours";
+import { leaguePhases, scheduleOf, settleIn } from "./phase-starts";
 import { seasonSchedules } from "./schedule";
 import { startFrom } from "./start-game";
 
@@ -228,6 +229,9 @@ export async function labStart(user: SessionUser, body: { seasonId?: unknown; co
         made = id;
         await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, $3, 'commissioner')", [id, user.id, seat]);
         refused(StateLogic.setGame(s, spec as never, { ctx }), 409);
+        // A game that asks by phase (step A7) records the season's phase starts and its windows now, as the desk and the
+        // season sync do later (phase-starts.ts).
+        if (StateLogic.AnswerLogic.byPhase(s)) settleIn(s, await leaguePhases(client, id, season.id), await scheduleOf(season.id));
         await recordChange(client, id, s, { userId: user.id, kind: "game.start", tier: 1, text: `${starter} started ${name} from the engine lab`, detail: { lab: true } });
       },
     }
