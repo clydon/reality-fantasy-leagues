@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -158,8 +158,14 @@ function questionRule(q, w, each) {
   const when = q.asked === 'each' ? `Before each ${w.part}: ` : q.closes === 'finale' ? 'Before the finale: ' : each ? 'Before it starts: ' : '';
   const pts = typeof q.points === 'number' ? q.points : null;
   let earn = pts === null ? '' : ` ${cap(pointsWord(pts))} if you're right.`;
-  if (q.answer === 'person' && q.pick > 1 && pts !== null) earn = ` Name ${say(q.pick)}: ${pointsWord(pts)} for each one right.`;
+  if (NAMES.includes(q.answer) && q.pick > 1 && pts !== null) earn = ` Name ${say(q.pick)}: ${pointsWord(pts)} for each one right.`;
   if (q.answer === 'number' && pts !== null) earn = ` The closest wins ${pointsWord(pts)}.`;
+  // A question about each person (A6): an answer for each of them, each graded on its own.
+  if (q.each && pts !== null) {
+    earn = q.answer === 'number'
+      ? ` Answer for each ${w.castaway} still in: the closest on each wins ${pointsWord(pts)}.`
+      : ` Answer for each ${w.castaway} still in: ${pointsWord(pts)} for each one right.`;
+  }
   const line = q.answer === 'overUnder' && typeof q.line === 'number' ? ` The line is ${q.line}.` : '';
   const from = q.answer === 'person' && q.from === 'team' ? ' From your own team.' : '';
   return `${when}${askOf(q)}${line}${from}${earn}`;

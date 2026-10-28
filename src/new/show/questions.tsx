@@ -77,6 +77,13 @@ const idsOf = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : ty
 /** "Kristin", "Kristin, Sue and Ozzy", "Yes", "4", "Over 3.5". */
 function answerWords(q: QuestionView, v: unknown, cast: Map<string, QuestionFace>): string {
   if (!isIn(v)) return "";
+  // A question about each person (A6): an answer for each, "Ana: 24, Ben: 22".
+  if (q.each && v && typeof v === "object" && !Array.isArray(v)) {
+    return Object.entries(v as Record<string, unknown>)
+      .map(([id, a]) => `${first(cast.get(id)?.name ?? "someone")}: ${answerWords({ ...q, each: null }, a, cast)}`)
+      .join(", ");
+  }
+  if (q.answer === "group") return idsOf(v).map((id) => cast.get(id)?.name ?? "a group").join(", ");
   if (q.answer === "person") {
     const names = idsOf(v).map((id) => first(cast.get(id)?.name ?? "someone"));
     return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : names[0];
@@ -102,6 +109,8 @@ function verdictWords(q: QuestionView, d: GameQuestions, cast: Map<string, Quest
     return ep !== null ? `Waiting for Episode ${ep}'s results` : "Waiting for the results";
   }
   if (v.state === "off") return `${v.why}: it doesn't count`;
+  if (q.each) return "Settled for each one";
+  if (q.answer === "group") return (v.groups ?? []).map((id) => cast.get(id)?.name ?? "A group").join(", ");
   const names = v.right.map((id) => first(cast.get(id)?.name ?? "Someone"));
   const list = names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}` : (names[0] ?? "");
   if (q.answer === "person") {
@@ -117,7 +126,8 @@ function verdictWords(q: QuestionView, d: GameQuestions, cast: Map<string, Quest
 
 /** The line under a question: what a right answer earns. */
 function worth(q: QuestionView): string {
-  if (q.answer === "person" && (q.pick ?? 1) > 1) return `Name ${q.pick} · ${pts(q.points)} for each one right`;
+  if (q.each) return q.answer === "number" ? `Closest on each gets ${pts(q.points)}` : `${pts(q.points)} for each one right`;
+  if ((q.answer === "person" || q.answer === "group") && (q.pick ?? 1) > 1) return `Name ${q.pick} · ${pts(q.points)} for each one right`;
   if (q.answer === "number") return `Closest gets ${pts(q.points)}`;
   return `${pts(q.points)} if you're right`;
 }
@@ -165,7 +175,8 @@ function QuestionSheet({ target, onOpenChange }: { target: SheetTarget | null; o
 /** Each group of questions (this episode's, then the season's), what you can still answer, and Save. */
 function SheetBody({ target, d, onDone }: { target: SheetTarget; d: GameQuestions; onDone: () => void }) {
   const after = useAfterAnswers();
-  const cast = new Map(d.cast.map((c) => [c.id, c]));
+  // The groups (tribes) too, for a group answer (A6): their ids never meet a castaway's.
+  const cast = new Map([...d.cast, ...(d.groups ?? [])].map((c) => [c.id, c]));
   const [picked, setPicked] = useState<Record<string, unknown>>(() => Object.fromEntries(d.questions.map((q) => [q.id, q.mine])));
   const [saving, setSaving] = useState(false);
   const open = d.questions.filter((q) => q.status === "open");
@@ -252,9 +263,14 @@ function Question({ q, d, cast, value, onValue }: { q: QuestionView; d: GameQues
       </div>
       <small className="mt-0.5 block text-[13px] text-muted-foreground">
         {worth(q)}
-        {q.status === "open" && q.answer === "person" && (q.pick ?? 1) > 1 ? ` · ${idsOf(value).length} of ${q.pick} named` : ""}
+        {q.status === "open" && (q.answer === "person" || q.answer === "group") && (q.pick ?? 1) > 1 ? ` · ${idsOf(value).length} of ${q.pick} named` : ""}
       </small>
-      {q.status === "open" ? (
+      {q.status === "open" && q.each ? (
+        // A question about each person (A6) has no screen of its own yet (the UI track's): the API takes its answers.
+        <p data-question-each className="mt-2.5 text-sm leading-snug text-muted-foreground">
+          This one is answered for each {q.faces?.length ? `of the ${q.faces.length} still in` : "one still in"}, on a screen still to come.
+        </p>
+      ) : q.status === "open" ? (
         <div className="mt-2.5">
           <Answer q={q} value={value} onValue={onValue} />
         </div>
@@ -273,7 +289,8 @@ function Question({ q, d, cast, value, onValue }: { q: QuestionView; d: GameQues
 
 /** The answer to give, by kind: faces, chips, a stepper. A tap on what's chosen takes it back. */
 function Answer({ q, value, onValue }: { q: QuestionView; value: unknown; onValue: (v: unknown) => void }) {
-  if (q.answer === "person") {
+  // A person, or a group (A6: its faces are the groups someone still in is on).
+  if (q.answer === "person" || q.answer === "group") {
     const pick = q.pick ?? 1;
     const chosen = idsOf(value);
     const tap = (id: string) => {

@@ -61,9 +61,14 @@ export interface SpecRank {
 }
 
 export type SpecSettle =
-  /** out: who goes home (asked once: the first in the game); winner, placed (`place`th) and top (in the top `place`): the season's. */
-  | { by: "results"; take: "winner" | "out" | "placed" | "top"; place?: number }
-  | { by: "moment"; moment: string; take: "happened" | "count" }
+  /** out: who goes home (asked once: the first in the game; a group answer: the groups they were on); stays: who doesn't (an
+   *  episode's); winner, placed (`place`th) and top (in the top `place`): the season's. */
+  | { by: "results"; take: "winner" | "out" | "placed" | "top" | "stays"; place?: number }
+  /** In the episode (asked once, over the game): whether it happened, how many times (a per-unit moment's units), who it
+   *  happened to (a group answer: their groups), who most (A6). */
+  | { by: "moment"; moment: string; take: "happened" | "count" | "who" | "most" }
+  /** A secret role (A6): who held it, who held it among those still in at the end, how many of them. */
+  | { by: "role"; role: string; take: "who" | "end" | "count" }
   /** The show's calls (Call it's: calls.ts), Weekly Calls' one question. */
   | { by: "calls" }
   /** sports */
@@ -76,8 +81,8 @@ export interface SpecQuestion {
   /** Its key, for its answers (game_answers.question): letters, digits, ".", "_" or "-", up to 40. */
   id: string;
   ask: string;
-  /** side: sports. calls: the show's calls (Weekly Calls'). */
-  answer: "person" | "side" | "yesNo" | "number" | "overUnder" | "choice" | "calls";
+  /** group: a tribe or team (A6). side: sports. calls: the show's calls (Weekly Calls'). */
+  answer: "person" | "group" | "side" | "yesNo" | "number" | "overUnder" | "choice" | "calls";
   /** A right answer's (a right pick's). */
   points: number;
   settle: SpecSettle;
@@ -85,7 +90,7 @@ export interface SpecQuestion {
   asked?: "once" | "each";
   /** start: when its episode starts (asked each) or the game's first does (the default) | finale: the season's last (asked once). */
   closes?: "start" | "finale";
-  /** A person answer: how many to name (default 1), each right one scores. */
+  /** A person or group answer: how many to name (default 1), each right one scores. */
   pick?: number;
   /** A person answer: the cast still in (default), or your own team (a draft's). */
   from?: "cast" | "team";
@@ -93,6 +98,9 @@ export interface SpecQuestion {
   line?: number | null;
   /** choice's options. */
   options?: string[];
+  /** A6: asked about each person still in when it closes, answered { castawayId: answer } (a yes or no, a number, an over/under or
+   *  a choice for each), settled for each by their own moment or whether they go home or stay. */
+  each?: "person";
 }
 /** A question as a spec holds it once it's whole (fullSpec): asked and closes always said. */
 export type Question = SpecQuestion & { asked: "once" | "each"; closes: "start" | "finale" };
@@ -102,14 +110,31 @@ export interface AnswerFacts {
   from: number | null;
   to: number | null;
   over: boolean;
-  episodes: Map<number, { out: string[] | null; events: Map<string, number> | null }>;
+  /** Each of the game's episodes with results (answers.js has what each part says). */
+  episodes: Map<
+    number,
+    {
+      out: string[] | null;
+      events: Map<string, number> | null;
+      /** A6's (AnswerLogic.facts always gives them; the grader reads a missing one as nobody). */
+      who?: Map<string, Map<string, number>> | null;
+      in?: string[];
+      groups?: Map<string, string | null>;
+      roles?: Map<string, string | null> | null;
+    }
+  >;
   winner: string | null;
   ended: boolean;
   order: string[] | null;
   names: Map<string, string>;
+  groupNames?: Map<string, string>;
 }
-/** How a question stands: still to settle, off (nobody went home, right on the line), or what was right (and a count). */
-export type Verdict = { state: "waiting" } | { state: "off"; why: string } | { state: "known"; right: string[]; value?: number };
+/** How a question stands: still to settle, off (nobody went home, right on the line), or what was right (and a count; the
+ *  groups the right people were on; a question about each person, each one's verdict by castaway id). */
+export type Verdict =
+  | { state: "waiting" }
+  | { state: "off"; why: string }
+  | { state: "known"; right: string[]; value?: number; groups?: string[]; each?: Record<string, Verdict> };
 
 export interface SpecWaivers {
   feel: "casual" | "balanced" | "competitive";
@@ -181,6 +206,10 @@ export interface SpecContext {
   calls?: "results" | "couch";
   /** The season's rulebook's phases, in order (its blocks' season.phases): a phase start is one of them, never the first. */
   phases?: { id: string; name?: string }[];
+  /** The show's secret roles (its secretRole twists': ["Traitor", "Faithful"]): a role settles only if it's one (A6). */
+  roles?: string[];
+  /** false when nobody on the show is in a group (its cast has none): no group answers (A6). */
+  grouped?: boolean;
 }
 
 export interface SpecProblem {
@@ -224,6 +253,12 @@ export function betsFit(spec: Partial<GameSpec>): boolean;
 export const CALLS: Question;
 export function finaleQuestions(f: { top3: number; winner: number; from: "any" | "own" }): Question[];
 export function finaleOf(ask: SpecQuestion[] | null | undefined): { top3: number; winner: number; from: "any" | "own" } | null;
+/** The answers that name someone (a person) or something (a group), `pick` of them (A6). */
+export const NAMES: readonly SpecQuestion["answer"][];
+/** The settles a number answer is graded by ("by:take"). */
+export const NUMBERS: readonly string[];
+/** A question about each person (A6), by its answer: what settles it for each of them ("by:take"). */
+export const EACH_SETTLES_FOR: Partial<Record<SpecQuestion["answer"], string[]>>;
 export function isCalls(q: unknown): boolean;
 export function callsAsk(ask: unknown): boolean;
 export function fullQuestion(q: SpecQuestion): Question;

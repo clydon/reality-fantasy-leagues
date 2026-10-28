@@ -60,6 +60,8 @@ export interface QuestionView {
   from: "cast" | "team" | null;
   line: number | null;
   options: string[] | null;
+  /** "person": asked about each person still in (A6), answered { castawayId: answer } for any of `faces`. */
+  each: "person" | null;
   /** The episode it's answered for (asked each), or null (the game's own). */
   episode: number | null;
   /** open: yours to answer; behind: see Episode `catchUp` first (it says who's still in), or catch up on the game first (null);
@@ -68,7 +70,8 @@ export interface QuestionView {
   catchUp: number | null;
   /** When it locks (the closing episode's air time), when that's known. */
   closesAt: string | null;
-  /** Who a person answer can name: who's still in as far as you've seen (or, from your own team, yours). */
+  /** Who a person answer can name: who's still in as far as you've seen (or, from your own team, yours); a group answer, the groups
+   *  someone still in is on; a question about each person, who it asks about. */
   faces: QuestionFace[] | null;
   mine: unknown;
   /** How many have answered: a count, nobody named. */
@@ -88,6 +91,8 @@ export interface GameQuestions {
   points: number;
   /** Every castaway by id, name and face (no status: who's still in is `faces`), for the answers and what was right. */
   cast: QuestionFace[];
+  /** Every group (tribe, team) by id and name, for a group answer's answers and what was right (A6). */
+  groups: QuestionFace[];
   /** Where you are (the last episode you've seen), or null when you see results as they come: a locked question past it says
    *  "once you've seen it", not "waiting". */
   mark: number | null;
@@ -101,12 +106,21 @@ const inState = (state: LeagueState, q: Question) => !!StateLogic.finaleOfGame(s
 /** The questions answered here: the spec's, less Weekly Calls' (Call it's, calls.ts). */
 const questionsOf = (state: LeagueState): Question[] => StateLogic.AnswerLogic.questions(state).filter((q) => !Spec.isCalls(q));
 
-/** Who a person answer can name, as the viewer sees it: who's still in (from your own team, yours). */
+/** Whether a question's answers name someone still in, or ask about each of them (A6): what you can answer depends on who's still in
+ *  (and on what group), so it waits until you've seen the episode before it. */
+const namesSomeone = (q: Question) => Spec.NAMES.includes(q.answer) || !!q.each;
+
+/** Who a person answer can name, as the viewer sees it: who's still in (from your own team, yours); for a group answer (A6), the
+ *  groups someone still in is on (after any swap you've seen, never one you haven't); for a question about each person, each of
+ *  those still in. */
 function facesFor(view: LeagueState, q: Question, playerId: string): QuestionFace[] {
-  const team = q.from === "team" ? new Set(StateLogic.Core.ownedCastawayIds(view, playerId)) : null;
-  return view.castaways
-    .filter((c) => c.status !== "eliminated" && (!team || team.has(c.id)))
-    .map((c) => ({ id: c.id, name: c.name, photo: publicMediaSrc(c.photoUrl) }));
+  const stillIn = view.castaways.filter((c) => c.status !== "eliminated");
+  if (q.answer === "group" && !q.each) {
+    const on = new Set(stillIn.map((c) => c.tribeId).filter((t): t is string => !!t));
+    return (view.tribes ?? []).filter((t) => on.has(t.id)).map((t) => ({ id: t.id, name: t.name, photo: null }));
+  }
+  const team = q.from === "team" && !q.each ? new Set(StateLogic.Core.ownedCastawayIds(view, playerId)) : null;
+  return stillIn.filter((c) => !team || team.has(c.id)).map((c) => ({ id: c.id, name: c.name, photo: publicMediaSrc(c.photoUrl) }));
 }
 
 /** One of your games on a season, by league: 404 when you don't play it. */
@@ -153,9 +167,10 @@ function isClosed(r: Read, q: Question, episode: number): boolean {
   return StateLogic.AnswerLogic.closed(r.h.state, q, episode, { now: r.now.getTime(), finale: r.finale?.number ?? null, airAt });
 }
 
-/** The episode before the one a person answer needs to have been seen (who's still in), or null when nothing is needed. */
+/** The episode before the one a person or group answer (or a question about each person) needs to have been seen (who's still in,
+ *  and on what group), or null when nothing is needed. */
 function needsSeen(r: Read, q: Question, episode: number): number | null {
-  if (q.answer !== "person" || q.closes === "finale") return null;
+  if (!namesSomeone(q) || q.closes === "finale") return null;
   const at = q.asked === "each" ? episode : StateLogic.startEpisode(r.h.state);
   return at === null || at <= 1 ? null : at - 1;
 }
@@ -211,15 +226,16 @@ async function readQuestions(r: Read, episodeIn?: unknown, rows?: AnswerRow[]): 
       points: q.points,
       asked: q.asked,
       closes: q.closes,
-      pick: q.answer === "person" ? (q.pick ?? 1) : null,
-      from: q.answer === "person" ? (q.from ?? "cast") : null,
+      pick: Spec.NAMES.includes(q.answer) && !q.each ? (q.pick ?? 1) : null,
+      from: q.answer === "person" && !q.each ? (q.from ?? "cast") : null,
       line: typeof q.line === "number" ? q.line : null,
       options: q.options ?? null,
+      each: q.each ?? null,
       episode: each ? ep : null,
       status: closed ? "closed" : behind ? "behind" : "open",
       catchUp: behind && !catching ? seen : null,
       closesAt: airAt,
-      faces: q.answer === "person" && !behind ? facesFor(view, q, me) : null,
+      faces: namesSomeone(q) && !behind ? facesFor(view, q, me) : null,
       mine,
       answered: new Set(theirs.map((a) => a.playerId)).size,
       verdict: null,
@@ -246,7 +262,13 @@ async function readQuestions(r: Read, episodeIn?: unknown, rows?: AnswerRow[]): 
     out.push(view1);
   }
   const cast = view.castaways.map((c) => ({ id: c.id, name: c.name, photo: publicMediaSrc(c.photoUrl) }));
-  return { leagueId: h.game.leagueId, episode, questions: out, points, cast, mark: h.mark };
+  // Only the groups your copy has anyone on (where they started, or a swap you've seen): a tribe a later swap or the merge made is
+  // in the league's list from the moment it's recorded, and its name would say it happened.
+  const onAny = new Set(
+    [...view.castaways.flatMap((c) => [c.tribeId, c.startTribeId]), ...view.episodes.flatMap((e) => (e.groups ?? []).map((g) => g.tribeId))].filter((t): t is string => !!t)
+  );
+  const groups = (view.tribes ?? []).filter((t) => onAny.has(t.id)).map((t) => ({ id: t.id, name: t.name, photo: null }));
+  return { leagueId: h.game.leagueId, episode, questions: out, points, cast, groups, mark: h.mark };
 }
 
 /** Answer, change or take back your answers before each question locks. */
@@ -276,11 +298,12 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
     if (value !== null) {
       const seen = needsSeen(r, q, ep);
       if (seen !== null && mark < seen) throw new HttpError(403, `See Episode ${seen} first: it says who's still in`);
-      const faces = q.answer === "person" ? new Set(facesFor(view, q, h.playerId).map((f) => f.id)) : null;
+      const faces = namesSomeone(q) ? new Set(facesFor(view, q, h.playerId).map((f) => f.id)) : null;
       const problem = Spec.answerProblem(q, value, faces);
       if (problem) throw new HttpError(400, problem);
     }
-    writes.push({ q, ep, value: q.answer === "person" && Array.isArray(value) && (q.pick ?? 1) === 1 ? value[0] : value });
+    const one = Spec.NAMES.includes(q.answer) && !q.each && Array.isArray(value) && (q.pick ?? 1) === 1;
+    writes.push({ q, ep, value: one ? (value as unknown[])[0] : value });
   }
   const stateWrites = writes.filter((w) => inState(h.state, w.q));
   if (stateWrites.length) {

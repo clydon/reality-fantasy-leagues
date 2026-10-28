@@ -9,8 +9,8 @@ import SAMPLES from "../../../tests/fixtures/rulebook-samples.js";
 // the doc's generator (scripts/engine-capabilities.js) and the engine lab (engine-lab.ts), so both read a row the same way.
 //
 // A page's `rulebook` names the rules its specs are checked against: a built-in (survivor, traitors, challenge) or one of
-// tests/fixtures/rulebook-samples.js (belowDeck, pluribus, snl, formula1, amazingRace). A show with neither names a show of its
-// kind as a stand-in (`checkedAs`: Dancing with the Stars against The Amazing Race's, couples out each week and a winner).
+// tests/fixtures/rulebook-samples.js (belowDeck, pluribus, snl, formula1, amazingRace, dancing). A show with neither names a
+// show of its kind as a stand-in (`checkedAs`: Love Island against Survivor's, someone out each week and a winner).
 
 type Page = { show?: string; season?: number | null; sport?: string; league?: string; event?: string | null; rulebook?: string | null; checkedAs?: boolean } | null | undefined;
 

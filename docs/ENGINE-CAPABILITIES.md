@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 89 ✅ · 150 ⏳ · 1 🆕 · 1 ❓ · 23 💬, of 264.
-**Waiting, by step:** A6 14 · A7 11 · A8 11 · A9 20 · A10 16 · A11 14 · A12 9 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 3.
+**Now:** 103 ✅ · 136 ⏳ · 1 🆕 · 1 ❓ · 23 💬, of 264.
+**Waiting, by step:** A7 11 · A8 11 · A9 20 · A10 16 · A11 14 · A12 9 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 3.
 
 ## The dials
 
@@ -41,10 +41,10 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | The final few (top 3) | A game for Survivor 51: everyone answers one question before it starts: who makes the final three, all season. A point for each right answer. |
 | ✅ | Whether something happens (an idol played) | A game for Survivor 51: everyone answers one question before each episode: an idol played, all season. A point for each right answer. |
 | ✅ | How many (idols played this season) | A game for Survivor 51: everyone answers one question before it starts: how many idols get played this season, all season. 3 points for each right answer. |
-| ⏳ | Who a moment happened to (who finds an idol) | A6 |
-| ⏳ | Which tribe or couple (which tribe wins immunity) | A6 |
-| ⏳ | One question about each person still in (each couple's score) | A6 |
-| ⏳ | A person's number from research (a couple's judges' score) | A6 |
+| ✅ | Who a moment happened to (who finds an idol) | A game for Survivor 51: everyone answers one question before each episode: who finds an idol, all season. 2 points for each right answer. |
+| ✅ | Which tribe or couple (which tribe wins immunity) | A game for Survivor 51: everyone answers one question before each episode: which tribe wins immunity, all season. A point for each right answer. |
+| ✅ | One question about each person still in (each couple's score) | A game for Dancing with the Stars 35: everyone answers one question before each episode: each couple's judges' score, all season. A point for each right answer. |
+| ✅ | A person's number from research (a couple's judges' score) | A game for Dancing with the Stars 35: everyone answers one question before each episode: each couple's judges' score: over or under 24.5 (24.5), all season. A point for each right answer. |
 | ⏳ | An order (the boot order, a leaderboard) | A8 |
 | ⏳ | Which episode something happens in (the merge) | A7 |
 | ⏳ | A vote split (5-2-1) | A8 |
@@ -160,9 +160,9 @@ The plan's worked examples, as people would type them on a show's page.
 |---|---|---|---|---|---|
 | ⏳ | p1 | Survivor 51 | bingo cards and trivia every episode, bingo lines are worth 5 points, correct trivia questions earn one point | shape, score, what | A12: A13 trivia questions, A9 points per line, A12 a game that scores two ways |
 | ⏳ | p2 | baseball: Red Sox–Yankees series | a homer draft: everyone picks 3 players they think gets a home run | settle | L3: a shared draft, 3 each, scored by stats |
-| ⏳ | p3 | Survivor 51 | each week you must correctly predict the tribe winner and who goes home | what | A6: who goes home plays now; which tribe wins immunity is A6 |
+| ✅ | p3 | Survivor 51 | each week you must correctly predict the tribe winner and who goes home | what | A game for Survivor 51: everyone answers two questions before each episode: which tribe wins immunity and who goes home, all season. Points for each right answer. |
 | ✅ | p4 | Survivor 51 | a single episode game where we must predict different things, most correct wins | when, what | A game for Survivor 51: everyone answers three questions before Episode 6: who goes home, an idol played and how many idols get played this episode. Points for each right answer. |
-| ⏳ | p5 | Dancing with the Stars 35 | everyone predicts the scores of each couple; whoever's closest to the average gets a point; ties both get points | what, answer | A6: a question for each couple, settled by research's judgesScore |
+| ✅ | p5 | Dancing with the Stars 35 | everyone predicts the scores of each couple; whoever's closest to the average gets a point; ties both get points | what, answer | A game for Dancing with the Stars 35: everyone answers one question before each episode: each couple's judges' score, all season. A point for each right answer. |
 | ⏳ | p6 | Survivor 51 | every week we predict if it's going to rain | settle | G1: no rain moment: the new-moment path (Our check), likely a can't-yet with the nearest settled questions |
 
 ## The stretch requests
@@ -263,7 +263,7 @@ Start a game's eval set (the playtest lane's P2, 2026-10-28), each request now t
 | ✅ | w020 | Survivor 51 | 6 of us, survivor, snake draft, 3 each | An Outlast for Survivor 51: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. |
 | ✅ | w021 | Dancing with the Stars 35 | my family of 5 wants a dancing with the stars pool where you pick one couple a week to survive | A Survival Pool for Dancing with the Stars 35: everyone picks one person to stay in each episode, all season. Longest streak wins. (Checked against The Amazing Race's rules, a show of its kind.) |
 | ✅ | w022 | The Challenge 42 | 3 friends, the challenge, everyone gets 4 people, most points wins | A Weekly Lineup for The Challenge 42: everyone drafts 4 and starts 4 each episode, all season. Scored by The Challenge 42's rules. |
-| ⏳ | w023 | The Traitors (US) 5 | couples game: each of us picks a traitor we think won't get caught | A6: a person who is a Traitor: a secret role's moment |
+| ✅ | w023 | The Traitors (US) 5 | couples game: each of us picks a traitor we think won't get caught | A game for The Traitors (US) 5: everyone answers one question before it starts: pick a Traitor who won't get caught, all season. A point for each right answer. |
 | ✅ | w024 | Survivor 51 | Office pool for Survivor 51, about 25 people | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. Longest streak wins. |
 | ✅ | w025 | The Traitors (US) 5 | draft league for my 30 person group chat for the traitors | A Weekly Lineup for The Traitors (US) 5: everyone drafts 5 and starts 3 each episode, all season. Scored by The Traitors (US) 5's rules. |
 | ✅ | w026 | Dancing with the Stars 35 | we have 40 people in our watch party, can everyone just guess who goes home each episode of dwts | A game for Dancing with the Stars 35: everyone answers one question before each episode: who goes home, all season. 2 points for each right answer. (Checked against The Amazing Race's rules, a show of its kind.) |
@@ -275,11 +275,11 @@ Start a game's eval set (the playtest lane's P2, 2026-10-28), each request now t
 | ✅ | w032 | Love Island USA | love island usa draft | A Weekly Lineup for Love Island USA: everyone drafts 5 and starts 3 each episode, all season. Scored by Love Island USA's rules. (Checked against Survivor's rules, a show of its kind.) |
 | ✅ | w033 | Big Brother US | Big Brother league for the next season | A Weekly Lineup for Big Brother US: everyone drafts 5 and starts 3 each episode, all season. Scored by Big Brother US's rules. (Checked against Survivor's rules, a show of its kind.) |
 | ✅ | w034 | RuPaul's Drag Race | drag race fantasy, draft 3 queens each | A Weekly Lineup for RuPaul's Drag Race: everyone drafts 3 and starts 3 each episode, all season. Scored by RuPaul's Drag Race's rules. (Checked against The Challenge's rules, a show of its kind.) |
-| ⏳ | w035 | The Amazing Race | The Amazing Race, pick a team each week to win the leg | A6: which team wins the leg: who a moment happened to |
-| ⏳ | w036 | The Great British Bake Off | Great British Bake Off, pick the star baker each week | A6: who's star baker: who a moment happened to |
+| ✅ | w035 | The Amazing Race | The Amazing Race, pick a team each week to win the leg | A game for The Amazing Race: everyone answers one question before each episode: which team wins the leg, all season. A point for each right answer. |
+| ✅ | w036 | The Great British Bake Off | Great British Bake Off, pick the star baker each week | A game for The Great British Bake Off: everyone answers one question before each episode: who's star baker, all season. A point for each right answer. (Checked against Dancing with the Stars's rules, a show of its kind.) |
 | ✅ | w037 | Top Chef | a league for Top Chef where we draft chefs and get points for winning quickfires and elimination challenges | A Weekly Lineup for Top Chef: everyone drafts 5 and starts 3 each episode, all season. Scored by Top Chef's rules. (Checked against The Challenge's rules, a show of its kind.) |
 | ✅ | w038 | Australian Survivor | Survivor Australia draft for our aussie mates | An Outlast for Australian Survivor: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. (Checked against Survivor's rules, a show of its kind.) |
-| ⏳ | w039 | Married at First Sight UK | Married at First Sight UK, predict which couples stay at the commitment ceremony | A6: which couples stay: a question for each couple |
+| ✅ | w039 | Married at First Sight UK | Married at First Sight UK, predict which couples stay at the commitment ceremony | A game for Married at First Sight UK: everyone answers one question before each episode: does each couple stay, all season. A point for each right answer. (Checked against Dancing with the Stars's rules, a show of its kind.) |
 | ✅ | w040 | MasterChef Junior | Masterchef Junior pool | A Survival Pool for MasterChef Junior: everyone picks one person to stay in each episode, all season. Longest streak wins. (Checked against The Challenge's rules, a show of its kind.) |
 | 💬 | w041 | Terrace House | Terrace House game where you guess who leaves the house next | nobody goes home in a series' results: the GPT asks what to call (its corpus entry expects a question) |
 | ✅ | w042 | Alone | Alone season, draft 2 survivalists each, last one out there wins | An Outlast for Alone: everyone drafts 2, all season. Each scores by how long they last: the last one standing carries you. (Checked against The Challenge's rules, a show of its kind.) |
@@ -302,8 +302,8 @@ Start a game's eval set (the playtest lane's P2, 2026-10-28), each request now t
 | ✅ | w059 | The Late Show with Stephen Colbert | game for the late show with stephen colbert | A Weekly Bingo for The Late Show with Stephen Colbert: a new bingo card every episode, all season. Most lines by the finale wins. (Checked against Saturday Night Live's rules, a show of its kind.) |
 | ✅ | w060 | Saturday Night Live | SNL bingo this weekend | A Weekly Bingo for Saturday Night Live: a new bingo card every episode, just Episode 1. Most lines by the finale wins. |
 | ⏳ | w061 | The Real Housewives | a real housewives draft where you get points for drama | G1: drama isn't a moment research answers: the new-moment path |
-| ⏳ | w062 | The White Lotus | white lotus who dies pool | A6: who dies: who a moment happened to, on a series |
-| ⏳ | w063 | The Bachelor | the bachelor, pick who gets a rose | A6: who gets a rose: who a moment happened to |
+| ✅ | w062 | The White Lotus | white lotus who dies pool | A game for The White Lotus: everyone answers one question before it starts: who dies, all season. A point for each right answer. (Checked against Pluribus's rules, a show of its kind.) |
+| ✅ | w063 | The Bachelor | the bachelor, pick who gets a rose | A game for The Bachelor: everyone answers one question before each episode: who gets a rose, all season. A point for each right answer. (Checked against Survivor's rules, a show of its kind.) |
 | ✅ | w064 | Survivor 51 | just for tonight's episode of survivor, who goes home | A game for Survivor 51: everyone answers one question before Episode 6: who goes home. 2 points for each right answer. |
 | ✅ | w065 | Survivor 51 | survivor 51 starting after the merge | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, from when Merged starts. Scored by Survivor 51's rules. |
 | ✅ | w066 | The Traitors (US) 5 | traitors finale game: predict who wins | A game for The Traitors (US) 5: everyone answers one question before it starts: who wins, all season. 5 points for each right answer. |
@@ -311,7 +311,7 @@ Start a game's eval set (the playtest lane's P2, 2026-10-28), each request now t
 | ✅ | w068 | Dancing with the Stars 35 | dwts the rest of the way | A Weekly Lineup for Dancing with the Stars 35: everyone drafts 5 and starts 3 each episode, all season. Scored by Dancing with the Stars 35's rules. (Checked against The Amazing Race's rules, a show of its kind.) |
 | ✅ | w069 | Below Deck 13 | next two weeks of below deck | A Weekly Lineup for Below Deck 13: everyone drafts 5 and starts 3 each episode, Episodes 7–8. Scored by Below Deck 13's rules, with two moments' points changed. |
 | ✅ | w070 | Survivor 51 | predict the final 3 of survivor 51 | A game for Survivor 51: everyone answers one question before it starts: who makes the final three, all season. A point for each right answer. |
-| ⏳ | w071 | The Traitors (US) 5 | everyone guess the traitors winner and how many traitors make the end | A6: how many traitors make the end: a count of people with a role |
+| ✅ | w071 | The Traitors (US) 5 | everyone guess the traitors winner and how many traitors make the end | A game for The Traitors (US) 5: everyone answers two questions before it starts: who wins and how many Traitors make the end, all season. Points for each right answer. |
 | ✅ | w072 | Survivor 51 | will anyone quit survivor this season yes or no | A game for Survivor 51: everyone answers one question before it starts: will anyone quit this season, all season. 2 points for each right answer. |
 | ✅ | w073 | Survivor 51 | over under on number of idols played this season, line is 6.5 | A game for Survivor 51: everyone answers one question before it starts: idols played this season: over or under 6.5 (6.5), all season. 2 points for each right answer. |
 | ⏳ | w074 | Dancing with the Stars 35 | who gets the first 10 on dwts | A7: who gets the first 10: a person's number (A6) and when it happens (A7) |
@@ -342,6 +342,6 @@ Start a game's eval set (the playtest lane's P2, 2026-10-28), each request now t
 | 💬 | w099 | Survivor 51 | Survivor: Antarctica draft |  |
 | 💬 | w100 | Survivor 51 | a league for the show my friend is making next year |  |
 | ✅ | w101 | Survivor 51 | survivor 51, each of us drafts 3, but points only count once your castaway makes the merge | A Weekly Lineup for Survivor 51: everyone drafts 3 and starts 3 each episode, from when Merged starts. Scored by Survivor 51's rules. |
-| ⏳ | w102 | The Traitors (US) 5 | the traitors, my book club, 7 people, everyone guesses the traitors before episode 2 | A6: guess the traitors: a person's secret role |
+| ✅ | w102 | The Traitors (US) 5 | the traitors, my book club, 7 people, everyone guesses the traitors before episode 2 | A game for The Traitors (US) 5: everyone answers one question before it starts: who are the Traitors, Episode 2 to the finale. A point for each right answer. |
 | 💬 | w103 | Survivor 51 | whatever's on tonight, make it a game |  |
 | ⏳ | w104 | golf: Ryder Cup | ryder cup draft | L3 |

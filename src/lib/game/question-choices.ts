@@ -45,6 +45,10 @@ export function contextOf(book: CallBook): SpecContext {
     winner: (blocks.waysOut ?? []).some((w) => w.means === "winner"),
     calls: kind === "talk" ? "couch" : "results",
     phases: (blocks.season?.phases ?? []).map((p) => ({ id: p.id, name: p.name })),
+    // A6: the secret roles research records (a secretRole twist's: the Traitors and the Faithful), and whether anyone is in a
+    // group (tribes, teams), for which group a moment happened to.
+    roles: [...new Set((blocks.twists ?? []).flatMap((t) => (t.type === "secretRole" && Array.isArray(t.roles) ? t.roles : [])))],
+    grouped: !!blocks.cast?.groups,
   };
 }
 

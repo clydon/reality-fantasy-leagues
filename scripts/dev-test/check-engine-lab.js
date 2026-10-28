@@ -6,10 +6,11 @@
 //     the admin's others), every tracker row; refused for someone who isn't a site admin (403).
 //   - Check on ZT Survivor 51: a dial's ✅ spec plays now (a game of questions, in the engine's words, How it works, the row's
 //     status there ✅); a question the show's research doesn't answer is refused (the data rule); a sport's stats wait for L3;
-//     what isn't JSON is a 400.
+//     what isn't JSON is a 400. A6's: the tribe winner and who goes home, and who finds an idol, play there; a Traitors
+//     question is refused (no secret roles on this show), and so is each couple's judges' score (Dancing with the Stars').
 //   - Start it as a test game: on the zt- couch, through the game's writer (a game of questions asking just that, the admin its
 //     Commissioner, its spec carried, the game-specs flag's check passing); refused on a couch that isn't a test couch or a
-//     zt- fixture's (403), and for a spec that doesn't play (409).
+//     zt- fixture's (403), and for a spec that doesn't play (409). Which tribe wins immunity starts too, its faces the tribes.
 //   - In a real browser at --width (390 by default), as the admin: the lab, a season picked, a tracker row filtered and picked
 //     (its spec fills the box), Check (plays now, the sentence), the couch picked, Start (the link to its Games tab); a refused
 //     spec shows what's wrong. Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
@@ -89,6 +90,15 @@ function check(ok, what, detail = "") {
     check(r.status === 200 && (r.body.waits.some((w) => w.step === "sports") || r.body.problems.length > 0) && !r.body.startable, "a sport's stats don't play here yet", JSON.stringify([r.body.problems, r.body.waits]).slice(0, 300));
     r = await labCheck({ spec: "{ not json" });
     check(r.status === 400, "what isn't JSON is a 400", `${r.status}`);
+    // A6: who a moment happened to, which tribe, a secret role, each couple's score, on this season's own rules.
+    r = await labCheck({ spec: JSON.stringify(rowSpec("p3")), row: "p3" });
+    check(r.status === 200 && r.body.startable && r.body.row?.state === "yes" && /which tribe wins immunity and who goes home/.test(r.body.describe?.sentence ?? ""), "A6: the tribe winner and who goes home each week plays on ZT Survivor 51", JSON.stringify({ s: r.body.describe?.sentence, p: r.body.problems }));
+    r = await labCheck({ spec: JSON.stringify(rowSpec("what.who")), row: "what.who" });
+    check(r.status === 200 && r.body.startable && /who finds an idol/.test(r.body.describe?.sentence ?? ""), "  who finds an idol plays there too", JSON.stringify(r.body.problems));
+    r = await labCheck({ spec: JSON.stringify(rowSpec("w102")), row: "w102" });
+    check(r.status === 200 && !r.body.startable && r.body.problems.some((p) => p.at === "ask[0].settle.role") && r.body.row?.state !== "yes", "  a Traitors question (who are the Traitors) is refused: this show has no secret roles", JSON.stringify(r.body.problems));
+    r = await labCheck({ spec: JSON.stringify(rowSpec("what.each")), row: "what.each" });
+    check(r.status === 200 && !r.body.startable && r.body.problems.some((p) => p.at === "ask[0].settle.moment"), "  each couple's judges' score is Dancing with the Stars': no such moment here", JSON.stringify(r.body.problems));
 
     // ---------- start it as a test game ----------
     const labStart = (body) => desk.call("POST", "/api/desk/lab", { action: "start", seasonId: sid, couchId: couch, ...body });
@@ -107,6 +117,14 @@ function check(ok, what, detail = "") {
     check(!!made && checkLeague(made.state).ok && made.name.startsWith("Lab · "), "  its spec carried and in step (the flag's check); its name says it's the lab's", made?.name);
     check(!!made && S.startEpisode(made.state) === 6, "  with no span in the spec it starts with the next episode to air (6), as Start a game's do", String(made && S.startEpisode(made.state)));
     check(!!made && (await pool.query("SELECT 1 FROM league_changes WHERE league_id = $1 AND text LIKE '%from the engine lab'", [made.id])).rowCount === 1, "  a line in its Recent changes says the lab started it");
+    r = await labStart({ spec: rowSpec("what.group") });
+    const tribal = r.body.leagueId ? (await pool.query("SELECT * FROM leagues WHERE id = $1", [r.body.leagueId])).rows[0] : null;
+    const tribeQ = tribal && S.AnswerLogic.questions(tribal.state)[0];
+    check(r.status === 200 && tribeQ?.answer === "group" && tribeQ.settle.take === "who" && checkLeague(tribal.state).ok, "A6: which tribe wins immunity starts as a test game too (a group answer)", JSON.stringify(r.body));
+    // Who's on which tribe waits until you've seen the episode before (5): the admin has, here.
+    await pool.query("INSERT INTO show_follows (user_id, season_id, seen_through) VALUES ($1, $2, 5) ON CONFLICT (user_id, season_id) DO UPDATE SET seen_through = 5", [deskId, sid]);
+    const tribeRead = r.body.leagueId ? (await desk.call("GET", `/api/seasons/${sid}/answers?league=${r.body.leagueId}`)).body : null;
+    check((tribeRead?.questions?.[0]?.faces ?? []).length === 3, "  its question names the three tribes, once the admin has seen Episode 5", JSON.stringify(tribeRead?.questions?.[0]).slice(0, 300));
 
     // ---------- in the browser ----------
     if (!apiOnly) {

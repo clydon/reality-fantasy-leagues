@@ -363,22 +363,145 @@
         {
           "id": "what.who",
           "what": "Who a moment happened to (who finds an idol)",
-          "step": "A6"
+          "step": "A6",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "idol",
+                "ask": "Who finds an idol?",
+                "answer": "person",
+                "points": 2,
+                "asked": "each",
+                "settle": {
+                  "by": "moment",
+                  "moment": "idolFound",
+                  "take": "who"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "what.group",
           "what": "Which tribe or couple (which tribe wins immunity)",
-          "step": "A6"
+          "step": "A6",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "tribe",
+                "ask": "Which tribe wins immunity?",
+                "answer": "group",
+                "points": 1,
+                "asked": "each",
+                "settle": {
+                  "by": "moment",
+                  "moment": "tribeImmunity",
+                  "take": "who"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "what.each",
           "what": "One question about each person still in (each couple's score)",
-          "step": "A6"
+          "step": "A6",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "scores",
+                "ask": "Each couple's judges' score?",
+                "answer": "number",
+                "points": 1,
+                "asked": "each",
+                "each": "person",
+                "settle": {
+                  "by": "moment",
+                  "moment": "judgesScoringPerPoint",
+                  "take": "count"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Dancing with the Stars",
+            "season": 35,
+            "rulebook": "dancing"
+          }
         },
         {
           "id": "what.number",
           "what": "A person's number from research (a couple's judges' score)",
-          "step": "A6"
+          "step": "A6",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "over",
+                "ask": "Each couple's judges' score: over or under 24.5?",
+                "answer": "overUnder",
+                "points": 1,
+                "asked": "each",
+                "each": "person",
+                "settle": {
+                  "by": "moment",
+                  "moment": "judgesScoringPerPoint",
+                  "take": "count"
+                },
+                "line": 24.5
+              }
+            ]
+          },
+          "page": {
+            "show": "Dancing with the Stars",
+            "season": 35,
+            "rulebook": "dancing"
+          }
         },
         {
           "id": "what.order",
@@ -1209,7 +1332,43 @@
       "dials": [
         "what"
       ],
-      "note": "who goes home plays now; which tribe wins immunity is A6"
+      "note": "who goes home plays now; which tribe wins immunity is A6",
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "tribe",
+            "ask": "Which tribe wins immunity?",
+            "answer": "group",
+            "points": 1,
+            "asked": "each",
+            "settle": {
+              "by": "moment",
+              "moment": "tribeImmunity",
+              "take": "who"
+            }
+          },
+          {
+            "id": "out",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 2,
+            "asked": "each",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "p4",
@@ -1286,8 +1445,7 @@
       "page": {
         "show": "Dancing with the Stars",
         "season": 35,
-        "rulebook": "amazingRace",
-        "checkedAs": true
+        "rulebook": "dancing"
       },
       "words": "everyone predicts the scores of each couple; whoever's closest to the average gets a point; ties both get points",
       "step": "A6",
@@ -1295,7 +1453,33 @@
         "what",
         "answer"
       ],
-      "note": "a question for each couple, settled by research's judgesScore"
+      "note": "a question for each couple, settled by research's judges' score (a per-unit moment); the wizard asks: the judges' total or their average?",
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "scores",
+            "ask": "Each couple's judges' score?",
+            "answer": "number",
+            "points": 1,
+            "asked": "each",
+            "each": "person",
+            "settle": {
+              "by": "moment",
+              "moment": "judgesScoringPerPoint",
+              "take": "count"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "p6",
@@ -2906,6 +3090,30 @@
           "flag": "question",
           "flagBy": "resolver",
           "why": "who's a Traitor isn't known to players until revealed"
+        },
+        "spec": {
+          "get": {
+            "by": "none"
+          },
+          "score": {
+            "by": "answers"
+          },
+          "rank": {
+            "by": "total"
+          },
+          "ask": [
+            {
+              "id": "traitor",
+              "ask": "Pick a Traitor who won't get caught",
+              "answer": "person",
+              "points": 1,
+              "settle": {
+                "by": "role",
+                "role": "Traitor",
+                "take": "end"
+              }
+            }
+          ]
         }
       },
       {
@@ -3280,6 +3488,31 @@
           },
           "wizard": [],
           "flag": null
+        },
+        "spec": {
+          "get": {
+            "by": "none"
+          },
+          "score": {
+            "by": "answers"
+          },
+          "rank": {
+            "by": "total"
+          },
+          "ask": [
+            {
+              "id": "leg",
+              "ask": "Which team wins the leg?",
+              "answer": "person",
+              "points": 1,
+              "asked": "each",
+              "settle": {
+                "by": "moment",
+                "moment": "pitStopFirst",
+                "take": "who"
+              }
+            }
+          ]
         }
       },
       {
@@ -3288,7 +3521,8 @@
         "page": {
           "show": "The Great British Bake Off",
           "season": null,
-          "rulebook": null
+          "rulebook": "dancing",
+          "checkedAs": true
         },
         "words": "Great British Bake Off, pick the star baker each week",
         "step": "A6",
@@ -3309,6 +3543,31 @@
             "make it a game first (not set up)"
           ],
           "flag": null
+        },
+        "spec": {
+          "get": {
+            "by": "none"
+          },
+          "score": {
+            "by": "answers"
+          },
+          "rank": {
+            "by": "total"
+          },
+          "ask": [
+            {
+              "id": "star",
+              "ask": "Who's star baker?",
+              "answer": "person",
+              "points": 1,
+              "asked": "each",
+              "settle": {
+                "by": "moment",
+                "moment": "highestScore",
+                "take": "who"
+              }
+            }
+          ]
         }
       },
       {
@@ -3381,7 +3640,8 @@
         "page": {
           "show": "Married at First Sight UK",
           "season": null,
-          "rulebook": null
+          "rulebook": "dancing",
+          "checkedAs": true
         },
         "words": "Married at First Sight UK, predict which couples stay at the commitment ceremony",
         "step": "A6",
@@ -3400,6 +3660,31 @@
           },
           "wizard": [],
           "flag": null
+        },
+        "spec": {
+          "get": {
+            "by": "none"
+          },
+          "score": {
+            "by": "answers"
+          },
+          "rank": {
+            "by": "total"
+          },
+          "ask": [
+            {
+              "id": "stay",
+              "ask": "Does each couple stay?",
+              "answer": "yesNo",
+              "points": 1,
+              "asked": "each",
+              "each": "person",
+              "settle": {
+                "by": "results",
+                "take": "stays"
+              }
+            }
+          ]
         }
       },
       {
@@ -4179,7 +4464,8 @@
         "page": {
           "show": "The White Lotus",
           "season": null,
-          "rulebook": null
+          "rulebook": "pluribus",
+          "checkedAs": true
         },
         "words": "white lotus who dies pool",
         "step": "A6",
@@ -4205,6 +4491,31 @@
           "flag": "question",
           "flagBy": "resolver",
           "why": "no season airing"
+        },
+        "spec": {
+          "get": {
+            "by": "none"
+          },
+          "score": {
+            "by": "answers"
+          },
+          "rank": {
+            "by": "total"
+          },
+          "ask": [
+            {
+              "id": "dies",
+              "ask": "Who dies?",
+              "answer": "person",
+              "points": 1,
+              "pick": 3,
+              "settle": {
+                "by": "moment",
+                "moment": "killedOff",
+                "take": "who"
+              }
+            }
+          ]
         }
       },
       {
@@ -4213,7 +4524,8 @@
         "page": {
           "show": "The Bachelor",
           "season": null,
-          "rulebook": null
+          "rulebook": "survivor",
+          "checkedAs": true
         },
         "words": "the bachelor, pick who gets a rose",
         "step": "A6",
@@ -4231,6 +4543,30 @@
           "flag": "question",
           "flagBy": "resolver",
           "why": "no season airing"
+        },
+        "spec": {
+          "get": {
+            "by": "none"
+          },
+          "score": {
+            "by": "answers"
+          },
+          "rank": {
+            "by": "total"
+          },
+          "ask": [
+            {
+              "id": "rose",
+              "ask": "Who gets a rose?",
+              "answer": "person",
+              "points": 1,
+              "asked": "each",
+              "settle": {
+                "by": "results",
+                "take": "stays"
+              }
+            }
+          ]
         }
       },
       {
@@ -4570,6 +4906,40 @@
           },
           "wizard": [],
           "flag": null
+        },
+        "spec": {
+          "get": {
+            "by": "none"
+          },
+          "score": {
+            "by": "answers"
+          },
+          "rank": {
+            "by": "total"
+          },
+          "ask": [
+            {
+              "id": "wins",
+              "ask": "Who wins?",
+              "answer": "person",
+              "points": 5,
+              "settle": {
+                "by": "results",
+                "take": "winner"
+              }
+            },
+            {
+              "id": "end",
+              "ask": "How many Traitors make the end?",
+              "answer": "number",
+              "points": 3,
+              "settle": {
+                "by": "role",
+                "role": "Traitor",
+                "take": "count"
+              }
+            }
+          ]
         }
       },
       {
@@ -4692,8 +5062,7 @@
         "page": {
           "show": "Dancing with the Stars",
           "season": 35,
-          "rulebook": "amazingRace",
-          "checkedAs": true
+          "rulebook": "dancing"
         },
         "words": "who gets the first 10 on dwts",
         "step": "A7",
@@ -5461,6 +5830,35 @@
           "flag": "question",
           "flagBy": "resolver",
           "why": "season 5 is past episode 2"
+        },
+        "spec": {
+          "get": {
+            "by": "none"
+          },
+          "score": {
+            "by": "answers"
+          },
+          "rank": {
+            "by": "total"
+          },
+          "ask": [
+            {
+              "id": "traitors",
+              "ask": "Who are the Traitors?",
+              "answer": "person",
+              "points": 1,
+              "pick": 3,
+              "settle": {
+                "by": "role",
+                "role": "Traitor",
+                "take": "who"
+              }
+            }
+          ],
+          "span": {
+            "from": 2,
+            "to": null
+          }
         }
       },
       {

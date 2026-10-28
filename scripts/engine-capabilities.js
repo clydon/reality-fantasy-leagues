@@ -18,7 +18,7 @@ const { pageCtx: ctxOf, pageName } = jiti("../src/lib/game/capability-rows.ts");
 const TRACKER = path.join(__dirname, "..", "tests", "fixtures", "engine-capabilities.json");
 const DOC = path.join(__dirname, "..", "docs", "ENGINE-CAPABILITIES.md");
 /** A stand-in's show, by its rulebook key, for "checked against The Amazing Race's rules". */
-const SHOWS = { survivor: "Survivor", traitors: "The Traitors", challenge: "The Challenge", belowDeck: "Below Deck", pluribus: "Pluribus", snl: "Saturday Night Live", formula1: "Formula 1", amazingRace: "The Amazing Race" };
+const SHOWS = { survivor: "Survivor", traitors: "The Traitors", challenge: "The Challenge", belowDeck: "Below Deck", pluribus: "Pluribus", snl: "Saturday Night Live", formula1: "Formula 1", amazingRace: "The Amazing Race", dancing: "Dancing with the Stars" };
 /** A table cell: no pipes or line breaks. */
 const cell = (s) => String(s ?? "").replace(/\|/g, "\\|").replace(/\s*\n\s*/g, " ").trim();
 

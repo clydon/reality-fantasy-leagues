@@ -5,7 +5,7 @@ is headed", then today's games recreated on it, then the UI last; the GPT's word
 and S2 (both parts, 2026-10-28) are built and merged into master** (their As built is under track S); the test couch plays
 them next (the user's, in production). A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), not yet merged: the main folder merges them (review, checks, the Neon rehearsal, the user's OK).
-A5 built on `engine` (2026-10-28: the tracker and the engine lab); A6 next. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+A5 and A6 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each); A7 next, then A8. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -1397,6 +1397,95 @@ screens. Each step names the research data it needs and checks the tapes have it
   immunity?", "Who finds an idol?"), from research's per-person moments and each episode's groups (after swaps); one question
   asked of each person still in, an answer per person ("each couple's score"), counting as one of the 12; a person's number
   from research (`judgesScore`) for number and over/under answers.
+
+  **As built (A6, 2026-10-28, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` brought in
+  master's desk-parity and bingo work (882 tests then).
+  - **What research records, mapped first.**
+    - A moment reaches a league as a scoring event on a person (`{ type, castawayId, units? }`). A per-unit moment carries
+      research's number as its units: a judges'-score segment builds `<segment>PerPoint` (Dancing with the Stars' judges'
+      points), so **a person's number is a per-unit moment's count for them**, accepted, reveal-gated and spoiler-safe like
+      every other result. No new data path.
+    - Groups after a swap: research's `newGroup` stages a `group` decision, which records `episode.groups` (GroupLogic). The
+      spoiler view clears a hidden episode's groups and works each castaway's group out again.
+    - Secret roles: the cast's starting roles go into Episode 1's roles, recruits into their episode's (RoleLogic).
+  - **The schema** (`schema.js`):
+    - A new answer, `group` (a tribe, a team; `pick` of them, like a person).
+    - New settles: `moment` takes `who` (who it happened to; a group answer, the groups they were on that episode) and `most`
+      (who it happened to most, ties all). `results` takes `stays` (who didn't go home: an episode's, asked each). A new
+      settle, `role`: `who` (who held it: in the episode, or ever in the game), `end` (who held it among those still in at the
+      end: after the episode, or in at the game's last episode) and `count` (how many of them).
+    - `each: 'person'`: one question about each person still in when it closes, answered `{ castawayId: answer }`, still one
+      of the 12. It takes a yes or no, a number, an over/under or a choice, settled for each by their own moment (happened,
+      count) or whether they went home or stayed (`EACH_SETTLES_FOR`). It closes at the start.
+    - The data rule: a role is one of the show's (`ctx.roles`, its secret-role twists'); a group answer needs a cast in groups
+      (`ctx.grouped`); a moment and results as before. `contextOf` gives both.
+    - A plain yes or no stays "whether a moment happened": "will anyone go home tonight?" is Survivor's `votedOut` moment.
+  - **The grader** (`answers.js`): a moment over the game (who, most) is known once the game is over. A group answer is off
+    when nobody it happened to was on a group, never a question nobody can get right. A choice is a count's range only when a
+    count settles it, else names (people's, and their groups'). A question about each person grades each one on its own: a
+    number the closest on each, ties all; its points for each one right.
+  - **The engine** (`AnswerLogic.facts`): for each of the game's episodes, who was still in at its start, each person's group
+    in it (where they started, then each change in episode order), and, once its full results are in, who each moment happened
+    to and how many times, and everyone's role as of it (one pass). From the state it's given, so the viewer's copy names no
+    swap, role or result past their mark.
+  - **Storage:** none new. An answer about each person is a map in `game_answers.answer` (jsonb).
+  - **The server** (`answers.ts`): a group answer's faces are the groups someone still in is on, as you've seen them; a
+    question about each person's are who's still in. Both wait until you've seen the episode before, like a person answer. The
+    read names the groups (`groups`): only those anyone in your copy is on, since a tribe a later swap or the merge made is in
+    the league's list from the moment it's recorded.
+  - **Words:** How it works says a question about each person ("Answer for each castaway still in: the closest on each wins 1
+    point") and a group's picks.
+  - **The screens are U1's.** The Prediction Sheet tolerates the new kinds: a group answer as faces (initials), a question about
+    each person held back with a line ("answered for each of the 13 still in, on a screen still to come"). Start a game doesn't
+    offer A6's kinds (`question-choices.ts` is unchanged but for the ctx): nothing could answer them on screen yet.
+  - **A sample rulebook** for Dancing with the Stars (`rulebook-samples.js` `dancing`), trimmed from the one the bot wrote for
+    season 34 (in the tapes; its viewers' vote "decided a score", which a vote can't, so it puts couples at risk). Its judges'
+    score is `judgesScoringPerPoint`. The tracker's Dancing with the Stars rows are checked against it now, not The Amazing
+    Race's.
+  - **The tracker:** specs for A6's 14 rows, all ✅: the dials (who, which group, each person, a person's number), the worked
+    examples (the tribe winner and who goes home; each couple's score), and the corpus (a Traitor who won't get caught, who
+    wins the leg, star baker, which couples stay, who dies, who gets a rose, how many Traitors make the end, who the Traitors
+    are). Stand-ins, said in the doc: Great British Bake Off and Married at First Sight against Dancing with the Stars', The
+    White Lotus against Pluribus', The Bachelor against Survivor's. **Now: 103 ✅** (was 89) · 136 ⏳ · 1 🆕 · 1 ❓ · 23 💬.
+  - **Research data the tapes lack:** Survivor 49's tapes predate `newGroup`, so a swap there isn't on tape (The Challenge 41's
+    is). Dancing with the Stars 34's research asked the stored format's `judgesScore`, which no moment counts; a couch's season
+    on the compiled rulebook asks `judgesScoringScore`, which does. The Traitors 4's roles are there.
+  - **Tests:** `tests/answers-who.test.js` (new, 4): the shape and the data rule for each new part; grading on facts (a swap
+    counting from its own episode, most with ties, over the game, who stays, each person's number and yes or no, a group off);
+    a league's facts (groups after a swap at two viewers' marks, a per-unit count, How it works); The Traitors' roles (a recruit,
+    who's left, how many, nothing before the end for someone behind). `engine-capabilities.test.js`: the waiting example is an
+    answer no step builds now. `npm test` 886.
+  - **Browser and API:** `scripts/dev-test/check-questions-who.js` (new, on new-fixture.js), 42 PASS at 390: a game of four
+    questions written through `setGame` with the show's ctx (a Traitors question refused: no roles); the faces (three tribes,
+    the 13 still in); seven refusals; sam behind on all four; the sheet in the browser; the lock; Episode 6's results with a swap
+    onto Savu and one onto a new tribe; graded at each mark (jordan 7, riley none, and none of the new tribe's name until she's
+    seen it); the Games tab; the flag's check. `check-engine-lab.js` grew A6's specs (two play on ZT Survivor 51, a Traitors
+    question and each couple's score refused there, a tribe question started as a test game): 27 PASS.
+  - **Re-runs:** `check-questions.js` 97, `check-new-start-game.js` 75, `check-phase-starts.js` 58, `check-new-show.js` 81.
+  - **The main session's fix** (the A1–A4 merge's checks): `check-questions.js` and `check-phase-starts.js` read the game-specs
+    flag first. Off, a game's spec is what its fields say (`specOf`), the carried-spec checks print a NOTE, and nothing else
+    changes; on, they assert as before. Proven both ways: with the flag turned off in this lane's database, 70 and 45 PASS
+    (`--api`) with their NOTEs; on again (9 of 9 carry their spec, none drifted, `check` PASS), 97 and 58.
+  - **Golden replays:** every taped season through every game it plays (`playtest.js run`, from a copy of the tapes:
+    `TAPES_DIR`; the four this lane didn't have loaded first with `tapes.js load`), each season's leagues kept and read by the
+    engine before A6 and after it, from the same states: as nobody, and as each seat, at every mark (nothing seen, each
+    episode, everything), the game, its span, every score, this week's episode, finale predictions and the results' answer.
+    Survivor 49 (30 games), the Traitors 4 (22), The Challenge 41 (22), Dancing with the Stars 34 (22), Below Deck 12 (20):
+    **116 games, 11,981 reads, every one the same.** Engine against engine, because two runs of the replays differ by
+    themselves (Noticed). A one-off, kept out of the repo as A2's and A4's were.
+  - **`game-specs-flag.js`:** `status` on, 9 of 9, none drifted; `check` PASS.
+  - **Code review** (`/code-review`, before the commit).
+    - Taken:
+      - a plain yes or no settled by who went home could never be right (it's a moment's now; `EACH_SETTLES_FOR` for each
+        person);
+      - a choice settled by who it happened to most was matched against count ranges;
+      - the read named every tribe, a later swap's too (a spoiler);
+      - a group answer whose leaver was on no group read as settled with nobody right (off now);
+      - `in` read without a guard;
+      - roles worked out per person per episode (one pass now);
+      - the names list in three places, the per-person answers twice;
+      - the sheet's "1 of 2 named" for a group.
+    - Declined: none.
 - **A7. Time.** Windows instead of only "each episode" or "once": every N episodes, within N, by phase; which episode something
   happens in (settled by phases and results); a person's own lock time when they watch late (spoiler-safe).
 - **A8. More answers.** An order (the boot order, a leaderboard), confidence (a ranking with weights), spreading chips, a wager,
@@ -1713,6 +1802,23 @@ From A5 (2026-10-28):
   desk's redesign.)
 - The lab imports the tracker and the sample rulebooks from `tests/fixtures/`, so they ship in the app's bundle. Small; the
   tracker is the lab's source by design. (Whoever next touches the lab.)
+
+From A6 (2026-10-28):
+- The spoiler view (`SpoilerLogic.viewThrough`) clears a hidden episode's groups but keeps `state.tribes`, so a tribe a later
+  swap or the merge made is in every viewer's copy by name. The answers read now names only the groups anyone in your copy is
+  on; other reads of `state.tribes` (the board's tribe list, the cast pages) weren't looked at. (Whoever next touches the
+  spoiler view.)
+- A question about each person has no screen yet, and a group answer shows as initials (no tribe colour). Start a game doesn't
+  offer A6's kinds. (U1.)
+- `tapes.js load` refuses this lane's `.env.local` (production's bot is listed first), so a load needs
+  `LLM_BROWSER_API_URL=http://127.0.0.1:8765` on the command; a loaded season gets this database's id while the tape's
+  `season.json` keeps the recorder's, so `playtest.js run` can't find it (copySeason looks it up by the tape's id); and Below
+  Deck 12's tape predates `notableTwist`, so its load stops at Episode 1 (playtest.js fills such fields; load doesn't). (The
+  playtest lane's tools.)
+- The replays aren't the same run to run (waiver auto-fills and computer players choose differently among equals: the playtest
+  lane's floor), so a step's "scores exactly as before" is shown engine against engine on the same kept leagues (a one-off,
+  below each As built). A `playtest.js golden` that keeps each season's leagues and reads them with two trees would make it a
+  command. (R1, or the playtest lane.)
 
 From A2 (2026-10-28):
 - Start a game still makes a Weekly Lineup with `defaultState`'s copy of the points (a map), not the preset's null. A copy

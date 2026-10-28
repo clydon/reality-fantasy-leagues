@@ -77,6 +77,11 @@ function check(ok, what, detail = "") {
   const pool = new Pool({ connectionString: DB });
   fs.mkdirSync(out, { recursive: true });
   const closers = [];
+  // The game-specs flag: on, a game carries its spec (settings.game) and the checks compare it; off (as in production), nothing
+  // carries one, so a game's spec is what its fields say (specOf).
+  const specsOn = await GameSpecs.gameSpecsOn(pool);
+  if (!specsOn) console.log("NOTE  the game-specs flag is off: specs are compared as the fields say them (specOf), not a carried spec");
+  const specOf = (settings) => (specsOn ? settings.game ?? {} : G.specOf(settings));
   try {
     const fx = await fixture.up(pool);
     const couch = fx.couchId;
@@ -146,7 +151,7 @@ function check(ok, what, detail = "") {
     check(problems.length === 1 && problems[0].at === "ask", "  without the show's moments, setGame refuses its questions (the data rule)", JSON.stringify(problems));
     problems = await make({ ctx });
     const made = (await league(QG)).state;
-    check(!problems.length && made.settings.leagueTypeId === "questions" && G.sameValue(made.settings.game?.ask, G.fullSpec({ get: { by: "none" }, score: { by: "answers" }, ask: QUESTIONS }).ask), "  with them it's written: a game of questions, its spec carried", JSON.stringify(problems));
+    check(!problems.length && made.settings.leagueTypeId === "questions" && G.sameValue(specOf(made.settings).ask, G.fullSpec({ get: { by: "none" }, score: { by: "answers" }, ask: QUESTIONS }).ask), `  with them it's written: a game of questions, its spec ${specsOn ? "carried" : "as its fields say it"}`, JSON.stringify(problems));
 
     // ---------- Answering ----------
     const ask = (who, body) => as[who].call("POST", `/api/seasons/${sid}/answers?league=${QG}`, body);
@@ -233,7 +238,7 @@ function check(ok, what, detail = "") {
       if (!QS) await new Promise((res) => setTimeout(res, 500));
     }
     const qsState = QS ? (await league(QS)).state : null;
-    check(!!QS && G.sameValue(S.AnswerLogic.questions(qsState).map((x) => x.id), CHOSEN) && qsState.settings.game?.ask?.length === 3, "  it's a game of questions asking just those three, its spec carried", JSON.stringify(qsState && S.AnswerLogic.questions(qsState).map((x) => x.id)));
+    check(!!QS && G.sameValue(S.AnswerLogic.questions(qsState).map((x) => x.id), CHOSEN) && specOf(qsState.settings).ask?.length === 3, `  it's a game of questions asking just those three, its spec ${specsOn ? "carried" : "as its fields say it"}`, JSON.stringify(qsState && S.AnswerLogic.questions(qsState).map((x) => x.id)));
     for (const who of ["riley", "sam"]) {
       const o2 = await as[who].call("GET", `/api/couches/${couch}/games/${QS}`);
       const j = await as[who].call("POST", `/api/couches/${couch}/games/${QS}`, { action: "join", start: o2.body.starts?.live ?? o2.body.start ?? null });
@@ -399,8 +404,13 @@ function check(ok, what, detail = "") {
     const rvTable = rvGames.find((x) => x.leagueId === QS)?.table ?? [];
     check(rvTable.find((t) => t.userId === fx.users.jordan)?.total === 3 && rvTable[0]?.userId === fx.users.jordan, "  and now she sees jordan's 3 on the table", JSON.stringify(rvTable.map((t) => [t.name, t.total])));
     const flagged = checkLeague((await league(QG)).state);
-    // In step: carrying it again changes nothing (db/game-specs.js carryGame says whether it wrote).
-    check(flagged.ok && GameSpecs.carryGame(clone((await league(QG)).state.settings), true) === false, "the game-specs flag's check passes on it, and its spec is in step", JSON.stringify(flagged));
+    // In step: carrying it again changes nothing (db/game-specs.js carryGame says whether it wrote). With the flag off nothing
+    // carries a spec, so there's nothing to be in step: only the flag's own check.
+    if (specsOn) check(flagged.ok && GameSpecs.carryGame(clone((await league(QG)).state.settings), true) === false, "the game-specs flag's check passes on it, and its spec is in step", JSON.stringify(flagged));
+    else {
+      check(flagged.ok, "the game-specs flag's check passes on it", JSON.stringify(flagged));
+      console.log("NOTE  the game-specs flag is off: whether its carried spec is in step was skipped");
+    }
 
     // ---------- Finale predictions on the Outlast ----------
     const outlast = fx.leagues.outlast;

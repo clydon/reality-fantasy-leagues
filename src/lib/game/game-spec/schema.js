@@ -45,32 +45,46 @@ const VOCAB = {
   'rank.by': { total: 'now', streak: 'now', matchups: 'sports', categories: 'sports', roto: 'sports' },
   closes: { start: 'now', daily: 'sports', weekly: 'sports' },
   'pool.where': { stillIn: 'now', teams: 'sports', group: 'later' },
-  'ask.answer': { person: 'now', yesNo: 'now', number: 'now', overUnder: 'now', choice: 'now', calls: 'now', side: 'sports' },
-  'ask.settle': { results: 'now', moment: 'now', calls: 'now', final: 'sports', stat: 'sports' },
+  'ask.answer': { person: 'now', group: 'now', yesNo: 'now', number: 'now', overUnder: 'now', choice: 'now', calls: 'now', side: 'sports' },
+  'ask.settle': { results: 'now', moment: 'now', role: 'now', calls: 'now', final: 'sports', stat: 'sports' },
   'ask.asked': { once: 'now', each: 'now' },
   'ask.closes': { start: 'now', finale: 'now' },
   'ask.from': { cast: 'now', team: 'now' },
+  'ask.each': { person: 'now' },
 };
 
-// A question in `ask` (A4):
-//   { id, ask: 'Who goes home?', answer, points, settle, asked, closes, pick?, from?, line?, options? }
+// A question in `ask` (A4; A6 added who a moment happened to, groups, roles and questions about each person):
+//   { id, ask: 'Who goes home?', answer, points, settle, asked, closes, pick?, from?, line?, options?, each? }
 //   id      its key, for its answers (game_answers.question): letters, digits, '.', '_' or '-', up to 40
-//   answer  person (`pick` of them, each right one scores; `from` the cast still in, or a draft's own team) | yesNo |
-//           number (the closest wins, ties all) | overUnder (with line: a number, or null for the wizard to ask) |
-//           choice (with options) | calls (the show's two calls each episode, Call it's: CALLS); sports: side
-//   points  a right answer's (a right pick's), 0 to MAX_QUESTION_POINTS
+//   answer  person (`pick` of them, each right one scores; `from` the cast still in, or a draft's own team) | group (a
+//           tribe, a team: `pick` of them, from the groups someone still in is on) | yesNo | number (the closest wins,
+//           ties all) | overUnder (with line: a number, or null for the wizard to ask) | choice (with options) | calls
+//           (the show's two calls each episode, Call it's: CALLS); sports: side
+//   points  a right answer's (a right pick's; asked of each person, each right answer's), 0 to MAX_QUESTION_POINTS
 //   asked   once (for the game) | each (every episode it plays, each its own answer)
 //   closes  start: when its episode starts (asked each), or the game's first does (asked once) | finale: when the
 //           season's last episode starts (asked once). Never once data has settled it. The lock is the engine's
 //           closedForPlay, so whoever runs the game can keep an episode open past its start or lock it early
-//   settle  shows: { by: 'results', take: winner | out | placed | top, place? } (out: who goes home in the episode, or,
-//           asked once, the first to go in the game; winner, placed and top are the season's: asked once, in a game
-//           that runs to the season's end; placed: who finished `place`th, top: in the top `place`) | { by: 'moment',
-//           moment: id, take: happened | count } (in the episode; asked once, over the game) | { by: 'calls' } (Call
-//           it's); sports: { by: 'final', take: winner | total | margin } | { by: 'stat', stat, take: most | least | value }
+//   each    'person': one question about each person still in when it closes, an answer for each ("each couple's
+//           score"), still one question of the 12: a yes or no, a number, an over/under or a choice, settled for each
+//           person by their own moment (happened, count) or whether they go home (out) or stay (stays)
+//   settle  shows:
+//             { by: 'results', take: winner | out | placed | top | stays, place? } out: who goes home in the episode (a
+//               group answer: the groups they were on), or, asked once, the first to go in the game; stays: who doesn't
+//               (an episode's: asked each); winner, placed and top are the season's: asked once, in a game that runs to
+//               the season's end; placed: who finished `place`th, top: in the top `place`
+//             { by: 'moment', moment: id, take: happened | count | who | most } in the episode (asked once, over the
+//               game): whether it happened, how many times (a per-unit moment's units: a couple's judges' points), who it
+//               happened to (a group answer: the groups they were on then), or who it happened to most (ties all)
+//             { by: 'role', role: name, take: who | end | count } a secret role (The Traitors): who held it (in the
+//               episode, or ever in the game), who held it among those still in at its end (after the episode; asked
+//               once, those in at the game's last episode), and how many of them
+//             { by: 'calls' } (Call it's)
+//           sports: { by: 'final', take: winner | total | margin } | { by: 'stat', stat, take: most | least | value }
 const TAKES = {
-  results: ['winner', 'out', 'placed', 'top'],
-  moment: ['happened', 'count'],
+  results: ['winner', 'out', 'placed', 'top', 'stays'],
+  moment: ['happened', 'count', 'who', 'most'],
+  role: ['who', 'end', 'count'],
   calls: [],
   final: ['winner', 'total', 'margin'],
   stat: ['most', 'least', 'value'],
@@ -78,9 +92,10 @@ const TAKES = {
 /** The settles that are the season's (known at its end): asked once, in a game that runs to the season's end. */
 const SEASON_TAKES = ['results:winner', 'results:placed', 'results:top'];
 /** The settles each kind of answer can be graded by ('by:take'). A choice is matched to whatever settles it. */
-const NUMBERS = ['moment:count', 'final:total', 'final:margin', 'stat:value'];
+const NUMBERS = ['moment:count', 'role:count', 'final:total', 'final:margin', 'stat:value'];
 const SETTLES_FOR = {
-  person: ['results:winner', 'results:out', 'results:placed', 'results:top', 'stat:most', 'stat:least'],
+  person: ['results:winner', 'results:out', 'results:placed', 'results:top', 'results:stays', 'moment:who', 'moment:most', 'role:who', 'role:end', 'stat:most', 'stat:least'],
+  group: ['results:out', 'moment:who'],
   side: ['final:winner'],
   yesNo: ['moment:happened'],
   number: NUMBERS,
@@ -88,6 +103,16 @@ const SETTLES_FOR = {
   choice: null,
   calls: ['calls:'],
 };
+/** A question about each person (A6), by its answer: what settles it for each of them, from their own moment (whether it
+ *  happened to them, how many times) or whether they went home or stayed. */
+const EACH_SETTLES_FOR = {
+  yesNo: ['moment:happened', 'results:out', 'results:stays'],
+  number: ['moment:count'],
+  overUnder: ['moment:count'],
+  choice: ['moment:happened', 'moment:count', 'results:out', 'results:stays'],
+};
+/** The answers that name someone (a person) or something (a group), `pick` of them. */
+const NAMES = ['person', 'group'];
 const MAX_QUESTIONS = 12;
 const MAX_PICK = 10;
 const MAX_QUESTION_POINTS = 100;
@@ -169,16 +194,15 @@ const isCalls = (q) => isObj(q) && q.answer === 'calls';
 /** An ask that's exactly the show's calls (Weekly Calls). */
 const callsAsk = (ask) => Array.isArray(ask) && ask.length === 1 && sameValue(ask[0], CALLS);
 
-/** A question with what it leaves out filled in: asked once, closing at the start; a person answer one pick from the cast. */
+/** A question with what it leaves out filled in: asked once, closing at the start; a person answer one pick from the cast, a
+ *  group answer one group. */
 function fullQuestion(q) {
   if (!isObj(q)) return q;
   const out = { ...q };
   if (out.asked === undefined) out.asked = 'once';
   if (out.closes === undefined) out.closes = 'start';
-  if (out.answer === 'person') {
-    if (out.pick === undefined) out.pick = 1;
-    if (out.from === undefined) out.from = 'cast';
-  }
+  if (NAMES.includes(out.answer) && out.pick === undefined) out.pick = 1;
+  if (out.answer === 'person' && out.from === undefined) out.from = 'cast';
   return out;
 }
 
@@ -477,6 +501,9 @@ function sizesOf(s) {
  *   ctx.results  false when the show's results don't say who goes home or wins (a series, a talk show)
  *   ctx.phases   the season's rulebook's phases, in order ([{ id }], its blocks' season.phases): a start at a phase must
  *                be one of them, and not the first (that's Episode 1)
+ *   ctx.roles    the show's secret roles (its secretRole twists' roles: ['Traitor', 'Faithful']): a role settles only if
+ *                it's one. Absent: there are none
+ *   ctx.grouped  false when nobody on the show is in a group (its cast has no groups): no group answers
  *
  * opts.league: the spec is a league's own (every write to a league: RosterLogic.setGame), so what it already plays stays
  * as it is: a couch-answered moment of its rules (Make it ours) and points for moments its rules don't have
@@ -634,25 +661,30 @@ function questionProblems(q, at, s, ids, league) {
   else ids.add(q.id);
   if (typeof q.ask !== 'string' || !q.ask.trim()) add('ask', 'A question asks something');
   else if (q.ask.length > 200) add('ask', 'A question is 200 characters at most');
-  if (!one('ask.answer', q.answer)) add('answer', 'The answer is a person, side, yesNo, number, overUnder, choice or calls');
+  if (!one('ask.answer', q.answer)) add('answer', 'The answer is a person, group, side, yesNo, number, overUnder, choice or calls');
   if (!(isNum(q.points) && q.points >= 0 && (league || q.points <= MAX_QUESTION_POINTS))) add('points', `A right answer is worth 0 to ${MAX_QUESTION_POINTS}`);
   if (!one('ask.asked', q.asked)) add('asked', 'A question is asked once, or each episode');
   if (!one('ask.closes', q.closes)) add('closes', 'Its answers close at the start, or the finale');
   else if (q.closes === 'finale' && q.asked !== 'once') add('closes', 'Only a question asked once waits for the finale: one asked each episode closes as it starts');
   const st = isObj(q.settle) ? q.settle : {};
   let settled = false;
-  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, calls, final or stat');
+  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, calls, final or stat');
   else if (st.by === 'calls') {
     if (st.take !== undefined) add('settle.take', 'The calls settle themselves: no take');
     else settled = true;
   } else if (!TAKES[st.by].includes(st.take)) add('settle.take', `${st.by} takes ${TAKES[st.by].join(', ')}`);
   else settled = true;
   const how = `${st.by}:${st.by === 'calls' ? '' : st.take}`;
-  if (settled && one('ask.answer', q.answer) && SETTLES_FOR[q.answer] && !SETTLES_FOR[q.answer].includes(how)) {
+  // A question about each person is graded for each of them: their own answer kind and settle (below).
+  const each = q.each !== undefined;
+  if (settled && !each && one('ask.answer', q.answer) && SETTLES_FOR[q.answer] && !SETTLES_FOR[q.answer].includes(how)) {
     add('settle', `A ${q.answer} answer isn't graded by ${st.by}${st.by === 'calls' ? '' : ` ${st.take}`}`);
   }
   if (q.answer !== 'calls' && st.by === 'calls') add('answer', "Only the show's calls are settled as calls");
   if (st.by === 'moment' && (typeof st.moment !== 'string' || !st.moment)) add('settle.moment', 'Which moment settles it');
+  if (st.moment !== undefined && st.by !== 'moment') add('settle.moment', 'Only a moment settles by a moment');
+  if (st.by === 'role' && (typeof st.role !== 'string' || !st.role)) add('settle.role', 'Which role settles it');
+  if (st.role !== undefined && st.by !== 'role') add('settle.role', 'Only a role settles by a role');
   if (st.by === 'stat' && (typeof st.stat !== 'string' || !st.stat)) add('settle.stat', 'Which stat settles it');
   if (st.by === 'results' && (st.take === 'placed' || st.take === 'top') && !isInt(st.place, 1)) add('settle.place', 'Which place: 1 or more');
   if (st.place !== undefined && !(st.by === 'results' && (st.take === 'placed' || st.take === 'top'))) add('settle.place', 'Only a place or a top settles by a place');
@@ -661,6 +693,16 @@ function questionProblems(q, at, s, ids, league) {
     if (q.asked === 'each') add('asked', `${st.take === 'winner' ? 'Who wins' : 'Where they finish'} is the season's: ask it once`);
     if (!league && isObj(s.span) && s.span.to !== null) add('settle', "It's known at the season's end, so the game runs to it: no end of its own");
   }
+  // Who stays is one episode's (over a game, everyone but the winner leaves by its end).
+  if (how === 'results:stays' && q.asked !== 'each') add('asked', 'Who stays is an episode\'s: ask it each episode');
+  // One question about each person still in, an answer for each, settled for each by their own moment or exit.
+  if (each) {
+    const takes = own(EACH_SETTLES_FOR, q.answer);
+    if (!one('ask.each', q.each)) add('each', "A question about each one is about each person: 'person'");
+    else if (!takes) add('answer', 'Each person gets a yes or no, a number, an over/under or a choice');
+    else if (settled && !takes.includes(how)) add('settle', `Each person's ${q.answer} is settled by ${takes.map((x) => x.replace(':', ' ')).join(', ')}`);
+    if (q.closes !== 'start') add('closes', 'A question about each person closes as it starts');
+  }
   // Only what the finale decides waits for it: anything else could be settled before then (an idol played this season, who
   // finished fifth), and answered once it's known.
   if (q.closes === 'finale' && q.asked === 'once') {
@@ -668,24 +710,25 @@ function questionProblems(q, at, s, ids, league) {
     else if (!league && isObj(s.span) && s.span.to !== null) add('closes', 'Waiting for the finale needs a game that runs to it');
   }
   // The answer's own parts.
-  if (q.answer === 'person') {
+  if (NAMES.includes(q.answer)) {
     if (!(isInt(q.pick, 1) && q.pick <= MAX_PICK)) add('pick', `Name 1 to ${MAX_PICK}`);
+  } else if (q.pick !== undefined) add('pick', 'Only a person or group answer names a number of them');
+  if (q.answer === 'person') {
     if (!one('ask.from', q.from)) add('from', 'Pick from the cast still in, or your own team');
     else if (q.from === 'team' && !(isObj(s.get) && s.get.by === 'draft')) add('from', 'Only a draft has teams to pick from');
-  } else {
-    if (q.pick !== undefined) add('pick', "Only a person answer names a number of them");
-    if (q.from !== undefined) add('from', 'Only a person answer picks from someone');
-  }
+  } else if (q.from !== undefined) add('from', 'Only a person answer picks from someone');
   if (q.answer === 'overUnder') {
     if (q.line !== null && q.line !== undefined && !isNum(q.line)) add('line', 'The line is a number, or null (or left out) for the wizard to ask');
   } else if (q.line !== undefined) add('line', "Only an over/under has a line");
   if (q.answer === 'choice') {
     const opts = q.options;
+    // Matched to a yes or no (whether it happened; each person's going home or staying), a count's range, or names.
+    const yesNo = how === 'moment:happened' || (each && (how === 'results:out' || how === 'results:stays'));
     if (!(Array.isArray(opts) && opts.length >= 2 && opts.length <= MAX_OPTIONS && opts.every((o) => typeof o === 'string' && o.trim() && o.length <= 80))) {
       add('options', `A choice has 2 to ${MAX_OPTIONS} options, each a few words`);
     } else if (new Set(opts.map((o) => o.trim().toLowerCase())).size !== opts.length) add('options', 'Two of its options are the same');
-    else if (how === 'moment:happened' && !opts.every((o) => YES_NO.includes(o.trim().toLowerCase()))) add('options', 'Whether it happened is Yes or No');
-    else if (how === 'moment:count' && !opts.every((o) => optionRange(o))) add('options', 'A count\'s options are numbers or ranges: "0", "1-2", "3+"');
+    else if (yesNo && !opts.every((o) => YES_NO.includes(o.trim().toLowerCase()))) add('options', 'Whether it happened is Yes or No');
+    else if ((how === 'moment:count' || how === 'role:count') && !opts.every((o) => optionRange(o))) add('options', 'A count\'s options are numbers or ranges: "0", "1-2", "3+"');
   } else if (q.options !== undefined) add('options', 'Only a choice has options');
   // The show's calls: Weekly Calls' one question.
   if (q.answer === 'calls') {
@@ -713,8 +756,8 @@ const KEYS = {
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away'],
   bets: ['points'],
-  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options'],
-  settle: ['by', 'take', 'moment', 'stat', 'place'],
+  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each'],
+  settle: ['by', 'take', 'moment', 'role', 'stat', 'place'],
 };
 /** The paths of keys a spec has that no game spec does. */
 function unknownKeys(s) {
@@ -779,6 +822,7 @@ function settleProblems(s, ctx, opts) {
   const moments = Array.isArray(ctx.moments) ? ctx.moments : [];
   const momentById = new Map(moments.map((m) => [m.id, m]));
   const stats = new Set((Array.isArray(ctx.stats) ? ctx.stats : []).map((x) => (isObj(x) ? x.key : x)));
+  const roles = new Set(Array.isArray(ctx.roles) ? ctx.roles : []);
   const byData = (m) => m.answeredBy === 'research' || (!!m.auto && m.answeredBy !== 'league');
   const couchWord = (m) => `${m.label || m.id} is the couch's word: research doesn't answer it, so data can't settle it`;
   // `strict`: the couch's word never settles it, even in a league's own rules (a question: only Weekly Calls' calls on a talk
@@ -815,6 +859,12 @@ function settleProblems(s, ctx, opts) {
       const p = momentProblem(st.moment, true);
       if (p) out.push([`ask[${i}].settle.moment`, p]);
     }
+    // A secret role is one of the show's, recorded by research (the cast's starting roles, recruits).
+    if (st.by === 'role' && typeof st.role === 'string' && !roles.has(st.role)) {
+      out.push([`ask[${i}].settle.role`, roles.size ? `"${st.role}" isn't one of the show's roles: ${[...roles].join(', ')}` : "The show has no secret roles to settle it"]);
+    }
+    // A group answer names a group someone's on, as research records them after each swap: a show whose cast has none can't.
+    if (q && q.answer === 'group' && ctx.grouped === false) out.push([`ask[${i}].answer`, "Nobody on the show is in a group (a tribe, a team): name a person instead"]);
     if (st.by === 'stat' && typeof st.stat === 'string' && !stats.has(st.stat)) out.push([`ask[${i}].settle.stat`, `Nothing counts "${st.stat}": it isn't one of the sport's stats`]);
     if (st.by === 'results' && ctx.results === false) out.push([`ask[${i}].settle`, "The show's results don't say who goes home or wins"]);
     else if (st.by === 'results' && ['winner', 'placed', 'top'].includes(st.take) && ctx.winner === false) out.push([`ask[${i}].settle`, "Nobody wins this show: its results don't crown a winner"]);
@@ -871,7 +921,7 @@ function specWaitsFor(spec) {
 }
 
 module.exports = {
-  SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
+  SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

@@ -37,8 +37,11 @@ test("a row's status comes from the engine: a spec that passes plays now even wi
   const out = { id: "out", ask: "Who goes home?", answer: "person", points: 2, asked: "each", settle: { by: "results", take: "out" } };
   const ctx = T.ctxOf({ rulebook: "survivor" });
   assert.equal(C.statusOf({ id: "a", spec: { ...sheet, ask: [out] }, step: "A6" }, ctx).state, "yes", "its step landed");
-  const tribe = { ...out, id: "tribe", ask: "Which tribe wins immunity?", answer: "group" };
-  const waiting = C.statusOf({ id: "b", spec: { ...sheet, ask: [tribe] }, step: "A6" }, ctx);
+  // An answer no step has built yet (A6 built which tribe: a group answer).
+  const tribe = { ...out, id: "tribe", ask: "Which tribe wins immunity?", answer: "group", settle: { by: "moment", moment: "tribeImmunity", take: "who" } };
+  assert.equal(C.statusOf({ id: "b0", spec: { ...sheet, ask: [tribe] }, step: "A6" }, ctx).state, "yes", "A6 landed");
+  const vibe = { ...out, id: "vibe", ask: "How did the episode feel?", answer: "vibe" };
+  const waiting = C.statusOf({ id: "b", spec: { ...sheet, ask: [vibe] }, step: "A14" }, ctx);
   assert.equal(waiting.state, "step");
   assert.ok(waiting.problems.length > 0, "what's missing is said");
   assert.equal(C.statusOf({ id: "c", step: "A9" }, ctx).state, "step");

@@ -24,7 +24,8 @@
 //     (their start has aired), Game settings' start is frozen, and a new game when Merged starts (known, and ahead: Episode 9)
 //     is settled at Start a game.
 //   - The game-specs flag's check (scripts/game-specs-flag.js checkLeague) passes on a waiting and a settled game, and every
-//     game jordan started carries the spec its fields play.
+//     game jordan started carries the spec its fields play. With the flag off (as in production) no game carries one: each
+//     span is compared as its fields read (specOf), and the carried-spec checks print a NOTE instead.
 //   In a real browser at --width (390 by default): Start a game, the Games tab ("Starts when Merged starts ·"), Game settings
 //   (waiting, switched, settled) and the desk's confirmation. Nothing wider than the screen; no page errors. Screenshots go to
 //   <outDir>.
@@ -91,9 +92,13 @@ function check(ok, what, detail = "") {
     for (const who of ["alex", "jordan"]) as[who] = await api({ user: `zt_nd_${who}`, pass: PASSWORD });
     as.desk = await api({ user: DESK, pass: PASSWORD });
     const league = async (id) => (await pool.query("SELECT * FROM leagues WHERE id = $1", [id])).rows[0];
+    // The carried spec's span with the game-specs flag on; off (as in production), nothing carries one, so it's the span the
+    // fields read as (specOf).
+    const specsOn = await GameSpecs.gameSpecsOn(pool);
+    if (!specsOn) console.log("NOTE  the game-specs flag is off: spans are compared as the fields read them (specOf), not a carried spec");
     const span = async (id) => {
       const s = (await league(id)).state.settings;
-      return { phase: s.startPhase ?? null, at: s.startEpisode ?? null, to: s.endEpisode ?? null, game: s.game ? s.game.span : undefined };
+      return { phase: s.startPhase ?? null, at: s.startEpisode ?? null, to: s.endEpisode ?? null, game: specsOn ? (s.game ? s.game.span : undefined) : G.specOf(s).span };
     };
     const opts = async () => (await as.jordan.call("GET", `/api/seasons/${sid}/start${q}`)).body;
     const start = (body) => as.jordan.call("POST", `/api/seasons/${sid}/start${q}`, body);
@@ -312,7 +317,7 @@ function check(ok, what, detail = "") {
     await confirm(null);
     const checks = await Promise.all([waiting, LINEUP].map(async (id) => checkLeague((await league(id)).state)));
     check((await span(waiting)).at === null && (await span(LINEUP)).at === 7 && checks.every((c) => c.ok), "the game-specs flag's check: a waiting game and a settled one play the same carrying their spec", JSON.stringify(checks));
-    if (await GameSpecs.gameSpecsOn(pool)) {
+    if (specsOn) {
       const { rows: made } = await pool.query("SELECT id, state FROM leagues WHERE created_by = $1 AND deleted_at IS NULL", [fx.users.jordan]);
       const drifted = made.filter((l) => !G.sameValue(l.state.settings.game, G.specOf(l.state.settings))).map((l) => l.id);
       check(made.length >= 5 && !drifted.length, `the game-specs flag is on: the ${made.length} games jordan started still carry the spec their fields play`, drifted.join());

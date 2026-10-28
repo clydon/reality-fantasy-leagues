@@ -3447,34 +3447,58 @@ class FinaleLogic {
 // predictions in state.finalePredictions, where classic's finale panel writes them.
 class AnswerLogic {
   // What the results say, for grading (answers.js's facts): the game's own episodes with results (who went home in each,
-  // and once the full results are in, every moment's count), the season's winner and, once it's over, the order everyone
-  // finished in.
+  // who was still in at its start and the group each person was on in it; once the full results are in, every moment's
+  // count, who each one happened to and how many times, and everyone's secret role as of it), the season's winner and, once
+  // it's over, the order everyone finished in. All of it from the state it's given: the viewer's copy (the spoiler guard's
+  // view) has no swap, role or result past their mark, so none is graded or named.
   static facts(state){
     const span = gameOf(state).span;
     const from = Spec.spanStart(span);
     const episodes = new Map();
     const winnerOut = (method) => isWinnerExit(state, method);
-    (state.episodes || []).forEach(ep => {
+    const eps = [...(state.episodes || [])].sort((a, b) => a.number - b.number);
+    const epNo = new Map(eps.map(e => [e.id, e.number]));
+    const cast = state.castaways || [];
+    // Each person's group episode by episode: where they started (GroupLogic: startTribeId once they've moved), then each
+    // change an episode recorded (a swap, the merge), from that episode on.
+    const group = new Map(cast.map(c => [c.id, (c.startTribeId !== undefined ? c.startTribeId : c.tribeId) || null]));
+    // Each person's secret role the same way (RoleLogic.roleOf, in one pass): the latest an episode recorded, else the default.
+    const roles = formatOf(state).roles;
+    const role = new Map();
+    eps.forEach(ep => {
+      (ep.groups || []).forEach(g => group.set(g.castawayId, g.tribeId || null));
+      (ep.roles || []).forEach(r => role.set(r.castawayId, r.role));
       if(!inPlay(state, ep.number)) return;
       const stage = EpisodeLogic.resultsStage(ep);
       if(!stage) return;
       const out = (ep.events || []).filter(ev => !winnerOut(ev.method)).map(ev => ev.castawayId);
+      // Still in at its start: nobody who left in an episode before it.
+      const stillIn = cast.filter(c => !(c.status === 'eliminated' && (epNo.get(c.exitEpisodeId) || 0) < ep.number)).map(c => c.id);
       let events = null;
+      let who = null;
+      let roleOf = null;
       if(stage === 'final'){
         events = new Map();
+        who = new Map();
         ActiveRosterLogic.episodeEvents(state, ep).forEach(ev => {
           const n = Number.isFinite(ev.units) && ev.units > 0 ? ev.units : 1;
           events.set(ev.type, (events.get(ev.type) || 0) + n);
+          if(!ev.castawayId) return;
+          if(!who.has(ev.type)) who.set(ev.type, new Map());
+          const m = who.get(ev.type);
+          m.set(ev.castawayId, (m.get(ev.castawayId) || 0) + n);
         });
+        roleOf = new Map(roles ? cast.map(c => [c.id, role.has(c.id) ? roles.roleFor(role.get(c.id)) : roles.default]) : []);
       }
-      episodes.set(ep.number, { out, events });
+      episodes.set(ep.number, { out, events, who, in: stillIn, groups: new Map(group), roles: roleOf });
     });
     const winner = seasonWinner(state);
     const ended = seasonEnded(state);
     return {
       from, to: span.to, over: gameOver(state), episodes,
       winner: winner ? winner.id : null, ended, order: ended ? AnswerLogic.finishOrder(state) : null,
-      names: new Map((state.castaways || []).map(c => [c.id, c.name])),
+      names: new Map(cast.map(c => [c.id, c.name])),
+      groupNames: new Map((state.tribes || []).map(t => [t.id, t.name])),
     };
   }
   // Everyone by where they finished, the winner first: the later they left the better, and in the same episode a finalist
