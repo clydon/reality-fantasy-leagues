@@ -82,16 +82,17 @@ function numbersSaid(words) {
   return out;
 }
 
-/** Every number in a parsed request's game (its sizes, points, lines; a number written as a string too), to check none was invented. */
+/** Every number in a parsed request's game (its sizes, points, lines; a number written as a string too), with the key it's
+ *  under ("players", "each", "points"), to check none was invented: [{ key, n }]. Pure. */
 function numbersIn(game) {
   const out = [];
-  const walk = (v) => {
-    if (typeof v === "number") out.push(v);
-    else if (typeof v === "string" && /^-?\d+(?:\.\d+)?$/.test(v.trim())) out.push(Number(v));
-    else if (Array.isArray(v)) v.forEach(walk);
-    else if (v && typeof v === "object") Object.values(v).forEach(walk);
+  const walk = (v, key) => {
+    if (typeof v === "number") out.push({ key, n: v });
+    else if (typeof v === "string" && /^-?\d+(?:\.\d+)?$/.test(v.trim())) out.push({ key, n: Number(v) });
+    else if (Array.isArray(v)) v.forEach((x) => walk(x, key));
+    else if (v && typeof v === "object") Object.entries(v).forEach(([k, x]) => walk(x, k));
   };
-  walk(game);
+  walk(game, null);
   return out;
 }
 
@@ -121,10 +122,22 @@ function carriedOf(said, parsed) {
 
 /**
  * How well a parsed request matches its expected reading: { about, season, when, invented, flagged, carried, inventedNumbers,
- * missed, unsure, score, of }. Each check is true or false; `flagged` is null when no question or refusal is expected, and
- * `carried` (everything said that has a place in the shape, carried over: carriedOf; `missed` names what didn't) null when
- * nothing said has one. What wasn't said must come back empty: a season, a span or a show the words don't name is a miss,
- * not a pass. `flagged`: an expected question or refusal shows as something unsure (or nothing it's about). Pure.
+ * missed, assumed, raised, unsure, score, of }. Each check is true or false; `flagged` is null when no question or refusal is
+ * expected, or when the corpus says it's the resolver's to ask (`flagBy: "resolver"`: it needs the listing, the schedule,
+ * the cast or what the app can do, which a request with no web search can't know; `raised` then says whether the bot put
+ * anything in unsure anyway), and `carried` (everything said that has a place in the shape, carried over: carriedOf;
+ * `missed` names what didn't) null when nothing said has one. What wasn't said must come back empty: a season or a show
+ * the words don't name is a miss, not a pass.
+ *   - about: the show (the app's sameShow), else the sport or a team; for a request about nothing, nothing read (no show,
+ *     sport, league, team or event: aboutSomething).
+ *   - when: the expected kind, or any of a list of them (the corpus lists the kinds that read right where the words leave
+ *     it open: "this season" is "rest" or "season", "tonight's" "next" or "one"; null in a list: none is fine too). A plain
+ *     null (nobody said a span) on a request about a show or a sport also takes "season" or "rest": a game for a show is a
+ *     game for its season, so that's a default the bot filled in, listed by assumedOf.
+ *   - invented: a number in the game that the words don't say. Number words and commas count, and so does a number the
+ *     corpus expects at its own key (`said.players` 1 for "just me"; a 1 under another key isn't).
+ *   - flagged: an expected question or refusal shows as something unsure, or as nothing it's about.
+ * Pure.
  */
 function judge(expect, parsed, words) {
   const want = expect.about || {};
@@ -132,31 +145,50 @@ function judge(expect, parsed, words) {
   const checks = {};
   if (want.show) checks.about = sameName(want.show, got.show);
   else if (want.sport) checks.about = sameWords(want.sport, got.sport) || (want.teams || []).some((t) => (got.teams || []).some((g) => sameWords(t, g)));
-  else checks.about = !got.show && !got.sport;
+  else checks.about = !aboutSomething(got);
   const season = /\d+/.exec(String(got.season ?? ""));
   checks.season = want.season ? !!season && season[0] === String(want.season) : got.season == null;
-  checks.when = expect.when ? parsed.when.kind === expect.when : parsed.when.kind == null;
+  const read = kindOf(parsed.when.kind);
+  const wants = expect.when == null ? [null] : Array.isArray(expect.when) ? expect.when : [expect.when];
+  // Nobody said a span, on a request about a show or a sport: the whole season is the bot's default, not a miss.
+  const filled = expect.when == null && !!(want.show || want.sport) && whole(read) ? read : null;
+  checks.when = wants.includes(read) || filled !== null;
   const said = numbersSaid(words);
-  const invented = numbersIn(parsed.game).filter((n) => !said.has(n) && !said.has(-n) && !(n === 1 && /\b(a|an|each|every|per)\b/i.test(words)));
+  const expected = expect.said || {};
+  const numeric = (v) => typeof v === "number" || (typeof v === "string" && /^-?\d+(?:\.\d+)?$/.test(v.trim()));
+  const invented = numbersIn(parsed.game)
+    .filter(({ key, n }) => !said.has(n) && !said.has(-n) && !(n === 1 && /\b(a|an|each|every|per)\b/i.test(words)) && !(numeric(expected[key]) && Number(expected[key]) === n))
+    .map(({ n }) => n);
   checks.invented = invented.length === 0;
-  checks.flagged = expect.flag ? parsed.unsure.length > 0 || (!got.show && !got.sport) : null;
+  const byResolver = !!expect.flag && expect.flagBy === "resolver";
+  checks.flagged = expect.flag && !byResolver ? parsed.unsure.length > 0 || !aboutSomething(got) : null;
   const carried = carriedOf(expect.said, parsed);
   const missed = Object.keys(carried).filter((k) => !carried[k]);
   checks.carried = Object.keys(carried).length ? missed.length === 0 : null;
   const scored = Object.values(checks).filter((v) => v !== null);
-  return { ...checks, inventedNumbers: invented, missed, assumed: assumedOf(expect.said, parsed, words), unsure: parsed.unsure.length, score: scored.filter(Boolean).length, of: scored.length };
+  return { ...checks, inventedNumbers: invented, missed, assumed: assumedOf(expect.said, parsed, words, filled), raised: byResolver ? parsed.unsure.length > 0 : null, unsure: parsed.unsure.length, score: scored.filter(Boolean).length, of: scored.length };
 }
 
+/** A span's kind as the judge compares it: trimmed, lower case, null when there's none. Pure. */
+const kindOf = (k) => (k == null ? null : String(k).trim().toLowerCase() || null);
+/** The two kinds that are a whole season's game. */
+const whole = (k) => k === "season" || k === "rest";
+/** Whether a reading is about anything: a show, a sport, a league, a team or an event. Pure. */
+const aboutSomething = (a) => !!(a && (a.show || a.sport || a.league || (a.teams || []).length || a.event));
+
 /**
- * The choices of how picks are got that the bot filled in and the words never said (an order or an ownership: "own
- * exclusive"), as "key value". Said means the corpus's `said` has it or the words name the value ("blind"). Not a miss: the
- * prompt lets in what they "plainly meant", and a sports draft is usually one each. It's what G1's resolver should show as a
- * default it chose, not as theirs. Only words count as values (anything else isn't a choice the shape has). Pure.
+ * What the bot filled in that the words never said, as "key value": a choice of how picks are got (an order or an
+ * ownership: "own exclusive"; said means the corpus's `said` has it or the words name the value, "blind"), and `span`, the
+ * whole-season span judge found filled in for a request that said none ("when season"). Not misses: the prompt lets in
+ * what they "plainly meant", a sports draft is usually one each, and a game for a show is a game for its season. It's what
+ * G1's resolver should show as a default it chose, not as theirs. Only words count as values (anything else isn't a choice
+ * the shape has). Pure.
  */
-function assumedOf(said, parsed, words = "") {
+function assumedOf(said, parsed, words = "", span = null) {
   const get = parsed.game.get || {};
   const named = (v) => new RegExp(`\\b${v.replace(/[^a-z]/gi, "")}\\b`, "i").test(String(words));
-  return ["order", "own"].filter((k) => typeof get[k] === "string" && get[k].trim() && !(said && said[k] !== undefined) && !named(get[k])).map((k) => `${k} ${get[k]}`);
+  const picks = ["order", "own"].filter((k) => typeof get[k] === "string" && get[k].trim() && !(said && said[k] !== undefined) && !named(get[k])).map((k) => `${k} ${get[k]}`);
+  return [...picks, ...(span ? [`when ${span}`] : [])];
 }
 
 // ---------- P2's table: how well the bot understood, by group (the tapes only) ----------
@@ -165,15 +197,18 @@ const CHECKS = ["about", "season", "when", "invented", "flagged", "carried"];
 
 /**
  * The words tapes judged with today's judge, by group: { groups: [{ group, asked, of, checks, passed, misses: { check: n } }],
- * misses: [{ id, group, words, failed, expect, read }] } over `requests` (the corpus's) and `tapes` (words\<id>.json).
- * A tape that didn't parse is a miss of every check. Pure.
+ * misses: [{ id, group, words, failed, expect, read }], assumed: [{ id, words, assumed }] (what the bot filled in: assumedOf),
+ * resolver: [{ id, words, flag, why, raised, unsure }] (the resolver's questions, not judged) } over `requests` (the
+ * corpus's) and `tapes` (words\<id>.json). A tape that didn't parse is a miss of every check. Pure.
  */
 function reportOf(requests, tapes) {
   const byId = new Map(tapes.map((t) => [t.id, t]));
   const groups = new Map();
   const misses = [];
-  // Choices the bot filled in that weren't said (assumedOf): not misses, listed for G1.
+  // What the bot filled in that wasn't said (assumedOf: how picks are got, a whole-season span): not misses, listed for G1.
   const assumed = [];
+  // Questions the resolver should ask (flagBy "resolver"): not judged, listed with whether the bot raised something anyway.
+  const resolver = [];
   for (const req of requests) {
     const g = groups.get(req.group) || groups.set(req.group, { group: req.group, asked: 0, of: 0, checks: 0, passed: 0, misses: {} }).get(req.group);
     g.of++;
@@ -187,6 +222,7 @@ function reportOf(requests, tapes) {
     g.passed += ok ? j.score : 0;
     for (const c of failed) g.misses[c] = (g.misses[c] || 0) + 1;
     if (j && j.assumed.length) assumed.push({ id: req.id, words: req.words, assumed: j.assumed });
+    if (j && j.raised !== null) resolver.push({ id: req.id, words: req.words, flag: req.expect.flag, why: req.expect.why || null, raised: j.raised, unsure: t.parsed.unsure });
     if (failed.length) {
       const p = t.parsed || {};
       const read = ok
@@ -202,7 +238,7 @@ function reportOf(requests, tapes) {
       misses.push({ id: req.id, group: req.group, words: req.words, failed, expect: req.expect, read });
     }
   }
-  return { groups: [...groups.values()], misses, assumed };
+  return { groups: [...groups.values()], misses, assumed, resolver };
 }
 
 /**
@@ -220,7 +256,7 @@ function reportMarkdown(r) {
   const lines = [
     `# Start a game's words corpus: how well the bot understood`,
     ``,
-    `${n("asked")} of ${n("of")} request(s) on tape; ${n("passed")} of ${n("checks")} checks as expected (tapes-words.js judge, today's). Checks: about (the show, else the sport or a team), season (as said, else none), when (the span's kind, else none), invented (no number they didn't say), flagged (an expected question or refusal shows as unsure), carried (what they said, where the draft shape has a place for it).`,
+    `${n("asked")} of ${n("of")} request(s) on tape; ${n("passed")} of ${n("checks")} checks as expected (tapes-words.js judge, today's). Checks: about (the show, else the sport or a team), season (as said, else none), when (the span's kind, else none; "season" and "rest" read as one, and either for a span nobody said is assumed), invented (no number they didn't say), flagged (an expected question or refusal the request can raise shows as unsure; the resolver's are listed below, not judged), carried (what they said, where the draft shape has a place for it).`,
     ``,
     `| Group | On tape | Checks as expected | Misses |`,
     `|---|---|---|---|`,
@@ -233,13 +269,18 @@ function reportMarkdown(r) {
     lines.push(`- **${m.id}** (${m.group}) "${m.words}": ${m.failed.join(", ")}.`);
     if (m.read.message) lines.push(`  - ${m.read.message}`);
     else {
-      lines.push(`  - expected: ${JSON.stringify({ about: m.expect.about, ...(m.expect.resolves ? { resolves: m.expect.resolves } : {}), when: m.expect.when, said: m.expect.said, flag: m.expect.flag })}`);
+      lines.push(`  - expected: ${JSON.stringify({ about: m.expect.about, ...(m.expect.resolves ? { resolves: m.expect.resolves } : {}), when: m.expect.when, said: m.expect.said, flag: m.expect.flag, ...(m.expect.flagBy ? { flagBy: m.expect.flagBy } : {}) })}`);
       lines.push(`  - read: about ${m.read.about}; when ${m.read.when}; game ${JSON.stringify(m.read.game)}; unsure ${JSON.stringify(m.read.unsure)}${m.read.invented.length ? `; invented ${m.read.invented.join(", ")}` : ""}${m.read.missed.length ? `; didn't carry ${m.read.missed.join(", ")}` : ""}`);
     }
   }
   if ((r.assumed || []).length) {
     lines.push(``, `## Assumed (filled in, never said; not misses)`, ``);
     for (const a of r.assumed) lines.push(`- **${a.id}** "${a.words}": ${a.assumed.join(", ")}`);
+  }
+  if ((r.resolver || []).length) {
+    const raised = r.resolver.filter((x) => x.raised).length;
+    lines.push(``, `## The resolver's to ask (not judged)`, ``, `Questions and refusals that need the listing, the schedule, the cast or what the app can do, which a request with no web search can't know (the corpus's flagBy "resolver"). The bot put something in unsure anyway in ${raised} of ${r.resolver.length} (whatever it was: each is quoted).`, ``);
+    for (const x of r.resolver) lines.push(`- **${x.id}** "${x.words}": ${x.flag}, ${x.why || "no reason given"}; ${x.raised ? `raised: ${JSON.stringify(x.unsure)}` : "not raised"}`);
   }
   return lines.join("\n") + "\n";
 }

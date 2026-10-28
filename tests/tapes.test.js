@@ -160,9 +160,13 @@ test("the words corpus: unique ids, every request with its expected reading", ()
   assert.ok(corpus.requests.length >= 100);
   for (const r of corpus.requests) {
     assert.ok(r.words && r.group && r.expect, r.id);
-    assert.ok(["season", "rest", "next", "one", "series", "from", "through", null].includes(r.expect.when), `${r.id} when`);
+    const kinds = ["season", "rest", "next", "one", "series", "from", "through", null];
+    if (Array.isArray(r.expect.when)) assert.ok(r.expect.when.length > 1 && r.expect.when.every((k) => kinds.includes(k)), `${r.id} when`);
+    else assert.ok(kinds.includes(r.expect.when), `${r.id} when`);
     assert.ok([null, "question", "refuse"].includes(r.expect.flag), `${r.id} flag`);
     if (r.expect.flag) assert.ok(r.expect.why, `${r.id} says why`);
+    // Only the resolver's, and only on a flag: anything else would quietly change how it's judged.
+    assert.ok(r.expect.flagBy === undefined || (r.expect.flagBy === "resolver" && r.expect.flag), `${r.id} flagBy`);
   }
 });
 
@@ -186,7 +190,7 @@ test("a request read from an answer, every part there", () => {
 test("judging a reading: the show, the season, the span, numbers invented, a question flagged", () => {
   const expect = { about: { show: "The Traitors (US)", season: "5" }, when: "one", flag: "question", why: "x" };
   const good = W.parseRequest('{"about": {"show": "The Traitors", "season": 5}, "when": {"kind": "one"}, "game": {"get": {"each": 3}}, "unsure": ["season 5 is past episode 2"]}');
-  assert.deepEqual(W.judge(expect, good, "traitors 5, draft 3 each"), { about: true, season: true, when: true, invented: true, flagged: true, carried: null, inventedNumbers: [], missed: [], assumed: [], unsure: 1, score: 5, of: 5 });
+  assert.deepEqual(W.judge(expect, good, "traitors 5, draft 3 each"), { about: true, season: true, when: true, invented: true, flagged: true, carried: null, inventedNumbers: [], missed: [], assumed: [], raised: null, unsure: 1, score: 5, of: 5 });
   const bad = W.parseRequest('{"about": {"show": "Survivor"}, "when": {"kind": "rest"}, "game": {"get": {"each": 4}, "score": [{"for": "a win", "points": 1}]}}');
   const j = W.judge(expect, bad, "traitors, draft 3 each, a point for a win");
   assert.equal(j.about, false);
@@ -206,11 +210,68 @@ test("judging: what wasn't said must come back empty", () => {
   const invents = W.parseRequest('{"about": {"show": "Survivor", "season": "51"}, "when": {"kind": "season"}}');
   const j = W.judge(expect, invents, "survivor league");
   assert.equal(j.season, false, "a season nobody said");
-  assert.equal(j.when, false, "a span nobody said");
+  // A game for a show is a game for its season: "season" (or "rest") for a span nobody said is a default filled in, listed.
+  assert.equal(j.when, true);
+  assert.deepEqual(j.assumed, ["when season"]);
+  const one = W.judge(expect, W.parseRequest('{"about": {"show": "Survivor"}, "when": {"kind": "one"}}'), "survivor league");
+  assert.deepEqual([one.when, one.assumed], [false, []], "one episode nobody said");
   const subject = W.judge({ about: {}, when: null, flag: "refuse", why: "x" }, W.parseRequest('{"about": {"show": "Survivor"}}'), "draft the moon landing");
   assert.equal(subject.about, false, "a show nobody said");
   const year = W.judge({ about: { show: "The Traitors (US)", season: "5" }, when: null, flag: null }, W.parseRequest('{"about": {"show": "The Traitors", "season": "Season 5 (2026)"}}'), "traitors 5");
   assert.equal(year.season, true, "the season's number, not its year");
+});
+
+test("judging: the kinds the corpus lists, a show's whole season as a default, numbers the corpus expects, and the resolver's questions", () => {
+  // "this season": rest or season (a request can't tell whether it's begun); "the rest of the way": rest only.
+  const open = { about: { show: "The Traitors (US)", season: null }, when: ["rest", "season"], flag: null, said: { players: 1 } };
+  const read = W.parseRequest('{"about": {"show": "The Traitors"}, "when": {"kind": "season"}, "game": {"players": 1}}');
+  const j = W.judge(open, read, "Just me, I want to see how well I can predict the Traitors this season");
+  assert.deepEqual([j.when, j.invented, j.assumed], [true, true, []], "'just me' is the corpus's 1");
+  const rest = { ...open, when: "rest" };
+  assert.equal(W.judge(rest, read, "dwts the rest of the way").when, false, "named: the one kind only");
+  assert.equal(W.judge(rest, W.parseRequest('{"about": {"show": "The Traitors"}, "when": {"kind": " Rest "}}'), "the rest of the way").when, true, "a capital is still the kind");
+  assert.equal(W.judge({ ...open, when: "next" }, read, "the traitors").when, false);
+  assert.equal(W.judge({ about: { show: "Survivor" }, flag: null }, W.parseRequest('{"about": {"show": "Survivor"}}'), "survivor").when, true, "no when given is none said");
+  // A plain null on a request about a show takes the whole season as the bot's default (listed); about nothing, it doesn't.
+  const none = { about: { show: "Survivor", season: null }, when: null, flag: null };
+  const j1 = W.judge(none, W.parseRequest('{"about": {"show": "Survivor"}, "when": {"kind": "rest"}}'), "survivor league");
+  assert.deepEqual([j1.when, j1.assumed], [true, ["when rest"]]);
+  const moon = W.judge({ about: {}, when: null, flag: "refuse", why: "x" }, W.parseRequest('{"when": {"kind": "season"}, "unsure": ["the moon landing"]}'), "draft the moon landing");
+  assert.deepEqual([moon.when, moon.assumed, moon.flagged], [false, [], true]);
+  // A span said as no one kind: any of the kinds listed; the plain null's default doesn't apply.
+  const two = { about: { show: "Survivor", season: "51" }, when: ["one", "from", null], flag: "question", why: "two spans" };
+  for (const [kind, ok] of [["one", true], ["from", true], [null, true], ["season", false]]) {
+    const j2 = W.judge(two, W.parseRequest(JSON.stringify({ about: { show: "Survivor", season: 51 }, when: { kind }, unsure: ["two spans"] })), "only the finale of survivor 51, starting episode 3");
+    assert.deepEqual([j2.when, j2.assumed], [ok, []], String(kind));
+  }
+
+  // Numbers: the corpus's at its own key only (a start of 1 is still invented), and only a number (not a yes).
+  assert.deepEqual(W.judge({ ...open, said: {} }, read, "Just me").inventedNumbers, [1], "not in the corpus, not in the words");
+  assert.deepEqual(W.judge(open, W.parseRequest('{"about": {"show": "The Traitors"}, "game": {"players": 1, "count": {"start": 1}}}'), "Just me").inventedNumbers, [1]);
+  assert.deepEqual(W.judge({ ...open, said: { computer: true } }, W.parseRequest('{"about": {"show": "The Traitors"}, "game": {"get": {"computer": 1}}}'), "me against the computer").inventedNumbers, [1]);
+
+  // About something: a show, a sport, a league, a team or an event. For a request about nothing, any of them is a miss,
+  // and an expected refusal with one read and nothing unsure isn't raised.
+  const nothing = { about: {}, when: null, flag: "refuse", why: "not a show" };
+  for (const about of [{ event: "the moon landing" }, { league: "NFL" }]) {
+    const x = W.judge(nothing, W.parseRequest(JSON.stringify({ about })), "draft the moon landing");
+    assert.deepEqual([x.about, x.flagged], [false, false], JSON.stringify(about));
+  }
+  assert.deepEqual(W.judge(nothing, W.parseRequest("{}"), "draft the moon landing").flagged, true, "nothing it's about");
+
+  // The resolver's question (it needs the listing): not judged; `raised`: whether the bot put anything in unsure anyway.
+  const late = { about: { show: "The Challenge", season: null }, when: null, flag: "question", flagBy: "resolver", why: "the finale airs today" };
+  const quiet = W.judge(late, W.parseRequest('{"about": {"show": "The Challenge"}}'), "a draft for the challenge");
+  assert.deepEqual([quiet.flagged, quiet.raised, quiet.of], [null, false, 4]);
+  assert.equal(W.judge(late, W.parseRequest('{"about": {"show": "The Challenge"}, "unsure": ["which season"]}'), "a draft for the challenge").raised, true);
+  // A reading that missed the show didn't raise anything: that's the about check's miss.
+  const missed = W.judge(late, W.parseRequest("{}"), "a draft for the challenge");
+  assert.deepEqual([missed.about, missed.raised], [false, false]);
+  assert.equal(W.judge({ ...late, flagBy: undefined }, W.parseRequest('{"about": {"show": "The Challenge"}}'), "a draft for the challenge").flagged, false, "the request's own");
+  const r = W.reportOf([{ id: "b1", group: "casual", words: "a draft for the challenge", expect: late }], [{ id: "b1", ok: true, parsed: W.parseRequest('{"about": {"show": "The Challenge"}}') }]);
+  assert.deepEqual(r.resolver, [{ id: "b1", words: "a draft for the challenge", flag: "question", why: "the finale airs today", raised: false, unsure: [] }]);
+  assert.match(W.reportMarkdown(r), /## The resolver's to ask \(not judged\)[\s\S]*put something in unsure anyway in 0 of 1[\s\S]*b1.*question, the finale airs today; not raised/);
+  assert.equal(W.assumedOf({}, W.parseRequest('{"when": {"kind": "season"}}'), "survivor", "season")[0], "when season");
 });
 
 test("judging numbers: number words and commas are said; a number as a string is checked", () => {
@@ -247,11 +308,12 @@ test("the words report: by group, what's on tape, the checks, and each miss with
     { id: "a3", ok: false, parsed: null, message: "no JSON" },
   ];
   const r = W.reportOf(requests, tapes);
-  assert.deepEqual(r.groups.map((g) => [g.group, g.asked, g.of, g.passed, g.checks]), [["casual", 2, 2, 6, 9], ["nonsense", 1, 2, 0, 1]]);
-  assert.deepEqual(r.groups[0].misses, { when: 1, invented: 1, carried: 1 });
-  assert.deepEqual(r.misses.map((m) => [m.id, m.failed]), [["a2", ["when", "invented", "carried"]], ["a3", ["no answer"]]]);
+  assert.deepEqual(r.groups.map((g) => [g.group, g.asked, g.of, g.passed, g.checks]), [["casual", 2, 2, 7, 9], ["nonsense", 1, 2, 0, 1]]);
+  assert.deepEqual(r.groups[0].misses, { invented: 1, carried: 1 });
+  assert.deepEqual(r.misses.map((m) => [m.id, m.failed]), [["a2", ["invented", "carried"]], ["a3", ["no answer"]]]);
   assert.deepEqual(r.misses[0].read.invented, [4]);
-  assert.match(W.reportMarkdown(r), /3 of 4 request\(s\) on tape; 6 of 10 checks/);
+  assert.deepEqual(r.assumed, [{ id: "a2", words: "traitors 5 draft 3 each", assumed: ["when season"] }]);
+  assert.match(W.reportMarkdown(r), /3 of 4 request\(s\) on tape; 7 of 10 checks/);
 
   // A choice filled in that nobody said is listed, not a miss.
   const own = W.reportOf([requests[1]], [{ id: "a2", ok: true, parsed: W.parseRequest('{"about": {"show": "The Traitors", "season": 5}, "game": {"get": {"each": 3, "own": "exclusive", "order": null}}}') }]);
