@@ -430,8 +430,8 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   session: part 1, soccer (built 2026-10-28: As built below); part 2, college (basketball, football, baseball, hockey) and the
   WNBA; then golf and racing (FieldSport); then MMA and tennis (BoutSport).
   - **Part 2 split in three (2026-10-28):** 2a, college basketball and the WNBA (built: As built below); 2b, college football
-    (its own grammar of plays, on Football's vocabulary and box reader: a session of its own); 2c, college baseball and college
-    hockey.
+    (its own grammar of plays, on Football's vocabulary and box reader: a session of its own); 2c, college baseball (its own
+    box and names, below). **College hockey isn't readable from ESPN** (looked at in 2a, below): left out, as boxing is.
 - **L6. Release:** `sports` merges into master at once (migrations checked against a production backup first), then G3
   teaches the GPT these formats.
 - Its screens (the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync, each format's
@@ -579,7 +579,9 @@ Part 2's Noticed item, taken. Each difference was a count, read against ESPN's d
 - **A tie for "the most"**: the 76ers opener's top scorers tied at 32. The `stat: most` settle needs its rule (both right, as
   A4's closest number does). (L4, with A4's questions.)
 - ~~**`GameState.score` is empty before the first play**~~ (no teams yet): **done** in L2 (each side at 0 from the header).
-- **College baseball reads as Baseball but isn't checked**: its box scores are thinner (L5, with college).
+- **College baseball reads as Baseball but isn't checked**: its box scores are thinner (L5, with college). **Checked** in L5
+  part 2a: it isn't read right (its box below), so `sportOf("baseball/college-baseball")` is null since (Baseball reads the MLB
+  only) until 2c reads it.
 - ~~**A game's plays are ~60% pitches**~~ (~450 Plays, a few hundred KB as JSON): fine for the phone, which reads ESPN's summary
   (~1 MB) anyway. **L2:** reading a whole answer takes 2-5 ms in Node, every 15 s.
 
@@ -1222,6 +1224,22 @@ app, nothing stored).** Master still hadn't A1-A4 (the main session's order). Co
   bench technicals): a screen counts them from the plays, its players' fouls and its technicals. (U1, with the scorebug.)
 - **The WNBA's first live game is still to record**: its Finals' Game 6 is 2026-10-29 at Atlanta (the Valkyries lead 3-2; Game
   7, if needed, 10-31), `record-espn-live.js --league=basketball/wnba`. College basketball's season starts in November.
+
+**College hockey and college baseball, looked at in 2a (2026-10-28) for 2c:**
+- **College hockey isn't readable from ESPN.** Its regular season's summaries have only the score: 44 of 44 men's games of
+  October 2026 and 12 of 12 women's, no box lines and no plays. The men's NCAA tournament's do (7 of 7, March and April 2026):
+  a box (goals, assists, shots, +/-, penalties; a goalie's shots against and saves; hits, blocks, takeaways, faceoffs, ice time
+  all 0) and plays that are only its goals and penalties ("Even Strength Goal Scored by Kyle Chyzowski assisted by Brendan
+  McMorrow and Kieran Cebrian", "Penalty to Tyler Duke 2 minutes for Holding"), **every one stamped with the same wallclock**,
+  written after the game, and a double overtime's winner typed "Shootout GOAL scored by" in "2nd OT". So no live play by play
+  and no game outside the tournament: `sportOf("hockey/mens-college-hockey")` stays null. A tournament game's final could be
+  read as a final only (G, A, PIM, a goalie's saves) if a game ever asks for one. (Backlog, with boxing.)
+- **College baseball needs its own reading (2c).** Its plays are the MLB's shape (pitches, "Start Batter/Pitcher", "X.
+  Mercurius pitches to J. Schaffner", play results "J. Walk singled to center."), names as an initial and a last name (which
+  `callNames` already says). Its box is another: batting H-AB AB R H RBI HR BB K #P AVG OBP SLG with **#P 0 for everyone**, and
+  pitching IP H R ER BB K HR PC-ST ERA PC with **some pitchers named "Hunter - P Elliott"** (a two-way player's position in his
+  name), so the reader's outs and strikes go to nobody (Ole Miss–Troy, 2026-06-14: a starter's 14 outs read as 3). 2c: the
+  box's own names and columns, then the proof on the 2026 season's days and the College World Series.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

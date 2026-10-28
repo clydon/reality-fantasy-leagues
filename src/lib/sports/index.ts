@@ -1,8 +1,9 @@
 // The sports (docs/PLAN-start-a-game-gpt.md track L): one class per sport, found by ESPN's sport slug, the first half of a
-// league's path ("baseball" of "baseball/mlb", and of "baseball/college-baseball"; "basketball" of "basketball/nba" and
-// "basketball/wnba"; a sport can name the leagues it reads, so a slug can have more than one: college basketball is its own
-// feed, an instance a league, the men's halves and the women's quarters; "football" of "football/nfl", not college football,
-// whose plays are written otherwise; "soccer" of every soccer league, which ESPN writes alike: "soccer/eng.1", "soccer/usa.1",
+// league's path ("baseball" of "baseball/mlb", not yet college baseball, whose box is another; "basketball" of
+// "basketball/nba" and "basketball/wnba"; a sport can name the leagues it reads, so a slug can have more than one: college
+// basketball is its own feed, an instance a league, the men's halves and the women's quarters; "football" of "football/nfl",
+// not college football, whose plays are written otherwise; "hockey" of "hockey/nhl", not college hockey, which ESPN carries
+// as scores; "soccer" of every soccer league, which ESPN writes alike: "soccer/eng.1", "soccer/usa.1",
 // "soccer/uefa.champions"). Golf, racing, MMA and tennis come in L5.
 // A game's clock for someone (clock.ts) and a game live on the phone (live.ts) are L2's.
 import { Baseball } from "./baseball";

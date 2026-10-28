@@ -267,6 +267,9 @@ export class Baseball extends TeamSport {
   readonly stats = STATS;
   readonly periods: Periods = { word: "inning", plural: "innings", regulation: 9, extra: "extra innings" };
   readonly lock: LockCadence = "daily";
+  // College baseball's box is ESPN's other (no pitches seen, a pitcher's name as "Hunter - P Elliott"), so it isn't read as the
+  // MLB's: L5 part 2c.
+  readonly leagues = ["mlb"];
 
   /** "Top 3rd", "Bottom 10th". */
   where(play: Pick<Play, "period" | "half" | "clock" | "shootout">): string {

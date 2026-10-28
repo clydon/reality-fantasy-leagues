@@ -19,7 +19,7 @@ const nameOf = (box, name) => Object.values(box.people).find((p) => p.name === n
 
 test("Baseball's vocabulary: unique stat keys in its groups, positions in its groups, nine innings, daily locks", () => {
   assert.equal(baseball.id, "baseball");
-  assert.equal(sportOf("baseball/college-baseball"), baseball);
+  assert.equal(sportOf("baseball/college-baseball"), null, "college's box is another (no pitches seen; names otherwise): L5 part 2c");
   assert.equal(sportById("baseball"), baseball);
   assert.equal(sportOf("curling/olympics"), null, "not a sport here");
   assert.ok(allSports().includes(baseball));
