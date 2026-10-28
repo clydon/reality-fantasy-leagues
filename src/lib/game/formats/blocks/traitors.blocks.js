@@ -102,6 +102,17 @@ module.exports = {
       fooledToTheEnd: -2,
       banishedInFinale: -2,
     },
+    // What a moment says about someone's place in the game, as traitors.js has it (moment-tags.js; the computer players
+    // read them): lived through being accused or considered for murder is danger, and voting out a Traitor is with the
+    // numbers. Its Round Table keeps nobody off the chopping block for a Safety ranking (Survivor's Tribal does), so its
+    // votes say only that.
+    momentNotes: {
+      roundTableZeroVotes: { tags: ['safe'] },
+      roundTableSurvivedVotes: { tags: ['danger'] },
+      traitorsCaughtAtRoundTable: { tags: ['safe'] },
+      consideredForMurder: { tags: ['danger'] },
+      accusedAtRoundTable: { tags: ['danger'] },
+    },
     leftOut: [],
   },
   aliases: {

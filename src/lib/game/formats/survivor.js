@@ -35,32 +35,34 @@ const exitMethods = ['Voted Out','Medically Evacuated','Quit','Lost Fire-Making'
 //     edge rather than the whole race. Strategic one-offs (idols, surviving votes) are the same in both:
 //     they're spread across the cast rather than concentrated on the winner.
 // Every value is a default: a league's own settings override it, and 0 switches a category off.
+// `tags` say what a moment means for someone's place in the game (moment-tags.js), which the computer players and the
+// Safety ranking read: the same as Survivor's blocks compile to (tests/rulebook-golden.test.js).
 const events = [
-  { id: 'individualImmunity', label: 'Individual immunity win', defaultPoints: { exclusive: 3, shared: 4 } },
+  { id: 'individualImmunity', label: 'Individual immunity win', defaultPoints: { exclusive: 3, shared: 4 }, tags: ['threat', 'safety'] },
   { id: 'challengeRunnerUp', label: 'Individual challenge: 2nd place', defaultPoints: { exclusive: 1.5, shared: 2 } },
   { id: 'challengeThird', label: 'Individual challenge: 3rd place', defaultPoints: 1 },
   { id: 'tribeImmunity', label: 'Tribe/team immunity win', defaultPoints: 1 },
   { id: 'rewardWin', label: 'Reward win', defaultPoints: { exclusive: 1, shared: 1.5 } },
   // Picked by a reward winner to go along: a read on who the winner trusts or needs.
   { id: 'chosenForReward', label: 'Chosen to join a reward (without winning it)', defaultPoints: 0.5 },
-  { id: 'idolFound', label: 'Idol/advantage found', defaultPoints: 2 },
-  { id: 'idolPlayed', label: 'Idol/advantage played', defaultPoints: 1 },
+  { id: 'idolFound', label: 'Idol/advantage found', defaultPoints: 2, tags: ['protectionGained'] },
+  { id: 'idolPlayed', label: 'Idol/advantage played', defaultPoints: 1, tags: ['protectionUsed'] },
   // Tracked at 0 on purpose: whether research can tell this reliably (it lives in recaps, not tables)
   // is being checked against the episodes before it's worth anything. Private knowledge only (alone,
   // or within an alliance or small group -- not an idol everyone saw played at Tribal), and once per
   // advantage, or it becomes one of the most frequent events in the game. See
   // docs/RESEARCH-scoring-values.md.
   { id: 'learnedOfAdvantage', label: 'Learned of an idol/advantage (privately)', defaultPoints: 0 },
-  { id: 'votesNegated', label: 'Played an idol/advantage that cancelled votes', defaultPoints: 2 },
+  { id: 'votesNegated', label: 'Played an idol/advantage that cancelled votes', defaultPoints: 2, tags: ['protectionUsed'] },
   // Picked to go on a journey: a shot at an advantage, often at a risk (a lost vote), so it's worth
   // something but less than actually finding one (1 vs 2) -- and finding one there scores idolFound too.
   { id: 'wentOnJourney', label: 'Went on a journey', defaultPoints: 1 },
   // Scored from the episode's exile record (impliedEvents), but 0 by default: whether exile helps or
   // hurts is a live question this season (see EpisodeLogic.addExiled). A league can set it either way.
   { id: 'wentToExile', label: 'Sent to Exile', defaultPoints: 0, implied: true },
-  { id: 'votedWithMajority', label: 'Voted with the majority (voted for who went home)', defaultPoints: { exclusive: 0.5, shared: 1 } },
-  { id: 'zeroVotesSafe', label: 'Safe at Tribal, zero votes against', defaultPoints: { exclusive: 0.5, shared: 1 } },
-  { id: 'survivedVotes', label: 'Received votes at Tribal but survived', defaultPoints: 1.5 },
+  { id: 'votedWithMajority', label: 'Voted with the majority (voted for who went home)', defaultPoints: { exclusive: 0.5, shared: 1 }, tags: ['safe'] },
+  { id: 'zeroVotesSafe', label: 'Safe at Tribal, zero votes against', defaultPoints: { exclusive: 0.5, shared: 1 }, tags: ['safe', 'safety'] },
+  { id: 'survivedVotes', label: 'Received votes at Tribal but survived', defaultPoints: 1.5, tags: ['danger', 'safety'] },
   // Bad news, so negative: a stolen or blocked vote hurts, and sitting out usually marks a weak challenger.
   { id: 'advantageTargeted', label: 'Had an advantage used against them', defaultPoints: -0.5 },
   { id: 'satOut', label: 'Sat out a challenge', defaultPoints: -0.5 },
@@ -646,6 +648,11 @@ const data = {
     episodeFields,
     searchHint: researchSearchHint,
     claims: researchClaims,
+    // Before the merge each Tribal is one tribe's, so someone at it on another tribe is most likely a missed swap
+    // (db/episode-research.js tribalGroupProblems).
+    groupVotes: [
+      { attended: 'attendedTribal', say: "{name} was at {group}'s Tribal but was still on {was}: added a move to {group} (reject it in review if that's wrong)" },
+    ],
   },
   rules: { research: researchRules, implied: impliedRules },
 };

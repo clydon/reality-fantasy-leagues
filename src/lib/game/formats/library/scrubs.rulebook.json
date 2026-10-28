@@ -351,115 +351,137 @@
       {
         "id": "patientEmergency",
         "label": "A patient emergency develops",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "difficultDiagnosis",
         "label": "A difficult diagnosis is pursued",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "ethicalDilemma",
         "label": "A medical or ethical dilemma arises",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "medicalMistake",
         "label": "A character makes a medical or professional mistake",
-        "defaultPoints": -1
+        "defaultPoints": -1,
+        "tags": []
       },
       {
         "id": "careerDecision",
         "label": "A character faces a consequential career decision",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "mentorshipMoment",
         "label": "A character teaches or mentors a colleague",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "romanceBegins",
         "label": "A romantic relationship begins",
-        "defaultPoints": 3
+        "defaultPoints": 3,
+        "tags": []
       },
       {
         "id": "romanceEnds",
         "label": "A romantic relationship ends",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "argument",
         "label": "A significant argument occurs",
-        "defaultPoints": -1
+        "defaultPoints": -1,
+        "tags": []
       },
       {
         "id": "friendshipReaffirmed",
         "label": "A friendship is explicitly reaffirmed",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "fantasySequence",
         "label": "An elaborate fantasy sequence occurs",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "imaginaryScenario",
         "label": "An imagined scenario contradicts ordinary reality",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "emotionalConfession",
         "label": "A character makes an emotional confession",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "narrationPunchline",
         "label": "Closing narration delivers a comic observation",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "characterWrittenOut",
         "label": "Character Written Out",
         "defaultPoints": -3,
-        "implied": true
+        "implied": true,
+        "tags": []
       },
       {
         "id": "characterKilledOff",
         "label": "Character Killed Off",
         "defaultPoints": -3,
-        "implied": true
+        "implied": true,
+        "tags": []
       },
       {
         "id": "seasonEnds",
         "label": "Season Ends",
         "defaultPoints": 3,
-        "implied": true
+        "implied": true,
+        "tags": []
       },
       {
         "id": "breaksIntoSong",
         "label": "A character breaks into song",
-        "defaultPoints": 3
+        "defaultPoints": 3,
+        "tags": []
       },
       {
         "id": "breaksFourthWall",
         "label": "A character directly acknowledges the audience",
-        "defaultPoints": 3
+        "defaultPoints": 3,
+        "tags": []
       },
       {
         "id": "apology",
         "label": "A character apologizes to another character",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "characterInDangerSurvives",
         "label": "A character faces danger and survives",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "unexpectedVisitor",
         "label": "An unexpected visitor appears",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       }
     ],
     "eventCategories": [
@@ -690,6 +712,13 @@
           "type": "answer",
           "description": "An unexpected visitor appears, this episode: yes, no, or unknown.",
           "note": "an unexpected visitor appears"
+        },
+        {
+          "key": "notableTwist",
+          "type": "string",
+          "nullable": true,
+          "note": "{value}",
+          "description": "Any other notable, checkable thing that happened to this person this episode, in one short phrase. Null if nothing."
         },
         {
           "key": "sources",

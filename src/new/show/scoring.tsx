@@ -23,6 +23,14 @@ import { Stepper } from "../backstage/waivers";
 const STEP = 0.5;
 const LIMIT = 20;
 const pts = (n: number) => `${n > 0 ? "+" : n < 0 ? "−" : ""}${Math.abs(n)}`;
+const clamp = (n: number) => Math.max(-LIMIT, Math.min(LIMIT, n));
+
+/** A moment's worth: one number, or two where it's worth something else when castaways can be on several teams (its
+ *  `shared`, which − and + move with it). */
+type Worth = { points: number; shared: number | null };
+const worthOf = (m: ScoringMoment): Worth => ({ points: m.points, shared: m.shared });
+const sameWorth = (a: Worth, b: Worth) => a.points === b.points && a.shared === b.shared;
+const sharedLine = (w: Worth) => (w.shared == null ? null : `${pts(w.shared)} if on several teams`);
 
 /** "Episode 4", "Episodes 1–7", "Episodes 1, 2 and 5". */
 function episodesLabel(ns: number[], one: string, many: string): string {
@@ -44,7 +52,7 @@ export function ScoringScreen({ seasonId }: { seasonId: string }) {
   const nav = useNav();
   const data = useScoring(seasonId);
   const qc = useQueryClient();
-  const [draft, setDraft] = useState<Record<string, number>>({});
+  const [draft, setDraft] = useState<Record<string, Worth>>({});
   const [adding, setAdding] = useState(false);
   const [again, setAgain] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -52,7 +60,12 @@ export function ScoringScreen({ seasonId }: { seasonId: string }) {
   const back = { label: name.replace(/^The /, ""), onClick: () => nav.back(paths.show(seasonId, "cast"), isTabOf(seasonId)) };
   const page = data.data;
   const moments = page?.groups.flatMap((g) => g.moments) ?? [];
-  const changed = Object.fromEntries(Object.entries(draft).filter(([id, v]) => moments.find((m) => m.id === id)?.points !== v));
+  const changed = Object.fromEntries(
+    Object.entries(draft).filter(([id, v]) => {
+      const m = moments.find((x) => x.id === id);
+      return !m || !sameWorth(worthOf(m), v);
+    })
+  );
   const n = Object.keys(changed).length;
 
   const w = show.words;
@@ -71,7 +84,8 @@ export function ScoringScreen({ seasonId }: { seasonId: string }) {
   const save = async () => {
     setBusy(true);
     try {
-      const r = await scoring.save(seasonId, { points: changed });
+      const points = Object.fromEntries(Object.entries(changed).map(([id, v]) => [id, v.shared == null ? v.points : { exclusive: v.points, shared: v.shared }]));
+      const r = await scoring.save(seasonId, { points });
       setDraft({});
       await landed(r, `Saved · every ${show.words.episode.toLowerCase()} counted again`);
     } catch (e) {
@@ -135,16 +149,17 @@ export function ScoringScreen({ seasonId }: { seasonId: string }) {
             <section key={g.id} className="mt-6" data-scoring-group={g.id}>
               <h2 className="type-caption border-b border-border pb-1.5 text-[14px] tracking-[0.04em] text-muted-foreground">{g.label}</h2>
               {g.moments.map((m) => {
-                const v = draft[m.id] ?? m.points;
+                const v = draft[m.id] ?? worthOf(m);
                 const from = m.custom ? (m.uses ? `From: ${page.questions.find((q) => q.key === m.uses)?.words ?? "an answer research gets"}` : "Its own question") : undefined;
+                const was = changed[m.id] !== undefined ? `Was ${pts(m.points)}${m.shared == null ? "" : ` / ${pts(m.shared)}`}` : from;
                 return page.editable ? (
                   <div key={m.id} data-scoring-moment={m.id} className="flex items-center gap-1 border-b border-border py-1.5">
                     <div className="min-w-0 flex-1">
                       <Stepper
                         title={m.label}
-                        line={changed[m.id] !== undefined ? `Was ${pts(m.points)}` : from}
-                        value={pts(v)}
-                        onStep={(d) => setDraft((x) => ({ ...x, [m.id]: Math.max(-LIMIT, Math.min(LIMIT, v + d * STEP)) }))}
+                        line={[was, sharedLine(v)].filter(Boolean).join(" · ") || undefined}
+                        value={pts(v.points)}
+                        onStep={(d) => setDraft((x) => ({ ...x, [m.id]: { points: clamp(v.points + d * STEP), shared: v.shared == null ? null : clamp(v.shared + d * STEP) } }))}
                       />
                     </div>
                     {m.custom && (
@@ -157,7 +172,7 @@ export function ScoringScreen({ seasonId }: { seasonId: string }) {
                   <div key={m.id} data-scoring-moment={m.id} className="flex min-h-[48px] items-center justify-between gap-3 border-b border-border py-1.5">
                     <span className="min-w-0">
                       <span className="block text-[15px] font-semibold">{m.label}</span>
-                      {from && <small className="block text-[13px] text-muted-foreground">{from}</small>}
+                      {(from || m.shared != null) && <small className="block text-[13px] text-muted-foreground">{[from, sharedLine(worthOf(m))].filter(Boolean).join(" · ")}</small>}
                     </span>
                     <b className={`type-num flex-none text-[22px] ${m.points < 0 ? "text-muted-foreground" : ""}`}>{pts(m.points)}</b>
                   </div>

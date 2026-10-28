@@ -80,7 +80,7 @@ test("a problem is located on its row and said plainly", () => {
 
   b = survivor();
   b.waysOut[1].id = "votedOut";
-  assert.match(at(b).join("\n"), /waysOut\[votedOut\]\.id: Lost fire-making: another item already has the id "votedOut"/);
+  assert.match(at(b).join("\n"), /waysOut\[votedOut\]\.id: Medically evacuated: another item already has the id "votedOut"/);
 
   b = survivor();
   b.segments[0].momentsOff = ["rewardChallengeSecond"];
@@ -192,11 +192,15 @@ test("twists, ways out and the finale build theirs", () => {
 
 test("switching a moment off, and suggested points", () => {
   const b = survivor();
-  assert.ok(!ids(momentsFor(b)).includes("rewardChallengeGroupWon"));
+  assert.ok(!ids(momentsFor(b)).includes("advantagesSavedBy"));
   const all = momentsFor(b, { includeOff: true });
-  assert.equal(all.find((m) => m.id === "rewardChallengeGroupWon").off, true, "kept, marked off");
-  b.segments[0].momentsOff = [];
-  assert.ok(ids(momentsFor(b)).includes("rewardChallengeGroupWon"), "switched back on");
+  assert.equal(all.find((m) => m.id === "advantagesSavedBy").off, true, "kept, marked off");
+  b.twists[0].momentsOff = [];
+  assert.ok(ids(momentsFor(b)).includes("advantagesSavedBy"), "switched back on");
+  // A tribe's reward win counted as winning it isn't a moment of its own, even switched off; as its own, it is.
+  assert.ok(!ids(momentsFor(b, { includeOff: true })).includes("rewardChallengeGroupWon"));
+  b.segments[0].groupWin = "own";
+  assert.ok(ids(momentsFor(b)).includes("rewardChallengeGroupWon"));
   b.points = { votedOut: -4, chosenForReward: 1.5 };
   const pts = Object.fromEntries(momentsFor(b).map((m) => [m.id, m.defaultPoints]));
   assert.deepEqual([pts.votedOut, pts.chosenForReward, pts.quit], [-4, 1.5, 0 - 3], "overrides change only their own points");
@@ -205,7 +209,10 @@ test("switching a moment off, and suggested points", () => {
 test("each moment's question reads as a question", () => {
   const q = (blocks, id) => momentsFor(blocks).find((m) => m.id === id).ask.question;
   const s = BUILT_IN_BLOCKS.survivor.blocks;
-  assert.equal(q(s, "immunityChallengeSecond"), "This episode, who came 2nd in the Immunity challenge?");
+  assert.match(q(s, "immunityChallengeSecond"), /^This episode, where each person finished in the Immunity challenge: 1 for the winner, 2 for the runner-up/, "2nd from a place");
+  const each = JSON.parse(JSON.stringify(s));
+  delete each.segments[1].places;
+  assert.equal(q(each, "immunityChallengeSecond"), "This episode, who came 2nd in the Immunity challenge?");
   assert.equal(q(s, "immunityChallengeGroupWon"), "This episode, who was in the tribe that won the Immunity challenge?");
   assert.equal(q(s, "tribalCouncilZeroVotes"), "This episode, how many votes did each person get at Tribal Council?");
   assert.equal(q(s, "learnedOfAdvantage"), "This episode, who learned of an idol or advantage privately?", "a twist isn't a place");
@@ -288,11 +295,11 @@ test("How it works reads like the mock for Survivor", () => {
   assert.deepEqual(v.season.phases.map((p) => [p.name, p.when, p.started]), [["Tribes", "From Episode 1", true], ["Merged", "When about 12 remain", false], ["Finale", "Episode 14", false]]);
   assert.deepEqual(v.season.cells.slice(3, 7).map((c) => [c.n, c.seen, c.next]), [[4, true, false], [5, true, false], [6, false, true], [7, false, false]]);
   assert.equal(v.season.cells[13].finale, true);
-  assert.deepEqual(v.waysOut.out.map((w) => w.name), ["Voted out", "Lost fire-making", "Quit", "Medically evacuated"]);
+  assert.deepEqual(v.waysOut.out.map((w) => w.name), ["Voted out", "Medically evacuated", "Quit", "Lost fire-making"]);
   assert.match(v.waysOut.end, /jury votes for a winner from the final three/);
-  assert.deepEqual(v.twists.items.map((t) => t.name), ["Idols and advantages", "Journeys"]);
+  assert.deepEqual(v.twists.items.map((t) => t.name), ["Idols and advantages", "Journeys", "Exile"]);
   const tribal = v.points.groups.find((g) => g.id === "tribal");
-  assert.deepEqual(tribal.items.find((i) => i.id === "votedOut"), { id: "votedOut", label: "Voted out", points: -3, auto: true, league: false });
+  assert.deepEqual(tribal.items.find((i) => i.id === "votedOut"), { id: "votedOut", momentId: "votedOut", label: "Voted out", points: -3, defaultPoints: -3, auto: true, league: false });
   assert.deepEqual(v.jump.map((j) => j.label), ["Each episode", "The season", "Who's playing", "What scores"]);
   assert.deepEqual(v.games.map((g) => g.name), ["Survival Pool", "Weekly Lineup", "Outlast"]);
 });
@@ -392,8 +399,8 @@ test("the editor's one-liners, per block the kind shows", () => {
     ["Who's playing", "18 castaways, in tribes"],
     ["The season", "Tribes › Merged (when about 12 remain) › Finale"],
     ["Each episode", "Reward challenge, Immunity challenge, Tribal Council, Fire-making"],
-    ["Ways out", "Voted out, Lost fire-making, Quit, Medically evacuated, Finalist, Sole Survivor"],
-    ["Twists", "Idols and advantages, Journeys"],
+    ["Ways out", "Voted out, Medically evacuated, Quit, Lost fire-making, Finalist, Sole Survivor"],
+    ["Twists", "Idols and advantages, Journeys, Exile"],
     ["What scores", "27 moments, suggested points"],
   ]);
   assert.deepEqual(D.blockSummaries(SAMPLES.snl).map((x) => x.block), ["cast", "season", "segments", "points"], "a talk show has no ways out or twists");
