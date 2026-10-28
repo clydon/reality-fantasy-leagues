@@ -1,7 +1,7 @@
 # Plan: the Start-a-game GPT, on games as data
 
-Status: **planned 2026-10-27**, nothing built. The user's idea, their decisions and the order are below; each step is its own
-session (Opus 5.5 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: live sports, its Sport classes and
+Status: **planned 2026-10-27**. **S1 built 2026-10-27** on `survivor-data` (not merged; its As built is under track S). The
+user's idea, their decisions and the order are below; each step is its own session (Opus 5.5 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: live sports, its Sport classes and
 formats, written against this plan's game spec) and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season:
 track S here).
 
@@ -238,6 +238,75 @@ in `PLAN-researched-survivor.md`'s "What the switch needs", with this plan's dec
 - **S3. The switch.** After two episodes with every table matching at today's points, the three real games move onto the data
   rules (with the user's OK). Then `survivor.js`'s code half, `BUILT_IN_READERS` and legacy freezing go, and Traitors' and the
   Challenge's built-ins with them once nothing plays them.
+
+**S1 as built (2026-10-27, `survivor-data`, not merged; no migration).** Survivor's blocks, compiled with no base and the generic
+reader (`compileRulebook(blocks, { aliases, reader: 'research' })`), now give `survivor.js`'s events, questions and rules.
+- **The refinements** (`rulebook-schema.js`; each optional, and leaving one out is what the blocks always did):
+  - a segment's `groupWin: 'won'`: a group's win counts as winning it, so one moment scores on either answer and both are asked
+    (Survivor's reward);
+  - `places: 'place'`: 2nd and 3rd come from one finishing place (`individualChallengeFinish`);
+  - a vote by the cast's `skippedBy: <segment>`: the group that wins it doesn't go, so zero votes needs no tribe immunity;
+  - a finalist way out's `winnerToo: true`: the winner reached the end too. The plan missed this one: with no base, the Sole
+    Survivor got no finalist points;
+  - an advantage's `cancelled: 'count'`: votes cancelled are a count, asked of whoever played one;
+  - a side trip's `away: 'yes'`: exile. It's the episode's exile record and scores from it. Survivor's Exile is now a twist, and
+    a rulebook can have at most one such trip;
+  - a custom moment's `exceptWinners: true`: the segment's winners can't have it (chosen for a reward).
+- **How research asks**, the rulebook's own `research` block:
+  - `searchHint`;
+  - `questions[key]`: `words`, `needsSource: false`, or a `type` (with `of: 'episode'` and its words) for a question asked
+    besides, which scores nothing of its own.
+  - Survivor's blocks carry `survivor.js`'s words for every question, its five unsourced yeses, and its four questions asked
+    besides (what was found, what was played, anything else notable, whether Tribal was held).
+  - On a base, the base keeps its own words.
+  - Words for a question the blocks don't ask are a compile warning, not a refusal, so taking a moment out never gets stuck on
+    them.
+- **The question map**: `aliases.questions`, beside events and exits (`tribalCouncilAttended` → `attendedTribal`, 16 in all), so
+  stored answers keep reading.
+- **Moments carry their conditions** (`rulebook-moments.js`: `also`, `needs`, `unless`, `ask.when`, `exile`). The compiler asks
+  every question a condition reads, including one whose own moment is switched off.
+- **A fix the plan didn't list:** whoever left isn't scored for voting with or against the majority, as they already weren't for
+  votes against them. Every compiled rulebook with a cast vote gets it, but only when it's next compiled. The only one stored in
+  production, The Traitors 5's, scores "voted against" at 0.
+- **The golden test** (`tests/rulebook-golden.test.js`, "Survivor on its own blocks", three tests) compares:
+  - events by id, points and implied;
+  - every question word for word (one deliberate difference: whether Tribal was held now says what it asks);
+  - claims, the search hint, the research schema, and the research and implied rules as sets;
+  - the recap;
+  - the harness's answers staging the same results, and the same exits and exile implying the same events;
+  - demo leagues of every type scoring the same.
+
+  Each refinement taken out makes it fail. The on-a-base golden tests stay as they were: Survivor 51 plays that path until S3.
+- **Different from `survivor.js` on purpose:**
+  - the order of events, rules and questions is the blocks';
+  - event labels and categories are the blocks' (How it works already showed them; classic's scoring card changes at S3);
+  - the wiki read is the generic one (Survivor's is code half);
+  - notes, sentences and the whole-episode checks are still the code half's (S2).
+- **The bot and the editors:**
+  - The rulebook prompt lists the refinements.
+  - A template's research block isn't shown to the chat, and an answer's is left out.
+  - A refinement that doesn't fit its item is dropped, never the item (`dropMisfitRefinements`, used by the review, Make it a
+    game's salvage and the desk editor).
+  - Salvage now also drops a dropped part's points and notes, which used to leave the answer unusable.
+  - Check for changes keeps the rulebook's research block, and rulebook edits carry it.
+- **Cast stats:** a number scored once (2nd place, votes cancelled) counts in times.
+- **What anyone sees today:**
+  - Survivor's call rotation is identical.
+  - How it works for a season read from `rulebookFor` lists Exile as a twist, with the ways out in `survivor.js`'s order.
+- **Checks:**
+  - 761 unit tests;
+  - every other rulebook (library, samples, stored formats, the researched Traitors) compiles exactly as before, bar the
+    majority fix;
+  - `check-new-show.js` (81 PASS) and `check-new-stats.js` (57 PASS) at 390 on this lane's server.
+
+**S1 noticed, not fixed:**
+- **Legacy rows keep the blocks and aliases they were frozen with.** That's Survivor's library template and season rows
+  (`compiled_source 'legacy'`): `behind()` in `db/rulebooks.js` compares only compiled, reader and provenance.
+  - S3 has to move Survivor 51's row and the template onto the new blocks and aliases (questions included) before taking the
+    base away. Otherwise a no-base compile of the old row reads none of the stored answers.
+  - Until then, How it works differs between a season read from its row and one read from `rulebookFor`. (S3.)
+- **The desk editor has no controls for the refinements or the research block.** They're kept through edits and dropped when an
+  edit makes one not fit, but nobody can set them by hand. (The desk-parity plan, or after S2.)
 
 **A. The engine: games as specs** (master).
 - **A1. The game spec, pure, no engine change.**

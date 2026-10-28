@@ -3,7 +3,7 @@ import type { FormatData } from "./index";
 import type { RulebookBlocks } from "./rulebook-schema";
 
 export type RulebookListBlock = "segments" | "waysOut" | "twists" | "customMoments" | "phases";
-export type RulebookSingleBlock = "kind" | "start" | "show" | "tagline" | "premise" | "parts" | "cast" | "finale" | "points" | "momentNotes" | "leftOut";
+export type RulebookSingleBlock = "kind" | "start" | "show" | "tagline" | "premise" | "parts" | "cast" | "finale" | "points" | "momentNotes" | "leftOut" | "research";
 
 export type RulebookOp =
   | { op: "set"; block: RulebookSingleBlock; value: unknown }

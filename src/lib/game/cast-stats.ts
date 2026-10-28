@@ -176,7 +176,9 @@ function statDefs(format: GameFormat, book: StatsBook | null): StatDef[] {
   if (book) {
     for (const m of momentsFor(book.blocks)) {
       if (m.from.wayOut) continue;
-      add({ key: book.aliases?.events?.[m.id] ?? m.id, name: m.label, unit: m.ask && (m.ask.type === "integer" || m.ask.type === "number") ? "" : "times" });
+      // An amount scores per unit; a number with its own test (came 2nd, cancelled any votes) scores once, so it's times.
+      const amount = !!m.ask && (m.ask.type === "integer" || m.ask.type === "number") && !m.ask.when;
+      add({ key: book.aliases?.events?.[m.id] ?? m.id, name: m.label, unit: amount ? "" : "times" });
     }
   }
   for (const e of format.events) if (!e.implied) add({ key: e.id, name: e.label, unit: "times" });

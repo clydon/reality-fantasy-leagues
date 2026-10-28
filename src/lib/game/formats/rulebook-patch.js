@@ -43,7 +43,7 @@ const LISTS = {
   customMoments: { get: (b) => b.customMoments, put: (b, v) => { b.customMoments = v; } },
   phases: { get: (b) => b.season && b.season.phases, put: (b, v) => { b.season = { ...(b.season || {}), phases: v }; } },
 };
-// Everything else is set whole: the top-level answers, who's playing, the finale, the points and notes.
+// Everything else is set whole: the top-level answers, who's playing, the finale, the points and notes, how research asks.
 const SINGLES = {
   kind: { get: (b) => b.kind, put: (b, v) => { b.kind = v; } },
   start: { get: (b) => b.start, put: (b, v) => { if (v === undefined) delete b.start; else b.start = v; } },
@@ -63,6 +63,7 @@ const SINGLES = {
   points: { get: (b) => b.points, put: (b, v) => { if (v === undefined) delete b.points; else b.points = v; } },
   momentNotes: { get: (b) => b.momentNotes, put: (b, v) => { if (v === undefined) delete b.momentNotes; else b.momentNotes = v; } },
   leftOut: { get: (b) => b.leftOut, put: (b, v) => { if (v === undefined) delete b.leftOut; else b.leftOut = v; } },
+  research: { get: (b) => b.research, put: (b, v) => { if (v === undefined) delete b.research; else b.research = v; } },
 };
 
 /** The ops that take blocks `a` to blocks `b`. */
@@ -131,7 +132,7 @@ const QUESTION_SET = { segments: 'segment', waysOut: 'wayOut', twists: 'twist', 
 const SINGLE_WORDS = {
   kind: 'The kind of show', start: 'Where the series starts from', show: "The show's name", tagline: 'The tagline', premise: 'The premise',
   parts: 'What one part is called', cast: "Who's playing", finale: 'The finale', points: 'Suggested points', momentNotes: 'What the league answers',
-  leftOut: "What didn't fit",
+  leftOut: "What didn't fit", research: 'How research asks',
 };
 const nameOf = (x) => (x && (x.name || x.label)) || (x && x.id) || 'Something';
 const lower = (s) => String(s || '').replace(/\?$/, '').replace(/^./, (c) => c.toLowerCase());

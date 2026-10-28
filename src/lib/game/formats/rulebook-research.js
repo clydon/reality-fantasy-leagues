@@ -14,7 +14,7 @@
 //
 // Plain CommonJS, browser-safe, like everything in formats/.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js */
-const { OPT, KINDS, SCHEMA_VERSION, TWIST_FIELDS, blocksProblems, camelId } = require('./rulebook-schema.js');
+const { OPT, KINDS, SCHEMA_VERSION, TWIST_FIELDS, camelId, dropMisfitRefinements } = require('./rulebook-schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
@@ -35,6 +35,14 @@ const KIND_LINES = () =>
   Object.entries(KINDS)
     .map(([k, K]) => `      ${k}: ${K.name}. ${K.blurb} Like ${K.like}.${k === 'talk' ? ' Has no ways out and no twists.' : k === 'sport' ? ' Has no twists.' : ''}`)
     .join('\n');
+
+// The rulebook a prompt starts from, as the chat sees it: how research asks (its words for each question) is ours, not
+// the chat's to describe or echo back, so it's left out (an answer's is left out too, reviewRulebook).
+function shown(template) {
+  const rest = { ...template };
+  delete rest.research;
+  return rest;
+}
 
 function buildRulebookPrompt({ show, season, airing = false, template, change } = {}) {
   const what = [show, season].filter(Boolean).join(', ');
@@ -114,11 +122,15 @@ function buildRulebookPrompt({ show, season, airing = false, template, change } 
     '    "onTheLine": ' + choices('onTheLine'),
     '    "often": ' + choices('often'),
     '    "phase": only when often is onePhase: a phase id, or "finale"',
+    '    "groupWin": only when groups take part and someone wins it, ' + choices('groupWin'),
+    '    "places": only when decides is topThree, ' + choices('places'),
+    '    "skippedBy": only for a vote by the cast that a group\'s win keeps them out of: the id of the segment that group wins (the tribe that wins immunity skips Tribal Council)',
     '  } ],',
     '  "waysOut": [ how people leave the game or finish it (none for a talk show): {',
     '    "id", "name",',
     '    "means": ' + choices('means'),
     '    "cause": optional: { "segment": "<a segment id>" } when a segment causes it, else ' + choices('cause'),
+    '    "winnerToo": true for a "finalist" way out the winner reached as well (everyone at the final vote, the winner too)',
     '  } ],',
     '  "twists": [ optional, none for a talk show or a sport: {',
     '    "id", "name", "summary": "one sentence",',
@@ -127,16 +139,19 @@ function buildRulebookPrompt({ show, season, airing = false, template, change } 
     '      "canSwitch": ' + choices('canSwitch'),
     '    for advantage: "oneIsCalled": "an idol", "gotBy": ' + choices('gotBy') + ', "wonAt": a segment id when gotBy is wonAt,',
     '      "does": ' + choices('does', { many: true }) + ',',
-    '      "lasts": ' + choices('lasts'),
+    '      "lasts": ' + choices('lasts') + ',',
+    '      "cancelled": only when it cancels votes, ' + choices('cancelled'),
     '    for comeback: "who": ' + choices('comebackWho') + ', "how": ' + choices('comebackHow'),
-    '    for sideTrip: "oneIsCalled": "a journey", "who": ' + choices('tripWho') + ', "canGet": ' + choices('canGet', { many: true }),
+    '    for sideTrip: "oneIsCalled": "a journey", "who": ' + choices('tripWho') + ', "canGet": ' + choices('canGet', { many: true }) + ',',
+    '      "away": (one side trip at most) ' + choices('away'),
     '  } ],',
     '  "customMoments": [ things that can happen and are worth scoring that the segments, ways out and twists don\'t already cover. Written the way a recap would say it ("Got in a fight"). Only what recaps report as yes or no, a count or an amount, never a judgement call ("funniest moment"): {',
     '    "id", "label",',
     '    "during": optional: { "segment": "<id>" } or { "twist": "<id>" } when it only happens there,',
     '    "counted": ' + choices('counted'),
     '    "answeredBy": ' + choices('answeredBy'),
-    '    "reliability": how reliably recaps report it, ' + choices('reliability'),
+    '    "reliability": how reliably recaps report it, ' + choices('reliability') + ',',
+    '    "exceptWinners": true when it happens during a segment someone wins and its winners can\'t have it (chosen to join a reward they didn\'t win)',
     '  } ],',
     '  "points": optional: { "<a custom moment\'s id>": suggested points, a number (negative for bad things) },',
     '  "leftOut": ["anything that didn\'t fit the choices above, one sentence each, no names or results"],',
@@ -150,13 +165,13 @@ function buildRulebookPrompt({ show, season, airing = false, template, change } 
       '',
       `Episode ${change.episode} of this season changed how the game is played. Research on it says: "${String(change.note).replace(/"/g, "'")}"`,
       'Add what that describes to the rulebook below, where it belongs: a twist, a way out, a segment or a moment, with the show\'s own name for it. Change nothing else: answer with the rulebook below exactly as it is, plus what you added. If it describes something the rulebook already has, answer with the rulebook unchanged.',
-      JSON.stringify(template, null, 1)
+      JSON.stringify(shown(template), null, 1)
     );
   } else if (template && isObj(template)) {
     parts.push(
       '',
       'Start from this rulebook of a similar show and correct it to fit, rather than starting over. Keep what matches; change, add or remove the rest:',
-      JSON.stringify(template, null, 1)
+      JSON.stringify(shown(template), null, 1)
     );
   }
   return parts.join('\n');
@@ -274,6 +289,7 @@ function reviewRulebook(answer, { castNames = [], keep = [] } = {}) {
     }
   }
   for (const s of list(blocks.segments)) {
+    if (isObj(s) && typeof s.skippedBy === 'string' && !segValues.has(s.skippedBy) && resolve('segments', s.skippedBy)) s.skippedBy = resolve('segments', s.skippedBy);
     if (isObj(s) && typeof s.phase === 'string' && s.phase !== 'finale' && !new Set(byName.phases.values()).has(s.phase) && resolve('phases', s.phase)) s.phase = resolve('phases', s.phase);
   }
   for (const t of list(blocks.twists)) {
@@ -347,7 +363,15 @@ function reviewRulebook(answer, { castNames = [], keep = [] } = {}) {
     }
   }
 
-  const problems = blocksProblems(blocks);
+  // How research asks is the rulebook's own (the compiler's words, or ours), never an answer's: left out.
+  if (blocks.research !== undefined) {
+    delete blocks.research;
+    warnings.push({ at: 'research', message: 'Left out how research asks: that comes from the rulebook' });
+  }
+  // A refinement that doesn't go with its item (a finishing place for a segment that doesn't decide the top three) is
+  // left out, never the item: it only adds to what the item already says.
+  const { dropped, problems } = dropMisfitRefinements(blocks);
+  warnings.push(...dropped.map((p) => ({ at: p.at, message: `Left out: ${p.message}` })));
   problems.push(...spoilers(blocks, castNames, warnings));
   // A moment added by hand that a built one already is would score twice: left out. One the rulebook being checked
   // already has (`keep`, by label) was a person's call, kept.

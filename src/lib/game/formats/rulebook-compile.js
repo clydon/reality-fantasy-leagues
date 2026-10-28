@@ -15,6 +15,20 @@
 // voteByRole. A talk show's moments are about the night, not a person, so they're episode-level answers
 // (episode games score them, step 12), with nothing awarded to anyone.
 //
+// A SHOW'S OWN CONDITIONS (docs/PLAN-start-a-game-gpt.md S1). A moment can carry more than its own question
+// (rulebook-moments.js): other answers that score it too (`also`: a group's win that counts as winning), that must
+// be yes (`needs`: votes cancelled by an advantage they played) or mustn't be (`unless`: zero votes at a vote their
+// group's win skipped; chosen for a reward they didn't win), and a number's own test (`ask.when`: came 2nd). Every
+// question a condition reads is asked. A side trip away from the group is the episode's exile record, and scores
+// from it; a finalist way out the winner reached too awards them as well. Whoever left isn't scored for how they
+// voted, as they aren't for votes against them.
+//
+// THE QUESTIONS' KEYS AND WORDS. `aliases.questions` maps a question these blocks build to the key stored answers
+// already use ("tribalCouncilAttended" -> "attendedTribal"), beside the event and exit maps, so research answered
+// before keeps reading. The rulebook's `research` block can give a question research's own words, say a yes needs
+// no source, ask questions besides that score nothing (each with a type and its words), and set the search hint. On a
+// base, the base's questions keep the base's words and search hint (the legacy freeze asks what it always asked).
+//
 // ON TOP OF THE DATA IT WAS FROZEN FROM. A rulebook migrated from a format (decision 2's legacy freeze: a
 // built-in's data half, or a stored format's) compiles with that data as its `base`, and a built-in `reader`
 // brings its family's. Every event the blocks still build keeps the base's own rules, questions, label and
@@ -44,6 +58,7 @@ const { momentsFor } = require('./rulebook-moments.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const list = (v) => (Array.isArray(v) ? v : []);
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const lowerFirst = (s) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : '');
 const up = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 const yes = (answer) => ({ answer, is: 'yes' });
@@ -79,6 +94,13 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
   const part = partWord(b).singular;
   const ev = (mid) => (aliases.events && aliases.events[mid]) || mid;
   const exitName = (w) => (aliases.exits && aliases.exits[w.id]) || w.name;
+  // A question's key as stored answers have it, and the conditions on it.
+  const qk = (key) => (aliases.questions && aliases.questions[key]) || key;
+  const Y = (key) => yes(qk(key));
+  const N = (key) => notYes(qk(key));
+  // How research asks, from the rulebook's own research block: a question's words, and whether a yes needs a source.
+  const said = isObj(b.research) && isObj(b.research.questions) ? b.research.questions : {};
+  const wordsOf = (key) => (isObj(said[key]) && typeof said[key].words === 'string' && said[key].words.trim() ? said[key].words : null);
   const segs = list(b.segments);
   const segById = new Map(segs.map((s) => [s.id, s]));
   const twists = list(b.twists);
@@ -98,6 +120,7 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
   const compiledExits = [...new Set(exitWays.map(exitName))];
   const exitMethods = [...inOrder(compiledExits).filter((x) => x !== 'Other'), 'Other'];
   const winner = exitWays.find((w) => w.means === 'winner');
+  const winners = [...new Set(exitWays.filter((w) => w.means === 'winner').map(exitName))];
   const endgameExitMethods = inOrder([...new Set(exitWays.filter((w) => FINISH.includes(w.means)).map(exitName))]);
   if (legacy && Formats.BUILT_IN_READERS.includes(reader)) {
     for (const x of compiledExits) if (!legacy.exitMethods.includes(x)) warnings.push(`The ${legacy.name} wiki connector won't report "${x}"; research will`);
@@ -110,7 +133,7 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
   // Known from how someone left, the finale's jury votes, or a role recorded as a fact: the engine derives them.
   const roleFact = (m) => !!secret && m.from.twist === secret.id && !m.ask && (m.id === `${secret.id}Recruited` || m.id === `${secret.id}MadeFinale`);
   const roleVote = (m) => !!secret && m.from.twist === secret.id && !m.ask && !roleFact(m);
-  const isImplied = (m) => (m.from.wayOut && wayOf.get(m.from.wayOut).means !== 'outForOne') || !!m.from.finale || roleFact(m);
+  const isImplied = (m) => (m.from.wayOut && wayOf.get(m.from.wayOut).means !== 'outForOne') || !!m.from.finale || roleFact(m) || !!m.exile;
   const fromBlocks = [];
   const seenIds = new Map();
   for (const m of moments) {
@@ -162,11 +185,27 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
   const fields = [];
   const episodeFields = [];
   const fieldKeys = new Set(legacy ? [...legacy.research.checklist, ...legacy.research.episodeFields].map((f) => f.key) : []);
+  // Yes-or-no questions whose yes needs no source behind it (left out of the claims).
+  const unsourced = new Set();
+  // The blocks' own keys asked here (a research block's words for any other are a warning).
+  const asked = new Set(['name', 'leftTheGame', 'exitMethod', 'sources', 'confidence']);
+  // `f.key` is the blocks' own; it's asked under its stored key, in research's words where the rulebook gives them.
   const field = (f, into = fields) => {
-    if (fieldKeys.has(f.key)) return;
-    fieldKeys.add(f.key);
-    into.push(f);
+    const key = qk(f.key);
+    asked.add(f.key);
+    if (fieldKeys.has(key)) return;
+    fieldKeys.add(key);
+    if (isObj(said[f.key]) && said[f.key].needsSource === false) unsourced.add(key);
+    const words = wordsOf(f.key);
+    into.push({ ...f, key, ...(words ? { description: words } : {}) });
   };
+  // A whole ask a condition reads ({ key, type, question, label }), as a checklist question.
+  const askField = (a) =>
+    a.type === 'answer'
+      ? { key: a.key, type: 'answer', description: `${a.label}, this ${part}: yes, no, or unknown.`, note: lowerFirst(a.label) }
+      : { key: a.key, type: a.type, nullable: true, description: a.question, ...(a.label ? { note: lowerFirst(a.label) } : {}) };
+  // The questions conditions read that no moment of their own asks (a group's win switched off, say): asked at the end.
+  const referenced = [];
   const research = [];
   const implied = [];
   // Moments scored from a question the rulebook already asks (customMoments[].uses).
@@ -192,7 +231,10 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
     if (seg && seg.decidedBy === 'vote' && seg.voters === 'cast' && !m.custom && VOTE_SUFFIXES.some((x) => m.id === `${seg.id}${x}`)) continue; // below, per segment
     if (roleFact(m) || roleVote(m)) continue; // below, with the secret role
     if (m.from.wayOut && wayOf.get(m.from.wayOut).means !== 'outForOne') {
-      implied.push({ whenExit: exitName(wayOf.get(m.from.wayOut)), award });
+      const w = wayOf.get(m.from.wayOut);
+      // Reaching the end, when the winner reached it too: everyone at the end scores it (Survivor's finalists).
+      const exits = w.means === 'finalist' && w.winnerToo === true ? [...new Set([exitName(w), ...winners])] : [exitName(w)];
+      implied.push({ whenExit: exits.length > 1 ? exits : exits[0], award });
       continue;
     }
     if (m.from.finale) {
@@ -212,13 +254,39 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
       scoredFrom.push(m); // a question something else asks: only its rule, once every question is in (below)
       continue;
     }
+    // Its own question first: yes or no, a number with its own test (came 2nd), or a count scored per unit.
+    let own;
+    let per = null;
     if (m.ask.type === 'answer') {
-      field({ key: m.ask.key, type: 'answer', description: `${m.label}, this ${part}: yes, no, or unknown.`, note: lowerFirst(m.label) });
-      gated({ when: yes(m.ask.key), award }, m);
+      // Won as a group first, then alone, with the group's win asked as well: this question is about winning it alone.
+      // (With the group's win switched off and not counted as winning, the plain question covers both, as it always did.)
+      const alone = !!groups && !!seg && seg.takesPart === 'groupsThenEach' && m.id === `${seg.id}Won` &&
+        (list(m.also).length > 0 || moments.some((x) => x.id === `${seg.id}GroupWon`));
+      field({ key: m.ask.key, type: 'answer', description: `${m.label}${alone ? ` on their own, not as part of a ${groups.singular}` : ''}, this ${part}: yes, no, or unknown.`, note: lowerFirst(m.label) });
+      own = Y(m.ask.key);
+    } else if ((m.ask.type === 'integer' || m.ask.type === 'number') && m.ask.when) {
+      field(askField(m.ask));
+      own = { answer: qk(m.ask.key), ...m.ask.when };
     } else if (m.ask.type === 'integer' || m.ask.type === 'number') {
       field({ key: m.ask.key, type: m.ask.type, nullable: true, description: countText(m), note: lowerFirst(m.label) });
-      gated({ when: { answer: m.ask.key, greaterThan: 0 }, award, per: m.ask.key }, m);
-    }
+      own = { answer: qk(m.ask.key), greaterThan: 0 };
+      per = qk(m.ask.key);
+    } else continue;
+    // Then the answers that score it too, must be yes as well, or mustn't be.
+    const also = list(m.also);
+    for (const a of also) field(askField(a));
+    referenced.push(...list(m.needs), ...list(m.unless));
+    const test = also.length ? { any: [own, ...also.map((a) => Y(a.key))] } : own;
+    const conds = [...list(m.needs).map((a) => Y(a.key)), test, ...list(m.unless).map((a) => N(a.key))];
+    const when = conds.length > 1 ? { all: conds } : test;
+    if (m.exile && legacy && legacy.rules.implied.some((r) => 'whenExiled' in r && built.has(r.award))) {
+      // The base already scores the episode's exile record, which doesn't say which trip it was: one would score as both.
+      warnings.push(`${m.label}: the base already scores being sent away, so nothing awards it`);
+    } else if (m.exile) {
+      // Recorded as the episode's exile, and scored from that record: taking it out takes the moment with it.
+      gated({ when, stage: 'exiled' }, m);
+      implied.push({ whenExiled: true, award });
+    } else gated({ when, award, ...(per ? { per } : {}) }, m);
   }
 
   // A vote by the cast: who was there, the votes against each, and who each voted for.
@@ -234,13 +302,19 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
     if (!VOTE_SUFFIXES.some(has)) continue;
     voteFields(s);
     const at = { from: { segment: s.id } };
-    const stayed = notYes('leftTheGame');
-    if (has('ZeroVotes')) gated({ when: { all: [yes(`${s.id}Attended`), { answer: `${s.id}VotesReceived`, equals: 0 }, stayed] }, award: ev(`${s.id}ZeroVotes`) }, at);
-    if (has('SurvivedVotes')) gated({ when: { all: [{ answer: `${s.id}VotesReceived`, greaterThan: 0 }, stayed] }, award: ev(`${s.id}SurvivedVotes`) }, at);
+    // Whoever left this episode scores none of the vote's moments.
+    const stayed = N('leftTheGame');
+    if (has('ZeroVotes')) {
+      // Not someone whose group's win skipped the vote: they were never at it (a wrong "attended" is what scores here).
+      const skipped = list(momentOf.get(ev(`${s.id}ZeroVotes`)).unless);
+      referenced.push(...skipped);
+      gated({ when: { all: [Y(`${s.id}Attended`), { answer: qk(`${s.id}VotesReceived`), equals: 0 }, ...skipped.map((a) => N(a.key)), stayed] }, award: ev(`${s.id}ZeroVotes`) }, at);
+    }
+    if (has('SurvivedVotes')) gated({ when: { all: [{ answer: qk(`${s.id}VotesReceived`), greaterThan: 0 }, stayed] }, award: ev(`${s.id}SurvivedVotes`) }, at);
     if (has('VotedWithMajority') && has('VotedAgainstMajority')) {
       const out = causedBy(s);
       if (out.length) {
-        for (const exitMethod of out) gated({ builtIn: 'votedForLeaver', vote: `${s.id}VotedFor`, exitMethod, award: ev(`${s.id}VotedWithMajority`), otherwise: ev(`${s.id}VotedAgainstMajority`) }, at);
+        for (const exitMethod of out) gated({ when: stayed, builtIn: 'votedForLeaver', vote: qk(`${s.id}VotedFor`), exitMethod, award: ev(`${s.id}VotedWithMajority`), otherwise: ev(`${s.id}VotedAgainstMajority`) }, at);
       } else warnings.push(`${s.name}: no way out says it sends someone home, so voting with the majority can't be told`);
     }
   }
@@ -266,17 +340,17 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
       field({ key: isKey, type: 'answer', description: `Was this person a ${secretRole} at this ${part}'s vote (or, with no vote, by the end of it)? Recaps tell the audience who they are. 'no' for a ${other}.`, note: `a ${secretRole}` });
       field({ key: becameKey, type: 'answer', description: `Did they START playing as a ${secretRole} in THIS ${part}, chosen by the show${recruits ? ` (not recruited by other ${secretRole}s)` : ''}? 'no' if they already were one.`, note: `became a ${secretRole}` });
       if (recruits) field({ key: recruitedKey, type: 'answer', description: `Were they recruited as a ${secretRole} in THIS ${part}?`, note: `recruited as a ${secretRole}` });
-      research.push({ when: recruits ? { all: [yes(becameKey), notYes(recruitedKey)] } : yes(becameKey), stage: 'role', role: secretRole });
-      if (recruits) research.push({ when: yes(recruitedKey), stage: 'role', role: recruitedValue });
+      research.push({ when: recruits ? { all: [Y(becameKey), N(recruitedKey)] } : Y(becameKey), stage: 'role', role: secretRole });
+      if (recruits) research.push({ when: Y(recruitedKey), stage: 'role', role: recruitedValue });
     }
     // Votes by role: a vote for someone who left, scored by what the voter and the person voted out were.
-    const isRole = { any: [yes(isKey), yes(becameKey), ...(recruits ? [yes(recruitedKey)] : [])] };
-    const notRole = { answer: isKey, is: 'no' };
+    const isRole = { any: [Y(isKey), Y(becameKey), ...(recruits ? [Y(recruitedKey)] : [])] };
+    const notRole = { answer: qk(isKey), is: 'no' };
     for (const s of segs.filter((x) => x.decidedBy === 'vote' && x.voters === 'cast' && x.onTheLine === 'goingHome')) {
       const caught = voteMoments.find((m) => m.id === `${secret.id}CaughtAt${up(s.id)}`);
       const fooled = voteMoments.find((m) => m.id === `${secret.id}FooledAt${up(s.id)}`);
       if (!caught && !fooled) continue;
-      if (!fieldKeys.has(isKey)) {
+      if (!fieldKeys.has(qk(isKey))) {
         warnings.push(`${s.name}: votes by role need the ${secretRole} questions, which this rulebook's base doesn't ask`);
         continue;
       }
@@ -288,7 +362,7 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
       voteFields(s);
       for (const exitMethod of out) {
         gated({
-          builtIn: 'voteByRole', votes: `${s.id}VotedFor`, exitMethod, isRole, notRole,
+          builtIn: 'voteByRole', votes: qk(`${s.id}VotedFor`), exitMethod, isRole, notRole,
           ...(caught ? { otherOnRole: ev(caught.id) } : {}), ...(fooled ? { roleOnOther: ev(fooled.id) } : {}),
         }, { from: { segment: s.id } });
       }
@@ -305,6 +379,8 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
   if (finaleNeedsJury(b) && moments.some((m) => m.from.finale && fresh(m.id))) {
     field({ key: 'juryVotesReceived', type: 'integer', nullable: true, description: 'Finalists only: how many jury votes they received. Null for everyone else.' });
   }
+  // Every question a condition reads is asked, even one no moment of its own asks any more.
+  for (const a of referenced) field(askField(a));
 
   // ---------- the base's own rules, for what it still scores ----------
   if (legacy) {
@@ -371,33 +447,57 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
     }, episodeFields);
   }
 
+  // The questions research asks besides, which score nothing of their own (what was found, anything else notable, whether
+  // a vote was held): before the moments scored from a question, so one can be.
+  for (const [key, q] of Object.entries(said)) {
+    if (!isObj(q) || !q.type) continue;
+    if (asked.has(key)) {
+      if (!legacy) warnings.push(`How research asks "${key}": this rulebook already asks it, so its type isn't used`);
+      continue;
+    }
+    field({ key, type: q.type, ...(q.type === 'answer' ? {} : { nullable: true }) }, q.of === 'episode' ? episodeFields : fields);
+  }
+
   // A moment scored from a question the rulebook already asks (docs/PLAN-maker-scoring.md: "−0.5 a vote received at the Round
   // Table" on roundTableVotesReceived): no question of its own, only its rule on that question's answer. The question has to
   // be asked here, and of the kind it counts: yes or no for once an episode, a number for each time or per amount.
   for (const m of scoredFrom) {
-    const f = fields.find((x) => x.key === m.ask.key) || (legacy ? legacy.research.checklist.find((x) => x.key === m.ask.key) : null);
+    const key = qk(m.ask.key);
+    const f = fields.find((x) => x.key === key) || (legacy ? legacy.research.checklist.find((x) => x.key === key) : null);
     const counts = f && (f.type === 'integer' || f.type === 'number');
     if (!f) problems.push(`${m.label}: it's scored from "${m.ask.key}", which this rulebook doesn't ask`);
     else if (m.ask.type === 'answer' ? f.type !== 'answer' : !counts) problems.push(`${m.label}: "${m.ask.key}" isn't ${m.ask.type === 'answer' ? 'a yes-or-no question' : 'a number'}`);
-    else if (m.ask.type === 'answer') gated({ when: yes(m.ask.key), award: ev(m.id) }, m);
-    else gated({ when: { answer: m.ask.key, greaterThan: 0 }, award: ev(m.id), per: m.ask.key }, m);
+    else {
+      // Not for whoever won the segment it's during (exceptWinners), as for a moment with a question of its own.
+      const unless = list(m.unless);
+      for (const a of unless) field(askField(a));
+      const test = m.ask.type === 'answer' ? yes(key) : { answer: key, greaterThan: 0 };
+      const when = unless.length ? { all: [test, ...unless.map((a) => N(a.key))] } : test;
+      gated({ when, award: ev(m.id), ...(m.ask.type === 'answer' ? {} : { per: key }) }, m);
+    }
   }
 
+  // Words for a question these blocks don't ask (its moment taken out, say) are kept but not used. On a base, the base's
+  // own questions keep the base's words, so nothing is said.
+  if (!legacy) for (const key of Object.keys(said)) if (!asked.has(key)) warnings.push(`How research asks "${key}": this rulebook doesn't ask it, so its words aren't used`);
+
   const core = (key) => ['sources', 'confidence'].includes(key);
+  // The questions every checklist has, in research's words where the rulebook gives them.
+  const say = (key, words) => wordsOf(key) || words;
   const checklist = legacy
     ? [...legacy.research.checklist.filter((f) => !core(f.key)), ...fields, ...legacy.research.checklist.filter((f) => core(f.key))]
     : [
-      { key: 'name', type: 'string', description: `The ${terms.castaway.toLowerCase()}'s full name, exactly as given in the list you were sent.` },
-      { key: 'leftTheGame', type: 'answer', description: talk ? `Did this person leave the show for good in THIS ${part}?` : `Did this person leave the game permanently in THIS ${part}?` },
-      { key: 'exitMethod', type: 'exitMethod', nullable: true, description: 'How they left, if they left. Null if they did not leave.' },
+      { key: 'name', type: 'string', description: say('name', `The ${terms.castaway.toLowerCase()}'s full name, exactly as given in the list you were sent.`) },
+      { key: 'leftTheGame', type: 'answer', description: say('leftTheGame', talk ? `Did this person leave the show for good in THIS ${part}?` : `Did this person leave the game permanently in THIS ${part}?`) },
+      { key: 'exitMethod', type: 'exitMethod', nullable: true, description: say('exitMethod', 'How they left, if they left. Null if they did not leave.') },
       ...fields,
-      { key: 'sources', type: 'stringList', description: "URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'." },
+      { key: 'sources', type: 'stringList', description: say('sources', "URLs you actually read that support the answers above for THIS person. Empty only if every answer is 'unknown'.") },
       {
         key: 'confidence', type: 'enum', values: ['high', 'medium', 'low'],
-        description: 'high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source.',
+        description: say('confidence', 'high: a source states it plainly. medium: a source implies it. low: pieced together or a single weak source.'),
       },
     ];
-  const newClaims = fields.filter((f) => f.type === 'answer').map((f) => f.key);
+  const newClaims = fields.filter((f) => f.type === 'answer' && !unsourced.has(f.key)).map((f) => f.key);
 
   // ---------- how it's grouped and headlined ----------
   const categories = legacy ? legacy.eventCategories.map((c) => ({ ...c, events: c.events.filter((e) => built.has(e)) })).filter((c) => c.events.length) : [];
@@ -444,7 +544,8 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
     const group = moments.find((m) => m.id === `${s.id}GroupWon`);
     const ids = [won, group].filter((m) => m && built.has(ev(m.id)) && !covered(ev(m.id))).map((m) => ev(m.id));
     if (!ids.length) continue;
-    const tribe = group && ids.includes(ev(group.id)) ? [ev(group.id)] : null;
+    // A group's win counted as winning it is the tribe's own headline before the merge, as a group's win is.
+    const tribe = group && ids.includes(ev(group.id)) ? [ev(group.id)] : won && list(won.also).length && ids.includes(ev(won.id)) ? [ev(won.id)] : null;
     recap.push({ label: s.name, events: [...new Set(ids)], ...(tribe ? { tribeEvents: tribe } : {}) });
   }
 
@@ -476,13 +577,19 @@ function compileRulebook(blocks, { aliases = {}, id, reader, base, phaseStarts =
     research: {
       checklist,
       episodeFields: legacy ? [...legacy.research.episodeFields, ...episodeFields] : episodeFields,
-      searchHint: legacy ? legacy.research.searchHint : searchHint(b, part),
+      searchHint: legacy ? legacy.research.searchHint : ownHint(b) || searchHint(b, part),
       claims: legacy ? [...legacy.research.claims, ...newClaims] : ['leftTheGame', ...newClaims],
     },
     rules: { research, implied },
   };
   problems.push(...formatProblems(data));
   return { data, problems, warnings };
+}
+
+/** The rulebook's own search hint for research, when it gives one: its lines. */
+function ownHint(b) {
+  const h = isObj(b.research) ? b.research.searchHint : null;
+  return Array.isArray(h) && h.length && h.every((l) => typeof l === 'string') ? [...h] : null;
 }
 
 function finaleNeedsJury(b) {

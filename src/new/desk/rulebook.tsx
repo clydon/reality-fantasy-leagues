@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { BookOpen, Check, ChevronRight, Clock, Copy, Plus, X } from "lucide-react";
-import { OPT, QUESTIONS, TWIST_FIELDS, blockLabel, blocksProblems, camelId, labelOf, optionsFor, type RulebookBlocks } from "@/lib/game/formats/rulebook-schema.js";
+import { OPT, QUESTIONS, TWIST_FIELDS, blockLabel, blocksProblems, camelId, dropMisfitRefinements, labelOf, optionsFor, type RulebookBlocks } from "@/lib/game/formats/rulebook-schema.js";
 import { momentsFor, WAY_POINTS } from "@/lib/game/formats/rulebook-moments.js";
 import { diffBlocks, opLines } from "@/lib/game/formats/rulebook-patch.js";
 import { airTime } from "../clock";
@@ -445,7 +445,13 @@ function PartEditor({
   page: DeskRulebook;
 }) {
   const close = () => setEditing(null);
-  const put = (b: RulebookBlocks) => setDraft(b);
+  // A refinement the edit no longer fits (a group's win on a part nobody plays as a group) goes with it: the sheets don't
+  // show them, and saving says what changed.
+  const put = (b: RulebookBlocks) => {
+    const next = clone(b);
+    dropMisfitRefinements(next);
+    setDraft(next);
+  };
   const word = (block: string) => (blockLabel(draft, block as never) ?? block).toString();
   switch (editing.block) {
     case "kind":

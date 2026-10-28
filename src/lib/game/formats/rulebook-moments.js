@@ -10,7 +10,14 @@
 //   ask           what research asks to know it: { key, type: 'answer' | 'integer' | 'number' | 'string', question }.
 //                 Several moments can share one question (a vote's "who got votes"). A count of times is an
 //                 integer; an amount that needn't be whole (innings pitched, a judge's score) a number.
-//                 Either scores per unit (rulebook-compile.js, rules.js `per`).
+//                 Either scores per unit (rulebook-compile.js, rules.js `per`), unless the ask says `when`:
+//                 the test its number passes to score once ({ equals: 2 }: came 2nd; { greaterThan: 0 }).
+//   also          yes-or-no asks that score it too, any one of them (a group's win that counts as winning it)
+//   needs         asks that must be yes as well (votes cancelled by an advantage they played)
+//   unless        asks that mustn't be yes (zero votes at a vote their group's win skipped; a reward's winners)
+//                 Each of these is a whole ask, { key, type, question, label }, which research is asked too.
+//   exile         a side trip that takes them away from their group: recorded as the episode's exile, and
+//                 scored from that record (the engine's ep.exiled)
 //   auto          known without asking about it: from how someone left, a role, or other answers
 //   off           only with { includeOff: true }: built, but switched off (momentsOff, or a couch's own copy's
 //                 momentNotes[id].off: Make it ours, step 6b part 3)
@@ -19,7 +26,7 @@
 // added by hand, so they never change when something is renamed. Suggested points come from the template
 // unless the rulebook's `points` overrides them. Plain CommonJS, browser-safe, like everything here.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see index.js */
-const { kindOf, partWord, cap } = require('./rulebook-schema.js');
+const { kindOf, partWord, cap, hasGroupWin, winsOf } = require('./rulebook-schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const list = (v) => (Array.isArray(v) ? v : []);
@@ -51,6 +58,19 @@ function askWho(blocks, label, who) {
   return `This ${partWord(blocks).singular}, who ${who || lc(label)}?`;
 }
 
+// The yes-or-no asks a segment's winners are known by: winning it alone, and being in the group that won it.
+function wonAskOf(s, blocks) {
+  if (!winsOf(s)) return null;
+  const label = `Won ${the(s.name)}`;
+  return { key: `${s.id}Won`, type: 'answer', question: askWho(blocks, label), label };
+}
+function groupAskOf(s, blocks) {
+  if (!hasGroupWin(s, blocks)) return null;
+  const g = blocks.cast.groups.singular;
+  const label = `${cap(g)} won ${the(s.name)}`;
+  return { key: `${s.id}GroupWon`, type: 'answer', question: askWho(blocks, label, `was in the ${g} that won ${the(s.name)}`), label };
+}
+
 function segmentMoments(s, blocks) {
   const out = [];
   const n = s.name;
@@ -61,8 +81,23 @@ function segmentMoments(s, blocks) {
 
   if (['result', 'judges', 'headToHead'].includes(s.decidedBy)) {
     const d = s.decides;
-    if (['winner', 'topThree', 'bestAndWorst'].includes(d)) yes('Won', `Won ${the(n)}`, 2);
-    if (d === 'topThree') {
+    const groupAsk = groupAskOf(s, blocks);
+    // A group's win that counts as winning it: one moment, scored on either answer (Survivor's reward).
+    const folded = !!groupAsk && s.groupWin === 'won' && winsOf(s);
+    const wonAsk = wonAskOf(s, blocks);
+    if (wonAsk) {
+      make('Won', wonAsk.label, 2, { key: wonAsk.key, type: 'answer', question: wonAsk.question });
+      if (folded) out[out.length - 1].also = [groupAsk];
+    }
+    if (d === 'topThree' && s.places === 'place') {
+      // One number for each person, read as 2nd and 3rd (Survivor's individual challenge finish).
+      const place = {
+        key: `${s.id}Place`, type: 'integer', label: `Finishing place in ${the(n)}`,
+        question: `This ${part}, where each person finished in ${the(n)}: 1 for the winner, 2 for the runner-up, 3 for third, only when a source gives the order. Null if they finished lower or it isn't reported.`,
+      };
+      make('Second', `2nd in ${the(n)}`, 1, { ...place, when: { equals: 2 } });
+      make('Third', `3rd in ${the(n)}`, 0.5, { ...place, when: { equals: 3 } });
+    } else if (d === 'topThree') {
       yes('Second', `2nd in ${the(n)}`, 1, `came 2nd in ${the(n)}`);
       yes('Third', `3rd in ${the(n)}`, 0.5, `came 3rd in ${the(n)}`);
     }
@@ -76,13 +111,15 @@ function segmentMoments(s, blocks) {
     }
     if (d === 'score') make('PerPoint', `Each point at ${the(n)}`, 0.1, { key: `${s.id}Score`, type: 'number', question: `This ${part}, what did each person score at ${the(n)}?` });
     if (s.decidedBy === 'headToHead' && s.onTheLine !== 'goingHome') yes('Lost', `Lost ${the(n)}`, -1);
-    const groups = blocks.cast && blocks.cast.groups;
-    if (groups && ['groups', 'groupsThenEach'].includes(s.takesPart)) yes('GroupWon', `${cap(groups.singular)} won ${the(n)}`, 1, `was in the ${groups.singular} that won ${the(n)}`);
+    if (groupAsk && !folded) make('GroupWon', groupAsk.label, 1, { key: groupAsk.key, type: 'answer', question: groupAsk.question });
   } else if (s.decidedBy === 'vote') {
     if (s.voters === 'cast') {
       const votes = { key: `${s.id}VotesReceived`, type: 'integer', question: `This ${part}, how many votes did each person get at ${n}?` };
       const votedFor = { key: `${s.id}VotedFor`, type: 'string', question: `This ${part}, who did each person vote for at ${n}?` };
       make('ZeroVotes', `Zero votes at ${n}`, 0.5, votes);
+      // A group whose win skips the vote was never at it, so it isn't safe there with zero votes (Survivor's tribe immunity).
+      const skips = s.skippedBy ? groupAskOf(list(blocks.segments).find((x) => x.id === s.skippedBy), blocks) : null;
+      if (skips) out[out.length - 1].unless = [skips];
       make('SurvivedVotes', `Received votes at ${n} and survived`, 1, votes);
       make('VotedWithMajority', 'Voted with the majority', 0.5, votedFor);
       make('VotedAgainstMajority', 'Voted against the majority', 0, votedFor);
@@ -127,8 +164,17 @@ function twistMoments(t, blocks) {
   } else if (t.type === 'advantage') {
     const does = list(t.does);
     yes('Got', `Got ${one}`, 2);
-    yes('Played', `Played ${one}`, 1);
-    if (does.includes('cancelsVotes')) yes('CancelledVotes', `Played ${one} that cancelled votes`, 2);
+    // Played one: a moment, and what votes it cancelled can need.
+    const played = { key: `${t.id}Played`, type: 'answer', question: askWho(blocks, `Played ${one}`), label: `Played ${one}` };
+    make('Played', played.label, 1, { key: played.key, type: 'answer', question: played.question });
+    if (does.includes('cancelsVotes') && t.cancelled === 'count') {
+      // How many votes it cancelled, for whoever played one: it scores once it cancelled any (Survivor's votes nullified).
+      make('CancelledVotes', `Played ${one} that cancelled votes`, 2, {
+        key: `${t.id}VotesCancelled`, type: 'integer', label: `Votes cancelled by ${one} they played`, when: { greaterThan: 0 },
+        question: `This ${partWord(blocks).singular}, if each person played ${one}, how many votes it cancelled: 0 if none. Null if they played nothing or it isn't reported.`,
+      });
+      out[out.length - 1].needs = [played];
+    } else if (does.includes('cancelsVotes')) yes('CancelledVotes', `Played ${one} that cancelled votes`, 2);
     if (does.includes('keepsSafe')) yes('SavedBy', `Saved by ${one}`, 2, `was saved by ${one}`);
     if (does.includes('savesSomeone')) yes('SavedSomeone', `Used ${one} to save someone`, 1);
     if (does.includes('hurtsSomeone')) yes('UsedAgainst', `Had ${one} used against them`, -1);
@@ -144,7 +190,11 @@ function twistMoments(t, blocks) {
     if (t.how === 'winHeadToHead') yes('WonWayBack', 'Won their way back', 3);
   } else if (t.type === 'sideTrip') {
     const canGet = list(t.canGet);
-    yes('Went', `Went on ${one}`, 1);
+    if (t.away === 'yes') {
+      // Away from their group while still in the game: the episode records it, and that record scores (Exile Island).
+      yes('Went', `Sent to ${one}`, 1, `was sent to ${one}`);
+      out[out.length - 1].exile = true;
+    } else yes('Went', `Went on ${one}`, 1);
     if (canGet.includes('advantage')) yes('CameBackWithAdvantage', `Came back from ${one} with an advantage`, 2);
     if (canGet.includes('disadvantage')) yes('LostSomething', `Lost something on ${one}`, -1);
   }
@@ -178,9 +228,11 @@ function customMoment(m, blocks) {
   const question = questionFor({ label: m.label, question: m.question, counted: m.counted, where: seg ? seg.name : null }, blocks);
   // `uses`: scored from a question the rulebook already asks (its key), rather than one of its own (rulebook-compile.js).
   const key = typeof m.uses === 'string' && m.uses ? m.uses : m.id;
+  // Not for whoever won the segment it happens during, alone or in the group that won (chosen to join a reward).
+  const winners = m.exceptWinners === true && seg ? [wonAskOf(seg, blocks), groupAskOf(seg, blocks)].filter(Boolean) : [];
   return {
     id: m.id, label: m.label, from, defaultPoints: 0, custom: true, ask: { key, type, question }, answeredBy: m.answeredBy,
-    ...(key !== m.id ? { uses: key } : {}), ...(m.reliability ? { reliability: m.reliability } : {}),
+    ...(key !== m.id ? { uses: key } : {}), ...(m.reliability ? { reliability: m.reliability } : {}), ...(winners.length ? { unless: winners } : {}),
   };
 }
 

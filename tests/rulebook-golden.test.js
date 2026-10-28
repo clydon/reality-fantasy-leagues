@@ -163,3 +163,89 @@ test("a league of every type scores the same played by the frozen format or by i
     }
   }
 });
+
+// ---------- Survivor on its own blocks (docs/PLAN-start-a-game-gpt.md S1) ----------
+//
+// What Survivor 51 switches onto (S3): Survivor's blocks with no base and the generic reader, so nothing of survivor.js is
+// read. They give its events, questions and rules: by id, key and condition rather than in its order, and in the blocks'
+// own labels (How it works already shows them). Research's notes and whole-episode checks are still survivor.js's code
+// half (S2), so answers are staged here as given, before any check repairs them.
+function onItsOwn() {
+  const { blocks, aliases } = rulebookFor("survivor");
+  const { data, problems, warnings } = compileRulebook(blocks, { aliases, reader: "research" });
+  assert.deepEqual([problems, warnings], [[], []]);
+  return { frozen: Formats.FORMATS.survivor, data, format: Formats.formatForRulebook(data, "research") };
+}
+// Key order never matters, and neither does the order of an `all` or `any`, nor of a list compared as a set.
+function canon(v) {
+  if (Array.isArray(v)) return v.map(canon);
+  if (!v || typeof v !== "object") return v;
+  const out = {};
+  for (const k of Object.keys(v).sort()) out[k] = k === "all" || k === "any" ? v[k].map(canon).sort((a, b) => (JSON.stringify(a) < JSON.stringify(b) ? -1 : 1)) : canon(v[k]);
+  return out;
+}
+const asSet = (xs) => xs.map((x) => JSON.stringify(canon(x))).sort();
+const byId = (events) => asSet(events.map((e) => ({ id: e.id, points: e.defaultPoints, implied: !!e.implied })));
+// A question as research is asked it (its reviewer's note is S2's).
+const questions = (fields) =>
+  asSet(fields.map((f) => {
+    const q = { ...f };
+    delete q.note;
+    return q;
+  }));
+
+test("with no base and the generic reader, Survivor's blocks give survivor.js's events, questions and rules", () => {
+  const { frozen, data, format } = onItsOwn();
+  assert.notEqual(format.research.notes, frozen.research.notes, "nothing of survivor.js's code half");
+  const f = frozen.data;
+  assert.deepEqual(byId(data.events), byId(f.events), "every event, its points, and whether a fact implies it");
+  for (const k of ["exitMethods", "winnerExitMethod", "endgameExitMethods", "hasMerge", "hasGroups", "roles", "id", "name"]) assert.deepEqual(data[k], f[k], k);
+  assert.deepEqual(questions(data.research.checklist), questions(f.research.checklist), "every question, word for word");
+  // The one difference: whether Tribal was held, which survivor.js asked by its key alone, says what it asks.
+  assert.deepEqual(f.research.episodeFields, [{ key: "tribalCouncilHeld", type: "answer" }]);
+  assert.deepEqual(data.research.episodeFields, [{ key: "tribalCouncilHeld", type: "answer", description: "Was there a Tribal Council this episode?" }]);
+  assert.deepEqual([...data.research.claims].sort(), [...f.research.claims].sort(), "the yeses that need a source");
+  assert.deepEqual(data.research.searchHint, f.research.searchHint);
+  const schema = (fmt) => {
+    const s = z.toJSONSchema(fmt.research.checklistSchema(z, z.enum(["yes", "no", "unknown"])), { io: "output" });
+    return canon({ ...s, required: [...s.required].sort() });
+  };
+  assert.deepEqual(schema(format), schema(frozen), "the same research schema");
+  assert.deepEqual(asSet(data.rules.research), asSet(f.rules.research), "research rules");
+  assert.deepEqual(asSet(data.rules.implied), asSet(f.rules.implied), "implied rules");
+  const recap = (r) => asSet(r.map((x) => ({ events: [...x.events].sort(), tribe: [...(x.tribeEvents || [])].sort() })));
+  assert.deepEqual(recap(data.recap), recap(f.recap), "an episode's headline wins, and which a tribe wins");
+});
+
+test("Survivor on its own blocks: the harness's answers stage the same results, and the same exits and exile imply the same events", () => {
+  const { frozen, format } = onItsOwn();
+  const staged = (fmt, payload, n) => asSet(R.candidatesFor(JSON.parse(JSON.stringify(payload)), fmt, n));
+  const payloads = [...[0, 1, 2, 3, 4, 5].map((o) => [`patterned ${o}`, patterned(frozen, o)]), ...scenarios(frozen)];
+  for (const [label, payload] of payloads) assert.deepEqual(staged(format, payload, 4), staged(frozen, payload, 4), label);
+  const episodes = payloads.map(([, p], n) => episodeFrom(R.candidatesFor(p, frozen, n + 1), n + 1));
+  for (const finale of [false, true]) {
+    for (const votes of [undefined, 0, 3]) {
+      const exits = frozen.exitMethods.filter((m) => finale || m !== frozen.winnerExitMethod);
+      episodes.push({ number: 9, events: exits.map((method, i) => ({ castawayId: `c${i}`, method, ...(votes === undefined ? {} : { juryVotes: votes }) })), exiled: [{ castawayId: "c9" }], roles: [] });
+    }
+  }
+  assert.ok(episodes.some((ep) => ep.exiled.length && frozen.impliedEvents(ep, {}).some((e) => e.type === "wentToExile")), "exile is in there");
+  for (const ep of episodes) assert.deepEqual(asSet(format.impliedEvents(ep, {})), asSet(frozen.impliedEvents(ep, {})), `episode ${ep.number}`);
+});
+
+test("Survivor on its own blocks: a league of every type scores the same", () => {
+  const { data } = onItsOwn();
+  for (const type of ["active-roster", "classic-draft", "pickem"]) {
+    const frozen = demo("survivor", type);
+    // Exile on one episode, so the implied event is in the scores too.
+    frozen.episodes[1].exiled = [{ castawayId: frozen.castaways[4].id }];
+    const ruled = JSON.parse(JSON.stringify(frozen));
+    ruled.settings.rulebook = { data, reader: "research" };
+    assert.equal(S.formatOf(ruled).data, data, "the rulebook is what the league plays by");
+    const events = (s) => s.episodes.map((ep) => asSet(S.ActiveRosterLogic.episodeEvents(s, ep).map((e) => [e.type, e.castawayId, S.ActiveRosterLogic.eventPoints(s, e)])));
+    if (type === "active-roster") assert.ok(events(frozen).flat().length > 10, "the demo scored something");
+    assert.deepEqual(events(ruled), events(frozen), `${type}: every event and its points`);
+    assert.deepEqual(S.computeScores(ruled), S.computeScores(frozen), `${type}: the standings`);
+    assert.deepEqual([S.seasonEnded(ruled), S.seasonWinner(ruled)], [S.seasonEnded(frozen), S.seasonWinner(frozen)], `${type}: the season's end`);
+  }
+});

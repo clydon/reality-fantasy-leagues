@@ -53,6 +53,10 @@ test("a season's accepted results count as the league they came from: events, po
   assert.deepEqual([stats.from, stats.to], [1, CURSOR]);
   assert.equal(stats.stats[0].key, "points");
   assert.ok(stats.stats.some((s) => s.name === "Voted with the majority"), "named from the rulebook");
+  // Asked as a number but scored once (2nd from a finishing place, votes cancelled by an idol): counted in times.
+  const once = stats.stats.filter((s) => ["challengeRunnerUp", "challengeThird", "votesNegated"].includes(s.key));
+  assert.ok(once.length, "the demo has some");
+  for (const s of once) assert.equal(s.unit, "times", s.key);
   assert.deepEqual(stats.groups.map((g) => g.name), TRIBES);
   for (const c of league.castaways) {
     const mine = stats.cast.find((x) => x.name === c.name);

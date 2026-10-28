@@ -62,16 +62,17 @@ test("a talk show's moments are about the night: episode answers, nothing awarde
   assert.deepEqual(data.rules.research, []);
 });
 
-// One made-up Survivor-like episode, staged through the app's own pipeline.
+// One made-up Survivor-like episode, staged through the app's own pipeline: answered under the keys research has always
+// stored them by (the question map), and whoever was voted out isn't scored for how they voted.
 test("a compiled rulebook stages what research answers imply", () => {
   const { data } = compileRulebook(BUILT_IN_BLOCKS.survivor.blocks, { aliases: BUILT_IN_BLOCKS.survivor.aliases });
   const format = formatForRulebook(data);
   const person = (name, answers) => ({ name, leftTheGame: "no", exitMethod: null, sources: ["https://example.invalid"], confidence: "high", ...answers });
   const payload = {
     castaways: [
-      person("Ann Example", { immunityChallengeWon: "yes", tribalCouncilAttended: "yes", tribalCouncilVotesReceived: 0, tribalCouncilVotedFor: "Cy Example" }),
-      person("Bo Example", { tribalCouncilAttended: "yes", tribalCouncilVotesReceived: 2, tribalCouncilVotedFor: "Ann Example" }),
-      person("Cy Example", { leftTheGame: "yes", exitMethod: "Voted Out", tribalCouncilAttended: "yes", tribalCouncilVotesReceived: 5, tribalCouncilVotedFor: "Bo Example" }),
+      person("Ann Example", { wonIndividualImmunity: "yes", attendedTribal: "yes", votesReceived: 0, votedFor: "Cy Example" }),
+      person("Bo Example", { attendedTribal: "yes", votesReceived: 2, votedFor: "Ann Example" }),
+      person("Cy Example", { leftTheGame: "yes", exitMethod: "Voted Out", attendedTribal: "yes", votesReceived: 5, votedFor: "Bo Example" }),
     ],
   };
   const staged = ER.candidatesFor(payload, format, 4).map((i) => `${i.castawayName}: ${i.kind === "elimination" ? `out (${i.method})` : i.eventType}`);
@@ -82,7 +83,6 @@ test("a compiled rulebook stages what research answers imply", () => {
     "Bo Example: survivedVotes",
     "Bo Example: votedAgainstMajority",
     "Cy Example: out (Voted Out)",
-    "Cy Example: votedAgainstMajority",
   ]));
 });
 
@@ -391,4 +391,210 @@ test("a moment scored from a question the rulebook already asks (customMoments[]
   assert.match(bad({ counted: "yesNo" }), /isn't a yes-or-no question/);
   assert.ok(blocksProblems({ ...traitors, customMoments: [{ ...perVote, answeredBy: "league" }] }).some((p) => /answered by research/.test(p.message)));
   assert.ok(blocksProblems({ ...traitors, customMoments: [{ ...perVote, uses: "no spaces please" }] }).some((p) => /scored from/.test(p.message)));
+});
+
+// ---------- a show's own conditions, the question map and how research asks (docs/PLAN-start-a-game-gpt.md S1) ----------
+
+/** A made-up competition with every refinement: none of it is Survivor's blocks. */
+function island() {
+  return {
+    schema: 1, kind: "competition", show: "Island Test",
+    cast: { unit: "people", singular: "player", plural: "players", groups: { type: "sides", singular: "team", change: "atPhases" } },
+    season: { phases: [{ id: "teams", name: "Teams", starts: { type: "episode", n: 1 }, changes: [] }], finale: { decidedBy: "juryVote", finalists: 2 } },
+    segments: [
+      { id: "prize", name: "Prize", decidedBy: "result", takesPart: "groupsThenEach", decides: "winner", onTheLine: "reward", often: "everyEpisode", groupWin: "won" },
+      { id: "shield", name: "Shield", decidedBy: "result", takesPart: "groupsThenEach", decides: "topThree", onTheLine: "safety", often: "everyEpisode", places: "place" },
+      { id: "council", name: "Council", decidedBy: "vote", voters: "cast", takesPart: "atRisk", onTheLine: "goingHome", often: "everyEpisode", skippedBy: "shield" },
+    ],
+    waysOut: [
+      { id: "out", name: "Voted out", means: "out", cause: { segment: "council" } },
+      { id: "runnerUp", name: "Runner-up", means: "finalist", winnerToo: true },
+      { id: "champion", name: "Champion", means: "winner" },
+    ],
+    twists: [
+      { id: "tokens", type: "advantage", name: "Tokens", oneIsCalled: "a token", gotBy: "found", does: ["cancelsVotes"], lasts: "oneUse", cancelled: "count" },
+      { id: "island", type: "sideTrip", name: "The island", oneIsCalled: "the island", who: "chosen", canGet: ["nothing"], away: "yes" },
+    ],
+    customMoments: [{ id: "invited", label: "Invited along", during: { segment: "prize" }, counted: "yesNo", answeredBy: "research", exceptWinners: true }],
+  };
+}
+
+test("a show's own conditions as block fields: each compiles to its rule, and stages and implies through the pipeline", () => {
+  const blocks = island();
+  assert.deepEqual(blocksProblems(blocks), []);
+  const { data, problems, warnings } = compileRulebook(blocks, { id: "island-test" });
+  assert.deepEqual([problems, warnings], [[], []]);
+  const rule = (award) => data.rules.research.find((r) => r.award === award);
+  const yes = (answer) => ({ answer, is: "yes" });
+  const no = (answer) => ({ answer, isNot: "yes" });
+  // A team's win counts as winning the prize: one moment, either answer, both asked.
+  assert.ok(!data.events.some((e) => e.id === "prizeGroupWon"), "no moment of its own");
+  assert.deepEqual(rule("prizeWon"), { when: { any: [yes("prizeWon"), yes("prizeGroupWon")] }, award: "prizeWon" });
+  assert.deepEqual(data.recap.find((r) => r.label === "Prize"), { label: "Prize", events: ["prizeWon"], tribeEvents: ["prizeWon"] });
+  // 2nd and 3rd from one finishing place, each scored once.
+  assert.deepEqual([rule("shieldSecond"), rule("shieldThird")], [{ when: { answer: "shieldPlace", equals: 2 }, award: "shieldSecond" }, { when: { answer: "shieldPlace", equals: 3 }, award: "shieldThird" }]);
+  // The team that wins the shield skips the council; whoever left scores none of its moments.
+  assert.deepEqual(rule("councilZeroVotes").when, { all: [yes("councilAttended"), { answer: "councilVotesReceived", equals: 0 }, no("shieldGroupWon"), no("leftTheGame")] });
+  assert.deepEqual(data.rules.research.find((r) => r.builtIn === "votedForLeaver").when, no("leftTheGame"));
+  // Votes a token cancelled: a count, of someone who played one, scored once.
+  assert.deepEqual(rule("tokensCancelledVotes"), { when: { all: [yes("tokensPlayed"), { answer: "tokensVotesCancelled", greaterThan: 0 }] }, award: "tokensCancelledVotes" });
+  // Invited along to a prize they didn't win, alone or as a team.
+  assert.deepEqual(rule("invited").when, { all: [yes("invited"), no("prizeWon"), no("prizeGroupWon")] });
+  // The island: the episode's exile record, and scored from it.
+  assert.deepEqual(data.rules.research.find((r) => r.stage === "exiled"), { when: yes("islandWent"), stage: "exiled" });
+  assert.deepEqual(data.events.find((e) => e.id === "islandWent"), { id: "islandWent", label: "Sent to the island", defaultPoints: 1, implied: true });
+  // The champion reached the end too.
+  assert.deepEqual(data.rules.implied.find((r) => r.award === "runnerUp"), { whenExit: ["Runner-up", "Champion"], award: "runnerUp" });
+  const asked = new Map(data.research.checklist.map((f) => [f.key, f]));
+  assert.deepEqual(["prizeGroupWon", "shieldPlace", "shieldGroupWon", "tokensVotesCancelled"].map((k) => asked.get(k) && asked.get(k).type), ["answer", "integer", "answer", "integer"]);
+  assert.match(asked.get("prizeWon").description, /^Won the Prize on their own, not as part of a team, this episode/);
+
+  const format = formatForRulebook(data);
+  const stagedAs = (castaways) => ER.candidatesFor({ castaways }, format, 1).map((i) => `${i.castawayName} ${i.kind === "exiled" ? "exiled" : i.eventType}`);
+  assert.deepEqual(sorted(stagedAs([
+    person("Ann Example", { prizeGroupWon: "yes", shieldPlace: 2, councilAttended: "yes", councilVotesReceived: 0, shieldGroupWon: "yes", islandWent: "yes" }),
+    person("Bo Example", { invited: "yes", prizeWon: "no", tokensPlayed: "yes", tokensVotesCancelled: 3, councilAttended: "yes", councilVotesReceived: 0 }),
+    person("Cy Example", { invited: "yes", prizeWon: "yes", tokensPlayed: "no", tokensVotesCancelled: 2, shieldPlace: 3 }),
+  ])), sorted([
+    "Ann Example prizeWon", "Ann Example shieldSecond", "Ann Example shieldGroupWon", "Ann Example exiled",
+    "Bo Example invited", "Bo Example tokensPlayed", "Bo Example tokensCancelledVotes", "Bo Example councilZeroVotes",
+    "Cy Example prizeWon", "Cy Example shieldThird",
+  ]));
+  const ep = { number: 5, events: [{ castawayId: "c1", method: "Champion", juryVotes: 3 }, { castawayId: "c2", method: "Runner-up", juryVotes: 0 }], exiled: [{ castawayId: "c3" }], roles: [] };
+  assert.deepEqual(sorted(format.impliedEvents(ep, {}).map((e) => `${e.castawayId} ${e.type}`)), sorted([
+    "c3 islandWent", "c1 champion", "c1 runnerUp", "c2 runnerUp", "c2 finaleNoJuryVotes", "c1 finaleJuryVote", "c1 finaleJuryVote", "c1 finaleJuryVote",
+  ]));
+});
+
+test("the refinements are checked where they apply, and leaving each out is what it always was", () => {
+  const at = (b) => blocksProblems(b).map((p) => p.at);
+  const b = island();
+  b.segments[2].groupWin = "won";
+  b.segments[0].places = "place";
+  b.segments[2].skippedBy = "council";
+  b.waysOut[0].winnerToo = true;
+  b.twists[1].cancelled = "count";
+  b.twists[0].away = "yes";
+  b.customMoments[0].during = { segment: "council" };
+  assert.deepEqual(at(b).sort(), [
+    "customMoments[invited].exceptWinners", "segments[council].groupWin", "segments[council].skippedBy", "segments[prize].places",
+    "twists[island].cancelled", "twists[tokens].away", "waysOut[out].winnerToo",
+  ]);
+  // Without them, the moments are the templates' own: a team's win of its own, 2nd and 3rd asked yes or no, a side trip that's a trip.
+  const plain = island();
+  for (const s of plain.segments) for (const k of ["groupWin", "places", "skippedBy"]) delete s[k];
+  delete plain.waysOut[1].winnerToo;
+  delete plain.twists[0].cancelled;
+  delete plain.twists[1].away;
+  delete plain.customMoments[0].exceptWinners;
+  const { data } = compileRulebook(plain, { id: "island-test" });
+  const rule = (award) => data.rules.research.find((r) => r.award === award);
+  assert.deepEqual([rule("prizeGroupWon").when, rule("shieldSecond").when, rule("tokensCancelledVotes").when, rule("invited").when, rule("islandWent").when], [
+    { answer: "prizeGroupWon", is: "yes" }, { answer: "shieldSecond", is: "yes" }, { answer: "tokensCancelledVotes", is: "yes" }, { answer: "invited", is: "yes" }, { answer: "islandWent", is: "yes" },
+  ]);
+  assert.deepEqual(data.rules.implied.find((r) => r.award === "runnerUp"), { whenExit: "Runner-up", award: "runnerUp" });
+  assert.equal(data.events.find((e) => e.id === "islandWent").label, "Went on the island");
+});
+
+test("the question map and the rulebook's research block: stored keys, research's own words, which yeses need a source, questions asked besides", () => {
+  const blocks = island();
+  blocks.research = {
+    searchHint: ["Look it up."],
+    questions: {
+      councilAttended: { words: "Were they at Council?", needsSource: false },
+      whatTheyFound: { type: "string", words: "What token they found, in the show's words." },
+      councilHeld: { type: "answer", of: "episode", words: "Was there a Council?" },
+      notAsked: { words: "Words for a question nobody asks." },
+      prizeWon: { type: "integer" },
+    },
+  };
+  assert.deepEqual(blocksProblems(blocks).map((p) => p.at), ["research.questions.prizeWon.words"], "a question asked besides says what it asks");
+  blocks.research.questions.prizeWon.words = "Already asked.";
+  const aliases = { events: {}, exits: {}, questions: { councilAttended: "atCouncil", shieldPlace: "finish", councilVotedFor: "vote" } };
+  const { data, problems, warnings } = compileRulebook(blocks, { id: "island-test", aliases });
+  assert.deepEqual(problems, []);
+  assert.deepEqual(warnings, [
+    "How research asks \"prizeWon\": this rulebook already asks it, so its type isn't used",
+    "How research asks \"notAsked\": this rulebook doesn't ask it, so its words aren't used",
+  ]);
+  const asked = new Map(data.research.checklist.map((f) => [f.key, f]));
+  assert.ok(!asked.has("councilAttended") && asked.get("atCouncil").description === "Were they at Council?", "asked under its stored key, in its own words");
+  assert.ok(asked.has("finish") && asked.has("vote"));
+  assert.deepEqual(asked.get("whatTheyFound"), { key: "whatTheyFound", type: "string", nullable: true, description: "What token they found, in the show's words." });
+  assert.deepEqual(data.research.episodeFields, [{ key: "councilHeld", type: "answer", description: "Was there a Council?" }]);
+  assert.deepEqual([asked.get("prizeWon").type, asked.get("prizeWon").description], ["answer", "Already asked."], "its own words, its own type");
+  assert.ok(!data.research.claims.includes("atCouncil") && data.research.claims.includes("prizeWon"), "a yes for being at Council needs no source");
+  assert.deepEqual(data.research.searchHint, ["Look it up."]);
+  const rules = JSON.stringify(data.rules);
+  assert.ok(rules.includes('"atCouncil"') && rules.includes('"finish"') && rules.includes('"vote":"vote"') && !rules.includes("councilAttended"), "the rules read the stored keys");
+  // A research block that isn't one is located.
+  const bad = island();
+  bad.research = { questions: { "no spaces": {}, odd: { type: "date", of: "season", colour: 1 } }, extra: true };
+  assert.deepEqual(blocksProblems(bad).map((p) => p.at).sort(), ["research.extra", "research.questions.no spaces", "research.questions.odd.colour", "research.questions.odd.of", "research.questions.odd.type", "research.questions.odd.words"]);
+});
+
+test("a chat's rulebook: a refinement that doesn't fit is left out, never its item, and how research asks is never the chat's", () => {
+  const R = require("../src/lib/game/formats/rulebook-research.js");
+  const answer = island();
+  answer.segments[0].places = "place"; // the prize doesn't decide a top three
+  answer.segments[2].skippedBy = "Shield"; // by name
+  answer.research = { questions: { councilAttended: { words: "Anything." } } };
+  const r = R.reviewRulebook(answer);
+  assert.deepEqual(r.problems, []);
+  assert.ok(r.blocks.segments.some((s) => s.id === "prize") && !("places" in r.blocks.segments[0]), "the prize stays, its place goes");
+  assert.equal(r.blocks.segments[2].skippedBy, "shield");
+  assert.equal(r.blocks.research, undefined);
+  assert.deepEqual(r.warnings.filter((w) => w.at === "research" || w.at === "segments[prize].places").map((w) => w.at), ["research", "segments[prize].places"]);
+  // The template a prompt starts from leaves research's words out; the prompt says what the refinements are.
+  const p = R.buildRulebookPrompt({ show: "Australian Survivor", template: BUILT_IN_BLOCKS.survivor.blocks });
+  assert.ok(p.includes('"skippedBy": "immunityChallenge"') && !p.includes('"searchHint"') && !p.includes("Were they AT Tribal Council"));
+  for (const f of ["groupWin", "places", "skippedBy", "winnerToo", "cancelled", "away", "exceptWinners"]) assert.ok(p.includes(`"${f}"`), f);
+});
+
+test("a refinement that stops fitting goes, never its item; and the edges: one exile, a vote by the cast, the old way of switching off a group's win", () => {
+  const { dropMisfitRefinements } = require("../src/lib/game/formats/rulebook-schema.js");
+  // The shield taken out: the council stays, without what it skipped by; the prize played by everyone loses its group's win.
+  const b = island();
+  b.segments = b.segments.filter((s) => s.id !== "shield");
+  b.segments[0].takesPart = "everyone";
+  const { dropped, problems } = dropMisfitRefinements(b);
+  assert.deepEqual(problems, []);
+  assert.deepEqual(dropped.map((p) => p.at).sort(), ["segments[council].skippedBy", "segments[prize].groupWin"]);
+  assert.deepEqual(b.segments.map((s) => s.id), ["prize", "council"]);
+  // Two trips away from the group: an episode's exile record doesn't say which, so only the first can be.
+  const two = island();
+  two.twists.push({ id: "cave", type: "sideTrip", name: "The cave", oneIsCalled: "the cave", who: "chosen", canGet: ["nothing"], away: "yes" });
+  assert.deepEqual(blocksProblems(two).map((p) => p.at), ["twists[cave].away"]);
+  // On a base that already scores the exile record (blocks from before Exile was a trip: its moment added by hand), a new
+  // trip away from the group scores nothing, so an exile counts once, not twice.
+  const { blocks, aliases } = BUILT_IN_BLOCKS.survivor;
+  const onBase = clone(blocks);
+  onBase.twists = onBase.twists.filter((t) => t.id !== "exile");
+  onBase.customMoments.push({ id: "wentToExile", label: "Sent to Exile", during: { twist: "journeys" }, counted: "yesNo", answeredBy: "research" });
+  onBase.twists.push({ id: "idols", type: "sideTrip", name: "Island of the Idols", oneIsCalled: "the Island of the Idols", who: "chosen", canGet: ["advantage"], away: "yes" });
+  const c = compileRulebook(onBase, { aliases, reader: "survivor" });
+  assert.deepEqual(c.problems, []);
+  assert.ok(c.warnings.includes("Sent to the Island of the Idols: the base already scores being sent away, so nothing awards it"), c.warnings.join("; "));
+  assert.equal(c.data.rules.implied.filter((r) => "whenExiled" in r).length, 1);
+  // A vote that isn't the cast's can't be skipped: nothing there reads it.
+  const jury = island();
+  jury.segments[2].voters = "jury";
+  assert.deepEqual(blocksProblems(jury).map((p) => p.at), ["segments[council].skippedBy"]);
+  // The template's old way of one reward win, a group's win switched off: the plain question still covers winning as a group.
+  const old = island();
+  delete old.segments[0].groupWin;
+  old.segments[0].momentsOff = ["prizeGroupWon"];
+  const prize = compileRulebook(old, { id: "island-test" }).data.research.checklist.find((f) => f.key === "prizeWon");
+  assert.equal(prize.description, "Won the Prize, this episode: yes, no, or unknown.");
+});
+
+test("a moment scored from a question the rulebook already asks leaves out the winners too", () => {
+  const b = island();
+  b.customMoments.push({ id: "tagAlong", label: "Tagged along", during: { segment: "prize" }, uses: "invited", counted: "yesNo", answeredBy: "research", exceptWinners: true });
+  assert.deepEqual(blocksProblems(b), []);
+  const { data, problems } = compileRulebook(b, { id: "island-test" });
+  assert.deepEqual(problems, []);
+  assert.deepEqual(data.rules.research.find((r) => r.award === "tagAlong").when, {
+    all: [{ answer: "invited", is: "yes" }, { answer: "prizeWon", isNot: "yes" }, { answer: "prizeGroupWon", isNot: "yes" }],
+  });
 });
