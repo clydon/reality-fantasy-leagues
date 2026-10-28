@@ -33,7 +33,8 @@
 //   require("./tapes").answerer(show, season)              (prompt, kind) => the recorded answer, for fake-bot.js's
 //                                                          `answer`, so a check runs the app's real flows on a tape offline
 //
-// Needs: the lane's .env.local (AUTH_DATABASE_URL on localhost, LLM_BROWSER_API_URL naming only a local bot and its key),
+// Needs: the lane's .env.local (AUTH_DATABASE_URL on localhost, LLM_BROWSER_API_URL naming only a local bot and its key,
+// BOT_PROVIDER to ask other than ChatGPT: gemini is the user's signed-in Gemini, in the mode the bot picks),
 // migrations run, and for record/one the local bot up. No dev server: the app's code runs in this process. Writes to the
 // lane's database the way the app does (shows, seasons, episodes, cast, research, runs); a zt_tapes user owns what needs one.
 // Those rows aren't zt- keyed, by design: they're real seasons of real shows, named as the app's prompts name them, on the
@@ -366,10 +367,14 @@ async function tapesUser(pool) {
 // it). Not too long: a question can stall (Traitors 4 episode 1's full research had nothing at 270 s, then answered in 42 s
 // on its next try), and a stalled try is a failed one, asked again.
 const BOT_WAIT_S = Number(process.env.BOT_WAIT_S) || 420;
+// Which of the bot's providers answers: chatgpt (the app's own) unless BOT_PROVIDER says gemini, the user's signed-in Gemini
+// (the bot picks its mode and thinking level and says which it answered in). Every tape names the provider and mode.
+const BOT_PROVIDER = String(process.env.BOT_PROVIDER || "chatgpt").trim().toLowerCase();
+const BOT_NAME = { chatgpt: "ChatGPT", gemini: "Gemini", grok: "Grok" }[BOT_PROVIDER] || BOT_PROVIDER;
 const UA = { "User-Agent": "GameYourShow/1.0 (+https://gameyourshow.com)" };
 
-/** One question to the local bot: ask-bot.ts askBot's request (ChatGPT, search on unless `search: false`, keepalive) with
- *  BOT_WAIT_S to answer. */
+/** One question to the local bot: ask-bot.ts askBot's request (BOT_PROVIDER, search on unless `search: false`, keepalive)
+ *  with BOT_WAIT_S to answer: { answer, seconds, model } (model: the mode Gemini answered in, else null). */
 async function botAsk(prompt, o = {}) {
   const { bots } = appCode();
   const url = bots[0].replace(/\/$/, "");
@@ -377,7 +382,7 @@ async function botAsk(prompt, o = {}) {
   const res = await fetch(`${url}/ask`, {
     method: "POST",
     headers: { ...UA, "Content-Type": "application/json", "X-API-Key": process.env.LLM_BROWSER_API_KEY || "" },
-    body: JSON.stringify({ provider: "chatgpt", prompt, search: o.search !== false, max_wait: wait, keepalive: true }),
+    body: JSON.stringify({ provider: BOT_PROVIDER, prompt, search: o.search !== false, max_wait: wait, keepalive: true }),
     signal: AbortSignal.timeout((wait + 30) * 1000),
   });
   const text = await res.text();
@@ -387,8 +392,8 @@ async function botAsk(prompt, o = {}) {
   } catch {
     body = { detail: `an answer that isn't JSON (HTTP ${res.status}): ${text.trim().slice(0, 200)}` };
   }
-  if (res.ok && body.response) return { answer: body.response, seconds: body.seconds ?? 0 };
-  throw new Error(`ChatGPT didn't answer. ${new URL(url).host}: ${body.detail || `HTTP ${res.status}`}`);
+  if (res.ok && body.response) return { answer: body.response, seconds: body.seconds ?? 0, model: body.model ?? null };
+  throw new Error(`${BOT_NAME} didn't answer. ${new URL(url).host}: ${body.detail || `HTTP ${res.status}`}`);
 }
 
 /**
@@ -400,12 +405,13 @@ function recording() {
   const asks = [];
   const parses = [];
   const ask = async (prompt, o = {}) => {
-    const entry = { prompt, answer: null, seconds: null, error: null };
+    const entry = { prompt, answer: null, seconds: null, error: null, model: null };
     asks.push(entry);
     const t0 = Date.now();
     try {
       const out = await botAsk(prompt, o);
       entry.answer = out.answer;
+      entry.model = out.model;
       entry.seconds = Math.round((Date.now() - t0) / 100) / 10;
       return out;
     } catch (e) {
@@ -748,7 +754,7 @@ async function runOne(job, tries = 1) {
     message: out.message || null,
     seconds,
     at: at.toISOString(),
-    bot: { urls: appCode().bots, provider: "chatgpt", maxWait: BOT_WAIT_S, seconds: first ? first.seconds : null },
+    bot: { urls: appCode().bots, provider: BOT_PROVIDER, model: first ? first.model : null, maxWait: BOT_WAIT_S, seconds: first ? first.seconds : null },
     commit: commitOf(),
     ...(second ? { check: { prompt: second.prompt, answer: second.answer, seconds: second.seconds, error: second.error } } : {}),
     ...(rec.asks.some((a) => a.error) ? { errors: rec.asks.filter((a) => a.error).map((a) => a.error) } : {}),
@@ -831,7 +837,7 @@ async function record(opts) {
   const pause = (Number(opts.pause) || 60) * 1000;
   const max = Number(opts.max) || Infinity;
   let asked = 0;
-  journal(`${new Date().toISOString()}  -- recorder started (pid ${process.pid}, commit ${commitOf()}, pause ${pause / 1000}s${opts.only ? `, only ${opts.only.show}${opts.only.season ? `:${opts.only.season}` : ""}` : ""})`);
+  journal(`${new Date().toISOString()}  -- recorder started (pid ${process.pid}, commit ${commitOf()}, ${BOT_PROVIDER}, pause ${pause / 1000}s${opts.only ? `, only ${opts.only.show}${opts.only.season ? `:${opts.only.season}` : ""}` : ""})`);
   let stop = false;
   process.on("SIGINT", () => {
     if (stop) process.exit(1);
