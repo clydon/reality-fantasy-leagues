@@ -145,6 +145,8 @@ export function upFrom(href: string, { signedIn = true }: { signedIn?: boolean }
     case "desk":
       if (p[1] === "library") return paths.desk("find");
       if (p[1] === "new") return paths.desk("library");
+      // The engine lab (step A5 of docs/PLAN-start-a-game-gpt.md): a page of its own under the desk.
+      if (p[1] === "lab") return paths.desk();
       if (p[1] === "fact") return paths.desk();
       if (p[1] && isDeskKind(p[1])) return paths.desk("find");
       return paths.home;

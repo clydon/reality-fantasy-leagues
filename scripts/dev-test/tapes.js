@@ -698,14 +698,14 @@ async function askRecaps(job, rec) {
 }
 
 /**
- * A request from Start a game's words corpus (start-a-game-words.json), asked with the draft request prompt (tapes-words.js:
+ * A request from Start a game's words corpus (the capability tracker's, tapes-words.js wordsCorpus), asked with the draft request prompt (tapes-words.js:
  * no web search, the corpus's own date), read, and judged against its expected reading.
  */
 async function askWords(job, rec) {
   const W = require("./tapes-words.js");
   const corpus = wordsCorpus();
   const req = corpus && corpus.requests.find((r) => r.id === job.id);
-  if (!req) throw Object.assign(new Error(`No request ${job.id} in start-a-game-words.json`), { blocked: true });
+  if (!req) throw Object.assign(new Error(`No request ${job.id} in the words corpus (tests/fixtures/engine-capabilities.json)`), { blocked: true });
   const { answer } = await rec.ask(W.wordsPrompt(req.words, corpus.today), { search: false });
   const parsed = W.parseRequest(answer);
   const judged = W.judge(req.expect, parsed, req.words);
@@ -769,7 +769,14 @@ async function runOne(job, tries = 1) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const wordsCorpus = () => readJson(path.join(__dirname, "start-a-game-words.json"));
+// The capability tracker's corpus (step A5 of the GPT plan: one list, read by tapes-words.js), or null when it can't be read.
+function wordsCorpus() {
+  try {
+    return require("./tapes-words.js").wordsCorpus() ?? null;
+  } catch {
+    return null;
+  }
+}
 function wordsIds() {
   const data = wordsCorpus();
   return data && Array.isArray(data.requests) ? data.requests.map((r) => r.id) : [];

@@ -5,7 +5,7 @@ is headed", then today's games recreated on it, then the UI last; the GPT's word
 and S2 (both parts, 2026-10-28) are built and merged into master** (their As built is under track S); the test couch plays
 them next (the user's, in production). A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), not yet merged: the main folder merges them (review, checks, the Neon rehearsal, the user's OK).
-A5 and A6 next on `engine`. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+A5 built on `engine` (2026-10-28: the tracker and the engine lab); A6 next. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -1306,6 +1306,89 @@ screens. Each step names the research data it needs and checks the tapes have it
   paste a spec or pick a tracker request: it shows the validator's verdict (`specProblems`, `specWaitsFor`), the sentence and How
   it works (`describeSpec`), the tracker row's status, and "Start it as a test game" on a zt- fixture or the test couch. G1 plugs
   the GPT into it later (words, the draft, our check, the spec), so every piece can be tried as it lands, long before U.
+  **As built (A5, 2026-10-28, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` brought this
+  plan in (877 tests then).
+  - **The tracker:** `tests/fixtures/engine-capabilities.json`, kept by hand. Its rows:
+    - the nine dials' values (91);
+    - the worked examples typed on a show's page (6);
+    - the stretch requests (63);
+    - the words corpus, all 104 moved whole from the playtest lane's `start-a-game-words.json` (now deleted).
+    Each row says what it needs:
+    - a `spec` (once the schema can say it);
+    - a `step` (A6..A15, L1..L6, G1, ...);
+    - a rule to `decide`;
+    - `planned: false`;
+    - or `gpt` (not a game: a typo, a season that never was, two games at once, the GPT's to ask or refuse).
+  - **Each request is typed on a page.** `page` is the show and season (or the sport and event), and its `rulebook` names the
+    rules its specs are checked against: a built-in, one of `rulebook-samples.js`, or a stand-in of the same kind
+    (`checkedAs`: Dancing with the Stars against The Amazing Race's, Love Island against Survivor's). The corpus keeps each
+    request's expected reading for G1's bank and the recorder.
+  - **The status is worked out, never written** (`src/lib/game/game-spec/capabilities.js`, pure: `statusOf`, `rowProblems`,
+    `rowsOf`, `pageName`; `src/lib/game/capability-rows.ts`: `pageCtx`, shared by the doc and the lab):
+    - ✅ plays now when the spec passes `specProblems` with its page's ctx and `specWaitsFor`;
+    - ⏳ its step;
+    - 🆕 not planned;
+    - ❓ waits on a rule decision;
+    - 💬 the GPT's.
+    So a row turns ✅ by itself once its step lands and its spec passes.
+  - **`scripts/engine-capabilities.js`** writes `docs/ENGINE-CAPABILITIES.md`. Each ✅ row reads in the engine's own words
+    (`describeSpec`), saying when it was checked against a stand-in. Every step from here regenerates and commits it.
+    `--check` exits 1 when it's out of date.
+  - **Now:** 89 ✅ · 150 ⏳ · 1 🆕 · 1 ❓ · 23 💬, of 264. Waiting: A6 14, A7 11, A8 11, A9 20, A10 16, A11 14, A12 9, A13 3,
+    A14 14, A15 15, L3 7, L4 13, G1 3.
+  - **One list.** `tapes.js`, `tapes-words.js` (its new `wordsCorpus()`, which tapes.js uses) and `tests/tapes.test.js` read
+    the tracker's corpus; PLAN-playtests.md says where it went.
+  - **Found on the way:** a plain Weekly Lineup on Below Deck's sample rules is refused as a new spec, because two of its
+    scoring moments (a hookup, crying on camera) are the couch's word. The two corpus rows score them 0, which is our check's
+    offer.
+  - **The engine lab**, `/desk/lab`, admin-only, plain, in its own files:
+    - the route `src/app/(new)/(in)/desk/lab/page.tsx`, a static segment beside the desk's catch-all, so no desk file changed;
+    - the screen `src/new/lab/lab.tsx`; the server `src/lib/server/engine-lab.ts`; `GET/POST /api/desk/lab` (`requireDesk`);
+    - `routes.ts` gains one line, so back goes up to the desk.
+  - **What the lab does:**
+    - Pick a season that's a game, then a tracker row (filter by id, words or step; tagged with its status) or paste a spec.
+    - Check gives the verdict on that season's own rules: what's wrong (the data rule with its ctx), what waits, the league
+      type it plays as, the sentence, How it works and the details, and the row's status there.
+    - Start it as a test game puts it on the admin's test couch (`test_couches.owner_id`) or, locally, a zt- fixture's couch
+      they're on (made by a `zt_` account). Never a real couch.
+    - The game goes through `RosterLogic.setGame` with the rules it plays by there (a couch's own copy, else the season's).
+      With no span it starts with the next episode to air, as Start a game's do (`startFrom`, now exported).
+    - It's named "Lab · Weekly Lineup", with a line in its Recent changes, followed, and a refused setup takes its half-made
+      league away.
+    - G1 plugs the GPT into it.
+  - **Tests:** `tests/engine-capabilities.test.js`, 4 tests:
+    - every row says what it needs, and a spec always has a page's rules;
+    - no ✅ without a passing spec, and a spec that doesn't pass yet names its step;
+    - each dial has something that plays now;
+    - the status is the engine's (incl. Below Deck's couch moments);
+    - the doc is current.
+    `npm test` 881.
+  - **Browser:** `scripts/dev-test/check-engine-lab.js` (new, on new-fixture.js with the desk's own admin), 21 PASS at 390:
+    - the options, and the 403 for someone who isn't an admin;
+    - a ✅ dial spec plays on ZT Survivor 51, in words, ✅ there;
+    - a made-up moment refused, a sport's stats waiting, bad JSON a 400;
+    - start: refused for a spec that doesn't play and on another couch; made on the zt- couch (a game of questions, the admin
+      its Commissioner, its spec in step, from Episode 6, its Recent changes line);
+    - in the browser: the row picked and checked, started, a row with no spec emptying the box, a refused spec saying why.
+  - **Code review** (`/code-review`, before the commit).
+    - Taken:
+      - the admin isn't on their own test couch, so it's found by its owner;
+      - fixture couches by a `zt_` maker, not their name;
+      - a refused setup's half-made league is cleaned up;
+      - a row with no spec no longer keeps the last row's spec;
+      - shape-only ✅ rows now need a page's rules (stand-ins), and Terrace House's "who leaves next" became the GPT's;
+      - a test game starts with the next episode;
+      - its Recent changes line and follow;
+      - back goes to the desk;
+      - the lab's tags are each row's real status;
+      - one page name, one `rowsOf`, one corpus reader;
+      - the couch's own rules;
+      - no double season read;
+      - dead code;
+      - PLAYTESTS' mentions of the deleted file.
+    - Declined: one shared helper for Start a game's and the lab's league setup. Start a game's is couch UX: linking,
+      Tell the couch, Run it back, computer players. The lab's is a plain test game. Both go through `makeLeague` and
+      `setGame`, and the parts that matter (cleanup, Recent changes, the next episode, the couch's rules) are in both.
 - **A6. Questions about who and about each.** Person and group answers settled by a moment in the episode ("Which tribe wins
   immunity?", "Who finds an idol?"), from research's per-person moments and each episode's groups (after swaps); one question
   asked of each person still in, an answer per person ("each couple's score"), counting as one of the 12; a person's number
@@ -1593,6 +1676,16 @@ From A4 part 2 (2026-10-28):
   the sheet in for Call it). (Whoever next touches Call it.)
 - The hub's couch pages (power rankings, By the numbers) weren't looked at with a Prediction Sheet on the couch; its standings
   come from `answerStanding` (part 1). (The next hub pass.)
+
+From A5 (2026-10-28):
+- `describeSpec` calls a game of questions "A game" (not "A Prediction Sheet"), and an Outlast's or a lineup's sentence leaves out
+  its finale predictions (How it works has them). (U0, or whoever next touches describe.js.)
+- Start a game writes its Weekly Lineup without the show's ctx, so on rules with moments the couch answers (Below Deck's
+  sample) it makes a game the GPT's check would refuse until those moments score 0. Which rule should a preset meet? (R1.)
+- The lab isn't linked from the desk: its screens are being redesigned in the main folder, so it's reached at /desk/lab. (The
+  desk's redesign.)
+- The lab imports the tracker and the sample rulebooks from `tests/fixtures/`, so they ship in the app's bundle. Small; the
+  tracker is the lab's source by design. (Whoever next touches the lab.)
 
 From A2 (2026-10-28):
 - Start a game still makes a Weekly Lineup with `defaultState`'s copy of the points (a map), not the preset's null. A copy

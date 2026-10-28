@@ -182,7 +182,7 @@ const BOT_GAMES = new Set<SeasonGameKey>(["survivalPool", "weeklyLineup", "outla
 const plain = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").replace(/^The /, "").trim() || name;
 
 /** The next episode still to air; 1 before the premiere. */
-function startFrom(schedule: SeasonSchedule | undefined, now: Date): number {
+export function startFrom(schedule: SeasonSchedule | undefined, now: Date): number {
   for (const ep of schedule?.episodes ?? []) if (ep.airAt && new Date(ep.airAt).getTime() > now.getTime()) return ep.number;
   return latestAired(schedule, now) + 1;
 }
