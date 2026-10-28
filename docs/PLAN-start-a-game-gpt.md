@@ -5,7 +5,8 @@ is headed", then today's games recreated on it, then the UI last; the GPT's word
 and S2 (both parts, 2026-10-28) are built and merged into master** (their As built is under track S); the test couch plays
 them next (the user's, in production). A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), not yet merged: the main folder merges them (review, checks, the Neon rehearsal, the user's OK).
-A5, A6 and A7 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time); A8 next. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+A5 to A8 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time; more
+answers); A9 next, after the user's word. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -1561,6 +1562,77 @@ screens. Each step names the research data it needs and checks the tapes have it
       began; the sheet shows each person the window at their own mark.
 - **A8. More answers.** An order (the boot order, a leaderboard), confidence (a ranking with weights), spreading chips, a wager,
   pairs (who outlasts whom), a vote split (5-2-1).
+
+  **As built (A8, 2026-10-28, on `engine`, not merged; no migration).** The same session as A6 and A7, after A7's commit (paused
+  once by the usage limit during its code review, and picked up after).
+  - **Answers** (`schema.js`):
+    - `order`: `pick` people in order (2 to 24, a whole cast's boot order), its points for each in its place, or within
+      `within` places (0 to 5);
+    - `confidence`: `pick` people, surest first; each right one scores its points times its weight (`pick` for the first, 1
+      for the last): "you score your confidence on whoever goes";
+    - `chips`: `chips` (2 to 100) spread as `{ castawayId: chips }`; each chip on someone right scores its points;
+    - `split`: a vote split, `[5, 2, 1]`, right when it's the split exactly (zeros left out on both sides: "5-3" is "5-3-0");
+    - `pairs`: `pairs` (1 to 12) drawn from who's in at the game's start, the same every time, answered `{ "a|b": who }`;
+    - `wager` (on a yes or no, a choice, an over/under, or one person or group): `{ answer, stake }`, up to `wager` points;
+      right, its points and the stake; wrong, the stake lost; off (nobody right, right on the line), nothing.
+  - **Settles:** `results` takes `order` (who went home in order over a run, a phase or the game; a double boot shares its
+    places), `split` (the jury's: the finalists' votes, the season's) and `outlast` (pairs: decided as soon as one goes; the
+    same night is a tie; to the season's end, where they finished breaks it; a game with an end of its own never reads the
+    season's later order); `moment` takes `order` (a leaderboard by a moment's count, ties share places); a new settle,
+    `points`, takes `most` and `order`: each person's points by the game's rules, as the engine scores a moment
+    (`ActiveRosterLogic.eventPoints`: the rulebook's points, a couch's copy, units).
+  - **The data rule:** a points leaderboard needs every moment that scores to be research's (and rules that score something);
+    a jury split needs a finale a jury decides (`ctx.jury`, from the blocks).
+  - **Pairs aren't stored:** both the grader and the server draw them from `AnswerLogic.startIn` (who was in at the game's
+    first episode), keyed by the pair's two ids, so a cast correction that redraws them never grades an answer against
+    another pair.
+  - **The engine:** `facts` gains each episode's `points`, `startIn` and the jury's votes; the grader `placesOf` /
+    `placesBy` (the places each one could hold, ties sharing a block).
+  - **The server:** the read gives an order's or confidence's `pick`, `within`, `chips`, `wager` and the `pairs` (key and two
+    faces); faces for orders, confidence and chips are who's still in; answers are checked against them (a pair's against its
+    two).
+  - **The sheet** holds A8's kinds back with a line ("answered on a screen still to come": U1's); once locked it says their
+    answers and verdicts in words (an order's names, a split's numbers, "settled pair by pair").
+  - **Words:** How it works for each ("Put five in order: 2 points for each in its place, or within one place of it", "Rank
+    four, the one you're surest of first...", "Spread ten chips...", "5 points for the split exactly", "Three pairs, the same
+    for everyone...", "Stake up to 5 points on it...").
+  - **The tracker:** A8's 11 rows, all ✅ (an order, a vote split, rank them, chips, a wager; confidence picks; the boot order
+    within two; the week's leaderboard by points; chips on who wins immunity; ten pairs; the final vote split). **Now: 124 ✅**
+    · 115 ⏳ · 1 🆕 · 1 ❓ · 23 💬.
+  - **Research data the tapes lack:** the votes at an ordinary Tribal. Research records `votesReceived` per person, but no
+    moment counts it, so a vote split there can't be settled; the jury's can (the finalists' jury votes). "Predict the final
+    tribal vote split" reads as the jury's.
+  - **Tests:** `tests/answers-more.test.js` (new, 3): the shape and the data rule; grading on facts (the boot order within one,
+    a double boot's shared places, a points leaderboard with ties, who scored most, a moment's order, confidence, chips, the
+    split with and without a zero, pairs decided as they go, the same night, a game with its own end, a wager won, lost and
+    void, 0 points still right, what an answer has to be); a league's points and a game of them graded; How it works. `npm
+    test` 893.
+  - **API:** `scripts/dev-test/check-questions-more.js` (new, on new-fixture.js): 24 PASS: a game of six (an order every
+    three, confidence, chips, a wager, three pairs, who scored most); the read (faces, pick, chips, wager, the pairs, the same
+    for riley); six refusals; Episodes 6 to 8; jordan 23 at 8 (each one's points), riley's wager lost, nothing for her at 5;
+    the Games tab; the flag's check. `check-engine-lab.js` grew A8's specs (the boot order, the points leaderboard, a wager,
+    the jury split): 35 PASS.
+  - **Re-runs** (after the code review's fixes): `check-questions-more.js` 24, `check-questions-time.js` 25,
+    `check-questions-who.js` 42, `check-engine-lab.js` 35, `check-questions.js` 97, `check-phase-starts.js` 58,
+    `check-new-start-game.js` 75, `check-new-show.js` 81.
+  - **Golden replays** (as A6's: the code before A8 and after the review's fixes, on each taped season's kept games): the same
+    116 games, **11,981 reads, every one the same.**
+  - **`game-specs-flag.js`:** `status` on, 9 of 9, none drifted; `check` PASS.
+  - **Code review** (`/code-review`, before the commit; the first run stopped at the usage limit, the second ran whole).
+    - Taken:
+      - a game with an end of its own settled pairs from the season's later finish order;
+      - a jury split with a zero-vote finalist never matched "5-3";
+      - the points leaderboard rebuilt points from the rulebook's defaults instead of the engine's own scoring (now
+        `eventPoints`, one rule);
+      - a double boot was ordered by the order its results were typed (now a tie: shared places, a pair off);
+      - pairs were redrawn by a second copy of "who's in at the start" and keyed by index (one `startIn`, keyed by the
+        pair);
+      - a 0-point question was never "right";
+      - the sheet's verdict line for a split, pairs and an order, and a split waiting for the season's end;
+      - the problem messages (the new answers and settles, a split asked each episode);
+      - a wager's base question built three times, the leaderboard's places in quadratic time, a misplaced comment, faces
+        worked out for a pairs question and never used.
+    - Declined: none.
 - **A9. Scoring that combines.** Per question: split the pot, the only right answer, roll over, multiply, shrink with time,
   double or nothing. Per lineup: a captain who scores double, best ball (your best N count), scoring in reverse. Points per
   bingo line.
@@ -1890,6 +1962,16 @@ From A6 (2026-10-28):
   lane's floor), so a step's "scores exactly as before" is shown engine against engine on the same kept leagues (a one-off,
   below each As built). A `playtest.js golden` that keeps each season's leagues and reads them with two trees would make it a
   command. (R1, or the playtest lane.)
+
+From A8 (2026-10-28):
+- A vote split at an ordinary Tribal can't be settled: research asks `votesReceived` per person, but no moment counts it, so it
+  never reaches a league. A per-unit "votes received" moment in Survivor's rules would. (A13's episode facts, or S3.)
+- Pairs aren't stored: they're drawn from who's in at the game's start on every read. A cast correction before the start draws
+  them again, and answers for the old pairs count for nothing (never against another pair). Store them at the lock if that
+  ever matters. (Whoever next touches pairs.)
+- A wager can take a player's total below zero; tables show it as it is. (U1, to say why.)
+- Orders, confidence, chips, splits, pairs and wagers have no controls on the sheet, and computer players answer none of them
+  (as A4). (U1.)
 
 From A7 (2026-10-28):
 - The late lock is a game of questions' only: lineups and picks still lock at airtime, whoever watches when. (A15, each

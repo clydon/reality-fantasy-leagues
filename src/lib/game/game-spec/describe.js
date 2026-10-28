@@ -170,6 +170,14 @@ function questionRule(q, w, each) {
   let earn = pts === null ? '' : ` ${cap(pointsWord(pts))} if you're right.`;
   if (NAMES.includes(q.answer) && q.pick > 1 && pts !== null) earn = ` Name ${say(q.pick)}: ${pointsWord(pts)} for each one right.`;
   if (q.answer === 'number' && pts !== null) earn = ` The closest wins ${pointsWord(pts)}.`;
+  // A8's answers.
+  if (pts !== null) {
+    if (q.answer === 'order') earn = ` Put ${say(q.pick)} in order: ${pointsWord(pts)} for each in its place${q.within ? `, or within ${say(q.within)} ${q.within === 1 ? 'place' : 'places'} of it` : ''}.`;
+    if (q.answer === 'confidence') earn = ` Rank ${say(q.pick)}, the one you're surest of first: each one right scores ${pointsWord(pts)} times its rank from the bottom (${q.pick} for the first).`;
+    if (q.answer === 'chips') earn = ` Spread ${say(q.chips)} chips: ${pointsWord(pts)} for each chip on someone right.`;
+    if (q.answer === 'split') earn = ` ${cap(pointsWord(pts))} for the split exactly.`;
+    if (q.answer === 'pairs') earn = ` ${cap(say(q.pairs))} ${q.pairs === 1 ? 'pair' : 'pairs'}, the same for everyone: ${pointsWord(pts)} for each one you call.`;
+  }
   // A question about each person (A6): an answer for each of them, each graded on its own.
   if (q.each && pts !== null) {
     earn = q.answer === 'number'
@@ -178,7 +186,9 @@ function questionRule(q, w, each) {
   }
   const line = q.answer === 'overUnder' && typeof q.line === 'number' ? ` The line is ${q.line}.` : '';
   const from = q.answer === 'person' && q.from === 'team' ? ' From your own team.' : '';
-  return `${when}${askOf(q)}${line}${from}${earn}`;
+  // A wager (A8): its stake, double or nothing.
+  const wager = Number.isInteger(q.wager) ? ` Stake up to ${pointsWord(q.wager)} on it: right, you win them too; wrong, you lose them.` : '';
+  return `${when}${askOf(q)}${line}${from}${earn}${wager}`;
 }
 
 /** How it works: today's five games say what the Rules sheet says (game-rules.ts), the rest in the same voice. */

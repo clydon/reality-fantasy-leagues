@@ -49,6 +49,8 @@ export function contextOf(book: CallBook): SpecContext {
     // group (tribes, teams), for which group a moment happened to.
     roles: [...new Set((blocks.twists ?? []).flatMap((t) => (t.type === "secretRole" && Array.isArray(t.roles) ? t.roles : [])))],
     grouped: !!blocks.cast?.groups,
+    // A8: whether a jury decides the finale (a jury vote split).
+    jury: blocks.season?.finale?.decidedBy === "juryVote",
   };
 }
 

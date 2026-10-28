@@ -640,6 +640,8 @@ declare const StateLogic: {
     facts(state: LeagueState): AnswerFacts;
     finishOrder(state: LeagueState): string[];
     questions(state: LeagueState): Question[];
+    /** A8: who was in at the game's first episode (a pairs question's pairs are drawn from them). */
+    startIn(state: LeagueState): string[];
     /** A7: whether the game asks anything by phase (asked once a phase, or settled by where a phase starts). */
     byPhase(state: LeagueState): boolean;
     /** A7: where a question's windows open, in order (none asked once). */

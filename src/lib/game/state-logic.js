@@ -3515,9 +3515,11 @@ class AnswerLogic {
       let events = null;
       let who = null;
       let roleOf = null;
+      let points = null;
       if(stage === 'final'){
         events = new Map();
         who = new Map();
+        points = new Map();
         ActiveRosterLogic.episodeEvents(state, ep).forEach(ev => {
           const n = Number.isFinite(ev.units) && ev.units > 0 ? ev.units : 1;
           events.set(ev.type, (events.get(ev.type) || 0) + n);
@@ -3525,10 +3527,12 @@ class AnswerLogic {
           if(!who.has(ev.type)) who.set(ev.type, new Map());
           const m = who.get(ev.type);
           m.set(ev.castawayId, (m.get(ev.castawayId) || 0) + n);
+          // Each person's points by the game's rules (A8: a points leaderboard), as the engine scores a moment.
+          points.set(ev.castawayId, (points.get(ev.castawayId) || 0) + ActiveRosterLogic.eventPoints(state, ev));
         });
         roleOf = new Map(roles ? cast.map(c => [c.id, role.has(c.id) ? roles.roleFor(role.get(c.id)) : roles.default]) : []);
       }
-      episodes.set(ep.number, { out, events, who, in: stillIn, groups: new Map(group), roles: roleOf });
+      episodes.set(ep.number, { out, events, who, in: stillIn, groups: new Map(group), roles: roleOf, points });
     });
     const winner = seasonWinner(state);
     const ended = seasonEnded(state);
@@ -3549,6 +3553,9 @@ class AnswerLogic {
       names: new Map(cast.map(c => [c.id, c.name])),
       groupNames: new Map((state.tribes || []).map(t => [t.id, t.name])),
       phases, windows, seen,
+      startIn: AnswerLogic.startIn(state),
+      // The finalists' jury votes (A8: the split), once the season is over.
+      jury: ended ? new Map(eps.flatMap(e => (e.events || []).filter(ev => Number.isInteger(ev.juryVotes)).map(ev => [ev.castawayId, ev.juryVotes]))) : null,
     };
   }
   // Everyone by where they finished, the winner first: the later they left the better, and in the same episode a finalist
@@ -3569,6 +3576,14 @@ class AnswerLogic {
   }
   // The spec's questions, whole (each with its defaults).
   static questions(state){ return gameOf(state).ask; }
+  // Who was in at the game's first episode (A8: a pairs question's pairs are drawn from them, by the grader and the server
+  // alike): nobody who'd left in an episode before it. None while it waits for its phase.
+  static startIn(state){
+    const first = startEpisode(state);
+    if(first === null) return [];
+    const epNo = new Map((state.episodes || []).map(e => [e.id, e.number]));
+    return (state.castaways || []).filter(c => !(c.status === 'eliminated' && (epNo.get(c.exitEpisodeId) || 0) < first)).map(c => c.id);
+  }
   // Whether the game asks anything by phase (A7: asked once a phase, or settled by where a phase starts): what the season sync
   // and the desk record phase starts and windows for (phase-starts.ts settleIn, StateLogic.settlePhases).
   static byPhase(state){ return AnswerLogic.questions(state).some(q => q.asked === 'phase' || (q.settle && q.settle.by === 'phase')); }

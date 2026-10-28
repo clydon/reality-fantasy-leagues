@@ -45,8 +45,11 @@ const VOCAB = {
   'rank.by': { total: 'now', streak: 'now', matchups: 'sports', categories: 'sports', roto: 'sports' },
   closes: { start: 'now', daily: 'sports', weekly: 'sports' },
   'pool.where': { stillIn: 'now', teams: 'sports', group: 'later' },
-  'ask.answer': { person: 'now', group: 'now', yesNo: 'now', number: 'now', overUnder: 'now', choice: 'now', calls: 'now', side: 'sports' },
-  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', calls: 'now', final: 'sports', stat: 'sports' },
+  'ask.answer': {
+    person: 'now', group: 'now', yesNo: 'now', number: 'now', overUnder: 'now', choice: 'now', calls: 'now',
+    order: 'now', confidence: 'now', chips: 'now', split: 'now', pairs: 'now', side: 'sports',
+  },
+  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', final: 'sports', stat: 'sports' },
   'ask.asked': { once: 'now', each: 'now', every: 'now', phase: 'now' },
   'ask.closes': { start: 'now', finale: 'now' },
   'ask.from': { cast: 'now', team: 'now' },
@@ -59,7 +62,17 @@ const VOCAB = {
 //   answer  person (`pick` of them, each right one scores; `from` the cast still in, or a draft's own team) | group (a
 //           tribe, a team: `pick` of them, from the groups someone still in is on) | yesNo | number (the closest wins,
 //           ties all) | overUnder (with line: a number, or null for the wizard to ask) | choice (with options) | calls
-//           (the show's two calls each episode, Call it's: CALLS); sports: side
+//           (the show's two calls each episode, Call it's: CALLS); sports: side. A8:
+//             order       `pick` people in order (the boot order, a leaderboard): its points for each in their right place, or
+//                         within `within` places of it
+//             confidence  `pick` people, most sure first: each right one scores its points times its weight (the first
+//                         `pick`, the last 1: "you score your confidence on whoever goes")
+//             chips       `chips` spread over people, { castawayId: chips }: each chip on a right one scores its points
+//             split       a vote split, numbers ("5-2-1"): right when it's the split exactly
+//             pairs       `pairs` pairs drawn from who's in at the game's start (the same every time), { "a|b" (the pair's
+//                         ids, sorted): castawayId }: who outlasts whom, its points for each pair right
+//   wager   (A8) a yes or no, a choice, an over/under, or one person or group: stake up to `wager` of your points on it,
+//           { answer, stake }: right, its points and the stake; wrong, the stake lost
 //   points  a right answer's (a right pick's; asked of each person, each right answer's), 0 to MAX_QUESTION_POINTS
 //   asked   once (for the game) | each (every episode it plays, each its own answer) | every (A7: once for each run of
 //           `every` episodes from the game's first, about that run) | phase (A7: once for each phase of the season the game
@@ -89,25 +102,38 @@ const VOCAB = {
 //             { by: 'role', role: name, take: who | end | count } a secret role (The Traitors): who held it (in the
 //               episode, or ever in the game), who held it among those still in at its end (after the episode; asked
 //               once, those in at the game's last episode), and how many of them
+//             A8: { by: 'results', take: order | split | outlast } the order they went home (the boot order, over the
+//               window), the season's jury vote split (the finalists' votes), who outlasted whom (pairs); { by: 'moment',
+//               take: order } everyone by how many times it happened to them (a leaderboard: a couple's judges' points);
+//               { by: 'points', take: most | order } each person's points in it by the game's rules (their moments at the
+//               rulebook's points): who scored most, the leaderboard
 //             { by: 'calls' } (Call it's)
 //           sports: { by: 'final', take: winner | total | margin } | { by: 'stat', stat, take: most | least | value }
 const TAKES = {
-  results: ['winner', 'out', 'placed', 'top', 'stays'],
-  moment: ['happened', 'count', 'who', 'most', 'first'],
+  results: ['winner', 'out', 'placed', 'top', 'stays', 'order', 'split', 'outlast'],
+  moment: ['happened', 'count', 'who', 'most', 'first', 'order'],
   role: ['who', 'end', 'count'],
   phase: ['starts', 'happened'],
+  points: ['most', 'order'],
   calls: [],
   final: ['winner', 'total', 'margin'],
   stat: ['most', 'least', 'value'],
 };
 /** The settles that are the season's (known at its end): asked once, in a game that runs to the season's end. */
-const SEASON_TAKES = ['results:winner', 'results:placed', 'results:top'];
+const SEASON_TAKES = ['results:winner', 'results:placed', 'results:top', 'results:split'];
 /** The settles each kind of answer can be graded by ('by:take'). A choice is matched to whatever settles it: a count's (and
  *  an episode's) range, a yes or no, or names. */
 const NUMBERS = ['moment:count', 'role:count', 'phase:starts', 'final:total', 'final:margin', 'stat:value'];
+/** Who's right, as people (A8's confidence and chips are graded by any of them). */
+const PEOPLE = ['results:winner', 'results:out', 'results:placed', 'results:top', 'results:stays', 'moment:who', 'moment:most', 'moment:first', 'role:who', 'role:end', 'points:most'];
 const SETTLES_FOR = {
-  person: ['results:winner', 'results:out', 'results:placed', 'results:top', 'results:stays', 'moment:who', 'moment:most', 'moment:first', 'role:who', 'role:end', 'stat:most', 'stat:least'],
+  person: [...PEOPLE, 'stat:most', 'stat:least'],
   group: ['results:out', 'moment:who'],
+  order: ['results:order', 'moment:order', 'points:order'],
+  confidence: PEOPLE,
+  chips: PEOPLE,
+  split: ['results:split'],
+  pairs: ['results:outlast'],
   side: ['final:winner'],
   yesNo: ['moment:happened', 'phase:happened'],
   // A number is a count, or an episode (which one a phase starts in, or a moment first happens in).
@@ -132,6 +158,15 @@ const EACH_SETTLES_FOR = {
 };
 /** The answers that name someone (a person) or something (a group), `pick` of them. */
 const NAMES = ['person', 'group'];
+/** The answers that rank people (A8), `pick` of them, up to MAX_ORDER (a whole cast's boot order). */
+const RANKS = ['order', 'confidence'];
+const MAX_ORDER = 24;
+/** A8: an order's most places off that still score; most chips to spread; most pairs. */
+const MAX_WITHIN = 5;
+const MAX_CHIPS = 100;
+const MAX_PAIRS = 12;
+/** A8: the answers a wager goes on (one answer, right or wrong). */
+const WAGERS = ['person', 'group', 'yesNo', 'choice', 'overUnder'];
 const MAX_QUESTIONS = 12;
 const MAX_PICK = 10;
 const MAX_QUESTION_POINTS = 100;
@@ -527,6 +562,7 @@ function sizesOf(s) {
  *   ctx.roles    the show's secret roles (its secretRole twists' roles: ['Traitor', 'Faithful']): a role settles only if
  *                it's one. Absent: there are none
  *   ctx.grouped  false when nobody on the show is in a group (its cast has no groups): no group answers
+ *   ctx.jury     false when no jury decides the finale: no jury vote split (A8)
  *
  * opts.league: the spec is a league's own (every write to a league: RosterLogic.setGame), so what it already plays stays
  * as it is: a couch-answered moment of its rules (Make it ours) and points for moments its rules don't have
@@ -688,7 +724,7 @@ function questionProblems(q, at, s, ids, league) {
   else ids.add(q.id);
   if (typeof q.ask !== 'string' || !q.ask.trim()) add('ask', 'A question asks something');
   else if (q.ask.length > 200) add('ask', 'A question is 200 characters at most');
-  if (!one('ask.answer', q.answer)) add('answer', 'The answer is a person, group, side, yesNo, number, overUnder, choice or calls');
+  if (!one('ask.answer', q.answer)) add('answer', 'The answer is a person, group, side, yesNo, number, overUnder, choice, calls, order, confidence, chips, split or pairs');
   if (!(isNum(q.points) && q.points >= 0 && (league || q.points <= MAX_QUESTION_POINTS))) add('points', `A right answer is worth 0 to ${MAX_QUESTION_POINTS}`);
   if (!one('ask.asked', q.asked)) add('asked', 'A question is asked once, each episode, every few episodes, or once a phase');
   // A7's windows: every N episodes (asked every), over the next N (asked each).
@@ -703,7 +739,7 @@ function questionProblems(q, at, s, ids, league) {
   else if (q.closes === 'finale' && q.asked !== 'once') add('closes', 'Only a question asked once waits for the finale: one asked each episode closes as it starts');
   const st = isObj(q.settle) ? q.settle : {};
   let settled = false;
-  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, calls, final or stat');
+  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, phase, points, calls, final or stat');
   else if (st.by === 'calls') {
     if (st.take !== undefined) add('settle.take', 'The calls settle themselves: no take');
     else settled = true;
@@ -729,7 +765,8 @@ function questionProblems(q, at, s, ids, league) {
   if (st.place !== undefined && !(st.by === 'results' && (st.take === 'placed' || st.take === 'top'))) add('settle.place', 'Only a place or a top settles by a place');
   // What the season's results say only at its end: asked once, in a game that runs to it.
   if (SEASON_TAKES.includes(how)) {
-    if (q.asked !== 'once') add('asked', `${st.take === 'winner' ? 'Who wins' : 'Where they finish'} is the season's: ask it once`);
+    const what = st.take === 'winner' ? 'Who wins' : st.take === 'split' ? "The jury's vote split" : 'Where they finish';
+    if (q.asked !== 'once') add('asked', `${what} is the season's: ask it once`);
     if (!league && isObj(s.span) && s.span.to !== null) add('settle', "It's known at the season's end, so the game runs to it: no end of its own");
   }
   // Who stays is one episode's (over a game, everyone but the winner leaves by its end).
@@ -751,7 +788,27 @@ function questionProblems(q, at, s, ids, league) {
   // The answer's own parts.
   if (NAMES.includes(q.answer)) {
     if (!(isInt(q.pick, 1) && q.pick <= MAX_PICK)) add('pick', `Name 1 to ${MAX_PICK}`);
-  } else if (q.pick !== undefined) add('pick', 'Only a person or group answer names a number of them');
+  } else if (RANKS.includes(q.answer)) {
+    if (!(isInt(q.pick, 2) && q.pick <= MAX_ORDER)) add('pick', `Rank 2 to ${MAX_ORDER}`);
+  } else if (q.pick !== undefined) add('pick', 'Only a person or group answer, an order or a confidence ranking names a number of them');
+  // A8's: an order's places off, chips to spread, pairs, a wager.
+  if (q.within !== undefined) {
+    if (q.answer !== 'order') add('within', 'Only an order scores within a few places');
+    else if (!(isInt(q.within, 0) && q.within <= MAX_WITHIN)) add('within', `Within 0 to ${MAX_WITHIN} places`);
+  }
+  if (q.answer === 'chips') {
+    if (!(isInt(q.chips, 2) && q.chips <= MAX_CHIPS)) add('chips', `Spread 2 to ${MAX_CHIPS} chips`);
+  } else if (q.chips !== undefined) add('chips', 'Only a chips answer spreads chips');
+  if (q.answer === 'pairs') {
+    if (!(isInt(q.pairs, 1) && q.pairs <= MAX_PAIRS)) add('pairs', `1 to ${MAX_PAIRS} pairs`);
+    if (q.asked !== 'once') add('asked', 'Who outlasts whom is over the game: ask it once');
+  } else if (q.pairs !== undefined) add('pairs', 'Only a pairs answer has pairs');
+  if (q.wager !== undefined) {
+    if (!WAGERS.includes(q.answer) || each || (NAMES.includes(q.answer) && q.pick !== 1)) add('wager', 'A wager goes on one answer: a yes or no, a choice, an over/under, or one person or group');
+    else if (!(isInt(q.wager, 1) && q.wager <= MAX_QUESTION_POINTS)) add('wager', `Stake up to 1 to ${MAX_QUESTION_POINTS} points`);
+  }
+  // Who outlasts whom and the boot order come from who went home; an order of the boot order asked each episode is one boot.
+  if (how === 'results:order' && q.asked === 'each' && !windowed(q)) add('asked', 'The order they go home is over a run of episodes or the game');
   if (q.answer === 'person') {
     if (!one('ask.from', q.from)) add('from', 'Pick from the cast still in, or your own team');
     else if (q.from === 'team' && !(isObj(s.get) && s.get.by === 'draft')) add('from', 'Only a draft has teams to pick from');
@@ -796,7 +853,7 @@ const KEYS = {
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away'],
   bets: ['points'],
-  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over'],
+  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager'],
   settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place'],
 };
 /** The paths of keys a spec has that no game spec does. */
@@ -918,7 +975,14 @@ function settleProblems(s, ctx, opts) {
     if (q && q.answer === 'group' && ctx.grouped === false) out.push([`ask[${i}].answer`, "Nobody on the show is in a group (a tribe, a team): name a person instead"]);
     if (st.by === 'stat' && typeof st.stat === 'string' && !stats.has(st.stat)) out.push([`ask[${i}].settle.stat`, `Nothing counts "${st.stat}": it isn't one of the sport's stats`]);
     if (st.by === 'results' && ctx.results === false) out.push([`ask[${i}].settle`, "The show's results don't say who goes home or wins"]);
-    else if (st.by === 'results' && ['winner', 'placed', 'top'].includes(st.take) && ctx.winner === false) out.push([`ask[${i}].settle`, "Nobody wins this show: its results don't crown a winner"]);
+    else if (st.by === 'results' && ['winner', 'placed', 'top', 'split'].includes(st.take) && ctx.winner === false) out.push([`ask[${i}].settle`, "Nobody wins this show: its results don't crown a winner"]);
+    else if (st.by === 'results' && st.take === 'split' && ctx.jury === false) out.push([`ask[${i}].settle`, 'A jury vote split needs a finale a jury decides']);
+    // Each person's points by the game's rules (A8): every moment that scores in them is one research answers.
+    if (st.by === 'points') {
+      const scoring = moments.filter((m) => !m.off && defaultOf(m.defaultPoints, false) !== 0);
+      if (!scoring.length) out.push([`ask[${i}].settle`, "The show's rules score nothing to rank by"]);
+      for (const m of scoring) if (!byData(m)) out.push([`ask[${i}].settle`, `${couchWord(m)}, and it scores in a points leaderboard`]);
+    }
     // A talk show's calls are what the couch says happened: its word, which only a league's own keeps (Weekly Calls).
     if (st.by === 'calls' && ctx.calls === 'couch' && !opts.league) out.push([`ask[${i}].settle`, "The show's calls are settled by the couch's word here, not its results"]);
   });
@@ -972,7 +1036,8 @@ function specWaitsFor(spec) {
 }
 
 module.exports = {
-  SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
+  SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
+  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

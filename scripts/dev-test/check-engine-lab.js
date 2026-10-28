@@ -8,7 +8,8 @@
 //     status there ✅); a question the show's research doesn't answer is refused (the data rule); a sport's stats wait for L3;
 //     what isn't JSON is a 400. A6's: the tribe winner and who goes home, and who finds an idol, play there; a Traitors
 //     question is refused (no secret roles on this show), and so is each couple's judges' score (Dancing with the Stars').
-//     A7's: a question every two episodes, a late lock (in its details), which episode the merge happens in.
+//     A7's: a question every two episodes, a late lock (in its details), which episode the merge happens in. A8's: the boot
+//     order, the week's points leaderboard, a wager, the jury vote split.
 //   - Start it as a test game: on the zt- couch, through the game's writer (a game of questions asking just that, the admin its
 //     Commissioner, its spec carried, the game-specs flag's check passing); refused on a couch that isn't a test couch or a
 //     zt- fixture's (403), and for a spec that doesn't play (409). Which tribe wins immunity starts too, its faces the tribes;
@@ -109,6 +110,11 @@ function check(ok, what, detail = "") {
     check(r.status === 200 && r.body.startable && r.body.describe?.details?.some((d) => d.id === "lateLock" && /24 hours/.test(d.value)), "  a late lock plays, said in its details", JSON.stringify(r.body.describe?.details));
     r = await labCheck({ spec: JSON.stringify(rowSpec("what.whichEpisode")), row: "what.whichEpisode" });
     check(r.status === 200 && r.body.startable, "  which episode the merge happens in plays", JSON.stringify(r.body.problems));
+    // A8: an order, a points leaderboard, a wager, the jury's split.
+    for (const [row, what] of [["what.order", "the boot order"], ["s14", "the week's points leaderboard"], ["answer.wager", "a wager"], ["what.split", "the jury vote split"]]) {
+      r = await labCheck({ spec: JSON.stringify(rowSpec(row)), row });
+      check(r.status === 200 && r.body.startable && r.body.row?.state === "yes", `A8: ${what} plays on ZT Survivor 51`, JSON.stringify([r.body.problems, r.body.waits]).slice(0, 300));
+    }
 
     // ---------- start it as a test game ----------
     const labStart = (body) => desk.call("POST", "/api/desk/lab", { action: "start", seasonId: sid, couchId: couch, ...body });

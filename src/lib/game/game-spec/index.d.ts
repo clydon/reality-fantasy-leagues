@@ -63,10 +63,12 @@ export interface SpecRank {
 export type SpecSettle =
   /** out: who goes home (asked once: the first in the game; a group answer: the groups they were on); stays: who doesn't (an
    *  episode's); winner, placed (`place`th) and top (in the top `place`): the season's. */
-  | { by: "results"; take: "winner" | "out" | "placed" | "top" | "stays"; place?: number }
+  | { by: "results"; take: "winner" | "out" | "placed" | "top" | "stays" | "order" | "split" | "outlast"; place?: number }
   /** In the episode (asked once, over the game; over a window, A7): whether it happened, how many times (a per-unit moment's
    *  units), who it happened to (a group answer: their groups), who most (A6), first (A7: who, or which episode). */
-  | { by: "moment"; moment: string; take: "happened" | "count" | "who" | "most" | "first" }
+  | { by: "moment"; moment: string; take: "happened" | "count" | "who" | "most" | "first" | "order" }
+  /** A8: each person's points by the game's rules in the episode or window: who scored most, or the leaderboard. */
+  | { by: "points"; take: "most" | "order" }
   /** A7: a phase of the season (not its first): the episode it starts (asked once), or whether it starts in the window. */
   | { by: "phase"; phase: string; take: "starts" | "happened" }
   /** A secret role (A6): who held it, who held it among those still in at the end, how many of them. */
@@ -83,8 +85,17 @@ export interface SpecQuestion {
   /** Its key, for its answers (game_answers.question): letters, digits, ".", "_" or "-", up to 40. */
   id: string;
   ask: string;
-  /** group: a tribe or team (A6). side: sports. calls: the show's calls (Weekly Calls'). */
-  answer: "person" | "group" | "side" | "yesNo" | "number" | "overUnder" | "choice" | "calls";
+  /** group: a tribe or team (A6). order, confidence, chips, split, pairs (A8). side: sports. calls: the show's calls (Weekly
+   *  Calls'). */
+  answer: "person" | "group" | "side" | "yesNo" | "number" | "overUnder" | "choice" | "calls" | "order" | "confidence" | "chips" | "split" | "pairs";
+  /** A8: an order scores each one within this many places of right (0: exactly). */
+  within?: number;
+  /** A8: a chips answer's chips to spread. */
+  chips?: number;
+  /** A8: a pairs answer's pairs, drawn from who's in at the game's start. */
+  pairs?: number;
+  /** A8: the most points you can stake on your answer: right, its points and the stake; wrong, the stake lost. */
+  wager?: number;
   /** A right answer's (a right pick's). */
   points: number;
   settle: SpecSettle;
@@ -129,6 +140,8 @@ export interface AnswerFacts {
       in?: string[];
       groups?: Map<string, string | null>;
       roles?: Map<string, string | null> | null;
+      /** A8: each person's points in it by the game's rules, once the full results are in. */
+      points?: Map<string, number> | null;
     }
   >;
   winner: string | null;
@@ -140,13 +153,25 @@ export interface AnswerFacts {
   phases?: Map<string, number>;
   windows?: { phase: string; at: number; from: number }[];
   seen?: number;
+  /** A8: who was in at the game's first episode (a pairs question's pairs are drawn from them). */
+  startIn?: string[];
+  /** A8: the finalists' jury votes, once the season is over. */
+  jury?: Map<string, number> | null;
 }
 /** How a question stands: still to settle, off (nobody went home, right on the line), or what was right (and a count; the
  *  groups the right people were on; a question about each person, each one's verdict by castaway id). */
 export type Verdict =
   | { state: "waiting" }
   | { state: "off"; why: string }
-  | { state: "known"; right: string[]; value?: number; groups?: string[]; each?: Record<string, Verdict> };
+  | {
+      state: "known";
+      right: string[];
+      value?: number;
+      groups?: string[];
+      each?: Record<string, Verdict>;
+      /** A8, a ranking: the places each one could hold (0-based; ties share a block). */
+      places?: Record<string, [number, number]>;
+    };
 
 export interface SpecWaivers {
   feel: "casual" | "balanced" | "competitive";
@@ -225,6 +250,8 @@ export interface SpecContext {
   roles?: string[];
   /** false when nobody on the show is in a group (its cast has none): no group answers (A6). */
   grouped?: boolean;
+  /** false when no jury decides the finale: no jury vote split (A8). */
+  jury?: boolean;
 }
 
 export interface SpecProblem {
@@ -288,6 +315,12 @@ export function rightAnswers(q: Question, v: Verdict, facts?: AnswerFacts): stri
 export function pointsFor(q: Question, v: Verdict, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): Map<string, number>;
 export function isRight(q: Question, v: Verdict, mine: { playerId: string; answer: unknown }, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): boolean | null;
 export function answerProblem(q: Question, value: unknown, faces?: Set<string> | null): string | null;
+/** A8: a pairs question's pairs, drawn from who was in at the game's start (the same every time). */
+export function pairsFrom(q: Question, ids: string[]): [string, string][];
+/** A8: a pair's key for its answers ({ "a|b": who }): its two ids, sorted. */
+export function pairKey(pair: [string, string] | string[]): string;
+export const RANKS: readonly string[];
+export const MAX_ORDER: number;
 /** The one set of size limits (an Outlast team; a lineup's starters and bench; a lineup's whole team). */
 export const MAX_TEAM: number;
 export const MAX_STARTERS: number;

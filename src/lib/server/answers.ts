@@ -60,6 +60,12 @@ export interface QuestionView {
   from: "cast" | "team" | null;
   line: number | null;
   options: string[] | null;
+  /** A8: an order's places off that still score; chips to spread; a wager's most stake; who outlasts whom, the pairs (each its
+   *  key and two faces, answered { key: castawayId }). */
+  within: number | null;
+  chips: number | null;
+  wager: number | null;
+  pairs: { key: string; faces: [QuestionFace, QuestionFace] }[] | null;
   /** "person": asked about each person still in (A6), answered { castawayId: answer } for any of `faces`. */
   each: "person" | null;
   /** The episode it's answered for (asked each), or null (the game's own). */
@@ -108,7 +114,13 @@ const questionsOf = (state: LeagueState): Question[] => StateLogic.AnswerLogic.q
 
 /** Whether a question's answers name someone still in, or ask about each of them (A6): what you can answer depends on who's still in
  *  (and on what group), so it waits until you've seen the episode before it. */
-const namesSomeone = (q: Question) => Spec.NAMES.includes(q.answer) || !!q.each;
+const namesSomeone = (q: Question) => Spec.NAMES.includes(q.answer) || Spec.RANKS.includes(q.answer) || q.answer === "chips" || q.answer === "pairs" || !!q.each;
+
+/** A pairs question's pairs (step A8): drawn from who was in at the game's start (AnswerLogic.startIn, as the grader draws them),
+ *  the same every time, each with its key (its answers' { "a|b": who }). */
+function pairsOf(state: LeagueState, q: Question): { key: string; ids: [string, string] }[] {
+  return Spec.pairsFrom(q, StateLogic.AnswerLogic.startIn(state)).map((ids) => ({ key: Spec.pairKey(ids), ids }));
+}
 
 /** Who a person answer can name, as the viewer sees it: who's still in (from your own team, yours); for a group answer (A6), the
  *  groups someone still in is on (after any swap you've seen, never one you haven't); for a question about each person, each of
@@ -121,6 +133,12 @@ function facesFor(view: LeagueState, q: Question, playerId: string): QuestionFac
   }
   const team = q.from === "team" && !q.each ? new Set(StateLogic.Core.ownedCastawayIds(view, playerId)) : null;
   return stillIn.filter((c) => !team || team.has(c.id)).map((c) => ({ id: c.id, name: c.name, photo: publicMediaSrc(c.photoUrl) }));
+}
+
+/** A castaway's face by id, as the viewer's copy has them. */
+function castFace(view: LeagueState, id: string): QuestionFace {
+  const c = view.castaways.find((x) => x.id === id);
+  return { id, name: c?.name ?? "Someone", photo: c ? publicMediaSrc(c.photoUrl) : null };
 }
 
 /** One of your games on a season, by league: 404 when you don't play it. */
@@ -239,16 +257,21 @@ async function readQuestions(r: Read, episodeIn?: unknown, rows?: AnswerRow[]): 
       points: q.points,
       asked: q.asked,
       closes: q.closes,
-      pick: Spec.NAMES.includes(q.answer) && !q.each ? (q.pick ?? 1) : null,
+      pick: (Spec.NAMES.includes(q.answer) || Spec.RANKS.includes(q.answer)) && !q.each ? (q.pick ?? 1) : null,
       from: q.answer === "person" && !q.each ? (q.from ?? "cast") : null,
       line: typeof q.line === "number" ? q.line : null,
       options: q.options ?? null,
+      within: q.answer === "order" ? (q.within ?? 0) : null,
+      chips: q.answer === "chips" ? (q.chips ?? null) : null,
+      wager: q.wager ?? null,
+      pairs: q.answer === "pairs" && !behind ? pairsOf(h.state, q).map((p) => ({ key: p.key, faces: [castFace(view, p.ids[0]), castFace(view, p.ids[1])] })) : null,
       each: q.each ?? null,
       episode: each ? ep : null,
       status: closed ? "closed" : behind ? "behind" : "open",
       catchUp: behind && !catching ? seen : null,
       closesAt: airAt,
-      faces: namesSomeone(q) && !behind ? facesFor(view, q, me) : null,
+      // A pairs question's faces are its pairs'.
+      faces: namesSomeone(q) && q.answer !== "pairs" && !behind ? facesFor(view, q, me) : null,
       mine,
       answered: new Set(theirs.map((a) => a.playerId)).size,
       verdict: null,
@@ -313,7 +336,13 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
     if (value !== null) {
       const seen = needsSeen(r, q, ep);
       if (seen !== null && mark < seen) throw new HttpError(403, `See Episode ${seen} first: it says who's still in`);
-      const faces = namesSomeone(q) ? new Set(facesFor(view, q, h.playerId).map((f) => f.id)) : null;
+      // Who it can name (still in, your team, a group); for a pairs question, each pair's "index:id" (A8).
+      const faces =
+        q.answer === "pairs"
+          ? new Set(pairsOf(h.state, q).flatMap((p) => p.ids.map((id) => `${p.key}:${id}`)))
+          : namesSomeone(q)
+            ? new Set(facesFor(view, q, h.playerId).map((f) => f.id))
+            : null;
       const problem = Spec.answerProblem(q, value, faces);
       if (problem) throw new HttpError(400, problem);
     }

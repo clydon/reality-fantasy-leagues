@@ -21,7 +21,10 @@
 //     phases        (A7) Map phase id -> the episode it started, for each phase whose start the viewer has seen
 //     windows       (A7) the game's later phase windows, in order: [{ phase, at (where it opens), from (its phase's start) }]
 //     seen          (A7) the last episode the viewer has seen with results
+//     startIn       (A8) who was in at the game's first episode (a pairs question's pairs are drawn from them)
+//     jury          (A8) the finalists' jury votes, once the season is over (null before)
 //   }
+//   and each episode's `points` (A8): each person's points in it by the game's rules, once its full results are in
 //
 // A question's window (A7): asked once, the game's episodes; asked each, its episode (and, over N, the next N - 1); every N,
 // the run of N from the one it opens at; by phase, from the one it opens at to where the next phase's opens (once the viewer
@@ -88,6 +91,57 @@ function windowOf(q, start, facts) {
   return { eps, ended: end !== null };
 }
 
+/**
+ * A pairs question's pairs (A8): drawn from who was in at the game's start, the same every time (a shuffle seeded by the
+ * question and who's in, never stored), `q.pairs` of them: [[a, b], ...].
+ */
+function pairsFrom(q, ids) {
+  const list = [...new Set(ids)].sort();
+  let h = 2166136261;
+  for (const ch of `${q.id}|${list.join(',')}`) h = Math.imul(h ^ ch.charCodeAt(0), 16777619);
+  const rand = () => {
+    h = (h + 0x6d2b79f5) | 0;
+    let t = Math.imul(h ^ (h >>> 15), 1 | h);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  for (let i = list.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [list[i], list[j]] = [list[j], list[i]];
+  }
+  const out = [];
+  for (let i = 0; i + 1 < list.length && out.length < (q.pairs || 0); i += 2) out.push([list[i], list[i + 1]]);
+  return out;
+}
+/** A pair's key, for its answers ({ "a|b": who }): its two ids, sorted. Keyed by who's in it, so a pair drawn again after a
+ *  cast correction is never graded against someone's answer for another. */
+const pairKey = (pair) => [...pair].sort().join('|');
+
+/**
+ * Where each person stands in a ranking (A8), as the places they could hold (0-based, ties sharing a block), `groups` in order
+ * (each a list of ids that tie): the order and each one's places.
+ */
+function placesOf(groups) {
+  const order = [];
+  const places = {};
+  for (const g of groups) {
+    const lo = order.length;
+    for (const id of g) places[id] = [lo, lo + g.length - 1];
+    order.push(...g);
+  }
+  return { order, places };
+}
+/** A leaderboard (A8): everyone given, by their counts (a moment's, or their points), the most first, ties together. */
+function placesBy(counts, ids) {
+  const by = new Map();
+  for (const id of ids) {
+    const c = counts.get(id) || 0;
+    if (!by.has(c)) by.set(c, []);
+    by.get(c).push(id);
+  }
+  return placesOf([...by.keys()].sort((a, b) => b - a).map((c) => by.get(c)));
+}
+
 /** The groups (distinct, none for nobody's) a list of people were on in an episode. */
 function groupsIn(ids, e) {
   const out = [];
@@ -109,6 +163,12 @@ function most(counts) {
 }
 /** Who held a role in an episode, among a list of people. */
 const holding = (e, ids, role) => ids.filter((id) => e.roles && e.roles.get(id) === role);
+/** A ranking's verdict (A8): everyone in order, and the places each could hold (0-based; ties share a block). */
+function ranked(order, places) {
+  const v = known(order);
+  v.places = places;
+  return v;
+}
 /** A group answer's verdict: settled only by the groups the right people were on (nobody on one: off, never a question
  *  nobody can get right). Any other answer's, as it is. */
 function forGroups(q, v) {
@@ -124,6 +184,15 @@ function overWindow(q, w, facts) {
   const st = q.settle;
   const eps = w.eps;
   const at = (n) => facts.episodes.get(n);
+  if (st.by === 'results' && st.take === 'order') {
+    // The order they went home in the window (A8: the boot order), once every one of its episodes is in.
+    if (!w.ended || !eps.every((n) => { const e = at(n); return !!e && e.out !== null; })) return WAITING;
+    // Who went home the same night share their places: nothing in the results says which went first.
+    const nights = eps.map((n) => at(n).out).filter((g) => g.length);
+    if (!nights.length) return off('Nobody went home');
+    const { order, places } = placesOf(nights);
+    return ranked(order, places);
+  }
   if (st.by === 'results') {
     if (q.asked === 'once') {
       // The first to go home in the game: the first episode someone did, once every one before it is in.
@@ -165,6 +234,24 @@ function overWindow(q, w, facts) {
     const end = holding(last, inAt(last), st.role);
     return st.take === 'count' ? known([], end.length) : end.length ? known(end) : off(`No ${st.role} made it to the end`);
   }
+  if (st.by === 'points' || st.take === 'order') {
+    // A leaderboard (A8): everyone in at the window's start by a moment's count, or by their points by the game's rules, over
+    // the window, once all of it is in. Who scored most: the top (ties all); nobody, when nobody scored.
+    if (!whole || !eps.length) return WAITING;
+    const counts = new Map();
+    for (const n of eps) {
+      const m = st.by === 'points' ? at(n).points || new Map() : tally(at(n), st.moment);
+      for (const [id, k] of m) counts.set(id, (counts.get(id) || 0) + k);
+    }
+    const people = inAt(at(eps[0])).length ? inAt(at(eps[0])) : [...counts.keys()];
+    if (st.take === 'most') {
+      const best = Math.max(...people.map((id) => counts.get(id) || 0));
+      const top = people.filter((id) => (counts.get(id) || 0) === best);
+      return best > 0 || top.length < people.length ? known(top, best) : off('Nobody scored');
+    }
+    const { order, places } = placesBy(counts, people);
+    return ranked(order, places);
+  }
   if (st.take === 'first') {
     // The first episode it happened in (its number), and who it happened to there, once every episode before it is in.
     for (const n of eps) {
@@ -204,9 +291,47 @@ function overWindow(q, w, facts) {
  *  `episode` ignored). */
 function verdictOf(q, episode, facts) {
   const st = q && q.settle;
-  if (!st || !['results', 'moment', 'role', 'phase'].includes(st.by)) return WAITING; // the sports branch's settles, and the calls
+  if (!st || !['results', 'moment', 'role', 'phase', 'points'].includes(st.by)) return WAITING; // the sports branch's settles, and the calls
   if (q.each) return eachVerdict(q, episode, facts);
+  if (st.by === 'results' && st.take === 'outlast') return pairsVerdict(q, facts);
   return forGroups(q, verdictFor(q, episode, facts));
+}
+
+/**
+ * Who outlasted whom (A8), for each of a pairs question's pairs: decided once one of them goes home (the other outlasted them),
+ * both by who went later (at the season's end, by where they finished); off when both made it to the game's end. Known once any
+ * pair is decided; each pair's own verdict, by its index.
+ */
+function pairsVerdict(q, facts) {
+  if (!Array.isArray(facts.startIn)) return WAITING;
+  const pairs = pairsFrom(q, facts.startIn);
+  // The episode each one went home in, as far as every episode before it is in: the game's own exits.
+  const left = new Map();
+  for (const n of spanEpisodes(facts)) {
+    const e = facts.episodes.get(n);
+    if (!e || e.out === null) break;
+    e.out.forEach((id) => { if (!left.has(id)) left.set(id, n); });
+  }
+  // Who went later; the same night, a tie (off), unless the season's finish order says (a game that runs to its end: its
+  // finale's places); in a game with an end of its own, both still in at it is off too.
+  const toEnd = facts.to === null && !!facts.order;
+  const verdict = (a, b) => {
+    const la = left.get(a);
+    const lb = left.get(b);
+    if (la && lb && la !== lb) return known([la > lb ? a : b]);
+    if (la && !lb) return known([b]);
+    if (lb && !la) return known([a]);
+    if (toEnd) {
+      const ia = facts.order.indexOf(a);
+      const ib = facts.order.indexOf(b);
+      if (ia >= 0 && ib >= 0 && ia !== ib) return known([ia < ib ? a : b]);
+    }
+    if (la && lb) return off('They went home the same night');
+    return facts.over ? off('Both made it to the end') : WAITING;
+  };
+  const each = {};
+  for (const pair of pairs) each[pairKey(pair)] = verdict(pair[0], pair[1]);
+  return Object.values(each).some((v) => v.state !== 'waiting') ? { state: 'known', right: [], each } : WAITING;
 }
 function verdictFor(q, episode, facts) {
   const st = q.settle;
@@ -223,7 +348,15 @@ function verdictFor(q, episode, facts) {
     const s = facts.phases ? facts.phases.get(st.phase) : undefined;
     return Number.isInteger(s) ? known([], s) : facts.over ? off("It didn't start while the game was on") : WAITING;
   }
-  if (q.asked !== 'each' || st.by === 'phase' || st.take === 'first' || (Number.isInteger(q.over) && q.over > 1)) return overWindow(q, windowOf(q, episode, facts), facts);
+  if (how === 'results:split') {
+    // The jury's vote split (A8): the finalists' votes, most first ("5-2-1"), once the season is over.
+    if (!facts.ended) return WAITING;
+    // A finalist with none is left out, as people say it ("5-3", not "5-3-0"), and so is a zero in an answer.
+    const votes = [...(facts.jury || new Map()).values()].filter((n) => Number.isInteger(n) && n > 0).sort((a, b) => b - a);
+    return votes.length ? known([votes.join('-')]) : off('No jury vote was recorded');
+  }
+  const windowedSettle = st.by === 'phase' || st.by === 'points' || st.take === 'first' || st.take === 'order';
+  if (q.asked !== 'each' || windowedSettle || (Number.isInteger(q.over) && q.over > 1)) return overWindow(q, windowOf(q, episode, facts), facts);
   const e = facts.episodes.get(episode);
   if (st.by === 'results') {
     if (!e || e.out === null) return WAITING;
@@ -312,11 +445,47 @@ function rightAnswers(q, v, facts) {
 /** One answer's picks: a person or group answer's ids (one, or a list), else the answer itself. */
 const picks = (q, a) => (NAMES.includes(q.answer) ? (Array.isArray(a) ? a : [a]).filter((x) => typeof x === 'string' && x) : [a]);
 const key = (q, x) => (NAMES.includes(q.answer) ? x : norm(x));
-/** A question about each person, as each one's: the same question without `each`. */
-const baseOf = (q) => { const b = { ...q }; delete b.each; return b; };
-/** The answers given for one person, of a question about each ({ castawayId: answer } each), as that person's own. */
+/** A question about each person, as each one's: the same question without `each`; a pairs question's pair, as naming who
+ *  outlasts (A8). */
+const baseOf = (q) => {
+  const b = { ...q };
+  delete b.each;
+  if (q.answer === 'pairs') Object.assign(b, { answer: 'person', pick: 1 });
+  return b;
+};
+/** The answers given for one person (or pair), of a question about each ({ key: answer } each), as that one's own. */
 const eachAnswers = (answers, id) =>
   answers.filter((a) => isObj(a.answer) && Object.prototype.hasOwnProperty.call(a.answer, id)).map((a) => ({ playerId: a.playerId, answer: a.answer[id] }));
+/** A wagered question as the answer it's on (A8): the same question without its wager. */
+const unwagered = (q) => { const b = { ...q }; delete b.wager; return b; };
+/** A wagered answer (A8), as { answer, stake } with its stake held to what the question allows. */
+const betOf = (q, a) => (isObj(a) && 'answer' in a ? { answer: a.answer, stake: Number.isInteger(a.stake) ? Math.max(0, Math.min(a.stake, q.wager)) : 0 } : null);
+/** A split as it's compared (A8): its numbers, most first ("5-2-1"). */
+const splitOf = (a) => (Array.isArray(a) && a.every((n) => Number.isInteger(n)) ? a.filter((n) => n > 0).sort((x, y) => y - x).join('-') : null);
+/** An order's (A8) places right: each one in its place, or within `within` of it (ties share a block of places). */
+function inPlace(q, v, list) {
+  const places = (v && v.places) || {};
+  const within = Number.isInteger(q.within) ? q.within : 0;
+  return (Array.isArray(list) ? list : []).filter((id, i) => { const p = places[id]; return !!p && i >= p[0] - within && i <= p[1] + within; }).length;
+}
+/** What one answer of A8's kinds earns, by the verdict: an order its places right; confidence each right one's weight (its
+ *  rank from the bottom); chips the chips on right ones; a split exactly right. In points. */
+function earned(q, v, a, facts) {
+  const pts = isNum(q.points) ? q.points : 0;
+  if (q.answer === 'order') return inPlace(q, v, a) * pts;
+  if (q.answer === 'split') return splitOf(a) !== null && splitOf(a) === v.right[0] ? pts : 0;
+  const right = new Set(rightAnswers(q, v, facts) || []);
+  if (q.answer === 'confidence') {
+    const list = Array.isArray(a) ? a : [];
+    const top = isInt(q.pick) ? q.pick : list.length;
+    return list.reduce((n, id, i) => n + (right.has(id) ? (top - i) * pts : 0), 0);
+  }
+  if (q.answer === 'chips') return isObj(a) ? Object.entries(a).reduce((n, [id, c]) => n + (right.has(id) && isInt(c) ? c * pts : 0), 0) : 0;
+  return 0;
+}
+const isInt = (v) => Number.isInteger(v) && v >= 0;
+/** A8's answer kinds, scored by earned(). */
+const MORE = ['order', 'confidence', 'chips', 'split'];
 
 /**
  * What each answer to one question (on one episode) earns, by its verdict: a right answer its points; a person or group
@@ -326,11 +495,32 @@ const eachAnswers = (answers, id) =>
 function pointsFor(q, v, answers, facts) {
   const out = new Map();
   if (!v || v.state !== 'known') return out;
-  if (q.each) {
+  if (q.each || q.answer === 'pairs') {
     if (!isObj(v.each)) return out;
     const base = baseOf(q);
     for (const [id, pv] of Object.entries(v.each)) {
       pointsFor(base, pv, eachAnswers(answers, id), facts).forEach((n, pid) => out.set(pid, (out.get(pid) || 0) + n));
+    }
+    return out;
+  }
+  if (MORE.includes(q.answer)) {
+    for (const a of answers) {
+      const n = earned(q, v, a.answer, facts);
+      if (n) out.set(a.playerId, (out.get(a.playerId) || 0) + n);
+    }
+    return out;
+  }
+  if (q.wager) {
+    // A wager (A8): right, its points and the stake; wrong, the stake lost; nothing either way when nothing's right (off, or
+    // right on the line).
+    const base = unwagered(q);
+    if (!rightAnswers(base, v, facts)) return out;
+    for (const a of answers) {
+      const bet = betOf(q, a.answer);
+      if (!bet) continue;
+      const ok = isRight(base, v, { playerId: a.playerId, answer: bet.answer }, [], facts);
+      const n = ok ? (isNum(q.points) ? q.points : 0) + bet.stake : -bet.stake;
+      if (n) out.set(a.playerId, (out.get(a.playerId) || 0) + n);
     }
     return out;
   }
@@ -358,12 +548,18 @@ function pointsFor(q, v, answers, facts) {
  *  question about each person, whether any of theirs was. */
 function isRight(q, v, mine, answers, facts) {
   if (!v || v.state !== 'known') return null;
-  if (q.each) {
+  if (q.each || q.answer === 'pairs') {
     if (!isObj(v.each) || !isObj(mine.answer)) return false;
     const base = baseOf(q);
     return Object.entries(v.each).some(
       ([id, pv]) => Object.prototype.hasOwnProperty.call(mine.answer, id) && !!isRight(base, pv, { playerId: mine.playerId, answer: mine.answer[id] }, eachAnswers(answers, id), facts)
     );
+  }
+  // A8's kinds: anything earned (an order's place, a confidence pick or a chip on someone right, the split).
+  if (MORE.includes(q.answer)) return earned({ ...q, points: 1 }, v, mine.answer, facts) > 0;
+  if (q.wager) {
+    const bet = betOf(q, mine.answer);
+    return !!bet && !!isRight(unwagered(q), v, { playerId: mine.playerId, answer: bet.answer }, [], facts);
   }
   if (q.answer === 'number') return pointsFor(q, v, answers, facts).has(mine.playerId);
   const right = rightAnswers(q, v, facts);
@@ -379,6 +575,12 @@ function isRight(q, v, mine, answers, facts) {
  * answered as { castawayId: answer }, for any of them.
  */
 function answerProblem(q, value, faces) {
+  if (q.wager) {
+    // A8: { answer, stake }, the stake 0 to the wager.
+    if (!isObj(value) || !('answer' in value)) return 'Your answer and your stake: { answer, stake }';
+    if (!(Number.isInteger(value.stake) && value.stake >= 0 && value.stake <= q.wager)) return `Stake 0 to ${q.wager} points`;
+    return answerProblem(unwagered(q), value.answer, faces);
+  }
   if (q.each) {
     if (!isObj(value)) return 'An answer for each person: { who: answer }';
     const ids = Object.keys(value);
@@ -410,8 +612,36 @@ function answerProblem(q, value, faces) {
     case 'number': return isNum(value) && value >= 0 && value <= 100000 ? null : 'A number, 0 or more';
     case 'overUnder': return value === 'over' || value === 'under' ? null : 'Over or under';
     case 'choice': return Array.isArray(q.options) && q.options.includes(value) ? null : 'One of its options';
+    // A8's kinds.
+    case 'order':
+    case 'confidence': {
+      if (!Array.isArray(value) || !value.length || value.some((x) => typeof x !== 'string' || !x)) return 'Rank someone';
+      if (value.length > (q.pick || 0)) return `Rank ${q.pick} at most`;
+      if (new Set(value).size !== value.length) return 'Rank each one once';
+      if (faces && value.some((x) => !faces.has(x))) return 'Rank only who is still in';
+      return null;
+    }
+    case 'chips': {
+      if (!isObj(value) || !Object.keys(value).length) return 'Put your chips on someone: { who: chips }';
+      if (Object.values(value).some((c) => !isInt(c))) return 'Chips are whole numbers, 0 or more';
+      const total = Object.values(value).reduce((a, b) => a + b, 0);
+      if (total < 1 || total > q.chips) return `Spread 1 to ${q.chips} chips`;
+      if (faces && Object.keys(value).some((x) => !faces.has(x))) return 'Chips only on who is still in';
+      return null;
+    }
+    case 'split': {
+      if (!Array.isArray(value) || !value.length || value.length > 20 || value.some((n) => !isInt(n))) return 'A split is a few whole numbers: [5, 2, 1]';
+      const total = value.reduce((a, b) => a + b, 0);
+      return total >= 1 && total <= 100 ? null : 'A split adds up to 1 to 100 votes';
+    }
+    case 'pairs': {
+      // { "a|b": who outlasts } (the pair's two ids, sorted), `faces` each pair's "a|b:id" for each one in it.
+      if (!isObj(value) || !Object.keys(value).length) return 'Who outlasts whom: { pair: who }';
+      if (faces && Object.entries(value).some(([k, id]) => !faces.has(`${k}:${id}`))) return 'Name one of the pair';
+      return null;
+    }
     default: return "This question isn't answered here";
   }
 }
 
-module.exports = { WAITING, verdictOf, rightAnswers, pointsFor, isRight, answerProblem, spanEpisodes };
+module.exports = { WAITING, verdictOf, rightAnswers, pointsFor, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf };

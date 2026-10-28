@@ -74,9 +74,24 @@ const isIn = (v: unknown) => v !== null && v !== undefined && v !== "" && !(Arra
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const idsOf = (v: unknown): string[] => (Array.isArray(v) ? (v as string[]) : typeof v === "string" && v ? [v] : []);
 
+/** The answers this sheet has controls for; the rest (A8's) wait for the UI track's screens. */
+const SHEET_ANSWERS: QuestionView["answer"][] = ["person", "group", "yesNo", "number", "overUnder", "choice"];
+
 /** "Kristin", "Kristin, Sue and Ozzy", "Yes", "4", "Over 3.5". */
 function answerWords(q: QuestionView, v: unknown, cast: Map<string, QuestionFace>): string {
   if (!isIn(v)) return "";
+  // A8's: a wager says its stake; an order or confidence its names in order; chips each one's; a split its numbers.
+  if (q.wager !== null && v && typeof v === "object" && "answer" in (v as object)) {
+    const bet = v as { answer: unknown; stake?: number };
+    return `${answerWords({ ...q, wager: null }, bet.answer, cast)} (${bet.stake ?? 0} staked)`;
+  }
+  if ((q.answer === "order" || q.answer === "confidence") && Array.isArray(v)) return (v as string[]).map((id) => first(cast.get(id)?.name ?? "someone")).join(" › ");
+  if (q.answer === "split" && Array.isArray(v)) return (v as number[]).join("-");
+  if ((q.answer === "chips" || q.answer === "pairs") && v && typeof v === "object") {
+    return Object.entries(v as Record<string, unknown>)
+      .map(([k, x]) => (q.answer === "chips" ? `${first(cast.get(k)?.name ?? "someone")} ${String(x)}` : first(cast.get(String(x))?.name ?? "someone")))
+      .join(", ");
+  }
   // A question about each person (A6): an answer for each, "Ana: 24, Ben: 22".
   if (q.each && v && typeof v === "object" && !Array.isArray(v)) {
     return Object.entries(v as Record<string, unknown>)
@@ -96,7 +111,7 @@ function answerWords(q: QuestionView, v: unknown, cast: Map<string, QuestionFace
 /** The settle as "by:take" ("results:out"). */
 const how = (q: QuestionView) => `${q.settle.by}${"take" in q.settle ? `:${q.settle.take}` : ""}`;
 /** The season's to settle: who wins, where they finish. */
-const seasonal = (q: QuestionView) => ["results:winner", "results:top", "results:placed"].includes(how(q));
+const seasonal = (q: QuestionView) => ["results:winner", "results:top", "results:placed", "results:split"].includes(how(q));
 
 /** What the right answer was, in a line ("Kristin went home", "It happened"), or what it waits for. */
 function verdictWords(q: QuestionView, d: GameQuestions, cast: Map<string, QuestionFace>): string {
@@ -109,6 +124,10 @@ function verdictWords(q: QuestionView, d: GameQuestions, cast: Map<string, Quest
     return ep !== null ? `Waiting for Episode ${ep}'s results` : "Waiting for the results";
   }
   if (v.state === "off") return `${v.why}: it doesn't count`;
+  // A8's: the split as said, an order's names in order, pairs one by one.
+  if (q.answer === "split") return v.right[0] ?? "";
+  if (q.answer === "pairs") return "Settled pair by pair";
+  if (q.answer === "order") return v.right.map((id) => first(cast.get(id)?.name ?? "Someone")).join(" › ");
   if (q.each) return "Settled for each one";
   if (q.answer === "group") return (v.groups ?? []).map((id) => cast.get(id)?.name ?? "A group").join(", ");
   const names = v.right.map((id) => first(cast.get(id)?.name ?? "Someone"));
@@ -270,6 +289,11 @@ function Question({ q, d, cast, value, onValue }: { q: QuestionView; d: GameQues
         // A question about each person (A6) has no screen of its own yet (the UI track's): the API takes its answers.
         <p data-question-each className="mt-2.5 text-sm leading-snug text-muted-foreground">
           This one is answered for each {q.faces?.length ? `of the ${q.faces.length} still in` : "one still in"}, on a screen still to come.
+        </p>
+      ) : q.status === "open" && (q.wager !== null || !SHEET_ANSWERS.includes(q.answer)) ? (
+        // A8's (an order, confidence, chips, a split, pairs, a wager): the same.
+        <p data-question-later className="mt-2.5 text-sm leading-snug text-muted-foreground">
+          This one is answered on a screen still to come.
         </p>
       ) : q.status === "open" ? (
         <div className="mt-2.5">

@@ -632,7 +632,37 @@
         {
           "id": "what.order",
           "what": "An order (the boot order, a leaderboard)",
-          "step": "A8"
+          "step": "A8",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "boot",
+                "ask": "The first five to go home, in order",
+                "answer": "order",
+                "points": 2,
+                "pick": 5,
+                "within": 1,
+                "settle": {
+                  "by": "results",
+                  "take": "order"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "what.whichEpisode",
@@ -671,7 +701,35 @@
         {
           "id": "what.split",
           "what": "A vote split (5-2-1)",
-          "step": "A8"
+          "step": "A8",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "split",
+                "ask": "The final jury vote split",
+                "answer": "split",
+                "points": 5,
+                "settle": {
+                  "by": "results",
+                  "take": "split"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "what.quote",
@@ -894,17 +952,109 @@
         {
           "id": "answer.rank",
           "what": "Rank them",
-          "step": "A8"
+          "step": "A8",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "sure",
+                "ask": "Rank who goes home, surest first",
+                "answer": "confidence",
+                "points": 1,
+                "pick": 5,
+                "asked": "each",
+                "settle": {
+                  "by": "results",
+                  "take": "out"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "answer.chips",
           "what": "Spread 10 chips",
-          "step": "A8"
+          "step": "A8",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "chips",
+                "ask": "Spread 10 chips on who wins immunity",
+                "answer": "chips",
+                "points": 1,
+                "chips": 10,
+                "asked": "each",
+                "settle": {
+                  "by": "moment",
+                  "moment": "individualImmunity",
+                  "take": "who"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "answer.wager",
           "what": "Wager your points",
-          "step": "A8"
+          "step": "A8",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "bet",
+                "ask": "Will an idol be found tonight?",
+                "answer": "yesNo",
+                "points": 1,
+                "asked": "each",
+                "wager": 5,
+                "settle": {
+                  "by": "moment",
+                  "moment": "idolFound",
+                  "take": "happened"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "answer.bid",
@@ -1840,7 +1990,32 @@
       "dials": [
         "answer",
         "score"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "confidence",
+            "ask": "Rank everyone from most to least likely to go home",
+            "answer": "confidence",
+            "points": 1,
+            "pick": 18,
+            "asked": "each",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s13",
@@ -1853,7 +2028,32 @@
       "step": "A8",
       "dials": [
         "what"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "bootOrder",
+            "ask": "The boot order",
+            "answer": "order",
+            "points": 2,
+            "pick": 18,
+            "within": 2,
+            "settle": {
+              "by": "results",
+              "take": "order"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s14",
@@ -1866,7 +2066,33 @@
       "step": "A8",
       "dials": [
         "what"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "leaderboard",
+            "ask": "This week's leaderboard: the top five by points",
+            "answer": "order",
+            "points": 1,
+            "pick": 5,
+            "asked": "each",
+            "settle": {
+              "by": "points",
+              "take": "order"
+            }
+          }
+        ]
+      },
+      "note": "the leaderboard: the castaways by each episode's points, as the game's rules score them"
     },
     {
       "id": "s15",
@@ -2192,7 +2418,33 @@
       "step": "A8",
       "dials": [
         "answer"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "chips",
+            "ask": "Spread 10 chips on who wins immunity",
+            "answer": "chips",
+            "points": 1,
+            "chips": 10,
+            "asked": "each",
+            "settle": {
+              "by": "moment",
+              "moment": "individualImmunity",
+              "take": "who"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s34",
@@ -2392,7 +2644,31 @@
       "step": "A8",
       "dials": [
         "what"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "pairs",
+            "ask": "Who outlasts whom?",
+            "answer": "pairs",
+            "points": 1,
+            "pairs": 10,
+            "settle": {
+              "by": "results",
+              "take": "outlast"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s47",
@@ -2405,7 +2681,30 @@
       "step": "A8",
       "dials": [
         "what"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "split",
+            "ask": "The final jury vote split",
+            "answer": "split",
+            "points": 5,
+            "settle": {
+              "by": "results",
+              "take": "split"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s48",
