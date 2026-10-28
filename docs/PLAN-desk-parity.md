@@ -6,6 +6,14 @@ History), but a site admin still has to go back to classic for about 25 things, 
 admin at all (only Settings › Back to the classic design, or typing `/admin`). Nothing in `src/new` calls `/api/admin/*`. This
 plan closes that gap, then retires classic's admin.
 
+**Status (2026-10-28): not started.** No step 0 link yet and no mock screens. Next: a main-folder session does step 0, then the
+design pass with the user (every step's screens in the mock, approved one by one). Once they're approved, the build (steps 1-7)
+runs as its own lane (`scripts/lane.js`) beside engine and sports, after the weekly usage reset. Deletes are the user's sore
+point: a game's delete looked dead on a phone (a finger that rolled cancelled the hold; fixed in 1e38aeea, with
+`scripts/dev-test/check-hold-touch.js`), and a season or a show can't be deleted outside classic. Make every delete easy to
+find in the design. Noticed: classic's `/admin/leagues` came up blank in production on 2026-10-28 (its JSON at
+`/api/admin/leagues` was fine). Check that classic still works before step 0 links to it.
+
 **Decisions (the user, 2026-10-27):**
 1. **Act as them.** Opening the app as someone is classic's impersonation as it is: for an hour you are them (Better Auth's
    admin plugin, `impersonateUser`), anything you do is done as them, a bar says so, one tap returns you. Two additions: it's
