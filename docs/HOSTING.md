@@ -3,19 +3,20 @@
 **Keep this current.** Update it in the same commit as any change that adds or changes polling, a scheduled
 job, stored data, or a service, and whenever usage is checked (date the numbers). It exists so that, when a
 free plan stops being enough, choosing the cheapest fit is arithmetic, not research. Last updated
-**2026-10-26**.
+**2026-10-28** (Cost by size).
 
 ## The stack
 
 | Service | What it does for us | Plan | Cost now |
 |---|---|---|---|
 | **Vercel** (team `reality-fantasy-leagues`, project `tvleagues`) | The Next.js app, its API routes, `/mock` | Hobby | $0 |
-| **Neon** (project `reality-fanatsy-leagues`, AWS us-east-2, Postgres 18) | Every table, auth included | Free | $0 |
+| **Neon** (project `reality-fanatsy-leagues`, AWS us-east-2, Postgres 18) | Every table, auth included | **Launch since 2026-10-28** (the user upgraded it at 98.3% of the free 5 GB transfer, three days before the reset): usage-based, $0.106 a CU-hour, $0.35 a GB-month, 500 GB of transfer, no minimum | ~$5 a month at today's use |
 | **Oracle Cloud** (`gys-bot`, VM.Standard.E2.1.Micro: x86, 1 GB) | The ChatGPT bot (`C:\Users\conor\llm-browser-api`) and the bot research clock | Always Free | $0 |
 | **Cloudflare** tunnels | `bot.gameyourshow.com` (the VM), `bot-home.gameyourshow.com` (the PC fallback) | Free | $0 |
+| The PC's bot (`127.0.0.1:8765`, local work only) | Since 2026-10-28 its ChatGPT is **signed in to the user's own account** (a Plus trial) and its Gemini to their Google account, and it can ask Claude through the user's Claude Code. **Never list it in production's `LLM_BROWSER_API_URL`** (nor tunnel it for production): production's research would run on the user's personal accounts. The VM's bot stays signed out | – | $0 (the trial renews as paid Plus unless cancelled) |
 | **GitHub** (`clydon/reality-fantasy-leagues`, **public since 2026-10-24**) | The code; Actions runs the hourly job (`auto-research.yml`: auto-research, reminders, waivers) and the nightly wiki sync | Free; Actions minutes unlimited while public | $0 |
 | healthchecks.io | Emails when the bot's daily self-test fails | Free | $0 |
-| Resend | Sign-up and password emails | not checked | $0? |
+| Resend | Sign-up and password emails | Free: 3,000 emails a month, 100 a day (third-party sources, 2026; Pro $20 for 50,000) | $0 |
 | **TVmaze** API (`api.tvmaze.com`, new design step 10 part 1, on the branch) | TV listings for Add a show: the show search as you type, a show's seasons and episode air times when someone adds it, and its cast when someone makes a series or talk show a game (step 10 part 2a). Since step 11 part 2, also once a day by the listings job (the week's schedules for the guide's Also on, what changed, new seasons): about 17-20 calls a day, on the bot clock's calls, never on a timer of its own | Free, no key. Data is CC BY-SA (credited with a link back on Add a show and the guide's listing and evening sheets); at least 20 calls every 10 seconds per IP, else HTTP 429 (the job spaces its calls 0.7 s apart); posters hotlinked from its image CDN (allowed) | $0 |
 | Google Cloud OAuth client (**not made yet**: the user's, step 9 part 2) | Continue with Google on the new design's way in. Off until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (no keys, no button) | Free (sign-in only: the email, profile and openid scopes, no verification review needed) | $0 |
 | **GIPHY** API (**no key yet**: the user's, new design step 13 part 1, on the branch) | GIFs in a watch along: what's trending and a search, asked by our server (`/api/gifs`, kept at the edge an hour per search); the pictures load from GIPHY's media CDN straight into the browser. Off until `GIPHY_API_KEY` is set (no key, no GIF button). Tenor, the other choice, closed its API on 2026-06-30 | Free. A new key is a beta key: 100 calls an hour (each distinct search, and trending, at most once an hour per edge region); past that, GIPHY's production key (applied for from its dashboard, reviewed, and they may talk pricing). "Powered by GIPHY" shown under the picker; ratings PG-13 at most | $0 |
@@ -64,7 +65,7 @@ Snapshot **2026-10-24**. Neon's numbers are since its period start (Sep 30); Ver
 | Neon compute | 100 CU-hours a month per project | 35.38 CU-h | Running out suspends the database. Free computes sleep after 5 minutes idle and can't be kept awake |
 | Neon storage | 1 GB per project (the billing page; one FAQ says 0.5) | 38.77 MB | Plus 254 kB of history |
 | Neon history (point-in-time restore) | 6 hours | | So the JSON backups (`scripts/backup-leagues.js`) and named branches are the real safety nets |
-| Neon branches | 10 per project | 2 | `production`, and `pre-new-design-2026-10-24` (made before migration 0066 shipped; never auto-deletes) |
+| Neon branches | 10 per project | 4 (2026-10-28) | `production`; `pre-new-design-2026-10-24` (made before migration 0066 shipped), `pre-merge-2026-10-26` and `pre-s2-2026-10-28` (made in the console before S1 and S2 deployed; a snapshot of production, no credentials handled): none auto-delete |
 | Vercel function invocations | 1M | 92K | |
 | Vercel Fluid Active CPU | 4 h | 1 h 24 m | |
 | Vercel CDN requests | 1M | 168K | |
@@ -464,9 +465,44 @@ hotlinked from TMDB's, TVmaze's or Wikimedia's CDN: no Vercel image optimisation
 3. **Neon Launch** (prices from the Neon billing page, 2026-10-24): usage-based, $0.106 per CU-hour and $0.35 per
    GB-month, 500 GB of transfer per project, longer point-in-time restore, and compute can stay awake. At
    today's ~50 CU-hours that's about $5 a month; kept always awake at 0.25 CU, about $19.
-4. **Vercel Pro**: per member per month with larger included usage (check current pricing and inclusions before
-   deciding; not verified here).
+4. **Vercel Pro**: $20 per member per month plus usage, and required for any commercial use (Cost by size, below; check
+   its inclusions on vercel.com/pricing before deciding).
 5. **The bot tiers** (One tap $1 a season, Autopilot $5) are meant to pay for the research they trigger.
+
+## Cost by size (estimate, 2026-10-28)
+
+What the app would cost a month at each size, from the measurements above and the prices of 2026-10-28. "People" means
+people who use it in a month. Prices: **Neon Launch** $0.106 a CU-hour and $0.35 a GB-month, no monthly minimum, 500 GB of
+transfer, autoscaling (Neon's page via third-party summaries, matching the billing page of 2026-10-24); **Vercel Pro** $20 a
+member a month plus usage (third-party summaries disagree on what's included and the overage rates: check vercel.com/pricing
+before moving); **Resend** free to 3,000 emails a month. Estimates, not measurements: re-check against real usage at each step.
+
+**The assumptions.** A person with the app open at a show space is 2 Vercel calls a minute, its Chat tab 12, a watch along 14,
+a together watch along 22 (Vercel invocations, above). A mix of engaged people (two together watch alongs a week, some
+browsing and chat: ~14,000 calls a month) and light ones (scores and picks: ~2,000) averages **~6,000 calls a person a
+month**. Neon's compute is 0.25 CU for every hour anything woke it in the previous 5 minutes, more at busy times, so it
+follows **how many hours a day someone is on**, not how many people: a handful of people is a few hours a day; a few hundred
+spread over evenings and time zones keeps it awake almost all day. Research costs follow the **shows** played, not the
+people (an episode is researched once for everyone), so the free bot keeps up far longer than the rest.
+
+| Size | Vercel | Neon | Bot | Email | Domain | A month |
+|---|---|---|---|---|---|---|
+| Today (one couch) | Hobby, $0 (92K of 1M calls) | Free, $0 (~45 of 100 CU-hours) | free VM | free | ~$1 | **~$1** |
+| Small, 10–50 | Hobby, $0 (~60K–300K calls) | Free to ~25 people; by ~50 it's awake 10+ hours a day and nears the 100 CU-hour cap, so Launch at ~$8–13 | free VM | free | ~$1 | **$1–14** |
+| Medium, 100–300 | **Pro, $20** (~0.6–1.8M calls: Hobby's 1M runs out around 150–200 people) | Launch, ~$15–40 (awake most of the day, 0.25–0.5 CU) | free VM; a second free VM for spare capacity | free | ~$1 | **$35–60** |
+| Large, 500–2,000 | Pro, ~$20–50 (3–12M calls; a little usage on top) | Launch, ~$40–120 (always awake, ~0.5–1.5 CU on average, more on episode nights) | free VMs; ~$0–10 if an API fallback is added | free, or Resend Pro $20 when sign-ups pass 100 a day | ~$1 | **$60–200** |
+| Extra large, 2,000+ (say 5,000) | Pro, ~$50–150 (30M+ calls) | ~$150–300 (2–4 CU on average), or a fixed-price Postgres | ~$10–50 (more bots, or an API for the GPT's asks: a game-creation ask is a fraction of a cent on a small model) | Resend Pro $20 | ~$1 | **$250–500+**, unless polling gives way to push first |
+
+**Costs that come with a decision, not with size:**
+- **Charging anything** (the bot tiers, ads): Vercel's Hobby is for non-commercial use only, so **Pro ($20) from day one**,
+  whatever the size; and TMDB's free key is non-commercial (a licence, or TheTVDB, free under $50k revenue, plus TVmaze).
+- **Going private again:** GitHub Actions counts minutes (~775 a month: inside the free 2,000).
+- **Paid research** (the Anthropic API, per season switched on): per episode researched, only if used.
+
+**What keeps it low, cheapest first:** the Levers above. Polling is what grows with people: it's both Vercel's calls and Neon's
+awake hours. One combined poll, polling only while the window is in front, slowing down when nothing moves, and push for rare
+events would roughly halve both, for free. Past ~2,000 people, a realtime push service in place of polling (and caching what
+everyone reads) is the bigger saving.
 
 ## Rotating the database password
 

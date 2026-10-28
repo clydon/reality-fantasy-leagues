@@ -115,8 +115,8 @@ const HOLD_MS = 1400;
 
 /**
  * Tier 3 (the mock's guards.js holdSheet): the consequence in a sentence, an easier way out when there is one (`alt`),
- * and "Hold to …": pressed and held for 1.4 s (a tap does nothing), by pointer or by Space/Enter. `problem`: why it can't
- * happen at all (the last Commissioner), in place of the button.
+ * and "Hold to …": pressed and held for 1.4 s, by pointer or by Space/Enter; a tap or an early let-go does nothing but
+ * say to hold it down. `problem`: why it can't happen at all (the last Commissioner), in place of the button.
  */
 export function HoldSheet({
   open,
@@ -142,11 +142,14 @@ export function HoldSheet({
   onConfirm: () => Promise<void>;
 }) {
   const [holding, setHolding] = useState(false);
+  const [hint, setHint] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const pressed = useRef(false);
   useEffect(() => () => clearTimeout(timer.current), []);
   const go = async () => {
+    pressed.current = false;
     setHolding(false);
     setBusy(true);
     setError(null);
@@ -160,13 +163,19 @@ export function HoldSheet({
     }
   };
   const start = () => {
-    if (busy || holding) return;
+    if (busy || pressed.current) return;
+    pressed.current = true;
+    setHint(false);
     setHolding(true);
     timer.current = setTimeout(go, HOLD_MS);
   };
+  // Let go before the bar filled (or slid off it): nothing happens, and the line under the button says why.
   const stop = () => {
+    if (!pressed.current) return;
+    pressed.current = false;
     clearTimeout(timer.current);
     setHolding(false);
+    setHint(true);
   };
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={title} subtitle="This one is hard to undo">
@@ -196,7 +205,14 @@ export function HoldSheet({
               data-hold
               disabled={consequence === null || busy}
               aria-label={`Hold to ${cta}`}
-              onPointerDown={start}
+              // A finger that rolls a few pixels as it presses was handed to scrolling, which cancelled the hold mid-press
+              // (check-hold-touch.js): touch-none keeps the touch here. A finger is also captured by what it lands on (the
+              // label inside), so let go of that, and sliding off lets go of the hold as it does with a mouse.
+              onPointerDown={(e) => {
+                const on = e.target as Element;
+                if (on.hasPointerCapture(e.pointerId)) on.releasePointerCapture(e.pointerId);
+                start();
+              }}
               onPointerUp={stop}
               onPointerLeave={stop}
               onPointerCancel={stop}
@@ -208,7 +224,7 @@ export function HoldSheet({
               }}
               onKeyUp={stop}
               onContextMenu={(e) => e.preventDefault()}
-              className="relative mt-4 flex h-14 w-full select-none items-center justify-center overflow-hidden rounded-[3px] bg-live/15 text-[16px] font-extrabold text-foreground outline-1 -outline-offset-1 outline-live/60 [-webkit-touch-callout:none] disabled:opacity-60"
+              className="relative mt-4 flex h-14 w-full touch-none select-none items-center justify-center overflow-hidden rounded-[3px] bg-live/15 text-[16px] font-extrabold text-foreground outline-1 -outline-offset-1 outline-live/60 [-webkit-touch-callout:none] disabled:opacity-60"
             >
               <span
                 aria-hidden
@@ -217,6 +233,13 @@ export function HoldSheet({
               />
               <span className="relative">{busy ? "One moment…" : holding ? "Keep holding…" : `Hold to ${cta}`}</span>
             </button>
+            <p role="status" className="text-center text-[13px] font-semibold">
+              {hint && !busy && (
+                <span data-hold-hint className="mt-2 block">
+                  Keep it held down until the bar fills, about 1½ seconds
+                </span>
+              )}
+            </p>
             {restore && <p className="mt-2 text-center text-[13px] text-muted-foreground">{restore}</p>}
           </>
         )}

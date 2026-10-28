@@ -405,6 +405,8 @@ export async function reviewAnswer(id: string, answer: unknown) {
   const { rows: cast } = r.seasonId ? await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [r.seasonId]) : { rows: [] as { name: string }[] };
   const now = blocksAt(r.blocks, await inForceEdits(pool, id), Infinity);
   const review = reviewRulebook(parsed, { castNames: cast.map((c) => c.name), keep: (now.customMoments ?? []).map((m) => m.label) });
+  // How research asks is the rulebook's own (the prompt leaves it out), so an answer keeps it as it is.
+  if (now.research) review.blocks.research = now.research;
   const ops = diffBlocks(now, review.blocks);
   return { ...review, lines: opLines(ops, now, review.blocks), changes: ops.length };
 }

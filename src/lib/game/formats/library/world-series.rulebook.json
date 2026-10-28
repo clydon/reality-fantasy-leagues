@@ -405,154 +405,184 @@
       {
         "id": "gameWon",
         "label": "Won the Game",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "gameGroupWon",
         "label": "Team won the Game",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "homeRun",
         "label": "Hit a home run",
-        "defaultPoints": 5
+        "defaultPoints": 5,
+        "tags": []
       },
       {
         "id": "hit",
         "label": "Recorded a hit",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "runBattedIn",
         "label": "Recorded an RBI",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "strikeout",
         "label": "Recorded a strikeout as a pitcher",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "batterStrikeout",
         "label": "Struck out as a batter",
-        "defaultPoints": -1
+        "defaultPoints": -1,
+        "tags": []
       },
       {
         "id": "walk",
         "label": "Drew a walk",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "stolenBase",
         "label": "Stole a base",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "doublePlay",
         "label": "Turned a double play",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "fieldingError",
         "label": "Committed a fielding error",
-        "defaultPoints": -2
+        "defaultPoints": -2,
+        "tags": []
       },
       {
         "id": "hitByPitch",
         "label": "Batter hit by a pitch",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "extraBaseHit",
         "label": "Recorded an extra-base hit",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "caughtStealing",
         "label": "Caught stealing",
-        "defaultPoints": -2
+        "defaultPoints": -2,
+        "tags": []
       },
       {
         "id": "sacrificeFly",
         "label": "Recorded a sacrifice fly",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "sacrificeBunt",
         "label": "Recorded a sacrifice bunt",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "completeGame",
         "label": "Pitcher completes the entire game",
-        "defaultPoints": 5
+        "defaultPoints": 5,
+        "tags": []
       },
       {
         "id": "shutout",
         "label": "Team records a shutout",
-        "defaultPoints": 5
+        "defaultPoints": 5,
+        "tags": []
       },
       {
         "id": "save",
         "label": "Pitcher earns a save",
-        "defaultPoints": 3
+        "defaultPoints": 3,
+        "tags": []
       },
       {
         "id": "extraInnings",
         "label": "Game goes to extra innings",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "walkOff",
         "label": "Game ends on a walk-off play",
-        "defaultPoints": 5
+        "defaultPoints": 5,
+        "tags": []
       },
       {
         "id": "basesLoaded",
         "label": "Bases loaded",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "pitchingChange",
         "label": "Pitching change",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "leadChange",
         "label": "Lead changes",
-        "defaultPoints": 2
+        "defaultPoints": 2,
+        "tags": []
       },
       {
         "id": "tieGame",
         "label": "Score becomes tied",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "runsScored",
         "label": "Runs scored",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "inningsPitched",
         "label": "Innings pitched",
-        "defaultPoints": 1
+        "defaultPoints": 1,
+        "tags": []
       },
       {
         "id": "pitchCount",
         "label": "Pitches thrown",
-        "defaultPoints": 0
+        "defaultPoints": 0,
+        "tags": []
       },
       {
         "id": "ejected",
         "label": "Ejected",
         "defaultPoints": -3,
-        "implied": true
+        "implied": true,
+        "tags": []
       },
       {
         "id": "injuryWithdrawal",
         "label": "Withdrawn due to injury",
         "defaultPoints": -3,
-        "implied": true
+        "implied": true,
+        "tags": []
       }
     ],
     "eventCategories": [
