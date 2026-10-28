@@ -222,6 +222,46 @@ and `src/lib/server/`):
 Not prompts to the bot: `ai-brief.ts briefLine` (the Open in ChatGPT link's wrapper), the tour's `tourPrompt`, each format's
 `episodesPrompt` (Anthropic API, tests only), and `runFor` (the paid research APIs).
 
+### P2. The words corpus, started (2026-10-28, the same session as P1)
+
+**The corpus:** `scripts/dev-test/start-a-game-words.json`, 104 requests, each with its expected reading:
+- `about`: the show and season, or the sport and teams;
+- `when`: the span's kind;
+- `game`: the sensible game;
+- `said`: what must carry over, with numbers only as said;
+- `wizard`: what it should ask;
+- `flag`: question or refuse, with why.
+
+It's dated 2026-10-28 (what's airing that day decides some answers). The groups, as the step lists them: the GPT plan's three
+examples, casual (10), solo (5), small groups (7), big ones (5), popular shows and sports (7), niche shows (8: a cooking
+competition, other countries' versions), very customised (8), sports (8), shows that aren't competitions (6), spans (6),
+predictions only (5), typos and slang (6), two games in one message (3), contradictions (5), nonsense and an injection attempt
+(6), and seasons that don't exist (6).
+
+**The runner:** `scripts/dev-test/tapes-words.js`. Its request prompt is a **draft**, labelled as one, because the app has no
+request prompt until G1:
+- it's the GPT plan's request shape;
+- it gives today's date;
+- it fences the words as a description, never instructions;
+- it asks for no web search.
+
+It parses and judges each reading:
+- the show, by the app's own `listing.ts sameShow`, so another country's version doesn't count;
+- the season and the span;
+- no number invented (number words and commas count as said);
+- an expected question or refusal shows as something unsure.
+
+What wasn't said must come back empty. `tapes.js` asks the corpus as the queue's round 2 (`one words <id>` for one). `status`
+judges every words tape again with today's judge. A reading that's off is still the tape and isn't re-asked.
+
+**Asked so far:** w002 (the Red Sox series: baseball, both teams, "series", draft 3 each, both scores, nothing invented) and w084
+("5 each, everyone gets 3": draft 5, start 3, and "everyone gets 3" in unsure). Both read as expected.
+
+**Left for P2's next session:**
+- the rest of the corpus, which the recorder asks after the first seasons' core;
+- the table here of how well it understood, by group;
+- whether the expected readings need changing once the bot's are seen (they're a first draft too).
+
 ## Noticed, not fixed
 
 (Each step adds what it saw and left alone, with the step that could take it.)

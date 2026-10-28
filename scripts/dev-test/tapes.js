@@ -23,6 +23,7 @@
 //   node scripts/dev-test/tapes.js plan [--only=...]       what record would ask next, in order (asks nothing)
 //   node scripts/dev-test/tapes.js status                  what's recorded, per show and season, and the last error
 //   node scripts/dev-test/tapes.js one <show> <season> <kind> [<episode>]   one question now (the end-to-end check)
+//   node scripts/dev-test/tapes.js one words <id>         one request of Start a game's words corpus (tapes-words.js)
 //   node scripts/dev-test/tapes.js load <show> <season>    a tape into this lane's database (no bot; the tape untouched):
 //                                                          the season from its listing, how it works and its cast from the
 //                                                          recorded answers, each episode's full answer through the app's
@@ -76,8 +77,8 @@ const BACKOFF_MIN = [5, 15, 60];
 const LIMITED_MIN = 60;
 
 const pad = (n) => String(n).padStart(2, "0");
-/** A question's file name (without .json): season-cast, e03-full; the season itself is season.json. */
-const nameOf = (job) => (job.kind === "season" ? "season" : job.episode == null ? `season-${job.kind}` : `e${pad(job.episode)}-${job.kind}`);
+/** A question's file name (without .json): season-cast, e03-full; the season itself is season.json; a words request its id. */
+const nameOf = (job) => (job.kind === "words" ? job.id : job.kind === "season" ? "season" : job.episode == null ? `season-${job.kind}` : `e${pad(job.episode)}-${job.kind}`);
 const dirOf = (show, season) => path.join(TAPES, show, String(season));
 const keyOf = (job) => `${job.show}/${job.season}/${nameOf(job)}`;
 
@@ -339,7 +340,8 @@ async function tapesUser(pool) {
 const BOT_WAIT_S = Number(process.env.BOT_WAIT_S) || 420;
 const UA = { "User-Agent": "GameYourShow/1.0 (+https://gameyourshow.com)" };
 
-/** One question to the local bot: ask-bot.ts askBot's request (ChatGPT, search on, keepalive) with BOT_WAIT_S to answer. */
+/** One question to the local bot: ask-bot.ts askBot's request (ChatGPT, search on unless `search: false`, keepalive) with
+ *  BOT_WAIT_S to answer. */
 async function botAsk(prompt, o = {}) {
   const { bots } = appCode();
   const url = bots[0].replace(/\/$/, "");
@@ -347,7 +349,7 @@ async function botAsk(prompt, o = {}) {
   const res = await fetch(`${url}/ask`, {
     method: "POST",
     headers: { ...UA, "Content-Type": "application/json", "X-API-Key": process.env.LLM_BROWSER_API_KEY || "" },
-    body: JSON.stringify({ provider: "chatgpt", prompt, search: true, max_wait: wait, keepalive: true }),
+    body: JSON.stringify({ provider: "chatgpt", prompt, search: o.search !== false, max_wait: wait, keepalive: true }),
     signal: AbortSignal.timeout((wait + 30) * 1000),
   });
   const text = await res.text();
@@ -661,7 +663,23 @@ async function askRecaps(job, rec) {
   return { ok: out.filled > 0, message: `${out.filled} of ${asked.length} recap(s) saved`, parsed, result: { filled: out.filled, missing: out.missing } };
 }
 
-const RUNNERS = { season: null, rules: askRules, cast: askCast, recaps: askRecaps, quick: askEpisode, full: askEpisode, trivia: askEpisode, bingo: askEpisode, "bingo-season": askEpisode };
+/**
+ * A request from Start a game's words corpus (start-a-game-words.json), asked with the draft request prompt (tapes-words.js:
+ * no web search, the corpus's own date), read, and judged against its expected reading.
+ */
+async function askWords(job, rec) {
+  const W = require("./tapes-words.js");
+  const corpus = wordsCorpus();
+  const req = corpus && corpus.requests.find((r) => r.id === job.id);
+  if (!req) throw Object.assign(new Error(`No request ${job.id} in start-a-game-words.json`), { blocked: true });
+  const { answer } = await rec.ask(W.wordsPrompt(req.words, corpus.today), { search: false });
+  const parsed = W.parseRequest(answer);
+  const judged = W.judge(req.expect, parsed, req.words);
+  // A reading that's off is still what the bot said: it's the tape (asking again until it reads well would flatter the eval).
+  return { ok: true, message: `${judged.score} of ${judged.of} as expected${judged.inventedNumbers.length ? `; invented ${judged.inventedNumbers.join(", ")}` : ""}`, parsed, result: { id: req.id, group: req.group, words: req.words, expect: req.expect, judged } };
+}
+
+const RUNNERS = { words: askWords, season: null, rules: askRules, cast: askCast, recaps: askRecaps, quick: askEpisode, full: askEpisode, trivia: askEpisode, bingo: askEpisode, "bingo-season": askEpisode };
 
 /**
  * Asks one question and puts it on tape: { ok, limited, blocked, record }. A failure that asked the bot is kept as a try (or,
@@ -670,7 +688,7 @@ const RUNNERS = { season: null, rules: askRules, cast: askCast, recaps: askRecap
  */
 async function runOne(job, tries = 1) {
   const entry = SHOWS.find((s) => s.key === job.show);
-  if (!entry) throw new Error(`No show "${job.show}" in the tapes' list`);
+  if (!entry && job.kind !== "words") throw new Error(`No show "${job.show}" in the tapes' list`);
   const at = new Date();
   const t0 = Date.now();
   if (job.kind === "season") {
@@ -691,6 +709,7 @@ async function runOne(job, tries = 1) {
   const [first, second] = rec.asks;
   const record = {
     kind: job.kind,
+    ...(job.kind === "words" ? { id: job.id } : {}),
     show: job.show,
     season: job.season,
     episode: job.episode,
@@ -716,9 +735,9 @@ async function runOne(job, tries = 1) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+const wordsCorpus = () => readJson(path.join(__dirname, "start-a-game-words.json"));
 function wordsIds() {
-  const file = path.join(__dirname, "start-a-game-words.json");
-  const data = readJson(file);
+  const data = wordsCorpus();
   return data && Array.isArray(data.requests) ? data.requests.map((r) => r.id) : [];
 }
 
@@ -760,7 +779,6 @@ function nextJob(opts) {
         continue;
       }
     }
-    if (job.kind === "words") continue; // P2's runner isn't built yet: its requests wait
     return job;
   }
   return null;
@@ -881,8 +899,13 @@ function status() {
       );
     }
   }
-  const words = fs.existsSync(path.join(TAPES, "words")) ? fs.readdirSync(path.join(TAPES, "words")).filter((f) => /^[^.]+\.json$/.test(f)).length : 0;
-  lines.push(`words: ${words} request(s) on tape`);
+  const wordsDir = path.join(TAPES, "words");
+  const words = fs.existsSync(wordsDir) ? fs.readdirSync(wordsDir).filter((f) => /^[^.]+\.json$/.test(f)).map((f) => readJson(path.join(wordsDir, f))).filter(Boolean) : [];
+  // Judged again with today's judge (tapes-words.js), from what was parsed: a tape's own `judged` is how it read then.
+  const W = require("./tapes-words.js");
+  const judged = words.filter((w) => w.ok && w.parsed && w.result).map((w) => W.judge(w.result.expect, w.parsed, w.result.words));
+  const sum = (k) => judged.reduce((n, j) => n + j[k], 0);
+  lines.push(`words: ${words.length} of ${wordsIds().length} request(s) on tape${judged.length ? `, ${sum("score")} of ${sum("of")} checks as expected` : ""}`);
   const state = loadState();
   if (state.pausedUntil && new Date(state.pausedUntil) > new Date()) lines.push(`paused until ${state.pausedUntil}: ${state.pauseWhy}`);
   if (state.lastError) lines.push(`last error ${state.lastError.at}: ${state.lastError.job}: ${state.lastError.message}`);
@@ -991,7 +1014,7 @@ async function main() {
   }
   if (cmd === "one") {
     const [show, season, kind, episode] = rest;
-    const job = { show, season: Number(season), kind, episode: episode != null ? Number(episode) : null };
+    const job = show === "words" ? { show: "words", season: 0, kind: "words", episode: null, id: season } : { show, season: Number(season), kind, episode: episode != null ? Number(episode) : null };
     const out = await runOne(job, 1);
     if (out.blocked) throw new Error(out.message);
     if (job.kind !== "season") writeRecord(job, out.record, out.ok ? {} : { tryNo: 1 });
