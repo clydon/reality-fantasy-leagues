@@ -8,8 +8,10 @@ plan closes that gap, then retires classic's admin.
 
 **Status (2026-10-28): step 0 done; in the design pass, step 1 (People) is approved by the user**, with Find › Browse, Hand
 on, the desk's pages and how they link, and Settings regrouped (`.impeccable/mocks/site/desk.js`, `desk-pages.js`, `desk.css`;
-Mock scenarios › Desk · step 1 and Desk · pages and Settings). A couch's delete stays (approved with the rest). **Step 2 (the
-Inbox) is mocked and waiting for approval** (`desk-inbox.js`; Mock scenarios › Desk · step 2: the Inbox). Classic's admin renders: all 19 of its pages at 390px locally
+Mock scenarios › Desk · step 1 and Desk · pages and Settings). A couch's delete stays (approved with the rest). Step 2 (the
+Inbox, `desk-inbox.js`) is done in the mock (the user, 2026-10-28). **Step 3 (a season's Setup) is mocked and waiting for
+approval** (`desk-setup.js`; Mock scenarios › Desk · step 3: a season's Setup; step 3 below says what it shows and what its build
+needs). Classic's admin renders: all 19 of its pages at 390px locally
 (`scripts/dev-test/check-classic-admin.js`, which step 8 can turn round), and in production To do, Users, Leagues, a league's
 page, Shows and Site, with no console errors. The blank `/admin/leagues` seen in production earlier that day didn't come back.
 The likeliest cause is classic's boot screen: it covers the page until the first league loads (about a second locally, longer
@@ -26,6 +28,11 @@ page load (`window.location.assign`) would fix it at the cost of the row being a
 
 **Noticed, not fixed (design pass):** the new design's "Viewing as" bar (`src/new/session.tsx`) is white 13px text on #5089c4,
 about 3.7:1, under the 4.5:1 floor. The step 1 mock uses #3c6ea6 (about 5:1); step 1's build takes it.
+From step 3's mock (2026-10-28), all for step 3's build: (a) the daily listings job (`tv-listings.ts statusesByDate`) sets every
+season linked to a TV listing to its status by date each morning, so a status an admin changes in classic is undone the next
+day; (b) a schedule set by hand doesn't move the episodes a TV listing dated: their `season_episodes` rows (source 'listing',
+`air_at`) sit over the weekly guess in `season_air_dates` (0067, 0104), so classic's "Airs at" changes nothing for them; (c)
+classic's season route (`/api/admin/seasons/[id]` PATCH) can't set `release` or `drop_at` (nightly, all at once; 0104).
 
 **Decisions (the user, 2026-10-27):**
 1. **Act as them.** Opening the app as someone is classic's impersonation as it is: for an hour you are them (Better Auth's
@@ -110,6 +117,34 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    episode, and how its results come in: Autopilot, ESPN, or the couches).
 3. **Seasons: setup.** A season page's Setup: name, status, wiki page, the schedule (episode count, premiere, air time, zone),
    who decides results (the admin, or each game), delete (tier 3).
+   **As mocked (2026-10-28, `desk-setup.js`, waiting for approval):** Running it › Setup opens a page of its own
+   (`/desk/.../setup`; the season page's Setup row now says "Wednesdays 8:05 PM Eastern · 13 episodes · results from sources").
+   Its lower third is the season as set (status tag, name, the next episode). **The season**: Name (blank shows the show and
+   its number), Status (Upcoming · Airing · Ended, each saying what it does), Wiki page (what the connector reads; optional for a
+   show with no connector; a bad URL is refused with an example). **Schedule** (the aside says "Set by hand, by alex" or "From
+   its TV listing"): the next two episodes and the finale as a rundown like the Inbox's Coming up, All N episodes (a sheet of
+   dates and times), When it airs, Episodes, TV listing. **Results**: Who decides results. Then History (latest three, All N)
+   and the season's Delete, the same row and sheet as the season page's (`dkSeasonDel`: refused while games play it, else a
+   hold). Guards: name, status, wiki page, the listing and who decides are tier 1 (a toast with Undo, a History line); **When it
+   airs** and **Episodes** are tier 2: Weekly · Nightly · All at once, the first episode (or the drop), the time and zone, with
+   "What moves" (each episode's old and new time; lineups and picks in its games lock at the new times; reminders, the guide
+   and Coming up move; the bot's check runs after each new end) and a warning when aired episodes would land in the future;
+   lowering the count lists what's cleared (classic's prune) and turns the button red ("Clear and save") when aired episodes'
+   research goes, with a check when it's fewer than have aired; Not known yet is a choice. **TV listing**: linked (its times,
+   its dates moving the status, Find another listing, Unlink it: the times stay) or searched (TVmaze, as Add a show searches;
+   other seasons' and ended look-alikes greyed; "What it fills"; Use this listing). A season with **no schedule** leads with
+   "Find it in the TV listings" (the yellow) and "Set it by hand"; the Inbox's no-schedule item now opens Setup, and a season
+   given a schedule leaves the Inbox and joins Coming up. **Who decides results**: "Sources that agree" (Recommended;
+   `results_by = 'leagues'`: couches' and the bot's answers, two agreeing reach every game) or "You decide" (`'admin'`: what
+   you accept on the desk reaches every game even with no other source, from the switch on, `results_admin_since`); either
+   way a dispute you settle reaches every game (the words follow `season-decisions.ts`; the build confirms them).
+   **What the build needs beyond classic** (Noticed, not fixed, a-c): a status set by hand on a linked season holds over the
+   listing's dates until "Back to its listing's dates" (statusesByDate skips it: a column, so a migration); times set by hand
+   win over the listing's per-episode times; the route takes `release` and `drop_at`; linking and unlinking a season's listing
+   (`listing_id`) from the desk. Mock scenarios: Setup (Survivor 51), Change when it airs (to 9:00 PM), Fewer episodes (to 4),
+   Who decides results, No schedule (Dancing with the Stars 34, from the Inbox), Find it in the TV listings, Nightly from its
+   listing (Love Island USA 7), An ended season (Survivor 49, deletable). `scripts/dev-test/shoot-mock-scenarios.js
+   --group=dss` shoots them all at 390.
 4. **Seasons: research and the bot.** Run now (quick, full, schedule, trivia, bingo), the bot's episode length, each run's
    timing, add or remove a run, reset; an episode's research (paste an answer, discard, clear); auto research; the bingo bank
    (an episode's squares and the season's, hide or show, write by paste). The results queue: an episode's pending results with
