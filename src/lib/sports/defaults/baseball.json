@@ -1,0 +1,57 @@
+{
+  "sport": "baseball",
+  "about": "Baseball's defaults, as data (docs/PLAN-start-a-game-gpt.md track L, L1): a sport's standard scoring, categories, lineup slots and locks, and the game specs a sport's Make it a game starts from instead of asking the bot. Stat keys are Baseball's (src/lib/sports/baseball.ts); slots take its positions or position groups. The specs are in the game spec's shape (A1's schema, on the engine branch); slots and categories aren't in that schema yet (L4 adds them), so they're kept beside it for the spec to read.",
+  "scoring": {
+    "source": "ESPN's standard points league for baseball",
+    "points": { "R": 1, "TB": 1, "RBI": 1, "BB": 1, "K": -1, "SB": 1, "IP": 3, "PH": -1, "ER": -2, "PBB": -1, "PK": 1, "W": 2, "L": -2, "SV": 5, "HLD": 2 }
+  },
+  "categories": {
+    "source": "Yahoo's standard 5x5 (rotisserie and head-to-head categories)",
+    "stats": ["R", "HR", "RBI", "SB", "AVG", "W", "SV", "PK", "ERA", "WHIP"]
+  },
+  "slots": {
+    "source": "Yahoo's standard roster",
+    "lineup": [
+      { "slot": "C", "n": 1, "takes": ["C"] },
+      { "slot": "1B", "n": 1, "takes": ["1B"] },
+      { "slot": "2B", "n": 1, "takes": ["2B"] },
+      { "slot": "3B", "n": 1, "takes": ["3B"] },
+      { "slot": "SS", "n": 1, "takes": ["SS"] },
+      { "slot": "OF", "n": 3, "takes": ["LF", "CF", "RF", "OF"] },
+      { "slot": "Util", "n": 2, "takes": ["batters"] },
+      { "slot": "SP", "n": 2, "takes": ["SP"] },
+      { "slot": "RP", "n": 2, "takes": ["RP"] },
+      { "slot": "P", "n": 4, "takes": ["pitchers"] }
+    ],
+    "bench": 5
+  },
+  "closes": "daily",
+  "specs": {
+    "season": {
+      "about": "A season-long league: draft a full roster, set a daily lineup, play someone head to head each week.",
+      "spec": {
+        "spec": 1,
+        "span": { "from": 1, "to": null },
+        "pool": { "of": "cast", "where": null },
+        "get": { "by": "draft", "each": 23, "order": "snake", "own": "exclusive" },
+        "count": { "start": 18 },
+        "score": { "by": "stats", "points": { "R": 1, "TB": 1, "RBI": 1, "BB": 1, "K": -1, "SB": 1, "IP": 3, "PH": -1, "ER": -2, "PBB": -1, "PK": 1, "W": 2, "L": -2, "SV": 5, "HLD": 2 } },
+        "rank": { "by": "matchups" },
+        "closes": "daily"
+      }
+    },
+    "short": {
+      "about": "One game, a series or a team's next few: everyone drafts a few players, every one of them scores, most points wins.",
+      "spec": {
+        "spec": 1,
+        "span": { "from": 1, "to": null },
+        "pool": { "of": "cast", "where": null },
+        "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" },
+        "count": { "all": true },
+        "score": { "by": "stats", "points": { "R": 1, "TB": 1, "RBI": 1, "BB": 1, "K": -1, "SB": 1, "IP": 3, "PH": -1, "ER": -2, "PBB": -1, "PK": 1, "W": 2, "L": -2, "SV": 5, "HLD": 2 } },
+        "rank": { "by": "total" },
+        "closes": "start"
+      }
+    }
+  }
+}

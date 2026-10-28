@@ -1,3 +1,4 @@
+import { idOf, str } from "@/lib/sports/sport";
 import { SportsUnavailable, type BoxScore, type Competitor, type EventState, type Found, type League, type Person, type RosterPlayer, type SeasonLine, type SeasonStage, type SportsEvent, type SportsProvider, type StatTable, type Team } from "./types";
 
 // ESPN (docs/PLAN-sports-data.md, docs/HOSTING.md): free, no key, but unofficial and undocumented, with no stated rate limit or
@@ -83,8 +84,6 @@ interface RawSummary {
   rosters?: { team?: RawTeam; roster?: (RawStatRow & { stats?: { abbreviation?: string; shortDisplayName?: string; displayValue?: string }[] })[] }[];
 }
 
-const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : typeof v === "number" && Number.isFinite(v) ? String(v) : null);
-const idOf = (v: unknown) => str(v) ?? "";
 
 /** A league's id from ESPN's sport and league slugs. */
 export const leagueId = (sport: string, league: string) => `${sport}/${league}`;

@@ -1,0 +1,109 @@
+// Dev-only: records a finished game's ESPN summary as a test fixture (tests/fixtures/espn/; docs/PLAN-start-a-game-gpt.md track L,
+// step L1), trimmed to what the sports' readers read (src/lib/sports/): the header (teams, score, status), the box score's
+// tables and team totals, and the plays with their times, periods, people and the fields each sport's reader uses. A raw
+// summary is ~1 MB (pitch coordinates, win probability, news, videos); a trimmed one ~150 KB. One real call (or none, from the
+// cache check-sport-reduce.js keeps); no app server, no database.
+//
+//   node scripts/dev-test/record-espn.js --league=baseball/mlb --event=401907924 [--out=tests/fixtures/espn/mlb-401907924.json]
+//        [--note="the 2026 Wild Card, Game 1"] [--cache=<dir>]
+//
+// It refuses a game that isn't final (a fixture is a whole game). Re-run it to re-record; the file says when and from where.
+// When a sport's reader starts reading a new field, add it to KEEP below and record again.
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+
+const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, "").split("=")).map(([k, ...v]) => [k, v.length ? v.join("=") : true]));
+const league = args.league;
+const event = args.event;
+if (!league || !event) {
+  console.error("Usage: node scripts/dev-test/record-espn.js --league=baseball/mlb --event=<ESPN event id> [--out=...] [--note=...]");
+  process.exit(2);
+}
+const short = league.split("/")[1];
+const out = args.out || path.join(__dirname, "..", "..", "tests", "fixtures", "espn", `${short}-${event}.json`);
+const cacheDir = args.cache || path.join(os.tmpdir(), "rfl-espn-cache");
+
+// What's kept, as a shape: an object lists its keys (true keeps the value whole), an array's shape is its items'.
+const TEAM = { id: true, displayName: true, abbreviation: true };
+const KEEP = {
+  header: {
+    id: true,
+    competitions: [{ status: { type: { state: true, completed: true } }, competitors: [{ homeAway: true, winner: true, score: true, team: TEAM }] }],
+  },
+  boxscore: {
+    teams: [{ team: TEAM, statistics: [{ name: true, stats: [{ name: true, value: true }] }] }],
+    players: [
+      {
+        team: TEAM,
+        statistics: [
+          {
+            type: true,
+            name: true,
+            labels: true,
+            keys: true,
+            totals: true,
+            athletes: [{ athlete: { id: true, displayName: true }, position: { abbreviation: true }, starter: true, batOrder: true, stats: true, notes: true }],
+          },
+        ],
+      },
+    ],
+  },
+  // The play fields each sport's reader reads (its ESPN sport slug; a sport not here keeps them all).
+  plays: null,
+};
+
+const PLAY = { id: true, type: { type: true }, text: true, period: { type: true, number: true }, wallclock: true, participants: [{ athlete: { id: true }, type: true }] };
+const PLAYS = {
+  // Baseball counts runs from scoreValue and outs from outs, never a play's score (an at-bat's start carries its end's).
+  baseball: { ...PLAY, scoreValue: true, atBatId: true, summaryType: true, atBatPitchNumber: true, outs: true },
+  any: { ...PLAY, awayScore: true, homeScore: true, clock: { displayValue: true }, scoringPlay: true, scoreValue: true, team: { id: true } },
+};
+KEEP.plays = [PLAYS[league.split("/")[0]] ?? PLAYS.any];
+
+function trim(value, shape) {
+  if (shape === true || value == null) return value;
+  if (Array.isArray(shape)) return Array.isArray(value) ? value.map((v) => trim(v, shape[0])) : undefined;
+  if (typeof value !== "object") return undefined;
+  const o = {};
+  for (const [k, s] of Object.entries(shape)) {
+    const v = trim(value[k], s);
+    if (v !== undefined) o[k] = v;
+  }
+  return o;
+}
+
+(async () => {
+  fs.mkdirSync(cacheDir, { recursive: true });
+  const cached = path.join(cacheDir, `${league.replace("/", "-")}-summary-${event}.json`);
+  const final = (s) => s?.header?.competitions?.[0]?.status?.type?.completed === true;
+  let summary = fs.existsSync(cached) ? JSON.parse(fs.readFileSync(cached, "utf8")) : null;
+  if (!final(summary)) {
+    const res = await fetch(`https://site.api.espn.com/apis/site/v2/sports/${league}/summary?event=${event}`, { headers: { "User-Agent": "GameYourShow/1.0" } });
+    if (!res.ok) throw new Error(`ESPN answered ${res.status}`);
+    summary = await res.json();
+    // Only a final game is kept (the cache check-sport-reduce.js shares): a live one changes.
+    if (final(summary)) fs.writeFileSync(cached, JSON.stringify(summary));
+  }
+  const st = summary.header?.competitions?.[0]?.status?.type;
+  if (!(st?.state === "post" && st?.completed)) {
+    console.error(`${event} isn't final (${st?.state}): a fixture is a whole game.`);
+    process.exit(1);
+  }
+  const trimmed = {
+    _recorded: { league, event, from: `site.api.espn.com/apis/site/v2/sports/${league}/summary?event=${event}`, at: new Date().toISOString().slice(0, 10), ...(args.note ? { note: args.note } : {}), by: "scripts/dev-test/record-espn.js" },
+    ...trim(summary, KEEP),
+  };
+  // Each part on a line of its own, and each play: small diffs when it's recorded again.
+  const plays = trimmed.plays ?? [];
+  delete trimmed.plays;
+  const parts = Object.entries(trimmed).map(([k, v]) => ` ${JSON.stringify(k)}: ${JSON.stringify(v)}`);
+  const body = `{\n${parts.join(",\n")},\n "plays": [\n${plays.map((p) => `  ${JSON.stringify(p)}`).join(",\n")}\n ]\n}\n`;
+  JSON.parse(body);
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, body);
+  console.log(`${path.relative(process.cwd(), out)}: ${plays.length} plays, ${(body.length / 1024).toFixed(0)} KB (from ${(JSON.stringify(summary).length / 1024).toFixed(0)} KB)`);
+})().catch((e) => {
+  console.error(e.message);
+  process.exit(1);
+});

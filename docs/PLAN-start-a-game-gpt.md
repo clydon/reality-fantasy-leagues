@@ -413,6 +413,9 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   reducers (the reduced box score at the end equals ESPN's own), games straight from ESPN's schedule, finals and odds stored,
   fixtures and tests (the user's two examples among them). The sports parts of the spec (`score.by: stats`, the sports
   settles, the default specs) once master has A2.
+  - **Split in three (2026-10-28):** part 1, the framework with baseball (built: As built below); part 2, basketball, hockey
+    and football on it; part 3, games straight from ESPN's schedule as a season of their own, finals and odds stored (the
+    migration, HOSTING.md) and the 76ers example's own fixture.
 - **L2. The live clock.** The phone's poller and `GameClock` (live, synced, snapped), shared with A15; fake-espn replaying a
   recorded game in real time or 60x; HOSTING.md.
 - **L3. Live scoring through the spec.** Points per stat from box scores and plays (`score.by: stats`), live on the phone and
@@ -425,6 +428,113 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   teaches the GPT these formats.
 - Its screens (the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync, each format's
   own) are in U0 and U1.
+
+**L1 part 1 as built (2026-10-28, `sports`, not merged; no migration, no ESPN calls from the app, nothing stored).** The
+framework and baseball: a game is its plays, so the box score at any moment is the plays up to it, added up, and the final box
+score is the truth.
+- **`src/lib/sports/`** (new, pure: the server, the phone and the tests share it; nothing in it asks ESPN).
+  - `sport.ts`: `Sport` (abstract: its groups and positions, stat groups, stats, periods, lock cadence; `stat`, `full`,
+    `specStats`, `where`) and `TeamSport` (a box score and timestamped plays: `readBox`, `readPlays`, `reduce`, `correction`,
+    `timeline`, `stateAt`). `FieldSport` and `BoutSport` come with L5.
+  - A stat is `{ key, label, short, noun, better, group, kind }`: keys unique in the sport (what a spec names: `{ HR: 5 }`,
+    `{ stat: "PTS" }`); `short` as a column says it (a hitter's K and a pitcher's PK are both "K"); `noun` for a sentence ("5 a
+    home run": the spec's `ctx.stats` label, as A1's describe reads it); `kind` count (plays carry them), derived (from one
+    game's counts, added game by game: TB, IP, a quality start) or rate (never added: AVG, ERA). `known: "final"` for what only
+    the final box score knows (a pitcher's win, loss, save, hold, blown save); `judged` for the official scorer's calls
+    (earned runs, RBIs).
+  - A `Play` is `{ id, at, period, half, clock, text, kind, team, unit, people, score, deltas }`: `at` is ESPN's wallclock but
+    never before the play before it (`inOrder`: ESPN stamps a change made in the break with when it was made, filed after the
+    next inning's start, up to minutes back), so a moment's plays are always the first so many; `unit` is the at-bat (later
+    the drive: live calls' "this at-bat"); `deltas` what it adds to whose line.
+  - `reduce(plays, t)` is the game as of t (Date, ms or ISO). `timeline(summary)` is the plays and, once final, the final's
+    correction: one more play, at the last one's time, whose deltas make the plays' box score ESPN's own (its wins and holds,
+    a scoring change after the play, someone the plays credited who isn't in the box score). A play with no time (only a final
+    with no timed plays) counts only at the end, so a moment never sees it.
+  - `index.ts`: `sportOf(league)` by ESPN's sport slug ("baseball/mlb", "baseball/college-baseball": Baseball), `sportById`,
+    `allSports`, `defaultsFor(sport)`.
+- **`Baseball`** (`baseball.ts`): batters and pitchers; ESPN's position abbreviations as keys (C, 1B... DH, PH, PR, SP, RP, P);
+  batting PA AB R H 1B 2B 3B HR TB RBI BB IBB HBP K SB CS SF SH GIDP NP (#P) and AVG OBP SLG; pitching GS OUTS IP PH PR ER PBB
+  PK PHR PC PST W L SV HLD BS QS and ERA WHIP; nine innings ("Top 3rd"); daily locks.
+  - **The box score**: ESPN's batting and pitching tables by their labels, only the columns a table has, zeros kept (the
+    correction needs both); IP to outs; the first pitcher listed is the starter; decisions from the notes ("W, 1-0", "L, 3-2,
+    B, 1"); the team's own totals (doubles, total bases, plate appearances, GIDPs, outs, strikes), but not its earned runs,
+    which MLB works out again over the inning and can be fewer than its pitchers'.
+  - **The plays**: every pitch (the batter's pitches seen, the pitcher's count and strikes; an automatic ball isn't a pitch)
+    and every play-result. The play-result's text says what happened, read clause by clause by who each starts with (names as
+    ESPN writes them: last names, "Mesa Jr." or "Mesa", "We. Wilson" when two share one, no accents), lists of names sharing a
+    verb ("McMahon, Jones, and Goldschmidt scored"), MLB's own sentences after a 2026 ABS challenge ("...overturned: Eli White
+    walks. Ozzie Albies scores."). Runs come from each play's `scoreValue`, who scored from the text (else the runners gone,
+    lead runner first), outs from the text and, on a batter's play, ESPN's outs after it. **Total bases are counted from the
+    plays** (single 1, double 2, triple 3, home run 4), since ESPN's per-player batting has none.
+  - **Runs charged** to the pitcher who put the runner on (a pinch runner takes over his base and his pitcher; a fielder's
+    choice keeps an earlier pitcher's runner his); earned unless the runner reached on an error, was safe on a botched play
+    made on him, took a base on an error and didn't come in on a hit, scored on a passed ball, or the inning would have been
+    over without the errors (the rules' 9.16). RBIs as 9.04 says (none on a ground ball's double play; on an error only from
+    third with fewer than two outs; "scored on error" with no fielder named goes with the batter's play, "scored on throwing
+    error by third baseman Ortiz" doesn't).
+  - **ESPN's quirks, handled**: steals and wild pitches recorded twice (a typed play and a play-result, one with a review note
+    the other lacks); an at-bat's start and any play in the middle of it carrying the at-bat's final outs and score; the last
+    pitch filed again when the scorer changes the call; pitches filed under an at-bat after its end (an overturned strike
+    three); a pinch runner the next at-bat's start doesn't show; extra innings' runner on second nobody lists (the half's
+    first pitcher's, unearned); a half-inning missing its last out (the pitcher on the mound gets it, and the reader notes it).
+- **Baseball's defaults as data** (`src/lib/sports/defaults/baseball.json`): ESPN's standard points (R, TB, RBI, BB, SB 1; K
+  −1; IP 3; PH, PBB −1; ER −2; PK 1; W 2, L −2, SV 5, HLD 2), Yahoo's 5x5 categories, Yahoo's standard roster (C, 1B, 2B, 3B,
+  SS, 3 OF, 2 Util, 2 SP, 2 RP, 4 P, 5 bench; each slot takes positions or groups), daily locks, and two specs in A1's shape:
+  `season` (draft 23, start 18, head to head, daily) and `short` (one game, a series, a team's next few: draft 3 each, all
+  count, most points). They plug into the spec when master has A2 (merged in here first); slots and categories aren't in A1's
+  schema yet (L4 adds them), so they sit beside it.
+- **How a sport's Make it a game will start from its default spec, not ChatGPT.** Today Make it a game (`make-game.ts`) asks
+  the bot to write a rulebook of sports moments (2–4 minutes) and the game scores from ChatGPT's research of them. For a sport
+  ESPN carries, `sportOf(season's league)` gives the Sport and `defaultsFor` its specs: the game is `short` for a span of a few
+  games and `season` for a season, scored by stats from ESPN's box scores and plays (L3), with no rulebook and no bot. The
+  wizard's sentence reads from the spec as for any game; the bot stays for a sport ESPN hasn't got.
+- **Fixtures**: the 2026 AL Wild Card Series, Red Sox at Yankees (ESPN 401907924 and 401907963: the Yankees in two, 9-0 and
+  9-2), in `tests/fixtures/espn/`, trimmed to what the readers read (~225 KB each from ~930 KB) by
+  `scripts/dev-test/record-espn.js` (new, reusable: `--league --event --note`; refuses a game that isn't final). It's the
+  user's first example, made real: `tests/fixtures/sports-examples.js` has both examples as words, spec (ESPN's team ids:
+  BOS 2, NYY 10; PHI 20, CLE 5), games and what they settle to. The series at 5 a home run and 1 a total base: Ben Rice 22
+  (2 HR, 12 TB), Bellinger 11, García Jr. 11, Contreras 10, Sogard 9. The 76ers home opener was 2026-10-22, Cavaliers at
+  76ers (ESPN 401909093): 114-106, ESPN's line PHI −2.5 and 237.5 (DraftKings), so the total 220 is under, and the top
+  scorers tied at 32 (Maxey, Mitchell). It's part 2's basketball fixture.
+- **Checks.**
+  - `tests/sports-baseball.test.js` (13): the vocabulary; derived and rate stats; the box score in Baseball's keys; **the
+    proof** for each recorded game (the plays alone reduce to ESPN's own box score, 266 and 268 numbers, every team total
+    ESPN gives and the score, with no notes from the reader); plays in time order with their inning, half, at-bat, people and
+    deltas (Rice's grand slam: his RBIs, the three runners, the runs charged to the two pitchers who put them on); `stateAt`
+    at moments; the final's correction (only final-only stats; with it, every number of ESPN's; a scoring change after the
+    play taken back; someone not in the box score taken back; a live game has none; a final with no timed plays spoils no
+    moment); the reader's words; ESPN's quirks on a made-up game; a thinner box score; the series scored as typed; the
+    defaults.
+  - `scripts/dev-test/check-sport-reduce.js` (new, reusable: `--league --from --days --max` or `--events`; caches only
+    finished answers): the same proof on real games. **126 of 128 games reduce exactly** to ESPN's box score on every
+    player's every count (2026 regular season, July, September and May, three days each, plus the six Wild Card and World
+    Series games; about 61,000 plays). The two others are ESPN's team totals counting a steal no play shows. The scorer's
+    calls, apart: earned runs right on 1,081 of 1,110 pitcher lines, RBIs on 2,777 of 2,779 (the final's correction
+    settles them).
+  - 849 unit tests; `tsc` clean; eslint clean on `src/lib/sports` (tests and dev scripts use `require`, as everywhere).
+  - `/code-review` on the diff (its fixes: only the columns a box score has, a final with no timed plays spoiling no moment,
+    the botched force's out in the earned-run count, RBIs on a fly's double play, typed plays' twins both ways, the dev
+    scripts caching only finished answers, someone the plays credited who isn't in the box score, the derived stats' docs,
+    and `ordinal`, `str` and `idOf` shared, not copied: `server/sports/espn.ts` reads the last two from `sport.ts`).
+  - No HOSTING.md change: nothing here calls ESPN from the app, adds a table or stores data (part 3 does).
+
+**L1 part 1 noticed, not fixed:**
+- **Earned runs are the scorer's reconstruction**: 97% of pitcher lines from the rules as the plays say them; the rest come
+  right at the final. A full inning-by-inning reconstruction (each error's would-be out and the runners it moved) could close
+  more, if L3's live points need it.
+- **ESPN's team totals can count a steal no play shows** (2 of 128 games): nothing to read; the final box score is the truth
+  for a team's question.
+- **Live plays are untested**: every check is on finished games. A live summary's at-bat start may carry the outs and score
+  so far rather than the at-bat's end (ESPN updates it as the at-bat goes); the reader doesn't trust either, but L2 should
+  check a live game's plays against the same game's final (fake-espn's replay can't show it). (L2.)
+- **Slots should take the roster's position, not the game's**: the box score gives the position played that day (DH, PH,
+  PR), the roster ESPN's (SP, RP, OF: `season_cast.role`). A slot's eligibility reads the roster's. (L4.)
+- **A tie for "the most"**: the 76ers opener's top scorers tied at 32. The `stat: most` settle needs its rule (both right, as
+  A4's closest number does). (L4, with A4's questions.)
+- **`GameState.score` is empty before the first play** (no teams yet): the scorebug would seed it from the header. (L2.)
+- **College baseball reads as Baseball but isn't checked**: its box scores are thinner (L5, with college).
+- **A game's plays are ~60% pitches** (~450 Plays, a few hundred KB as JSON): fine for the phone, which reads ESPN's summary
+  (~1 MB) anyway. (L2.)
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;
