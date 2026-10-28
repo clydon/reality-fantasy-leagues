@@ -6,7 +6,8 @@ For the playtest lane's sessions and the user. Status: planned 2026-10-28, start
 expected readings fixed, and what G1 should change written down); P3 parts 1 and 2 built (96 replays of Survivor 49, the Traitors
 4, The Challenge 41 and Dancing with the Stars 34, and the looks at 390; Below Deck 12's full research doesn't come back: finding
 10); P4 done for the four seasons on tape (taps a week, someone away, the directions tried as variants); P5 part 1 done (the
-measures read data; the forgetter's looks at 390); findings in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md).
+measures read data; the forgetter's looks at 390); P5 part 2 done (what accepting the bot's held results changes, and who can
+still win by each game's own best week); findings in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md).
 
 ## What the user asked for (2026-10-28, going to sleep with the survivor and engine lanes running)
 
@@ -621,6 +622,92 @@ is a field of the spec already, or one the resolver needs:
 The corpus's `expect.said` keys for these (computer, public, finale, repeat, ties, bench, waivers, from, to) are what the judge
 would check once G1 gives them a place (`tapes-words.js CARRIED`).
 
+### P5, part 2: what the held results cost, and who can still win (2026-10-28, playtest lane)
+
+**The bot was still silent** (its last answer 09:17:43 UTC; `/health` ok). The recorder (pid 44428, window "Tapes: recording")
+gave Below Deck 12's episode 3 quick check up at 10:00 UTC after a third 420 s silence and paused an hour; the words corpus is
+still 2 of 104. So this part is P5's bot-free work. Delete `below-deck/12/e03-quick.json` once the bot answers, so it's asked
+again.
+
+**`run ... --results=accepted`** (`playtest.js`, a variant into `replays\variants\results-accepted\`): after each episode's
+results land, whoever runs each game in play (the tinkerer) opens Backstage › Results and accepts what the bot's results held,
+as `src/new/backstage/results.tsx` does it, through the app's own functions:
+- Show me: `backstage.ts backstageRead` with `show`;
+- It's right on a quick check that waited (its names that match the cast, or "nobody" when it named nobody): `applyChosen` with
+  `quick` and `wait`. It's offered only when a name matches (else it's Not right and entered by hand, which isn't accepting:
+  the replay notes it). Backstage shows a wait only while nobody's results are in, and the full research files right after
+  the quick check, so on these tapes it never showed;
+- every result that waits, ticked and applied: `applyChosen` with their ids.
+
+A ticked result is a source of its own (the tinkerer's), so with the bot's it's two that agree: confirmed, it reaches every game
+on the season. The first couch to look takes the held results for everyone, and the season's record keeps who accepted what
+(`tape.results[].accepted`). Each replay keeps its own: `accepted` on the episode, the review's taps on the tinkerer's `asks`
+(`TAPS` review 2, confirm 2, a tick each), a line in the log.
+
+**The copy's clock.** Nothing has aired on the copy (an episode closes when its results land), and Backstage reviews only an
+aired episode. So once an episode's results are in, the copy's clock puts it a minute behind now while every couch looks, then
+puts it back (`clockTo`, `clockBack`; `--keep`'s clock moves now use them too). An episode whose time comes from the premiere
+moves by whole days, so `clockTo` checks where it landed and moves it a day more if it's on the wrong side (a rounding, or a
+clock change). The app restamps air times on every read and write, so nothing after sees the move. If Backstage offers another
+episode, the replay records a problem rather than skipping quietly.
+
+**`--results=autopilot`**: the whole set's own way, played again into `variants\results-autopilot\`. It's the floor under
+every comparison: what changes between two runs with nothing changed.
+
+**`compare <variant> [--base=variants/<v>]`** now opens with a table by game (`compareByGame`): winners changed, the median
+change in the table's points, in how many went home, the games that say they're over, and "gone, still played". That last is
+`ghostsOf` over `seasonExits`: someone who went home by one set's answers and never by the other's, drafted after they'd gone
+(every team, computer players' too, and a late joiner's from Join's pool: each record now keeps `joinedWith`), started, picked,
+or still on a team at the end. A results variant's rows add points, who went home in only one, and what was
+accepted. `--base` writes `COMPARE-<v>.md` beside `COMPARE.md`.
+
+**Who can still win** (`inItOf`, P3's Noticed): from each game's own best possible week, not the best week anyone has had. The
+leader could score nothing more, so a seat is in it if what it could still add reaches the leader:
+- **Outlast:** a point per elimination for each of its people still in. To the season's end, everyone still in but one goes
+  (`look` now records `stillIn`); a game that ends sooner, the most in one episode so far times the episodes left;
+- **Weekly Lineup:** its team as it stands, each person at their best episode so far, the best `activeSlots` of them (rough,
+  not a bound: a finale's bigger points can beat it);
+- **Survival Pool:** a streak that can still catch the leader's, as before.
+
+Episodes left run to the game's own end (Start a game's, which the rough count reads too).
+
+`judge` adds "In it at half" and "In it at three quarters" (the mean share of the table, rough → own; the median is everyone at
+the half in nearly every game).
+
+**Played** (no bot, about 75 s a season): the four seasons on tape with `--results=autopilot` (96 replays), then
+`--results=accepted` (96). After the code review's fixes, the whole set and both variants again from clean folders (about 12
+minutes), so every record has `stillIn` and `joinedWith`. Then `compare` both against the whole set, accepted against autopilot,
+and `judge` on each. The numbers here and in the report are that second round's.
+
+Unit tests (`tests/playtest.test.js`): the results variants and the review's taps; who can still win in each game (Outlast to
+the season's end and sooner, the game's own end) and the judge's columns; the results comparison and its by-game table; someone
+gone still played (a late joiner's team, a computer player's draft, a file from before the data). `npm test` passes.
+
+**What it found** (details in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md), "P5 part 2"):
+- **What was held**, per season:
+  - the Traitors 4: 85 results in 10 of its 12 episodes, mostly Round Table vote details, 35 in episode 4 alone;
+  - The Challenge 41: 16 (13 events, Cara Maria's exit, two "nobody went home");
+  - Survivor 49: 1 (Rizo's exit);
+  - Dancing with the Stars 34: none.
+- **Finding 2's cost.** On Autopilot, 25 of the 96 games drafted after they'd gone, started, picked or kept to the end someone the
+  bot's own answers said had left (Rob Cesternino, Cara Maria Sorbello): in Outlast a ghost who never leaves earns a point at
+  every elimination, in a pool a pick that can't lose. Accepted: none. Between two runs with nothing changed: none.
+- **Finding 3's cost:** Weekly Lineup's points +5% to +25% on the Traitors 4 (median 16%), nothing on Survivor 49 or Dancing
+  with the Stars, and no winner beyond what changes between runs.
+- **Findings 1 and 6 aren't held results:** nothing a review offers changes them (the same 37 Outlast games say they're over).
+- **Correction:** P4's first pass put The Challenge 41's quiet Weekly Lineup weeks (34%) down to finding 3. Accepted, they're
+  32%. They're episode 9, the finale's two parts (nothing the rulebook scores) and the reunions.
+- **New finding 16:** accepting is a long list of ticks with no "tick all" (39 taps in one Traitors week).
+- **Who can still win:**
+
+  | | At the half | Three quarters in |
+  |---|---|---|
+  | Outlast | 89% | 72% |
+  | Weekly Lineup | 81% | 70% |
+  | Survival Pool | 94% | 63% (The Challenge 41: 38%) |
+
+  These are the whole set on file. The rough count said nearly everyone at the half.
+
 ## Noticed, not fixed
 
 (Each step adds what it saw and left alone, with the step that could take it.)
@@ -725,3 +812,30 @@ From P5 part 1 (2026-10-28):
 - **The forgetter forgot two weeks running from the start** in replay 3 (episodes 6 and 7, the game's first two): the
   forgetter's weeks are a fixed third, spread from a starting point of its own (`movesThisWeek`), and a game that starts mid-season
   can begin on two off weeks. As designed; the forgetter's first lineup came at episode 8.
+
+From P5 part 2 (2026-10-28):
+- **The Challenge's two-part finale scores nothing in a Weekly Lineup.** The full research for "Finale Part I" and "Finale Part II"
+  (episodes 18 and 19) has nobody doing anything the rulebook scores: its events are daily challenges and eliminations, and a
+  final has neither. With finding 1 (the winner never leaves) and finding 8 (two reunions), a whole-season Weekly Lineup's last
+  four weeks are quiet. A final's stages (a leg won, a checkpoint, a place) as events is the rulebook's (the survivor lane).
+- **Weekly Lineup with only people in it isn't quite repeatable run to run** (1 of 17 winners changed between two runs with
+  nothing changed, 3 of 17 in an earlier pair); Outlast and Survival Pool with only people are (0 of 21, 0 of 12). Not traced: likely waiver autofill or a late
+  joiner's team from Join's pool. Compare Weekly Lineup variants over many replays, never one by one. P5's next pass, if a
+  Weekly Lineup comparison ever hangs on it.
+- **The held results are one couch's to accept for every couch.** In the replays the first couch to look (replay 1's) does all
+  the ticking and every other couch sees nothing waiting. In the app it's the same: whoever opens Backstage first on a season does
+  it for everyone, and nobody else is told it was done. As designed (results are shared); for the user if a couch should know.
+- **The Traitors' held results are mostly vote-level details** (32 "zero votes against", 19 "voted for a Faithful who was
+  banished", 7 "on the murder shortlist"), the same kinds every week, judged medium by the bot. Whoever runs a game can't check
+  them from memory either. Evidence for finding 3's direction: trust by kind, or ask the tie-break run, not a person.
+- **A reproducible noise floor for earlier variants.** P4's window-merge "changed the winner in 9 of 17" sits on Outlast with
+  waivers on, whose winners change in 6 of 30 between two runs with nothing changed (random autofill). It's still above the
+  floor, but `compare <variant> --base=variants/results-autopilot` is the fairer comparison from now on.
+- **Backstage's review takes no `now`** (`backstage.ts backstageRead` reads `latestAired(schedule)` against the real clock), so
+  the harness moves the copy's schedule rows around each episode's review and back (`clockTo`, `clockBack`). It isn't
+  transactional: a crash between the two leaves the copy's clock moved (the next `run` brings the copy down first, so nothing
+  lasts). An optional `now` on `backstageRead`, as `startGame` already takes, would let the harness drop the move. For the
+  merge (it's not this lane's file).
+- **The whole set was played again at the end of P5 part 2** (with `stillIn` and `joinedWith` in every record), so JUDGE.md and
+  the earlier variants' `compare` against it moved by the run-to-run floor. The away-favourites and window-merge COMPARE.md
+  files are from their own runs; `compare <variant>` again sets them beside today's whole set.

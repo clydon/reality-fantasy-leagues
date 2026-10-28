@@ -28,10 +28,17 @@
 //                                                 replays\variants\<variant>\: someone away from the draft gets the room's
 //                                                 favourites, not the first on the list; whoever runs an Outlast game opens
 //                                                 one waiver window after the merge
+//                                                 [--results=accepted]: whoever runs each game accepts what the bot's
+//                                                 results held after each episode, in Backstage (It's right on a quick
+//                                                 check that waited, every waiting result ticked); [--results=autopilot]:
+//                                                 the whole set again, for what changes between two runs with nothing
+//                                                 changed (the floor under the other comparisons)
 //   node scripts/dev-test/playtest.js summary                       a line per replay on file, for P4 (also replays\SUMMARY.md)
 //   node scripts/dev-test/playtest.js judge [--dir=variants/<v>]    P4's measures per game, all shows and each, and how much
 //                                                 each week asks (taps, cards; replays\JUDGE.md)
-//   node scripts/dev-test/playtest.js compare <variant>             a variant's replays beside the whole set's (COMPARE.md)
+//   node scripts/dev-test/playtest.js compare <variant> [--base=variants/<v>]
+//                                                 a variant's replays beside the whole set's (or another variant's), and by
+//                                                 game (winners, points, who went home; COMPARE.md, or COMPARE-<v>.md)
 //   node scripts/dev-test/playtest.js says <episode>                on kept replays, each seat's lineup for an episode and
 //                                                 what the app says to them about it (the reveal's lines)
 //   node scripts/dev-test/playtest.js exits <show> <season>         who left by the quick check and by the full research, per
@@ -265,8 +272,10 @@ function favourites(ids, { ratings, lists = [], listOrder = [] }) {
 // (src/new/show/dock.tsx: open it, tap each one to start or bench, Save; Save with nothing changed just closes it), the
 // pool's grid (open, tap a face, Save), the waivers page (waivers.tsx: open it, then per spot Swap, tap who comes in, save),
 // and Backstage › Waivers › Open a waiver window (backstage/waivers.tsx: Backstage, Waivers, Open a waiver window, a preset,
-// Open window). Revealing the episode (the spoiler-safe reveal) comes before any of it and isn't counted.
-const TAPS = { open: 1, save: 1, looked: 2, pick: 3, claimSpot: 3, window: 5 };
+// Open window). Accepting held results (--results=accepted, backstage/results.tsx): Backstage and Show me (review), It's
+// right and the sheet's Apply on a quick check that waits (confirm), a tick per waiting result, then Apply and the sheet's
+// Apply (confirm). Revealing the episode (the spoiler-safe reveal) comes before any of it and isn't counted.
+const TAPS = { open: 1, save: 1, looked: 2, pick: 3, claimSpot: 3, window: 5, review: 2, confirm: 2, tick: 1 };
 /** Taps to go from one lineup to another in the moves sheet: open, bench each leaving, start each coming in, Save. Pure. */
 function lineupTaps(current, want) {
   const starts = want.filter((id) => !current.includes(id)).length;
@@ -278,6 +287,9 @@ const claimTaps = (pairs) => {
   const spots = new Set(pairs.map((p) => p.dropId)).size;
   return spots ? TAPS.open + spots * TAPS.claimSpot : 0;
 };
+/** Taps for accepting held results in Backstage: { quick (a waiting quick check confirmed), full (the waiting results ticked) }. Pure. */
+const reviewTaps = ({ quick, full }) =>
+  quick || full.length ? TAPS.review + (quick ? TAPS.confirm : 0) + (full.length ? full.length * TAPS.tick + TAPS.confirm : 0) : 0;
 
 /** The merge, from a tape's full answers: the first episode anyone won individual immunity (null: no merge seen). Pure. */
 function mergeOf(fullAnswers) {
@@ -321,7 +333,7 @@ function appCode() {
     startGame: ts("start-game").startGame,
     joins: ts("couch-joins"),
     schedules: ts("schedule").seasonSchedules,
-    backstage: { ...ts("backstage-games"), scope: ts("backstage").backstageScope },
+    backstage: { ...ts("backstage-games"), scope: ts("backstage").backstageScope, read: ts("backstage").backstageRead, apply: ts("backstage").applyChosen },
     draft: ts("draft"),
     botSend: ts("bot-results").botSend,
     breakdown: jiti(path.join(ROOT, "src", "lib", "game", "team-episode-breakdown.ts")).teamEpisodeBreakdown,
@@ -520,6 +532,8 @@ async function lateTeam(r, seat, planned) {
   const ids = prefer(seat, o.pool.map((c) => c.id), { ratings: Bots.ratings(s, LEVELS[ROLES[seat.role].level]), listOrder: o.pool.map((c) => c.id), names: namesOf(s) });
   const team = ids.slice(0, o.team);
   r.log.push(`${seat.label}'s team on joining (${o.team} from ${o.pool.length} offered): ${team.map((id) => castName(s, id)).join(", ")}`);
+  // Beside the draft's (the draft skips a late seat): who they took from Join's pool, for ghostsOf.
+  r.joinedWith = { [seat.label]: team.map((id) => ({ id, name: castName(s, id) })) };
   return { start, team };
 }
 
@@ -944,6 +958,103 @@ async function fileResults(season, n, answer) {
   return out;
 }
 
+// ---------- the copy's clock ----------
+
+/** Episode n's air time as the app works it out (a listed row, else from the ones before it or the premiere), or null. */
+const airAtOf = async (copy, n) => (await appCode().schedules([copy.seasonId])).get(copy.seasonId)?.episodes.find((e) => e.number === n)?.airAt ?? null;
+
+/**
+ * Moves a copy's clock so episode `n` airs `ahead` seconds from now (negative: it aired that long ago), and returns what it
+ * moved (for clockBack), or null when the schedule has no time for it. Everything the schedule reads moves together: the
+ * listed rows and a drop to the second, the premiere (a date) by whole days. A season with no listed rows (Survivor 49's
+ * copy) has its times from the premiere and its air time, so its days are the ones that keep the episode at least `margin`
+ * seconds on the side of now that `ahead` asks for (and within a day after that). An episode whose time still comes from the
+ * premiere in a season with some rows, or a clock change between the two dates (an hour), can leave it on the wrong side, so
+ * it's checked and moved a day more at a time (twice at most) until it isn't.
+ */
+async function clockTo(copy, n, ahead, margin) {
+  const at = await airAtOf(copy, n);
+  if (!at) return null;
+  const secs = Math.round((Date.now() + ahead * 1000 - new Date(at).getTime()) / 1000);
+  const listed = (await one("SELECT count(*)::int AS n FROM season_episodes WHERE season_id = $1", [copy.seasonId])).n > 0;
+  const late = (Date.now() - new Date(at).getTime()) / DAY;
+  const days = listed ? Math.round(secs / 86400) : ahead >= 0 ? Math.ceil(late + margin / 86400) : Math.floor(late - margin / 86400);
+  const moved = { secs, days, drop: listed ? secs : days * 86400 };
+  await clockBy(copy, moved, 1);
+  for (let i = 0; i < 2; i++) {
+    const now = await airAtOf(copy, n);
+    const t = now ? new Date(now).getTime() - Date.now() : null;
+    if (t === null || (ahead >= 0 ? t >= margin * 1000 : t <= -margin * 1000)) break;
+    const day = { secs: 0, days: ahead >= 0 ? 1 : -1, drop: 0 };
+    await clockBy(copy, day, 1);
+    moved.days += day.days;
+  }
+  return moved;
+}
+/** Puts back what clockTo moved. */
+const clockBack = (copy, moved) => clockBy(copy, moved, -1);
+async function clockBy(copy, moved, sign) {
+  const { pool } = appCode();
+  await pool.query("UPDATE season_episodes SET air_at = air_at + make_interval(secs => $2) WHERE season_id = $1", [copy.seasonId, sign * moved.secs]);
+  await pool.query("UPDATE show_seasons SET premiere_date = premiere_date + ($2::int), drop_at = drop_at + make_interval(secs => $3) WHERE id = $1", [
+    copy.seasonId,
+    sign * moved.days,
+    sign * moved.drop,
+  ]);
+}
+
+// ---------- --results=accepted: whoever runs a game accepts what the bot's results held ----------
+
+/**
+ * Whoever runs a replay's game (the tinkerer) opens Backstage › Results after episode n's results and accepts what waits
+ * there, as backstage/results.tsx does it: Show me (backstageRead with `show`), It's right on a quick check that waited
+ * (its names that match the cast, or nobody when it named nobody; applyChosen with `quick` and `wait`), then every result
+ * that waits ticked and applied (applyChosen with their ids). Ticked results are a source of their own (the tinkerer's), so
+ * with the bot's they're two that agree: confirmed, they reach every game on the season, so the first couch to look takes
+ * them for everyone. Backstage reviews only an aired episode, so the caller has the copy's clock put n just behind now.
+ * Returns { quick (what It's right applied: "Name (method)" or "nobody"), full ("Name: label (confidence)"), refused (what the
+ * app refused), notes (what the page didn't offer) }, or null (nothing waited).
+ */
+async function acceptHeld(r, n) {
+  const { backstage } = appCode();
+  const scope = await scopeOf(r);
+  const seen = await backstage.read(scope, { episode: n, show: true });
+  const ep = seen.episode;
+  // Backstage offers an episode only once it's aired: another one (or none) means the clock didn't move as it should.
+  if (!ep || ep.number !== n || !seen.shown) {
+    r.problems.push(`Episode ${n}: Backstage offered ${ep ? `episode ${ep.number}` : "no episode"} to review, so nothing held was accepted`);
+    return null;
+  }
+  const out = { quick: null, full: [], refused: [], notes: [] };
+  // The quick check's card shows a wait only while nobody's results are in (results.tsx QuickCard), and It's right only
+  // with a name it matched to the cast (or none at all: nobody went home). Otherwise it's Not right and entered by hand,
+  // which isn't accepting what was held.
+  if (ep.wait && ep.stage === "none" && seen.shown.wait) {
+    const names = seen.shown.wait;
+    const items = names.length ? names.filter((o) => o.matched).map((o) => ({ castawayName: o.name, method: o.method })) : [{ nobody: true }];
+    if (!items.length) out.notes.push(`It's right isn't offered: none of ${names.map((o) => o.name).join(", ")} is in the cast`);
+    else {
+      try {
+        await backstage.apply(scope, n, items, { quick: true, wait: { id: ep.wait.id, right: true } });
+        out.quick = items.map((i) => (i.nobody ? "nobody" : `${i.castawayName} (${i.method})`));
+      } catch (e) {
+        out.refused.push(`It's right: ${e.message}`);
+      }
+    }
+  }
+  // What It's right applied is kept whatever happens after it.
+  try {
+    const waiting = (out.quick ? await backstage.read(scope, { episode: n, show: true }) : seen).shown?.waiting ?? [];
+    if (waiting.length) {
+      await backstage.apply(scope, n, waiting.map((x) => ({ id: x.id })), {});
+      out.full = waiting.map((x) => `${x.name}: ${x.label}${x.confidence ? ` (${x.confidence})` : ""}`);
+    }
+  } catch (e) {
+    out.refused.push(`The waiting results: ${e.message}`);
+  }
+  return out.quick || out.full.length || out.refused.length || out.notes.length ? out : null;
+}
+
 // ---------- what each episode looked like ----------
 
 function standings(s, S) {
@@ -1004,6 +1115,8 @@ function look(r, s, n, prev) {
     n,
     out,
     left: gone.map((c) => ({ id: c.id, name: c.name, method: c.exitMethod || null })),
+    // The cast still in after it, for inItOf's Outlast (its people can outlast at most the rest of them).
+    stillIn: view.castaways.filter((c) => c.status === "active").length,
     table,
     leaders,
     leadChange: !!prev && prev.leaders.join("|") !== leaders.join("|"),
@@ -1075,6 +1188,7 @@ async function run(show, season, opts) {
       did: {},
       asks: {},
       waivers: [],
+      accepted: {},
       opts: v,
     });
     const r = replays[replays.length - 1];
@@ -1120,8 +1234,42 @@ async function run(show, season, opts) {
       "UPDATE season_episodes SET air_at = air_at + make_interval(days => $2::int) WHERE season_id = $1 AND air_at < now()",
       [copy.seasonId, copy.shiftDays]
     );
+    // --results=accepted: whoever runs each game in play opens Backstage and accepts what the bot's results held. The
+    // first to look takes them for every game (acceptHeld), so the season's record keeps who accepted what.
+    if (v.results === "accepted") {
+      filed.accepted = { quick: [], full: [], refused: [], by: [] };
+      const looking = [];
+      for (const r of replays.filter((x) => x.leagueId && !x.dead)) {
+        const s = await stateOf(r.leagueId);
+        if (ep >= (s.settings.startEpisode ?? 1) && ep <= (s.settings.endEpisode ?? Infinity)) looking.push(r);
+      }
+      // Backstage reviews only an aired episode, and nothing on the copy has aired (an episode closes when its results land):
+      // the episode goes just behind now while they look, then back. The app restamps air times on every read and write.
+      const moved = looking.length ? await clockTo(copy, ep, -60, 30) : null;
+      if (looking.length && !moved) for (const r of looking) r.problems.push(`Episode ${ep}: the schedule has no time for it, so Backstage can't review it`);
+      try {
+        for (const r of moved ? looking : []) {
+          try {
+            const got = await acceptHeld(r, ep);
+            if (!got) continue;
+            r.accepted[ep] = got;
+            r.log.push(
+              `Episode ${ep}: ${r.seats[0].label} accepted ${[got.quick && `who went home (${got.quick.join(", ")})`, got.full.length && `${got.full.length} result(s)`].filter(Boolean).join(" and ") || "nothing"}${got.refused.length ? `; refused: ${got.refused.join("; ")}` : ""}${got.notes.length ? `; ${got.notes.join("; ")}` : ""}`
+            );
+            filed.accepted.quick.push(...(got.quick || []));
+            filed.accepted.full.push(...got.full);
+            filed.accepted.refused.push(...got.refused);
+            filed.accepted.by.push(r.n);
+          } catch (e) {
+            r.problems.push(`Episode ${ep}: accepting the held results failed: ${e.message}`);
+          }
+        }
+      } finally {
+        if (moved) await clockBack(copy, moved);
+      }
+    }
     results.push({ episode: ep, ...filed });
-    console.log(`  episode ${ep}: quick ${filed.quick.ok ? "ok" : "no"} (${filed.quick.message}); full ${filed.full.ok ? "ok" : "no"} (${filed.full.message})`);
+    console.log(`  episode ${ep}: quick ${filed.quick.ok ? "ok" : "no"} (${filed.quick.message}); full ${filed.full.ok ? "ok" : "no"} (${filed.full.message})${filed.accepted ? `; accepted ${filed.accepted.quick.length ? `who went home (${filed.accepted.quick.join(", ")}), ` : ""}${filed.accepted.full.length} held${filed.accepted.refused.length ? `, ${filed.accepted.refused.length} refused` : ""}` : ""}`);
     for (const r of replays.filter((x) => x.leagueId && !x.dead)) {
       const s = await stateOf(r.leagueId);
       if (!S.inPlay(s, ep) && ep < (s.settings.startEpisode ?? 1)) continue;
@@ -1133,6 +1281,13 @@ async function run(show, season, opts) {
       e.results = { quick: filed.quick.message, full: filed.full.message };
       e.stillInIt = stillInIt(e, [...r.episodes, e], (s.settings.endEpisode ?? E) - ep);
       e.asks = r.asks[ep] || {};
+      // The review is the runner's work this week: a card ("results wait for you") and its taps.
+      if (r.accepted[ep]) {
+        e.accepted = r.accepted[ep];
+        const x = (e.asks[r.seats[0].label] ||= { kind: "none", card: false, taps: 0 });
+        x.card = true;
+        x.taps += reviewTaps(r.accepted[ep]);
+      }
       r.episodes.push(e);
       try {
         // --window=merge: the window opens after the merge's results, while the game has episodes left to play.
@@ -1176,27 +1331,9 @@ async function run(show, season, opts) {
     // Kept for looks: the copy's clock set to the moment it stopped, so the show space reads as it would that night (the
     // replay ran with every episode still to air). --before=N: N airs in two hours; else the last played aired 12 hours ago.
     const stop = Number(opts.before) || Math.min(through, E);
-    // The episode's time as the app works it out (a listed row, else from the ones before it or the premiere).
-    const airAtOf = async () => (await appCode().schedules([copy.seasonId])).get(copy.seasonId)?.episodes.find((e) => e.number === stop)?.airAt;
-    const at = await airAtOf();
-    if (at) {
-      const want = Date.now() + (opts.before ? 2 : -12) * 3600_000;
-      const secs = Math.round((want - new Date(at).getTime()) / 1000);
-      // Everything the schedule reads moves together: the listed rows and a drop to the second, the premiere (a date) by
-      // whole days. A season with no listed rows (Survivor 49's copy) has its times from the premiere and its air time, so
-      // its days are the ones that keep the episode at least two hours ahead (--before: within a day) or two hours aired
-      // (--through), never a rounding (or a clock change) that puts it on the wrong side of now (aired, so locked, when the
-      // look is before it).
-      const listed = (await one("SELECT count(*)::int AS n FROM season_episodes WHERE season_id = $1", [copy.seasonId])).n > 0;
-      const late = (Date.now() - new Date(at).getTime()) / DAY;
-      const days = listed ? Math.round(secs / 86400) : opts.before ? Math.ceil(late + 2 / 24) : Math.floor(late - 2 / 24);
-      await appCode().pool.query("UPDATE season_episodes SET air_at = air_at + make_interval(secs => $2) WHERE season_id = $1", [copy.seasonId, secs]);
-      await appCode().pool.query("UPDATE show_seasons SET premiere_date = premiere_date + ($2::int), drop_at = drop_at + make_interval(secs => $3) WHERE id = $1", [
-        copy.seasonId,
-        days,
-        listed ? secs : days * 86400,
-      ]);
-      const now = await airAtOf();
+    // At least two hours on the right side of now: aired, so locked, when the look is before it would read wrongly.
+    if (await clockTo(copy, stop, (opts.before ? 2 : -12) * 3600, 2 * 3600)) {
+      const now = await airAtOf(copy, stop);
       const hours = now ? Math.round((new Date(now).getTime() - Date.now()) / 360_000) / 10 : null;
       console.log(`the copy's clock: episode ${stop} ${hours === null ? "(no time)" : hours >= 0 ? `airs in ${hours} hours` : `aired ${-hours} hours ago`}`);
     } else console.log(`the copy's clock wasn't moved: the schedule has no time for episode ${stop}, so the looks read every episode as still to come`);
@@ -1213,21 +1350,28 @@ async function run(show, season, opts) {
 function variantOf(opts = {}) {
   const away = opts.away === undefined || opts.away === "list" ? null : opts.away;
   const window = opts.window === undefined ? null : opts.window;
+  // --results=autopilot is the whole set's own way, played again into a folder of its own: what changes between two runs
+  // with nothing changed (computer players, Outlast's random autofill), the floor under any other variant's comparison.
+  const results = opts.results === undefined ? null : opts.results;
   if (away && away !== "favourites") throw new Error(`--away is list or favourites, not ${away}`);
   if (window && window !== "merge") throw new Error(`--window is merge, not ${window}`);
-  const name = [away && `away-${away}`, window && `window-${window}`].filter(Boolean).join("-");
+  if (results && results !== "accepted" && results !== "autopilot") throw new Error(`--results is autopilot or accepted, not ${results}`);
+  const name = [away && `away-${away}`, window && `window-${window}`, results && `results-${results}`].filter(Boolean).join("-");
   const says = [
     away && "whoever's away from the draft gets the room's favourites (by what the app knows, then the others' own picks), not the first on the list",
     window && "whoever runs an Outlast game opens one waiver window after the merge (or the middle episode), Swap anyone",
+    results === "accepted" && "whoever runs each game accepts what the bot's results held after each episode, in Backstage (It's right on a quick check that waited, every waiting result ticked)",
+    results === "autopilot" && "the whole set played again (results on Autopilot, as the whole set's), for what changes between two runs",
   ].filter(Boolean).join("; ");
-  return { name, says, away: away || "list", window: !!window };
+  return { name, says, away: away || "list", window: !!window, results: results || "autopilot" };
 }
 
 /** Whether a variant changes a config's replay, by any of its parts: away needs a draft someone's away from (a game with a
  *  draft, not a pool, and a forgetter who isn't the late joiner: a late seat joins after it); the window an exclusive
- *  Outlast with waivers on whose span plays on after `windowAt`. The whole set: every one. Pure. */
+ *  Outlast with waivers on whose span plays on after `windowAt`; the results every one. The whole set: every one. Pure. */
 function changedBy(v, c, span, windowAt) {
   if (v.away !== "favourites" && !v.window) return true;
+  if (v.results !== "autopilot") return true;
   const seats = seatsFor(c.group);
   const away = v.away === "favourites" && c.game !== "survivalPool" && seats.some((s, i) => s.role === "forgetter" && !(c.late === "yes" && i === seats.length - 1));
   const window = v.window && c.game === "outlast" && c.own === "exclusive" && c.waivers === "on" && span.from <= windowAt && (span.to ?? Infinity) > windowAt;
@@ -1250,11 +1394,12 @@ function summarize(r, s, show, season, copy, results) {
     settings: r.settings || null,
     draft: r.draft || null,
     drafted: r.drafted || null,
+    joinedWith: r.joinedWith || null,
     log: r.log,
     problems: r.problems,
     episodes: r.episodes,
     final,
-    tape: { merge: copy.merge, episodes: copy.episodeCount, results: results.map((x) => ({ episode: x.episode, quick: x.quick, full: x.full })) },
+    tape: { merge: copy.merge, episodes: copy.episodeCount, results: results.map((x) => ({ episode: x.episode, quick: x.quick, full: x.full, ...(x.accepted ? { accepted: x.accepted } : {}) })) },
     at: new Date().toISOString(),
   };
 }
@@ -1357,6 +1502,8 @@ const bare = (text) => String(text).replace(/ \([^)]*\)$/, "");
 
 /** Who left in an episode, as keys. */
 const leftKeys = (e) => (e.left ? e.left.map((c) => c.id) : (e.out || []).map(bare));
+/** Who left in an episode, by name (to set two runs side by side: a castaway's id is new in every game). */
+const leftNames = (e) => (e.left ? e.left.map((c) => c.name) : (e.out || []).map(bare));
 /** A lineup line's starters: [{ key, points, explained (it came with the moments that scored) }]. */
 function startersOf(w) {
   if (!w) return [];
@@ -1518,6 +1665,58 @@ function stillInBreakOf(x) {
   return { tied, tiedStill: tied && last.leaders.filter((n) => left(n) === most).length > 1 };
 }
 
+/**
+ * Who could still win after episode index i of a replay, from the game's own best possible week (P3's Noticed: each
+ * episode's `stillInIt` takes the best week anyone has had, times the episodes left, so nearly everyone is "in it" at the
+ * halfway mark). The leader could score nothing more, so a seat is in it if what it could still add reaches the leader:
+ *   Outlast        a point per elimination for each of its people still in: at most (its people still in) × (the cast
+ *                  still in less one, for a game to the season's end; one that ends sooner, the most eliminations in one
+ *                  episode so far × the episodes left, never more)
+ *   Weekly Lineup  its team as it stands (lineup and bench, less anyone gone home), each at their best episode so far in
+ *                  this game, the best `activeSlots` of them, times the episodes left
+ *   Survival Pool  a streak that could still reach the leader's (as `stillInIt`)
+ * Rough, not a bound: Weekly Lineup's is the best each team's people have shown, and a finale's bigger points can beat it; a
+ * pickup to come (waivers, a late team) isn't foreseen. But a team with nobody left is out of it. Returns a count, or null
+ * (no table, or a game it doesn't know). Pure.
+ */
+function inItOf(x, i) {
+  const e = x.episodes[i];
+  if (!e || !e.table.length) return null;
+  // The game's own end (Start a game may have set another than the span planned), as the rough count reads it.
+  const season = (x.tape && x.tape.episodes) || e.n;
+  const end = (x.settings && x.settings.endEpisode) || (x.span && x.span.to) || season;
+  const left = Math.max(0, end - e.n);
+  const leader = e.table[0];
+  if (leader.streak !== undefined) return e.table.filter((t) => Math.max(t.streak ?? 0, (t.current ?? 0) + left) >= leader.streak).length;
+  const game = x.config && x.config.game;
+  const could = new Map();
+  if (game === "outlast") {
+    // To the season's end, everyone still in but one goes; a game that ends sooner, at the most in one episode so far.
+    const most = Math.max(0, ...x.episodes.slice(0, i + 1).map((h) => leftKeys(h).length));
+    const rest = Number.isFinite(e.stillIn) ? Math.max(0, e.stillIn - 1) : Infinity;
+    const elims = !left ? 0 : end >= season && rest < Infinity ? rest : Math.min(most * left, rest);
+    for (const t of e.table) could.set(t.name, stillInOf((e.why || {})[t.name]) * elims);
+  } else if (game === "weeklyLineup") {
+    const slots = (x.settings && x.settings.activeSlots) || 3;
+    const best = new Map();
+    const gone = new Set();
+    for (const h of x.episodes.slice(0, i + 1)) {
+      for (const k of leftKeys(h)) gone.add(k);
+      for (const w of Object.values(h.why || {})) {
+        for (const l of startersOf(w)) best.set(l.key, Math.max(best.get(l.key) ?? 0, l.points));
+        for (const [k, p] of benchOf(w)) best.set(k, Math.max(best.get(k) ?? 0, p));
+      }
+    }
+    for (const t of e.table) {
+      const w = (e.why || {})[t.name];
+      const team = [...new Set([...startersOf(w).map((l) => l.key), ...benchOf(w).keys()])].filter((k) => !gone.has(k));
+      const week = team.map((k) => best.get(k) ?? 0).sort((a, b) => b - a).slice(0, slots).reduce((a, b) => a + b, 0);
+      could.set(t.name, week * left);
+    }
+  } else return null;
+  return e.table.filter((t) => t.total + (could.get(t.name) ?? 0) >= leader.total).length;
+}
+
 /** Where a role's (first) seat finished in a replay, by table order: { at (1 first), of }, or null. Pure. */
 function finishOf(x, role) {
   const last = x && x.episodes[x.episodes.length - 1];
@@ -1582,6 +1781,24 @@ function judgeOf(records) {
     })(),
     // Outlast: still tied at the top once the most people still in breaks it (stillInBreakOf), beside `tiedTop`.
     tiedStill: breaks.length ? share(breaks.map((b) => b.tiedStill)) : null,
+    // Who could still win at the middle episode and three quarters in, as a share of the table (the mean: the median is
+    // everyone at the middle in nearly every game): each episode's rough count, and the game's own best possible week
+    // (inItOf). Games of two or more people and three or more episodes.
+    inIt: (() => {
+      const at = (q) => {
+        const xs = played
+          .filter((x) => x.episodes.length > 2 && x.episodes[0].table.length > 1)
+          .map((x) => {
+            const i = Math.floor((x.episodes.length - 1) * q);
+            const n = x.episodes[i].table.length;
+            const own = inItOf(x, i);
+            return own === null || !n ? null : { rough: x.episodes[i].stillInIt / n, own: own / n };
+          })
+          .filter(Boolean);
+        return xs.length ? { rough: mean(xs.map((r) => r.rough)), own: mean(xs.map((r) => r.own)), replays: xs.length } : null;
+      };
+      return { half: at(1 / 2), late: at(3 / 4) };
+    })(),
   };
 }
 
@@ -1645,23 +1862,24 @@ function judge(sub) {
   }
   const pct = (v) => (v === null ? "" : `${Math.round(v * 100)}%`);
   const num = (v) => (v === null ? "" : String(Math.round(v * 10) / 10));
+  const inIt = (x) => (x ? `${pct(x.rough)} → ${pct(x.own)}` : "");
   const lines = [
     `# Replays judged: P4's measures`,
     ``,
-    `${all.length} replay(s) in ${dir}, written by playtest.js judge. Over: the game says it's over at the end. Settled: how far in the winner took first place for good (0% the first episode). Tied top: level at the top at the end. Quiet: episodes where nobody's points or streak moved. Wiped: someone's team had nobody left before the end. Tinkerer, Forgetter: median finish (0% first, 100% last). Silent: Weekly Lineup starters who scored with no reason to show. Tied top, most still in breaks it: Outlast's ends still level at the top once the most people still in wins. Forgetter, covered while away: the forgetter's median place (ties level) as played → with each Weekly Lineup open slot (no lineup, or someone on it gone home) filled from the bench in draft order, or each missed pool pick made for them (the room's most picked they hadn't used; frozen: a missed week neither ends nor adds to a streak instead); worked out from the replay's own bench and picks.`,
+    `${all.length} replay(s) in ${dir}, written by playtest.js judge. Over: the game says it's over at the end. Settled: how far in the winner took first place for good (0% the first episode). Tied top: level at the top at the end. Quiet: episodes where nobody's points or streak moved. Wiped: someone's team had nobody left before the end. Tinkerer, Forgetter: median finish (0% first, 100% last). Silent: Weekly Lineup starters who scored with no reason to show. Tied top, most still in breaks it: Outlast's ends still level at the top once the most people still in wins. Forgetter, covered while away: the forgetter's median place (ties level) as played → with each Weekly Lineup open slot (no lineup, or someone on it gone home) filled from the bench in draft order, or each missed pool pick made for them (the room's most picked they hadn't used; frozen: a missed week neither ends nor adds to a streak instead); worked out from the replay's own bench and picks. In it, at half and three quarters: the mean share of the table who could still win at the middle episode and three quarters in (games of two or more, three episodes or more), by the rough count (the best week anyone had, times the episodes left) → by the game's own best possible week (Outlast: each team's people still in, a point per elimination; Weekly Lineup: each team as it stands at its people's best; a pool: a streak that can still catch up).`,
     ``,
-    `| Game | Replays | Over | Lead changes | Settled | Tied top | Quiet | Wiped | Tinkerer | Forgetter | Problems | Silent | Tied top, most still in breaks it | Forgetter, covered while away |`,
-    `|---|---|---|---|---|---|---|---|---|---|---|---|---|---|`,
+    `| Game | Replays | Over | Lead changes | Settled | Tied top | Quiet | Wiped | Tinkerer | Forgetter | Problems | Silent | Tied top, most still in breaks it | Forgetter, covered while away | In it at half | In it at three quarters |`,
+    `|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|`,
   ];
   for (const [key, xs] of [...groups].sort(([a], [b]) => a.localeCompare(b))) {
     const j = judgeOf(xs);
-    lines.push(`| ${key} | ${j.replays} | ${pct(j.over)} | ${num(j.leadChanges)} | ${pct(j.settled)} | ${pct(j.tiedTop)} | ${pct(j.quiet)} | ${pct(j.wiped)} | ${pct(j.tinkerer)} | ${pct(j.forgetter)} | ${pct(j.problems)} | ${pct(j.silent)} | ${pct(j.tiedStill)} | ${j.forgetterCovered ? `${pct(j.forgetterCovered.from)} → ${pct(j.forgetterCovered.to)}${j.forgetterCovered.frozen !== null ? ` (frozen ${pct(j.forgetterCovered.frozen)})` : ""}` : ""} |`);
+    lines.push(`| ${key} | ${j.replays} | ${pct(j.over)} | ${num(j.leadChanges)} | ${pct(j.settled)} | ${pct(j.tiedTop)} | ${pct(j.quiet)} | ${pct(j.wiped)} | ${pct(j.tinkerer)} | ${pct(j.forgetter)} | ${pct(j.problems)} | ${pct(j.silent)} | ${pct(j.tiedStill)} | ${j.forgetterCovered ? `${pct(j.forgetterCovered.from)} → ${pct(j.forgetterCovered.to)}${j.forgetterCovered.frozen !== null ? ` (frozen ${pct(j.forgetterCovered.frozen)})` : ""}` : ""} | ${inIt(j.inIt.half)} | ${inIt(j.inIt.late)} |`);
   }
   lines.push(
     ``,
     `## How much each week asks`,
     ``,
-    `Per person and week in play (the moves before an episode and the waiver claims after it), from replays that recorded it. Taps: the mean a week, counted from Tonight on the new design's screens (playtest.js TAPS: a lineup is open, a tap per start or bench, Save; looking and keeping it 2; a pool pick 3; a waiver claim 1 + 3 a spot; opening a window 5); the reveal before them isn't counted. Card: weeks the app showed a move to make. Season: the median taps over a whole-season game, for that role. Idle praise: weeks someone set no lineup and the app still praised their calls, of the weeks they forgot.`,
+    `Per person and week in play (the moves before an episode and the waiver claims after it), from replays that recorded it. Taps: the mean a week, counted from Tonight on the new design's screens (playtest.js TAPS: a lineup is open, a tap per start or bench, Save; looking and keeping it 2; a pool pick 3; a waiver claim 1 + 3 a spot; opening a window 5; accepting held results, --results=accepted: Backstage and Show me 2, It's right and Apply 2, a tick each and Apply 2); the reveal before them isn't counted. Card: weeks the app showed a move to make. Season: the median taps over a whole-season game, for that role. Idle praise: weeks someone set no lineup and the app still praised their calls, of the weeks they forgot.`,
     ``,
     `| Game | Person-weeks | Taps a week | Card | Tinkerer (taps, card, season) | Drive-by | Forgetter | Most in a week | Idle praise |`,
     `|---|---|---|---|---|---|---|---|---|`
@@ -1679,7 +1897,9 @@ function judge(sub) {
 
 /**
  * A variant's replays beside the whole set's, by name (`compare <variant>`): who won, where the forgetter finished, the
- * teams wiped out at the end, and what a window got back. Pure over the two sets of records.
+ * teams wiped out at the end, and what a window got back; and for the results: whether the game says it's over, the points
+ * in its table at the end, who went home in it (by name: a castaway's id is new in every game) and who went home in only
+ * one of the two, and how many held results were accepted in its episodes. Pure over the two sets of records.
  */
 function compareOf(base, variant) {
   const byName = new Map(base.map((x) => [x.replay, x]));
@@ -1687,44 +1907,171 @@ function compareOf(base, variant) {
     const last = x && x.episodes[x.episodes.length - 1];
     return last ? (last.teamsWithNobodyLeft || []).length : null;
   };
+  const pointsOf = (x) => {
+    const last = x && x.episodes[x.episodes.length - 1];
+    return last ? Math.round(last.table.reduce((t, s) => t + (s.total || 0), 0) * 10) / 10 : null;
+  };
+  // Who went home in a game, by name, and the first episode (as seasonExits).
+  const outOf = (x) => {
+    const m = new Map();
+    for (const e of x ? x.episodes : []) for (const name of leftNames(e)) if (!m.has(name)) m.set(name, e.n);
+    return m;
+  };
+  const acceptedIn = (x) => {
+    const eps = new Set(x.episodes.map((e) => e.n));
+    return ((x.tape && x.tape.results) || []).filter((r) => r.accepted && eps.has(r.episode)).reduce((t, r) => t + r.accepted.quick.length + r.accepted.full.length, 0);
+  };
+  // Who went home in each season by one set's replays and never by the other's: the other's people held in (ghostsOf).
+  const exitsB = seasonExits(base);
+  const exitsV = seasonExits(variant);
+  const goneOnlyIn = (mine, other, x) => {
+    const key = `${x.show} ${x.season}`;
+    const theirs = other.get(key) || new Map();
+    return [...(mine.get(key) || new Map())].filter(([name]) => !theirs.has(name)).map(([name, at]) => ({ name, at }));
+  };
   return variant.map((v) => {
     const b = byName.get(v.replay) || null;
     // Only a window someone opened (--window), not the windows a schedule opens: `byHand`, or for a record from before it,
     // the episode the log says it was opened after.
     const logged = (v.log || []).map((l) => /opened a window after episode (\d+)/.exec(l)).filter(Boolean).map((m) => Number(m[1]));
     const windows = (v.episodes || []).flatMap((e) => (e.waivers && e.waivers.window && (e.waivers.byHand ?? logged.includes(e.waivers.episode)) ? [e.waivers] : []));
+    const outB = outOf(b);
+    const outV = outOf(v);
     return {
       replay: v.replay,
+      game: v.config ? v.config.game : null,
       base: !!b,
       winner: { base: b && b.final ? b.final.winner : null, variant: v.final ? v.final.winner : null },
       forgetter: { base: finishOf(b, "forgetter"), variant: finishOf(v, "forgetter") },
       wipedAtEnd: { base: wipedAtEnd(b), variant: wipedAtEnd(v) },
       window: windows.length ? { at: windows[0].episode, wiped: windows[0].wiped.length, backIn: windows[0].backIn.length, ran: windows[0].ran.length } : null,
+      over: { base: !!(b && b.final && b.final.over), variant: !!(v.final && v.final.over) },
+      points: { base: pointsOf(b), variant: pointsOf(v) },
+      out: {
+        base: b ? outB.size : null,
+        variant: outV.size,
+        onlyVariant: b ? [...outV].filter(([n]) => !outB.has(n)).map(([n, ep]) => `${n} (${ep})`) : [],
+        onlyBase: b ? [...outB].filter(([n]) => !outV.has(n)).map(([n, ep]) => `${n} (${ep})`) : [],
+      },
+      accepted: acceptedIn(v),
+      ghosts: { base: ghostsOf(b, b ? goneOnlyIn(exitsV, exitsB, b) : []), variant: ghostsOf(v, goneOnlyIn(exitsB, exitsV, v)) },
     };
   });
 }
 
-function compare(name) {
-  if (!name) throw new Error("compare <variant>: a folder in rfl-tapes\\replays\\variants (away-favourites, window-merge)");
-  const base = replaysIn().all;
+/** Who went home in each season, by name, from every replay of it: Map "<show> <season>" → Map(name → the first episode). Pure. */
+function seasonExits(records) {
+  const out = new Map();
+  for (const x of records) {
+    const key = `${x.show} ${x.season}`;
+    const m = out.get(key) || out.set(key, new Map()).get(key);
+    for (const e of x.episodes || []) for (const name of leftNames(e)) if (!(m.get(name) <= e.n)) m.set(name, e.n);
+  }
+  return out;
+}
+
+/**
+ * A replay's use of people who had gone home by another answer but never by its own (finding 2: an exit held, so they stay
+ * in), after they'd gone (`gone`: [{ name, at }]): drafted into a team after (a game that started later, or a late joiner's
+ * team), started in a lineup, picked in a pool, or still on a team at the end (Outlast: never out, so they earn a point at
+ * every elimination, as a winner does). { drafted, kept: ["seat: name"], started, picked: times } Pure.
+ */
+function ghostsOf(x, gone) {
+  const out = { drafted: [], kept: [], started: 0, picked: 0 };
+  if (!x || !gone.length) return out;
+  const last = x.episodes[x.episodes.length - 1];
+  // Every team drafted (computer players' too) when the game started, and a late joiner's when they joined.
+  const teams = [
+    // By name: the data's names, else draftedOf's (a file from before has only names).
+    ...Object.keys(x.drafted || x.draft || {}).map((label) => ({ label, at: x.span && x.span.from, names: x.drafted ? x.drafted[label].map((c) => c.name) : draftedOf(x, label) || [] })),
+    ...Object.entries(x.joinedWith || {}).map(([label, team]) => ({ label, at: x.span && x.span.late, names: team.map((c) => c.name) })),
+  ];
+  for (const { name, at } of gone) {
+    for (const t of teams) if (t.at > at && t.names.includes(name)) out.drafted.push(`${t.label}: ${name}`);
+    for (const e of x.episodes.filter((y) => y.n > at)) {
+      for (const w of Object.values(e.why || {})) {
+        if ((w.starters || []).some((l) => l.name === name)) out.started++;
+        if (w.picked && w.picked.name === name) out.picked++;
+      }
+    }
+    for (const [label, w] of Object.entries((last && last.n > at && last.why) || {})) if ((w.members || []).some((m) => m.name === name && !m.out)) out.kept.push(`${label}: ${name}`);
+  }
+  return out;
+}
+
+/** Whether ghostsOf found anyone used after they'd gone. Pure. */
+const ghosted = (g) => !!g && (g.drafted.length > 0 || g.kept.length > 0 || g.started > 0 || g.picked > 0);
+
+/**
+ * compareOf's rows by game: how many winners changed, the median change in the points in the table (variant over the whole
+ * set, as a share), the median change in how many went home, the games that say they're over in each, and the games where
+ * someone gone was still played (ghostsOf), in each. Pure.
+ */
+function compareByGame(rows) {
+  const games = new Map();
+  for (const r of rows.filter((x) => x.base)) (games.get(r.game) || games.set(r.game, []).get(r.game)).push(r);
+  return [...games].sort(([a], [b]) => String(a).localeCompare(String(b))).map(([game, xs]) => ({
+    game,
+    replays: xs.length,
+    winnerChanged: xs.filter((r) => r.winner.base !== r.winner.variant).length,
+    points: median(xs.filter((r) => r.points.base > 0 && r.points.variant !== null).map((r) => r.points.variant / r.points.base - 1)),
+    out: median(xs.map((r) => r.out.variant - r.out.base)),
+    over: { base: xs.filter((r) => r.over.base).length, variant: xs.filter((r) => r.over.variant).length },
+    ghosted: { base: xs.filter((r) => ghosted(r.ghosts.base)).length, variant: xs.filter((r) => ghosted(r.ghosts.variant)).length },
+  }));
+}
+
+function compare(name, against) {
+  if (!name) throw new Error("compare <variant>: a folder in rfl-tapes\\replays\\variants (away-favourites, window-merge, results-accepted, results-autopilot)");
+  if (against !== undefined && typeof against !== "string") throw new Error("--base needs a folder under rfl-tapes\\replays, e.g. --base=variants/results-autopilot");
+  const { dir: baseDir, all: base } = replaysIn(against);
+  if (!base.length) throw new Error(`No replays in ${baseDir} to compare against`);
   const { dir, all } = replaysIn(path.join("variants", name));
   if (!all.length) throw new Error(`No replays in ${dir}: run <show> <season> with the variant's flags first`);
   const rows = compareOf(base, all);
   const place = (p) => (p ? `${p.at} of ${p.of}` : "");
+  const pct = (v) => (v === null ? "" : `${v > 0 ? "+" : ""}${Math.round(v * 100)}%`);
+  const results = /(^|-)results-/.test(name);
+  // What the variant is set beside: the whole set, or another variant (--base).
+  const B = against ? path.basename(String(against)) : "the whole set";
+  const ghostLine = (g) =>
+    [g.drafted.length && `drafted after: ${g.drafted.join(", ")}`, g.kept.length && `kept to the end: ${g.kept.join(", ")}`, g.started && `started ${g.started}x`, g.picked && `picked ${g.picked}x`].filter(Boolean).join("; ");
   const lines = [
-    `# ${name} against the whole set`,
+    `# ${name} against ${B}`,
     ``,
-    `${rows.length} replay(s) in ${dir}, each beside the replay of the same name in rfl-tapes\\replays (written by playtest.js compare).`,
+    `${rows.length} replay(s) in ${dir}, each beside the replay of the same name in ${baseDir} (written by playtest.js compare).`,
     ``,
-    `| Replay | Winner (whole set → variant) | Forgetter | Wiped at the end | Window: after ep, wiped, back in, moves |`,
-    `|---|---|---|---|---|`,
-    ...rows.map(
-      (r) =>
-        `| ${r.replay} | ${r.winner.base ?? "(none)"} → ${r.winner.variant ?? "(none)"} | ${place(r.forgetter.base)} → ${place(r.forgetter.variant)} | ${r.wipedAtEnd.base ?? ""} → ${r.wipedAtEnd.variant ?? ""} | ${r.window ? `${r.window.at}, ${r.window.wiped}, ${r.window.backIn}, ${r.window.ran}` : ""} |`
-    ),
+    `## By game`,
+    ``,
+    `Winner changed: of the replays with one in ${B}. Points: the median change in the points in the table at the end. Went home: the median change in how many went home in the game. Over: the games that say they're over, ${B} → ${name}. Gone, still played: games where someone who'd gone home by the other set's answers (and never by this one's) was drafted after, started, picked, or still on a team at the end, ${B} → ${name}.`,
+    ``,
+    `| Game | Replays | Winner changed | Points | Went home | Over | Gone, still played |`,
+    `|---|---|---|---|---|---|---|`,
+    ...compareByGame(rows).map((g) => `| ${g.game} | ${g.replays} | ${g.winnerChanged} | ${pct(g.points)} | ${g.out === null ? "" : `${g.out > 0 ? "+" : ""}${g.out}`} | ${g.over.base} → ${g.over.variant} | ${g.ghosted.base} → ${g.ghosted.variant} |`),
+    ``,
+    `## Each replay`,
+    ``,
+    ...(results
+      ? [
+          `| Replay | Winner (${B} → ${name}) | Over | Points in the table | Went home | Went home only in ${name} (episode) | Only in ${B} | Accepted in its episodes | Gone, still played in ${B} | In ${name} |`,
+          `|---|---|---|---|---|---|---|---|---|---|`,
+          ...rows.map(
+            (r) =>
+              `| ${r.replay} | ${r.winner.base ?? "(none)"} → ${r.winner.variant ?? "(none)"} | ${r.over.base ? "yes" : "no"} → ${r.over.variant ? "yes" : "no"} | ${r.points.base ?? ""} → ${r.points.variant ?? ""} | ${r.out.base ?? ""} → ${r.out.variant} | ${r.out.onlyVariant.join(", ")} | ${r.out.onlyBase.join(", ")} | ${r.accepted || ""} | ${ghostLine(r.ghosts.base)} | ${ghostLine(r.ghosts.variant)} |`
+          ),
+        ]
+      : [
+          `| Replay | Winner (${B} → ${name}) | Forgetter | Wiped at the end | Window: after ep, wiped, back in, moves |`,
+          `|---|---|---|---|---|`,
+          ...rows.map(
+            (r) =>
+              `| ${r.replay} | ${r.winner.base ?? "(none)"} → ${r.winner.variant ?? "(none)"} | ${place(r.forgetter.base)} → ${place(r.forgetter.variant)} | ${r.wipedAtEnd.base ?? ""} → ${r.wipedAtEnd.variant ?? ""} | ${r.window ? `${r.window.at}, ${r.window.wiped}, ${r.window.backIn}, ${r.window.ran}` : ""} |`
+          ),
+        ]),
     ``,
   ];
-  fs.writeFileSync(path.join(dir, "COMPARE.md"), lines.join("\n"), "utf8");
+  // Against another variant: a file of its own, so the comparison with the whole set stays.
+  fs.writeFileSync(path.join(dir, against ? `COMPARE-${path.basename(String(against))}.md` : "COMPARE.md"), lines.join("\n"), "utf8");
   console.log(lines.join("\n"));
 }
 
@@ -1863,7 +2210,7 @@ async function main() {
   if (cmd === "down") return console.log(`removed ${await down()}`);
   if (cmd === "summary") return summary();
   if (cmd === "judge") return judge(flags.dir);
-  if (cmd === "compare") return compare(rest[0]);
+  if (cmd === "compare") return compare(rest[0], flags.base);
   if (cmd === "says") {
     if (!(Number(rest[0]) >= 1)) throw new Error("says <episode>: an episode number");
     return says(Number(rest[0]));
@@ -1871,7 +2218,7 @@ async function main() {
   console.log("Usage: node scripts/dev-test/playtest.js matrix|run|exits|summary|judge|compare|says|down <show> <season> (see the header comment)");
 }
 
-module.exports = { summaryLine, judgeOf, defaultLineupOf, poolFallbackOf, stillInBreakOf, asksOf, compareOf, variantOf, changedBy, favourites, lineupTaps, claimTaps, TAPS, upgradeStored, shiftAnswer, exitsOf, DIMENSIONS, NA, gamesOf, dimsFor, applies, allConfigs, pairsOf, pairwise, replayName, ROLES, seatsFor, hash01, movesThisWeek, prefer, mergeOf, spanOf, settledAt };
+module.exports = { summaryLine, judgeOf, defaultLineupOf, poolFallbackOf, stillInBreakOf, inItOf, asksOf, compareOf, compareByGame, ghostsOf, seasonExits, variantOf, changedBy, favourites, lineupTaps, claimTaps, reviewTaps, TAPS, upgradeStored, shiftAnswer, exitsOf, DIMENSIONS, NA, gamesOf, dimsFor, applies, allConfigs, pairsOf, pairwise, replayName, ROLES, seatsFor, hash01, movesThisWeek, prefer, mergeOf, spanOf, settledAt };
 
 if (require.main === module) {
   main()

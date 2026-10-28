@@ -435,3 +435,137 @@ test("the measures read a replay's data (ids, points, flags) where it has it, an
   assert.deepEqual(P.stillInBreakOf(outlast({ A: team(false, true), B: team(true, true) })), { tied: true, tiedStill: false });
   assert.deepEqual(P.stillInBreakOf(outlast({ A: team(false), B: team(false) })), { tied: true, tiedStill: true });
 });
+
+test("the results variants: accepted plays every replay, autopilot is the whole set again, and the review's taps", () => {
+  const accepted = P.variantOf({ results: "accepted" });
+  assert.equal(accepted.name, "results-accepted");
+  assert.equal(P.variantOf({ results: "autopilot" }).name, "results-autopilot");
+  assert.equal(P.variantOf({}).results, "autopilot");
+  assert.throws(() => P.variantOf({ results: "reviewed" }));
+  for (const c of [{ game: "survivalPool", group: 1 }, { game: "outlast", own: "shared", group: 16 }]) assert.equal(P.changedBy(accepted, c, { from: 1, to: null }, 6), true);
+  // With another flag, the results still change every replay; autopilot leaves the other's choice alone.
+  assert.equal(P.changedBy(P.variantOf({ away: "favourites", results: "accepted" }), { game: "survivalPool", group: 4 }, { from: 1, to: null }, 6), true);
+  assert.equal(P.changedBy(P.variantOf({ away: "favourites", results: "autopilot" }), { game: "survivalPool", group: 4 }, { from: 1, to: null }, 6), false);
+  // Backstage and Show me, It's right and Apply; a tick each, Apply and the sheet's Apply.
+  assert.equal(P.reviewTaps({ quick: null, full: [] }), 0);
+  assert.equal(P.reviewTaps({ quick: ["Ann (Voted Out)"], full: [] }), 4);
+  assert.equal(P.reviewTaps({ quick: null, full: ["a", "b", "c"] }), 7);
+  assert.equal(P.reviewTaps({ quick: ["nobody"], full: ["a"] }), 7);
+});
+
+test("who could still win, from the game's own best possible week: Outlast's people still in, a lineup's team at its best", () => {
+  const row = (name, total, extra = {}) => ({ playerId: name, name, total, ...extra });
+  const member = (id, out = false) => ({ id, name: id, out });
+  // Outlast with 3 episodes left and at most 2 going home an episode, 4 still in: at most 3 eliminations to outlast.
+  const outlast = {
+    config: { game: "outlast" },
+    span: { from: 1, to: null },
+    tape: { episodes: 5 },
+    episodes: [
+      { n: 1, left: [{ id: "x1" }, { id: "x2" }], table: [], why: {} },
+      {
+        n: 2,
+        left: [{ id: "x3" }],
+        stillIn: 4,
+        table: [row("A", 10), row("B", 8), row("C", 5), row("D", 9)],
+        why: { A: { members: [member("a1"), member("a2", true)] }, B: { members: [member("b1")] }, C: { members: [member("c1")] }, D: { members: [member("d1", true)] } },
+      },
+    ],
+  };
+  // A (the leader) is in; B 8 + 3 = 11 reaches 10; C 5 + 3 = 8 doesn't; D has nobody left.
+  assert.equal(P.inItOf(outlast, 1), 2);
+  // Without the cast still in (an older file): 2 a week for 3 weeks, so C's 5 + 6 = 11 reaches it too.
+  assert.equal(P.inItOf({ ...outlast, episodes: outlast.episodes.map((e) => ({ ...e, stillIn: undefined })) }, 1), 3);
+  // To the season's end everyone still in but one goes, however few have gone an episode so far: 9 still in, C 5 + 8 reaches 10.
+  assert.equal(P.inItOf({ ...outlast, episodes: [outlast.episodes[0], { ...outlast.episodes[1], stillIn: 9 }] }, 1), 3);
+  // A game that ends at episode 3 (Start a game's end, over the span's): one episode left, at most 2 go, B's 8 + 2 reaches 10.
+  assert.equal(P.inItOf({ ...outlast, settings: { endEpisode: 3 }, episodes: [outlast.episodes[0], { ...outlast.episodes[1], stillIn: 9 }] }, 1), 2);
+
+  // Weekly Lineup, 2 start, 2 episodes left: each team as it stands, its people at their best episode so far.
+  const s = (id, points) => ({ id, name: id, points, items: [] });
+  const lineup = {
+    config: { game: "weeklyLineup" },
+    settings: { activeSlots: 2 },
+    span: { from: 1, to: 4 },
+    episodes: [
+      { n: 1, left: [], table: [], why: { A: { starters: [s("a1", 6), s("a2", 1)], benched: [s("a3", 2)] }, B: { starters: [s("b1", 1)], benched: [s("b2", 3)] } } },
+      {
+        n: 2,
+        left: [{ id: "a1" }],
+        table: [row("A", 30), row("B", 22), row("C", 29)],
+        why: { A: { starters: [s("a1", 0), s("a2", 1)], benched: [s("a3", 2)] }, B: { starters: [s("b1", 1)], benched: [s("b2", 4)] }, C: { starters: [], benched: [] } },
+      },
+    ],
+  };
+  // B: b2 at 4 and b1 at 1, 5 a week, 22 + 10 = 32 reaches 30; C has nobody, 29 doesn't. A leads.
+  assert.equal(P.inItOf(lineup, 1), 2);
+  // A pool: a streak that could still reach the leader's.
+  const pool = { config: { game: "survivalPool" }, span: { from: 1, to: null }, tape: { episodes: 4 }, episodes: [{ n: 2, table: [row("A", 2, { streak: 2, current: 2 }), row("B", 0, { streak: 0, current: 0 }), row("C", 1, { streak: 1, current: 0 })], why: {} }] };
+  assert.equal(P.inItOf(pool, 0), 3);
+  assert.equal(P.inItOf({ ...pool, tape: { episodes: 3 } }, 0), 1);
+  assert.equal(P.inItOf({ config: { game: "outlast" }, episodes: [{ n: 1, table: [] }] }, 0), null);
+
+  // judgeOf: the rough count beside it, as a share of the table at the middle episode and three quarters in (the mean).
+  const third = { n: 3, left: [], table: [row("A", 33), row("B", 22), row("C", 29)], why: { A: lineup.episodes[1].why.A, B: { starters: [], benched: [] }, C: { starters: [], benched: [] } } };
+  const eps = [...lineup.episodes, third].map((e, i) => ({ ...e, leaders: ["A"], stillInIt: 3, teamsWithNobodyLeft: [], table: i ? e.table : [row("A", 0), row("B", 0), row("C", 0)] }));
+  const j = P.judgeOf([{ ...lineup, seats: [], problems: [], final: null, episodes: eps }]);
+  // Middle (episode 2): 2 of 3 by its own week, all by the rough count; three quarters in (episode 2 again, of 3): the same.
+  assert.deepEqual(j.inIt.half, { rough: 1, own: 2 / 3, replays: 1 });
+  assert.deepEqual(j.inIt.late, { rough: 1, own: 2 / 3, replays: 1 });
+  assert.equal(P.judgeOf([{ ...lineup, seats: [], problems: [], final: null, episodes: eps.slice(0, 2) }]).inIt.half, null, "two episodes are too few");
+});
+
+test("a results variant beside the whole set: over, points in the table, who went home in only one, what was accepted", () => {
+  const rec = (over, totals, out, accepted) => ({
+    replay: "r1",
+    config: { game: "weeklyLineup" },
+    seats: [],
+    final: { winner: totals[0][0], over },
+    episodes: [
+      { n: 2, left: out.map((name) => ({ id: `id-${name}-${accepted}`, name })), table: [] },
+      { n: 3, left: [], table: totals.map(([name, total]) => ({ name, total })) },
+    ],
+    tape: { results: [{ episode: 1, accepted: { quick: ["x"], full: ["y"] } }, { episode: 2, ...(accepted ? { accepted: { quick: [], full: ["a", "b"] } } : {}) }] },
+  });
+  const [row] = P.compareOf([rec(false, [["A", 10], ["B", 8]], ["Ann"], 0)], [rec(true, [["B", 15], ["A", 12]], ["Ann", "Rob"], 1)]);
+  assert.deepEqual(row.over, { base: false, variant: true });
+  assert.deepEqual(row.points, { base: 18, variant: 27 });
+  // By name: a castaway's id is new in every game.
+  assert.deepEqual(row.out, { base: 1, variant: 2, onlyVariant: ["Rob (2)"], onlyBase: [] });
+  // Only the episodes it played (episode 1 was before it started).
+  assert.equal(row.accepted, 2);
+  assert.deepEqual(P.compareByGame([row]), [{ game: "weeklyLineup", replays: 1, winnerChanged: 1, points: 0.5, out: 1, over: { base: 0, variant: 1 }, ghosted: { base: 0, variant: 0 } }]);
+});
+
+test("someone gone by one set's answers and never by the other's, still played in the other: drafted after, kept, started, picked", () => {
+  const seats = [{ label: "A", role: "tinkerer" }, { label: "B", role: "forgetter" }, { label: "C", role: "fan", late: true }];
+  const left = (n, ...names) => ({ n, left: names.map((name) => ({ id: name, name })), table: [], why: {} });
+  // Rob goes home at 3 in the variant's season (any of its replays); the whole set's never has him go.
+  const variant = [{ show: "t", season: 4, episodes: [left(2, "Ann"), left(3, "Rob")] }, { show: "t", season: 4, episodes: [left(3, "Rob", "Bo")] }];
+  assert.deepEqual([...P.seasonExits(variant).get("t 4")], [["Ann", 2], ["Rob", 3], ["Bo", 3]]);
+  const gone = [{ name: "Rob", at: 3 }];
+  const member = (name, out = false) => ({ id: name, name, out });
+  // A game from episode 4: drafting Rob is drafting someone gone (a computer player too); the late joiner took him from
+  // Join's pool at 6. Kept to the end; started; picked.
+  const game = {
+    seats,
+    span: { from: 4, to: null, late: 6 },
+    drafted: { A: [{ id: "c1", name: "Rob" }], B: [{ id: "c2", name: "Ann" }], "Ivy (computer)": [{ id: "c1", name: "Rob" }] },
+    joinedWith: { C: [{ id: "c1", name: "Rob" }] },
+    episodes: [
+      { n: 4, why: { A: { starters: [{ name: "Rob", points: 0 }] }, B: { picked: { name: "Rob", correct: true } } } },
+      { n: 5, why: { A: { members: [member("Rob")] }, B: { members: [member("Ann", true)] } } },
+    ],
+  };
+  assert.deepEqual(P.ghostsOf(game, gone), { drafted: ["A: Rob", "Ivy (computer): Rob", "C: Rob"], kept: ["A: Rob"], started: 1, picked: 1 });
+  // A file from before the data: the draft's words.
+  assert.deepEqual(P.ghostsOf({ ...game, drafted: null, joinedWith: null, draft: { B: ["Rob (locked in for them)"] }, episodes: [] }, gone).drafted, ["B: Rob"]);
+  // A game drafted at episode 1, before Rob went: the draft was fair; only what came after counts.
+  assert.deepEqual(P.ghostsOf({ ...game, joinedWith: null, span: { from: 1, to: null, late: null }, episodes: [{ n: 3, why: { A: { starters: [{ name: "Rob", points: 2 }] } } }] }, gone), { drafted: [], kept: [], started: 0, picked: 0 });
+  // compareOf: the whole set's replay holds Rob in; the variant's doesn't.
+  const rec = (out, kept) => ({ replay: "r", show: "t", season: 4, config: { game: "outlast" }, seats, span: { from: 1 }, final: null, episodes: [{ n: 3, left: out, table: [], why: {} }, { n: 4, left: [], table: [], why: { A: { members: [member("Rob", !kept)] } } }] });
+  const [row] = P.compareOf([rec([], true)], [rec([{ id: "x", name: "Rob" }], false)]);
+  assert.deepEqual(row.ghosts.base.kept, ["A: Rob"]);
+  assert.deepEqual(row.ghosts.variant.kept, []);
+  assert.deepEqual(P.compareByGame([row])[0].ghosted, { base: 1, variant: 0 });
+});

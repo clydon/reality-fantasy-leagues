@@ -88,6 +88,21 @@ leaves someone out says they stayed. One answer saying otherwise is enough to ho
   shows `Murdered`, `pending`, `reported`, one high-confidence source.
 - `node scripts/dev-test/playtest.js exits the-traitors-us 4` lists the two answers side by side (finding 6).
 
+**What it costs** (P5 part 2, `compare results-accepted --base=variants/results-autopilot`). Someone held in is still in every
+game that starts after they've gone, and they're the best pick there is. In 96 replays on Autopilot, 25 games drafted, started,
+picked or kept to the end someone the bot's own answers said had left (Rob Cesternino, Cara Maria Sorbello):
+- **Outlast:** a ghost never leaves, so they earn a point at every elimination, as the winner does. The Traitors 4's Outlast
+  from episode 4 for eight: the Contrarian drafted Rob Cesternino (murdered in episode 3) and won, 43 to 38. With the held
+  results accepted, nobody can draft him, and the Steady wins, 45 to 37.
+- **Survival Pool:** a ghost is a pick that can't lose. Cara Maria Sorbello was picked three times in the Challenge's season pool
+  after she'd left. In the Traitors 4's season pool for four, Rob was picked four times, and the Tinkerer won. With the held
+  results accepted, the Drive-by wins.
+- **Weekly Lineup:** a starter who scores nothing: Cara Maria was started 70 times in one 16-person game.
+
+When whoever runs the game accepts what was held (below), none of it happens. Between two runs with nothing changed, none
+either. Repro: `node scripts/dev-test/playtest.js run the-traitors-us 4 --results=accepted` (and `--results=autopilot`), then
+`node scripts/dev-test/playtest.js compare results-accepted --base=variants/results-autopilot`, column "Gone, still played".
+
 **A direction.** A catch-all method ("Other") from the quick check shouldn't count as saying otherwise against a specific one
 from the full research. A quick check that names nobody for someone shouldn't count against a confident full answer that names
 them (its job is who went home, and it misses some). Or a source's own newer answer could settle its older one, which is what
@@ -104,6 +119,21 @@ A reported fact goes live only from a high-confidence source. How much the bot a
 On a season where the bot is the only source (Autopilot, or a show nobody else on a couch fills in), a third to half of
 Weekly Lineup's points never arrive. It's the same everywhere, so nobody sees a gap, only lower scores and the wrong winner
 when it lands unevenly.
+
+**Measured** (P5 part 2: the replays again with whoever runs each game accepting what was held, `--results=accepted`, beside the
+same replays played again unchanged). The answers counted above aren't all points: many below-high answers carry nothing that
+scores. What was actually held, and what accepting it changed:
+- **The Traitors 4:** 85 results in 10 of its 12 episodes, nearly all events (32 "zero votes against", 19 "voted for a Faithful
+  who was banished", 8 shields, 7 "on the murder shortlist"). Weekly Lineup's points rise 5% to 25% (median 16%), Outlast's
+  4% to 11% (Rob Cesternino's exit is one more elimination for everyone else's people; the one that falls, 13%, is the
+  Contrarian's, whose ghost was earning them).
+- **The Challenge 41:** 16 (12 "nominated and survived", Cara Maria's exit, two "nobody went home"). Weekly Lineup's points rise
+  31% to 94%, on small totals.
+- **Survivor 49:** 1 (Rizo's exit, finding 2). **Dancing with the Stars 34:** none.
+
+The winners mostly don't move: 2 of 17 Weekly Lineups with only people in them change winner, against 1 of 17 between two runs
+with nothing changed. On these four seasons finding 3 lowers everyone's scores about evenly. What it does change is finding
+2's: who's still in.
 
 **Repro.** `node scripts/dev-test/playtest.js run the-traitors-us 4 --only=14 --keep`, then:
 ```sql
@@ -286,7 +316,11 @@ without (`judge`'s Silent column: 0%), and what the bench would have scored is t
   even though the draft (made for them) picked a team. Medium; a default lineup from the draft (its first picks start until
   you choose) is the fix, for Start a game's owner or the engine lane.
 - **Quiet weeks** are 34% on The Challenge 41: medium-confidence results held (finding 3), so weeks pass with nobody scoring.
-  Fix finding 3 and they go.
+  Fix finding 3 and they go. **Corrected in P5 part 2:** with every held result accepted they're still 32%. They're the same
+  episodes in every replay:
+  - episode 9 (nobody went home; the only result filed is finding 6's wrong exit);
+  - the finale's two parts (18 and 19: nothing the rulebook scores, then finding 1);
+  - the two reunions (finding 8).
 
 **Outlast is suspense with little to decide.** Fun: the most lead changes of any game (3.5) and the winner settled late (75% of
 the way in). But after the draft nothing anyone does matters: the tinkerer finishes no better than the forgetter (59% and 53%),
@@ -468,3 +502,89 @@ scripts/dev-test/playtest-looks.js openslot10 --as=forgetter --pages=games --mov
 
 **A direction.** The line from the game's own settings ("Start your best 4 each week"), as the moves sheet's "Start 4 of your 4"
 already is, or a line without the number.
+
+## P5 part 2: what accepting the bot's held results changes, and who can still win (2026-10-28)
+
+Findings 2, 3 and 6 are results the bot's answers left held or wrong on a season nobody else answers. P5 part 2 measured what
+they cost by playing every replay again with **whoever runs each game accepting what was held** after each episode, through the
+app's own review: Backstage › Results, Show me, It's right on a quick check that waits, every waiting result ticked
+(`playtest.js run <show> <season> --results=accepted`). Beside it, the same replays **played again unchanged**
+(`--results=autopilot`): what changes between two runs with nothing changed, the floor under any comparison. `compare
+results-accepted --base=variants/results-autopilot` puts them side by side (`rfl-tapes\replays\variants\results-accepted\`).
+
+| Game | Replays | Winner changed (between two runs with nothing changed) | Went home | Says it's over | Gone, still played |
+|---|---|---|---|---|---|
+| Outlast | 59 | 18 (10) | the same, but finding 2's | 37 → 37 | 14 → 0 |
+| Survival Pool | 16 | 1 (0) | +0.5 a game | 8 → 8 | 5 → 0 |
+| Weekly Lineup | 21 | 5 (1) | the same, but finding 2's | 11 → 11 | 6 → 0 |
+
+Split by what makes two runs differ, games with only people in them are the clean test:
+- **Outlast:** 4 of 21 winners change when the held results are accepted, against 0 of 21 between two runs with nothing
+  changed. Rizo's exit breaks Survivor 49's finale ties, and Rob Cesternino can no longer be drafted after he's gone.
+- **Survival Pool:** 1 of 12 against 0 of 12: Rob picked four times after he'd gone (finding 2).
+- **Weekly Lineup:** 2 of 17 against 1 of 17, hardly beyond what runs vary by.
+
+The games with computer players (solo) and Outlast with waivers (a random autofill) vary too much run to run to say.
+
+What it means for each finding:
+- **Finding 2** (an exit held because the bot's two answers word it differently) is the costly one: someone gone, still played
+  in 25 games (finding 2, "What it costs").
+- **Finding 3** (medium confidence held) lowers scores about evenly: the Traitors 4's Weekly Lineup points are 16% short (the
+  median), and hardly a Weekly Lineup's winner changes beyond the floor (finding 3, "Measured").
+- **Findings 1 and 6 aren't held:** the finale's winner is removed, not held, and the Challenge's wrong exits are applied. So a
+  review offers nothing for them, the same 37 Outlast games say they're over, and Gabe Wai and Jonna Mannion still never leave.
+  Fixing those is the research's (the survivor lane).
+
+### 16. Accepting held results is a tick per result, with no "tick all" (low; the new design's Backstage results, `src/new/backstage/results.tsx`, with finding 3)
+
+Show me lists each waiting result with its own tick ("Tick what's right"), then Apply and the sheet's Apply. On the Traitors 4,
+whoever runs it has results waiting in 10 of 12 weeks, 85 in all. Episode 4 alone has 35 (39 taps): "At the Round Table, zero
+votes against" for eleven people, "voted for a Faithful who was banished" for seven, and so on. Nobody can check those from
+memory, so the realistic choices are to tick all 35 blind or to leave them. Whoever looks first does it for every couch on the
+season. In the replays that's replay 1's runner, an Outlast for two that otherwise asks nothing after the draft: 125 taps over
+the season (7, 13, 5, 39, 0, 6, 12, 10, 18, 10, 5, 0), and a card (results waiting, or a waiver replacement owed) in 11 of 12
+weeks.
+
+**Repro.** `node scripts/dev-test/playtest.js run the-traitors-us 4 --only=1 --through=4 --results=accepted`, then
+`rfl-tapes\replays\variants\results-accepted\partial\the-traitors-us-4-outlast-exclusive-small-season-waivers-g2-through4.json`:
+`tape.results[3].accepted.full` (35) and `episodes[3].asks.Tinkerer` (39 taps).
+
+**A direction.** Group the waiting results by kind, each with "these are right" ("Zero votes against: 11 people"), or "Accept
+all" with the count. Better, finding 3's own direction (trust a medium-confidence answer nobody contradicts by the next episode)
+makes the list short enough to read.
+
+### Who can still win (P4's Fun question, measured properly)
+
+P3's "still in it" was rough: the best week anyone had, times the episodes left, so nearly everyone was "in it" at the half.
+`judge` now also works it out from each game's own best possible week (`inItOf`; the leader could score nothing more):
+- **Outlast:** a point per elimination for each of a team's people still in (to the season's end, everyone still in but one
+  goes);
+- **Weekly Lineup:** a team as it stands, each person at their best episode so far (rough: a finale's bigger points can beat it);
+- **Survival Pool:** a streak that can still catch the leader's.
+
+As the mean share of the table (the whole set on file):
+
+| Game | At the half (rough → own) | Three quarters in |
+|---|---|---|
+| Outlast | 100% → 89% | 98% → 72% |
+| Weekly Lineup | 99% → 81% | 84% → 70% |
+| Survival Pool | 94% | 63% |
+
+By show:
+- **Weekly Lineup on the Traitors 4:** 67% at the half (Dancing with the Stars 34: 60%). A team that's lost its scorers
+  can't catch up, whatever its lineup.
+- **Survival Pool on The Challenge 41:** 38% three quarters in. One broken streak can't be caught on a long season (P4's first
+  pass: the pool's leader is known early).
+- **Outlast:** about three in ten have no way to win by three quarters, nearly all with a team that's lost most of its people
+  (P4: wiped teams, and the window after the merge as the way back in).
+
+**Repro.** `node scripts/dev-test/playtest.js judge` ("In it at half", "In it at three quarters"; `rfl-tapes\replays\JUDGE.md`).
+
+### Between two runs with nothing changed
+
+A different winner in 11 of 96 replays (the whole set against `--results=autopilot`): Outlast with waivers 6 of 30 (its
+autofill is random), the solo games 4 of 16 (computer players), Weekly Lineups with only people in them 1 of 17 (not traced),
+and Outlast or pools with only people in them never. A first pair of runs, earlier the same morning, gave 16 of 96 (7 solo, 3
+Weekly Lineups). Earlier variants' winner counts sit on that floor: P4's window after the merge changed 9 of 17 Outlast-with-waivers
+winners, against 6 of 30 between two runs. From now on, compare a variant against a fresh run
+(`compare <variant> --base=variants/results-autopilot`).
