@@ -152,6 +152,17 @@ Last updated 2026-10-27.
     and Outlast 2 reads "Player in Outlast · Commissioner in Outlast". The Computer players section has the same habit
     (it heads each game by `gameName`).
     - **The fix:** use the game's own name (`name`) when two games here share a `gameName`, as games.tsx's `twin` does.
+21. **The session loop: two gaps (noticed 2026-10-28, checking the lanes after a usage reset).**
+    - **Nothing stops a second loop in one lane's folder.** When the keeper starts a lane again, it opens a new window,
+      and the old one stays open saying "Stopped after N sessions. Run it again to carry on." Running it again there
+      starts a second loop on the same worktree and session. The keeper checks first; a person at the old window doesn't.
+      The fix: session-loop.js writes `.session-loop/loop.pid` and refuses to start while that process is alive.
+    - **The 90% pause is only checked before a session.** A session that's already running carries on to the 5-hour
+      limit: on 2026-10-28 both lanes ran the window to 100% at 3:48 PM, so the user's own sessions were blocked until
+      5:40. The fix, if that matters while the user works: pause the running session (the loop's own pause) when a
+      rate-limit event shows the window past `--pause-at`, and resume it after the reset. Overnight, running to 100% is
+      what the user wants.
+    - Either reaches a lane only after a sync and a restart of its loop (lanes run their branch's copy).
 
 ## Decided against (don't re-propose without new information)
 
