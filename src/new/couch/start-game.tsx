@@ -21,9 +21,9 @@ import { openCouchSheet } from "./couch-sheets";
 //     each in a line in the show's own words ("Draft five drivers, start three each race"); what doesn't fit, in a line; a
 //     talk show's Weekly Bingo (step 12 part 3: a card a show, bingo.tsx) and Weekly Calls (part 2: two calls a show); How long
 //     (docs/PLAN-sports-data.md step 6, spans.ts: the rest of the season, just the next one, this series for a sport, or
-//     through any later episode the listing has); Computer players (none to three, at one level, in a competition's drafts and
-//     Survival Pool: computer-players.ts; Backstage › Members adds more or takes them out); Tell the couch (one alert, on by
-//     default); Start it.
+//     through any later episode the listing has); Computer players (none to three, at one level, in the drafts and Survival
+//     Pool: computer-players.ts; Backstage › Members adds more or takes them out); Tell the couch (one alert, on by default);
+//     Start it.
 //   - without one (the hub's foot, Commercial break, Get the couch going with nothing to suggest): Pick the show first, from
 //     your shows still airing; one that isn't a game yet goes to Make it a game.
 //   - `again` (Run it back): the same game, its name and settings, on the show's next season.

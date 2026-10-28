@@ -4,7 +4,7 @@ import type { LeagueState } from "@/lib/game/types";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { dropBlindPicksForPlayer } from "./blind-draft";
 import { plainChange } from "./change-log";
-import { pool, withLeagueLock, HttpError } from "./db";
+import { withLeagueLock, HttpError } from "./db";
 import { couchGames } from "./league-changes";
 
 // Computer players in a couch's games (src/lib/game/computer-players.ts has the rules): Backstage › Members lists each game's,
@@ -29,23 +29,18 @@ export interface GameBots {
 }
 
 /** A game's computer players, or null when they don't play it (computer-players.ts botsPlay). */
-export function gameBots(s: LeagueState, kind: string): GameBots | null {
+export function gameBots(s: LeagueState): GameBots | null {
   const bots = botsIn(s);
-  if (!botsPlay(s, kind) && !bots.length) return null;
+  if (!botsPlay(s) && !bots.length) return null;
   return {
     bots: bots.map((p) => ({ playerId: p.id, name: p.name, level: levelOf(p) })),
-    add: botsPlay(s, kind) ? addProblem(s) : "Computer players don't play this game",
+    add: botsPlay(s) ? addProblem(s) : "Computer players don't play this game",
     remove: removeProblem(s),
     drafted: !!s.draftPicksMade || StateLogic.BlindDraftLogic.isRevealed(s),
   };
 }
 
 const isLevel = (v: unknown): v is BotLevel => v === "easy" || v === "normal" || v === "sharp";
-
-async function showKind(seasonId: string): Promise<string> {
-  const { rows } = await pool.query("SELECT s.kind FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [seasonId]);
-  return (rows[0]?.kind as string | undefined) ?? "competition";
-}
 
 /** The game, when you run it on this couch's season. */
 async function yours(user: SessionUser, seasonId: string, couchId: string | null, leagueId: unknown): Promise<string> {
@@ -65,14 +60,13 @@ export type BotAction = { leagueId?: unknown; action?: unknown; level?: unknown;
  */
 export async function changeBots(user: SessionUser, seasonId: string, couchId: string | null, body: BotAction): Promise<{ names: string[] }> {
   const leagueId = await yours(user, seasonId, couchId, body.leagueId);
-  const kind = await showKind(seasonId);
   const names: string[] = [];
   if (body.action === "add") {
     const level = isLevel(body.level) ? body.level : "normal";
     await withLeagueLock(
       leagueId,
       (s) => {
-        if (!botsPlay(s, kind)) throw new HttpError(409, "Computer players don't play this game");
+        if (!botsPlay(s)) throw new HttpError(409, "Computer players don't play this game");
         const problem = addProblem(s);
         if (problem) throw new HttpError(409, problem);
         names.push(addBot(s, level).name);

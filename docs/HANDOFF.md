@@ -85,7 +85,7 @@ then the browser at 390 on Night and Studio); check-research-asks 50, results wa
 Left: BACKLOG 17, 18, 19.
 
 **Computer players for anyone (2026-10-27, pushed to master; no migration):** no longer only the solo practice couch. **Start a game**
-has a Computer players choice (None, 1, 2, 3, then Easy / Normal / Sharp) on a competition's drafts and Survival Pool;
+has a Computer players choice (None, 1, 2, 3, then Easy / Normal / Sharp) on the drafts and Survival Pool, any show;
 **Backstage › Members** has a Computer players section for whoever runs a game (Commissioner or Game admin): add one, set
 its level, take one or all of them out behind a hold (tier 3, no restore: the sentence says what happens). The user's rules:
 they join before the draft starts (with no draft, before the game's first results), and **can't be taken out while the draft
@@ -93,7 +93,9 @@ is open**, only before it or once it's done (after it, their teams go and whoeve
 their seats Computer. The **practice couch** is offered to everyone on the Games tab (a Practice block under Start a game),
 not only someone solo; the public pool stays solo-only. Rules: `src/lib/game/computer-players.ts` (pure; tests/computer-
 players.test.js); writes `src/lib/server/computer-players.ts`, `POST /api/seasons/[id]/backstage/computer`; Start's `bots` and
-`level`. Not offered on a series or sport (bot-logic.js assumes someone goes home each episode). Checks:
+`level`. On a series or sport (since a follow-up the same day: the user expected them on the World Series) nobody goes home,
+so the bots have no danger to read and go on form, points per episode: a sport's pool (survive by scoring) and lineups pick
+whoever's scoring (tests/computer-players.test.js). The practice couch stays competition-only (solo.ts soloBlocked). Checks:
 `scripts/dev-test/check-new-computer-players.js` 43 PASS at 390; unit tests 746. Noticed, not fixed: Members' role line
 repeats a game name when the couch has two of a kind ("Commissioner in Outlast" for Outlast and Outlast 2): `roleLine` uses
 `gameName`, not the game's own name (BACKLOG).

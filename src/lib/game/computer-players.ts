@@ -6,8 +6,9 @@ import { BOT_NAMES } from "./practice";
 // with Start a game's Computer players or Backstage › Members by whoever runs the game (Commissioner or Game admin). Pure, for
 // the tests; the server's writes are src/lib/server/computer-players.ts.
 //
-//   Which games: a competition's draft games and Survival Pool, the ones bot-logic.js plays (the calls and bingo games are each
-//   person's own; a series or sport has nobody going home, which the bots' reads assume).
+//   Which games: the draft games and Survival Pool on any show, the ones bot-logic.js plays (the calls and bingo games are each
+//   person's own). Where nobody goes home (a series, a sport) the bots have no danger to read and go on form: points per
+//   episode, which is what a sport's pool (survive by scoring) and lineups want.
 //   Adding: before a draft starts (a bot added after it is an inactive seat: RosterLogic.addPlayer), and in a game with no
 //   draft before its first result of its own (later it would have missed picks).
 //   Taking out: any time but while the draft is open (the user, 2026-10-27: "they can't be removed during a draft"). Before it,
@@ -31,9 +32,9 @@ export const botsIn = (s: LeagueState): Seat[] => s.players.filter((p) => p.auto
 export const levelOf = (p: Seat): BotLevel => LEVEL_OF[p.botLevel ?? "solid"] ?? "normal";
 
 /** Whether bot-logic.js plays this kind of game: a draft or Survival Pool, not a calls or bingo game. */
-export function botsPlay(s: LeagueState, kind = "competition"): boolean {
+export function botsPlay(s: LeagueState): boolean {
   const t = StateLogic.getLeagueType(s) as { hasRoster?: boolean; hasWeeklyPicks?: boolean; hasCalls?: boolean; hasBingo?: boolean };
-  return kind === "competition" && !t.hasCalls && !t.hasBingo && !!(t.hasRoster || t.hasWeeklyPicks);
+  return !t.hasCalls && !t.hasBingo && !!(t.hasRoster || t.hasWeeklyPicks);
 }
 
 /** A draft that's open: started, and not yet done (every pick made, or the blind draft revealed). */

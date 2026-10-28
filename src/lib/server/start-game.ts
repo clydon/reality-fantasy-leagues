@@ -53,7 +53,7 @@ export interface StartChoice extends GameFit {
   line: string;
   /** How many of this game the couch already plays here. */
   have: number;
-  /** Computer players can join it (computer-players.ts botsPlay: a competition's drafts and Survival Pool). */
+  /** Computer players can join it (computer-players.ts botsPlay: the drafts and Survival Pool, on any show). */
   bots: boolean;
 }
 
@@ -153,7 +153,7 @@ export async function startOptions(user: SessionUser, seasonId: string, couchId:
   const have = (key: SeasonGameKey) => here.filter((g) => KEY_OF[g.gameType] === key && !g.archived).length;
   const show = plain(h.show.name);
   // Every season game with whether it fits (the sheet shows the ones that do; the rest are the doesn't-fit line).
-  const choices: StartChoice[] = fits.map((g) => ({ ...g, line: gameLine(g.key, blocks) ?? "", have: have(g.key), bots: (blocks.kind ?? h.show.kind) === "competition" && BOT_GAMES.has(g.key) }));
+  const choices: StartChoice[] = fits.map((g) => ({ ...g, line: gameLine(g.key, blocks) ?? "", have: have(g.key), bots: BOT_GAMES.has(g.key) }));
 
   // Who on the couch watches it openly or plays it, for Tell the couch's line (never how far: the guard).
   const others = people.filter((p) => p.userId !== user.id);
@@ -296,7 +296,7 @@ export async function startGame(user: SessionUser, seasonId: string, couchId: st
   // Computer players in the seats (computer-players.ts), seated before anyone joins, at one level.
   const bots = typeof body.bots === "number" && Number.isInteger(body.bots) ? body.bots : 0;
   if (bots < 0 || bots > MAX_BOTS) throw new HttpError(400, `Up to ${MAX_BOTS} computer players`);
-  if (bots && !choice.bots) throw new HttpError(409, `Computer players don't play ${choice.name}${opts.kind === "competition" ? "" : ` on ${opts.show} yet`}`);
+  if (bots && !choice.bots) throw new HttpError(409, `Computer players don't play ${choice.name}`);
   const level: BotLevel = body.level === "easy" || body.level === "sharp" ? body.level : "normal";
   const couch = opts.couch.id;
   const here = await couchGamesOn(user, couch, seasonId);

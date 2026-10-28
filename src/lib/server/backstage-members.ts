@@ -58,14 +58,13 @@ export async function membersFor(user: SessionUser, seasonId: string, couchId: s
   const { here, runs, admin } = await scope(user, seasonId, couchId);
   if (!runs.size) throw new HttpError(403, "Backstage is for whoever runs a game here");
   const ids = here.map((g) => g.leagueId);
-  const [{ rows }, states, { rows: kind }] = await Promise.all([
+  const [{ rows }, states] = await Promise.all([
     pool.query(
       `SELECT m.league_id, m.user_id, m.player_id, m.role, COALESCE(u.username, u.name) AS name, min(m.created_at) OVER (PARTITION BY m.user_id) AS first
          FROM league_memberships m JOIN "user" u ON u.id = m.user_id WHERE m.league_id = ANY($1::uuid[])`,
       [ids]
     ),
     leagueStates(ids),
-    pool.query("SELECT s.kind FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [seasonId]),
   ]);
   // Named as the games name them (their seat: "alex"), as the tables do; the account's name when there's no seat.
   const seatName = (leagueId: string, playerId: string | null) => states.get(leagueId)?.players.find((p) => p.id === playerId)?.name ?? null;
@@ -90,7 +89,7 @@ export async function membersFor(user: SessionUser, seasonId: string, couchId: s
         gameName: g.gameName,
         gameType: g.gameType,
         yours: admin || g.yourRole === "commissioner",
-        computer: s ? gameBots(s, kind[0]?.kind ?? "competition") : null,
+        computer: s ? gameBots(s) : null,
       };
     }),
     members,

@@ -26,14 +26,39 @@ function league(type) {
   return s;
 }
 
-test("they play the drafts and Survival Pool on a competition, not the calls or bingo games, nor a series or sport", () => {
+test("they play the drafts and Survival Pool, not the calls or bingo games", () => {
   assert.ok(CP.botsPlay(league("classic-draft")));
   assert.ok(CP.botsPlay(league("active-roster")));
   assert.ok(CP.botsPlay(league("pickem")));
   assert.equal(CP.botsPlay(league("weekly-calls")), false);
   assert.equal(CP.botsPlay(league("weekly-bingo")), false);
-  assert.equal(CP.botsPlay(league("classic-draft"), "sport"), false);
-  assert.equal(CP.botsPlay(league("active-roster"), "series"), false);
+});
+
+// A sport (start-game.ts): Weekly Lineup's blind draft of the whole grid, and a pool whose pick survives by scoring. Nobody
+// goes home, so the bots go on form: points per game.
+test("a sport: they lock in a full blind draft across the teams, and pick the pool's best scorer", () => {
+  const s = league("active-roster");
+  s.settings.ownershipMode = "shared";
+  const bot = CP.addBot(s, "sharp");
+  s.draftForceStarted = true;
+  const [sub] = Bots.blindSubmissions(s);
+  assert.equal(sub.playerId, bot.id);
+  assert.equal(sub.castawayIds.length, StateLogic.rosterSize(s));
+  assert.ok(new Set(sub.castawayIds.map((id) => StateLogic.getCastaway(s, id).tribeId)).size > 1, "spread across the teams");
+
+  const p = league("pickem");
+  p.settings.poolSurvive = "scores";
+  const pb = CP.addBot(p, "sharp");
+  // Game 1: b3 scored big, everyone else nothing.
+  const g1 = p.episodes.find((e) => e.number === 1);
+  const scorer = StateLogic.formatOf(p).events.find((e) => StateLogic.ActiveRosterLogic.eventPoints(p, { type: e.id, castawayId: "b3" }) > 0);
+  assert.ok(scorer, "the format has a moment that scores");
+  g1.scoringEvents = [{ id: "ev1", type: scorer.id, castawayId: "b3" }];
+  g1.airDate = new Date(Date.now() - 86400000).toISOString();
+  StateLogic.ensureNextEpisode(p);
+  Bots.run(p);
+  const g2 = p.episodes.find((e) => e.number === 2);
+  assert.equal(StateLogic.PickEmLogic.pickFor(p, g2.id, pb.id)?.castawayId, "b3", "the one in form");
 });
 
 test("named after nobody in the game, at the level asked, into the draft order", () => {

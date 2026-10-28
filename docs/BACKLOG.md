@@ -151,11 +151,6 @@ Last updated 2026-10-27.
     and Outlast 2 reads "Player in Outlast · Commissioner in Outlast". The Computer players section has the same habit
     (it heads each game by `gameName`).
     - **The fix:** use the game's own name (`name`) when two games here share a `gameName`, as games.tsx's `twin` does.
-21. **Computer players on a series or sport (noticed 2026-10-27, building computer players for anyone).** They're offered
-    only on a competition, because `bot-logic.js` reads danger from who's been voted at and who went home; on a show where
-    nobody leaves it would draft and set lineups on points alone, legally but blindly.
-    - **The fix, when asked for:** a points-only reading in bot-logic.js for shows with no exits, then let `botsPlay` take any
-      kind (the practice couch's "Solo games come to this kind of show later" goes with it).
 
 ## Decided against (don't re-propose without new information)
 
