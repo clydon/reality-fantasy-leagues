@@ -62,9 +62,12 @@ async function run(espn, file) {
     clearTimer: (t) => clearTimeout(t),
     visible: () => visible,
     fetch: async (url) => {
+      // As it's sent: an answer can come back after the screen's hidden.
       const at = r.at();
+      const hidden = !visible;
+      const failing = !!r.down;
       const res = await fetch(url);
-      asks.push({ at, ok: res.ok, hidden: !visible, down: !!r.down });
+      asks.push({ at, ok: res.ok, hidden, down: failing });
       return res;
     },
     onChange: (game) => {

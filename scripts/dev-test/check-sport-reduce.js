@@ -12,11 +12,14 @@
 //   node scripts/dev-test/check-sport-reduce.js --league=football/nfl --weeks=5-8 [--season=2026] [--seasontype=2] [--max=80]
 //   node scripts/dev-test/check-sport-reduce.js --league=football/nfl --weeks=1-5 --season=2025 --seasontype=3
 //        [--cache=<dir>] [--verbose]
-//   (any league a sport reads: basketball/nba, basketball/wnba, hockey/nhl, soccer/eng.1, soccer/usa.1, soccer/fifa.world ...)
+//   node scripts/dev-test/check-sport-reduce.js --league=basketball/mens-college-basketball --from=2026-01-17 --groups=50
+//   (any league a sport reads: basketball/nba, basketball/wnba, basketball/womens-college-basketball, hockey/nhl, soccer/eng.1,
+//   soccer/usa.1, soccer/fifa.world ...)
 //
 // --from/--days: the finished games on those days' scoreboards (ESPN's days), at most --max; --weeks: football's weeks instead
-// (its scoreboards go by week; --season and --seasontype with it, and --groups=80 for college football's FBS games once a sport
-// reads it); --events: just these. --cache keeps
+// (its scoreboards go by week; --season and --seasontype with it); --groups: a college board's group (ESPN's own lists only its
+// featured games: --groups=50 is every Division I basketball game that day, --groups=80 college football's FBS); --events: just
+// these. --cache keeps
 // each finished answer as a file (default: rfl-espn-cache in the OS temp folder: a final game, a day whose games are all over),
 // so running it again asks ESPN nothing. Prints each game
 // OK or its differences (with the reader's notes under --verbose), then a total; exits 1 on any difference.
@@ -50,6 +53,9 @@ async function get(url, file, done) {
 const finalGame = (s) => s.header?.competitions?.[0]?.status?.type?.completed === true;
 const dayOver = (b) => (b.events ?? []).length > 0 && b.events.every((e) => e.status?.type?.completed === true);
 
+/** A college board's group (--groups): its query and its cache file's suffix. */
+const group = args.groups ? { query: `&groups=${args.groups}`, file: `-g${args.groups}` } : { query: "", file: "" };
+
 async function events() {
   if (args.events) return String(args.events).split(",").filter(Boolean);
   const out = [];
@@ -60,8 +66,7 @@ async function events() {
     const season = args.season || "2026";
     const type = args.seasontype || "2";
     for (let w = a; w <= (b || a) && out.length < Number(args.max || 40); w++) {
-      const groups = args.groups ? `&groups=${args.groups}` : "";
-      const board = await get(`${SITE}/${league}/scoreboard?dates=${season}&seasontype=${type}&week=${w}${groups}&limit=300`, `${league.replace("/", "-")}-board-${season}-${type}-${w}${args.groups ? `-g${args.groups}` : ""}.json`, dayOver);
+      const board = await get(`${SITE}/${league}/scoreboard?dates=${season}&seasontype=${type}&week=${w}${group.query}&limit=300`, `${league.replace("/", "-")}-board-${season}-${type}-${w}${group.file}.json`, dayOver);
       for (const e of board.events ?? []) if (e.status?.type?.completed) out.push(String(e.id));
     }
     return out.slice(0, Number(args.max || 40));
@@ -70,7 +75,7 @@ async function events() {
   for (let d = 0; d < Number(args.days || 1); d++) {
     const day = new Date(from.getTime() + d * 86400000).toISOString().slice(0, 10).replace(/-/g, "");
     // A day's scoreboard changes until its games are over; only then is it cached.
-    const board = await get(`${SITE}/${league}/scoreboard?dates=${day}&limit=300`, `${league.replace("/", "-")}-board-${day}.json`, dayOver);
+    const board = await get(`${SITE}/${league}/scoreboard?dates=${day}&limit=300${group.query}`, `${league.replace("/", "-")}-board-${day}${group.file}.json`, dayOver);
     for (const e of board.events ?? []) if (e.status?.type?.completed) out.push(String(e.id));
   }
   return out.slice(0, Number(args.max || 40));

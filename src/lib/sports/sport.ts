@@ -329,7 +329,8 @@ export const msOf = (t: string | number | Date | null | undefined): number | nul
  * and BoutSport (MMA, tennis) when L5 brings them.
  */
 export abstract class Sport {
-  /** ESPN's sport slug, the first half of its league paths ("baseball" of "baseball/mlb"). */
+  /** ESPN's sport slug, the first half of its league paths ("baseball" of "baseball/mlb"): its defaults' key. A slug's sports
+   *  share it (basketball's NBA and college's two), so a sport is found by its league (index.ts's sportOf), never its id alone. */
   abstract readonly id: string;
   abstract readonly name: string;
   abstract readonly groups: PositionGroup[];

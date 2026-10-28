@@ -429,6 +429,9 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
 - **L5. More of ESPN:** soccer; college and the WNBA; golf, racing, MMA and tennis (the field and bout shapes). A part per
   session: part 1, soccer (built 2026-10-28: As built below); part 2, college (basketball, football, baseball, hockey) and the
   WNBA; then golf and racing (FieldSport); then MMA and tennis (BoutSport).
+  - **Part 2 split in three (2026-10-28):** 2a, college basketball and the WNBA (built: As built below); 2b, college football
+    (its own grammar of plays, on Football's vocabulary and box reader: a session of its own); 2c, college baseball and college
+    hockey.
 - **L6. Release:** `sports` merges into master at once (migrations checked against a production backup first), then G3
   teaches the GPT these formats.
 - Its screens (the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync, each format's
@@ -589,7 +592,7 @@ nothing stored).** Football, whose plays are text only, is part 2's next session
   correction also takes back what the plays credit to someone ESPN's box lists with no line (a player who didn't play), and
   the final keeps the shootout flag.
 - **`Basketball`** (`basketball.ts`; the NBA and the WNBA; college basketball plays halves, so `sportOf` gives it null until
-  L5): guards, forwards, centers (PG SG G, SF PF F, C: a box score says G, F or C, a roster PG to C); MIN PTS FGM FGA 3PM 3PA
+  L5; read since L5 part 2a, below): guards, forwards, centers (PG SG G, SF PF F, C: a box score says G, F or C, a roster PG to C); MIN PTS FGM FGA 3PM 3PA
   FTM FTA OREB DREB REB AST STL BLK TO PF PM (+/−), FG% 3P% FT%, DD and TD game by game; four quarters ("2nd quarter, 5:32");
   daily locks. **Known at the final: MIN and PM** (who's on the floor, which ESPN's substitutions only mostly say).
   **Judged: REB, OREB, DREB, AST, STL, BLK, TO** (the statistician's calls, which ESPN's box can credit to a teammate after the
@@ -659,7 +662,9 @@ nothing stored).** Football, whose plays are text only, is part 2's next session
   shifts. (L3, if live points need them.)
 - **A goalie changed mid-period whose first shot faced is a goal** is charged to the one pulled until the final: no play says
   a goalie changed (the intermission's case is handled). (L3.)
-- **The heave rule is checked on the NBA only**: the WNBA's ten games had none. (L5, with the WNBA's next season.)
+- ~~**The heave rule is checked on the NBA only**~~: the WNBA's ten games had none. (L5, with the WNBA's next season.)
+  **Done** in L5 part 2a: the WNBA has no heave rule (no play typed one in 120 games of 2026, and its 39 long misses in a
+  quarter's last 3 s are each the shooter's attempt in ESPN's box), which the reader already did.
 - **A possession's neutral plays** (the defense's foul right after a steal) stay in the possession before. (L4's live calls,
   if "this possession" needs them exact.)
 - **A shutout in a 0-0 game won in a shootout** goes to the winner's goalie only; the NHL's own rule wasn't checked. Rare.
@@ -1124,6 +1129,99 @@ spec parts and L3 (the main session's order).
   waits for the final (no case seen).
 - **A sub's position is his roster's** (a match sheet says "SUB"): slots read `season_cast.role` (G, D, M, F), as L1's Noticed
   says for every sport. (L4.)
+
+**L5 part 2a as built: college basketball and the WNBA (2026-10-28, `sports`, not merged; no migration, no ESPN calls from the
+app, nothing stored).** Master still hadn't A1-A4 (the main session's order). College is split in three (L5's line): this is
+2a; 2b is college football, 2c college baseball and hockey.
+- **What ESPN gives** (checked on 348 men's and 168 women's college games of 2025-26 and 120 of the WNBA's 2026, 2026-10-28):
+  - **The WNBA writes its plays as the NBA does** (the same types, people in the same order, the same shot flags): `Basketball`
+    reads it unchanged. No play is typed a heave in its 2026 season (the NBA's first week has 53): its 39 long misses in a
+    quarter's last 3 s (36 feet or more) are typed as any shot and ESPN's box counts each as the shooter's attempt. So the
+    WNBA has no heave rule, and the reader (a heave only when typed or said) already agreed.
+  - **College basketball is another feed, the men's and the women's alike** (both the NCAA's): plays typed "JumpShot",
+    "LayUpShot", "TipShot", "DunkShot", "MadeFreeThrow" (a miss too), "PersonalFoul", "Technical Foul", "Lost Ball Turnover"
+    (every turnover), "Offensive Rebound", "Defensive Rebound", "Dead Ball Rebound", with the NBA's shot flags and every play's
+    wallclock (67,000 plays in 147 games, none without). **A block and a steal are plays of their own** ("Aday Mara Block.",
+    "Elliot Cadeau Steal.", after the shot or turnover at the same clock, naming only their own player), so a shot's second
+    person is only ever its assister. Texts come two ways ("makes 10-foot hook shot (X assists)", "made Layup. Assisted by
+    X."), and a free throw's may not say which of how many ("made Free Throw."). The jump ball is "Jump Ball won by UConn" and
+    "lost by Michigan", a play for each side. **The men's play two halves of 20 minutes, the women's four quarters of 10**
+    (ESPN's `format`; the NCAA's rules since 2015-16), overtimes of 5. A college box has no plus/minus and says G, F or C.
+  - **A college box's team totals count the team's own**: its rebounds and turnovers are its players' plus the team's own plays
+    (a team rebound, a shot clock turnover) in 293 of 294 sides, its fouls its players' plus bench technicals in 294 of 294
+    (the NBA's leave them out).
+  - **A player's technical is one of his personal fouls** in ESPN's college box (the NCAA's rule): 65 of 69 player technicals;
+    the other 4 aren't (the plays don't say a technical's class).
+- **`CollegeBasketball`** (`basketball.ts`, a subclass of `Basketball`): Basketball's vocabulary but `PM`; an instance a league
+  (`new CollegeBasketball("mens-college-basketball", "Men's college basketball", HALVES)`, the women's with `QUARTERS`), so its
+  `periods` are the league's ("2nd half, 5:32", "2nd overtime"); `id` stays "basketball" (ESPN's slug: its defaults are
+  basketball's). `index.ts`: a sport slug can have more than one sport (`sportOf` finds the one naming the league; `sportById`
+  gives the slug's first, the pro leagues'; `Sport.id` says a sport is found by its league). Both readers share
+  `Basketball.readFeed` (the score, possessions and the Play), each reading a play its own way. College's: shots by the flags
+  (a three by `pointsAttempted` or "three point": they agree on 61,558 of 61,570 shots; "blocked" when its block is the next
+  play at its clock, as the NBA's says it), a free throw by its type, an assist from the shot's text, a block and a steal from
+  their own plays, rebounds and turnovers (a team's own nobody's), personal fouls and a player's technicals (a bench's
+  nobody's); possessions as the NBA's (a free throw with no count ends one when no more of the side's follow at that clock
+  before a technical; a dead ball's team rebound changes it only when the ball changes hands; **a technical owes the other
+  side two free throws at its clock**, which stay in the possession they interrupt: ESPN's sequences around 69 technicals). **A player
+  the plays name by an id the box doesn't have** (a women's game: Tierra Simon's 22 plays under another id) is the one on the
+  play's side its text names (as a whole name), when only one is. Its box: Basketball's, its team totals without REB, OREB,
+  DREB, TO and PF (the team's own: above).
+- **Defaults: basketball's file, unchanged** (`defaultsFor("basketball")`): a WNBA or college box says G, F or C and every
+  default slot takes them (a PG slot takes G); the points and categories are the same stats. Neither Yahoo nor ESPN runs a
+  college basketball game to take other defaults from.
+- **Fixtures** (`record-espn.js`, 167-203 KB each): the 2026 men's final, Michigan 69 UConn 63 (`ncaam-401856600.json`), Navy at
+  Lehigh in two overtimes (`ncaam-401820165.json`), the 2026 women's final, UCLA 79 South Carolina 51 (`ncaaw-401856590.json`),
+  Mount St. Mary's at Richmond (`ncaaw-401813906.json`: the other id), and the 2026 WNBA Finals' Game 2, Dream 79 Valkyries 65
+  (`wnba-401918306.json`: a 55-foot miss at the first quarter's buzzer).
+- **Checks.**
+  - `tests/sports-college-basketball.test.js` (10): the vocabulary (both leagues, halves and quarters, no plus/minus, the NBA's
+    still the slug's own); the defaults' slots filled by G, F and C; the box score, and ESPN's college team totals as players
+    plus the team's own plays on every fixture; **the proof** on each fixture (255-390 numbers, the team totals and the score,
+    no notes, nobody credited who didn't play); the plays (the jump ball's possession, a block and a steal of their own, an
+    assist each way, a team's rebound, free throws in one possession); the other id resolved; `stateAt` at the half and
+    through two overtimes; the final's correction (only minutes; with it every number; none live); and on a made-up game
+    technicals (a player's, a bench's), a technical's free throws, free throws with no count, a team's turnover and dead ball
+    rebound, a name the box hasn't by that id (and one the text can't tell). `tests/sports-basketball.test.js` gains the
+    WNBA's Finals game: the proof (300 numbers), its buzzer miss an attempt, the final.
+  - `check-sport-reduce.js` takes `--groups` on days too (`--groups=50`: every Division I game; ESPN's board lists only its
+    featured ones). On real games, **the days it was tuned on** (featured games, seven men's days and six women's of 2025-26):
+    men's 88 of 91, women's 56 of 56. **Then on their first run after the reader's last change**: men's full Division I days,
+    November 8 53 of 68, January 17 94 of 100, February 7 93 of 100, and the tournament's March 26-28 9 of 10; women's
+    November 8 35 of 38, January 18 43 of 44, February 8 30 of 31, March 27-29 10 of 10. **Every cached game: men's 316 of
+    348, women's 163 of 168 (~240,000 plays); the WNBA 118 of 120** (~49,000). What's left is ESPN's own, each read in its
+    data: a basket or free throws the plays credit to a teammate (the box corrected after: most of them, more in small
+    conferences' games), an attempt one more or fewer (a shot missing from the plays, a nameless "missed Three Point Jumper.",
+    "misses 5-foot three point pullup jump shot"), a player's technical the box doesn't count (4), players named all game by
+    teammates' ids (FGCU's Staton sisters, text and id both the other's), and **Ohio State–TCU (March 19), its plays filed
+    twice from two scorers' feeds** (47 plays a second apart, the copies' clocks and distances off by one). The WNBA's two: a
+    basket its box credits to a teammate. The final's correction settles them all.
+  - `check-live-clock.js` replays the five new fixtures unchanged, and every recorded game at once: 17 of 17. Its asks now
+    note the screen hidden as they're sent (an answer coming back after the screen hid had counted as an ask while hidden: the
+    run of the five new games at once showed it).
+  - 939 unit tests; `tsc` clean; eslint clean on `src/lib/sports`.
+  - `/code-review` on the diff (its fixes: a technical's free throws bounded to its two at its clock, where a flag had held
+    until the next shot; the no-count look-ahead stopping at a technical; a name matched whole, not inside a longer one;
+    college's blocked shot "blocked" as the NBA's; the two readers' loop shared, not copied (`readFeed`); each college league
+    its own name; `QUARTERS` shared; the roster read once; `--groups` one helper. Kept, after reading the data: a college
+    box's team totals without the team's own, as hockey's leave out its bench minors, since ESPN counts plays in them that are
+    nobody's line). The NBA's cached games read as before (50 of 63), and every college and WNBA number above is after it.
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data (the dev checks asked ESPN ~700 times,
+    every finished answer cached).
+
+**L5 part 2a noticed, not fixed:**
+- **A doubled feed** (Ohio State–TCU, 1 of 516 college games): live, its score and lines run up to a quarter high until the
+  final. Nothing tells a copy from a real repeat (a made basket that doesn't move ESPN's running score happens in 40 normal
+  games too: ESPN's per-play scores lag). (L3, if a live screen needs it: the scorebug from the header's score at each answer.)
+- **Small conferences' plays are sloppier** (November 8's full Division I day 53 of 68; the featured games 95%+): live points
+  there can be a basket off until the final. (L3; nothing to read.)
+- **Minutes come only at the final**, as the NBA's: college's substitutions ("subbing in for", "subbing out for") could track
+  who's on. (L3, with the NBA's.)
+- **A technical's class isn't in the plays**: a live personal-foul count can be one high (4 of 69). Rare.
+- **A college team's fouls** (for the bonus: a scorebug's "bonus" or "double bonus") aren't in its box's totals here (they count
+  bench technicals): a screen counts them from the plays, its players' fouls and its technicals. (U1, with the scorebug.)
+- **The WNBA's first live game is still to record**: its Finals' Game 6 is 2026-10-29 at Atlanta (the Valkyries lead 3-2; Game
+  7, if needed, 10-31), `record-espn-live.js --league=basketball/wnba`. College basketball's season starts in November.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

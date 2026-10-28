@@ -13,13 +13,14 @@ const examples = require("./fixtures/sports-examples.js");
 
 const basketball = sportOf("basketball/nba");
 const OPENER = require("./fixtures/espn/nba-401909093.json");
+const WNBA_FINALS = require("./fixtures/espn/wnba-401918306.json");
 const nameOf = (box, name) => Object.values(box.people).find((p) => p.name === name);
 
 test("Basketball's vocabulary: unique stat keys, positions in their groups, four quarters, daily locks; the NBA and the WNBA", () => {
   assert.equal(basketball.id, "basketball");
   assert.equal(sportOf("basketball/wnba"), basketball);
   assert.equal(sportById("basketball"), basketball);
-  assert.equal(sportOf("basketball/mens-college-basketball"), null, "college plays halves: L5");
+  assert.notEqual(sportOf("basketball/mens-college-basketball"), basketball, "college is its own feed: tests/sports-college-basketball.test.js");
   assert.ok(allSports().includes(basketball));
   const keys = basketball.stats.map((s) => s.key);
   assert.equal(new Set(keys).size, keys.length, "keys are unique: a spec names a stat by its key alone");
@@ -107,6 +108,33 @@ test("the proof, the 76ers opener: the plays alone reduce to ESPN's own box scor
     for (const [k, v] of Object.entries(t.stats)) assert.equal(sum[k] ?? 0, v, `${t.abbreviation} ${k}`);
     assert.equal(state.score[t.id], t.score, `${t.abbreviation}'s score`);
   }
+});
+
+test("the WNBA: the 2026 Finals' Game 2 reduces to ESPN's box score, and a long miss at the buzzer is an attempt (no heave rule)", () => {
+  assert.equal(sportOf("basketball/wnba"), basketball);
+  const box = basketball.readBox(WNBA_FINALS);
+  assert.deepEqual(box.teams.map((t) => [t.abbreviation, t.home, t.score, t.winner]), [["GS", true, 65, false], ["ATL", false, 79, true]]);
+  const notes = [];
+  const plays = basketball.readPlays(WNBA_FINALS, notes);
+  assert.deepEqual(notes, []);
+  const state = basketball.reduce(plays);
+  let compared = 0;
+  for (const p of Object.values(box.people))
+    for (const [k, v] of Object.entries(p.stats)) {
+      if (basketball.stat(k).known === "final") continue;
+      assert.equal(state.lines[p.id]?.[k] ?? 0, v, `${p.name} ${k}`);
+      compared++;
+    }
+  assert.equal(compared, 300);
+  for (const t of box.teams) assert.equal(state.score[t.id], t.score);
+  // The WNBA's feed types no shot a heave (none in its 2026 season's 120 games checked): its long misses in a quarter's last
+  // seconds are typed as any shot, and ESPN's box counts each as the shooter's attempt (39 in 35 of those games, all exact).
+  assert.ok(!WNBA_FINALS.plays.some((p) => /heave/i.test(p.type.text + p.text)));
+  const buzzer = plays.filter((p) => p.kind === "miss" && Number(/(\d+)-foot/.exec(p.text)?.[1]) >= 36 && Number(p.clock) <= 3);
+  assert.ok(buzzer.length >= 1, "a long miss at the buzzer");
+  for (const p of buzzer) assert.equal(Object.values(p.deltas)[0].FGA, 1, p.text);
+  const end = basketball.reduce(basketball.timeline(WNBA_FINALS));
+  for (const p of Object.values(box.people)) for (const [k, v] of Object.entries(p.stats)) assert.equal(end.lines[p.id]?.[k] ?? 0, v, `${p.name} ${k} with the final`);
 });
 
 test("plays: in time order, each with its quarter, clock, possession, people and deltas", () => {

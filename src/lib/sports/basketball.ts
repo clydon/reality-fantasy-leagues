@@ -1,6 +1,6 @@
-import { TeamSport, addStats, cleanDeltas, count as stat, headerTeams, idOf, inOrder, isFinal, num, pair, position as pos, ratio, rosterOf, str, val as n, type Box, type BoxPerson, type EspnSummary, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
+import { TeamSport, addStats, cleanDeltas, count as stat, headerTeams, idOf, inOrder, isFinal, num, pair, position as pos, ratio, rosterOf, str, val as n, type Box, type BoxPerson, type EspnPlay, type EspnSummary, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
 
-// Basketball (the NBA and the WNBA; college basketball plays halves, so it waits for L5): its vocabulary and ESPN's readers.
+// Basketball (the NBA and the WNBA; college basketball, its own feed, below): its vocabulary and ESPN's readers.
 //
 // How ESPN records a game (checked on the 2026-27 NBA's first games, 2026-10-28): every play is typed ("Pullup Jump Shot",
 // "Bad Pass\nTurnover", "Defensive Rebound", "Substitution") with its clock, its team (the shooter's, the rebounder's, the one
@@ -80,19 +80,66 @@ const TEAM: Record<string, string | [string, string]> = {
   fouls: "PF",
 };
 
+/** Basketball's periods: four quarters, then overtimes (the NBA's, the WNBA's, the women's college game's). */
+export const QUARTERS: Periods = { word: "quarter", plural: "quarters", regulation: 4, extra: "overtime" };
+/** Men's college basketball's: two halves of 20 minutes, then overtimes of 5 (ESPN's `format`). */
+export const HALVES: Periods = { word: "half", plural: "halves", regulation: 2, extra: "overtime" };
+
+/** What a feed's reader knows of one of ESPN's plays before reading it (Basketball.readFeed). */
+interface PlayFacts {
+  p: EspnPlay;
+  i: number;
+  raw: EspnPlay[];
+  /** Its type, lowercased ("defensive rebound"). */
+  type: string;
+  text: string;
+  /** Its text, lowercased. */
+  said: string;
+  team: string | null;
+  made: boolean;
+  /** A made shot's points. */
+  points: number;
+  /** Its people, by ESPN's athlete ids, in its order. */
+  ids: string[];
+}
+
+/** What a feed's reader makes of a play. */
+interface Reading {
+  kind: string;
+  /** Who's in it, by the ids their lines are under. */
+  people: string[];
+  deltas: Record<string, Stats>;
+  /** The side with the ball on it, when it says (a shot, a rebound, a turnover). */
+  offense: string | null;
+  /** It ends its possession (a made basket, a turnover, the last free throw). */
+  ends: boolean;
+  /** The ball's loose or dead before it (a defensive rebound, a period's end): whoever has it next starts a possession. */
+  loose: boolean;
+}
+
+const typeOf = (p: EspnPlay) => (str(p.type?.text) ?? "").toLowerCase().replace(/\s+/g, " ");
+/** A play's deltas, and how to add to them. */
+function tally() {
+  const deltas: Record<string, Stats> = {};
+  const add = (who: string | undefined, d: Stats) => {
+    if (who) deltas[who] = addStats(deltas[who] ?? {}, d);
+  };
+  return { deltas, add };
+}
+
 /** A foul that's a personal foul (a flagrant is; a technical, a defensive three seconds or a delay of game isn't). */
 const PERSONAL = (what: string) => /\bfoul\b|\bcharge\b/.test(what) && !/technical|3-second|three-second|three second|delay/.test(what);
 
 export class Basketball extends TeamSport {
   readonly id = "basketball";
-  readonly name = "Basketball";
+  readonly name: string = "Basketball";
   readonly groups = GROUPS;
   readonly positions = POSITIONS;
   readonly statGroups = [{ key: BOX, label: "Box score" }];
   readonly stats = STATS;
-  readonly periods: Periods = { word: "quarter", plural: "quarters", regulation: 4, extra: "overtime" };
+  readonly periods: Periods = QUARTERS;
   readonly lock: LockCadence = "daily";
-  // College basketball plays two halves (L5, with college).
+  // College basketball is its own feed: CollegeBasketball, below.
   readonly leagues = ["nba", "wnba"];
 
   readBox(summary: EspnSummary): Box | null {
@@ -143,33 +190,13 @@ export class Basketball extends TeamSport {
   }
 
   readPlays(summary: EspnSummary, issues?: string[]): Play[] {
-    const raw = summary.plays ?? [];
-    const event = idOf(summary.header?.id);
     const teamOf = rosterOf(summary);
-    const score: Record<string, number> = Object.fromEntries(headerTeams(summary).map((t) => [t.id, 0]));
-    const out: Play[] = [];
-    // Possessions: a new one when the ball changes hands, or after a made basket, a turnover or the last free throw.
-    let possession = 0;
-    let owner: string | null = null;
-    let over = true;
-
-    for (let i = 0; i < raw.length; i++) {
-      const p = raw[i];
-      const type = (str(p.type?.text) ?? "").toLowerCase().replace(/\s+/g, " ");
-      const text = str(p.text) ?? "";
-      const said = text.toLowerCase().replace(/\s+/g, " ");
-      const ids = (p.participants ?? []).map((x) => idOf(x.athlete?.id)).filter(Boolean);
-      const team = idOf(p.team?.id) || null;
-      const made = p.scoringPlay === true;
-      const points = made ? Math.max(0, num(p.scoreValue) ?? 0) : 0;
-      const deltas: Record<string, Stats> = {};
-      const add = (who: string | undefined, d: Stats) => {
-        if (who) deltas[who] = addStats(deltas[who] ?? {}, d);
-      };
+    return this.readFeed(summary, ({ p, type, text, said, team, made, points, ids }) => {
+      const { deltas, add } = tally();
       let kind = "other";
-      // The side with the ball on this play, when it says (a shot, a rebound, a turnover), and whether it ends the possession.
       let offense: string | null = null;
       let ends = false;
+      let loose = false;
 
       // By its type alone ("Free Throw - 1 of 2"): a lane violation's text says "free throw" too.
       if (/^free throw/.test(type)) {
@@ -199,7 +226,7 @@ export class Basketball extends TeamSport {
         // A team rebound ("Cavaliers offensive team rebound") is nobody's.
         if (ids[0] && !/team rebound/.test(said)) add(ids[0], { REB: 1, [offensive ? "OREB" : "DREB"]: 1 });
         offense = team;
-        if (!offensive) over = true;
+        loose = !offensive;
       } else if (/turnover/.test(type) || /\bturnover\b/.test(said)) {
         kind = "turnover";
         // A team's own (a shot clock, a 5-second violation) names nobody.
@@ -220,14 +247,39 @@ export class Basketball extends TeamSport {
       else if (/timeout/.test(type)) kind = "timeout";
       else if (/^end (?:period|game)|^end of/.test(type) || /^end of/.test(said)) {
         kind = /game/.test(type + said) ? "end" : "period-end";
-        over = true;
+        loose = true;
       } else if (/foul|technical|violation|goaltending|kicked|challenge|review|ejection|delay/.test(type)) kind = "violation";
+      return { kind, people: ids, deltas, offense, ends, loose };
+    });
+  }
 
-      if (offense && (offense !== owner || (over && kind !== "free-throw"))) {
+  /**
+   * ESPN's plays in order, each read by `read`, with what every basketball feed shares: the score from the made shots' values,
+   * and possessions (a new one when the ball changes hands, or after a made basket, a turnover or the last free throw; a free
+   * throw never starts one after the possession's over: an and-one's stays in its basket's).
+   */
+  protected readFeed(summary: EspnSummary, read: (f: PlayFacts) => Reading): Play[] {
+    const raw = summary.plays ?? [];
+    const event = idOf(summary.header?.id);
+    const score: Record<string, number> = Object.fromEntries(headerTeams(summary).map((t) => [t.id, 0]));
+    const out: Play[] = [];
+    let possession = 0;
+    let owner: string | null = null;
+    let over = true;
+    for (let i = 0; i < raw.length; i++) {
+      const p = raw[i];
+      const text = str(p.text) ?? "";
+      const team = idOf(p.team?.id) || null;
+      const made = p.scoringPlay === true;
+      const points = made ? Math.max(0, num(p.scoreValue) ?? 0) : 0;
+      const ids = (p.participants ?? []).map((x) => idOf(x.athlete?.id)).filter(Boolean);
+      const r = read({ p, i, raw, type: typeOf(p), text, said: text.toLowerCase().replace(/\s+/g, " "), team, made, points, ids });
+      if (r.loose) over = true;
+      if (r.offense && (r.offense !== owner || (over && r.kind !== "free-throw"))) {
         possession++;
-        owner = offense;
+        owner = r.offense;
         over = false;
-      } else if (offense) over = false;
+      } else if (r.offense) over = false;
       if (made && points && team) score[team] = (score[team] ?? 0) + points;
       out.push({
         id: idOf(p.id) || `${i}`,
@@ -236,15 +288,181 @@ export class Basketball extends TeamSport {
         half: null,
         clock: str(p.clock?.displayValue),
         text,
-        kind,
+        kind: r.kind,
         team,
         unit: possession ? `${event}:${possession}` : null,
-        people: [...new Set(ids)],
+        people: [...new Set(r.people)],
         score: { ...score },
-        deltas: cleanDeltas(deltas),
+        deltas: cleanDeltas(r.deltas),
       });
-      if (ends) over = true;
+      if (r.ends) over = true;
     }
     return inOrder(out);
+  }
+}
+
+/** A whole name in a play's text ("Ty Smith", not inside "Ty Smithson"). */
+const nameIn = (name: string) => new RegExp(`(?<![\\p{L}\\p{M}])${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![\\p{L}\\p{M}])`, "u");
+
+/**
+ * College basketball (docs/PLAN-start-a-game-gpt.md track L, step L5 part 2a): Basketball's vocabulary, but for plus/minus (its
+ * box score has none), on another of ESPN's feeds. One instance per league: the men's plays two halves, the women's four
+ * quarters (the NCAA's rules since 2015-16; ESPN's `format` says so for each), and both write their plays alike. Its `id` is
+ * the slug's, "basketball", as the NBA's is (its defaults are basketball's): a sport is found by its league (`sportOf`).
+ *
+ * How ESPN records a college game (checked on 516 men's and women's games of 2025-26, 2026-10-28): its plays are typed by the
+ * NCAA's feed ("JumpShot", "LayUpShot", "TipShot", "DunkShot", "MadeFreeThrow" for a miss too, "PersonalFoul", "Technical
+ * Foul", "Lost Ball Turnover" for every turnover, "Offensive Rebound", "Dead Ball Rebound"), with the same shot flags as the
+ * NBA's (`shootingPlay`, `scoringPlay`, `scoreValue`, `pointsAttempted`) and every play's wallclock. A block and a steal are
+ * plays of their own ("Aday Mara Block.", "Elliot Cadeau Steal."), filed after the shot or turnover at the same clock, each
+ * naming only its own player; so a shot's second person is only ever its assister. Texts come two ways ("makes 10-foot hook
+ * shot (X assists)" and "made Layup. Assisted by X."), and a free throw's may not say which of how many it is ("made Free
+ * Throw."). A team's own rebound or turnover names nobody, and a college box's team totals count them (readBox). A player's
+ * technical is one of his personal fouls (65 of 69 in ESPN's box; the plays don't say a technical's class), and its two free
+ * throws are the other side's at the technical's clock. The jump ball is "Jump Ball won by UConn" and "lost by Michigan", a
+ * play for each side.
+ */
+export class CollegeBasketball extends Basketball {
+  readonly name: string;
+  readonly stats = STATS.filter((s) => s.key !== "PM");
+  readonly periods: Periods;
+  readonly leagues: string[];
+
+  constructor(league: string, name: string, periods: Periods = QUARTERS) {
+    super();
+    this.leagues = [league];
+    this.name = name;
+    this.periods = periods;
+  }
+
+  /** Basketball's, but the team's totals without its rebounds, turnovers and fouls: a college box counts the team's own in them
+   *  (a team rebound, a shot clock turnover, a bench technical: nobody's line), its players' added up and those plays exactly
+   *  in 293 of 294 sides checked (the other ESPN's doubled feed). A team's fouls, for the bonus, are its players' and its
+   *  technicals in the plays. */
+  readBox(summary: EspnSummary): Box | null {
+    const box = super.readBox(summary);
+    for (const t of box?.teams ?? []) for (const k of ["REB", "OREB", "DREB", "TO", "PF"]) delete t.stats[k];
+    return box;
+  }
+
+  readPlays(summary: EspnSummary, issues?: string[]): Play[] {
+    const sides = headerTeams(summary).map((t) => t.id);
+    // The box score's people by team. A play can name someone by an id the box doesn't have (a women's game of 2025-26: every
+    // play of one player's under another id): they're the one on the play's side its text names, when only one is.
+    const inBox = new Map<string, { id: string; name: RegExp }[]>();
+    for (const side of summary.boxscore?.players ?? []) {
+      const team = idOf(side.team?.id);
+      const list = inBox.get(team) ?? [];
+      inBox.set(team, list);
+      for (const table of side.statistics ?? [])
+        for (const row of table.athletes ?? []) {
+          const id = idOf(row.athlete?.id);
+          const name = str(row.athlete?.displayName);
+          if (id && name) list.push({ id, name: nameIn(name) });
+        }
+    }
+    const known = new Set([...inBox.values()].flat().map((x) => x.id));
+    const resolve = (ids: string[], team: string | null, text: string) =>
+      ids.map((id) => {
+        if (!known.size || known.has(id)) return id;
+        const named = (inBox.get(team ?? "") ?? []).filter((x) => x.name.test(text) && !ids.includes(x.id));
+        return named.length === 1 ? named[0].id : id;
+      });
+    const freeThrow = (type: string) => /free ?throw/.test(type);
+    const at = (p: EspnPlay) => `${num(p.period?.number) ?? 1} ${str(p.clock?.displayValue) ?? ""}`;
+    // A technical's free throws: the other side's, two a technical, at its clock. They're in the middle of someone's
+    // possession, so they neither start nor end one.
+    let owed: { at: string; side: string; n: number }[] = [];
+
+    return this.readFeed(summary, ({ p, i, raw, type, text, said, team, made, points, ids: named }) => {
+      const ids = resolve(named, team, text);
+      const { deltas, add } = tally();
+      let kind = "other";
+      let offense: string | null = null;
+      let ends = false;
+      let loose = false;
+      owed = owed.filter((o) => o.at === at(p) && o.n > 0);
+      const technicalShot = () => {
+        const o = owed.find((x) => x.side === team);
+        if (o) o.n--;
+        return !!o;
+      };
+
+      if (freeThrow(type)) {
+        kind = "free-throw";
+        add(ids[0], { FTA: 1, FTM: made ? 1 : 0, PTS: points });
+        if (!technicalShot()) {
+          offense = team;
+          // The last of its set: "2 of 2", or with no count, no more of the side's at this clock before the ball's in play (or
+          // a technical, whose free throws are its own).
+          const set = /(\d+) of (\d+)/.exec(said);
+          let last = true;
+          if (set) last = set[1] === set[2];
+          else
+            for (let j = i + 1; j < raw.length; j++) {
+              const q = raw[j];
+              const t = typeOf(q);
+              if (at(q) !== at(p) || /technical/.test(t)) break;
+              if (freeThrow(t)) {
+                last = idOf(q.team?.id) !== team;
+                break;
+              }
+              if (!/substitution|time ?out|foul/.test(t)) break;
+            }
+          ends = made && last;
+        }
+      } else if (p.shootingPlay === true) {
+        const three = num(p.pointsAttempted) === 3 || /three point/.test(said);
+        // Blocked: its block is the next play, at the same clock (as the NBA's says "blocks" in the shot's own text).
+        const next = raw[i + 1];
+        const blocked = !made && !!next && /^block/.test(typeOf(next)) && at(next) === at(p);
+        kind = made ? (three ? "three" : "field-goal") : blocked ? "blocked" : "miss";
+        add(ids[0], { FGA: 1, FGM: made ? 1 : 0, "3PA": three ? 1 : 0, "3PM": three && made ? 1 : 0, PTS: points });
+        if (made && /assist/.test(said)) add(ids[1], { AST: 1 });
+        if (made && points === 0) issues?.push(`${idOf(p.id)}: a made shot worth nothing: ${text}`);
+        if (!ids[0]) issues?.push(`${idOf(p.id)}: a shot with nobody's name: ${text}`);
+        offense = team;
+        ends = made;
+      } else if (/^block/.test(type)) {
+        kind = "block";
+        add(ids[0], { BLK: 1 });
+      } else if (/^steal/.test(type)) {
+        kind = "steal";
+        add(ids[0], { STL: 1 });
+      } else if (/rebound/.test(type)) {
+        kind = "rebound";
+        const offensive = /offensive/.test(type);
+        const dead = /dead ?ball/.test(type);
+        // A team's own ("Michigan Offensive Rebound.", "UConn Deadball Team Rebound.") names nobody.
+        if (ids[0] && !dead) add(ids[0], { REB: 1, [offensive ? "OREB" : "DREB"]: 1 });
+        // A dead ball's is whoever gets the ball (after a missed first free throw, the shooter's side): a new possession only
+        // when the ball changes hands, and none between a technical's free throws.
+        if (!dead || !owed.some((o) => o.side === team)) offense = team;
+        loose = !offensive && !dead;
+      } else if (/turnover/.test(type)) {
+        kind = "turnover";
+        add(ids[0], { TO: 1 });
+        offense = team;
+        ends = true;
+      } else if (/technical/.test(type)) {
+        // A player's technical is one of his personal fouls (the NCAA's rule; ESPN's box counts it), a bench's nobody's.
+        kind = "technical";
+        add(ids[0], { PF: 1 });
+        const other = sides.find((s) => s !== team);
+        if (other) owed.push({ at: at(p), side: other, n: 2 });
+      } else if (/foul/.test(type)) {
+        kind = "foul";
+        add(ids[0], { PF: 1 });
+      } else if (/^jump ?ball/.test(type)) {
+        kind = "jump-ball";
+        if (/\bwon by\b/.test(said)) offense = team;
+      } else if (/substitution/.test(type)) kind = "substitution";
+      else if (/time ?out/.test(type)) kind = "timeout";
+      else if (/^end (?:period|game)/.test(type)) {
+        kind = /game/.test(type) ? "end" : "period-end";
+        loose = true;
+      } else if (/challenge|review|violation|ejection/.test(type)) kind = "violation";
+      return { kind, people: ids, deltas, offense, ends, loose };
+    });
   }
 }

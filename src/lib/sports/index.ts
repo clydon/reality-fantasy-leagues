@@ -1,11 +1,12 @@
 // The sports (docs/PLAN-start-a-game-gpt.md track L): one class per sport, found by ESPN's sport slug, the first half of a
 // league's path ("baseball" of "baseball/mlb", and of "baseball/college-baseball"; "basketball" of "basketball/nba" and
-// "basketball/wnba", but not college basketball, which plays halves: a sport can name the leagues it reads; "football" of
-// "football/nfl", not college football, whose plays are written otherwise; "soccer" of every soccer league, which ESPN writes
-// alike: "soccer/eng.1", "soccer/usa.1", "soccer/uefa.champions"). Golf, racing, MMA and tennis come in L5.
+// "basketball/wnba"; a sport can name the leagues it reads, so a slug can have more than one: college basketball is its own
+// feed, an instance a league, the men's halves and the women's quarters; "football" of "football/nfl", not college football,
+// whose plays are written otherwise; "soccer" of every soccer league, which ESPN writes alike: "soccer/eng.1", "soccer/usa.1",
+// "soccer/uefa.champions"). Golf, racing, MMA and tennis come in L5.
 // A game's clock for someone (clock.ts) and a game live on the phone (live.ts) are L2's.
 import { Baseball } from "./baseball";
-import { Basketball } from "./basketball";
+import { Basketball, CollegeBasketball, HALVES } from "./basketball";
 import { Football } from "./football";
 import { Hockey } from "./hockey";
 import { Soccer } from "./soccer";
@@ -20,23 +21,26 @@ export * from "./sport";
 export * from "./clock";
 export * from "./live";
 export { Baseball } from "./baseball";
-export { Basketball } from "./basketball";
+export { Basketball, CollegeBasketball } from "./basketball";
 export { Football, defenseId } from "./football";
 export { Hockey } from "./hockey";
 export { Soccer, plainName } from "./soccer";
 
-const SPORTS: TeamSport[] = [new Baseball(), new Basketball(), new Football(), new Hockey(), new Soccer()];
+// A sport's own leagues first: a sport slug can have more than one (basketball's NBA and WNBA, and college's two), each naming
+// the leagues it reads; sportById gives the first, the sport's own.
+const SPORTS: TeamSport[] = [new Baseball(), new Basketball(), new CollegeBasketball("mens-college-basketball", "Men's college basketball", HALVES), new CollegeBasketball("womens-college-basketball", "Women's college basketball"), new Football(), new Hockey(), new Soccer()];
 
-/** The sport by its id ("baseball"), or null for one not built yet. */
+/** The sport by its id ("baseball"): its first, the one for its pro leagues ("basketball": the NBA's and WNBA's), or null for
+ *  one not built yet. */
 export function sportById(id: string): TeamSport | null {
   return SPORTS.find((s) => s.id === id) ?? null;
 }
 
-/** The sport an ESPN league plays ("baseball/mlb" is Baseball, "hockey/nhl" Hockey), or null for one not built yet. */
+/** The sport an ESPN league plays ("baseball/mlb" is Baseball, "hockey/nhl" Hockey, "basketball/mens-college-basketball"
+ *  college's halves), or null for one not built yet. */
 export function sportOf(league: string): TeamSport | null {
   const [id, name] = String(league).split("/");
-  const sport = sportById(id);
-  return sport && (!sport.leagues || sport.leagues.includes(name)) ? sport : null;
+  return SPORTS.find((s) => s.id === id && (!s.leagues || s.leagues.includes(name))) ?? null;
 }
 
 /** Every sport built so far. */
