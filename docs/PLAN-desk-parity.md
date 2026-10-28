@@ -6,8 +6,10 @@ History), but a site admin still has to go back to classic for about 25 things, 
 admin at all (only Settings › Back to the classic design, or typing `/admin`). Nothing in `src/new` calls `/api/admin/*`. This
 plan closes that gap, then retires classic's admin.
 
-**Status (2026-10-28): step 0 done; in the design pass, step 1 (People) is mocked and waiting for the user's approval**
-(`.impeccable/mocks/site/desk.js` and `desk.css`; Mock scenarios › Desk · step 1: people). Classic's admin renders: all 19 of its pages at 390px locally
+**Status (2026-10-28): step 0 done; in the design pass, step 1 (People) is approved by the user**, with Find › Browse, Hand
+on, the desk's pages and how they link, and Settings regrouped (`.impeccable/mocks/site/desk.js`, `desk-pages.js`, `desk.css`;
+Mock scenarios › Desk · step 1 and Desk · pages and Settings). A couch's delete stays (approved with the rest). Next: step 2's
+screens. Classic's admin renders: all 19 of its pages at 390px locally
 (`scripts/dev-test/check-classic-admin.js`, which step 8 can turn round), and in production To do, Users, Leagues, a league's
 page, Shows and Site, with no console errors. The blank `/admin/leagues` seen in production earlier that day didn't come back.
 The likeliest cause is classic's boot screen: it covers the page until the first league loads (about a second locally, longer
@@ -88,7 +90,7 @@ the page you came from (a trail, as the app's nav-trail does); the tabs start a 
 | Season | its show and rulebook; Setup (3), Research and the bot (4), Cast (5), Bingo bank (4); episodes; its games | refused while games play it, listing them | 3-5 |
 | Report | the sender, the couch or game or season it came from; Mark done; Act as them | gone for good; Mark done offered | 2 |
 
-Open: **a couch's delete is new** (neither app has one; added for decision 4). Ask the user before step 6 builds it.
+**A couch's delete is new** (neither app has one; added for decision 4, approved with step 1's screens on 2026-10-28).
 
 **Settings, regrouped** (the user, 2026-10-28: "hard to figure out where everything is"): by the question you have, each row
 with its value and a dot when it's off its recommended setting (its sheet has Reset to recommended), each change a toast with
