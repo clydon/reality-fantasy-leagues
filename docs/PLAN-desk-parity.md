@@ -6,27 +6,18 @@ History), but a site admin still has to go back to classic for about 25 things, 
 admin at all (only Settings › Back to the classic design, or typing `/admin`). Nothing in `src/new` calls `/api/admin/*`. This
 plan closes that gap, then retires classic's admin.
 
-**Status (2026-10-28): step 0 done; in the design pass, step 1 (People) is approved by the user**, with Find › Browse, Hand
-on, the desk's pages and how they link, and Settings regrouped (`.impeccable/mocks/site/desk.js`, `desk-pages.js`, `desk.css`;
-Mock scenarios › Desk · step 1 and Desk · pages and Settings). A couch's delete stays (approved with the rest). Step 2 (the
-Inbox, `desk-inbox.js`) is done in the mock (the user, 2026-10-28). **Step 3 (a season's Setup) is mocked and waiting for
-approval** (`desk-setup.js`; Mock scenarios › Desk · step 3: a season's Setup; step 3 below says what it shows and what its build
-needs). **Step 4 (a season's Research and the bot) is mocked and waiting for approval** (`desk-research.js`,
-`desk-research.css`; Mock scenarios › Desk · step 4: research and the bot; step 4 below says what it shows, what its build
-needs and how its three questions were settled). **Step 5 (a season's Cast) is mocked and waiting for approval**
-(`desk-cast.js`, `desk-cast.css`; Mock scenarios › Desk · step 5: a season's cast; step 5 below). **Step 6 (Find › Games and a
-game's page) is mocked and waiting for approval** (`desk-games.js`, `desk-games.css`; Mock scenarios › Desk · step 6: games; step 6
-below). **Step 7 (shows and site) is mocked and waiting for approval** (`desk-shows.js`, `desk-shows.css`; Mock scenarios › Desk ·
-step 7: shows and site; step 7 below), which finishes the design pass's screens. Classic's admin renders: all 19 of its pages at 390px locally
-(`scripts/dev-test/check-classic-admin.js`, which step 8 can turn round), and in production To do, Users, Leagues, a league's
-page, Shows and Site, with no console errors. The blank `/admin/leagues` seen in production earlier that day didn't come back.
-The likeliest cause is classic's boot screen: it covers the page until the first league loads (about a second locally, longer
-on Neon), and it's blank but for one small plate. The desk's Settings now has Not on the desk yet › Classic admin (a link to
-`/admin`; the check taps it). Next: the design pass with the user (every step's screens in the mock, approved one by one).
-Once they're approved, the build (steps 1-7) runs as its own lane (`scripts/lane.js`) beside engine and sports, after the
-weekly usage reset. Deletes are the user's sore point: a game's delete looked dead on a phone (a finger that rolled cancelled
+**Status (2026-10-28, evening): the design pass is done, and the build is planned.** Step 0 is done, and the user approved
+steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
+changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
+either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
+mock: What's New's drafts (decision 8), in the main folder with the user, before part 7c. **The build runs in the desk lane**
+(`C:\Users\conor\rfl-desk`, branch `desk`, port 3003), made and checked on 2026-10-28, from the weekly usage reset (Thursday
+2026-10-29, 4 PM Eastern): The build lane, below, has its parts, its rules and the switch. Classic's admin renders: all 19 of
+its pages at 390px locally (`scripts/dev-test/check-classic-admin.js`, which step 8 can turn round), and in production To do,
+Users, Leagues, a league's page, Shows and Site, with no console errors; the desk's Settings has Not on the desk yet › Classic
+admin until step 8. Deletes are the user's sore point: a game's delete looked dead on a phone (a finger that rolled cancelled
 the hold; fixed in 1e38aeea, with `scripts/dev-test/check-hold-touch.js`), and a season or a show can't be deleted outside
-classic. Make every delete easy to find in the design.
+classic. Every delete is easy to find in the design (decision 4).
 
 **Noticed, not fixed (step 0):** after the Classic admin link, classic keeps the new design's `dark` class on `<html>`, so it
 shows in its dark theme until a reload whatever its own theme is. It reads fine, and classic's admin goes at step 8; a full
@@ -78,6 +69,9 @@ rulebook edits its own words (`rulebook.tsx` CastSheet): whether one writes the 
 code (`src/lib/whats-new.ts`), not drafts; the desk's Paused/On and Drafts (approved with step 1) need them as data, and the new
 design has no What's New card. (aa) In the mock, step 3's `dsOf` couldn't place Coming up's "Wed" row (The Challenge 41) and
 read "Mexico City Grand Prix" as Episode 0, so Formula 1 2026 showed Upcoming (fixed in `desk-setup.js`).
+**Settled at approval (2026-10-28):** (t) and (w) close: the desk never reads a wiki (decision 9), and classic's wiki read goes
+at step 8. (g) is classic's pull only and goes with it. (k): the Inbox's cast item is a cast answer, our bot's or a paste, with
+changes not sent (step 5's Changes at approval). (z): What's New becomes data (decision 8).
 
 **Decisions (the user, 2026-10-27):**
 1. **Act as them.** Opening the app as someone is classic's impersonation as it is: for an hour you are them (Better Auth's
@@ -97,6 +91,25 @@ read "Mexico City Grand Prix" as Episode 0, so Formula 1 2026 showed Upcoming (f
    reversible (Let them back in), so no hold. (Closes the brief's second open question.)
 7. **Staged results stay out of the Inbox** (the user, 2026-10-28, as on 2026-10-24): results settle when sources agree and
    only disputes reach the desk; step 4's queue on a season's page is there for anyone who wants to look, with no badge.
+
+**Decisions (the user, 2026-10-28, approving steps 1-7's screens):**
+8. **What's New is data, drafted on the desk** ("draft them in the app itself"). Releases and their items move from
+   `src/lib/whats-new.ts` into the database: the code's releases as published ones, ids kept (a player's last seen is a release
+   id), read by classic's popup as now. The desk writes a draft, previews it as a player sees it, publishes it (tier 1, Undo),
+   and Paused holds anything new back. An item Claude proposes with a commit ships as a migration that inserts a **draft**,
+   never a published one, and the user publishes it from the desk. The pause on proposals holds until the user lifts it. The
+   drafts editor isn't mocked yet: it's mocked in the main folder with the user before part 7c. Players see What's New only in
+   classic today; a card in the new design is player-facing, not the desk's (BACKLOG 22).
+9. **No wiki** ("we aren't using wiki at all anymore... all GPT and external APIs"). Casts come from our bot or a paste and
+   photos from TMDB and TVmaze; nothing on the desk reads a wiki or picks a model to read one. The nightly wiki job has nothing
+   to do (2026-10-28: three seasons, all skipped, since none has paid research on). By decision 10, **paid Claude research**
+   stays behind too (Claude's call the same day: the hourly Auto research job researched 0 episodes; our bot researches).
+   **Research sites stay**: they're the "Start with these trusted sites" line in the prompt our bot and the copy-and-paste
+   brief use (`episode-research.js buildPrompt`).
+10. **Classic isn't the spec** ("just because it's in classic doesn't mean it should come over if it's not useful anymore...
+   things can improve"). Each build session weighs every classic behaviour it would port: what's outdated stays behind, and
+   what can be better is, within the approved screens. Each call is a line in the step's As built (what was left, and why).
+   Removing a dead row needs no mock; a new screen or flow does, and its session stops and asks.
 
 **Not brought over:** classic's formats (`show_formats`: rulebooks replace them; retired at cut-over), classic's Overview layouts
 (a classic screen), the Site page's Paid AI and spoiler switches (browser-only, and the desk has no paid actions). Neither app
@@ -160,6 +173,8 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    name), each tagged with its kind and opening the page that deals with it, where the row to act on carries a dot; dealing
    with it there clears it here and from the tab's count. Coming up is the week as a rundown (day and time, the season, the
    episode, and how its results come in: Autopilot, ESPN, or the couches).
+   **Changes at approval (2026-10-28):** the cast item is a cast answer (our bot's or a paste) with changes not sent, not a
+   wiki pull (decision 9).
 3. **Seasons: setup.** A season page's Setup: name, status, wiki page, the schedule (episode count, premiere, air time, zone),
    who decides results (the admin, or each game), delete (tier 3).
    **As mocked (2026-10-28, `desk-setup.js`, waiting for approval):** Running it › Setup opens a page of its own
@@ -190,6 +205,7 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    Who decides results, No schedule (Dancing with the Stars 34, from the Inbox), Find it in the TV listings, Nightly from its
    listing (Love Island USA 7), An ended season (Survivor 49, deletable). `scripts/dev-test/shoot-mock-scenarios.js
    --group=dss` shoots them all at 390.
+   **Changes at approval (2026-10-28):** no Wiki page row (decision 9): The season is Name and Status.
 4. **Seasons: research and the bot.** Run now (quick, full, schedule, trivia, bingo), the bot's episode length, each run's
    timing, add or remove a run, reset; an episode's research (paste an answer, discard, clear); auto research; the bingo bank
    (an episode's squares and the season's, hide or show, write by paste). The results queue: an episode's pending results with
@@ -241,6 +257,7 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    the desk knows your mark like any page) and off for one you have, with the switch either way; it also hides names in Accept
    all, Take it back and a paste's preview. (3) Trivia's questions and Take it out stay on an episode's page: the admin's flag
    already exists (`trivia.ts`), and it's where you'd look after a "Wrong?".
+   **Changes at approval (2026-10-28):** no paid Claude research on the schedule, and no Switch it off (decision 9).
 5. **Seasons: cast.** Pull from the wiki and pull again, approve and send to the games, remove someone, hold starting groups
    until Episode 1.
    **As mocked (2026-10-28, `desk-cast.js` and `desk-cast.css`, waiting for approval):** Running it › Cast opens a page of its
@@ -277,6 +294,12 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    **Calls made in the design (Claude's, 2026-10-28):** pulling never removes anyone; a new spelling defaults to Same person;
    a group the wiki has differently defaults to ours; Remove is refused while in use; the Cast page ends with the season's
    Delete and a castaway's with Remove.
+   **Changes at approval (2026-10-28): no wiki** (decision 9). Getting it is **Ask our bot** (the yellow on a season with no
+   cast; Ask our bot again on one with a cast) and **Paste it**; either answer opens the same review of what changed (a new
+   spelling: Same person or Someone new; a group it has differently; someone new; someone it no longer lists), and Send to its
+   games sends it. Photos come from TMDB and TVmaze as now (`castPhotosFor`). The wiki page row, "Pull it again" and "reads
+   names, groups and photos" go. There's no scheduled cast ask: Autopilot doesn't add one, and a name research reports that
+   isn't in the cast already shows in step 4's queue.
 6. **Games and couches.** Find's Games (by name or join code); a game's page: its seats and who's in each (link an account,
    change a role, unlink, remove a player), its join code, delete for good (tier 3), open it (as an admin, read-only).
    **As mocked (2026-10-28, `desk-games.js` and `desk-games.css`, waiting for approval):** **Find › Games** searches name, show,
@@ -379,7 +402,79 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    stays the desk's Choose art; the bot's AI, the wiki model and paid research are three rows; the flag goes on only after the
    check, and leagues that differ stay as they are (as the script does); What's New keeps step 1's Paused/On and Drafts, shows no
    invented drafts, and previews real releases.
+   **Changes at approval (2026-10-28):** no wiki and no paid Claude research (decision 9). Add a season has no wiki page (What
+   comes with it: the cast from our bot). The connector page keeps only **Research sites**, its new name: the sites our bot's
+   prompt starts from, a row each with ✕, Add a site, and Back to our usual (what `domainsFor` gives: an old show's wiki host
+   where it has one, tvline.com, parade.com); its wiki API, cast heading, Seasons it reads and Try it go. Settings keeps Which
+   AI our bot asks and loses Reading a wiki and Paid research. What's New is data (decision 8): drafts are written and
+   published on the desk, and its drafts editor is mocked with the user before part 7c.
 8. **Classic's admin retires**: `/admin` sends a site admin to the desk; classic's admin pages and `src/lib/admin-store.ts` go.
+   So does what only classic used, each checked unused first (decision 9): the wiki read (classic's Pull cast, `db/wiki-sync.js`'s
+   pull and its nightly `.github/workflows/wiki-sync.yml`) and paid Claude research's hourly `.github/workflows/auto-research.yml`.
+   `termsFor` and `stageSeasonCast` stay (episode research and the tapes recorder call them), moved if their file goes.
+   HOSTING.md loses the two jobs.
+
+## The build lane (planned 2026-10-28)
+
+Steps 1-7 are built in a lane of their own ([PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md)), one session a part, in this plan's
+order, each to the approved mock and its step's Changes at approval.
+
+- **The lane:** `desk`, folder `C:\Users\conor\rfl-desk`, branch `desk` (cut from master at 76e55f14; every part merges master in
+  first), port 3003, database `rfl_desk`, **migrations 0420-0449**. Made and checked (`lane.js check desk`) on 2026-10-28. Its
+  `.env.local` asks no real bot (`LLM_BROWSER_API_URL` is empty): the VM serves production and the local bot is the playtest
+  recorder's, so its checks use the stand-in (`scripts/dev-test/fake-bot.js`, the `x-gys-bot` header).
+- **When:** from the weekly usage reset, Thursday 2026-10-29 at 4 PM Eastern (the user: after it). It takes the sports lane's
+  slot, as "Who gets the usage" in PLAN-start-a-game-gpt.md says: two lanes, engine and desk, and sports takes the slot back
+  whenever the desk waits on the user. **The switch** (the user, or a main-folder session with them):
+  1. In the window "Lane sports: session loop", press `s`: it stops after its session, and its hand-off waits.
+  2. Close the "Lane keeper" window (its Keep awake window closes with it).
+  3. `node scripts/lane.js start desk --prompt-file C:\Users\conor\rfl-desk\.session-loop\seed-desk.md --max-sessions 4`
+  4. `node scripts/lane.js keep engine desk --max-sessions 4`: the keeper again, with desk in place of sports.
+- **The parts**, one session each (a big one may split in two; its hand-off says so):
+
+| Part | What it builds | Noticed it takes |
+|---|---|---|
+| 1a | The page frame every desk page shares (lower third, facts, Part of, History's latest three, Delete last and named, Back naming where you came from); Find › Browse and People's list (search by name, username or email; Waiting · Site admins · Everyone; newest, last active, name; paging); Settings regrouped | the Viewing as bar's colour |
+| 1b | A person's page: Act as them (Better Auth's impersonation, its start and end in History), Approve, Reset password, Edit name and email, Stop them signing in and Let them back in; Who gets in from the desk | |
+| 1c | Their couches and games (a seat's sheet: role, unlink, Open the game; 6b reuses it); Delete account (tier 3) with Hand them on (one person, or game by game), which step 2's couch and step 6 reuse | |
+| 2 | The Inbox: Needs you as one list, most urgent first, adding reports, accounts waiting, a cast not sent and no schedule; Coming up; Find › Reports and a report's page | |
+| 3a | Setup's season and results: Name, Status (held over its listing's dates: a column), Who decides results, the season's Delete (refused while games play it) | a, c |
+| 3b | Setup's schedule: When it airs and Episodes (tier 2, What moves, the prune), times by hand over the listing's, `release` and `drop_at`, a TV listing linked, unlinked and searched | b |
+| 4a | Research and the bot: Run now as a queued run with its progress and what it waits behind, the schedule's rail (Autopilot, each run's timing, add, remove, reset), Runs | e |
+| 4b | An episode's page: Not in the games yet from the facts (accept, correct, reject, Accept all), Answers with Take it back, Paste an answer as a submission, trivia's Take it out, Clear's two scopes | d |
+| 4c | The bingo bank: by episode and the season's, Write them again, Paste, Hide and Show again (an admin's outranks two flags) | |
+| 5a | Cast: Ask our bot or Paste, then the review of what changed (staged until sent) and Send to its games (a rename by id); the Inbox's cast item | g, k |
+| 5b | Starting groups (Not a group, secret roles together; Hold until Episode 1 without un-approving) and a castaway's page (Name, Photo from TMDB and TVmaze, group; Remove refused while in use) | h, i, j |
+| 6a | Find › Games (a join code from three characters, any state, deleted ones within 30 days, Restore) and a game's page: Join code, its Delete (Archive offered, then for good) | m |
+| 6b | Seats (signed in, empty, out): Link an account (Game admin too, joining the couch, the seat taking their name, telling them), Unlink, Take out (the app's `takeOut`), Put back, Remove a seat; the last-Commissioner guard on each | n, o, p, q |
+| 6c | Open it read-only: a site admin's read scope over the couch's game reads, writes refused while it's on, a History line | r |
+| 7a | A show: Add a season, Its words (`episode_term`, one source with the rulebook's), Research sites, Archive and Restore, the show's Delete | s, u, v, y |
+| 7b | Art and photos: a source and framing per frame (the poster's `art_style`, one for the backdrop), a link per frame | x |
+| 7c | Settings: Which AI our bot asks (an app setting sent with each ask), the rulebooks flag's check as a desk job and its switch, What's New as data (decision 8, once its drafts are mocked) | z |
+
+- **Every part:** merge master in (`node C:\Users\conor\reality-fantasy-leagues\scripts\lane.js sync desk`, which refuses while
+  anything is uncommitted); read its step's As mocked, What the build needs, Changes at approval and Noticed items; read the
+  mock in the main folder (`C:\Users\conor\reality-fantasy-leagues\.impeccable\mocks\site\`, read only, since a worktree has no
+  mock) and shoot its group with `node scripts/dev-test/shoot-mock-scenarios.js <scratch folder> --group=dsc
+  --mock=C:\Users\conor\reality-fantasy-leagues\.impeccable\mocks\site` (groups: dks for steps 1-2, dss, dsr, dsc, dsg, dsv);
+  build to it at 390 (wide comes with the desktop pass); weigh what classic does by decision 10; port classic's routes to
+  `/api/desk/*`; a check per step in `scripts/dev-test/` (`check-desk-<step>.js`, zt-dk- rows with an up and a down, at 390, on
+  its own server), with `check-new-desk.js` and `check-classic-admin.js` still passing; unit tests; `/code-review` on the part's
+  diff; its Status line and an As built under its step, saying what it left behind and why; commit on `desk`; hand off.
+- **It doesn't wait at a step's end.** The step's last part writes "Step N ready to merge at <commit>" in Status and the lane
+  goes on. **It stops for the user only** when the mock doesn't answer a question (never invent a screen), or at 7c's What's New
+  if its drafts aren't mocked yet; after 7c it's done.
+- **Off limits:** `state-logic.js`, `start-game.ts` and `.tsx`, `src/lib/game/game-spec/`, the engine lab (`/desk/lab`,
+  `engine-lab.ts`) and anything else that's the engine lane's; the sports code (`src/lib/server/sports/`, `src/lib/sports/`);
+  the tapes recorder and its replays (`tapes.js`, `playtest.js`) and what they call, whose exports keep their shape
+  (`db/bot-research.js`, `db/episode-research.js`, `db/trivia-research.js`, `db/bingo-research.js`, `db/rulebooks.js`,
+  `db/wiki-sync.js`, `cast-prompt.js`); the mock; the local bot and the VM. Files other lanes change too get small, additive
+  edits: `src/new/routes.ts`, `change-log.ts`, `season-decisions.ts`, `bingo.ts`, and `tv-listings.ts` (3b: the sports branch
+  changes it too).
+- **Bringing a step home:** the user merges a ready step's commit into master from the main folder (`git merge <commit>`), runs
+  the full batch and pushes, never on an episode night (Survivor 51: Wednesdays, 8 PM ET). A migration that changes an
+  existing table is rehearsed on a Neon branch first (the user's). Then `lane.js sync` for the other lanes. Step 8 follows once
+  1-7 are on master.
 
 ## The design brief (impeccable shape, 2026-10-27; designed in the site mock, `.impeccable/mocks/site/`, before each step is built)
 

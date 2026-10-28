@@ -7,6 +7,8 @@
 //
 // --group is the scenario buttons' data attribute without "data-" (desk-setup.js's are data-dss). --screens caps how many
 // screens of a long page are shot (sheets are shot until their end). Writes <outDir>/<key>[-s<k>|-sheet<k>].png.
+// --mock=<folder> is the mock's site folder, for a lane's worktree, which has no mock (it's gitignored): pass the main
+// folder's, e.g. --mock=C:\Users\conor\reality-fantasy-leagues\.impeccable\mocks\site. Default: this folder's.
 const fs = require("fs");
 const path = require("path");
 const { pathToFileURL } = require("url");
@@ -23,7 +25,7 @@ const { open } = require("./browser");
   const { page, close } = await open({ width, height });
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
-  const base = pathToFileURL(path.resolve(".impeccable/mocks/site/index.html")).href + `?n=${opt("n", "4")}`;
+  const base = pathToFileURL(path.resolve(opt("mock", ".impeccable/mocks/site"), "index.html")).href + `?n=${opt("n", "4")}`;
   await page.goto(base, { waitUntil: "networkidle" });
   const keys = (await page.$$eval(`[data-${group}]`, (b, g) => b.map((x) => x.dataset[g]), group)).filter((k) => !only.length || only.includes(k));
   if (!keys.length) throw new Error(`no [data-${group}] scenarios in the mock menu`);

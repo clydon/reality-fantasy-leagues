@@ -125,8 +125,11 @@ waits for a reveal unless someone left in what you haven't seen (a sport's games
 the page itself fine: waits instead); tests/episode-lock.test.js; unit tests 752.
 
 **The desk catches up with classic's admin (planned 2026-10-27): [PLAN-desk-parity.md](PLAN-desk-parity.md).** The gap audit, the user's decisions (Act as them = classic's impersonation, logged; every gap designed now; phone first), eight steps (people and Act as first), and the design brief. **The design pass (2026-10-28):** every step's screens are in the
-site mock (steps 1-2 approved; 3-7 mocked and waiting for the user's approval; the plan's Status and each step's As mocked);
-the build (steps 1-7) runs as its own lane once they're approved.
+site mock, and the user approved steps 1-7 that evening with two changes: What's New becomes data, drafted on the desk (one
+screen still to mock, before part 7c), and no wiki (so no paid Claude research either); plus a standing rule, classic isn't the
+spec (decisions 8-10). **The build runs in the desk lane** (`C:\Users\conor\rfl-desk`, branch `desk`, port 3003, migrations
+0420-0449; made and checked) from the weekly reset, Thursday 2026-10-29 at 4 PM ET, in 17 parts: the plan's "The build lane"
+has the parts, the rules and the switch's four commands.
 
 **The Start-a-game GPT, on games as data (planned 2026-10-27): [PLAN-start-a-game-gpt.md](PLAN-start-a-game-gpt.md).**
 Someone types the game they want. Our ChatGPT bot turns the words into a request, our code turns that into a game spec (every

@@ -34,7 +34,8 @@ Made on 2026-10-27:
 - **sports** (the existing worktree, port 3004)
 
 Each one passed `check`. On 2026-10-28: **playtest** (`../rfl-playtest`, port 3005; docs/PLAN-playtests.md), whose
-`.env.local` lists only the local bot, since it records from it all night.
+`.env.local` lists only the local bot, since it records from it all night; and **desk** (`../rfl-desk`, port 3003; the
+build of docs/PLAN-desk-parity.md, from the weekly reset), whose `.env.local` lists no bot at all: its checks use the stand-in.
 
 **Claude's memory is shared.** Claude's docs say auto memory is one folder per repo, shared by its worktrees. As a
 safeguard, in case a version keys it by the folder a session runs in, `setup` links the lane's folder in `~/.claude/projects`
@@ -71,6 +72,8 @@ the memory. The database copy takes about a second (all 99 tables, pgvector incl
 **What a worktree doesn't have:** anything git ignores. That means the production backups (`backups/`), the mocks
 (`.impeccable/mocks/`) and `.env.local`. A lane reaches the backups by full path (e.g. `shadow-leagues.js sync
 --from=C:\Users\conor\reality-fantasy-leagues\backups\<backup>`). Design work, which lives in the mocks, stays in the main folder.
+A lane that builds to the mock reads it there by full path, read only, and shoots its scenarios with
+`shoot-mock-scenarios.js --mock=C:\Users\conor\reality-fantasy-leagues\.impeccable\mocks\site`.
 
 ## Work in a lane
 
@@ -98,8 +101,8 @@ the memory. The database copy takes about a second (all 99 tables, pgvector incl
 
 ## Bring a step home
 
-1. **Between steps**, the lane takes master in: `node scripts/lane.js sync <name>`. The loop's sessions can't merge, so the
-   user (or a session they're talking to) runs it.
+1. **Between steps**, the lane takes master in: `node scripts/lane.js sync <name>`. A lane's own session runs it at a step's
+   start when its seed says so (the engine's and the desk's do); merges into master stay the user's.
 2. **When the step is done** (its checks pass, and `/code-review` on its diff is clean), the user merges it into master from the
    main folder (`git merge engine`), runs the full check batch there, and pushes. The session loop never pushes or merges.
 3. **Shared docs and memories** (HANDOFF.md, BACKLOG.md, the shared memories) are updated at that merge, not mid-step in a lane.

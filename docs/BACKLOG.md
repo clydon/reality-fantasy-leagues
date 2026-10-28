@@ -163,6 +163,11 @@ Last updated 2026-10-27.
       rate-limit event shows the window past `--pause-at`, and resume it after the reset. Overnight, running to 100% is
       what the user wants.
     - Either reaches a lane only after a sync and a restart of its loop (lanes run their branch's copy).
+22. **What's New has no place in the new design (noticed 2026-10-28, approving the desk's step 7).** The popup
+    (`whats-new-modal.tsx`) shows only in classic, so once the couch is on the new design a published release reaches
+    nobody. The desk's build moves releases into the database and drafts them on the desk (PLAN-desk-parity.md, decision
+    8); where a player sees them in the new design is player-facing design work, mocked first.
+    - **When:** before What's New's pause ends (the user's call; nothing is announced meanwhile).
 
 ## Decided against (don't re-propose without new information)
 
