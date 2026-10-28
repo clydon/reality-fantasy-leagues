@@ -243,6 +243,10 @@ function SettingsTab() {
           )}
         </div>
       </Section>
+      {/* Until classic's admin retires (docs/PLAN-desk-parity.md step 8), what the desk can't do yet is done there. */}
+      <Section title="Not on the desk yet">
+        <Row title="Classic admin" detail="People, games, a season's setup, research and cast, until the desk has them" href="/admin" />
+      </Section>
       <Section title="History">
         <History lines={q.data.history} emptyLine="No settings changed yet." />
       </Section>
