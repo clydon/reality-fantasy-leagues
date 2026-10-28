@@ -80,12 +80,31 @@ Pure code in `src/lib/sports/` (shared by the server, the phone and the tests), 
   later watch are one code path**: `stateAt(t)`, the plays up to time `t`.
 - **`GameClock`**: where you are in a game. `live` (t = now), `synced` (started at, paused, nudged: the watch along's clock) or
   `snapped` (the last play you tapped). Kept per person on their phone (and in `show_follows` only when they choose to share it).
-- **`Scoring`**: a sport's table plus the game's edits; `points(lines)` for a player, `breakdown()` for "why +7".
+- **`Scoring`**: reads the game spec's table (the sport's default spec, plus the game's edits); `points(lines)` for a player,
+  `breakdown()` for "why +7". No scoring value lives in code (see Rules as data).
 - **Formats** as classes over the same pieces: `HeadToHead`, `BestBall`, `PickEm`, `Categories` / `Roto`, `Squares`, `Bracket`,
   `PickAFew`, `LiveCalls`, and today's Weekly Lineup and Survival Pool on sports.
 - **Tests**: recorded ESPN summaries per sport in `tests/fixtures/espn/` (one finished game each, trimmed), unit tests per sport
   (the reader, the reducer: the reduced box score at the end equals ESPN's own box score), and `scripts/dev-test/fake-espn.js`
   extended to **replay a recorded game in real time** (or 60x), so a live screen can be checked without a game on.
+
+## Rules as data (lines up with the "Start a game GPT" direction)
+
+The user's standing requirement (2026-10-27, from the Start-a-game-GPT notes another session is planning): **no built-in game
+rules**; the engine runs on structure, which is what lets "type the game you want, our bot fills in the structure, a wizard asks
+the rest" work. That and "built in per sport is fine" fit together like this:
+
+- **Built in (code):** a sport's **vocabulary and readers**: its stat keys, positions and groups, periods, how ESPN's box score
+  and plays read into `Play`s and lines. That's knowledge of the sport, not rules of a game. It is what a game's data refers to.
+- **Data (a game spec):** everything a game *is*: its format and that format's parameters, the span (a series, one game: built,
+  `settings.startEpisode` / `endEpisode`), roster size and slots (by the sport's position groups), lineup locks, and the scoring
+  table (stat key → points). A sport's defaults (Yahoo-like standard scoring, slots, locks) are **default specs, stored as
+  data**, never `if (sport === ...)` in a format. Formats read specs only.
+- So the user's examples become specs the bot can write: "draft 3 players each for the Red Sox–Yankees series, 5 per home run,
+  1 per total base" = format draft, span the series, roster 3, scoring `{ HR: 5, TB: 1 }`; "for the 76ers home opener, predict
+  the winner, top scorer and over/under total points" = format predictions, span one game, three questions over the sport's
+  stats. Both are test fixtures for the spec's schema (step 1).
+- The spec's schema is the sports part of the Start-a-game data structure: design it with that plan, not apart from it.
 
 ## The screens (designed first, with impeccable, in the site mock)
 
@@ -104,7 +123,8 @@ Phone first (390), the show space's flavour. To design in step 0, not decided he
 0. **Design** (impeccable `shape`, then the mock): the live game, the players list, the sync, one format. The user confirms
    before building.
 1. **The framework**: `Sport` and the big four (`Football`, `Baseball`, `Basketball`, `Hockey`), their ESPN readers and reducers,
-   fixtures and tests. No UI. Decide here how a sport's Make it a game uses its built-in rules instead of asking ChatGPT.
+   the **game spec schema** and each sport's default spec (data), fixtures and tests (the user's two GPT examples among them).
+   No UI. Decide here how a sport's Make it a game starts from its default spec instead of asking ChatGPT.
 2. **Live**: the phone's poller and `GameClock` (live, synced, snapped), the scorebug and the live box score on the show space;
    fake-espn's replay; HOSTING.md.
 3. **Players, organised**: the Players tab rebuilt on the sport's groups, chips and the player sheet.
