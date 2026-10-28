@@ -1266,6 +1266,8 @@ function look(r, s, n, prev) {
     leadChange: !!prev && prev.leaders.join("|") !== leaders.join("|"),
     ties,
     teamsWithNobodyLeft: empty,
+    // The game says it's over after this episode (StateLogic.gameOver on the game as it stood then): endOf reads it.
+    over: S.gameOver(view),
     why,
   };
 }
@@ -1590,10 +1592,13 @@ function markdown(x) {
  * One line per replay, for P4: who won, whether the game says it's over, when the winner was settled, lead changes, how
  * many could still win at the halfway mark, a tie at the top, where the forgetter finished, and problems. Pure.
  */
-function summaryLine(x) {
+function summaryLine(file) {
+  // To the game's own end (gameRecord), as the judge reads it.
+  const x = file.episodes ? gameRecord(file) : file;
   const eps = x.episodes || [];
   const last = eps[eps.length - 1];
-  const half = eps[Math.floor((eps.length - 1) / 2)];
+  const halfAt = Math.floor((eps.length - 1) / 2);
+  const half = eps[halfAt];
   const place = (label) => {
     if (!last) return null;
     const i = last.table.findIndex((t) => t.name === label);
@@ -1604,10 +1609,10 @@ function summaryLine(x) {
     replay: x.replay,
     winner: x.final ? x.final.winner : "no game",
     over: !!(x.final && x.final.over),
-    settledAt: x.final ? x.final.settledAt : null,
+    settledAt: settledOf(x),
     episodes: eps.length,
-    leadChanges: x.final ? x.final.leadChanges : 0,
-    inItAtHalf: half ? `${half.stillInIt} of ${half.table.length}` : null,
+    leadChanges: leadChangesOf(x) ?? 0,
+    inItAtHalf: half ? `${roughInItOf(x, halfAt)} of ${half.table.length}` : null,
     tiedTop: last ? last.leaders.length > 1 : false,
     forgetter: forgetter ? place(forgetter.label) : null,
     problems: (x.problems || []).length,
@@ -1833,9 +1838,12 @@ function stillInBreakOf(x) {
 function inItOf(x, i) {
   const e = x.episodes[i];
   if (!e || !e.table.length) return null;
-  // The game's own end (Start a game may have set another than the span planned), as the rough count reads it.
+  // The game's own end (gameEnd: where it said it's over, else Start a game's, which may differ from the span planned), as
+  // the rough count reads it. A game with no end of its own runs to the season's, wherever its finale falls.
   const season = (x.tape && x.tape.episodes) || e.n;
-  const end = (x.settings && x.settings.endEpisode) || (x.span && x.span.to) || season;
+  const own = (x.settings && x.settings.endEpisode) || (x.span && x.span.to) || null;
+  const end = gameEnd(x, e);
+  const toSeasonEnd = !own || own >= season;
   const left = Math.max(0, end - e.n);
   const leader = e.table[0];
   if (leader.streak !== undefined) return e.table.filter((t) => Math.max(t.streak ?? 0, (t.current ?? 0) + left) >= leader.streak).length;
@@ -1845,7 +1853,7 @@ function inItOf(x, i) {
     // To the season's end, everyone still in but one goes; a game that ends sooner, at the most in one episode so far.
     const most = Math.max(0, ...x.episodes.slice(0, i + 1).map((h) => leftKeys(h).length));
     const rest = Number.isFinite(e.stillIn) ? Math.max(0, e.stillIn - 1) : Infinity;
-    const elims = !left ? 0 : end >= season && rest < Infinity ? rest : Math.min(most * left, rest);
+    const elims = !left ? 0 : toSeasonEnd && rest < Infinity ? rest : Math.min(most * left, rest);
     for (const t of e.table) could.set(t.name, stillInOf((e.why || {})[t.name]) * elims);
   } else if (game === "weeklyLineup") {
     const slots = (x.settings && x.settings.activeSlots) || 3;
@@ -1878,6 +1886,54 @@ function finishOf(x, role) {
 }
 
 /**
+ * The episode after which a replay's game says it's over (each episode's `over`), or null while it never does. A file from
+ * before `over` was recorded and over at the end: its last episode when the game has an end of its own (Start a game's
+ * endEpisode, or the span planned: a replay records nothing after it), else its last exit (the finale: a reunion after it has
+ * none). Pure.
+ */
+function overAt(x) {
+  const eps = (x && x.episodes) || [];
+  if (!eps.length) return null;
+  const said = eps.find((e) => e.over === true);
+  if (said) return said.n;
+  if (eps.some((e) => "over" in e) || !(x.final && x.final.over)) return null;
+  if ((x.settings && x.settings.endEpisode) || (x.span && x.span.to)) return eps[eps.length - 1].n;
+  const exit = [...eps].reverse().find((e) => leftKeys(e).length);
+  return exit ? exit.n : eps[eps.length - 1].n;
+}
+/** A replay's own end as played: where the game says it's over (overAt), else its last episode; null with none. Pure. */
+function endOf(x) {
+  const eps = (x && x.episodes) || [];
+  return eps.length ? (overAt(x) ?? eps[eps.length - 1].n) : null;
+}
+/** A replay's own end as planned, for what's still to come: where it said it's over, else Start a game's end, the span's, or
+ *  the season's last episode. Pure. */
+function gameEnd(x, e) {
+  return overAt(x) ?? ((x.settings && x.settings.endEpisode) || (x.span && x.span.to) || (x.tape && x.tape.episodes) || e.n);
+}
+/** A replay's episodes through the game's own end (endOf). Pure. */
+const gameEpisodes = (x) => {
+  const end = endOf(x);
+  return end === null ? [] : x.episodes.filter((e) => e.n <= end);
+};
+/** A replay cut at the game's own end: what the judge and the summary read, so the episodes a season plays on after a game is
+ *  over (the reunions after a finale) aren't its weeks. `cut` when episodes were left off: the record's final (its lead
+ *  changes, when it was settled) and each episode's rough `stillInIt` count the whole replay, so a cut one's are worked out
+ *  again from its own episodes (leadChangesOf, settledOf, roughInItOf); a file that isn't cut reads as it was. Pure. */
+const gameRecord = (x) => {
+  const episodes = gameEpisodes(x);
+  return { ...x, episodes, cut: episodes.length < x.episodes.length };
+};
+const leadChangesOf = (x) => (!x.final ? null : x.cut ? x.episodes.filter((e) => e.leadChange).length : x.final.leadChanges);
+const settledOf = (x) => (!x.final ? null : x.cut ? settledAt(x.episodes) : x.final.settledAt);
+/** The rough count of who could still win after episode index i: as the run recorded it (stillInIt: the best week anyone has
+ *  had, times the episodes left to the end planned), or on a cut record worked out again to the game's own end. Pure. */
+function roughInItOf(x, i) {
+  const e = x.episodes[i];
+  return x.cut ? stillInIt(e, x.episodes.slice(0, i + 1), Math.max(0, gameEnd(x, e) - e.n)) : e.stillInIt;
+}
+
+/**
  * P4's questions, measured over a set of replays of one game (docs/PLAN-playtests.md P4), each a fraction or a median:
  *   Fun          over (the game says it's over), leadChanges, settled (how far in the winner took first place for good,
  *                0 the first episode, 1 the last), tiedTop (the end level at the top), quiet (episodes where nobody's
@@ -1886,9 +1942,11 @@ function finishOf(x, role) {
  *   Makes sense  silent (Weekly Lineup starters who scored with no reason to show: the reveal lists each starter's points with
  *                its moments, episode-view.ts `why`, so a score with none can't be explained)
  * And the directions tried on the files (defaultLineupOf, poolFallbackOf, stillInBreakOf): forgetterCovered, tiedStill.
- * Pure.
+ * Every one on each replay cut at the game's own end (gameRecord), not the season's last episode. Pure.
  */
-function judgeOf(records) {
+function judgeOf(all) {
+  // Each replay to the game's own end (gameRecord).
+  const records = all.map(gameRecord);
   const place = (x, role) => {
     const f = finishOf(x, role);
     return f && f.of > 1 ? (f.at - 1) / (f.of - 1) : null;
@@ -1910,10 +1968,10 @@ function judgeOf(records) {
   return {
     replays: records.length,
     over: share(played.map((x) => !!(x.final && x.final.over))),
-    leadChanges: median(played.map((x) => (x.final ? x.final.leadChanges : null))),
+    leadChanges: median(played.map(leadChangesOf)),
     settled: median(
       played.map((x) => {
-        const i = x.final && x.episodes.length > 1 ? x.episodes.findIndex((e) => e.n === x.final.settledAt) : -1;
+        const i = x.final && x.episodes.length > 1 ? x.episodes.findIndex((e) => e.n === settledOf(x)) : -1;
         return i < 0 ? null : i / (x.episodes.length - 1);
       })
     ),
@@ -1943,7 +2001,7 @@ function judgeOf(records) {
             const i = Math.floor((x.episodes.length - 1) * q);
             const n = x.episodes[i].table.length;
             const own = inItOf(x, i);
-            return own === null || !n ? null : { rough: x.episodes[i].stillInIt / n, own: own / n };
+            return own === null || !n ? null : { rough: roughInItOf(x, i) / n, own: own / n };
           })
           .filter(Boolean);
         return xs.length ? { rough: mean(xs.map((r) => r.rough)), own: mean(xs.map((r) => r.own)), replays: xs.length } : null;
@@ -2017,7 +2075,7 @@ function judge(sub) {
   const lines = [
     `# Replays judged: P4's measures`,
     ``,
-    `${all.length} replay(s) in ${dir}, written by playtest.js judge. Over: the game says it's over at the end. Settled: how far in the winner took first place for good (0% the first episode). Tied top: level at the top at the end. Quiet: episodes where nobody's points or streak moved. Wiped: someone's team had nobody left before the end. Tinkerer, Forgetter: median finish (0% first, 100% last). Silent: Weekly Lineup starters who scored with no reason to show. Tied top, most still in breaks it: Outlast's ends still level at the top once the most people still in wins. Forgetter, covered while away: the forgetter's median place (ties level) as played → with each Weekly Lineup open slot (no lineup, or someone on it gone home) filled from the bench in draft order, or each missed pool pick made for them (the room's most picked they hadn't used; frozen: a missed week neither ends nor adds to a streak instead); worked out from the replay's own bench and picks. In it, at half and three quarters: the mean share of the table who could still win at the middle episode and three quarters in (games of two or more, three episodes or more), by the rough count (the best week anyone had, times the episodes left) → by the game's own best possible week (Outlast: each team's people still in, a point per elimination; Weekly Lineup: each team as it stands at its people's best; a pool: a streak that can still catch up).`,
+    `${all.length} replay(s) in ${dir}, written by playtest.js judge. Each measure in this table reads a game's episodes to its own end (when it says it's over, or its last episode), not the season's last: the reunions after a finale aren't a game's weeks. How much each week asks (below) counts every week the app still asks something, after the end too. Over: the game says it's over at the end. Settled: how far in the winner took first place for good (0% the first episode). Tied top: level at the top at the end. Quiet: episodes where nobody's points or streak moved. Wiped: someone's team had nobody left before the end. Tinkerer, Forgetter: median finish (0% first, 100% last). Silent: Weekly Lineup starters who scored with no reason to show. Tied top, most still in breaks it: Outlast's ends still level at the top once the most people still in wins. Forgetter, covered while away: the forgetter's median place (ties level) as played → with each Weekly Lineup open slot (no lineup, or someone on it gone home) filled from the bench in draft order, or each missed pool pick made for them (the room's most picked they hadn't used; frozen: a missed week neither ends nor adds to a streak instead); worked out from the replay's own bench and picks. In it, at half and three quarters: the mean share of the table who could still win at the middle episode and three quarters in (games of two or more, three episodes or more), by the rough count (the best week anyone had, times the episodes left) → by the game's own best possible week (Outlast: each team's people still in, a point per elimination; Weekly Lineup: each team as it stands at its people's best; a pool: a streak that can still catch up).`,
     ``,
     `| Game | Replays | Over | Lead changes | Settled | Tied top | Quiet | Wiped | Tinkerer | Forgetter | Problems | Silent | Tied top, most still in breaks it | Forgetter, covered while away | In it at half | In it at three quarters |`,
     `|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|`,
@@ -2377,7 +2435,7 @@ async function main() {
   console.log("Usage: node scripts/dev-test/playtest.js matrix|run|exits|summary|judge|compare|says|down <show> <season> (see the header comment)");
 }
 
-module.exports = { quickExits, reshapeLine, summaryLine, judgeOf, defaultLineupOf, poolFallbackOf, stillInBreakOf, inItOf, asksOf, compareOf, compareByGame, ghostsOf, seasonExits, variantOf, changedBy, favourites, lineupTaps, claimTaps, reviewTaps, TAPS, upgradeStored, shiftAnswer, exitsOf, DIMENSIONS, NA, gamesOf, dimsFor, applies, allConfigs, pairsOf, pairwise, replayName, ROLES, seatsFor, hash01, movesThisWeek, prefer, mergeOf, spanOf, settledAt };
+module.exports = { quickExits, reshapeLine, summaryLine, judgeOf, overAt, endOf, gameEnd, gameEpisodes, gameRecord, roughInItOf, stillInIt, defaultLineupOf, poolFallbackOf, stillInBreakOf, inItOf, asksOf, compareOf, compareByGame, ghostsOf, seasonExits, variantOf, changedBy, favourites, lineupTaps, claimTaps, reviewTaps, TAPS, upgradeStored, shiftAnswer, exitsOf, DIMENSIONS, NA, gamesOf, dimsFor, applies, allConfigs, pairsOf, pairwise, replayName, ROLES, seatsFor, hash01, movesThisWeek, prefer, mergeOf, spanOf, settledAt };
 
 if (require.main === module) {
   main()

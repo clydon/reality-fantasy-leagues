@@ -41,7 +41,7 @@ places, so the checklist asks for a place. Survivor's, the Traitors' and the Cha
 
 **What a player sees** (the look at 390 after the Traitors 4 finale, as the tinkerer): the bar says "Season over" and the
 Outlast card on Tonight says "1st · 1 of 2 still in". Nothing names a winner, and the Weekly Lineup's table reads "Through
-Episode 12. Standings move when you reveal", as on any other week.
+Episode 12. Standings move when you reveal", as on any other week. Once a game does end, it looks the same (finding 18, P5 part 4).
 
 **Repro.**
 - `node scripts/dev-test/playtest.js run the-traitors-us 4 --only=14 --keep`, then:
@@ -722,3 +722,206 @@ tie-break run, and a quick check asked again when its headline names someone its
   each episode's reshape changed ("reshaped: left Nia Moore (Disqualified)"), and each record keeps it (`tape.results[].reshaped`).
 - `node scripts/dev-test/playtest.js compare results-quick-exits --base=variants/results-autopilot` (`COMPARE-results-autopilot.md`
   in the variant's folder), and `judge --dir=variants/results-quick-exits`.
+
+## P5 part 4: what a player sees when a season-long game ends (2026-10-28)
+
+With the quick check's winner kept at the finale (`--results=quick-exits`), every season-long game ends (P5 part 3). So P5 part 4
+kept three games at each finale and looked at them at 390 as a player would:
+- **The games:** Outlast for two with weekly waivers, a Weekly Lineup for two and a Survival Pool for four, each the whole season
+  (`playtest.js run the-challenge 41 --only=1,5,14 --results=quick-exits --through=19 --keep`, and the Traitors 4 the same at its
+  finale, 11).
+- **The tinkerer,** who has seen everything: `playtest-looks.js over19 --pages=tonight,games,episodes,cast,waivers,home`.
+- **The forgetter,** who watched through the semi-final and reveals the finale: `--as=forgetter --reveal=19`.
+- **The hub:** the looks can open it now, in the shape a settled player has (`--pages=home`, `home-trophies`).
+
+Screenshots are in `rfl-tapes\replays\shots\` (`the-challenge-41-<n>-over19-*`, `-finale19-*`, `the-traitors-us-4-<n>-over11*`,
+`-finale11-*`).
+
+**Does anything name the winner?**
+- **The game's winner:** only the hub's trophy shelf, a tap from Home (More on the couch › Trophy shelf, "0 titles · 1 season
+  played"): "2nd · Traitors (US) 4 · zt_pt_forgetter won Outlast by 3".
+- **The show's winner:** only as an exit. Tonight lists each finalist and the winner under the same red OUT plate as any boot:
+  "OUT · Olivia Kaiser · Winner · finished 11th". The reveal's card has a red WINNER tag over "Finished 11th". The Challenge's pair
+  are both "Winner", Olivia Kaiser 11th and Yeremi Hykel 10th, in the order the quick check named them (finding 17).
+
+**What each game says once it's over** (the Challenge; the Traitors the same):
+- **Tonight** sets up the next episode, a reunion (finding 8), as on any week: "Episode 20 · in 6 days", "You're set for Episode 20 ·
+  Change anything until Tue", "Call it for Episode 20", the watch along. The Traitors' reunion aired the same night, so there it's
+  "Episode 12 · Aired · Waiting for results". "Your games" says "Outlast 2nd · 2 of 2 still in" (a winner counts as in), while "Your
+  night" says "All safe · 1 of 2 still in after this episode". The pool: "Survived · You picked Cara · streak 4" (Cara Maria
+  Sorbello's exit is held: finding 2).
+- **Games:** each table reads "Through Episode 19. Standings move when you reveal." The bar under it says "All set for Episode 20 ·
+  Edit". Weekly Lineup's table is 7 against −3, "+0" this week.
+- **The finale's reveal** (the forgetter):
+  - it opens "Early results: who went home. Weekly Lineup's full scores come later" (finding 20);
+  - Weekly Lineup: "Nobody started this episode · 0 so far · full scores to come";
+  - the pool: "No pick · Your streak starts again";
+  - Outlast's last beat: "Outlast standings · You're 1st, 8 ahead of zt_pt_tinkerer", as any week.
+- **The hub:** "You're all set · nothing due this week", the show's card "Best 2nd", "Power rankings · You're 2nd · 9 back of
+  zt_pt_forgetter".
+- **Waivers:** a waiver week opens and runs after the finale. Tonight carries "Waivers ran · See who got who". On the Traitors, the
+  forgetter is asked to replace a finalist, with nobody free (finding 19).
+
+### 17. A finale's places are the order the bot names them in: Dancing with the Stars' winner finishes fifth, and Outlast pays the final backwards (high; whoever owns placement: `decision-apply.ts orderPlacementsByEpisode` and `state-logic.js addElimination`, the engine lane)
+
+Outlast scores someone by their place in the boot order (`state-logic.js EliminationOrderScoringStrategy`: "out 4th = 4, the winner
+of 18 = 18"). The places on Tonight, the reveal's "Finished 11th" and the medals (`selectors.ts medalFor`) read the same number.
+- **How the places are set:** exits in one episode are numbered in the order they're filed. `addElimination` hands out the next
+  number, and `orderPlacementsByEpisode` re-sorts by episode after each sync but keeps the filed order within an episode.
+- **What files first:** on Autopilot the quick check, in the order its answer names who left, and the bot names the winner first:
+  - **Dancing with the Stars 34:** Robert Irwin (Winner), Alix Earle (Runner-up), Jordan Chiles (Third place), Dylan Efron (Fourth
+    place), Elaine Hendrix (Fifth place). In the game, Robert Irwin finished 5th (10 points) and Elaine Hendrix 1st (14), with the
+    gold medal.
+  - **The Challenge 41:** Olivia Kaiser and Yeremi Hykel, the winners, 11th and 10th. The two disqualified in the final, Theo
+    Campbell and Adrienne Naylor, 5th and 4th.
+  - **The Traitors 4 and Survivor 49:** their quick checks name the winner last, so they come out right by luck.
+
+**What it costs.** For each Outlast replay that reaches a finale, each finale leaver's points were moved from their place as filed
+to their place by their exit, and the winner read again (a one-off over the files, not kept):
+- **The whole set (Autopilot):** Dancing with the Stars' Outlast winner changes in 5 of the 8 games that reach its finale (4 of 8 in
+  the Autopilot run again, and in quick-exits). In replay 1 (Outlast for two) the Tinkerer won 25 to 21. With the places right, the
+  Forgetter wins 27 to 23: they hold the winner and the runner-up.
+- **With the quick check's winner kept** (quick-exits): the Challenge's winner changes too, in 2 of 6.
+
+**Someone still in at the end outscores the winner.** When a winner is crowned while someone the research never removed is still in
+(Cara Maria Sorbello, finding 2; Gabe Wai and Leonardo Dionicio, finding 6), they're scored as outlasting everyone: 30 points on the
+Challenge, against the winner's 22. Replay 1's forgetter won Outlast with Cara Maria and Gabe Wai, both gone mid-season by the show's
+account.
+
+**Repro.**
+- `node scripts/dev-test/playtest.js run dancing-with-the-stars 34 --only=1 --through=11 --keep`, then read the kept game's
+  castaways (`leagues.state->'castaways'` on the `zt-pt-` game): Robert Irwin `placementOrder` 10 of 14, Elaine Hendrix 14.
+  `playtest.js down` after.
+- A failing test, for `tests/` (it fails today: the winner gets 16 of 18):
+
+  ```js
+  const test = require("node:test");
+  const assert = require("node:assert/strict");
+  const path = require("path");
+  const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
+  const { buildDemoState } = jiti("../src/lib/game/demo-season-builder.ts");
+  const { applyDecision, orderPlacementsByEpisode } = jiti("../src/lib/game/decision-apply.ts");
+  const { medalFor } = jiti("../src/lib/game/selectors.ts");
+  const S = require("../src/lib/game/state-logic.js");
+
+  test("a finale filed winner first still places the winner first", () => {
+    const EPISODES = 16; // one boot an episode, the final three at the finale
+    const data = {
+      id: "test", showId: "survivor", showName: "Test", seasonName: "Test", episodeCount: EPISODES,
+      players: ["ann", "bo"].map((key) => ({ key, name: key, color: "#000" })),
+      castaways: Array.from({ length: 18 }, (_, i) => ({
+        key: `k${i}`, name: `Castaway ${i}`, placement: i + 1, exitEpisode: Math.min(i + 1, EPISODES),
+        exitMethod: i === 17 ? "Sole Survivor" : i >= 15 ? "Lost Final Tribal (Jury Vote)" : "Voted Out",
+      })),
+    };
+    const fact = (name, method) => ({ episode_number: EPISODES, post_merge: true, kind: "elimination", castaway_name: name, method, event_type: "", jury_votes: null, units: null, applied: null });
+    const s = S.migrateLeagueState(JSON.parse(JSON.stringify(buildDemoState(data, "classic-draft", EPISODES - 1))));
+    // The quick check's order: the winner first.
+    applyDecision(s, fact("Castaway 17", "Sole Survivor"), []);
+    applyDecision(s, fact("Castaway 15", "Lost Final Tribal (Jury Vote)"), []);
+    applyDecision(s, fact("Castaway 16", "Lost Final Tribal (Jury Vote)"), []);
+    orderPlacementsByEpisode(s);
+    const winner = s.castaways.find((c) => c.name === "Castaway 17");
+    assert.equal(S.seasonWinner(s)?.name, "Castaway 17");
+    assert.equal(winner.placementOrder, s.castaways.length, "the winner's place is 1st");
+    assert.equal(medalFor(s, winner.placementOrder), "gold");
+  });
+  ```
+
+**A direction.**
+- **Order an episode's exits by what they are,** whatever order they were filed in: anyone knocked out (not an endgame exit) first,
+  then the format's `endgameExitMethods` in their own order. Every format lists those lowest place first and the winner last
+  (Dancing with the Stars: Fifth place, Fourth place, Third place, Runner-up, Winner). Keep the filed order only between two of the
+  same exit. In `orderPlacementsByEpisode`, which runs after every sync, and `applyEliminationsImport`.
+- **A belt:** the quick prompt (`bot-research.js buildQuickPrompt`) asks for who left in the order they left, the winner last.
+- **Someone still in when the winner's crowned** can't have outlasted the winner. Hold them as a doubt for whoever runs it ("3
+  people never left: when did they go?"), and don't score them above the winner.
+
+### 18. A game that's over looks like any week: nothing names its winner where the couch looks (medium; the new design: Tonight, Games, the reveal)
+
+Once a season-long game is over (`StateLogic.gameOver`, which the couch's own list already reads as `ended`), what a player sees is
+above:
+- the next episode set up as usual, moves and extras included;
+- the table "Through Episode 19. Standings move when you reveal.";
+- the finale's reveal ending "You're 1st, 8 ahead", as any week;
+- the pool's "Your streak starts again";
+- the show's winner under a red OUT, "finished 11th".
+
+The app's own `isKnockedOut` (`selectors.ts`) says a winner or a finalist reached the end and shouldn't read as out, but Tonight's
+results plate (`tonight.tsx LastTime`) shows every exit as OUT. The game's winner is named only on the trophy shelf.
+
+**Repro.** `node scripts/dev-test/playtest.js run the-challenge 41 --only=1,5,14 --results=quick-exits --through=19 --keep`, then
+`node scripts/dev-test/playtest-looks.js over19 --pages=tonight,games` and `node scripts/dev-test/playtest-looks.js finale19
+--as=forgetter --pages=tonight --reveal=19`. `playtest.js down` after.
+
+**A direction.**
+- **Name the winner where the couch looks:** a game that's over shows its final table with its winner on Tonight and Games ("Forgetter
+  won Outlast by 8", as the trophy shelf words it), and the finale's reveal ends on it.
+- **Nothing after the end:** no moves, extras or "next episode" for a game that's over. A couch with nothing else on the show could
+  see "Season over", which Tonight already has for a season with no episode left.
+- **The show's winner as a crown, not an exit:** the finale's results list the places, the winner first.
+
+### 19. Waivers keep running after the game is over, and ask someone to replace a finalist with nobody free (medium; the engine lane, `state-logic.js WaiverLogic.replacementsOwed`, and `action-items.js waiverItems`)
+
+After the finale a waiver week opens and runs, and Tonight carries a "Waivers ran · See who got who" card. The waivers page says
+"No change for you · Free agency · 0 free · Past waivers: After Episode 11 · 0 moves". On the Traitors 4 (quick-exits) the
+forgetter, whose team is Maura Higgins (Finalist) and Rob Cesternino (still in: the quick check missed his murder), sees "Your
+moves · 1 to do before airtime · Replace Maura · Pick who comes in" on Tonight, with the tab's badge. Free agency has nobody to
+pick.
+- **No stop at the end:** `replacementsOwed` stops only when `MidSeasonLogic.seasonOver`, nobody active. A crowned winner, or a game
+  over its span, doesn't stop it, so someone the research never removed keeps the waivers going.
+- **A finalist counts as a loss:** the losses leave out only the winner (`!isWinnerExit`), so a finalist is owed a replacement. The
+  app's own `isKnockedOut` says a finalist reached the end.
+
+On a season where everyone left by the finale, `seasonOver` holds and nothing is owed. With finding 1 fixed, every season where the
+research missed an exit (the Challenge 41 has three) shows it.
+
+**Repro.** `node scripts/dev-test/playtest.js run the-traitors-us 4 --only=1 --results=quick-exits --through=11 --keep`, then
+`node scripts/dev-test/playtest-looks.js over11f --as=forgetter --pages=tonight,waivers`
+(`rfl-tapes\replays\shots\the-traitors-us-4-1-over11f-tonight.png`, `-waivers.png`). `playtest.js down` after.
+
+**A direction.** No waiver week once `gameOver(state)`, and a loss is someone knocked out, never one of the format's endgame exits.
+An owed replacement with nobody free makes no move card.
+
+### 20. A finale with nothing to score stays "Early results" for good (low; whoever owns `season-decisions.ts`, the survivor lane with research)
+
+The Challenge's finale scores nothing (P5 part 2's Noticed). With the quick check's winner kept, its full research agrees on who
+left, so the sync touches nothing in episode 19. An episode's stage is set only when the sync touches it (`season-decisions.ts`,
+after `orderPlacementsByEpisode`), and `episode-research-apply.ts` sets "final" only for scoring moments. So the finale stays
+"early":
+- Tonight: "Episode 19 · Early results";
+- the reveal: "Early results: who went home. Weekly Lineup's full scores come later";
+- the lineup beat: "0 so far · full scores to come".
+
+Episodes 9 and 18 aren't affected: their quick checks said nobody left and weren't applied, so the full research touched them. On
+Autopilot it doesn't show, because the full research takes the finale's exits away (finding 1). Fixing finding 1 brings it out.
+
+**Repro.** `node scripts/dev-test/playtest.js run the-challenge 41 --only=5 --results=quick-exits --through=19 --keep`, then the
+kept game's `state->'episodes'`: episode 19 has `resultsStage: "early"` and no scoring events. `playtest.js down` after.
+
+**A direction.** A full answer filed for an episode makes it final whether or not it changed anything, as `fullAnswers` already
+says for an episode where nothing scored.
+
+### The judge, to the game's own end
+
+`judge` walked every episode a replay looked at, to the season's last. So a game that's over at the finale counted the reunions as
+its quiet weeks and as "before the end" (P5 part 3's Noticed). Each measure now stops at the game's own end: when it says it's over
+(each episode's `over`, recorded from now on), else its last episode. A file from before is read as over at its span's end, or at
+its last exit. Who can still win counts the weeks left to that end. How much each week asks still counts every week the app asks
+something, after the end too (finding 19's card).
+
+- **Unchanged:** the whole set and the variants `results-autopilot`, `results-accepted`, `away-favourites` and `window-merge`,
+  every table row byte for byte. On Autopilot the Challenge's, the Traitors' and Survivor's games never say they're over (finding
+  1), Dancing with the Stars' finale is its last episode, and a span's game stops at its span's end.
+- **`results-quick-exits`:** 22 of its 96 games end before the season's last episode (the Challenge's and the Traitors' that run
+  to the finale). With the "In it" columns' own counts:
+
+  | Game | Settled | Quiet | Wiped | In it at half | In it at three quarters |
+  |---|---|---|---|---|---|
+  | Outlast | 75% → 80% | 11% → 7% | 46% → 39% | 90% | 71% → 76% |
+  | Survival Pool | 0% | 7% → 2% | 0% | 91% → 88% | 66% → 69% |
+  | Weekly Lineup | 40% | 17% → 12% | 43% → 24% | 79% → 83% | 70% |
+
+So keeping the winner doesn't wipe out more Outlast teams after all: 39%, the same as on Autopilot. P5 part 3's 39% → 46% was
+the reunions. Its Weekly Lineup wiped share is below Autopilot's (24% against 38%): on Autopilot a game that never says it's over
+runs to the season's last episode, so the teams the finale empties count as wiped before the end. The Challenge's Weekly Lineup was the most quiet; to its own end that's 35% → 29%.

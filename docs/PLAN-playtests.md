@@ -8,7 +8,8 @@ written down); P3 parts 1 and 2 built (96 replays of Survivor 49, the Traitors 4
 and the looks at 390; Below Deck 12's full research comes back but its cast is every season's crew: finding 10, corrected); P4
 done for the four seasons on tape (taps a week, someone away, the directions tried as variants); P5 part 1 done (the measures
 read data; the forgetter's looks at 390); P5 part 2 done (what accepting the bot's held results changes, and who can still win
-by each game's own best week); P5 part 3 done (what findings 1 and 6 cost: who left from the quick check); findings in
+by each game's own best week); P5 part 3 done (what findings 1 and 6 cost: who left from the quick check); P5 part 4 done (what a
+player sees when a game ends, findings 17 to 20; the judge to the game's own end); findings in
 [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md).
 
 ## What the user asked for (2026-10-28, going to sleep with the survivor and engine lanes running)
@@ -783,6 +784,70 @@ reshaped count in `compare`), `tests/tapes.test.js` (`castHeld`). `npm test` pas
   the rest (Caio, Solène, Chef Lawrence). The answers are nearly empty (episode 1: two "yes" answers in all; episode 2: every
   entry "unknown"), and episode 5's quick check ("Caio Poltronieri left") names someone not in the cast, so it waits.
 
+### P5, part 4: what a player sees when a game ends; the judge to the game's own end (2026-10-28, playtest lane)
+
+**The bot was still capped.** Its last answer was at 11:11:47 UTC. The recorder (pid 63680 since 11:33 UTC, window "Tapes:
+recording") asked Below Deck 12's episode 11 quick check a third time at 11:47 and backs off. The words corpus is still 2 of 104,
+so P2's table and Below Deck's cast by hand (step 3 of the seed) wait. This part is P5's work without the bot.
+
+**The looks at 390 once a season-long game ends** (details in [PLAYTEST-REPORT.md](PLAYTEST-REPORT.md), "P5 part 4"):
+- **What was looked at:** three whole-season games kept at each finale with the quick check's winner kept (`run the-challenge 41
+  --only=1,5,14 --results=quick-exits --through=19 --keep`, the Traitors 4 the same at 11). Looked at as the tinkerer, as the forgetter
+  revealing the finale (`--reveal=19`), and on the hub.
+- **Does anything name the winner?** The game's winner only on the hub's trophy shelf, a tap from Home ("zt_pt_forgetter won
+  Outlast by 3"). The
+  show's winner only as an exit, under a red OUT: "Olivia Kaiser · Winner · finished 11th". The Challenge's pair are both
+  "Winner", 11th and 10th.
+- **What the games say once over:** the same as any week. Tonight sets up the reunion with moves and extras, Games reads "Through
+  Episode 19. Standings move when you reveal.", the reveal ends "You're 1st, 8 ahead", and the pool says "Your streak starts again".
+- **The waiver replacement owed after the finale (P5 part 3's Noticed):** yes, shown. "Replace Maura · Pick who comes in" with the
+  Tonight tab's badge, on a game that's over, with nobody free to pick.
+- **Findings:**
+  - **17 (high):** a finale's places are the order the bot names them in. Dancing with the Stars' winner finishes 5th and the fifth
+    place 1st. Outlast's winner changes in 5 of the 8 of its games that reach the finale on Autopilot, and 2 of the Challenge's 6 with
+    the winner kept. It has a failing test for the owner.
+  - **18 (medium):** a game that's over looks like any week.
+  - **19 (medium):** waivers run after the end, and a finalist counts as someone to replace.
+  - **20 (low):** a finale with nothing to score stays "Early results" for good.
+
+**`playtest-looks.js --pages`** takes the hub too: `home`, and `home-<page>` for one of its couch pages (`home-trophies`, the trophy
+shelf; the keys are read from `couch-pages.tsx`'s PAGES, so a page that isn't one is refused). It opens the hub in the shape a
+settled player has (`?hub=focus`). The seats joined their couch minutes ago and would get the new member's ("More shows up as the
+couch plays"), which is what the first shots showed before the code review. The show's own pages (`waivers`) already worked.
+
+**The judge to the game's own end** (`playtest.js`, P5 part 3's Noticed):
+- **What `look` records:** each episode's `over` (`StateLogic.gameOver` on the game as it stood after it).
+- **`endOf`:** the first episode that says it's over, else the replay's last. A file from before `over` that's over at the end: its
+  span's end when it has one and got there (Start a game's `endEpisode` first), else its last exit (the finale: a reunion has none).
+- **`gameRecord`:** the replay cut at `endOf` (`gameEpisodes`), marked `cut` when episodes were left off. `judgeOf` and
+  `summaryLine` read every measure from it. A cut record's lead changes, when it was settled and the rough count of who can still
+  win are worked out again from its own episodes (`leadChangesOf`, `settledOf`, `roughInItOf`); a file that isn't cut reads as it
+  was. Who can still win counts the weeks left to the game's own end (`gameEnd`). How much each week asks (`asksOf`) still counts
+  every week the app asks something, after the end too. JUDGE.md's header says so.
+- **Checked:** five of the Challenge's replays played to episode 20 (the finale and a reunion, into `partial\`). The recorded `over`
+  and the end worked out without it agree: 19, and 10 for the game through half.
+- **What JUDGE.md shows now:**
+  - the whole set and the variants `results-autopilot`, `results-accepted`, `away-favourites` and `window-merge` are unchanged,
+    every table row byte for byte (on Autopilot only Dancing with the Stars' games end, at its last episode);
+  - `results-quick-exits` moves (22 of its 96 records are cut). Outlast wiped 46% → 39% (Autopilot's own 39%: P5 part 3's rise
+    was the reunions), quiet 11% → 7%, settled 75% → 80%, in it at three quarters 71% → 76%. Weekly Lineup wiped 43% → 24%, quiet
+    17% → 12%. The pool's in it at the half 91% → 88% (fewer weeks left to catch up).
+
+The report has the table.
+
+**What the finale's order costs** was measured by a one-off over the files (not kept, as it reads one finding's arithmetic): each
+Outlast replay's final table moved by each finale leaver's place as filed (the quick check's order) against the place their exit
+ranks.
+
+Unit tests (`tests/playtest.test.js`): the game's own end, said, worked out from a file before `over`, never over, a span's end; a
+cut record's lead changes, settled and rough count against an uncut one's. `npm test` passes (802).
+
+**The code review's fixes:**
+- the first cut changed only five measures, while who can still win, lead changes, the finishes and the forgetter's covered weeks
+  still read to the season's end; every measure now reads the cut record;
+- the hub was shot in the new member's shape;
+- a `home-` page with a typo was shot as the plain hub.
+
 ## Noticed, not fixed
 
 (Each step adds what it saw and left alone, with the step that could take it.)
@@ -926,13 +991,34 @@ From P5 part 3 (2026-10-28):
 - **"Wiped before the end" counts the reunions** for a game that's over at the finale (the replays look at every episode to the
   season's last), so with the winner kept Outlast's wiped share rises (39% → 46%, part of it between runs: Dancing with the Stars,
   which nothing reshaped, 29% → 35%; the finale's exits empty teams with two
-  reunions still to come). A measure's quirk, not the game's. P5's next measure pass, if "wiped" is ever leaned on.
+  reunions still to come). A measure's quirk, not the game's. P5's next measure pass, if "wiped" is ever leaned on. **Done in P5
+  part 4:** every measure stops at the game's own end, and quick-exits' Outlast wiped is 39%, Autopilot's own.
 - **The Challenge crowns a pair** (Olivia Kaiser and Yeremi Hykel, both "Winner"); `seasonWinner` takes the first it finds,
   which is enough to end the season. Who the app names as the winner on a pair show (the looks) is for a look at 390, not done here.
+  **Looked at in P5 part 4:** both are "Winner", 11th and 10th in the order the quick check named them (finding 17), and nothing
+  names them but their exits (finding 18).
 - **A waiver replacement owed after the season's over.** With the finale's winner kept, two Outlast games with weekly waivers
   (the Challenge's and the Traitors' for two) still have a replacement owed at the reunions: the finale's exits leave teams with
   someone out, and the waiver week runs after every episode. The harness counts it as a card (no taps). Whether the app shows
   it on Tonight once a game is over is for a look at 390 (`run the-challenge 41 --only=1 --results=quick-exits --keep`), then
-  the engine lane (`WaiverLogic`), if it does.
+  the engine lane (`WaiverLogic`), if it does. **Looked at in P5 part 4:** it does, finding 19.
 - **The working copy's scripts and tests are LF** after this part's edits (the docs stay CRLF); git stores LF either way
   (`core.autocrlf`), so the commit's diff is clean.
+
+From P5 part 4 (2026-10-28):
+- **Two counts of who's still in disagree on one screen.** After the Challenge's finale Tonight's "Your games" says "Outlast 2nd · 2
+  of 2 still in" (`yourLine` counts by `isKnockedOut`: a winner is in), while "Your night" says "All safe · 1 of 2 still in after
+  this episode" (the night's count takes the winner as gone). Both right by their own rule. With finding 18 (the new design), once a
+  game that's over says so.
+- **Tonight's stats list the winner as "Out · Ep 11"** (the Traitors' Rob Rausch, in "As a Traitor, voted out a Faithful"): the
+  stats' line for anyone with an exit. With finding 18's crown, not an exit.
+- **A reunion that airs the night of the finale waits for results on a game that's over** (the Traitors 4's episode 12: "Episode 12
+  · Aired · Waiting for results"). A reunion's quick check says nobody left, which the app holds as a doubt, so the wait could
+  stay. With findings 8 and 18: nothing to wait for once the game's over.
+- **The reveal's opener names a game on another couch.** The forgetter's reveal on replay 1's couch (Outlast only) opens "Weekly
+  Lineup's full scores come later": the forgetter also plays replay 5's Weekly Lineup on the same season, on another couch. The
+  reveal covers every game you play on the season. That's harness-shaped (one seat on three couches of one season), so it's left
+  alone; a look with one couch per season would show it as a player has it.
+- **The finale order's measure assumes the quick check filed first** (Autopilot's early stage), so its order is the order filed.
+  It's true on these tapes: the full research agrees on who left at Dancing with the Stars' finale and skips anyone already out.
+  It's a one-off (not kept), so a fix to finding 17 is checked by playing the replays again.

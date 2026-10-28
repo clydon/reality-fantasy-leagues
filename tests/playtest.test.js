@@ -377,6 +377,54 @@ test("P4's measures over replays: over, lead changes, when it was settled, ties,
   assert.equal(j.silent, 1 / 3);
 });
 
+test("the measures stop at the game's own end: when it says it's over, else its span's end or last exit, not the season's", () => {
+  const row = (name, total) => ({ playerId: name, name, total });
+  const ep = (n, total, more = {}) => ({ n, leaders: ["Tinkerer"], table: [row("Tinkerer", total), row("Forgetter", 1)], why: {}, teamsWithNobodyLeft: [], leadChange: false, ...more });
+  const seats = [{ label: "Tinkerer", role: "tinkerer" }, { label: "Forgetter", role: "forgetter" }];
+  // Over at the finale (episode 3), then two reunions nobody leaves in: the Forgetter's team is empty after the finale.
+  const finale = { left: [{ id: "c1", name: "Ann", method: "Winner" }], teamsWithNobodyLeft: ["Forgetter"] };
+  const after = { teamsWithNobodyLeft: ["Forgetter"] };
+  const said = {
+    seats,
+    problems: [],
+    final: { over: true, settledAt: 1, leadChanges: 0 },
+    episodes: [ep(1, 2, { over: false }), ep(2, 4, { over: false }), ep(3, 6, { ...finale, over: true }), ep(4, 6, { ...after, over: true }), ep(5, 6, { ...after, over: true })],
+  };
+  assert.equal(P.endOf(said), 3);
+  assert.deepEqual(P.gameEpisodes(said).map((e) => e.n), [1, 2, 3]);
+  const j = P.judgeOf([said]);
+  // Emptied at the finale is the end, not before it; the reunions aren't quiet weeks of the game.
+  assert.equal(j.wiped, 0);
+  assert.equal(j.quiet, 0);
+  assert.equal(j.settled, 0);
+  // A file from before `over`: over at the end, so at its last exit; never over, the replay's last episode.
+  const before = { ...said, episodes: said.episodes.map(({ over, ...e }) => e) };
+  assert.equal(P.endOf(before), 3);
+  assert.equal(P.judgeOf([before]).wiped, 0);
+  assert.equal(P.endOf({ ...before, final: { ...before.final, over: false } }), 5);
+  assert.equal(P.judgeOf([{ ...before, final: { ...before.final, over: false } }]).wiped, 1);
+  // One that says it never ends runs to its last episode, whatever left when.
+  assert.equal(P.endOf({ ...said, episodes: said.episodes.map((e) => ({ ...e, over: false })) }), 5);
+  // A span with an end it reached: that end, though nobody left in it.
+  const span = { ...before, span: { from: 1, to: 4 }, episodes: before.episodes.slice(0, 4) };
+  assert.equal(P.endOf(span), 4);
+  assert.equal(P.endOf({ episodes: [] }), null);
+  // Cut at its end, a record's lead changes, when it was settled and the rough count are its own episodes'; uncut, as recorded.
+  const lead = { ...said, final: { ...said.final, settledAt: 5, leadChanges: 2 }, episodes: said.episodes.map((e) => ({ ...e, stillInIt: 2 })) };
+  lead.episodes[4] = { ...lead.episodes[4], leadChange: true, leaders: ["Forgetter"] };
+  lead.episodes[3] = { ...lead.episodes[3], leadChange: true };
+  const cut = P.gameRecord(lead);
+  assert.equal(cut.cut, true);
+  assert.equal(P.judgeOf([lead]).leadChanges, 0);
+  assert.equal(P.summaryLine({ ...lead, replay: "r" }).settledAt, 1);
+  assert.equal(P.summaryLine({ ...lead, replay: "r" }).leadChanges, 0);
+  // Nothing scores after the end: the rough count's weeks left are to episode 3, not 5. Halfway (episode 2): 1 left, best week 0.
+  assert.equal(P.roughInItOf(cut, 1), 1);
+  assert.equal(P.gameRecord(said).cut, true);
+  assert.equal(P.gameRecord({ ...said, episodes: said.episodes.slice(0, 3) }).cut, false);
+  assert.equal(P.roughInItOf(P.gameRecord({ ...lead, episodes: lead.episodes.slice(0, 3) }), 1), 2, "uncut: as recorded");
+});
+
 test("the measures read a replay's data (ids, points, flags) where it has it, and give what its words give", () => {
   const seats = [{ label: "Tinkerer", role: "tinkerer" }, { label: "Forgetter", role: "forgetter" }, { label: "Fan", role: "fan" }];
   // A name with a number in it, which the words' "Name 3.5 (moments)" would read wrongly, and ids that aren't names.

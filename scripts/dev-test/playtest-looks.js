@@ -16,6 +16,10 @@
 //                  the kept copy, finished_at with it, and its results_seen_through on the kept games; zt_pt_ rows on a
 //                  zt-pt- season, nothing else). The app itself never moves a player's mark back (follows.ts setFollow).
 //   --moves        also opens Tonight's Set lineup (the moves sheet) and screenshots it (<label>-moves.png)
+//   --pages        the show space's pages (tonight, games, episodes, cast, chat) and its own (waivers, draft, scoring), or
+//                  home (the hub, with the replay's couch picked, in the shape a settled player has: ?hub=focus, since the seats
+//                  joined the couch minutes ago and would get the new member's), and home-<page> for one of its couch pages
+//                  (home-trophies: the trophy shelf, home-rankings..., the keys of src/new/hub/couch-pages.tsx PAGES)
 //
 // Writes rfl-tapes\replays\shots\<show>-<season>-<n>-<label>-<page>.png and prints each page's console errors.
 // Needs: the lane's dev server (BASE in .env.local; `node scripts/lane.js dev`), and games kept by `run --keep`.
@@ -33,11 +37,24 @@ const as = flag("as", "tinkerer");
 const revealFlag = flag("reveal", null);
 const reveal = revealFlag === null ? null : Number(revealFlag);
 const moves = process.argv.includes("--moves");
+// The hub's couch pages, as the app names them (couch-pages.tsx's PAGES), so a page that isn't one is refused, not shot as the hub.
+const COUCH_PAGES = (() => {
+  const src = fs.readFileSync(path.join(__dirname, "..", "..", "src", "new", "hub", "couch-pages.tsx"), "utf8");
+  const block = /const PAGES = \{([\s\S]*?)\n\} as const/.exec(src);
+  return block ? [...block[1].matchAll(/^\s+(\w+):/gm)].map((m) => m[1]) : [];
+})();
+const hubOf = (p) => {
+  const m = /^home(?:-(.+))?$/.exec(p);
+  if (!m) return null;
+  if (m[1] && !COUCH_PAGES.includes(m[1])) throw new Error(`--pages=${p}: the hub's couch pages are ${COUCH_PAGES.map((k) => `home-${k}`).join(", ")}`);
+  return { page: m[1] || null };
+};
 
 async function main() {
   if (!label || label.startsWith("--")) throw new Error("Usage: node scripts/dev-test/playtest-looks.js <label> [--pages=tonight,games] [--width=390] [--as=forgetter] [--reveal=N] [--moves]");
   if (!/^[a-z]+\d*$/.test(as)) throw new Error(`--as is a seat's role as its account names it (tinkerer, forgetter, forgetter2...), not ${as}`);
   if (reveal !== null && !(Number.isInteger(reveal) && reveal >= 1)) throw new Error("--reveal needs an episode number");
+  pages.forEach(hubOf);
   const DB = process.env.AUTH_DATABASE_URL || "";
   if (!/@(localhost|127\.0\.0\.1)[:/]/.test(DB)) throw new Error("playtest-looks.js only reads a local database (AUTH_DATABASE_URL)");
   const user = `zt_pt_${as}`;
@@ -83,7 +100,8 @@ async function main() {
       await page.evaluate((id) => localStorage.setItem("gys.couch", id), r.couch);
       errors.length = 0;
       for (const p of pages) {
-        await page.goto(`${BASE}/show/${r.season}/${p}`, { waitUntil: "networkidle" });
+        const hub = hubOf(p);
+        await page.goto(hub ? `${BASE}/home?hub=focus${hub.page ? `&page=${hub.page}` : ""}` : `${BASE}/show/${r.season}/${p}`, { waitUntil: "networkidle" });
         await settle();
         await shot(base, p);
       }
