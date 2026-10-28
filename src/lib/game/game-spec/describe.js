@@ -1,0 +1,282 @@
+// A game spec in plain words (docs/PLAN-start-a-game-gpt.md, "The wizard"): the game in a sentence at the top of the
+// wizard, How it works as a rule a line, and the details nobody asked about (recommended, out of sight).
+//
+//   describeSpec(spec, ctx) -> { name, sentence, parts, rules, details }
+//
+//   sentence  "A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, Episode 7 to the finale.
+//             Scored by Survivor 51's rules."
+//   parts     the sentence in pieces, each with the part of the spec it says (`at`: preset, about, get, count, span,
+//             score, ask, rank), so the wizard can show what someone said as theirs and what we chose as ours
+//   rules     How it works. For today's five games, the same lines as the Rules sheet (game-rules.ts gameRules)
+//   details   [{ id, label, value, recommended }]: the draft room, who can join, waivers, side bets, finale predictions...
+//
+//   ctx       what the spec refers to, in the show's words: { show: 'Survivor 51', castaway: 'castaway', castaways,
+//             part: { singular: 'episode', plural: 'episodes' }, groups: the scoring groups' labels, moments: [{ id,
+//             label, defaultPoints }], stats: [{ key, label: 'home run' }] }. All optional.
+//
+// Pure CommonJS, like ./schema.js.
+/* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
+const { PRESET_LABELS, fullSpec, countKind, presetOf, sameValue, own } = require('./schema.js');
+/* eslint-enable @typescript-eslint/no-require-imports */
+
+const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
+const say = (n) => NUMBER_WORDS[n] || String(n);
+const cap = (s) => s.replace(/^./, (c) => c.toUpperCase());
+const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+/** "a, b and c". */
+const listOf = (items) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
+const pointsWord = (n) => `${n} ${n === 1 ? 'point' : 'points'}`;
+
+function wordsOf(ctx) {
+  const c = isObj(ctx) ? ctx : {};
+  const castaway = c.castaway || 'person';
+  const part = isObj(c.part) && c.part.singular ? c.part : { singular: 'episode', plural: 'episodes' };
+  return {
+    show: c.show || null,
+    castaway,
+    castaways: c.castaways || (c.castaway ? `${castaway}s` : 'people'),
+    part: part.singular,
+    parts: part.plural || `${part.singular}s`,
+    Part: cap(part.singular),
+    Parts: cap(part.plural || `${part.singular}s`),
+    groups: Array.isArray(c.groups) ? c.groups.filter(Boolean) : [],
+    moments: Array.isArray(c.moments) ? c.moments : null,
+    stats: new Map((Array.isArray(c.stats) ? c.stats : []).map((x) => (isObj(x) ? [x.key, x.label || x.key] : [x, x]))),
+  };
+}
+
+/** "Episode 7 to the finale", "Games 1–3", "just Game 1", "all season"; A3's phase start: "from the merge". */
+function spanWords(span, w) {
+  if (isObj(span.from)) return `from the ${span.from.phase}${span.to === null ? '' : ` to ${w.Part} ${span.to}`}`;
+  if (span.to === null) return span.from === 1 ? 'all season' : `${w.Part} ${span.from} to the finale`;
+  return span.to === span.from ? `just ${w.Part} ${span.from}` : `${w.Parts} ${span.from}–${span.to}`;
+}
+
+/** "a" or "an": by its sound, so an initialism by its first letter's name ("an HR", "a TB"). */
+const article = (word) => (/^[A-Z]{2,}/.test(word) ? /^[AEFHILMNORSX]/.test(word) : /^[aeiou]/i.test(word)) ? 'an' : 'a';
+/** "5 a home run and 1 an assist". */
+const statsWords = (points, w) => listOf(Object.entries(points).map(([k, p]) => {
+  const label = w.stats.get(k) || k;
+  return `${p} ${article(label)} ${label}`;
+}));
+
+/** A question's words, or its id while it has none yet. */
+const askOf = (q) => String(q.ask || q.id || 'A question').trim();
+/** A question as a phrase in a list: "who wins", "total points: over or under (237.5)". */
+function questionPhrase(q) {
+  const text = askOf(q).replace(/\?$/, '');
+  const phrase = /^[A-Z][a-z]/.test(text) ? text.charAt(0).toLowerCase() + text.slice(1) : text;
+  return q.answer === 'overUnder' && typeof q.line === 'number' ? `${phrase} (${q.line})` : phrase;
+}
+
+/** How many moments' points the spec changes from the rulebook's (its defaults for the draft's ownership), or null. A
+ *  moment the rulebook switched off scores nothing whatever its points, so changing them changes nothing. */
+function changedPoints(points, own, moments) {
+  if (!isObj(points)) return 0;
+  if (!moments) return null;
+  const def = new Map(moments.filter((m) => !m.off).map((m) => [m.id, isObj(m.defaultPoints) ? m.defaultPoints[own === 'shared' ? 'shared' : 'exclusive'] || 0 : m.defaultPoints || 0]));
+  return Object.entries(points).filter(([id, p]) => def.has(id) && def.get(id) !== p).length;
+}
+
+/** The preset's name, while the spec still plays the preset's game (the same parts); else null: "A game". */
+function nameOf(s) {
+  const p = presetOf(s);
+  const same = p && p.get.by === s.get.by && countKind(p.count) === countKind(s.count) && p.score.by === s.score.by && p.rank.by === s.rank.by;
+  return same ? PRESET_LABELS[s.preset] : null;
+}
+
+function sentenceParts(s, w) {
+  const parts = [];
+  const put = (text, at) => parts.push({ text, at: at || null });
+  const name = nameOf(s) || 'game';
+  put(`${/^[AEIOU]/.test(name) ? 'An' : 'A'} ${name}`, 'preset');
+  if (w.show) put(` for ${w.show}`, 'about');
+  put(': ');
+  const by = s.get.by;
+  const count = countKind(s.count);
+  const one = !isObj(s.span.from) && s.span.to === s.span.from;
+  let spanSaid = false;
+  if (by === 'draft') {
+    put(`everyone drafts ${s.get.each}`, 'get');
+    if (count === 'start') put(` and starts ${s.count.start} each ${w.part}`, 'count');
+    if (count === 'best') put(`, and their best ${s.count.best} count each ${w.part}`, 'count');
+  } else if (by === 'pick') {
+    put(`everyone picks one ${w.castaway} to ${s.score.means === 'scores' ? 'score' : 'stay in'} each ${w.part}`, 'get');
+  } else if (by === 'card') {
+    put(`a new bingo card every ${w.part}`, 'get');
+  } else if (by === 'squares') {
+    put('everyone takes squares on the grid', 'get');
+  } else if (s.score.by === 'calls') {
+    put(`two calls before every ${w.part}`, 'get');
+  } else if (s.score.by === 'answers') {
+    const n = s.ask.length;
+    put(`everyone answers ${say(n)} ${n === 1 ? 'question' : 'questions'} before ${one ? `${w.Part} ${s.span.from}` : `each ${w.part}`}`, 'ask');
+    if (n) put(`: ${listOf(s.ask.map(questionPhrase))}`, 'ask');
+    spanSaid = one;
+  } else {
+    put('nothing to pick', 'get');
+  }
+  if (!spanSaid) {
+    put(', ');
+    put(spanWords(s.span, w), 'span');
+  }
+  put('.');
+  const rules = w.show ? `${w.show}'s rules` : "the show's rules";
+  const sc = s.score;
+  if (sc.by === 'moments') {
+    const changed = changedPoints(sc.points, s.get.own, w.moments);
+    put(changed === null ? ` Scored by ${rules}, with the game's own points.` : changed ? ` Scored by ${rules}, with ${say(changed)} ${changed === 1 ? "moment's" : "moments'"} points changed.` : ` Scored by ${rules}.`, 'score');
+  } else if (sc.by === 'place') put(' Each scores by how long they last: the last one standing carries you.', 'score');
+  else if (sc.by === 'survive') put(' Longest streak wins.', 'rank');
+  else if (sc.by === 'calls') put(' Most right by the finale wins.', 'score');
+  else if (sc.by === 'lines') put(' Most lines by the finale wins.', 'score');
+  else if (sc.by === 'stats' && isObj(sc.points)) put(` Scored ${statsWords(sc.points, w)}.`, 'score');
+  else if (sc.by === 'answers') {
+    const pts = [...new Set(s.ask.map((q) => q.points))];
+    put(pts.length === 1 ? ` ${pts[0] === 1 ? 'A point' : pointsWord(pts[0])} for each right answer.` : ' Points for each right answer.', 'score');
+  }
+  const rank = { matchups: ' Played head to head.', categories: ' Ranked by category.', roto: ' Ranked roto-style.' }[s.rank.by];
+  if (rank) put(rank, 'rank');
+  return parts;
+}
+
+/** How it works: today's five games say what the Rules sheet says (game-rules.ts), the rest in the same voice. */
+function rulesOf(s, w) {
+  const rules = [];
+  const by = s.get.by;
+  const count = countKind(s.count);
+  const shared = s.get.own === 'shared';
+  const draft = shared
+    ? `Draft a team of ${say(s.get.each)} in private; everyone's picks are revealed at once, and the same ${w.castaway} can be on more than one team.`
+    : `Snake-draft a team of ${say(s.get.each)}: once someone picks a ${w.castaway}, nobody else can have them.`;
+  const waivers = s.extras.waivers;
+  if (by === 'draft') {
+    rules.push(draft);
+    if (count === 'start') rules.push(`Before each ${w.part}, start ${say(s.count.start)}. Only starters score.`);
+    if (count === 'best') rules.push(`Each ${w.part}, your best ${say(s.count.best)} count.`);
+    if (count === 'all' && s.score.by !== 'place') rules.push('Everyone you draft scores.');
+    if (s.score.by === 'moments') rules.push(w.groups.length ? `Points come from what happens: ${listOf(w.groups)}.` : `Points come from what happens in each ${w.part}.`);
+    if (s.score.by === 'stats' && isObj(s.score.points)) rules.push(`Points come from their stats: ${statsWords(s.score.points, w)}.`);
+    if (count === 'start') rules.push(`Lineups lock when the ${w.part} starts. Change yours as often as you like until then.`);
+    if (s.score.by === 'place') {
+      rules.push(`Each ${w.castaway} earns 1 point, plus 1 for every boot they outlast.`);
+      rules.push('So they end on their place in the boot order: the last one standing carries you.');
+      rules.push('No lineups to set. Just watch.');
+    }
+    if (count === 'start') {
+      const pickups = isObj(waivers) && waivers.replace !== 'never';
+      const swaps = isObj(waivers) && isObj(waivers.windows) && waivers.windows.swaps > 0;
+      if (pickups) rules.push(`Lose someone? Pick who comes in on waivers.${swaps ? ' Waiver windows let you swap someone too.' : ''}`);
+      else if (swaps) rules.push(`Waiver windows let you swap one of your ${w.castaways} for someone new.`);
+    }
+  } else if (by === 'pick') {
+    rules.push(s.score.means === 'scores'
+      ? `No draft. Before each ${w.part}, pick one ${w.castaway} you think scores in it.`
+      : `No draft. Before each ${w.part}, pick one ${w.castaway} you think stays in.`);
+    rules.push('Right: your streak grows. Wrong, or no pick: it resets. Your best streak still counts.');
+    rules.push(`You can't pick the same ${w.castaway} again until you've used everyone still in, and never two ${w.parts} in a row.`);
+    rules.push('Longest streak wins; ties go to the most right picks.');
+  } else if (s.score.by === 'calls') {
+    rules.push('No draft, no team. Before each show starts, make two calls about what will happen in it.');
+    rules.push('The couch says what happened as it watches: two of you agreeing settles a call.');
+    rules.push('Change your calls until it starts. Nobody sees them until then.');
+    rules.push('Most right calls by the finale wins.');
+  } else if (by === 'card') {
+    rules.push('No draft, no team. Every show you get a new bingo card: eight things that might happen, the middle one free.');
+    rules.push('Tick a square when it happens. Three in a row, down or across makes a line.');
+    rules.push('A square counts once the couch agrees it happened: two of you ticking it, or saying so, settles it.');
+    rules.push('Most lines by the finale wins.');
+  } else if (by === 'squares') {
+    rules.push('Take your squares on the grid before it starts.');
+  }
+  if (s.score.by === 'answers') {
+    rules.push(`No draft, no team. Before it starts, answer ${say(s.ask.length)} ${s.ask.length === 1 ? 'question' : 'questions'}:`);
+    for (const q of s.ask) {
+      const line = q.answer === 'overUnder' && typeof q.line === 'number' ? ` The line is ${q.line}.` : '';
+      rules.push(`${askOf(q)}${line}${typeof q.points === 'number' ? ` ${cap(pointsWord(q.points))} if you're right.` : ''}`);
+    }
+    rules.push('Change your answers until it starts. Nobody sees them until then.');
+    rules.push('Most points wins.');
+  }
+  const rank = {
+    matchups: `You play someone head to head each ${w.part}: the most points wins it.`,
+    categories: 'Ranked by category: the most in each stat earns the most.',
+    roto: 'Ranked roto-style: each stat ranks everyone, and the ranks add up.',
+  }[s.rank.by];
+  if (rank) rules.push(rank);
+  if (isObj(s.extras.bets)) {
+    rules.push(`Predictions: a right answer earns its points (usually ${s.extras.bets.points}), once at least two of you have answered.`);
+  }
+  if (!isObj(s.span.from) && s.span.from > 1) rules.push(`Scoring starts at ${w.Part} ${s.span.from}; the ${w.parts} before it are history.`);
+  if (isObj(s.span.from)) rules.push(`It starts when the ${s.span.from.phase} does; the ${w.parts} before it are history.`);
+  const end = s.span.to;
+  if (end !== null) rules.push(end === s.span.from ? `It's one ${w.part}: ${w.Part} ${end}, then it's over.` : `It ends with ${w.Part} ${end}: nothing after it scores, and the table there is final.`);
+  return rules;
+}
+
+const REPLACE_WORDS = { always: 'Replace right away', whenShort: 'Replace only when short', windows: 'Replacements wait for a window', never: 'No replacements' };
+const JOIN_WORDS = { open: 'Anyone on the couch', ask: 'They ask first', locked: 'Nobody new' };
+
+/** The details nobody asked about: what each is, and whether it's what we'd recommend (the preset's, or the defaults). */
+function detailsOf(s, w) {
+  const base = fullSpec({ ...s, extras: undefined });
+  const rec = (k) => sameValue(s.extras[k], base.extras[k]);
+  const out = [];
+  const e = s.extras;
+  if (isObj(e.draft)) {
+    const d = e.draft;
+    out.push({ id: 'draft', label: 'The draft', recommended: rec('draft'), value: [
+      s.get.own === 'shared' ? 'In private, revealed at once' : 'Snake: everyone takes turns',
+      d.timer ? `${d.timer === 60 ? '60 seconds' : '2 minutes'} a pick, then ${d.away === 'queue' ? 'from their queue' : 'it waits'}` : 'No pick timer',
+      d.at ? `at ${d.at}` : 'no time set',
+    ].join(' · ') });
+  }
+  const sharedJoin = s.get.by !== 'draft' || s.get.own === 'shared';
+  // Locked down closes joining whatever Who can join says (GhostLogic.allowed), and leaves that as it was for after.
+  const join = own(JOIN_WORDS, e.join) || JOIN_WORDS[sharedJoin ? 'open' : 'ask'];
+  out.push({ id: 'join', label: 'Who can join', recommended: e.join === null, value: e.lockedDown ? "Nobody new while it's locked down" : join });
+  if (isObj(e.waivers) && isObj(e.waivers.windows)) {
+    const win = e.waivers.windows;
+    const windows = win.schedule === 'manual' ? (win.swaps > 0 ? 'windows when you open one' : 'no windows unless you open one')
+      : `a window ${win.schedule === 'everyEpisode' ? `after every ${w.part}` : `every ${win.every} ${w.parts}`}${win.swaps ? `, ${win.swaps === 1 ? 'one swap' : `${win.swaps} swaps`}` : ''}`;
+    out.push({ id: 'waivers', label: 'Waivers', recommended: rec('waivers'), value: `${own(REPLACE_WORDS, e.waivers.replace) || 'Replacements as set'} · ${windows}` });
+  }
+  out.push({ id: 'bets', label: 'Side bets', recommended: rec('bets'), value: isObj(e.bets) ? `On, ${pointsWord(e.bets.points)} each` : 'Off' });
+  if (s.get.by === 'draft') {
+    const f = e.finale;
+    out.push({ id: 'finale', label: 'Finale predictions', recommended: rec('finale'), value: isObj(f) ? `Top 3: ${pointsWord(f.top3)} each, the winner: ${pointsWord(f.winner)}${f.from === 'own' ? ', from your own team' : ''}` : 'Off' });
+  }
+  if (s.get.by === 'pick') out.push({ id: 'calls', label: 'Who goes home?', recommended: rec('calls'), value: e.calls ? `A call every ${w.part}, beside the pick` : 'Off' });
+  if (countKind(s.count) === 'start') out.push({ id: 'hideStarters', label: 'Starters', recommended: rec('hideStarters'), value: e.hideStarters ? 'Hidden until the lock' : "Shown as they're set" });
+  out.push({ id: 'lockedDown', label: 'Locked down', recommended: rec('lockedDown'), value: e.lockedDown ? 'Nobody new, and the rules stay as they are' : 'No' });
+  return out;
+}
+
+/**
+ * The spec in words: its sentence (and its parts), How it works and its details. A spec still being made (no score yet, a
+ * part missing) is said as far as it goes: the wizard shows it while the GPT and the person fill it in.
+ */
+function describeSpec(spec, ctx) {
+  const full = fullSpec(spec);
+  const part = (v, dflt) => (isObj(v) ? v : dflt);
+  const s = {
+    ...full,
+    span: part(full.span, { from: 1, to: null }),
+    get: part(full.get, {}),
+    score: part(full.score, {}),
+    rank: part(full.rank, {}),
+    ask: Array.isArray(full.ask) ? full.ask.filter(isObj) : [],
+    extras: part(full.extras, {}),
+  };
+  const w = wordsOf(ctx);
+  const parts = sentenceParts(s, w);
+  return {
+    name: nameOf(s),
+    sentence: parts.map((p) => p.text).join(''),
+    parts,
+    rules: rulesOf(s, w),
+    details: detailsOf(s, w),
+  };
+}
+
+module.exports = { describeSpec };

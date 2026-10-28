@@ -1,6 +1,7 @@
 # Plan: the Start-a-game GPT, on games as data
 
-Status: **planned 2026-10-27**, nothing built. The user's idea, their decisions and the order are below; each step is its own
+Status: **planned 2026-10-27**. **A1 built** the same day, on the `engine` lane, not merged (its As built under track A); the
+rest not started. The user's idea, their decisions and the order are below; each step is its own
 session (Opus 5.5 at xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: live sports, its Sport classes and
 formats, written against this plan's game spec) and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season:
 track S here).
@@ -95,7 +96,8 @@ words ──(bot)──▶ request ──(resolver)──▶ game spec ──(wi
 
 One schema for shows and sports, with room for every format both plans name, so nothing needs a redesign later. It says what a
 game *is*. What can happen on the show (the rulebook) or in the sport (the Sport classes in `PLAN-sports-live.md`) it only
-refers to. A draft; A1 settles it:
+refers to. A draft; A1 settled it (`src/lib/game/game-spec/index.d.ts` has the schema; A1's As built, under track A, what
+changed):
 
 ```jsonc
 {
@@ -247,6 +249,53 @@ in `PLAN-researched-survivor.md`'s "What the switch needs", with this plan's dec
   - `describeSpec`: the wizard's sentence and How it works.
   - `specProblems`, with the data-can-settle rule in it.
   - Tests: every league in the local copy round-trips, and the three examples are fixtures.
+
+  **As built (A1, 2026-10-27, on `engine`, not merged; no migration, no engine change).** `src/lib/game/game-spec/`, plain
+  CommonJS like `formats/` so `state-logic.js` can require it in A2 (types in `index.d.ts`):
+  - **`schema.js`**: the schema with every field. `VOCAB` says who builds each value: `now` (today's engine), `A3`, `A4`,
+    `sports` (marked as the branch's: `get.by` squares, `count.best`, `score.by` stats, `rank` matchups / categories / roto,
+    `closes` daily / weekly, `pool.where` teams, the `side` answer, the `final` and `stat` settles) or `later` (`pool.where`
+    group). The five **`PRESETS`**, exactly as Start a game makes them today (frozen). `fullSpec` fills what a spec leaves
+    out: from its preset while a part is the same kind ("draft 6 each" on a Weekly Lineup stays its shared blind draft), else
+    the mechanics' own defaults; a spec with no preset starts with no side bets. `typeOf`: the league type today's engine
+    plays it as, from the mechanics only, never the preset's name.
+  - **`specProblems(spec, ctx, opts)`**: the shape (unknown keys too, so a misspelled one isn't played as the default), a new
+    game's sizes as Game settings allows them (Outlast 1–10, a lineup up to 8 starters and 6 on the bench), and waivers the
+    engine would read as something else (only a lineup is short; a window swaps at most the team). With `ctx`, **the
+    data-can-settle rule**: every moment that scores (the spec's points for it, or else the rulebook's own) is answered by
+    research or known from its answers, never the couch's word; a moment the spec gives points is the show's; a stat is one
+    of the sport's keys; every question's settle is one data can do. `opts.league` is for a league's own rules (A2's
+    writes): its couch-answered moments (Make it ours), leftover moment ids and a team bigger than a new game's stay as they are.
+  - **`specWaitsFor`**: what a valid spec needs that isn't built, and the step that builds it (or, every part built, no game
+    plays them together yet: step null).
+  - **`settings.js`**: `specOf(settings)` reads a league as `state-logic.js` reads its settings today. `settingsOf(spec)`
+    gives the fields a spec writes (null when it has problems or no game plays it). `withSpec(settings, spec)` writes only the
+    parts of the game that change. So writing a league's own spec back changes nothing, a stored form the engine reads the
+    same way survives (a Who can join choice under classic's late-joiner switch, the waiver suggestion still to be fitted),
+    and the result always reads as the spec. `OWNED` lists every field a spec writes, `OUTSIDE` what isn't the game (the show
+    and rules it refers to, what it's revealed, archiving, setup, the waiver suggestion's bookkeeping).
+  - **`describe.js`**: `describeSpec(spec, ctx)` gives the sentence ("A Weekly Lineup for Survivor 51: everyone drafts 5 and
+    starts 3 each episode, Episode 7 to the finale. Scored by Survivor 51's rules.") and its `parts`, each with the part of
+    the spec it says, for G2's "theirs and ours". `rules` is How it works, the Rules sheet's own lines (`game-rules.ts`) for
+    every league. `details` are the ones nobody asked about, each marked recommended or not. A spec still being made is said
+    as far as it goes.
+  - **Shape, settled here:** a Survival Pool's score is `{ by: 'survive', means: staysIn | scores, points }`; `count` is null
+    when nothing is held; the extras are waivers, bets, finale, calls (the public pool's), the draft room, join,
+    hideStarters and lockedDown; every game today picks from `{ stillIn: true }`; a draft's order follows its ownership
+    (enforced, as today). A spec doesn't name its show or season: the league does, and the resolver hands Start both.
+  - **Tests** (`tests/game-spec.test.js`, 12, in `npm test`, now 764): the presets, and what Start a game makes; 20 kinds of
+    league round-trip. Each is rebuilt from its spec alone, its fields taken out by the test's own list of what each kind is
+    made of, and every reading the engine makes is the same (type, flags, roster, waivers, joining, span, finale, bets, draft
+    room, pool, every moment's points, the scores). Its own spec written back changes nothing. How it works is the Rules
+    sheet's. Also: the three examples (`tests/fixtures/game-specs.js`), the data rule, the problems, the waits, and `withSpec`
+    turning every preset into every other. Every league in this lane's database (9, read only, ids only) round-trips too,
+    skipped without a local database. Mutations of `settings.js` (a field forgotten, a pass dropped) all fail it.
+  - **For A2:** `state-logic.js` takes the vocabularies and readers from here, which removes the second copy in
+    `settings.js` that the tests hold in step today. A writer that flips a draft's ownership remaps the points it read
+    (`specOf` carries the stored map), as `updateSettings` does, and makes a later start's episode. A league's own
+    spec is validated with `opts.league`.
+  - **Open, for G1 (the user's call):** side bets are on in every preset, as Start a game makes them today. They're graded
+    by whoever runs the game, not by data, so a spec with no preset starts without them: should the GPT's preset games too?
 - **A2. The engine reads specs.**
   - `getLeagueType` and every strategy parameter come from `specOf(state)`. The flags (`hasRoster`, ...) are worked out from
     it, so the 45 files reading them keep working.
@@ -384,3 +433,18 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
 - Sports games score from ChatGPT research, against "ChatGPT never for stats"; `research-asks.ts` 20-21 says a sport's results
   come from its sports data, which isn't built. (The sports branch's stat scoring.)
 - A sport's cast stops growing from ESPN once it's a game (`cast.ts` `castable`). (The sports branch.)
+
+From A1 (2026-10-27):
+- Start a game's drafts start with waivers off (no replacements, windows only when opened). Classic's create flow, the
+  practice couch and the commissioner tour apply Balanced's recommendation (`waiverRecommendation`). The presets record what
+  Start a game does today. (A2 or G2, the user's call.)
+- Every new game has side bets on (`defaultState`'s `bonusEnabled`), but only Outlast and Weekly Lineup score them. A Survival
+  Pool, Weekly Calls and Weekly Bingo show "Predictions: ..." on the Rules sheet, and bets on episodes, that never count. (A4.)
+- The Rules sheet (`game-rules.ts`) tells a sport's Survival Pool, which survives by scoring, "pick one you think stays in";
+  `describeSpec` says "scores in it". It doesn't mention finale predictions when they're on, either. (A2, when the sheet reads
+  `describeSpec`.)
+- A league's `eventPoints` is `defaultState`'s copy of the default format's points, made before the show is known. This lane's
+  Traitors league carries 26 Survivor ids (22 not zero), and a shadow league on researched rules 20 ids its rulebook doesn't
+  have. They score nothing. (A2: validate a league's own with `opts.league`, or drop them when writing.)
+- Classic's setup has no cap on a team (its stepper has a minimum only); Game settings caps it at 10, and at 8 starters and 6
+  on the bench. A new spec gets Game settings' caps, a league's own none. (A2: one set of limits.)
