@@ -110,8 +110,145 @@ request, and the replays through A2's spec engine once A2 is on master.
 
 ## As built
 
-(Each step adds its own here.)
+### P1. The recorder (2026-10-28, playtest lane)
+
+**`scripts/dev-test/tapes.js`** (its header says it all) runs the app's own code in its own process: the CommonJS research code
+directly, and the TypeScript server through jiti, as the unit tests load it (`@`, `@db`, and `next/server`'s `after()` on
+`next-after-stub.js`). No dev server is needed. It asks the local bot only, and refuses a `LLM_BROWSER_API_URL` that names
+anything else, or a database that isn't local.
+
+**Commands:**
+- `record [--only=<show>:<season>] [--kinds=…] [--pause=60] [--max=N]`: the queue, resuming. It skips what's on tape.
+- `plan`: what `record` would ask next.
+- `status`: per show and season, the last error, and the journal's tail.
+- `one <show> <season> <kind> [<episode>]`: one question now.
+- `load <show> <season>`: a tape into a database, with no bot and without touching the tape.
+- `unload <show> <season>`: takes out what the tapes made.
+- `require("./tapes").answerer(show, season)`: fake-bot.js's `answer` from a tape. It finds the same prompt, else the same kind of
+  question about the same episode. Trivia, its check and recaps are `other` to `kindOf`, so for those only the exact prompt is found.
+
+Unit tests: `tests/tapes.test.js` (the queue's order, backing off, the limit detector, names, the journal line, answering from a
+tape).
+
+**How each question is asked, all through the app's own functions:**
+- **The season:** the show by its TVmaze id. A show that isn't here is added the way the desk's New show adds it (`add-show.ts
+  addShow`). The season comes from its listing (`listedSeason`: its row and every episode's air time); a season already here
+  keeps its schedule. A set-up show's season gets its rulebook (`db/rulebooks.js ensureSeasonRulebook`). No bot.
+- **Rules:**
+  - A show that isn't a game yet: Make it a game's question (`make-game.ts makePrompt`), pasted back (`pasteMake`).
+  - A set-up show: the desk's Check for changes on the season's rulebook (`desk-rulebooks.ts rulebookPrompt`), reviewed as the desk
+    reviews it (`reviewAnswer`, which writes nothing).
+- **Cast:**
+  - A show that isn't a game yet: Make it a game's cast question (none when the listing has the cast), pasted, then Looks right
+    (`confirmMake`).
+  - A set-up show: the cast-import prompt (`cast-prompt.js buildCastPrompt` on the season's format, read by `parseCastImport`),
+    staged as the season's cast the way the classic admin's pull stages one (`wiki-sync.js stageSeasonCast`).
+  - A season whose cast was here already keeps it, and the answer is only recorded.
+- **Quick, full, trivia, bingo, and the season's bingo bank:** `db/bot-research.js runJob`, as the desk's Run now runs it but without
+  `send`. So a full answer is stored and staged for review (pending), and the next episode's "who's still in" is the app's own.
+  Trivia and bingo read pending results up to their episode.
+- **Recaps:** `episode-recaps.ts recapPromptFor`, then `pasteRecaps`. zt_tapes follows the season first.
+- **Parsed output:** the recorder wraps the parsers runJob calls through their modules (`researchFromPaste`'s own parse before it's
+  merged, with its problems and what it staged; `parseTriviaAnswer`, `parseBingoAnswer` and both `parseCheckAnswer`s). It keeps the
+  run's whole result too.
+- **The bot call** is `ask-bot.ts askBot`'s request (ChatGPT, search on, keepalive), with a longer wait. askBot stops at 285 s for
+  Vercel's routes; the recorder waits 420 s (`BOT_WAIT_S`). Traitors 4 episode 1's full research stalled at 270 s on its first
+  try and answered in 42 s on the next.
+
+**The tape** is `~\rfl-tapes\<show>\<season>\`:
+- `season.json`: the season row, its listing, episodes, cast, compiled rulebook, and the ids the tapes made.
+- `season-<kind>.json` and `e<NN>-<kind>.json`, each with `.prompt.md` and `.answer.md` beside it. A record holds `{ kind, show,
+  season, episode, prompt, answer, parsed, ok, message, seconds, at, bot, commit, result, tries }`, plus `check` for trivia's and
+  bingo's second ask.
+- Failed tries are kept as `.try<N>.json`. The third failure becomes the tape (`ok: false, gaveUp`), and the queue moves on.
+- Also in `~\rfl-tapes\`: `journal.log` (a line a question) and `state.json` (the backoff).
+
+**The queue** goes breadth first, as decided:
+1. Each show's first season, its core.
+2. The words corpus, once `start-a-game-words.json` exists. Its runner is P2's.
+3. Those seasons' content: trivia and bingo per episode, then the season's bank and recaps.
+4. Second seasons, core then content.
+5. Third seasons.
+
+A season's episodes wait for its cast. A question gets three tries; consecutive failures back off 5, 15, then 60 minutes. A usage
+limit or bot check waits an hour and uses up no try. There's a 60 s pause after each question.
+
+**Seasons** (by TVmaze, 2026-10-28): Survivor 49, 50, 48 (49's 13 researched episodes go on tape as stored, with their
+provenance), The Traitors (US) 4, 3, 2, The Challenge 41, 40, 39, Dancing with the Stars 34, 33, 32, and Below Deck 12, 11, 10.
+Below Deck came in through Add a show, then Make it a game (a series; its cast from the listing).
+
+**What the app writes.** These rows aren't zt- keyed, by design: they're real seasons, named as the prompts name them, on the lane's
+own copy. Only the zt_tapes user (who adds a show and makes it a game) is zt-. `unload` takes out what the tapes made; the copy's
+own Survivor 49 is never touched beyond what the app writes when asked about it.
+
+**Checked end to end on the real local bot, before the night's run.** The Traitors 4 season was made from its listing (12
+episodes), then:
+
+| Question | Seconds | What came back |
+|---|---|---|
+| Rules | 33 | read; 37 changes the desk would see |
+| Cast | 21 | 23 players, real |
+| Episode 1 quick | 16 | "Nobody left", with three sources |
+| Episode 1 full | 42 | 23 players; 11 results staged |
+| Episode 1 trivia | 34 | 6 of 6 passed |
+| Episode 1 bingo | 36 | 18 of 30 passed |
+| Recaps | 24 | 12 of 12 |
+
+Below Deck 12 was added, then rules (59 s: a series · reality), then its cast from the listing and Looks right. The recorder
+started at 04:43 UTC in its own window ("Tapes: recording"). Survivor 49's setup and its quick checks went first, one a minute.
+
+**The prompt inventory** (every prompt the app sends to the bot or hands someone to paste; files under `db/`, `src/lib/game/formats/`
+and `src/lib/server/`):
+
+| Kind | Builder | Parser | About | Sent by | On tape |
+|---|---|---|---|---|---|
+| quick | `bot-research.js buildQuickPrompt` | `parseQuickAnswer` | an episode (the season's cast still in; Backstage's: one league's) | the bot's runs, Run now, One tap; copy and paste in Backstage | yes |
+| full | `episode-research.js buildPasteImportPrompt` → `buildPastePrompt` (structured) | `researchFromPaste` → `parseJsonAnswer`, `validateResearch` | an episode, season-wide (also the tie-break and asked runs; `only: missing`) | the bot's runs, Run now; the admin's paste | yes |
+| full, one league | `leagueResearchStatus` | `researchFromPasteForLeague` | one league's episode | One tap; classic's results page | no (a league's: P3) |
+| full, prose | `buildPastePrompt` (not structured) | a paid Anthropic `structure()` | an episode | copy only | no (paid) |
+| schedule | `bot-research.js buildSchedulePrompt` | `parseScheduleAnswer` | when the next episode airs | the bot's runs | no: a past season's answer is its listing |
+| trivia (+ check) | `trivia-research.js buildTriviaPrompt`, `buildCheckPrompt` | `parseTriviaAnswer`, `parseCheckAnswer`, `judged` | an episode and the season so far | the bot's runs | yes |
+| bingo (+ check) | `bingo-research.js buildBingoPrompt`, `buildCheckPrompt` | `parseBingoAnswer`, `parseCheckAnswer`, `judged` | the episode coming up, or the season's bank | the bot's runs; the admin's bingo bank paste | yes (`bingo`, `bingo-season`) |
+| setup (rules) | `rulebook-research.js buildRulebookPrompt` (a template) | `parseRulebookAnswer`, `reviewRulebook` | a show or season | Make it a game (`make-game.ts`), the desk's Check for changes (`desk-rulebooks.ts`), the test couch, shadow-leagues.js | yes |
+| rulebook change | `buildRulebookPrompt` with `change` (`show-changes.ts`) | the same, additions kept | a season from one episode on | the bot, when two couches say "It's new" | no (needs a flagged change: P3) |
+| cast | `cast-prompt.js buildCastPrompt` | `parseCastImport` | a season | Make it a game; classic's Import a cast | yes |
+| roster | `rosters.ts rosterPrompt` | `readRoster` | a sport's season | Fill in who's playing | no (sports) |
+| recaps | `episode-recaps.ts recapPrompt` | `readRecaps` | a season's aired episodes with none | Fill in what happened | yes |
+| format proposal | `formats/proposal.js buildProposalPrompt` | `parseProposal`, `reviewProposal` | a show's format | copy only (classic's New show) | no (classic) |
+| rule check | `formats/season-check.js buildCheckPrompt` | `parseCheck`, `reviewCheck` | a season's rule changes | copy only (classic admin) | no (classic) |
+| team lines | `episode-team-summary.ts buildLeaguePrompt` | `parseLeagueReply` | one league's episode | copy only | no (a league's: P3) |
+| start a game | the GPT plan's request (G1) | the resolver (G2) | a typed request | not built | P2 (`rfl-tapes\words\`) |
+
+Not prompts to the bot: `ai-brief.ts briefLine` (the Open in ChatGPT link's wrapper), the tour's `tourPrompt`, each format's
+`episodesPrompt` (Anthropic API, tests only), and `runFor` (the paid research APIs).
 
 ## Noticed, not fixed
 
 (Each step adds what it saw and left alone, with the step that could take it.)
+
+From P1 (2026-10-28):
+- **Below Deck's cast is every season's crew.** Make it a game on a series takes its cast from the TV listing (`make-game.ts
+  listingCast` reads TVmaze's show cast). For Below Deck 12 that was 40 people from every season (Kate Chastain, Ben Robinson...),
+  so each episode's research asks about all 40. It wants TVmaze's per-season or per-episode cast (guest cast) for a series with
+  rotating crews. P4 judges how much it hurts; then make-game.ts's owner fixes it (the survivor lane, or the merge).
+- **"These are the casts still in the game".** The Traitors (US) has `castaway_term` 'Cast', which `plural()` makes "casts", so the
+  quick prompt, the full prompt ("23 casts") and the research log read wrongly. The copy has it from production, and the shows
+  row is likely the same there. The fix is a data one (the term "Player" or "Contestant", from the desk) or a pluralizer that
+  knows mass nouns. For the merge.
+- **A past season can't be added in the app.** Add a show takes the season on now, else the next, else the latest (`pickSeason`),
+  so the recorder calls `listedSeason` itself. Adding Below Deck also made season 13 (the one on now). The GPT plan's resolver
+  needs a season by number (G2).
+- **A set-up show's new season has no cast path in the new design.** Its cast comes from a league importing one (self-serve) or the
+  classic admin's wiki pull (paid Anthropic). The recorder stages the cast-import prompt's answer with the classic pull's
+  `stageSeasonCast`, unapproved. For desk parity (PLAN-desk-parity.md).
+- **The desk's Check for changes on a built-in format suggests dozens of changes** (37 for Traitors 4, 27 for Survivor 49), because
+  a research answer's ids aren't the built-in's. It's the same as the shadow leagues' finding (PLAN-researched-survivor.md); the
+  event map planned for Survivor 52 should cover the desk's review too.
+- **Bingo for a past episode is written in hindsight.** The squares for an episode coming up are asked after it aired, so ChatGPT
+  can write from the recaps, and "likely" squares may be likelier than they'd be live. P4 judges bingo with that in mind. The
+  quick check's "it aired very recently, look for tonight's live blogs" still found its sources for the 2025-26 seasons.
+- **fake-bot.js `kindOf` doesn't name trivia, its check or recaps** (they're "other"), so a tape answers those only to their exact
+  prompt. Naming them in `kindOf` would let a reworded prompt fall back as the others do. That's a small change to a shared file
+  (P3, if a replay needs it).
+- **The review's efficiency note, left.** The queue re-plans and re-reads each season's `season.json` before every question (about
+  a hundred small reads a minute). It's harmless at this pace.
