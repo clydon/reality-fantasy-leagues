@@ -841,6 +841,12 @@ screens. Each step names the research data it needs and checks the tapes have it
   sports screens (track L's: the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync,
   each format's own; was the sports plan's step 0), and the few controls the pieces need. Everything else is reached by words.
   The user confirms before anything is built.
+  **The sports screens' brief** (the sports plan's step 0 prompt, kept here 2026-10-28 so it isn't lost): phone first at 390 in
+  the Lower Third flavour, bold choices that make organising and a fast workflow a pleasure. The live game on the show space
+  (the scorebug, the live box score with the couch's players lit and their points ticking, the couch's play feed); the later
+  watch's sync (Start, pause, ±30 s, "Tap the last play you saw"); the players list by team and position, sorted by stat chips,
+  with a player sheet; one format first, head-to-head. Light inspiration from the MLB app, Yahoo Fantasy and Yahoo Sports. Ask
+  the user before deciding anything the plan leaves open.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
   up (was G2); answering and results; the live and sports screens; checked at 390 on Night and Studio with a zt- fixture.
 
@@ -889,6 +895,18 @@ another, as today. `docs/PARALLEL-SESSIONS.md` has the setup.
 | L5 | L1 | anything |
 | L6 (the release) | L1–L5, migrations checked against a production backup | – |
 | Playtests (docs/PLAN-playtests.md) | nothing | anything: it only adds files, but holds the local bot while it records |
+
+**Who gets the usage** (Claude's call, 2026-10-28; the user handed the main session the lane decisions and the sports track).
+The weekly usage allowance limits how much gets done, not the number of lanes. By today's readings, a full 5-hour window is
+about 12% of the week, so a week holds about eight full windows; two lanes running around the clock would use it up in about
+three days. The loops stop at 90% of the week, so the user's own sessions keep the rest. So lanes are chosen, not added:
+- **Always:** the Engine lane, the critical path (A5 → A14, then R).
+- **The second slot:** the Sports lane until the desk's designs are approved (docs/PLAN-desk-parity.md). Its order: L1, then L2,
+  then L1's spec parts and L3 once A1–A4 is on master and synced into `sports` (L5 meanwhile). Then the desk's build takes the
+  slot, with sports paused at a part boundary, and sports takes it back whenever the desk lane waits on the user.
+- **When there's room:** G1 (needs A5). A third lane only after a weekly reset, with the week mostly unused.
+- **Never unattended:** design (the desk's, U0), merges into master, pushes.
+The main session records each switch here.
 
 **The rules that keep the quality:**
 1. **One lane, one folder, one database, one port.** The dev-test fixtures (zt- rows) and migrations would collide on a shared
