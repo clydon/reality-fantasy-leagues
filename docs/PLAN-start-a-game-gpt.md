@@ -213,6 +213,11 @@ things.
   choice) or a can't-yet. Nothing is fixed silently.
 - **Ids from the pack.** A moment, person or group that isn't in it (a typo, last season's castaway) becomes a question.
 - **Numbers as said.** Each number in the spec is in a `said` quote or listed in `assumed`. Anything else is dropped and asked.
+- **A moment the show doesn't have** ("predict if it's going to rain" on Survivor) is never made up and never left to the couch
+  to judge. A second, short ask rates whether research can answer it reliably from recaps and wikis. If it can, it's offered as
+  a new research question for the season ("Add 'It rained' as a question research answers each episode?"), and the game asks
+  yes or no from the next episode (a moment settles a yes-or-no question: A4). If not, it's a can't-yet, with the nearest things
+  that are settled ("Will anyone be medically evacuated?", "Will an idol be played?").
 - **Defaults are ours:** the preset's, plus what fits the couch and the pool (the draft size cut to who's left).
 - **What's left to ask:** the draft's questions and the required parts it left empty. Everything else goes into the wizard's
   sentence, with each assumption a chip that can be changed.
@@ -232,6 +237,7 @@ The user's examples, as people would type them on a show's page. They go into th
 | Survivor 51 | "each week you must correctly predict the tribe winner and who goes home" | Who goes home, each episode (A4) | A5: which tribe wins immunity (who a moment happened to) |
 | Survivor 51 | "a single episode game where we must predict different things, most correct wins" | Yes: one episode (A3), a game of questions (A4): who goes home, yes or no, how many | A5 for "who wins immunity" questions |
 | Dancing with the Stars 34 | "everyone predicts the scores of each couple; whoever's closest to the average gets a point; ties both get points" | Closest wins and ties all score (A4's number answer) | A5: a question for each couple, settled by research's `judgesScore`. The wizard asks: this episode or the season? The judges' total or their average? |
+| Survivor 51 | "every week we predict if it's going to rain" | A yes-or-no question each episode, once a moment settles it (A4) | No rain moment: the new-moment path (Our check). Likely rated unreliable, so a can't-yet with the nearest settled questions |
 
 **After A4** (the engine lane, in this order):
 - **A5. Questions about who and about each.**
