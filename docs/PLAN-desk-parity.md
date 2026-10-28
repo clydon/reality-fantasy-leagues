@@ -73,6 +73,30 @@ can change someone's site role or ban them; that stays out until it's needed.
    each opening a list like People's (search, filters, sort, paging): People here, Reports with step 2, Couches and Games
    (with Deleted: restorable for 30 days, with Restore) with step 6, Shows with step 7, and the Library as it is. Seasons,
    episodes, castaways and results stay inside their show; the search finds them.
+
+**The desk's pages and how they link** (mocked 2026-10-28 at the user's ask, `desk-pages.js`; each step builds its own page's
+actions, but the shape and links are set here). Every page: a lower third naming it, a facts line, **Part of** (what it
+belongs to) and what it's made of, each a link; its actions; History (latest three); its Delete, last and named. Back names
+the page you came from (a trail, as the app's nav-trail does); the tabs start a trail.
+
+| Page | Part of / made of (links) | Its Delete | Built in |
+|---|---|---|---|
+| Person | their couches › games (a seat's sheet: role, unlink, Open the game); reports they sent | tier 3; hand on games they run alone first | 1 |
+| Couch | its people; its games; who fills in results (Override); Hand them on when nobody runs it | its games go too; restorable 30 days (Couches › Deleted) | 6 |
+| Game | its couch, season and rulebook; join code; seats (each a person); Open it read-only; Hand it on | Archive offered; restorable 30 days (Games › Deleted, Restore); then "for good, now" | 6 |
+| Show | its seasons; Add a season; connector, art and photos, its words | refused while games play it, listing them | 7 |
+| Season | its show and rulebook; Setup (3), Research and the bot (4), Cast (5), Bingo bank (4); episodes; its games | refused while games play it, listing them | 3-5 |
+| Report | the sender, the couch or game or season it came from; Mark done; Act as them | gone for good; Mark done offered | 2 |
+
+Open: **a couch's delete is new** (neither app has one; added for decision 4). Ask the user before step 6 builds it.
+
+**Settings, regrouped** (the user, 2026-10-28: "hard to figure out where everything is"): by the question you have, each row
+with its value and a dot when it's off its recommended setting (its sheet has Reset to recommended), each change a toast with
+Undo and a line in Settings history. **People** (Who gets in, with who's waiting) · **Results** (sources to confirm a result,
+when a result is disputed, who fills in results on new couches; "who went home is always checked for free" is said, not a
+row) · **Our bot** (Autopilot: the seasons it's on for, each a link; which AI it asks, step 7) · **Rulebooks** (games on
+their season's rulebook, each a link; the library) · **Telling players** (What's New: paused, drafts, step 7's preview) ·
+**Changes** (Settings history, its own sheet, not a long inline list) · **Not on the desk yet** (Classic admin).
 2. **Inbox catches up.** Reports (read, mark done, open the game or screen it came from), accounts waiting, results waiting for
    review (an episode's, all at once), casts pulled and not approved, airing seasons with no schedule, and Coming up (the next
    episode of each airing season, and whether research will run on its own).
