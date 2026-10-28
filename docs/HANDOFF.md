@@ -124,7 +124,9 @@ waits for a reveal unless someone left in what you haven't seen (a sport's games
 `scripts/dev-test/check-episode-lock.js` 22 PASS at 390 (its `b.settle()` crashed headless Chromium on the Start sheet,
 the page itself fine: waits instead); tests/episode-lock.test.js; unit tests 752.
 
-**The desk catches up with classic's admin (planned 2026-10-27): [PLAN-desk-parity.md](PLAN-desk-parity.md).** The gap audit, the user's decisions (Act as them = classic's impersonation, logged; every gap designed now; phone first), eight steps (people and Act as first), and the design brief; the mock designs come next, after the brief is confirmed.
+**The desk catches up with classic's admin (planned 2026-10-27): [PLAN-desk-parity.md](PLAN-desk-parity.md).** The gap audit, the user's decisions (Act as them = classic's impersonation, logged; every gap designed now; phone first), eight steps (people and Act as first), and the design brief. **The design pass (2026-10-28):** every step's screens are in the
+site mock (steps 1-2 approved; 3-7 mocked and waiting for the user's approval; the plan's Status and each step's As mocked);
+the build (steps 1-7) runs as its own lane once they're approved.
 
 **The Start-a-game GPT, on games as data (planned 2026-10-27): [PLAN-start-a-game-gpt.md](PLAN-start-a-game-gpt.md).**
 Someone types the game they want. Our ChatGPT bot turns the words into a request, our code turns that into a game spec (every

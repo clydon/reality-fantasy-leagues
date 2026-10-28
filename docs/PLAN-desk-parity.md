@@ -16,7 +16,8 @@ needs). **Step 4 (a season's Research and the bot) is mocked and waiting for app
 needs and how its three questions were settled). **Step 5 (a season's Cast) is mocked and waiting for approval**
 (`desk-cast.js`, `desk-cast.css`; Mock scenarios › Desk · step 5: a season's cast; step 5 below). **Step 6 (Find › Games and a
 game's page) is mocked and waiting for approval** (`desk-games.js`, `desk-games.css`; Mock scenarios › Desk · step 6: games; step 6
-below). Classic's admin renders: all 19 of its pages at 390px locally
+below). **Step 7 (shows and site) is mocked and waiting for approval** (`desk-shows.js`, `desk-shows.css`; Mock scenarios › Desk ·
+step 7: shows and site; step 7 below), which finishes the design pass's screens. Classic's admin renders: all 19 of its pages at 390px locally
 (`scripts/dev-test/check-classic-admin.js`, which step 8 can turn round), and in production To do, Users, Leagues, a league's
 page, Shows and Site, with no console errors. The blank `/admin/leagues` seen in production earlier that day didn't come back.
 The likeliest cause is classic's boot screen: it covers the page until the first league loads (about a second locally, longer
@@ -62,6 +63,21 @@ name them"), so kat linked to mo's seat would show as "mo". (p) Classic's unlink
 last-Commissioner guard: it can leave a game with nobody running it. (q) Classic's link sheet offers Player and Commissioner
 only (no Game admin, 0105) and lists every account in one select, with no search. (r) A site admin with no seat can't read a
 game in the new design: its reads are membership-scoped (`couchGames`; `membersFor` needs you to run a game there).
+From step 7's mock (2026-10-28), all for step 7's build unless said: (s) classic's Add a season inserts `results_by='admin'`
+(`api/admin/shows/[id]/seasons/route.ts:53`), defaults its status to Airing, and turns a bad status into Completed on the server.
+(t) `db/wiki-sync.js:66` falls back to Survivor's API when a show has no `wiki_api_url`, so a show with a season page but no API
+is read through survivor.fandom.com. (u) Classic's show delete counts only leagues whose `settings.showId` is the show, then hard
+deletes; the cascade takes `show_follows` (0102), so the people following it lose it with no word, plus chat, watch plans and
+community results. (v) An archived show is left out of add-show's name and listing matches (`add-show.ts:110,307`), so adding
+it again by name makes a second show. (w) Classic's AI models are per browser (`localStorage rfl.admin.aiModels`); with no
+model sent, `wiki-sync.js:69` reads with `WIKI_MODEL` or Opus 5, so a desk pull (step 5) that sends none would read at five
+times Haiku's price. (x) Classic's framing (`art_style`: zoom, x, y, colour, strength) crops `art_url`, the poster, while the
+desk's Header frame shows `backdrop_url`; pasting a link sets `art_by_hand`, which also stops the finder updating the backdrop
+and logo. (y) `episode_term` (0142) has no editor in classic; `castaway_term`/`tribe_term` live on `shows`, while the desk's
+rulebook edits its own words (`rulebook.tsx` CastSheet): whether one writes the other wasn't checked. (z) What's New entries are
+code (`src/lib/whats-new.ts`), not drafts; the desk's Paused/On and Drafts (approved with step 1) need them as data, and the new
+design has no What's New card. (aa) In the mock, step 3's `dsOf` couldn't place Coming up's "Wed" row (The Challenge 41) and
+read "Mexico City Grand Prix" as Episode 0, so Formula 1 2026 showed Upcoming (fixed in `desk-setup.js`).
 
 **Decisions (the user, 2026-10-27):**
 1. **Act as them.** Opening the app as someone is classic's impersonation as it is: for an hour you are them (Better Auth's
@@ -311,6 +327,58 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
 7. **Shows and site.** Delete a show (refused while games use it, saying which), restore an archived one, a season's details
    when adding it (number, status, wiki), the connector (wiki API, cast heading, research sites), art by URL with its framing;
    Settings: AI models, What's New preview, the rulebooks flag.
+   **As mocked (2026-10-28, `desk-shows.js` and `desk-shows.css`, waiting for approval):** the show page's last rows are real.
+   **Add a season** (a sheet): its number on a stepper (the next one; a number that's here refused inline), its status (Upcoming,
+   Airing, Ended, each saying what it does; Upcoming first), its wiki page guessed from the last season's ("Survivor_51" →
+   "Survivor_52", "check it opens"; a show with no wiki: the first page gives the connector its wiki), and What comes with it
+   (last season's rulebook, the schedule from the listings or Setup, or for Airing "its Setup is next" and the Inbox, the cast
+   from the wiki or our bot, art found on its own, results from sources that agree). Tier 1: it lands on the new season's page
+   with Undo. **Its words** (a sheet): one person and many, one group and many, and the episode word ("Race"), with a live
+   sample line; used everywhere and by the connector's cast heading. **The connector** (`/desk/s/<show>/connector`): Its wiki
+   (the API, or "worked out from Survivor 51's page", and the cast heading, blank = the show's word for its people), Seasons it
+   reads (each season's page, from its Setup; a dot on an unended season with none), Try it (step 5's Pull it again, which shows
+   what it finds before anything is sent), and Research sites (a row each with ✕, Add a site keeping a pasted page's address,
+   "Our usual" = the wiki, tvline.com and parade.com, Back to our usual three). A show with no wiki says its results come from
+   research and links the latest season's Setup. **Art and photos** (`/desk/s/<show>/art`): the Header and the Cards, each drawn
+   in the crops it's used in (its page and Up next; Your shows and the guide), each with Where it's from (TMDB on its own,
+   Recommended; Choose one from TMDB, the desk's own; A link, checked as an image's address, previewed, "a link stops TMDB
+   changing it", "only art we're allowed to show") and **Framing**: the whole image with the main crop's window over it, dragged
+   (or arrow keys), zoom 1× to 2×, every crop redrawn as it moves, Back to the middle, Save (tier 1). Then Cast photos by season
+   (each to its Cast page), Find art and photos again, and No art or photos (a switch). **Archive and restore**: Archive is
+   offered by the show's Delete (refused while it has games: "Archive it instead", since its games play on; or the hold's
+   alternative); an archived show leads with "Archived" and Restore, saying anyone following keeps it and that adding it by name
+   meanwhile makes a new show; Shows › Archived rows carry Restore. **Delete**: refused while it has games, ended and deleted ones
+   too (a deleted game is kept until it's gone for good), listed by season ("Survivor 51 · 16 games: 15 playing, 1 deleted");
+   else a hold saying its seasons, followers (who lose it from their shows and the guide) and couches' chat go. Every page under a
+   show ends with the show's Delete. **Settings**: Our bot becomes Autopilot, **Which AI our bot asks** (ChatGPT signed in,
+   Recommended; Claude through its CLI; Gemini greyed: can't do the research prompts), **Reading a wiki** (the paid model that
+   turns a season's page into its cast: Haiku 4.5 Recommended, Sonnet 5, Opus 5, with their prices; one setting for the desk) and
+   **Paid research** (the seasons it's on for, each set on its own Research and the bot). **What's New**: Paused or On (step 1's),
+   The latest with Preview (Oct 16's real items as a player sees them, under a "Preview · not marked seen" bar, Got it back to the
+   sheet), the releases before it, and Drafts (none while it's paused); "only players on the classic design see it today". **The
+   rulebooks flag**: Games on their rulebook › Every season at once › Check every league (writes nothing; each league on its own,
+   rolled back), then the tally (39 score the same; 2 differ, each a link with why, and stay on built-in rules), "every season's
+   rulebook is the one its research reads", and Switch on for every season (tier 2, Undo); on, Switch it off says leagues go back
+   on built-in rules and Survivor 51, on by itself, stays. Not on the desk yet › Classic admin: "Everything it did is on the desk
+   now · it goes with step 8". Mock scenarios: 19 (`shoot-mock-scenarios.js --group=dsv`).
+   **What the build needs beyond classic** (Noticed s-z): desk routes over the show's columns with History lines and Undo:
+   `archived` both ways; the delete with classic's guard counting every league with the show (deleted ones until they're gone),
+   listed by season; a new season from the desk's own path (status Upcoming by default, `results_by` 'leagues', last season's
+   rulebook, the art finder queued, the wiki page validated and the API worked out from it), its duplicate shown inline; the
+   connector's three columns (`wiki_api_url` checked as an api.php, `cast_section_heading`, `research_domains` as hostnames, null =
+   our usual), and wiki-sync working the API out from the season's page instead of falling back to Survivor's; framing per frame
+   (`art_style` for the poster, and one for the backdrop: x, y, zoom; colour and strength not brought over) and a link per frame
+   (`art_by_hand` no longer stopping the other frame); the words with `episode_term` editable and one source with the rulebook's;
+   app settings for the bot's AI (sent with each ask) and the wiki model (default Haiku 4.5, replacing classic's per-browser
+   choice, and sent by every pull); the newest release rendered as a preview, not marked seen; the flag's check as a desk job
+   (the script's `check`, about a minute for 41 leagues, with progress) and on/off (the backfill's refusal shown; off keeping a
+   season switched on by itself, `rulebook_live`, which the build confirms).
+   **Calls made in the design (Claude's, 2026-10-28):** every page under a show ends with the show's Delete; Archive lives in
+   Delete's sheets, not a row of its own (as a game's does); a new season starts Upcoming and on sources; Try it reuses Pull it
+   again rather than a new dry run; framing is a window over the whole image per frame, zoom in four steps; Choose one from TMDB
+   stays the desk's Choose art; the bot's AI, the wiki model and paid research are three rows; the flag goes on only after the
+   check, and leagues that differ stay as they are (as the script does); What's New keeps step 1's Paused/On and Drafts, shows no
+   invented drafts, and previews real releases.
 8. **Classic's admin retires**: `/admin` sends a site admin to the desk; classic's admin pages and `src/lib/admin-store.ts` go.
 
 ## The design brief (impeccable shape, 2026-10-27; designed in the site mock, `.impeccable/mocks/site/`, before each step is built)
