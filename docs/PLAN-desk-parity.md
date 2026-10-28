@@ -8,8 +8,8 @@ plan closes that gap, then retires classic's admin.
 
 **Status (2026-10-28): step 0 done; in the design pass, step 1 (People) is approved by the user**, with Find › Browse, Hand
 on, the desk's pages and how they link, and Settings regrouped (`.impeccable/mocks/site/desk.js`, `desk-pages.js`, `desk.css`;
-Mock scenarios › Desk · step 1 and Desk · pages and Settings). A couch's delete stays (approved with the rest). Next: step 2's
-screens. Classic's admin renders: all 19 of its pages at 390px locally
+Mock scenarios › Desk · step 1 and Desk · pages and Settings). A couch's delete stays (approved with the rest). **Step 2 (the
+Inbox) is mocked and waiting for approval** (`desk-inbox.js`; Mock scenarios › Desk · step 2: the Inbox). Classic's admin renders: all 19 of its pages at 390px locally
 (`scripts/dev-test/check-classic-admin.js`, which step 8 can turn round), and in production To do, Users, Leagues, a league's
 page, Shows and Site, with no console errors. The blank `/admin/leagues` seen in production earlier that day didn't come back.
 The likeliest cause is classic's boot screen: it covers the page until the first league loads (about a second locally, longer
@@ -43,6 +43,8 @@ about 3.7:1, under the 4.5:1 floor. The step 1 mock uses #3c6ea6 (about 5:1); st
    password covers someone who can't get in. (Closes the brief's first open question.)
 6. **Stopping someone signing in joins step 1; site roles don't.** From their page, with an optional reason only admins see;
    reversible (Let them back in), so no hold. (Closes the brief's second open question.)
+7. **Staged results stay out of the Inbox** (the user, 2026-10-28, as on 2026-10-24): results settle when sources agree and
+   only disputes reach the desk; step 4's queue on a season's page is there for anyone who wants to look, with no badge.
 
 **Not brought over:** classic's formats (`show_formats`: rulebooks replace them; retired at cut-over), classic's Overview layouts
 (a classic screen), the Site page's Paid AI and spoiler switches (browser-only, and the desk has no paid actions). Neither app
@@ -99,9 +101,13 @@ when a result is disputed, who fills in results on new couches; "who went home i
 row) · **Our bot** (Autopilot: the seasons it's on for, each a link; which AI it asks, step 7) · **Rulebooks** (games on
 their season's rulebook, each a link; the library) · **Telling players** (What's New: paused, drafts, step 7's preview) ·
 **Changes** (Settings history, its own sheet, not a long inline list) · **Not on the desk yet** (Classic admin).
-2. **Inbox catches up.** Reports (read, mark done, open the game or screen it came from), accounts waiting, results waiting for
-   review (an episode's, all at once), casts pulled and not approved, airing seasons with no schedule, and Coming up (the next
-   episode of each airing season, and whether research will run on its own).
+2. **Inbox catches up.** Reports (read, mark done, open the game or screen it came from), accounts waiting, casts pulled and
+   not approved, airing seasons with no schedule, and Coming up (the next episode of each airing season, and whether research
+   will run on its own). Not staged results (decision 7). As mocked: Needs you is one list, most urgent first (a dispute, a
+   couch nobody runs, no schedule, a cast changed, accounts waiting, reports, a rulebook nobody else checked, a show added by
+   name), each tagged with its kind and opening the page that deals with it, where the row to act on carries a dot; dealing
+   with it there clears it here and from the tab's count. Coming up is the week as a rundown (day and time, the season, the
+   episode, and how its results come in: Autopilot, ESPN, or the couches).
 3. **Seasons: setup.** A season page's Setup: name, status, wiki page, the schedule (episode count, premiere, air time, zone),
    who decides results (the admin, or each game), delete (tier 3).
 4. **Seasons: research and the bot.** Run now (quick, full, schedule, trivia, bingo), the bot's episode length, each run's
