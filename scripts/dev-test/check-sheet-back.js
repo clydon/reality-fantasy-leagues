@@ -9,6 +9,7 @@
 //   - a link in a sheet (the hub's guide card for a show the couch watches, Open the show), and one that closes its sheet and goes
 //     in one tap (a show's Notifications, its Settings link): it goes there, back comes to the page with no sheet up, and
 //     back again goes where the hub came from (nothing left behind by the sheet);
+//   - a show's tab move (a replace) after a sheet closed by Escape stays put, and back leaves the show;
 //   - in the installed app (navigator.standalone, the first page of the visit, phone-back.tsx's floor under it): back
 //     closes the sheet, then goes up to the hub.
 // The app has no sheet that stays up under another (a sheet opens another by closing first), so "one at a time" is the
@@ -179,6 +180,30 @@ const SHEET = "[role=dialog][data-open]";
       check(here(page) === show && (await sheets(page)) === 0, "back comes to the show with no sheet up", here(page));
       await back(page);
       check(here(page) === "/home" && (await marked(page)), "back again goes to the hub (nothing left behind)", here(page));
+      await page.close();
+    }
+
+    // ---------- a tab move (a replace) after a sheet closed by Escape, with a tab move before any sheet was up ----------
+    {
+      const page = await tab();
+      const S = `/show/${f.seasonId}`;
+      await fromHub(page, `${S}/tonight`);
+      const tabTo = async (name) => {
+        await page.locator("nav[aria-label=Show] a", { hasText: new RegExp(`^${name}`, "i") }).click();
+        await page.waitForURL((u) => u.pathname === `${S}/${name.toLowerCase()}`, { timeout: 15000 });
+      };
+      await page.locator("nav[aria-label=Show] a").first().waitFor({ timeout: 30000 });
+      await tabTo("Episodes");
+      await page.getByRole("button", { name: /Spoiler-safe/ }).click();
+      check(await up(page), "the show's Episodes: Spoiler-safe opens its sheet");
+      await page.keyboard.press("Escape");
+      await down(page);
+      await page.waitForTimeout(500);
+      await tabTo("Games");
+      await page.waitForTimeout(2500);
+      check(here(page) === `${S}/games` && (await page.locator("[data-tab=games]").isVisible()), "then the Games tab stays (nothing backs it out)", here(page));
+      await back(page);
+      check(here(page) === "/home" && (await marked(page)), "and back leaves the show for the hub", here(page));
       await page.close();
     }
 

@@ -174,8 +174,23 @@ function install() {
       held.push(() => window.history.replaceState(data, unused, url));
       return;
     }
-    const mark = openOn(window.history.state)?.id ?? (dangling != null && sheetOf(window.history.state) === dangling ? dangling : null);
-    if (url != null && new URL(url, window.location.href).pathname !== window.location.pathname) navFrom = 0;
+    const top = openOn(window.history.state);
+    const left = dangling != null && sheetOf(window.history.state) === dangling;
+    const away = url != null && new URL(url, window.location.href).pathname !== window.location.pathname;
+    if (away) navFrom = 0;
+    if (away && !taking && (top || left)) {
+      // A navigation by replace (a show's tabs) from a sheet's entry: the new page takes it, as a push does.
+      dangling = null;
+      clearTimeout(danglingTimer);
+      replace.call(this, data, unused, url);
+      onScreen();
+      if (top) {
+        const gone = stack.splice(stack.indexOf(top)).reverse();
+        queueMicrotask(() => gone.forEach((s) => s.close()));
+      }
+      return;
+    }
+    const mark = top?.id ?? (left ? dangling : null);
     // Next rewrites the entry on screen with its own state (a refresh, a server action): the sheet keeps its mark.
     if (mark != null && !taking && sheetOf(data) == null) data = { ...((data as object | null) ?? {}), [SHEET]: mark };
     replace.call(this, data, unused, url);
@@ -220,7 +235,7 @@ function leave(s: Open) {
   if (at < 0) return;
   stack.splice(at, 1);
   if (!s.put || sheetOf(window.history.state) !== s.id) return;
-  if (!navFrom) return step();
+  if (!navStarting()) return step();
   // Closed in the tap that goes somewhere: the navigation takes the entry. If none comes (it went nowhere), the entry
   // comes out once it's clearly not coming.
   dangling = s.id;
@@ -228,7 +243,7 @@ function leave(s: Open) {
   const check = () => {
     danglingTimer = setTimeout(() => {
       if (dangling !== s.id) return;
-      if (navFrom && Date.now() - navFrom < 15000) return check();
+      if (navStarting()) return check();
       dangling = null;
       if (sheetOf(window.history.state) === s.id) step();
     }, 1000);
@@ -238,8 +253,14 @@ function leave(s: Open) {
 
 /** nav.tsx: a navigation is starting (a NavLink's tap, nav.push). */
 export function navigating() {
+  // Installed now if no sheet has been up yet, so the navigation is seen landing.
+  install();
   navFrom = Date.now();
 }
+
+/** A navigation nav.tsx started and hasn't landed, as far as a sheet closing now goes: one that hasn't landed in 15 s
+ *  (it went nowhere, or failed) no longer counts. */
+const navStarting = () => navFrom > 0 && Date.now() - navFrom < 15000;
 
 /** How many entries the open sheets have above the page: a back that leaves the page goes past them (nav.tsx). They
  *  close with the page. */
