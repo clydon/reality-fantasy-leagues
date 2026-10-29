@@ -179,6 +179,13 @@ Last updated 2026-10-27.
     episode schema, `derivedEvents`, `rejectEvent` and `roles` are read only by `validateEpisodes` and its regression
     harness now. PLAN-desk-parity.md Noticed cp.
     - **When:** the engine lane, as it moves formats onto specs: clear them out or keep them.
+25. **A pasted answer that isn't JSON is read by paid Claude (noticed 2026-10-29, cleaning up after the desk's step 8).**
+    `researchFromPasteForLeague` → `pastedRun` structures free text with `PROVIDERS.anthropic` (episode-research.js), so
+    Vercel keeps `ANTHROPIC_API_KEY` (Production and Preview) for it, though decision 9 ended paid research. Pastes of our
+    ChatGPT prompt's answer are JSON and skip it. The GitHub Actions copy of the key was deleted 2026-10-29 (nothing read it);
+    there was no `GEMINI_API_KEY` on GitHub or Vercel.
+    - **When:** the user's call: refuse a non-JSON paste with a clear message (or ask our bot to restructure it), then
+      remove the key from Vercel and revoke it at Anthropic.
 
 ## Decided against (don't re-propose without new information)
 
