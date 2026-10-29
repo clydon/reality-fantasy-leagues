@@ -424,6 +424,62 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    listing (Love Island USA 7), An ended season (Survivor 49, deletable). `scripts/dev-test/shoot-mock-scenarios.js
    --group=dss` shoots them all at 390.
    **Changes at approval (2026-10-28):** no Wiki page row (decision 9): The season is Name and Status.
+   **As built, part 3a (2026-10-29):** **a season's Setup** (`/desk/season/<id>/setup`: `routes.ts deskSeasonPage`, a page
+   under a season, depth 3, up to the season; `src/new/desk/setup.tsx`, `src/lib/server/desk-setup.ts`, `GET` and `POST
+   /api/desk/seasons/[id]/setup`): the lower third (Airing, Upcoming or Ended, or No schedule; the name; its next episode,
+   "Episode 3 · tomorrow, 8:05 PM", or how it ended), its facts ("2 games on it · 2 of 6 aired"), then **The season**: Name
+   (blank, or the show and its number, shows the show and its number; 60 at most) and Status (Upcoming · Airing · Ended,
+   each saying what it does); **Schedule** as it reads now (its aside From its TV listing or Set by hand; the next two
+   episodes and the finale as a rundown with the gap between, All N episodes in a sheet, When it airs, Episodes and TV
+   listing with their values as mocked), **Results** (Who decides results), History (latest three, All N) and the
+   season's Delete. Dates and times are in the season's own zone, as its schedule is set. Name, Status and Who decides are
+   tier 1: a toast with Undo and a line in the season's History (`logDesk` entity 'season', Undo through desk-undo.ts's
+   'seasonSetup', refused once that field has moved on since). **Status holds** (Noticed a): **migration 0422**
+   (`show_seasons.status_held_at`, additive) set when a status is chosen on a season linked to its listing, even the one it
+   has; the daily job's `statusesByDate` (exported, for the check) and a listing read (`add-show.ts listedSeason`) leave a
+   held status; the row says "set by hand, held over its listing", and the sheet offers **Back to its listing's dates**
+   ("They'd make it Airing", by listing.ts `seasonStatus`, the job's rule), which sets it to what they say. Classic's
+   status PATCH holds the same way, so the two agree until step 8. **Who decides results**: Sources that agree
+   (Recommended, `results_by` 'leagues') or You decide ('admin', `results_admin_since` from the switch, kept when it's
+   chosen again, as classic's route); the words confirmed against `season-decisions.ts`, with one the mock didn't have:
+   going back to sources takes out of its games what only the desk accepted since the switch (`onlyYours`, said in the
+   sheet and the History line), so its games are synced at once (`syncSeasonLeagues`), and its Undo syncs them back.
+   **Coming up** (Noticed al): a season you decide says "You decide results · couches' answers count too" (`how`
+   'admin'), or adds "· you decide too" to an Autopilot or ESPN line. **The season's Delete** (`SeasonDeleteRow`, the
+   same on the season page, last, and on Setup; `DELETE /api/desk/seasons/[id]`): refused while games play it ("Not
+   while 2 games play it"; a sheet listing them, ended ones marked, each to its couch until 6a gives games pages), else a
+   hold: its episodes, cast and results go; its public pool (and the people playing it) and practice games go with it;
+   the people following it lose it; the show and its other seasons are untouched. It takes what's kept by its show and
+   number too (research, its search index, old wiki reads), as classic's did, and leaves a line on the show's History
+   ("Deleted Survivor 49, with its public pool"). The **season page**: Running it › Setup always, with the mocked line
+   ("Thursdays 8:05 PM Eastern · 6 episodes · results from sources", the dot when it's airing with no schedule), its
+   lower third and facts from Setup, and the Delete last. The Inbox's no-schedule item opens Setup. `ChoiceCard` and
+   `Field` moved to parts.tsx. `/code-review` found pools blocking a delete forever, classic's status not holding, the
+   drop's rundown reading episode 1's time (a crash with no date), the season read doing Setup's work twice, two copies of
+   the status rule and the zone names, and no way to hold the status it has: all fixed. Check:
+   `scripts/dev-test/check-desk-setup.js` 90 PASS at 390 (zt_ds_ fixture, up and down; the listings job's status step run
+   on a held season); check-desk-inbox 106 (its no-schedule item opens Setup now), check-desk-people 249, check-classic-admin
+   all PASS, unit tests 837, check-new-settings 111 (run alone: twice in a batch after other checks its Rose colour
+   didn't save in time, and on part 2's code too it passed alone); check-new-desk without its rulebook section (a scratch
+   copy, deleted) passed whole once, and once failed only (ab)'s "every league renames him".
+   **Left behind or changed from classic, and why (decision 10):** classic's season PATCH also set the season's number
+   (not mocked; renumbering strands its games' `settings.wikiSeason`, and step 7a's Add a season checks a number before
+   it's made), its cast size (the cast is its own, step 5), its wiki page (decision 9) and paid research's fields
+   (decision 9); the bot's schedule and an episode's length are step 4a's (desk-bot.ts has the schedule), the schedule's
+   fields 3b's. Classic's delete only warned about leagues on the season and deleted it anyway; the desk refuses while a
+   couch's game plays it (deleted ones aside, as mocked) and takes the season's own pool and practice games with it. Classic
+   switched who decides with no word about what leaves the games, and never synced them. From the mock: History lines
+   don't say "by you" (History names who); the schedule's rows and the no-schedule panel's one button ("Set it in classic
+   admin") open classic admin's Setup until 3b, with a line saying so; the follower line was added to the hold (as step
+   7's show delete says it).
+   **Noticed, not fixed (3a):** (aq) a couch's deleted game doesn't hold its season, as mocked: brought back after the
+   season is deleted, it plays on no season (`end-game.ts restoreGame` doesn't check); for 6a, whose Restore it is. (ar)
+   The daily job's `keepSeasons` skips an Ended season with no finale (or an old one), so holding Ended on a linked
+   season also stops its listing's times updating; right for a season that's over, but Setup's TV listing row doesn't say
+   so: for 3b, which owns that row. (as) `desk-cast.ts leaguesOn` (a season's `leagues` and `couches`, and Not a group's
+   reach) counts deleted games and leaves out pools; the season page no longer shows it (its facts are Setup's), but Not
+   a group still reaches deleted games: for 5b. (at) Setup's zone names come from classic's `admin-season.ts
+   TIME_ZONES`: step 8 keeps it (or moves it) when classic's files go.
 4. **Seasons: research and the bot.** Run now (quick, full, schedule, trivia, bingo), the bot's episode length, each run's
    timing, add or remove a run, reset; an episode's research (paste an answer, discard, clear); auto research; the bingo bank
    (an episode's squares and the season's, hide or show, write by paste). The results queue: an episode's pending results with

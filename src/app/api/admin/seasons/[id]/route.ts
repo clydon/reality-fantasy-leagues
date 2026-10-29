@@ -48,6 +48,8 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
     const status = String(body.status);
     if (!["upcoming", "airing", "completed"].includes(status)) throw new HttpError(400, "status must be upcoming, airing or completed");
     push("status", status);
+    // A status set by hand holds over a TV listing's dates, as the desk's Setup does (0422): the listings job leaves it.
+    sets.push("status_held_at = CASE WHEN listing_id IS NOT NULL THEN COALESCE(status_held_at, now()) END");
   }
   if ("castSize" in body) {
     const n = Number(body.castSize);

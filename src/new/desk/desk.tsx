@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { BookOpen, Check, CheckCheck, ChevronRight, Flag, KeyRound, Lock, RotateCcw, Search, User, Users, Zap } from "lucide-react";
 import { colourOf } from "@/lib/people";
 import { NavLink } from "../nav";
-import { paths, type DeskKind } from "../routes";
+import { paths, type DeskKind, type DeskSeasonPage } from "../routes";
 import { useMe } from "../session";
 import { Avatar } from "../ui/bars";
 import { EmptyState } from "../ui/parts";
@@ -18,8 +18,9 @@ import { LetInButton, PeoplePage, PersonPage, PersonTags, useDebounced } from ".
 import { ReportListRow, ReportPage, ReportsPage } from "./reports";
 import { andList } from "./seats";
 import { useDeskStay, useRecentlyOpened } from "./trail";
-import { agoOf, DeskHeader, DeskRow, History, IconLead, ItemRow, Section, Tag } from "./parts";
+import { agoOf, ChoiceCard, DeskHeader, DeskRow, History, IconLead, ItemRow, Section, Tag } from "./parts";
 import { RulebookPage } from "./rulebook";
+import { SetupPage } from "./setup";
 
 // The admin's desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js admin), from the profile menu: Inbox
 // (only what the community couldn't settle, and what settled on its own this week), Find (one search; each thing has a
@@ -32,7 +33,7 @@ type Page = Tab | "library" | "new" | "people" | "reports";
 
 const TAB_NAMES: Record<Tab, string> = { inbox: "Inbox", find: "Find", settings: "Settings" };
 
-export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: DeskKind; id: string } | null }) {
+export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: DeskKind; id: string; sub?: DeskSeasonPage } | null }) {
   const me = useMe();
   useDeskStay();
   if (!me.isSuperAdmin) {
@@ -43,6 +44,7 @@ export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: Desk
       </div>
     );
   }
+  if (item?.sub === "setup") return <SetupPage id={item.id} />;
   if (item) {
     const page = { fact: FactPage, season: SeasonPage, castaway: CastawayPage, couch: CouchPage, person: PersonPage, show: ShowPage, rulebook: RulebookPage, report: ReportPage }[item.kind];
     const Page = page;
@@ -148,7 +150,7 @@ function whenOf(iso: string, now = new Date()) {
   return { day: today ? (d.getHours() >= 17 ? "Tonight" : "Today") : d.toLocaleDateString("en-US", { weekday: "short" }), hm, ap, today };
 }
 
-const HOW_ICON: Record<ComingUp["how"], typeof Zap> = { auto: Zap, espn: Check, talk: Users, couch: Users };
+const HOW_ICON: Record<ComingUp["how"], typeof Zap> = { auto: Zap, espn: Check, talk: Users, couch: Users, admin: Check };
 
 /** One episode this week (the mock's .dk-run): day and time, the season, the episode, how its results come in. */
 function WeekRow({ c }: { c: ComingUp }) {
@@ -445,19 +447,6 @@ function WaitingList({ open, onClose }: { open: boolean; onClose: () => void }) 
         </NavLink>
       )}
     </div>
-  );
-}
-
-/** One choice in a setting's sheet: what it is, Recommended when it is, and what it does. */
-function ChoiceCard({ on, title, line, recommended, onClick, attrs }: { on: boolean; title: string; line?: string; recommended?: boolean; onClick: () => void; attrs: Record<string, string> }) {
-  return (
-    <button type="button" {...attrs} aria-pressed={on} onClick={onClick} className={`nd-press rounded-[3px] p-3.5 text-left ${on ? "outline-2 -outline-offset-2 outline-foreground" : "bg-background"}`}>
-      <b className="block text-[16px]">
-        {title}
-        {recommended && <i className="type-caption ml-1.5 inline-block rounded-[2px] bg-secondary px-1.5 pb-0.5 pt-[3px] align-[2px] text-[11px] not-italic leading-none tracking-[0.06em]">Recommended</i>}
-      </b>
-      {line && <small className="text-[13px] leading-snug text-muted-foreground">{line}</small>}
-    </button>
   );
 }
 

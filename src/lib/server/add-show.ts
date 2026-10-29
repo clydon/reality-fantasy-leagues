@@ -181,7 +181,7 @@ export async function listedSeason(showId: string, show: TvShow, season: TvSeaso
       id = rows[0]?.id ?? (await c.query("SELECT id FROM show_seasons WHERE show_id = $1 AND season_number = $2", [showId, season.number])).rows[0].id;
     } else {
       await c.query(
-        `UPDATE show_seasons SET status = $2, premiere_date = $3, finale_date = $4, episode_count = $5, release = $6, drop_at = $7,
+        `UPDATE show_seasons SET status = CASE WHEN status_held_at IS NULL THEN $2 ELSE status END, premiere_date = $3, finale_date = $4, episode_count = $5, release = $6, drop_at = $7,
                 air_time = COALESCE($8, air_time), art_url = COALESCE(art_url, $9), listing_fetched_at = now(), updated_at = now()
           WHERE id = $1 AND listing_id IS NOT NULL`,
         [id, row.status, row.premiere, row.finale, row.count, row.release, row.dropAt, row.airTime, row.art]

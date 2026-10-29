@@ -12,7 +12,7 @@
 //      what Report a problem now records (the device), Find's Browse line and search, the sender's page, and Delete.
 //   4. A couch nobody runs: Hand on with nobody going, and its Undo putting it back in the Inbox.
 //   5. Screens at --width: the Inbox (its tags, faces, Coming up and All N this week), each item opening its page with the
-//      row to act on (the couch's Hand it on, the season's Setup and Cast with their dots, People › Waiting, the report),
+//      row to act on (the couch's Hand it on, the season's Setup page and its Cast row with their dots, People › Waiting, the report),
 //      dealing with one clearing it from the Inbox and the tab's count, Find › Reports, a report's page (Mark done, Act as
 //      the sender opening their page's sheet, Delete's hold). Nothing wider than the screen; no page errors.
 //   6. Nothing real moved: every account that isn't zt_ is as it was.
@@ -191,7 +191,7 @@ const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email 
     const at = (kind, re = /./) => ib.items.findIndex((i) => i.kind === kind && mine(i) && re.test(`${i.title} ${i.line}`));
     const item = (kind, re) => ib.items[at(kind, re)];
     check(item("stranded")?.title === `Nobody runs ${COUCH}' games` && /Its only Commissioner has gone · 3 people waiting on results/.test(item("stranded").line) && item("stranded").href === `/desk/couch/${ids.couch}`, "a couch nobody runs, opening its page", JSON.stringify(item("stranded")));
-    check(item("schedule")?.title === "ZT DI Nosched 1 is airing with no schedule" && item("schedule").href === `/desk/season/${ids.nosched}`, "an airing season with no schedule, opening the season", JSON.stringify(item("schedule")));
+    check(item("schedule")?.title === "ZT DI Nosched 1 is airing with no schedule" && item("schedule").href === `/desk/season/${ids.nosched}/setup`, "an airing season with no schedule, opening its Setup", JSON.stringify(item("schedule")));
     check(item("cast")?.title === "ZT DI Cast 1's cast isn't in its games" && /3 people, not approved · no games on it yet/.test(item("cast").line), "a cast not sent", JSON.stringify(item("cast")));
     const people = ib.items.find((i) => i.kind === "people");
     check(!!people && /accounts? waiting to get in/.test(people.title) && people.href === "/desk/people?f=waiting" && people.faces?.length >= 2 && people.faces.length <= 3, "accounts waiting: one item, up to three faces, to People › Waiting", JSON.stringify(people));
@@ -379,11 +379,14 @@ const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email 
 
     // No schedule and a cast not sent: their seasons, each with the row to act on and its dot
     await row("schedule", "ZT DI Nosched 1").click();
-    await pg.locator("[data-desk-row='setup']").waitFor({ timeout: 20000 });
-    check((await pg.locator("[data-desk-row='setup'] [data-off='need']").count()) === 1 && (await pg.locator("[data-desk-row='setup']").getAttribute("href")) === `/admin/seasons/${ids.nosched}/setup`, "no schedule: the season's Setup, with its dot, in classic admin for now");
+    await pg.locator("[data-setup-none]").waitFor({ timeout: 20000 });
+    check((await pg.locator("[data-setup-classic]").getAttribute("href")) === `/admin/seasons/${ids.nosched}/setup`, "no schedule: its Setup, leading with No schedule yet, set in classic admin until 3b");
     check(/No schedule yet/.test(await pg.locator("[data-lower-third-name]").locator("..").innerText()), "its lower third says no schedule yet");
     await fits("a season with no schedule");
-    await shot("season-no-schedule");
+    await shot("setup-no-schedule");
+    await pg.goto(`${BASE}/desk/season/${ids.nosched}`);
+    await pg.locator("[data-desk-row='setup']").waitFor({ timeout: 20000 });
+    check((await pg.locator("[data-desk-row='setup'] [data-off='need']").count()) === 1 && (await pg.locator("[data-desk-row='setup']").getAttribute("href")) === `/desk/season/${ids.nosched}/setup`, "the season page's Setup row carries the dot and opens its Setup");
     await toInbox();
     await row("cast", "ZT DI Cast 1").click();
     await pg.locator("[data-desk-row='cast']").waitFor({ timeout: 20000 });

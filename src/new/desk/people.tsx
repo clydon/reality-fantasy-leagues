@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { keepPreviousData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowDownUp, Ban, Check, ChevronRight, Copy, Ellipsis, Eye, Flag, KeyRound, Lock, Mail, RotateCcw, Search, Users, Zap } from "lucide-react";
@@ -15,7 +15,7 @@ import { Btn, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { deskGet, deskSend, useAfterDesk, useDesk, type DeskPerson, type DeskSeatGame, type PeopleFilter, type PeopleList, type PeopleSort, type PersonRow } from "./data";
-import { agoOf, dateOf, DeleteRow, DeskHeader, DeskRow, Facts, IconLead, LatestHistory, LowerThird, Section, useChangeToast } from "./parts";
+import { agoOf, dateOf, DeleteRow, DeskHeader, DeskRow, Facts, Field, IconLead, LatestHistory, LowerThird, Section, useChangeToast } from "./parts";
 import { andList, HandOnSheet, ROLE_TITLE, SeatSheet, type DeskSeat, type Handed } from "./seats";
 import { forgetDeskPage } from "./trail";
 
@@ -676,31 +676,6 @@ function ActSheet({ open, onClose, p }: { open: boolean; onClose: () => void; p:
   );
 }
 
-/** A field in a desk sheet (the mock's .dk-fl): its label, the input at 16px, a line under it or its problem. */
-function Field({ label, hint, error, data, ...input }: { label: ReactNode; hint?: string; error?: string | null; data: string } & Omit<ComponentProps<"input">, "className">) {
-  return (
-    <label className="mt-3.5 block first:mt-0">
-      <span className="mb-1.5 block text-[13px] font-bold text-muted-foreground">{label}</span>
-      <input
-        data-field-input={data}
-        aria-invalid={error ? true : undefined}
-        autoComplete="off"
-        spellCheck={false}
-        {...input}
-        className="h-12 w-full rounded-[4px] bg-background px-3 text-base outline-1 -outline-offset-1 outline-input placeholder:text-muted-foreground focus:outline-2 focus:outline-chyron aria-invalid:outline-live"
-      />
-      {error ? (
-        <em role="alert" data-field-error={data} className="mt-1.5 block text-[13px] not-italic text-live">
-          {error}
-        </em>
-      ) : (
-        hint && <small className="mt-1.5 block text-[12.5px] leading-snug text-muted-foreground">{hint}</small>
-      )}
-    </label>
-  );
-}
-
-/** Name and email: their username, checked as sign-up checks it, and the email Forgot password sends to (tier 1, Undo). */
 function AccountSheet({ open, onClose, p }: { open: boolean; onClose: () => void; p: DeskPerson }) {
   const after = useAfterDesk();
   const said = useChangeToast();

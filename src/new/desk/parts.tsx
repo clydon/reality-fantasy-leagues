@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ComponentType, type ReactNode } from "react";
+import { useState, type ComponentProps, type ComponentType, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Minus, Plus, Trash2 } from "lucide-react";
 import { airTime } from "../clock";
 import { NavLink, useNav } from "../nav";
@@ -281,6 +281,44 @@ export function DeleteRow({ title, line, onClick, off, data }: { title: string; 
   );
 }
 
+/** One choice in a setting's sheet: what it is, Recommended when it is, and what it does. */
+export function ChoiceCard({ on, title, line, recommended, onClick, attrs }: { on: boolean; title: string; line?: string; recommended?: boolean; onClick: () => void; attrs: Record<string, string> }) {
+  return (
+    <button type="button" {...attrs} aria-pressed={on} onClick={onClick} className={`nd-press rounded-[3px] p-3.5 text-left ${on ? "outline-2 -outline-offset-2 outline-foreground" : "bg-background"}`}>
+      <b className="block text-[16px]">
+        {title}
+        {recommended && <i className="type-caption ml-1.5 inline-block rounded-[2px] bg-secondary px-1.5 pb-0.5 pt-[3px] align-[2px] text-[11px] not-italic leading-none tracking-[0.06em]">Recommended</i>}
+      </b>
+      {line && <small className="text-[13px] leading-snug text-muted-foreground">{line}</small>}
+    </button>
+  );
+}
+
+/** A field in a desk sheet (the mock's .dk-fl): its label, the input at 16px, a line under it or its problem. */
+export function Field({ label, hint, error, data, ...input }: { label: ReactNode; hint?: string; error?: string | null; data: string } & Omit<ComponentProps<"input">, "className">) {
+  return (
+    <label className="mt-3.5 block first:mt-0">
+      <span className="mb-1.5 block text-[13px] font-bold text-muted-foreground">{label}</span>
+      <input
+        data-field-input={data}
+        aria-invalid={error ? true : undefined}
+        autoComplete="off"
+        spellCheck={false}
+        {...input}
+        className="h-12 w-full rounded-[4px] bg-background px-3 text-base outline-1 -outline-offset-1 outline-input placeholder:text-muted-foreground focus:outline-2 focus:outline-chyron aria-invalid:outline-live"
+      />
+      {error ? (
+        <em role="alert" data-field-error={data} className="mt-1.5 block text-[13px] not-italic text-live">
+          {error}
+        </em>
+      ) : (
+        hint && <small className="mt-1.5 block text-[12.5px] leading-snug text-muted-foreground">{hint}</small>
+      )}
+    </label>
+  );
+}
+
+/** Name and email: their username, checked as sign-up checks it, and the email Forgot password sends to (tier 1, Undo). */
 /** A section with a heading and an aside (the mock's .blk .sh). */
 export function Section({ title, aside, children, className = "" }: { title?: ReactNode; aside?: ReactNode; children: ReactNode; className?: string }) {
   return (

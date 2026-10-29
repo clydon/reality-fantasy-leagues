@@ -13,9 +13,10 @@ import { Btn, Chip, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { ArtSection } from "./art";
-import { deskSend, useAfterDesk, useDesk, type DeskCastaway, type DeskCouch, type DeskFact, type DeskLine, type DeskSeason, type DeskShow, type SeasonBot } from "./data";
+import { deskSend, useAfterDesk, useDesk, type DeskCastaway, type DeskCouch, type DeskFact, type DeskLine, type DeskSeason, type DeskShow, type SeasonBot, type SeasonDelete } from "./data";
 import { DeskHeader, DeskRow, Facts, FieldRow, IconLead, ItemRow, LatestHistory, LockRow, LowerThird, OverrideSheet, Section, SwitchRow, Tag } from "./parts";
 import { HandOnSheet } from "./seats";
+import { SeasonDeleteRow } from "./setup";
 
 // One thing on the desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js adminFact and adminEntity): a
 // disputed fact's two sides and the admin's decision; a season (its rulebook, its cast by group, its episodes' results);
@@ -313,7 +314,7 @@ function SeasonBotSection({ id, bot }: { id: string; bot: SeasonBot }) {
 }
 
 export function SeasonPage({ id }: { id: string }) {
-  const q = useDesk<DeskSeason & { bot: SeasonBot; history: DeskLine[] }>(`/seasons/${id}`);
+  const q = useDesk<DeskSeason & { bot: SeasonBot; history: DeskLine[]; setup: { line: string; next: string; facts: string; scheduled: boolean }; delete: SeasonDelete }>(`/seasons/${id}`);
   const act = useAct<{ people: number; leagues: number }>(`/seasons/${id}`);
   const [clearing, setClearing] = useState<{ group: string; preview: { people: number; leagues: number } | null } | null>(null);
   const [open, setOpen] = useState<number | null>(null);
@@ -327,11 +328,9 @@ export function SeasonPage({ id }: { id: string }) {
       <LowerThird
         tag={s.status === "airing" ? "Airing" : s.status === "completed" ? "Ended" : "Upcoming"}
         title={s.name}
-        detail={noSchedule ? "No schedule yet" : s.aired ? `${s.aired} ${s.aired === 1 ? "episode" : "episodes"} aired` : `${s.cast.length} in the cast`}
+        detail={s.setup.next}
       />
-      <Facts>
-        {s.leagues} {s.leagues === 1 ? "game" : "games"} on it, on {s.couches} {s.couches === 1 ? "couch" : "couches"}
-      </Facts>
+      <Facts>{s.setup.facts}</Facts>
       <Section title="Part of">
         <DeskRow href={paths.deskItem("show", s.show.id)} data="part-of" lead={<IconLead icon={Tv} />} title={s.show.name} line="The show" />
         {s.rulebook && (
@@ -344,34 +343,23 @@ export function SeasonPage({ id }: { id: string }) {
           />
         )}
       </Section>
-      {/* What the Inbox sends here for (docs/PLAN-desk-parity.md step 2), each the row to act on with its dot: steps 3 and 5
-          give a season its own Setup and Cast; until then they're done in classic's admin. */}
-      {(noSchedule || !s.castSent) && (
-        <Section title="Running it">
-          <div className="border-b border-border">
-            {noSchedule && (
-              <DeskRow
-                href={`/admin/seasons/${id}/setup`}
-                data="setup"
-                dot="need"
-                lead={<IconLead icon={CalendarDays} />}
-                title="Setup"
-                line="No schedule yet: nothing knows when it airs · set it in classic admin for now"
-              />
-            )}
-            {!s.castSent && (
-              <DeskRow
-                href={`/admin/seasons/${id}/cast`}
-                data="cast"
-                dot="need"
-                lead={<IconLead icon={Users} />}
-                title="Cast"
-                line={`${s.cast.length} ${s.cast.length === 1 ? "person" : "people"}, not sent to its games · approve it in classic admin for now`}
-              />
-            )}
-          </div>
-        </Section>
-      )}
+      {/* Its Setup (docs/PLAN-desk-parity.md step 3), and what the Inbox sends here for (step 2), the row to act on with its
+          dot: step 5 gives a season its own Cast; until then it's approved in classic's admin. */}
+      <Section title="Running it">
+        <div className="border-b border-border">
+          <DeskRow href={paths.deskSeasonPage(id, "setup")} data="setup" dot={noSchedule ? "need" : undefined} lead={<IconLead icon={CalendarDays} />} title="Setup" line={s.setup.line} />
+          {!s.castSent && (
+            <DeskRow
+              href={`/admin/seasons/${id}/cast`}
+              data="cast"
+              dot="need"
+              lead={<IconLead icon={Users} />}
+              title="Cast"
+              line={`${s.cast.length} ${s.cast.length === 1 ? "person" : "people"}, not sent to its games · approve it in classic admin for now`}
+            />
+          )}
+        </div>
+      </Section>
       <SeasonBotSection id={id} bot={s.bot} />
       <Section title="Cast" aside={`${s.cast.length} people`}>
         {s.groups.length > 0 && (
@@ -434,6 +422,7 @@ export function SeasonPage({ id }: { id: string }) {
         )}
       </Section>
       <LatestHistory lines={q.data.history} />
+      <SeasonDeleteRow id={id} del={s.delete} showId={s.show.id} />
       {clearing && (
         <GuardSheet
           open

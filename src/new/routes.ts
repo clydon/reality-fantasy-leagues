@@ -12,6 +12,7 @@
 //   /desk/people                             Find › People (depth 2: docs/PLAN-desk-parity.md step 1)
 //   /desk/reports                            Find › Reports (depth 2: docs/PLAN-desk-parity.md step 2)
 //   /desk/[kind]/[id]                        one thing on the desk: a fact, a season, a castaway, a rulebook... (depth 2)
+//   /desk/season/[id]/setup                  a page under a season: its Setup (depth 3: docs/PLAN-desk-parity.md step 3)
 //
 // Classic owns everything else ("/", /account, /waivers, /setup, /admin...); the two designs never share a path.
 
@@ -75,6 +76,8 @@ export const paths = {
   /** New show; `season`: a season that's here, to set up (How do you want to start?). */
   deskNew: (season?: string) => `/desk/new${season ? `?season=${encodeURIComponent(season)}` : ""}`,
   deskItem: (kind: DeskKind, id: string) => `/desk/${kind}/${id}`,
+  /** A page under a season (docs/PLAN-desk-parity.md steps 3-5): its Setup. */
+  deskSeasonPage: (id: string, page: DeskSeasonPage) => `/desk/season/${id}/${page}`,
 };
 
 /** The desk's tabs, and the kinds of thing it has a page for. */
@@ -84,6 +87,10 @@ export const DESK_PAGES = ["library", "new", "people", "reports"] as const;
 export const DESK_KINDS = ["fact", "season", "castaway", "couch", "person", "show", "rulebook", "report"] as const;
 export type DeskKind = (typeof DESK_KINDS)[number];
 export const isDeskKind = (v: string): v is DeskKind => (DESK_KINDS as readonly string[]).includes(v);
+/** The pages under a season: its Setup (step 3). */
+export const DESK_SEASON_PAGES = ["setup"] as const;
+export type DeskSeasonPage = (typeof DESK_SEASON_PAGES)[number];
+export const isDeskSeasonPage = (v: string | undefined): v is DeskSeasonPage => !!v && (DESK_SEASON_PAGES as readonly string[]).includes(v);
 
 /** Where to go after signing in: `next` when it's a path on this site (never another site, never "//host"), else none. */
 export function safeNext(next: string | null | undefined): string | null {
@@ -121,7 +128,7 @@ export function depthOf(href: string): number {
     case "signin":
       return 1;
     case "desk":
-      return p[1] && !(DESK_TABS as readonly string[]).includes(p[1]) ? 2 : 1;
+      return p[1] && !(DESK_TABS as readonly string[]).includes(p[1]) ? (p[3] ? 3 : 2) : 1;
     default:
       return 0;
   }
@@ -159,6 +166,7 @@ export function upFrom(href: string, { signedIn = true }: { signedIn?: boolean }
       if (p[1] === "report") return paths.deskReports();
       if (p[1] === "new") return paths.desk("library");
       if (p[1] === "fact") return paths.desk();
+      if (p[1] === "season" && p[2] && p[3]) return paths.deskItem("season", p[2]);
       if (p[1] && isDeskKind(p[1])) return paths.desk("find");
       return paths.home;
     default:

@@ -37,7 +37,7 @@ export interface ComingUp {
   /** A sport's event name ("Mexico City Grand Prix"): its listed title gives nothing away. Else null ("Episode 6"). */
   title: string | null;
   airAt: string;
-  how: "auto" | "espn" | "talk" | "couch";
+  how: "auto" | "espn" | "talk" | "couch" | "admin";
   line: string;
 }
 
@@ -150,7 +150,14 @@ async function strandedCouches(): Promise<InboxItem[]> {
 }
 
 /** How a season's results come in, for Coming up. */
-function howResults(s: { bot_on: boolean; schedule: unknown; espn: boolean; kind: string | null }): Pick<ComingUp, "how" | "line"> {
+function howResults(s: { bot_on: boolean; schedule: unknown; espn: boolean; kind: string | null; results_by: string }): Pick<ComingUp, "how" | "line"> {
+  const how = howTheyCome(s);
+  // Setup's Who decides results (docs/PLAN-desk-parity.md part 3a): what the desk accepts reaches its games too.
+  if (s.results_by !== "admin") return how;
+  return how.how === "couch" ? { how: "admin", line: "You decide results · couches' answers count too" } : { how: how.how, line: `${how.line} · you decide too` };
+}
+
+function howTheyCome(s: { bot_on: boolean; schedule: unknown; espn: boolean; kind: string | null }): Pick<ComingUp, "how" | "line"> {
   if (s.bot_on) {
     let runs: BotScheduleRun[] = [];
     try {
@@ -174,7 +181,7 @@ function howResults(s: { bot_on: boolean; schedule: unknown; espn: boolean; kind
  */
 async function theWeek(now = new Date()): Promise<{ coming: ComingUp[]; unscheduled: { id: string; name: string }[] }> {
   const { rows } = await pool.query(
-    `SELECT ss.id, ${seasonName} AS name, ss.status, s.kind, ss.bot_research_on AS bot_on, ss.bot_research_schedule AS schedule,
+    `SELECT ss.id, ${seasonName} AS name, ss.status, s.kind, ss.bot_research_on AS bot_on, ss.bot_research_schedule AS schedule, ss.results_by,
             EXISTS (SELECT 1 FROM sports_links sl WHERE sl.season_id = ss.id AND sl.provider = 'espn' AND sl.linked > 0) AS espn
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
       WHERE s.archived = false AND s.set_up_at IS NOT NULL AND ss.status IN ('airing', 'upcoming')
@@ -257,7 +264,7 @@ export async function inbox(now = new Date()): Promise<Inbox> {
   }
   items.push(...stranded);
   // An airing season nothing says the dates of: no reminders, no guide card, no research until it has one.
-  for (const s of week.unscheduled) items.push({ kind: "schedule", title: `${s.name} is airing with no schedule`, line: "No reminders, no guide card, and no research until it has one", href: `/desk/season/${s.id}` });
+  for (const s of week.unscheduled) items.push({ kind: "schedule", title: `${s.name} is airing with no schedule`, line: "No reminders, no guide card, and no research until it has one", href: `/desk/season/${s.id}/setup` });
   items.push(...casts, ...people);
   for (const r of reports) items.push({ kind: "report", title: r.title, line: `From ${r.who.name} · ${r.about}`, href: `/desk/report/${r.id}`, at: r.at });
   const { rows: tips } = await pool.query(

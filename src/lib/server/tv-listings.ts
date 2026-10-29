@@ -133,12 +133,13 @@ async function writeRows(rows: ListingRow[], read: string[], keepFrom: string): 
   }
 }
 
-/** A listing season's status by date, as seasonStatus says (listing.ts): no TVmaze call. */
-async function statusesByDate(now: Date): Promise<number> {
+/** A listing season's status by date, as seasonStatus says (listing.ts): no TVmaze call. A status set on the desk holds
+ *  over the dates (status_held_at, 0422) until Setup's "Back to its listing's dates". */
+export async function statusesByDate(now: Date): Promise<number> {
   const status = `CASE WHEN premiere_date IS NULL OR premiere_date > $1::date THEN 'upcoming'
                        WHEN finale_date IS NOT NULL AND finale_date < $1::date THEN 'completed' ELSE 'airing' END`;
   const { rowCount } = await pool.query(
-    `UPDATE show_seasons SET status = ${status}, updated_at = now() WHERE listing_id IS NOT NULL AND status IS DISTINCT FROM ${status}`,
+    `UPDATE show_seasons SET status = ${status}, updated_at = now() WHERE listing_id IS NOT NULL AND status_held_at IS NULL AND status IS DISTINCT FROM ${status}`,
     [now.toISOString().slice(0, 10)]
   );
   return rowCount ?? 0;
