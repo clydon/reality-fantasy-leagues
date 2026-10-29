@@ -168,6 +168,17 @@ Last updated 2026-10-27.
     nobody. The desk's build moves releases into the database and drafts them on the desk (PLAN-desk-parity.md, decision
     8); where a player sees them in the new design is player-facing design work, mocked first.
     - **When:** before What's New's pause ends (the user's call; nothing is announced meanwhile).
+23. **Players' lineup, pick and prediction reminders don't go (noticed 2026-10-29, the desk's step 8).**
+    `db/reminders.js remindLeague` sends them only for seasons with `auto_research` on (paid research's old default, kept
+    when step 8 moved the reminders into the Reminders and waivers job). No season has it on, and nothing can turn it on
+    since classic's admin went, so none go, as before step 8; the commissioners' morning-after results nudge goes for every
+    airing season. PLAN-desk-parity.md Noticed co.
+    - **When:** the user's call, since it sends pushes to real players: every airing season (as the nudge does), or a
+      switch on the desk's season Setup.
+24. **The formats' `wiki` sections outlived the wiki read (noticed 2026-10-29, the desk's step 8).** `castNote`, the
+    episode schema, `derivedEvents`, `rejectEvent` and `roles` are read only by `validateEpisodes` and its regression
+    harness now. PLAN-desk-parity.md Noticed cp.
+    - **When:** the engine lane, as it moves formats onto specs: clear them out or keep them.
 
 ## Decided against (don't re-propose without new information)
 

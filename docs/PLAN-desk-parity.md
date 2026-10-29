@@ -7,7 +7,8 @@ admin at all (only Settings › Back to the classic design, or typing `/admin`).
 plan closes that gap, then retires classic's admin.
 
 **Merged 2026-10-29 (`ce42872b`, a fast-forward) and pushed after the Neon rehearsal: steps 1-7 are in production, with
-migrations 0420-0430. Step 8, classic's admin retiring, is next.**
+migrations 0420-0430. Step 8 (classic's admin retires, no migration) was merged and pushed the same day (`77b817a1`): the
+desk build is done.**
 
 **Status (2026-10-29): Step 1 ready to merge at 049c10db: parts 1a, 1b and 1c** (1a: the page frame, Find › Browse and People,
 Settings regrouped, the Viewing as bar; 1b: a person's actions, Let in, Act as them, Name and email, Reset password, Stop
