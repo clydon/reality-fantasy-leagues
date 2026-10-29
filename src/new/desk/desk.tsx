@@ -22,6 +22,7 @@ import { agoOf, ChoiceCard, DeskHeader, DeskRow, History, IconLead, ItemRow, Sec
 import { RulebookPage } from "./rulebook";
 import { EpisodePage } from "./episode";
 import { BingoPage } from "./bingo";
+import { CastPage } from "./cast";
 import { ResearchPage } from "./research";
 import { SetupPage } from "./setup";
 
@@ -51,6 +52,7 @@ export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: Desk
   if (item?.sub === "setup") return <SetupPage id={item.id} />;
   if (item?.sub === "research") return <ResearchPage id={item.id} />;
   if (item?.sub === "bingo") return <BingoPage id={item.id} />;
+  if (item?.sub === "cast") return <CastPage id={item.id} />;
   if (item) {
     const page = { fact: FactPage, season: SeasonPage, castaway: CastawayPage, couch: CouchPage, person: PersonPage, show: ShowPage, rulebook: RulebookPage, report: ReportPage }[item.kind];
     const Page = page;

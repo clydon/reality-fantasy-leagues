@@ -11,6 +11,8 @@ export type { Inbox, InboxItem, ComingUp } from "@/lib/server/desk-inbox";
 export type { DeskReport, ReportRow, ReportsList, ReportFilter } from "@/lib/server/desk-reports";
 export type { DeskFact, DeskSource } from "@/lib/server/desk-facts";
 export type { DeskSeason, DeskCastaway } from "@/lib/server/desk-cast";
+export type { CastFace, CastReviewChange, DeskCast } from "@/lib/server/desk-cast-page";
+export type { CastChange, CastPicks } from "@/lib/desk-cast-diff";
 export type { SeasonBot } from "@/lib/server/desk-bot";
 export type { DeskSetup, SeasonDelete, SeasonGame } from "@/lib/server/desk-setup";
 export type { DeskResearch, NowEpisode, RailRow, ResearchRun } from "@/lib/server/desk-research";

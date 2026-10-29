@@ -192,7 +192,7 @@ const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email 
     const item = (kind, re) => ib.items[at(kind, re)];
     check(item("stranded")?.title === `Nobody runs ${COUCH}' games` && /Its only Commissioner has gone · 3 people waiting on results/.test(item("stranded").line) && item("stranded").href === `/desk/couch/${ids.couch}`, "a couch nobody runs, opening its page", JSON.stringify(item("stranded")));
     check(item("schedule")?.title === "ZT DI Nosched 1 is airing with no schedule" && item("schedule").href === `/desk/season/${ids.nosched}/setup`, "an airing season with no schedule, opening its Setup", JSON.stringify(item("schedule")));
-    check(item("cast")?.title === "ZT DI Cast 1's cast isn't in its games" && /3 people, not approved · no games on it yet/.test(item("cast").line), "a cast not sent", JSON.stringify(item("cast")));
+    check(item("cast")?.title === "ZT DI Cast 1's cast isn't in its games" && /3 castaways, not sent · no games on it yet/.test(item("cast").line) && item("cast").href === `/desk/season/${ids.cast}/cast`, "a cast not sent, to its Cast page", JSON.stringify(item("cast")));
     const people = ib.items.find((i) => i.kind === "people");
     check(!!people && /accounts? waiting to get in/.test(people.title) && people.href === "/desk/people?f=waiting" && people.faces?.length >= 2 && people.faces.length <= 3, "accounts waiting: one item, up to three faces, to People › Waiting", JSON.stringify(people));
     check(people?.faces.slice(0, 2).map((f) => f.name).join() === `${U("maya")},${U("noor")}` || /zt_di_maya/.test(people?.line), "the newest waiting first", JSON.stringify(people?.faces));
@@ -389,8 +389,12 @@ const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email 
     check((await pg.locator("[data-desk-row='setup'] [data-off='need']").count()) === 1 && (await pg.locator("[data-desk-row='setup']").getAttribute("href")) === `/desk/season/${ids.nosched}/setup`, "the season page's Setup row carries the dot and opens its Setup");
     await toInbox();
     await row("cast", "ZT DI Cast 1").click();
+    await pg.locator("[data-desk-cast='review'] [data-cast-review]").waitFor({ timeout: 20000 });
+    check(/3 castaways, not sent/.test(await pg.locator("[data-cast-review]").innerText()), "a cast not sent: its Cast page (part 5a), the review leading");
+    await shot("cast-not-sent");
+    await pg.goto(`${BASE}/desk/season/${ids.cast}`);
     await pg.locator("[data-desk-row='cast']").waitFor({ timeout: 20000 });
-    check((await pg.locator("[data-desk-row='cast'] [data-off='need']").count()) === 1 && /3 people, not sent to its games/.test(await pg.locator("[data-desk-row='cast']").innerText()), "a cast not sent: the season's Cast row, with its dot");
+    check((await pg.locator("[data-desk-row='cast'] [data-off='need']").count()) === 1 && /3 castaways, not sent to its games/.test(await pg.locator("[data-desk-row='cast']").innerText()), "the season's Cast row, with its dot");
     await shot("season-cast");
 
     // Accounts waiting: People › Waiting

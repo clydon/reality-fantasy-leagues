@@ -550,7 +550,7 @@ export interface MoveLine {
   /** One result (names hidden, the page says these as a count). */
   result?: boolean;
   face: { name: string; photo: string | null } | null;
-  icon: "check" | "plus" | "x" | "people" | "poll" | "split" | "grid" | "repeat" | null;
+  icon: "check" | "plus" | "x" | "people" | "poll" | "split" | "grid" | "repeat" | "user" | null;
   label: string;
   change: string;
 }

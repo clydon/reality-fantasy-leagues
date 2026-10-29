@@ -16,6 +16,13 @@ import { applyApprovedCastToLeagues, renameInSeasonDecisions, seasonCastRows } f
 
 const seasonName = `COALESCE(ss.name, s.name || ' ' || ss.season_number)`;
 
+/** The roles a season's rulebook keeps secret, lowercased: a group named like one gives the role away. */
+export const secretRolesOf = (blocks: { twists?: unknown } | null | undefined) =>
+  new Set<string>(((blocks?.twists ?? []) as { type: string; roles?: string[] }[]).filter((t) => t.type === "secretRole").flatMap((t) => (t.roles ?? []).map((r) => r.toLowerCase())));
+
+/** A group named like a secret role (the rulebook's, or the Traitors' own words). */
+export const isSecretRole = (name: string, roles: Set<string>) => roles.has(name.toLowerCase()) || /^(traitors?|faithfuls?)$/i.test(name);
+
 interface SeasonRow {
   id: string;
   name: string;
@@ -72,9 +79,7 @@ export async function deskSeason(id: string): Promise<DeskSeason> {
   const leagues = await leaguesOn(s);
   const cast = (await pool.query("SELECT id, name, tribe_name, photo_url, locked_at FROM season_cast WHERE season_id = $1 ORDER BY sort_order, name", [id])).rows;
   // A group named for a secret role (the rulebook's, or the Traitors' own words) gives the role away.
-  const roles = new Set<string>(
-    ((book?.row.blocks.twists ?? []) as { type: string; roles?: string[] }[]).filter((t) => t.type === "secretRole").flatMap((t) => (t.roles ?? []).map((r) => r.toLowerCase()))
-  );
+  const roles = secretRolesOf(book?.row.blocks);
   const groups = new Map<string, number>();
   for (const c of cast) if (c.tribe_name) groups.set(c.tribe_name, (groups.get(c.tribe_name) ?? 0) + 1);
   const schedule = (await seasonSchedules([id])).get(id);
@@ -86,7 +91,7 @@ export async function deskSeason(id: string): Promise<DeskSeason> {
     leagues: leagues.length,
     couches: new Set(leagues.map((l) => l.couch_id).filter(Boolean)).size,
     rulebook: book ? { id: book.row.id, version: book.row.version, live: s.rulebook_live, everywhere: flag[0]?.value === true, edited: book.row.compiledSource === "blocks" } : null,
-    groups: [...groups].map(([name, people]) => ({ name, people, secretRole: roles.has(name.toLowerCase()) || /^(traitors?|faithfuls?)$/i.test(name) })),
+    groups: [...groups].map(([name, people]) => ({ name, people, secretRole: isSecretRole(name, roles) })),
     cast: cast.map((c) => ({ id: c.id, name: c.name, group: c.tribe_name, photo: publicMediaSrc(c.photo_url), locked: !!c.locked_at })),
     aired: latestAired(schedule) ?? 0,
     scheduled: hasSchedule(schedule),

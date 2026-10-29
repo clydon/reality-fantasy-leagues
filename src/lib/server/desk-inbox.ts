@@ -2,6 +2,7 @@ import { normalizeSchedule, tiebreakNext, tiebreakOn, tiebreakQuestions, type Bo
 import { phaseCues } from "@db/rulebooks.js";
 import { pool } from "./db";
 import { factTitle, SEASON_NAME as seasonName, STRANDED } from "./desk";
+import { castInboxItems } from "./desk-cast-page";
 import { openReports } from "./desk-reports";
 import { andList } from "./desk-seats";
 import { hasSchedule, seasonSchedules, upNext } from "./schedule";
@@ -204,23 +205,6 @@ async function theWeek(now = new Date()): Promise<{ coming: ComingUp[]; unschedu
   return { coming, unscheduled };
 }
 
-/** A season's cast someone has (our bot's answer, a paste, classic's pull) that isn't sent to its games yet. */
-async function castsNotSent(): Promise<InboxItem[]> {
-  const { rows } = await pool.query(
-    `SELECT ss.id, ${seasonName} AS name, (SELECT count(*)::int FROM season_cast sc WHERE sc.season_id = ss.id) AS people,
-            (SELECT count(*)::int FROM leagues l WHERE l.deleted_at IS NULL AND l.state->'settings'->>'showId' = s.slug AND l.state->'settings'->>'wikiSeason' = ss.season_number::text) AS games
-       FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
-      WHERE s.archived = false AND s.set_up_at IS NOT NULL AND ss.cast_approved_at IS NULL AND ss.status <> 'completed' AND EXISTS (SELECT 1 FROM season_cast sc WHERE sc.season_id = ss.id)
-      ORDER BY s.name, ss.season_number LIMIT 20`
-  );
-  return rows.map((r) => ({
-    kind: "cast" as const,
-    title: `${poss(r.name)} cast isn't in its games`,
-    line: `${plural(r.people, "person", "people")}, not approved · ${r.games ? `not sent to its ${plural(r.games, "game", "games")} yet` : "no games on it yet"}`,
-    href: `/desk/season/${r.id}`,
-  }));
-}
-
 /** Accounts waiting to get in: one item, the first three faces, opening People › Waiting. */
 async function waiting(): Promise<InboxItem[]> {
   const [{ rows }, mode] = await Promise.all([
@@ -253,7 +237,7 @@ export async function inbox(now = new Date()): Promise<Inbox> {
     deskNotices(),
     strandedCouches(),
     theWeek(now),
-    castsNotSent(),
+    castInboxItems(),
     waiting(),
     openReports(20),
   ]);

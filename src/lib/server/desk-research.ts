@@ -11,6 +11,7 @@ import { pool, HttpError } from "./db";
 import { SEASON_NAME, logDesk, type DeskLine } from "./desk";
 import { seasonBot } from "./desk-bot";
 import { dayGap, fmt, mdIn, plural, timeIn, ymd } from "./desk-dates";
+import { askCastNow } from "./desk-cast-page";
 import { waitingEpisodes } from "./desk-episode";
 import { deskSetup, type SeasonDelete } from "./desk-setup";
 
@@ -31,7 +32,7 @@ const DRIVE_STALE_MS = 6 * MIN;
 const WAIT_MS = 240_000;
 const POLL_MS = 4_000;
 /** How long each kind usually takes (seconds), for "in about N minutes". */
-const TYPICAL: Record<string, number> = { full: 200, tiebreak: 200, quick: 30, schedule: 40, trivia: 120, bingo: 220 };
+const TYPICAL: Record<string, number> = { full: 200, tiebreak: 200, quick: 30, schedule: 40, trivia: 120, bingo: 220, cast: 90 };
 
 type Progress = { stage?: string; done?: number; of?: number } | null;
 
@@ -194,13 +195,18 @@ interface Going {
   started_at: Date;
 }
 
-/** The run the bot is asking now, any season (a row still running, under 10 minutes old). */
+/** The run the bot is asking now, any season (a row still running, under 10 minutes old; a cast ask is the queue's own row). */
 async function going(): Promise<Going | null> {
   const { rows } = await pool.query<Going>(
-    `SELECT r.season_id, ${SEASON_NAME} AS season, r.kind, r.episode_number, r.slot, r.started_at
-       FROM bot_research_runs r JOIN show_seasons ss ON ss.id = r.season_id JOIN shows s ON s.id = ss.show_id
-      WHERE r.finished_at IS NULL AND r.ok IS NULL AND r.started_at > now() - make_interval(secs => $1)
-      ORDER BY r.started_at LIMIT 1`,
+    `SELECT * FROM (
+       SELECT r.season_id, ${SEASON_NAME} AS season, r.kind, r.episode_number, r.slot, r.started_at
+         FROM bot_research_runs r JOIN show_seasons ss ON ss.id = r.season_id JOIN shows s ON s.id = ss.show_id
+        WHERE r.finished_at IS NULL AND r.ok IS NULL AND r.started_at > now() - make_interval(secs => $1)
+       UNION ALL
+       SELECT d.season_id, ${SEASON_NAME}, d.kind, d.episode_number, 'now', d.started_at
+         FROM desk_runs d JOIN show_seasons ss ON ss.id = d.season_id JOIN shows s ON s.id = ss.show_id
+        WHERE d.kind = 'cast' AND d.done_at IS NULL AND d.started_at > now() - make_interval(secs => $1)
+     ) g ORDER BY started_at LIMIT 1`,
     [RUNNING_STALE_MS / 1000]
   );
   return rows[0] ?? null;
@@ -214,7 +220,10 @@ async function waitLine(seasonId: string): Promise<string | null> {
   let what: string;
   if (g) {
     secs += Math.max(20, (TYPICAL[g.kind] ?? 120) - (Date.now() - g.started_at.getTime()) / 1000);
-    what = `${KIND_SHORT(g.kind)} for ${g.season_id === seasonId ? "" : `${g.season} `}${epName(g.kind, g.episode_number, g.slot === SEASON_BINGO_SLOT)}`;
+    what =
+      g.kind === "cast"
+        ? `${g.season_id === seasonId ? "its" : `${g.season}${/s$/i.test(g.season) ? "'" : "'s"}`} cast`
+        : `${KIND_SHORT(g.kind)} for ${g.season_id === seasonId ? "" : `${g.season} `}${epName(g.kind, g.episode_number, g.slot === SEASON_BINGO_SLOT)}`;
     if (queued.length) what += ` and ${plural(queued.length, "more run")} waiting`;
   } else what = plural(queued.length, "run") + " already waiting";
   const m = Math.ceil(secs / 60);
@@ -292,7 +301,7 @@ async function runsOf(seasonId: string, tz: string, now: Date, limit: number): P
     pool.query("SELECT count(*)::int AS n FROM bot_research_runs WHERE season_id = $1", [seasonId]),
     pool.query(
       `SELECT d.id, d.kind, d.episode_number, d.for_season, COALESCE(u.username, u.name) AS who
-         FROM desk_runs d LEFT JOIN "user" u ON u.id = d.asked_by WHERE d.season_id = $1 AND d.done_at IS NULL AND d.started_at IS NULL ORDER BY d.asked_at DESC`,
+         FROM desk_runs d LEFT JOIN "user" u ON u.id = d.asked_by WHERE d.season_id = $1 AND d.done_at IS NULL AND d.started_at IS NULL AND d.kind <> 'cast' ORDER BY d.asked_at DESC`,
       [seasonId]
     ),
     waitLine(seasonId),
@@ -528,6 +537,41 @@ export async function runNow(
   return { text: waits ? `Queued: ${what}` : `Asking ChatGPT: ${what}`, waits };
 }
 
+/**
+ * Ask our bot for a season's cast (the Cast page, part 5a): queued like Run now, behind whatever's asking (one question at a
+ * time), as episode 0; its answer is staged for the page's review (desk-cast-page.ts askCastNow). The same ask already queued
+ * is joined. Answers what it waits behind.
+ */
+export async function queueCast(user: SessionUser, id: string, o: { bot?: string; origin: string }): Promise<{ text: string; waits: string | null }> {
+  if (!isUuid(id)) throw new HttpError(404, "Season not found");
+  const { rows: season } = await pool.query(`SELECT ${SEASON_NAME} AS name FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1`, [id]);
+  if (!season.length) throw new HttpError(404, "Season not found");
+  if (!(await askBotStatus({ bot: o.bot })).available) throw new HttpError(503, "Our bot isn't answering right now. Try again in a while, or paste it.");
+  const name: string = season[0].name;
+  const what = `${name}${/s$/i.test(name) ? "'" : "'s"} cast`;
+  // An ask the page stopped waiting on (its driver cut off long ago): failed, so this one goes in.
+  await pool.query(
+    "UPDATE desk_runs SET done_at = now(), ok = false, message = 'Cut off before it finished: ask again' WHERE season_id = $1 AND kind = 'cast' AND done_at IS NULL AND asked_at < now() - interval '15 minutes'",
+    [id]
+  );
+  const waits = await waitLine(id);
+  const { rowCount } = await pool.query(
+    `INSERT INTO desk_runs (season_id, episode_number, kind, asked_by, bot) VALUES ($1, 0, 'cast', $2, $3)
+     ON CONFLICT (season_id, kind, episode_number, for_season) WHERE done_at IS NULL DO NOTHING`,
+    [id, user.id, o.bot ?? null]
+  );
+  if (!rowCount) return { text: `Already asking for ${what}`, waits };
+  await logDesk(pool, { entity: "season", entityId: id, action: "cast", text: "Asked our bot for the cast", userId: user.id });
+  after(() => drainDeskRuns(o.origin));
+  return { text: waits ? `Queued: ${what}` : `Asking ChatGPT for ${what} · about a minute`, waits };
+}
+
+/** A queue nobody's driving (its driver was cut off): a page's read takes it over, after its answer (as Research's read does). */
+export async function takeOverQueue(origin: string, now = new Date()): Promise<void> {
+  const { rows } = await pool.query("SELECT driven_at FROM desk_runs WHERE done_at IS NULL ORDER BY asked_at, id LIMIT 1");
+  if (rows[0] && (!rows[0].driven_at || now.getTime() - rows[0].driven_at.getTime() > DRIVE_STALE_MS)) after(() => drainDeskRuns(origin));
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const busy = async () => !!(await going());
 
@@ -591,6 +635,12 @@ export async function drainDeskRuns(origin: string): Promise<void> {
       return handOn(origin);
     }
     const bot = storedBot(head.bot);
+    // The cast (part 5a): our bot's answer is staged for the Cast page's review, not filed as a run's result.
+    if (head.kind === "cast") {
+      const c = await askCastNow(head.season_id, head.asked_by, bot, 280_000);
+      await done(c.ok, c.message);
+      return handOn(origin);
+    }
     const out = await runJob(
       pool,
       { season, episode: head.episode_number, kind: head.kind, slot: "now", ...(head.for_season ? { forSeason: true } : {}) } as Parameters<typeof runJob>[1],

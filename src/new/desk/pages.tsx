@@ -5,7 +5,7 @@ import { BookOpen, CalendarDays, Check, Grid3x3, Tv, Users, X, Zap } from "lucid
 import { researchLine } from "@/lib/desk-bot-words";
 import { colourOf } from "@/lib/people";
 import { airTime } from "../clock";
-import { NavLink, useNav } from "../nav";
+import { useNav } from "../nav";
 import { paths } from "../routes";
 import { Face } from "../show/parts";
 import { Avatar } from "../ui/bars";
@@ -236,9 +236,9 @@ function EditFactSheet({ fact, onClose, onSave }: { fact: DeskFact; onClose: () 
 // ---------- a season ----------
 
 export function SeasonPage({ id }: { id: string }) {
-  const q = useDesk<DeskSeason & { bot: SeasonBot; history: DeskLine[]; setup: { line: string; next: string; facts: string; scheduled: boolean }; delete: SeasonDelete; episodeRows: { n: number; line: string }[]; bingo: { line: string } }>(`/seasons/${id}`);
-  const act = useAct<{ people: number; leagues: number }>(`/seasons/${id}`);
-  const [clearing, setClearing] = useState<{ group: string; preview: { people: number; leagues: number } | null } | null>(null);
+  const q = useDesk<
+    DeskSeason & { bot: SeasonBot; history: DeskLine[]; setup: { line: string; next: string; facts: string; scheduled: boolean }; delete: SeasonDelete; episodeRows: { n: number; line: string }[]; bingo: { line: string }; castRow: { line: string; need: boolean } }
+  >(`/seasons/${id}`);
   if (q.error) return <><DeskHeader title="Season" back={back} name={null} /><NotFound error={q.error} /></>;
   if (!q.data) return <><DeskHeader title="Season" back={back} name={null} /><Loading /></>;
   const s = q.data;
@@ -265,61 +265,14 @@ export function SeasonPage({ id }: { id: string }) {
         )}
       </Section>
       {/* Its Setup (docs/PLAN-desk-parity.md step 3), its Research and the bot (step 4: the bot's schedule moved there from
-          this page), its Bingo bank (part 4c), and what the Inbox sends here for (step 2), the row to act on with its dot: step 5 gives a season its own
-          Cast; until then it's approved in classic's admin. */}
+          this page), its Cast (part 5a: its groups and faces moved there from this page) and its Bingo bank (part 4c); what the
+          Inbox sends here for (step 2) is the row to act on, with its dot. */}
       <Section title="Running it">
         <div className="border-b border-border">
           <DeskRow href={paths.deskSeasonPage(id, "setup")} data="setup" dot={noSchedule ? "need" : undefined} lead={<IconLead icon={CalendarDays} />} title="Setup" line={s.setup.line} />
           <DeskRow href={paths.deskSeasonPage(id, "research")} data="research" lead={<IconLead icon={Zap} />} title="Research and the bot" line={researchLine({ on: s.bot.on, schedule: s.bot.schedule })} />
-          {!s.castSent && (
-            <DeskRow
-              href={`/admin/seasons/${id}/cast`}
-              data="cast"
-              dot="need"
-              lead={<IconLead icon={Users} />}
-              title="Cast"
-              line={`${s.cast.length} ${s.cast.length === 1 ? "person" : "people"}, not sent to its games · approve it in classic admin for now`}
-            />
-          )}
+          <DeskRow href={paths.deskSeasonPage(id, "cast")} data="cast" dot={s.castRow.need ? "need" : undefined} lead={<IconLead icon={Users} />} title="Cast" line={s.castRow.line} />
           <DeskRow href={paths.deskBingo(id)} data="bingo" lead={<IconLead icon={Grid3x3} />} title="Bingo bank" line={s.bingo.line} />
-        </div>
-      </Section>
-      <Section title="Cast" aside={`${s.cast.length} people`}>
-        {s.groups.length > 0 && (
-          <div className="mb-3 flex flex-col gap-2">
-            {s.groups.map((g) => (
-              <div key={g.name} data-group={g.name} className="flex items-center gap-3 rounded-[4px] bg-card p-3">
-                <span className="min-w-0 flex-1">
-                  <b className="block text-[15px]">{g.name}</b>
-                  <small className="block text-[13px] text-muted-foreground">
-                    {g.people} start in it{g.secretRole ? " · named like a secret role: it gives the role away" : ""}
-                  </small>
-                </span>
-                <Btn
-                  data-clear-group={g.name}
-                  className="h-10 px-3 text-[13px]"
-                  onClick={async () => {
-                    setClearing({ group: g.name, preview: null });
-                    const p = await deskSend<{ people: number; leagues: number }>(`/seasons/${id}`, { clearGroup: g.name, preview: true }).catch(() => null);
-                    setClearing({ group: g.name, preview: p });
-                  }}
-                >
-                  Not a group
-                </Btn>
-              </div>
-            ))}
-          </div>
-        )}
-        <div className="grid grid-cols-4 gap-2">
-          {s.cast.map((c) => (
-            <NavLink key={c.id} href={paths.deskItem("castaway", c.id)} data-castaway={c.name} className="nd-press flex flex-col overflow-hidden rounded-[3px] bg-plate text-plate-foreground">
-              <Face src={c.photo} name={c.name} className="aspect-square w-full text-xl" />
-              <span className="px-1.5 py-1">
-                <b className="type-caption block truncate text-[12px]">{c.name.split(" ")[0]}</b>
-                <small className="block truncate text-[11px] text-plate-muted">{c.locked ? "Locked" : (c.group ?? "No group")}</small>
-              </span>
-            </NavLink>
-          ))}
         </div>
       </Section>
       {/* Its episodes (part 4b; the mock's rsEpLine): the next one, then each aired one, each opening its own page. */}
@@ -336,28 +289,6 @@ export function SeasonPage({ id }: { id: string }) {
       </Section>
       <LatestHistory lines={q.data.history} />
       <SeasonDeleteRow id={id} del={s.delete} showId={s.show.id} />
-      {clearing && (
-        <GuardSheet
-          open
-          onOpenChange={(o) => !o && setClearing(null)}
-          title={`Take out ${clearing.group}?`}
-          subtitle="A secret role, not a group: off the season's cast and out of every league on it"
-          lines={clearing.preview ? [] : null}
-          body={
-            clearing.preview ? (
-              <p data-clear-preview className="rounded-[3px] bg-background p-3 text-[14px] leading-snug">
-                {clearing.preview.people} {clearing.preview.people === 1 ? "person starts" : "people start"} in {clearing.group}. {clearing.preview.leagues}{" "}
-                {clearing.preview.leagues === 1 ? "league loses it" : "leagues lose it"}: nobody is on it, and no board shows it.
-              </p>
-            ) : undefined
-          }
-          cta={`Take out ${clearing.group}`}
-          undoNote="Undo it from History: the group goes back on the same people."
-          onConfirm={async () => {
-            await act({ clearGroup: clearing.group }, `${clearing.group} taken out`);
-          }}
-        />
-      )}
     </div>
   );
 }

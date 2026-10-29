@@ -15,6 +15,7 @@
 //   /desk/season/[id]/setup                  a page under a season: its Setup (depth 3: docs/PLAN-desk-parity.md step 3)
 //   /desk/season/[id]/research               its Research and the bot (depth 3: step 4, part 4a)
 //   /desk/season/[id]/bingo?bank=<n>|season  its Bingo bank, on an episode or the season's (depth 3: step 4, part 4c)
+//   /desk/season/[id]/cast                   its Cast: getting it, what an answer changes, Send to its games (depth 3: step 5, part 5a)
 //   /desk/season/[id]/e/[n]                  one of its episodes: its results, answers and trivia (depth 4: step 4, part 4b)
 //
 // Classic owns everything else ("/", /account, /waivers, /setup, /admin...); the two designs never share a path.
@@ -94,8 +95,8 @@ export const DESK_PAGES = ["library", "new", "people", "reports"] as const;
 export const DESK_KINDS = ["fact", "season", "castaway", "couch", "person", "show", "rulebook", "report"] as const;
 export type DeskKind = (typeof DESK_KINDS)[number];
 export const isDeskKind = (v: string): v is DeskKind => (DESK_KINDS as readonly string[]).includes(v);
-/** The pages under a season: its Setup (step 3), its Research and the bot (step 4). */
-export const DESK_SEASON_PAGES = ["setup", "research", "bingo"] as const;
+/** The pages under a season: its Setup (step 3), its Research and the bot and Bingo bank (step 4), its Cast (step 5). */
+export const DESK_SEASON_PAGES = ["setup", "research", "bingo", "cast"] as const;
 export type DeskSeasonPage = (typeof DESK_SEASON_PAGES)[number];
 export const isDeskSeasonPage = (v: string | undefined): v is DeskSeasonPage => !!v && (DESK_SEASON_PAGES as readonly string[]).includes(v);
 

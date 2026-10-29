@@ -2,7 +2,7 @@
 
 import { useState, type ComponentType, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, Check, ChevronRight, CircleHelp, Grid3x3, Plus, Repeat, Split, Users, X, Zap } from "lucide-react";
+import { BarChart3, Check, ChevronRight, CircleHelp, Grid3x3, Plus, Repeat, Split, User, Users, X, Zap } from "lucide-react";
 import { AskAiPasteSheet, checkFull } from "../backstage/ask-ai";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
@@ -472,7 +472,7 @@ function AnswerLead({ a, size = 40 }: { a: EpisodeAnswer; size?: number }) {
   return <Avatar id={a.person?.id ?? a.id} name={a.person?.name ?? "?"} size={size} />;
 }
 
-const ICONS: Record<NonNullable<MoveLine["icon"]>, ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = { check: Check, plus: Plus, x: X, people: Users, poll: BarChart3, split: Split, grid: Grid3x3, repeat: Repeat };
+const ICONS: Record<NonNullable<MoveLine["icon"]>, ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = { check: Check, plus: Plus, x: X, people: Users, poll: BarChart3, split: Split, grid: Grid3x3, repeat: Repeat, user: User };
 const moveOf = (f: EpisodeFact, change: string): MoveLine => ({ result: true, face: f.kind === "noexit" || f.unknown ? null : { name: f.name, photo: f.photo }, icon: f.kind === "noexit" ? "x" : null, label: shown(f), change });
 
 /** The guard's tier 2 sheet (the mock's previewSheet): what moves, a line each, then confirm. `lines` null while it's worked out. */

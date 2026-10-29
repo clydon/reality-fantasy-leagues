@@ -7,6 +7,7 @@ import { pool, HttpError } from "./db";
 import { restoreSetting } from "./desk";
 import { restoreSeasonBot } from "./desk-bot";
 import { restoreCastaway, restoreGroup, setCastawayLock } from "./desk-cast";
+import { restoreCastSend } from "./desk-cast-page";
 import { restoreCleared, restoreAnswer, writeTriviaOut } from "./desk-episode";
 import { restoreFact, restoreFacts } from "./desk-facts";
 import { restorePerson } from "./desk-person-actions";
@@ -56,6 +57,9 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
       break;
     case "castawayLock":
       await setCastawayLock(String(u.id), !!u.locked);
+      break;
+    case "castSend":
+      await restoreCastSend(u, c.id);
       break;
     case "group":
       await restoreGroup(String(u.seasonId), String(u.group), u.ids as string[]);

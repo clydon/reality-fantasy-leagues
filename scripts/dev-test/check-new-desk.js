@@ -302,12 +302,13 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     check((await as.desk.call("POST", `/api/desk/changes/${editLine.id}/undo`)).status === 409, "an undone change can't be undone twice");
 
     // ---- 5. Find, and a castaway ----
+    // The fixture's Eric, not the local copy's real Survivor 51 one (Find lists both; picking the first was Noticed ab's flake).
     await d.page.goto(`${d.BASE}/desk/find`);
     await d.page.locator("[data-find]").fill("Eric Mack");
-    await d.page.locator("[data-desk-item='castaway']", { hasText: "Eric Macksoud" }).first().waitFor({ timeout: 20000 });
+    await d.page.locator("[data-desk-item='castaway']", { hasText: "Eric Macksoud" }).filter({ hasText: "Cast · ZT" }).first().waitFor({ timeout: 20000 });
     await fits(d.page, "Find");
     await shot(d.page, "find");
-    await d.page.locator("[data-desk-item='castaway']", { hasText: "Eric Macksoud" }).first().click();
+    await d.page.locator("[data-desk-item='castaway']", { hasText: "Eric Macksoud" }).filter({ hasText: "Cast · ZT" }).first().click();
     await d.page.locator("[data-desk-castaway]").waitFor({ timeout: 20000 });
     const castId = d.page.url().split("/").pop();
     await d.page.locator("[data-override='name']").click();
@@ -376,8 +377,11 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     await d.page.locator("[data-find]").fill("ZT Traitors");
     await d.page.locator("[data-desk-item='season']", { hasText: "ZT Traitors" }).first().click();
     await d.page.locator("[data-desk-season]").waitFor({ timeout: 20000 });
-    check((await d.page.locator("[data-clear-group]").count()) === 2, "the Traitors' season page: both groups are a secret role");
     await fits(d.page, "a season");
+    // Its groups are on its Cast page (docs/PLAN-desk-parity.md part 5a).
+    await d.page.locator("[data-desk-row='cast']").click();
+    await d.page.locator("[data-desk-cast]").waitFor({ timeout: 20000 });
+    check((await d.page.locator("[data-clear-group]").count()) === 2, "the Traitors' Cast page: both groups are a secret role");
     await shot(d.page, "traitors-season");
     await d.page.locator("[data-clear-group='Traitor']").click();
     await d.page.locator("[data-clear-preview]").waitFor({ timeout: 15000 });
