@@ -80,7 +80,8 @@ A lane that builds to the mock reads it there by full path, read only, and shoot
 - **With the user there:** open the lane's folder in its own VS Code window and start Claude in that window, so the session
   works in that worktree.
 - **Unattended:** `node scripts/lane.js start <name> --prompt "<the step's seed prompt>"` opens a window running the session
-  loop in that lane, at Opus / xhigh and at most 3 sessions (`--max-sessions`). Each lane's loop is separate: in its window,
+  loop in that lane, at Opus / xhigh (`--effort high`, say, for less; `keep` restarts a lane at the effort it ran at) and at
+  most 3 sessions (`--max-sessions`). Each lane's loop is separate: in its window,
   `p` pauses, `s` stops after the session, `q` quits; from anywhere, `node scripts/session-loop.js status` in the lane's
   folder. A session stops for the user where it needs them (its question shows in that window); the loop never merges or
   pushes.
