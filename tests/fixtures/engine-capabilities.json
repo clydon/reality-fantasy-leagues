@@ -1069,7 +1069,17 @@
         {
           "id": "answer.draw",
           "what": "A random draw (names out of a hat)",
-          "step": "A10"
+          "step": "A10",
+          "spec": {
+            "preset": "outlast",
+            "get": { "by": "draft", "each": 2, "order": "draw", "own": "shared" }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          },
+          "note": "a draw (A10 part 3): nobody picks, the teams dealt at random when the draft starts, seeded and recorded; exclusive (one hat) or shared (a hat each)"
         },
         {
           "id": "answer.vote",
@@ -1837,6 +1847,20 @@
           }
         },
         {
+          "id": "who.spread",
+          "what": "A draft spread across the show's groups (one from each tribe), as the data has them when it drafts",
+          "step": "A10",
+          "spec": {
+            "preset": "weekly-lineup",
+            "get": { "by": "draft", "each": 5, "order": "blind", "own": "shared", "across": { "of": "group" } }
+          },
+          "page": {
+            "show": "The Challenge",
+            "season": 41,
+            "rulebook": "challenge"
+          }
+        },
+        {
           "id": "who.secret",
           "what": "Secret roles among the players",
           "step": "A14"
@@ -2257,7 +2281,12 @@
       "step": "A10",
       "dials": [
         "who"
-      ]
+      ],
+      "spec": {
+        "preset": "outlast",
+        "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive", "across": { "of": "group" } }
+      },
+      "note": "a draft spread across the tribes as the data has them when it drafts (A10 part 3): no more than ceil(each / tribes) from one, at least floor from each while it has someone to take; after the draft they're yours wherever they go"
     },
     {
       "id": "s06",
@@ -2267,10 +2296,11 @@
         "rulebook": "survivor"
       },
       "words": "Draft a guy and a girl each, and they score together.",
-      "step": "A10",
+      "step": null,
       "dials": [
         "who"
-      ]
+      ],
+      "decide": "who is a guy and who is a girl: no show's cast or research records it, so the data rule refuses it (A10 part 3 built the spread, across the show's groups); whether research should record it is the user's"
     },
     {
       "id": "s07",
@@ -3075,7 +3105,12 @@
       "step": "A10",
       "dials": [
         "answer"
-      ]
+      ],
+      "spec": {
+        "preset": "outlast",
+        "get": { "by": "draft", "each": 1, "order": "draw", "own": "exclusive" }
+      },
+      "note": "an Outlast dealt by a draw (A10 part 3): one each out of one hat, whoever's lasts longest scores most"
     },
     {
       "id": "s39",

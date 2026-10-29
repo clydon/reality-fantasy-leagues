@@ -27,12 +27,15 @@ function draftTurn(state: LeagueState) {
  * sees a lineup as open when its episode is already airing.
  *
  * And a waiver week with a step due (opening, processing, closing: docs/PLAN-midseason-waivers.md), so the week
- * moves on when its time comes even if nobody has written to the league since.
+ * moves on when its time comes even if nobody has written to the league since; and a draw whose scheduled time has come
+ * (DrawLogic, step A10 part 3), so its teams are dealt when it's due, whoever looks first.
  */
 export async function readyLeague(leagueId: string, state: LeagueState): Promise<LeagueState> {
   await stampAirTimes(pool, state);
   const waiverStepDue = !!StateLogic.WaiverLogic.due(state, Date.now());
-  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue) return state;
+  // A draw whose scheduled time has come (step A10 part 3): withLeagueLock draws it.
+  const drawDue = StateLogic.DrawLogic.due(state);
+  if (!StateLogic.ensureNextEpisode(structuredClone(state)) && !Bots.hasWork(state) && !waiverStepDue && !drawDue) return state;
   const before = draftTurn(state);
   const next = await withLeagueLock(leagueId, () => {});
   if (draftTurn(next) !== before) notifyDraftTurn(leagueId, next, null);

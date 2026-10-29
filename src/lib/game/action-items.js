@@ -146,9 +146,9 @@ function liveItems(state, playerId) {
   const type = StateLogic.getLeagueType(state);
   const items = [];
 
-  // Draft: a snake-draft turn, or a blind draft still open to your picks.
+  // Draft: a snake-draft turn, or a blind draft still open to your picks (a draw, A10 part 3: nothing to do, the draw deals).
   if (type.hasRoster && StateLogic.isDraftStarted(state)) {
-    if (state.settings.ownershipMode === "shared") {
+    if (StateLogic.BlindDraftLogic.on(state)) {
       const B = StateLogic.BlindDraftLogic;
       if (!B.isRevealed(state) && B.eligiblePlayers(state).some((p) => p.id === playerId) && !B.hasLocked(state, playerId)) {
         items.push({ kind: "blindDraft", text: "Lock in your draft picks", href: "/draft" });

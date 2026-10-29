@@ -735,6 +735,27 @@ The season table (`blind.js summary --md`, with A10 part 1's two games among eac
 | The Challenge 41 (Vets & New Threats) | 21 | 8 / 13 | 18 | 5 | 53 | 53 | 53 | 3 |
 | The Traitors 4 | 12 | 4 / 8 | 8 | 0 | 53 | 53 | 53 | 0 |
 
+## A10 part 3: the spread and the draw, replayed blind (2026-10-29)
+
+A10's third part built a draft spread across the cast's groups as the data has them when it drafts ("Everyone drafts one
+castaway from each tribe": state-logic.js `SpreadLogic`) and names out of a hat (a draft dealt at random when it starts,
+seeded and recorded: `DrawLogic`). The blind replays played four such games on every season: an Outlast of three spread across
+the groups (s05), a blind Weekly Lineup of five spread across them (`who.spread`), an Outlast of one each out of one hat (s38)
+and an Outlast of two each from a hat each (`answer.draw`). Every game ended on all five seasons (The Challenge 41, 40 and 39
+60 of 60, Survivor 49 79 of 79, The Traitors 4 58 of 58), with no problem in any game's moves.
+
+- **The draws** dealt every seat at the draft, before the premiere: from one hat four different people, from a hat each some
+  the same (Survivor 49's Jeremiah Ing on two teams), each line in the draft's log, the seed recorded.
+- **The spread drafts drafted plainly on every season**, the fallback for a show not divided when it drafts: every game is made
+  before the premiere, and no league had groups then. Survivor 49's cast has its tribes from the premiere on (`tribes_from_episode`
+  1, a spoiler guard), so a league sees them once Episode 1 has results; by then the draft is done (the blind spread Weekly Lineup
+  gave two seats five Kele each). The Challenge's teams come only from research, after the episodes. On The Traitors 4 both spread
+  games were refused (nobody on the show is in a group), as the data rule says.
+- **What it means:** a spread draft spreads only where the groups are known when it drafts: a draft after the premiere, a later
+  start, or a season whose desk shows the starting tribes ahead. The plan's Noticed (A10 part 3, item 4) has the options for the
+  user, with a recommendation: say so at Start a game and offer to draft after the premiere, and show the tribes ahead on the desk
+  wherever they're public.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

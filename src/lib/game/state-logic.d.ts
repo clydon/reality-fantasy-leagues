@@ -678,6 +678,8 @@ declare const StateLogic: {
   // submitted picks: those never enter league state -- the server reads them straight out of
   // blind_draft_picks (src/lib/server/blind-draft.ts). These are the state-side pieces only.
   BlindDraftLogic: {
+    /** A blind draft: shared, picked in private (not A10 part 3's shared draw). */
+    on(state: LeagueState): boolean;
     eligiblePlayers(state: LeagueState): Player[];
     isRevealed(state: LeagueState): boolean;
     lockedPlayerIds(state: LeagueState): string[];
@@ -687,6 +689,27 @@ declare const StateLogic: {
     allLockedIn(state: LeagueState, lockedPlayerIds: string[]): boolean;
     validateSubmission(state: LeagueState, playerId: string, castawayIds: string[]): string | null;
     reveal(state: LeagueState, picksByPlayer: Record<string, string[]>, revealedAt?: string): boolean;
+  };
+  /** Step A10 part 3: a draft spread across the cast's groups (the spec's get.across), on the groups the data has them on now. */
+  SpreadLogic: {
+    config(state: LeagueState): import("./game-spec/index.js").DraftAcross | null;
+    groupsNow(state: LeagueState): { of: Map<string, string | null>; groups: string[]; each: number; least: number; most: number } | null;
+    /** The candidates that keep a team with `picked` spread (all of them when none does, or nothing is spread). */
+    allowed(state: LeagueState, picked: string[], candidates: string[], g?: unknown): string[];
+    /** Who a turn-based draft's player could take next and keep their team spread (of the free agents when left out). */
+    allowedFor(state: LeagueState, playerId: string, candidates?: string[]): string[];
+    pickProblem(state: LeagueState, playerId: string, castawayId: string): string | null;
+    teamProblem(state: LeagueState, castawayIds: string[]): string | null;
+  };
+  /** Step A10 part 3: names out of a hat (the spec's get.order 'draw'), seeded and recorded in state.draw. */
+  DrawLogic: {
+    on(state: LeagueState): boolean;
+    drawn(state: LeagueState): boolean;
+    outcome(state: LeagueState, seed: string): { order: string[]; teams: Record<string, string[]>; short: string[] };
+    draw(state: LeagueState, seed?: string): boolean;
+    ready(state: LeagueState): boolean;
+    due(state: LeagueState): boolean;
+    settle(state: LeagueState): boolean;
   };
   activeRosterLineupFor(state: LeagueState, epId: string, playerId: string): string[];
   setActiveRosterLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): boolean;

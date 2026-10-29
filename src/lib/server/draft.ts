@@ -54,6 +54,9 @@ export async function pickInDraft(a: DraftActor, leagueId: string, castawayId: s
       if (n != null && turn.overallPickNumber !== n) throw new HttpError(409, "That pick was just made: have another look");
       forOther = turn.playerId !== a.membership.playerId;
       if (forOther && !runs(a)) throw new HttpError(403, "It's not your turn");
+      // A draft spread across the cast's groups (step A10 part 3): a pick that doesn't keep the team spread, and why.
+      const spread = StateLogic.SpreadLogic.pickProblem(s, turn.playerId, castawayId);
+      if (spread) throw new HttpError(400, spread);
       const made = s.draftPicksMade;
       StateLogic.draftToCurrentTurn(s, castawayId, forOther ? { by: a.user.id } : undefined);
       if (s.draftPicksMade === made) throw new HttpError(409, "Someone already has them");
@@ -198,7 +201,9 @@ export async function expireTurn(leagueId: string, n: unknown): Promise<{ picked
       if (draftTimer(s).away !== "queue") return;
       const queued = await queueOf(client, leagueId, clock.playerId);
       const free = new Set(StateLogic.freeAgents(s).map((c) => c.id));
-      const next = queued.find((id) => free.has(id));
+      // The first of theirs still free that keeps their team spread (step A10 part 3: everyone free when nothing is spread).
+      const fits = new Set(StateLogic.SpreadLogic.allowedFor(s, clock.playerId));
+      const next = queued.find((id) => free.has(id) && fits.has(id));
       if (!next) return;
       StateLogic.draftToCurrentTurn(s, next, { auto: true });
       picked = true;

@@ -586,6 +586,8 @@ class SnakeDraftStrategy {
     const turn = SnakeDraftStrategy.currentTurn(state);
     const c = Core.getCastaway(state, castawayId);
     if(!turn || turn.isComplete || !c || leagueOwnersOf(state, c).length) return;
+    // A10 part 3: a draft spread across the cast's groups takes only a pick that keeps the team spread (pickProblem says why).
+    if(SpreadLogic.pickProblem(state, turn.playerId, castawayId)) return;
     Core.setOwner(state, castawayId, turn.playerId);
     c.acquiredVia = 'draft';
     state.draftPicksMade++;
@@ -669,6 +671,9 @@ class NoDraftStrategy {
 // applying a reveal once the server hands it the picks it read from that table. The server-side
 // half lives in src/lib/server/blind-draft.ts.
 class BlindDraftLogic {
+  // A blind draft: a shared draft people pick in private (not A10 part 3's shared draw, which nobody picks in). What every
+  // "is this a blind draft" asks, rather than reading the ownership alone.
+  static on(state){ const g = gameOf(state).get; return g.by === 'draft' && g.own === 'shared' && g.order === 'blind'; }
   // Who must lock in before the reveal fires. Excludes inactive seats (joined after a draft
   // concluded, not yet activated) and disabled ones (player left or was removed) -- a disabled
   // seat can never lock in, so counting it would deadlock the draft for everyone else forever.
@@ -702,10 +707,7 @@ class BlindDraftLogic {
   // a rejected blind submission needs to tell the player WHY: they can't see what anyone else did,
   // so a silent no-op would be indistinguishable from a successful lock-in.
   static validateSubmission(state, playerId, castawayIds){
-    const get = gameOf(state).get;
-    if(get.by !== 'draft' || get.own !== 'shared'){
-      return 'This league is not running a blind draft';
-    }
+    if(!BlindDraftLogic.on(state)) return 'This league is not running a blind draft';
     if(!DraftLogic.isStarted(state)) return "The draft hasn't started yet";
     if(BlindDraftLogic.isRevealed(state)) return 'The draft has already been revealed';
     const player = Core.getPlayer(state, playerId);
@@ -723,7 +725,8 @@ class BlindDraftLogic {
       // active cast is offered to every player every time (see RosterLogic.freeAgents' comment).
       if(c.status !== 'active') return `${c.name} is already eliminated`;
     }
-    return null;
+    // A10 part 3: spread across the cast's groups, as the data has them now.
+    return SpreadLogic.teamProblem(state, ids);
   }
   // Applies every player's picks at once. `picksByPlayer` is {[playerId]: castawayId[]}, read from
   // blind_draft_picks by the caller inside the same transaction that holds the league row lock.
@@ -779,6 +782,191 @@ class BlindDraftStrategy {
   // castawayId, so there'd be no way to say WHICH owner to strip. The frontend hides Undraft in
   // shared mode for the same reason.
   static undo(){ /* ambiguous with multiple owners -- see comment */ }
+}
+
+// ---------- SpreadLogic: a draft spread across the cast's groups (A10 part 3: the spec's get.across) ----------
+// "Everyone drafts one castaway from each tribe" (docs/PLAN-start-a-game-gpt.md step A10 part 3). The groups are the league's
+// own as the data has them when it drafts: each castaway's group now (castaway.tribeId: the season cast's starting tribes and
+// research's moves since, GroupLogic), the ones the draft room shows the cast by. A team of `each` over k groups takes no
+// more than ceil(each / k) from one and at least floor(each / k) from each while that group has someone it could take
+// (game-spec spreadBounds). Its fallbacks, from the start: a show not divided when it drafts (fewer than two groups among
+// those still in) drafts plainly; a group with too few left (taken in an exclusive draft, or small) asks only what it has; and
+// the spread never blocks a draft: when nobody left keeps a team spread, anyone can be taken. After the draft a castaway is
+// yours wherever they go (then: keep): a swap or the merge changes nobody's team, and a replacement comes from anyone.
+class SpreadLogic {
+  static config(state){
+    const g = gameOf(state).get;
+    return g.by === 'draft' && g.across && typeof g.across === 'object' ? g.across : null;
+  }
+  // The groups now: { of: castawayId -> its group (null: none), for everyone still in; groups: the ids in play; least; most },
+  // or null when the draft isn't spread across groups, or the show isn't divided.
+  static groupsNow(state){
+    const a = SpreadLogic.config(state);
+    if(!a || a.of !== 'group') return null;
+    const tribes = new Set((state.tribes || []).map(t => t.id));
+    const of = new Map();
+    (state.castaways || []).forEach(c => { if(c.status === 'active') of.set(c.id, c.tribeId && tribes.has(c.tribeId) ? c.tribeId : null); });
+    const groups = [...new Set([...of.values()].filter(Boolean))].sort();
+    const each = rosterSize(state);
+    const bounds = Spec.spreadBounds(each, groups.length);
+    return bounds ? { of, groups, each, least: bounds.least, most: bounds.most } : null;
+  }
+  // A team with `picked`, and who it could take now (`candidates`): what each group has given it, and has left to give.
+  static tally(g, picked, candidates){
+    const counts = new Map(g.groups.map(x => [x, 0]));
+    const free = new Map(g.groups.map(x => [x, 0]));
+    const taken = new Set(picked);
+    picked.forEach(p => { const t = g.of.get(p); if(t) counts.set(t, counts.get(t) + 1); });
+    candidates.forEach(c => { const t = g.of.get(c); if(t && !taken.has(c)) free.set(t, free.get(t) + 1); });
+    return { counts, free, left: g.each - picked.length - 1 };
+  }
+  // Whether taking `id` (one of the tally's candidates) keeps the team spread: no group past its most, and each group's share
+  // still owed, as far as it has people left to give, no more than the picks left after it.
+  static keeps(g, tally, id){
+    const mine = g.of.get(id);
+    if(mine && tally.counts.get(mine) + 1 > g.most) return false;
+    let owed = 0;
+    g.groups.forEach(x => {
+      const has = tally.counts.get(x) + (x === mine ? 1 : 0);
+      const free = tally.free.get(x) - (x === mine ? 1 : 0);
+      owed += Math.max(0, Math.min(g.least, has + free) - has);
+    });
+    return owed <= tally.left;
+  }
+  // `candidates` (castaway ids that could be taken now) that keep a team with `picked` spread, in their order: all of them
+  // when nothing is spread, or when none does (the spread never blocks a draft). `g`: groupsNow, when it's read once a pass.
+  static allowed(state, picked, candidates, g){
+    const now = g === undefined ? SpreadLogic.groupsNow(state) : g;
+    if(!now) return candidates.slice();
+    const tally = SpreadLogic.tally(now, picked, candidates);
+    const ok = candidates.filter(id => SpreadLogic.keeps(now, tally, id));
+    return ok.length ? ok : candidates.slice();
+  }
+  // Who a turn-based draft's player could take next and keep their team spread, of `candidates` (the free agents when left out).
+  static allowedFor(state, playerId, candidates){
+    return SpreadLogic.allowed(state, Core.ownedCastawayIds(state, playerId), candidates || RosterLogic.freeAgents(state).map(c => c.id));
+  }
+  static reason(state, g){
+    const word = String(formatOf(state).terms.tribe || 'group').toLowerCase();
+    return g.least
+      ? `Spread your team across the ${word}s: at least ${g.least} from each, and no more than ${g.most} from one`
+      : `Spread your team across the ${word}s: no more than ${g.most} from one`;
+  }
+  // Why a turn-based pick (an exclusive draft's: SnakeDraftStrategy) doesn't keep its team spread, or null: the pick itself
+  // tested first, the rest only when it fails (a pick is refused only while someone else would keep the team spread).
+  static pickProblem(state, playerId, castawayId){
+    const g = SpreadLogic.groupsNow(state);
+    if(!g) return null;
+    const free = RosterLogic.freeAgents(state).map(c => c.id);
+    if(!free.includes(castawayId)) return null;
+    const tally = SpreadLogic.tally(g, Core.ownedCastawayIds(state, playerId), free);
+    if(SpreadLogic.keeps(g, tally, castawayId) || !free.some(id => SpreadLogic.keeps(g, tally, id))) return null;
+    return SpreadLogic.reason(state, g);
+  }
+  // Why a whole team chosen at once (a blind draft's submission, everyone still in on offer) isn't spread, or null. A team spread
+  // as a whole passes in any order.
+  static teamProblem(state, castawayIds){
+    const g = SpreadLogic.groupsNow(state);
+    if(!g) return null;
+    const cast = (state.castaways || []).filter(c => c.status === 'active').map(c => c.id);
+    const picked = [];
+    for(const id of castawayIds){
+      if(!SpreadLogic.allowed(state, picked, cast.filter(c => !picked.includes(c)), g).includes(id)) return SpreadLogic.reason(state, g);
+      picked.push(id);
+    }
+    return null;
+  }
+}
+
+// ---------- DrawLogic + DrawDraftStrategy: names out of a hat (A10 part 3: the spec's get.order 'draw') ----------
+// Nobody picks: when the draft starts (the Commissioner's Start, or its scheduled time, drawn at the next write or read of the
+// league), every seat in the rotation is dealt `each` at random. The draw is seeded and recorded (state.draw: its seed, when,
+// the order it dealt in, who it came up short for), and who draws whom is a pure function of the seed and the league as it was
+// (outcome), so the same seed deals the same teams, and every read after reads them from ownership. Exclusive: one hat for
+// everyone, nobody shares, and a team the hat runs out on is short (the fallback: carry on with what's left; the
+// exclusive-or-shared count refuses such a game where it knows the couch); shared: each seat's own hat, the whole cast still
+// in. A spread draw (get.across) takes from each hat the first that keeps the team spread. Someone who joins after the draw
+// joins as after any finished draft (inactive until whoever runs it adds them, or a late joiner).
+class DrawLogic {
+  static on(state){ const g = gameOf(state).get; return g.by === 'draft' && g.order === 'draw'; }
+  static drawn(state){ return !!(state.draw && state.draw.at); }
+  // Who draws whom from `seed`, changing nothing: { order: the seats in the order they're dealt to, teams: { playerId:
+  // [castawayId] } in the order drawn, short: seats dealt fewer than `each` }.
+  static outcome(state, seed){
+    const each = rosterSize(state);
+    const shared = gameOf(state).get.own === 'shared';
+    const shuffled = (ids, key) => [...ids].sort((a, b) => hashUnit(`${seed}|${key}|${a}`) - hashUnit(`${seed}|${key}|${b}`) || (a < b ? -1 : a > b ? 1 : 0));
+    // The seats in the rotation, in the order the seed deals to (whatever order the league lists them in).
+    const order = shuffled((state.players || []).filter(inLeagueRotation).map(p => p.id), 'seat');
+    const cast = (state.castaways || []).filter(c => c.status === 'active').map(c => c.id).sort();
+    const g = SpreadLogic.groupsNow(state);
+    const teams = Object.fromEntries(order.map(id => [id, []]));
+    const common = shared ? null : shuffled(cast, 'hat');
+    const hats = shared ? Object.fromEntries(order.map(id => [id, shuffled(cast, id)])) : null;
+    for(let round = 0; round < each; round++){
+      order.forEach(pid => {
+        const left = shared ? hats[pid].filter(id => !teams[pid].includes(id)) : common;
+        if(!left.length) return;
+        const take = SpreadLogic.allowed(state, teams[pid], left, g)[0];
+        teams[pid].push(take);
+        if(!shared) common.splice(common.indexOf(take), 1);
+      });
+    }
+    return { order, teams, short: order.filter(id => teams[id].length < each) };
+  }
+  // Draws, once: ownership as the outcome deals it, each a line in the draft's log in the order dealt (drawn: true), and the
+  // draw's order as the draft's (the waivers' priority reads it). `seed`: the draw's own (a fresh one when left out).
+  static draw(state, seed){
+    if(!DrawLogic.ready(state)) return false;
+    const s = seed || Core.uid('draw');
+    const out = DrawLogic.outcome(state, s);
+    const shared = gameOf(state).get.own === 'shared';
+    const at = new Date().toISOString();
+    if(!Array.isArray(state.draftLog)) state.draftLog = [];
+    let n = 0;
+    for(let round = 0; round < rosterSize(state); round++){
+      out.order.forEach(pid => {
+        const cid = out.teams[pid][round];
+        if(!cid) return;
+        if(shared) Core.addOwner(state, cid, pid);
+        else Core.setOwner(state, cid, pid);
+        Core.getCastaway(state, cid).acquiredVia = 'draft';
+        state.draftLog.push({ n: ++n, playerId: pid, castawayId: cid, at, drawn: true });
+      });
+    }
+    state.draftPicksMade = n;
+    state.draftOrder = [...out.order, ...(state.draftOrder || []).filter(id => !out.order.includes(id))];
+    state.draw = { seed: s, at, order: out.order, short: out.short };
+    stampDraftTurn(state, true);
+    return true;
+  }
+  // A draw that can deal: not drawn, a cast and someone to deal to, and nobody on a team yet (a league whose teams were made
+  // another way before it became a draw keeps them: it's never dealt over).
+  static ready(state){
+    return DrawLogic.on(state) && !DrawLogic.drawn(state) && !state.draftPicksMade
+      && (state.castaways || []).some(c => c.status === 'active') && (state.players || []).some(inLeagueRotation)
+      && !(state.castaways || []).some(c => leagueOwnersOf(state, c).length);
+  }
+  // A draw that's started, by its scheduled time or the Commissioner's Start (one that couldn't deal then: nobody in the
+  // rotation yet), and can deal now.
+  static due(state){
+    return DrawLogic.ready(state) && (!!state.draftForceStarted || draftTimeCame(state));
+  }
+  // Every write to a league (withLeagueLock) and every read that finds it due (readyLeague) draws it: nobody has to start it.
+  static settle(state){ return DrawLogic.due(state) ? DrawLogic.draw(state) : false; }
+}
+
+// The same static shape as the other draft strategies. Nothing to pick or take back: the draw deals the teams.
+class DrawDraftStrategy {
+  static syncOrder(state){ SnakeDraftStrategy.syncOrder(state); }
+  // null until the draw (someone joining then is in it, as before a blind reveal), complete after it.
+  static currentTurn(state){ return DrawLogic.drawn(state) ? { isComplete: true } : null; }
+  static isStarted(state){ return DrawLogic.drawn(state) || !!state.draftForceStarted || draftTimeCame(state); }
+  static forceStart(state){ state.draftForceStarted = true; stampDraftTurn(state, true); DrawLogic.draw(state); }
+  static reorder(){ /* the draw decides the order */ }
+  static move(){ /* the draw decides the order */ }
+  static pick(){ /* nobody picks: the draw deals */ }
+  static undo(){ /* a draw isn't taken back pick by pick */ }
 }
 
 // ---------- Active Roster: event catalog, weekly lineups, event scoring ----------
@@ -1904,11 +2092,22 @@ const BEST_BALL_VARIANTS = {};
 function getLeagueType(state){
   const g = gameOf(state);
   const base = LEAGUE_TYPES[Spec.playsAs(g)] || LEAGUE_TYPES['classic-draft'];
-  if(base.id === 'active-roster' && Spec.countKind(g.count) === 'best') return BEST_BALL_VARIANTS[g.get.own === 'shared' ? 'shared' : 'exclusive'];
-  if(g.get.by === 'draft' && g.get.own === 'shared' && SHARED_OWNERSHIP_VARIANTS[base.id]){
-    return SHARED_OWNERSHIP_VARIANTS[base.id];
+  let lt = base;
+  if(base.id === 'active-roster' && Spec.countKind(g.count) === 'best') lt = BEST_BALL_VARIANTS[g.get.own === 'shared' ? 'shared' : 'exclusive'];
+  else if(g.get.by === 'draft' && g.get.own === 'shared' && SHARED_OWNERSHIP_VARIANTS[base.id]) lt = SHARED_OWNERSHIP_VARIANTS[base.id];
+  // A10 part 3: a draw plays the game its ownership makes, with the draw as its draft.
+  return g.get.by === 'draft' && g.get.order === 'draw' ? drawVariant(lt) : lt;
+}
+// A draw's league type (A10 part 3): the one its ownership and count make (Outlast, Weekly Lineup, best ball; exclusive or
+// shared) with DrawDraftStrategy as its draft, its flags unchanged. Built once per type, as the variants above are.
+const DRAW_VARIANTS = new Map();
+function drawVariant(lt){
+  let v = DRAW_VARIANTS.get(lt);
+  if(!v){
+    v = { ...lt, draftStrategy: DrawDraftStrategy };
+    DRAW_VARIANTS.set(lt, v);
   }
-  return base;
+  return v;
 }
 
 // How many castaways each player drafts: the spec's get.each (none without a draft). For Active Roster that's the
@@ -5150,7 +5349,8 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy
+  SpreadLogic, DrawLogic,
+  SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy
 };
 
 });

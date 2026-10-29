@@ -54,6 +54,8 @@ export async function withLeagueLock(
     // A game with group slots (step A10 part 1, group-slots.ts): the season's format groups, so the mutation reads what's on
     // offer now; settled again after it, for results it applied.
     const slots = await settleGroupSlots(client, state, true);
+    // A draw whose scheduled time has come (step A10 part 3, StateLogic.DrawLogic): drawn now, so the mutation sees the teams.
+    StateLogic.DrawLogic.settle(state);
     const before = change ? structuredClone(state) : null;
     await mutatorFn(state, client);
     // A mutation that turned group slots on reads them now; one that turned them off clears them (settle keeps none).

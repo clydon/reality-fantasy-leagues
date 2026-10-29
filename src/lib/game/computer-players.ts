@@ -40,7 +40,9 @@ export function botsPlay(s: LeagueState): boolean {
 /** A draft that's open: started, and not yet done (every pick made, or the blind draft revealed). */
 export function draftOpen(s: LeagueState): boolean {
   if (!StateLogic.getLeagueType(s).hasRoster || !StateLogic.isDraftStarted(s)) return false;
-  if (s.settings.ownershipMode === "shared") return !StateLogic.BlindDraftLogic.isRevealed(s);
+  if (StateLogic.BlindDraftLogic.on(s)) return !StateLogic.BlindDraftLogic.isRevealed(s);
+  // A draw (step A10 part 3): open until it's dealt.
+  if (StateLogic.DrawLogic.on(s)) return !StateLogic.DrawLogic.drawn(s);
   // currentDraftTurn keeps the order in step with the seats: on a copy, so a read changes nothing.
   const turn = StateLogic.currentDraftTurn(structuredClone(s));
   return !!turn && !turn.isComplete;

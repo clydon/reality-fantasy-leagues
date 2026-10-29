@@ -29,7 +29,9 @@ export interface SpecPool {
 }
 
 export type SpecGet =
-  | { by: "draft"; each: number; order: "snake" | "blind"; own: "exclusive" | "shared"; groups?: GroupSlots }
+  /** A10 part 3: order "draw" deals each team at random when the draft starts (either ownership); across spreads a draft over
+   *  the cast's groups as the data has them then. */
+  | { by: "draft"; each: number; order: "snake" | "blind" | "draw"; own: "exclusive" | "shared"; groups?: GroupSlots; across?: DraftAcross }
   /** A10 part 2's second: a second pick beside the first, open every episode, counting on a night two or more go home (void, or
    *  counts like the first, on a night only one goes). */
   | { by: "pick"; each: 1; repeat: "cycle"; second?: { fallback: "void" | "counts" } }
@@ -300,6 +302,15 @@ export interface GroupSlots {
   points: "mean" | "sum";
 }
 
+/** A10 part 3: a draft spread across the cast's groups (get.across): no more than ceil(each / groups) from one group, at least
+ *  floor(each / groups) from each while it has someone to take, read from the groups the data has people on when it drafts
+ *  (state-logic.js SpreadLogic). gender waits on data that says who is which (no show records it). */
+export interface DraftAcross {
+  of: "group" | "gender";
+  /** A drafted castaway who changes group, or whose group ends (a swap, the merge): still yours. */
+  then: "keep";
+}
+
 /** What a spec refers to, in the show's words, and the data that settles it. All optional. */
 export interface SpecContext {
   /** "Survivor 51", "the Red Sox–Yankees series". */
@@ -333,6 +344,11 @@ export interface SpecContext {
    *  cover every pick (covers), else it's shared. Either left out: not counted. */
   pool?: number;
   couch?: number;
+  /** A10 part 3: how many can be drafted in each of the cast's groups where the game drafts: an exclusive spread draft has every
+   *  group cover its share of every team. */
+  poolGroups?: number[];
+  /** A10 part 3: what the show calls one of its groups, lower case ("tribe"), for the words. */
+  group?: string;
 }
 
 export interface SpecProblem {
@@ -462,6 +478,11 @@ export interface PoolParts {
   standing: boolean;
 }
 export function poolParts(spec: GameSpec | SpecInput | null | undefined): PoolParts | null;
+/** A10 part 3: a spread draft's defaults, a draw's ownership said alone, and a spread's bounds for a team of `each` over
+ *  `groups` groups (null: not divided). */
+export const DRAFT_ACROSS: { then: "keep" };
+export const DRAW_OWN: "exclusive";
+export function spreadBounds(each: number, groups: number): { least: number; most: number } | null;
 /** Whether a pool covers every pick of an exclusive draft: people x each <= pool. */
 export function covers(o: { pool: number; people: number; each: number }): boolean;
 /** The spec with everything it leaves out filled in (the preset's, or the defaults); never mutates it. */

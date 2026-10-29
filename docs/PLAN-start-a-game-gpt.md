@@ -21,7 +21,10 @@ replayed as if live through every game the tracker says plays, each format chang
 foundation is done. A10 is under way, in parts: part 1, group slots and the exclusive-or-shared count (2026-10-29: a draft's +1 or
 +2 slot for a pair or team the show forms, on the format's state over time, `GroupSlotLogic`), and part 2, a pool's pieces
 (2026-10-29: lives, a buyback until an episode or a phase, mulligans, a second pick that counts on a night two go home, and last
-one standing, `PickEmLogic.parts`), are built; part 3 (a draft's slots and prices) is next, then part 4, A11 to A14 overnight (the
+one standing, `PickEmLogic.parts`), and part 3, a draft's slots and the draw (2026-10-29: a draft spread across the cast's groups as
+the data has them when it drafts, one from each tribe, `SpreadLogic`; names out of a hat, seeded and recorded, `DrawLogic`; a guy
+and a girl refused, since nothing records who is which), are built; part 3b (a draft's prices: an auction, a salary cap, buying
+and selling) is next, then part 4, A11 to A14 overnight (the
 user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -2598,6 +2601,112 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     changes saying "pick" for a second pick. Not taken here: the screens that rank a pool by streak (Noticed, U1's). Found by the
     API check, before the review: the desk's season-wide settle picked its leagues by SQL and missed pools (now
     `poolBuyback.before.phase`).
+  **Part 3 split in two (2026-10-29):** part 3, a draft's slots and the draw (s05, s06, s38, answer.draw: this session); part
+  3b, a draft's prices (an auction with a budget, a salary cap whose prices follow the data, buying and selling each week: s03,
+  s04, s22, answer.bid, answer.trade), next, before part 4.
+
+  **As built (A10 part 3, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  up to date; 985 tests). A draft spread across the cast's groups and a draw, each riding on data with its fallbacks from the
+  start; every default the user's (Noticed, below).
+  - **The spec** (`schema.js`): a draft's `get.across`, `{ of: group | gender, then: keep }`, beside any draft (a snake, a blind
+    draft or a draw, scored any way): the team spread across the cast's groups as the data has them when it drafts, no more
+    than ceil(each / groups) from one and at least floor(each / groups) from each while that group has someone to take
+    (`spreadBounds`: a team of three over three tribes is one from each; of five, two, two and one; of two, no two from one), a
+    show with fewer than two groups then a plain draft. `then: keep` is the fallback for a swap or the merge, carried in the
+    spec: a drafted castaway stays yours wherever they go (its only value now; `DRAFT_ACROSS` fills it). A draw is a draft
+    order, `get.order: 'draw'`, with either ownership (`DRAW_OWN` exclusive when it's said alone: one hat, nobody shares;
+    shared, a hat each), playing the game its ownership and count make (`playsAs`: an Outlast, a Weekly Lineup, best ball).
+    VOCAB's `get.order.draw`, `get.across.of` (group now, gender `later`), `get.across.then`. `specProblems`: the spread's shape;
+    a draw with either ownership (a draft people pick in still pairs its order with its ownership). The data rule
+    (`settleProblems`): a spread across groups needs a show whose cast has them (`ctx.grouped`); **a guy and a girl is refused**
+    (no show's cast or research records who is which: s06 is ❓, the user's question below); exclusive or shared counted per
+    group where it drafts (`ctx.poolGroups`, each group's size: every group covers its share of every team, `covers`, the 9:10
+    PM decision as the pool shrinks), and an exclusive draw by `ctx.pool` and `ctx.couch` as any exclusive draft. No stored spec
+    changes (each part absent unless a game says it).
+  - **The settings, both ways** (`settings.js`): `draftDraw` (true) and `draftAcross` (the spec's), for Outlast and Weekly
+    Lineup alike, each absent unless a game says it (`OWNED`).
+  - **Which groups:** the league's own as the data has them when it drafts (each castaway's `tribeId`: the season cast's
+    starting tribes and research's moves since, F3 part 1's tribe moves from the section), the groups the draft room shows the
+    cast by; not F3's timeline, which has nothing before the premiere's report (a draft usually comes before it) and whose pairs
+    aren't the league's groups. A draft later in the season (a later start) reads the tribes after the swaps; someone on no group
+    is a free pick while the floors still hold; a tribe nobody's left in isn't one.
+  - **The engine** (`state-logic.js`, pure). `SpreadLogic`: `groupsNow` (each castaway still in's group, the groups in play and
+    the bounds, null when not spread or not divided); `allowed(picked, candidates)` (those that keep a team spread, worked out
+    from one tally a pass: no group past its most, and each group's share still owed, as far as it has people left to give, no
+    more than the picks left; **every candidate when none does, so the spread never blocks a draft**, and a group too small, or
+    taken in an exclusive draft, asks only what it has); `pickProblem` (a turn-based pick refused only while someone else would
+    keep the team spread, the pick tested first) and `teamProblem` (a blind team, spread as a whole in any order), each with the
+    reason in the show's word ("Spread your team across the tribes: at least 1 from each, and no more than 1 from one").
+    `SnakeDraftStrategy.pick` and `BlindDraftLogic.validateSubmission` check them. `DrawLogic`: `outcome(state, seed)`, who draws
+    whom from a seed, changing nothing (the seats in the rotation shuffled by the seed, `hashUnit`; each round every seat takes
+    the first of its hat that keeps its team spread; exclusive one hat, a team it runs out on short; shared a hat each, the
+    whole cast still in); `draw` (once: ownership as dealt, each a line in the draft's log, `drawn`, the draw's order the
+    draft's, so the waivers' priority reads it, and `state.draw` { seed, at, order, short }: the same seed deals the same teams
+    from the league as it was); `ready` (not drawn, a cast, someone to deal to, and **nobody on a team yet: a league drafted
+    another way is never dealt over**); `due` (ready, and started: its scheduled time came or the Commissioner's Start, one that
+    couldn't deal then included); `settle`. `DrawDraftStrategy` (the draft for a draw: no turn until it's dealt, complete after;
+    started by its time or Start, which draws; nothing to pick, order or take back), as `getLeagueType`'s draw variant of
+    whichever type its ownership and count make (built once per type, its flags unchanged). `BlindDraftLogic.on`: a blind
+    draft is a shared draft people pick in, not a shared draw, the one predicate the call sites read now (`action-items.js`,
+    `computer-players.ts draftOpen`, `status-plate.ts`, `bot-logic.js`), rather than the ownership alone.
+  - **The server:** `withLeagueLock` settles a due draw before the mutation, and `readyLeague` treats one as work, so a
+    scheduled draw is dealt by whoever's write or read comes first after its time, nobody having to start it. The pick route
+    (`pickInDraft`) answers a pick that breaks the spread with a 400 and the reason; the queue's pick when the timer runs out takes
+    the first queued that keeps the team spread, else waits (as with nothing queued). The draft room (`draft-view.ts`): a draw is
+    its own kind (`draw`), read as a revealed blind draft is (the teams, no turns or clock, `revealedAt` the draw's), each team in
+    the order it was dealt (by seat and castaway, since a shared draw deals the same one to several). Computer players keep a
+    spread draft (snake and blind) and leave a draw to the draw. No screen (U1's).
+  - **Words** (`describe.js`): the sentence ("everyone drafts 3 from across the tribes", "everyone gets 1 drawn at random") and
+    How it works (the draw's hat or hats and that it's recorded; the spread, its fallbacks and keep), in the show's word for its
+    groups (`ctx.group`: `contextOf` gives the rulebook's, `game-rules.ts` the format's); the draft's detail ("At random, out of
+    one hat").
+  - **The tracker:** s05 (an Outlast of three spread across the tribes), s38 (names out of a hat: an Outlast of one each,
+    drawn) and answer.draw (a shared draw) ✅; a dial row, `who.spread` (a Weekly Lineup spread across The Challenge 41's teams)
+    ✅; s06 ❓ (who is a guy and who is a girl: the user's). **Now: 155 ✅** · 90 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271 (A10's 9 rows
+    wait for part 3b, five, and part 4, four).
+  - **Tests:** `tests/draft-spread-draw.test.js` (new, 8): the shape, defaults, words and settings both ways; the data rule (no
+    groups, a guy and a girl) and the count per group; the bounds; a snake draft spread (one from each tribe, a second from one
+    refused with why, a plain draft unchecked); the fallbacks (a tribe that runs out, nobody left that keeps it, one tribe, an
+    unplaced castaway, a swap after the draft moving nobody's team, the groups as the data has them now); a blind draft spread in
+    any order; a draw (dealt at once, nobody sharing, recorded, the same seed the same teams on any copy, another seed another
+    draw, once, picks inert, the draft view, a late joiner); its fallbacks (a hat that runs out, shared hats, spread hats, a
+    scheduled draw due and dealt, no cast); computer players; the code review's cases (a Start nobody could be dealt yet dealt
+    once someone is, a drafted league never dealt over, a shared draw no blind draft for the action items, the bots' removal
+    and the draft view's order). `game-spec.test.js`: the new fields. `npm test` 993.
+  - **API:** `scripts/dev-test/check-draft-spread.js` (new, on new-fixture.js), 20 PASS: Couch Cup made an Outlast of three spread
+    across the tribes (three tribes going into Episode 6, after five boots), started by alex, drafted turn by turn through the
+    pick route (someone else's turn 403; a second from a tribe someone has 400, with why), every team one from each tribe; Pool
+    Party made names out of a hat, Start dealing everyone one at once, nobody sharing, the seed dealing the same teams from the
+    league as it was, a pick and a new order refused, the draft room reading it as a draw; Lineup League a Weekly Lineup of three
+    from a hat each, spread, scheduled a minute ago: jordan's read of the league dealt it, a second read nothing new; ZT Extra a
+    blind Weekly Lineup spread across the tribes: casey's two Tokas refused (400, with why), the spread teams locked in and
+    revealed. `check-engine-lab.js` grew A10 part 3's (s05 and s38 said in their sentences, a guy and a girl refused, each started
+    as a test game in its fields): 63 PASS (`--api`).
+  - **Re-runs** (on the final code): `check-group-slots.js` ALL PASS (withLeagueLock changed).
+  - **Golden replays** (`golden.js`, HEAD against the working tree, after the code review's fixes): 7 seasons, 160 games,
+    **19,361 reads, every one the same** (no game they play is spread or drawn; the call sites that read "shared" as a blind draft
+    read `BlindDraftLogic.on` now, which is the same for every league that isn't a draw; the replay's seats and computer players
+    take who keeps a team spread, everyone where nothing is). The tracker `--check` up to date.
+  - **Blind replays** (`blind.js run`, the five seasons, on the final code; the spread reads the groups the data has): **every game
+    ended on all five seasons**, the tracker's four new ones among them: The Challenge 41 60 of 60, 40 60, 39 60, Survivor 49 79 of
+    79, The Traitors 4 58 of 58; no problem in any game's moves, no check failed. The draws dealt every seat at the premiere's
+    draft (one hat: four different; a hat each: some the same), and on The Traitors 4 the two spread games were refused (nobody's
+    in a group), as the data rule says. **What it found:** every game is made before the premiere, and no season's league had
+    groups then (Survivor 49's cast has its tribes from the premiere on, `tribes_from_episode`, so a league sees them once Episode
+    1 has results; The Challenge's teams come from research), so each spread draft drafted plainly, the fallback (Survivor 49's
+    blind spread Weekly Lineup gave two seats five Kele each). The spread itself is proven by the unit tests and the API check (a
+    draft after the tribes are known); the question is the user's (Noticed, item 4). The study doc's "A10 part 3: the spread and
+    the draw, replayed blind".
+  - **Code review** (`/code-review`, before the long runs; it ran this time). Taken: a shared draw read as a blind draft
+    wherever the ownership alone was asked (a lock-in item nobody could clear, computer players that could never be taken out;
+    now `BlindDraftLogic.on`, read by those call sites); a Start nobody could be dealt yet never dealt later (`due` counts the
+    Start); a league drafted another way dealt over once it became a draw (`ready`: nobody on a team); the draft view ordering a
+    shared draw's teams by someone else's draw; computer players and the replay's seats reading the spread over a narrower list
+    than the pick's check (a stall where a ghost owns someone; now over every free agent, as the check); the spread's tally
+    worked out again for every candidate (now once a pass, the pick tested first); the draw's seat order merged from the
+    draft order and then shuffled anyway (now the rotation); owned ids by hand beside `Core.ownedCastawayIds`; the count counting
+    an empty group. Partly: `ctx.poolGroups` has no caller (Noticed, with part 1's `ctx.pool`). Not taken here: the classic draft
+    board and grid that read shared as blind (U1's screens, Noticed).
 - **A11. Winning, and who plays with whom.** A race (first to N ends the game), co-op (the group against the show, with shared
   lives), head-to-head with playoffs, teams of players, players knocked out each week (guillotine) or cut at a phase,
   handicaps, late joiners.
@@ -3304,6 +3413,53 @@ From A10 part 1 (2026-10-29):
 - A slot's group members are matched to the league's cast the forgiving way (`Core.findCastawayByName`), as F3 part 2's group
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
+
+From A10 part 3 (2026-10-29):
+- **For the user, in a design session (with A10 parts 1 and 2's questions), each with a recommendation (built as spec settings,
+  the defaults in `DRAFT_ACROSS`, `DRAW_OWN` and `spreadBounds`):**
+  1. A guy and a girl (s06). Refused: no show's cast or research records who is which, and the data rule allows only what data
+     settles. Options: leave it a can't-yet, offering the nearest ("one from each tribe"); or record it where the show itself
+     splits by it (The Challenge's men's and women's eliminations, a couples show's pairs), as a cast field the desk sets from
+     the show's own structure, never a guess research makes about a person. Recommended: leave it a can't-yet unless the user
+     wants s06; if so, the show's own split only, set on the desk, and `get.across.of: gender` reads it (the engine's side is a
+     group by another field).
+  2. How even a spread is. Built: as even as a team's size allows (no more than ceil(each / groups) from one, at least
+     floor(each / groups) from each while it has someone to take). Recommended: keep; "exactly one from each" is the same thing
+     when the team is the tribes' number, and the wizard can say the team's size from the tribes at the start.
+  3. After the draft (`then`). Built: keep, a castaway is yours wherever they go (a swap or the merge changes nobody's team),
+     and a replacement or a swap on waivers comes from anyone. Options for later values: a replacement for someone drafted into a
+     tribe's share comes from that tribe as the data has it then (while it exists); or a lineup spread across the tribes each
+     week, read at each lock. Recommended: keep as the default; the lineup spread only if a maker asks.
+  4. A show not divided when it drafts (the merge before a late start, a season with no tribes yet). Built: a plain draft, said
+     in How it works. **The blind replays found it's the usual case for a draft before the premiere:** a season's cast shows its
+     tribes from the premiere on (`tribes_from_episode` 1, a spoiler guard: Survivor 49's), so a league has none at a pre-premiere
+     draft and "one from each tribe" drafts plainly. Options: (a) as built, said up front; (b) the spread draft waits for the
+     groups (it can't start until the cast's groups reach the league: draft after the premiere); (c) the desk shows the starting
+     tribes before the premiere when the network has announced them (`tribes_from_episode` cleared), so the draft can spread.
+     Recommended: (a) as the fallback, with Start a game saying so when the season's groups aren't known yet and offering to
+     schedule the draft after the premiere (G1's context pack, U1), and (c) on the desk wherever the tribes are public before
+     the premiere.
+  5. An exclusive spread or draw the pool doesn't cover. Built: the count refuses it where it knows the couch and the groups (no
+     caller passes them yet: below); at the draft, a tribe too small for everyone goes first come in a snake and by the draw's
+     order in a draw, and the rest take what keeps them spread; an exclusive hat that runs out leaves the last dealt short
+     (`state.draw.short`). Recommended: keep, with G1's context pack passing the counts so Start a game makes such a game
+     shared; a couch that grows past it afterwards carries on short.
+  6. A draw's ownership said alone. Built: exclusive (one hat: names out of a hat are each different). Recommended: keep; shared
+     where the math says so (the decision), with the reason as an assumption.
+  7. Someone who joins after a draw. Built: as after any finished draft (a late joiner, or inactive until whoever runs it adds
+     them). Recommended: deal them from what's left (exclusive) or their own hat (shared) when they join, automatically, so
+     nobody has to; not built (A11's late joiners).
+- **No caller passes `ctx.poolGroups`** (nor part 1's `ctx.pool` and `ctx.couch`), so the per-group count runs only where
+  they're given: G1's context pack should (each group's size where the game drafts, the couch's size). (G1, G2; the lab when it
+  next changes.)
+- **The screens don't know a draw or a spread:** the classic draft board and grid (`draft-board.tsx`, `draft-grid.tsx`), the
+  explainer and the setup sections read `ownershipMode === 'shared'` as a blind draft, so a shared draw would show a lock-in
+  board; the new design's draft room reads the `draw` kind as a revealed blind draft (no screen of its own); nothing hints
+  which tribe a team still needs (a refused pick shows the route's reason). (U1.)
+- The classic draft-order route (POST /draft/order) still reorders a draw's order before it's dealt (inert: the seed shuffles
+  the seats); the new design's draft room refuses it. (Whoever next touches the classic draft routes.)
+- Part 3b is next: a draft's prices (an auction with a budget, a salary cap whose prices follow the data, buying and selling
+  each week: s03, s04, s22, answer.bid, answer.trade), each with its fallback (a bid's ties, someone who never bids or trades).
 
 From A10 part 2 (2026-10-29):
 - **For the user, in a design session (with A10 part 1's slot questions), each with a recommendation (built as spec settings,

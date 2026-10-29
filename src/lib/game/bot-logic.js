@@ -24,7 +24,7 @@ const Formats = require("./formats/index.js");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const {
-  Core, DraftLogic, BlindDraftLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
+  Core, DraftLogic, BlindDraftLogic, SpreadLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
   EpisodeLogic, FinaleLogic, getLeagueType, rosterSize, inPlay, closedForPlay,
   currentEpisode, finalePredictionsAvailable, seasonWinner,
 } = StateLogic;
@@ -204,14 +204,19 @@ function draftOrderFor(state, playerId, candidateIds, alreadyMine) {
 // ---- moves ----
 
 function snakeDraft(state) {
-  if (state.settings.ownershipMode === "shared" || !getLeagueType(state).hasRoster) return 0;
+  // A blind draft's bots lock in (blindSubmissions); a draw's deals itself (no turn comes up).
+  if (BlindDraftLogic.on(state) || !getLeagueType(state).hasRoster) return 0;
   if (!DraftLogic.isStarted(state)) return 0;
   let made = 0;
   for (let guard = 0; guard < 500; guard++) {
     const turn = DraftLogic.currentTurn(state);
     if (!turn || turn.isComplete || !isBot(Core.getPlayer(state, turn.playerId))) break;
     const free = state.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
-    const best = draftOrderFor(state, turn.playerId, free, Core.ownedCastawayIds(state, turn.playerId))[0];
+    // A draft spread across the cast's groups (step A10 part 3): only who keeps the team spread, read over every free agent as
+    // the pick's own check reads it (else whoever keeps it that this list lacks).
+    const fits = SpreadLogic.allowedFor(state, turn.playerId);
+    const mine = free.filter((id) => fits.includes(id));
+    const best = draftOrderFor(state, turn.playerId, mine.length ? mine : fits, Core.ownedCastawayIds(state, turn.playerId))[0];
     if (!best) break;
     const before = state.draftPicksMade;
     DraftLogic.pick(state, best);
@@ -225,7 +230,7 @@ function snakeDraft(state) {
 // locking (src/lib/server/bots.ts) since submissions are kept out of `state`.
 function blindSubmissions(state) {
   if (!botIds(state).length) return [];
-  if (state.settings.ownershipMode !== "shared" || !getLeagueType(state).hasRoster) return [];
+  if (!BlindDraftLogic.on(state) || !getLeagueType(state).hasRoster) return [];
   if (!DraftLogic.isStarted(state) || BlindDraftLogic.isRevealed(state)) return [];
   const size = rosterSize(state);
   const active = state.castaways.filter((c) => c.status === "active").map((c) => c.id);
@@ -235,7 +240,7 @@ function blindSubmissions(state) {
       // Greedy, so the tribe spread sees each earlier pick.
       const picks = [];
       for (let i = 0; i < size; i++) {
-        const next = draftOrderFor(state, pid, active.filter((id) => !picks.includes(id)), picks)[0];
+        const next = draftOrderFor(state, pid, SpreadLogic.allowed(state, picks, active.filter((id) => !picks.includes(id))), picks)[0];
         if (!next) break;
         picks.push(next);
       }

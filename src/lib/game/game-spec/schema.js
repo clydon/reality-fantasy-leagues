@@ -14,7 +14,13 @@
 //            the ownership today: exclusive drafts snake, shared drafts blind. A10 part 1's groups: { slots: 1 | 2, own:
 //            shared | exclusive, swap, fallback: void | carry-on, points: mean | sum }, group slots beside a draft scored by
 //            moments: a slot holds a pair or a team the show forms, picked after the episode that showed it, riding with it
-//            while it lasts and dropping when it changes, GroupSlotLogic in state-logic.js) | { by: 'pick', each: 1, repeat: 'cycle',
+//            while it lasts and dropping when it changes, GroupSlotLogic in state-logic.js. A10 part 3: order 'draw', names out of
+//            a hat: nobody picks, the engine deals each team `each` at random when the draft starts, seeded and recorded, exclusive
+//            (nobody shares) or shared (each team drawn on its own), DrawLogic; across: { of: group | gender, then: keep }, a
+//            draft spread across the cast's groups as the data has them when it drafts (one from each tribe: no more than
+//            ceil(each / groups) from one, and at least floor(each / groups) from each while it has someone to take; a show not
+//            divided then drafts plainly, and the spread never blocks a draft: SpreadLogic), each castaway yours wherever they
+//            go after it (then: keep, the fallback for a swap or the merge)) | { by: 'pick', each: 1, repeat: 'cycle',
 //            second? } (one an episode, nobody again until everyone still in is used, never twice running. A10 part 2's second:
 //            { fallback: void | counts }, a second pick beside the first, open every episode, that counts on a night two or more
 //            go home: nothing at a lock says a night is a double, only its results do; on a night only one goes, void (no
@@ -55,7 +61,7 @@ const SPEC_VERSION = 1;
 /** Who builds each value. A value not listed isn't one. */
 const VOCAB = {
   'get.by': { draft: 'now', pick: 'now', card: 'now', none: 'now', squares: 'sports' },
-  'get.order': { snake: 'now', blind: 'now' },
+  'get.order': { snake: 'now', blind: 'now', draw: 'now' },
   'get.own': { exclusive: 'now', shared: 'now' },
   'get.repeat': { cycle: 'now' },
   count: { start: 'now', all: 'now', pick: 'now', best: 'now' },
@@ -92,6 +98,11 @@ const VOCAB = {
   // A10 part 2: what a pool's second pick does on a night only one goes home (void: no points either way; counts: scored like
   // the first, so two picks every episode).
   'get.second.fallback': { void: 'now', counts: 'now' },
+  // A10 part 3: a draft spread across the cast's groups (get.across): which groups (the tribes or teams the data has them on
+  // when it drafts; a guy and a girl needs data that says who is which, and no show's records it: settleProblems refuses it),
+  // and what a drafted castaway does when they change group or the groups end (a swap, the merge): keep, still yours.
+  'get.across.of': { group: 'now', gender: 'later' },
+  'get.across.then': { keep: 'now' },
 };
 
 // A question in `ask` (A4; A6 added who a moment happened to, groups, roles and questions about each person):
@@ -248,6 +259,20 @@ const MAX_MULLIGANS = 3;
 const MAX_BUYBACK_COST = 20;
 const BUYBACK = { times: 1, before: null };
 const SECOND_PICK = { fallback: 'void' };
+/** A10 part 3: a spread draft's defaults when the spec leaves them out, and a draw's ownership (names out of a hat: each one
+ *  different; the exclusive-or-shared count makes it shared where the pool doesn't cover it). The user's to set (Noticed). */
+const DRAFT_ACROSS = { then: 'keep' };
+const DRAW_OWN = 'exclusive';
+
+/**
+ * A spread draft's bounds (A10 part 3: get.across) for a team of `each` over `groups` groups: no more than `most` from one,
+ * at least `least` from each (while it has someone to take). Null when the show isn't divided (fewer than two groups): a
+ * plain draft. Pure: SpreadLogic in state-logic.js plays it, the words and the count read it.
+ */
+function spreadBounds(each, groups) {
+  if (!isInt(each, 1) || !isInt(groups, 2)) return null;
+  return { least: Math.floor(each / groups), most: Math.ceil(each / groups) };
+}
 
 /**
  * Whether a pool covers every pick of an exclusive draft (the 9:10 PM decision, Decisions: "Exclusive or shared"): `people`
@@ -507,11 +532,15 @@ function fullSpec(spec) {
   if (Array.isArray(s.ask)) s.ask = s.ask.map(fullQuestion);
   const by = isObj(s.get) ? s.get.by : undefined;
   if (by === 'draft') {
+    // A10 part 3: a draw is either ownership; said alone, nobody shares (DRAW_OWN).
+    if (!s.get.own && s.get.order === 'draw') s.get.own = DRAW_OWN;
     if (!s.get.own && s.get.order) s.get.own = own(OWN_OF, s.get.order);
     if (!s.get.order && s.get.own) s.get.order = own(ORDER_OF, s.get.own);
     if (!s.get.own && !s.get.order) Object.assign(s.get, { order: 'snake', own: 'exclusive' });
     // A10 part 1: group slots say what they leave out as the defaults (GROUP_SLOTS).
     if (isObj(s.get.groups)) for (const [k, v] of Object.entries(GROUP_SLOTS)) if (s.get.groups[k] === undefined) s.get.groups[k] = v;
+    // A10 part 3: a spread draft says what it leaves out as the defaults (DRAFT_ACROSS).
+    if (isObj(s.get.across)) for (const [k, v] of Object.entries(DRAFT_ACROSS)) if (s.get.across[k] === undefined) s.get.across[k] = v;
   }
   if (by === 'pick') {
     if (s.get.each === undefined) s.get.each = 1;
@@ -568,7 +597,9 @@ function playsAs(s) {
   const count = countKind(s.count);
   if (!plainParts(s)) return null;
   const none = s.ask.length === 0;
-  if (by('get') === 'draft' && own(ORDER_OF, s.get.own) === s.get.order && (none || finaleOf(s.ask))) {
+  // A10 part 3: a draw deals either ownership's teams (DrawLogic), so it plays the game a snake or blind draft would.
+  const drafted = by('get') === 'draft' && (own(ORDER_OF, s.get.own) === s.get.order || (s.get.order === 'draw' && own(ORDER_OF, s.get.own) !== undefined));
+  if (drafted && (none || finaleOf(s.ask))) {
     if (count === 'all' && by('score') === 'place' && by('rank') === 'total') return 'classic-draft';
     // Best ball (A9 part 2) is Weekly Lineup's game with no lineups: its best n count (state-logic.js's best ball variant).
     if ((count === 'start' || count === 'best') && by('score') === 'moments' && by('rank') === 'total') return 'active-roster';
@@ -758,10 +789,12 @@ function specProblems(spec, ctx, opts) {
       add('count.best', `Best ball counts 1 to ${MAX_STARTERS}`);
     }
     if (!one('get.own', get.own)) add('get.own', 'A draft is exclusive or shared');
-    if (!one('get.order', get.order)) add('get.order', 'A draft is snake or blind');
-    else if (one('get.own', get.own) && ORDER_OF[get.own] !== get.order) add('get.order', `An ${get.own} draft is ${ORDER_OF[get.own]}: ${get.own === 'exclusive' ? 'everyone takes turns for castaways nobody else can have' : 'everyone picks in private, revealed at once'}`);
+    if (!one('get.order', get.order)) add('get.order', 'A draft is snake, blind or a draw');
+    // A draw (A10 part 3) goes with either ownership; a draft people pick in goes with its own.
+    else if (get.order !== 'draw' && one('get.own', get.own) && ORDER_OF[get.own] !== get.order) add('get.order', `An ${get.own} draft is ${ORDER_OF[get.own]}: ${get.own === 'exclusive' ? 'everyone takes turns for castaways nobody else can have' : 'everyone picks in private, revealed at once'}`);
     if (!count) add('count', 'A draft says what counts: { start: n }, { all: true } or { best: n }');
     if (get.groups !== undefined) groupSlotProblems(get.groups, s).forEach(([at, p]) => add(`get.groups${at}`, p));
+    if (get.across !== undefined) acrossProblems(get.across).forEach(([at, p]) => add(`get.across${at}`, p));
   }
   if (get.by === 'pick') {
     if (get.each !== 1) add('get.each', 'A pick is one an episode');
@@ -1020,8 +1053,9 @@ const KEYS = {
   span: ['from', 'to'],
   from: ['phase', 'at'],
   pool: ['of', 'where'],
-  get: { draft: ['by', 'each', 'order', 'own', 'groups'], pick: ['by', 'each', 'repeat', 'second'], card: ['by'], none: ['by'], squares: ['by'] },
+  get: { draft: ['by', 'each', 'order', 'own', 'groups', 'across'], pick: ['by', 'each', 'repeat', 'second'], card: ['by'], none: ['by'], squares: ['by'] },
   groups: ['slots', 'own', 'swap', 'fallback', 'points'],
+  across: ['of', 'then'],
   second: ['fallback'],
   score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays'], stats: ['by', 'points'] },
   buyback: ['times', 'before', 'cost'],
@@ -1053,7 +1087,10 @@ function unknownKeys(s) {
   check(s.pool, KEYS.pool, 'pool');
   if (isObj(s.get)) {
     check(s.get, own(KEYS.get, s.get.by), 'get');
-    if (s.get.by === 'draft') check(s.get.groups, KEYS.groups, 'get.groups');
+    if (s.get.by === 'draft') {
+      check(s.get.groups, KEYS.groups, 'get.groups');
+      check(s.get.across, KEYS.across, 'get.across');
+    }
     if (s.get.by === 'pick') check(s.get.second, KEYS.second, 'get.second');
   }
   if (isObj(s.score)) {
@@ -1105,6 +1142,20 @@ function groupSlotProblems(g, s) {
   if (!one('get.groups.fallback', g.fallback)) out.push(['.fallback', "When its groups aren't sure, a slot is void for that episode or follows the people: void, or carry-on"]);
   if (!one('get.groups.points', g.points)) out.push(['.points', "A group's points are its members': their mean, or their sum"]);
   if (!(isObj(s.score) && s.score.by === 'moments')) out.push(['', 'A group scores what its members do: group slots go with a draft scored by moments']);
+  return out;
+}
+
+/**
+ * A draft spread across the cast's groups (A10 part 3: get.across), as [[at, problem]]: { of: group | gender (which groups:
+ * the tribes or teams the data has people on when it drafts, or a guy and a girl), then: keep (a drafted castaway stays yours
+ * when they change group, and when the groups end at the merge) }. Any draft: a snake, a blind draft or a draw, scored any way.
+ * Which groups a show has is the data rule's (settleProblems).
+ */
+function acrossProblems(a) {
+  if (!isObj(a)) return [['', 'A spread draft is { of, then }']];
+  const out = [];
+  if (own(VOCAB['get.across.of'], a.of) === undefined) out.push(['.of', "Spread across what: the show's groups (group), or a guy and a girl (gender)"]);
+  if (own(VOCAB['get.across.then'], a.then) === undefined) out.push(['.then', 'After the draft a castaway stays yours wherever they go: keep']);
   return out;
 }
 
@@ -1276,6 +1327,20 @@ function settleProblems(s, ctx, opts) {
   if (!opts.league && get.by === 'draft' && get.own === 'exclusive' && isInt(get.each, 1) && isInt(ctx.pool, 0) && isInt(ctx.couch, 1) && !covers({ pool: ctx.pool, people: ctx.couch, each: get.each })) {
     out.push(['get.own', `${ctx.couch} of you × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} is more than the ${ctx.pool} who can be drafted: make it shared, so two of you can have the same one`]);
   }
+  // A10 part 3: a draft spread across the cast's groups needs a show whose cast has groups, and a guy and a girl needs data
+  // that says who is which: no show's cast or research records it, so nothing settles it. Exclusive, each group where it
+  // drafts covers its share of every team (ctx.poolGroups: how many can be drafted in each; the pool shrinking per group).
+  if (get.by === 'draft' && isObj(get.across)) {
+    if (get.across.of === 'group' && ctx.grouped === false) out.push(['get.across.of', "Nobody on the show is in a group (a tribe, a team): there's nothing to spread across"]);
+    if (get.across.of === 'gender') out.push(['get.across.of', "Nothing in the show's data says who's a guy and who's a girl (its cast and research don't record it), so nothing can check a draft of one each"]);
+    // Groups with someone in them, as the spread reads them (SpreadLogic.groupsNow).
+    const sizes = Array.isArray(ctx.poolGroups) ? ctx.poolGroups.filter((n) => isInt(n, 1)) : [];
+    const b = spreadBounds(get.each, sizes.length);
+    if (!opts.league && get.across.of === 'group' && get.own === 'exclusive' && b && b.least && isInt(ctx.couch, 1)) {
+      const short = Math.min(...sizes);
+      if (!covers({ pool: short, people: ctx.couch, each: b.least })) out.push(['get.own', `${ctx.couch} of you each need ${b.least} from every group, and one has only ${short}: make it shared, so two of you can have the same one`]);
+    }
+  }
   const score = isObj(s.score) ? s.score : {};
   if (score.by === 'moments') {
     const given = pointsMap(score.points) ? score.points : {};
@@ -1380,6 +1445,7 @@ function specWaitsFor(spec) {
   if (where) val('pool.where', 'pool.where', where, where === 'teams' ? 'Picking from teams' : 'Picking from a group');
   if (isObj(s.get)) val('get.by', 'get.by', s.get.by, 'Squares');
   if (isObj(s.get) && isObj(s.get.groups)) val('get.groups.fallback', 'get.groups.fallback', s.get.groups.fallback, "Starting the game's next stage when a slot's groups aren't sure");
+  if (isObj(s.get) && isObj(s.get.across)) val('get.across.of', 'get.across.of', s.get.across.of, 'A draft of a guy and a girl each');
   const count = countKind(s.count);
   if (count) val('count', 'count', count, 'Best ball');
   if (isObj(s.score)) val('score.by', 'score.by', s.score.by, 'Scoring by stats');
@@ -1404,6 +1470,7 @@ module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
   RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, poolParts,
+  DRAFT_ACROSS, DRAW_OWN, spreadBounds,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

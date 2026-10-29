@@ -624,8 +624,10 @@ const listOrder = (s) => s.castaways.map((c) => c.id);
 const namesOf = (s) => Object.fromEntries(s.castaways.map((c) => [c.id, c.name]));
 
 /**
- * The draft, through the draft room's writes: the turn-based one turn by turn, the blind one each locking in. Each seat's
- * picks in words (r.draft: "Ann (picked for them)") and as data (r.drafted: [{ id, name, forThem }]).
+ * The draft, through the draft room's writes: the turn-based one turn by turn, the blind one each locking in, a draw (A10 part
+ * 3) dealt by the start alone. A draft spread across the cast's groups (A10 part 3) takes, by each seat's habit, only who keeps
+ * its team spread (SpreadLogic: everyone when nothing is spread). Each seat's picks in words (r.draft: "Ann (picked for them)")
+ * and as data (r.drafted: [{ id, name, forThem }]).
  */
 async function draft(r) {
   const { draft: D, S, Bots } = appCode();
@@ -633,6 +635,7 @@ async function draft(r) {
   const leadActor = { user: lead, membership: await memberOf(r.leagueId, lead.id) };
   let s = await D.startDraft(leadActor, r.leagueId);
   const shared = s.settings.ownershipMode === "shared";
+  const drawn = S.DrawLogic.on(s);
   const picks = {};
   const drafted = {};
   // A seat's order over `ids` by its habit, and someone away's when they get the room's favourites (--away=favourites: what
@@ -640,13 +643,28 @@ async function draft(r) {
   const orderOf = (seat, ids) => prefer(seat, ids, { ratings: Bots.ratings(s, LEVELS[ROLES[seat.role].level]), listOrder: listOrder(s), names: namesOf(s) });
   const awayOrder = (ids, lists) => favourites(ids, { ratings: Bots.ratings(s, LEVELS.solid), lists, listOrder: listOrder(s) });
   const isAway = (seat) => ROLES[seat.role].draft === "absent";
-  if (!shared) {
+  if (drawn) {
+    // Nobody picks: the start dealt every team (or the hat ran out on some, as the draw records).
+    if (!S.DrawLogic.drawn(s)) r.problems.push("The draw didn't deal the teams when the draft started");
+    for (const seat of r.seats) {
+      const pid = pidOf(r, seat);
+      if (!pid) continue;
+      const ids = s.castaways.filter((c) => (c.ownerIds || []).includes(pid)).map((c) => c.id);
+      picks[seat.label] = ids.map((id) => `${castName(s, id)} (drawn)`);
+      drafted[seat.label] = ids.map((id) => ({ id, name: castName(s, id), forThem: false }));
+    }
+    if (s.draw && s.draw.short.length) r.log.push(`The draw came up short for ${s.draw.short.length} of the teams: the hat ran out`);
+  } else if (!shared) {
     for (let guard = 0; guard < 600; guard++) {
       const turn = S.currentDraftTurn(s);
       if (!turn || turn.isComplete) break;
       const seat = seatOf(r, turn.playerId);
       if (!seat) break; // a computer player's turn not taken (bots.ts takes them inside each write): stop and say so
-      const free = s.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
+      // Who keeps this team spread (everyone free when the draft isn't spread across groups), over every free agent as the
+      // pick's own check reads it.
+      const unowned = s.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
+      const fits = S.SpreadLogic.allowedFor(s, turn.playerId);
+      const free = unowned.filter((id) => fits.includes(id)).length ? unowned.filter((id) => fits.includes(id)) : fits;
       const habit = ROLES[seat.role].draft;
       const order =
         isAway(seat) && r.opts.away === "favourites"
@@ -669,12 +687,23 @@ async function draft(r) {
     const size = S.rosterSize(s);
     const active = s.castaways.filter((c) => c.status === "active").map((c) => c.id);
     const drafting = r.seats.filter((seat) => pidOf(r, seat) && seat !== r.lateSeat);
+    // A team of `size` by an order over who's left, a pick at a time, each keeping it spread (the order itself when it isn't).
+    const spread = (order) => {
+      if (!S.SpreadLogic.groupsNow(s)) return order(active).slice(0, size);
+      const team = [];
+      for (let i = 0; i < size; i++) {
+        const next = order(S.SpreadLogic.allowed(s, team, active.filter((id) => !team.includes(id))))[0];
+        if (!next) break;
+        team.push(next);
+      }
+      return team;
+    };
     // Each seat's team, chosen in private (nobody reads another's), then locked in, in seat order.
-    const teams = new Map(drafting.map((seat) => [seat, orderOf(seat, active).slice(0, size)]));
+    const teams = new Map(drafting.map((seat) => [seat, spread((ids) => orderOf(seat, ids))]));
     // --away=favourites: someone away gets the room's favourites (the app knows the others' locked teams; nobody else sees them).
     if (r.opts.away === "favourites") {
       const others = drafting.filter((x) => !isAway(x)).map((x) => teams.get(x));
-      for (const seat of drafting) if (isAway(seat)) teams.set(seat, awayOrder(active, others).slice(0, size));
+      for (const seat of drafting) if (isAway(seat)) teams.set(seat, spread((ids) => awayOrder(ids, others)));
     }
     for (const seat of drafting) {
       const pid = pidOf(r, seat);

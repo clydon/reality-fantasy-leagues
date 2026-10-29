@@ -46,6 +46,8 @@ function wordsOf(ctx) {
     Part: cap(part.singular),
     Parts: cap(part.plural || `${part.singular}s`),
     groups: Array.isArray(c.groups) ? c.groups.filter(Boolean) : [],
+    // A10 part 3: what the show calls one of its groups ("tribe"), for a draft spread across them.
+    group: typeof c.group === 'string' && c.group ? c.group.toLowerCase() : 'group',
     moments: Array.isArray(c.moments) ? c.moments : null,
     stats: new Map((Array.isArray(c.stats) ? c.stats : []).map((x) => (isObj(x) ? [x.key, x.label || x.key] : [x, x]))),
     phases: new Map((Array.isArray(c.phases) ? c.phases : []).filter(isObj).map((p) => [p.id, p.name || p.id])),
@@ -133,7 +135,9 @@ function sentenceParts(s, w) {
   const one = first !== null && s.span.to === first;
   let spanSaid = false;
   if (by === 'draft') {
-    put(`everyone drafts ${s.get.each}`, 'get');
+    // A10 part 3: a draw deals the teams; a spread draft takes them across the show's groups.
+    put(s.get.order === 'draw' ? `everyone gets ${s.get.each} drawn at random` : `everyone drafts ${s.get.each}`, 'get');
+    if (acrossOf(s)) put(` from across the ${w.group}s`, 'get');
     if (count === 'start') put(` and starts ${s.count.start} each ${w.part}`, 'count');
     // A9 part 2: a lineup's captain.
     if (count === 'start' && isObj(s.score.captain) && isNum(s.score.captain.times)) put(`, one of them a captain who scores ${timesWord(s.score.captain.times)}`, 'score');
@@ -321,18 +325,39 @@ function groupSlotRules(s, w) {
   return out;
 }
 
+/** A draft spread across the cast's groups (A10 part 3: get.across), or null. */
+const acrossOf = (s) => (s.get && s.get.by === 'draft' && isObj(s.get.across) ? s.get.across : null);
+/** How a draw and a spread draft work (A10 part 3), a rule a line. */
+function drawRules(s, w) {
+  const out = [];
+  if (s.get.order === 'draw') {
+    out.push(s.get.own === 'shared'
+      ? `Nobody picks: when the draft starts, everyone is dealt ${say(s.get.each)} at random, each from a hat of their own, so the same ${w.castaway} can be on more than one team.`
+      : `Nobody picks: when the draft starts, everyone is dealt ${say(s.get.each)} at random from one hat, so nobody shares. If the hat runs out, the last teams dealt come up short.`);
+    out.push("The draw is recorded once it's made: it's the same whenever anyone looks.");
+  }
+  if (acrossOf(s)) {
+    out.push(`Each team is spread across the ${w.group}s as they stand at the draft, as evenly as its size allows (a team of three with three ${w.group}s: one from each). A ${w.group} with nobody left to take asks for nobody, and if the show isn't split into ${w.group}s then, it's an ordinary draft.`);
+    out.push(`After the draft they're yours wherever they go: a swap or the merge changes nobody's team.`);
+  }
+  return out;
+}
+
 /** How it works: today's five games say what the Rules sheet says (game-rules.ts), the rest in the same voice. */
 function rulesOf(s, w) {
   const rules = [];
   const by = s.get.by;
   const count = countKind(s.count);
   const shared = s.get.own === 'shared';
-  const draft = shared
-    ? `Draft a team of ${say(s.get.each)} in private; everyone's picks are revealed at once, and the same ${w.castaway} can be on more than one team.`
-    : `Snake-draft a team of ${say(s.get.each)}: once someone picks a ${w.castaway}, nobody else can have them.`;
+  const draft = s.get.order === 'draw'
+    ? null
+    : shared
+      ? `Draft a team of ${say(s.get.each)} in private; everyone's picks are revealed at once, and the same ${w.castaway} can be on more than one team.`
+      : `Snake-draft a team of ${say(s.get.each)}: once someone picks a ${w.castaway}, nobody else can have them.`;
   const waivers = s.extras.waivers;
   if (by === 'draft') {
-    rules.push(draft);
+    if (draft) rules.push(draft);
+    rules.push(...drawRules(s, w));
     if (count === 'start') rules.push(`Before each ${w.part}, start ${say(s.count.start)}. Only starters score.`);
     // A9 part 2: best ball, a lineup's captain, when the points multiply, Outlast in reverse.
     if (count === 'best') rules.push(`Each ${w.part}, your best ${say(s.count.best)} count, whoever they are: no lineups to set.`);
@@ -449,7 +474,7 @@ function detailsOf(s, w) {
   if (isObj(e.draft)) {
     const d = e.draft;
     out.push({ id: 'draft', label: 'The draft', recommended: rec('draft'), value: [
-      s.get.own === 'shared' ? 'In private, revealed at once' : 'Snake: everyone takes turns',
+      s.get.order === 'draw' ? `At random, out of ${s.get.own === 'shared' ? 'a hat each' : 'one hat'}` : s.get.own === 'shared' ? 'In private, revealed at once' : 'Snake: everyone takes turns',
       d.timer ? `${d.timer === 60 ? '60 seconds' : '2 minutes'} a pick, then ${d.away === 'queue' ? 'from their queue' : 'it waits'}` : 'No pick timer',
       d.at ? `at ${d.at}` : 'no time set',
     ].join(' · ') });

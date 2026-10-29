@@ -152,10 +152,17 @@ function readSpec(st, copy) {
   // (captainTimes), points that multiply by when (pointsTimes), Outlast in reverse (reverseOrder). Each only when it's set, so a
   // league that has none reads as it always did.
   const best = type === 'active-roster' && st.bestBall === true;
+  // A10 part 3: a draw (settings.draftDraw) and a draft spread across the cast's groups (draftAcross, as the spec says it), each
+  // only when it's set, so a draft that has neither reads as it always did.
+  const drafted = (each) => {
+    const get = { by: 'draft', each, order: st.draftDraw === true ? 'draw' : ORDER_OF[own], own };
+    if (isObj(st.draftAcross)) get.across = copy ? clone(st.draftAcross) : st.draftAcross;
+    return get;
+  };
   if (type === 'classic-draft') {
     R = st.teamSize;
     const score = st.reverseOrder === true ? { by: 'place', reverse: true } : { by: 'place' };
-    Object.assign(spec, { get: { by: 'draft', each: st.teamSize, order: ORDER_OF[own], own }, count: { all: true }, score, rank: { by: 'total' } });
+    Object.assign(spec, { get: drafted(st.teamSize), count: { all: true }, score, rank: { by: 'total' } });
   } else if (type === 'active-roster') {
     const start = st.activeSlots || 0;
     R = start + (st.benchSlots || 0);
@@ -163,7 +170,7 @@ function readSpec(st, copy) {
     if (typeof st.captainTimes === 'number' && Number.isFinite(st.captainTimes) && st.captainTimes > 1) score.captain = { times: st.captainTimes };
     if (Array.isArray(st.pointsTimes) && st.pointsTimes.length) score.times = copy ? clone(st.pointsTimes) : st.pointsTimes;
     // A10 part 1: group slots beside the draft (settings.groupSlots, as the spec says them).
-    const get = { by: 'draft', each: R, order: ORDER_OF[own], own };
+    const get = drafted(R);
     if (isObj(st.groupSlots)) get.groups = copy ? clone(st.groupSlots) : st.groupSlots;
     Object.assign(spec, {
       get,
@@ -315,6 +322,10 @@ function settingsOf(spec) {
   out.reverseOrder = type === 'classic-draft' && s.score.reverse === true ? true : undefined;
   // A10 part 1: a lineup's or best ball's group slots.
   out.groupSlots = lineup && isObj(s.get.groups) ? clone(s.get.groups) : undefined;
+  // A10 part 3: a draw, and a draft spread across the cast's groups.
+  const draft = s.get.by === 'draft';
+  out.draftDraw = draft && s.get.order === 'draw' ? true : undefined;
+  out.draftAcross = draft && isObj(s.get.across) ? clone(s.get.across) : undefined;
   return out;
 }
 
@@ -362,7 +373,7 @@ const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFee
 const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
   { fields: ['startEpisode', 'startPhase', 'endEpisode'], read: (s) => s.span },
-  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond'], read: (s) => [s.get, s.count] },
+  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'draftDraw', 'draftAcross'], read: (s) => [s.get, s.count] },
   { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans'], read: (s) => s.score },
   { fields: ['poolRank'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },

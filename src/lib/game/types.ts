@@ -323,6 +323,10 @@ export interface LeagueSettings {
   reverseOrder?: boolean;
   /** Step A10 part 1, absent unless a game says it: a lineup's or best ball's group slots (the spec's get.groups). */
   groupSlots?: import("./game-spec/index.js").GroupSlots;
+  /** Step A10 part 3, each absent unless a game says it: a draft dealt by a draw (get.order 'draw'), and one spread across the
+   *  cast's groups (get.across). */
+  draftDraw?: boolean;
+  draftAcross?: import("./game-spec/index.js").DraftAcross;
   /** Step A10 part 2, each absent unless a game says it: a pool's lives (score.lives), buyback (score.buyback), mulligans
    *  (score.mulligans), second pick (get.second) and last one standing (rank.by 'standing'). */
   poolLives?: number;
@@ -1017,6 +1021,8 @@ export interface DraftLogEntry {
   by?: string;
   /** The pick timer ran out and it came from their queue. */
   auto?: boolean;
+  /** A10 part 3: dealt by a draw (names out of a hat), nobody's pick. */
+  drawn?: boolean;
 }
 
 // A completed pickup (replenish) or add/drop (trade): Transactions. MidSeasonLogic.applyPickup /
@@ -1192,6 +1198,9 @@ export interface LeagueState {
   /** Whoever runs the game nudged the player on the clock (one per turn: the next pick clears it). */
   draftNudge?: { n: number; at: string; by: string };
   blindDraft: BlindDraftState;
+  /** A10 part 3: a draw (state-logic.js DrawLogic), once drawn: its seed (the same seed deals the same teams), when, the order it
+   *  dealt in, and the seats it came up short for (an exclusive hat that ran out). */
+  draw?: { seed: string; at: string; order: string[]; short: string[] };
   /** A game that asks by phase (step A7, StateLogic.settlePhases): the season's phase starts it plays by, and where each later
    *  phase's window of questions opens. */
   phaseStarts?: Record<string, number>;

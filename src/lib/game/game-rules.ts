@@ -9,6 +9,7 @@ import { describeSpec } from "./game-spec/index.js";
 
 /** The game's rules, a sentence each. `castaway`: what the show calls its people ("castaway"). */
 export function gameRules(state: LeagueState, castaway = StateLogic.formatOf(state).terms.castaway.toLowerCase()): string[] {
-  const groups = StateLogic.formatOf(state).eventCategories.map((c) => c.label).filter(Boolean) as string[];
-  return describeSpec(StateLogic.gameOf(state), { castaway, groups }).rules;
+  const format = StateLogic.formatOf(state);
+  const groups = format.eventCategories.map((c) => c.label).filter(Boolean) as string[];
+  return describeSpec(StateLogic.gameOf(state), { castaway, groups, group: format.terms.tribe }).rules;
 }

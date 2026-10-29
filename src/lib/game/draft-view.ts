@@ -16,7 +16,9 @@ import type { LeagueState } from "./types";
 // episodes have results you haven't revealed (a late league) asks you to reveal them first, since who's still
 // available would say who went home.
 
-export type DraftKind = "snake" | "blind";
+// A10 part 3's draw: nobody picks; the teams are dealt at random when it starts (state-logic.js DrawLogic). Its screens are U1's:
+// here it reads as a blind draft does once revealed (the teams, no turns or clock).
+export type DraftKind = "snake" | "blind" | "draw";
 export type DraftPhase = "waiting" | "live" | "done";
 
 export interface DraftFace {
@@ -120,6 +122,7 @@ export function snakeOwner(order: string[], index: number): string | undefined {
 export function draftKind(state: LeagueState): DraftKind | null {
   const get = StateLogic.gameOf(state).get;
   if (get.by !== "draft") return null;
+  if (get.order === "draw") return "draw";
   return get.own === "shared" ? "blind" : "snake";
 }
 
@@ -151,6 +154,7 @@ export function draftClock(state: LeagueState): DraftClock | null {
 function phaseOf(state: LeagueState, kind: DraftKind): DraftPhase {
   if (!StateLogic.isDraftStarted(state)) return "waiting";
   if (kind === "blind") return StateLogic.BlindDraftLogic.isRevealed(state) ? "done" : "live";
+  if (kind === "draw") return StateLogic.DrawLogic.drawn(state) ? "done" : "live";
   const turn = StateLogic.currentDraftTurn(state);
   return !turn || turn.isComplete ? "done" : "live";
 }
@@ -192,8 +196,9 @@ export function draftView(
   const scored = StateLogic.SpoilerLogic.latestWithResults(view) > 0;
   const order = sortByTribe(view.castaways, view).map((c) => c.id);
   // Each team as it was drafted (whatever happened to them since), in the order they were picked where the log says.
-  const log = kind === "snake" ? (full.draftLog ?? []) : [];
-  const pickedAt = new Map(log.map((e) => [e.castawayId, e.n]));
+  const log = kind !== "blind" ? (full.draftLog ?? []) : [];
+  // By seat and castaway: in a shared draw the same castaway is dealt to several (step A10 part 3).
+  const pickedAt = new Map(log.map((e) => [`${e.playerId}|${e.castawayId}`, e.n]));
   const teams =
     phase === "waiting"
       ? []
@@ -202,7 +207,7 @@ export function draftView(
             playerId: p.id,
             castawayIds: StateLogic.originalDraftPicks(full, p.id)
               .map((c) => c.id)
-              .sort((a, b) => (pickedAt.get(a) ?? 1e9) - (pickedAt.get(b) ?? 1e9)),
+              .sort((a, b) => (pickedAt.get(`${p.id}|${a}`) ?? 1e9) - (pickedAt.get(`${p.id}|${b}`) ?? 1e9)),
           }))
           .filter((t) => t.castawayIds.length);
   const onTeams = new Set(teams.flatMap((t) => t.castawayIds));
@@ -245,6 +250,23 @@ export function draftView(
       locked: B.lockedPlayerIds(full),
       mine: phase === "live" ? own.mine : null,
       revealedAt: full.blindDraft?.revealedAt ?? null,
+    };
+  }
+
+  if (kind === "draw") {
+    return {
+      ...base,
+      seats: StateLogic.BlindDraftLogic.eligiblePlayers(full).map((p) => seat(p.id)),
+      turns: [],
+      picks: [],
+      made: full.draftPicksMade,
+      clock: null,
+      teams,
+      canUndo: false,
+      madeFor: 0,
+      locked: [],
+      mine: null,
+      revealedAt: full.draw?.at ?? null,
     };
   }
 
