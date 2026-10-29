@@ -42,6 +42,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Mechanics the players decide (2026-10-28) | **Allowed** (the user's hunch, Claude's call): votes among the players, matching the majority, the top scorer's twist, a rotating host, secret roles, bounties. Guardrails: facts about the show are still settled only by data (a host's questions must be data-settled; the couch never decides what happened); answers that depend on each other stay hidden until the lock; a player-decided outcome changes the game only, never someone's place on the couch. |
 | Numbers from outside research (2026-10-28) | **Allowed from vetted sources** (the user's hunch, Claude's call): free, with terms that allow it (TVmaze's episode ratings, ESPN's stats), settled once at a fixed moment (a rating seven days after airing) and stored, because outside numbers drift. A new source goes into HOSTING.md first. |
 | The engine lab (2026-10-28) | **Yes**, in A5: an admin-only, plain page on the desk for trying the engine's pieces before the UI exists. |
+| Exclusive or shared (2026-10-28) | **Shared whenever the math says so** (the user: "many things will just mathematically have to be shared, no way around it", as in a 12-person Survivor game where everyone drafts several castaways). An exclusive draft only when the pool covers every pick, counted where the game drafts and as the pool shrinks (a later stage, a side draft, group slots among fourteen pairs); otherwise our check makes it shared and the wizard says why ("12 players × 3 picks is more than 18 castaways: two of you can have the same one"). Group slots are shared by default. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -417,8 +418,8 @@ engine gives a game several ways to meet a change, and the builder picks with th
   episode make it a pick each episode, with one mechanic and nothing to predict. What keeps it clean: a group is its exact
   members, so any change to them ends it (a partner leaves, a swap, a re-pairing); when the show re-pairs everyone or goes
   each for themselves, every slot drops at once; a slot opens after the episode that announced the groups and scores from
-  the next one (a group revealed mid-episode can't be picked before it). Open for the design session: an exclusive draft of
-  groups or a shared pick (fourteen pairs among ten players), +1 or +2, and whether a slot can be swapped while its group lasts.
+  the next one (a group revealed mid-episode can't be picked before it). Shared by default (Decisions: exclusive or shared);
+  open for the design session: +1 or +2, and whether a slot can be swapped while its group lasts.
 
 The engine builds all of them (F3's grouping lifetimes: who's in it, from which episode, until which); which ones the builder
 offers, their defaults and how the asking looks are the format-change design session's.
