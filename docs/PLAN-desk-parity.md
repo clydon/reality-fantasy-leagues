@@ -14,10 +14,11 @@ most urgent first with each item's row to act on, Coming up, Find › Reports an
 handed on through Hand on, Let in told by email; migration 0421; its As built is under step 2); **Step 3 ready to merge at 3df4e790: parts 3a and 3b** (a season's
 Setup: Name, Status held over its listing's dates, Who decides results, the season's Delete, migration 0422; its schedule:
 When it airs and Episodes previewed then saved, times and a count by hand holding over the listing's, a TV listing found,
-linked and unlinked, migration 0423; their As built is under step 3); **Part 4a done at 79de48c4; Part 4b done at 28700f60,
-part 4c is next** (4a: a season's Research and the bot, Run now queued with what it waits behind and how far it's got, its
+linked and unlinked, migration 0423; their As built is under step 3); **Step 4 ready to merge at 2ee06b36: parts 4a, 4b
+and 4c** (4a: a season's Research and the bot, Run now queued with what it waits behind and how far it's got, its
 schedule drawn as the next episode's night, Runs; migration 0424; 4b: an episode's page, its results from the shared facts
-with Accept all, Take it back, the desk's paste as a submission and Clear, no migration; their As built is under step 4). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
+with Accept all, Take it back, the desk's paste as a submission and Clear, no migration; 4c: the Bingo bank, an admin's Show
+it again outranking two flags, Paste squares with Undo, migration 0425; their As built is under step 4); part 5a is next. Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
 either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
@@ -720,6 +721,61 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    such a fact should wait instead is fact-status.ts's (settleFact knows no cast): for whoever next takes results settling.
    (bd) Undo of a desk paste withdraws it as a couch's Undo does, but its answers stay folded into the stored ones (the
    combined row) that later questions are cut down from; a couch's Undo does the same. For the same.
+   **As built, part 4c (2026-10-29):** **a season's Bingo bank** (`/desk/season/<id>/bingo?bank=<n>|season`: `routes.ts`
+   DESK_SEASON_PAGES gains `bingo`, depth 3, `paths.deskBingo`; `src/new/desk/bingo.tsx`, `src/lib/server/desk-bingo.ts`; `GET`
+   and `POST /api/desk/seasons/[id]/bingo`, `GET .../bingo/question`). As mocked: the lower third (Ready or No squares;
+   "Episode 6: 26 squares" or "Episode 7 uses the season's"), "A card is 8 squares round a free centre ... dealt to N people
+   so far", the strip (the next two episodes and every one before, then the season's, each chip with how many squares deal
+   from it; the URL keeps the one chosen, so Back and a reload come back to it), the bank: who wrote it ("Our bot, Run now by
+   alex", "Our bot, on its schedule", "You pasted them") and when, "27 of 30 passed its check" or "27 pasted, not checked",
+   **Write them again** (4a's `NowSheet` on that bank) and **Paste squares** (Ask an AI, `AskAiPasteSheet`, on the bot's own
+   prompt for that bank; then "Save these squares?": what was pasted, what fits, what's left out and why, what it replaces;
+   tier 2, Undo puts the old bank back with its squares' ids and flags, so cards not kept deal as before), the squares by
+   Likely, Maybe, Long shot and Out of new cards (dropped, Two flags, Hidden by you, or "1 flag" on one still in); an aired
+   episode has no Write or Paste ("Bingo never writes for an episode once it has aired"), one to come with none says whether
+   the bot writes it ("Bingo isn't in <season>'s schedule..."); **a square's sheet** (it as a plate, where it's dealt "Dealt
+   on 26 of the 38 cards so far", why it's out, Flagged as unfair with who sent each, Hide it from new cards or Show it again,
+   tier 1 with Undo); History (the bot's banks as written, the desk's hides, shows and pastes, each square two flags took out)
+   and the season's Delete (`SeasonDeleteRow`, which now forgets this page too), last. **An admin's Show it again outranks two
+   players' flags (migration 0425, additive):** `bingo_squares.shown_at`/`shown_by`; `bingo.ts FLAGGED_OUT` counts only flags
+   since it (two new ones take it out again; an admin's own flag still takes it out at once), with the caller's row's
+   `shown_at` passed in where it has one (bankFor). Show it again deletes every admin's flag on it and stamps it; Hide is the
+   admin's flag, as classic's was. A flag from before is listed as overruled, and a tile's "N flags" counts only the ones
+   since. `pasted_by` (0425) says who pasted a bank. **What 4b left:** the season page's Running it has **Bingo bank** last
+   with the mock's line ("Episode 6: 26 squares · the season's: 28", "The season's: 28 squares · none for Episode 7 yet", "No
+   squares yet · write or paste them"; `bingoLine`); the episode page's Bingo row opens the bank on that episode, its line who
+   wrote them and when (`bankBrief`); a bingo run's sheet links "Episode N's squares" or "The season's squares" (The bingo
+   bank). `MovesSheet` is exported from episode.tsx, and MoveLine gains `grid` and `repeat` icons. History lines are the
+   season's admin_changes (action `bingo`); undo kinds `bingoBank` and `bingoSquare` in desk-undo.ts. `bingo-bank.ts`
+   exports `parseIn` and `contextFor` (no shape changed).
+   **Left behind or changed from classic, and why (decision 10):** classic's bank route (`/api/admin/seasons/[id]/bingo`)
+   reads one episode's bank and the season's together with the prompt inline; the desk reads one bank at a time from the strip
+   and fetches the prompt only when Paste squares opens it. Classic's paste files at once; the desk's says what it keeps and
+   leaves out first, and can be undone. Classic's Hide and Unhide only add or take back the admin's own flag, so an Unhide
+   never overruled two players' flags; the desk's Show it again does (classic's stays as it is until step 8). From the mock:
+   a flag has no note in the app (`bingo_square_flags` has none, and the player's flag asks for none), so a flag's line says
+   when it was flagged, not the mock's quote; "Dealt to N people" counts the cards that have a row (one is kept once ticked
+   or dealt again; a card only looked at is dealt afresh each read, so it isn't counted); a dropped square in a paste says
+   "Left out of the paste", not "Its check dropped it". A season whose last episode has aired (not mocked) says "All aired"
+   and the season's bank in its lower third. The page polls while a bingo run for the season is queued or asking (up to 15
+   minutes; a queue whose driver was cut off is Research's read to take over).
+   `/code-review` found the page polling for ever on a stalled queue, an Undo of a hide putting back a later Show it again,
+   the paste's author stamped outside its own batch (a bot run at the same moment), a finished season naming an episode past
+   its count, the strip missing a later episode's bank or the one asked for, overruled flags shown as live, FLAGGED_OUT's
+   extra lookup on every card dealt, and a second bank read for one count: all fixed. Left as it found: classic's
+   saveBingoBank and the desk's paste each parse the answer (classic's goes at step 8), and each desk page keeps its own small
+   `SubHead` and `plural` as the others do.
+   Check: `scripts/dev-test/check-desk-bingo.js` 79 PASS at 390 (zt_db_ fixture, up and down; the bot never asked: Write them
+   again only opens Run now); check-desk-episode, check-desk-research, check-desk-setup, check-desk-inbox, check-desk-people,
+   check-classic-admin, check-new-settings, check-new-settling and check-bingo-bank pass (check-bingo-bank and check-desk-episode
+   again after `/code-review`'s fixes); unit tests 840; check-new-desk
+   without its rulebook section (a scratch copy, deleted) passed whole, (ab)'s "every league renames him" too this time.
+   **Noticed, not fixed (4c):** (be) a player's "This square's unfair" takes no reason (`bingo.ts flagBingo`, no column), so
+   the desk can't say why someone flagged it as the mock's quotes do; a reason on the player's flag is player-facing, for
+   whoever next takes bingo's card. (bf) "Dealt to N people" counts only cards with a row (ticked, or dealt again): counting
+   every card looked at would mean writing a row on each read (docs/HOSTING.md), so it stays a floor. (bg) Classic's Unhide
+   (`bingo-bank.ts adminFlagSquare`, on false) still only takes back the admin's own flag, so it never overrules two players',
+   and classic's paste leaves `pasted_by` empty (the desk says "Pasted"); both go with classic at step 8.
 5. **Seasons: cast.** Pull from the wiki and pull again, approve and send to the games, remove someone, hold starting groups
    until Episode 1.
    **As mocked (2026-10-28, `desk-cast.js` and `desk-cast.css`, waiting for approval):** Running it › Cast opens a page of its
