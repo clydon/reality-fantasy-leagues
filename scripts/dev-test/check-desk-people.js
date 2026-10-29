@@ -850,7 +850,7 @@ const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email 
         (await pg.locator("[data-seat-row='unlink']").getAttribute("aria-disabled")) === "true",
       "Commissioner chosen; Player and Unlink dimmed"
     );
-    check((await pg.locator("[data-seat-row='open']").getAttribute("href")) === `/desk/couch/${ids.couch}`, "Open ZT DK Game 1: its couch's page, until games have pages");
+    check((await pg.locator("[data-seat-row='open']").getAttribute("href")) === `/desk/game/${ids.game1}`, "Open ZT DK Game 1: the game's page (part 6a)");
     await fits("a seat's sheet, run alone");
     await shot("seat-alone");
     // dimmed (aria-disabled), but a finger can still tap it: force past Playwright's enabled check

@@ -10,6 +10,7 @@ import { restoreCastaway, restoreGroups, restoreHold, setCastawayLock } from "./
 import { restoreCastSend } from "./desk-cast-page";
 import { restoreCleared, restoreAnswer, writeTriviaOut } from "./desk-episode";
 import { restoreFact, restoreFacts } from "./desk-facts";
+import { restoreArchive, restoreRestored } from "./desk-games";
 import { restorePerson } from "./desk-person-actions";
 import { restoreReport } from "./desk-reports";
 import { restoreSeat } from "./desk-seats";
@@ -92,6 +93,12 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
       break;
     case "report":
       await restoreReport(u);
+      break;
+    case "gameArchive":
+      await restoreArchive(user, c.id, u);
+      break;
+    case "gameRestore":
+      await restoreRestored(user, c.id, u);
       break;
     case "rulebookBase":
     case "rulebookEdit":

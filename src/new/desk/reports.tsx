@@ -192,12 +192,15 @@ export function ReportPage({ id }: { id: string }) {
       setBusy(false);
     }
   };
+  // The game it came from: its page (part 6a), deleted ones too while they can come back.
   const where = r.game ? (
-    r.game.couch ? (
-      <DeskRow href={paths.deskItem("couch", r.game.couch.id)} data="report-game" lead={<IconLead icon={Trophy} />} title={r.game.name} line={[r.game.season, r.game.couch.name, r.game.deleted ? "deleted" : null].filter(Boolean).join(" · ")} />
-    ) : (
-      <DeskRow data="report-game" lead={<IconLead icon={Trophy} />} title={r.game.name} line={[r.game.season, "on no couch", r.game.deleted ? "deleted" : null].filter(Boolean).join(" · ")} />
-    )
+    <DeskRow
+      href={paths.deskItem("game", r.game.leagueId)}
+      data="report-game"
+      lead={<IconLead icon={Trophy} />}
+      title={r.game.name}
+      line={[r.game.season, r.game.couch?.name ?? "on no couch", r.game.deleted ? "deleted" : null].filter(Boolean).join(" · ")}
+    />
   ) : r.season ? (
     <DeskRow href={paths.deskItem("season", r.season.id)} data="report-season" lead={<IconLead icon={Tv} />} title={r.season.name} line={r.season.screen ? `The ${r.season.screen} tab` : "The show"} />
   ) : r.couch ? (

@@ -13,7 +13,7 @@ import { SIGNUP_MODES, type SignupMode } from "@/lib/signups";
 // shows, seasons, castaways, couches, people and rulebooks; each has a page with Override, a Lock and its History) and
 // Settings. Every change the desk makes is a row in admin_changes (0113), with its undo where it has one.
 
-export type DeskEntity = "fact" | "castaway" | "season" | "rulebook" | "couch" | "settings" | "show" | "person" | "report";
+export type DeskEntity = "fact" | "castaway" | "season" | "rulebook" | "couch" | "settings" | "show" | "person" | "report" | "game";
 
 /** Site admins only: 403 for anyone else (the desk's routes and screens). */
 export async function requireDesk(req: Request): Promise<SessionUser> {

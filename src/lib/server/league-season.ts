@@ -6,7 +6,7 @@ export const LEAGUE_SEASON_JOIN = `JOIN shows s ON s.slug = l.state->'settings'-
   JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'`;
 
 // The new design's names for the three season games (memory: site-mock-decisions); leagueTypeId is unchanged.
-const GAME_NAMES: Record<string, string> = {
+export const GAME_NAMES: Record<string, string> = {
   "classic-draft": "Outlast",
   "active-roster": "Weekly Lineup",
   pickem: "Survival Pool",

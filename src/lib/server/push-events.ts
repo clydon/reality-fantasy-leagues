@@ -532,6 +532,27 @@ export function notifyHandedOn(o: { userId: string; leagueIds: string[]; games: 
   });
 }
 
+/**
+ * The desk deleted a game (docs/PLAN-desk-parity.md part 6a): whoever had a seat in it hears, and that it can come back for
+ * 30 days. Under A game started: a game's coming and going on your couch.
+ */
+export function notifyGameDeleted(o: { userIds: string[]; leagueId: string; name: string; couch: string | null; seasonId: string | null; batch: string }) {
+  if (!o.userIds.length) return;
+  notifyAfter("gameStarted", async () => ({
+    userIds: o.userIds,
+    seasonId: o.seasonId,
+    message: {
+      title: `${o.name} was deleted`,
+      body: `A site admin took it off ${o.couch ?? "the app"}. Your team, picks and scores in it are kept for 30 days, in case it comes back.`,
+      url: "/",
+      next: "/home",
+      tag: `game-deleted-${o.leagueId}`,
+      key: `game-deleted:${o.batch}`,
+      seasonId: o.seasonId,
+    },
+  }));
+}
+
 /** Someone joined a couch with its code (step 15 part 2): everyone already on it hears. */
 export function notifyCouchJoined(couchId: string, joinerUserId: string, joinerName: string) {
   notifyAfter("couchJoined", async () => {

@@ -143,7 +143,7 @@ export function CastawayPage({ seasonId, id }: { seasonId: string; id: string })
                 </div>
                 <div className="border-b border-border">
                   {c.remove.games.map((g) => (
-                    <DeskRow key={g.id} data={`their-game-${g.id}`} lead={<IconLead icon={Trophy} />} title={g.name} line={[c.season.name, g.couch].filter(Boolean).join(" · ")} />
+                    <DeskRow key={g.id} href={paths.deskItem("game", g.id)} data={`their-game-${g.id}`} lead={<IconLead icon={Trophy} />} title={g.name} line={[c.season.name, g.couch].filter(Boolean).join(" · ")} />
                   ))}
                 </div>
               </>

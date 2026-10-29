@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { BookOpen, Check, CheckCheck, ChevronRight, Flag, KeyRound, Lock, RotateCcw, Search, User, Users, Zap } from "lucide-react";
+import { BookOpen, Check, CheckCheck, ChevronRight, Flag, KeyRound, Lock, RotateCcw, Search, Trophy, User, Users, Zap } from "lucide-react";
 import { colourOf } from "@/lib/people";
 import { NavLink } from "../nav";
 import { paths, type DeskKind, type DeskSeasonPage } from "../routes";
@@ -10,12 +10,13 @@ import { Avatar } from "../ui/bars";
 import { EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { deskSend, useAfterDesk, useDesk, type ComingUp, type DeskSettings, type DeskLine, type FoundItem, type Inbox, type InboxItem, type PeopleList, type PersonRow, type ReportRow } from "./data";
+import { deskSend, useAfterDesk, useDesk, type ComingUp, type DeskSettings, type DeskLine, type FoundItem, type GameRow, type Inbox, type InboxItem, type PeopleList, type PersonRow, type ReportRow } from "./data";
 import { LibraryPage } from "./library";
 import { NewShowFlow } from "./new-show";
 import { CouchPage, FactPage, SeasonPage, ShowPage } from "./pages";
 import { LetInButton, PeoplePage, PersonPage, PersonTags, useDebounced } from "./people";
 import { ReportListRow, ReportPage, ReportsPage } from "./reports";
+import { GameListRow, GamePage, GamesPage } from "./games";
 import { andList } from "./seats";
 import { useDeskStay, useRecentlyOpened } from "./trail";
 import { agoOf, ChoiceCard, DeskHeader, DeskRow, History, IconLead, ItemRow, Section, Tag } from "./parts";
@@ -34,7 +35,7 @@ import { SetupPage } from "./setup";
 // refused by its own route. People, the library and New show (step 10 part 3) are pages a level down, from Find.
 
 type Tab = "inbox" | "find" | "settings";
-type Page = Tab | "library" | "new" | "people" | "reports";
+type Page = Tab | "library" | "new" | "people" | "reports" | "games";
 
 const TAB_NAMES: Record<Tab, string> = { inbox: "Inbox", find: "Find", settings: "Settings" };
 
@@ -56,13 +57,14 @@ export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: Desk
   if (item?.sub === "bingo") return <BingoPage id={item.id} />;
   if (item?.sub === "cast") return <CastPage id={item.id} />;
   if (item) {
-    const page = { fact: FactPage, season: SeasonPage, castaway: OldCastawayPage, couch: CouchPage, person: PersonPage, show: ShowPage, rulebook: RulebookPage, report: ReportPage }[item.kind];
+    const page = { fact: FactPage, season: SeasonPage, castaway: OldCastawayPage, couch: CouchPage, person: PersonPage, show: ShowPage, rulebook: RulebookPage, report: ReportPage, game: GamePage }[item.kind];
     const Page = page;
     return <Page id={item.id} />;
   }
   if (tab === "library") return <LibraryPage />;
   if (tab === "people") return <PeoplePage />;
   if (tab === "reports") return <ReportsPage />;
+  if (tab === "games") return <GamesPage />;
   if (tab === "new") return <NewShowFlow />;
   return <DeskTabs tab={tab ?? "inbox"} />;
 }
@@ -264,10 +266,16 @@ const ICONS: Record<FoundItem["kind"], string> = { show: "Show", season: "Season
 interface Found {
   found: FoundItem[];
   /** With nothing typed: Browse's lines. */
-  browse?: { people: { all: number; waiting: number }; library: { templates: number; inUse: number; unchecked: number }; reports: { open: number; done: number } };
-  /** With a search: the first few people who match, and how many do; the same for reports. */
+  browse?: {
+    people: { all: number; waiting: number };
+    library: { templates: number; inUse: number; unchecked: number };
+    reports: { open: number; done: number };
+    games: { playing: number; deleted: number };
+  };
+  /** With a search: the first few people who match, and how many do; the same for games (a join code too) and reports. */
   people?: { people: PersonRow[]; total: number };
   reports?: { reports: ReportRow[]; total: number };
+  games?: { games: GameRow[]; total: number; code: string | null };
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -286,7 +294,7 @@ function SubHead({ title, aside }: { title: string; aside?: ReactNode }) {
 
 /**
  * Find (the mock's desk.js dkBrowse and admFindList): one search. With nothing typed, Browse: a row for each kind with
- * its own list (People, the library and Reports now; Couches, Games and Shows come with their steps), then what you
+ * its own list (People, Games, the library and Reports now; Couches and Shows come with their steps), then what you
  * opened lately, then what's airing (until Shows has its list, step 7). With a search: the first three people who match,
  * and All N in People, searched; then everything else it finds.
  */
@@ -298,6 +306,7 @@ function FindTab() {
   const b = found.data?.browse;
   const people = found.data?.people;
   const reports = found.data?.reports;
+  const games = found.data?.games;
   return (
     <Section>
       <label className="flex h-12 items-center gap-2 rounded-[3px] bg-card px-3 outline-1 -outline-offset-1 outline-input focus-within:outline-2 focus-within:outline-chyron">
@@ -315,6 +324,13 @@ function FindTab() {
               lead={<IconLead icon={User} />}
               title="People"
               line={b ? <>{plural(b.people.all, "account", "accounts")}{b.people.waiting ? <> · <Worth>{b.people.waiting} waiting to get in</Worth></> : null}</> : " "}
+            />
+            <DeskRow
+              href={paths.deskGames()}
+              data="browse-games"
+              lead={<IconLead icon={Trophy} />}
+              title="Games"
+              line={b ? <>{b.games.playing} playing{b.games.deleted ? <> · <Worth>{b.games.deleted} deleted, restorable</Worth></> : null}</> : " "}
             />
             <NavLink href={paths.desk("library")} data-desk-library-link className="nd-press flex min-h-[62px] w-full items-center gap-3 border-t border-border py-2.5 text-left">
               <IconLead icon={BookOpen} />
@@ -381,6 +397,14 @@ function FindTab() {
                   All {people.total} people matching &ldquo;{term}&rdquo;
                 </NavLink>
               )}
+              {games?.games.map((g) => (
+                <GameListRow key={g.id} g={g} found code={games.code} />
+              ))}
+              {games && games.total > games.games.length && (
+                <NavLink href={paths.deskGames({ q: term })} data-find-all-games className="flex min-h-12 items-center border-t border-border text-[14px] font-bold underline decoration-input underline-offset-[3px]">
+                  All {games.total} games matching &ldquo;{term}&rdquo;
+                </NavLink>
+              )}
               {(found.data?.found ?? []).map((f, i) => (
                 <ItemRow key={`${f.href}-${i}`} data={f.kind} href={f.href} tag={ICONS[f.kind]} title={f.title} line={f.line} />
               ))}
@@ -392,7 +416,7 @@ function FindTab() {
                   All {reports.total} reports matching &ldquo;{term}&rdquo;
                 </NavLink>
               )}
-              {found.data && !found.data.found.length && !people?.total && !reports?.total && <p className="mt-3 text-[14px] text-muted-foreground">Nothing matches.</p>}
+              {found.data && !found.data.found.length && !people?.total && !reports?.total && !games?.total && <p className="mt-3 text-[14px] text-muted-foreground">Nothing matches.</p>}
             </>
           )}
         </div>

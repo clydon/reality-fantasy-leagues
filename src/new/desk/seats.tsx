@@ -186,10 +186,8 @@ export function SeatSheet({ seat, open, onClose, onHandOn }: { seat: DeskSeat | 
               if (!busy) void send({ unlink: true });
             }}
           />
-          {/* Until step 6a gives games a page of their own, the game opens on its couch's page. */}
-          {seat.couch && (
-            <SheetRow data="open" icon={Trophy} title={`Open ${seat.game}`} line={`On ${seat.couch.name}'s page: who plays it and who runs it`} href={paths.deskItem("couch", seat.couch.id)} onClick={onClose} />
-          )}
+          {/* The game's own page (part 6a; its seats come with 6b). */}
+          <SheetRow data="open" icon={Trophy} title={`Open ${seat.game}`} line="The game's page: its join code, its delete" href={paths.deskItem("game", seat.leagueId)} onClick={onClose} />
         </div>
       </div>
     </Sheet>

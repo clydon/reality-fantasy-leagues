@@ -3,7 +3,7 @@ import { isUuid, type SessionUser } from "./auth-helpers";
 import { setWhoFills } from "./community-results";
 import { pool, HttpError } from "./db";
 import { byNewest, deskLines, logDesk, type DeskLine } from "./desk";
-import { gameName } from "./league-season";
+import { gameName, LEAGUE_SEASON_NAME } from "./league-season";
 import { artAutomatic, chooseArt, deskArt, findArtForShow, findArtLater, setArtOff, type DeskArt } from "./show-art";
 
 // Couches, people and shows on the desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js adminEntity):
@@ -35,7 +35,8 @@ export async function deskCouch(id: string): Promise<DeskCouch> {
     [id]
   );
   const { rows: leagues } = await pool.query(
-    `SELECT l.id, l.name, l.state->'settings'->>'leagueTypeId' AS type, l.state->'settings'->>'showId' AS show, l.state->'settings'->>'wikiSeason' AS season
+    `SELECT l.id, l.name, l.state->'settings'->>'leagueTypeId' AS type, l.state->'settings'->>'showId' AS show, l.state->'settings'->>'wikiSeason' AS season,
+            ${LEAGUE_SEASON_NAME} AS season_name
        FROM leagues l WHERE l.couch_id = $1 AND l.deleted_at IS NULL ORDER BY l.name`,
     [id]
   );
@@ -47,7 +48,8 @@ export async function deskCouch(id: string): Promise<DeskCouch> {
   const games = leagues.map((l) => ({
     leagueId: l.id,
     name: l.name,
-    season: [l.show, l.season].filter(Boolean).join(" "),
+    // By its name ("Survivor 51"), else as its state has it (a season that isn't in the catalog).
+    season: l.season_name ?? [l.show, l.season].filter(Boolean).join(" "),
     gameName: gameName(l.type),
     runners: seats
       .filter((s) => s.league_id === l.id && (s.role === "commissioner" || s.role === "admin" || s.site))

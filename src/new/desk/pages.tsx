@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, CalendarDays, Check, Grid3x3, Tv, Users, X, Zap } from "lucide-react";
+import { BookOpen, CalendarDays, Check, Grid3x3, Trophy, Tv, Users, X, Zap } from "lucide-react";
 import { researchLine } from "@/lib/desk-bot-words";
 import { colourOf } from "@/lib/people";
 import { airTime } from "../clock";
@@ -351,7 +351,7 @@ export function CouchPage({ id }: { id: string }) {
       </Section>
       <Section title="Games" aside={c.games.length}>
         {c.games.map((g) => (
-          <FieldRow key={g.leagueId} data="game" label={`${g.gameName} · ${g.season}`} value={`${g.name} · run by ${g.runners.join(", ") || "nobody"}`} />
+          <DeskRow key={g.leagueId} href={paths.deskItem("game", g.leagueId)} data="game" lead={<IconLead icon={Trophy} />} title={g.name} line={`${[g.gameName, g.season].filter(Boolean).join(" · ")} · run by ${g.runners.join(", ") || "nobody"}`} />
         ))}
         {!c.games.length && <p className="text-[14px] text-muted-foreground">No games yet.</p>}
       </Section>

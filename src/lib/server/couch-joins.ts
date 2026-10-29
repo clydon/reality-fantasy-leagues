@@ -304,7 +304,7 @@ export interface JoinGame {
 
 /** It's over: a winner, or nobody left, or its span's last episode is in (StateLogic.gameOver); for a game scored outside its
  *  state, its season's (or span's) last episode has aired. */
-function gameOver(s: LeagueState, schedule: SeasonSchedule | undefined): boolean {
+export function gameOver(s: LeagueState, schedule: SeasonSchedule | undefined): boolean {
   const type = StateLogic.getLeagueType(s);
   return type.hasCalls || type.hasBingo ? endedThrough(schedule, latestAired(schedule), StateLogic.endEpisode(s)) : StateLogic.gameOver(s);
 }

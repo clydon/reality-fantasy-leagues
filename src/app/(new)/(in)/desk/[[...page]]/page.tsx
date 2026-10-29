@@ -7,7 +7,7 @@ export const metadata: Metadata = { title: "Admin" };
 
 // The admin's desk (docs/PLAN-new-design.md step 6b part 2): /desk (Inbox), /desk/find, /desk/settings, the library and New
 // show (/desk/library, /desk/new: step 10 part 3), Find › People (/desk/people: PLAN-desk-parity.md step 1), Find › Reports
-// (/desk/reports: step 2), one
+// (/desk/reports: step 2), Find › Games (/desk/games: part 6a), one
 // thing's page at /desk/[kind]/[id], a page under a season at /desk/season/[id]/setup (step 3), and an episode at
 // /desk/season/[id]/e/[n] (step 4), and one of its cast at /desk/season/[id]/c/[castId] (step 5). Site admins only: every read
 // behind it is checked by its own /api/desk route.
