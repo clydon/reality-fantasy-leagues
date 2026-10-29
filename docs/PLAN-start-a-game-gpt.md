@@ -250,6 +250,7 @@ The user's examples, as people would type them on a show's page. They go into th
 | Survivor 51 | "every week we predict if it's going to rain" | A yes-or-no question each episode, once a moment settles it (A4) | No rain moment: the new-moment path (Our check). Likely rated unreliable, so a can't-yet with the nearest settled questions |
 | The Challenge | "I also want to automatically start a new draft stage whenever there is a major format change such as split into teams or split into individuals" | No | A12: a stage that starts on a format change of the kinds named, from each episode's research (Formats nobody announced, below). The wizard says what "major" covers. What players see, and whether the new draft waits for the maker's OK, are the format-change design session's (below) |
 | The Challenge | "draft solo players in the challenge. if we ever get teams forming or pairing up that lasts for multiple episode i want us to start a 'side draft' after that episode ends" | The solo draft: yes (a draft of people) | F3's grouping lifetimes ("lasts" is known only once it has: held N episodes), A12's side stage that opens on a lasting grouping and closes when it changes. If pairs change every episode, it never opens, and the builder says so up front from the show's history (F1). "When a grouping lasts", below |
+| The Challenge | A solo draft, then once teams or pairs are announced, a +1 or +2 slot on your roster for a pair or team for the next week ("Liz & Mark", "Justin & Susan"); if they stick, you ride with them, otherwise that slot just drops for everyone | The solo draft: yes | Group slots (A10, on F3's grouping lifetimes): "When a grouping lasts", below |
 
 What these need is in the engine track (Steps: A6, A9, A12, A13).
 
@@ -410,6 +411,15 @@ engine gives a game several ways to meet a change, and the builder picks with th
 - **The show's history sets expectations:** F1 measures how long groupings lasted on each show's recent seasons, so the
   builder can say so up front ("on the last three seasons, pairs lasted one to three episodes: a side draft might open once,
   or never; a pick each episode fits better").
+- **Group slots** (the user's third idea, and the one that needs no guessing): a solo draft, plus a +1 or +2 slot on each
+  roster that holds a pair or a team. When groupings are announced, the slots open for the next episode; while that group
+  lasts you ride with it; when it ends, its slot drops. Pairs that last make it a side draft, and pairs that change every
+  episode make it a pick each episode, with one mechanic and nothing to predict. What keeps it clean: a group is its exact
+  members, so any change to them ends it (a partner leaves, a swap, a re-pairing); when the show re-pairs everyone or goes
+  each for themselves, every slot drops at once; a slot opens after the episode that announced the groups and scores from
+  the next one (a group revealed mid-episode can't be picked before it). Open for the design session: an exclusive draft of
+  groups or a shared pick (fourteen pairs among ten players), +1 or +2, and whether a slot can be swapped while its group lasts.
+
 The engine builds all of them (F3's grouping lifetimes: who's in it, from which episode, until which); which ones the builder
 offers, their defaults and how the asking looks are the format-change design session's.
 
