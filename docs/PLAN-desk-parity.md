@@ -14,9 +14,10 @@ most urgent first with each item's row to act on, Coming up, Find › Reports an
 handed on through Hand on, Let in told by email; migration 0421; its As built is under step 2); **Step 3 ready to merge at 3df4e790: parts 3a and 3b** (a season's
 Setup: Name, Status held over its listing's dates, Who decides results, the season's Delete, migration 0422; its schedule:
 When it airs and Episodes previewed then saved, times and a count by hand holding over the listing's, a TV listing found,
-linked and unlinked, migration 0423; their As built is under step 3); **Part 4a done at 79de48c4, part 4b is next** (4a: a
-season's Research and the bot, Run now queued with what it waits behind and how far it's got, its schedule drawn as the next
-episode's night, Runs; migration 0424; its As built is under step 4). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
+linked and unlinked, migration 0423; their As built is under step 3); **Part 4a done at 79de48c4; Part 4b done at 28700f60,
+part 4c is next** (4a: a season's Research and the bot, Run now queued with what it waits behind and how far it's got, its
+schedule drawn as the next episode's night, Runs; migration 0424; 4b: an episode's page, its results from the shared facts
+with Accept all, Take it back, the desk's paste as a submission and Clear, no migration; their As built is under step 4). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
 either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
@@ -653,6 +654,72 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    a scheduled run or a One tap can start: the bot queues the second question itself ("waiting"), so nothing breaks, but
    that run's 300 s includes the wait. Only a claim the cron's planner reads would close it (db/bot-research.js, off limits
    here). (bb) Classic's Run now still asks inside its request until step 8, and the queue waits for it like any run.
+   **As built, part 4b (2026-10-29):** **an episode's page** (`/desk/season/<id>/e/<n>`: `routes.ts paths.deskEpisode`,
+   depth 4, Back to the season; the desk page route takes a fourth segment only as `season/<id>/e/<n>`; `src/new/desk/
+   episode.tsx`, `src/lib/server/desk-episode.ts`; `GET`, `POST` and `DELETE /api/desk/seasons/[id]/episodes/[n]`, `GET
+   .../question`). Read from the new design's shared facts (fact-status.ts), never classic's staged rows: a fact is **waiting**
+   when it's reported and not in the games, or names nobody in the cast (with the closest cast name as a guess, "Linnea
+   Capobianco, maybe?"); disputed, in every game (confirmed, one sure source, or canonical) and out (rejected or removed) as
+   their statuses say. As mocked: the lower third (Early, Final, Waiting; Tonight or Coming up before it airs; who went home,
+   or the season's name while names are hidden), its line, **Results** (Hide names: on by itself for an episode you haven't
+   seen by your own mark, guard.ts seenThrough; counts only; it also hides trivia, which names people too), *Not in the games
+   yet* (✕ ✓, Who?, Accept N or Accept all N), *Disputed* (Decide, to the fact's page), *In every game* by result (faces, who,
+   how sure), rejected or taken out; each result's sheet (why, Says it happened, then Accept/Reject/correct it, Who was it?,
+   Correct it and Take it out of every game, Unlock it, Put it back); **Answers** (each a source with who and when: a couch's
+   quick check or paste, One tap, our bot's Run now by whom or its schedule, a tie-break, the desk's own paste), each a sheet
+   (how many with another source agreeing and how many only it reported, what it was, Take it back); **Paste an answer**
+   (`AskAiPasteSheet`, the plain Ask an AI with the season's checklist as JSON, buildPasteImportPrompt structured) then
+   **Add it as a source?** (what it agrees with, what it confirms into every game, what it adds that waits, what it splits);
+   **Ask our bot** and **Write trivia now** (4a's `NowSheet`, now exported, on this episode); **Trivia** (the questions written
+   after it, each a sheet with Take it out or, out by an admin's flag, Put it back); **Bingo** a line until 4c (its own
+   squares or the season's bank, not a link); History (each answer as it came, the episode's desk lines, its facts' own);
+   **Clear Episode N's results** last (tier 3, held), offering Clear only what's waiting. Tiers as mocked: ✓ ✕ Correct Unlock
+   Put back and trivia tier 1 (a toast with Undo: `decideFact` now hands back its change id); Accept all, Take it out, Take
+   it back and a paste tier 2 (the sheet says what moves first: `community-results.ts settleWhatIf`, additive, settles the
+   episode with an answer left out or added, nothing written); Clear everything tier 3; Clear only what's waiting tier 1 with
+   Undo (its rows snapshotted and put back). New undo kinds in desk-undo.ts: `facts` (Accept all, put back in one sync:
+   desk-facts.ts `restoreFacts`), `answer` (a taken-back answer counts again; a paste is withdrawn), `trivia`, `cleared`.
+   Episode lines are the season's admin_changes (action `episode`, `after.episode`), so no migration. **The desk's paste is a
+   submission** of its own (source `paste`, the admin's, no couch), read as our bot's answer is (`researchFromPaste`
+   structured, merged into the stored answers when the episode has some, the wrong-episode check asking first: a 409 the
+   sheet already handles), then `sendResults`: the episode settles and every game follows. **What 4a left**: the season
+   page's Episodes are rows to their pages (the next one, then each aired one: "Aired Oct 21 · 3 not in the games yet", "in
+   every game", "no results yet"; `episodeRows`), its old per-fact drill-down gone (the facts are on the episode's page);
+   Research and the bot's **Not in the games yet** (episodes with results waiting: "2 one source wasn't sure of · 1 not in
+   the cast", no badge, decision 7; `waitingEpisodes`); a run's sheet links **Episode N's results** (full, who went home, a
+   tie-break, trivia; bingo's link is 4c's). `db/episode-research.d.ts` declares `researchFromPaste`'s other options and what
+   it returns (no export changed).
+   **Left behind or changed from classic, and why (decision 10):** classic's results queue (`decisions` GET/PATCH, accept-
+   episode) reviews staged `season_decisions` with no fact status, rows only a wiki pull or classic's own research staged:
+   the desk reads facts, so those rows never show (decision 7: results settle when sources agree), and classic's
+   accept-episode is Accept all over the facts; classic's research POST (paid Claude search, a model picked per browser) stays
+   behind (decision 9), and its paste, which staged for review, became a submission that counts at once like a couch's; the
+   wiki sync route stays with classic (decision 9). Classic's Discard (delete research only, keep what the wiki staged) has no
+   place without a wiki: Clear only what's waiting is the light clear, and it deletes only facts not in the games, with Undo,
+   where classic's couldn't be undone. Clear everything is classic's `scope=everything` plus the episode's quick checks
+   waiting in Backstage and the flags on its results (both answers and results by then); it leaves the episode's trivia (the
+   mock's code dropped it, its sheet doesn't say so) and its research asks. From the mock: "ChatGPT, signed in" (the desk can't
+   know); Correct it's "What happened" lists the show's ways out for an exit and its moments for a moment, nothing for other
+   kinds; Who was it? lists the cast still in for the episode (by accepted exits before it). A couch's quick check and later
+   paste are one source (fact-status.ts counts by who sent it), so "3 sources agree" can read 2 where one person sent two.
+   `/code-review` found Clear only what's waiting deleting a stranger's result already in the games before the leagues let go
+   of it (its record of what each was given goes with the row), Accept all and that clear acting on whatever waited when the
+   request came rather than what the sheet showed (both now send the ids they showed), an episode with no air time never
+   counting as aired (taken as aired now, as classic's research was), Hide names still naming the stranger in Accept all's
+   line and a "Nobody went home" line in the previews, Correct it's default for an exit with no way out given, and a
+   noexit's "correct it", each paste previewed twice, the game count's own copy of the league-to-season join, and the
+   season read still sending every result for the old drill-down: all fixed. Left as it found: the episode's mutations read
+   the whole page to find their facts (a few more queries a change, for one rule of what waits).
+   Check: `scripts/dev-test/check-desk-episode.js` 91 PASS at 390 (zt_de_ fixture, up and down; the bot never asked, Ask our
+   bot and Write trivia now only open Run now); check-desk-research 95, check-desk-setup 158, check-desk-inbox 106,
+   check-desk-people 249, check-classic-admin 22, check-new-settings 111, check-new-settling 96, unit tests 840;
+   check-new-desk without its rulebook section (a scratch copy, deleted) failed only (ab)'s "every league renames him", as
+   in 3a-4a.
+   **Noticed, not fixed (4b):** (bc) a result named for someone not in the cast can already be in every game (one sure
+   source): the leagues skip it (no such castaway), so it scores nobody until Who? names them; it shows waiting here. Whether
+   such a fact should wait instead is fact-status.ts's (settleFact knows no cast): for whoever next takes results settling.
+   (bd) Undo of a desk paste withdraws it as a couch's Undo does, but its answers stay folded into the stored ones (the
+   combined row) that later questions are cut down from; a couch's Undo does the same. For the same.
 5. **Seasons: cast.** Pull from the wiki and pull again, approve and send to the games, remove someone, hold starting groups
    until Episode 1.
    **As mocked (2026-10-28, `desk-cast.js` and `desk-cast.css`, waiting for approval):** Running it › Cast opens a page of its
