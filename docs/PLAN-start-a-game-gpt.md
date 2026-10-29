@@ -248,6 +248,7 @@ The user's examples, as people would type them on a show's page. They go into th
 | Survivor 51 | "a single episode game where we must predict different things, most correct wins" | Yes: one episode (A3), a game of questions (A4): who goes home, yes or no, how many | A6 for "who wins immunity" questions |
 | Dancing with the Stars 34 | "everyone predicts the scores of each couple; whoever's closest to the average gets a point; ties both get points" | Closest wins and ties all score (A4's number answer) | A6: a question for each couple, settled by research's `judgesScore`. The wizard asks: this episode or the season? The judges' total or their average? |
 | Survivor 51 | "every week we predict if it's going to rain" | A yes-or-no question each episode, once a moment settles it (A4) | No rain moment: the new-moment path (Our check). Likely rated unreliable, so a can't-yet with the nearest settled questions |
+| The Challenge | "I also want to automatically start a new draft stage whenever there is a major format change such as split into teams or split into individuals" | No | A12: a stage that starts on a format change of the kinds named, from each episode's research (Formats nobody announced, below). The wizard says what "major" covers. What players see, and whether the new draft waits for the maker's OK, are the format-change design session's (below) |
 
 What these need is in the engine track (Steps: A6, A9, A12, A13).
 
@@ -367,6 +368,29 @@ nobody announced:
 Its home is A12 (a stage the show starts, not one the game planned), and it holds for every step from A9 on, along with A6's
 choices and A7's windows. A rule call the Decisions table doesn't settle (which fallback by default, what the maker hears)
 goes in the step's Noticed with a recommendation, for the user.
+
+**A change can also be what a game is built around** (the user, 2026-10-28): "automatically start a new draft stage whenever
+there is a major format change such as split into teams or split into individuals" (Requests from a show's page). So:
+
+- **A stage can start on a format change**, as well as on an episode or a rulebook phase: of the kinds the spec names, from the
+  episode the research says it took effect. A new draft is one thing a stage can start with.
+- **"Major" is data, not a judgment at game time.** Research reports each change as one of a small vocabulary of kinds (teams
+  formed, split into individuals, pairs, a swap, a merge, a new phase, a twist), and the spec names which kinds count. The
+  wizard says in words what the game will treat as major.
+- **Only a reliable report moves a game's structure.** A change research is unsure of gets the safe fallbacks only, and is
+  flagged. A structural action that came from research that turns out wrong is undone when the research is corrected, as a
+  result taken back is.
+- **A structural action can wait for the maker's OK or run by itself with an undo.** The engine builds both; which is the
+  default is the user's call.
+
+**There's a lot at stake, so the decisions are the user's, made in a design session, not in a lane** (the user, 2026-10-28).
+Lanes build the engine's pieces (the vocabulary, the triggers, the fallbacks, both kinds of structural action, the undo, blind
+replays) and decide nothing a person sees. The format-change design session, with the user and mocked at 390 first like the
+rest, settles: how a maker asks for it (the builder's words, the wizard's assumptions); what players see when a change lands
+(what changed, what the game did, a new draft opening and its deadline); what the maker and the commissioner can confirm,
+change or undo; how a wrong report is put right in front of the players; and the edge cases (a change during a draft, two
+changes in one episode, a change in the finale, a change that comes back). It runs after A12, so it designs on what the
+engine does, before any of its UI is built; then the UI follows it (U0 for the wizard's part, the game pages for the rest).
 
 ## Live sports in the same engine (folded in 2026-10-28)
 
