@@ -171,6 +171,15 @@ function read(S, st) {
       }
       games += rows.length;
       reads += n;
+      // A season whose replays made no game proves nothing (a database a migration behind fails every game's start, and the
+      // replays still exit 0): a failure, with what the replays said went wrong.
+      if (!rows.length) {
+        failures++;
+        const said = (played.stdout || "").split("\n").filter((l) => /^\s+!/.test(l)).slice(0, 4);
+        console.log(`FAIL  ${key}: the replays made no game${said.length ? `\n${said.join("\n")}` : ""}`);
+        spawnSync("node", ["scripts/dev-test/playtest.js", "down"], { cwd: afterTree, env, encoding: "utf8" });
+        continue;
+      }
       if (diffs.length) failures++;
       console.log(`${diffs.length ? "FAIL" : "PASS"}  ${key}: ${rows.length} games, ${n} reads${diffs.length ? `, ${diffs.length} differ` : ", every one the same"} (${Math.round((Date.now() - t0) / 1000)}s)`);
       for (const d of diffs.slice(0, 10)) console.log(`      ${d}`);

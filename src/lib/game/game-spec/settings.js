@@ -152,11 +152,14 @@ function readSpec(st, copy) {
   // (captainTimes), points that multiply by when (pointsTimes), Outlast in reverse (reverseOrder). Each only when it's set, so a
   // league that has none reads as it always did.
   const best = type === 'active-roster' && st.bestBall === true;
-  // A10 part 3: a draw (settings.draftDraw) and a draft spread across the cast's groups (draftAcross, as the spec says it), each
-  // only when it's set, so a draft that has neither reads as it always did.
+  // A10 part 3: a draw (settings.draftDraw) and a draft spread across the cast's groups (draftAcross, as the spec says it); part
+  // 3b: an auction (draftAuction) and a draft's prices (draftBudget, as the spec says it). Each only when it's set, so a draft
+  // that has none reads as it always did.
   const drafted = (each) => {
-    const get = { by: 'draft', each, order: st.draftDraw === true ? 'draw' : ORDER_OF[own], own };
+    const order = st.draftAuction === true ? 'auction' : st.draftDraw === true ? 'draw' : ORDER_OF[own];
+    const get = { by: 'draft', each, order, own };
     if (isObj(st.draftAcross)) get.across = copy ? clone(st.draftAcross) : st.draftAcross;
+    if (isObj(st.draftBudget)) get.budget = copy ? clone(st.draftBudget) : st.draftBudget;
     return get;
   };
   if (type === 'classic-draft') {
@@ -326,6 +329,9 @@ function settingsOf(spec) {
   const draft = s.get.by === 'draft';
   out.draftDraw = draft && s.get.order === 'draw' ? true : undefined;
   out.draftAcross = draft && isObj(s.get.across) ? clone(s.get.across) : undefined;
+  // A10 part 3b: an auction, and a draft's prices.
+  out.draftAuction = draft && s.get.order === 'auction' ? true : undefined;
+  out.draftBudget = draft && isObj(s.get.budget) ? clone(s.get.budget) : undefined;
   return out;
 }
 
@@ -373,7 +379,7 @@ const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFee
 const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
   { fields: ['startEpisode', 'startPhase', 'endEpisode'], read: (s) => s.span },
-  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'draftDraw', 'draftAcross'], read: (s) => [s.get, s.count] },
+  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget'], read: (s) => [s.get, s.count] },
   { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans'], read: (s) => s.score },
   { fields: ['poolRank'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },

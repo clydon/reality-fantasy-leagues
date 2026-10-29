@@ -23,7 +23,8 @@ export interface BlindDraftLockResult {
   revealed: boolean;
 }
 
-async function lockedIdsFor(client: PoolClient, leagueId: string): Promise<string[]> {
+/** Who has a sheet in (a row is a lock), oldest first: a blind draft's picks, or an auction's bids (auction.ts). */
+export async function lockedIdsFor(client: PoolClient, leagueId: string): Promise<string[]> {
   const { rows } = await client.query(
     "SELECT player_id FROM blind_draft_picks WHERE league_id=$1 ORDER BY locked_at, player_id",
     [leagueId]

@@ -231,10 +231,13 @@ function check(ok, what, detail = "") {
       // A10 part 3: a draft spread across the tribes, and names out of a hat (a draw, not drawn until its draft starts).
       ["s05", "an Outlast spread across the tribes", (st) => G.sameValue(st.settings.draftAcross, { of: "group", then: "keep" }) && S.SpreadLogic.groupsNow(st)?.groups.length === 3],
       ["s38", "names out of a hat", (st) => st.settings.draftDraw === true && S.DrawLogic.on(st) && !S.DrawLogic.drawn(st)],
+      // A10 part 3b: an auction (its budget's defaults filled in, not settled until its bidding), and a salary cap.
+      ["s03", "an auction, 100 each", (st) => st.settings.draftAuction === true && G.sameValue(st.settings.draftBudget, { total: 100, floor: 1, fallback: "fill" }) && S.AuctionLogic.on(st) && !S.AuctionLogic.settled(st)],
+      ["s04", "a salary cap of 100", (st) => G.sameValue(st.settings.draftBudget, { total: 100, floor: 1, gone: "zero", ceiling: 49 }) && S.BudgetLogic.cap(st) === 100],
     ]) {
       r = await labStart({ spec: rowSpec(row) });
       const st = r.body.leagueId ? (await pool.query("SELECT state FROM leagues WHERE id = $1", [r.body.leagueId])).rows[0]?.state : null;
-      const step = row === "who.groupSlots" ? "A10 part 1" : ["s05", "s38"].includes(row) ? "A10 part 3" : /^s\d/.test(row) ? "A10 part 2" : "A9 part 2";
+      const step = row === "who.groupSlots" ? "A10 part 1" : ["s05", "s38"].includes(row) ? "A10 part 3" : ["s03", "s04"].includes(row) ? "A10 part 3b" : /^s\d/.test(row) ? "A10 part 2" : "A9 part 2";
       check(r.status === 200 && !!st && holds(st) && checkLeague(st).ok, `${step}: ${what} starts as a test game, in its fields`, JSON.stringify(r.body).slice(0, 300));
     }
 

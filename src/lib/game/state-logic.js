@@ -588,10 +588,15 @@ class SnakeDraftStrategy {
     if(!turn || turn.isComplete || !c || leagueOwnersOf(state, c).length) return;
     // A10 part 3: a draft spread across the cast's groups takes only a pick that keeps the team spread (pickProblem says why).
     if(SpreadLogic.pickProblem(state, turn.playerId, castawayId)) return;
+    // Part 3b: a salary cap takes only a pick that keeps the team within it (pickProblem says why); its price goes in the log.
+    const prices = BudgetLogic.cap(state) === null ? null : PriceLogic.prices(state);
+    if(prices && BudgetLogic.pickProblem(state, turn.playerId, castawayId, prices)) return;
+    const price = prices ? prices.get(castawayId) : null;
     Core.setOwner(state, castawayId, turn.playerId);
     c.acquiredVia = 'draft';
     state.draftPicksMade++;
     const entry = { n: turn.overallPickNumber, playerId: turn.playerId, castawayId, at: new Date().toISOString() };
+    if(price != null) entry.price = price;
     if(opts && opts.by) entry.by = opts.by;
     if(opts && opts.auto) entry.auto = true;
     if(!Array.isArray(state.draftLog)) state.draftLog = [];
@@ -725,8 +730,8 @@ class BlindDraftLogic {
       // active cast is offered to every player every time (see RosterLogic.freeAgents' comment).
       if(c.status !== 'active') return `${c.name} is already eliminated`;
     }
-    // A10 part 3: spread across the cast's groups, as the data has them now.
-    return SpreadLogic.teamProblem(state, ids);
+    // A10 part 3: spread across the cast's groups, as the data has them now; part 3b: within a salary cap at today's prices.
+    return SpreadLogic.teamProblem(state, ids) || BudgetLogic.teamProblem(state, ids);
   }
   // Applies every player's picks at once. `picksByPlayer` is {[playerId]: castawayId[]}, read from
   // blind_draft_picks by the caller inside the same transaction that holds the league row lock.
@@ -885,7 +890,8 @@ class SpreadLogic {
 // (outcome), so the same seed deals the same teams, and every read after reads them from ownership. Exclusive: one hat for
 // everyone, nobody shares, and a team the hat runs out on is short (the fallback: carry on with what's left; the
 // exclusive-or-shared count refuses such a game where it knows the couch); shared: each seat's own hat, the whole cast still
-// in. A spread draw (get.across) takes from each hat the first that keeps the team spread. Someone who joins after the draw
+// in. A spread draw (get.across) takes from each hat the first that keeps the team spread, and one with a salary cap (part 3b)
+// the first that keeps it within the cap (BudgetLogic: with nobody who does, the next in the hat). Someone who joins after the draw
 // joins as after any finished draft (inactive until whoever runs it adds them, or a late joiner).
 class DrawLogic {
   static on(state){ const g = gameOf(state).get; return g.by === 'draft' && g.order === 'draw'; }
@@ -900,6 +906,7 @@ class DrawLogic {
     const order = shuffled((state.players || []).filter(inLeagueRotation).map(p => p.id), 'seat');
     const cast = (state.castaways || []).filter(c => c.status === 'active').map(c => c.id).sort();
     const g = SpreadLogic.groupsNow(state);
+    const prices = BudgetLogic.cap(state) === null ? null : PriceLogic.prices(state);
     const teams = Object.fromEntries(order.map(id => [id, []]));
     const common = shared ? null : shuffled(cast, 'hat');
     const hats = shared ? Object.fromEntries(order.map(id => [id, shuffled(cast, id)])) : null;
@@ -907,7 +914,7 @@ class DrawLogic {
       order.forEach(pid => {
         const left = shared ? hats[pid].filter(id => !teams[pid].includes(id)) : common;
         if(!left.length) return;
-        const take = SpreadLogic.allowed(state, teams[pid], left, g)[0];
+        const take = draftFits(state, teams[pid], left, g, prices || undefined)[0];
         teams[pid].push(take);
         if(!shared) common.splice(common.indexOf(take), 1);
       });
@@ -967,6 +974,332 @@ class DrawDraftStrategy {
   static move(){ /* the draw decides the order */ }
   static pick(){ /* nobody picks: the draw deals */ }
   static undo(){ /* a draw isn't taken back pick by pick */ }
+}
+
+// ---------- PriceLogic, BudgetLogic, AuctionLogic: a draft's prices (A10 part 3b: the spec's get.budget) ----------
+// "Auction draft: everyone gets $100 to bid on castaways", "Salary cap: couples cost more the better they're doing"
+// (docs/PLAN-start-a-game-gpt.md step A10 part 3b). What a castaway costs comes from data, never a person's word: in an auction,
+// the bids (AuctionLogic: sealed, settled at once, the highest first, ties by a seed); in a salary cap, each castaway's points
+// so far by the game's own rules (PriceLogic: where they stand, the best at the highest price and the last at the lowest, and
+// before anyone's scored everyone the same), which move with every episode's results. A cap (BudgetLogic) holds a team's prices
+// together to the budget when it's drafted and whenever it changes after (waivers, free agency, a replacement filled for them);
+// its fallbacks, from the start: the cap never blocks a draft (with nobody left who fits, anyone can be taken), and a team that
+// went over as its prices moved keeps its team, though a change can't take it further over.
+class PriceLogic {
+  static config(state){ return Spec.budgetParts(gameOf(state)); }
+  // A salary cap: a budget beside any draft but an auction, its prices from the data.
+  static capOn(state){ const b = PriceLogic.config(state); return !!b && !b.auction; }
+  // Each castaway's points so far by the game's own rules: the moments recorded for them in every episode with results through
+  // `through` (the whole season's, not only the game's span: how they're doing), at the game's points for each.
+  static points(state, through){
+    const out = new Map((state.castaways || []).map(c => [c.id, 0]));
+    (state.episodes || []).forEach(ep => {
+      if(ep.resultsHidden || !EpisodeLogic.hasResults(ep) || (through != null && ep.number > through)) return;
+      ActiveRosterLogic.episodeEvents(state, ep).forEach(ev => {
+        if(out.has(ev.castawayId)) out.set(ev.castawayId, out.get(ev.castawayId) + ActiveRosterLogic.eventPoints(state, ev));
+      });
+    });
+    out.forEach((v, k) => out.set(k, roundPoints(v)));
+    return out;
+  }
+  // The latest episode with results (0: none yet).
+  static latest(state){
+    return (state.episodes || []).filter(ep => !ep.resultsHidden && EpisodeLogic.hasResults(ep)).reduce((n, ep) => Math.max(n, ep.number), 0);
+  }
+  // A salary cap's prices as of episode `through` (the latest with results when left out), as { castawayId -> price }: those still
+  // in then by their points so far, the best at the highest price and the last at the lowest, evenly between, ties sharing the
+  // middle of their places (before anyone's scored everyone costs the middle), whole numbers; someone gone home by then by the
+  // cap's gone rule (nothing, or what they cost going into the episode they went home in). Empty without a cap.
+  static prices(state, through){
+    const b = PriceLogic.config(state);
+    if(!b || b.auction) return new Map();
+    const at = through == null ? PriceLogic.latest(state) : through;
+    const number = new Map((state.episodes || []).map(e => [e.id, e.number]));
+    const exitOf = c => (c.status === 'eliminated' ? number.get(c.exitEpisodeId) || 0 : null);
+    const standings = new Map();
+    const standing = (n) => {
+      if(standings.has(n)) return standings.get(n);
+      const pts = PriceLogic.points(state, n);
+      const inThen = (state.castaways || []).filter(c => { const e = exitOf(c); return e === null || e > n; });
+      const sorted = [...inThen].sort((x, y) => pts.get(y.id) - pts.get(x.id) || (x.id < y.id ? -1 : x.id > y.id ? 1 : 0));
+      const k = sorted.length;
+      const out = new Map();
+      for(let i = 0; i < k;){
+        let j = i;
+        while(j + 1 < k && pts.get(sorted[j + 1].id) === pts.get(sorted[i].id)) j++;
+        const place = (i + j) / 2;
+        const price = k <= 1 ? b.ceiling : Math.round(b.floor + (b.ceiling - b.floor) * (k - 1 - place) / (k - 1));
+        for(let x = i; x <= j; x++) out.set(sorted[x].id, price);
+        i = j + 1;
+      }
+      standings.set(n, out);
+      return out;
+    };
+    const now = new Map(standing(at));
+    (state.castaways || []).forEach(c => {
+      if(now.has(c.id)) return;
+      const e = exitOf(c) || 0;
+      now.set(c.id, b.gone === 'last' && e > 0 ? (standing(e - 1).get(c.id) ?? b.floor) : 0);
+    });
+    return now;
+  }
+}
+
+class BudgetLogic {
+  // A salary cap's budget, or null (no cap: an auction's budget is spent in the auction).
+  static cap(state){ return PriceLogic.capOn(state) ? PriceLogic.config(state).total : null; }
+  static cost(ids, prices){ return roundPoints(ids.reduce((n, id) => n + (prices.get(id) || 0), 0)); }
+  // `candidates` (castaway ids that could be taken now) that keep a team with `picked` within the cap, with room left to fill its
+  // other places at the cheapest of the rest, in their order: all of them without a cap, or when none does (the cap never blocks
+  // a draft: the team goes over, and its changes after can't take it further over).
+  // `pool`: everyone who could fill the team's other places (`candidates` when left out; the spread can narrow the next pick's
+  // candidates, not who fills the places after it).
+  static allowed(state, picked, candidates, prices, pool){
+    const cap = BudgetLogic.cap(state);
+    if(cap === null) return candidates.slice();
+    const p = prices || PriceLogic.prices(state);
+    const ok = candidates.filter(id => BudgetLogic.least(state, picked, id, pool || candidates, p) <= cap);
+    return ok.length ? ok : candidates.slice();
+  }
+  // The least a team with `picked` costs once it takes `id`: its prices, and the cheapest of the rest of `pool` for each place
+  // still to fill.
+  static least(state, picked, id, pool, prices){
+    const left = rosterSize(state) - picked.length - 1;
+    const rest = pool.filter(c => c !== id && !picked.includes(c)).map(c => prices.get(c) || 0).sort((a, b) => a - b).slice(0, Math.max(0, left));
+    return roundPoints(BudgetLogic.cost(picked, prices) + (prices.get(id) || 0) + rest.reduce((n, v) => n + v, 0));
+  }
+  static reason(state, cost, more){
+    return `Your team would cost ${more ? 'at least ' : ''}${cost}${more ? `, with ${more} more to pick at the cheapest` : ''}: the cap is ${BudgetLogic.cap(state)}`;
+  }
+  // Why a turn-based pick takes a team past the cap, or null: refused only while someone else who keeps the team spread (the
+  // spread's own check comes first) would keep it within, with room for the rest of the team at the cheapest.
+  static pickProblem(state, playerId, castawayId, p){
+    if(BudgetLogic.cap(state) === null) return null;
+    const free = RosterLogic.freeAgents(state).map(c => c.id);
+    if(!free.includes(castawayId)) return null;
+    const mine = Core.ownedCastawayIds(state, playerId);
+    const prices = p || PriceLogic.prices(state);
+    const spread = SpreadLogic.allowed(state, mine, free);
+    if(!spread.includes(castawayId) || BudgetLogic.allowed(state, mine, spread, prices, free).includes(castawayId)) return null;
+    return BudgetLogic.reason(state, BudgetLogic.least(state, mine, castawayId, free, prices), Math.max(0, rosterSize(state) - mine.length - 1));
+  }
+  // Why a whole team chosen at once (a blind draft's) costs more than the cap, or null; never when even the cheapest team (kept
+  // spread) would (the cap never blocks a draft).
+  static teamProblem(state, castawayIds){
+    const cap = BudgetLogic.cap(state);
+    if(cap === null) return null;
+    const prices = PriceLogic.prices(state);
+    const cost = BudgetLogic.cost(castawayIds, prices);
+    if(cost <= cap) return null;
+    const g = SpreadLogic.groupsNow(state);
+    const cheap = (state.castaways || []).filter(c => c.status === 'active').map(c => c.id).sort((x, y) => (prices.get(x) || 0) - (prices.get(y) || 0));
+    const team = [];
+    for(let i = 0; i < rosterSize(state); i++){
+      const next = SpreadLogic.allowed(state, team, cheap.filter(id => !team.includes(id)), g)[0];
+      if(!next) break;
+      team.push(next);
+    }
+    return BudgetLogic.cost(team, prices) > cap ? null : BudgetLogic.reason(state, cost);
+  }
+  // Why a change to a team after the draft (a waiver claim's pair, free agency, a replacement filled for them: drop `dropId`, add
+  // `addId`) takes it past the cap at today's prices, or null: within the cap, or no further over than it is (a team that went
+  // over as its prices moved keeps its team; a change can't take it further over).
+  static moveProblem(state, playerId, dropId, addId, prices){
+    const cap = BudgetLogic.cap(state);
+    if(cap === null) return null;
+    const p = prices || PriceLogic.prices(state);
+    const team = Core.ownedCastawayIds(state, playerId);
+    const before = BudgetLogic.cost(team, p);
+    const after = roundPoints(before - (dropId && team.includes(dropId) ? (p.get(dropId) || 0) : 0) + (p.get(addId) || 0));
+    if(after <= cap || after <= before) return null;
+    // A replacement for someone gone home is never refused when nobody they could take is cheaper: the cap never leaves a place
+    // empty (the same one autoPick would fill it with).
+    const drop = dropId ? Core.getCastaway(state, dropId) : null;
+    if(!drop || drop.status !== 'active'){
+      const cheapest = Math.min(...MidSeasonLogic.availableFor(state, playerId).map(c => p.get(c.id) || 0));
+      if((p.get(addId) || 0) <= cheapest) return null;
+    }
+    const c = Core.getCastaway(state, addId);
+    return `${c ? c.name : 'They'} cost${c ? 's' : ''} ${p.get(addId) || 0}: your team would cost ${after}, and the cap is ${cap}`;
+  }
+}
+
+// What a team with `picked` could take next of `candidates`, kept spread across the cast's groups (SpreadLogic) and within a
+// salary cap (BudgetLogic), in their order: every candidate when neither applies, and never none while there's someone to take
+// (each one's fallback). `g` and `prices`, when they're read once a pass.
+function draftFits(state, picked, candidates, g, prices){
+  return BudgetLogic.allowed(state, picked, SpreadLogic.allowed(state, picked, candidates, g), prices, candidates);
+}
+// Who a turn-based draft's player could take next, of `candidates` (the free agents when left out).
+function draftFitsFor(state, playerId, candidates){
+  return draftFits(state, Core.ownedCastawayIds(state, playerId), candidates || RosterLogic.freeAgents(state).map(c => c.id));
+}
+
+// An auction (the spec's get.order 'auction', exclusive): once the bidding opens (the draft's start: its scheduled time or the
+// Commissioner's Start), everyone bids in private on whom they want, as many as three for each place on their team, each bid a
+// whole number from the lowest price up to what's left after the lowest price for every other place. The bids live outside the
+// state (blind_draft_picks, as a blind draft's picks do: src/lib/server/auction.ts); the state holds who has locked in. It
+// settles at once, the moment everyone has locked in, or when the game's first episode starts with bids still out (the
+// fallback: nobody waits for someone; whoever runs the game can also lock in an empty sheet for them): every bid from the
+// highest down, each won at what was bid (ties: a seeded order, recorded, so the same bids settle the same way), and a team its
+// bids didn't fill is filled from what's left at the lowest price, or left short (the spec's fallback). Someone who joins after
+// it joins as after any finished draft.
+class AuctionLogic {
+  static on(state){ const g = gameOf(state).get; return g.by === 'draft' && g.order === 'auction'; }
+  static settled(state){ return !!(state.auction && state.auction.at); }
+  static lockedPlayerIds(state){ return (state.auction && state.auction.lockedPlayerIds) || []; }
+  static hasLocked(state, playerId){ return AuctionLogic.lockedPlayerIds(state).includes(playerId); }
+  static setLockedPlayerIds(state, playerIds){
+    if(!state.auction) state.auction = { lockedPlayerIds: [] };
+    state.auction.lockedPlayerIds = [...playerIds];
+  }
+  static eligiblePlayers(state){ return (state.players || []).filter(inLeagueRotation); }
+  static waitingOn(state){
+    const locked = AuctionLogic.lockedPlayerIds(state);
+    return AuctionLogic.eligiblePlayers(state).filter(p => !locked.includes(p.id));
+  }
+  static allLockedIn(state, lockedPlayerIds){
+    const eligible = AuctionLogic.eligiblePlayers(state);
+    return eligible.length > 0 && eligible.every(p => lockedPlayerIds.includes(p.id));
+  }
+  // The most one bid can be: the budget, less the lowest price for every other place on the team.
+  static maxBid(state){ const b = PriceLogic.config(state); return b.total - b.floor * Math.max(0, rosterSize(state) - 1); }
+  // How many bids a sheet holds: three for each place on the team (backups), up to the spec's most.
+  static maxBids(state){ return Math.min(Spec.MAX_BIDS, Math.max(1, rosterSize(state) * 3)); }
+  // Why one player's sealed bids can't be locked in, or null: [{ castawayId, bid }], none (fill me) up to maxBids, each on someone
+  // still in and on nobody's team, once, a whole number from the lowest price to maxBid.
+  static validateBids(state, playerId, bids){
+    if(!AuctionLogic.on(state)) return 'This game is not an auction';
+    if(!DraftLogic.isStarted(state)) return "The bidding hasn't opened yet";
+    if(AuctionLogic.settled(state)) return 'The auction is over';
+    if(!AuctionLogic.ready(state)) return 'The teams are made already';
+    const player = Core.getPlayer(state, playerId);
+    if(!player) return 'No such player';
+    if(player.disabled) return 'That seat has been disabled';
+    if(!inLeagueRotation(player)) return 'That player is not in this auction';
+    if(!Array.isArray(bids)) return 'Bids are a list of { castawayId, bid }';
+    const b = PriceLogic.config(state);
+    const most = AuctionLogic.maxBids(state);
+    if(bids.length > most) return `Bid on up to ${most}`;
+    const max = AuctionLogic.maxBid(state);
+    const seen = new Set();
+    for(const x of bids){
+      const c = x && typeof x === 'object' ? Core.getCastaway(state, x.castawayId) : null;
+      if(!c) return 'Unknown castaway in your bids';
+      if(seen.has(c.id)) return `${c.name} is in your bids twice`;
+      seen.add(c.id);
+      if(c.status !== 'active') return `${c.name} is already out`;
+      if(leagueOwnersOf(state, c).length) return `${c.name} is on a team already`;
+      if(!Number.isInteger(x.bid) || x.bid < b.floor || x.bid > max) return `A bid is a whole number from ${b.floor} to ${max} (you need ${b.floor} for each other place on your team)`;
+    }
+    return null;
+  }
+  // A sheet from an order of castaways (best first): the budget spread over the first team's worth by rank (the first the most),
+  // the rest of the order (up to maxBids) as backups at the lowest price, every bid within maxBid. How computer players bid
+  // (bot-logic.js auctionBids) and the replays' seats (playtest.js), each by its own order.
+  static sheetFor(state, order){
+    const b = PriceLogic.config(state);
+    const size = rosterSize(state);
+    const max = AuctionLogic.maxBid(state);
+    const list = order.slice(0, AuctionLogic.maxBids(state));
+    const weights = list.slice(0, size).map((_, i) => size - i);
+    const sum = weights.reduce((n, w) => n + w, 0) || 1;
+    const spare = b.total - b.floor * size;
+    return list.map((id, i) => ({ castawayId: id, bid: i < size ? Math.min(max, b.floor + Math.floor((spare * weights[i]) / sum)) : b.floor }));
+  }
+  // Who wins whom from everyone's sealed bids ({ playerId: [{ castawayId, bid }] }), changing nothing: { order (the seats in the
+  // seed's order, the order a fill goes round in), won: [{ playerId, castawayId, price, filled? }] in the order settled, spent:
+  // { playerId: n }, short: the seats with fewer than a team }. Every bid from the highest down, ties in the seed's order; each
+  // won at what was bid while its castaway is still free, the bidder's team has a place, they can still pay the lowest price
+  // for every place after it, and it keeps a spread team spread. Then, with the fallback 'fill', every team still short takes,
+  // a round at a time, the first in a seeded hat of what's left that keeps it spread, at the lowest price.
+  static outcome(state, bidsByPlayer, seed){
+    const b = PriceLogic.config(state);
+    const each = rosterSize(state);
+    const rank = key => hashUnit(`${seed}|${key}`);
+    const byRank = prefix => (x, y) => rank(`${prefix}|${x}`) - rank(`${prefix}|${y}`) || (x < y ? -1 : x > y ? 1 : 0);
+    const order = AuctionLogic.eligiblePlayers(state).map(p => p.id).sort(byRank('seat'));
+    const free = new Set((state.castaways || []).filter(c => c.status === 'active' && !leagueOwnersOf(state, c).length).map(c => c.id));
+    const g = SpreadLogic.groupsNow(state);
+    const teams = Object.fromEntries(order.map(id => [id, []]));
+    const spent = Object.fromEntries(order.map(id => [id, 0]));
+    const won = [];
+    const canPay = (pid, price) => price <= b.total - spent[pid] - b.floor * (each - teams[pid].length - 1);
+    const take = (pid, cid, price, filled) => {
+      teams[pid].push(cid);
+      spent[pid] += price;
+      free.delete(cid);
+      won.push(filled ? { playerId: pid, castawayId: cid, price, filled: true } : { playerId: pid, castawayId: cid, price });
+    };
+    const bids = [];
+    order.forEach(pid => ((bidsByPlayer && bidsByPlayer[pid]) || []).forEach(x => {
+      if(x && free.has(x.castawayId) && Number.isInteger(x.bid) && x.bid >= b.floor) bids.push({ pid, cid: x.castawayId, bid: x.bid });
+    }));
+    bids.sort((x, y) => y.bid - x.bid || rank(`bid|${x.cid}|${x.pid}`) - rank(`bid|${y.cid}|${y.pid}`));
+    bids.forEach(x => {
+      if(!free.has(x.cid) || teams[x.pid].length >= each || !canPay(x.pid, x.bid)) return;
+      if(!SpreadLogic.allowed(state, teams[x.pid], [...free], g).includes(x.cid)) return;
+      take(x.pid, x.cid, x.bid, false);
+    });
+    if(b.fallback === 'fill'){
+      const hat = [...free].sort(byRank('hat'));
+      for(let round = 0; round < each; round++){
+        order.forEach(pid => {
+          if(teams[pid].length >= each || !canPay(pid, b.floor)) return;
+          const left = hat.filter(id => free.has(id));
+          if(left.length) take(pid, SpreadLogic.allowed(state, teams[pid], left, g)[0], b.floor, true);
+        });
+      }
+    }
+    return { order, won, spent, short: order.filter(id => teams[id].length < each) };
+  }
+  // Settles it, once: ownership as the outcome says, each a line in the draft's log in the order settled (its price, and filled:
+  // true for one the bids didn't win), the seed's seat order as the draft's (the waivers' priority reads it), and state.auction's
+  // record (when, the seed, the order, what each spent, who's short). `seed`: its own (a fresh one when left out).
+  // An auction that can settle: open, someone to sell to, and nobody on a team yet (a league whose teams were made another way
+  // before it became an auction keeps them: it's never settled over, as a draw is never dealt over).
+  static ready(state){
+    return AuctionLogic.on(state) && !AuctionLogic.settled(state) && !state.draftPicksMade && (state.players || []).some(inLeagueRotation)
+      && !(state.castaways || []).some(c => leagueOwnersOf(state, c).length);
+  }
+  static settle(state, bidsByPlayer, seed){
+    if(!AuctionLogic.ready(state)) return false;
+    const s = seed || Core.uid('auction');
+    const out = AuctionLogic.outcome(state, bidsByPlayer || {}, s);
+    const at = new Date().toISOString();
+    if(!Array.isArray(state.draftLog)) state.draftLog = [];
+    out.won.forEach((x, i) => {
+      Core.setOwner(state, x.castawayId, x.playerId);
+      Core.getCastaway(state, x.castawayId).acquiredVia = 'draft';
+      state.draftLog.push({ n: i + 1, playerId: x.playerId, castawayId: x.castawayId, at, price: x.price, ...(x.filled ? { filled: true } : {}) });
+    });
+    state.draftPicksMade = out.won.length;
+    state.draftOrder = [...out.order, ...(state.draftOrder || []).filter(id => !out.order.includes(id))];
+    state.auction = { lockedPlayerIds: [], at, seed: s, order: out.order, spent: out.spent, short: out.short };
+    stampDraftTurn(state, true);
+    return true;
+  }
+  // The bidding's close with bids still out: once the game's first episode has started (its lock), an auction still open
+  // settles with the bids it has (the server reads them: auction.ts), so no game waits for someone.
+  static due(state, now){
+    if(!AuctionLogic.ready(state) || !DraftLogic.isStarted(state) || !(state.castaways || []).some(c => c.status === 'active')) return false;
+    const first = startEpisode(state);
+    const ep = first === null ? null : (state.episodes || []).find(e => e.number === first);
+    return !!ep && closedForPlay(ep, now);
+  }
+}
+
+// The same static shape as the other draft strategies. Nothing to pick, order or take back: the bids settle the teams.
+class AuctionDraftStrategy {
+  static syncOrder(state){ SnakeDraftStrategy.syncOrder(state); }
+  // null while the bidding's open (someone joining then bids too, as before a blind reveal), complete once it's settled.
+  static currentTurn(state){ return AuctionLogic.settled(state) ? { isComplete: true } : null; }
+  static isStarted(state){ return AuctionLogic.settled(state) || !!state.draftForceStarted || draftTimeCame(state); }
+  static forceStart(state){ state.draftForceStarted = true; stampDraftTurn(state, true); }
+  static reorder(){ /* the bids decide */ }
+  static move(){ /* the bids decide */ }
+  static pick(){ /* bids go through AuctionLogic and the auction's routes */ }
+  static undo(){ /* an auction isn't taken back pick by pick */ }
 }
 
 // ---------- Active Roster: event catalog, weekly lineups, event scoring ----------
@@ -2095,7 +2428,8 @@ function getLeagueType(state){
   let lt = base;
   if(base.id === 'active-roster' && Spec.countKind(g.count) === 'best') lt = BEST_BALL_VARIANTS[g.get.own === 'shared' ? 'shared' : 'exclusive'];
   else if(g.get.by === 'draft' && g.get.own === 'shared' && SHARED_OWNERSHIP_VARIANTS[base.id]) lt = SHARED_OWNERSHIP_VARIANTS[base.id];
-  // A10 part 3: a draw plays the game its ownership makes, with the draw as its draft.
+  // A10 part 3: a draw plays the game its ownership makes, with the draw as its draft; part 3b: an auction, with the auction.
+  if(g.get.by === 'draft' && g.get.order === 'auction') return auctionVariant(lt);
   return g.get.by === 'draft' && g.get.order === 'draw' ? drawVariant(lt) : lt;
 }
 // A draw's league type (A10 part 3): the one its ownership and count make (Outlast, Weekly Lineup, best ball; exclusive or
@@ -2106,6 +2440,16 @@ function drawVariant(lt){
   if(!v){
     v = { ...lt, draftStrategy: DrawDraftStrategy };
     DRAW_VARIANTS.set(lt, v);
+  }
+  return v;
+}
+// An auction's league type (A10 part 3b): the one an exclusive draft and its count make, with AuctionDraftStrategy as its draft.
+const AUCTION_VARIANTS = new Map();
+function auctionVariant(lt){
+  let v = AUCTION_VARIANTS.get(lt);
+  if(!v){
+    v = { ...lt, draftStrategy: AuctionDraftStrategy };
+    AUCTION_VARIANTS.set(lt, v);
   }
   return v;
 }
@@ -3509,7 +3853,7 @@ class WaiverLogic {
     return { pairs, legacy: true, pickupIds, dropId, addIds };
   }
   // Why one pair can't be claimed this week, or null. owed/swapsLeft: the player's, passed in.
-  static pairProblem(state, period, playerId, pair, owed, swapsLeft){
+  static pairProblem(state, period, playerId, pair, owed, swapsLeft, prices){
     const drop = Core.getCastaway(state, pair.dropId);
     if(!drop || !ownerListOf(drop).includes(playerId)) return 'Drop someone on your team';
     if(drop.status === 'active'){
@@ -3520,7 +3864,8 @@ class WaiverLogic {
       if(!owed.outIds.includes(drop.id)) return `${drop.name} can’t be replaced`;
     }
     if(!MidSeasonLogic.isAvailableFor(state, pair.addId, playerId)) return 'Claim free agents only';
-    return null;
+    // A10 part 3b: within a salary cap at today's prices, or no further over (`prices`: read once a claim).
+    return BudgetLogic.moveProblem(state, playerId, pair.dropId, pair.addId, prices);
   }
   // The stored claim: its pairs, and the pre-v2 view of them for one release (what GET /waivers gives the
   // phase-2 screens): the replacements' adds, and the first swap's drop and its adds.
@@ -3545,6 +3890,8 @@ class WaiverLogic {
     const parsed = WaiverLogic.pairsOf(state, period, playerId, input);
     const owed = WaiverLogic.replacementsOwed(state, playerId, period);
     const swapsLeft = WaiverLogic.swapsLeft(state, period, playerId);
+    // A10 part 3b: a salary cap's prices, read once a claim.
+    const prices = BudgetLogic.cap(state) === null ? undefined : PriceLogic.prices(state);
     if(parsed.legacy){
       // The pre-v2 shape keeps its own limits: a pickup list, and one add/drop of up to 3 adds.
       if(parsed.pickupIds.length){
@@ -3561,7 +3908,7 @@ class WaiverLogic {
       }
     } else if(parsed.pairs.length > MAX_CLAIM_PAIRS) return { error: `Claim up to ${MAX_CLAIM_PAIRS} pairs` };
     for(const x of parsed.pairs){
-      const why = WaiverLogic.pairProblem(state, period, playerId, x, owed, swapsLeft);
+      const why = WaiverLogic.pairProblem(state, period, playerId, x, owed, swapsLeft, prices);
       if(why) return { error: why };
     }
     if(!parsed.legacy){
@@ -3604,8 +3951,9 @@ class WaiverLogic {
     const swapsLeft = WaiverLogic.swapsLeft(state, period, playerId);
     const max = owed.count + swapsLeft + 2;
     const adds = new Set();
+    const prices = BudgetLogic.cap(state) === null ? undefined : PriceLogic.prices(state);
     const keep = pairs.filter(x => {
-      if(WaiverLogic.pairProblem(state, period, playerId, x, owed, swapsLeft)) return false;
+      if(WaiverLogic.pairProblem(state, period, playerId, x, owed, swapsLeft, prices)) return false;
       if(!adds.has(x.addId) && adds.size >= max) return false;
       adds.add(x.addId);
       return true;
@@ -3636,6 +3984,8 @@ class WaiverLogic {
     // A pair's kind is fixed for the run: nobody's status changes in it.
     const isOut = id => { const c = Core.getCastaway(state, id); return !!c && c.status !== 'active'; };
     const kindOf = x => (isOut(x.dropId) ? 'pickup' : 'addDrop');
+    // A10 part 3b: a salary cap's prices, read once (nothing's results change in a run).
+    const prices = BudgetLogic.cap(state) === null ? null : PriceLogic.prices(state);
     const run = {};
     orderBefore.forEach(pid => {
       const c = claimsByPlayer && claimsByPlayer[pid];
@@ -3650,7 +4000,9 @@ class WaiverLogic {
       const drop = Core.getCastaway(state, x.dropId);
       if(!drop || !ownerListOf(drop).includes(pid)) return { silent: true };
       if(drop.status !== 'active' ? r.repLeft <= 0 : r.swapLeft <= 0) return { silent: true };
-      if((shared || !justDropped.has(x.addId)) && MidSeasonLogic.isAvailableFor(state, x.addId, pid)) return null;
+      if((shared || !justDropped.has(x.addId)) && MidSeasonLogic.isAvailableFor(state, x.addId, pid)){
+        return prices && BudgetLogic.moveProblem(state, pid, x.dropId, x.addId, prices) ? { castawayId: x.addId, reason: 'cap' } : null;
+      }
       if(r.mine.has(x.addId)) return { castawayId: x.addId, reason: 'yours' };
       if(firstTaker[x.addId]) return { castawayId: x.addId, reason: 'ahead', byPlayerId: firstTaker[x.addId] };
       return { castawayId: x.addId, reason: 'gone' };
@@ -3741,11 +4093,16 @@ class WaiverLogic {
     if(drop.status !== 'active'){
       if(!owed.count) return 'You can’t replace anyone this week';
       if(!owed.outIds.includes(drop.id)) return `${drop.name} can’t be replaced`;
+      // A10 part 3b: within a salary cap at today's prices, or no further over.
+      const over = BudgetLogic.moveProblem(state, playerId, drop.id, addId);
+      if(over) return over;
       MidSeasonLogic.applyPickup(state, playerId, addId, drop.id, meta);
       return null;
     }
     if(!WaiverLogic.swapsAllowed(p)) return 'No swaps this week';
     if(!WaiverLogic.swapsLeft(state, p, playerId)) return 'You’ve used this window’s swaps';
+    const over = BudgetLogic.moveProblem(state, playerId, dropId, addId);
+    if(over) return over;
     MidSeasonLogic.applyAddDrop(state, playerId, dropId, addId, meta);
     return null;
   }
@@ -3769,7 +4126,7 @@ class WaiverLogic {
       MidSeasonLogic.order(state, WaiverLogic.rotation(state)).forEach(pid => {
         for(let n = 0; n < 50; n++){
           const owed = WaiverLogic.replacementsOwed(state, pid, p);
-          const pick = owed.count ? WaiverLogic.autoPick(state, p, pid, n) : null;
+          const pick = owed.count ? WaiverLogic.autoPick(state, p, pid, n, owed.lossIds[0] || null) : null;
           if(!pick) break;
           p.autoFills.push(MidSeasonLogic.applyPickup(state, pid, pick, owed.lossIds[0] || null, meta).id);
         }
@@ -3778,9 +4135,17 @@ class WaiverLogic {
     p.phase = 'closed';
     return p;
   }
-  static autoPick(state, period, playerId, n){
-    const pool = MidSeasonLogic.availableFor(state, playerId).map(c => c.id).sort();
+  static autoPick(state, period, playerId, n, dropId){
+    let pool = MidSeasonLogic.availableFor(state, playerId).map(c => c.id).sort();
     if(!pool.length) return null;
+    // A10 part 3b: a salary cap fills with someone who keeps the team within it (or no further over); with nobody who does, the
+    // cheapest, so nobody plays short (the cap's fallback: it never leaves a place empty).
+    if(BudgetLogic.cap(state) !== null){
+      const prices = PriceLogic.prices(state);
+      const fits = pool.filter(id => !BudgetLogic.moveProblem(state, playerId, dropId, id, prices));
+      const cheapest = Math.min(...pool.map(id => prices.get(id) || 0));
+      pool = fits.length ? fits : pool.filter(id => (prices.get(id) || 0) === cheapest);
+    }
     // A game scored by moments (a lineup, best ball) takes the free agent with the most points.
     if(gameOf(state).score.by === 'moments'){
       const pts = {};
@@ -5349,8 +5714,8 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SpreadLogic, DrawLogic,
-  SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy
+  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, AuctionLogic, draftFits, draftFitsFor,
+  SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 
 });

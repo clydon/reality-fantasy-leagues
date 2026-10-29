@@ -43,6 +43,8 @@ export function draftOpen(s: LeagueState): boolean {
   if (StateLogic.BlindDraftLogic.on(s)) return !StateLogic.BlindDraftLogic.isRevealed(s);
   // A draw (step A10 part 3): open until it's dealt.
   if (StateLogic.DrawLogic.on(s)) return !StateLogic.DrawLogic.drawn(s);
+  // An auction (step A10 part 3b): open until it settles.
+  if (StateLogic.AuctionLogic.on(s)) return !StateLogic.AuctionLogic.settled(s);
   // currentDraftTurn keeps the order in step with the seats: on a copy, so a read changes nothing.
   const turn = StateLogic.currentDraftTurn(structuredClone(s));
   return !!turn && !turn.isComplete;

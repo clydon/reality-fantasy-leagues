@@ -23,8 +23,9 @@ foundation is done. A10 is under way, in parts: part 1, group slots and the excl
 (2026-10-29: lives, a buyback until an episode or a phase, mulligans, a second pick that counts on a night two go home, and last
 one standing, `PickEmLogic.parts`), and part 3, a draft's slots and the draw (2026-10-29: a draft spread across the cast's groups as
 the data has them when it drafts, one from each tribe, `SpreadLogic`; names out of a hat, seeded and recorded, `DrawLogic`; a guy
-and a girl refused, since nothing records who is which), are built; part 3b (a draft's prices: an auction, a salary cap, buying
-and selling) is next, then part 4, A11 to A14 overnight (the
+and a girl refused, since nothing records who is which), and part 3b, a draft's prices (2026-10-29: an auction by sealed bids
+settled at once, `AuctionLogic`; a salary cap whose prices follow the data, `PriceLogic` and `BudgetLogic`), are built; part 3c
+(buying and selling each week: the stock market) is next, then part 4, A11 to A14 overnight (the
 user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -2410,6 +2411,8 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   s23). Part 3: a draft's slots and prices (a draft slot per group, one per tribe, a guy and a girl; auction, a salary cap, a
   random draw, buying and selling: s03 to s06, s22, s38, answer.bid, answer.trade, answer.draw). Part 4: keepers across seasons
   and a team two people share (s17, s18, shape.keepers, who.sharedTeam). Each part the engine's only (no screens: U1's).
+  Part 3 split in three as it went (2026-10-29): 3 the slots and the draw (s05, s06, s38, answer.draw), 3b the prices (an auction
+  and a salary cap: s03, s04, answer.bid), 3c buying and selling each week (the stock market: s22, answer.trade), on 3b's prices.
 
   **As built (A10 part 1, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
   up to date; 964 tests).
@@ -2707,6 +2710,125 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     draft order and then shuffled anyway (now the rotation); owned ids by hand beside `Core.ownedCastawayIds`; the count counting
     an empty group. Partly: `ctx.poolGroups` has no caller (Noticed, with part 1's `ctx.pool`). Not taken here: the classic draft
     board and grid that read shared as blind (U1's screens, Noticed).
+  **As built (A10 part 3b, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
+  48 commits: the desk's read-only games met A4's question sheets and A3's phase starts in five files, both kept; 1019 tests). A
+  draft's prices, each riding on data with its fallbacks from the start; every default the user's (Noticed, below). Buying and
+  selling each week was split off as part 3c (it builds on these prices: cash a sale refills, what someone gone home is worth,
+  ranking by worth).
+  - **The spec** (`schema.js`): a draft's `get.budget` and `get.order: 'auction'`. A budget beside an auction is everyone's money,
+    `{ total, floor, fallback }`; beside any other draft order (a snake, a blind draft, a draw) it's a salary cap, `{ total, floor,
+    ceiling, gone }`. An auction is exclusive (fullSpec: said alone, exclusive; shared refused: "what they cost comes from the data
+    instead (a salary cap)"), and always has a budget. Defaults (`BUDGET`, `AUCTION`, `CAP`, the user's): 100 each (the user's
+    "$100"), the lowest price or bid 1, an auction's team its bids didn't fill filled at the lowest price, a cap counting someone
+    gone home as nothing; a cap's highest price left out is `ceilingFor`'s (the middle price, what everyone costs before anyone's
+    scored, is the most a team can average within the cap: 100 for 5 is 1 to 39). VOCAB's `get.order.auction`,
+    `get.budget.gone`, `get.budget.fallback`. `budgetProblems`: the budget 1 to `MAX_BUDGET`; everyone able to fill a team at the
+    lowest price; an auction's parts and a cap's apart (a ceiling or gone on an auction, a fallback on a cap, refused); a cap only
+    on a draft scored by moments (scored by place everyone still in has the same points, so nothing would cost more). The
+    exclusive count (the 9:10 PM decision) says, for an auction the pool doesn't cover, "make it a salary cap". `budgetParts`
+    reads it the one way for the engine and the words. No stored spec changes (absent unless a game says it).
+  - **The settings, both ways** (`settings.js`): `draftAuction` (true) and `draftBudget` (the spec's), each absent unless a game
+    says it (`OWNED`).
+  - **Prices from data** (`PriceLogic`, `state-logic.js`, pure): each castaway's points so far by the game's own rules (the moments
+    recorded for them in every episode with results, the whole season's, at the game's points), and a cap's price by where they
+    stand among those still in: the best at the highest price, the last at the lowest, evenly between, ties sharing the middle of
+    their places, whole numbers; before anyone's scored everyone costs the middle. Someone gone home: nothing, or what they cost
+    going into the episode they went home in (`gone: last`). Prices move with every episode's results; `prices(state, through)`
+    reads them as of any episode.
+  - **The salary cap** (`BudgetLogic`): a team's prices together within the cap when it's drafted and whenever it changes. At the
+    draft: a snake pick refused only while someone else who keeps the team spread would keep it within, with room left for its
+    other places at the cheapest of everyone free (`least`; the refusal says "Your team would cost at least 34, with 1 more to
+    pick at the cheapest: the cap is 30"); a blind team refused when it costs more than the cap (unless even the cheapest team
+    would); a draw takes from each hat the first that keeps the team within it. **The cap never blocks a draft** (with nobody who
+    fits, anyone can be taken). After the draft, every change (a waiver claim's pair, at the claim and again at processing,
+    free agency, a replacement filled at the lock): within the cap at today's prices, or no further over than it is (**a team
+    that went over as its prices moved keeps its team**); a replacement for someone gone home is never refused when nobody
+    cheaper is free (the cap never leaves a place empty; autoPick fills with the same). A pass the cap stopped reads "would have
+    taken your team past the cap" (`WaiverPass.reason 'cap'`, its words in `waivers-model.ts` and `waiver-view.ts`). The spread
+    and the cap compose (`draftFits`, `draftFitsFor`: the cap over the spread's choices, so a pick passing both always exists).
+  - **The auction** (`AuctionLogic`, `AuctionDraftStrategy`): once the bidding opens (the draft's start: its time or the
+    Commissioner's Start) everyone bids in private, a sheet of up to three bids for each place (backups), each a whole number from
+    the lowest price to what's left after it for every other place (`maxBid`); a sheet can be empty (fill me). It settles at
+    once, the moment everyone has a sheet in, **or when the game's first episode starts with sheets still out** (`due`: no game
+    waits for someone; whoever runs it can lock in an empty sheet for someone, as the blind draft's lock-in for someone).
+    Settling (`outcome`, pure): every bid from the highest down, **ties in a seeded order** (`hashUnit`, the seed recorded in
+    `state.auction`, so the same bids and seed settle the same way), each won at what was bid while its castaway is free, the
+    bidder's team has a place, they can still pay the lowest price for every place after it, and it keeps a spread team spread;
+    then, by the fallback, every team still short filled a round at a time from a seeded hat of what's left at the lowest price
+    (so not bidding never beats bidding), or left short. `settle`: ownership, the draft's log with each price (`filled: true`
+    for one the bids didn't win), the seed's seat order as the draft's (the waivers' priority reads it), `state.auction` { seed,
+    at, order, spent, short }. Never over teams made another way (`ready`, as a draw is never dealt over). Someone joining
+    after joins as after any finished draft. `sheetFor`: a sheet from an order (the budget over the first team's worth by rank,
+    the backups at the lowest), how computer players and the replays' seats bid.
+  - **The server:** the sheets live where a blind draft's picks do, in `blind_draft_picks` (its JSONB column holding [{ castawayId,
+    bid }]; no migration), private until it settles, the state holding only who's locked in (`src/lib/server/auction.ts`:
+    `lockAuctionBids` settles in the same transaction when it's the last sheet, `unlockAuctionBids`, `settleAuction`,
+    `settleDueAuction`; who's in read by `blind-draft.ts lockedIdsFor`). `withLeagueLock` settles a due auction before the
+    mutation and `readyLeague` treats one as work, so it settles at whoever's write or read comes first after the first episode
+    starts. `draft.ts`: `lockBidsFor` (yours, or someone's when you run the game, a line in Recent changes that never says what
+    they bid), `unlockBidsFor`, `readOwnBids` (self only, as a blind draft's picks); **each withdrawal only on its own kind of
+    draft** (the two share the table: the code review's find). Routes: `/api/leagues/[id]/draft/bids` (GET your own, POST lock,
+    DELETE withdraw; a refused sheet answers 400 with why) and the season draft route's `bid` and `unbid` actions. The pick
+    route answers a pick past the cap with a 400 and why; the queue's pick when the timer runs out takes the first queued that
+    keeps the team spread and within the cap. The draft room (`draft-view.ts`): an auction is its own kind (`auction`), read as a
+    blind draft is (who's locked in; the teams once settled) with its budget, and once settled what each spent and who's short.
+    Computer players bid (`bot-logic.js auctionBids`, locked in by `bots.ts` as a person's), draft within a cap (snake and
+    blind) and claim on waivers within it. No screen (U1's).
+  - **Words** (`describe.js`): the sentence ("everyone has 100 to bid on a team of 5", "everyone drafts 4 under a salary cap of
+    100") and How it works (the auction's sealed bids, when it settles, ties, the fill; the cap's prices by how they're doing,
+    starting equal, moving after every episode, a team over keeping its team, someone gone home counting as nothing or what they
+    cost); the draft's detail ("An auction: sealed bids, settled at once").
+  - **The tracker:** s03 (a Weekly Lineup auction, 100 each), s04 (a blind Weekly Lineup under a salary cap of 100, checked against
+    The Amazing Race's rules as a show of its kind) and answer.bid (an Outlast auction) ✅; s22 and answer.trade wait for part 3c.
+    **Now: 158 ✅** · 87 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
+  - **Tests:** `tests/draft-prices.test.js` (new, 8): the shape, defaults, words and settings both ways, what's refused, the count
+    saying "make it a salary cap"; prices by standing, ties, moving with results, someone gone home (zero, last); the auction
+    (the bids' shape, the highest first at what was bid, the fill, what each spent, the same seed the same way, once, nothing to
+    pick, the draft view); ties by the seed (both seats win across seeds), what a bid can pay, the fallback short, a spread
+    auction, the close at the first episode's lock; the cap at the draft (a snake pick refused with its cost and allowed when
+    nobody fits, a blind team, a draw, computer players); after the draft (further over refused, coming down or no further over
+    allowed, gone counting nothing, autoPick within it); the code review's cases (the default highest price fitting an average
+    team for 3 to 7, the places left priced from everyone free, never over teams made another way, the cheapest replacement, a
+    budget that isn't one, a sheet from an order); computer players' sheets. `game-spec.test.js`: the new fields. `npm test`
+    1027.
+  - **API:** `scripts/dev-test/check-draft-prices.js` (new, on new-fixture.js), 26 PASS: Couch Cup made an Outlast auction of two
+    each from Episode 6, opened by alex; a bid of 100 refused (400: "from 1 to 99"); riley's sheet locked, a second lock refused,
+    withdrawn, locked again and read back; jordan bidding the same 40 on one of hers; riley refused locking in for sam (403);
+    alex an empty sheet for sam; the state naming who's in and never a bid; a blind draft's withdrawal on the auction refused;
+    alex's sheet settling it (every team two, the tie to jordan by the recorded seed, settled the same way again from it, sam
+    filled at 1 each, the sheets gone, the draft room reading an auction, done). Pool Party an auction from Episode 1 (aired):
+    jordan's read settled it, everyone filled. Lineup League a blind Weekly Lineup under a cap of 45: the three dearest (68)
+    refused with their cost, a cheap team locked in, an auction's withdrawal on it refused. ZT Extra a snake Weekly Lineup of
+    two under a cap of 40 (two immunity wins given so the prices differ: 25, 23, the rest 11): casey's second pick that would
+    cost 48 refused (400, saying so), a cheap one taken with its price in the log. `check-engine-lab.js` grew part 3b's (s03 and
+    s04 started as test games in their fields): 65 PASS (`--api`).
+  - **Re-runs** (on the final code, the lane's database migrated to master's 0430 first): `check-draft-prices.js` 26 PASS and
+    `check-engine-lab.js --api` 65 PASS again, `check-draft-spread.js` ALL PASS (the draw's and the snake's checks changed),
+    `check-waivers.js` all passed (the claim and free agency checks changed). `npx tsc --noEmit -p .` clean (but the stale
+    generated route types for master's new `/admin/[[...path]]`, which the dev server regenerates).
+  - **Golden replays** (`golden.js`, HEAD against the working tree, after the code review's fixes and `npm run migrate`): 7
+    seasons, 160 games, **19,361 reads, every one the same** (no game they play has a budget; the snake's and blind draft's checks,
+    the draw's dealing and the waivers' checks read the cap only where there is one). Its first run said "0 games, every one the
+    same" on every season: the lane's database was 11 migrations behind after the sync (Noticed); `golden.js` now fails a season
+    whose replays made no game.
+  - **Blind replays** (`blind.js run`, the five seasons, on the final code): **every game ended on all five seasons**, the
+    tracker's three new ones among them: The Challenge 41 63 of 63, 40 63, 39 63, Survivor 49 82 of 82, The Traitors 4 61 of 61; no
+    problem in any game's moves, no check failed. The auctions settled at the premiere's draft with every sheet in (the seats bid
+    by habit through `sheetFor`; the forgetter's sheet locked in empty for them, filled at 1 each); where two wanted the same one
+    the higher bid won and a backup filled the other's place. **What it found:** the salary cap didn't bite at the draft on any
+    season, since every game is made before the premiere, when every price is the same (Noticed, item 8). The study doc's "A10
+    part 3b: the auction and the salary cap, replayed blind".
+  - **Code review** (`/code-review` at high, before the long runs; it ran this time). Taken: a withdrawal of auction bids on a
+    blind draft (or the reverse) deleting the other's private row (the two share the table: each withdrawal now checks its own
+    kind); the default highest price rounding an average team past the cap, so the cap never applied before anyone scored
+    (`ceilingFor` now makes the middle price exactly what an average team can afford); the places still to fill priced from the
+    spread's narrowed list (now from everyone free); an auction settling over teams made another way (`ready`); a replacement for
+    someone gone home refused at the cap while autoPick would fill it with the same (now allowed when nobody cheaper is free); the
+    words throwing on a budget that isn't one; prices computed again for every pair of a claim and twice a pick (now once a claim
+    and a pick); the bidding formula copied between the bots and the replays (now `sheetFor`), and the sheets' "who's in" read
+    copied from the blind draft's (now shared); free agency's cap refusal shown before its own; the draft room not giving the
+    budget or what each spent. Not taken: nothing. After it, by hand: `golden.js` failing a season that made no game, and the API
+    check's two cross-kind withdrawals.
 - **A11. Winning, and who plays with whom.** A race (first to N ends the game), co-op (the group against the show, with shared
   lives), head-to-head with playoffs, teams of players, players knocked out each week (guillotine) or cut at a phase,
   handicaps, late joiners.
@@ -3414,6 +3536,66 @@ From A10 part 1 (2026-10-29):
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
 
+From A10 part 3b (2026-10-29):
+- **For the user, in a design session (with A10 parts 1 to 3's questions), each with a recommendation (built as spec settings,
+  the defaults in `BUDGET`, `AUCTION`, `CAP` and `ceilingFor`):**
+  1. The budget and the lowest price. Built: 100 each, the lowest price or bid 1. Recommended: keep (the user's own "$100"); the
+     wizard shows them as assumptions. The currency word ("$", points, nothing) is the screens' (U0).
+  2. A sealed auction or a live room. Built: sealed (everyone bids in private, settled at once, as the blind draft is), the only
+     one the engine can run without everyone there at once. Options: a live room (someone nominates, a clock, bids in real time),
+     a different engine piece (a nomination order, a bid clock, someone away) and screens. Recommended: sealed as the default
+     (Joanna forgets, Andrew drives by: nobody has to be at a draft night); a live room only if a couch asks for a draft night,
+     after U1, as its own step.
+  3. What a winning bid pays. Built: what was bid (first price). Option: one more than the next bid on them (second price: bidding
+     what someone's worth to you is safe). Recommended: first price (one sentence to explain: "you pay what you bid").
+  4. When the bidding closes with sheets still out. Built: the moment everyone has a sheet in, or when the game's first episode
+     starts; whoever runs the game can lock in an empty sheet for someone. Options: a close time of its own (the draft room's
+     time plus a day). Recommended: keep, with Start a game opening the bidding a few days before the first episode and the
+     screens saying when it closes.
+  5. A team the bids didn't fill. Built: filled from what's left at the lowest price, from a seeded hat (fill), or left short.
+     Recommended: fill (nobody plays short because they forgot); from a hat, not the best left, so not bidding never beats
+     bidding.
+  6. How a salary cap prices. Built: by where each stands on points so far by the game's rules (the best the highest price, the
+     last the lowest, evenly between, ties sharing), the whole season's. Options: in proportion to the points (a runaway leader
+     costs far more than the next); only the last few episodes (form). Recommended: by standing, the whole season (the same on
+     any show's scale: Survivor's moment points, Dancing with the Stars' judges' scores).
+  7. The highest price left out. Built: the one that makes the middle price what an average team can afford (100 for 5: 1 to
+     39). Recommended: keep.
+  8. **A salary cap drafted before the premiere prices everyone the same** (nobody has scored yet), so it bites only on changes
+     after (the blind replays: every game is made before its premiere). Options: (a) as built, said up front ("prices start
+     equal and move after each episode"); (b) prices from last season (not this season's data: the data rule refuses it); (c) a
+     cap drafted after Episode 1. Recommended: (a), with Start a game offering the cap where the team changes (waivers every
+     episode) and saying so; (c) where a maker wants the draft itself to bite.
+  9. Someone gone home against the cap. Built: nothing (zero) or the price they went home at (last), zero by default; a
+     replacement for them is never refused when nobody cheaper is free. Recommended: keep zero.
+  10. A team over the cap after its prices moved. Built: it keeps its team; a change can't take it further over (the cheapest
+     replacement for someone gone home excepted). Recommended: keep.
+  11. An auction's money left over. Built: worth nothing after the auction. Options: carried into waivers as a budget to bid on
+     free agents with (blind bidding on waivers), or as part 3c's cash to trade with. Recommended: decide with part 3c.
+  12. An auction the pool doesn't cover, or shared. Built: refused, "make it a salary cap" (the 9:10 PM decision: an auction needs
+     castaways nobody else can have, and its shared version is a cap). Recommended: keep, as G2's check turns it into a cap with
+     the reason as an assumption.
+- **The lane's database was 11 migrations behind after the sync** (master's 0420 to 0430), so every replay's game failed to start
+  (`column c.deleted_at does not exist`) and `golden.js` counted the seasons that made no game as the same: applied with `npm run
+  migrate` (this lane's local database), and `golden.js` now fails a season whose replays made no game. (Whoever next touches
+  `lane.js sync`: run the lane's pending migrations after a merge that brings some, or say so.)
+- **No caller passes `ctx.pool` and `ctx.couch` yet** (part 1's item), so an auction the pool doesn't cover is refused only where
+  they're given. (G1, G2; the lab when it next changes.)
+- **The screens don't know prices:** no bid sheet, no budget, no price beside a castaway, no cap on the draft board or waivers; the
+  classic draft board reads the ownership; the draft room's view has an auction's budget and what each spent once settled, but
+  no prices for a cap. A refused pick, sheet or claim answers with the reason. (U1.)
+- The pick, blind and waiver routes check the cap against the league as it stands, as the group-slot route does: a player behind
+  could learn a price from results they haven't seen from a refusal's words. (U1: offer only what the view shows at their mark.)
+- Whoever runs the game can still give a late joiner castaways (`activatePlayer`) or edit a team (the classic roster tools)
+  without the cap. (A11's late joiners; U1.)
+- An auction's sheets share `blind_draft_picks` with a blind draft's picks (no migration): each withdrawal checks its own kind,
+  and a draft switched from blind to an auction while picks are in reads those picks as no bids (filled at the lowest price).
+  (Whoever next touches `setGame`: clear the table's rows when the draft's kind changes.)
+- `PriceLogic.prices` walks the season's results on every call (cheap at a season's size; once a claim and once a pick now). (U1's
+  draft room, if it shows prices on every read: cache them by the results' last change.)
+- Computer players bid by their ratings' order, the budget by rank (`sheetFor`), not by what others might bid. (Whoever next
+  touches computer players, if a couch finds them easy to outbid.)
+
 From A10 part 3 (2026-10-29):
 - **For the user, in a design session (with A10 parts 1 and 2's questions), each with a recommendation (built as spec settings,
   the defaults in `DRAFT_ACROSS`, `DRAW_OWN` and `spreadBounds`):**
@@ -3460,6 +3642,7 @@ From A10 part 3 (2026-10-29):
   the seats); the new design's draft room refuses it. (Whoever next touches the classic draft routes.)
 - Part 3b is next: a draft's prices (an auction with a budget, a salary cap whose prices follow the data, buying and selling
   each week: s03, s04, s22, answer.bid, answer.trade), each with its fallback (a bid's ties, someone who never bids or trades).
+  (Taken by part 3b, 2026-10-29: the auction and the salary cap; buying and selling split off as part 3c.)
 
 From A10 part 2 (2026-10-29):
 - **For the user, in a design session (with A10 part 1's slot questions), each with a recommendation (built as spec settings,

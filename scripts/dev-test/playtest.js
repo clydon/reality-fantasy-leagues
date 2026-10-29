@@ -625,8 +625,9 @@ const namesOf = (s) => Object.fromEntries(s.castaways.map((c) => [c.id, c.name])
 
 /**
  * The draft, through the draft room's writes: the turn-based one turn by turn, the blind one each locking in, a draw (A10 part
- * 3) dealt by the start alone. A draft spread across the cast's groups (A10 part 3) takes, by each seat's habit, only who keeps
- * its team spread (SpreadLogic: everyone when nothing is spread). Each seat's picks in words (r.draft: "Ann (picked for them)")
+ * 3) dealt by the start alone, an auction (part 3b) each bidding. A draft spread across the cast's groups (A10 part 3) or under a
+ * salary cap (part 3b) takes, by each seat's habit, only who keeps its team spread and within the cap (draftFits: everyone when
+ * neither applies). Each seat's picks in words (r.draft: "Ann (picked for them)")
  * and as data (r.drafted: [{ id, name, forThem }]).
  */
 async function draft(r) {
@@ -636,6 +637,7 @@ async function draft(r) {
   let s = await D.startDraft(leadActor, r.leagueId);
   const shared = s.settings.ownershipMode === "shared";
   const drawn = S.DrawLogic.on(s);
+  const auction = S.AuctionLogic.on(s);
   const picks = {};
   const drafted = {};
   // A seat's order over `ids` by its habit, and someone away's when they get the room's favourites (--away=favourites: what
@@ -654,16 +656,39 @@ async function draft(r) {
       drafted[seat.label] = ids.map((id) => ({ id, name: castName(s, id), forThem: false }));
     }
     if (s.draw && s.draw.short.length) r.log.push(`The draw came up short for ${s.draw.short.length} of the teams: the hat ran out`);
+  } else if (auction) {
+    // An auction (A10 part 3b): each seat bids in private by its habit, its budget over the team it wants most (the first the
+    // most), as many again as backups at the lowest price; someone away has an empty sheet locked in for them (filled at the
+    // lowest price). Computer players bid inside each write; the last sheet in settles it.
+    const size = S.rosterSize(s);
+    const free = s.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
+    for (const seat of r.seats.filter((x) => pidOf(r, x) && x !== r.lateSeat)) {
+      const forgot = isAway(seat);
+      // A sheet as computer players make one (AuctionLogic.sheetFor), from the seat's own order.
+      const bids = forgot ? [] : S.AuctionLogic.sheetFor(s, orderOf(seat, free).slice(0, size * 2));
+      const actor = forgot ? leadActor : { user: r.users[seat.username], membership: await memberOf(r.leagueId, r.users[seat.username].id) };
+      s = await D.lockBidsFor(actor, r.leagueId, pidOf(r, seat), bids);
+    }
+    s = await stateOf(r.leagueId);
+    if (!S.AuctionLogic.settled(s)) r.problems.push("The auction didn't settle once everyone had bid");
+    for (const seat of r.seats) {
+      const pid = pidOf(r, seat);
+      if (!pid) continue;
+      const won = (s.draftLog || []).filter((e) => e.playerId === pid);
+      picks[seat.label] = won.map((e) => `${castName(s, e.castawayId)} (${e.filled ? "filled at" : "bid"} ${e.price})`);
+      drafted[seat.label] = won.map((e) => ({ id: e.castawayId, name: castName(s, e.castawayId), forThem: !!e.filled }));
+    }
+    if (s.auction && s.auction.short && s.auction.short.length) r.log.push(`The auction left ${s.auction.short.length} of the teams short`);
   } else if (!shared) {
     for (let guard = 0; guard < 600; guard++) {
       const turn = S.currentDraftTurn(s);
       if (!turn || turn.isComplete) break;
       const seat = seatOf(r, turn.playerId);
       if (!seat) break; // a computer player's turn not taken (bots.ts takes them inside each write): stop and say so
-      // Who keeps this team spread (everyone free when the draft isn't spread across groups), over every free agent as the
-      // pick's own check reads it.
+      // Who keeps this team spread and within a salary cap (everyone free when neither applies), over every free agent as the
+      // pick's own checks read it.
       const unowned = s.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
-      const fits = S.SpreadLogic.allowedFor(s, turn.playerId);
+      const fits = S.draftFitsFor(s, turn.playerId);
       const free = unowned.filter((id) => fits.includes(id)).length ? unowned.filter((id) => fits.includes(id)) : fits;
       const habit = ROLES[seat.role].draft;
       const order =
@@ -687,12 +712,13 @@ async function draft(r) {
     const size = S.rosterSize(s);
     const active = s.castaways.filter((c) => c.status === "active").map((c) => c.id);
     const drafting = r.seats.filter((seat) => pidOf(r, seat) && seat !== r.lateSeat);
-    // A team of `size` by an order over who's left, a pick at a time, each keeping it spread (the order itself when it isn't).
+    // A team of `size` by an order over who's left, a pick at a time, each keeping it spread and within a salary cap (the order
+    // itself when neither applies).
     const spread = (order) => {
-      if (!S.SpreadLogic.groupsNow(s)) return order(active).slice(0, size);
+      if (!S.SpreadLogic.groupsNow(s) && S.BudgetLogic.cap(s) === null) return order(active).slice(0, size);
       const team = [];
       for (let i = 0; i < size; i++) {
-        const next = order(S.SpreadLogic.allowed(s, team, active.filter((id) => !team.includes(id))))[0];
+        const next = order(S.draftFits(s, team, active.filter((id) => !team.includes(id))))[0];
         if (!next) break;
         team.push(next);
       }

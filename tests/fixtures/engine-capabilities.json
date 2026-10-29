@@ -1059,12 +1059,23 @@
         {
           "id": "answer.bid",
           "what": "Bid (an auction draft)",
-          "step": "A10"
+          "step": "A10",
+          "spec": {
+            "preset": "outlast",
+            "get": { "by": "draft", "each": 3, "order": "auction", "budget": { "total": 100 } }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          },
+          "note": "an auction (A10 part 3b): sealed bids settled at once, the highest first at what was bid, ties by a recorded draw; a team the bids didn't fill filled at the lowest price"
         },
         {
           "id": "answer.trade",
           "what": "Trade (buy and sell castaways)",
-          "step": "A10"
+          "step": "A10",
+          "note": "part 3c: buying and selling each week, on part 3b's prices"
         },
         {
           "id": "answer.draw",
@@ -2254,7 +2265,13 @@
       "step": "A10",
       "dials": [
         "answer"
-      ]
+      ],
+      "spec": {
+        "preset": "weekly-lineup",
+        "get": { "by": "draft", "each": 5, "order": "auction", "budget": { "total": 100 } },
+        "count": { "start": 3 }
+      },
+      "note": "an auction (A10 part 3b): everyone bids in private on whom they want, settled at once when everyone has bid or the first episode starts; the highest bid wins at what was bid, ties by a recorded draw; a team the bids didn't fill is filled at the lowest price"
     },
     {
       "id": "s04",
@@ -2268,7 +2285,13 @@
       "step": "A10",
       "dials": [
         "answer"
-      ]
+      ],
+      "spec": {
+        "preset": "weekly-lineup",
+        "get": { "by": "draft", "each": 4, "order": "blind", "own": "shared", "budget": { "total": 100 } },
+        "count": { "start": 2 }
+      },
+      "note": "a salary cap (A10 part 3b): each couple's price from their points so far by the game's rules, by where they stand, moving every episode; a team within the cap when it's drafted and whenever it changes, and one that went over as its prices moved keeps its team"
     },
     {
       "id": "s05",
@@ -2684,6 +2707,7 @@
       },
       "words": "Stock market: buy and sell castaways each week.",
       "step": "A10",
+      "note": "part 3c: buying and selling each week, on part 3b's prices (a sale refills the budget; what someone gone home is worth)",
       "dials": [
         "answer"
       ]

@@ -24,7 +24,7 @@ const Formats = require("./formats/index.js");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const {
-  Core, DraftLogic, BlindDraftLogic, SpreadLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
+  Core, DraftLogic, BlindDraftLogic, AuctionLogic, BudgetLogic, PriceLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
   EpisodeLogic, FinaleLogic, getLeagueType, rosterSize, inPlay, closedForPlay,
   currentEpisode, finalePredictionsAvailable, seasonWinner,
 } = StateLogic;
@@ -204,7 +204,7 @@ function draftOrderFor(state, playerId, candidateIds, alreadyMine) {
 // ---- moves ----
 
 function snakeDraft(state) {
-  // A blind draft's bots lock in (blindSubmissions); a draw's deals itself (no turn comes up).
+  // A blind draft's bots lock in (blindSubmissions), an auction's bid (auctionBids); a draw's deals itself (no turn comes up).
   if (BlindDraftLogic.on(state) || !getLeagueType(state).hasRoster) return 0;
   if (!DraftLogic.isStarted(state)) return 0;
   let made = 0;
@@ -212,9 +212,9 @@ function snakeDraft(state) {
     const turn = DraftLogic.currentTurn(state);
     if (!turn || turn.isComplete || !isBot(Core.getPlayer(state, turn.playerId))) break;
     const free = state.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
-    // A draft spread across the cast's groups (step A10 part 3): only who keeps the team spread, read over every free agent as
-    // the pick's own check reads it (else whoever keeps it that this list lacks).
-    const fits = SpreadLogic.allowedFor(state, turn.playerId);
+    // A draft spread across the cast's groups (step A10 part 3) or under a salary cap (part 3b): only who keeps the team spread
+    // and within it, read over every free agent as the pick's own checks read it (else whoever keeps it that this list lacks).
+    const fits = StateLogic.draftFitsFor(state, turn.playerId);
     const mine = free.filter((id) => fits.includes(id));
     const best = draftOrderFor(state, turn.playerId, mine.length ? mine : fits, Core.ownedCastawayIds(state, turn.playerId))[0];
     if (!best) break;
@@ -237,16 +237,30 @@ function blindSubmissions(state) {
   return botIds(state)
     .filter((pid) => !BlindDraftLogic.hasLocked(state, pid))
     .map((pid) => {
-      // Greedy, so the tribe spread sees each earlier pick.
+      // Greedy, so the tribe spread and a salary cap (step A10 part 3b) see each earlier pick.
       const picks = [];
       for (let i = 0; i < size; i++) {
-        const next = draftOrderFor(state, pid, SpreadLogic.allowed(state, picks, active.filter((id) => !picks.includes(id))), picks)[0];
+        const next = draftOrderFor(state, pid, StateLogic.draftFits(state, picks, active.filter((id) => !picks.includes(id))), picks)[0];
         if (!next) break;
         picks.push(next);
       }
       return { playerId: pid, castawayIds: picks };
     })
     .filter((s) => !BlindDraftLogic.validateSubmission(state, s.playerId, s.castawayIds));
+}
+
+// What each bot would bid in an auction that's open and waiting on it (step A10 part 3b): its favourites by its own ratings, a
+// team's worth and as many again as backups, as a sheet (AuctionLogic.sheetFor: the budget over the team it wants by rank, the
+// backups at the lowest price). The server locks them in (src/lib/server/bots.ts), since bids are kept out of `state`.
+function auctionBids(state) {
+  if (!botIds(state).length || !AuctionLogic.on(state) || !getLeagueType(state).hasRoster) return [];
+  if (!DraftLogic.isStarted(state) || !AuctionLogic.ready(state)) return [];
+  const size = rosterSize(state);
+  const free = state.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
+  return botIds(state)
+    .filter((pid) => !AuctionLogic.hasLocked(state, pid))
+    .map((pid) => ({ playerId: pid, bids: AuctionLogic.sheetFor(state, draftOrderFor(state, pid, free, []).slice(0, size * 2)) }))
+    .filter((x) => !AuctionLogic.validateBids(state, x.playerId, x.bids));
 }
 
 function sameSet(a, b) {
@@ -321,7 +335,10 @@ function waiverClaim(state, playerId, period) {
   const cap = owed.count + swapsLeft + 2;
   const pairs = [];
   const adds = new Set();
+  // A salary cap (step A10 part 3b): only pairs that keep the team within it (or no further over), at today's prices.
+  const prices = BudgetLogic.cap(state) === null ? null : PriceLogic.prices(state);
   const push = (addId, dropId) => {
+    if (prices && BudgetLogic.moveProblem(state, playerId, dropId, addId, prices)) return;
     if (!adds.has(addId) && adds.size >= cap) return;
     adds.add(addId);
     pairs.push({ addId, dropId });
@@ -381,7 +398,7 @@ function run(state) {
 // Whether any bot has a move waiting, without touching `state`.
 function hasWork(state) {
   if (!botIds(state).length) return false;
-  return blindSubmissions(state).length > 0 || run(structuredClone(state)) > 0;
+  return blindSubmissions(state).length > 0 || auctionBids(state).length > 0 || run(structuredClone(state)) > 0;
 }
 
-module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, blindSubmissions, waiverClaim };
+module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, blindSubmissions, auctionBids, waiverClaim };

@@ -711,6 +711,49 @@ declare const StateLogic: {
     due(state: LeagueState): boolean;
     settle(state: LeagueState): boolean;
   };
+  /** Step A10 part 3b: a salary cap's prices from the data (each castaway's points so far by the game's rules, by standing). */
+  PriceLogic: {
+    config(state: LeagueState): import("./game-spec/index.js").BudgetParts | null;
+    capOn(state: LeagueState): boolean;
+    points(state: LeagueState, through?: number | null): Map<string, number>;
+    latest(state: LeagueState): number;
+    prices(state: LeagueState, through?: number | null): Map<string, number>;
+  };
+  /** Step A10 part 3b: a salary cap, at the draft and on every change after it. */
+  BudgetLogic: {
+    cap(state: LeagueState): number | null;
+    cost(ids: string[], prices: Map<string, number>): number;
+    allowed(state: LeagueState, picked: string[], candidates: string[], prices?: Map<string, number>, pool?: string[]): string[];
+    least(state: LeagueState, picked: string[], id: string, pool: string[], prices: Map<string, number>): number;
+    reason(state: LeagueState, cost: number, more?: number): string;
+    pickProblem(state: LeagueState, playerId: string, castawayId: string, prices?: Map<string, number>): string | null;
+    teamProblem(state: LeagueState, castawayIds: string[]): string | null;
+    moveProblem(state: LeagueState, playerId: string, dropId: string | null, addId: string, prices?: Map<string, number>): string | null;
+  };
+  /** Step A10 part 3b: an auction, by sealed bids settled at once (the bids kept out of the state: src/lib/server/auction.ts). */
+  AuctionLogic: {
+    on(state: LeagueState): boolean;
+    settled(state: LeagueState): boolean;
+    lockedPlayerIds(state: LeagueState): string[];
+    hasLocked(state: LeagueState, playerId: string): boolean;
+    setLockedPlayerIds(state: LeagueState, playerIds: string[]): void;
+    eligiblePlayers(state: LeagueState): Player[];
+    waitingOn(state: LeagueState): Player[];
+    allLockedIn(state: LeagueState, lockedPlayerIds: string[]): boolean;
+    maxBid(state: LeagueState): number;
+    maxBids(state: LeagueState): number;
+    ready(state: LeagueState): boolean;
+    sheetFor(state: LeagueState, order: string[]): { castawayId: string; bid: number }[];
+    validateBids(state: LeagueState, playerId: string, bids: { castawayId: string; bid: number }[]): string | null;
+    outcome(state: LeagueState, bidsByPlayer: Record<string, { castawayId: string; bid: number }[]>, seed: string): {
+      order: string[]; won: { playerId: string; castawayId: string; price: number; filled?: true }[]; spent: Record<string, number>; short: string[];
+    };
+    settle(state: LeagueState, bidsByPlayer: Record<string, { castawayId: string; bid: number }[]>, seed?: string): boolean;
+    due(state: LeagueState, now?: number): boolean;
+  };
+  /** Step A10 part 3b: what a team could take next, kept spread (part 3) and within a salary cap (every candidate when neither). */
+  draftFits(state: LeagueState, picked: string[], candidates: string[], g?: unknown, prices?: Map<string, number>): string[];
+  draftFitsFor(state: LeagueState, playerId: string, candidates?: string[]): string[];
   activeRosterLineupFor(state: LeagueState, epId: string, playerId: string): string[];
   setActiveRosterLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): boolean;
   setActiveRosterCaptain(state: LeagueState, epId: string, playerId: string, castawayId: string | null): boolean;

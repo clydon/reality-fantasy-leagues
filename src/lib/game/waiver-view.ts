@@ -125,7 +125,13 @@ function movesOf(view: LeagueState, results: WaiverResult[], me: string, faces: 
     .map((r) => {
       const player = view.players.find((p) => p.id === r.playerId);
       const pass = r.passed[0];
-      const lost = pass ? (pass.reason === "ahead" ? `${who(pass.byPlayerId)} got ${name(pass.castawayId)} first` : `${name(pass.castawayId)} was already gone`) : "";
+      const lost = pass
+        ? pass.reason === "ahead"
+          ? `${who(pass.byPlayerId)} got ${name(pass.castawayId)} first`
+          : pass.reason === "cap"
+            ? `${name(pass.castawayId)} would have taken the team past the cap`
+            : `${name(pass.castawayId)} was already gone`
+        : "";
       const choice = r.choice ?? 1;
       let why: string;
       if (r.outcome === "noClaim") why = "No pick in";

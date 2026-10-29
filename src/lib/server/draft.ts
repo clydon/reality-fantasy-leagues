@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { draftClock, draftKind, draftTimer } from "@/lib/game/draft-view";
 import type { LeagueState } from "@/lib/game/types";
 import type { LeagueMembership, SessionUser } from "./auth-helpers";
+import { lockAuctionBids, unlockAuctionBids, type Bid } from "./auction";
 import { lockBlindPicks, unlockBlindPicks } from "./blind-draft";
 import { plainChange, settingsSetChange, type ChangeSpec } from "./change-log";
 import { pool, withLeagueLock, HttpError } from "./db";
@@ -57,6 +58,9 @@ export async function pickInDraft(a: DraftActor, leagueId: string, castawayId: s
       // A draft spread across the cast's groups (step A10 part 3): a pick that doesn't keep the team spread, and why.
       const spread = StateLogic.SpreadLogic.pickProblem(s, turn.playerId, castawayId);
       if (spread) throw new HttpError(400, spread);
+      // A salary cap (step A10 part 3b): a pick that takes the team past it, and why.
+      const cap = StateLogic.BudgetLogic.pickProblem(s, turn.playerId, castawayId);
+      if (cap) throw new HttpError(400, cap);
       const made = s.draftPicksMade;
       StateLogic.draftToCurrentTurn(s, castawayId, forOther ? { by: a.user.id } : undefined);
       if (s.draftPicksMade === made) throw new HttpError(409, "Someone already has them");
@@ -201,8 +205,9 @@ export async function expireTurn(leagueId: string, n: unknown): Promise<{ picked
       if (draftTimer(s).away !== "queue") return;
       const queued = await queueOf(client, leagueId, clock.playerId);
       const free = new Set(StateLogic.freeAgents(s).map((c) => c.id));
-      // The first of theirs still free that keeps their team spread (step A10 part 3: everyone free when nothing is spread).
-      const fits = new Set(StateLogic.SpreadLogic.allowedFor(s, clock.playerId));
+      // The first of theirs still free that keeps their team spread (step A10 part 3) and within a salary cap (part 3b): everyone
+      // free when neither applies.
+      const fits = new Set(StateLogic.draftFitsFor(s, clock.playerId));
       const next = queued.find((id) => free.has(id) && fits.has(id));
       if (!next) return;
       StateLogic.draftToCurrentTurn(s, next, { auto: true });
@@ -252,11 +257,57 @@ export async function unlockBlindFor(a: DraftActor, leagueId: string, playerId: 
   return withLeagueLock(
     leagueId,
     async (s, client) => {
+      // Its own kind only: an auction's sheets share blind_draft_picks (step A10 part 3b, auction.ts).
+      if (!StateLogic.BlindDraftLogic.on(s)) throw new HttpError(400, "This game is not running a blind draft");
       if (StateLogic.BlindDraftLogic.isRevealed(s)) throw new HttpError(400, "The draft has already been revealed");
       await unlockBlindPicks(client, leagueId, s, playerId);
     },
     forOther ? (_b, after) => plainChange(a.user.id, "draft", `Opened ${nameOf(after, playerId)}'s draft picks again`) : undefined
   );
+}
+
+// ---- the auction (step A10 part 3b: StateLogic.AuctionLogic, auction.ts) ----
+
+/** Locks in sealed bids, [{ castawayId, bid }]: your own, or someone's when you run the game (who can't read theirs; an empty
+ *  sheet has them filled from what's left at the lowest price). The last sheet in settles the auction. */
+export async function lockBidsFor(a: DraftActor, leagueId: string, playerId: unknown, bids: unknown): Promise<LeagueState> {
+  if (typeof playerId !== "string" || !Array.isArray(bids)) throw new HttpError(400, "playerId and bids required");
+  const forOther = playerId !== a.membership.playerId;
+  if (forOther && !runs(a)) throw new HttpError(403, "You can only lock in your own bids");
+  const sheet: Bid[] = bids.map((b) => ({ castawayId: String((b as Bid | null)?.castawayId ?? ""), bid: Number((b as Bid | null)?.bid) }));
+  return withLeagueLock(
+    leagueId,
+    async (s, client) => {
+      const problem = StateLogic.AuctionLogic.validateBids(s, playerId, sheet);
+      if (problem) throw new HttpError(400, problem);
+      if (StateLogic.AuctionLogic.hasLocked(s, playerId)) throw new HttpError(400, "Already locked in — withdraw first to change your bids");
+      await lockAuctionBids(client, leagueId, s, playerId, sheet);
+    },
+    // Never what they bid: only that someone locked in for them.
+    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Locked in ${nameOf(after, playerId)}'s bids`) : undefined
+  );
+}
+
+/** Withdraws a sheet before the auction settles, so it can be done again (your own, or someone's when you run the game). */
+export async function unlockBidsFor(a: DraftActor, leagueId: string, playerId: string): Promise<LeagueState> {
+  const forOther = playerId !== a.membership.playerId;
+  if (forOther && !runs(a)) throw new HttpError(403, "You can only withdraw your own bids");
+  return withLeagueLock(
+    leagueId,
+    async (s, client) => {
+      // Its own kind only: a blind draft's picks share the table.
+      if (!StateLogic.AuctionLogic.on(s)) throw new HttpError(400, "This game is not an auction");
+      if (StateLogic.AuctionLogic.settled(s)) throw new HttpError(400, "The auction is over");
+      await unlockAuctionBids(client, leagueId, s, playerId);
+    },
+    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Opened ${nameOf(after, playerId)}'s bids again`) : undefined
+  );
+}
+
+/** Your own locked-in bids (null: none), self only, as a blind draft's picks (blind-draft.ts readOwnPicks says why). */
+export async function readOwnBids(leagueId: string, playerId: string): Promise<Bid[] | null> {
+  const { rows } = await pool.query("SELECT castaway_ids FROM blind_draft_picks WHERE league_id=$1 AND player_id=$2", [leagueId, playerId]);
+  return rows.length ? (rows[0].castaway_ids as Bid[]) : null;
 }
 
 // ---- the queue: yours alone ----

@@ -756,6 +756,27 @@ and an Outlast of two each from a hat each (`answer.draw`). Every game ended on 
   user, with a recommendation: say so at Start a game and offer to draft after the premiere, and show the tribes ahead on the desk
   wherever they're public.
 
+## A10 part 3b: the auction and the salary cap, replayed blind (2026-10-29)
+
+A10's part 3b built a draft's prices: an auction by sealed bids settled at once (state-logic.js `AuctionLogic`) and a salary cap
+whose prices follow the data, each castaway's points so far by the game's rules (`PriceLogic`, `BudgetLogic`). The blind
+replays played three such games on every season: an Outlast auction of three (`answer.bid`), a Weekly Lineup auction of five
+(s03, 100 each) and a blind Weekly Lineup of four under a salary cap of 100 (s04). Every game ended on all five seasons (The
+Challenge 41, 40 and 39 63 of 63, Survivor 49 82 of 82, The Traitors 4 61 of 61), with no problem in any game's moves.
+
+- **The auctions settled at the draft, before the premiere**, every seat's sheet in: the seats bid by habit (the budget over
+  the team they wanted most, backups at 1), the forgetter's sheet was locked in empty for them and filled at 1 each, from a
+  seeded hat (The Challenge 41's Outlast: the tinkerer paid 49, 33 and 17; the forgetter got three at 1). Where two wanted the
+  same castaway, the higher bid won and the other's place went to a backup (The Traitors 4's Weekly Lineup: one of the
+  tinkerer's first five went to a higher bid, and Monét X Change, a backup, filled it at 1).
+- **The salary cap didn't bite at the draft on any season**: every game is made before the premiere, when nobody has scored, so
+  every price is the same (the middle: 25 for a team of four under 100) and every team fits. Its prices move once results come
+  in, and from then on it holds every change (waivers, a replacement filled at the lock) within the cap, or no further over.
+- **What it means:** a salary cap drafted before the premiere is a plain draft whose later changes are capped. The plan's
+  Noticed (A10 part 3b, item 8) has the options for the user, with a recommendation: say so at Start a game ("prices start equal
+  and move after each episode"), offer the cap where teams change each episode, and a draft after Episode 1 where a maker wants
+  the draft itself to bite.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

@@ -61,7 +61,7 @@ const SPEC_VERSION = 1;
 /** Who builds each value. A value not listed isn't one. */
 const VOCAB = {
   'get.by': { draft: 'now', pick: 'now', card: 'now', none: 'now', squares: 'sports' },
-  'get.order': { snake: 'now', blind: 'now', draw: 'now' },
+  'get.order': { snake: 'now', blind: 'now', draw: 'now', auction: 'now' },
   'get.own': { exclusive: 'now', shared: 'now' },
   'get.repeat': { cycle: 'now' },
   count: { start: 'now', all: 'now', pick: 'now', best: 'now' },
@@ -103,6 +103,12 @@ const VOCAB = {
   // and what a drafted castaway does when they change group or the groups end (a swap, the merge): keep, still yours.
   'get.across.of': { group: 'now', gender: 'later' },
   'get.across.then': { keep: 'now' },
+  // A10 part 3b: a draft's prices (get.budget). What a castaway costs is what you bid (an auction: get.order 'auction'), or their
+  // price from the data (a salary cap: any other draft), each castaway's points so far by the game's own rules. What someone gone
+  // home counts for against a cap (nothing, or the price they went home at), and what an auction does for a team its bids didn't
+  // fill (fill it from what's left at the lowest price, or leave it short).
+  'get.budget.gone': { zero: 'now', last: 'now' },
+  'get.budget.fallback': { fill: 'now', short: 'now' },
 };
 
 // A question in `ask` (A4; A6 added who a moment happened to, groups, roles and questions about each person):
@@ -263,6 +269,47 @@ const SECOND_PICK = { fallback: 'void' };
  *  different; the exclusive-or-shared count makes it shared where the pool doesn't cover it). The user's to set (Noticed). */
 const DRAFT_ACROSS = { then: 'keep' };
 const DRAW_OWN = 'exclusive';
+/** A10 part 3b: a budget's most, and its defaults when the spec leaves them out (the user's to set: Noticed): everyone's 100 (the
+ *  user's "everyone gets $100"), the lowest price or bid 1; a salary cap counts someone gone home as nothing; an auction fills a
+ *  team its bids didn't from what's left at the lowest price. A cap's ceiling left out is ceilingFor's. A sealed bid sheet holds
+ *  up to MAX_BIDS bids. */
+const MAX_BUDGET = 1000;
+const BUDGET = { total: 100, floor: 1 };
+const CAP = { gone: 'zero' };
+const AUCTION = { fallback: 'fill' };
+const MAX_BIDS = 40;
+
+/**
+ * A salary cap's highest price when the spec leaves it out: the one that makes the middle price (what everyone costs before
+ * anyone's scored: halfway between the lowest and the highest) the most a team of `each` can average within its budget, so an
+ * average team fits and the cap bites once the data spreads the prices. Between the lowest price and the budget. Pure.
+ */
+function ceilingFor(total, each, floor) {
+  if (!isInt(total, 1) || !isInt(each, 1) || !isInt(floor, 0)) return null;
+  return Math.min(total, Math.max(floor, 2 * Math.floor(total / each) - floor));
+}
+
+/**
+ * A draft's prices (A10 part 3b), as the engine plays them (state-logic.js PriceLogic, BudgetLogic, AuctionLogic) and the words
+ * say them, read the one way from a whole spec: { auction (true: what a castaway costs is a bid; false: their price from the
+ * data, a salary cap), total (everyone's), floor (the lowest price or bid), ceiling and gone (a cap's), fallback (an auction's) },
+ * or null for a draft without them.
+ */
+function budgetParts(s) {
+  const g = isObj(s) && isObj(s.get) ? s.get : null;
+  if (!g || g.by !== 'draft' || !isObj(g.budget)) return null;
+  const b = g.budget;
+  const auction = g.order === 'auction';
+  const total = isInt(b.total, 1) ? b.total : BUDGET.total;
+  const floor = isInt(b.floor, 0) ? b.floor : BUDGET.floor;
+  const out = { auction, total, floor };
+  if (auction) out.fallback = own(VOCAB['get.budget.fallback'], b.fallback) ? b.fallback : AUCTION.fallback;
+  else {
+    out.ceiling = isInt(b.ceiling, 0) ? b.ceiling : ceilingFor(total, g.each, floor);
+    out.gone = own(VOCAB['get.budget.gone'], b.gone) ? b.gone : CAP.gone;
+  }
+  return out;
+}
 
 /**
  * A spread draft's bounds (A10 part 3: get.across) for a team of `each` over `groups` groups: no more than `most` from one,
@@ -532,8 +579,10 @@ function fullSpec(spec) {
   if (Array.isArray(s.ask)) s.ask = s.ask.map(fullQuestion);
   const by = isObj(s.get) ? s.get.by : undefined;
   if (by === 'draft') {
-    // A10 part 3: a draw is either ownership; said alone, nobody shares (DRAW_OWN).
+    // A10 part 3: a draw is either ownership; said alone, nobody shares (DRAW_OWN). Part 3b: an auction is for castaways nobody
+    // else can have.
     if (!s.get.own && s.get.order === 'draw') s.get.own = DRAW_OWN;
+    if (!s.get.own && s.get.order === 'auction') s.get.own = 'exclusive';
     if (!s.get.own && s.get.order) s.get.own = own(OWN_OF, s.get.order);
     if (!s.get.order && s.get.own) s.get.order = own(ORDER_OF, s.get.own);
     if (!s.get.own && !s.get.order) Object.assign(s.get, { order: 'snake', own: 'exclusive' });
@@ -541,6 +590,18 @@ function fullSpec(spec) {
     if (isObj(s.get.groups)) for (const [k, v] of Object.entries(GROUP_SLOTS)) if (s.get.groups[k] === undefined) s.get.groups[k] = v;
     // A10 part 3: a spread draft says what it leaves out as the defaults (DRAFT_ACROSS).
     if (isObj(s.get.across)) for (const [k, v] of Object.entries(DRAFT_ACROSS)) if (s.get.across[k] === undefined) s.get.across[k] = v;
+    // A10 part 3b: an auction always has a budget; a budget says what it leaves out as the defaults (BUDGET, and an auction's
+    // AUCTION or a salary cap's CAP and ceiling).
+    if (s.get.order === 'auction' && s.get.budget === undefined) s.get.budget = {};
+    if (isObj(s.get.budget)) {
+      const b = s.get.budget;
+      const auction = s.get.order === 'auction';
+      for (const [k, v] of Object.entries({ ...BUDGET, ...(auction ? AUCTION : CAP) })) if (b[k] === undefined) b[k] = v;
+      if (!auction && b.ceiling === undefined) {
+        const c = ceilingFor(b.total, s.get.each, b.floor);
+        if (c !== null) b.ceiling = c;
+      }
+    }
   }
   if (by === 'pick') {
     if (s.get.each === undefined) s.get.each = 1;
@@ -597,8 +658,9 @@ function playsAs(s) {
   const count = countKind(s.count);
   if (!plainParts(s)) return null;
   const none = s.ask.length === 0;
-  // A10 part 3: a draw deals either ownership's teams (DrawLogic), so it plays the game a snake or blind draft would.
-  const drafted = by('get') === 'draft' && (own(ORDER_OF, s.get.own) === s.get.order || (s.get.order === 'draw' && own(ORDER_OF, s.get.own) !== undefined));
+  // A10 part 3: a draw deals either ownership's teams (DrawLogic), so it plays the game a snake or blind draft would; part 3b: an
+  // auction (AuctionLogic) an exclusive draft's.
+  const drafted = by('get') === 'draft' && (own(ORDER_OF, s.get.own) === s.get.order || (s.get.order === 'draw' && own(ORDER_OF, s.get.own) !== undefined) || (s.get.order === 'auction' && s.get.own === 'exclusive'));
   if (drafted && (none || finaleOf(s.ask))) {
     if (count === 'all' && by('score') === 'place' && by('rank') === 'total') return 'classic-draft';
     // Best ball (A9 part 2) is Weekly Lineup's game with no lineups: its best n count (state-logic.js's best ball variant).
@@ -789,12 +851,15 @@ function specProblems(spec, ctx, opts) {
       add('count.best', `Best ball counts 1 to ${MAX_STARTERS}`);
     }
     if (!one('get.own', get.own)) add('get.own', 'A draft is exclusive or shared');
-    if (!one('get.order', get.order)) add('get.order', 'A draft is snake, blind or a draw');
-    // A draw (A10 part 3) goes with either ownership; a draft people pick in goes with its own.
-    else if (get.order !== 'draw' && one('get.own', get.own) && ORDER_OF[get.own] !== get.order) add('get.order', `An ${get.own} draft is ${ORDER_OF[get.own]}: ${get.own === 'exclusive' ? 'everyone takes turns for castaways nobody else can have' : 'everyone picks in private, revealed at once'}`);
+    if (!one('get.order', get.order)) add('get.order', 'A draft is snake, blind, a draw or an auction');
+    // A draw (A10 part 3) goes with either ownership; an auction (part 3b) is for castaways nobody else can have; a draft people
+    // pick in goes with its own.
+    else if (get.order === 'auction' && one('get.own', get.own) && get.own !== 'exclusive') add('get.own', "An auction is for castaways nobody else can have: shared, what they cost comes from the data instead (a salary cap: a budget beside a blind draft)");
+    else if (get.order !== 'draw' && get.order !== 'auction' && one('get.own', get.own) && ORDER_OF[get.own] !== get.order) add('get.order', `An ${get.own} draft is ${ORDER_OF[get.own]}: ${get.own === 'exclusive' ? 'everyone takes turns for castaways nobody else can have' : 'everyone picks in private, revealed at once'}`);
     if (!count) add('count', 'A draft says what counts: { start: n }, { all: true } or { best: n }');
     if (get.groups !== undefined) groupSlotProblems(get.groups, s).forEach(([at, p]) => add(`get.groups${at}`, p));
     if (get.across !== undefined) acrossProblems(get.across).forEach(([at, p]) => add(`get.across${at}`, p));
+    if (get.budget !== undefined) budgetProblems(get.budget, s).forEach(([at, p]) => add(`get.budget${at}`, p));
   }
   if (get.by === 'pick') {
     if (get.each !== 1) add('get.each', 'A pick is one an episode');
@@ -1053,9 +1118,10 @@ const KEYS = {
   span: ['from', 'to'],
   from: ['phase', 'at'],
   pool: ['of', 'where'],
-  get: { draft: ['by', 'each', 'order', 'own', 'groups', 'across'], pick: ['by', 'each', 'repeat', 'second'], card: ['by'], none: ['by'], squares: ['by'] },
+  get: { draft: ['by', 'each', 'order', 'own', 'groups', 'across', 'budget'], pick: ['by', 'each', 'repeat', 'second'], card: ['by'], none: ['by'], squares: ['by'] },
   groups: ['slots', 'own', 'swap', 'fallback', 'points'],
   across: ['of', 'then'],
+  budget: ['total', 'floor', 'ceiling', 'gone', 'fallback'],
   second: ['fallback'],
   score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays'], stats: ['by', 'points'] },
   buyback: ['times', 'before', 'cost'],
@@ -1090,6 +1156,7 @@ function unknownKeys(s) {
     if (s.get.by === 'draft') {
       check(s.get.groups, KEYS.groups, 'get.groups');
       check(s.get.across, KEYS.across, 'get.across');
+      check(s.get.budget, KEYS.budget, 'get.budget');
     }
     if (s.get.by === 'pick') check(s.get.second, KEYS.second, 'get.second');
   }
@@ -1156,6 +1223,36 @@ function acrossProblems(a) {
   const out = [];
   if (own(VOCAB['get.across.of'], a.of) === undefined) out.push(['.of', "Spread across what: the show's groups (group), or a guy and a girl (gender)"]);
   if (own(VOCAB['get.across.then'], a.then) === undefined) out.push(['.then', 'After the draft a castaway stays yours wherever they go: keep']);
+  return out;
+}
+
+/**
+ * A draft's prices (A10 part 3b: get.budget), as [[at, problem]]: { total: 1 to MAX_BUDGET (everyone's), floor: 0 or more (the
+ * lowest price, or bid), and an auction's fallback: fill | short, or a salary cap's ceiling (the highest price: from the lowest
+ * to the budget) and gone: zero | last }. Everyone can afford a team at the lowest price (total at least floor × each). A salary
+ * cap's prices are each castaway's points so far by the game's own rules, so it goes with a draft scored by moments (scored by
+ * place, everyone still in has the same points, and nothing would cost more). Any draft order but an auction is a cap.
+ */
+function budgetProblems(b, s) {
+  if (!isObj(b)) return [['', 'A budget is { total, floor, ceiling, gone } (a salary cap) or { total, floor, fallback } (an auction)']];
+  const out = [];
+  const auction = s.get.order === 'auction';
+  const each = isInt(s.get.each, 1) ? s.get.each : null;
+  if (!(isInt(b.total, 1) && b.total <= MAX_BUDGET)) out.push(['.total', `Everyone's budget is 1 to ${MAX_BUDGET}`]);
+  if (!isInt(b.floor, 0)) out.push(['.floor', 'The lowest price is 0 or more']);
+  else if (isInt(b.total, 1) && each !== null && b.floor * each > b.total) out.push(['.floor', `${each} at the lowest price, ${b.floor} each, is more than the budget: nobody could fill a team`]);
+  if (auction) {
+    if (b.ceiling !== undefined) out.push(['.ceiling', "An auction's prices are its bids: no highest price (a bid is up to what you can spend)"]);
+    if (b.gone !== undefined) out.push(['.gone', "What someone gone home counts for is a salary cap's (an auction's prices are what was paid)"]);
+    if (own(VOCAB['get.budget.fallback'], b.fallback) === undefined) out.push(['.fallback', "A team the bids didn't fill is filled from what's left at the lowest price, or left short: fill, or short"]);
+  } else {
+    if (b.fallback !== undefined) out.push(['.fallback', "Filling a team the bids didn't is an auction's (a salary cap's draft picks every place)"]);
+    if (!(isInt(b.ceiling, 0) && (!isInt(b.floor, 0) || b.ceiling >= b.floor) && (!isInt(b.total, 1) || b.ceiling <= b.total)) && (b.ceiling !== undefined || each !== null)) {
+      out.push(['.ceiling', 'The highest price is from the lowest to the budget']);
+    }
+    if (own(VOCAB['get.budget.gone'], b.gone) === undefined) out.push(['.gone', 'Someone gone home counts against the cap as nothing, or the price they went home at: zero, or last']);
+    if (!(isObj(s.score) && s.score.by === 'moments')) out.push(['', "A salary cap's prices are each castaway's points so far by the game's rules: a draft scored by moments (scored by place, everyone still in has the same points, so nothing would cost more)"]);
+  }
   return out;
 }
 
@@ -1325,7 +1422,9 @@ function settleProblems(s, ctx, opts) {
   // keeps the draft it made (its couch grows by people joining, who ask: extras.join).
   const get = isObj(s.get) ? s.get : {};
   if (!opts.league && get.by === 'draft' && get.own === 'exclusive' && isInt(get.each, 1) && isInt(ctx.pool, 0) && isInt(ctx.couch, 1) && !covers({ pool: ctx.pool, people: ctx.couch, each: get.each })) {
-    out.push(['get.own', `${ctx.couch} of you × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} is more than the ${ctx.pool} who can be drafted: make it shared, so two of you can have the same one`]);
+    const more = `${ctx.couch} of you × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} is more than the ${ctx.pool} who can be drafted`;
+    // A10 part 3b: an auction can't be shared; its shared version is a salary cap (prices from the data, no bidding).
+    out.push(['get.own', get.order === 'auction' ? `${more}: an auction needs castaways nobody else can have, so make it a salary cap (prices from the data, no bidding), where two of you can have the same one` : `${more}: make it shared, so two of you can have the same one`]);
   }
   // A10 part 3: a draft spread across the cast's groups needs a show whose cast has groups, and a guy and a girl needs data
   // that says who is which: no show's cast or research records it, so nothing settles it. Exclusive, each group where it
@@ -1470,7 +1569,7 @@ module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
   RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, poolParts,
-  DRAFT_ACROSS, DRAW_OWN, spreadBounds,
+  DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

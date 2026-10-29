@@ -8,6 +8,7 @@ import { syncWaivers } from "./waivers";
 import { justProcessed, sendProcessed, snapshot as waiverSnapshot } from "./waiver-pushes";
 import { recordChange, type ChangeOf } from "./change-log";
 import { settleGroupSlots } from "./group-slots";
+import { settleDueAuction } from "./auction";
 import { after } from "next/server";
 
 // Re-exported so route handlers can import { pool, withLeagueLock, HttpError } from one place,
@@ -75,6 +76,8 @@ export async function withLeagueLock(
     const slots = await settleGroupSlots(client, state, true);
     // A draw whose scheduled time has come (step A10 part 3, StateLogic.DrawLogic): drawn now, so the mutation sees the teams.
     StateLogic.DrawLogic.settle(state);
+    // An auction whose bidding closed with bids still out (step A10 part 3b, auction.ts): settled now, with the bids it has.
+    await settleDueAuction(client, leagueId, state);
     const before = change ? structuredClone(state) : null;
     await mutatorFn(state, client);
     // A mutation that turned group slots on reads them now; one that turned them off clears them (settle keeps none).

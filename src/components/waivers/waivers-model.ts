@@ -266,6 +266,7 @@ export function placeInLine(state: LeagueState, me: string | null): number {
 export function passLine(state: LeagueState, p: WaiverPass, me: string | null, name: (id: string) => string): string {
   if (p.reason === "ahead") return `${capFirst(playerName(state, p.byPlayerId, me, "you"))} got ${name(p.castawayId)} first`;
   if (p.reason === "yours" || p.reason === "pickupFirst") return `${name(p.castawayId)} came in for another spot`;
+  if (p.reason === "cap") return `${name(p.castawayId)} would have taken your team past the cap`;
   return `${name(p.castawayId)} was already gone`;
 }
 

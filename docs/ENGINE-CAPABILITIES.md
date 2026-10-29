@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 155 ✅ · 90 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
-**Waiting, by step:** A10 9 · A11 14 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 158 ✅ · 87 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
+**Waiting, by step:** A10 6 · A11 14 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -63,8 +63,8 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | Rank them | A game for Survivor 51: everyone answers one question before each episode: rank who goes home, surest first, all season. A point for each right answer. |
 | ✅ | Spread 10 chips | A game for Survivor 51: everyone answers one question before each episode: spread 10 chips on who wins immunity, all season. A point for each right answer. |
 | ✅ | Wager your points | A game for Survivor 51: everyone answers one question before each episode: will an idol be found tonight, all season. A point for each right answer. Stake up to 5 points on it: double or nothing. |
-| ⏳ | Bid (an auction draft) | A10 |
-| ⏳ | Trade (buy and sell castaways) | A10 |
+| ✅ | Bid (an auction draft) | An Outlast for Survivor 51: everyone has 100 to bid on a team of 3, all season. Each scores by how long they last: the last one standing carries you. |
+| ⏳ | Trade (buy and sell castaways) | A10: part 3c: buying and selling each week, on part 3b's prices |
 | ✅ | A random draw (names out of a hat) | An Outlast for Survivor 51: everyone gets 2 drawn at random, all season. Each scores by how long they last: the last one standing carries you. |
 | ⏳ | Vote among the players | A14 |
 
@@ -180,8 +180,8 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 |---|---|---|---|---|---|
 | ⏳ | s01 | Survivor 51 | Guillotine: everyone drafts 4, the lowest scorer each week is out and their castaways go back in the pool. | win | A11 |
 | ⏳ | s02 | Survivor 51 | Points every week, but at the merge the bottom half of us is cut. | win, shape | A11 |
-| ⏳ | s03 | Survivor 51 | Auction draft: everyone gets $100 to bid on castaways. | answer | A10 |
-| ⏳ | s04 | Dancing with the Stars 35 | Salary cap: couples cost more the better they're doing. | answer | A10 |
+| ✅ | s03 | Survivor 51 | Auction draft: everyone gets $100 to bid on castaways. | answer | A Weekly Lineup for Survivor 51: everyone has 100 to bid on a team of 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. |
+| ✅ | s04 | Dancing with the Stars 35 | Salary cap: couples cost more the better they're doing. | answer | A Weekly Lineup for Dancing with the Stars 35: everyone drafts 4 under a salary cap of 100 and starts 2 each episode, all season. Scored by Dancing with the Stars 35's rules. (Checked against The Amazing Race's rules, a show of its kind.) |
 | ✅ | s05 | Survivor 51 | Everyone drafts one castaway from each tribe. | who | An Outlast for Survivor 51: everyone drafts 3 from across the tribes, all season. Each scores by how long they last: the last one standing carries you. |
 | ❓ | s06 | Survivor 51 | Draft a guy and a girl each, and they score together. | who | who is a guy and who is a girl: no show's cast or research records it, so the data rule refuses it (A10 part 3 built the spread, across the show's groups); whether research should record it is the user's |
 | ✅ | s07 | Survivor 51 | Reverse draft: the earlier your castaways go home, the more you score. | score | A game for Survivor 51: everyone drafts 3, all season. Each scores more the earlier they go home: the first one out carries you. |
@@ -199,7 +199,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ⏳ | s19 | Survivor 51 | Newcomers get 5 bonus points a week. | who | A11 |
 | ⏳ | s20 | Survivor 51 | One league across Survivor and The Traitors. | shape | A12 |
 | 🆕 | s21 | Survivor 51 | A kids' version, no points shown. | shape | how a game shows, not what it is: a setting for the UI track |
-| ⏳ | s22 | Survivor 51 | Stock market: buy and sell castaways each week. | answer | A10 |
+| ⏳ | s22 | Survivor 51 | Stock market: buy and sell castaways each week. | answer | A10: part 3c: buying and selling each week, on part 3b's prices (a sale refills the budget; what someone gone home is worth) |
 | ✅ | s23 | Survivor 51 | One mulligan a season. | answer | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. One wrong pick forgiven. Longest streak wins. |
 | ⏳ | s24 | The Traitors (US) 5 | Two of us are secretly traitors who score when the faithful's picks get banished. | who | A14 |
 | ✅ | s25 | Survivor 51 | Every two episodes, name someone who'll be gone by then. | when | A game for Survivor 51: everyone answers one question before every two episodes: name someone who'll be gone in the next two, all season. 2 points for each right answer. |

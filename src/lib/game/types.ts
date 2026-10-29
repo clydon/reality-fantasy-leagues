@@ -327,6 +327,10 @@ export interface LeagueSettings {
    *  cast's groups (get.across). */
   draftDraw?: boolean;
   draftAcross?: import("./game-spec/index.js").DraftAcross;
+  /** Step A10 part 3b, each absent unless a game says it: an auction (get.order 'auction'), and a draft's prices (get.budget: an
+   *  auction's budget, or a salary cap). */
+  draftAuction?: boolean;
+  draftBudget?: import("./game-spec/index.js").DraftBudget;
   /** Step A10 part 2, each absent unless a game says it: a pool's lives (score.lives), buyback (score.buyback), mulligans
    *  (score.mulligans), second pick (get.second) and last one standing (rank.by 'standing'). */
   poolLives?: number;
@@ -931,8 +935,9 @@ export interface WaiverWindows {
 export interface WaiverPass {
   castawayId: string;
   /** ahead: someone higher in the waiver order took them; yours: your own earlier claim landed them;
-   * gone: not a free agent by then; pickupFirst: pre-v2 runs only (pickups went before add/drops). */
-  reason: "ahead" | "pickupFirst" | "yours" | "gone";
+   * gone: not a free agent by then; pickupFirst: pre-v2 runs only (pickups went before add/drops); cap: it would have taken the
+   * team past its salary cap (step A10 part 3b). */
+  reason: "ahead" | "pickupFirst" | "yours" | "gone" | "cap";
   byPlayerId?: string;
 }
 
@@ -1067,6 +1072,10 @@ export interface LeagueState {
   /** A10 part 3: a draw (state-logic.js DrawLogic), once drawn: its seed (the same seed deals the same teams), when, the order it
    *  dealt in, and the seats it came up short for (an exclusive hat that ran out). */
   draw?: { seed: string; at: string; order: string[]; short: string[] };
+  /** A10 part 3b: an auction (state-logic.js AuctionLogic): who has locked in their sealed bids (the bids themselves are kept out
+   *  of the state, in blind_draft_picks, as a blind draft's picks are), and once it's settled, when, its seed (the tie-break), the
+   *  order it filled in, what each seat spent, and the seats it left short. */
+  auction?: { lockedPlayerIds: string[]; at?: string; seed?: string; order?: string[]; spent?: Record<string, number>; short?: string[] };
   /** A game that asks by phase (step A7, StateLogic.settlePhases): the season's phase starts it plays by, and where each later
    *  phase's window of questions opens. */
   phaseStarts?: Record<string, number>;

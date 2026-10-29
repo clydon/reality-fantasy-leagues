@@ -30,8 +30,9 @@ export interface SpecPool {
 
 export type SpecGet =
   /** A10 part 3: order "draw" deals each team at random when the draft starts (either ownership); across spreads a draft over
-   *  the cast's groups as the data has them then. */
-  | { by: "draft"; each: number; order: "snake" | "blind" | "draw"; own: "exclusive" | "shared"; groups?: GroupSlots; across?: DraftAcross }
+   *  the cast's groups as the data has them then. Part 3b: order "auction" (exclusive) sells the cast by sealed bids; a budget
+   *  beside any other order is a salary cap, prices from the data. */
+  | { by: "draft"; each: number; order: "snake" | "blind" | "draw" | "auction"; own: "exclusive" | "shared"; groups?: GroupSlots; across?: DraftAcross; budget?: DraftBudget }
   /** A10 part 2's second: a second pick beside the first, open every episode, counting on a night two or more go home (void, or
    *  counts like the first, on a night only one goes). */
   | { by: "pick"; each: 1; repeat: "cycle"; second?: { fallback: "void" | "counts" } }
@@ -302,6 +303,19 @@ export interface GroupSlots {
   points: "mean" | "sum";
 }
 
+/** A10 part 3b: a draft's prices (get.budget). Everyone's `total`; `floor` the lowest price or bid. An auction (order
+ *  "auction"): what a castaway costs is the winning bid, and a team the bids didn't fill is filled from what's left at the floor
+ *  (`fallback` fill) or left short. A salary cap (any other order): each castaway's price from their points so far by the game's
+ *  own rules, `floor` to `ceiling` by where they stand, a team's prices together up to `total` when it's drafted or changed;
+ *  someone gone home counts as nothing or the price they went home at (`gone`). */
+export interface DraftBudget {
+  total: number;
+  floor: number;
+  ceiling?: number;
+  gone?: "zero" | "last";
+  fallback?: "fill" | "short";
+}
+
 /** A10 part 3: a draft spread across the cast's groups (get.across): no more than ceil(each / groups) from one group, at least
  *  floor(each / groups) from each while it has someone to take, read from the groups the data has people on when it drafts
  *  (state-logic.js SpreadLogic). gender waits on data that says who is which (no show records it). */
@@ -483,6 +497,23 @@ export function poolParts(spec: GameSpec | SpecInput | null | undefined): PoolPa
 export const DRAFT_ACROSS: { then: "keep" };
 export const DRAW_OWN: "exclusive";
 export function spreadBounds(each: number, groups: number): { least: number; most: number } | null;
+/** A10 part 3b: a budget's most and defaults, a sealed bid sheet's most bids, a salary cap's highest price when it's left out,
+ *  and a draft's prices read from a whole spec (null: none). */
+export const MAX_BUDGET: number;
+export const BUDGET: { total: number; floor: number };
+export const CAP: { gone: "zero" | "last" };
+export const AUCTION: { fallback: "fill" | "short" };
+export const MAX_BIDS: number;
+export function ceilingFor(total: number, each: number, floor: number): number | null;
+export interface BudgetParts {
+  auction: boolean;
+  total: number;
+  floor: number;
+  ceiling?: number | null;
+  gone?: "zero" | "last";
+  fallback?: "fill" | "short";
+}
+export function budgetParts(spec: GameSpec | SpecInput | null | undefined): BudgetParts | null;
 /** Whether a pool covers every pick of an exclusive draft: people x each <= pool. */
 export function covers(o: { pool: number; people: number; each: number }): boolean;
 /** The spec with everything it leaves out filled in (the preset's, or the defaults); never mutates it. */

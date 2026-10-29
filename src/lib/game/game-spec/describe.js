@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts, budgetParts } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -135,9 +135,12 @@ function sentenceParts(s, w) {
   const one = first !== null && s.span.to === first;
   let spanSaid = false;
   if (by === 'draft') {
-    // A10 part 3: a draw deals the teams; a spread draft takes them across the show's groups.
-    put(s.get.order === 'draw' ? `everyone gets ${s.get.each} drawn at random` : `everyone drafts ${s.get.each}`, 'get');
+    // A10 part 3: a draw deals the teams; a spread draft takes them across the show's groups. Part 3b: an auction's bids, a
+    // salary cap.
+    const budget = budgetParts(s);
+    put(s.get.order === 'draw' ? `everyone gets ${s.get.each} drawn at random` : s.get.order === 'auction' ? `everyone ${budget ? `has ${budget.total} to bid` : 'bids'} on a team of ${s.get.each}` : `everyone drafts ${s.get.each}`, 'get');
     if (acrossOf(s)) put(` from across the ${w.group}s`, 'get');
+    if (budget && !budget.auction) put(` under a salary cap of ${budget.total}`, 'get');
     if (count === 'start') put(` and starts ${s.count.start} each ${w.part}`, 'count');
     // A9 part 2: a lineup's captain.
     if (count === 'start' && isObj(s.score.captain) && isNum(s.score.captain.times)) put(`, one of them a captain who scores ${timesWord(s.score.captain.times)}`, 'score');
@@ -327,9 +330,20 @@ function groupSlotRules(s, w) {
 
 /** A draft spread across the cast's groups (A10 part 3: get.across), or null. */
 const acrossOf = (s) => (s.get && s.get.by === 'draft' && isObj(s.get.across) ? s.get.across : null);
-/** How a draw and a spread draft work (A10 part 3), a rule a line. */
+/** How a draw and a spread draft work (A10 part 3), and a draft's prices (part 3b), a rule a line. */
 function drawRules(s, w) {
   const out = [];
+  const b = budgetParts(s);
+  if (b && b.auction) {
+    out.push(`It's an auction: everyone has ${b.total} to spend, and bids in private on the ${w.castaway}s they want (backups too), each bid ${b.floor} or more, keeping ${b.floor} for each other place on the team.`);
+    out.push(`When everyone has bid, or when the first ${w.part} starts, the bids are settled at once: the highest bid wins its ${w.castaway} at what was bid, then the next highest, and so on. Equal bids are settled by a draw, recorded so it's the same whenever anyone looks.`);
+    out.push(b.fallback === 'fill'
+      ? `A team the bids didn't fill (or someone who didn't bid) is filled from who's left, at random, at ${b.floor} each.`
+      : `A team the bids didn't fill stays short.`);
+  } else if (b) {
+    out.push(`There's a salary cap of ${b.total}: each ${w.castaway} costs ${b.floor} to ${b.ceiling} by how they're doing, their points so far by this game's rules (the best costs most). Before anyone's scored, everyone costs the same.`);
+    out.push(`Your team's prices add up to no more than the cap when you draft it and whenever you change it. Prices move after every ${w.part}: a team that goes over keeps its ${w.castaway}s, but a change can't take it further over. Someone gone home counts as ${b.gone === 'last' ? 'what they cost when they went' : 'nothing'}.`);
+  }
   if (s.get.order === 'draw') {
     out.push(s.get.own === 'shared'
       ? `Nobody picks: when the draft starts, everyone is dealt ${say(s.get.each)} at random, each from a hat of their own, so the same ${w.castaway} can be on more than one team.`
@@ -349,7 +363,7 @@ function rulesOf(s, w) {
   const by = s.get.by;
   const count = countKind(s.count);
   const shared = s.get.own === 'shared';
-  const draft = s.get.order === 'draw'
+  const draft = s.get.order === 'draw' || s.get.order === 'auction'
     ? null
     : shared
       ? `Draft a team of ${say(s.get.each)} in private; everyone's picks are revealed at once, and the same ${w.castaway} can be on more than one team.`
@@ -474,7 +488,7 @@ function detailsOf(s, w) {
   if (isObj(e.draft)) {
     const d = e.draft;
     out.push({ id: 'draft', label: 'The draft', recommended: rec('draft'), value: [
-      s.get.order === 'draw' ? `At random, out of ${s.get.own === 'shared' ? 'a hat each' : 'one hat'}` : s.get.own === 'shared' ? 'In private, revealed at once' : 'Snake: everyone takes turns',
+      s.get.order === 'draw' ? `At random, out of ${s.get.own === 'shared' ? 'a hat each' : 'one hat'}` : s.get.order === 'auction' ? 'An auction: sealed bids, settled at once' : s.get.own === 'shared' ? 'In private, revealed at once' : 'Snake: everyone takes turns',
       d.timer ? `${d.timer === 60 ? '60 seconds' : '2 minutes'} a pick, then ${d.away === 'queue' ? 'from their queue' : 'it waits'}` : 'No pick timer',
       d.at ? `at ${d.at}` : 'no time set',
     ].join(' · ') });

@@ -17,8 +17,9 @@ import type { LeagueState } from "./types";
 // available would say who went home.
 
 // A10 part 3's draw: nobody picks; the teams are dealt at random when it starts (state-logic.js DrawLogic). Its screens are U1's:
-// here it reads as a blind draft does once revealed (the teams, no turns or clock).
-export type DraftKind = "snake" | "blind" | "draw";
+// here it reads as a blind draft does once revealed (the teams, no turns or clock). Part 3b's auction (AuctionLogic): sealed
+// bids, read as a blind draft is (who's locked in; the teams once it settles), with the budget and what each spent.
+export type DraftKind = "snake" | "blind" | "draw" | "auction";
 export type DraftPhase = "waiting" | "live" | "done";
 
 export interface DraftFace {
@@ -105,6 +106,9 @@ export interface DraftGame extends GameRefIn {
   queue: string[];
   /** Blind: who has locked in, your own picks (null: not locked in), and when it revealed. */
   locked: string[];
+  /** An auction (step A10 part 3b): everyone's budget and the lowest bid; once it's settled, what each seat spent and the seats
+   *  it left short (each pick's price is in the draft's log). */
+  auction?: { total: number; floor: number; spent: Record<string, number> | null; short: string[] };
   mine: string[] | null;
   revealedAt: string | null;
 }
@@ -123,6 +127,7 @@ export function draftKind(state: LeagueState): DraftKind | null {
   const get = StateLogic.gameOf(state).get;
   if (get.by !== "draft") return null;
   if (get.order === "draw") return "draw";
+  if (get.order === "auction") return "auction";
   return get.own === "shared" ? "blind" : "snake";
 }
 
@@ -155,6 +160,7 @@ function phaseOf(state: LeagueState, kind: DraftKind): DraftPhase {
   if (!StateLogic.isDraftStarted(state)) return "waiting";
   if (kind === "blind") return StateLogic.BlindDraftLogic.isRevealed(state) ? "done" : "live";
   if (kind === "draw") return StateLogic.DrawLogic.drawn(state) ? "done" : "live";
+  if (kind === "auction") return StateLogic.AuctionLogic.settled(state) ? "done" : "live";
   const turn = StateLogic.currentDraftTurn(state);
   return !turn || turn.isComplete ? "done" : "live";
 }
@@ -250,6 +256,31 @@ export function draftView(
       locked: B.lockedPlayerIds(full),
       mine: phase === "live" ? own.mine : null,
       revealedAt: full.blindDraft?.revealedAt ?? null,
+    };
+  }
+
+  if (kind === "auction") {
+    const A = StateLogic.AuctionLogic;
+    return {
+      ...base,
+      seats: A.eligiblePlayers(full).map((p) => seat(p.id)),
+      turns: [],
+      picks: [],
+      made: full.draftPicksMade,
+      clock: null,
+      // Nothing about anyone's bids before it settles.
+      teams: phase === "done" ? teams : [],
+      canUndo: false,
+      madeFor: 0,
+      locked: A.lockedPlayerIds(full),
+      mine: null,
+      revealedAt: full.auction?.at ?? null,
+      auction: {
+        total: StateLogic.PriceLogic.config(full)?.total ?? 0,
+        floor: StateLogic.PriceLogic.config(full)?.floor ?? 0,
+        spent: phase === "done" ? (full.auction?.spent ?? {}) : null,
+        short: phase === "done" ? (full.auction?.short ?? []) : [],
+      },
     };
   }
 
