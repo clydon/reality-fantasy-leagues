@@ -20,6 +20,7 @@ import { andList } from "./seats";
 import { useDeskStay, useRecentlyOpened } from "./trail";
 import { agoOf, ChoiceCard, DeskHeader, DeskRow, History, IconLead, ItemRow, Section, Tag } from "./parts";
 import { RulebookPage } from "./rulebook";
+import { EpisodePage } from "./episode";
 import { ResearchPage } from "./research";
 import { SetupPage } from "./setup";
 
@@ -34,7 +35,7 @@ type Page = Tab | "library" | "new" | "people" | "reports";
 
 const TAB_NAMES: Record<Tab, string> = { inbox: "Inbox", find: "Find", settings: "Settings" };
 
-export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: DeskKind; id: string; sub?: DeskSeasonPage } | null }) {
+export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: DeskKind; id: string; sub?: DeskSeasonPage; episode?: number } | null }) {
   const me = useMe();
   useDeskStay();
   if (!me.isSuperAdmin) {
@@ -45,6 +46,7 @@ export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: Desk
       </div>
     );
   }
+  if (item?.episode) return <EpisodePage id={item.id} n={item.episode} />;
   if (item?.sub === "setup") return <SetupPage id={item.id} />;
   if (item?.sub === "research") return <ResearchPage id={item.id} />;
   if (item) {

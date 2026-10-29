@@ -90,8 +90,10 @@ export function researchFromPaste(
   season: number,
   episodeNumber: number,
   notes: string,
-  opts?: { model?: string; dry?: boolean; structured?: boolean }
-): Promise<EpisodeResearchRun>;
+  /** merge/fill: folded into the stored answers field by field (an episode answered before); checkEpisode: refused with code
+   *  "EPISODE_MISMATCH" when it reads like another episode's (as researchFromPasteForLeague); via: who pasted ("bot"). */
+  opts?: { model?: string; dry?: boolean; structured?: boolean; merge?: boolean; fill?: boolean; checkEpisode?: boolean; via?: string }
+): Promise<EpisodeResearchRun & { id: string | null; format: unknown; submitted: EpisodeResearch }>;
 
 /**
  * A league's research context for one episode: its show, season, cast names (the season's staged cast, else the

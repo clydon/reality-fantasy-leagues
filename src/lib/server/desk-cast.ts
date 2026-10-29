@@ -3,12 +3,12 @@ import { publicMediaSrc } from "@/lib/game/selectors";
 import { ensureSeasonRulebook } from "@db/rulebooks.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { pool, withLeagueLock, HttpError } from "./db";
-import { byNewest, deskLines, logDesk, readable, type DeskLine } from "./desk";
+import { byNewest, deskLines, logDesk, type DeskLine } from "./desk";
 import { hasSchedule, latestAired, seasonSchedules } from "./schedule";
 import { applyApprovedCastToLeagues, renameInSeasonDecisions, seasonCastRows } from "./season-cast";
 
 // A season and its cast on the desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js adminEntity): a
-// season's rulebook, its cast grouped as they start, and its episodes' results by status; a castaway's name, group and
+// season's rulebook and its cast grouped as they start (its episodes have pages of their own, part 4b); a castaway's name, group and
 // photo, each with Override (it reaches every league on the season at once, through the cast link, as an admin's cast
 // edit always has), a Lock (no commissioner's cast entry can change them) and History. A group the cast was given that
 // is really a secret role (Traitors 5's "Traitor" and "Faithful", noticed in step 3) can be taken out: off the season's
@@ -57,7 +57,6 @@ export interface DeskSeason {
   rulebook: { id: string; version: number; live: boolean; everywhere: boolean; edited: boolean } | null;
   groups: { name: string; people: number; secretRole: boolean }[];
   cast: { id: string; name: string; group: string | null; photo: string | null; locked: boolean }[];
-  episodes: { number: number; facts: { id: string; name: string; label: string; status: string; live: boolean }[] }[];
   aired: number;
   /** Something says when its episodes air (its premiere, a listing's dates or a drop): the Inbox's "no schedule" while airing. */
   scheduled: boolean;
@@ -78,23 +77,6 @@ export async function deskSeason(id: string): Promise<DeskSeason> {
   );
   const groups = new Map<string, number>();
   for (const c of cast) if (c.tribe_name) groups.set(c.tribe_name, (groups.get(c.tribe_name) ?? 0) + 1);
-  const { rows: facts } = await pool.query(
-    `SELECT id, episode_number, kind, castaway_name, method, event_type, applied, fact_status, status FROM season_decisions
-      WHERE season_id = $1 AND (fact_status IS NOT NULL OR status <> 'pending') ORDER BY episode_number, (kind = 'elimination') DESC, castaway_name`,
-    [id]
-  );
-  const episodes = new Map<number, DeskSeason["episodes"][number]>();
-  for (const f of facts) {
-    const ep: DeskSeason["episodes"][number] = episodes.get(f.episode_number) ?? { number: f.episode_number, facts: [] };
-    ep.facts.push({
-      id: f.id,
-      name: f.kind === "noexit" ? "" : f.applied?.castawayName || f.castaway_name,
-      label: f.kind === "event" ? readable(f.applied?.eventType || f.event_type) : f.kind === "noexit" ? "Nobody went home" : f.applied?.method || f.method || f.kind,
-      status: f.fact_status ?? (f.status === "accepted" ? "canonical" : "removed"),
-      live: f.status === "accepted",
-    });
-    episodes.set(f.episode_number, ep);
-  }
   const schedule = (await seasonSchedules([id])).get(id);
   return {
     id,
@@ -106,7 +88,6 @@ export async function deskSeason(id: string): Promise<DeskSeason> {
     rulebook: book ? { id: book.row.id, version: book.row.version, live: s.rulebook_live, everywhere: flag[0]?.value === true, edited: book.row.compiledSource === "blocks" } : null,
     groups: [...groups].map(([name, people]) => ({ name, people, secretRole: roles.has(name.toLowerCase()) || /^(traitors?|faithfuls?)$/i.test(name) })),
     cast: cast.map((c) => ({ id: c.id, name: c.name, group: c.tribe_name, photo: publicMediaSrc(c.photo_url), locked: !!c.locked_at })),
-    episodes: [...episodes.values()].sort((a, b) => b.number - a.number),
     aired: latestAired(schedule) ?? 0,
     scheduled: hasSchedule(schedule),
     castSent: !!s.cast_approved_at || !cast.length,

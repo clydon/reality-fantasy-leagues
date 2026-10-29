@@ -6,7 +6,8 @@ import { pool, HttpError } from "./db";
 import { restoreSetting } from "./desk";
 import { restoreSeasonBot } from "./desk-bot";
 import { restoreCastaway, restoreGroup, setCastawayLock } from "./desk-cast";
-import { restoreFact } from "./desk-facts";
+import { restoreCleared, restoreAnswer, writeTriviaOut } from "./desk-episode";
+import { restoreFact, restoreFacts } from "./desk-facts";
 import { restorePerson } from "./desk-person-actions";
 import { restoreReport } from "./desk-reports";
 import { restoreSeat } from "./desk-seats";
@@ -30,6 +31,18 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
   switch (u.type) {
     case "fact":
       await restoreFact(c.entity_id, u.before as Parameters<typeof restoreFact>[1], user.id);
+      break;
+    case "facts":
+      await restoreFacts(u.list as Parameters<typeof restoreFacts>[0], user.id);
+      break;
+    case "answer":
+      await restoreAnswer(String(u.researchId), !!u.back, user.id);
+      break;
+    case "trivia":
+      await writeTriviaOut(user.id, String(u.id), !!u.out);
+      break;
+    case "cleared":
+      await restoreCleared(u.snapshot as Parameters<typeof restoreCleared>[0], user.id);
       break;
     case "castaway":
       await restoreCastaway(user.id, String(u.id), u.field as "name" | "group" | "photo", (u.value as string | null) ?? null);

@@ -17,6 +17,7 @@ import { ArtSection } from "./art";
 import { deskSend, useAfterDesk, useDesk, type DeskCastaway, type DeskCouch, type DeskFact, type DeskLine, type DeskSeason, type DeskShow, type SeasonBot, type SeasonDelete } from "./data";
 import { DeskHeader, DeskRow, Facts, FieldRow, IconLead, ItemRow, LatestHistory, LockRow, LowerThird, OverrideSheet, Section, Tag } from "./parts";
 import { HandOnSheet } from "./seats";
+import { EpisodeNumber } from "./research";
 import { SeasonDeleteRow } from "./setup";
 
 // One thing on the desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js adminFact and adminEntity): a
@@ -235,10 +236,9 @@ function EditFactSheet({ fact, onClose, onSave }: { fact: DeskFact; onClose: () 
 // ---------- a season ----------
 
 export function SeasonPage({ id }: { id: string }) {
-  const q = useDesk<DeskSeason & { bot: SeasonBot; history: DeskLine[]; setup: { line: string; next: string; facts: string; scheduled: boolean }; delete: SeasonDelete }>(`/seasons/${id}`);
+  const q = useDesk<DeskSeason & { bot: SeasonBot; history: DeskLine[]; setup: { line: string; next: string; facts: string; scheduled: boolean }; delete: SeasonDelete; episodeRows: { n: number; line: string }[] }>(`/seasons/${id}`);
   const act = useAct<{ people: number; leagues: number }>(`/seasons/${id}`);
   const [clearing, setClearing] = useState<{ group: string; preview: { people: number; leagues: number } | null } | null>(null);
-  const [open, setOpen] = useState<number | null>(null);
   if (q.error) return <><DeskHeader title="Season" back={back} name={null} /><NotFound error={q.error} /></>;
   if (!q.data) return <><DeskHeader title="Season" back={back} name={null} /><Loading /></>;
   const s = q.data;
@@ -321,26 +321,16 @@ export function SeasonPage({ id }: { id: string }) {
           ))}
         </div>
       </Section>
+      {/* Its episodes (part 4b; the mock's rsEpLine): the next one, then each aired one, each opening its own page. */}
       <Section title="Episodes" aside={s.aired ? `${s.aired} aired` : undefined}>
-        {s.episodes.length ? (
-          s.episodes.map((e) => (
-            <div key={e.number} className="border-t border-border first:border-t-0">
-              <button type="button" data-episode-facts={e.number} onClick={() => setOpen(open === e.number ? null : e.number)} className="nd-press flex min-h-[56px] w-full items-center gap-3 text-left">
-                <span className="type-num w-8 text-[26px] text-muted-foreground">{e.number}</span>
-                <span className="min-w-0 flex-1 text-[14px] text-muted-foreground">
-                  {e.facts.filter((f) => f.live).length} in the leagues
-                  {e.facts.some((f) => f.status === "disputed") ? ` · ${e.facts.filter((f) => f.status === "disputed").length} disputed` : ""}
-                  {e.facts.some((f) => f.status === "reported" && f.live) ? ` · ${e.facts.filter((f) => f.status === "reported" && f.live).length} from 1 source` : ""}
-                </span>
-              </button>
-              {open === e.number &&
-                e.facts.map((f) => (
-                  <ItemRow key={f.id} data="fact" href={paths.deskItem("fact", f.id)} tag={STATUS_TAG[f.status]?.[0] ?? f.status} tone={STATUS_TAG[f.status]?.[1]} title={[f.name, f.label].filter(Boolean).join(" · ")} line={f.live ? "In every league" : "In no league"} />
-                ))}
-            </div>
-          ))
+        {s.episodeRows.length ? (
+          <div data-episodes className="border-b border-border">
+            {s.episodeRows.map((e) => (
+              <DeskRow key={e.n} data={`episode-${e.n}`} href={paths.deskEpisode(id, e.n)} lead={<EpisodeNumber n={e.n} />} title={`Episode ${e.n}`} line={e.line} />
+            ))}
+          </div>
         ) : (
-          <p className="text-[14px] text-muted-foreground">No results yet.</p>
+          <p className="rounded-[4px] bg-card p-3.5 text-[14px] text-muted-foreground">Its episodes come in with its schedule.</p>
         )}
       </Section>
       <LatestHistory lines={q.data.history} />

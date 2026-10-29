@@ -11,6 +11,7 @@ import { pool, HttpError } from "./db";
 import { SEASON_NAME, logDesk, type DeskLine } from "./desk";
 import { seasonBot } from "./desk-bot";
 import { dayGap, fmt, mdIn, plural, timeIn, ymd } from "./desk-dates";
+import { waitingEpisodes } from "./desk-episode";
 import { deskSetup, type SeasonDelete } from "./desk-setup";
 
 // A season's Research and the bot on the desk (docs/PLAN-desk-parity.md step 4, part 4a; the mock's desk-research.js): its
@@ -117,6 +118,8 @@ export interface DeskResearch {
   /** The bot is asking anything now (any season), and how long Run now would wait. */
   waits: string | null;
   now: { aired: NowEpisode[]; bingo: NowEpisode[]; seasonSquares: number | null; scheduleEpisode: number | null; timeByHand: string | null };
+  /** Not in the games yet: the episodes with results one source wasn't sure of, or a name not in the cast (part 4b). */
+  waiting: { n: number; count: number; line: string }[];
   history: DeskLine[];
   delete: SeasonDelete;
   /** Run now's line on the season page ("Autopilot on · 5 runs after each episode"). */
@@ -375,7 +378,7 @@ function railOf(season: SeasonJob, runs: Run[], minutes: number, history: RunRow
 export async function deskResearch(id: string, origin: string | null = null, now = new Date()): Promise<DeskResearch> {
   const season = await job(id);
   const tz = season.air_tz || "America/New_York";
-  const [bot, setup, history, { rows: hist }, { rows: week }, { rows: answers }, { rows: banks }, { rows: head }, { log, total, wait }] = await Promise.all([
+  const [bot, setup, history, { rows: hist }, { rows: week }, { rows: answers }, { rows: banks }, { rows: head }, { log, total, wait }, waiting] = await Promise.all([
     seasonBot(id),
     deskSetup(id, now),
     pool.query(
@@ -395,6 +398,7 @@ export async function deskResearch(id: string, origin: string | null = null, now
     pool.query("SELECT episode, count(*) FILTER (WHERE status = 'live')::int AS live FROM bingo_squares WHERE season_id = $1 GROUP BY episode", [id]),
     pool.query("SELECT driven_at FROM desk_runs WHERE done_at IS NULL ORDER BY asked_at, id LIMIT 1"),
     runsOf(id, tz, now, 30),
+    waitingEpisodes(id),
   ]);
   // A queue nobody's driving (its driver was cut off): this read takes over, after its answer.
   if (origin && head[0] && (!head[0].driven_at || now.getTime() - head[0].driven_at.getTime() > DRIVE_STALE_MS)) after(() => drainDeskRuns(origin));
@@ -446,6 +450,7 @@ export async function deskResearch(id: string, origin: string | null = null, now
       scheduleEpisode: airedN.length ? airedN[airedN.length - 1] : null,
       timeByHand: setup.timesHeld && nextN ? timeIn(nextN.at, tz) : null,
     },
+    waiting,
     history: history.rows.map((r) => ({ id: r.id, text: r.text, at: r.created_at.toISOString(), who: r.who, undoable: r.undoable, undone: r.undone })),
     delete: setup.delete,
     line: researchLine({ on: bot.on, schedule: runs }),

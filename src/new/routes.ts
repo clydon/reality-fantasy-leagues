@@ -14,6 +14,7 @@
 //   /desk/[kind]/[id]                        one thing on the desk: a fact, a season, a castaway, a rulebook... (depth 2)
 //   /desk/season/[id]/setup                  a page under a season: its Setup (depth 3: docs/PLAN-desk-parity.md step 3)
 //   /desk/season/[id]/research               its Research and the bot (depth 3: step 4, part 4a)
+//   /desk/season/[id]/e/[n]                  one of its episodes: its results, answers and trivia (depth 4: step 4, part 4b)
 //
 // Classic owns everything else ("/", /account, /waivers, /setup, /admin...); the two designs never share a path.
 
@@ -79,6 +80,8 @@ export const paths = {
   deskItem: (kind: DeskKind, id: string) => `/desk/${kind}/${id}`,
   /** A page under a season (docs/PLAN-desk-parity.md steps 3-5): its Setup, its Research and the bot. */
   deskSeasonPage: (id: string, page: DeskSeasonPage) => `/desk/season/${id}/${page}`,
+  /** One of a season's episodes (docs/PLAN-desk-parity.md part 4b): its results, its answers, its trivia. */
+  deskEpisode: (id: string, n: number) => `/desk/season/${id}/e/${n}`,
 };
 
 /** The desk's tabs, and the kinds of thing it has a page for. */
@@ -129,7 +132,7 @@ export function depthOf(href: string): number {
     case "signin":
       return 1;
     case "desk":
-      return p[1] && !(DESK_TABS as readonly string[]).includes(p[1]) ? (p[3] ? 3 : 2) : 1;
+      return p[1] && !(DESK_TABS as readonly string[]).includes(p[1]) ? (p[4] ? 4 : p[3] ? 3 : 2) : 1;
     default:
       return 0;
   }

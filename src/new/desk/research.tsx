@@ -9,7 +9,7 @@ import { Btn, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { deskGet, deskSend, useAfterDesk, type DeskResearch, type NowEpisode, type RailRow, type ResearchRun } from "./data";
-import { DeskHeader, Facts, IconLead, LatestHistory, LowerThird, Section, useChangeToast } from "./parts";
+import { DeskHeader, DeskRow, Facts, IconLead, LatestHistory, LowerThird, Section, useChangeToast } from "./parts";
 import { SeasonDeleteRow } from "./setup";
 
 // A season's Research and the bot (docs/PLAN-desk-parity.md step 4, part 4a; the mock's desk-research.js rsPage), from the
@@ -210,6 +210,19 @@ export function ResearchPage({ id }: { id: string }) {
         )}
       </Section>
 
+      {/* Not in the games yet (part 4b): no badge anywhere (decision 7), here for anyone who wants to look. */}
+      <Section title="Not in the games yet" aside={r.waiting.length ? plural(r.waiting.reduce((a, w) => a + w.count, 0), "result") : undefined}>
+        {r.waiting.length ? (
+          <div data-waiting-episodes className="border-b border-border">
+            {r.waiting.map((w) => (
+              <DeskRow key={w.n} data="waiting-episode" href={paths.deskEpisode(id, w.n)} lead={<EpisodeNumber n={w.n} />} title={`Episode ${w.n}`} line={w.line} />
+            ))}
+          </div>
+        ) : (
+          <p className="rounded-[4px] bg-card p-3.5 text-[14px] text-muted-foreground">Everything its sources reported is in the games.</p>
+        )}
+      </Section>
+
       <LatestHistory lines={r.history} emptyLine="Nothing changed yet." />
       <SeasonDeleteRow id={id} del={r.delete} showId={r.show.id} />
 
@@ -269,6 +282,11 @@ export function ResearchPage({ id }: { id: string }) {
       </Sheet>
     </div>
   );
+}
+
+/** An episode's number as a row's lead (the mock's .dk-sn). */
+export function EpisodeNumber({ n }: { n: number }) {
+  return <span className="type-num grid w-10 flex-none place-items-center text-[26px] text-muted-foreground">{n}</span>;
 }
 
 function Pill({ on }: { on: boolean }) {
@@ -494,7 +512,7 @@ function Points({ items }: { items: [ComponentType<{ className?: string; "aria-h
 }
 
 /** Run now: which episode, what it does, what it waits behind, then Ask it now (tier 2: said before it's asked). */
-function NowSheet({ open, onClose, r, kind, episode }: { open: boolean; onClose: () => void; r: DeskResearch; kind: Kind; episode?: number | "season" }) {
+export function NowSheet({ open, onClose, r, kind, episode }: { open: boolean; onClose: () => void; r: DeskResearch; kind: Kind; episode?: number | "season" }) {
   const after = useAfterDesk();
   const [pick, setPick] = useState<number | "season" | null>(null);
   const [busy, setBusy] = useState(false);
@@ -608,6 +626,12 @@ function RunSheet({ run, onClose, r, onAgain }: { run: ResearchRun | null; onClo
               }
             />
           </div>
+          {/* Its episode's results (part 4b): what it filed, and what's in the games. Bingo's bank has its page with part 4c. */}
+          {(live.kind === "full" || live.kind === "quick" || live.kind === "tiebreak" || live.kind === "trivia") && live.episode > 0 && (
+            <div className="mt-4 border-y border-border">
+              <DeskRow data="run-episode" href={paths.deskEpisode(r.id, live.episode)} lead={<EpisodeNumber n={live.episode} />} title={`Episode ${live.episode}'s results`} line="Its answers, and what's in the games" />
+            </div>
+          )}
           <div className="mt-4 flex gap-2">
             {live.runId && !live.queued && <CopyQuestion seasonId={r.id} runId={live.runId} />}
             {askable && live.ok !== null && (
