@@ -249,6 +249,7 @@ The user's examples, as people would type them on a show's page. They go into th
 | Dancing with the Stars 34 | "everyone predicts the scores of each couple; whoever's closest to the average gets a point; ties both get points" | Closest wins and ties all score (A4's number answer) | A6: a question for each couple, settled by research's `judgesScore`. The wizard asks: this episode or the season? The judges' total or their average? |
 | Survivor 51 | "every week we predict if it's going to rain" | A yes-or-no question each episode, once a moment settles it (A4) | No rain moment: the new-moment path (Our check). Likely rated unreliable, so a can't-yet with the nearest settled questions |
 | The Challenge | "I also want to automatically start a new draft stage whenever there is a major format change such as split into teams or split into individuals" | No | A12: a stage that starts on a format change of the kinds named, from each episode's research (Formats nobody announced, below). The wizard says what "major" covers. What players see, and whether the new draft waits for the maker's OK, are the format-change design session's (below) |
+| The Challenge | "draft solo players in the challenge. if we ever get teams forming or pairing up that lasts for multiple episode i want us to start a 'side draft' after that episode ends" | The solo draft: yes (a draft of people) | F3's grouping lifetimes ("lasts" is known only once it has: held N episodes), A12's side stage that opens on a lasting grouping and closes when it changes. If pairs change every episode, it never opens, and the builder says so up front from the show's history (F1). "When a grouping lasts", below |
 
 What these need is in the engine track (Steps: A6, A9, A12, A13).
 
@@ -394,6 +395,23 @@ teams read the format's state rather than guess it), the engine track does the f
 
 The research prompt is shared by every show's research, production's included, so F2 reaches it only through a reviewed merge
 with the user's OK, like everything else.
+
+**When a grouping lasts** (the user's second example, 2026-10-28: a solo draft, plus a side draft when teams or pairs form
+and last). "Lasts" can't be known when a grouping forms, and on some seasons pairs change almost every episode, so the
+engine gives a game several ways to meet a change, and the builder picks with the maker:
+- **Follow the people** (the safest default): a game drafts people, and whatever their group does flows to them each episode
+  (a pair's win scores both), so no change ever breaks it.
+- **A side draft once a grouping has lasted:** it opens after a grouping has held N episodes (2, say), scores from then on,
+  and closes when that grouping changes, its points kept. If pairs change every episode, it never opens.
+- **A pick each episode instead:** "which pair wins this week", its choices the pairs on screen now, for groupings that
+  don't last.
+- **Ask the game's people at the moment:** "The Challenge formed teams of four (since episode 6). Start a side draft?" One
+  tap for the maker or a quick vote of the players (A14's votes), and the game's default if nobody answers by the next lock.
+- **The show's history sets expectations:** F1 measures how long groupings lasted on each show's recent seasons, so the
+  builder can say so up front ("on the last three seasons, pairs lasted one to three episodes: a side draft might open once,
+  or never; a pick each episode fits better").
+The engine builds all of them (F3's grouping lifetimes: who's in it, from which episode, until which); which ones the builder
+offers, their defaults and how the asking looks are the format-change design session's.
 
 **A change can also be what a game is built around** (the user, 2026-10-28): "automatically start a new draft stage whenever
 there is a major format change such as split into teams or split into individuals" (Requests from a show's page). So:
