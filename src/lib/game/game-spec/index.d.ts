@@ -148,6 +148,10 @@ export interface SpecQuestion {
   /** A6: asked about each person still in when it closes, answered { castawayId: answer } (a yes or no, a number, an over/under or
    *  a choice for each), settled for each by their own moment or whether they go home or stay. */
   each?: "person";
+  /** F3 part 2: a group answer asked each episode, on a season played in groups the league doesn't hold (pairs, from the format's
+   *  state over time): void (the default) when its groups aren't sure, no points either way; carry-on follows the people;
+   *  next-stage is A12's. */
+  fallback?: "void" | "carry-on" | "next-stage";
 }
 /** A question as a spec holds it once it's whole (fullSpec): asked and closes always said. */
 export type Question = SpecQuestion & { asked: "once" | "each" | "every" | "phase"; closes: "start" | "finale" };
@@ -185,6 +189,18 @@ export interface AnswerFacts {
   startIn?: string[];
   /** A8: the finalists' jury votes, once the season is over. */
   jury?: Map<string, number> | null;
+  /** F3 part 2: the groups a group question asked each episode reads from the format's state over time, by episode, on a
+   *  season played in groups the league doesn't hold (format-timeline.js groupFacts). */
+  formatGroups?: Map<number, FormatGroups>;
+}
+/** One episode's groups from the format's state over time (F3 part 2): those offered at its lock (going into it), each person's,
+ *  whether that was sure, and once it has a report, how it was played (sure, and the offered groups that played it as offered). */
+export interface FormatGroups {
+  offered: { id: string; name: string; members: string[] }[];
+  byCastaway: Map<string, string>;
+  lockSure: boolean;
+  why: string[];
+  played: { sure: boolean; held: Set<string> } | null;
 }
 /** How a question stands: still to settle, off (nobody went home, right on the line), or what was right (and a count; the
  *  groups the right people were on; a question about each person, each one's verdict by castaway id). */
@@ -199,6 +215,9 @@ export type Verdict =
       each?: Record<string, Verdict>;
       /** A8, a ranking: the places each one could hold (0-based; ties share a block). */
       places?: Record<string, [number, number]>;
+      /** F3 part 2, a group answer on the timeline's groups: the offered groups that played the episode as offered (a pick of
+       *  any other is void). */
+      held?: string[];
     };
 
 export interface SpecWaivers {
@@ -339,6 +358,9 @@ export const MAX_PICK: number;
 export const MAX_QUESTION_POINTS: number;
 /** Grading (answers.js): how a question stands, what each answer earns, whether one was right, why one can't be given. */
 export function verdictOf(q: Question, episode: number, facts: AnswerFacts): Verdict;
+/** F3 part 2: whether a group question reads its groups from the format's state over time where the season has them (asked
+ *  each episode, about the one episode). */
+export function readsTimeline(q: Question): boolean;
 export function rightAnswers(q: Question, v: Verdict, facts?: AnswerFacts): string[] | null;
 export function pointsFor(q: Question, v: Verdict, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): Map<string, number>;
 export function isRight(q: Question, v: Verdict, mine: { playerId: string; answer: unknown }, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): boolean | null;

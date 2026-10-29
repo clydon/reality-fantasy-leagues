@@ -64,6 +64,10 @@ const VOCAB = {
   // A9: how a right answer's points are shared, and what makes them shrink.
   'ask.share': { split: 'now', only: 'now' },
   'ask.shrink.per': { episode: 'now', change: 'now' },
+  // F3 part 2: what a group question asked each episode does when its groups (a season played in pairs, read from the format's
+  // state over time) aren't sure at the lock or as played: void that episode's question, no points either way, or follow the
+  // people (a group graded by who was in it as offered). A12 adds starting the game's next stage.
+  'ask.fallback': { void: 'now', 'carry-on': 'now', 'next-stage': 'later' },
   // A9 part 2: when a draft's points multiply (score.times): an episode, a run of them, a phase of the season, its finale.
   'score.times': { episode: 'now', from: 'now', phase: 'now', finale: 'now' },
 };
@@ -108,6 +112,12 @@ const VOCAB = {
 //           once) | finale: when the season's last episode starts (asked once). Never once data has settled it. The lock is
 //           the engine's closedForPlay, so whoever runs the game can keep an episode open past its start or lock it early;
 //           a game with a late lock (extras.lateLock) keeps it open for someone who hasn't seen the episode (A7)
+//   fallback  (F3 part 2) a group answer asked each episode, on a season played in groups the league doesn't hold (pairs:
+//           read from the format's state over time, format-timeline.js groupFacts): what it does when the groups at the lock,
+//           or as the episode was played, aren't sure. void (the default, the safe one; the default is the user's to set):
+//           that episode's question doesn't count, no points either way | carry-on: follow the people, a group graded by
+//           who was in it as offered | next-stage (A12). A group offered that didn't play the episode as offered (re-drawn
+//           at its start) is void for whoever picked it, whatever the fallback but carry-on
 //   each    'person': one question about each person still in when it closes, an answer for each ("each couple's
 //           score"), still one question of the 12: a yes or no, a number, an over/under or a choice, settled for each
 //           person by their own moment (happened, count) or whether they go home (out) or stay (stays)
@@ -536,6 +546,7 @@ function playable(q) {
   if (!isObj(q) || isCalls(q) || !isObj(q.settle)) return false;
   if (own(VOCAB['ask.answer'], q.answer) !== 'now' || own(VOCAB['ask.settle'], q.settle.by) !== 'now') return false;
   if (q.answer === 'overUnder' && !isNum(q.line)) return false;
+  if (q.fallback !== undefined && own(VOCAB['ask.fallback'], q.fallback) !== 'now') return false;
   return !(q.answer === 'person' && q.from === 'team');
 }
 
@@ -878,6 +889,12 @@ function questionProblems(q, at, s, ids, league) {
     else if (!(q.asked === 'once' && q.closes === 'finale')) add('shrink', "Only a call that stays open once the game is on shrinks: asked once, closing at the finale");
     else if (q.share !== undefined) add('shrink', 'A shrinking call is its own: no share with it');
   }
+  // F3 part 2: a group question asked each episode about one episode reads its groups from the format's state over time on a
+  // season played in groups the league doesn't hold (pairs); `fallback` says what it does when they aren't sure.
+  if (q.fallback !== undefined) {
+    if (!one('ask.fallback', q.fallback)) add('fallback', "When its groups aren't sure, it is void or follows the people: void, or carry-on");
+    else if (q.answer !== 'group' || q.asked !== 'each' || q.over !== undefined) add('fallback', 'Only a group question asked about each episode has a fallback');
+  }
   // Who outlasts whom and the boot order come from who went home; an order of the boot order asked each episode is one boot.
   if (how === 'results:order' && q.asked === 'each' && !windowed(q)) add('asked', 'The order they go home is over a run of episodes or the game');
   if (q.answer === 'person') {
@@ -928,7 +945,7 @@ const KEYS = {
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away'],
   bets: ['points'],
-  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink'],
+  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink', 'fallback'],
   settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place'],
 };
 /** The paths of keys a spec has that no game spec does. */
@@ -1192,7 +1209,7 @@ function specWaitsFor(spec) {
   if (isObj(s.rank)) val('rank.by', 'rank.by', s.rank.by, `Ranking by ${s.rank.by}`);
   val('closes', 'closes', s.closes, `Locking ${s.closes}`);
   (Array.isArray(s.ask) ? s.ask : []).forEach((q, i) => {
-    const steps = [own(VOCAB['ask.answer'], q && q.answer), own(VOCAB['ask.settle'], q && q.settle && q.settle.by)].filter(Boolean);
+    const steps = [own(VOCAB['ask.answer'], q && q.answer), own(VOCAB['ask.settle'], q && q.settle && q.settle.by), own(VOCAB['ask.fallback'], q && q.fallback)].filter(Boolean);
     const step = STEP_ORDER.slice().reverse().find((x) => steps.includes(x));
     if (step) need(`ask[${i}]`, step, `"${(q && q.ask) || q.id}"`);
   });

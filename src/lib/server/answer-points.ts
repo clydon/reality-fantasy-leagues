@@ -2,7 +2,10 @@ import StateLogic from "@/lib/game/state-logic.js";
 import * as Spec from "@/lib/game/game-spec/index.js";
 import type { SheetNights } from "@/lib/game/episode-view";
 import type { GameCalls } from "@/lib/game/game-view";
+import type { AnswerFacts, FormatGroups } from "@/lib/game/game-spec/index.js";
+import { groupFacts } from "@/lib/game/formats/format-timeline.js";
 import type { LeagueState } from "@/lib/game/types";
+import { timelineForShow } from "@db/format-timeline.js";
 import { HttpError, pool } from "./db";
 import type { SeasonSchedule } from "./schedule";
 
@@ -37,6 +40,36 @@ export function finaleEpisode(schedule: SeasonSchedule | undefined): { number: n
 export const viewOf = (h: { state: LeagueState; playerId: string | null; mark: number | null }) =>
   StateLogic.spanView(StateLogic.GhostLogic.viewFor(h.state, h.playerId, h.mark));
 
+/** Whether a question reads its groups from the format's state over time where the season has them (A6 on F3 part 2): the
+ *  grader's own test (game-spec answers.js). */
+export const readsTimeline = Spec.readsTimeline;
+
+/**
+ * The groups a game's group questions read from the season's format state over time (F3 part 2: format-timeline.js groupFacts),
+ * by episode, when it asks one each episode and its season is played in groups the league doesn't hold (The Challenge's pairs:
+ * research's format section, never staged as moves); undefined otherwise, and every episode of a season in named tribes or
+ * teams (Survivor) reads the league's own as before. Worked out on read from the season's stored research (one query each
+ * time: research that just landed is read at once), never stored. Members are matched to the view's castaways the forgiving way (Core.findCastawayByName), and
+ * every lock up to the league's latest episode is covered: one past the last report is the timeline's, unsure.
+ */
+export async function formatGroupsFor(state: LeagueState, view: LeagueState): Promise<Map<number, FormatGroups> | undefined> {
+  if (!StateLogic.AnswerLogic.questions(state).some(readsTimeline)) return undefined;
+  const s = state.settings ?? {};
+  const tl = await timelineForShow(pool, s.showId, s.wikiSeason);
+  if (!tl) return undefined;
+  const resolve = (name: string) => StateLogic.Core.findCastawayByName(view, name).castaway?.id ?? null;
+  const through = Math.max(0, ...state.episodes.map((e) => e.number));
+  const map = groupFacts(tl, { cast: view.castaways, tribes: (view.tribes ?? []).map((t) => t.name), resolve, through });
+  return map.size ? map : undefined;
+}
+
+/** The facts a game's questions are graded on as a viewer sees them (StateLogic.AnswerLogic.facts), the timeline's groups in. */
+export async function answerFacts(state: LeagueState, view: LeagueState): Promise<AnswerFacts> {
+  const formatGroups = await formatGroupsFor(state, view);
+  const facts = StateLogic.AnswerLogic.facts(view);
+  return formatGroups ? { ...facts, formatGroups } : facts;
+}
+
 /**
  * A game of questions' points by player, as `playerId` sees it at `mark` (the spoiler guard's view: nothing past it is
  * graded), for its table (game-view.ts tableOf ranks it by them, as Weekly Calls' by its calls). Null for any other game: a
@@ -44,7 +77,8 @@ export const viewOf = (h: { state: LeagueState; playerId: string | null; mark: n
  */
 export async function leagueAnswers(o: { leagueId: string; state: LeagueState; playerId: string | null; mark: number | null; rows?: AnswerRow[] }): Promise<GameCalls | null> {
   if (!StateLogic.getLeagueType(o.state).hasQuestions) return null;
-  const { points } = StateLogic.AnswerLogic.grade(viewOf(o), o.rows ?? (await storedAnswers(o.leagueId)));
+  const view = viewOf(o);
+  const { points } = StateLogic.AnswerLogic.grade(view, o.rows ?? (await storedAnswers(o.leagueId)), await answerFacts(o.state, view));
   return { right: (p) => points.get(p) ?? 0, move: null };
 }
 
@@ -55,7 +89,7 @@ export async function leagueAnswers(o: { leagueId: string; state: LeagueState; p
 export async function answerStanding(o: { leagueId: string; state: LeagueState; playerId: string | null; mark: number | null; rows?: AnswerRow[] }) {
   if (!StateLogic.getLeagueType(o.state).hasQuestions) return undefined;
   const view = viewOf(o);
-  const { points } = StateLogic.AnswerLogic.grade(view, o.rows ?? (await storedAnswers(o.leagueId)));
+  const { points } = StateLogic.AnswerLogic.grade(view, o.rows ?? (await storedAnswers(o.leagueId)), await answerFacts(o.state, view));
   const end = StateLogic.endEpisode(view);
   const seen = StateLogic.SpoilerLogic.latestWithResults(view);
   return { right: (p: string) => points.get(p) ?? 0, through: end === null ? seen : Math.min(seen, end), ended: StateLogic.gameOver(view) };
@@ -68,7 +102,7 @@ export async function answerStanding(o: { leagueId: string; state: LeagueState; 
  */
 export async function sheetNights(o: { leagueId: string; state: LeagueState; playerId: string; mark: number | null; rows?: AnswerRow[] }): Promise<SheetNights> {
   const view = viewOf(o);
-  const facts = StateLogic.AnswerLogic.facts(view);
+  const facts = await answerFacts(o.state, view);
   const seats = new Set(view.players.map((p) => p.id));
   const rows = (o.rows ?? (await storedAnswers(o.leagueId))).filter((r) => r.episode > 0 && seats.has(r.playerId));
   // What each window earned, A9's ways of combining in (a split pot, a rollover's jackpot, a parlay).
@@ -87,7 +121,10 @@ export async function sheetNights(o: { leagueId: string; state: LeagueState; pla
       if (v.state !== "waiting") n.settled++;
       if (v.state === "off") n.off++;
       if (v.state === "known") {
-        if (Spec.isRight(q, v, mine, list, facts)) n.right++;
+        const right = Spec.isRight(q, v, mine, list, facts);
+        // A void pick (F3 part 2: a pair that didn't play as offered) didn't count either way, as an off question doesn't.
+        if (right === null) n.off++;
+        else if (right) n.right++;
         n.earned += earned.get(`${q.id}|${ep}`)?.get(o.playerId) ?? 0;
       }
       out.set(ep, n);

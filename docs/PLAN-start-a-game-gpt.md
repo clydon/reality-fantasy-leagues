@@ -12,9 +12,10 @@ announced") is under way: F1, the study (2026-10-28: [STUDY-format-changes.md](S
 seasons' ground truth as data, `format-study.js`) and F2, the research prompt's format section (2026-10-29: every show's research
 says who is with whom at each episode's end and what changed, as data; proven on 23 recorded episodes), are done, and so is
 F3's first part (2026-10-29: the format's state over time, `format-timeline.js`, and its readers with their fallbacks; each
-person's tribe move worked out from the section, so `newGroup` asks only for whoever moved and went home the same night);
-F3's second part (newcomers into the cast
-and research, the timeline from the database, what reads it first) is next, then F4, then A10
+person's tribe move worked out from the section, so `newGroup` asks only for whoever moved and went home the same night),
+and F3's second part (2026-10-29: the timeline from the database; the prompt's groups going in from it; newcomers asked about,
+staged for the season and cued for the desk; one word for the groups beside the section; A6's group question on a season
+played in pairs, graded on the pairs that played, void by default). F4, the blind replays, is next, then A10
 to A14 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -630,6 +631,112 @@ teams read the format's state rather than guess it), the engine track does the f
     made the play sure; `changesBetween`'s shortcut hid pairs turning into trios through newcomers; the old answers' keeper
     reached a cut-down ask (gone: the schema keeps `newGroup`); the scorer crashed on an episode the fixture lacks; the test
     stubbed the embeddings after the module had bound them. Declined: none.
+
+  **As built (F3 part 2, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  up to date; 947 tests). Where the engine first reads the state, and newcomers.
+  - **The season's timeline from the database** (`db/format-timeline.js`, new): `seasonFormatTimeline` builds it from the
+    season's stored combined research (one query, `REPORTS`: each answer's format section, `merged`, and the names of who it
+    has going home, worked out in the database so the checklists' sources never leave it) and the cast, on read, never
+    stored; `timelineForSeason` (by `show_seasons.id`), `timelineForShow` (a league's show slug and season), `seasonReports`,
+    `reportOf`. No cache: the research context reads it once an episode, a game's grading once a read (only for a game that
+    asks a group question each episode); the plan's earlier note on caching by the research rows' times stands.
+  - **The groups going in, from the timeline** (`formatGoingIntoFrom`, `formatGoingInto` kept as its database wrapper): the
+    timeline's `goingInto`, so whoever went home since the answer that said it is dropped (and a group down to one is that
+    person on their own), as `{ episode: the answer that said it (a carried state's), state: { playedAs, phase, groups, alone },
+    newcomers, sure, why }`. F2's prompt words are kept (the same lines for the same data); when it isn't sure, one line more:
+    "We aren't sure of these: an earlier answer may have them wrong, so check them against what you find." The review's
+    whole-pair check reads the same groups. The context (`fromTimeline`, both ways in: a season's and a league's) builds the
+    timeline of the episodes before the one asked, once, and reads everything below from it.
+  - **Newcomers asked about, staged, cued.** The context adds the newcomers the timeline has still in going into the episode
+    (`Timeline.newcomersIn`: not on the cast research asks about, matched exactly, never loosely) after the cast, as
+    `castNames` and `ctx.newcomers`: from the episode after the one research says they came in, they're on the checklist like
+    anyone, so they get an entry, results and an exit, staged for the season under research's name for them (the quick check
+    asks about them too: it reads the same context; `researchItems` keeps a name the cast's forgiving match would make someone
+    else with an entry of their own, a newcomer "Joy" beside "Joy Jones"). Applying their results to a game skips them (`applyDecision`: not on its
+    cast) until a person adds them to the cast every league sees. **The cue, as data, no screen:** `Timeline.newcomerCues` /
+    `seasonNewcomerCues(pool, seasonId)` (who research says came in that the cast doesn't have: name, the episode, for whom,
+    the group they joined, the episode they left), and a line in the review of the episode they came in ("Joy Jones came in this
+    episode (for Fay Fox) and isn't in the cast: research asks about them from the next episode, and their results reach a game
+    once they're added to its cast"). A9 part 2's reverse count isn't touched (Noticed).
+  - **One word for the groups beside the section** (`Timeline.groupWord`, the context's `groupWord`, passed to
+    `researchSchemaFor`'s new third argument and to `buildPrompt`): the season's word when the timeline says it (the groups
+    going in were played as tribes or teams: "tribe", "team"), else the show's own word as before (its data: Survivor's tribe,
+    Dancing with the Stars' and Love Island's couple, Big Brother's alliance), never a list of ours; pairs never set it
+    (staging moves nobody onto a pair). The line beside the names, when their groups are only a label (`labelsOnly`: the
+    section is asked, the timeline has pairs going in, and none of the names' groups is one of them by name: The Challenge's
+    Vets and New Threats beside its pairs), says so and names no word: "The group after each name is the one our records give
+    them going INTO this episode, which may be only a label the show gives them (like Vets and New Threats); who plays with
+    whom going in is below. If people moved between tribes or teams in this episode, say so in formatState below; someone who
+    moved and then went home in this same episode: the tribe or team they went home from, in newGroup." So The Challenge's
+    prompt no longer says "agency" once the timeline knows its pairs; before that (its premiere, a season before the section)
+    it still says its show row's word (Noticed: a data fix). Survivor's words are unchanged.
+  - **A6's group question on the timeline** (`Timeline.groupFacts`, `answer-points.ts formatGroupsFor` and `answerFacts`,
+    `answers.ts`, `answers.js onTimeline`). **Which source wins where:** a group question asked each episode, about the one
+    episode (`Spec.readsTimeline`, one test for the grader and the server), reads the timeline's groups at a lock from the
+    first one with **pairs the league doesn't hold** going in (`Timeline.unstaged`: pairs, none of them a group the league has
+    by name; movesFromState stages nobody onto them) and every lock after it, through the league's latest episode (one with
+    everyone together, or each for themselves, offers nothing; one past the last report offers nothing unless the game follows
+    the people: its groups aren't known yet), until tribes or teams are going in again; **everything else stays the league's
+    own groups as today**: Survivor's tribes (its staged tribe moves, accepted by a person), small tribes one of which the
+    league has (late in a pre-merge), a tribe an answer left unnamed, a group question asked once or over a window, every
+    season before the section. On the timeline: the faces are the groups going into the lock ("Ann & Bea", a trio "Ann, Bea &
+    Cy", a named one by its name; ids the timeline's; members matched to the league's cast the forgiving way), named in the
+    read's `groups` up to the lock after the viewer's mark; graded on the groups that played the episode (`played.held`: the
+    ones offered that played it as offered, and one whose members all went home in it, a pair voted out together; a change at
+    its start re-draws, one partway keeps the start's, F1's Q3; an episode with research but no format section, or none while a
+    later one has it, played unsure), the right groups the ones the right people were in as offered. **The fallback, a spec
+    setting** (`ask[].fallback`, the vocabulary's `ask.fallback`: `void` the default, `carry-on`, `next-stage` A12's and
+    'later'): void when the groups at the lock, or as played, aren't sure (off, no points either way: nothing is offered at an
+    unsure lock, and the read says why, `offWhy`), and a pick of a group that didn't play as offered is void for whoever made it
+    (neither right nor wrong; a wager on it stakes nothing); carry-on follows the people (a group graded by who was in it as
+    offered, whatever happened to it; an unsure lock offers the last known). Waiting while an episode with results has no report
+    yet (void once the game is over: its research never came). The tables (`leagueAnswers`, `answerStanding`, `sheetNights`,
+    where a void pick is a night's "didn't count") grade with the same facts; the season's research is read once a grading
+    read (one query by the show's slug). The sheet's face for a group shows its whole name. `specProblems` takes
+    `fallback` only on a group question asked about each episode; `specWaitsFor` and `playable` treat `next-stage` as not yet
+    built. The default is the user's (Noticed). Screens are U1's.
+  - **A pass about some of the cast** (a commissioner's paste for whoever the stored answers don't settle, which asks no
+    section): the stored section, the whole cast's, now says the moves of whoever it asked again (`validateResearch`'s
+    `storedState`, from `researchFromPasteForLeague`), as a full pass's would (F3 part 1's Noticed).
+  - **The proof.** Unit tests (`tests/format-timeline-reads.test.js`, new, 9): the timeline from stored rows (the query, who went
+    home, only the episodes before, a malformed row), the newcomers in and the cues; the groups going in (who left since
+    dropped, a carried state's answer, unsure said in the prompt, nothing before the first answer); one word (tribes, pairs
+    falling back to the format's, a word that's neither, the schema's newGroup); the research context through the in-memory
+    database (a newcomer cued in the episode she came, on the next episode's checklist and its groups going in, her exit staged
+    for the season, never "agency", the label line); a newcomer named like someone on the cast staged as their own person; a
+    partial pass moved by the stored section; which source wins and the pairs offered and played (a re-drawn pair not held, an
+    unsure lock, everyone for themselves, Survivor's tribes not on the timeline, small tribes and an unnamed one staying the
+    league's, a lock past the last report, no section played unsure, a pair voted out together held, the forgiving match); the
+    grading (held right, re-drawn void, a wager on a void pick, nobody right, carry-on, an unsure episode off, no report
+    waiting, void once the game is over, a window over two the league's, the shared test); the spec's fallback; the show's own
+    word (a couple). The pinned prompt sentence moved (`format-state.test.js`: no "agency" beside the section either). `npm
+    test` 956. **A zt- fixture
+    through the engine's API** (`scripts/dev-test/check-format-groups.js`, new, 25 PASS, on new-fixture's couch): ZT Survivor 51
+    turned into pairs by its stored research; a game of questions asks "Which pair wins immunity?" void by default and
+    following the people; the faces are the six pairs going into 6, never the league's tribes (a tribe refused, 400; sam,
+    behind, waits); Episode 6's research re-draws two pairs at its start and brings in Zed Newman; graded on read: jordan's held
+    pair right (2), riley's re-drawn pair void (right null) and wrong when following the people, the Games tab the same (4);
+    Episode 7 offers the pairs after the swap; Episode 7's research asks about Zed, a paste stages his exit (pending), the
+    desk's cue names him (in at 6, for whom, out at 7). `check-questions-who.js --api` (Survivor's tribes) ALL PASS, unchanged.
+    **Staging, before against after** (`tests/harness/research-store-regression.js`): byte-identical (the fake database
+    answers the timeline's query, and a show's own word for its groups). **The golden replays** (`golden.js`, every season loaded here: The Challenge 39 isn't yet, Noticed): 6 seasons, 138 games,
+    15,753 reads, every one the same, before the code review's fixes and again after them. **The tracker**
+    unchanged (`--check`: the group answer's row was ✅ already; what changed is where a paired season's groups come from).
+    **`format-asks.js timeline`** unchanged: its code paths aren't touched (the timeline module only gained readers; its totals
+    are F3 part 1's: 23 episodes, 20 sure, 11 sure grouping changes all right, lifetimes 85 of 85).
+  - **Code review** (`/code-review`, before the commit; it ran this time). Taken: a lock past the last report fell back to the
+    league's tribes (now the timeline's, unsure: void, so a pick can't be made on one source and graded on the other); an
+    episode with research but no format section played as sure; a pair kept at a re-draw that went home whole wasn't held, so
+    "which pair goes home" could never be right there; small Survivor tribes with one unnamed could move its group questions to
+    the timeline (now any league tribe by name keeps them the league's); the word was a list of ours overriding the show's own
+    (Couple, Alliance: now the show's word stands unless the timeline says tribes or teams); a night counted a void pick as a
+    miss; the sheet showed a pair by its first member's first name; members matched only exactly; a newcomer "Joy" beside "Joy
+    Jones" staged as Joy Jones; the label line on any unnamed going-in groups (now beside pairs only); an episode research never
+    covered waiting for ever (void once the game is over); the timeline read in two queries; two tests for which questions
+    read it; the check's header didn't say it's one fixed scenario. Tried and dropped: a 5-second memo of the season's timeline
+    for a request that grades twice (it graded on the timeline from before research that had just landed). Declined: the
+    reviewer's altitude point (one source of groups instead of switching at pairs): switching only where the league can't hold
+    the groups is the step's design, and its edges are the fixes above; the premiere of a paired season is in Noticed.
 - **F4. Blind replays:** a taped season replayed as if live (above), every game the tracker says it plays, The Challenge's
   seasons first.
 
@@ -2715,6 +2822,55 @@ From F3 part 1 (2026-10-29; the proof in [STUDY-format-changes.md](STUDY-format-
 - Episode 1 has nothing before it: the cast list's groups (maybe only a label) are never taken as the state going in, so
   the premiere's own answer is the first state (its groups played it unless it says a change). A blind replay passes what
   was known before the premiere as `start`, unsure. (F4.)
+
+Taken by F3 part 2 (2026-10-29): the timeline from the database (read, not cached), `formatGoingInto` from its `goingInto`,
+newcomers into research (asked about, staged at the season level, a cue for the desk), one word for the groups beside the
+section, A6's group question on a paired season, and a partial pass's moves from the stored section.
+
+From F3 part 2 (2026-10-29):
+- **For the user, at the merge (with F2's section):** the prompt's new words: the line beside the names when their groups are
+  only a label (The Challenge, once the timeline knows its pairs), the season's tribe or team when the timeline says it, the
+  line when the groups going in aren't sure, and newcomers on the checklist from the episode after they came in (production's
+  research would start asking about someone the cast doesn't have). Recommended: as built.
+- **For the user (production data, the desk's):** The Challenge's show row says its groups are an "Agency" (`shows.tribe_term`,
+  from *Spies, Lies & Allies*), so its premiere and any episode before the timeline knows its pairs still say "agency".
+  Recommended: change it to "Team" on the desk (the word is the show's data; the code no longer overrides a show's word).
+- **For the user, in the format-change design session (after A12):**
+  1. A group question's fallback by default (`ask[].fallback`): recommended `void` (no points either way when the pairs at
+     the lock or as played aren't sure, and a re-drawn pair's pick void), as built; `carry-on` (follow the people) where a
+     maker asks for it.
+  2. The pairs come straight from research's format section, which nobody reviews (Survivor's tribe moves are staged and a
+     person accepts them; pairs never are). Recommended: as built, "sure" being the guard (our comparison agreeing with the
+     answer, F3 part 1: 11 of 11 sure changes right), with the timeline shown on the desk for a person to see, and a wrong
+     pair put right by asking the episode again (everything after it works itself out on read).
+- Group ids are the timeline's (`<episode shown>:<members>`), and `game_answers` stores them: a corrected answer that changes
+  the episode a group was first shown changes its id, so a pick made on the old one reads as a group that didn't play
+  (void). Safe, but a correction voids those picks. (A10, whose slots need ids that last: key a group by its members and
+  first episode played, or keep a map from old ids to new.)
+- A group question asked once or over a window on a paired season reads the league's own groups (The Challenge's labels,
+  Vets and New Threats). (G1's check, or A6's next reader: refuse it there, or read the timeline over the window.)
+- A newcomer the desk adds under another spelling than research's would be asked twice (research's name and the cast's):
+  the context matches newcomers exactly. (The desk's step 5a, cast: add them under the cue's name.)
+- Reverse (A9 part 2) still counts the cast as it stands: a newcomer moves every reverse score only once a person adds them to
+  a league's cast, which nothing does yet. (The desk's add-to-cast step: record the episode they came in, and count the cast
+  at each castaway's exit.)
+- `formatGroupsFor` reads the season's research once per grading read of a game that asks a group question each episode (the
+  couch hub reads its standing twice a game, a reveal three times): one small query each. A short memo was tried and dropped
+  (it graded on a timeline from before research that had just landed). (The merge: a line in HOSTING.md; a cache keyed by the
+  research rows' latest time if it shows.)
+- The Challenge 39's research is whole on tape (21 quick, 21 full, 2026-10-29 07:00 UTC; its bingo still recording) but not
+  loaded in this lane's database, so the golden replays skip it. (F4: load it, and move its fixture's names to the tapes'.)
+- newGroup's description on The Challenge says the format's word ("team"): a someone-moved-and-went-home answer on a paired
+  season could still name a partner as a team, which stages as a tribe move. (F4 shows whether it happens on the tapes; the
+  section could then stop asking newGroup on a season whose groups going in are pairs.)
+- A paired season's premiere lock reads the league's own groups (labels on The Challenge): nothing is known going in until
+  the premiere's research. (F4's blind replays pass what was known before the premiere as `start`; the game could do the same
+  from the previous season's format, or void a group question at the premiere.)
+- The sheet doesn't show `offWhy` (an unsure lock is an empty picker), and a known verdict with no right pair is an empty
+  line. (U1.)
+- A pair whose members all went home in an episode with a re-draw at its start is taken to have played as offered (nobody
+  else was with them at its end); two partners re-drawn apart who each went home that night would read so too. (F4, if the
+  tapes show it.)
 
 From A7 (2026-10-28):
 - The late lock is a game of questions' only: lineups and picks still lock at airtime, whoever watches when. (A15, each

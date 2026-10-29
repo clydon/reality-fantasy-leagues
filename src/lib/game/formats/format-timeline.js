@@ -455,6 +455,109 @@ function castAt(tl, n) {
 }
 
 /**
+ * F3 part 2: the newcomers still in going into episode n who aren't among `names` (the cast research asks about), as research
+ * named them: asked about like anyone from the episode after the one they came in, so they get a checklist entry, results
+ * and exits. A name matches only exactly (any case): a loose match could make a newcomer someone already on the list. Pure.
+ */
+function newcomersIn(tl, n, names = []) {
+  const asked = new Set((names || []).map(low));
+  const gone = new Set((tl ? tl.episodes : []).filter((e) => e.episode < n).flatMap((e) => e.left.map(low)));
+  return uniq((tl ? tl.newcomers : []).filter((x) => x.episode < n && !gone.has(low(x.name)) && !asked.has(low(x.name))).map((x) => x.name));
+}
+
+/**
+ * F3 part 2: who research says came in that the season's cast (`names`) doesn't have yet, for the desk: adding someone to the
+ * cast every league sees stays a person's, so this is a cue, as data: [{ name, episode (the one research says they came in),
+ * replaces, group, leftIn (the episode they went home in, or null) }]. Pure.
+ */
+function newcomerCues(tl, names = []) {
+  const asked = new Set((names || []).map(low));
+  return (tl ? tl.newcomers : [])
+    .filter((x) => !asked.has(low(x.name)))
+    .map((x) => {
+      const out = (tl.episodes || []).find((e) => e.episode >= x.episode && e.left.some((m) => low(m) === low(x.name)));
+      return { name: x.name, episode: x.episode, replaces: x.replaces || null, group: x.group || null, leftIn: out ? out.episode : null };
+    });
+}
+
+// The words for how the timeline says the groups going in were played (F3 part 2: the season's word beside the format section).
+const PLAY_WORD = { tribes: 'tribe', teams: 'team' };
+
+/**
+ * F3 part 2: the season's word for its named groups going into episode n, when the timeline says it (they were played as
+ * tribes or teams, and aren't pairs: staging moves nobody onto a pair); else null, and the show's own word stands (its data:
+ * Survivor's tribe, Dancing with the Stars' couple). The prompt's lines beside the format section and newGroup's read it. Pure.
+ */
+function groupWord(tl, n) {
+  const g = goingInto(tl, n);
+  if (!g.known || !g.divided || FS.isPairs(g.groups)) return null;
+  const e = at(tl, g.asOf);
+  const said = e && e.carried ? at(tl, e.carried) : e;
+  return (said && PLAY_WORD[said.playedAs]) || null;
+}
+
+/**
+ * Whether a set of groups is pairs the league doesn't hold (FormatStates.movesFromState stages nobody onto them): pairs, none
+ * of which is a group the league has by name (`tribes`, the league's group names). Those live only in the timeline. Anything
+ * else stays the league's: named tribes and teams are staged as moves, and a set of small tribes one of which the league has
+ * (Survivor late in its pre-merge, an answer leaving a tribe unnamed or spelling it its own way) is still its tribes. Pure.
+ */
+function unstaged(groups, tribes = []) {
+  const have = new Set((tribes || []).map((t) => FS.tribeKey(t)));
+  const list = (groups || []).filter((g) => g && g.members && g.members.length > 1);
+  if (!list.length || !FS.isPairs(list)) return false;
+  return !list.some((g) => g.name && have.has(FS.tribeKey(g.name)));
+}
+
+/** A group's name as a player reads it: its own, else its members ("Ann & Bea", "Ann, Bea & Cy"). */
+function groupLabel(g) {
+  if (g.name) return g.name;
+  const m = g.members || [];
+  return m.length <= 2 ? m.join(' & ') : `${m.slice(0, -1).join(', ')} & ${m[m.length - 1]}`;
+}
+
+/**
+ * A6 on F3 (part 2): the groups a group question asked each episode offers and is graded on, per episode, where the timeline
+ * is their source: from the first episode going into which the game is divided into pairs the league doesn't hold (unstaged:
+ * The Challenge's pairs), and every episode after it (one played by everyone, or each for themselves, offers none) until
+ * tribes or teams are going in again, through `through` (the league's latest episode: a lock past the last report is still the
+ * timeline's, its groups the last known, unsure). Tribes and teams stay the league's own (its staged tribe moves, which a person
+ * accepts), so a season of them (Survivor) has no entry here and plays as before. `cast`: the league's castaways ({ id, name });
+ * `resolve(name)`: a member's castaway id (the league's forgiving match), else an exact match by name; `tribes`: the league's
+ * group names. Map n -> { offered: [{ id, name, members: castaway ids }], byCastaway: Map castaway id -> the group offered,
+ * lockSure: the state going in was, why: why not, played: null while episode n has no report and none after it, else { sure,
+ * held: the offered groups that played it as offered } }. An episode with research but no format section, or none while a
+ * later one has it, played unsure. A group offered whose members all went home in the episode held (nobody else was with them
+ * at its end): a whole pair voted out together. Pure.
+ */
+function groupFacts(tl, { cast = [], tribes = [], resolve = null, through = 0 } = {}) {
+  const out = new Map();
+  if (!tl || !tl.episodes.length) return out;
+  const byName = new Map((cast || []).filter((c) => c && c.id && c.name).map((c) => [low(c.name), c.id]));
+  const idOf = (m) => (resolve && resolve(m)) || byName.get(low(m)) || null;
+  let source = false;
+  for (let n = tl.from; n <= Math.max(tl.last + 1, Number.isInteger(through) ? through : 0); n++) {
+    const g = goingInto(tl, n);
+    if (g.known && g.divided && unstaged(g.groups, tribes)) source = true;
+    else if (g.known && g.divided) source = false;
+    if (!source) continue;
+    const groups = g.known && g.divided ? g.groups : [];
+    const offered = groups.map((x) => ({ id: x.id, name: groupLabel(x), members: x.members.map(idOf).filter(Boolean), names: x.members }));
+    const byCastaway = new Map(offered.flatMap((x) => x.members.map((id) => [id, x.id])));
+    const e = at(tl, n);
+    let played = null;
+    if (e && e.reported && e.played) {
+      const ids = new Set(e.played.apart ? [] : e.played.groups.map((x) => x.id));
+      const left = new Set(e.left.map(low));
+      const whole = (x) => x.names.length > 1 && x.names.every((m) => left.has(low(m)));
+      played = { sure: !!e.played.sure && e.known, held: new Set(offered.filter((x) => ids.has(x.id) || (!e.played.apart && whole(x))).map((x) => x.id)) };
+    } else if (e) played = { sure: false, held: new Set() };
+    out.set(n, { offered: offered.map(({ names, ...x }) => x), byCastaway, lockSure: !!g.sure, why: g.why, played });
+  }
+  return out;
+}
+
+/**
  * What a corrected report changed: the first episode the two timelines tell differently (its end, how it was played or its
  * changes), the changes gone, new or told differently (by id: what a stage started on a change now gone has to undo), and the
  * groups whose lifetime moved. Pure.
@@ -484,4 +587,4 @@ function timelineDiff(before, after) {
   };
 }
 
-module.exports = { FALLBACKS, MAJOR, TRIGGER_KINDS, effective, reportFrom, crossed, buildTimeline, at, goingInto, playedIn, groupChoices, heldThrough, groupSlots, sideStages, stageTriggers, castAt, timelineDiff };
+module.exports = { FALLBACKS, MAJOR, TRIGGER_KINDS, effective, reportFrom, crossed, buildTimeline, at, goingInto, playedIn, groupChoices, heldThrough, groupSlots, sideStages, stageTriggers, castAt, newcomersIn, newcomerCues, groupWord, unstaged, groupLabel, groupFacts, timelineDiff };

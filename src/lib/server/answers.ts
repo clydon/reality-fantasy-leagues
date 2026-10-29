@@ -1,6 +1,6 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import * as Spec from "@/lib/game/game-spec/index.js";
-import type { AnswerFacts, Question, SpecContext, Verdict } from "@/lib/game/game-spec/index.js";
+import type { AnswerFacts, FormatGroups, Question, SpecContext, Verdict } from "@/lib/game/game-spec/index.js";
 import type { RulebookBlocks } from "@/lib/game/formats/rulebook-schema";
 import type { LeagueState } from "@/lib/game/types";
 import type { CallBook } from "@/lib/game/calls";
@@ -10,7 +10,7 @@ import { publicMediaSrc } from "@/lib/game/selectors";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { HttpError, pool, withLeagueLock } from "./db";
 import { seasonSchedules, type SeasonSchedule } from "./schedule";
-import { finaleEpisode, storedAnswers, viewOf, type AnswerRow } from "./answer-points";
+import { answerFacts, finaleEpisode, readsTimeline, storedAnswers, viewOf, type AnswerRow } from "./answer-points";
 import { seasonBook } from "./calls";
 import { gamesHere, type GameHere } from "./season-games";
 
@@ -90,6 +90,9 @@ export interface QuestionView {
   /** Who a person answer can name: who's still in as far as you've seen (or, from your own team, yours); a group answer, the groups
    *  someone still in is on; a question about each person, who it asks about. */
   faces: QuestionFace[] | null;
+  /** F3 part 2: why a group question has nothing to pick this episode on a season played in pairs (who is with whom going in
+   *  isn't sure, or nobody is in a group): it doesn't count either way. Null otherwise. */
+  offWhy: string | null;
   mine: unknown;
   /** How many have answered: a count, nobody named. */
   answered: number;
@@ -134,16 +137,27 @@ function pairsOf(state: LeagueState, q: Question): { key: string; ids: [string, 
 }
 
 /** Who a person answer can name, as the viewer sees it: who's still in (from your own team, yours); for a group answer (A6), the
- *  groups someone still in is on (after any swap you've seen, never one you haven't); for a question about each person, each of
- *  those still in. */
-function facesFor(view: LeagueState, q: Question, playerId: string): QuestionFace[] {
+ *  groups someone still in is on (after any swap you've seen, never one you haven't; `fg`, F3 part 2: on a season played in
+ *  pairs, the format's state over time's groups going into the episode); for a question about each person, each of those still in. */
+function facesFor(view: LeagueState, q: Question, playerId: string, fg?: FormatGroups | null): QuestionFace[] {
   const stillIn = view.castaways.filter((c) => c.status !== "eliminated");
+  // F3 part 2: on a season played in groups the league doesn't hold (pairs), the groups going into the lock, from the format's
+  // state over time ("Ann & Bea"); none when that isn't sure, unless the question follows the people (carry-on).
+  if (fg && readsTimeline(q)) return fg.lockSure || q.fallback === "carry-on" ? fg.offered.map((g) => ({ id: g.id, name: g.name, photo: null })) : [];
   if (q.answer === "group" && !q.each) {
     const on = new Set(stillIn.map((c) => c.tribeId).filter((t): t is string => !!t));
     return (view.tribes ?? []).filter((t) => on.has(t.id)).map((t) => ({ id: t.id, name: t.name, photo: null }));
   }
   const team = q.from === "team" && !q.each ? new Set(StateLogic.Core.ownedCastawayIds(view, playerId)) : null;
   return stillIn.filter((c) => !team || team.has(c.id)).map((c) => ({ id: c.id, name: c.name, photo: publicMediaSrc(c.photoUrl) }));
+}
+
+/** Why a group question on the timeline's groups (F3 part 2) has nothing to pick at an episode's lock, or null. */
+function offWhy(q: Question, fg: FormatGroups | null | undefined): string | null {
+  if (!fg || !readsTimeline(q)) return null;
+  if (!fg.lockSure && q.fallback !== "carry-on") return "Who is with whom going into this episode isn't sure: it doesn't count either way";
+  if (!fg.offered.length) return "Nobody is in a pair or team going into this episode: it doesn't count either way";
+  return null;
 }
 
 /** A castaway's face by id, as the viewer's copy has them. */
@@ -179,7 +193,7 @@ async function readOf(user: SessionUser, seasonId: string, leagueId: unknown, no
 async function readFrom(h: GameHere, seasonId: string, now: Date): Promise<Read> {
   const schedule = (await seasonSchedules([seasonId], now)).get(seasonId);
   const view = viewOf(h);
-  return { h, view, facts: StateLogic.AnswerLogic.facts(view), schedule, finale: finaleEpisode(schedule), now };
+  return { h, view, facts: await answerFacts(h.state, view), schedule, finale: finaleEpisode(schedule), now };
 }
 
 /** The episode whose start closes a question, and its air time (the league's, else the schedule's). */
@@ -327,7 +341,8 @@ async function readQuestions(r: Read, episodeIn?: unknown, rows?: AnswerRow[]): 
       catchUp: behind && !catching ? seen : null,
       closesAt: airAt,
       // A pairs question's faces are its pairs'.
-      faces: namesSomeone(q) && q.answer !== "pairs" && !behind ? facesFor(view, q, me) : null,
+      faces: namesSomeone(q) && q.answer !== "pairs" && !behind ? facesFor(view, q, me, facts.formatGroups?.get(ep)) : null,
+      offWhy: !behind ? offWhy(q, facts.formatGroups?.get(ep)) : null,
       mine,
       answered: new Set(theirs.map((a) => a.playerId)).size,
       verdict: null,
@@ -361,6 +376,13 @@ async function readQuestions(r: Read, episodeIn?: unknown, rows?: AnswerRow[]): 
     [...view.castaways.flatMap((c) => [c.tribeId, c.startTribeId]), ...view.episodes.flatMap((e) => (e.groups ?? []).map((g) => g.tribeId))].filter((t): t is string => !!t)
   );
   const groups = (view.tribes ?? []).filter((t) => onAny.has(t.id)).map((t) => ({ id: t.id, name: t.name, photo: null }));
+  // ...and on a season played in pairs (F3 part 2), every pair offered at a lock you've reached: going into the episode after the
+  // last one you've seen, at most.
+  const seenUpTo = (h.mark ?? Number.POSITIVE_INFINITY) + 1;
+  for (const [n, fg] of facts.formatGroups ?? []) {
+    if (n > seenUpTo) continue;
+    for (const g of fg.offered) if (!groups.some((x) => x.id === g.id)) groups.push({ id: g.id, name: g.name, photo: null });
+  }
   return { leagueId: h.game.leagueId, episode, questions: out, points, cast, groups, mark: h.mark };
 }
 
@@ -404,7 +426,7 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
         q.answer === "pairs"
           ? new Set(pairsOf(h.state, q).flatMap((p) => p.ids.map((id) => `${p.key}:${id}`)))
           : namesSomeone(q)
-            ? new Set(facesFor(view, q, h.playerId).map((f) => f.id))
+            ? new Set(facesFor(view, q, h.playerId, r.facts.formatGroups?.get(ep)).map((f) => f.id))
             : null;
       let most: number | undefined;
       if (q.wager === Spec.WAGER_TOTAL) {

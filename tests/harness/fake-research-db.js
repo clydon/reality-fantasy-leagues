@@ -49,7 +49,8 @@ function fakeResearchDb({ shows = [], seasons = [], seasonCast = [], leagues = [
           show_id: show.id,
           show_name: show.name,
           castaway_term: null,
-          tribe_term: null,
+          // A show's own word for its groups when the scenario gives one (The Challenge's row says "Agency").
+          tribe_term: show.tribe_term || null,
           research_domains: [],
           wiki_api_url: null,
           format: show.format,
@@ -79,7 +80,23 @@ function fakeResearchDb({ shows = [], seasons = [], seasonCast = [], leagues = [
     if (s.startsWith("SELECT payload FROM episode_research WHERE show_id=$1 AND season_number=$2 AND episode_number < $3")) {
       return rows(db.research.filter((r) => r.show_id === params[0] && r.season_number === params[1] && r.episode_number < params[2]));
     }
-    // How the game was organised going into an episode (episode-research.js formatGoingInto): earlier answers' format sections.
+    // The season's format state over time (db/format-timeline.js REPORTS, F3 part 2): each earlier combined answer's format
+    // section, `merged` and who it has going home, in order.
+    if (s.startsWith("SELECT episode_number, payload->'formatState' AS state, payload->>'merged' AS merged,")) {
+      return rows(
+        db.research
+          .filter((r) => r.show_id === params[0] && r.season_number === params[1] && r.episode_number < params[2])
+          .sort((a, b) => a.episode_number - b.episode_number)
+          .map((r) => ({
+            episode_number: r.episode_number,
+            state: r.payload && r.payload.formatState !== undefined ? r.payload.formatState : null,
+            merged: r.payload && typeof r.payload.merged === "string" ? r.payload.merged : null,
+            left_names: ((r.payload && Array.isArray(r.payload.castaways) ? r.payload.castaways : []).filter((c) => c && typeof c === "object" && c.leftTheGame === "yes").map((c) => c.name)),
+          }))
+      );
+    }
+    // How the game was organised going into an episode (episode-research.js formatGoingInto, before F3 part 2): earlier
+    // answers' format sections (the regression's before copy still asks it).
     if (s.startsWith("SELECT episode_number, payload->'formatState' AS state FROM episode_research")) {
       return rows(
         db.research

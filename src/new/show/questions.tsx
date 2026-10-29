@@ -344,7 +344,7 @@ function Answer({ q, value, onValue }: { q: QuestionView; value: unknown; onValu
                   <Check className="size-3" strokeWidth={3} aria-hidden />
                 </span>
               )}
-              <b className="type-caption mt-1 block truncate text-[14px]">{first(f.name)}</b>
+              <b className="type-caption mt-1 block truncate text-[14px]">{q.answer === "group" ? f.name : first(f.name)}</b>
             </button>
           );
         })}

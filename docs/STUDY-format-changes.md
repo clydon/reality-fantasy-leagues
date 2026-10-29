@@ -251,6 +251,11 @@ today's prompt for the first time), and The Traitors 4 episodes 1, 7, 8 and 9.
 6. **The vocabulary, the state's shape and the prompt section above**: the user's to approve at F2's merge (as built: "F2:
    the format section asked again", below; recommended as they are). With them, F3's tribe moves from the section, `newGroup`
    asked beside it only for whoever moved and went home the same night ("F3: the state over time"; recommended).
+7. **A group question's default when its pairs aren't sure** (F3 part 2): recommended void (no points either way; a pick of a
+   pair re-drawn before it played is void too), with "follow the people" for a game that asks for it.
+8. **Pairs nobody reviews** (F3 part 2): a season's pairs come straight from research's format section, unlike Survivor's tribe
+   moves, which a person accepts. Recommended: as built, "sure" being the guard, the timeline shown on the desk, and a wrong
+   pair put right by asking the episode again.
 
 ## F2: the format section asked again (2026-10-29)
 
@@ -561,6 +566,36 @@ episode played without the groups that went into it. "Went home as": ours (from 
 - sure grouping changes 11, right 11, wrong 0
 - the fixture's within reach 13: sure 11, unsure 1, missed 1
 - lifetimes: 85 of 85 exactly (3 groups the fixture doesn't have)
+
+## F3 part 2: where the engine reads it (2026-10-29)
+
+F3's second part puts the state over time to work (the plan's F3 has the details):
+- **Built from the database, on read**: each season's stored research makes its timeline each time something reads it (one
+  query), so a corrected answer changes everything after it the next time anything looks.
+- **The prompt's groups going in** come from the timeline: whoever went home since is dropped, and when it isn't sure the
+  prompt says so ("We aren't sure of these ... check them against what you find"). The words are otherwise F2's.
+- **Newcomers** (finding 8: Jonna was never in the cast): from the episode after research says someone came in, research asks
+  about them like anyone, so their results and exit are staged for the season. Adding them to the cast every game sees stays
+  a person's: the review of the episode they came in says so, and the desk can list them (who, when, for whom, when they
+  left).
+- **One word for the groups** (finding 2: "agency"): beside the section the prompt says the season's word when the timeline
+  knows it (tribe or team), else the show's own (its data: a couple, an alliance), and on a season where the names' groups are
+  only a label (The Challenge's Vets and New Threats beside its pairs) it says so, naming no word. Survivor's words are
+  unchanged. The Challenge's show row still calls its groups an "agency", which its premiere's prompt says: a data fix on the
+  desk (recommended "Team").
+- **A6's group question on a season played in pairs**: "Which pair wins?" offers the pairs going into the lock ("Ann & Bea"),
+  and is graded on the pairs that played: a pair re-drawn at the episode's start is void for whoever picked it, and an
+  episode whose pairs aren't sure is void for everyone (no points either way) unless the game follows the people (each pair
+  graded by who was in it). Which one is the default is the user's. Survivor's tribes keep coming from its staged tribe
+  moves, as before.
+
+**What it changes for F4 and A10 to A12.**
+- **F4** replays a season as if live with these readers in place: each episode's prompt is built from the timeline of the
+  episodes before it (the groups going in, the newcomers on the checklist), so a blind replay asks what the live season would
+  have been asked; a group question on The Challenge's pairs is one of the games it plays.
+- **A10's group slots** read the same `groupFacts`-style source (the pairs going into each lock, held or not) and need ids
+  that survive a correction (today a group's id carries the episode it was first shown).
+- **A11's teams** and **A12's stages** read the timeline from the database the same way (`db/format-timeline.js`).
 
 ## Appendix: the timelines
 

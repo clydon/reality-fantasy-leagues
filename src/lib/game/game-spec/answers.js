@@ -23,6 +23,9 @@
 //     seen          (A7) the last episode the viewer has seen with results
 //     startIn       (A8) who was in at the game's first episode (a pairs question's pairs are drawn from them)
 //     jury          (A8) the finalists' jury votes, once the season is over (null before)
+//     formatGroups  (F3 part 2) Map episode -> the groups a group question asked each episode reads from the format's state over
+//                   time, on a season played in pairs the league doesn't hold (format-timeline.js groupFacts: offered at the
+//                   lock, each person's, whether that was sure, and how the episode was played); the server's, never the state's
 //   }
 //   and each episode's `points` (A8): each person's points in it by the game's rules, once its full results are in
 //
@@ -297,7 +300,46 @@ function verdictOf(q, episode, facts) {
   if (!st || !['results', 'moment', 'role', 'phase', 'points'].includes(st.by)) return WAITING; // the sports branch's settles, and the calls
   if (q.each) return eachVerdict(q, episode, facts);
   if (st.by === 'results' && st.take === 'outlast') return pairsVerdict(q, facts);
-  return forGroups(q, verdictFor(q, episode, facts));
+  const fg = timelineGroups(q, episode, facts);
+  return fg ? onTimeline(q, verdictFor(q, episode, facts), fg, facts) : forGroups(q, verdictFor(q, episode, facts));
+}
+
+/** Whether a question reads its groups from the format's state over time where the season has them (A6 on F3 part 2): a group
+ *  answer asked each episode, about the one episode (a window over several, or the game, reads the league's own groups). The
+ *  server's faces and the grader both ask this. */
+const readsTimeline = (q) => !!q && q.answer === 'group' && !q.each && q.asked === 'each' && !(Number.isInteger(q.over) && q.over > 1);
+
+/** A group answer's groups from F3's timeline at an episode (facts.formatGroups: a season played in pairs), or null. */
+function timelineGroups(q, episode, facts) {
+  if (!readsTimeline(q) || !facts || !facts.formatGroups) return null;
+  return facts.formatGroups.get(episode) || null;
+}
+
+/**
+ * A group answer on the timeline's groups (A6 on F3, part 2): the right groups are the ones the right people were in as they were
+ * offered at the lock (the groups going into the episode), graded on the groups that played it. Its spec's fallback (`fallback`,
+ * 'void' by default; the default is the user's to set) when what was offered, or how it was played, isn't sure: void, off for
+ * everyone, no points either way. A group offered that didn't play the episode as offered (re-drawn at its start, played apart)
+ * is void for whoever picked it (`held`: the ones that did). 'carry-on' follows the people: a group is graded by who was in it as
+ * offered, whatever happened to it. Waiting while the episode has no report and none after it, until the game is over (then
+ * void: its research never came).
+ */
+function onTimeline(q, v, fg, facts) {
+  if (v.state !== 'known') return v;
+  const groups = groupsIn(v.right, { groups: fg.byCastaway });
+  if (q.fallback === 'carry-on') return groups.length ? { ...v, groups } : off('Nobody it happened to was in a group');
+  if (!fg.played) return facts && facts.over ? off("Who played with whom isn't known: it doesn't count either way") : WAITING;
+  if (!fg.lockSure || !fg.played.sure) return off("Who played with whom isn't sure: it doesn't count either way");
+  if (!groups.length) return off('Nobody it happened to was in a group');
+  const held = [...fg.played.held];
+  return { ...v, groups: groups.filter((g) => fg.played.held.has(g)), held };
+}
+
+/** Whether an answer is void (A6 on F3): a group answer whose every pick is a group that didn't play the episode as offered. */
+function voided(q, v, a) {
+  if (q.answer !== 'group' || !v || !Array.isArray(v.held)) return false;
+  const mine = picks(q, a);
+  return mine.length > 0 && mine.every((x) => !v.held.includes(x));
 }
 
 /**
@@ -525,7 +567,8 @@ function pointsFor(q, v, answers, facts) {
     if (!rightAnswers(base, v, facts)) return out;
     for (const a of answers) {
       const bet = betOf(q, a.answer);
-      if (!bet) continue;
+      // A void pick (A6 on F3: its group didn't play as offered) stakes nothing either way.
+      if (!bet || voided(base, v, bet.answer)) continue;
       const ok = isRight(base, v, { playerId: a.playerId, answer: bet.answer }, [], facts);
       const n = ok ? (isNum(q.points) ? q.points : 0) + bet.stake : -bet.stake;
       if (n) out.set(a.playerId, (out.get(a.playerId) || 0) + n);
@@ -556,6 +599,8 @@ function pointsFor(q, v, answers, facts) {
  *  question about each person, whether any of theirs was. */
 function isRight(q, v, mine, answers, facts) {
   if (!v || v.state !== 'known') return null;
+  // A void answer (A6 on F3: a group that didn't play the episode as it was offered) is neither right nor wrong.
+  if (voided(q, v, q.wager ? (betOf(q, mine.answer) || {}).answer : mine.answer)) return null;
   if (q.each || q.answer === 'pairs') {
     if (!isObj(v.each) || !isObj(mine.answer)) return false;
     const base = baseOf(q);
@@ -725,4 +770,4 @@ function answerProblem(q, value, faces, o) {
   }
 }
 
-module.exports = { WAITING, verdictOf, rightAnswers, pointsFor, windowPoints, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf };
+module.exports = { WAITING, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf };

@@ -69,7 +69,11 @@ test("the prompt: the groups going in, as far as we know, and what to say about 
   assert.match(user, /don't leave it in notableTwist alone/);
   const block = user.slice(user.indexOf("HOW THE GAME"));
   assert.doesNotMatch(block, /agenc/i, "the format section never says the format's built-in word for its groups");
-  assert.match(user, /If agencies were swapped/, "and the old paragraph spells its plural right");
+  // F3 part 2: nor the line beside it, whose groups here are a label (Vets beside the pairs going in), said as one; the plural
+  // is still spelt right where a word that needs it is said.
+  assert.doesNotMatch(user, /agenc/i, "one word for the groups beside the section: never the show row's built-in one");
+  assert.match(user, /The group after each name is the one our records give them going INTO this episode, which may be only a label/);
+  assert.equal(R.plural("agency"), "agencies");
   // An older answer than the last episode's: said so.
   const older = R.buildPrompt({ ...ctxFor(survivor), formatGoingIn: { ...goingIn, episode: 2, state: { ...goingIn.state, groups: [{ name: "Hina", members: ["Ann Able", "Bea Bell", "Cal Cole"] }, { name: "Kele", members: ["Dev Dunn", "Eve Eno"] }], alone: [] } } }).user;
   assert.match(older, /as of the end of episode 2/);
