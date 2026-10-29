@@ -6,13 +6,14 @@ import { flagResult, useAfterResults, useEpisodeResults, type Correction, type E
 import { Btn, Chip } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { usePushedPage } from "../ui/page";
 import { first } from "./moves";
 import { Face } from "./parts";
 
-// Results from everyone, as players see it (docs/PLAN-new-design.md step 6b; the mock's community.js): a correction the
-// shared check made shows as its own line in Episodes and a plate on the episode ("Corrected · Brady's idol removed ·
-// Weekly Lineup: you −4"), with any house ruling under it; and "Something wrong?" at the foot of every episode page (and
+// Results from everyone, as players see it (docs/PLAN-new-design.md step 6b; the mock's community.js): the corrections the
+// shared check made sit on the episode's page only, closed by default just above "Something wrong?" ("9 corrections to
+// this episode"; opened, a plate each: "Corrected · Brady's idol removed · Weekly Lineup: you −4", with any house
+// ruling under it; at the top they stacked up and got in the way, 2026-10-29); and "Something wrong?" at the foot of
+// every episode page (and
 // on each episode of a castaway's story): who it's about, which result (or something missing), then why. A flag goes to
 // the shared check, never prominent, never hidden: nothing changes in anyone's games until it's settled.
 
@@ -34,57 +35,54 @@ const rulingLine = (c: Pick<Correction, "change">) =>
 /** Your points from it, game by game: "Weekly Lineup: you −4". */
 const yours = (c: Correction) => c.you.filter((y) => y.delta).map((y) => `${y.game}: you ${signed(y.delta)}`);
 
-/** The Episodes tab's line for a correction, above every episode (like anything else that happened). */
-export function CorrectionRow({ c }: { c: Correction }) {
-  const page = usePushedPage(`ep${c.episode}`);
-  const mine = yours(c);
+/** "9 corrections to this episode · 1 house ruling", closed by default just above "Something wrong in this episode?";
+ *  opened, a plate for each. Nothing when nothing here was corrected. */
+export function EpisodeCorrections({ results }: { results: EpisodeResults | undefined }) {
+  const [open, setOpen] = useState(false);
+  const n = results?.corrections.length ?? 0;
+  if (!n) return null;
+  const rulings = results!.corrections.filter((c) => c.ruling).length;
   return (
-    <button type="button" data-correction-row={c.episode} onClick={page.show} className="nd-press flex min-h-[68px] w-full items-center gap-3 border-t border-border bg-good/[0.06] text-left">
-      <span className="grid w-7 place-items-center text-good">
-        <RotateCcw className="size-5" aria-hidden />
-      </span>
-      <span className="min-w-0 flex-1">
-        <b className="block truncate text-base font-semibold">
-          Episode {c.episode} corrected{c.ruling ? " · house ruling" : ""}
-        </b>
-        <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">
-          {c.ruling
-            ? c.change === "added"
-              ? `${correctionWhat(c).replace(", added", "")} doesn't count here`
-              : `${correctionWhat(c).replace(", taken out", "")} still counts here`
-            : [correctionWhat(c), ...mine].join(" · ")}
-        </small>
-      </span>
-      <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
-    </button>
-  );
-}
-
-/** The plate at the top of an episode's page: what the shared check corrected, and any house ruling here. */
-export function CorrectionPlates({ results }: { results: EpisodeResults | undefined }) {
-  if (!results?.corrections.length && !results?.rulings.length) return null;
-  return (
-    <div className="mb-3 flex flex-col gap-2.5">
-      {results.corrections.map((c) => (
-        <div key={c.decisionId} data-corrected={c.decisionId} className="flex gap-3 rounded-[4px] bg-card p-3.5 outline-1 -outline-offset-1 outline-border">
-          <span className="type-caption h-fit flex-none bg-good px-2 py-0.5 text-[11px] text-background">Corrected</span>
-          <div className="min-w-0 flex-1">
-            <b className="block text-[15px] leading-snug">{correctionWhat(c)}</b>
-            <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
-              The shared results changed it for everyone.{yours(c).length ? ` ${yours(c).join(". ")}.` : ""}
+    <section data-corrections={n} className="mt-[26px]">
+      <button type="button" data-corrections-toggle aria-expanded={open} onClick={() => setOpen(!open)} className="nd-press flex min-h-12 w-full items-center gap-3 border-y border-border py-2 text-left">
+        <RotateCcw className="size-5 flex-none text-good" aria-hidden />
+        <span className="min-w-0 flex-1">
+          <b className="block text-[15px]">
+            {n} {n === 1 ? "correction" : "corrections"} to this episode
+          </b>
+          {rulings > 0 && (
+            <small className="block text-[13px] text-muted-foreground">
+              {rulings} {rulings === 1 ? "house ruling" : "house rulings"}
             </small>
-            {c.ruling && (
-              <p data-house-ruling className="mt-2 flex gap-2 text-[13px] leading-snug">
-                <KeyRound className="mt-0.5 size-4 flex-none" aria-hidden />
-                <span>
-                  <b>House ruling{c.ruling.by ? ` (${c.ruling.by})` : ""}</b> {rulingLine(c)}
-                </span>
-              </p>
-            )}
-          </div>
+          )}
+        </span>
+        <ChevronRight className={`size-5 flex-none text-muted-foreground transition-transform ${open ? "rotate-90" : ""}`} aria-hidden />
+      </button>
+      {/* Opened: a plate each, with any house ruling here. */}
+      {open && (
+        <div data-corrections-body className="flex flex-col gap-2.5 pt-3">
+          {results!.corrections.map((c) => (
+            <div key={c.decisionId} data-corrected={c.decisionId} className="flex gap-3 rounded-[4px] bg-card p-3.5 outline-1 -outline-offset-1 outline-border">
+              <span className="type-caption h-fit flex-none bg-good px-2 py-0.5 text-[11px] text-background">Corrected</span>
+              <div className="min-w-0 flex-1">
+                <b className="block text-[15px] leading-snug">{correctionWhat(c)}</b>
+                <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
+                  The shared results changed it for everyone.{yours(c).length ? ` ${yours(c).join(". ")}.` : ""}
+                </small>
+                {c.ruling && (
+                  <p data-house-ruling className="mt-2 flex gap-2 text-[13px] leading-snug">
+                    <KeyRound className="mt-0.5 size-4 flex-none" aria-hidden />
+                    <span>
+                      <b>House ruling{c.ruling.by ? ` (${c.ruling.by})` : ""}</b> {rulingLine(c)}
+                    </span>
+                  </p>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
-    </div>
+      )}
+    </section>
   );
 }
 

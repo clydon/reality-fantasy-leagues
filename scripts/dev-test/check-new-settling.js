@@ -38,6 +38,7 @@ const { open, api, BASE } = require("./browser");
 const { settle } = require("./motion");
 const fixture = require("./new-fixture");
 const fakeBot = require("./fake-bot");
+const { openCorrections } = require("./corrections");
 // The usual runs a season switched on starts with (the default schedule: it grew trivia, then bingo, since this was written).
 const { DEFAULT_SCHEDULE } = require("../../db/bot-research.js");
 
@@ -378,7 +379,7 @@ function rulebookAnswer(prompt) {
     await j.page.reload();
     await openEp(j.page, 6);
     check(/in the rulebook now/.test(await card.innerText()), "jordan's card: it's in the rulebook now");
-    const plate = (await j.page.locator("[data-corrected]").allInnerTexts()).join(" | ");
+    const plate = (await openCorrections(j.page, check, { count: (await as.jordan.call("GET", `/api/seasons/${sid}/results/6${A}`)).body.corrections.length, where: "jordan's Episode 6" })).join(" | ");
     check(plate.includes("Nobody went home, taken out") && !plate.includes("· Nobody"), "the episode's Corrected plate: Nobody went home, taken out", plate);
     await shot("show-change-added", j.page);
     check((await as.desk.call("POST", `/api/desk/changes/${line.id}/undo`)).status === 200, "the desk undoes it");
