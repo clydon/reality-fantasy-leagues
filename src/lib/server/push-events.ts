@@ -824,12 +824,12 @@ export function notifyBingoCall(o: { seasonId: string; episode: number; couchId:
 export function notifyResearched(o: { userId: string; seasonId: string; episode: number; askedAt: Date; ok: boolean; found: number | null }) {
   notifyAfter("researchDone", async () => {
     const { rows } = await pool.query(
-      "SELECT s.name AS show_name, s.castaway_term, s.episode_term, ss.season_number FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1",
+      "SELECT s.name AS show_name, s.castaway_term, s.castaway_plural, s.episode_term, ss.season_number FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1",
       [o.seasonId]
     );
     if (!rows[0]) return null;
     const label = seasonLabel(rows[0].show_name, rows[0].season_number);
-    const w = showWords({ castaway: rows[0].castaway_term, episode: rows[0].episode_term });
+    const w = showWords({ castaway: rows[0].castaway_term, people: rows[0].castaway_plural, episode: rows[0].episode_term });
     const ep = `${w.episode} ${o.episode}`;
     const found = o.found ?? 0;
     const words = o.ok

@@ -53,14 +53,16 @@ interface SeasonRow {
   tribes_from_episode: number | null;
   rulebook_live: boolean;
   castaway_term: string | null;
+  castaway_plural: string | null;
   tribe_term: string | null;
+  tribe_plural: string | null;
 }
 
 async function seasonRow(id: string): Promise<SeasonRow> {
   if (!isUuid(id)) throw new HttpError(404, "Season not found");
   const { rows } = await pool.query<SeasonRow>(
     `SELECT ss.id, ${seasonName} AS name, ss.show_id, s.name AS show_name, s.slug, ss.season_number, ss.status, ss.cast_approved_at, ss.tribes_from_episode, ss.rulebook_live,
-            s.castaway_term, s.tribe_term
+            s.castaway_term, s.castaway_plural, s.tribe_term, s.tribe_plural
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1`,
     [id]
   );
@@ -69,10 +71,10 @@ async function seasonRow(id: string): Promise<SeasonRow> {
 }
 
 /** What the show calls its people and their groups ("castaway", "tribes"); the Cast page's words too. */
-export function termsOf(s: { castaway_term: string | null; tribe_term: string | null }) {
-  const w = showWords({ castaway: s.castaway_term });
+export function termsOf(s: { castaway_term: string | null; castaway_plural?: string | null; tribe_term: string | null; tribe_plural?: string | null }) {
+  const w = showWords({ castaway: s.castaway_term, people: s.castaway_plural });
   const group = (s.tribe_term?.trim() || "Group").toLowerCase();
-  return { person: w.person.toLowerCase(), people: w.people.toLowerCase(), group, groups: pluralWord(group) };
+  return { person: w.person.toLowerCase(), people: w.people.toLowerCase(), group, groups: s.tribe_plural?.trim().toLowerCase() || pluralWord(group) };
 }
 
 /** Every league on the season, deleted ones too (a write keeps them all in step). */

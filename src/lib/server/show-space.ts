@@ -31,7 +31,7 @@ export interface SeasonHeader {
     /** A landscape image for headers and wide cards (TMDB's backdrop: show-art.ts); null without one. */
     backdropUrl: string | null;
     /** What it calls its people, their groups and its episodes (0142: "Game" for a baseball series): lib/game/show-words.ts. */
-    terms: { castaway: string; tribe: string; episode: string };
+    terms: { castaway: string; people: string | null; tribe: string; episode: string };
     tvmazeId: number | null;
     /** Where it airs, from its TV listing: the network, else the streaming service ("Netflix"; step 14); null without one. */
     network: string | null;
@@ -47,7 +47,7 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
     `SELECT ss.id, ss.season_number, ss.name, ss.status, ss.episode_count, to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere_date,
             ss.release, ss.drop_at, s.set_up_at IS NOT NULL AS ready,
             s.id AS show_id, s.slug, s.name AS show_name, s.kind, CASE WHEN s.art_off THEN NULL ELSE COALESCE(NULLIF(ss.art_url, ''), s.art_url) END AS art_url,
-            CASE WHEN s.art_off THEN NULL ELSE s.backdrop_url END AS backdrop_url, s.castaway_term, s.tribe_term, s.episode_term, s.tvmaze_id, s.listing->>'network' AS network
+            CASE WHEN s.art_off THEN NULL ELSE s.backdrop_url END AS backdrop_url, s.castaway_term, s.castaway_plural, s.tribe_term, s.episode_term, s.tvmaze_id, s.listing->>'network' AS network
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
       WHERE ss.id = ANY($1::uuid[])`,
     [ids]
@@ -70,7 +70,7 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
         kind: r.kind,
         artUrl: r.art_url,
         backdropUrl: r.backdrop_url ?? null,
-        terms: { castaway: r.castaway_term, tribe: r.tribe_term, episode: r.episode_term },
+        terms: { castaway: r.castaway_term, people: r.castaway_plural ?? null, tribe: r.tribe_term, episode: r.episode_term },
         tvmazeId: r.tvmaze_id ?? null,
         network: r.network ?? null,
       },

@@ -320,7 +320,7 @@ const RULEBOOKS = "SELECT id, version, is_template, status, review_status, md5(b
     const nextSeason = (await pool.query("SELECT rulebook_live, rulebook_id, season_number FROM show_seasons WHERE id = $1", [next])).rows[0];
     check(r.status === 200 && nextSeason.season_number === 3 && nextBook && nextBook.parent_id === yBook.id && nextBook.provenance.sameAsLastSeason && nextSeason.rulebook_live && nextSeason.rulebook_id === nextBook.id, "New season 3 of a set-up show: last season's rulebook, playing by it", JSON.stringify({ s: r.status, n: nextSeason.season_number, parent: nextBook?.parent_id === yBook.id }));
     check(nextBook.compiled_source === "blocks" && nextBook.blocks.segments.length === yBook.blocks.segments.length && !(await pool.query("SELECT 1 FROM rulebooks WHERE owner_kind = 'library' AND parent_id LIKE 'made-zt-%'")).rows.length, "compiled for itself; still no template from its stored format");
-    check(r.body.history.some((l) => /Added season 3, playing by last season's rulebook/.test(l.text)), "the show's History says so");
+    check(r.body.history.some((l) => /^Added .+ 3 \(Upcoming\), playing by last season's rulebook$/.test(l.text)), "the show's History says so");
 
     // ---------- a show added by name ----------
     r = await as.alex.call("POST", "/api/me/shows", { name: "ZT Mystery Hour" });

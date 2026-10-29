@@ -46,7 +46,9 @@ interface SeasonRow {
   cast_approved_at: Date | null;
   tribes_from_episode: number | null;
   castaway_term: string | null;
+  castaway_plural: string | null;
   tribe_term: string | null;
+  tribe_plural: string | null;
   air_tz: string | null;
 }
 
@@ -54,7 +56,7 @@ async function seasonRow(id: string): Promise<SeasonRow> {
   if (!isUuid(id)) throw new HttpError(404, "Season not found");
   const { rows } = await pool.query<SeasonRow>(
     `SELECT ss.id, ${SEASON_NAME} AS name, ss.show_id, s.name AS show_name, s.slug, ss.season_number, ss.cast_approved_at, ss.tribes_from_episode,
-            s.castaway_term, s.tribe_term, ss.air_tz
+            s.castaway_term, s.castaway_plural, s.tribe_term, s.tribe_plural, ss.air_tz
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1`,
     [id]
   );

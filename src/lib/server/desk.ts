@@ -268,20 +268,11 @@ export interface FoundItem {
  */
 export async function find(q: string): Promise<FoundItem[]> {
   const term = q.trim();
-  if (!term) {
-    const { rows } = await pool.query(
-      `SELECT ss.id, ${seasonName} AS name, ss.status FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
-        WHERE ss.status = 'airing' ORDER BY s.name, ss.season_number LIMIT 12`
-    );
-    return rows.map((r) => ({ kind: "season" as const, title: r.name, line: "Season · airing", href: `/desk/season/${r.id}` }));
-  }
+  // Nothing typed is Browse's (Find › Shows has what's airing: part 7a).
+  if (!term) return [];
   const like = `%${term.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
   const out: FoundItem[] = [];
-  const { rows: shows } = await pool.query(
-    `SELECT s.id, s.name, (SELECT count(*)::int FROM show_seasons ss WHERE ss.show_id = s.id) AS seasons FROM shows s WHERE s.name ILIKE $1 ORDER BY s.name LIMIT 6`,
-    [like]
-  );
-  out.push(...shows.map((r) => ({ kind: "show" as const, title: r.name, line: `Show · ${r.seasons} ${r.seasons === 1 ? "season" : "seasons"}`, href: `/desk/show/${r.id}` })));
+  // Shows are Find's own rows, a few and All N (desk-shows.ts findShows: docs/PLAN-desk-parity.md part 7a).
   // The library's rulebooks by name (step 10 part 3): its starting points and drafts.
   const { rows: library } = await pool.query(
     `SELECT id, name, is_template FROM rulebooks WHERE owner_kind = 'library' AND status <> 'archived' AND name ILIKE $1 ORDER BY is_template DESC, name LIMIT 6`,

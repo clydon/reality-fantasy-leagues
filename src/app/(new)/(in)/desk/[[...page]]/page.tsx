@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { DESK_PAGES, DESK_TABS, isDeskKind, isDeskSeasonPage } from "@/new/routes";
+import { DESK_PAGES, DESK_TABS, isDeskKind, isDeskSeasonPage, isDeskShowPage } from "@/new/routes";
 import { DeskScreen } from "@/new/desk/desk";
 
 export const metadata: Metadata = { title: "Admin" };
@@ -9,7 +9,8 @@ export const metadata: Metadata = { title: "Admin" };
 // show (/desk/library, /desk/new: step 10 part 3), Find › People (/desk/people: PLAN-desk-parity.md step 1), Find › Reports
 // (/desk/reports: step 2), Find › Games (/desk/games: part 6a), one
 // thing's page at /desk/[kind]/[id], a page under a season at /desk/season/[id]/setup (step 3), and an episode at
-// /desk/season/[id]/e/[n] (step 4), and one of its cast at /desk/season/[id]/c/[castId] (step 5). Site admins only: every read
+// /desk/season/[id]/e/[n] (step 4), one of its cast at /desk/season/[id]/c/[castId] (step 5), Find › Shows (/desk/shows) and a
+// show's Research sites at /desk/show/[id]/sites (step 7). Site admins only: every read
 // behind it is checked by its own /api/desk route.
 export default async function DeskRoute({ params }: PageProps<"/desk/[[...page]]">) {
   const { page = [] } = await params;
@@ -18,14 +19,16 @@ export default async function DeskRoute({ params }: PageProps<"/desk/[[...page]]
   const episode = page.length === 4 && first === "season" && sub === "e" && /^[1-9][0-9]{0,3}$/.test(n) ? Number(n) : null;
   // One of its cast: /desk/season/<id>/c/<castId> (part 5b).
   const castaway = page.length === 4 && first === "season" && sub === "c" && /^[0-9a-f-]{36}$/i.test(n) ? n : null;
-  if (page.length > 4 || (page.length === 4 && !episode && !castaway) || (page.length === 3 && !(first === "season" && isDeskSeasonPage(sub)))) notFound();
+  // A page under a show: /desk/show/<id>/sites (part 7a).
+  const showPage = page.length === 3 && first === "show" && isDeskShowPage(sub) ? sub : undefined;
+  if (page.length > 4 || (page.length === 4 && !episode && !castaway) || (page.length === 3 && !(first === "season" && isDeskSeasonPage(sub)) && !showPage)) notFound();
   if (page.length >= 2 && !isDeskKind(first)) notFound();
   const pages: readonly string[] = [...DESK_TABS, ...DESK_PAGES];
   if (page.length === 1 && !pages.includes(first)) notFound();
   return (
     <DeskScreen
       tab={page.length >= 2 ? null : ((first as (typeof DESK_TABS)[number] | (typeof DESK_PAGES)[number]) ?? "inbox")}
-      item={page.length >= 2 && isDeskKind(first) ? { kind: first, id, sub: isDeskSeasonPage(sub) ? sub : undefined, episode: episode ?? undefined, castaway: castaway ?? undefined } : null}
+      item={page.length >= 2 && isDeskKind(first) ? { kind: first, id, sub: first === "season" && isDeskSeasonPage(sub) ? sub : undefined, showPage, episode: episode ?? undefined, castaway: castaway ?? undefined } : null}
     />
   );
 }

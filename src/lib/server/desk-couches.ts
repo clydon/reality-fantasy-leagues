@@ -1,5 +1,4 @@
 import type { PoolClient } from "pg";
-import { ensureSeasonRulebook } from "@db/rulebooks.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import type { GameUndo } from "./change-log";
 import { setWhoFills } from "./community-results";
@@ -10,13 +9,12 @@ import { plural } from "./desk-dates";
 import { deleteLeagueIn, purgeDeleted, RESTORE_DAYS, restoreGame } from "./end-game";
 import { gameName, LEAGUE_SEASON_NAME } from "./league-season";
 import { notifyCouchDeleted } from "./push-events";
-import { artAutomatic, chooseArt, deskArt, findArtForShow, findArtLater, setArtOff, type DeskArt } from "./show-art";
 
 // Couches, people and shows on the desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js adminEntity):
 // a couch's people, its games and who runs each, who fills in its results (Override), and the games nobody runs (its only
 // Commissioner left or deleted their account: the Inbox's couch nobody runs), which its page hands on through Hand on
-// (desk-seats.ts handOn, with no `from`: docs/PLAN-desk-parity.md step 2). (A person is desk-people.ts's.) A show's seasons, to go to, who added it (step 10 part 3: a show added by
-// name waits in the Inbox until the desk says Looks fine or archives it), and New season.
+// (desk-seats.ts handOn, with no `from`: docs/PLAN-desk-parity.md step 2). (A person is desk-people.ts's; a show,
+// desk-shows.ts.)
 //
 // Find › Couches and a couch's Delete (docs/PLAN-desk-parity.md part 6d; the mock's desk.js DK_LIST.couches and
 // desk-pages.js dkCouchPage): every couch by its name or who runs it (All · Nobody runs it · New this month · Deleted;
@@ -457,114 +455,3 @@ export async function deskCouchAction(user: SessionUser, id: string, body: { any
   throw new HttpError(400, "anyone, delete or restore");
 }
 
-export interface DeskShow {
-  id: string;
-  name: string;
-  format: string | null;
-  kind: string | null;
-  /** A game for every couch (Make it a game, or set up by the desk); else "Not a game yet". */
-  setUp: boolean;
-  archived: boolean;
-  /** Someone added it (Add a show): who, when, and whether it came from a TV listing (else by name, with no schedule). */
-  added: { by: string | null; at: string; listing: boolean } | null;
-  /** The desk looked at it (a show added by name waits in the Inbox until then). */
-  reviewed: { by: string | null; at: string } | null;
-  seasons: { id: string; name: string; status: string | null; number: number; rulebookId: string | null }[];
-  /** Its art and the finder's state (show-art.ts): Choose art, Find art and photos, No art or photos. */
-  art: DeskArt;
-  history: DeskLine[];
-}
-
-export async function deskShow(id: string): Promise<DeskShow> {
-  if (!isUuid(id)) throw new HttpError(404, "Show not found");
-  const { rows } = await pool.query(
-    `SELECT s.id, s.name, s.format, s.kind, s.set_up_at, s.archived, s.created_at, s.created_by, s.tvmaze_id, s.reviewed_at,
-            COALESCE(a.username, a.name) AS added_by, COALESCE(r.username, r.name) AS reviewed_by
-       FROM shows s LEFT JOIN "user" a ON a.id = s.created_by LEFT JOIN "user" r ON r.id = s.reviewed_by WHERE s.id = $1`,
-    [id]
-  );
-  if (!rows.length) throw new HttpError(404, "Show not found");
-  const s = rows[0];
-  const { rows: seasons } = await pool.query(
-    `SELECT ss.id, COALESCE(ss.name, s.name || ' ' || ss.season_number) AS name, ss.status, ss.season_number AS number,
-            (SELECT r.id FROM rulebooks r WHERE r.owner_kind = 'season' AND r.season_id = ss.id AND r.status <> 'archived') AS "rulebookId"
-       FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.show_id = $1 ORDER BY ss.season_number DESC`,
-    [id]
-  );
-  return {
-    id,
-    name: s.name,
-    format: s.format,
-    kind: s.kind,
-    setUp: !!s.set_up_at,
-    archived: !!s.archived,
-    added: s.created_by ? { by: s.added_by, at: s.created_at.toISOString(), listing: s.tvmaze_id != null } : null,
-    reviewed: s.reviewed_at ? { by: s.reviewed_by, at: s.reviewed_at.toISOString() } : null,
-    seasons,
-    art: await deskArt(id),
-    history: byNewest(await deskLines("show", id)),
-  };
-}
-
-/**
- * The desk on a show: Looks fine (a show added by name, looked at), archived (out of everyone's search; its follows and
- * games stay), or a new season (the next number, nothing known about it yet). A set-up show's new season starts as the
- * last season's rulebook (db/rulebooks.js sameAsLastSeason) and plays by it; its cast comes from Backstage as any season's.
- */
-export async function deskShowAction(user: SessionUser, id: string, body: { action?: unknown }): Promise<DeskShow & { seasonId?: string }> {
-  const show = await deskShow(id);
-  if (body.action === "reviewed" || body.action === "archive") {
-    const archive = body.action === "archive";
-    if (!archive && show.reviewed) throw new HttpError(409, "Looked at already");
-    await pool.query("UPDATE shows SET reviewed_at = now(), reviewed_by = $2, archived = CASE WHEN $3 THEN true ELSE archived END, updated_at = now() WHERE id = $1", [id, user.id, archive]);
-    await logDesk(pool, {
-      entity: "show",
-      entityId: id,
-      action: String(body.action),
-      text: archive ? "Archived: out of everyone's search" : "Looks fine",
-      undo: { type: "showReviewed", id, archived: show.archived },
-      userId: user.id,
-    });
-    return deskShow(id);
-  }
-  if (body.action === "season") {
-    const next = Math.max(0, ...show.seasons.map((s) => s.number)) + 1;
-    const { rows } = await pool.query(
-      `INSERT INTO show_seasons (show_id, season_number, status) VALUES ($1, $2, 'upcoming') ON CONFLICT (show_id, season_number) DO NOTHING RETURNING id`,
-      [id, next]
-    );
-    if (!rows.length) throw new HttpError(409, "That season was added a moment ago");
-    const seasonId = rows[0].id as string;
-    if (show.setUp) await ensureSeasonRulebook(pool, seasonId);
-    await logDesk(pool, { entity: "show", entityId: id, action: "season", text: `Added season ${next}${show.setUp ? ", playing by last season's rulebook" : ""}`, userId: user.id });
-    findArtLater({ seasonId });
-    return { ...(await deskShow(id)), seasonId };
-  }
-  // Art (show-art.ts): look now, choose one by hand, back to automatic, or the off switch.
-  if (body.action === "findArt") {
-    const found = await findArtForShow(id);
-    const text = `Looked for art and photos: ${found.art ? "the show's art" : "no show art"}, ${found.seasons} season poster${found.seasons === 1 ? "" : "s"}, ${found.photos} photo${found.photos === 1 ? "" : "s"}`;
-    await logDesk(pool, { entity: "show", entityId: id, action: "findArt", text, userId: user.id });
-    return deskShow(id);
-  }
-  if (body.action === "chooseArt") {
-    const what = await chooseArt(id, body as Record<string, unknown>).catch((e) => {
-      throw new HttpError(400, (e as Error).message);
-    });
-    await logDesk(pool, { entity: "show", entityId: id, action: "chooseArt", text: `Chose ${what}`, userId: user.id });
-    return deskShow(id);
-  }
-  if (body.action === "artAutomatic") {
-    await artAutomatic(id);
-    await logDesk(pool, { entity: "show", entityId: id, action: "artAutomatic", text: "Art back to automatic", userId: user.id });
-    return deskShow(id);
-  }
-  if (body.action === "artOff") {
-    const off = (body as { off?: unknown }).off === true;
-    const { photos } = await setArtOff(id, off);
-    const text = off ? `No art or photos: took down the art and ${photos} found photo${photos === 1 ? "" : "s"}` : "Art and photos back on";
-    await logDesk(pool, { entity: "show", entityId: id, action: "artOff", text, userId: user.id });
-    return deskShow(id);
-  }
-  throw new HttpError(400, "action is reviewed, archive, season, findArt, chooseArt, artAutomatic or artOff");
-}

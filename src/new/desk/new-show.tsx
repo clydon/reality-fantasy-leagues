@@ -9,7 +9,7 @@ import { make } from "../data";
 import { useNav } from "../nav";
 import { paths } from "../routes";
 import { toast } from "../ui/toast";
-import { deskSend, useAfterDesk, useDesk, type DeskLibrary, type DeskShow, type FoundItem, type LibraryTemplateCard } from "./data";
+import { deskSend, useAfterDesk, useDesk, type DeskLibrary, type DeskShow, type LibraryTemplateCard, type ShowsList } from "./data";
 import { KIND_ICON } from "./library";
 import { DeskHeader, Section } from "./parts";
 
@@ -74,14 +74,15 @@ function WhichShow({ onPick }: { onPick: (p: Picked) => void }) {
   const [showId, setShowId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const term = useDeferredValue(q.trim());
-  const here = useDesk<{ found: FoundItem[] }>(term.length >= 2 ? `/find?q=${encodeURIComponent(term)}` : null);
+  // Shows that are here (Find › Shows' read, part 7a: archived ones are out of everyone's search, the desk's too).
+  const here = useDesk<ShowsList>(term.length >= 2 ? `/shows?${new URLSearchParams({ q: term, limit: "6", counts: "0" })}` : null);
   const listings = useQuery({
     queryKey: ["new-design", "desk", "listings", term],
     enabled: term.length >= 2,
     queryFn: async () => (await (await fetch(`/api/listings/search?q=${encodeURIComponent(term)}`)).json()) as { hits: ListingHit[]; unavailable?: boolean },
     staleTime: 60_000,
   });
-  const shows = (here.data?.found ?? []).filter((f) => f.kind === "show");
+  const shows = here.data?.shows ?? [];
 
   const add = async (body: { listing: number } | { name: string }) => {
     setBusy(true);
@@ -116,10 +117,10 @@ function WhichShow({ onPick }: { onPick: (p: Picked) => void }) {
             <>
               <p className="mt-4 text-[13px] font-semibold text-muted-foreground">Here already</p>
               {shows.map((s) => (
-                <button key={s.href} type="button" data-new-show-here={s.href.split("/").pop()} onClick={() => setShowId(s.href.split("/").pop()!)} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0">
+                <button key={s.id} type="button" data-new-show-here={s.id} onClick={() => setShowId(s.id)} className="nd-press flex min-h-[60px] w-full items-center gap-3 border-t border-border py-2 text-left first:border-t-0">
                   <span className="min-w-0 flex-1">
-                    <b className="block text-[16px] font-semibold">{s.title}</b>
-                    <small className="block text-[13px] text-muted-foreground">{s.line}</small>
+                    <b className="block text-[16px] font-semibold">{s.name}</b>
+                    <small className="block text-[13px] text-muted-foreground">{[s.kind ? "A game" : "Not a game yet", s.season].filter(Boolean).join(" · ")}</small>
                   </span>
                   <ChevronRight className="size-5 text-muted-foreground" aria-hidden />
                 </button>

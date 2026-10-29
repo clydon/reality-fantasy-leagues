@@ -17,6 +17,7 @@ import { restoreReport } from "./desk-reports";
 import { restoreSeat } from "./desk-seats";
 import { restoreSeasonSchedule } from "./desk-schedule";
 import { restoreSeasonSetup } from "./desk-setup";
+import { restoreShowArchive, restoreShowSeason, restoreShowSites, restoreShowWords } from "./desk-shows";
 import { restoreReview, restoreTemplateRow } from "./desk-library";
 import { restoreLive, undoRulebook, writePhase } from "./desk-rulebooks";
 
@@ -119,8 +120,23 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
     case "review":
       await restoreReview(u as Parameters<typeof restoreReview>[0]);
       break;
+    case "showArchive":
+      await restoreShowArchive(u);
+      break;
+    case "showSeason":
+      await restoreShowSeason(u);
+      break;
+    case "showWords":
+      await restoreShowWords(user, u);
+      break;
+    case "showSites":
+      await restoreShowSites(u);
+      break;
     case "showReviewed":
-      await pool.query("UPDATE shows SET reviewed_at = NULL, reviewed_by = NULL, archived = $2, updated_at = now() WHERE id = $1", [String(u.id), !!u.archived]);
+      await pool.query("UPDATE shows SET reviewed_at = NULL, reviewed_by = NULL, archived = COALESCE($2::boolean, archived), updated_at = now() WHERE id = $1", [
+        String(u.id),
+        typeof u.archived === "boolean" ? u.archived : null,
+      ]);
       break;
     case "bot":
       await restoreSeasonBot(String(u.id), {

@@ -628,7 +628,7 @@ function CastSheet({ draft, title, onDone, onClose }: { draft: RulebookBlocks; t
   const [groupChange, setGroupChange] = useState(g ? str(g.change) : "never");
   const q = QUESTIONS.cast;
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()} title={title} subtitle="Used everywhere in the app, and to find the cast on a wiki">
+    <Sheet open onOpenChange={(o) => !o && onClose()} title={title} subtitle="This season's How it works, stats and research questions. The show's Its words sets them for every season">
       <Choice data="unit" label={q.unit} value={unit} options={opts("unit")} onChange={setUnit} />
       <div className="grid grid-cols-2 gap-2">
         <Text data="singular" label={q.singular} value={singular} onChange={setSingular} placeholder="castaway" />

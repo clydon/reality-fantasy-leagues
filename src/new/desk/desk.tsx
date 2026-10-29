@@ -1,19 +1,20 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { BookOpen, Check, CheckCheck, ChevronRight, Flag, KeyRound, Lock, RotateCcw, Search, Trophy, User, Users, Zap } from "lucide-react";
+import { BookOpen, Check, CheckCheck, ChevronRight, Flag, KeyRound, Lock, RotateCcw, Search, Trophy, Tv, User, Users, Zap } from "lucide-react";
 import { colourOf } from "@/lib/people";
 import { NavLink } from "../nav";
-import { paths, type DeskKind, type DeskSeasonPage } from "../routes";
+import { paths, type DeskKind, type DeskSeasonPage, type DeskShowPage } from "../routes";
 import { useMe } from "../session";
 import { Avatar } from "../ui/bars";
 import { EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { deskSend, useAfterDesk, useDesk, type ComingUp, type DeskSettings, type DeskLine, type CouchRow, type FoundItem, type GameRow, type Inbox, type InboxItem, type PeopleList, type PersonRow, type ReportRow } from "./data";
+import { deskSend, useAfterDesk, useDesk, type ComingUp, type DeskSettings, type DeskLine, type CouchRow, type FoundItem, type GameRow, type Inbox, type InboxItem, type PeopleList, type PersonRow, type ReportRow, type ShowRow } from "./data";
 import { LibraryPage } from "./library";
 import { NewShowFlow } from "./new-show";
-import { CouchPage, FactPage, SeasonPage, ShowPage } from "./pages";
+import { CouchPage, FactPage, SeasonPage } from "./pages";
+import { ShowListRow, ShowPage, ShowsPage, SitesPage } from "./shows";
 import { LetInButton, PeoplePage, PersonPage, PersonTags, useDebounced } from "./people";
 import { ReportListRow, ReportPage, ReportsPage } from "./reports";
 import { CouchListRow, CouchesPage } from "./couches";
@@ -36,11 +37,11 @@ import { SetupPage } from "./setup";
 // refused by its own route. People, the library and New show (step 10 part 3) are pages a level down, from Find.
 
 type Tab = "inbox" | "find" | "settings";
-type Page = Tab | "library" | "new" | "people" | "reports" | "games" | "couches";
+type Page = Tab | "library" | "new" | "people" | "reports" | "games" | "couches" | "shows";
 
 const TAB_NAMES: Record<Tab, string> = { inbox: "Inbox", find: "Find", settings: "Settings" };
 
-export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: DeskKind; id: string; sub?: DeskSeasonPage; episode?: number; castaway?: string } | null }) {
+export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: DeskKind; id: string; sub?: DeskSeasonPage; showPage?: DeskShowPage; episode?: number; castaway?: string } | null }) {
   const me = useMe();
   useDeskStay();
   if (!me.isSuperAdmin) {
@@ -57,6 +58,7 @@ export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: Desk
   if (item?.sub === "research") return <ResearchPage id={item.id} />;
   if (item?.sub === "bingo") return <BingoPage id={item.id} />;
   if (item?.sub === "cast") return <CastPage id={item.id} />;
+  if (item?.showPage === "sites") return <SitesPage id={item.id} />;
   if (item) {
     const page = { fact: FactPage, season: SeasonPage, castaway: OldCastawayPage, couch: CouchPage, person: PersonPage, show: ShowPage, rulebook: RulebookPage, report: ReportPage, game: GamePage }[item.kind];
     const Page = page;
@@ -67,6 +69,7 @@ export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: Desk
   if (tab === "reports") return <ReportsPage />;
   if (tab === "games") return <GamesPage />;
   if (tab === "couches") return <CouchesPage />;
+  if (tab === "shows") return <ShowsPage />;
   if (tab === "new") return <NewShowFlow />;
   return <DeskTabs tab={tab ?? "inbox"} />;
 }
@@ -274,12 +277,14 @@ interface Found {
     reports: { open: number; done: number };
     games: { playing: number; deleted: number };
     couches: { all: number; nobody: number; deleted: number };
+    shows: { all: number; airing: number; byName: number };
   };
   /** With a search: the first few people who match, and how many do; the same for games (a join code too) and reports. */
   people?: { people: PersonRow[]; total: number };
   reports?: { reports: ReportRow[]; total: number };
   games?: { games: GameRow[]; total: number; code: string | null };
   couches?: { couches: CouchRow[]; total: number };
+  shows?: { shows: ShowRow[]; total: number };
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -298,9 +303,9 @@ function SubHead({ title, aside }: { title: string; aside?: ReactNode }) {
 
 /**
  * Find (the mock's desk.js dkBrowse and admFindList): one search. With nothing typed, Browse: a row for each kind with
- * its own list (People, Couches, Games, the library and Reports now; Shows comes with step 7), then what you
- * opened lately, then what's airing (until Shows has its list, step 7). With a search: the first three people who match,
- * and All N in People, searched; then everything else it finds.
+ * its own list (People, Couches, Games, Shows: part 7a, the library and Reports), then what you opened lately. With a
+ * search: the first three people who match, and All N in People, searched; then each kind's three and All N; then
+ * everything else it finds.
  */
 function FindTab() {
   const [q, setQ] = useState("");
@@ -312,6 +317,7 @@ function FindTab() {
   const reports = found.data?.reports;
   const games = found.data?.games;
   const couches = found.data?.couches;
+  const shows = found.data?.shows;
   return (
     <Section>
       <label className="flex h-12 items-center gap-2 rounded-[3px] bg-card px-3 outline-1 -outline-offset-1 outline-input focus-within:outline-2 focus-within:outline-chyron">
@@ -354,6 +360,13 @@ function FindTab() {
               title="Games"
               line={b ? <>{b.games.playing} playing{b.games.deleted ? <> · <Worth>{b.games.deleted} deleted, restorable</Worth></> : null}</> : " "}
             />
+            <DeskRow
+              href={paths.deskShows()}
+              data="browse-shows"
+              lead={<IconLead icon={Tv} />}
+              title="Shows"
+              line={b ? <>{plural(b.shows.all, "show", "shows")} · {b.shows.airing} airing{b.shows.byName ? <> · <Worth>{b.shows.byName} added by name</Worth></> : null}</> : " "}
+            />
             <NavLink href={paths.desk("library")} data-desk-library-link className="nd-press flex min-h-[62px] w-full items-center gap-3 border-t border-border py-2.5 text-left">
               <IconLead icon={BookOpen} />
               <span className="min-w-0 flex-1">
@@ -389,13 +402,6 @@ function FindTab() {
               </div>
             </>
           )}
-          <SubHead title="Airing now" />
-          <div data-found>
-            {(found.data?.found ?? []).map((f, i) => (
-              <ItemRow key={`${f.href}-${i}`} data={f.kind} href={f.href} tag={ICONS[f.kind]} title={f.title} line={f.line} />
-            ))}
-            {found.data && !found.data.found.length && <p className="mt-1 text-[14px] text-muted-foreground">Nothing&apos;s airing.</p>}
-          </div>
         </>
       ) : (
         <div data-found className="mt-2">
@@ -435,6 +441,14 @@ function FindTab() {
                   All {games.total} games matching &ldquo;{term}&rdquo;
                 </NavLink>
               )}
+              {shows?.shows.map((x) => (
+                <ShowListRow key={x.id} x={x} found />
+              ))}
+              {shows && shows.total > shows.shows.length && (
+                <NavLink href={paths.deskShows({ q: term })} data-find-all-shows className="flex min-h-12 items-center border-t border-border text-[14px] font-bold underline decoration-input underline-offset-[3px]">
+                  All {shows.total} shows matching &ldquo;{term}&rdquo;
+                </NavLink>
+              )}
               {(found.data?.found ?? []).map((f, i) => (
                 <ItemRow key={`${f.href}-${i}`} data={f.kind} href={f.href} tag={ICONS[f.kind]} title={f.title} line={f.line} />
               ))}
@@ -446,7 +460,7 @@ function FindTab() {
                   All {reports.total} reports matching &ldquo;{term}&rdquo;
                 </NavLink>
               )}
-              {found.data && !found.data.found.length && !people?.total && !reports?.total && !games?.total && !couches?.total && <p className="mt-3 text-[14px] text-muted-foreground">Nothing matches.</p>}
+              {found.data && !found.data.found.length && !people?.total && !reports?.total && !games?.total && !couches?.total && !shows?.total && <p className="mt-3 text-[14px] text-muted-foreground">Nothing matches.</p>}
             </>
           )}
         </div>
