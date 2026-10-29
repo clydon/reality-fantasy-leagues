@@ -14,7 +14,9 @@ most urgent first with each item's row to act on, Coming up, Find › Reports an
 handed on through Hand on, Let in told by email; migration 0421; its As built is under step 2); **Step 3 ready to merge at 3df4e790: parts 3a and 3b** (a season's
 Setup: Name, Status held over its listing's dates, Who decides results, the season's Delete, migration 0422; its schedule:
 When it airs and Episodes previewed then saved, times and a count by hand holding over the listing's, a TV listing found,
-linked and unlinked, migration 0423; their As built is under step 3); **part 4a (Research and the bot) is next.** Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
+linked and unlinked, migration 0423; their As built is under step 3); **Part 4a done at 79de48c4, part 4b is next** (4a: a
+season's Research and the bot, Run now queued with what it waits behind and how far it's got, its schedule drawn as the next
+episode's night, Runs; migration 0424; its As built is under step 4). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
 either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
@@ -586,6 +588,71 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    all, Take it back and a paste's preview. (3) Trivia's questions and Take it out stay on an episode's page: the admin's flag
    already exists (`trivia.ts`), and it's where you'd look after a "Wrong?".
    **Changes at approval (2026-10-28):** no paid Claude research on the schedule, and no Switch it off (decision 9).
+   **As built, part 4a (2026-10-29):** **Research and the bot** (`/desk/season/<id>/research`: `routes.ts` DESK_SEASON_PAGES
+   gains `research`, depth 3; `src/new/desk/research.tsx`, `src/lib/server/desk-research.ts`, words shared by both in
+   `src/lib/desk-bot-words.ts`; `GET` and `POST /api/desk/seasons/[id]/research`, `GET` and `POST .../runs`, `GET
+   .../runs/[runId]`, `POST /api/desk/runs/next`). The season page's Running it has **Research and the bot** ("Autopilot on · 5
+   runs after each episode", or "Autopilot off · Run now any time"); its old Autopilot trial section moved here. The page as
+   mocked: the lower third (Autopilot on or off; "Next: tonight, 10:05 PM", "Asking now: Episode 5", "Nothing due" or "Nothing
+   runs on its own"), "Asks ChatGPT · 2 runs this week", **Run now** (five, full results wide), **Its schedule** (Runs on its
+   own; Around Episode N drawn as the night: the start, It ends with Change for the episode length, each run at db/bot-
+   research.js `dueAt`'s time with its switch, Now in yellow, a passed run's ✓ or ✗; Add a run *n* of 8; Reset, or "Our usual
+   five"; Not in its schedule with Add), **Runs** (the latest five, All N), History (the season's bot and Run now lines) and
+   the season's Delete, last. Sheets as mocked: Run now (which episode: the latest six aired, bingo's next two and the
+   season's, the schedule check none; what it does; what it waits behind; Ask it now), a run (Done in, Failed or Asking with
+   how far it's got; how many tries a run like it gets; The question; Ask again or Try again, which opens Run now for it), a
+   run's timing (the mock's ladder, a duplicate refused, Save, Take it off the schedule), Add a run, Reset to our usual five,
+   Episode length (5 to 600 minutes). The rail's episode is the one whose runs are still to come (the latest aired while any
+   of its runs is due, else the next), so tonight's runs stay on it after the episode starts; an Upcoming season says nothing
+   runs until it's Airing. Schedule changes are tier 1: desk-bot.ts `setSeasonBot` takes `episodeMinutes` and `reset` too
+   and says each change in words (`changeLine`: "Full results: 12 hr after it ends (was 9 hr after it ends)", "Autopilot
+   off", "Schedule reset to our usual five"), a toast with Undo; an Undo puts the length back only with a line that changed
+   it. Settings › Our bot › Autopilot lists each season with what it does after each episode ("Who went home, then full
+   results", Coming up's words) and opens its Research and the bot.
+   **Run now is queued (migration 0424, `desk_runs`, additive):** the request checks the bot answers (a refusal says so,
+   nothing queued), queues the run (the same one open already is joined; a unique index lets one of two at once in), writes
+   a History line and answers at once with what it waits behind ("One question at a time: it starts after full results for
+   Episode 5, in about a minute", from the run asking anywhere, found from its row: `ok` null, under 10 minutes old, and
+   what's queued). After the answer, the request driving the queue (`drainDeskRuns`) takes its first run, waits while the
+   bot asks anything (up to 4 minutes a request), asks through runJob as classic's did (slot `now`, filed as a source by
+   bot-results.ts), puts who asked on the run's row, and hands the next one to a request of its own (`/api/desk/runs/next`,
+   Bearer CRON_SECRET), so every run has a whole 300 s; one that waited long hands itself on the same way. A driver cut off
+   (a redeploy) lets go after 6 minutes, and the page's read, which polls every 3 s while anything asks or waits, takes over.
+   Runs shows a queued run as waiting, an asking one with its bar ("9 of 21 people written up", or its stage: Opening
+   ChatGPT, Searching the recaps, Writing 30 squares), and a row marked running past 10 minutes as cut off. A run's question
+   is rebuilt as it would be asked now (full, who went home, the schedule check, trivia and bingo through their own
+   builders; `db/bot-research.d.ts` and `episode-research.d.ts` gained declarations for what was already exported, and
+   `db/trivia-research.d.ts` is new: no export changed). Noticed e: the sheet says "about 3 minutes" for full results.
+   **Noticed d, settled:** the code is right. Asked results went who-went-home first in slot `asked-quick` for a day
+   (2c929d07) and went back to each episode's full results in order the same day (ba15ffd0), so `ASKED_SLOT` 'asked' is all
+   there is; HANDOFF.md's "Then (same day, the user's 'do all')" paragraph still describes the first way and wants
+   correcting at the merge. Runs lists an asked run as "Fill in what happened". **Noticed aw, taken:** Setup's Episodes
+   lowered (desk-schedule.ts) now also takes the season's `research_asks`, queued Run nows and finished `bot_research_runs`
+   past the count (a run still asking finishes; trivia's and bingo's rows let go of the run); classic's prune doesn't, until
+   step 8.
+   **Left behind or changed from classic, and why (decision 10):** classic's Run now inside the request (up to 300 s, no
+   progress, a second one waiting inside the bot on its own clock) is replaced by the queue; classic's runs list (GET
+   bot-research, the last 100) is Runs' All N; classic's research PATCH fields for paid auto research (decision 9 and
+   Changes at approval: no paid Claude research on the schedule, no Switch it off, so no Not our bot block); "signed in" in
+   the meta line (the desk can't know how the bot is signed in); the schedule check with nothing aired (classic asked about
+   episode 0's next; the listing or Setup says when a season starts). The mock's rows for an episode's results (the run
+   sheet's link to Episode N's results, Not in the games yet) are 4b's, and the Bingo bank row 4c's: they come with their
+   pages, so nothing links to a page that isn't there yet. `check-new-settling.js` part 5 now drives the season's bot on
+   this page. `/code-review` found a run cut off mid-ask reading as asking for good (and polling), Try again on an older
+   episode asking about the latest, an Undo of any bot line putting back an old episode length, two asks at once queuing
+   twice, the sheet's copy of dueAt drifting from the server's (now `runTime`, held to `dueAt` by
+   `tests/desk-bot-words.test.js`), copies of the duration words, and a read doing its queue queries twice: all fixed.
+   Check: `scripts/dev-test/check-desk-research.js` 95 PASS at 390 (zt_dr_ fixture, up and down; the bot only through
+   fake-bot.js and x-gys-bot; two seasons' runs queued one behind the other); check-desk-setup 158, check-desk-inbox 106,
+   check-desk-people 249, check-classic-admin 22, check-new-settings 111, unit tests 840 (with `desk-bot-words.test.js`); check-new-desk without its
+   rulebook section (a scratch copy, deleted) failed only (ab)'s "every league renames him", as in 3a and 3b; check-new-settling 96 (its part 5 on this page).
+   **Noticed, not fixed (4a):** (az) the rail shows only the runs due around its episode, and only when there is one: a
+   season with no episode coming up (or a trivia run with no time before the next episode) can't switch, retime or take off
+   a run except by Reset; the mock draws only the rail, so a plain list of the runs would be a new screen. For whoever
+   designs the ended or no-schedule season's page. (ba) Between the queue seeing the bot free and its run's row going in,
+   a scheduled run or a One tap can start: the bot queues the second question itself ("waiting"), so nothing breaks, but
+   that run's 300 s includes the wait. Only a claim the cron's planner reads would close it (db/bot-research.js, off limits
+   here). (bb) Classic's Run now still asks inside its request until step 8, and the queue waits for it like any run.
 5. **Seasons: cast.** Pull from the wiki and pull again, approve and send to the games, remove someone, hold starting groups
    until Episode 1.
    **As mocked (2026-10-28, `desk-cast.js` and `desk-cast.css`, waiting for approval):** Running it › Cast opens a page of its
