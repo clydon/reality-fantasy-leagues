@@ -82,7 +82,8 @@ function PhoneRow({ devices, state, setState }: { devices: number; state: PhoneS
   };
   const Icon = state === "on" ? BellRing : state === "off" || state === "loading" ? Smartphone : BellOff;
   return (
-    <div className="flex min-h-[64px] items-center gap-3 py-2" data-phone={state}>
+    // Still asking the browser: the page waits for it (ui/loaded.tsx) rather than saying "Checking…" and then the answer.
+    <div className="flex min-h-[64px] items-center gap-3 py-2" data-phone={state} aria-busy={state === "loading" || undefined}>
       <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary">
         <Icon className="size-5" aria-hidden />
       </span>

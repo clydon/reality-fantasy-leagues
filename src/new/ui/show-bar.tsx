@@ -158,8 +158,9 @@ export function TabBar({
   tabs: readonly ShowTab[];
   current: ShowTab;
   badges?: Partial<Record<ShowTab, number>>;
-  /** The show's own words for a tab ("Schedule", "Players": lib/game/show-words.ts). */
-  labels?: Partial<Record<ShowTab, string>>;
+  /** The show's own words for a tab ("Schedule", "Players": lib/game/show-words.ts); null until the show's in (its tabs
+   *  keep their places, unnamed, rather than saying "Cast" and then "Castaways"). */
+  labels?: Partial<Record<ShowTab, string>> | null;
 }) {
   const i = tabs.indexOf(current);
   const n = tabs.length;
@@ -171,7 +172,7 @@ export function TabBar({
     >
       {tabs.map((tab) => {
         const { icon: Icon } = TAB_META[tab];
-        const label = labels[tab] ?? TAB_META[tab].label;
+        const label = labels?.[tab] ?? TAB_META[tab].label;
         const on = tab === current;
         const badge = badges[tab];
         return (
@@ -186,7 +187,8 @@ export function TabBar({
               className={`size-5 transition-transform duration-[350ms] ease-[cubic-bezier(.34,1.45,.64,1)] ${on ? "-translate-y-0.5 text-chyron-line" : ""}`}
               aria-hidden
             />
-            {label}
+            {/* Unseen, not gone: the tab keeps its name for a screen reader. */}
+            <span className={labels === null ? "opacity-0" : undefined}>{label}</span>
             {!!badge && (
               <span className="absolute left-[calc(50%+5px)] top-[7px] grid h-[18px] min-w-[18px] place-items-center rounded-[9px] bg-live px-[5px] text-[11px] font-extrabold text-live-foreground">
                 {badge}
