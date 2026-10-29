@@ -1,0 +1,53 @@
+# Episode reminders (db/reminders.js): about a day and two hours before an episode airs, a push to anyone whose lineup, pick or a
+# prediction for it is still open, and the morning after, a push to commissioners whose game still has no results. Then the
+# waiver clock (db/waivers.js): mid-season waiver weeks processed on time in leagues nobody has loaded since, and their reminders
+# six hours before.
+#
+# Hourly is the resolution: each reminder is sent at most once (reminder_log), so running more often only makes them more
+# punctual. A run with nothing due exits in seconds.
+#
+# This job used to run paid Claude research first (db/auto-research.js, "Auto research"); that went with classic's admin
+# (docs/PLAN-desk-parity.md, decision 9 and step 8, part 8b). Our bot researches now, on the VM's tick (docs/HOSTING.md).
+#
+# Needs these repository secrets (Settings > Secrets and variables > Actions):
+#   AUTH_DATABASE_URL   -- the production database.
+#   NEXT_PUBLIC_VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT -- the same Web Push keys the app uses (Vercel env).
+#                          Without them both steps run and send nothing.
+name: Reminders and waivers
+
+on:
+  schedule:
+    - cron: "5 * * * *"
+  workflow_dispatch:
+
+jobs:
+  reminders-waivers:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Run reminders.js
+        env:
+          AUTH_DATABASE_URL: ${{ secrets.AUTH_DATABASE_URL }}
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: node db/reminders.js
+
+      # Its own step, and run even if reminders failed: one job's outage shouldn't hold up a waiver week.
+      - name: Run waivers.js
+        if: ${{ !cancelled() }}
+        env:
+          AUTH_DATABASE_URL: ${{ secrets.AUTH_DATABASE_URL }}
+          NEXT_PUBLIC_VAPID_PUBLIC_KEY: ${{ secrets.NEXT_PUBLIC_VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+        run: node db/waivers.js

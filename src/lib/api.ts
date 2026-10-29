@@ -1,4 +1,4 @@
-import type { LeagueState, Membership, ChatMessage, ChatRead, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, CatalogShow, SuggestedBetAnswer, StoredFormat, Proposal, EpisodeResearchPanel, ResearchApplySummary, LeagueRuleset, WaiverClaim } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, ChatRead, LeagueInvite, MyInvite, CatalogShow, SuggestedBetAnswer, StoredFormat, Proposal, EpisodeResearchPanel, ResearchApplySummary, LeagueRuleset, WaiverClaim } from "@/lib/game/types";
 import type { FormatData } from "@/lib/game/formats/index";
 import type { ArtStyle } from "@/lib/show-art-style";
 import type { DemoSeasonData } from "@/lib/game/demo-season-builder";
@@ -519,21 +519,6 @@ export const api = {
     localFetch<LeagueState>(`/api/leagues/${leagueId}/reset`, { method: "POST" }),
   leaveLeague: (leagueId: string) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/leave`, { method: "POST" }),
-
-  // Wiki connector (db/wiki-sync.js). Proposals live in their own table, not in league state, so
-  // these return their own shapes and have no mock-mode branch -- same as invites and chat.
-  listWikiProposals: (leagueId: string) =>
-    localFetch<{ proposals: WikiProposal[] }>(`/api/leagues/${leagueId}/wiki-proposals`),
-  // `applied` is shaped by `kind` -- the three apply paths report different things, so the caller
-  // narrows on kind rather than this pretending they share a shape.
-  applyWikiProposal: (leagueId: string, id: string) =>
-    localFetch<{
-      state: LeagueState;
-      kind: "cast" | "eliminations" | "scoringEvents";
-      applied: AppliedProposal | null;
-    }>(`/api/leagues/${leagueId}/wiki-proposals/${id}`, { method: "POST" }),
-  rejectWikiProposal: (leagueId: string, id: string) =>
-    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/wiki-proposals/${id}`, { method: "DELETE" }),
 
   // Catch-up mode (StateLogic.RevealLogic): raise this league's reveal pointer by one episode, which
   // applies that episode's admin-accepted results (db/migrations/0019).

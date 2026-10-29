@@ -522,8 +522,12 @@ export function NowSheet({ open, onClose, r, kind, episode }: { open: boolean; o
       : kind === "bingo"
         ? [...r.now.bingo.map((b) => ({ e: b.n as number | "season", label: b.label, info: b })), { e: "season", label: "For any episode" }]
         : r.now.aired.map((a) => ({ e: a.n, label: a.label, info: a }));
-  // Try again on an episode the list doesn't have (an older one, or bingo's once it's aired): asked about as it was.
-  if (typeof episode === "number" && kind !== "schedule" && !eps.some((x) => x.e === episode)) eps.unshift({ e: episode, label: "Asked before" });
+  // Try again on an episode the list doesn't have (an older one, or bingo's once it's aired): asked about as it was. Bingo's
+  // bank page also opens it on an episode past the next two, still to come (after the latest aired, `aired[0]`).
+  if (typeof episode === "number" && kind !== "schedule" && !eps.some((x) => x.e === episode)) {
+    const later = kind === "bingo" && episode > (r.now.aired[0]?.n ?? 0);
+    eps.unshift({ e: episode, label: later ? "Still to come" : "Asked before" });
+  }
   const chosen = eps.find((x) => x.e === (pick ?? episode)) ?? eps[0];
   const e: number | "season" = kind === "schedule" ? (r.now.scheduleEpisode ?? 0) : (chosen?.e ?? 0);
   const none = kind === "schedule" ? r.now.scheduleEpisode == null : !eps.length;

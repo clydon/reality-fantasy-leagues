@@ -42,7 +42,7 @@
 // answers, and what's filed as the bot's answer is that merged whole, so nothing it said before counts as taken back.
 const Air = require("../src/lib/game/air-schedule.js");
 const StateLogic = require("../src/lib/game/state-logic.js");
-const AutoResearch = require("./auto-research.js");
+const SeasonClock = require("./season-clock.js");
 const Research = require("./episode-research.js");
 const Trivia = require("./trivia-research.js");
 const Bingo = require("./bingo-research.js");
@@ -497,16 +497,16 @@ function quickMessage(q) {
 
 // ---------- running ----------
 
-/** Seasons with bot research on, loaded the way auto-research loads them (schedule + air clock). */
+/** Seasons with bot research on, with their schedule and air clock (season-clock.js). */
 async function loadBotSeasons(pool, seasonId) {
   return seasonId
-    ? AutoResearch.loadSeasons(pool, "ss.id = $1 AND ss.bot_research_on", [seasonId])
-    : AutoResearch.loadSeasons(pool, "ss.bot_research_on");
+    ? SeasonClock.loadSeasons(pool, "ss.id = $1 AND ss.bot_research_on", [seasonId])
+    : SeasonClock.loadSeasons(pool, "ss.bot_research_on");
 }
 
 /** One season the way runJob wants it, whether or not its schedule is on (an admin's "Run now"). */
 async function loadSeasonForJob(pool, seasonId) {
-  const [season] = await AutoResearch.loadSeasons(pool, "ss.id = $1", [seasonId]);
+  const [season] = await SeasonClock.loadSeasons(pool, "ss.id = $1", [seasonId]);
   return season;
 }
 
@@ -557,9 +557,9 @@ async function planRuns(pool, { now = new Date(), seasonId } = {}) {
       // Asked only of a season whose schedule has bingo on: its own bank yet?
       seasonBank: schedule.some((r) => r.kind === "bingo" && r.on) ? await Bingo.hasBank(pool, season.id, null) : true,
     };
-    if (AutoResearch.isSeasonLive(season, now)) due.push(...dueRuns(input).map((r) => ({ ...r, season })));
+    if (SeasonClock.isSeasonLive(season, now)) due.push(...dueRuns(input).map((r) => ({ ...r, season })));
     const when = nextRunAt(input);
-    if (when && AutoResearch.isSeasonLive(season, when) && (next === null || when < next)) next = when;
+    if (when && SeasonClock.isSeasonLive(season, when) && (next === null || when < next)) next = when;
   }
   // The tie-breaks (the desk's switch, across every season). One season asked about needs only its own.
   const ties = await planTiebreaks(pool, now);

@@ -502,28 +502,6 @@ export interface SeasonCastMember {
   photoUrl: string | null;
 }
 
-// What one admin-triggered wiki pull did (POST /api/admin/seasons/:id/sync, backed by
-// db/wiki-sync.js's runForSeason). The expensive half is season-scoped, so the result is reported
-// the same way: one read of the wiki, then a line per league that tracks this season.
-export interface WikiSeasonSyncResult {
-  kind: "cast";
-  showSlug: string;
-  season: number;
-  /** True when the wiki hadn't changed since the last read, so no model call was made. */
-  cached: boolean;
-  /** Every page the extraction saw, transcluded templates included. */
-  pages: { title: string; revisionId: number | null }[];
-  /** Always empty: a cast is staged once for the season and reviewed by an admin, never fanned out
-   * (see `staged`). */
-  leagues: { id: string; name: string; ok: boolean; summary?: string; error?: string }[];
-  /** What staging did, for the review panel to report. */
-  staged?: { filed: boolean; staged: number; total: number; summary: string } | null;
-  /** The model that read the wiki; null on a cache hit (nothing was called). */
-  model?: string | null;
-  /** Tokens that read cost; null on a cache hit. */
-  usage?: ModelUsage | null;
-}
-
 /** Token counts as the Anthropic API reports them, plus web searches for research. */
 export interface ModelUsage {
   input_tokens: number;
@@ -771,36 +749,10 @@ export interface CatalogShow {
   seasons: Pick<ShowSeason, "seasonNumber" | "name" | "status" | "castSize" | "premiereDate" | "finaleDate" | "resultsBy">[];
 }
 
-// A reviewed-but-unapplied suggestion from the wiki connector (db/wiki-sync.js), as the League
-// Settings review UI shows it. Lives in its own table, not in league state -- see
-// db/migrations/0005_wiki_proposals.sql.
 /**
- * What applying a proposal did. One variant per proposal kind -- they genuinely report different
- * things, so the review UI narrows on the `kind` the apply response carries rather than treating them
- * as one shape. All three have a `skipped` list, because all three are additive.
+ * One episode in a per-episode proposal (StateLogic.applyEliminationsImport). Keyed by NUMBER, not id: a proposal can sit
+ * while the league changes, and a stale name fails to resolve and gets reported where a stale id would apply wrong.
  */
-export type AppliedProposal =
-  | { tribes: string[]; castaways: string[]; skipped: string[] }
-  | {
-      episodesCreated: number[];
-      eliminations: { episode: number; name: string; method: string }[];
-      skipped: string[];
-      unresolved: string[];
-    }
-  | {
-      episodesCreated: number[];
-      events: { episode: number; name: string; type: string }[];
-      skipped: string[];
-      unresolved: string[];
-    };
-
-/** Cast-import payload: the whole season's cast and its starting groups. */
-export interface CastProposalPayload {
-  tribes?: { name: string; color?: string }[];
-  castaways?: { name: string; tribeName?: string | null; photoUrl?: string | null }[];
-}
-
-/** One episode in a per-episode proposal. Keyed by NUMBER, not id -- see WikiProposal's comment. */
 export interface ProposalEpisode {
   number: number;
   postMerge: boolean;
@@ -827,31 +779,6 @@ export interface EpisodeProposalPayload {
   mergeEpisode?: number | null;
   /** Non-fatal extraction notes worth a commissioner's attention before applying -- see validateEpisodes in db/wiki-sync.js. */
   problems?: string[];
-}
-
-/**
- * A reviewed-but-unapplied suggestion from the wiki connector.
- *
- * Payloads reference castaways and episodes BY NAME and BY NUMBER rather than by id, deliberately: a
- * proposal can sit pending while the league changes, and a stale id would apply silently wrong where a
- * stale name simply fails to resolve and gets reported. Resolution happens at apply time, through
- * Core.findCastawayByName.
- */
-export interface WikiProposal {
-  id: string;
-  kind: "cast" | "scoringEvents" | "eliminations";
-  status: "pending" | "applied" | "rejected";
-  payload: CastProposalPayload & Partial<EpisodeProposalPayload>;
-  provenance: {
-    seasonNumber: number;
-    showSlug?: string;
-    model: string;
-    extractedAt: string;
-    pages: { title: string; revisionId: number | null }[];
-    castSection?: string;
-    sections?: string[];
-  };
-  created_at: string;
 }
 
 export interface BlindDraftState {

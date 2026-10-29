@@ -1,18 +1,17 @@
 import * as Air from "@/lib/game/air-schedule.js";
 import { MIN_MOMENTS, type Likelihood } from "@/lib/game/bingo";
-import { bingoContext, buildBingoPrompt, parseBingoAnswer, storeBank, MIN_BANK } from "@db/bingo-research.js";
+import { bingoContext, buildBingoPrompt, MIN_BANK } from "@db/bingo-research.js";
 import { isUuid } from "./auth-helpers";
 import { FLAGGED_OUT } from "./bingo";
 import { HttpError, pool } from "./db";
 import { seasonSchedules } from "./schedule";
 
-// Bingo's bank by hand (docs/PLAN-bingo-bank.md step 1), as classic admin's episode page read and wrote it until it retired
-// (docs/PLAN-desk-parity.md step 8; the desk's Bingo bank is desk-bingo.ts):
+// Bingo's bank as classic admin's episode page read it (docs/PLAN-bingo-bank.md step 1), before it retired (docs/PLAN-desk-parity.md
+// step 8; the desk's Bingo bank, its paste and Hide it, are desk-bingo.ts's):
 //   adminBingoBank   the episode's bank and the season's own, which one its cards deal from, and the prompt for the one asked
-//                    (the desk's Research asks for that prompt)
-//   saveBingoBank    a chat's answer, parsed and filed, replacing that bank
-//   adminFlagSquare  Hide a square (an admin's flag takes it out of new cards at once; step 4), or not
-// The prompt and parse are db/bingo-research.js's; dealing is bingo.ts's (bankFor). Super admins only (the route says so).
+//                    (the desk's Research asks for that prompt: desk-research.ts runQuestion)
+//   contextFor       the prompt's context for a bank (desk-bingo.ts's question and paste use it too)
+// The prompt is db/bingo-research.js's; dealing is bingo.ts's (bankFor).
 
 export interface AdminBankSquare {
   id: string;
@@ -93,49 +92,4 @@ export async function adminBingoBank(seasonId: string, episode: unknown, scopeIn
   const { n, scope } = parseIn(seasonId, episode, scopeIn);
   const [{ ctx, airAt }, banks] = await Promise.all([contextFor(seasonId, n, scope, now), banksOf(seasonId, n, adminId)]);
   return { episode: n, scope, using: usingOf(banks), banks, prompt: buildBingoPrompt(ctx), airAt, min: MIN_BANK };
-}
-
-/**
- * Files a chat's answer as `scope`'s bank for the episode (or the season's own), replacing it: every square kept, live or dropped
- * with why. Refused (nothing filed) when fewer than MIN_BANK pass: a bank that can't fill a card isn't one.
- */
-export async function saveBingoBank(seasonId: string, body: { episode?: unknown; scope?: unknown; answer?: unknown }, now = new Date(), adminId: string | null = null): Promise<AdminBingoBank & { live: number; dropped: number }> {
-  const { n, scope } = parseIn(seasonId, body.episode, body.scope);
-  const answer = typeof body.answer === "string" ? body.answer : "";
-  if (!answer.trim()) throw new HttpError(400, "Paste the chat's answer");
-  const { ctx } = await contextFor(seasonId, n, scope, now);
-  let parsed: ReturnType<typeof parseBingoAnswer>;
-  try {
-    parsed = parseBingoAnswer(answer, { avoid: ctx.avoid, names: ctx.cast, anyone: scope === "episode" });
-  } catch {
-    throw new HttpError(400, "That answer has no JSON in it: paste the chat's whole reply");
-  }
-  const live = parsed.squares.filter((s) => s.status === "live").length;
-  if (live < MIN_BANK) {
-    throw new HttpError(400, `Only ${live} of ${parsed.squares.length} squares passed: a bank needs at least ${MIN_BANK}. Ask again, or paste a longer answer.`);
-  }
-  await storeBank(pool, seasonId, scope === "episode" ? n : null, parsed.squares);
-  const out = await adminBingoBank(seasonId, n, scope, now, adminId);
-  return { ...out, live, dropped: parsed.squares.length - live };
-}
-
-/**
- * Hide a bank's square (step 4): an admin's flag takes it out of every new card at once (FLAGGED_OUT); `on` false takes the flag
- * back (two people's flags still keep it out). Cards already ticked keep it. Answers the episode's banks.
- */
-export async function adminFlagSquare(seasonId: string, adminId: string, body: { episode?: unknown; scope?: unknown; flag?: unknown; on?: unknown }, now = new Date()): Promise<AdminBingoBank> {
-  const { n, scope } = parseIn(seasonId, body.episode, body.scope ?? "episode");
-  const id = typeof body.flag === "string" ? body.flag : "";
-  if (!isUuid(id)) throw new HttpError(400, "Which square?");
-  if (typeof body.on !== "boolean") throw new HttpError(400, "on must be true or false");
-  if (body.on) {
-    const { rowCount } = await pool.query(
-      "INSERT INTO bingo_square_flags (square_id, user_id) SELECT id, $2 FROM bingo_squares WHERE id = $1 AND season_id = $3 ON CONFLICT DO NOTHING",
-      [id, adminId, seasonId]
-    );
-    if (!rowCount && !(await pool.query("SELECT 1 FROM bingo_squares WHERE id = $1 AND season_id = $2", [id, seasonId])).rows.length) throw new HttpError(404, "No such square");
-  } else {
-    await pool.query("DELETE FROM bingo_square_flags WHERE square_id = $1 AND user_id = $2", [id, adminId]);
-  }
-  return adminBingoBank(seasonId, n, scope, now, adminId);
 }

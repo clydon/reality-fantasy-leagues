@@ -6,12 +6,12 @@
 //   node db/reminders.js          # send whatever is due now
 //   node db/reminders.js --dry    # say what would be sent, send and record nothing
 //
-// Run hourly by .github/workflows/auto-research.yml, right after auto-research. Each (person,
+// Run hourly by .github/workflows/reminders-waivers.yml, before waivers.js. Each (person,
 // league, kind, episode, window) is sent at most once -- reminder_log's primary key -- so running it
 // more often only makes it more punctual.
 //
 // Only leagues following a real season's air schedule: the league's show/season must be in the
-// catalog with a schedule and still airing (auto-research's isSeasonLive), and a catching-up league
+// catalog with a schedule and still airing (season-clock.js isSeasonLive), and a catching-up league
 // is skipped -- it plays at its own pace, not the broadcast's.
 //
 // And one for commissioners, after an episode rather than before it: the morning after it airs (9am
@@ -26,7 +26,7 @@ const Air = require("../src/lib/game/air-schedule.js");
 const StateLogic = require("../src/lib/game/state-logic.js");
 const { actionItems, resultsDueEpisode, resultsHref } = require("../src/lib/game/action-items.js");
 const { sendPush } = require("../src/lib/server/push-core.js");
-const { loadSeasons, isSeasonLive } = require("./auto-research.js");
+const { loadSeasons, isSeasonLive } = require("./season-clock.js");
 
 const HOUR = 60 * 60 * 1000;
 // Checked nearest-first: inside 2 hours is the "2h" reminder even if the 24h one never went out (the
@@ -69,7 +69,9 @@ function morningAfter(airAt, tz) {
 async function runReminders(pool, opts = {}) {
   const now = opts.now || new Date();
   const key = (s) => `${s.slug}|${s.season_number}`;
-  const seasons = new Map((await loadSeasons(pool)).filter((s) => isSeasonLive(s, now)).map((s) => [key(s), s]));
+  // Seasons with auto-research's switch on, as when loadSeasons defaulted to it. Nothing turns that switch on since paid research
+  // went (docs/PLAN-desk-parity.md part 8b, Noticed), so these reminders wait on a decision about which seasons get them.
+  const seasons = new Map((await loadSeasons(pool, "ss.auto_research")).filter((s) => isSeasonLive(s, now)).map((s) => [key(s), s]));
   // Every airing season, for the commissioners' results nudge (see the top of the file).
   const airing = new Map((await loadSeasons(pool, "ss.status = 'airing'")).filter((s) => isSeasonLive(s, now)).map((s) => [key(s), s]));
   if (!seasons.size && !airing.size) return { sent: 0 };
