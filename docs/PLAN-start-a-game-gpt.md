@@ -369,6 +369,32 @@ Its home is A12 (a stage the show starts, not one the game planned), and it hold
 choices and A7's windows. A rule call the Decisions table doesn't settle (which fallback by default, what the maker hears)
 goes in the step's Noticed with a recommendation, for the user.
 
+**The foundation first: the prompt, then the engine, then the UI** (the user, 2026-10-28: "the prompt has to be prepared and
+get this information cleanly so we can act upon it"). What research says today can't be acted on: in The Challenge 41's
+episode 5 every pair was redrawn, and its research says so only as 29 notes in `notableTwist`, one per person ("Re-paired
+with ..."), mixed with a coin toss and someone leaving. So right after A9, before A10 (whose draft slots per group and A11's
+teams read the format's state rather than guess it), the engine track does the format foundation, one part a session:
+
+- **F1. Study The Challenge.** Past seasons give the ground truth: their stages are known, so the study can check how each
+  change would have come in live. For each season (41 on tape; 40 and 39 as they land; Survivor 49's swap and merge and The
+  Traitors 4's twists as the other shows' checks), a timeline: each episode's grouping (pairs, teams, each for themselves,
+  and who's with whom), its phase, how people go home, and every change, with its kind, the episode it took effect and how
+  the show brought it in (announced ahead, at the episode's start, mid-episode, at its end). Then today's prompt against it:
+  for each change, what that episode's research said, where, and whether the engine could act on it. Written up as its own
+  doc for the user.
+- **F2. The research prompt's format section,** the same for any show: the format's state at the episode's end, as data (the
+  grouping, who's with whom, the phase), and what changed in the episode, as a kind from a small vocabulary with the episode
+  it took effect, and how sure. Proven by asking recorded episodes again with it, through the local bot only, and scoring the
+  answers against F1's timelines, as the bingo check was proven.
+- **F3. The engine's format state over time,** built from each episode's report, with the changes found by comparing an
+  episode's state with the one before (our code, not the bot's labels), what reads it (A6's choices, A10's slots per group,
+  A11's teams, A12's stages and triggers) and each piece's fallback. A corrected report works out everything after it again.
+- **F4. Blind replays:** a taped season replayed as if live (above), every game the tracker says it plays, The Challenge's
+  seasons first.
+
+The research prompt is shared by every show's research, production's included, so F2 reaches it only through a reviewed merge
+with the user's OK, like everything else.
+
 **A change can also be what a game is built around** (the user, 2026-10-28): "automatically start a new draft stage whenever
 there is a major format change such as split into teams or split into individuals" (Requests from a show's page). So:
 
