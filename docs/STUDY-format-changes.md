@@ -3,7 +3,9 @@
 For the user to read. Step F1 of [PLAN-start-a-game-gpt.md](PLAN-start-a-game-gpt.md), "Formats nobody announced": take
 seasons whose stages are known, lay out how their format changed episode by episode, and check what each episode's
 research (today's prompt, recorded on the season tapes) said about each change, and whether the engine could act on it.
-Written 2026-10-28 on the `engine` branch. Nothing here changes the app, the research prompt or the engine.
+Written 2026-10-28 on the `engine` branch. Nothing in F1 changed the app, the research prompt or the engine; F2 (2026-10-29)
+built the section proposed here into the prompt on the `engine` branch, and its results are near the end ("F2: the format
+section asked again").
 
 **The proposals at the end (the change vocabulary, the format state's shape and the prompt section) are the user's to
 approve at the merge** that brings F2 to production. Research's prompt is shared by every show's research, production's
@@ -244,7 +246,197 @@ today's prompt for the first time), and The Traitors 4 episodes 1, 7, 8 and 9.
    not the old one continuing.
 5. **"Major" by default** for a stage started by a change: recommended, teams formed, pairs formed, split into individuals,
    the merge, and a swap where every group is new; not a partial swap, a newcomer, a phase or a twist.
-6. **The vocabulary, the state's shape and the prompt section above**: the user's to approve at F2's merge.
+6. **The vocabulary, the state's shape and the prompt section above**: the user's to approve at F2's merge (as built: "F2:
+   the format section asked again", below; recommended as they are).
+
+## F2: the format section asked again (2026-10-29)
+
+F2 built the section proposed above into research's prompt (`db/episode-research.js`; its vocabulary, its loose read, its
+checks and our own comparison in `src/lib/game/formats/format-state.js`), on the `engine` branch. **The vocabulary, the
+state's shape and the prompt section as built are the user's to approve at F2's merge**; until then production's research
+is as it was. What changed from the proposals: `wentHomeAs` can also say `nobody` or `unknown`, `playedAs` `unknown`; a
+change's `when` and `from` may be null (not said); `labels` isn't asked (the cast list keeps its own groups, and the prompt
+says those may be only a label); `role` is one of the kinds. `newGroup` and `merged` are still asked beside it (a live
+season's staging reads them until F3 reads the state).
+
+**How it was proven.** The study's set, 23 recorded episodes (The Challenge 41 episodes 4-10 and 16, Survivor 49 3-8, The
+Challenge 40 2, 3, 9, 10 and 12, The Traitors 4 1, 7, 8 and 9), asked again through the local bot only (signed-in ChatGPT,
+http://127.0.0.1:8765, between the tapes recorder's own questions), each with the whole full-research prompt the bot's run
+sends, kept beside the tapes (`~\rfl-tapes\<show>\<season>\format\`) and read by the app's own parser and checks, nothing
+written to the database. The groups going in, as the prompt shows them: this run's answer for the episode before, else
+F1's truth at its end (the first of a run, or a gap). Each answer is scored against F1's fixtures:
+`node scripts/dev-test/format-asks.js score` (`--md` for these tables; `ask`, `reread`, `prompt`, `plan`: its header says
+how). Survivor 49 was asked with today's prompt (and so `newGroup` and `merged`) for the first time.
+
+The prompt was tuned once, after the first two answers: the kinds' words now say a "formed" kind is people playing that way
+after playing some other way, and that re-drawn pairs are a `swap` (Episode 5's re-pairing had come back as
+`pairs-formed`), and `newGroup`'s paragraph and the section no longer both claim to be "the only place" a change is
+recorded. Episodes 4 and 5 of The Challenge 41 were asked again with the final words (the first answers are kept beside the
+new ones; scoring reads the latest), and everything else was asked with them. One answer (The Challenge 40's Episode 3)
+wasn't valid JSON (a list left unclosed) and was asked again, as the bot's own runs retry.
+
+### What came back
+
+1. **Who is with whom is data now, and right.** Every one of the 23 answers said who was with whom; 18 exactly. 104 of the
+   109 groups were found exactly (5 more listed that weren't there), and 281 of 298 people were placed right (94%).
+   Survivor 49: every tribe at every episode, through both swaps and the merge. The Challenge 41: 87 of its 91 pairs,
+   including the pairs drawn at each episode's end for the next (what F1 found only in per-person notes, a person at a
+   time) and the Lock In's 12 permanent pairs, where F1 found nothing at all. The Challenge 40: the four eras exact while
+   they played as teams. The Traitors 4: no groups, every time. The newcomer (Jonna Mannion, for Cara Maria beside Leo)
+   came back as a newcomer, in her pair.
+2. **The changes are data, mostly right.** Of the 24 changes the fixtures say were shown in these episodes, the answer named
+   18 by kind, 17 with the episode they take effect from, and 14 with when they came in. Survivor's two swaps (at the
+   start) and the merge, The Challenge 41's re-pairings (at the end, from the next), the newcomer, the claim mid-Episode 16,
+   the Lock In's pairs from 10 (at 9's end), The Challenge 40's targets and the end of its team phase (from 10, at 9's
+   end), The Traitors' Secret Traitor and the Dagger. Before F2, none of the 14 grouping changes among them reached the
+   engine as data (F1).
+3. **Our comparison and the answer's cross-check each other.** Comparing the state going in with the answer's (our code,
+   `changesBetween`), 9 of the 14 grouping changes were found, and the answer agreed on all 9 (sure). Where they disagreed,
+   the change is unsure, which is the safe fallback the 8:15 PM note asks for: Survivor 49's Episode 8 said `teams-formed`
+   (sure) for the split immunity's two groups of five, which lasted one challenge; the groups at its end show none, so it's
+   unsure and would move nothing. 15 changes the answers listed aren't in the fixtures: mostly twists and roles (a casting
+   announcement, The Traitors' Secret Traitor also as a role, Eric's recruitment again the week after it was reported) and changes already reported (the end of The Challenge 40's team phase said
+   again at 10). A `twist` never moves a game's structure (F1's question 5: "major" by default is grouping kinds only), so
+   these cost nothing but a note.
+4. **`newGroup` beside it isn't reliable.** At Survivor 49's first swap, the same answers' `newGroup` named a new tribe for 1
+   person (11 changed tribe), at the second 6 (6 did), at the merge none (10 did); the section had every tribe exactly right
+   each time. `merged` said yes at the merge. That's F3's case for working `newGroup` and `merged` out from the state.
+5. **What it missed, and what each means for F3:**
+   - **A whole pair going home together** read as `individuals` twice (The Challenge 41's Episodes 10 and 16): our code can
+     tell from the exits and the groups going in (both partners left), so F3 needn't trust the word.
+   - **A label as a group.** The Challenge 40's Episode 9 said everyone plays alone from 10 (right) and still listed the
+     eras, a label by then, as its groups at the end; its Episode 2 listed them a week early. The review now flags an answer
+     that contradicts itself (a split said with groups still listed; a merge with several; teams formed with none); F3
+     should believe the change and the next episode's state over a contradicted list, or keep it unsure.
+   - **An individual episode between paired ones** (The Challenge 41's Episode 9, played alone, ending with the Lock In's
+     pairs): comparing two paired states can't see that everyone played alone between them. F3 reads `playedAs` with the
+     groups (the answer said `individuals` there).
+   - **A change announced ahead** (the Lock In, announced in 7 for 10) came as a twist from 7, and Theo's MRI swap at
+     Episode 8's start was missed (it kept Dee with Theo, the pair shown the week before: 9 of its 11 pairs right). The
+     Challenge 41's Episodes 6 and 7 each left one pair out, its members nowhere (the review flags someone still in but
+     in no group).
+   - **How it was played** was right in 17 of 23: The Traitors read "individuals" for "everyone" (people play for
+     themselves, together), Survivor's merge episodes and The Challenge 40's Episode 3 "mixed". Nothing reads `playedAs` yet but F3's comparison, which only
+     needs grouped against not grouped.
+   - The merged tribe came without its name (Lewatu).
+6. **It costs time.** The prompt is about 40% longer (The Challenge 41: 28.0k characters against 19.8k on its tapes, most of
+   it the section's JSON schema) and the answers took about twice as long (136 s against 71 s on The Challenge 41, 128 s
+   against 93 s on The Challenge 40; the longest 198 s, The Traitors' Episode 1). The app's bot asks stop at 285 s (Vercel's
+   300 s route), so this is the merge's to watch (in the plan's Noticed).
+
+### The answers, scored
+
+"Going in" is where the groups shown in the prompt came from. "Groups at the end": found of expected (+ listed that weren't
+there; "next start" when the answer matched the groups at the next episode's start, which counts too). "Its changes" and
+"Ours": each change the fixture says was shown in that episode, as kind, episode it takes effect / when, and whether the
+answer had it (yes, partly: the kind but not the episode or when, missed), with + for one listed that isn't in the fixture.
+
+**Vets & New Threats (the-challenge 41)**
+
+| Ep | Going in | Played as | Groups at the end | People | New | Went home as | Its changes (want: got) | Ours |
+|---|---|---|---|---|---|---|---|---|
+| 4 | truth | pairs | 14 of 14 | 28 of 28 | - | individuals | swap 5/end: yes (high) | swap 5/end: yes (high) |
+| 5 | answer | pairs | 13 of 13 | 27 of 27 | Jonna Mannion | individuals | newcomer 5/start: mid partly (high); swap 6/end: yes (high) | newcomer 5/start: mid partly (high); swap 6/end: yes (high) |
+| 6 | answer | pairs | 12 of 13 | 24 of 26 | - | individuals | swap 7/end: yes (high) | swap 7/end: yes (high) |
+| 7 | answer | pairs | 11 of 12 | 23 of 25 | - | individuals | swap 8/end: yes (high); new-phase 10/end: missed; +twist 7 (high) | swap 8/end: yes (high) |
+| 8 | answer | pairs | 9 of 11, +1 | 19 of 24 | - | individuals | swap 8/start: missed; +twist 8 (high); +role 8 (high); +new-phase 9 (high) | swap 8/start: missed |
+| 9 | answer | individuals | 12 of 12 | 24 of 24 | - | nobody | split-into-individuals 9/start: missed; pairs-formed 10/end: yes (high); +twist 10 (high) | split-into-individuals 9/start: missed; pairs-formed 10/end: missed; +swap ? (low) |
+| 10 | answer | pairs | 11 of 11 | 22 of 22 | - | individuals (want groups) | twist 10/start: mid partly (high); +new-phase 10 (high); +split-into-individuals 11 (high) | none, none |
+| 16 | truth | pairs | 5 of 5 | 10 of 10 | - | individuals (want groups) | swap 16/mid: yes (high) | swap 16/mid: yes (high) |
+
+- answered 8 of 8
+- played as right 8 of 8
+- who's with whom known 8 of 8, exactly right 5 of 8
+- groups found 87 of 91 (+1 not there)
+- each person's group 177 of 186
+- newcomers 1 of 1 (+0)
+- went home as 6 of 8
+- changes: the answer's own kind 8 of 11, its episode 8 of 11, when 6 of 11, +7 not in the fixture
+- ours (grouping changes) 6 of 9, sure 6 of 9, +1
+
+**Survivor 49 (survivor 49)**
+
+| Ep | Going in | Played as | Groups at the end | People | New | Went home as | Its changes (want: got) | Ours |
+|---|---|---|---|---|---|---|---|---|
+| 3 | truth | tribes | 3 of 3 | 14 of 14 | - | individuals | none, none | none, none |
+| 4 | answer | tribes | 2 of 2 | 13 of 13 | - | individuals | swap 4/start: yes (high) | swap 4/start: yes (high) |
+| 5 | answer | tribes | 2 of 2 | 12 of 12 | - | individuals | none, none | none, none |
+| 6 | answer | tribes | 3 of 3 | 11 of 11 | - | individuals | swap 6/start: yes (high) | swap 6/start: yes (high) |
+| 7 | answer | mixed (want individuals) | none, none | - | - | individuals | merge 7/start: yes (high); +twist 7 (high) | merge 7/start: yes (high) |
+| 8 | answer | mixed (want individuals) | none, none | - | - | individuals | twist 8/mid: yes (high); +teams-formed 8 (high) | none, none |
+
+- answered 6 of 6
+- played as right 4 of 6
+- who's with whom known 6 of 6, exactly right 6 of 6
+- groups found 10 of 10 (+0 not there)
+- each person's group 50 of 50
+- newcomers - (+0)
+- went home as 6 of 6
+- changes: the answer's own kind 4 of 4, its episode 4 of 4, when 4 of 4, +2 not in the fixture
+- ours (grouping changes) 3 of 3, sure 3 of 3, +0
+
+**Battle of the Eras (the-challenge 40)**
+
+| Ep | Going in | Played as | Groups at the end | People | New | Went home as | Its changes (want: got) | Ours |
+|---|---|---|---|---|---|---|---|---|
+| 2 | truth | individuals | 3 of 4, +1 (next start) | 24 of 32 | - | individuals | twist 2/mid: from 3 end partly (high); +teams-formed 3 (high) | +teams-formed 3 (high) |
+| 3 | answer | mixed (want teams) | 4 of 4 | 30 of 30 | - | individuals | teams-formed 3/start: missed; twist 4/end: yes (high) | teams-formed 3/start: missed |
+| 9 | truth | teams | 0 of 0, +3 | - | - | individuals | split-into-individuals 10/end: yes (high) | split-into-individuals 10/end: missed |
+| 10 | answer | individuals | none, none | - | - | individuals | twist 11/end: missed; +split-into-individuals 10 (high); +new-phase 10 (high) | +split-into-individuals 10 (high) |
+| 12 | truth | individuals | none, none | - | - | individuals | twist 12/start: mid partly (high) | none, none |
+
+- answered 5 of 5
+- played as right 4 of 5
+- who's with whom known 5 of 5, exactly right 3 of 5
+- groups found 7 of 8 (+4 not there)
+- each person's group 54 of 62
+- newcomers - (+0)
+- went home as 5 of 5
+- changes: the answer's own kind 4 of 6, its episode 3 of 6, when 2 of 6, +3 not in the fixture
+- ours (grouping changes) 0 of 2, sure 0 of 2, +2
+
+**The Traitors (US) season 4 (the-traitors-us 4)**
+
+| Ep | Going in | Played as | Groups at the end | People | New | Went home as | Its changes (want: got) | Ours |
+|---|---|---|---|---|---|---|---|---|
+| 1 | none | everyone | none, none | - | - | nobody | twist 1/start: yes (high); +role 1 (high) | can't compare |
+| 7 | truth | individuals (want everyone) | none, none | - | - | individuals | twist 7/mid: yes (high) | none, none |
+| 8 | answer | individuals (want everyone) | none, none | - | - | individuals | role 9/end: missed; +twist 9 (high) | none, none |
+| 9 | answer | individuals (want everyone) | none, none | - | - | individuals | +role 9 (high) | none, none |
+
+- answered 4 of 4
+- played as right 1 of 4
+- who's with whom known 4 of 4, exactly right 4 of 4
+- groups found - (+0 not there)
+- each person's group -
+- newcomers - (+0)
+- went home as 4 of 4
+- changes: the answer's own kind 2 of 3, its episode 2 of 3, when 2 of 3, +3 not in the fixture
+- ours (grouping changes) -, sure -, +0, 1 answer(s) not comparable
+
+**All**
+
+- answered 23 of 23
+- played as right 17 of 23
+- who's with whom known 23 of 23, exactly right 18 of 23
+- groups found 104 of 109 (+5 not there)
+- each person's group 281 of 298
+- newcomers 1 of 1 (+0)
+- went home as 21 of 23
+- changes: the answer's own kind 18 of 24, its episode 17 of 24, when 14 of 24, +15 not in the fixture
+- ours (grouping changes) 9 of 14, sure 9 of 14, +3, 1 answer(s) not comparable
+
+### What it means for F3
+
+- **The state over time is buildable from these answers.** Groups are right far more often than not, and where an answer is
+  wrong, the next one usually isn't (each answer compares with the groups going in), so a corrected state works out what
+  follows (F3's "a corrected report works out everything after it again").
+- **Our comparison decides; the answer's kinds cross-check.** Changes both see are sure; the rest are unsure and get only the
+  safe fallbacks. `playedAs` joins the comparison (an individual episode between paired ones), and an answer that
+  contradicts itself is unsure.
+- **`newGroup` and `merged` can be worked out from the state**, and the section is the better source (item 4).
+- **Exits, not words, say a pair went home together**; `wentHomeAs` is a cross-check.
+- **Newcomers join the cast** (F3), so they get results and exits, not only a place in a group.
 
 ## Appendix: the timelines
 

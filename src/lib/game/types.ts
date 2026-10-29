@@ -618,6 +618,9 @@ export interface EpisodeResearch {
   rulesNote?: string | null;
   /** Grouped formats: whether the game has merged by the end of the episode. */
   merged?: "yes" | "no" | "unknown";
+  /** How the game is organised at the end of the episode, and what changed in it (F2: src/lib/game/formats/format-state.js;
+   *  docs/STUDY-format-changes.md). Every show's; null or absent on research from before it was asked. */
+  formatState?: EpisodeFormatState | null;
   /** Every page research read, with the dates the page shows (as printed; ISO when it gave a time).
    *  The record of how soon after airing recaps appear. Absent on research from before it was asked. */
   sourcesRead?: { url: string; published: string | null; updated: string | null }[];
@@ -626,6 +629,24 @@ export interface EpisodeResearch {
   betAnswers?: BetAnswer[];
   /** Episode-level questions, per format (Survivor: tribalCouncilHeld). */
   [question: string]: unknown;
+}
+
+/** The format section of an episode's research (F2): the groups at the episode's END, going into the next one. */
+export interface EpisodeFormatState {
+  playedAs: "everyone" | "tribes" | "teams" | "pairs" | "individuals" | "mixed" | "none" | "unknown";
+  phase: string | null;
+  /** Who is with whom; [] everyone for themselves (or as one); null not known. */
+  groups: { name: string | null; members: string[] }[] | null;
+  alone: string[];
+  newcomers: { name: string; replaces: string | null; group: string | null }[];
+  wentHomeAs: "individuals" | "groups" | "nobody" | "unknown";
+  changes: {
+    kind: "teams-formed" | "pairs-formed" | "split-into-individuals" | "merge" | "swap" | "newcomer" | "new-phase" | "twist" | "role";
+    when: "start" | "mid" | "end" | null;
+    from: number | null;
+    what: string;
+    sure: "high" | "low";
+  }[];
 }
 
 /**

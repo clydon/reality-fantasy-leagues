@@ -8,8 +8,9 @@ the screens moved to U1), not yet merged: the main folder merges them (review, c
 A5 to A9 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time; more
 answers; scoring that combines, per question and points per bingo line, then per lineup: a captain, best ball, Outlast in
 reverse, points that multiply by when). The format foundation (F1 to F4, one part a session: "Formats nobody
-announced") is under way: F1, the study, is done (2026-10-28: [STUDY-format-changes.md](STUDY-format-changes.md), the
-seasons' ground truth as data, `format-study.js`); F2 (the research prompt's format section) is next, then F3, F4, then A10
+announced") is under way: F1, the study (2026-10-28: [STUDY-format-changes.md](STUDY-format-changes.md), the
+seasons' ground truth as data, `format-study.js`) and F2, the research prompt's format section (2026-10-29: every show's research
+says who is with whom at each episode's end and what changed, as data; proven on 23 recorded episodes), are done; F3 is next, then F4, then A10
 to A14 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -444,6 +445,85 @@ teams read the format's state rather than guess it), the engine track does the f
   grouping, who's with whom, the phase), and what changed in the episode, as a kind from a small vocabulary with the episode
   it took effect, and how sure. Proven by asking recorded episodes again with it, through the local bot only, and scoring the
   answers against F1's timelines, as the bingo check was proven.
+
+  **As built (F2, 2026-10-29, on `engine`, not merged; no migration, no engine change; the vocabulary, the state's shape and
+  the prompt section are the user's to approve at F2's merge, as the study says).** One session, after `lane.js sync engine`
+  (already up to date; 919 tests).
+  - **The section** (`db/episode-research.js`; its vocabulary, loose read, checks and our comparison in the new
+    `src/lib/game/formats/format-state.js`): every show's research now answers `formatState`, how the game is organised at the
+    END of the episode, going into the next one: `playedAs` (everyone, tribes, teams, pairs, individuals, mixed, none,
+    unknown), `phase` (the show's own name), `groups` (each with its name if the show gives one and its members by the list's
+    names; `[]` everyone for themselves, `null` not known), `alone`, `newcomers` (name, who they replaced, their group),
+    `wentHomeAs` (individuals, groups, nobody, unknown) and `changes` (each a `kind` from the study's nine, `when` start /
+    mid / end, `from` the episode it takes effect, `what`, `sure` high / low). It sits after the rules note and before the
+    cast in the schema and the skeleton (shown at its don't-know values, groups `null`); the prose prompt asks it as "How
+    the game is organised", with the vocabulary.
+  - **The prompt's words** (`formatLines`): "HOW THE GAME IS ORGANISED", the groups going in as far as we know (the latest
+    earlier episode's stored answer that says who is with whom, `formatGoingInto`, read beside `groupsGoingInto`: its groups
+    as lines, "Ann & Bea" for an unnamed pair, "Hina: ..." for a named tribe, who's on their own, anyone no longer on the list
+    left out, a newcomer since kept), "as of the end of the last episode" or "of episode N" when older; without one, that the
+    names' groups above are the cast list's and may be only a label (Vets / New Threats), or that there are none. Then the
+    episode numbers a change at its start and at its end take effect from. Never a format's built-in word for its groups:
+    the section says "tribes, teams or pairs" and the groups' own names. The old newGroup paragraph's plural is spelt right
+    now ("agencies", `plural`), and it and the section no longer each claim to be "the only place" a change is recorded.
+  - **newGroup and merged kept beside it**, asked as before: a live season's staging reads them (a swap's group moves, the
+    merge's phase start), and they keep doing so until F3 reads the new state; meanwhile the two cross-check each other (a
+    named group that disagrees with someone's newGroup is a problem the reviewer sees). Staging is unchanged: the research
+    store-and-stage regression (`tests/harness/research-store-regression.js`, before against after) differs only in the new
+    key in stored answers and the pasted text that carries it, every `season_decisions` write the same. (The harness had
+    gone stale on the group queries; `fake-research-db.js` answers them now, and `formatGoingInto`'s.)
+  - **Old answers parse** (`validateLeniently`: no section is `null`, as the rules note), and a section said loosely is
+    repaired and reported, never a failed run: a value outside a list takes its catch-all (`unknown`; a change's `sure`
+    `low`, its `when` null), a change of a kind outside the vocabulary is dropped, "Pair" reads as `pairs`. The review's
+    checks (`formatStateProblems`, never fatal): names made the list's own (a newcomer's own name first, then the loose
+    match), anyone it can't place dropped, someone in two groups, a group of one read as on their own, someone still in but
+    nowhere, a leaver still grouped, "nobody left" when someone did, and a whole pair or team said to go home together when
+    a partner going in didn't (F1's finding 6). A second pass fills the section in field by field (`fillFormatState`; the
+    groups and who's alone as one answer). A pass asked about only some of the cast (a commissioner's paste for whoever
+    isn't settled: `formatForAsking`) and a re-ask of a few questions (`onlyFormat`) leave the section out.
+  - **Our comparison** (`changesBetween`): what changed between two states, from who is with whom, never anyone's label: a
+    split, a merge, teams or pairs formed (the shape before as it was played, so a pair losing someone doesn't make pairs
+    stop being pairs), a swap (who moved: a group carries on from one before when it has its name or more than half of each
+    is the same people; everyone in a group that's new, and whoever joined one that carried on, moved; a leaver's partner
+    left on their own didn't), a newcomer (taking a leaver's place is a newcomer, not a swap); one group or none is the game
+    not divided. `crossCheck`: a change both find is as sure as the answer says; one only one side finds is unsure; one our
+    code can't see (a phase, a twist, a role) is the answer's alone. F3 builds the state over time on these.
+  - **The proof** (`scripts/dev-test/format-asks.js`: `plan`, `prompt`, `ask`, `reread`, `score [--md]`): the study's set
+    asked again through the local bot only (http://127.0.0.1:8765, never this lane's LLM_BROWSER_API_URL; waiting for the
+    bot and pausing between questions so the tapes recorder gets its turns; stopping on a usage limit), the whole
+    full-research prompt as the bot's run sends it, each answer kept beside the tapes (`~\rfl-tapes\<show>\<season>\format\`,
+    never over a tape) and read by the app's own parser and checks, nothing written to the database. The state going in is
+    this run's answer for the episode before, else the fixture's truth at its end (the first of a run, or a gap). Scored
+    against F1's fixtures (`truthAtEnd` on `stateAtEnd`; at an episode's end before a change at the next one's start, either
+    state counts): how it was played, each group found exactly, each person's group, newcomers, wentHomeAs, and the changes
+    the fixture says were shown in that episode, the answer's own and ours. The results: STUDY-format-changes.md, "F2: the
+    format section asked again". In short, 23 episodes: who is with whom said in all 23, exactly right in 18; 104 of 109
+    groups and 281 of 298 people (94%) placed right; every Survivor 49 tribe through both swaps and the merge, 87 of The
+    Challenge 41's 91 pairs (the Lock In's 12 too, where F1 found nothing); the newcomer; 21 of 23 on whether a whole group
+    went home; 18 of 24 changes named by kind, 17 with their episode; our comparison found 9 of 14 grouping changes, all 9
+    sure, and made the answer's one wrong structural claim unsure. Before F2, none of those grouping changes was data. The
+    words were tuned once after two answers (re-drawn pairs are a `swap`), and those two asked again; one answer that
+    wasn't valid JSON was asked again. The golden replays: 6 seasons, 138 games, 15,753 reads, every one the same (no
+    engine code changed; the tracker unchanged, `--check`). No zt- fixture: nothing the engine reads changed.
+  - **Tests:** `tests/format-state.test.js` (new, 13): the schema on every show and not on a cut-down ask, the vocabulary the
+    study's word for word, the skeleton, the prompt's words (the groups going in, older, none, a label, never "agency", the
+    prose), old and new answers, loose ones repaired, the review's checks, a second pass, the state going in, our comparison
+    (a re-pairing, a claim, a leaver, a newcomer in a leaver's place, the merge, a split, teams and pairs formed, a partial
+    swap, merged then individual, someone joining from alone, not known), the cross-check, the scorer's truth on the five
+    fixtures, and the scorer itself; the code review's cases. `research-review.test.js`'s pinned sentence moved to the new
+    words. `npm test` 932.
+  - **Code review** (`/code-review`, before the commit; it ran this time). Taken: a commissioner's partial paste would have been
+    asked the whole-cast section and replaced the stored one with a gutted state (now left out of a partial ask); a newcomer
+    from an earlier episode was dropped from later groups (the earlier newcomers are passed to the checks); the whole-pair
+    check read a stale going-in state's partners who'd left since, and missed trios (only who's still in counts; a trio
+    checked, and "no group going in left whole"); a second pass could mix one pass's groups with the other's alone; newGroup
+    and the section both said "the only place"; a newcomer whose name a cast member's loosely matches was made that person;
+    `formatGoingInto` ran in series (now beside `groupsGoingInto`); a redundant check in the prompt. Declined: none. What
+    changed after it, from the answers, reviewed by hand: the kinds' words (re-drawn pairs are a `swap`), the review's check
+    of an answer against itself (a split said with groups still listed, a merge with several, teams or pairs formed with
+    none; not for a change announced further ahead than the next episode, so `validateResearch` takes the episode), a
+    leaver's message, and `reread` keeping each answer's groups and refreshing its Markdown. The store-and-stage regression
+    and `npm test` (932) run again after them.
 - **F3. The engine's format state over time,** built from each episode's report, with the changes found by comparing an
   episode's state with the one before (our code, not the bot's labels), what reads it (A6's choices, A10's slots per group,
   A11's teams, A12's stages and triggers) and each piece's fallback. A corrected report works out everything after it again.
@@ -2440,6 +2520,48 @@ From F1 (2026-10-28; the details in [STUDY-format-changes.md](STUDY-format-chang
 - The Challenge 39 isn't on tape (the recorder hadn't reached it during F1); its timeline is in the fixtures under
   Wikipedia's short names. Once it's recorded, `format-study.js` reads its research as it does the others' if its fixture's
   names are moved to the tapes' cast names. (F2 or F4.)
+
+Taken by F2 (2026-10-29): F1's "agency" plural (the format section never says it; newGroup's paragraph spells it right), a
+newcomer's place (`newcomers`), the pair-exit check (`wentHomeAs`), and Survivor 49's episodes 3-8 asked with today's prompt.
+
+From F2 (2026-10-29; the results in [STUDY-format-changes.md](STUDY-format-changes.md), "F2: the format section asked again"):
+- **For the user, at F2's merge:** the vocabulary, the state's shape and the prompt section, as built (recommended: as they
+  are). Two choices inside it, each with a recommendation: `role` stays one of the kinds (yes: The Traitors' recruit, which the
+  engine already acts on, would otherwise be only a twist), and a whole team going home together is `wentHomeAs`, not a kind
+  of change (yes: it changes who's left, not how people are grouped).
+- `newGroup` and `merged` are still asked beside the section, since a live season's staging reads them; the two can now
+  disagree (the review reports it). Once F3 reads the state, both can be worked out from it and leave the prompt, with this
+  proof's numbers on how often they agreed. Their paragraph still says the format's built-in word for its groups ("agency" on
+  The Challenge) and asks about the cast's labels (Vets / New Threats). (F3.)
+- A newcomer the section names isn't added to the season's cast, so they still get no checklist entry, result or exit; the
+  groups going in carry them from episode to episode. (F3.)
+- The groups going in come from the stored combined answer of the latest earlier episode that knows them; an earlier episode
+  asked again (a correction) changes the next prompt, but the episodes after it aren't asked again. (F3: a corrected report
+  works out everything after it.)
+- The cross-check (`crossCheck`) is worked out by the scorer only: nothing stores, per episode, which changes both sides saw
+  and which are unsure. (F3, with the state over time.)
+- The tapes' wrong exits stay in this lane's database (`stillInGame` reads the loaded research): The Challenge 41's Nia Moore
+  (out in Episode 3) is still on its list from Episode 4, which the section's coverage check flags in every answer ("still in
+  but in no group"), and Leo and Will are off it from Episode 12. (F4: a blind replay starts from the fixture's exits.)
+- At an episode's end, a change that takes effect at the next one's start (Survivor 49's swap at Episode 4, The Challenge 40's
+  teams at 3) can be answered either way by a recap written later; the scorer counts either. Which the engine believes is
+  `changes[].from` and `when`. (F3.)
+- What the proof found for F3 (the study's "What it means for F3"): `newGroup` named a new tribe for 1 of the 11 people
+  who changed tribe at Survivor 49's first swap, and none at the merge, where the section had every tribe exactly; a pair
+  going home together came back as `individuals` twice (exits and the groups going in say it better); an answer listed a
+  label (The Challenge 40's eras) as its groups while saying everyone now plays alone (the review now flags an answer that
+  contradicts itself); an individual episode between paired ones can't be seen from two paired states without `playedAs`;
+  twists are noisy (most of the 15 changes listed that aren't in the fixtures), which costs nothing while a twist never
+  moves a game's structure. (F3.)
+- The tapes recorder reached The Challenge 39 on 2026-10-29 (Episode 5 by 05:40 UTC). Its fixture is under Wikipedia's
+  short names; F1's note on renaming them stands. (F4.)
+- The quick check (`bot-research.js` `buildQuickPrompt`) doesn't ask the section: a format change is known only from the full
+  research, about 9 hours after an episode. Fine for a change acted on at the next lock; not for anything sooner. (A12, if a
+  stage must start before then.)
+- The prompt is longer (The Challenge 41's Episode 6: about 29.1k characters, against 20.8k on its tape, most of it the section's schema) and so are the
+  answers took about twice as long (136 s against 71 s on The Challenge 41's tapes; the longest 198 s), nearer the app's
+  285 s stop for a bot answer. If production's runs time out, the section's JSON schema (most of the added length) could be
+  shown as a filled example only. (Whoever watches the bot's research budget after the merge.)
 
 From A7 (2026-10-28):
 - The late lock is a game of questions' only: lineups and picks still lock at airtime, whoever watches when. (A15, each
