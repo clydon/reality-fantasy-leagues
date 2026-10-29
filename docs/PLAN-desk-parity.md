@@ -23,7 +23,7 @@ at 9f3dc05f: parts 5a and 5b** (5a: a season's Cast, Ask our bot or Paste it, ea
 games with Undo; the season page's Cast row and the Inbox's cast item; migration 0426; 5b: starting groups with Not a group,
 secret roles together, and Hold until Episode 1 without un-approving; a castaway's page under the cast with Override, Look on
 TMDB and TVmaze, Lock and Remove refused while in use, reaching every game; no migration; their As built is under step 5).
-**Part 6d done at 3eda3131, step 6 ready to merge at 3eda3131: parts 6a, 6b, 6c and 6d** (6a: Find › Games with a join code from three characters in any state, deleted ones with Restore; a game's page with its Join code and its Delete: Archive offered, restorable 30 days, then for good; migration 0427. 6b: a game's Seats, signed in, empty and out; the seat's sheet from both pages with Act as them, Link another account and Take them out; Link an account with Game admin, the seat taking their name and the couch joined; Put back; Remove a seat; the last-Commissioner guard on each; no migration. 6c: Open <game>, as you when you play it, else read-only in the app's show space as its couch sees it at your own mark, a History line, a site admin's read scope over the couch's game reads and every write refused while it's on; no migration. 6d: Find › Couches, searched by name or who runs it, deleted ones with Restore; a couch's Delete, its games going too and its people off it, told once, restorable 30 days from Couches › Deleted, Restore with Undo, every couch read leaving a deleted one out, a trigger refusing a live game on a deleted couch; migration 0428 (Noticed bq and bw closed); their As built is under step 6). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
+**Step 6 ready to merge at 3eda3131: parts 6a, 6b, 6c and 6d** (6a: Find › Games with a join code from three characters in any state, deleted ones with Restore; a game's page with its Join code and its Delete: Archive offered, restorable 30 days, then for good; migration 0427. 6b: a game's Seats, signed in, empty and out; the seat's sheet from both pages with Act as them, Link another account and Take them out; Link an account with Game admin, the seat taking their name and the couch joined; Put back; Remove a seat; the last-Commissioner guard on each; no migration. 6c: Open <game>, as you when you play it, else read-only in the app's show space as its couch sees it at your own mark, a History line, a site admin's read scope over the couch's game reads and every write refused while it's on; no migration. 6d: Find › Couches, searched by name or who runs it, deleted ones with Restore; a couch's Delete, its games going too and its people off it, told once, restorable 30 days from Couches › Deleted, Restore with Undo, every couch read leaving a deleted one out, a trigger refusing a live game on a deleted couch; migration 0428 (Noticed bq and bw closed); their As built is under step 6). **Part 7a done at f5d3a5a7** (a show on the desk: Find › Shows with Archived's Restore, Browse's Shows row and Find's three; a show's page with Add a season, Its words written into its seasons' rulebooks too, Research sites, Archive and Restore, and its Delete, refused while it has games, by season; migration 0429, two plural words and a trigger clearing a stale one; Noticed s, u, v and y closed, ca-ce new; its As built is under step 7). Part 7b, Art and photos, is next. Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
 either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
@@ -1355,6 +1355,100 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    where it has one, tvline.com, parade.com); its wiki API, cast heading, Seasons it reads and Try it go. Settings keeps Which
    AI our bot asks and loses Reading a wiki and Paid research. What's New is data (decision 8): drafts are written and
    published on the desk, and its drafts editor is mocked with the user before part 7c.
+   **As built, part 7a (2026-10-29):** **a show on the desk** (`src/lib/server/desk-shows.ts`, moved out of `desk-couches.ts`
+   with its old actions; `src/new/desk/shows.tsx`, out of `pages.tsx`; `GET`, `POST` and `DELETE /api/desk/shows/[id]`).
+   **Find › Shows** (`/desk/shows`, `GET /api/desk/shows`): a show's name; All · Airing · Not a game yet · Added by name (the
+   Inbox's: by name, not looked at) · Archived with counts; Name, A to Z or Most games; 25 at a time, the search, filter and
+   sort in the address. A row: its poster, "A game · Season 51 airing · 14 games", "Not a game yet · Season 2 · 3 watching",
+   or "Archived Oct 20 · out of everyone's search" with Restore. **Browse's Shows row** ("38 shows · 12 airing · 1 added by
+   name") replaced Find's Airing now (1a kept it until this list), and **Find's search** shows three shows (archived ones too,
+   tagged, as find() did and the mock's search does) and All N; shows left `desk.ts find()`'s rows, and New show's "Here
+   already" reads the Shows list. **A show's page**, as mocked: its lower third (A game, Not a game yet, Added by name or
+   Archived; "A competition · 3 seasons here", "Season 2 · 3 watching"); Archived (since when, anyone following keeps it, its
+   games play on, adding it by name makes a new show) with Restore, or Added by name with Looks fine and Archive; **Seasons**
+   (its number in a square, "Season 51" or a sport's "2026 season", "Airing · no schedule yet · 1 game" with the dot, each to
+   its season's page) and **Add a season**; About the show: **Research sites** and **Its words**; its art as it was (7b gives it
+   a page and the row); History; and **the show's Delete**, last. **Add a season** (a sheet, tier 1): its number on a stepper
+   (the next one; "Season 52 is here already" inline and the button off), Upcoming · Airing · Ended with what each does,
+   Upcoming first, and What comes with it (last season's rulebook, or Make it a game for a show that isn't one; the schedule
+   from the listings or Setup, or for Airing its Setup next and the Inbox; the cast from our bot; art on its own; results
+   from sources that agree). It lands on the new season's page, "Added Survivor 52 · next: its cast", with Undo (back to the
+   show, the season gone again; refused once anything's on it: a game, a follow, its cast, an answer). Noticed s: it's
+   `results_by` 'leagues', a bad status is refused (400), never turned into Ended; a set-up show's plays by last season's
+   rulebook (`ensureSeasonRulebook`, in the same transaction); its art is looked for after the answer; lines on the show and
+   the season. New show's `{ action: "season" }` still adds the next one, Upcoming. **Its words** (a sheet): one person and
+   many, one group and many, and the episode word, with the live sample ("3 castaways in 2 tribes · Episode 6 is tonight",
+   from its newest season with a cast) and a link to its newest season's rulebook. **Migration 0429**: `shows.castaway_plural`
+   and `tribe_plural` (null works it out, as before), and a trigger that clears a plural when its singular changes, whatever
+   path writes it (Make it a game, the listings job, classic's show page); it adds behaviour to an existing table, so it's
+   rehearsed with the step's merge. `showWords` takes the people's plural (the show space, rosters, recaps, pushes, the desk's
+   Cast words read it). **Noticed y**, checked first: neither wrote the other (only Make it a game copied the rulebook's words
+   onto the show, once, at set-up; the rulebook editor's word sheet writes the rulebook alone). Now one source: saving Its
+   words writes the show's words, then each of its seasons' rulebooks' (its cast word for one and many, its group's, its
+   "parts" for an episode word other than Episode) as a fix to the words alone: a new version, pushed to the leagues
+   following it and the couches' own copies as any fix, but no answer read again, since words score nothing differently. A
+   rulebook that won't take them is said in the toast, not a failed save. Undo puts both back. **Research sites**
+   (`/desk/show/<id>/sites`, a page under the show, depth 3; the connector page's only section since approval): a row each
+   with where it's from (Its wiki, One of our usual, Added for <show>) and ✕, Add a site (a pasted page kept as its hostname,
+   "Kept as realitytea.com."; a duplicate or a non-site refused), Back to our usual (two or three), tier 1 with Undo each;
+   `research_domains` as hostnames, null = our usual, a list equal to our usual stored as null, the last one off is our
+   usual. What the desk shows as our usual mirrors `episode-research.js domainsFor` (`src/lib/desk-show-sites.ts`; the
+   check proves it against research's own context each time). **Archive and Restore** (tier 1, Undo): Archive from the
+   added-by-name panel and from the Delete's two sheets (Archive it instead); an archived show leads with Archived and
+   Restore, and its row in Shows › Archived carries Restore. **Noticed v**, as the mock says: adding an archived show by name
+   meanwhile makes a new show, and its page says so; add-show's matches are unchanged. **The show's Delete** (`DELETE
+   /api/desk/shows/[id]`; decision 4): refused while it has games (Noticed u: every league with the show, by its slug or a
+   pool or practice game on one of its seasons; ended, archived and deleted ones too until a deleted one's 30 days are up; its
+   public pools and practice games are its own and go with it), the sheet listing them by season ("ZT Isle 2 · 2 games: 1
+   playing, 1 deleted", one game as itself) with Archive it instead; else a hold: its seasons go with every episode, cast and
+   result, its pools and practice games, the people following it lose it from their shows and the guide with any watch along
+   planned, couches' chat about it goes too, Archive it instead as the alternative. Held: gone in one transaction (the
+   cascades take seasons, follows, chat, plans, research, rulebooks), with a stored `made-` format only it played, a line kept
+   in History ("Deleted X, with 2 seasons and 1 practice game"), landing on Shows. Every page under a show (its Research
+   sites) ends with the show's Delete.
+   **Left behind or changed from classic, and why (decision 10):** classic's Add a season's wiki page and the API worked out
+   from it, its cast size and dates (decision 9; the cast is its own, the schedule Setup's); its `results_by` 'admin' and its
+   bad status turned into Completed (Noticed s). Classic's connector (wiki API, cast heading) and its format picker stay with
+   classic (decisions 9 and 10: rulebooks replace formats); terms through the format went with them. Classic's delete counted
+   leagues by `settings.showId` only and deleted with no word to anyone following (Noticed u). Calls made here (Claude's,
+   within the approved screens): season rows open the season's page (as mocked), and a show that isn't a game keeps a small
+   "Make it a game" link under its seasons into New show (the old rows' only way there); Find's chips count unsearched, as
+   Couches' and Games'; the words sheet's sample says "is tonight" as mocked; the group's plural is the desk's (its Cast
+   page's words): the app never pluralises a group word, so the season header doesn't carry it.
+   `/code-review` found these, all fixed: New show's "Here already" reading Find's show rows (it reads Shows' list now);
+   a show's stored kind hidden until it's a game (New show starts from it); a plural outliving its singular when Make it a
+   game, the listings job or classic rewrote it (0429's trigger); the words missing the app's "Cast"/"Crew" rule (they're
+   `showWords`' now); a rulebook failing part way turning a saved change into an error (each one on its own, said in the
+   toast); Looks fine's Undo un-archiving a show archived since (it takes back the look alone; an old line from an archive
+   before 7a still puts it back); Find no longer finding an archived show; the chips' counts reading every show's facts; the
+   words row's hand-made plural ("matchs"); the group's plural carried in the season header with nothing reading it. The
+   rulebook editor's word sheet said its words were used everywhere and found the cast on a wiki: it says what they're for
+   now, and that the show's Its words sets them.
+   **Noticed, not fixed (7a):** (ca) Add a show from the TV listings still finds an archived show by its TVmaze id
+   (`add-show.ts showForListing` doesn't look at `archived`), so following it from the listings follows the archived show,
+   which stays out of everyone's search; only by name does it make a new one (as the page says). For whoever next touches
+   Add a show. (cb) The rulebook editor's word sheet writes that season's rulebook alone, and the show's Its words overwrites
+   it on its next save (one source: the show's); a rulebook's own word change doesn't reach the show. (cc) Its words reaches
+   couches' own copies as any fix, so their Recent changes say "A fix to the show's rulebook reached the couch's own" for a
+   word change (`ours.ts reachCopies`). (cd) The group's plural is the desk's alone: no app screen pluralises a group word.
+   (ce) The words' sample says "is tonight" whatever night it is, as mocked.
+   Check: `scripts/dev-test/check-desk-shows.js` 126 PASS at 390 (zt_dv_ fixture, up and down, codes Z7S, every real
+   account, league and show as it was): a player refused; Find › Shows' filters, counts, search, paging and sorts, a row's
+   season, games and who's watching, Browse's line and Find's three (an archived one too); a show's page (its seasons'
+   games and schedules, its words and their sample, its sites, its Delete's games by season); Add a season (a number that's
+   here, a bad status refused, Airing in the Inbox, sources that agree, last season's rulebook, both History lines, Undo, Undo
+   refused once followed; New show's next one, Upcoming); its words on the show and its season's rulebook, the Cast page
+   reading them, Undo, the trigger, Cast's words; research sites against research's own context (`resolveSeasonResearchContext`)
+   at each step; Archive and Restore with Undo, out of the catalog, Looks fine's Undo after an Archive, adding an archived
+   show by name; the Delete refused, then a show with nothing in the way gone with its follows and practice game, a line in
+   History, and one whose games were deleted 40 days ago gone with them; then the screens: Browse, Shows searched,
+   Archived's Restore and Undo, a show's page, Add a season (a number that's here; added, Undo back to the show), Its words,
+   Research sites (a pasted page, a site off, back to our usual), the Delete refused, Archive it instead, Restore, the hold,
+   New show's Here already, Find's three and All N. check-desk-couches, -readonly, -seats, -games, -cast, -bingo, -episode,
+   -research, -setup, -inbox and -people, check-classic-admin ("all PASS"), check-new-settings, check-new-settling,
+   check-bingo-bank ("ALL PASS"), check-new-show, check-new-stats and check-new-library pass; unit tests 851 (with
+   tests/desk-show-sites.test.js, show-words' plural, new-nav's Shows); check-new-desk without its rulebook section (a
+   scratch copy, deleted) passed whole (67).
 8. **Classic's admin retires**: `/admin` sends a site admin to the desk; classic's admin pages and `src/lib/admin-store.ts` go.
    So does what only classic used, each checked unused first (decision 9): the wiki read (classic's Pull cast, `db/wiki-sync.js`'s
    pull and its nightly `.github/workflows/wiki-sync.yml`) and paid Claude research's hourly `.github/workflows/auto-research.yml`.
