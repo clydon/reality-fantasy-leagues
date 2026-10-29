@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { Bot, BookOpen, Check, CheckCheck, ChevronRight, Flag, KeyRound, RotateCcw, Search, Trophy, Tv, User, Users, Zap } from "lucide-react";
+import { Bot, BookOpen, Check, CheckCheck, ChevronRight, Flag, RotateCcw, Search, Trophy, Tv, User, Users, Zap } from "lucide-react";
 import { colourOf } from "@/lib/people";
 import { NavLink } from "../nav";
 import { paths, type DeskKind, type DeskSeasonPage, type DeskShowPage } from "../routes";
@@ -644,10 +644,6 @@ function SettingsTab() {
           title="Settings history"
           line={history[0] ? `${history[0].text} · ${new Date(history[0].at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "Nothing changed yet"}
         />
-      </SetSection>
-      {/* Until classic's admin retires (docs/PLAN-desk-parity.md step 8), what the desk can't do yet is done there. */}
-      <SetSection title="Not on the desk yet" line="Until classic's admin retires.">
-        <DeskRow data="classic" href="/admin" lead={<IconLead icon={KeyRound} />} title="Classic admin" line="Only What's New's preview is left there · it goes with step 8" />
       </SetSection>
 
       <Sheet open={sheet === "signups"} onOpenChange={(o) => !o && close()} title="Who gets in" subtitle="When someone makes an account">

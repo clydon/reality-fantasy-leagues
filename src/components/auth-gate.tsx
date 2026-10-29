@@ -32,7 +32,6 @@ import { ResultsInBanner, RevealSheet } from "@/components/results-in-banner";
 import { CatchUpSheet, ReplayBug } from "@/components/late-join/replay-bug";
 import StateLogic from "@/lib/game/state-logic.js";
 import { LeagueSwipe } from "@/components/league-swipe";
-import { AdminMobileChrome, AdminSidebar, isAdminRoute } from "@/components/admin/admin-shell";
 import { useRecordNavTrail } from "@/lib/nav-trail";
 import { isNewDesignRoute } from "@/new/routes";
 
@@ -109,7 +108,7 @@ export function AuthGate({ children, hasSession }: { children: ReactNode; hasSes
   // A late joiner who hasn't chosen where to start has nothing to play yet (StateLogic.GhostLogic):
   // every league page sends them to /late-join until they have.
   const needsStart = useLeagueStore((s) => s.mode === "live" && StateLogic.GhostLogic.needsStart(s.rawState, s.membership?.playerId));
-  const toLateJoin = entered && needsStart && !isFullscreen(pathname) && !LEAGUELESS_ROUTES.includes(pathname) && !isAdminRoute(pathname);
+  const toLateJoin = entered && needsStart && !isFullscreen(pathname) && !LEAGUELESS_ROUTES.includes(pathname);
   useEffect(() => {
     if (toLateJoin) router.replace("/late-join");
   }, [toLateJoin, router]);
@@ -330,30 +329,6 @@ export function AuthGate({ children, hasSession }: { children: ReactNode; hasSes
   // preview the demo (demoPreview) -- they get the real tabs over demo data.
   const leaguelessUser = isAuthenticated && leagues.length === 0 && mode === "mock" && !demoPreview;
   const showsDashboard = leaguelessUser && !LEAGUELESS_ROUTES.includes(pathname);
-
-  // The admin area (docs/PLAN-ux-redesign.md 3a) has its own chrome: its own header and tab bar on a
-  // phone, its own sidebar on desktop, and no league alert strip, swipe or install banner -- none of
-  // those are about running the site, and the strip could name a league's results in passing. It
-  // works the same for a super-admin with no league of their own.
-  if (isAdminRoute(pathname)) {
-    return (
-      <>
-        {impersonationBanner}
-        <AdminMobileChrome />
-        <ReportModal />
-        <ConfirmDialog />
-        <WhatsNewModal />
-        <div className="flex min-h-screen items-stretch">
-          <div className="max-nav:hidden">
-            <AdminSidebar />
-          </div>
-          <main className="min-w-0 max-w-[1060px] flex-1 px-11 pb-[90px] pt-9 max-nav:max-w-full max-nav:px-4 max-nav:pb-[calc(84px+env(safe-area-inset-bottom,0px))] max-nav:pt-4">
-            {children}
-          </main>
-        </div>
-      </>
-    );
-  }
 
   // Matches .app-shell / main's exact layout from public/styles.css (flex, sidebar + a
   // width-capped content column with 36px/44px/90px padding on desktop; below the 880px

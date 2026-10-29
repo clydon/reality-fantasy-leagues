@@ -57,8 +57,8 @@ export const auth = betterAuth({
   user: {
     additionalFields: {
       // Early access gate (db/migrations/0058_user_approval.sql): `input: false` keeps a signup
-      // request from setting this itself -- only an admin's approve action (raw SQL, see
-      // /api/admin/users/[userId]/approve) flips it. defaultValue:false here overrides the
+      // request from setting this itself -- only an admin's Let in (raw SQL, see
+      // desk-person-actions.ts) flips it. defaultValue:false here overrides the
       // column's own DEFAULT true on every signup through this app, so an existing/seeded
       // account stays approved but a genuinely new one starts pending.
       approved: { type: "boolean", defaultValue: false, input: false },

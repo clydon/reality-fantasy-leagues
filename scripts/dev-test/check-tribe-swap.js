@@ -1,6 +1,7 @@
 // Dev-only test bank: a tribe swap from ONE pasted research answer, through to a league. Two starting
 // tribes (Toka, Savu) split three ways in episode 4 (Toka, Savu, and a new Dina) -- the shape of
-// Survivor 51's episode 4. Checks, through the real HTTP routes (paste research, accept the episode):
+// Survivor 51's episode 4. Checks, through the desk's HTTP routes (an episode's Paste an answer, Accept all and Clear;
+// classic admin's research routes until docs/PLAN-desk-parity.md step 8):
 //   - the episode prompt lists each person's tribe going in
 //   - the answer's newGroup stages one tribe move per person who changed (none for someone who stayed)
 //   - accepting the episode gives the league a third tribe and puts everyone on the right one,
@@ -113,10 +114,11 @@ async function run(pool) {
     return r.json();
   };
   try {
-    const { prompt } = await api("get", `/api/admin/seasons/${seasonId}/research/prompt?episode=4&structured=1`);
+    const ep = `/api/desk/seasons/${seasonId}/episodes/4`;
+    const { prompt } = await api("get", `${ep}/question`);
     check(CAST.every(([name, start]) => prompt.includes(`${name} -- ${start}`)), "prompt lists each person's tribe going in");
 
-    await api("post", `/api/admin/seasons/${seasonId}/research`, { episode: 4, notes: answer(), structured: true });
+    await api("post", ep, { paste: answer(), confirmed: true });
     const { rows: moves } = await pool.query(
       `SELECT castaway_name, method FROM season_decisions WHERE season_id=$1 AND episode_number=4 AND kind='group' ORDER BY castaway_name`,
       [seasonId]
@@ -125,7 +127,10 @@ async function run(pool) {
     const got = moves.map((m) => `${m.castaway_name}->${m.method}`).sort();
     check(JSON.stringify(got) === JSON.stringify(want), `staged moves ${got.join(", ")}`);
 
-    await api("post", `/api/admin/seasons/${seasonId}/decisions/accept-episode`, { episode: 4 });
+    // Accept all: whatever the paste left waiting (one source may not be enough to put it in the games). Either way, the
+    // league's tribes below say whether it got in; and after clearing, its starting tribes say it came back out.
+    const waiting = (await api("get", ep)).facts.filter((f) => f.state === "wait").map((f) => f.id);
+    if (waiting.length) await api("post", ep, { acceptAll: waiting });
     const { rows: lg } = await pool.query(`SELECT state FROM leagues WHERE slug=$1`, [SLUG]);
     const state = lg[0].state;
     const tribeName = new Map(state.tribes.map((t) => [t.id, t.name]));
@@ -137,8 +142,8 @@ async function run(pool) {
 
     // Clear everything (the episode page's last resort for accepted bad data): the league goes back to
     // how it was before episode 4 -- starting tribes, nobody out -- and the episode has no rows left.
-    const cleared = await api("delete", `/api/admin/seasons/${seasonId}/research?episode=4&scope=everything`);
-    check(cleared.leaguesUndone === 1, `clear everything: taken back out of ${cleared.leaguesUndone} league(s)`);
+    const cleared = await api("delete", `${ep}?scope=everything`);
+    check(/cleared from every game/.test(cleared.text), `clear everything: "${cleared.text}"`);
     const { rows: after } = await pool.query(`SELECT state FROM leagues WHERE slug=$1`, [SLUG]);
     const s2 = after[0].state;
     const name2 = new Map(s2.tribes.map((t) => [t.id, t.name]));

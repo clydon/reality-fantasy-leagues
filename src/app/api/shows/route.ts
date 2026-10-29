@@ -5,7 +5,7 @@ import { classicArtStyle } from "@/lib/art-frame";
 import { pool } from "@/lib/server/db";
 
 // The show/season catalog as a COMMISSIONER sees it, for the Show and Season pickers in League
-// Settings. Deliberately not under /api/admin: managing the catalog is a super-admin job, but
+// Settings. Deliberately not the desk's: managing the catalog is a super-admin job, but
 // choosing from it is an ordinary commissioner one, so this is readable by any signed-in user and
 // returns only what's usable (archived shows excluded, and a show someone added to follow that isn't a game yet: step 10's
 // shows.set_up_at, so nobody starts a classic league on one before its rulebook and cast are set up).

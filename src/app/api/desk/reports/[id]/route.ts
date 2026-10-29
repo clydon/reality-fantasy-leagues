@@ -7,7 +7,7 @@ import { deleteReport, deskReport, setReportDone } from "@/lib/server/desk-repor
 // A report on the desk (docs/PLAN-desk-parity.md step 2): GET it (their words, where it was sent from, the sender, the game,
 // season or couch it came from, History). POST `{ done: true }` (Mark done: out of the Inbox) or `{ done: false }` (Reopen),
 // each answering `{ changeId, text }` for the toast's Undo. DELETE: gone for good (tier 3; the sender isn't told). Classic's
-// GET /api/admin/reports and DELETE /api/admin/reports/[id] read and deleted the same rows, until step 8.
+// admin read and deleted the same rows until it retired (docs/PLAN-desk-parity.md step 8).
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: string }> }) => {
   const user = await requireDesk(req);
   return NextResponse.json(await deskReport(user, (await params).id));

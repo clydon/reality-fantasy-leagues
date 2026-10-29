@@ -10,7 +10,7 @@ import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { MoreButton, fieldCls } from "@/components/setup/settings-ui";
-import { ActButton } from "@/components/admin/admin-ui";
+import { ActButton } from "@/components/ui/act-ui";
 import { GuessLine, QuestionLine } from "@/components/predictions/prediction-ui";
 
 // One open prediction on Overview (renderBetCard() in public/app.js, restyled for direction A): the

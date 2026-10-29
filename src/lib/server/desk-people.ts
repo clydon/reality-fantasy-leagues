@@ -1,5 +1,5 @@
 import { NO_EMAIL_DOMAIN, realEmail } from "@/lib/no-email";
-import { LAST_ACTIVE } from "./admin-users";
+import { LAST_ACTIVE } from "./last-active";
 import type { SessionUser } from "./auth-helpers";
 import { likeOf, pool, HttpError } from "./db";
 import { byNewest, deskLines, type DeskLine } from "./desk";

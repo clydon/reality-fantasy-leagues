@@ -4,7 +4,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { LEVEL_WORDS, levelOf } from "@/lib/game/computer-players";
 import type { LeagueState, Player } from "@/lib/game/types";
 import { noLinkFor } from "@/lib/desk-seat-words";
-import { LAST_ACTIVE } from "./admin-users";
+import { LAST_ACTIVE } from "./last-active";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { freeSeat, takeOut } from "./backstage-members";
 import { recordChange, type MemberUndo } from "./change-log";

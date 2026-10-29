@@ -1,6 +1,6 @@
 "use client";
 
-import { ActButton } from "@/components/admin/admin-ui";
+import { ActButton } from "@/components/ui/act-ui";
 import { tourMark } from "@/lib/tour/tour-store";
 
 // The tour's stand-in for the review of a researched show (admin/format-review-screen.tsx): after the

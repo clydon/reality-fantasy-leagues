@@ -9,8 +9,8 @@ import { gameSeats } from "@/lib/server/desk-seat-moves";
 // POST `{ archive: true }` (tier 1, answering `{ changeId, text }` for the toast's Undo), `{ delete: true }` (tier 3:
 // restorable for 30 days, its players told; `{ text }`), `{ restore: true }` (a deleted one back as it was, with Undo) or
 // `{ open: true }` (part 6c: Open it read-only's History line, answering what the show space opens).
-// DELETE: a deleted game for good, now. Classic's DELETE /api/admin/leagues/[leagueId] (a hard delete, and the couch with
-// it when it had no games left) stays until step 8.
+// DELETE: a deleted game for good, now. (Classic's hard delete, the couch with it when it had no games left, retired at
+// docs/PLAN-desk-parity.md step 8.)
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: string }> }) => {
   const user = await requireDesk(req);
   const { id } = await params;

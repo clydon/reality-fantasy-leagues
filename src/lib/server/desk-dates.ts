@@ -1,4 +1,3 @@
-import { TIME_ZONES } from "@/lib/admin-season";
 
 // Dates and times as a season's Setup says them (docs/PLAN-desk-parity.md step 3): in the season's own zone, as its schedule
 // is set ("Wednesdays 8:05 PM Eastern"). Shared by desk-setup.ts and desk-schedule.ts.
@@ -23,6 +22,15 @@ export function dayIn(t: Date, tz: string, now: Date): string {
 }
 /** "tonight, 9:00 PM", "Wed Nov 4, 9:00 PM". */
 export const whenAt = (t: Date, tz: string, now: Date) => `${dayIn(t, tz, now)}, ${timeIn(t, tz)}`;
+// The zones a season's schedule can be in (classic's admin-season.ts had them until step 8 of docs/PLAN-desk-parity.md).
+const TIME_ZONES = [
+  ["America/New_York", "Eastern"],
+  ["America/Chicago", "Central"],
+  ["America/Denver", "Mountain"],
+  ["America/Los_Angeles", "Pacific"],
+  ["Europe/London", "UK"],
+  ["UTC", "UTC"],
+] as const;
 /** A zone's name ("Eastern"), else its id. */
 export const zoneOf = (tz: string) => TIME_ZONES.find(([id]) => id === tz)?.[1] ?? tz;
 /** The zones Setup offers: [id, name]. */

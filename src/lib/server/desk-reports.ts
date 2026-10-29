@@ -1,7 +1,7 @@
 import type { Pool, PoolClient } from "pg";
 import { isNewDesignRoute } from "@/new/routes";
 import { realEmail } from "@/lib/no-email";
-import { LAST_ACTIVE } from "./admin-users";
+import { LAST_ACTIVE } from "./last-active";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { likeOf, pool, tx, HttpError } from "./db";
 import { byNewest, deskLines, logDesk, type DeskLine } from "./desk";

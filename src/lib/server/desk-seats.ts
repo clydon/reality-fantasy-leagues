@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import type { PoolClient } from "pg";
-import { LAST_ACTIVE } from "./admin-users";
+import { LAST_ACTIVE } from "./last-active";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { freeSeat } from "./backstage-members";
 import { recordChange, roleChange } from "./change-log";

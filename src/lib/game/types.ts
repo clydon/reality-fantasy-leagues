@@ -493,32 +493,6 @@ export interface SharedLeagueRuleset extends LeagueRuleset {
   leagueName: string;
 }
 
-// Admin view of a show: everything, including archived ones and how many leagues reference it.
-export interface AdminShow {
-  id: string;
-  slug: string;
-  name: string;
-  castaway_term: string;
-  tribe_term: string;
-  wiki_api_url: string | null;
-  /** Override for which wikitext section holds the cast. Null = wiki-sync infers it. */
-  cast_section_heading: string | null;
-  /** Sites episode research may search; null = defaults (the show's wiki + general recap sites). */
-  research_domains: string[] | null;
-  /** Which game rules the show plays by (formats/index.js). */
-  format: string;
-  /** A stored format's data half (db/migrations/0049), for formatFor(format, format_data). Null for a built-in. */
-  format_data?: FormatData | null;
-  /** Tile image (migration 0051); null falls back to the per-format emoji. */
-  art_url: string | null;
-  /** How the art looks behind Overview's header (migration 0056); null is the default look. */
-  art_style?: ArtStyle | null;
-  archived: boolean;
-  created_at: string;
-  league_count: number;
-  seasons: ShowSeason[];
-}
-
 // One person in a catalogued season's admin-reviewed cast (db/migrations/0011). Season data, not
 // league data: approving it is what creates castaways in every league tracking that season.
 export interface SeasonCastMember {
@@ -715,26 +689,6 @@ export interface EpisodeResearchProvenance {
   pasteMode?: "json" | "text";
 }
 
-/** POST /api/admin/seasons/:id/research -- what one episode's research run reports to the UI. */
-export interface SeasonResearchResult {
-  showSlug: string;
-  season: number;
-  episode: number;
-  /** True when an existing row was reused: no search, no model call, nothing charged. */
-  cached: boolean;
-  payload: EpisodeResearch;
-  provenance: EpisodeResearchProvenance;
-  problems: string[];
-  counts: { castaways: number; unknowns: number; lowConfidence: number; sourced: number };
-  /** What this run staged as season decisions for review. */
-  decisions: DecisionStageResult;
-  /** The data half of the stored format the answers were asked under (null for a built-in), so its
-   *  reviewer notes can be built: formatFor(provenance.format, formatData). */
-  formatData?: FormatData | null;
-  /** The season's approved rule changes, layered on with withChanges (docs/PLAN-season-rule-changes.md). */
-  ruleChanges?: SeasonChange[];
-}
-
 // ---------- season decisions (db/migrations/0019) ----------
 // Episode results decided once per season by an admin, and applied to every league automatically.
 
@@ -798,21 +752,6 @@ export interface LeagueDecisionSync {
   /** Accepted decisions that couldn't be applied here (a name this league's cast lacks). */
   skipped: { name: string; why: string }[];
   error?: string;
-}
-
-/** GET /api/admin/seasons/:id/decisions */
-export interface SeasonDecisionsResponse {
-  /** Who decides the season's results (db/migrations/0054); "leagues" puts the review in curator mode. */
-  resultsBy?: "admin" | "leagues";
-  decisions: SeasonDecision[];
-  cast: { name: string; tribeName: string | null; photoUrl: string | null }[];
-  leagueCount: number;
-  /** The show's format id (formats/index.js). */
-  format: string;
-  /** A stored format's data half, for formatFor(format, formatData). Null for a built-in. */
-  formatData?: FormatData | null;
-  /** The season's approved rule changes, layered on with withChanges (docs/PLAN-season-rule-changes.md). */
-  ruleChanges?: SeasonChange[];
 }
 
 // Commissioner view of a show (GET /api/shows): non-archived only, no admin-only fields.
@@ -1109,30 +1048,6 @@ export interface LeagueState {
   settings: LeagueSettings;
 }
 
-// Shaped by Better Auth's user model (+ the admin/username plugins) now, not a custom `users`
-// table -- no must_change_password concept exists there, so admin-created accounts' temp
-// passwords are just shown once in the UI, same security property, simpler mechanism.
-export interface AdminUser {
-  id: string;
-  username: string | null;
-  email: string;
-  isSuperAdmin: boolean;
-  // Early access gate (db/migrations/0058_user_approval.sql).
-  approved: boolean;
-  createdAt: string;
-  // Newest Better Auth session row's createdAt -- null if they've never signed in (or every
-  // session has since been cleaned up).
-  lastLoginAt: string | null;
-}
-
-export interface AdminLeague {
-  id: string;
-  name: string;
-  slug: string;
-  join_code: string;
-  created_at: string;
-}
-
 export interface Notif {
   id: string;
   text: string;
@@ -1152,14 +1067,6 @@ export interface Report {
   message: string;
   route: string | null;
   created_at: string;
-}
-
-export interface AdminMembership {
-  id: string;
-  player_id: string;
-  role: "member" | "commissioner";
-  user_id: string;
-  username: string;
 }
 
 export interface ChatReaction {

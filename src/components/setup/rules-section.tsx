@@ -15,7 +15,7 @@ import { useShowTerms } from "@/lib/use-show-terms";
 import { api, ApiError } from "@/lib/api";
 import { confirm } from "@/lib/confirm-store";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
-import { ruleSentencesFor } from "@/components/admin/format-rules-view";
+import { ruleSentencesFor } from "@/components/formats/format-rules-view";
 import { PlainButton } from "@/components/draft/draft-ui";
 import { ChevronRight, Minus, Plus } from "lucide-react";
 import { cn } from "cn";

@@ -17,7 +17,7 @@ import { renameEverywhere } from "./profile";
 // dkNameSheet, dkPwSheet, dkSignSheet, dkBackIn): Let in, Act as them, Name and email, Reset password, Stop them signing
 // in and Let them back in. Each is a line in the person's History (admin_changes, entity 'person'), with Undo where it
 // has one: Let in, the account, and stopping and letting back are tier 1; a password reset and acting as them can't be
-// taken back. Classic's routes (src/app/api/admin/users/*) did these without History or Undo, and had no stop.
+// taken back. Classic's admin routes (retired at step 8) did these without History or Undo, and had no stop.
 //
 // The account's own columns are written here directly, as classic's approve already was: Better Auth's adminUpdateUser
 // checks a username as taken against the calling admin's session, not the person's (classic's PATCH says why), and its
@@ -419,7 +419,7 @@ async function refused(res: Response, fallback: string): Promise<never> {
  * rule), someone waiting (there's nothing to see) or someone who can't sign in. Answers where to go: the app's front
  * door, which opens the design they use.
  */
-export async function startActing(req: Request, user: SessionUser, id: string): Promise<NextResponse> {
+export async function startActing(req: Request, user: SessionUser, id: string, from?: "test-couch"): Promise<NextResponse> {
   if (id === user.id) throw new HttpError(400, "Not your own account: you're already you");
   const p = await person(id);
   if (isAdmin(p)) throw new HttpError(409, "Not another site admin");
@@ -438,8 +438,8 @@ export async function startActing(req: Request, user: SessionUser, id: string): 
       entity: "person",
       entityId: id,
       action: "act",
-      text: "Started acting as them",
-      after: { sessionId: session.id, until: new Date(session.expiresAt).toISOString() },
+      text: from === "test-couch" ? "Started acting as them · from the test couch" : "Started acting as them",
+      after: { sessionId: session.id, until: new Date(session.expiresAt).toISOString(), ...(from ? { from } : {}) },
       userId: user.id,
     });
   } catch (e) {
@@ -457,17 +457,19 @@ const lasted = (ms: number) => {
 };
 
 /**
- * Return to my account (the Viewing as bar, in both designs): Better Auth's stopImpersonating, and when the hour began
- * on the desk, its end in their History and the way back to their page. An hour that began elsewhere (the test couch's
- * switches, classic's admin) just ends: back to the front door.
+ * Return to my account (the Viewing as bar, in both designs): Better Auth's stopImpersonating, its end in their History,
+ * and the way back to their page; an hour from the test couch's switches goes back to the front door. An hour with no
+ * start in History (begun through classic's admin, before step 8) just ends: back to the front door.
  */
-export async function endActing(req: Request): Promise<NextResponse> {
+export async function endActing(req: Request, ifActing = false): Promise<NextResponse> {
   const session = await auth.api.getSession({ headers: req.headers });
+  const by = session && (session.session as { impersonatedBy?: string | null }).impersonatedBy;
+  // Signing out ends any hour first (auth-client.ts logOut): not acting, there's nothing to end.
+  if (!by && ifActing) return NextResponse.json({ back: null });
   if (!session) throw new HttpError(401, "Not logged in");
-  const by = (session.session as { impersonatedBy?: string | null }).impersonatedBy;
   if (!by) throw new HttpError(400, "You're not viewing as anyone");
   const { rows } = await pool.query(
-    `SELECT a.created_at FROM admin_changes a
+    `SELECT a.created_at, a.after->>'from' AS "from" FROM admin_changes a
       WHERE a.entity = 'person' AND a.entity_id = $1 AND a.action = 'act' AND a.user_id = $2 AND a.after->>'sessionId' = $3
         AND NOT EXISTS (SELECT 1 FROM admin_changes e WHERE e.entity = 'person' AND e.entity_id = $1 AND e.action = 'act-end' AND e.after->>'sessionId' = $3)`,
     [session.user.id, by, session.session.id]
@@ -488,6 +490,7 @@ export async function endActing(req: Request): Promise<NextResponse> {
     after: { sessionId: session.session.id },
     userId: by,
   });
-  return withCookies(res, { back: paths.deskItem("person", session.user.id) });
+  // A test couch switch goes home, as it always did; an hour from their page goes back to it.
+  return withCookies(res, { back: rows[0].from === "test-couch" ? null : paths.deskItem("person", session.user.id) });
 }
 

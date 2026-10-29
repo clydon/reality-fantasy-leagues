@@ -6,11 +6,12 @@ import { FLAGGED_OUT } from "./bingo";
 import { HttpError, pool } from "./db";
 import { seasonSchedules } from "./schedule";
 
-// Bingo's bank by hand (docs/PLAN-bingo-bank.md step 1: the admin episode page's prompt and paste, before the bot writes them):
-//   GET  /api/admin/seasons/[id]/bingo?episode=&scope=episode|season   the episode's bank and the season's own, which one its
-//        cards deal from, and the prompt for the one asked (copy it into any AI chat with web search)
-//   POST /api/admin/seasons/[id]/bingo   { episode, scope, answer }   the chat's answer, parsed and filed, replacing that bank
-//        { episode, flag: <square id>, on }   Hide a square (an admin's flag takes it out of new cards at once; step 4), or not
+// Bingo's bank by hand (docs/PLAN-bingo-bank.md step 1), as classic admin's episode page read and wrote it until it retired
+// (docs/PLAN-desk-parity.md step 8; the desk's Bingo bank is desk-bingo.ts):
+//   adminBingoBank   the episode's bank and the season's own, which one its cards deal from, and the prompt for the one asked
+//                    (the desk's Research asks for that prompt)
+//   saveBingoBank    a chat's answer, parsed and filed, replacing that bank
+//   adminFlagSquare  Hide a square (an admin's flag takes it out of new cards at once; step 4), or not
 // The prompt and parse are db/bingo-research.js's; dealing is bingo.ts's (bankFor). Super admins only (the route says so).
 
 export interface AdminBankSquare {

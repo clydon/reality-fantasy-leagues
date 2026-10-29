@@ -800,7 +800,7 @@ const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email 
     await pg.goto(`${BASE}/desk/settings`);
     await pg.locator("[data-desk-row='confirm']").waitFor({ timeout: 20000 });
     const heads = await pg.locator("section h2").allInnerTexts();
-    const want = ["People", "Results", "Our bot", "Rulebooks", "Changes", "Not on the desk yet"];
+    const want = ["People", "Results", "Our bot", "Rulebooks", "Changes"];
     check(want.every((h, i) => heads.map((x) => x.toLowerCase()).indexOf(h.toLowerCase()) === heads.map((x) => x.toLowerCase()).indexOf(want[0].toLowerCase()) + i), "Settings: grouped by the question you have", heads.join(" · "));
     check(/waiting/.test(await pg.locator("[data-desk-row='signups']").innerText()), "Who gets in says who's waiting");
     await fits("Settings");

@@ -9,7 +9,7 @@ import { useMutate } from "@/lib/use-mutate";
 import { api, ApiError } from "@/lib/api";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { MoreButton } from "@/components/setup/settings-ui";
-import { ActButton, Notice } from "@/components/admin/admin-ui";
+import { ActButton, Notice } from "@/components/ui/act-ui";
 import { EditPredictionSheet, GuessLine, QuestionLine } from "@/components/predictions/prediction-ui";
 import { cn } from "cn";
 
