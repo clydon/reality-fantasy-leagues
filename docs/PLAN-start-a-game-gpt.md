@@ -7,8 +7,10 @@ them next (the user's, in production). A1–A4 are built on `engine` (A4 in two 
 the screens moved to U1), not yet merged: the main folder merges them (review, checks, the Neon rehearsal, the user's OK).
 A5 to A9 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time; more
 answers; scoring that combines, per question and points per bingo line, then per lineup: a captain, best ball, Outlast in
-reverse, points that multiply by when). Next the format foundation (F1 to F4, one part a session: "Formats nobody
-announced"), then A10 to A14 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+reverse, points that multiply by when). The format foundation (F1 to F4, one part a session: "Formats nobody
+announced") is under way: F1, the study, is done (2026-10-28: [STUDY-format-changes.md](STUDY-format-changes.md), the
+seasons' ground truth as data, `format-study.js`); F2 (the research prompt's format section) is next, then F3, F4, then A10
+to A14 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -392,6 +394,52 @@ teams read the format's state rather than guess it), the engine track does the f
   the show brought it in (announced ahead, at the episode's start, mid-episode, at its end). Then today's prompt against it:
   for each change, what that episode's research said, where, and whether the engine could act on it. Written up as its own
   doc for the user.
+
+  **As built (F1, 2026-10-28, on `engine`, not merged; no migration, no engine change).** One session, after `lane.js sync
+  engine` (already up to date; 906 tests).
+  - **The doc:** [STUDY-format-changes.md](STUDY-format-changes.md), for the user: how it was made, nine findings, each
+    season's changes and what research said, the proposals for F2 (the change vocabulary, the format state's shape, the
+    prompt section: the user's to approve at F2's merge), what it means for F3, A10, A11 and A12, six open questions, and the
+    generated timelines.
+  - **The ground truth as data:** `tests/fixtures/format-timelines/<show>-<season>.json` for The Challenge 41, 40 and 39,
+    Survivor 49 and The Traitors 4, made once from each season's Wikipedia page (the raw wikitext's tables; the revision in
+    each file; the parse a one-off, kept out of the repo) under the tapes' cast names. Each episode's phase, how it was played
+    (`everyone | tribes | teams | pairs | individuals | mixed | none`), who went home and how, who came in; each grouping as
+    **spells** (who was with whom, `from` [episode, start | mid], `shown` [episode, start | mid | end]); a fixed grouping
+    marked `label` (Vets / New Threats); the season's twists, phases and role changes with their words.
+  - **`scripts/dev-test/format-study.js`** (no database, bot or network): the timelines, every change worked out by
+    comparing one spell with the next (its kind from the proposed vocabulary, `brought`: at the start, mid-episode, at the end
+    of the episode before, announced ahead), how long each group lasted (`lifetimes`, with or without an exit ending a group;
+    groups shown but never played apart), the state at an episode's end (`stateAtEnd`, what F2 scores against), and, for a
+    season on tape, what research said about each change (`researchSays`: the structured fields the engine reads, `newGroup`,
+    `merged`, the roles, and the free text it doesn't, `rulesNote`, `summary`, `notableTwist` with how many of the change's new
+    groups a note names together; in the episode it was shown, took effect, and the one after, marked late). `--md` prints
+    the doc's tables; `--check` each fixture's problems.
+  - **Findings, in short:** of 35 changes on tape the engine could act on one (The Traitors 4's recruit); The Challenge's
+    prompt asks about the cast's group (Vets / New Threats, eras) under the built-in format's word, "agency", so its pairs are
+    never data; the pairs are in `notableTwist`, a person at a time, without saying whether they're this episode's or the
+    next's; the Lock In left no pairs at all; a format change also broke who went home (Episode 12's pair exit, Episode 16's
+    claim, a wrong exit cascading); a newcomer (Jonna) is never in the cast; groupings lasted one episode each on The Challenge
+    41's rotating pairs and all of The Challenge 39, up to the whole season elsewhere.
+  - **The Challenge 40** finished its full research during the step and is loaded into this lane's database (`tapes.js load
+    the-challenge 40`): its first golden replay, `golden.js --seasons="the-challenge 40"`, 22 games, 3,772 reads, every one the
+    same. No engine code changed, so no other replay was needed.
+  - **Tests:** `tests/format-study.test.js` (new, 13): every fixture sound and naming its revision; a broken one's problems
+    (reported, never thrown on; other files in the folder skipped);
+    when a spell plays; lifetimes (a re-pairing, a mid-episode claim, down to one, a re-formed group a new run, never played,
+    a tribe losing someone with and without exits ending it); changes (a swap of every group, a claim, a split, a merge, teams
+    formed, a change of play with no spell, a newcomer in a leaver's place, when each came in); what research said (free text,
+    `newGroup` acted on, late, nothing, not on tape; a twist's words with hyphens; a recruit); the state at an episode's end;
+    the review's cases (a stray `newGroup`, a group's whole name, a shrunken tribe kept mid-episode, moves to and from being
+    alone, a newcomer who came in earlier); and the studied seasons' numbers. `npm test` 919.
+  - **Code review** (`/code-review`, before the commit; it ran this time). Taken: `newGroup` counted only on someone the
+    change moved and only for a grouping change (it counted anyone's, for any change); a tribe that lost someone could read
+    as changed in an episode a mid-episode spell kept it (a line keeps every member list it played under); a move between a
+    group and being alone wasn't a move, and a newcomer counted only in the episode they came in; a malformed fixture threw
+    instead of being reported (and `shown`, a twist's moments and `playShown` weren't checked); a group's name matched by its
+    first word ("New Threats" by "new"), and a first name another of the cast shares; a non-fixture file in the folder threw;
+    the command line ran every season on one argument; a dead branch for spells from an episode's end; regexes compiled per
+    call. Declined: none.
 - **F2. The research prompt's format section,** the same for any show: the format's state at the episode's end, as data (the
   grouping, who's with whom, the phase), and what changed in the episode, as a kind from a small vocabulary with the episode
   it took effect, and how sure. Proven by asking recorded episodes again with it, through the local bot only, and scoring the
@@ -2362,6 +2410,36 @@ From A9 part 2 (2026-10-28):
   (F1, which studies it.)
 - `/code-review` ended the session twice when started here. If it happens again, the review is done by hand and recorded.
   (The session loop's keeper, or whoever next looks at it.)
+
+From F1 (2026-10-28; the details in [STUDY-format-changes.md](STUDY-format-changes.md)):
+- **Questions for the user (each with a recommendation; F3 and A10 build on them):**
+  1. Does someone going home end their group? Recommended: no for a tribe or a team, yes for a pair (one person isn't a pair);
+     any join or move ends it. (F3, A10.)
+  2. A group shown at an episode's end that changes before the next one starts (The Challenge 41's Cara Maria & Leo, Theo &
+     Dee), with a slot already picked on it. Recommended: the slot is void for that episode, no points either way, and
+     reopens for the next. (A10.)
+  3. A group that changes mid-episode (The Challenge 41's claim in 16). Recommended: the group in force at the episode's start
+     scored it (a slot keeps those points) and the slot drops after it. (A10, A12.)
+  4. The same members together again later. Recommended: a new group, not the old one carrying on. (F3.)
+  5. "Major" by default for a stage started by a change. Recommended: teams formed, pairs formed, split into individuals, the
+     merge, and a swap where every group is new. (A12, the format-change design session.)
+  6. The change vocabulary, the format state's shape and the prompt section (the study's proposals). (The user, at F2's
+     merge.)
+- The Challenge's built-in format calls its groups "agency" (from *Spies, Lies & Allies*), and every Challenge season's prompt
+  uses it ("If agencys were swapped..."): the group's word should come from the season (pairs, teams, eras), and the plural
+  is spelt by adding "s". (F2.)
+- A newcomer (The Challenge 41's Jonna Mannion, an alternate from Episode 5) is never in a season's cast, so research never
+  had an entry for her and nothing could give her a result, a group or an exit. (F2: `newcomers`; F3 adds them to the cast.)
+- A wrong exit cascades on the tapes: The Challenge 41's Episode 11 full research had Leo and Will leaving (citing later
+  episodes) instead of Gabe and Jonna, so the next prompts left Leo and Will out (their real exits in 14 and 16 couldn't be
+  reported) and kept Gabe in; Episode 12's kept Dee in (a pair goes home together from Episode 10); Episode 11's quick check
+  found nobody though its headline names Gabe and Jonna. (The playtest lane's report; F2's `wentHomeAs` gives our code a
+  check: a pair's exit with one partner reported.)
+- Survivor 49's research on tape is production's, stored before `newGroup` and `merged` existed: its swaps can't show today's
+  prompt. (F2 asks episodes 3-8 again.)
+- The Challenge 39 isn't on tape (the recorder hadn't reached it during F1); its timeline is in the fixtures under
+  Wikipedia's short names. Once it's recorded, `format-study.js` reads its research as it does the others' if its fixture's
+  names are moved to the tapes' cast names. (F2 or F4.)
 
 From A7 (2026-10-28):
 - The late lock is a game of questions' only: lineups and picks still lock at airtime, whoever watches when. (A15, each

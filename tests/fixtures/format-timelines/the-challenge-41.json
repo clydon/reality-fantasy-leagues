@@ -1,0 +1,1634 @@
+{
+ "show": "the-challenge",
+ "season": 41,
+ "title": "Vets & New Threats",
+ "source": {
+  "page": "The Challenge: Vets & New Threats",
+  "site": "en.wikipedia.org",
+  "revision": 1381250897,
+  "sections": [
+   "Format",
+   "Game summary",
+   "Team progress"
+  ],
+  "read": "2026-10-28"
+ },
+ "names": "tapes",
+ "episodes": [
+  {
+   "n": 1,
+   "phase": "Rotating pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Rogan O’Connor",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Male cycle (a coin toss): the last-place pair's man and the man the house votes in face off in the Arena."
+  },
+  {
+   "n": 2,
+   "phase": "Rotating pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Blue Kim",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 3,
+   "phase": "Rotating pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Nia Moore",
+     "how": "medical"
+    }
+   ],
+   "note": "Nia was waiting on an MRI, so Gabe & Nia were placed last; she was medically removed and no Arena was held."
+  },
+  {
+   "n": 4,
+   "phase": "Rotating pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Johnny \"Bananas\" Devenanzio",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 5,
+   "phase": "Rotating pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Cara Maria Sorbello",
+     "how": "quit"
+    },
+    {
+     "name": "Ben Davis",
+     "how": "eliminated"
+    }
+   ],
+   "in": [
+    {
+     "name": "Jonna Mannion",
+     "how": "replacement",
+     "for": "Cara Maria Sorbello"
+    }
+   ],
+   "note": "A tied house vote broken by a coin toss."
+  },
+  {
+   "n": 6,
+   "phase": "Rotating pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Leka Sodade",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 7,
+   "phase": "Rotating pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Izzy Fairthorne",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 8,
+   "phase": "Rotating pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Derek Chavez",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 9,
+   "phase": "Mini-Final",
+   "play": "individuals",
+   "out": [],
+   "note": "Broken Dreams, an individual challenge worth 1.5x points, annulled for cheating: nobody scored, nobody went home."
+  },
+  {
+   "n": 10,
+   "phase": "Locked pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "CT Tamburello",
+     "how": "eliminated"
+    },
+    {
+     "name": "Tay Wilcoxson",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 11,
+   "phase": "Locked pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Gabe Wai",
+     "how": "eliminated"
+    },
+    {
+     "name": "Jonna Mannion",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Gabe claimed Nany and lost the race to Justin, so Gabe & Jonna went to the Arena in place of a vote."
+  },
+  {
+   "n": 12,
+   "phase": "Locked pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Dee Valladares",
+     "how": "eliminated"
+    },
+    {
+     "name": "Derrick Kosinski",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 13,
+   "phase": "Locked pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "America Lopez",
+     "how": "eliminated"
+    },
+    {
+     "name": "Leroy Garrett",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 14,
+   "phase": "Locked pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Ashley Mitchell",
+     "how": "eliminated"
+    },
+    {
+     "name": "Leonardo Dionicio",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 15,
+   "phase": "Locked pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Aneesa Ferreira",
+     "how": "eliminated"
+    },
+    {
+     "name": "Jake Cornish",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 16,
+   "phase": "Locked pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Aviv Melmed",
+     "how": "eliminated"
+    },
+    {
+     "name": "Will Gagnon",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Yeremi claimed Olivia mid-episode and won; the new Aviv & Will were then voted into the Arena (a coin toss) and lost."
+  },
+  {
+   "n": 17,
+   "phase": "Locked pairs",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Justin Hinsley",
+     "how": "eliminated"
+    },
+    {
+     "name": "Nany González",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 18,
+   "phase": "Final",
+   "play": "pairs",
+   "out": [],
+   "note": "The final: four pairs, a Stake a Claim offered before the overnight stage (nobody switched)."
+  },
+  {
+   "n": 19,
+   "phase": "Final",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Adrienne Naylor",
+     "how": "disqualified"
+    },
+    {
+     "name": "Theo Campbell",
+     "how": "disqualified"
+    },
+    {
+     "name": "Cedric Hodges",
+     "how": "placed"
+    },
+    {
+     "name": "Michaela Bradshaw",
+     "how": "placed"
+    },
+    {
+     "name": "Sydney Segal",
+     "how": "placed"
+    },
+    {
+     "name": "Turbo",
+     "how": "placed"
+    },
+    {
+     "name": "Olivia Kaiser",
+     "how": "won"
+    },
+    {
+     "name": "Yeremi Hykel",
+     "how": "won"
+    }
+   ]
+  },
+  {
+   "n": 20,
+   "phase": "Reunion",
+   "play": "none",
+   "out": []
+  },
+  {
+   "n": 21,
+   "phase": "Reunion",
+   "play": "none",
+   "out": []
+  }
+ ],
+ "groupings": {
+  "stripe": {
+   "label": true,
+   "what": "Vet or New Threat: every pair had one of each (until the final's Stake a Claim).",
+   "spells": [
+    {
+     "from": [
+      1,
+      "start"
+     ],
+     "shown": [
+      1,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Vets",
+       "members": [
+        "Aneesa Ferreira",
+        "Ashley Mitchell",
+        "Aviv Melmed",
+        "CT Tamburello",
+        "Cara Maria Sorbello",
+        "Derek Chavez",
+        "Derrick Kosinski",
+        "Johnny \"Bananas\" Devenanzio",
+        "Leroy Garrett",
+        "Michaela Bradshaw",
+        "Nany González",
+        "Nia Moore",
+        "Olivia Kaiser",
+        "Rogan O’Connor",
+        "Theo Campbell",
+        "Turbo"
+       ]
+      },
+      {
+       "name": "New Threats",
+       "members": [
+        "Adrienne Naylor",
+        "America Lopez",
+        "Ben Davis",
+        "Blue Kim",
+        "Cedric Hodges",
+        "Dee Valladares",
+        "Gabe Wai",
+        "Izzy Fairthorne",
+        "Jake Cornish",
+        "Justin Hinsley",
+        "Leka Sodade",
+        "Leonardo Dionicio",
+        "Sydney Segal",
+        "Tay Wilcoxson",
+        "Will Gagnon",
+        "Yeremi Hykel"
+       ]
+      }
+     ]
+    },
+    {
+     "from": [
+      5,
+      "start"
+     ],
+     "shown": [
+      5,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Vets",
+       "members": [
+        "Aneesa Ferreira",
+        "Ashley Mitchell",
+        "Aviv Melmed",
+        "CT Tamburello",
+        "Cara Maria Sorbello",
+        "Derek Chavez",
+        "Derrick Kosinski",
+        "Jonna Mannion",
+        "Leroy Garrett",
+        "Michaela Bradshaw",
+        "Nany González",
+        "Olivia Kaiser",
+        "Theo Campbell",
+        "Turbo"
+       ]
+      },
+      {
+       "name": "New Threats",
+       "members": [
+        "Adrienne Naylor",
+        "America Lopez",
+        "Ben Davis",
+        "Cedric Hodges",
+        "Dee Valladares",
+        "Gabe Wai",
+        "Izzy Fairthorne",
+        "Jake Cornish",
+        "Justin Hinsley",
+        "Leka Sodade",
+        "Leonardo Dionicio",
+        "Sydney Segal",
+        "Tay Wilcoxson",
+        "Will Gagnon",
+        "Yeremi Hykel"
+       ]
+      }
+     ],
+     "how": "Jonna, a Vet, replaced Cara Maria."
+    }
+   ]
+  },
+  "pair": {
+   "what": "Male-female pairs, one Vet and one New Threat.",
+   "spells": [
+    {
+     "from": [
+      1,
+      "start"
+     ],
+     "shown": [
+      1,
+      "start"
+     ],
+     "groups": [
+      {
+       "members": [
+        "Adrienne Naylor",
+        "Rogan O’Connor"
+       ]
+      },
+      {
+       "members": [
+        "America Lopez",
+        "Turbo"
+       ]
+      },
+      {
+       "members": [
+        "Aneesa Ferreira",
+        "Leonardo Dionicio"
+       ]
+      },
+      {
+       "members": [
+        "Ashley Mitchell",
+        "Gabe Wai"
+       ]
+      },
+      {
+       "members": [
+        "Aviv Melmed",
+        "Yeremi Hykel"
+       ]
+      },
+      {
+       "members": [
+        "Ben Davis",
+        "Nany González"
+       ]
+      },
+      {
+       "members": [
+        "Blue Kim",
+        "Derek Chavez"
+       ]
+      },
+      {
+       "members": [
+        "CT Tamburello",
+        "Tay Wilcoxson"
+       ]
+      },
+      {
+       "members": [
+        "Cara Maria Sorbello",
+        "Jake Cornish"
+       ]
+      },
+      {
+       "members": [
+        "Cedric Hodges",
+        "Olivia Kaiser"
+       ]
+      },
+      {
+       "members": [
+        "Dee Valladares",
+        "Johnny \"Bananas\" Devenanzio"
+       ]
+      },
+      {
+       "members": [
+        "Derrick Kosinski",
+        "Leka Sodade"
+       ]
+      },
+      {
+       "members": [
+        "Izzy Fairthorne",
+        "Theo Campbell"
+       ]
+      },
+      {
+       "members": [
+        "Justin Hinsley",
+        "Nia Moore"
+       ]
+      },
+      {
+       "members": [
+        "Leroy Garrett",
+        "Sydney Segal"
+       ]
+      },
+      {
+       "members": [
+        "Michaela Bradshaw",
+        "Will Gagnon"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drafted in the launch special before Episode 1, in the order of the Selection race."
+    },
+    {
+     "from": [
+      2,
+      "start"
+     ],
+     "shown": [
+      1,
+      "end"
+     ],
+     "groups": [
+      {
+       "members": [
+        "America Lopez",
+        "CT Tamburello"
+       ]
+      },
+      {
+       "members": [
+        "Aneesa Ferreira",
+        "Justin Hinsley"
+       ]
+      },
+      {
+       "members": [
+        "Ashley Mitchell",
+        "Cedric Hodges"
+       ]
+      },
+      {
+       "members": [
+        "Aviv Melmed",
+        "Jake Cornish"
+       ]
+      },
+      {
+       "members": [
+        "Ben Davis",
+        "Nia Moore"
+       ]
+      },
+      {
+       "members": [
+        "Blue Kim",
+        "Derrick Kosinski"
+       ]
+      },
+      {
+       "members": [
+        "Cara Maria Sorbello",
+        "Gabe Wai"
+       ]
+      },
+      {
+       "members": [
+        "Dee Valladares",
+        "Leroy Garrett"
+       ]
+      },
+      {
+       "members": [
+        "Derek Chavez",
+        "Tay Wilcoxson"
+       ]
+      },
+      {
+       "members": [
+        "Izzy Fairthorne",
+        "Johnny \"Bananas\" Devenanzio"
+       ]
+      },
+      {
+       "members": [
+        "Leka Sodade",
+        "Turbo"
+       ]
+      },
+      {
+       "members": [
+        "Leonardo Dionicio",
+        "Michaela Bradshaw"
+       ]
+      },
+      {
+       "members": [
+        "Nany González",
+        "Yeremi Hykel"
+       ]
+      },
+      {
+       "members": [
+        "Olivia Kaiser",
+        "Will Gagnon"
+       ]
+      },
+      {
+       "members": [
+        "Sydney Segal",
+        "Theo Campbell"
+       ]
+      }
+     ],
+     "alone": [
+      "Adrienne Naylor"
+     ],
+     "how": "New partners chosen after Episode 1's elimination, in daily-challenge order."
+    },
+    {
+     "from": [
+      3,
+      "start"
+     ],
+     "shown": [
+      2,
+      "end"
+     ],
+     "groups": [
+      {
+       "members": [
+        "Adrienne Naylor",
+        "Theo Campbell"
+       ]
+      },
+      {
+       "members": [
+        "America Lopez",
+        "Johnny \"Bananas\" Devenanzio"
+       ]
+      },
+      {
+       "members": [
+        "Aneesa Ferreira",
+        "Yeremi Hykel"
+       ]
+      },
+      {
+       "members": [
+        "Ashley Mitchell",
+        "Jake Cornish"
+       ]
+      },
+      {
+       "members": [
+        "Aviv Melmed",
+        "Leonardo Dionicio"
+       ]
+      },
+      {
+       "members": [
+        "Ben Davis",
+        "Cara Maria Sorbello"
+       ]
+      },
+      {
+       "members": [
+        "CT Tamburello",
+        "Dee Valladares"
+       ]
+      },
+      {
+       "members": [
+        "Cedric Hodges",
+        "Michaela Bradshaw"
+       ]
+      },
+      {
+       "members": [
+        "Derek Chavez",
+        "Sydney Segal"
+       ]
+      },
+      {
+       "members": [
+        "Derrick Kosinski",
+        "Tay Wilcoxson"
+       ]
+      },
+      {
+       "members": [
+        "Gabe Wai",
+        "Nia Moore"
+       ]
+      },
+      {
+       "members": [
+        "Izzy Fairthorne",
+        "Turbo"
+       ]
+      },
+      {
+       "members": [
+        "Justin Hinsley",
+        "Olivia Kaiser"
+       ]
+      },
+      {
+       "members": [
+        "Leka Sodade",
+        "Leroy Garrett"
+       ]
+      },
+      {
+       "members": [
+        "Nany González",
+        "Will Gagnon"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "New partners chosen after Episode 2's elimination, in daily-challenge order."
+    },
+    {
+     "from": [
+      4,
+      "start"
+     ],
+     "shown": [
+      3,
+      "end"
+     ],
+     "groups": [
+      {
+       "members": [
+        "Adrienne Naylor",
+        "CT Tamburello"
+       ]
+      },
+      {
+       "members": [
+        "America Lopez",
+        "Theo Campbell"
+       ]
+      },
+      {
+       "members": [
+        "Aneesa Ferreira",
+        "Will Gagnon"
+       ]
+      },
+      {
+       "members": [
+        "Ashley Mitchell",
+        "Leonardo Dionicio"
+       ]
+      },
+      {
+       "members": [
+        "Aviv Melmed",
+        "Justin Hinsley"
+       ]
+      },
+      {
+       "members": [
+        "Ben Davis",
+        "Michaela Bradshaw"
+       ]
+      },
+      {
+       "members": [
+        "Cara Maria Sorbello",
+        "Cedric Hodges"
+       ]
+      },
+      {
+       "members": [
+        "Dee Valladares",
+        "Derrick Kosinski"
+       ]
+      },
+      {
+       "members": [
+        "Derek Chavez",
+        "Izzy Fairthorne"
+       ]
+      },
+      {
+       "members": [
+        "Jake Cornish",
+        "Nany González"
+       ]
+      },
+      {
+       "members": [
+        "Johnny \"Bananas\" Devenanzio",
+        "Leka Sodade"
+       ]
+      },
+      {
+       "members": [
+        "Leroy Garrett",
+        "Tay Wilcoxson"
+       ]
+      },
+      {
+       "members": [
+        "Olivia Kaiser",
+        "Yeremi Hykel"
+       ]
+      },
+      {
+       "members": [
+        "Sydney Segal",
+        "Turbo"
+       ]
+      }
+     ],
+     "alone": [
+      "Gabe Wai"
+     ],
+     "how": "New partners chosen after Episode 3's elimination, in daily-challenge order."
+    },
+    {
+     "from": [
+      5,
+      "start"
+     ],
+     "shown": [
+      4,
+      "end"
+     ],
+     "groups": [
+      {
+       "members": [
+        "Adrienne Naylor",
+        "Turbo"
+       ]
+      },
+      {
+       "members": [
+        "America Lopez",
+        "Leroy Garrett"
+       ]
+      },
+      {
+       "members": [
+        "Aneesa Ferreira",
+        "Cedric Hodges"
+       ]
+      },
+      {
+       "members": [
+        "Ashley Mitchell",
+        "Yeremi Hykel"
+       ]
+      },
+      {
+       "members": [
+        "Aviv Melmed",
+        "Will Gagnon"
+       ]
+      },
+      {
+       "members": [
+        "Ben Davis",
+        "Olivia Kaiser"
+       ]
+      },
+      {
+       "members": [
+        "CT Tamburello",
+        "Sydney Segal"
+       ]
+      },
+      {
+       "members": [
+        "Cara Maria Sorbello",
+        "Leonardo Dionicio"
+       ]
+      },
+      {
+       "members": [
+        "Dee Valladares",
+        "Derek Chavez"
+       ]
+      },
+      {
+       "members": [
+        "Derrick Kosinski",
+        "Izzy Fairthorne"
+       ]
+      },
+      {
+       "members": [
+        "Gabe Wai",
+        "Leka Sodade"
+       ]
+      },
+      {
+       "members": [
+        "Jake Cornish",
+        "Michaela Bradshaw"
+       ]
+      },
+      {
+       "members": [
+        "Justin Hinsley",
+        "Nany González"
+       ]
+      },
+      {
+       "members": [
+        "Tay Wilcoxson",
+        "Theo Campbell"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "New partners chosen after Episode 4's elimination, in daily-challenge order."
+    },
+    {
+     "from": [
+      5,
+      "start"
+     ],
+     "shown": [
+      5,
+      "start"
+     ],
+     "groups": [
+      {
+       "members": [
+        "Adrienne Naylor",
+        "Turbo"
+       ]
+      },
+      {
+       "members": [
+        "America Lopez",
+        "Leroy Garrett"
+       ]
+      },
+      {
+       "members": [
+        "Aneesa Ferreira",
+        "Cedric Hodges"
+       ]
+      },
+      {
+       "members": [
+        "Ashley Mitchell",
+        "Yeremi Hykel"
+       ]
+      },
+      {
+       "members": [
+        "Aviv Melmed",
+        "Will Gagnon"
+       ]
+      },
+      {
+       "members": [
+        "Ben Davis",
+        "Olivia Kaiser"
+       ]
+      },
+      {
+       "members": [
+        "CT Tamburello",
+        "Sydney Segal"
+       ]
+      },
+      {
+       "members": [
+        "Dee Valladares",
+        "Derek Chavez"
+       ]
+      },
+      {
+       "members": [
+        "Derrick Kosinski",
+        "Izzy Fairthorne"
+       ]
+      },
+      {
+       "members": [
+        "Gabe Wai",
+        "Leka Sodade"
+       ]
+      },
+      {
+       "members": [
+        "Jake Cornish",
+        "Michaela Bradshaw"
+       ]
+      },
+      {
+       "members": [
+        "Jonna Mannion",
+        "Leonardo Dionicio"
+       ]
+      },
+      {
+       "members": [
+        "Justin Hinsley",
+        "Nany González"
+       ]
+      },
+      {
+       "members": [
+        "Tay Wilcoxson",
+        "Theo Campbell"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Cara Maria withdrew before the daily; Jonna came in as her replacement and took her place beside Leo."
+    },
+    {
+     "from": [
+      6,
+      "start"
+     ],
+     "shown": [
+      5,
+      "end"
+     ],
+     "groups": [
+      {
+       "members": [
+        "Adrienne Naylor",
+        "Derek Chavez"
+       ]
+      },
+      {
+       "members": [
+        "America Lopez",
+        "Derrick Kosinski"
+       ]
+      },
+      {
+       "members": [
+        "Aneesa Ferreira",
+        "Gabe Wai"
+       ]
+      },
+      {
+       "members": [
+        "Ashley Mitchell",
+        "Will Gagnon"
+       ]
+      },
+      {
+       "members": [
+        "Aviv Melmed",
+        "Cedric Hodges"
+       ]
+      },
+      {
+       "members": [
+        "CT Tamburello",
+        "Leka Sodade"
+       ]
+      },
+      {
+       "members": [
+        "Dee Valladares",
+        "Justin Hinsley"
+       ]
+      },
+      {
+       "members": [
+        "Izzy Fairthorne",
+        "Leroy Garrett"
+       ]
+      },
+      {
+       "members": [
+        "Jake Cornish",
+        "Jonna Mannion"
+       ]
+      },
+      {
+       "members": [
+        "Leonardo Dionicio",
+        "Sydney Segal"
+       ]
+      },
+      {
+       "members": [
+        "Michaela Bradshaw",
+        "Yeremi Hykel"
+       ]
+      },
+      {
+       "members": [
+        "Nany González",
+        "Theo Campbell"
+       ]
+      },
+      {
+       "members": [
+        "Tay Wilcoxson",
+        "Turbo"
+       ]
+      }
+     ],
+     "alone": [
+      "Olivia Kaiser"
+     ],
+     "how": "New partners chosen after Episode 5's elimination, in daily-challenge order."
+    },
+    {
+     "from": [
+      7,
+      "start"
+     ],
+     "shown": [
+      6,
+      "end"
+     ],
+     "groups": [
+      {
+       "members": [
+        "Adrienne Naylor",
+        "Leroy Garrett"
+       ]
+      },
+      {
+       "members": [
+        "America Lopez",
+        "Derek Chavez"
+       ]
+      },
+      {
+       "members": [
+        "Aneesa Ferreira",
+        "CT Tamburello"
+       ]
+      },
+      {
+       "members": [
+        "Ashley Mitchell",
+        "Theo Campbell"
+       ]
+      },
+      {
+       "members": [
+        "Aviv Melmed",
+        "Gabe Wai"
+       ]
+      },
+      {
+       "members": [
+        "Cedric Hodges",
+        "Jonna Mannion"
+       ]
+      },
+      {
+       "members": [
+        "Dee Valladares",
+        "Turbo"
+       ]
+      },
+      {
+       "members": [
+        "Derrick Kosinski",
+        "Sydney Segal"
+       ]
+      },
+      {
+       "members": [
+        "Izzy Fairthorne",
+        "Will Gagnon"
+       ]
+      },
+      {
+       "members": [
+        "Jake Cornish",
+        "Olivia Kaiser"
+       ]
+      },
+      {
+       "members": [
+        "Justin Hinsley",
+        "Michaela Bradshaw"
+       ]
+      },
+      {
+       "members": [
+        "Leonardo Dionicio",
+        "Nany González"
+       ]
+      },
+      {
+       "members": [
+        "Tay Wilcoxson",
+        "Yeremi Hykel"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "New partners chosen after Episode 6's elimination, in daily-challenge order."
+    },
+    {
+     "from": [
+      8,
+      "start"
+     ],
+     "shown": [
+      7,
+      "end"
+     ],
+     "groups": [
+      {
+       "members": [
+        "Adrienne Naylor",
+        "Derrick Kosinski"
+       ]
+      },
+      {
+       "members": [
+        "America Lopez",
+        "Gabe Wai"
+       ]
+      },
+      {
+       "members": [
+        "Aneesa Ferreira",
+        "Jake Cornish"
+       ]
+      },
+      {
+       "members": [
+        "Ashley Mitchell",
+        "Justin Hinsley"
+       ]
+      },
+      {
+       "members": [
+        "Aviv Melmed",
+        "Derek Chavez"
+       ]
+      },
+      {
+       "members": [
+        "CT Tamburello",
+        "Michaela Bradshaw"
+       ]
+      },
+      {
+       "members": [
+        "Cedric Hodges",
+        "Nany González"
+       ]
+      },
+      {
+       "members": [
+        "Dee Valladares",
+        "Theo Campbell"
+       ]
+      },
+      {
+       "members": [
+        "Jonna Mannion",
+        "Turbo"
+       ]
+      },
+      {
+       "members": [
+        "Leonardo Dionicio",
+        "Olivia Kaiser"
+       ]
+      },
+      {
+       "members": [
+        "Leroy Garrett",
+        "Tay Wilcoxson"
+       ]
+      },
+      {
+       "members": [
+        "Sydney Segal",
+        "Yeremi Hykel"
+       ]
+      }
+     ],
+     "alone": [
+      "Will Gagnon"
+     ],
+     "how": "New partners chosen after Episode 7's elimination, in daily-challenge order."
+    },
+    {
+     "from": [
+      8,
+      "start"
+     ],
+     "shown": [
+      8,
+      "start"
+     ],
+     "groups": [
+      {
+       "members": [
+        "Adrienne Naylor",
+        "Derrick Kosinski"
+       ]
+      },
+      {
+       "members": [
+        "America Lopez",
+        "Gabe Wai"
+       ]
+      },
+      {
+       "members": [
+        "Aneesa Ferreira",
+        "Jake Cornish"
+       ]
+      },
+      {
+       "members": [
+        "Ashley Mitchell",
+        "Justin Hinsley"
+       ]
+      },
+      {
+       "members": [
+        "Aviv Melmed",
+        "Derek Chavez"
+       ]
+      },
+      {
+       "members": [
+        "CT Tamburello",
+        "Michaela Bradshaw"
+       ]
+      },
+      {
+       "members": [
+        "Cedric Hodges",
+        "Nany González"
+       ]
+      },
+      {
+       "members": [
+        "Dee Valladares",
+        "Will Gagnon"
+       ]
+      },
+      {
+       "members": [
+        "Jonna Mannion",
+        "Turbo"
+       ]
+      },
+      {
+       "members": [
+        "Leonardo Dionicio",
+        "Olivia Kaiser"
+       ]
+      },
+      {
+       "members": [
+        "Leroy Garrett",
+        "Tay Wilcoxson"
+       ]
+      },
+      {
+       "members": [
+        "Sydney Segal",
+        "Yeremi Hykel"
+       ]
+      }
+     ],
+     "alone": [
+      "Theo Campbell"
+     ],
+     "how": "Theo was waiting on an MRI, so he was made the Hangnail and Will took his place beside Dee."
+    },
+    {
+     "from": [
+      9,
+      "start"
+     ],
+     "shown": [
+      9,
+      "start"
+     ],
+     "groups": [],
+     "alone": [],
+     "how": "No new pairs after Episode 8: Episode 9 was an individual Mini-Final for Performance Points."
+    },
+    {
+     "from": [
+      10,
+      "start"
+     ],
+     "shown": [
+      9,
+      "end"
+     ],
+     "groups": [
+      {
+       "members": [
+        "Adrienne Naylor",
+        "Theo Campbell"
+       ]
+      },
+      {
+       "members": [
+        "America Lopez",
+        "Leroy Garrett"
+       ]
+      },
+      {
+       "members": [
+        "Aneesa Ferreira",
+        "Jake Cornish"
+       ]
+      },
+      {
+       "members": [
+        "Ashley Mitchell",
+        "Leonardo Dionicio"
+       ]
+      },
+      {
+       "members": [
+        "Aviv Melmed",
+        "Yeremi Hykel"
+       ]
+      },
+      {
+       "members": [
+        "CT Tamburello",
+        "Tay Wilcoxson"
+       ]
+      },
+      {
+       "members": [
+        "Cedric Hodges",
+        "Michaela Bradshaw"
+       ]
+      },
+      {
+       "members": [
+        "Dee Valladares",
+        "Derrick Kosinski"
+       ]
+      },
+      {
+       "members": [
+        "Gabe Wai",
+        "Jonna Mannion"
+       ]
+      },
+      {
+       "members": [
+        "Justin Hinsley",
+        "Nany González"
+       ]
+      },
+      {
+       "members": [
+        "Olivia Kaiser",
+        "Will Gagnon"
+       ]
+      },
+      {
+       "members": [
+        "Sydney Segal",
+        "Turbo"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "The Lock In: partners chosen for the rest of the season, in Performance Points order."
+    },
+    {
+     "from": [
+      16,
+      "mid"
+     ],
+     "shown": [
+      16,
+      "mid"
+     ],
+     "groups": [
+      {
+       "members": [
+        "Adrienne Naylor",
+        "Theo Campbell"
+       ]
+      },
+      {
+       "members": [
+        "Aviv Melmed",
+        "Will Gagnon"
+       ]
+      },
+      {
+       "members": [
+        "Cedric Hodges",
+        "Michaela Bradshaw"
+       ]
+      },
+      {
+       "members": [
+        "Justin Hinsley",
+        "Nany González"
+       ]
+      },
+      {
+       "members": [
+        "Olivia Kaiser",
+        "Yeremi Hykel"
+       ]
+      },
+      {
+       "members": [
+        "Sydney Segal",
+        "Turbo"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Stake a Claim: Yeremi claimed Olivia and beat Will in the race, so Olivia & Yeremi and Aviv & Will."
+    }
+   ]
+  }
+ },
+ "twists": [
+  {
+   "kind": "twist",
+   "from": [
+    2,
+    "start"
+   ],
+   "shown": [
+    1,
+    "end"
+   ],
+   "what": "The Hangnail: whoever's partner went home sits out the next daily and is up for the vote (episodes 2-8, when numbers are odd).",
+   "words": [
+    "hangnail"
+   ]
+  },
+  {
+   "kind": "twist",
+   "from": [
+    1,
+    "start"
+   ],
+   "shown": [
+    1,
+    "start"
+   ],
+   "what": "Performance Points (episodes 1-9), scored from Episode 1; what they're for (the Lock In's order) explained in Episode 7.",
+   "words": [
+    "points"
+   ]
+  },
+  {
+   "kind": "new-phase",
+   "from": [
+    10,
+    "start"
+   ],
+   "shown": [
+    7,
+    "end"
+   ],
+   "what": "The Lock In: permanent partners for the rest of the season, announced in Episode 7, chosen at Episode 9's end.",
+   "words": [
+    "lock-in",
+    "lock in",
+    "permanent"
+   ]
+  },
+  {
+   "kind": "twist",
+   "from": [
+    10,
+    "start"
+   ],
+   "shown": [
+    10,
+    "start"
+   ],
+   "what": "Stake a Claim: once a team, claim another team's partner; win the race and the pairs re-form, lose and both go to the Arena.",
+   "words": [
+    "stake a claim",
+    "claim"
+   ]
+  },
+  {
+   "kind": "new-phase",
+   "from": [
+    18,
+    "start"
+   ],
+   "shown": [
+    17,
+    "end"
+   ],
+   "what": "The final (episodes 18-19): four pairs race; first to the finish wins.",
+   "words": [
+    "final"
+   ]
+  }
+ ]
+}

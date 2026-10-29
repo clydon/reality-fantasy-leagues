@@ -1,0 +1,873 @@
+{
+ "show": "the-challenge",
+ "season": 39,
+ "title": "Battle for a New Champion",
+ "source": {
+  "page": "The Challenge: Battle for a New Champion",
+  "site": "en.wikipedia.org",
+  "revision": 1382039007,
+  "sections": [
+   "Format",
+   "Game summary",
+   "Team progress"
+  ],
+  "read": "2026-10-28"
+ },
+ "names": "wikipedia",
+ "episodes": [
+  {
+   "n": 1,
+   "phase": "Control",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Jessica",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 2,
+   "phase": "Control",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Chauncey",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 3,
+   "phase": "Control",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Jujuy",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 4,
+   "phase": "Control",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Hughie",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 5,
+   "phase": "Chaos",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Ciarran",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Male/female pairs."
+  },
+  {
+   "n": 6,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": [],
+   "note": "Two teams of 6 and one of 7."
+  },
+  {
+   "n": 7,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": [
+    {
+     "name": "Callum",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Five teams of 3 and one of 4."
+  },
+  {
+   "n": 8,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": [
+    {
+     "name": "Big T",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Two teams of 9."
+  },
+  {
+   "n": 9,
+   "phase": "Chaos",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Melissa",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Male/female pairs and one team of three (two arrangements in the episode)."
+  },
+  {
+   "n": 10,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": [],
+   "note": "Two teams of 8."
+  },
+  {
+   "n": 11,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": [],
+   "note": "Four teams of 4."
+  },
+  {
+   "n": 12,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": []
+  },
+  {
+   "n": 13,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": []
+  },
+  {
+   "n": 14,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": [
+    {
+     "name": "Asaf",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Four teams of 4."
+  },
+  {
+   "n": 15,
+   "phase": "Conquest",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Ravyn",
+     "how": "purged"
+    },
+    {
+     "name": "Zara",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Purge: last place out; the three not saved face a Conquest Elimination."
+  },
+  {
+   "n": 16,
+   "phase": "Conquest",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Ed",
+     "how": "purged"
+    },
+    {
+     "name": "Horacio",
+     "how": "eliminated"
+    },
+    {
+     "name": "Kyland",
+     "how": "eliminated"
+    }
+   ],
+   "note": "A double elimination."
+  },
+  {
+   "n": 17,
+   "phase": "Conquest",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Michele",
+     "how": "purged"
+    },
+    {
+     "name": "James",
+     "how": "eliminated"
+    },
+    {
+     "name": "Olivia",
+     "how": "eliminated"
+    }
+   ],
+   "note": "A double elimination."
+  },
+  {
+   "n": 18,
+   "phase": "Final",
+   "play": "mixed",
+   "out": [],
+   "note": "The final: as a group, then random pairs per checkpoint, then individually."
+  },
+  {
+   "n": 19,
+   "phase": "Final",
+   "play": "mixed",
+   "out": []
+  },
+  {
+   "n": 20,
+   "phase": "Reunion",
+   "play": "none",
+   "out": []
+  }
+ ],
+ "groupings": {
+  "team": {
+   "what": "Pairs or teams drawn for each Chaos challenge.",
+   "spells": [
+    {
+     "from": [
+      1,
+      "start"
+     ],
+     "shown": [
+      1,
+      "start"
+     ],
+     "groups": [],
+     "alone": [],
+     "how": "Control: everyone as one group."
+    },
+    {
+     "from": [
+      5,
+      "start"
+     ],
+     "shown": [
+      5,
+      "start"
+     ],
+     "groups": [
+      {
+       "members": [
+        "Asaf",
+        "Michele"
+       ]
+      },
+      {
+       "members": [
+        "Berna",
+        "Emanuel"
+       ]
+      },
+      {
+       "members": [
+        "Big T",
+        "Horacio"
+       ]
+      },
+      {
+       "members": [
+        "Callum",
+        "Colleen"
+       ]
+      },
+      {
+       "members": [
+        "Ciarran",
+        "Zara"
+       ]
+      },
+      {
+       "members": [
+        "Corey",
+        "Ravyn"
+       ]
+      },
+      {
+       "members": [
+        "Ed",
+        "Olivia"
+       ]
+      },
+      {
+       "members": [
+        "James",
+        "Nurys"
+       ]
+      },
+      {
+       "members": [
+        "Jay",
+        "Melissa"
+       ]
+      },
+      {
+       "members": [
+        "Kyland",
+        "Moriah"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      6,
+      "start"
+     ],
+     "shown": [
+      6,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Blue",
+       "members": [
+        "Asaf",
+        "Callum",
+        "Ed",
+        "Michele",
+        "Nurys",
+        "Ravyn"
+       ]
+      },
+      {
+       "name": "Red",
+       "members": [
+        "Berna",
+        "Colleen",
+        "Emanuel",
+        "Horacio",
+        "Kyland",
+        "Zara"
+       ]
+      },
+      {
+       "name": "Turquoise",
+       "members": [
+        "Big T",
+        "Corey",
+        "James",
+        "Jay",
+        "Melissa",
+        "Moriah",
+        "Olivia"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      7,
+      "start"
+     ],
+     "shown": [
+      7,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Team 4",
+       "members": [
+        "Asaf",
+        "Ed",
+        "Moriah",
+        "Nurys"
+       ]
+      },
+      {
+       "name": "Team 6",
+       "members": [
+        "Berna",
+        "Corey",
+        "Ravyn"
+       ]
+      },
+      {
+       "name": "Team 5",
+       "members": [
+        "Big T",
+        "Horacio",
+        "Kyland"
+       ]
+      },
+      {
+       "name": "Team 3",
+       "members": [
+        "Callum",
+        "Michele",
+        "Zara"
+       ]
+      },
+      {
+       "name": "Team 1",
+       "members": [
+        "Colleen",
+        "Jay",
+        "Olivia"
+       ]
+      },
+      {
+       "name": "Team 2",
+       "members": [
+        "Emanuel",
+        "James",
+        "Melissa"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      8,
+      "start"
+     ],
+     "shown": [
+      8,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Blue",
+       "members": [
+        "Asaf",
+        "Big T",
+        "Colleen",
+        "Ed",
+        "Horacio",
+        "Kyland",
+        "Melissa",
+        "Michele",
+        "Olivia"
+       ]
+      },
+      {
+       "name": "Orange",
+       "members": [
+        "Berna",
+        "Corey",
+        "Emanuel",
+        "James",
+        "Jay",
+        "Moriah",
+        "Nurys",
+        "Ravyn",
+        "Zara"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      9,
+      "start"
+     ],
+     "shown": [
+      9,
+      "start"
+     ],
+     "groups": [
+      {
+       "members": [
+        "Asaf",
+        "Ravyn",
+        "Zara"
+       ]
+      },
+      {
+       "members": [
+        "Berna",
+        "Emanuel"
+       ]
+      },
+      {
+       "members": [
+        "Colleen",
+        "Ed"
+       ]
+      },
+      {
+       "members": [
+        "Corey",
+        "Olivia"
+       ]
+      },
+      {
+       "members": [
+        "Horacio",
+        "Nurys"
+       ]
+      },
+      {
+       "members": [
+        "James",
+        "Melissa"
+       ]
+      },
+      {
+       "members": [
+        "Jay",
+        "Moriah"
+       ]
+      },
+      {
+       "members": [
+        "Kyland",
+        "Michele"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      10,
+      "start"
+     ],
+     "shown": [
+      10,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Orange",
+       "members": [
+        "Asaf",
+        "Colleen",
+        "Emanuel",
+        "Horacio",
+        "Jay",
+        "Moriah",
+        "Ravyn",
+        "Zara"
+       ]
+      },
+      {
+       "name": "Blue",
+       "members": [
+        "Berna",
+        "Corey",
+        "Ed",
+        "James",
+        "Kyland",
+        "Michele",
+        "Nurys",
+        "Olivia"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      11,
+      "start"
+     ],
+     "shown": [
+      11,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Team 3",
+       "members": [
+        "Asaf",
+        "Jay",
+        "Olivia",
+        "Ravyn"
+       ]
+      },
+      {
+       "name": "Team 2",
+       "members": [
+        "Berna",
+        "Emanuel",
+        "Horacio",
+        "Zara"
+       ]
+      },
+      {
+       "name": "Team 1",
+       "members": [
+        "Colleen",
+        "Corey",
+        "James",
+        "Moriah"
+       ]
+      },
+      {
+       "name": "Team 4",
+       "members": [
+        "Ed",
+        "Kyland",
+        "Michele",
+        "Nurys"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      12,
+      "start"
+     ],
+     "shown": [
+      12,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Team 1",
+       "members": [
+        "Asaf",
+        "Colleen",
+        "Jay",
+        "Ravyn"
+       ]
+      },
+      {
+       "name": "Team 4",
+       "members": [
+        "Berna",
+        "Ed",
+        "Horacio",
+        "Zara"
+       ]
+      },
+      {
+       "name": "Team 3",
+       "members": [
+        "Corey",
+        "Emanuel",
+        "Nurys",
+        "Olivia"
+       ]
+      },
+      {
+       "name": "Team 2",
+       "members": [
+        "James",
+        "Kyland",
+        "Michele",
+        "Moriah"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      13,
+      "start"
+     ],
+     "shown": [
+      13,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Team 2",
+       "members": [
+        "Asaf",
+        "Colleen",
+        "Horacio",
+        "Michele"
+       ]
+      },
+      {
+       "name": "Team 4",
+       "members": [
+        "Berna",
+        "Corey",
+        "Ed",
+        "Olivia"
+       ]
+      },
+      {
+       "name": "Team 1",
+       "members": [
+        "Emanuel",
+        "Kyland",
+        "Moriah",
+        "Zara"
+       ]
+      },
+      {
+       "name": "Team 3",
+       "members": [
+        "James",
+        "Jay",
+        "Nurys",
+        "Ravyn"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      14,
+      "start"
+     ],
+     "shown": [
+      14,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Blue",
+       "members": [
+        "Asaf",
+        "Horacio",
+        "Olivia",
+        "Zara"
+       ]
+      },
+      {
+       "name": "Turquoise",
+       "members": [
+        "Berna",
+        "Corey",
+        "Emanuel",
+        "Ravyn"
+       ]
+      },
+      {
+       "name": "Yellow",
+       "members": [
+        "Colleen",
+        "Ed",
+        "Jay",
+        "Nurys"
+       ]
+      },
+      {
+       "name": "Orange",
+       "members": [
+        "James",
+        "Kyland",
+        "Michele",
+        "Moriah"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      15,
+      "start"
+     ],
+     "shown": [
+      15,
+      "start"
+     ],
+     "groups": [],
+     "alone": [],
+     "how": "Conquest: everyone for themselves."
+    }
+   ]
+  }
+ },
+ "twists": [
+  {
+   "kind": "twist",
+   "from": [
+    1,
+    "start"
+   ],
+   "shown": [
+    1,
+    "start"
+   ],
+   "what": "The prize pot moves with challenges and eliminations.",
+   "words": [
+    "pot"
+   ]
+  },
+  {
+   "kind": "new-phase",
+   "from": [
+    5,
+    "start"
+   ],
+   "shown": [
+    5,
+    "start"
+   ],
+   "what": "Chaos: pairs or teams, and a former champion in every Arena (the Draw).",
+   "words": [
+    "chaos",
+    "champion"
+   ]
+  },
+  {
+   "kind": "new-phase",
+   "from": [
+    15,
+    "start"
+   ],
+   "shown": [
+    15,
+    "start"
+   ],
+   "what": "Conquest: individual, last place purged, a chain of safety.",
+   "words": [
+    "conquest",
+    "purge"
+   ]
+  },
+  {
+   "kind": "twist",
+   "from": [
+    16,
+    "start"
+   ],
+   "shown": [
+    16,
+    "mid"
+   ],
+   "what": "Double eliminations in 16 and 17.",
+   "words": [
+    "double"
+   ]
+  },
+  {
+   "kind": "new-phase",
+   "from": [
+    18,
+    "start"
+   ],
+   "shown": [
+    17,
+    "end"
+   ],
+   "what": "The final.",
+   "words": [
+    "final"
+   ]
+  }
+ ]
+}
