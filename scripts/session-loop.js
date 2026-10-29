@@ -38,6 +38,9 @@
 // ends its final message with a ```session-loop block: {"status":"next","prompt":...,"model":...,"effort":...},
 // {"status":"needs_input","question":...} or {"status":"done","reason":...}. AskUserQuestion is switched off (nobody's
 // there to answer mid-session) and pushing or merging is refused, whatever a prompt says: the loop never ships anything.
+// Standing notes for the lane: .session-loop/notes.md, if it's there, goes into protocol.md under those rules, read again
+// before every session starts (a resumed one too), so a note added while the loop runs reaches its next session and a loop
+// started again (by `lane.js keep`, say) keeps it.
 // Needs the `claude` CLI on PATH, signed in. Windows, macOS and Linux.
 const fs = require("fs");
 const path = require("path");
@@ -50,6 +53,7 @@ const DIR = process.env.SESSION_LOOP_DIR ? path.resolve(process.env.SESSION_LOOP
 const LOGS = path.join(DIR, "logs");
 const STATE = path.join(DIR, "state.json");
 const PROTOCOL = path.join(DIR, "protocol.md");
+const NOTES = path.join(DIR, "notes.md");
 const STOP = path.join(DIR, "STOP");
 const PAUSE = path.join(DIR, "PAUSE");
 const SCREENS = path.join(DIR, "screens");
@@ -94,6 +98,17 @@ They can pause you at any moment and resume this same session later.
 
   The block is one line of valid JSON: escape newlines in strings as \\n.
 `;
+
+/** protocol.md as a session starts: the rules above, then the lane's standing notes (notes.md) as they are now. */
+function writeProtocol() {
+  let notes = "";
+  try {
+    notes = fs.readFileSync(NOTES, "utf8").trim();
+  } catch {
+    /* no notes */
+  }
+  fs.writeFileSync(PROTOCOL, notes ? `${PROTOCOL_TEXT}\n${notes}\n` : PROTOCOL_TEXT);
+}
 
 // ---- state and the commands for another terminal ----
 
@@ -306,6 +321,7 @@ function ask(question, { until } = {}) {
  */
 function runSession({ prompt, model, effort, name, resume, opts, logBase, onLimits, onSession }) {
   const cli = ["-p", "--output-format", "stream-json", "--verbose", "--permission-mode", opts.permissionMode, "--permission-prompts", "none"];
+  writeProtocol();
   cli.push("--append-system-prompt-file", PROTOCOL, "--disallowedTools", ...DENIED);
   if (model) cli.push("--model", model);
   if (effort) cli.push("--effort", effort);
@@ -479,7 +495,6 @@ function args() {
 async function main() {
   const opts = args();
   fs.mkdirSync(LOGS, { recursive: true });
-  fs.writeFileSync(PROTOCOL, PROTOCOL_TEXT);
   if (fs.existsSync(PAUSE)) fs.rmSync(PAUSE); // starting the loop is resuming it
   if (!fs.existsSync(GALLERY)) drawGallery();
   console.log(dim(`Screenshots the sessions look at: ${fileUrl(GALLERY)}`));
