@@ -295,11 +295,11 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
   const callsGame = !!type.hasCalls || !!type.hasBingo || !!type.hasQuestions;
   const calls = StateLogic.pickEmCallsOn(view) || callsGame;
   const bots = new Set(view.players.filter((p) => p.automated).map((p) => p.id));
-  const key = (r: ScoreRow) => (callsGame ? [right(r.playerId)] : pool ? [r.longestStreak ?? 0, r.total] : [r.total]);
-  const rows = [...StateLogic.computeScores(view)].sort((a, b) => {
-    const [x, y] = [key(a), key(b)];
-    return y[0] - x[0] || (y[1] ?? 0) - (x[1] ?? 0);
-  });
+  // A pool with lives ranked by who's still standing (step A10 part 2) by the engine's own order.
+  const standing = pool && StateLogic.gameOf(view).rank.by === "standing";
+  const key = (r: ScoreRow): number[] =>
+    callsGame ? [right(r.playerId)] : standing ? StateLogic.PickEmScoringStrategy.standingKey(r) : pool ? [r.longestStreak ?? 0, r.total] : [r.total];
+  const rows = [...StateLogic.computeScores(view)].sort((a, b) => StateLogic.PickEmScoringStrategy.compareKeys(key(b), key(a)));
   const keys = rows.map((r) => key(r).join(","));
   // Best ball (step A9 part 2) has a week as a lineup does; its "last" is who counted, as it has no lineups.
   const lastEp = type.hasActiveRoster || type.hasBestBall ? latestScoredEpisode(view) : null;

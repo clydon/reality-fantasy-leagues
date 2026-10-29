@@ -19,9 +19,10 @@ played in pairs, graded on the pairs that played, void by default), and F4, the 
 replayed as if live through every game the tracker says plays, each format change arriving only in its episode's research,
 `blind.js`; two grading fixes it found: a paired season's premiere, groups the league holds that nobody plays in). The format
 foundation is done. A10 is under way, in parts: part 1, group slots and the exclusive-or-shared count (2026-10-29: a draft's +1 or
-+2 slot for a pair or team the show forms, on the format's state over time, `GroupSlotLogic`), is built; part 2 (a pool's lives,
-buybacks, two-pick nights, one mulligan) is next, then A10's other parts, A11 to A14 overnight (the user's word, 2026-10-28),
-stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
++2 slot for a pair or team the show forms, on the format's state over time, `GroupSlotLogic`), and part 2, a pool's pieces
+(2026-10-29: lives, a buyback until an episode or a phase, mulligans, a second pick that counts on a night two go home, and last
+one standing, `PickEmLogic.parts`), are built; part 3 (a draft's slots and prices) is next, then part 4, A11 to A14 overnight (the
+user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -2508,6 +2509,95 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     season-cast link for matching members (kept the forgiving match, as F3 part 2's group questions, and Noticed); the
     `ctx.pool` check having no caller (Noticed: G1's context pack and the lab). After it, by hand: the replay's habit could put
     the group a seat's other slot rides with into its second slot (fixed in `blind.js`), and its header.
+
+  **As built (A10 part 2, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  up to date; 974 tests). A pool's pieces, each riding on data with its fallback from the start; every default the user's
+  (Noticed, below).
+  - **The spec** (`schema.js`): a Survival Pool's `score` takes `lives` (1 to `MAX_LIVES`, 5: a wrong pick, or none, costs one;
+    at none you're out, with no more picks), `buyback` `{ times, before, cost }` (with lives only: someone out in an episode
+    before `before`, `{ phase }` or `{ episode }` or null for any time, is back in from the next episode with one life, `cost`
+    points off their total; 1 to `MAX_BUYBACKS` times, 0 to `MAX_BUYBACK_COST` points) and `mulligans` (1 to `MAX_MULLIGANS`:
+    the first wrong picks, or missed ones, forgiven: no life lost, the streak carries on). Its `get` takes `second` `{ fallback:
+    void | counts }`: a second pick beside the first, open every episode, that counts on a night two or more go home; on a night
+    only one goes it's void (no points either way) or counts like the first (two picks every night). A new rank,
+    `rank: { by: 'standing' }`, last one standing (a pool with lives only): whoever's still in first, by their points then lives
+    left; then whoever's out, the later out first, then their points. VOCAB's `rank.by.standing`, `get.second.fallback`; the
+    defaults (`BUYBACK`: once, any time, its cost one right pick's points capped at `MAX_BUYBACK_COST`; `SECOND_PICK`: void)
+    filled by `fullSpec` only on a spec that has them, so no stored spec changes; a pool with lives keeps the streak's rank unless
+    the spec says standing. `specProblems`: each range; a buyback without lives; a buyback before a new game's own first episode
+    (a league's own keeps what it plays); with ctx, a buyback's phase one of the season's and not its first, and a second pick
+    on a show whose results say who goes home; a second pick beside a pool that scores (nobody goes home there) or a draft;
+    standing without lives. `poolParts(spec)`: the one reading of a pool's parts (defaults filled), for the engine and the words.
+    Plays as `pickem` (`playsAs` takes standing beside streak).
+  - **What's data at the lock, for two picks:** nothing. The schedule has only a runtime (a two-hour episode is often one boot),
+    no rulebook marks a double, and research comes after the episode. So the second pick is open every episode, optional, and
+    the results settle whether it counted: two or more non-winners among the episode's exits (`PickEmLogic.double`; a finale's
+    winner isn't one going home). A missing second pick is nothing, never a miss (nobody knew).
+  - **The settings, both ways** (`settings.js`): `poolLives`, `poolBuyback`, `poolMulligans`, `poolSecond`, `poolRank`, each
+    absent unless a game says it (`OWNED`; a part of its own for the rank).
+  - **The engine** (`state-logic.js`, pure): `PickEmLogic.parts(state)` (`poolParts` of the game, null for today's pool);
+    `history()` walks the season once with the parts: a night's picks judged together, its right ones first, then its wrong ones
+    (so a night with a wrong pick ends the streak whichever pick it was), each wrong one a mulligan forgives or a life it costs;
+    a night that empties someone's lives ends, once, with a buyback (`canBuyBack`: before its episode, or before its phase's
+    first episode where data says it starts, `state.phaseStarts`; a phase whose start isn't known hasn't started, so the
+    buyback stands, and a start confirmed later takes it back, as every result is worked out live) or out for good (no rows
+    after it; a pick made before the results that knocked them out never counts). Rows carry `second` (and `void`),
+    `forgiven`, `lifeLost`, `lives`, `boughtBack`, `out`, and the history `lives`, `out`, `mulligans`, `buybacks`, `cost`, all
+    only on a pool with parts: a plain pool's rows and table are exactly as before. `eligibility`: someone out can pick nobody
+    (`out`); a second pick is in the cycle and blocks back to back once it counted (a void one never played); the last episode's
+    picks both blocked. `setPick(…, { second: true })`: beside a first already made, never the same person, by the same rules;
+    the first moved onto the second's person drops it. `removePick(…, { second: true })`: the second alone; in a pool with a
+    second pick, neither once the episode is locked or decided (a wrong second cleared after the results would take back its
+    cost). `PickEmScoringStrategy` adds `lives`, `out`, `mulligans`, `buybacks` to a pool's rows and sorts by `standingKey`
+    under last one standing. `readsPhases`: a pool whose buyback lasts until a phase records the season's phase starts
+    (`settlePhases`).
+  - **The server:** the pick routes take `second: true` (PUT) and `?second` (DELETE), their Recent changes line saying "second
+    pick"; the Games tab's table (`game-view.ts tableOf`) ranks a standing pool by the engine's key (its `total` column still
+    the streak: U1's); `phase-starts.ts settleSeasonStarts` finds pools whose buyback lasts until a phase (`poolBuyback.before.phase`),
+    so a desk confirmation reaches them. Computer players (`bot-logic.js`) make a second pick, the next safest; none once out.
+  - **Words** (`describe.js`): the sentence ("…, and a second that counts when two go home"; "Two lives: a wrong pick costs one.
+    One buyback before Merged starts. One wrong pick forgiven. Last one standing wins.") and How it works, a line each; a pool
+    ranked by standing is still a Survival Pool.
+  - **The tracker:** s10 (two lives, a buyback before the merge, last one standing), s11 (a second pick), s23 (a mulligan) ✅,
+    and a dial row, `win.standing` (last one standing among the players, three lives) ✅. **Now: 151 ✅** · 94 ⏳ · 1 🆕 · 1 ❓ ·
+    23 💬, of 270 (A10's 13 rows wait for parts 3 and 4).
+  - **Tests:** `tests/pool-parts.test.js` (new, 11): the shape, defaults, ranges, words and settings both ways; a plain pool
+    exactly as before; lives (a missed pick costs one, out with no rows after, nobody to pick, last one standing and by streak);
+    the order among those still in and the Games tab's table; mulligans (with and without lives, a missed pick forgiven); a
+    buyback before an episode and before a phase (standing while unknown, taken back by a start confirmed later); a night that
+    empties lives buying back once; the capped default cost and hand-written settings without a cost; a second pick void, counted
+    and in the cycle only when it counted, fallback counts, a winner's exit not a double; its writes and the lock on clearing
+    it; computer players. `game-spec.test.js`: the new fields. `npm test` 985.
+  - **API:** `scripts/dev-test/check-pool-parts.js` (new, on new-fixture.js), 29 PASS: the couch's Survival Pool given two lives,
+    a buyback before the merge, a mulligan, a second pick and last one standing (setGame, the show's ctx); Episodes 1 to 5
+    replayed as each player picked (riley's first wrong forgiven, a life, her last bought back; sam never picks: out in 4); the
+    Games tab's table; picks through the route (a second, the same one twice not stored, cleared on its own, the cycle, sam out,
+    someone else's refused); a double boot through the season sync (jordan's two right, alex's second forgiven by his unused
+    mulligan, riley out in 6, her right second still scoring); the desk confirming the merge at 4 (riley's buyback in 4 taken
+    back, sam's in 3 standing) and correcting it to 7 (hers back); a single night voiding jordan's second; the table's order the
+    engine's. `check-engine-lab.js` grew A10 part 2's (the three rows said in their sentences, a buyback without lives and one
+    until a phase the season lacks refused, each started as a test game in its fields, the phases recorded): 58 PASS (`--api`).
+  - **Re-runs** (on the final code): `check-phase-starts.js --api` all passed, `check-lineup-scoring.js` ALL PASS.
+  - **Golden replays** (`golden.js`, HEAD against the working tree, before the code review's fixes and again after them): 7
+    seasons, 160 games, **19,361 reads, every one the same** both times (the pools they play have no parts: their rows, tables
+    and picks are as they were; the replay's seats and computer players make a second pick only where a pool has one). The
+    tracker `--check` up to date.
+  - **Blind replays** (`blind.js run`, the five seasons, on the final code; no piece reads the format, but the tracker's new games
+    are among those it plays, and the seats' habit makes a second pick, the next by the same habit, never by a lazy seat):
+    **every game ended on all five seasons**, the new pools among them: The Challenge 41 56 of 56, 40 56, 39 56 (a buyback
+    before the merge refused there: no such phase), Survivor 49 75 of 75 (all four), The Traitors 4 56 of 56; every check ok
+    but F4's known "waits on early results" (finding 20). What the pieces did: a second pick counted wherever a night sent two
+    home, which on The Challenge is often (the Tinkerer 19 points with one, 15 without, on 41) and on The Traitors nearly every
+    night (a murder and a banishment: 16 against 10); on Survivor 49 only the finale did, where every pick is wrong anyway
+    (Noticed); lives knocked the Fan and the Forgetter out early on every season, so last one standing ranks them by when.
+  - **Code review** (`/code-review`, before the long runs). Taken: clearing a decided second pick took back its cost (now locked
+    in a pool with one); a double night's two wrong picks could buy back and spend the new life the same night (now a night
+    empties lives, then buys back or goes out, once); the default cost could pass the cap (now capped); the pool's parts read again
+    for every episode and eligibility (now passed down); a buyback written without a cost made totals NaN (now `poolParts` fills
+    it, the one reading the words share); the settings' types; a second copy of the streak's arithmetic (now one path); Recent
+    changes saying "pick" for a second pick. Not taken here: the screens that rank a pool by streak (Noticed, U1's). Found by the
+    API check, before the review: the desk's season-wide settle picked its leagues by SQL and missed pools (now
+    `poolBuyback.before.phase`).
 - **A11. Winning, and who plays with whom.** A race (first to N ends the game), co-op (the group against the show, with shared
   lives), head-to-head with playoffs, teams of players, players knocked out each week (guillotine) or cut at a phase,
   handicaps, late joiners.
@@ -3214,6 +3304,51 @@ From A10 part 1 (2026-10-29):
 - A slot's group members are matched to the league's cast the forgiving way (`Core.findCastawayByName`), as F3 part 2's group
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
+
+From A10 part 2 (2026-10-29):
+- **For the user, in a design session (with A10 part 1's slot questions), each with a recommendation (built as spec settings,
+  the defaults in `BUYBACK`, `SECOND_PICK` and `fullSpec`):**
+  1. A pool with lives: how it ranks, and how someone out reads. Built: the spec says (last one standing, `rank.by
+     'standing'`, or the streak, frozen once out), and a pool with lives keeps the streak unless it says standing; someone out
+     has no more picks and their season stops at the episode they went out. Recommended: last one standing whenever a pool has
+     lives (a knockout pool is about who lasts; a streak with lives breaks while you still have some), so the GPT writes it.
+  2. A missed pick. Built: it costs a life (as it breaks a streak today), and a mulligan forgives it. Recommended: keep, and
+     pair it with A10 part 1's item 7 (fill a missed pick at the lock: the safest one still eligible), or Joanna forgets her way
+     out of a pool with lives.
+  3. A buyback. Built: automatic (out before its deadline, while one's left: back in), back with one life, its cost one right
+     pick's points (up to 20) off the total, which can go below 0. Recommended: keep automatic (nobody waits for someone; under
+     last one standing everyone would buy back, so asking only punishes forgetting), one life, the cost as built.
+  4. A buyback until a phase whose start isn't known. Built: it stands until data says the phase started; a start confirmed
+     later at or before the knockout takes it back (worked out live, as every result is). Recommended: keep (data settles it),
+     and tell the maker and the player when a correction takes one back (U1's).
+  5. A second pick. Built: open every episode, optional, counting only on a night the results show two or more went home; void
+     (no points either way) on a night only one goes, or counted like the first (`fallback: 'counts'`). Nothing at a lock says
+     a night is a double (the schedule has a runtime only, no rulebook marks one). Recommended: keep it open every episode,
+     void by default; a desk mark ahead ("a double tonight") only if a show's schedule ever says so (not built).
+  6. A night with one right pick and one wrong. Built: its right picks count first, then its wrong ones, so the streak ends
+     whichever was wrong; a night that empties lives buys back or goes out once. Recommended: keep.
+  7. A mulligan. Built: automatic, on the first wrong or missed pick. Recommended: keep (a mulligan you play before a lock is a
+     joker, a different piece: A14's, if asked for).
+  8. Everyone out. Built: the game runs to the season's end with nothing to pick (`gameOver` unchanged), and nobody is named
+     the winner early. Recommended: once at most one player is left in (of two or more), the game ends and names them; the
+     user's call, with what the table says then.
+  9. Everyone left goes out on the same night. Built: all out, ranked by their points. Recommended: the classic pool's rule,
+     all of them back for the next episode (not built).
+- **A pick of the season's winner is wrong at the finale** (today's pools too, before this step): `history` grades a pick
+  right when its person isn't among the episode's exits, and the winner's "Sole Survivor" is one. So every finale pick is
+  wrong, and with lives the finale costs everyone a life. Recommended: the winner (and, by the rulebook, the finalists) survive
+  the finale; it changes today's pools' finales, so it's the user's to say. (R1, or whoever next touches pool grading.)
+- **The screens don't know a pool's parts:** the Scoreboard's `poolKey` and ranks, `SeasonResultsCard`'s champions,
+  `reveal-moment`'s "you beat", the standings card and the player page sort and say a pool by its streak; the Games tab's
+  table ranks a standing pool by the engine (`tableOf`) but its `total` column is still the streak. Nothing shows lives, an
+  out, a buyback, a mulligan or a second pick, and Tonight's pick card for someone out shows nobody to pick. (U1.)
+- The pick routes still answer a refused pick with 200 and nothing stored (their convention): someone out, a second the same as
+  the first, a cleared pick in a locked two-pick pool. (U1, or whoever next touches the pick routes: a 400 with the reason, as
+  the group-slot route does.)
+- Start a game and Game settings offer none of part 2's pieces; the engine lab starts them. (U1.)
+- A late joiner's second pick goes through `GhostLogic.applyAs` with their pick, but no check plays it. (A11's late joiners.)
+- A11's knockouts (a guillotine, a cut at a phase) can reuse `rank.by 'standing'` and a row's `out`; a pool's lives are its own
+  (`score.lives`). (A11.)
 
 From A7 (2026-10-28):
 - The late lock is a game of questions' only: lineups and picks still lock at airtime, whoever watches when. (A15, each

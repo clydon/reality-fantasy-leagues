@@ -18,7 +18,8 @@
 //     zt- fixture's (403), and for a spec that doesn't play (409). Which tribe wins immunity starts too, its faces the tribes;
 //     and a question once a phase, the season's phases recorded in it (A7); a parlay (A9), its parlay in its fields; a Weekly Bingo
 //     at 5 points a line (A9); a lineup with a captain, a best ball and a reverse Outlast (A9 part 2), a Weekly Lineup with two
-//     group slots (A10 part 1), each in its fields.
+//     group slots (A10 part 1), each in its fields; a pool with two lives and a buyback before the merge (its phases recorded),
+//     one with a second pick and one with a mulligan (A10 part 2), each in its fields.
 //   - In a real browser at --width (390 by default), as the admin: the lab, a season picked, a tracker row filtered and picked
 //     (its spec fills the box), Check (plays now, the sentence), the couch picked, Start (the link to its Games tab); a refused
 //     spec shows what's wrong. Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
@@ -155,6 +156,19 @@ function check(ok, what, detail = "") {
     check(r.status === 200 && r.body.startable && r.body.playsAs === "active-roster" && /plus two slots for a pair or team the show forms/.test(r.body.describe?.sentence ?? ""), "A10 part 1: a Weekly Lineup with two group slots plays on ZT Survivor 51, said in its sentence", JSON.stringify([r.body.problems, r.body.waits, r.body.describe?.sentence]).slice(0, 400));
     r = await labCheck({ spec: JSON.stringify({ preset: "outlast", get: { by: "draft", each: 3, order: "snake", own: "exclusive", groups: { slots: 1 } } }) });
     check(r.status === 200 && !r.body.startable && r.body.problems.some((p) => p.at === "get.groups"), "  group slots beside Outlast are refused (a group scores what its people do)", JSON.stringify(r.body.problems));
+    // A10 part 2: a pool's lives and buyback, a second pick, a mulligan, each said in its sentence; refused without what they need.
+    for (const [row, what, said] of [
+      ["s10", "a pool with two lives and a buyback before the merge", /Two lives: a wrong pick costs one\. One buyback before Merged starts\. Last one standing wins\./],
+      ["s11", "a pool with a second pick", /and a second that counts when two go home/],
+      ["s23", "a pool with a mulligan", /One wrong pick forgiven\./],
+    ]) {
+      r = await labCheck({ spec: JSON.stringify(rowSpec(row)), row });
+      check(r.status === 200 && r.body.startable && r.body.row?.state === "yes" && r.body.playsAs === "pickem" && said.test(r.body.describe?.sentence ?? ""), `A10 part 2: ${what} plays on ZT Survivor 51, said in its sentence`, JSON.stringify([r.body.problems, r.body.waits, r.body.playsAs, r.body.describe?.sentence]).slice(0, 400));
+    }
+    r = await labCheck({ spec: JSON.stringify({ preset: "survival-pool", score: { by: "survive", buyback: { times: 1 } } }) });
+    check(r.status === 200 && !r.body.startable && r.body.problems.some((p) => p.at === "score.buyback"), "  a buyback without lives is refused (nobody's out to buy back)", JSON.stringify(r.body.problems));
+    r = await labCheck({ spec: JSON.stringify({ preset: "survival-pool", score: { by: "survive", lives: 2, buyback: { before: { phase: "jury" } } } }) });
+    check(r.status === 200 && !r.body.startable && r.body.problems.some((p) => p.at === "score.buyback.before.phase"), "  a buyback until a phase the season doesn't have is refused", JSON.stringify(r.body.problems));
 
     // ---------- start it as a test game ----------
     const labStart = (body) => desk.call("POST", "/api/desk/lab", { action: "start", seasonId: sid, couchId: couch, ...body });
@@ -197,10 +211,16 @@ function check(ok, what, detail = "") {
       ["score.reverse", "a reverse Outlast", (st) => st.settings.reverseOrder === true && S.EliminationOrderScoringStrategy.reversed(st)],
       // A10 part 1: group slots, in their field (the defaults filled in).
       ["who.groupSlots", "a Weekly Lineup with two group slots", (st) => st.settings.groupSlots?.slots === 2 && st.settings.groupSlots.own === "shared" && S.GroupSlotLogic.config(st)?.slots === 2],
+      // A10 part 2: a pool's lives, buyback and last one standing, in their fields (the buyback's cost filled in), the season's
+      // phases recorded in it (its buyback lasts until the merge); a second pick; a mulligan.
+      ["s10", "a pool with two lives and a buyback before the merge", (st) => st.settings.poolLives === 2 && G.sameValue(st.settings.poolBuyback, { times: 1, before: { phase: "merged" }, cost: 1 }) && st.settings.poolRank === "standing" && S.readsPhases(st) && G.sameValue(st.phaseStarts, { tribes: 1 })],
+      ["s11", "a pool with a second pick", (st) => G.sameValue(st.settings.poolSecond, { fallback: "void" }) && S.PickEmLogic.parts(st)?.second?.fallback === "void"],
+      ["s23", "a pool with a mulligan", (st) => st.settings.poolMulligans === 1 && S.PickEmLogic.parts(st)?.mulligans === 1],
     ]) {
       r = await labStart({ spec: rowSpec(row) });
       const st = r.body.leagueId ? (await pool.query("SELECT state FROM leagues WHERE id = $1", [r.body.leagueId])).rows[0]?.state : null;
-      check(r.status === 200 && !!st && holds(st) && checkLeague(st).ok, `${row === "who.groupSlots" ? "A10 part 1" : "A9 part 2"}: ${what} starts as a test game, in its fields`, JSON.stringify(r.body).slice(0, 300));
+      const step = row === "who.groupSlots" ? "A10 part 1" : /^s\d/.test(row) ? "A10 part 2" : "A9 part 2";
+      check(r.status === 200 && !!st && holds(st) && checkLeague(st).ok, `${step}: ${what} starts as a test game, in its fields`, JSON.stringify(r.body).slice(0, 300));
     }
 
     // ---------- in the browser ----------

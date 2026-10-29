@@ -56,7 +56,8 @@ const GAME_FIELDS = {
   // A9 part 2: Outlast in reverse; best ball, a lineup's captain, points that multiply by when.
   "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder"],
   "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots"],
-  pickem: ["pickemCorrectPoints", "poolSurvive", "calls"],
+  // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing.
+  pickem: ["pickemCorrectPoints", "poolSurvive", "calls", "poolLives", "poolBuyback", "poolMulligans", "poolSecond", "poolRank"],
   "weekly-calls": [],
   // A9: points per line; a game of questions' parlays.
   "weekly-bingo": ["linePoints"],

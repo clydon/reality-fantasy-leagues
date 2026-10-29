@@ -14,8 +14,11 @@
 //            the ownership today: exclusive drafts snake, shared drafts blind. A10 part 1's groups: { slots: 1 | 2, own:
 //            shared | exclusive, swap, fallback: void | carry-on, points: mean | sum }, group slots beside a draft scored by
 //            moments: a slot holds a pair or a team the show forms, picked after the episode that showed it, riding with it
-//            while it lasts and dropping when it changes, GroupSlotLogic in state-logic.js) | { by: 'pick', each: 1, repeat: 'cycle' }
-//            (one an episode, nobody again until everyone still in is used, never twice running) | { by: 'card' }
+//            while it lasts and dropping when it changes, GroupSlotLogic in state-logic.js) | { by: 'pick', each: 1, repeat: 'cycle',
+//            second? } (one an episode, nobody again until everyone still in is used, never twice running. A10 part 2's second:
+//            { fallback: void | counts }, a second pick beside the first, open every episode, that counts on a night two or more
+//            go home: nothing at a lock says a night is a double, only its results do; on a night only one goes, void (no
+//            points either way) or counts (scored like the first)) | { by: 'card' }
 //            (bingo) | { by: 'none' }; sports: { by: 'squares' }
 //   count    what of yours counts each episode: { start: n } (your lineup) | { all: true } | { pick: true } | { best: n }
 //            (A9 part 2: best ball, your best n each episode, no lineups; shows and sports) | null (nothing held)
@@ -25,12 +28,18 @@
 //            season or its finale whose points multiply: "double in the finale", "the first three count triple")
 //            | { by: 'place', reverse? } (Outlast: 1, plus 1 for every boot outlasted; A9 part 2's reverse: true, the
 //            earlier they go home the more, 1 plus 1 for everyone who outlasts them) | { by: 'survive', means: staysIn | scores,
-//            points } (Survival Pool) | { by: 'lines', points? } (bingo: each line `points`, 1 when it's left out: A9)
+//            points, lives?, buyback?, mulligans? } (Survival Pool. A10 part 2: lives n, a wrong pick (or none) costs one and at
+//            none you're out, no more picks; buyback { times, before: { phase } | { episode } | null, cost }, someone out in an
+//            episode before then is back in from the next with one life, `cost` points off their total, `times` in a game;
+//            mulligans n, your first n wrong picks forgiven: no life lost, the streak carries on) | { by: 'lines', points? }
+//            (bingo: each line `points`, 1 when it's left out: A9)
 //            | { by: 'answers', parlays? } (only the ask's questions: Weekly Calls, a game of questions. A9's parlays:
 //            [{ of: [question ids], times }], someone right on every one of them in the same window has their points on
 //            them multiplied: "who goes home AND who wins immunity, triple if both"); sports: { by: 'stats', points: { HR:
 //            5 } } (the Sport's stat keys)
-//   rank     { by: 'total' } | { by: 'streak' } (longest, ties to the total); sports: matchups | categories | roto
+//   rank     { by: 'total' } | { by: 'streak' } (longest, ties to the total) | { by: 'standing' } (A10 part 2, a pool with lives:
+//            last one standing, whoever's still in first, then whoever went out last; ties to the total, then lives left);
+//            sports: matchups | categories | roto
 //   ask      questions answered before their lock, each settled by data (A4: the question below). Beside a draft, its
 //            finale predictions (finaleQuestions); a game scored by answers, its own (Weekly Calls': the show's calls,
 //            CALLS)
@@ -52,7 +61,7 @@ const VOCAB = {
   count: { start: 'now', all: 'now', pick: 'now', best: 'now' },
   'score.by': { moments: 'now', place: 'now', survive: 'now', lines: 'now', answers: 'now', stats: 'sports' },
   'score.means': { staysIn: 'now', scores: 'now' },
-  'rank.by': { total: 'now', streak: 'now', matchups: 'sports', categories: 'sports', roto: 'sports' },
+  'rank.by': { total: 'now', streak: 'now', standing: 'now', matchups: 'sports', categories: 'sports', roto: 'sports' },
   closes: { start: 'now', daily: 'sports', weekly: 'sports' },
   'pool.where': { stillIn: 'now', teams: 'sports', group: 'later' },
   'ask.answer': {
@@ -80,6 +89,9 @@ const VOCAB = {
   'get.groups.own': { shared: 'now', exclusive: 'now' },
   'get.groups.fallback': { void: 'now', 'carry-on': 'now', 'next-stage': 'later' },
   'get.groups.points': { mean: 'now', sum: 'now' },
+  // A10 part 2: what a pool's second pick does on a night only one goes home (void: no points either way; counts: scored like
+  // the first, so two picks every episode).
+  'get.second.fallback': { void: 'now', counts: 'now' },
 };
 
 // A question in `ask` (A4; A6 added who a moment happened to, groups, roles and questions about each person):
@@ -227,6 +239,15 @@ const WHEN = ['episode', 'from', 'phase', 'finale'];
  *  user's to set: the plan's Noticed for A10). */
 const MAX_GROUP_SLOTS = 2;
 const GROUP_SLOTS = { slots: 1, own: 'shared', swap: false, fallback: 'void', points: 'mean' };
+/** A10 part 2: a pool's most lives, buybacks, mulligans and a buyback's most cost; a buyback's and a second pick's defaults when
+ *  the spec leaves them out (the user's to set: the plan's Noticed for A10 part 2). A buyback's cost left out is one right
+ *  pick's points (score.points, up to MAX_BUYBACK_COST): fullSpec fills it. */
+const MAX_LIVES = 5;
+const MAX_BUYBACKS = 3;
+const MAX_MULLIGANS = 3;
+const MAX_BUYBACK_COST = 20;
+const BUYBACK = { times: 1, before: null };
+const SECOND_PICK = { fallback: 'void' };
 
 /**
  * Whether a pool covers every pick of an exclusive draft (the 9:10 PM decision, Decisions: "Exclusive or shared"): `people`
@@ -495,6 +516,8 @@ function fullSpec(spec) {
   if (by === 'pick') {
     if (s.get.each === undefined) s.get.each = 1;
     if (s.get.repeat === undefined) s.get.repeat = 'cycle';
+    // A10 part 2: a second pick says what it leaves out as the defaults (SECOND_PICK).
+    if (isObj(s.get.second)) for (const [k, v] of Object.entries(SECOND_PICK)) if (s.get.second[k] === undefined) s.get.second[k] = v;
   }
   // The mechanics' own: a pick counts the pick; nothing held counts nothing; a draft says what counts (no default).
   if (s.count === undefined) s.count = by === 'pick' ? { pick: true } : null;
@@ -502,6 +525,12 @@ function fullSpec(spec) {
   if (isObj(s.score) && s.score.by === 'survive') {
     if (s.score.means === undefined) s.score.means = 'staysIn';
     if (s.score.points === undefined) s.score.points = 1;
+    // A10 part 2: a buyback's defaults (BUYBACK), its cost one right pick's points.
+    const b = s.score.buyback;
+    if (isObj(b)) {
+      for (const [k, v] of Object.entries(BUYBACK)) if (b[k] === undefined) b[k] = v;
+      if (b.cost === undefined) b.cost = isNum(s.score.points) ? Math.min(Math.max(s.score.points, 0), MAX_BUYBACK_COST) : 1;
+    }
   }
   if (s.rank === undefined) s.rank = { by: isObj(s.score) && s.score.by === 'survive' ? 'streak' : 'total' };
   const e = isObj(s.extras) ? s.extras : {};
@@ -544,7 +573,8 @@ function playsAs(s) {
     // Best ball (A9 part 2) is Weekly Lineup's game with no lineups: its best n count (state-logic.js's best ball variant).
     if ((count === 'start' || count === 'best') && by('score') === 'moments' && by('rank') === 'total') return 'active-roster';
   }
-  if (by('get') === 'pick' && s.get.each === 1 && s.get.repeat === 'cycle' && count === 'pick' && by('score') === 'survive' && by('rank') === 'streak' && none) {
+  // A10 part 2: a pool with lives can rank by who's still standing.
+  if (by('get') === 'pick' && s.get.each === 1 && s.get.repeat === 'cycle' && count === 'pick' && by('score') === 'survive' && (by('rank') === 'streak' || by('rank') === 'standing') && none) {
     return 'pickem';
   }
   if (by('get') === 'none' && !count && by('score') === 'answers' && by('rank') === 'total') {
@@ -588,6 +618,28 @@ function spanStart(span) {
 }
 /** The phase a span starts at (its id), or null for one that starts at an episode. */
 const spanPhase = (span) => (isObj(span) && isObj(span.from) && typeof span.from.phase === 'string' && span.from.phase ? span.from.phase : null);
+
+/**
+ * A pool's lives, buyback, mulligans and second pick (A10 part 2), as the engine plays them (state-logic.js PickEmLogic.parts)
+ * and the words say them (describe.js), read the one way from a spec: { lives (null: none, nobody's out), mulligans (0: none),
+ * buyback ({ times, before, cost }, only with lives; what it leaves out its defaults), second ({ fallback }), standing (last
+ * one standing) }, or null for a pool with none of them (today's) or a game that isn't a pool.
+ */
+function poolParts(s) {
+  if (!isObj(s) || !isObj(s.get) || !isObj(s.score) || s.get.by !== 'pick' || s.score.by !== 'survive') return null;
+  const sc = s.score;
+  const lives = isInt(sc.lives, 1) ? sc.lives : null;
+  const mulligans = isInt(sc.mulligans, 1) ? sc.mulligans : 0;
+  const second = isObj(s.get.second) ? { fallback: own(VOCAB['get.second.fallback'], s.get.second.fallback) ? s.get.second.fallback : SECOND_PICK.fallback } : null;
+  if (lives === null && !mulligans && !second) return null;
+  let buyback = null;
+  if (lives !== null && isObj(sc.buyback)) {
+    const b = sc.buyback;
+    const points = isNum(sc.points) ? Math.min(Math.max(sc.points, 0), MAX_BUYBACK_COST) : 1;
+    buyback = { times: isInt(b.times, 1) ? b.times : BUYBACK.times, before: isObj(b.before) ? b.before : null, cost: isNum(b.cost) && b.cost >= 0 ? b.cost : points };
+  }
+  return { lives, mulligans, buyback, second, standing: isObj(s.rank) && s.rank.by === 'standing' };
+}
 
 /**
  * The flags state-logic.js's league types carry (hasRoster, supportsReplenish, ...), worked out from a whole spec: a team
@@ -715,6 +767,7 @@ function specProblems(spec, ctx, opts) {
     if (get.each !== 1) add('get.each', 'A pick is one an episode');
     if (!one('get.repeat', get.repeat)) add('get.repeat', "A pick's repeats: cycle");
     if (count !== 'pick') add('count', 'A pick counts the pick: { pick: true }');
+    if (get.second !== undefined) secondPickProblems(get.second, s).forEach(([at, p]) => add(`get.second${at}`, p));
   }
   if ((get.by === 'none' || get.by === 'card') && s.count !== null) add('count', 'Nothing is held, so nothing counts: count is null');
   if (s.count !== null) {
@@ -742,6 +795,7 @@ function specProblems(spec, ctx, opts) {
   if (score.by === 'survive') {
     if (!one('score.means', score.means)) add('score.means', 'A pick survives by staying in (staysIn) or by scoring (scores)');
     if (!(isNum(score.points) && score.points >= 0)) add('score.points', 'A right pick is worth 0 or more');
+    poolProblems(score, s, league).forEach(([at, p]) => add(`score${at}`, p));
   }
   // A9: points per bingo line (1 when it's left out).
   if (score.by === 'lines' && score.points !== undefined && !(isInt(score.points, 1) && score.points <= MAX_QUESTION_POINTS)) add('score.points', `A line is worth 1 to ${MAX_QUESTION_POINTS} points`);
@@ -753,8 +807,9 @@ function specProblems(spec, ctx, opts) {
   if (score.by === 'lines' && get.by !== 'card') add('score.by', 'Lines are a bingo card\'s: get card');
   if (score.by === 'answers' && !(Array.isArray(s.ask) && s.ask.length)) add('ask', 'A game scored by answers asks at least one question');
   const rank = isObj(s.rank) ? s.rank : {};
-  if (!one('rank.by', rank.by)) add('rank.by', 'How it ranks: total, streak, matchups, categories or roto');
+  if (!one('rank.by', rank.by)) add('rank.by', 'How it ranks: total, streak, standing, matchups, categories or roto');
   if (rank.by === 'streak' && score.by !== 'survive') add('rank.by', 'A streak is a Survival Pool\'s');
+  if (rank.by === 'standing' && !(score.by === 'survive' && score.lives !== undefined)) add('rank.by', 'Last one standing is a pool with lives: a wrong pick costs one, and at none you\'re out');
   if (!one('closes', s.closes)) add('closes', 'Moves close at the start, daily or weekly');
 
   // ask
@@ -965,9 +1020,12 @@ const KEYS = {
   span: ['from', 'to'],
   from: ['phase', 'at'],
   pool: ['of', 'where'],
-  get: { draft: ['by', 'each', 'order', 'own', 'groups'], pick: ['by', 'each', 'repeat'], card: ['by'], none: ['by'], squares: ['by'] },
+  get: { draft: ['by', 'each', 'order', 'own', 'groups'], pick: ['by', 'each', 'repeat', 'second'], card: ['by'], none: ['by'], squares: ['by'] },
   groups: ['slots', 'own', 'swap', 'fallback', 'points'],
-  score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points'], lines: ['by', 'points'], answers: ['by', 'parlays'], stats: ['by', 'points'] },
+  second: ['fallback'],
+  score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays'], stats: ['by', 'points'] },
+  buyback: ['times', 'before', 'cost'],
+  before: ['phase', 'episode'],
   parlay: ['of', 'times'],
   captain: ['times'],
   when: ['times', 'episode', 'from', 'to', 'phase', 'finale'],
@@ -996,6 +1054,7 @@ function unknownKeys(s) {
   if (isObj(s.get)) {
     check(s.get, own(KEYS.get, s.get.by), 'get');
     if (s.get.by === 'draft') check(s.get.groups, KEYS.groups, 'get.groups');
+    if (s.get.by === 'pick') check(s.get.second, KEYS.second, 'get.second');
   }
   if (isObj(s.score)) {
     check(s.score, own(KEYS.score, s.score.by), 'score');
@@ -1003,6 +1062,10 @@ function unknownKeys(s) {
     if (s.score.by === 'moments') {
       check(s.score.captain, KEYS.captain, 'score.captain');
       if (Array.isArray(s.score.times)) s.score.times.forEach((t, i) => check(t, KEYS.when, `score.times[${i}]`));
+    }
+    if (s.score.by === 'survive' && isObj(s.score.buyback)) {
+      check(s.score.buyback, KEYS.buyback, 'score.buyback');
+      check(s.score.buyback.before, KEYS.before, 'score.buyback.before');
     }
   }
   check(s.rank, KEYS.rank, 'rank');
@@ -1042,6 +1105,47 @@ function groupSlotProblems(g, s) {
   if (!one('get.groups.fallback', g.fallback)) out.push(['.fallback', "When its groups aren't sure, a slot is void for that episode or follows the people: void, or carry-on"]);
   if (!one('get.groups.points', g.points)) out.push(['.points', "A group's points are its members': their mean, or their sum"]);
   if (!(isObj(s.score) && s.score.by === 'moments')) out.push(['', 'A group scores what its members do: group slots go with a draft scored by moments']);
+  return out;
+}
+
+/**
+ * A pool's lives, buyback and mulligans (A10 part 2: score.lives, .buyback, .mulligans), as [[at, problem]]: lives 1 to
+ * MAX_LIVES; mulligans 1 to MAX_MULLIGANS; a buyback { times: 1 to MAX_BUYBACKS, before: { phase: id } | { episode: n } | null
+ * (any time), cost: 0 to MAX_BUYBACK_COST points } only with lives (nobody's out without them). A new game's buyback before an
+ * episode is after its first, or nobody could ever use it (a league's own keeps what it plays). Which phases there are is the
+ * data rule's (settleProblems).
+ */
+function poolProblems(score, s, league) {
+  const out = [];
+  if (score.lives !== undefined && !(isInt(score.lives, 1) && score.lives <= MAX_LIVES)) out.push(['.lives', `A pool has 1 to ${MAX_LIVES} lives`]);
+  if (score.mulligans !== undefined && !(isInt(score.mulligans, 1) && score.mulligans <= MAX_MULLIGANS)) out.push(['.mulligans', `A pool forgives 1 to ${MAX_MULLIGANS} wrong picks`]);
+  const b = score.buyback;
+  if (b === undefined) return out;
+  if (!isObj(b)) return [...out, ['.buyback', 'A buyback is { times, before, cost }']];
+  if (score.lives === undefined) out.push(['.buyback', "A buyback brings someone back who's out: a pool with lives"]);
+  if (!(isInt(b.times, 1) && b.times <= MAX_BUYBACKS)) out.push(['.buyback.times', `Someone can buy back 1 to ${MAX_BUYBACKS} times`]);
+  if (!(isNum(b.cost) && b.cost >= 0 && b.cost <= MAX_BUYBACK_COST)) out.push(['.buyback.cost', `A buyback costs 0 to ${MAX_BUYBACK_COST} points`]);
+  const before = b.before;
+  if (before !== null) {
+    const keys = isObj(before) ? Object.keys(before) : [];
+    if (keys.length !== 1 || !['phase', 'episode'].includes(keys[0])) out.push(['.buyback.before', 'Until when: { phase: id } or { episode: n } (someone out before it can buy back), or null for any time']);
+    else if (keys[0] === 'phase' && !(typeof before.phase === 'string' && before.phase)) out.push(['.buyback.before.phase', 'Which phase of the season']);
+    else if (keys[0] === 'episode' && !isInt(before.episode, 2)) out.push(['.buyback.before.episode', 'Before an episode number, 2 or later']);
+    else if (keys[0] === 'episode' && !league && isObj(s.span)) {
+      const first = spanStart(s.span);
+      if (first !== null && before.episode <= first) out.push(['.buyback.before.episode', "It's before the game's first episode, so nobody could buy back"]);
+    }
+  }
+  return out;
+}
+
+/** A pool's second pick (A10 part 2: get.second), as [[at, problem]]: { fallback: void | counts }, beside a pool whose picks
+ *  stay in (a night two go home is one where two people leave; nobody goes home in a pool that scores). */
+function secondPickProblems(g, s) {
+  if (!isObj(g)) return [['', 'A second pick is { fallback }']];
+  const out = [];
+  if (own(VOCAB['get.second.fallback'], g.fallback) === undefined) out.push(['.fallback', 'On a night only one goes home, a second pick is void (no points either way) or counts like the first: void, or counts']);
+  if (!(isObj(s.score) && s.score.by === 'survive' && s.score.means === 'staysIn')) out.push(['', 'A second pick counts on a night two go home: a pool whose picks stay in']);
   return out;
 }
 
@@ -1192,6 +1296,14 @@ function settleProblems(s, ctx, opts) {
   if (score.by === 'stats' && pointsMap(score.points)) {
     for (const key of Object.keys(score.points)) if (!stats.has(key)) out.push([`score.points.${key}`, `Nothing counts "${key}": it isn't one of the sport's stats`]);
   }
+  // A10 part 2: a pool's buyback until a phase is one of the season's, never its first (where it starts is data: the desk
+  // confirms it); a second pick needs results that say who goes home (a night two go is known only from them).
+  if (score.by === 'survive' && isObj(score.buyback) && isObj(score.buyback.before) && typeof score.buyback.before.phase === 'string' && score.buyback.before.phase && Array.isArray(ctx.phases)) {
+    const at = ctx.phases.findIndex((p) => (isObj(p) ? p.id : p) === score.buyback.before.phase);
+    if (at < 0) out.push(['score.buyback.before.phase', `"${score.buyback.before.phase}" isn't one of the season's phases`]);
+    else if (at === 0) out.push(['score.buyback.before.phase', 'The first phase starts with Episode 1: nobody is out before it']);
+  }
+  if (get.by === 'pick' && get.second !== undefined && ctx.results === false) out.push(['get.second', "The show's results don't say who goes home, so nothing says a night sent two"]);
   // A9 part 2: a phase whose points multiply is one of the season's (where it starts is data: the desk confirms it); the finale
   // is the episode that ends the season, which only a show whose results say who goes home or wins places.
   if (score.by === 'moments' && Array.isArray(score.times)) {
@@ -1291,7 +1403,7 @@ function specWaitsFor(spec) {
 module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
   RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
-  MAX_GROUP_SLOTS, GROUP_SLOTS, covers,
+  MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, poolParts,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

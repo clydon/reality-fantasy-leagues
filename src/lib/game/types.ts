@@ -140,6 +140,8 @@ export interface ScoringEvent {
 export interface PickEmPick {
   playerId: string;
   castawayId: string;
+  /** A pool's second pick (step A10 part 2, get.second): counts on a night two or more go home. */
+  second?: string;
 }
 
 export interface Episode {
@@ -321,6 +323,13 @@ export interface LeagueSettings {
   reverseOrder?: boolean;
   /** Step A10 part 1, absent unless a game says it: a lineup's or best ball's group slots (the spec's get.groups). */
   groupSlots?: import("./game-spec/index.js").GroupSlots;
+  /** Step A10 part 2, each absent unless a game says it: a pool's lives (score.lives), buyback (score.buyback), mulligans
+   *  (score.mulligans), second pick (get.second) and last one standing (rank.by 'standing'). */
+  poolLives?: number;
+  poolBuyback?: import("./game-spec/index.js").PoolBuyback;
+  poolMulligans?: number;
+  poolSecond?: { fallback: "void" | "counts" };
+  poolRank?: "standing";
   /**
    * The episode this league starts playing at (default 1): a league formed mid-season drafts and picks
    * from here, and nothing in earlier episodes scores. Read it through StateLogic.startEpisode. A game that starts when a
@@ -1286,6 +1295,12 @@ export interface ScoreRow {
   /** Pick'em only: the longest run of correct picks (what players are ranked by), and the run now. */
   longestStreak?: number;
   currentStreak?: number;
+  /** A pool with lives, a buyback, mulligans or a second pick (step A10 part 2): lives left (null without lives), the episode
+   *  they went out in for good (null while in), mulligans and buybacks left. */
+  lives?: number | null;
+  out?: number | null;
+  mulligans?: number;
+  buybacks?: number;
 }
 
 export interface DraftTurn {

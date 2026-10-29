@@ -1726,6 +1726,26 @@
           }
         },
         {
+          "id": "win.standing",
+          "what": "Last one standing among the players (a pool with lives: a wrong pick costs one, out at none)",
+          "step": "A10",
+          "spec": {
+            "preset": "survival-pool",
+            "score": {
+              "by": "survive",
+              "lives": 3
+            },
+            "rank": {
+              "by": "standing"
+            }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
+        },
+        {
           "id": "win.race",
           "what": "A race (first to 20 ends it)",
           "step": "A11"
@@ -2329,7 +2349,24 @@
       "step": "A10",
       "dials": [
         "win"
-      ]
+      ],
+      "spec": {
+        "preset": "survival-pool",
+        "score": {
+          "by": "survive",
+          "lives": 2,
+          "buyback": {
+            "times": 1,
+            "before": {
+              "phase": "merged"
+            }
+          }
+        },
+        "rank": {
+          "by": "standing"
+        }
+      },
+      "note": "lives, a buyback and last one standing (A10 part 2): the buyback automatic, back with one life for one right pick's points (the defaults, the user's to set)"
     },
     {
       "id": "s11",
@@ -2342,7 +2379,17 @@
       "step": "A10",
       "dials": [
         "when"
-      ]
+      ],
+      "spec": {
+        "preset": "survival-pool",
+        "get": {
+          "by": "pick",
+          "second": {
+            "fallback": "void"
+          }
+        }
+      },
+      "note": "a second pick (A10 part 2), open every episode, since nothing at a lock says a night is a double: it counts when the results show two went home, void on a night only one goes"
     },
     {
       "id": "s12",
@@ -2622,7 +2669,15 @@
       "step": "A10",
       "dials": [
         "answer"
-      ]
+      ],
+      "spec": {
+        "preset": "survival-pool",
+        "score": {
+          "by": "survive",
+          "mulligans": 1
+        }
+      },
+      "note": "a mulligan (A10 part 2): the first wrong pick, or missed one, forgiven by itself"
     },
     {
       "id": "s24",

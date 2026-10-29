@@ -172,11 +172,19 @@ function readSpec(st, copy) {
       rank: { by: 'total' },
     });
   } else if (type === 'pickem') {
+    // A10 part 2: a pool's lives (poolLives), buyback (poolBuyback, as the spec says it), mulligans (poolMulligans), second pick
+    // (poolSecond) and last one standing (poolRank). Each only when it's set, so a pool that has none reads as it always did.
+    const score = { by: 'survive', means: st.poolSurvive === 'scores' ? 'scores' : 'staysIn', points: typeof st.pickemCorrectPoints === 'number' ? st.pickemCorrectPoints : 1 };
+    if (Number.isInteger(st.poolLives) && st.poolLives >= 1) score.lives = st.poolLives;
+    if (isObj(st.poolBuyback)) score.buyback = copy ? clone(st.poolBuyback) : st.poolBuyback;
+    if (Number.isInteger(st.poolMulligans) && st.poolMulligans >= 1) score.mulligans = st.poolMulligans;
+    const get = { by: 'pick', each: 1, repeat: 'cycle' };
+    if (isObj(st.poolSecond)) get.second = copy ? clone(st.poolSecond) : st.poolSecond;
     Object.assign(spec, {
-      get: { by: 'pick', each: 1, repeat: 'cycle' },
+      get,
       count: { pick: true },
-      score: { by: 'survive', means: st.poolSurvive === 'scores' ? 'scores' : 'staysIn', points: typeof st.pickemCorrectPoints === 'number' ? st.pickemCorrectPoints : 1 },
-      rank: { by: 'streak' },
+      score,
+      rank: { by: st.poolRank === 'standing' ? 'standing' : 'streak' },
     });
   } else if (type === 'weekly-calls' || type === 'questions') {
     // A game of questions' parlays (A9: settings.parlays, as its spec says them).
@@ -287,6 +295,13 @@ function settingsOf(spec) {
   if (type === 'pickem') {
     Object.assign(out, { pickemCorrectPoints: s.score.points, poolSurvive: s.score.means === 'scores' ? 'scores' : undefined, calls: e.calls === true });
   }
+  // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing.
+  const pool = type === 'pickem';
+  out.poolLives = pool && s.score.lives !== undefined ? s.score.lives : undefined;
+  out.poolBuyback = pool && isObj(s.score.buyback) ? clone(s.score.buyback) : undefined;
+  out.poolMulligans = pool && s.score.mulligans !== undefined ? s.score.mulligans : undefined;
+  out.poolSecond = pool && isObj(s.get.second) ? clone(s.get.second) : undefined;
+  out.poolRank = pool && s.rank.by === 'standing' ? 'standing' : undefined;
   if (type === 'questions') out.questions = clone(s.ask);
   out.lateLockHours = type === 'questions' && e.lateLock ? e.lateLock.hours : undefined;
   // A9: a game of questions' parlays; points per bingo line.
@@ -347,8 +362,9 @@ const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFee
 const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
   { fields: ['startEpisode', 'startPhase', 'endEpisode'], read: (s) => s.span },
-  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots'], read: (s) => [s.get, s.count] },
-  { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder'], read: (s) => s.score },
+  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond'], read: (s) => [s.get, s.count] },
+  { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans'], read: (s) => s.score },
+  { fields: ['poolRank'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },
   { fields: ['bonusEnabled', 'defaultBetPoints'], read: (s) => s.extras.bets },

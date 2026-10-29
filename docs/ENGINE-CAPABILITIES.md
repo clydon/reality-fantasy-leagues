@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 147 ✅ · 97 ⏳ · 1 🆕 · 1 ❓ · 23 💬, of 269.
-**Waiting, by step:** A10 16 · A11 14 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 151 ✅ · 94 ⏳ · 1 🆕 · 1 ❓ · 23 💬, of 270.
+**Waiting, by step:** A10 13 · A11 14 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -111,6 +111,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | The highest total | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. |
 | ✅ | The longest streak | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. Longest streak wins. |
 | ✅ | The last one standing carries you (Outlast) | An Outlast for Survivor 51: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. |
+| ✅ | Last one standing among the players (a pool with lives: a wrong pick costs one, out at none) | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. Three lives: a wrong pick costs one. Last one standing wins. |
 | ⏳ | A race (first to 20 ends it) | A11 |
 | ⏳ | Co-op against the show (shared lives) | A11 |
 | ⏳ | Head to head, with playoffs | A11 |
@@ -185,8 +186,8 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ✅ | s07 | Survivor 51 | Reverse draft: the earlier your castaways go home, the more you score. | score | A game for Survivor 51: everyone drafts 3, all season. Each scores more the earlier they go home: the first one out carries you. |
 | ✅ | s08 | Survivor 51 | Captain each week: one of your castaways scores double. | score | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, one of them a captain who scores double, all season. Scored by Survivor 51's rules. |
 | ✅ | s09 | Survivor 51 | Best ball: draft 5, your best 3 count, no lineups. | score | A game for Survivor 51: everyone drafts 5, and their best 3 count each episode, all season. Scored by Survivor 51's rules. |
-| ⏳ | s10 | Survivor 51 | A pool with 2 lives and one buyback before the merge. | win | A10 |
-| ⏳ | s11 | Survivor 51 | On double-boot nights you pick two. | when | A10 |
+| ✅ | s10 | Survivor 51 | A pool with 2 lives and one buyback before the merge. | win | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. Two lives: a wrong pick costs one. One buyback before Merged starts. Last one standing wins. |
+| ✅ | s11 | Survivor 51 | On double-boot nights you pick two. | when | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, and a second that counts when two go home, all season. Longest streak wins. |
 | ✅ | s12 | Survivor 51 | Confidence picks: rank everyone from most to least likely to go home; you score your confidence on whoever goes. | answer, score | A game for Survivor 51: everyone answers one question before each episode: rank everyone from most to least likely to go home, all season. A point for each right answer. |
 | ✅ | s13 | Survivor 51 | Draft the boot order before the premiere; points for every boot within 2 spots. | what | A game for Survivor 51: everyone answers one question before it starts: the boot order, all season. 2 points for each right answer. |
 | ✅ | s14 | Survivor 51 | Predict the leaderboard each week. | what | A game for Survivor 51: everyone answers one question before each episode: this week's leaderboard: the top five by points, all season. A point for each right answer. |
@@ -198,7 +199,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ⏳ | s20 | Survivor 51 | One league across Survivor and The Traitors. | shape | A12 |
 | 🆕 | s21 | Survivor 51 | A kids' version, no points shown. | shape | how a game shows, not what it is: a setting for the UI track |
 | ⏳ | s22 | Survivor 51 | Stock market: buy and sell castaways each week. | answer | A10 |
-| ⏳ | s23 | Survivor 51 | One mulligan a season. | answer | A10 |
+| ✅ | s23 | Survivor 51 | One mulligan a season. | answer | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. One wrong pick forgiven. Longest streak wins. |
 | ⏳ | s24 | The Traitors (US) 5 | Two of us are secretly traitors who score when the faithful's picks get banished. | who | A14 |
 | ✅ | s25 | Survivor 51 | Every two episodes, name someone who'll be gone by then. | when | A game for Survivor 51: everyone answers one question before every two episodes: name someone who'll be gone in the next two, all season. 2 points for each right answer. |
 | ⏳ | s26 | Survivor 51 | Within the next 3 episodes, will there be a blindside? | when | G1: the window plays now (A7); a blindside isn't a moment research answers, so it's the new-moment path (G1: rated reliable, or the nearest settled question) |

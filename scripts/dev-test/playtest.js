@@ -793,14 +793,19 @@ async function moves(r, n) {
         continue;
       }
       const ratings = Bots.ratings(s, LEVELS[role.level]);
-      const pick = prefer(seat, available, { ratings, key: "safety", how: lazy ? "list" : role.moves === "best" ? "rank" : role.moves, listOrder: listOrder(s), names: namesOf(s) })[0];
+      const order = prefer(seat, available, { ratings, key: "safety", how: lazy ? "list" : role.moves === "best" ? "rank" : role.moves, listOrder: listOrder(s), names: namesOf(s) });
+      const pick = order[0];
+      // A pool's second pick (step A10 part 2): the next one by the same habit, beside the first; never by a lazy seat.
+      const parts = S.PickEmLogic.parts(s);
+      const second = parts && parts.second && !lazy ? order.find((id) => id !== pick) || null : null;
       ask.taps = TAPS.pick;
       try {
         await withLeagueLock(r.leagueId, (st) => {
           S.setPickEmPick(st, episode.id, pid, pick);
+          if (second) S.setPickEmPick(st, episode.id, pid, second, { second: true });
         });
         const now = S.PickEmLogic.pickFor(await stateOf(r.leagueId), episode.id, pid);
-        if (now && now.castawayId === pick) say(seat.label, `picked ${castName(s, pick)}`, "pick", "picked", [pick]);
+        if (now && now.castawayId === pick) say(seat.label, `picked ${castName(s, pick)}${second && now.second === second ? `, and ${castName(s, second)} second` : ""}`, "pick", "picked", second && now.second === second ? [pick, second] : [pick]);
         else say(seat.label, `tried ${castName(s, pick)}, not taken`, "pick", "notTaken", now ? [now.castawayId] : []);
       } catch (e) {
         say(seat.label, `couldn't pick: ${e.message}`, "pick", "refused", existing ? [existing.castawayId] : []);

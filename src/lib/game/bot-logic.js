@@ -273,21 +273,31 @@ function lineups(state) {
   return made;
 }
 
-// Eliminator Pool: whoever looks safest of the people the cycle rule still allows.
+// Eliminator Pool: whoever looks safest of the people the cycle rule still allows. A pool's second pick (step A10 part 2): the
+// next safest beside it. Someone out of a pool with lives has nobody to pick (eligibility).
 function eliminatorPicks(state) {
   if (!getLeagueType(state).hasWeeklyPicks) return 0;
   const ep = currentEpisode(state);
   if (!ep || !inPlay(state, ep.number) || closedForPlay(ep) || PickEmLogic.decided(ep, state)) return 0;
+  const parts = PickEmLogic.parts(state);
   let made = 0;
   botIds(state).forEach((pid) => {
     const { available } = PickEmLogic.eligibility(state, ep.id, pid);
-    const best = ranked(state, pid, available, "safety")[0];
+    const order = ranked(state, pid, available, "safety");
+    const best = order[0];
     if (!best) return;
     const existing = PickEmLogic.pickFor(state, ep.id, pid);
-    if (existing && existing.castawayId === best) return;
-    PickEmLogic.setPick(state, ep.id, pid, best);
+    if (!existing || existing.castawayId !== best) {
+      PickEmLogic.setPick(state, ep.id, pid, best);
+      const now = PickEmLogic.pickFor(state, ep.id, pid);
+      if (now && now.castawayId === best) made++;
+    }
+    const next = order[1];
     const now = PickEmLogic.pickFor(state, ep.id, pid);
-    if (now && now.castawayId === best) made++;
+    if (parts && parts.second && next && now && now.castawayId === best && now.second !== next) {
+      PickEmLogic.setPick(state, ep.id, pid, next, { second: true });
+      if (PickEmLogic.pickFor(state, ep.id, pid).second === next) made++;
+    }
   });
   return made;
 }

@@ -3,7 +3,7 @@
 // as more of the file gets used.
 import type { LeagueState, ScoreRow, DraftTurn, Player, LateJoin, Castaway, Tribe, Bet, Episode, PickEmPick, ScoringEvent, EpisodeProposalPayload, MidSeasonLogEntry, WaiverPeriod, WaiverRun, WaiverClaim, WaiverPair, WaiverWindows, ReplaceRule, WaiverFeel, WaiverRecommendation, GroupSlotPick, FormatGroup, EpisodeFormatGroups } from "./types";
 import type { GameFormat, SeasonChange, SeasonChangeSkip } from "./formats/index.js";
-import type { GameSpec, SpecContext, SpecInput, SpecProblem, Question, AnswerFacts, Verdict, GroupSlots } from "./game-spec/index.js";
+import type { GameSpec, SpecContext, SpecInput, SpecProblem, Question, AnswerFacts, Verdict, GroupSlots, PoolParts } from "./game-spec/index.js";
 
 /** Step A10 part 1: what a player's group slot holds in an episode (GroupSlotLogic.standing). */
 export interface GroupSlotStanding {
@@ -27,6 +27,26 @@ export interface GroupSlotIndex {
 export interface GroupSlotLine extends GroupSlotStanding {
   slot: number;
   points: number;
+}
+
+/** One pick's outcome on a decided episode (A10 part 2's flags only on a pool with them). */
+interface PickEmOutcome {
+  correct: boolean | null;
+  points: number;
+  forgiven?: boolean;
+  lifeLost?: boolean;
+}
+/** A row of a pool's season (PickEmLogic.history): one episode, its pick (and a second pick), the streak after it; with lives,
+ *  the lives left, `boughtBack` (its cost) or `out` (for good) when it emptied them. */
+export interface PickEmHistoryRow extends PickEmOutcome {
+  episode: number;
+  postMerge: boolean;
+  castawayId: string | null;
+  streak: number;
+  second?: PickEmOutcome & { castawayId: string; void?: boolean };
+  lives?: number;
+  boughtBack?: number;
+  out?: boolean;
 }
 
 /** One question in guided first-time setup, in the order it should be asked. */
@@ -124,6 +144,21 @@ declare const StateLogic: {
   };
   ScoringLogic: {
     compute(state: LeagueState): ScoreRow[];
+  };
+  /** A Survival Pool's scoring; a pool with lives ranked by last one standing (step A10 part 2) by standingKey, compared from
+   *  its first number on (compareKeys: a's minus b's at the first that differs). */
+  PickEmScoringStrategy: {
+    compute(state: LeagueState): ScoreRow[];
+    standingKey(row: ScoreRow): number[];
+    compareKeys(a: number[], b: number[]): number;
+  };
+  /** Step A10 part 2: a pool's lives, buyback, mulligans and second pick. */
+  PickEmLogic: {
+    parts(state: LeagueState): PoolParts | null;
+    /** Whether two or more went home in an episode (a winner's exit isn't one): a night a second pick counts. */
+    double(state: LeagueState, ep: Episode): boolean;
+    secondCounted(state: LeagueState, ep: Episode, parts?: PoolParts | null): boolean;
+    canBuyBack(state: LeagueState, buyback: PoolParts["buyback"], number: number): boolean;
   };
   DraftLogic: {
     currentTurn(state: LeagueState): DraftTurn | null;
@@ -671,16 +706,22 @@ declare const StateLogic: {
     state: LeagueState,
     epId: string,
     playerId: string
-  ): { available: string[]; blocked: Record<string, { episode: number; reason: "cycle" | "backToBack" }> };
-  /** A player's Pick'em season with streaks: a row per episode that happened, plus any pending pick. */
+  ): { available: string[]; blocked: Record<string, { episode: number; reason: "cycle" | "backToBack" }>; out?: number };
+  /** A player's Pick'em season with streaks: a row per episode that happened, plus any pending pick. A pool's parts (step A10
+   *  part 2: lives, a buyback, mulligans, a second pick) add their fields to the rows and the history, only when it has them. */
   pickEmHistory(
     state: LeagueState,
     playerId: string
   ): {
-    rows: { episode: number; postMerge: boolean; castawayId: string | null; correct: boolean | null; points: number; streak: number }[];
+    rows: PickEmHistoryRow[];
     total: number;
     longestStreak: number;
     currentStreak: number;
+    lives?: number | null;
+    out?: number | null;
+    mulligans?: number;
+    buybacks?: number;
+    cost?: number;
   };
   /** The episode picks are being made for (the next to reveal when catching up, else the latest). */
   pickEmUpcomingEpisode(state: LeagueState): Episode | null;
@@ -693,8 +734,10 @@ declare const StateLogic: {
    * before the league's start episode).
    */
   currentEpisode(state: LeagueState): Episode | null;
-  setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string): void;
-  removePickEmPick(state: LeagueState, epId: string, playerId: string): void;
+  /** opts.second: a pool's second pick, beside a first already made (step A10 part 2). */
+  setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string, opts?: { second?: boolean }): void;
+  /** opts.second: only the second pick; else the whole pick. */
+  removePickEmPick(state: LeagueState, epId: string, playerId: string, opts?: { second?: boolean }): void;
   /** Whether this Survival Pool takes a weekly Who goes home? call (settings.calls): the person's Call it (calls.ts). */
   pickEmCallsOn(state: LeagueState): boolean;
   BetLogic: {

@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -97,7 +97,9 @@ function changedPoints(points, own, moments) {
  *  (A9 part 2) is another game. */
 function nameOf(s) {
   const p = presetOf(s);
-  const same = p && p.get.by === s.get.by && countKind(p.count) === countKind(s.count) && p.score.by === s.score.by && p.rank.by === s.rank.by && !s.score.reverse;
+  // A pool with lives ranked by who's still standing (A10 part 2) is still a Survival Pool.
+  const rank = p && (p.rank.by === s.rank.by || (s.score.by === 'survive' && s.rank.by === 'standing'));
+  const same = p && p.get.by === s.get.by && countKind(p.count) === countKind(s.count) && p.score.by === s.score.by && rank && !s.score.reverse;
   return same ? PRESET_LABELS[s.preset] : null;
 }
 
@@ -141,6 +143,9 @@ function sentenceParts(s, w) {
     if (slots) put(`, plus ${slots.slots === 1 ? 'a slot' : `${say(slots.slots)} slots`} for a pair or team the show forms`, 'get');
   } else if (by === 'pick') {
     put(`everyone picks one ${w.castaway} to ${s.score.means === 'scores' ? 'score' : 'stay in'} each ${w.part}`, 'get');
+    // A10 part 2: a second pick.
+    const second = secondPickOf(s);
+    if (second) put(second.fallback === 'counts' ? ', and a second' : ', and a second that counts when two go home', 'get');
   } else if (by === 'card') {
     put(`a new bingo card every ${w.part}`, 'get');
   } else if (by === 'squares') {
@@ -173,7 +178,11 @@ function sentenceParts(s, w) {
     for (const rule of timesRules(sc, w)) put(` ${rule}`, 'score');
   } else if (sc.by === 'place' && sc.reverse === true) put(' Each scores more the earlier they go home: the first one out carries you.', 'score');
   else if (sc.by === 'place') put(' Each scores by how long they last: the last one standing carries you.', 'score');
-  else if (sc.by === 'survive') put(' Longest streak wins.', 'rank');
+  else if (sc.by === 'survive') {
+    // A10 part 2: lives, a buyback, mulligans; last one standing.
+    for (const said of poolPhrases(s, w)) put(` ${said}`, 'score');
+    put(s.rank.by === 'standing' ? ' Last one standing wins.' : ' Longest streak wins.', 'rank');
+  }
   else if (sc.by === 'answers' && callsAsk(s.ask)) put(' Most right by the finale wins.', 'score');
   else if (sc.by === 'lines') put(isNum(sc.points) && sc.points !== 1 ? ` ${cap(pointsWord(sc.points))} a line; most points by the finale wins.` : ' Most lines by the finale wins.', 'score');
   else if (sc.by === 'stats' && isObj(sc.points)) put(` Scored ${statsWords(sc.points, w)}.`, 'score');
@@ -255,6 +264,41 @@ function combineWords(q, w) {
   return out;
 }
 
+/** A pool's lives, buyback, mulligans and second pick (A10 part 2), as the engine plays them (schema.js poolParts). */
+const poolOf = (s) => poolParts(s) || { lives: null, mulligans: 0, buyback: null, second: null, standing: false };
+/** A pool's second pick (A10 part 2: get.second), or null. */
+const secondPickOf = (s) => poolOf(s).second;
+/** Until when a buyback holds, as a phrase: " before Merged starts", " before Episode 7", or "" (any time). */
+function beforeWords(b, w) {
+  if (!isObj(b.before)) return '';
+  if (typeof b.before.phase === 'string') return ` before ${phaseWord(b.before.phase, w)} starts`;
+  return Number.isInteger(b.before.episode) ? ` before ${w.Part} ${b.before.episode}` : '';
+}
+/** The sentence's words for a pool's lives, buyback and mulligans: "Two lives: a wrong pick costs one." */
+function poolPhrases(s, w) {
+  const { lives, buyback, mulligans } = poolOf(s);
+  const out = [];
+  if (lives) out.push(`${cap(say(lives))} ${lives === 1 ? 'life' : 'lives'}: a wrong pick costs one.`);
+  if (buyback) out.push(`${cap(say(buyback.times))} ${buyback.times === 1 ? 'buyback' : 'buybacks'}${beforeWords(buyback, w)}.`);
+  if (mulligans) out.push(`${cap(say(mulligans))} wrong ${mulligans === 1 ? 'pick' : 'picks'} forgiven.`);
+  return out;
+}
+/** How a pool's lives, buyback and mulligans work, a rule a line. */
+function poolRules(s, w) {
+  const { lives, buyback, mulligans } = poolOf(s);
+  const out = [];
+  if (lives) out.push(`You have ${say(lives)} ${lives === 1 ? 'life' : 'lives'}: a wrong pick, or no pick, costs one. At none you're out, with no more picks.`);
+  if (buyback) {
+    const cost = buyback.cost > 0 ? `for ${pointsWord(buyback.cost)} off your total` : 'at no cost';
+    out.push(`Out${beforeWords(buyback, w)}? You're back in from the next ${w.part} with one life, ${cost}${buyback.times === 1 ? ', once' : `, up to ${say(buyback.times)} times`}.`);
+  }
+  if (mulligans) {
+    const which = mulligans === 1 ? 'wrong pick (or missed one) is' : `${say(mulligans)} wrong picks (or missed ones) are`;
+    out.push(`Your first ${which} forgiven: your streak carries on${lives ? ' and you keep your lives' : ''}.`);
+  }
+  return out;
+}
+
 /** A draft's group slots (A10 part 1: get.groups), or null. */
 const groupSlotsOf = (s) => (s.get && s.get.by === 'draft' && isObj(s.get.groups) && isNum(s.get.groups.slots) ? s.get.groups : null);
 /** How group slots work, a rule a line. */
@@ -325,9 +369,19 @@ function rulesOf(s, w) {
     rules.push(s.score.means === 'scores'
       ? `No draft. Before each ${w.part}, pick one ${w.castaway} you think scores in it.`
       : `No draft. Before each ${w.part}, pick one ${w.castaway} you think stays in.`);
+    // A10 part 2: a second pick, lives, a buyback, mulligans, last one standing.
+    const second = secondPickOf(s);
+    if (second) {
+      rules.push(second.fallback === 'counts'
+        ? `Pick a second ${w.castaway} beside the first: it counts the same way.`
+        : `You can pick a second ${w.castaway} beside the first. It counts on ${article(w.part)} ${w.part} two or more go home; on one where only one goes, it doesn't count, either way.`);
+    }
     rules.push('Right: your streak grows. Wrong, or no pick: it resets. Your best streak still counts.');
+    rules.push(...poolRules(s, w));
     rules.push(`You can't pick the same ${w.castaway} again until you've used everyone still in, and never two ${w.parts} in a row.`);
-    rules.push('Longest streak wins; ties go to the most right picks.');
+    rules.push(s.rank.by === 'standing'
+      ? "Last one standing wins: whoever's still in, then whoever went out last. Ties go to the most points."
+      : 'Longest streak wins; ties go to the most right picks.');
   } else if (s.score.by === 'answers' && callsAsk(s.ask)) {
     rules.push('No draft, no team. Before each show starts, make two calls about what will happen in it.');
     rules.push('The couch says what happened as it watches: two of you agreeing settles a call.');

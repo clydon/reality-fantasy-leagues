@@ -481,15 +481,36 @@ function addSideLayers(state, results){
 // happened -- ends it. Players are ranked by their LONGEST streak, with total points (every correct
 // pick, all streaks combined) breaking ties. The per-episode walk is PickEmLogic.history, shared with
 // the Scoreboard's pick history so the two can't disagree.
+//
+// A pool with lives (A10 part 2: PickEmLogic.parts) adds each player's lives left, the episode they went out in for good (null
+// while they're in), their mulligans and buybacks left; ranked by last one standing (rank 'standing': standingKey) or, as
+// today, by streak.
 class PickEmScoringStrategy {
   static compute(state){
     const results = {};
+    const parts = PickEmLogic.parts(state);
     state.players.forEach(p=> {
       const h = PickEmLogic.history(state, p.id);
       results[p.id] = {playerId:p.id, name:p.name, color:p.color, locked:h.total, bonus:0, finale:0, total:h.total,
         longestStreak:h.longestStreak, currentStreak:h.currentStreak, roster:[], formerRoster:[]};
+      if(parts) Object.assign(results[p.id], { lives: h.lives, out: h.out, mulligans: h.mulligans, buybacks: h.buybacks });
     });
-    return Object.values(results).sort((a,b)=> b.longestStreak - a.longestStreak || b.total - a.total);
+    const rows = Object.values(results);
+    if(parts && parts.standing) return rows.sort((a,b) => PickEmScoringStrategy.compareKeys(PickEmScoringStrategy.standingKey(b), PickEmScoringStrategy.standingKey(a)));
+    return rows.sort((a,b)=> b.longestStreak - a.longestStreak || b.total - a.total);
+  }
+  // Last one standing's order, as a key compared from its first number on (higher first): whoever's still in before whoever's
+  // out; those in by their points, then lives left; those out by the episode they went out in (later first), then their points.
+  static standingKey(r){
+    const out = Number.isInteger(r.out) ? r.out : null;
+    return out === null ? [1, r.total, r.lives || 0] : [0, out, r.total];
+  }
+  static compareKeys(a, b){
+    for(let i = 0; i < Math.max(a.length, b.length); i++){
+      const d = (a[i] || 0) - (b[i] || 0);
+      if(d) return d;
+    }
+    return 0;
   }
 }
 // Weekly Calls (docs/PLAN-new-design.md step 12 part 2): a talk show's season game, scored from each person's calls
@@ -1547,62 +1568,157 @@ class PickEmLogic {
   // Returns {available, blocked}: `blocked` maps each remaining person who can't be picked to the
   // episode they were picked in and why. If the rules would leave nobody (only your last pick is
   // left in the game), that person is allowed rather than making the episode unplayable.
+  //
+  // A pool's second pick (A10 part 2) counts in the cycle, and blocks back to back, once its episode is decided and it counted
+  // (a night two went home, or always with fallback 'counts'): a void one never played. Someone out of a pool with lives
+  // (history's `out`, before this episode) can pick nobody: { available: [], blocked: {}, out }.
   static eligibility(state, epId, playerId){
     const ep = PickEmLogic.findEpisode(state, epId);
     const remaining = state.castaways.filter(c => c.status === 'active').map(c => c.id);
     const blocked = {};
     if(!ep) return { available: remaining, blocked };
+    const parts = PickEmLogic.parts(state);
+    if(parts && parts.lives !== null){
+      const out = PickEmLogic.history(state, playerId, parts).out;
+      if(out !== null && out < ep.number) return { available: [], blocked, out };
+    }
     const prior = [...state.episodes]
       .filter(e => e.number < ep.number)
       .sort((a,b) => a.number - b.number)
-      .map(e => ({ number: e.number, pick: (e.picks||[]).find(pk => pk.playerId === playerId) }))
-      .filter(x => x.pick);
+      .flatMap(e => {
+        const pick = (e.picks||[]).find(pk => pk.playerId === playerId);
+        if(!pick) return [];
+        const made = [{ number: e.number, castawayId: pick.castawayId }];
+        if(pick.second && PickEmLogic.secondCounted(state, e, parts)) made.push({ number: e.number, castawayId: pick.second });
+        return made;
+      });
     const covers = (cycle) => remaining.every(id => cycle.has(id));
     let cycle = new Map(); // castawayId -> episode number picked in, this cycle
     prior.forEach(x => {
       if(covers(cycle)) cycle = new Map();
-      cycle.set(x.pick.castawayId, x.number);
+      cycle.set(x.castawayId, x.number);
     });
     if(covers(cycle)) cycle = new Map();
-    const last = prior.length ? prior[prior.length - 1] : null;
+    // The last episode picked in: its pick (and a second that counted) can't be picked again straight away.
+    const lastNumber = prior.length ? prior[prior.length - 1].number : null;
+    const last = prior.filter(x => x.number === lastNumber && remaining.includes(x.castawayId));
     remaining.forEach(id => {
       if(cycle.has(id)) blocked[id] = { episode: cycle.get(id), reason: 'cycle' };
     });
-    if(last && remaining.includes(last.pick.castawayId)){
-      blocked[last.pick.castawayId] = { episode: last.number, reason: 'backToBack' };
-    }
+    last.forEach(x => { blocked[x.castawayId] = { episode: x.number, reason: 'backToBack' }; });
     let available = remaining.filter(id => !blocked[id]);
-    if(!available.length && last && remaining.includes(last.pick.castawayId)){
-      available = [last.pick.castawayId];
-      delete blocked[last.pick.castawayId];
+    if(!available.length && last.length){
+      available = last.map(x => x.castawayId);
+      last.forEach(x => { delete blocked[x.castawayId]; });
     }
     return { available, blocked };
   }
 
+  // A10 part 2: a pool's lives, buyback, mulligans and second pick (the spec's score.lives, .buyback, .mulligans, get.second),
+  // or null for a pool with none of them (today's: a streak nobody is knocked out of). lives null: nobody's out.
+  // Read the one way the words read them (game-spec poolParts), a buyback's defaults filled even on settings written by hand.
+  static parts(state){ return Spec.poolParts(gameOf(state)); }
+  // Whether two or more went home in an episode: a night a second pick counts. Known only from its results (nothing at a lock
+  // says a night is a double: the schedule doesn't, nor does a rulebook); a winner's exit isn't one going home.
+  static double(state, ep){
+    const gone = new Set((ep.events||[]).filter(ev => !isWinnerExit(state, ev.method)).map(ev => ev.castawayId));
+    return gone.size >= 2;
+  }
+  // Whether an episode's second picks counted: it's decided, and two or more went home in it (or the pool's second pick counts
+  // every night: fallback 'counts'). `parts`: the pool's, when the caller has them (a walk over every episode reads them once).
+  static secondCounted(state, ep, parts){
+    if(parts === undefined) parts = PickEmLogic.parts(state);
+    if(!parts || !parts.second || !PickEmLogic.decided(ep, state)) return false;
+    return parts.second.fallback === 'counts' || PickEmLogic.double(state, ep);
+  }
+  // Whether someone out in episode `number` can buy back: before the buyback's episode, or before its phase's first episode
+  // where data says it starts (state.phaseStarts, the desk's: RosterLogic.settlePhases). A phase whose start isn't known yet
+  // hasn't started as far as data says, so the buyback stands; a start confirmed later takes it back (history is worked out
+  // live, as every result is).
+  static canBuyBack(state, buyback, number){
+    const b = buyback && buyback.before;
+    if(!b) return true;
+    if(Number.isInteger(b.episode)) return number < b.episode;
+    const from = state.phaseStarts && state.phaseStarts[b.phase];
+    return !Number.isInteger(from) || number < from;
+  }
+
   // A player's season, episode by episode, with their streaks. A row per episode that has happened
   // (picked or not -- a missed one breaks the streak) plus any pick still waiting on its episode.
-  static history(state, playerId){
+  //
+  // A pool's parts (A10 part 2: parts), each on a row only when the pool has them, and on the history: `lives` left (null
+  // without lives), `out` the episode they went out in for good (null while in: no rows after it, nothing more counts),
+  // `mulligans` and `buybacks` left, `cost` what buybacks took off the total. A wrong pick (or none) a mulligan doesn't forgive
+  // resets the streak and costs a life; a night that empties them ends with a buyback (before its deadline, while one's left:
+  // back in from the next episode with one life, its cost off their total, `boughtBack` on the row) or out (`out` on the row),
+  // once, however many of its picks were wrong. A second pick (`second` on the row: { castawayId, correct, points } and `void`
+  // when it didn't count) is judged with the first: a night's right picks count first, then its wrong ones, so a night with a
+  // wrong pick ends the streak whichever it was; a missing second pick is nothing, never a miss (nobody knew it was a double).
+  // `parts`: the pool's, when the caller has them.
+  static history(state, playerId, parts){
     const score = gameOf(state).score;
     const perCorrect = score.by === 'survive' && typeof score.points === 'number' ? score.points : 1;
+    if(parts === undefined) parts = PickEmLogic.parts(state);
+    const byScore = PickEmLogic.byScore(state);
     const rows = [];
     let current = 0, longest = 0, total = 0;
+    let lives = parts ? parts.lives : null, mulligans = parts ? parts.mulligans : 0;
+    let buybacks = parts && parts.buyback ? parts.buyback.times : 0, cost = 0, out = null;
+    // One pick's outcome: right (the streak grows), or wrong: a mulligan forgives it, else the streak resets and, with lives
+    // left, it costs one.
+    const settle = (right) => {
+      if(right){ current++; total += perCorrect; longest = Math.max(longest, current); return { correct: true, points: perCorrect }; }
+      if(mulligans > 0){ mulligans--; return { correct: false, points: 0, forgiven: true }; }
+      current = 0;
+      if(lives === null || lives === 0) return { correct: false, points: 0 };
+      lives--;
+      return { correct: false, points: 0, lifeLost: true };
+    };
     // Episodes before the league started are history, not missed picks (settings.startEpisode).
     // A late joiner's season starts at their own episode (GhostLogic.startFor).
     const from = GhostLogic.startFor(state, playerId);
     [...state.episodes].filter(ep => ep.number >= from && inPlay(state, ep.number)).sort((a,b) => a.number - b.number).forEach(ep => {
+      if(out !== null) return;
       const pick = (ep.picks||[]).find(pk => pk.playerId === playerId) || null;
+      const second = parts && parts.second && pick && pick.second ? pick.second : null;
       if(!PickEmLogic.decided(ep, state)){
-        if(pick) rows.push({ episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick.castawayId, correct: null, points: 0, streak: current });
+        if(pick){
+          const row = { episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick.castawayId, correct: null, points: 0, streak: current };
+          if(second) row.second = { castawayId: second, correct: null, points: 0 };
+          rows.push(row);
+        }
         return;
       }
       // Correct = the picked person isn't among this episode's eliminations (or, surviving by scoring, scored in it). Derived
       // live from the episode rather than stored, so logging or undoing a result can't leave it stale.
-      const correct = !!pick && (PickEmLogic.byScore(state) ? PickEmLogic.scored(state, ep, pick.castawayId) : !ep.events.some(ev => ev.castawayId === pick.castawayId));
-      if(correct){ current++; total += perCorrect; longest = Math.max(longest, current); }
-      else current = 0;
-      rows.push({ episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick ? pick.castawayId : null, correct, points: correct ? perCorrect : 0, streak: current });
+      const survived = (id) => !!id && (byScore ? PickEmLogic.scored(state, ep, id) : !ep.events.some(ev => ev.castawayId === id));
+      const row = { episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick ? pick.castawayId : null, correct: false, points: 0, streak: 0 };
+      const counts = !!second && PickEmLogic.secondCounted(state, ep, parts);
+      const judged = [['first', survived(pick && pick.castawayId)]];
+      if(counts) judged.push(['second', survived(second)]);
+      const outcome = {};
+      // The night's right picks first, then its wrong ones.
+      judged.filter(([, right]) => right).forEach(([k]) => { outcome[k] = settle(true); });
+      judged.filter(([, right]) => !right).forEach(([k]) => { outcome[k] = settle(false); });
+      Object.assign(row, outcome.first);
+      if(second) row.second = counts ? { castawayId: second, ...outcome.second } : { castawayId: second, correct: null, points: 0, void: true };
+      row.streak = current;
+      // A night that emptied their lives: bought back from the next episode, or out for good.
+      if(lives === 0){
+        if(buybacks > 0 && PickEmLogic.canBuyBack(state, parts.buyback, ep.number)){
+          buybacks--; lives = 1; cost += parts.buyback.cost; total -= parts.buyback.cost;
+          row.boughtBack = parts.buyback.cost;
+        } else {
+          out = ep.number;
+          row.out = true;
+        }
+      }
+      if(lives !== null) row.lives = lives;
+      rows.push(row);
     });
-    return { rows, total, longestStreak: longest, currentStreak: current };
+    const h = { rows, total, longestStreak: longest, currentStreak: current };
+    if(parts) Object.assign(h, { lives, out, mulligans, buybacks, cost });
+    return h;
   }
 
   // Silently no-ops on an invalid request (unknown episode/castaway/player, an already-eliminated
@@ -1615,7 +1731,11 @@ class PickEmLogic {
   // (also editable at any time, no lock tied to an episode airing). The plan doesn't ask for one
   // and this app has no adversarial-security posture anywhere else either; not adding a new kind
   // of protection unprompted.
-  static setPick(state, epId, playerId, castawayId){
+  //
+  // A pool's second pick (A10 part 2: opts.second, a pool with get.second): beside a first pick already made, never the same
+  // person, by the same rules (`pick.second`). Changing the first to the second's person drops the second. Someone out (a
+  // pool with lives) can pick nobody (eligibility).
+  static setPick(state, epId, playerId, castawayId, opts){
     const ep = PickEmLogic.findEpisode(state, epId);
     const c = Core.getCastaway(state, castawayId);
     const player = Core.getPlayer(state, playerId);
@@ -1624,12 +1744,31 @@ class PickEmLogic {
     if(!PickEmLogic.eligibility(state, epId, playerId).available.includes(castawayId)) return;
     ep.picks = ep.picks || [];
     const existing = ep.picks.find(pk=>pk.playerId===playerId);
-    if(existing) existing.castawayId = castawayId;
+    if(opts && opts.second){
+      const parts = PickEmLogic.parts(state);
+      if(!parts || !parts.second || !existing || existing.castawayId === castawayId) return;
+      existing.second = castawayId;
+      return;
+    }
+    if(existing){
+      existing.castawayId = castawayId;
+      if(existing.second === castawayId) delete existing.second;
+    }
     else ep.picks.push({playerId, castawayId});
   }
-  static removePick(state, epId, playerId){
+  // opts.second: only the second pick (A10 part 2); else the whole pick, a second with it. In a pool with a second pick, neither
+  // once the episode is locked or decided: a missing second pick counts nothing, so clearing a wrong one after the results
+  // would take back what it cost (in a pool without one, a cleared pick is a miss, which changes nothing in anyone's favour).
+  static removePick(state, epId, playerId, opts){
     const ep = PickEmLogic.findEpisode(state, epId);
     if(!ep) return;
+    const parts = PickEmLogic.parts(state);
+    if(parts && parts.second && (closedForPlay(ep) || PickEmLogic.decided(ep, state))) return;
+    if(opts && opts.second){
+      const existing = (ep.picks||[]).find(pk=>pk.playerId===playerId);
+      if(existing) delete existing.second;
+      return;
+    }
     ep.picks = (ep.picks||[]).filter(pk=>pk.playerId!==playerId);
   }
 
@@ -2326,7 +2465,7 @@ class RosterLogic {
   //                      keeps its start, so answers given for it are always graded.
   // Whether anything changed.
   // A draft whose points multiply in a phase (A9 part 2: score.times) records the starts alone (ActiveRosterLogic.timesFor reads
-  // them); only questions have windows.
+  // them), and so does a pool whose buyback lasts until a phase (A10 part 2: PickEmLogic.canBuyBack); only questions have windows.
   static settlePhases(state, where){
     if(!readsPhases(state)) return false;
     const list = (where && Array.isArray(where.phases) ? where.phases : []).filter(p => p && typeof p.id === 'string');
@@ -2386,6 +2525,8 @@ class RosterLogic {
 function readsPhases(state){
   if(AnswerLogic.byPhase(state)) return true;
   const score = gameOf(state).score;
+  // A pool's buyback until a phase starts (A10 part 2: PickEmLogic.canBuyBack).
+  if(score.by === 'survive' && score.buyback && score.buyback.before && typeof score.buyback.before.phase === 'string') return true;
   return score.by === 'moments' && Array.isArray(score.times) && score.times.some(t => t && typeof t.phase === 'string');
 }
 

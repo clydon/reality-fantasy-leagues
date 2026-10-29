@@ -30,7 +30,9 @@ export interface SpecPool {
 
 export type SpecGet =
   | { by: "draft"; each: number; order: "snake" | "blind"; own: "exclusive" | "shared"; groups?: GroupSlots }
-  | { by: "pick"; each: 1; repeat: "cycle" }
+  /** A10 part 2's second: a second pick beside the first, open every episode, counting on a night two or more go home (void, or
+   *  counts like the first, on a night only one goes). */
+  | { by: "pick"; each: 1; repeat: "cycle"; second?: { fallback: "void" | "counts" } }
   | { by: "card" }
   | { by: "none" }
   /** sports */
@@ -59,7 +61,9 @@ export type SpecScore =
   | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[] }
   /** A9 part 2's reverse: the earlier they go home the more (1, plus 1 for everyone who outlasts them). */
   | { by: "place"; reverse?: true }
-  | { by: "survive"; means: "staysIn" | "scores"; points: number }
+  /** A10 part 2: lives (a wrong pick costs one, out at none), a buyback (someone out before `before` is back in from the next
+   *  episode with one life, `cost` points off their total, `times` in a game), mulligans (the first n wrong picks forgiven). */
+  | { by: "survive"; means: "staysIn" | "scores"; points: number; lives?: number; buyback?: PoolBuyback; mulligans?: number }
   /** A9: points per line (1 when it's left out). */
   | { by: "lines"; points?: number }
   /** Only the ask's questions (A4): Weekly Calls (the show's calls), a game of questions. A9's parlays: someone right on every
@@ -75,8 +79,16 @@ export interface SpecParlay {
 }
 
 export interface SpecRank {
-  /** total, streak: today. sports: matchups, categories, roto. */
-  by: "total" | "streak" | "matchups" | "categories" | "roto";
+  /** total, streak: today; standing (A10 part 2): last one standing, a pool with lives. sports: matchups, categories, roto. */
+  by: "total" | "streak" | "standing" | "matchups" | "categories" | "roto";
+}
+
+/** A10 part 2: a pool's buyback. before: a phase of the season or an episode (someone out before it can buy back), or null (any
+ *  time). */
+export interface PoolBuyback {
+  times: number;
+  before: { phase: string } | { episode: number } | null;
+  cost: number;
 }
 
 export type SpecSettle =
@@ -433,6 +445,23 @@ export function spanPhase(span: SpecSpan | null | undefined): string | null;
 /** A10 part 1: a draft's most group slots, and a slot's defaults when the spec leaves them out. */
 export const MAX_GROUP_SLOTS: number;
 export const GROUP_SLOTS: GroupSlots;
+/** A10 part 2: a pool's most lives, buybacks, mulligans and a buyback's most cost; a buyback's and a second pick's defaults. */
+export const MAX_LIVES: number;
+export const MAX_BUYBACKS: number;
+export const MAX_MULLIGANS: number;
+export const MAX_BUYBACK_COST: number;
+export const BUYBACK: { times: number; before: null };
+export const SECOND_PICK: { fallback: "void" | "counts" };
+/** A10 part 2: a pool's lives (null: none, nobody's out), mulligans (0: none), buyback (with lives, its defaults filled), second
+ *  pick and last one standing, read the one way the engine and the words read them; null for a pool with none, or no pool. */
+export interface PoolParts {
+  lives: number | null;
+  mulligans: number;
+  buyback: PoolBuyback | null;
+  second: { fallback: "void" | "counts" } | null;
+  standing: boolean;
+}
+export function poolParts(spec: GameSpec | SpecInput | null | undefined): PoolParts | null;
 /** Whether a pool covers every pick of an exclusive draft: people x each <= pool. */
 export function covers(o: { pool: number; people: number; each: number }): boolean;
 /** The spec with everything it leaves out filled in (the preset's, or the defaults); never mutates it. */
