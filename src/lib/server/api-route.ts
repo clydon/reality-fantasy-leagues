@@ -1,5 +1,8 @@
 import { NextResponse } from "next/server";
 import { HttpError } from "./http-error";
+import { READ_ONLY_HEADER, READ_ONLY_SAYS, writableWhileReadOnly } from "@/lib/read-only";
+
+const READS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 // Wraps a Route Handler body so every route doesn't need its own try/catch: an HttpError thrown
 // anywhere inside (by requireAuth/requireLeagueRole/withLeagueLock, or thrown directly) becomes
@@ -10,6 +13,11 @@ export function apiRoute<Args extends unknown[]>(
   handler: (req: Request, ...args: Args) => Promise<Response>
 ): (req: Request, ...args: Args) => Promise<Response> {
   return async (req, ...args) => {
+    // A tab with a game open read-only (src/lib/read-only.ts) changes nothing: its writes are refused here, before any
+    // route's own checks (a site admin passes most of those).
+    if (!READS.has(req.method) && req.headers.has(READ_ONLY_HEADER) && !writableWhileReadOnly(new URL(req.url).pathname)) {
+      return NextResponse.json({ error: READ_ONLY_SAYS }, { status: 403 });
+    }
     try {
       return await handler(req, ...args);
     } catch (e) {

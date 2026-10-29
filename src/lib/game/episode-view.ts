@@ -146,20 +146,21 @@ function predictionsIn(game: GameRefIn, view: LeagueState, me: string, ep: Episo
 }
 
 /** Every episode with results in your copy at `seen`, newest first. */
-export function episodesSeen(game: GameRefIn, full: LeagueState, me: string, seen: number | null): EpisodeSeen[] {
+export function episodesSeen(game: GameRefIn, full: LeagueState, me: string | null, seen: number | null): EpisodeSeen[] {
   const view = StateLogic.GhostLogic.viewFor(full, me, seen);
   return [...view.episodes]
     .filter((ep) => !ep.resultsHidden && StateLogic.episodeHasResults(ep))
     .sort((a, b) => b.number - a.number)
     .map((ep) => {
-      const calls = predictionsIn(game, view, me, ep);
+      // No seat (me null: the desk's Open it read-only): the episode as the couch has it, with nobody's own line.
+      const calls = me === null ? null : predictionsIn(game, view, me, ep);
       return {
         number: ep.number,
         stage: StateLogic.resultsStage(ep) ?? "final",
         out: outsOf(view, ep),
         happened: happenedIn(view, ep),
         scorers: scorersIn(view, ep),
-        lines: [nightIn(game, view, me, ep), ...(calls ? [calls] : [])],
+        lines: me === null ? [] : [nightIn(game, view, me, ep), ...(calls ? [calls] : [])],
       };
     });
 }

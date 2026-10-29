@@ -105,11 +105,11 @@ export interface Game {
 }
 
 /**
- * Games, filtered by any of: the viewer plays them (`mine`), on these couches, on this season. In each group's
+ * Games, filtered by any of: the viewer plays them (`mine`), on these couches, on this season, this one (`leagueId`). In each group's
  * order (league-groups.ts), then by name. `withSolo`: with `couchIds`, the viewer's own solo games too (a public pool,
  * a practice couch: on no couch, but theirs wherever they look at the season), after the couch's.
  */
-export async function games(viewerId: string, filter: { mine?: boolean; couchIds?: string[]; seasonId?: string; withSolo?: boolean }): Promise<Game[]> {
+export async function games(viewerId: string, filter: { mine?: boolean; couchIds?: string[]; seasonId?: string; withSolo?: boolean; leagueId?: string }): Promise<Game[]> {
   // A deleted game (step 10 part 2b, db/migrations/0123) is nobody's until it's restored from Recent changes.
   const where: string[] = ["l.deleted_at IS NULL"];
   const params: unknown[] = [viewerId];
@@ -119,6 +119,7 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
     where.push(filter.withSolo ? `(${onCouch} OR (l.solo IS NOT NULL AND me.user_id IS NOT NULL))` : onCouch);
   }
   if (filter.seasonId) where.push(`ss.id = $${params.push(filter.seasonId)}`);
+  if (filter.leagueId) where.push(`l.id = $${params.push(filter.leagueId)}`);
   const { rows } = await pool.query(
     `SELECT l.id, l.name, l.couch_id, l.group_id, l.solo, l.state->'settings'->>'leagueTypeId' AS type_id, ss.id AS season_id, me.role AS your_role,
             COALESCE(l.state->'settings'->>'archivedAt', '') <> '' AS archived,

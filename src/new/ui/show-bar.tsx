@@ -6,7 +6,8 @@ import { NavLink } from "../nav";
 import { paths, type ShowTab } from "../routes";
 
 // A show space's frame (the mock's .sbar and .tabbar, show.js showBar / tabBar): the show bar with the show's art
-// behind it, tall on Tonight and compact on the other tabs (sticky), and the tab bar fixed at the bottom. During a
+// behind it, tall on Tonight and compact on the other tabs (sticky, under the Read-only plate while one's on: --nd-top,
+// src/new/read-only.tsx), and the tab bar fixed at the bottom. During a
 // tab move both hold still while the content nudges (new.css: .nd-showbar, .nd-tabbar, .nd-tabind).
 
 /**
@@ -76,7 +77,7 @@ export function ShowBar({
     <header
       // Night in both themes (step 15 part 4): it's the show's art, on its own dark plate; on Studio a dark band over the light page.
       className={`nd-showbar dark isolate z-20 flex flex-col overflow-hidden px-2 pb-2.5 pt-[calc(8px+env(safe-area-inset-top,0px))] text-white ${
-        tall ? "relative min-h-[250px] pb-4" : "sticky top-0 min-h-[96px]"
+        tall ? "relative min-h-[250px] pb-4" : "sticky top-[var(--nd-top,0px)] min-h-[96px]"
       }`}
     >
       <ShowArt

@@ -3,13 +3,15 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { keepPreviousData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownUp, BookOpen, Copy, Search, Trophy, Tv, Users } from "lucide-react";
+import { ArrowDownUp, BookOpen, ChevronRight, Copy, Eye, Search, Trophy, Tv, Users } from "lucide-react";
 import { NavLink, useNav } from "../nav";
 import { paths } from "../routes";
 import { HoldSheet } from "../ui/guards";
 import { Btn, EmptyState } from "../ui/parts";
 import { toast } from "../ui/toast";
-import { deskGet, deskSend, useAfterDesk, useDesk, type DeskGame, type GameFilter, type GameRow, type GameSeats, type GameSort, type GamesList } from "./data";
+import { setCouch } from "../data";
+import { startReadOnly } from "../read-only";
+import { deskGet, deskSend, useAfterDesk, useDesk, type DeskGame, type GameFilter, type GameOpen, type GameRow, type GameSeats, type GameSort, type GamesList } from "./data";
 import { dateOf, DeleteRow, DeskHeader, DeskRow, Facts, IconLead, LatestHistory, LowerThird, Section, useChangeToast } from "./parts";
 import { useDebounced } from "./people";
 import { CON, GameSeatsSection, HandOnSheet } from "./seats";
@@ -21,7 +23,8 @@ import { forgetDeskPage } from "./trail";
 // search finds its game whatever the filter, deleted ones within 30 days too (with Restore), and says why when no game has
 // it; and a game's page: its lower third and facts, Restore or Hand it on when it needs one, Part of (its couch, its season,
 // its rulebook), its Join code, its Seats (part 6b: seats.tsx), History, and its Delete last (decision 4): Archive offered
-// first, then restorable for 30 days, and for a deleted one Delete it for good, now. Open it read-only comes with 6c.
+// first, then restorable for 30 days, and for a deleted one Delete it for good, now. Open <game> (part 6c) opens it in the
+// app: as you when you play it, else read-only as its couch sees it (src/new/read-only.tsx).
 // Server: src/lib/server/desk-games.ts and desk-seat-moves.ts.
 
 const FILTERS: [GameFilter, string][] = [
@@ -49,6 +52,61 @@ const MARK = "bg-transparent text-foreground underline decoration-chyron underli
 
 /** Where a game is: its couch, or what it is on no couch. */
 const whereOf = (g: Pick<GameRow, "couch" | "solo">) => g.couch?.name ?? (g.solo === "practice" ? "a practice game" : g.solo === "public" ? "the season's public pool" : "on no couch");
+
+/**
+ * Open <game> (part 6c; the mock's dgOpenRow): you play it, so it opens as you on its couch; else read-only, as its couch
+ * sees it, at your own spoiler mark, a line in its History first (desk-games.ts openReadOnly).
+ */
+function OpenRow({ g, open }: { g: DeskGame; open: GameOpen }) {
+  const nav = useNav();
+  const client = useQueryClient();
+  const after = useAfterDesk();
+  const [busy, setBusy] = useState(false);
+  const over = g.state === "ended" || g.archived !== null;
+  const line =
+    open.as === "you"
+      ? "You play it: it opens as you"
+      : over
+        ? "As it ended, read-only"
+        : `As its couch sees it, read-only · ${open.mark === null ? "all of it: you see results straight away" : open.mark ? `up to ${open.episode} ${open.mark}, where you are` : "as far as you've watched"}`;
+  const go = async () => {
+    if (open.as === "you") {
+      setCouch(open.couchId);
+      nav.push(paths.show(open.seasonId, "games"));
+      return;
+    }
+    setBusy(true);
+    try {
+      const o = await deskSend<{ leagueId: string; name: string; seasonId: string; couchId: string; couch: string }>(`/games/${g.id}`, { open: true });
+      await after();
+      startReadOnly(client, { ...o, runBy: g.runBy });
+      nav.push(paths.show(o.seasonId, "games"));
+    } catch (e) {
+      toast.quiet((e as Error).message);
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="mt-5 px-4">
+      <button
+        type="button"
+        data-game-open={open.as}
+        disabled={busy}
+        onClick={() => void go()}
+        className="nd-press flex min-h-[76px] w-full items-center gap-3 rounded-[4px] bg-card p-3 text-left outline-1 -outline-offset-1 outline-input"
+      >
+        <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-foreground text-background">
+          <Eye className="size-5" aria-hidden />
+        </span>
+        <span className="min-w-0 flex-1">
+          <b className="block text-[17px] font-semibold">Open {g.name}</b>
+          <small className="mt-0.5 block text-[14px] leading-snug text-muted-foreground">{line}</small>
+        </span>
+        <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+      </button>
+    </section>
+  );
+}
 
 /** "Archived Oct 18 by quinn · on the trophy shelf", "deleted by omar Oct 26 · until Nov 25", else null. */
 function noteOf(g: GameRow): string | null {
@@ -274,7 +332,7 @@ const LT_TAG: Record<GameRow["state"], string> = { playing: "Playing", nobody: "
  * nobody runs it; Part of; its Join code; its Seats; History; and its Delete, last.
  */
 export function GamePage({ id }: { id: string }) {
-  const q = useDesk<DeskGame & { seats: GameSeats | null }>(`/games/${id}`);
+  const q = useDesk<DeskGame & { seats: GameSeats | null; open: GameOpen | null }>(`/games/${id}`);
   const after = useAfterDesk();
   const said = useChangeToast();
   const nav = useNav();
@@ -369,6 +427,7 @@ export function GamePage({ id }: { id: string }) {
         </section>
       )}
       <HandOnSheet open={sheet === "hand"} onClose={() => setSheet(null)} from={null} games={[{ leagueId: g.id, name: g.name, couch: g.couch?.name ?? null }]} />
+      {g.open && <OpenRow g={g} open={g.open} />}
       <Section title="Part of">
         <div className="border-b border-border">
           {g.couch && <DeskRow href={paths.deskItem("couch", g.couch.id)} data="part-couch" lead={<IconLead icon={Users} />} title={g.couch.name} line="The couch" />}

@@ -10,6 +10,7 @@ import { markRevealed } from "./reveal";
 import { seasonVerdicts, type EpisodeVerdictLine } from "./ratings";
 import { couchCorrections, type Correction } from "./rulings";
 import { DEFAULT_RUNTIME_MIN, seasonSchedules } from "./schedule";
+import type { ReadOnly } from "./read-only";
 import { gamesHere, type GameHere } from "./season-games";
 import { seasonFactsFor } from "./season-stats";
 
@@ -69,10 +70,11 @@ export interface SeasonEpisodes {
 /** A game you joined late and are still catching up in (StateLogic.GhostLogic). */
 const catchingUpIn = (h: GameHere) => StateLogic.GhostLogic.isCatchingUp(h.state, h.playerId);
 
-/** The episodes you may be told about, merged across your games here (or, playing none, the season's own results). */
-export async function seasonEpisodes(user: SessionUser, seasonId: string, couchId: string | null): Promise<SeasonEpisodes> {
+/** The episodes you may be told about, merged across your games here (or, playing none, the season's own results). `ro`:
+ *  told from the game open read-only (read-only.ts), as its couch has it: nobody's own line, and no Fill it in. */
+export async function seasonEpisodes(user: SessionUser, seasonId: string, couchId: string | null, ro: ReadOnly | null = null): Promise<SeasonEpisodes> {
   const [{ seen, here: all }, schedules, follow, recapRows] = await Promise.all([
-    gamesHere(user, seasonId, couchId),
+    gamesHere(user, seasonId, couchId, ro),
     seasonSchedules([seasonId]),
     pool.query("SELECT early_seen FROM show_follows WHERE user_id = $1 AND season_id = $2", [user.id, seasonId]),
     pool.query("SELECT number, summary FROM season_episodes WHERE season_id = $1 AND summary IS NOT NULL", [seasonId]),
@@ -98,7 +100,7 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   const seenRows = new Map<number, EpisodeSeen>();
   const order = [...here].sort((a, b) => Number(b.game.gameType === "active-roster") - Number(a.game.gameType === "active-roster"));
   for (const h of order) {
-    for (const ep of episodesSeen(h.ref, h.state, h.playerId, h.mark)) {
+    for (const ep of episodesSeen(h.ref, h.state, h.readOnly ? null : h.playerId, h.mark)) {
       const had = seenRows.get(ep.number);
       if (!had) seenRows.set(ep.number, ep);
       else {
@@ -146,7 +148,7 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   // Whoever runs a game fills results in from Backstage; anyone else gets the quiet ask, once they've seen the episode.
   const runs = here.some((h) => h.game.yourRole === "commissioner" || h.game.yourRole === "admin");
   const earlySeen = rows.filter((r) => r.status === "seen" && r.stage === "early").map((r) => r.number);
-  const fill = couchId && here.length && !runs && earlySeen.length && (await couchFillsResults(couchId)) ? { episode: Math.max(...earlySeen) } : null;
+  const fill = couchId && here.length && !runs && !ro && earlySeen.length && (await couchFillsResults(couchId)) ? { episode: Math.max(...earlySeen) } : null;
   // Each episode you've seen with its verdict (only through your mark: seasonVerdicts reads nothing past it).
   const verdicts = await seasonVerdicts(user.id, seasonId, couchId, mark);
   for (const r of rows) if (r.status === "seen" || (r.status === "aired" && r.watched)) r.verdict = verdicts.get(r.number) ?? { avg: null, n: 0, mine: null };

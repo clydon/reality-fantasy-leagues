@@ -20,7 +20,7 @@ export type { DeskEpisode, EpisodeAnswer, EpisodeFact, MoveLine, TriviaQuestion 
 export type { BankSquare, DeskBingo, DeskBingoBank } from "@/lib/server/desk-bingo";
 export type { CountPlan, ListingHitRow, WhenPlan } from "@/lib/server/desk-schedule";
 export type { DeskCouch, DeskShow } from "@/lib/server/desk-couches";
-export type { DeskGame, GameFilter, GameRow, GameSort, GamesList } from "@/lib/server/desk-games";
+export type { DeskGame, GameFilter, GameOpen, GameRow, GameSort, GamesList } from "@/lib/server/desk-games";
 export type { DeskPerson, DeskSeatGame, PeopleList, PersonRow, PeopleFilter, PeopleSort } from "@/lib/server/desk-people";
 export type { HandOnCandidate, HandOnGame } from "@/lib/server/desk-seats";
 export type { GameSeats, LinkCandidate, SeatEmpty, SeatIn, SeatOut, SeatPerson } from "@/lib/server/desk-seat-moves";

@@ -8,6 +8,7 @@ import { pool } from "./db";
 import { EVERYTHING, seenThrough } from "./guard";
 import { readyLeague } from "./league-read";
 import { leagueStates } from "./league-states";
+import type { ReadOnly } from "./read-only";
 import { games, type Game } from "./show-space";
 
 // Your games on a season, for the new design's show space (docs/PLAN-new-design.md step 1; GET
@@ -58,14 +59,17 @@ export interface GameHere {
   /** Your mark for this league (markFor): null when you see everything. */
   mark: number | null;
   userOf: UserOf;
+  /** Open read-only from the desk (read-only.ts): the couch's game with no seat of yours in it; `playerId` is "". */
+  readOnly?: true;
 }
 
 /**
  * Your games on a season (with `couchId`, that couch's that you play), each with its ready state and your mark, in
  * the couch's order; and your season mark (guard.ts). Read by /games, /episodes and the reveal. One league's
- * unreadable state costs that game, not the show space.
+ * unreadable state costs that game, not the show space. `ro`: the one game open read-only instead, as its couch sees it.
  */
-export async function gamesHere(user: SessionUser, seasonId: string, couchId: string | null): Promise<{ seen: number; here: GameHere[] }> {
+export async function gamesHere(user: SessionUser, seasonId: string, couchId: string | null, ro: ReadOnly | null = null): Promise<{ seen: number; here: GameHere[] }> {
+  if (ro) return readOnlyHere(user, seasonId, ro);
   const list = (await games(user.id, couchId ? { couchIds: [couchId], seasonId, withSolo: true } : { mine: true, seasonId })).filter((g) => g.yourRole);
   const seen = await seenThrough(user.id, seasonId);
   const here: GameHere[] = [];
@@ -87,8 +91,28 @@ export async function gamesHere(user: SessionUser, seasonId: string, couchId: st
   return { seen, here };
 }
 
-export async function seasonGames(user: SessionUser, seasonId: string, couchId: string | null): Promise<{ seenThrough: number | null; games: GameView[] }> {
-  const { seen, here } = await gamesHere(user, seasonId, couchId);
+/** The game open read-only (read-only.ts), at your own mark: no seat, so no late joiner's week of yours either. */
+async function readOnlyHere(user: SessionUser, seasonId: string, ro: ReadOnly): Promise<{ seen: number; here: GameHere[] }> {
+  const [[g], seen] = await Promise.all([games(user.id, { leagueId: ro.leagueId, seasonId }), seenThrough(user.id, seasonId)]);
+  if (!g) return { seen, here: [] };
+  const [{ users }, states] = await Promise.all([seatsIn(user.id, [g.leagueId]), leagueStates([g.leagueId])]);
+  const state = states.get(g.leagueId);
+  if (!state) return { seen, here: [] };
+  try {
+    const ready = await readyLeague(g.leagueId, state);
+    return {
+      seen,
+      here: [{ game: g, ref: refOf(g), state: ready, playerId: "", mark: seen === EVERYTHING ? null : seen, userOf: (p) => users.get(g.leagueId)?.get(p) ?? null, readOnly: true }],
+    };
+  } catch (e) {
+    // As gamesHere: an unreadable state costs that game, not the show space (the Games tab says it can't be read).
+    console.error(`[season-games] league ${g.leagueId}:`, e);
+    return { seen, here: [] };
+  }
+}
+
+export async function seasonGames(user: SessionUser, seasonId: string, couchId: string | null, ro: ReadOnly | null = null): Promise<{ seenThrough: number | null; games: GameView[] }> {
+  const { seen, here } = await gamesHere(user, seasonId, couchId, ro);
   const out: GameView[] = [];
   for (const h of here) {
     try {
@@ -103,12 +127,13 @@ export async function seasonGames(user: SessionUser, seasonId: string, couchId: 
 /** One of your games as you may see it, with the calls or bingo cards it reads (step 12: a pool's Who goes home?, Weekly Calls,
  *  Weekly Bingo). */
 export async function viewWithCalls(user: SessionUser, seasonId: string, h: GameHere): Promise<GameView> {
-  const o = { state: h.state, couchId: h.game.couchId, seasonId, playerId: h.playerId, userId: user.id, mark: h.mark, userOf: h.userOf };
+  // Read-only: the couch's calls and lines, and no card or call of yours (none is dealt).
+  const o = { state: h.state, couchId: h.game.couchId, seasonId, playerId: h.readOnly ? null : h.playerId, userId: user.id, mark: h.mark, userOf: h.userOf };
   const calls = await (StateLogic.getLeagueType(h.state).hasBingo ? leagueBingo(o) : leagueCalls(o)).catch((e) => {
     console.error(`[season-games] calls ${h.game.leagueId}:`, e);
     return null;
   });
-  return gameView(h.ref, h.state, h.playerId, h.mark, h.userOf, calls ?? undefined);
+  return gameView(h.ref, h.state, h.readOnly ? null : h.playerId, h.mark, h.userOf, calls ?? undefined);
 }
 
 function refOf(g: Game): GameRefIn {

@@ -2,6 +2,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { SessionProvider } from "@/new/session";
+import { ReadOnlyLayer } from "@/new/read-only";
 import { CouchSheets } from "@/new/couch/couch-sheets";
 import { StartGameSheets } from "@/new/couch/start-game";
 import { PlanSheets } from "@/new/couch/watch-plans";
@@ -31,8 +32,10 @@ export default async function SignedInLayout({ children }: { children: React.Rea
   // The couch sheets (switch, details, invite, start, join, leave: step 9), the watching ones (Add a show, where you are:
   // step 10), Start a game (step 10 part 2b), planned nights (step 11 part 3), Rate it (step 12 part 1), Call it and the couch's
   // polls (part 2), bingo and trivia (part 3) open from anywhere signed in.
+  // The Read-only plate over a game a site admin opened from the desk (part 6c of docs/PLAN-desk-parity.md), first.
   return (
     <SessionProvider me={me}>
+      <ReadOnlyLayer />
       {children}
       <CouchSheets />
       <WatchingSheets />

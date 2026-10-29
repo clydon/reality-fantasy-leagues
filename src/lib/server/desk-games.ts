@@ -8,6 +8,7 @@ import { archiveLeague, deleteLeague, purgeDeleted, RESTORE_DAYS, restoreGame } 
 import { GAME_NAMES, gameName } from "./league-season";
 import type { LeagueState } from "@/lib/game/types";
 import { notifyGameDeleted } from "./push-events";
+import { seenThrough } from "./guard";
 import { seasonSchedules } from "./schedule";
 import { syncLeagueDecisions } from "./season-decisions";
 
@@ -20,7 +21,8 @@ import { syncLeagueDecisions } from "./season-decisions";
 // (end-game.ts deleteLeague: restorable for 30 days, its players told), Restore (Undo deletes it again), and for a deleted
 // one, Delete for good, now. Classic's league delete was a hard DELETE FROM leagues with no way back, and its leagueDeleted
 // also deleted a couch left with no games (Noticed m): the desk never does either until the 30 days are up or it's asked
-// to delete for good, and a couch stays. Seats are part 6b's; Open it read-only is 6c's.
+// to delete for good, and a couch stays. Seats are part 6b's (desk-seat-moves.ts). Open it (6c): as you when you've a seat,
+// else read-only (read-only.ts), a line in its History.
 
 export const GAME_FILTERS = ["all", "nobody", "ended", "archived", "deleted"] as const;
 export type GameFilter = (typeof GAME_FILTERS)[number];
@@ -413,6 +415,53 @@ export async function deleteForGood(user: SessionUser, id: string): Promise<{ te
       });
   });
   return { text: `${named(g)} is gone for good` };
+}
+
+// ---------- Open it (part 6c) ----------
+
+/** How the game opens in the app from its page (the mock's dgOpenRow): as you, when you've a seat in it; else read-only, as
+ *  its couch sees it, at your own spoiler mark (read-only.ts); null for a game that doesn't open (deleted, or on no couch or
+ *  season: nobody's couch to see it as). */
+export interface GameOpen {
+  as: "you" | "readOnly";
+  seasonId: string;
+  couchId: string;
+  couch: string;
+  /** Where you are in its season (null: you see results straight away). */
+  mark: number | null;
+  /** What its show calls an episode ("Game" for a baseball series). */
+  episode: string;
+}
+
+export async function gameOpen(user: SessionUser, g: DeskGame): Promise<GameOpen | null> {
+  if (g.state === "deleted" || !g.couch || !g.seasonId) return null;
+  const [{ rows }, seen] = await Promise.all([
+    pool.query(
+      `SELECT EXISTS (SELECT 1 FROM league_memberships WHERE league_id = $1 AND user_id = $2) AS seat,
+              (SELECT s.episode_term FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $3) AS episode`,
+      [g.id, user.id, g.seasonId]
+    ),
+    seenThrough(user.id, g.seasonId),
+  ]);
+  return {
+    as: rows[0].seat ? "you" : "readOnly",
+    seasonId: g.seasonId,
+    couchId: g.couch.id,
+    couch: g.couch.name,
+    mark: Number.isFinite(seen) ? seen : null,
+    episode: rows[0].episode || "Episode",
+  };
+}
+
+/** Open it read-only (`{ open: true }`): a line in its History ("Opened read-only", the mock's dgLog), then the app's show
+ *  space opens it. Its players aren't told (Calls made in the design): the desk's History is the record. */
+export async function openReadOnly(user: SessionUser, id: string): Promise<{ leagueId: string; name: string; seasonId: string; couchId: string; couch: string }> {
+  const g = await deskGame(id);
+  const open = await gameOpen(user, g);
+  if (!open) throw new HttpError(409, g.state === "deleted" ? "A deleted game doesn't open: restore it first" : "A game on no couch has no couch to see it as");
+  if (open.as === "you") throw new HttpError(409, "You play it: it opens as you");
+  await logDesk(pool, { entity: "game", entityId: g.id, action: "open", text: "Opened read-only", userId: user.id });
+  return { leagueId: g.id, name: g.name, seasonId: open.seasonId, couchId: open.couchId, couch: open.couch };
 }
 
 /** A game's actions on the desk: `{ archive: true }`, `{ delete: true }` or `{ restore: true }`. */
