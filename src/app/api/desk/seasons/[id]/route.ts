@@ -11,8 +11,8 @@ import { deleteSeason, deskSetup } from "@/lib/server/desk-setup";
 // A season on the desk (step 6b part 2): GET its rulebook, cast and episodes' results, and (6c part 2) its bot's schedule,
 // and (docs/PLAN-desk-parity.md part 3a) its Setup as the page shows it (the lower third, Running it › Setup's line) and its
 // Delete, and (part 4b) its Episodes, each a row to its own page, and (part 4c) Running it › Bingo bank's line, and (part 5a)
-// Running it › Cast's line and its dot; POST `{ clearGroup, preview? }` takes a group that's really a secret role off the cast and out of every league on
-// the season; POST `{ bot: { on?, schedule? } }` changes the bot's schedule for the season (Autopilot's trial); DELETE
+// Running it › Cast's line and its dot; POST `{ clearGroup, preview? }` takes a group off the cast and out of every league on the season (Not a <group>,
+// the Cast page's: a group named like a secret role goes with every other one so named, part 5b); POST `{ bot: { on?, schedule? } }` changes the bot's schedule for the season (Autopilot's trial); DELETE
 // deletes it (tier 3: refused while games play it).
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: string }> }) => {
   const user = await requireDesk(req);

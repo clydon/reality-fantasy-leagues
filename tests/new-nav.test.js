@@ -71,6 +71,10 @@ test("up from a page: where its own Back leads, on up to the hub (the phone's ba
   assert.equal(R.upFrom("/desk/new?season=abc"), "/desk/library");
   assert.equal(R.upFrom("/desk/fact/42"), "/desk");
   assert.equal(R.upFrom("/desk/castaway/7"), "/desk/find");
+  // A castaway under its season's Cast (docs/PLAN-desk-parity.md part 5b): up is the Cast page.
+  assert.equal(R.upFrom("/desk/season/s1/c/7"), "/desk/season/s1/cast");
+  assert.equal(R.depthOf("/desk/season/s1/c/7"), 4);
+  assert.equal(R.paths.deskCastaway("s1", "7"), "/desk/season/s1/c/7");
   // Find › People (docs/PLAN-desk-parity.md step 1): a page a level down from Find, searched or filtered from the start.
   assert.equal(R.upFrom("/desk/people?q=riley&f=waiting"), "/desk/find");
   assert.equal(R.depthOf("/desk/people"), 2);

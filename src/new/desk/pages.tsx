@@ -14,15 +14,16 @@ import { Btn, Chip, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { ArtSection } from "./art";
-import { deskSend, useAfterDesk, useDesk, type DeskCastaway, type DeskCouch, type DeskFact, type DeskLine, type DeskSeason, type DeskShow, type SeasonBot, type SeasonDelete } from "./data";
-import { DeskHeader, DeskRow, Facts, FieldRow, IconLead, ItemRow, LatestHistory, LockRow, LowerThird, OverrideSheet, Section, Tag } from "./parts";
+import { deskSend, useAfterDesk, useDesk, type DeskCouch, type DeskFact, type DeskLine, type DeskSeason, type DeskShow, type SeasonBot, type SeasonDelete } from "./data";
+import { DeskHeader, DeskRow, Facts, FieldRow, IconLead, ItemRow, LatestHistory, LowerThird, Section, Tag } from "./parts";
 import { HandOnSheet } from "./seats";
 import { EpisodeNumber } from "./research";
 import { SeasonDeleteRow } from "./setup";
 
 // One thing on the desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js adminFact and adminEntity): a
-// disputed fact's two sides and the admin's decision; a season (its rulebook, its cast by group, its episodes' results);
-// a castaway (Override, Lock, History); a couch (who runs its games, Hand them on when nobody does, who fills in); a show (who added it,
+// disputed fact's two sides and the admin's decision; a season (its rulebook, its Running it rows, its episodes); a castaway
+// is castaway.tsx's (part 5b);
+// a couch (who runs its games, Hand them on when nobody does, who fills in); a show (who added it,
 // Looks fine or Archive for one added by name, its seasons and their rulebooks, New season: step 10 part 3). Each in the
 // desk's page frame (docs/PLAN-desk-parity.md step 1, parts.tsx): Back names where you came from, what it's part of is a
 // link, and History shows its latest three. Each page's own actions and its Delete come with the step that builds them.
@@ -289,64 +290,6 @@ export function SeasonPage({ id }: { id: string }) {
       </Section>
       <LatestHistory lines={q.data.history} />
       <SeasonDeleteRow id={id} del={s.delete} showId={s.show.id} />
-    </div>
-  );
-}
-
-// ---------- a castaway ----------
-
-export function CastawayPage({ id }: { id: string }) {
-  const q = useDesk<DeskCastaway>(`/castaways/${id}`);
-  const act = useAct<DeskCastaway>(`/castaways/${id}`);
-  const [field, setField] = useState<"name" | "group" | "photo" | null>(null);
-  if (q.error) return <><DeskHeader title="Castaway" back={back} name={null} /><NotFound error={q.error} /></>;
-  if (!q.data) return <><DeskHeader title="Castaway" back={back} name={null} /><Loading /></>;
-  const c = q.data;
-  const values = { name: c.name, group: c.group ?? "", photo: c.photoUrl ?? "" };
-  const labels = { name: "Name", group: "Group", photo: "Photo" };
-  return (
-    <div className="pb-16" data-desk-castaway>
-      <DeskHeader title="Castaway" back={{ label: c.season.name, href: paths.deskItem("season", c.season.id) }} name={c.name} kind="Castaway" />
-      <Section>
-        <div className="flex items-center gap-3">
-          <Face src={c.photo} name={c.name} className="size-[72px] flex-none rounded-[3px] text-2xl" />
-          <span>
-            <b className="type-caption block text-[26px] leading-none">{c.name}</b>
-            <small className="text-[14px] text-muted-foreground">Cast · {c.season.name}</small>
-          </span>
-        </div>
-      </Section>
-      <Section title="Part of">
-        <DeskRow href={paths.deskItem("season", c.season.id)} data="part-of" lead={<IconLead icon={Tv} />} title={c.season.name} line="The cast" />
-      </Section>
-      <Section>
-        <FieldRow data="name" label="Name" value={c.name} onOverride={() => setField("name")} />
-        <FieldRow data="group" label="Group" value={c.group ?? "No group"} onOverride={() => setField("group")} />
-        <FieldRow data="photo" label="Photo" value={c.photoUrl ? "From the season cast" : "None"} onOverride={() => setField("photo")} />
-      </Section>
-      <Section>
-        <LockRow
-          locked={c.locked}
-          on="Locked: no commissioner's cast entry changes them; flags still reach you"
-          off="Couches can correct them while their cast is being made"
-          onChange={(locked) => act({ lock: locked }, locked ? "Locked" : "Unlocked")}
-        />
-      </Section>
-      <LatestHistory lines={c.history} />
-      {field && (
-        <OverrideSheet
-          open
-          onClose={() => setField(null)}
-          title={c.name}
-          reach={c.reach}
-          label={labels[field]}
-          value={values[field]}
-          choices={field === "group" ? c.groups : undefined}
-          onSave={async (value) => {
-            await act({ field, value }, "Overridden · in the history with undo");
-          }}
-        />
-      )}
     </div>
   );
 }

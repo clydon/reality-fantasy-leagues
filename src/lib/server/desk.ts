@@ -299,11 +299,11 @@ export async function find(q: string): Promise<FoundItem[]> {
     if (r.rulebook) out.push({ kind: "rulebook", title: `${r.name} · rulebook`, line: "Rulebook", href: `/desk/rulebook/${r.rulebook}` });
   }
   const { rows: cast } = await pool.query(
-    `SELECT sc.id, sc.name, ${seasonName} AS season FROM season_cast sc JOIN show_seasons ss ON ss.id = sc.season_id JOIN shows s ON s.id = ss.show_id
+    `SELECT sc.id, sc.season_id, sc.name, ${seasonName} AS season FROM season_cast sc JOIN show_seasons ss ON ss.id = sc.season_id JOIN shows s ON s.id = ss.show_id
       WHERE sc.name ILIKE $1 ORDER BY sc.name LIMIT 10`,
     [like]
   );
-  out.push(...cast.map((r) => ({ kind: "castaway" as const, title: r.name, line: `Cast · ${r.season}`, href: `/desk/castaway/${r.id}` })));
+  out.push(...cast.map((r) => ({ kind: "castaway" as const, title: r.name, line: `Cast · ${r.season}`, href: `/desk/season/${r.season_id}/c/${r.id}` })));
   const { rows: couches } = await pool.query(
     `SELECT c.id, c.name, (SELECT count(*)::int FROM couch_members m WHERE m.couch_id = c.id) AS members FROM couches c WHERE c.name ILIKE $1 ORDER BY c.name LIMIT 6`,
     [like]

@@ -3,14 +3,13 @@ import type { CastFormat } from "@/lib/game/formats/cast-prompt";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
-import { pluralWord, showWords } from "@/lib/game/show-words";
 import { castChanges, castPlan, changesLine, type CastChange, type CastPicks, type TheirCastaway } from "@/lib/desk-cast-diff";
 import { ensureSeasonRulebook } from "@db/rulebooks.js";
 import { seasonFormat } from "@db/season-rule-changes.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { askBot } from "./ask-bot";
 import { pool, tx, HttpError } from "./db";
-import { isSecretRole, secretRolesOf } from "./desk-cast";
+import { gamesOn, groupColors, isSecretRole, secretRolesOf, termsOf } from "./desk-cast";
 import { SEASON_NAME, logDesk, type DeskLine } from "./desk";
 import { mdIn, plural, whenAt } from "./desk-dates";
 import type { MoveLine } from "./desk-episode";
@@ -63,12 +62,6 @@ async function seasonRow(id: string): Promise<SeasonRow> {
   return rows[0];
 }
 
-/** What the show calls its people and their groups, as the page says them ("castaways", "tribes"). */
-function termsOf(s: SeasonRow) {
-  const w = showWords({ castaway: s.castaway_term });
-  const group = (s.tribe_term?.trim() || "Group").toLowerCase();
-  return { person: w.person.toLowerCase(), people: w.people.toLowerCase(), group, groups: pluralWord(group) };
-}
 type Terms = ReturnType<typeof termsOf>;
 
 /** The rules a cast is read against (the season's format, in the show's own words): whether it has groups, and its roles. */
@@ -117,14 +110,6 @@ const latestAnswer = async (id: string): Promise<AnswerRow | null> =>
       [id]
     )
   ).rows[0] ?? null;
-
-const gamesOn = async (id: string): Promise<number> =>
-  (
-    await pool.query(
-      `SELECT count(*)::int AS n FROM leagues l ${LEAGUE_SEASON_JOIN} WHERE ss.id = $1 AND l.deleted_at IS NULL AND COALESCE(l.state->'settings'->>'archivedAt', '') = ''`,
-      [id]
-    )
-  ).rows[0].n;
 
 /** Whether this season's people start in groups: its format says so, or its cast already has some. */
 const hasGroups = (f: CastFormat, ours: Ours[]) => !!f.hasGroups || ours.some((c) => c.group);
@@ -202,6 +187,8 @@ export interface DeskCast {
     first: boolean;
   } | null;
   groups: { name: string; people: number; secretRole: boolean; color: string | null }[];
+  /** Hold them until Episode N (tribes_from_episode): on, and the episode they wait for. */
+  hold: { on: boolean; episode: number };
   cast: CastFace[];
   history: DeskLine[];
   delete: SeasonDelete;
@@ -213,7 +200,7 @@ const secretRoles = async (id: string) => secretRolesOf((await ensureSeasonRuleb
 export async function deskCast(user: SessionUser, id: string, now = new Date()): Promise<DeskCast> {
   const r = await reviewOf(id);
   const { s, terms, ours } = r;
-  const [setup, { rows: outs }, { rows: asking }, { rows: tribes }, roles, history] = await Promise.all([
+  const [setup, { rows: outs }, { rows: asking }, colors, roles, history] = await Promise.all([
     deskSetup(id, now),
     pool.query(
       `SELECT lower(COALESCE(d.applied->>'castawayName', d.castaway_name)) AS name, min(d.episode_number)::int AS ep
@@ -222,13 +209,12 @@ export async function deskCast(user: SessionUser, id: string, now = new Date()):
     ),
     pool.query("SELECT started_at FROM desk_runs WHERE season_id = $1 AND kind = 'cast' AND done_at IS NULL AND asked_at > now() - make_interval(secs => $2) LIMIT 1", [id, ASK_WAIT_MS / 1000]),
     // Each group's colour, as its games draw it.
-    pool.query(`SELECT l.state->'tribes' AS tribes FROM leagues l ${LEAGUE_SEASON_JOIN} WHERE ss.id = $1 AND jsonb_array_length(COALESCE(l.state->'tribes', '[]'::jsonb)) > 0 LIMIT 1`, [id]),
+    groupColors(id),
     secretRoles(id),
     castHistory(id),
   ]);
   const tz = s.air_tz || "America/New_York";
   const out = new Map(outs.map((o) => [o.name as string, o.ep as number]));
-  const colors = new Map(((tribes[0]?.tribes ?? []) as { name: string; color: string }[]).map((t) => [t.name.toLowerCase(), t.color]));
   const counts = new Map<string, number>();
   for (const c of ours) if (c.group) counts.set(c.group, (counts.get(c.group) ?? 0) + 1);
   const groups = [...counts].map(([name, people]) => ({ name, people, secretRole: isSecretRole(name, roles), color: colors.get(name.toLowerCase()) ?? null }));
@@ -276,6 +262,7 @@ export async function deskCast(user: SessionUser, id: string, now = new Date()):
     asking: ask,
     review,
     groups,
+    hold: { on: s.tribes_from_episode != null, episode: s.tribes_from_episode ?? 1 },
     cast: ours.map((c) => ({ id: c.id, name: c.name, group: c.group, photo: publicMediaSrc(c.photo), locked: c.locked, out: out.get(c.name.toLowerCase()) ?? null })),
     history,
     delete: setup.delete,

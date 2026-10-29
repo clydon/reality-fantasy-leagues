@@ -13,7 +13,7 @@ import { toast } from "../ui/toast";
 import { deskSend, useAfterDesk, useDesk, type ComingUp, type DeskSettings, type DeskLine, type FoundItem, type Inbox, type InboxItem, type PeopleList, type PersonRow, type ReportRow } from "./data";
 import { LibraryPage } from "./library";
 import { NewShowFlow } from "./new-show";
-import { CastawayPage, CouchPage, FactPage, SeasonPage, ShowPage } from "./pages";
+import { CouchPage, FactPage, SeasonPage, ShowPage } from "./pages";
 import { LetInButton, PeoplePage, PersonPage, PersonTags, useDebounced } from "./people";
 import { ReportListRow, ReportPage, ReportsPage } from "./reports";
 import { andList } from "./seats";
@@ -23,6 +23,7 @@ import { RulebookPage } from "./rulebook";
 import { EpisodePage } from "./episode";
 import { BingoPage } from "./bingo";
 import { CastPage } from "./cast";
+import { CastawayPage, OldCastawayPage } from "./castaway";
 import { ResearchPage } from "./research";
 import { SetupPage } from "./setup";
 
@@ -37,7 +38,7 @@ type Page = Tab | "library" | "new" | "people" | "reports";
 
 const TAB_NAMES: Record<Tab, string> = { inbox: "Inbox", find: "Find", settings: "Settings" };
 
-export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: DeskKind; id: string; sub?: DeskSeasonPage; episode?: number } | null }) {
+export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: DeskKind; id: string; sub?: DeskSeasonPage; episode?: number; castaway?: string } | null }) {
   const me = useMe();
   useDeskStay();
   if (!me.isSuperAdmin) {
@@ -49,12 +50,13 @@ export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: Desk
     );
   }
   if (item?.episode) return <EpisodePage id={item.id} n={item.episode} />;
+  if (item?.castaway) return <CastawayPage seasonId={item.id} id={item.castaway} />;
   if (item?.sub === "setup") return <SetupPage id={item.id} />;
   if (item?.sub === "research") return <ResearchPage id={item.id} />;
   if (item?.sub === "bingo") return <BingoPage id={item.id} />;
   if (item?.sub === "cast") return <CastPage id={item.id} />;
   if (item) {
-    const page = { fact: FactPage, season: SeasonPage, castaway: CastawayPage, couch: CouchPage, person: PersonPage, show: ShowPage, rulebook: RulebookPage, report: ReportPage }[item.kind];
+    const page = { fact: FactPage, season: SeasonPage, castaway: OldCastawayPage, couch: CouchPage, person: PersonPage, show: ShowPage, rulebook: RulebookPage, report: ReportPage }[item.kind];
     const Page = page;
     return <Page id={item.id} />;
   }

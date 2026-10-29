@@ -18,6 +18,13 @@
 //   6. In the browser at --width: the season page's row to the page; Season 1's page; Paste it (Ask an AI, then What changed,
 //      Use Savu, Send's preview, sent, Undo); the Inbox's item to the page; Season 2's Ask our bot (asking, then its answer's
 //      review). Nothing wider than the screen; the season's Delete last; no page errors.
+//   8. Part 5b (Season 4, sent with no games and linked to a stand-in TV listing, fake-listings.js: Remy, Sol and Uma in
+//      Faithful, Tia in Traitor, Vic in Savu): Hold them until Episode 1 without un-approving, its Undo; Not a tribe on one
+//      group, and Faithful and Traitor (named like secret roles) taken out together, Undo; a castaway's page (Brady: Still in, on
+//      a team, Remove refused with his game listed; Aaliyah out, results name her); Override with a waiting answer's line
+//      settled (Noticed bh), History once, Undo; Look on TMDB and TVmaze, a photo by link, No photo, Lock; Remove someone
+//      nobody has. In the browser: Hold's switch and toast Undo, the secret-role sheet, Brady's page (Remove last, refused),
+//      Look and Save, the old /desk/castaway/<id> sending on, and a Remove held, out of the cast and jo's game.
 //   7. Nothing real moved: no real season's cast or answers.
 // Screenshots go to <outDir>.
 //
@@ -35,6 +42,7 @@ const { Pool } = require("pg");
 const { open, api, BASE } = require("./browser");
 const { settle } = require("./motion");
 const fakeBot = require("./fake-bot");
+const fakeListings = require("./fake-listings");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } });
 const { buildDemoState } = jiti("../../src/lib/game/demo-season-builder.ts");
 const S = require("../../src/lib/game/state-logic.js");
@@ -58,6 +66,10 @@ const nameOf = (slug) => slug.split("-").map((w) => w[0].toUpperCase() + w.slice
 const CAST = FACES.map(nameOf);
 const TRIBES = [["toka", "Toka", "#e0b23a"], ["savu", "Savu", "#9b6bd0"]];
 const tribeOf = (i) => TRIBES[i % 2][1];
+// Part 5b's Season 4, and its stand-in TV listing (fake-listings.js), whose guest cast has a photo of Remy.
+const S4 = [["Remy Example", "Faithful"], ["Sol Example", "Faithful"], ["Tia Example", "Traitor"], ["Uma Example", "Faithful"], ["Vic Example", "Savu"]];
+const LISTING = 9900941;
+const TV_ID = 990094;
 
 let failures = 0;
 function check(ok, what, detail = "") {
@@ -113,6 +125,10 @@ async function up(pool) {
   for (const [i, slug] of FACES.entries())
     ids.cast[CAST[i]] = (await one("INSERT INTO season_cast (season_id, name, tribe_name, photo_url, sort_order) VALUES ($1, $2, $3, $4, $5) RETURNING id", [ids.s1, CAST[i], tribeOf(i), `/mock/showcase/img/survivor-51/${slug}.jpg`, i])).id;
   for (const [i, n] of ["Ada Example", "Bo Example", "Cy Example"].entries()) await pool.query("INSERT INTO season_cast (season_id, name, sort_order) VALUES ($1, $2, $3)", [ids.s3, n, i]);
+  // Season 4 (part 5b): sent, no games, linked to the stand-in TV listing; Faithful and Traitor (named like secret roles) and Savu.
+  ids.s4 = (await one("INSERT INTO show_seasons (show_id, season_number, status, episode_count, cast_approved_at, cast_approved_by, listing_id) VALUES ($1, 4, 'upcoming', 10, now() - interval '5 days', $2, $3) RETURNING id", [ids.show, ids.desk, LISTING])).id;
+  ids.s4cast = {};
+  for (const [i, [n, g]] of S4.entries()) ids.s4cast[n] = (await one("INSERT INTO season_cast (season_id, name, tribe_name, sort_order) VALUES ($1, $2, $3, $4) RETURNING id", [ids.s4, n, g, i])).id;
   // Aaliyah went home in Episode 1.
   await pool.query(
     `INSERT INTO season_decisions (season_id, episode_number, kind, castaway_name, method, event_type, status, fact_status, from_research, decided_at)
@@ -149,6 +165,19 @@ const castAnswer = (rows) => "```json\n" + JSON.stringify({ castaways: rows.map(
 const PASTE = castAnswer([...CAST.filter((n) => n !== "Devin Way").map((n) => [n === "Cristian Chavez" ? "Kristian Chavez" : n, n === "Brady Booker" ? "Toka" : tribeOf(CAST.indexOf(n))]), ["Zed Newman", "Toka"]]);
 // The cast as the second send left it (Kristian, Zed joined; Brady kept on Savu): a paste of it changes nothing.
 const SAME = castAnswer([...CAST.map((n, i) => [n === "Cristian Chavez" ? "Kristian Chavez" : n, tribeOf(i)]), ["Zed Newman", "Toka"]]);
+/** Season 4's TV listing: a weekly season whose every episode's guest cast is Remy and Sol (TVmaze's shape), Remy with a photo. */
+const REMY_PHOTO = () => `${BASE}/mock/showcase/img/survivor-51/devin-way.jpg?from=tvmaze`;
+const listingShow = () => {
+  const season = fakeListings.weekly(LISTING, 4, 10, 2);
+  return {
+    show: { id: TV_ID, name: "ZT DC Show", type: "Reality", genres: [], status: "Running", premiered: season.season.premiereDate, network: null, webChannel: null, image: null, url: `https://www.tvmaze.com/shows/${TV_ID}`, schedule: { time: "21:00", days: ["Wednesday"] } },
+    seasons: [season],
+    guestCast: [
+      { person: { id: 0, name: "Remy Example", image: { medium: REMY_PHOTO() } }, character: { id: 0, name: "Self - Contestant", image: null }, self: true, voice: false },
+      { person: { id: 0, name: "Sol Example", image: null }, character: { id: 0, name: "Self - Contestant", image: null }, self: true, voice: false },
+    ],
+  };
+};
 const S2 = castAnswer([["Eve One", "Red"], ["Fay Two", "Red"], ["Gus Three", "Blue"], ["Hal Four", "Blue"], ["Ivy Five", "Blue"]]);
 
 (async () => {
@@ -173,7 +202,9 @@ const S2 = castAnswer([["Eve One", "Red"], ["Fay Two", "Red"], ["Gus Three", "Bl
       },
     });
     closers.push(bot.close);
-    const headers = { "x-gys-bot": bot.url };
+    const tv = await fakeListings.start({ shows: [listingShow()] });
+    closers.push(tv.close);
+    const headers = { "x-gys-bot": bot.url, "x-gys-listings": tv.url };
     const as = { desk: await api({ user: U("desk"), pass: PASSWORD, headers }), jo: await api({ user: U("jo"), pass: PASSWORD, headers }) };
     const P = (s) => `/api/desk/seasons/${s}/cast`;
     const read = async (s) => (await as.desk.call("GET", P(s))).body;
@@ -457,6 +488,195 @@ const S2 = castAnswer([["Eve One", "Red"], ["Fay Two", "Red"], ["Gus Three", "Bl
     check((await sheet().locator("[data-change='add']").count()) === 5, "What changed: everyone new");
     await fits("everyone new");
     await shot("everyone-new");
+
+    // ---- 8. part 5b: starting groups, Hold, a castaway's page ----
+    const CA = (id) => `/api/desk/castaways/${id}`;
+    const cget = async (id) => (await as.desk.call("GET", CA(id))).body;
+    const cpost = (id, body) => as.desk.call("POST", CA(id), body);
+    const bradyId = ids.cast["Brady Booker"];
+    const refused5b = await Promise.all([
+      as.jo.call("GET", CA(bradyId)),
+      as.jo.call("POST", CA(bradyId), { remove: true }),
+      as.jo.call("POST", CA(bradyId), { look: true }),
+      as.jo.call("POST", CA(bradyId), { field: "name", value: "X" }),
+      as.jo.call("POST", P(ids.s1), { hold: true }),
+    ]);
+    check(refused5b.every((x) => x.status === 403), "5b: a player is refused a castaway's page, Remove, Look, Override and Hold", refused5b.map((x) => x.status).join(","));
+    // Hold them until Episode 1: without un-approving the cast
+    const s1row = async () => (await pool.query("SELECT tribes_from_episode, cast_approved_at FROM show_seasons WHERE id = $1", [ids.s1])).rows[0];
+    c1 = await read(ids.s1);
+    check(c1.hold?.on === false && c1.hold.episode === 1, "Hold: off to start", JSON.stringify(c1.hold));
+    r = await post(ids.s1, { hold: true });
+    let row = await s1row();
+    check(r.status === 200 && r.body.text === "Tribes held until Episode 1" && row.tribes_from_episode === 1 && !!row.cast_approved_at && (await read(ids.s1)).hold.on, "Hold: held until Episode 1, the cast still sent", JSON.stringify(r.body));
+    c1 = await read(ids.s1);
+    check(c1.history[0].text === "Starting tribes held until Episode 1" && c1.history[0].undoable && c1.state === "review", "its History line, with Undo; the waiting paste still waits", JSON.stringify(c1.history[0]));
+    check((await undoIt(r.body.changeId)).status === 200 && (await s1row()).tribes_from_episode === null && !!(await s1row()).cast_approved_at, "Undo: not held, still sent");
+    // Not a tribe: one group; secret-role groups together
+    pv = await as.desk.call("POST", `/api/desk/seasons/${ids.s1}`, { clearGroup: "Toka", preview: true });
+    check(pv.status === 200 && pv.body.secret === false && JSON.stringify(pv.body.groups.map((g) => [g.name, g.people, g.color])) === JSON.stringify([["Toka", 4, "#e0b23a"]]) && pv.body.leagues === 1, "Not a tribe on Toka: Toka alone, its game", JSON.stringify(pv.body));
+    const c4 = await read(ids.s4);
+    check(JSON.stringify(c4.groups.map((g) => [g.name, g.people, g.secretRole])) === JSON.stringify([["Faithful", 3, true], ["Traitor", 1, true], ["Savu", 1, false]]) && c4.detail === "5 castaways", "Season 4: Faithful and Traitor named like secret roles (its count of tribes left out), and Savu", JSON.stringify(c4.groups));
+    pv = await as.desk.call("POST", `/api/desk/seasons/${ids.s4}`, { clearGroup: "Traitor", preview: true });
+    check(pv.body.secret === true && pv.body.groups.map((g) => g.name).join() === "Faithful,Traitor" && pv.body.people === 4 && pv.body.leagues === 0, "Not a tribe on Traitor: Faithful goes with it", JSON.stringify(pv.body));
+    r = await as.desk.call("POST", `/api/desk/seasons/${ids.s4}`, { clearGroup: "Traitor" });
+    check(r.status === 200 && r.body.text === "Faithful and Traitor taken out · 4 people have no tribe" && (await read(ids.s4)).groups.map((g) => g.name).join() === "Savu", "taken out together; Savu stays", JSON.stringify(r.body));
+    check((await undoIt(r.body.changeId)).status === 200 && (await read(ids.s4)).groups.map((g) => `${g.name}:${g.people}`).join() === "Faithful:3,Traitor:1,Savu:1", "Undo: both back on the same people");
+    // A castaway's page
+    let b = await cget(bradyId);
+    check(b.tag === "Still in" && b.first === "Brady" && b.detail === "Started on Savu" && b.meta === "On 1 team in 1 game" && b.season.id === ids.s1 && b.castSize === 8 && b.reach === "Every game on ZT DC Show 1 · 1 game", "Brady: Still in, started on Savu, on 1 team", JSON.stringify({ t: b.tag, d: b.detail, m: b.meta, r: b.reach }));
+    check(b.photoFrom === "A link" && b.groups.map((g) => g.name).join() === "Savu,Toka" && !b.groupSecret && b.terms.group === "tribe", "his photo, the season's tribes to pick from");
+    check(!b.remove.ok && b.remove.line === "Not while 1 team has them" && /^1 team in 1 game has Brady, so taking them out would change scores\. If their name is wrong, override it instead\.$/.test(b.remove.why) && b.remove.games.map((g) => `${g.name}/${g.couch}`).join() === "ZT DC Game/ZT DC Couch", "Remove: refused, his team's game listed", JSON.stringify(b.remove));
+    r = await cpost(bradyId, { remove: true });
+    check(r.status === 409 && /1 team in 1 game has Brady/.test(r.body.error) && (await castNames(ids.s1)).includes("Brady Booker"), "Remove refused by the server too", JSON.stringify(r.body));
+    const aal = await cget(ids.cast["Aaliyah Puglia"]);
+    check(aal.tag === "Out" && aal.detail === "Out in Episode 1 · voted out" && !aal.remove.ok && /Episode 1's results name them/.test(aal.remove.why), "Aaliyah: Out in Episode 1; Remove refused, results name her", JSON.stringify({ t: aal.tag, d: aal.detail, w: aal.remove.why }));
+    // Override, and a waiting answer's line settled by it (Noticed bh)
+    check((await read(ids.s1)).review?.changes.map((x) => x.change.k).join() === "group,spell,add,gone", "the paste waits: a tribe, a new spelling, someone new, someone not listed");
+    const cristian = ids.cast["Cristian Chavez"];
+    const ren = await cpost(cristian, { field: "name", value: "Kristian Chavez" });
+    check(ren.status === 200 && ren.body.text === "Renamed Kristian Chavez in 1 game" && !!ren.body.changeId && (await leagueState()).castaways.some((x) => x.seasonCastId === cristian && x.name === "Kristian Chavez"), "Override the name: renamed in the game", JSON.stringify({ t: ren.body.text, e: ren.body.error }));
+    check((await read(ids.s1)).review?.changes.map((x) => x.change.k).join() === "group,add,gone", "bh: the paste's new spelling of him is settled, not offered back");
+    const regroup = await cpost(bradyId, { field: "group", value: "Toka" });
+    check(regroup.body.text === "Brady starts on Toka in 1 game" && (await read(ids.s1)).review?.changes.map((x) => x.change.k).join() === "add,gone", "Override his tribe: the paste's tribe for him is settled too", JSON.stringify(regroup.body.text));
+    const kh = (await cget(cristian)).history;
+    check(kh[0].text === "Renamed Kristian Chavez (was Cristian Chavez)" && kh[0].undoable && kh[0].who === U("desk") && !kh.slice(1).some((h) => Math.abs(Date.parse(h.at) - Date.parse(kh[0].at)) < 5000), "his History: the rename once (the cast's own log of it left out), with Undo", JSON.stringify(kh.slice(0, 3)));
+    await undoIt(regroup.body.changeId);
+    await undoIt(ren.body.changeId);
+    check(JSON.stringify(await castNames(ids.s1)) === JSON.stringify(CAST) && (await pool.query("SELECT tribe_name FROM season_cast WHERE id = $1", [bradyId])).rows[0].tribe_name === "Savu", "both undone");
+    check((await read(ids.s1)).review?.changes.map((x) => x.change.k).join() === "group,spell,add,gone", "and the paste waits as it was pasted");
+    const danny = ids.cast["Danny Kilby"];
+    const noPhoto = await cpost(danny, { field: "photo", value: "" });
+    const dannyIn = async () => (await leagueState()).castaways.find((x) => x.seasonCastId === danny)?.photoUrl;
+    check(noPhoto.body.text === "Danny's photo removed" && !(await dannyIn()), "No photo reaches the game too", String(await dannyIn()));
+    await undoIt(noPhoto.body.changeId);
+    check(/danny-kilby\.jpg$/.test((await dannyIn()) || ""), "Undo: the game has it back");
+    const badO = await Promise.all([cpost(cristian, { field: "name", value: "  " }), cpost(cristian, { field: "photo", value: "not a link" }), cpost(cristian, { field: "age", value: "1" })]);
+    check(badO.every((x) => x.status === 400), "refused: a blank name, a photo that isn't a link, a field that isn't", badO.map((x) => `${x.status} ${x.body.error}`).join(" | "));
+    // Look on TMDB and TVmaze; a photo; Lock (Season 4's Remy)
+    const remy = ids.s4cast["Remy Example"];
+    const lk = await cpost(remy, { look: true });
+    check(lk.status === 200 && lk.body.photo === REMY_PHOTO() && lk.body.from === "TVmaze" && !lk.body.same, "Look: TVmaze has a photo of Remy (the season's listing)", JSON.stringify(lk.body));
+    check((await cpost(ids.s4cast["Uma Example"], { look: true })).body.photo === null, "Look: nobody has one of Uma");
+    r = await cpost(remy, { field: "photo", value: lk.body.photo });
+    check(r.body.text === "Remy's photo changed" && r.body.photoFrom === "From TVmaze" && (await cpost(remy, { look: true })).body.same, "a photo by its link: From TVmaze; Look says it's the one they have", JSON.stringify(r.body.text));
+    const none = await cpost(remy, { field: "photo", value: "" });
+    check(none.body.text === "Remy's photo removed" && none.body.photoFrom === "None yet", "No photo");
+    await undoIt(none.body.changeId);
+    check((await cget(remy)).photoUrl === REMY_PHOTO(), "Undo: the photo back");
+    const lock = await cpost(remy, { lock: true });
+    check(lock.body.locked && lock.body.text === "Remy locked" && / · locked$/.test(lock.body.meta) && (await undoIt(lock.body.changeId)).status === 200 && !(await cget(remy)).locked, "Lock, and Undo");
+    // Remove someone nobody has (Season 4's Vic)
+    const vic = ids.s4cast["Vic Example"];
+    const v = await cget(vic);
+    check(v.remove.ok && v.remove.line === "Out of every game on ZT DC Show 4 · can't be undone" && v.meta === "On nobody's team · no games on it yet", "Vic: nobody has him, Remove allowed", JSON.stringify({ r: v.remove, m: v.meta }));
+    r = await cpost(vic, { remove: true });
+    check(r.status === 200 && r.body.text === "Vic Example removed from the cast and every game" && !(await castNames(ids.s4)).includes("Vic Example"), "removed", JSON.stringify(r.body));
+    check((await pool.query("SELECT cast_size, cast_approved_at FROM show_seasons WHERE id = $1", [ids.s4])).rows[0].cast_size === 4 && (await read(ids.s4)).history[0].text === "Vic Example removed from the cast", "the cast's size and History; still sent");
+    check((await cpost(vic, { remove: true })).status === 404 && (await as.desk.call("GET", CA(vic))).status === 404, "gone: 404");
+
+    // in the browser: the Cast page's starting tribes and Hold
+    await pool.query("UPDATE season_cast SET photo_url = NULL WHERE id = $1", [remy]);
+    await pg.goto(`${BASE}/desk/season/${ids.s1}/cast`);
+    await pg.locator("[data-switch='hold'][data-on='off']").waitFor({ timeout: 30000 });
+    t = await pg.locator("[data-group='Toka']").innerText();
+    check(/Toka/.test(t) && /4 start in it/.test(t) && /Not a tribe/.test(t), "Starting tribes: Toka, 4 start in it, Not a tribe", t);
+    await pg.locator("[data-switch='hold']").click();
+    check(/Tribes held until Episode 1/.test(await toasted(/held/)), "Hold: the toast says so");
+    await pg.locator("[data-switch='hold'][data-on='on']").waitFor({ timeout: 15000 });
+    check(/sees the cast with no tribes\. They arrive with its reveal, or its results in a live game\./.test(await pg.locator("[data-switch='hold']").innerText()), "Hold's line: the new rule (a live game waits for its results)");
+    await fits("starting tribes");
+    await pg.locator("[data-switch='hold']").scrollIntoViewIfNeeded();
+    await shot("starting-tribes");
+    await pg.locator("[data-toast] button", { hasText: "Undo" }).click();
+    await pg.locator("[data-switch='hold'][data-on='off']").waitFor({ timeout: 20000 });
+    check((await s1row()).tribes_from_episode === null, "Undo from the toast: not held");
+    // Season 4: a role, not a tribe
+    await pg.goto(`${BASE}/desk/season/${ids.s4}/cast`);
+    await pg.locator("[data-group='Traitor']").waitFor({ timeout: 30000 });
+    check(/named like a secret role, so it gives the role away/.test(await pg.locator("[data-group='Traitor']").innerText()) && (await pg.locator("[data-cast-group='Still in']").count()) === 1, "Season 4: Traitor named like a secret role; the faces still in or out");
+    await fits("a role, not a tribe");
+    await shot("secret-roles");
+    await pg.locator("[data-group='Traitor'] [data-clear-group]").click();
+    await pg.locator("[data-moves]").waitFor({ timeout: 20000 });
+    await pg.waitForTimeout(600);
+    t = await dialog();
+    check(/Faithful and Traitor: not tribes\?/i.test(t) && /together: one left behind still gives the role away/.test(t) && /3 start in Faithful/.test(t) && /1 start in Traitor/.test(t) && /No tribe filter/.test(t) && /Take them out/.test(t) && /Undo from History: Faithful and Traitor go back/.test(t), "Not tribes: both together, what moves", t.slice(0, 500));
+    await fits("not tribes");
+    await shot("not-tribes");
+    await pg.locator("[data-guard-confirm]").click();
+    check(/Faithful and Traitor taken out/.test(await toasted(/taken out/)), "taken out: the toast");
+    // Vic, Savu's only one, was removed above: no tribes left.
+    await pg.waitForFunction(() => document.querySelectorAll("[data-group]").length === 0, null, { timeout: 20000 });
+    await pg.locator("[data-toast] button", { hasText: "Undo" }).click();
+    await pg.waitForFunction(() => document.querySelectorAll("[data-group]").length === 2, null, { timeout: 20000 });
+    check((await read(ids.s4)).groups.length === 2, "Undo from the toast: both back");
+    // Brady's page, from the cast
+    await pg.goto(`${BASE}/desk/season/${ids.s1}/cast`);
+    await pg.locator("[data-castaway='Brady Booker']").click();
+    await pg.locator("[data-desk-castaway]").waitFor({ timeout: 30000 });
+    check(pg.url().endsWith(`/desk/season/${ids.s1}/c/${bradyId}`), "a face opens their page under the cast", pg.url());
+    const blt = await pg.locator("[data-lower-third]").innerText();
+    check(/Still in/i.test(blt) && /Brady/i.test(blt) && /Started on Savu/.test(blt) && /On 1 team in 1 game/.test(await pg.locator("main, body").first().innerText()), "the lower third: Still in, started on Savu; on 1 team", blt);
+    check((await pg.locator("[data-desk-back]").getAttribute("data-desk-back")) === "Cast" && (await pg.locator("[data-desk-row='part-of']").innerText()).includes("ZT DC Show 1's cast"), "Back says Cast; Part of the cast");
+    check((await pg.locator("[data-override='name'], [data-override='photo'], [data-override='group']").count()) === 3 && (await pg.locator("[data-lock]").count()) === 1, "Name, Photo, Starting tribe, each with Override; Lock");
+    const lastIsRemove = await pg.evaluate(() => {
+      const del = document.querySelector("[data-delete-row='castaway']");
+      return !!del && !del.nextElementSibling;
+    });
+    check(lastIsRemove && /Remove Brady from the cast/.test(await pg.locator("[data-delete-row='castaway']").innerText()) && /Not while 1 team has them/.test(await pg.locator("[data-delete-row='castaway']").innerText()), "Remove Brady from the cast, last, saying why not");
+    await fits("a castaway");
+    await shot("castaway");
+    await shot("castaway-full", true);
+    await pg.locator("[data-delete-row='castaway'] button").click();
+    await pg.locator("[data-remove-refused]").waitFor({ timeout: 15000 });
+    await pg.waitForTimeout(600);
+    t = await dialog();
+    check(/Brady stays in the cast/i.test(t) && /Remove is for someone listed by mistake/.test(t) && /Their teams/i.test(t) && /ZT DC Game/.test(t) && /Override their name/.test(t), "Remove refused: his teams, Override their name", t.slice(0, 400));
+    await fits("remove refused");
+    await shot("remove-refused");
+    await pg.locator("[data-remove-rename]").click();
+    await pg.locator("[data-override-input]").waitFor({ timeout: 10000 });
+    check((await pg.locator("[data-override-input]").inputValue()) === "Brady Booker", "Override their name opens the name, as it is");
+    await shot("override-name");
+    await pg.keyboard.press("Escape");
+    // Remy's photo: Look on TMDB and TVmaze, then Save
+    await pg.goto(`${BASE}/desk/season/${ids.s4}/c/${remy}`);
+    await pg.locator("[data-override='photo']").click();
+    await pg.locator("[data-photo-look]").waitFor({ timeout: 10000 });
+    await pg.waitForTimeout(600);
+    await pg.locator("[data-photo-look]").click();
+    await pg.waitForFunction(() => !!document.querySelector("[data-field-input='cast-photo']")?.value, null, { timeout: 20000 });
+    check((await pg.locator("[data-field-input='cast-photo']").inputValue()) === REMY_PHOTO() && /TVmaze has one for them/.test(await toasted(/TVmaze/)), "Look fills in TVmaze's photo");
+    await fits("a photo");
+    await shot("photo-look");
+    await pg.locator("[data-photo-save]").click();
+    check(/Remy's photo changed/.test(await toasted(/photo changed/)), "saved: the toast");
+    check((await pool.query("SELECT photo_url FROM season_cast WHERE id = $1", [remy])).rows[0].photo_url === REMY_PHOTO(), "Remy has the photo");
+    // The old address sends to the new one
+    await pg.goto(`${BASE}/desk/castaway/${bradyId}`);
+    await pg.waitForURL((u) => u.pathname === `/desk/season/${ids.s1}/c/${bradyId}`, { timeout: 30000 });
+    check(true, "/desk/castaway/<id> sends to the castaway's page under the cast");
+    // Remove someone nobody has, in the game too (a hold): last, since it deletes a row
+    const st5 = await leagueState();
+    const free = st5.castaways.find((x) => x.seasonCastId && !["Brady Booker", "Aaliyah Puglia"].includes(x.name) && !S.castawayInUse(st5, x.id));
+    check(!!free, "someone nobody has in jo's game", free?.name);
+    await pg.goto(`${BASE}/desk/season/${ids.s1}/c/${free.seasonCastId}`);
+    await pg.locator("[data-delete-row='castaway'] button").click();
+    await pg.locator("[data-hold]").waitFor({ timeout: 15000 });
+    await pg.waitForTimeout(600);
+    t = await dialog();
+    check(new RegExp(`Remove ${free.name.split(" ")[0]} from the cast\\?`, "i").test(t) && /comes out of ZT DC Show 1's cast and out of its game: nobody has them/.test(t) && /bring them back as someone new/.test(t), "Remove: a hold, saying what it does", t.slice(0, 400));
+    await fits("remove");
+    await shot("remove-hold");
+    const hb = await pg.locator("[data-hold]").boundingBox();
+    await pg.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2);
+    await pg.mouse.down();
+    await pg.waitForTimeout(1900);
+    await pg.mouse.up();
+    check(new RegExp(`${free.name} removed from the cast and every game`).test(await toasted(/removed/)), "held: removed, the toast says");
+    await pg.waitForURL((u) => u.pathname === `/desk/season/${ids.s1}/cast`, { timeout: 20000 });
+    check(!(await castNames(ids.s1)).includes(free.name) && !(await leagueState()).castaways.some((x) => x.name === free.name), "out of the cast and jo's game (Noticed h)");
 
     check(failed.filter((f) => !/^(400|404|409|503) /.test(f)).length === 0, "no failed requests", failed.join(", "));
     check(d.errors.length === 0, "no page errors", `${d.errors.join(" | ")} [${failed.join(", ")}]`);

@@ -491,7 +491,7 @@ export function MovesSheet({ open, onClose, title, subtitle, lines, cta, undoNot
               const Icon = l.icon ? ICONS[l.icon] : null;
               return (
                 <div key={i} data-move={l.change} className="flex min-h-12 items-center gap-2.5 rounded-[3px] bg-background p-2.5">
-                  {l.face ? <Face src={l.face.photo} name={l.face.name} className="size-7 flex-none rounded-[3px]" /> : Icon ? <Icon className="size-6 flex-none" aria-hidden /> : <span className="size-7 flex-none" />}
+                  {l.swatch ? <span className="mx-2 h-7 w-3 flex-none rounded-[2px]" style={{ background: l.swatch }} aria-hidden /> : l.face ? <Face src={l.face.photo} name={l.face.name} className="size-7 flex-none rounded-[3px]" /> : Icon ? <Icon className="size-6 flex-none" aria-hidden /> : <span className="size-7 flex-none" />}
                   <span className="min-w-0 flex-1 text-[15px] font-semibold leading-snug">{l.label}</span>
                   <span className="text-right text-[13px] font-bold text-muted-foreground">{l.change}</span>
                 </div>

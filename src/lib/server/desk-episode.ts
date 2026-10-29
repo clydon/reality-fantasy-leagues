@@ -550,6 +550,8 @@ export interface MoveLine {
   /** One result (names hidden, the page says these as a count). */
   result?: boolean;
   face: { name: string; photo: string | null } | null;
+  /** A group's colour, drawn in place of a face (Not a <group>, docs/PLAN-desk-parity.md part 5b). */
+  swatch?: string;
   icon: "check" | "plus" | "x" | "people" | "poll" | "split" | "grid" | "repeat" | "user" | null;
   label: string;
   change: string;

@@ -316,7 +316,7 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     await fits(d.page, "Override");
     await shot(d.page, "override");
     await d.page.locator("[data-override-save]").click();
-    check(/Overridden/.test(await toasted(d.page, /Overridden/)), "Override saved");
+    check(/Renamed Eric Macksoud Jr in \d+ games?/.test(await toasted(d.page, /Renamed/)), "Override saved");
     const named = async (name) => (await Promise.all(zt.map(async (k) => (await stateOf(L[k])).castaways.filter((c) => c.name === name).length))).every((x) => x === 1);
     const ericIn = async () => JSON.stringify(Object.fromEntries(await Promise.all(zt.map(async (k) => [k, (await stateOf(L[k])).castaways.filter((c) => /^Eric/.test(c.name)).map((c) => `${c.name}${c.seasonCastId ? "" : " (unlinked)"}`)]))));
     check(
@@ -383,25 +383,26 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     await d.page.locator("[data-desk-cast]").waitFor({ timeout: 20000 });
     check((await d.page.locator("[data-clear-group]").count()) === 2, "the Traitors' Cast page: both groups are a secret role");
     await shot(d.page, "traitors-season");
+    // Not a faction on Traitor takes Faithful with it (docs/PLAN-desk-parity.md part 5b): one left would still give the role away.
     await d.page.locator("[data-clear-group='Traitor']").click();
-    await d.page.locator("[data-clear-preview]").waitFor({ timeout: 15000 });
-    const preview = await d.page.locator("[data-clear-preview]").innerText();
-    check(/2 people start in Traitor\. 1 league loses it/.test(preview), "previewed: 2 people, 1 league", preview);
+    await d.page.locator("[data-moves]").waitFor({ timeout: 15000 });
+    await d.page.waitForTimeout(600);
+    const preview = await d.page.locator("[data-moves]").innerText();
+    check(/8 start in Faithful/.test(preview) && /2 start in Traitor/.test(preview) && /Its 1 game/.test(preview), "previewed together: 8 in Faithful, 2 in Traitor, 1 game", preview);
     await shot(d.page, "clear-group");
     await d.page.locator("[data-guard-confirm]").click();
     await toasted(d.page, /taken out/);
     const tState = await stateOf(traitorsGame);
-    check(!tState.tribes.some((t) => t.name === "Traitor") && tState.tribes.some((t) => t.name === "Faithful"), "the game has no Traitor group (Faithful stays)");
-    check((await pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id = $1 AND tribe_name = 'Traitor'", [tid])).rows[0].n === 0, "and nor does the season's cast");
+    check(!tState.tribes.some((t) => t.name === "Traitor" || t.name === "Faithful"), "the game has neither group");
+    check((await pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id = $1 AND tribe_name IN ('Traitor', 'Faithful')", [tid])).rows[0].n === 0, "and nor does the season's cast");
     const castLine = (await pool.query("SELECT text FROM league_changes WHERE league_id = $1 AND kind = 'cast'", [traitorsGame])).rows;
     check(castLine.filter((l) => /secret role/.test(l.text)).length === 1, "the game's Recent changes say why", JSON.stringify(castLine));
-    const faith = await as.desk.call("POST", `/api/desk/seasons/${tid}`, { clearGroup: "Faithful" });
-    check(faith.status === 200 && faith.body.people === 8 && faith.body.leagues === 1, "Faithful taken out too", JSON.stringify(faith.body));
-    const tSeason = (await as.desk.call("GET", `/api/desk/seasons/${tid}`)).body;
-    check(tSeason.groups.length === 0, "no groups left on the Traitors");
-    await as.desk.call("POST", `/api/desk/changes/${tSeason.history.find((h) => h.undoable && /Faithful/.test(h.text)).id}/undo`);
-    check((await pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id = $1 AND tribe_name = 'Faithful'", [tid])).rows[0].n === 8, "Undo: Faithful back on the same 8 people");
-    await as.desk.call("POST", `/api/desk/seasons/${tid}`, { clearGroup: "Faithful" });
+    const tCast = (await as.desk.call("GET", `/api/desk/seasons/${tid}/cast`)).body;
+    check(tCast.groups.length === 0, "no groups left on the Traitors");
+    await as.desk.call("POST", `/api/desk/changes/${tCast.history.find((h) => h.undoable && /Faithful and Traitor/.test(h.text)).id}/undo`);
+    check((await pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id = $1 AND tribe_name = 'Faithful'", [tid])).rows[0].n === 8, "Undo: Faithful and Traitor back on the same people");
+    const again = await as.desk.call("POST", `/api/desk/seasons/${tid}`, { clearGroup: "Faithful" });
+    check(again.status === 200 && again.body.people === 10 && again.body.leagues === 1, "taken out again, from Faithful: Traitor goes with it", JSON.stringify(again.body));
 
     // ---- 8. the rulebook ----
     await d.page.goto(`${d.BASE}/desk/rulebook/${rb}`);

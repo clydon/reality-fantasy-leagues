@@ -17,6 +17,7 @@
 //   /desk/season/[id]/bingo?bank=<n>|season  its Bingo bank, on an episode or the season's (depth 3: step 4, part 4c)
 //   /desk/season/[id]/cast                   its Cast: getting it, what an answer changes, Send to its games (depth 3: step 5, part 5a)
 //   /desk/season/[id]/e/[n]                  one of its episodes: its results, answers and trivia (depth 4: step 4, part 4b)
+//   /desk/season/[id]/c/[castId]             one of its cast: name, photo, starting group, Lock, Remove (depth 4: step 5, part 5b)
 //
 // Classic owns everything else ("/", /account, /waivers, /setup, /admin...); the two designs never share a path.
 
@@ -86,6 +87,8 @@ export const paths = {
   deskBingo: (id: string, bank?: number | "season") => `/desk/season/${id}/bingo${bank != null ? `?bank=${bank}` : ""}`,
   /** One of a season's episodes (docs/PLAN-desk-parity.md part 4b): its results, its answers, its trivia. */
   deskEpisode: (id: string, n: number) => `/desk/season/${id}/e/${n}`,
+  /** One of a season's cast (docs/PLAN-desk-parity.md part 5b), under its Cast page. */
+  deskCastaway: (seasonId: string, id: string) => `/desk/season/${seasonId}/c/${id}`,
 };
 
 /** The desk's tabs, and the kinds of thing it has a page for. */
@@ -174,6 +177,7 @@ export function upFrom(href: string, { signedIn = true }: { signedIn?: boolean }
       if (p[1] === "report") return paths.deskReports();
       if (p[1] === "new") return paths.desk("library");
       if (p[1] === "fact") return paths.desk();
+      if (p[1] === "season" && p[2] && p[3] === "c") return paths.deskSeasonPage(p[2], "cast");
       if (p[1] === "season" && p[2] && p[3]) return paths.deskItem("season", p[2]);
       if (p[1] && isDeskKind(p[1])) return paths.desk("find");
       return paths.home;

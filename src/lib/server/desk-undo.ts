@@ -6,7 +6,7 @@ import { restoreBingoBank, restoreSquare } from "./desk-bingo";
 import { pool, HttpError } from "./db";
 import { restoreSetting } from "./desk";
 import { restoreSeasonBot } from "./desk-bot";
-import { restoreCastaway, restoreGroup, setCastawayLock } from "./desk-cast";
+import { restoreCastaway, restoreGroups, restoreHold, setCastawayLock } from "./desk-cast";
 import { restoreCastSend } from "./desk-cast-page";
 import { restoreCleared, restoreAnswer, writeTriviaOut } from "./desk-episode";
 import { restoreFact, restoreFacts } from "./desk-facts";
@@ -53,7 +53,7 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
       await restoreCleared(u.snapshot as Parameters<typeof restoreCleared>[0], user.id);
       break;
     case "castaway":
-      await restoreCastaway(user.id, String(u.id), u.field as "name" | "group" | "photo", (u.value as string | null) ?? null);
+      await restoreCastaway(user.id, String(u.id), u.field as "name" | "group" | "photo", (u.value as string | null) ?? null, u.answer as Parameters<typeof restoreCastaway>[4]);
       break;
     case "castawayLock":
       await setCastawayLock(String(u.id), !!u.locked);
@@ -62,7 +62,13 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
       await restoreCastSend(u, c.id);
       break;
     case "group":
-      await restoreGroup(String(u.seasonId), String(u.group), u.ids as string[]);
+      await restoreGroups(String(u.seasonId), [{ group: String(u.group), ids: u.ids as string[] }]);
+      break;
+    case "groups":
+      await restoreGroups(String(u.seasonId), u.groups as { group: string; ids: string[] }[]);
+      break;
+    case "castHold":
+      await restoreHold(user.id, String(u.seasonId), (u.value as number | null) ?? null, u.to as number | null | undefined);
       break;
     case "couchFill": {
       const { rows: leagues } = await pool.query("SELECT id FROM leagues WHERE couch_id = $1", [u.id]);

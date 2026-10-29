@@ -8,13 +8,12 @@ import { AskAiPasteSheet, type AnswerCheck } from "../backstage/ask-ai";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { Face } from "../show/parts";
-import { GuardSheet } from "../ui/guards";
 import { Btn, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { deskGet, deskSend, useAfterDesk, type CastFace, type CastPicks, type CastReviewChange, type DeskCast, type MoveLine } from "./data";
 import { MovesSheet } from "./episode";
-import { DeskHeader, DeskRow, Facts, IconLead, LatestHistory, LowerThird, Section, useChangeToast } from "./parts";
+import { DeskHeader, DeskRow, Facts, IconLead, LatestHistory, LowerThird, Section, SwitchRow, useChangeToast } from "./parts";
 import { SeasonDeleteRow } from "./setup";
 
 // A season's Cast (docs/PLAN-desk-parity.md step 5, part 5a; the mock's desk-cast.js csPage), from the season page's Running it
@@ -23,8 +22,9 @@ import { SeasonDeleteRow } from "./setup";
 // has differently Keep ours or Use theirs, someone new joins as nobody's, someone it no longer lists is only said), then Send to
 // its games (tier 2, what moves said first). Getting it: Ask our bot (queued behind the other Run nows; the page polls while
 // it asks) or Paste it (Ask an AI on the same question). Then its starting groups, the cast by group, History and the season's
-// Delete. Server: src/lib/server/desk-cast-page.ts. Starting groups' Hold and secret roles together, and a castaway's page, are
-// part 5b's.
+// Delete. Server: src/lib/server/desk-cast-page.ts. Part 5b: its starting groups in the show's word, each with Not a <group> (a
+// quiet link, or a button where it's named like a secret role; secret-role groups go out together, tier 2 with what moves said
+// first and Undo from History), and Hold them until Episode 1 (tier 1, Undo); each face opens the castaway's page (castaway.tsx).
 
 const NOTE = "mt-2.5 text-[13px] leading-snug text-muted-foreground";
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -44,7 +44,12 @@ const checkCast: AnswerCheck = (text) => {
   return n ? { ok: true, line: `Looks right: ${plural(n, "person", "people")}` } : { ok: false, line: "That doesn't look like the whole answer. Copy all of it, from { to }." };
 };
 
-type SheetState = { k: "diff" } | { k: "send"; lines: MoveLine[] | null; title: string } | { k: "paste" } | { k: "clear"; group: string; preview: { people: number; leagues: number } | null } | null;
+/** Not a <group>'s preview: the groups that go (secret-role ones together), and how many games lose them. */
+type GroupsPreview = { groups: { name: string; people: number; color: string | null }[]; secret: boolean; people: number; leagues: number };
+type SheetState = { k: "diff" } | { k: "send"; lines: MoveLine[] | null; title: string } | { k: "paste" } | { k: "clear"; group: string; preview: GroupsPreview | null } | null;
+
+/** "Toka", "Faithful and Traitor". */
+const and = (xs: string[]) => (xs.length < 2 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 
 export function CastPage({ id }: { id: string }) {
   const path = `/seasons/${id}/cast`;
@@ -110,6 +115,31 @@ export function CastPage({ id }: { id: string }) {
   };
   const secret = d.groups.some((g) => g.secretRole);
   const T = d.terms;
+  const notGroup = async (group: string) => {
+    setSheet({ k: "clear", group, preview: null });
+    try {
+      setSheet({ k: "clear", group, preview: await deskSend<GroupsPreview>(`/seasons/${id}`, { clearGroup: group, preview: true }) });
+    } catch (e) {
+      close();
+      toast.quiet((e as Error).message);
+    }
+  };
+  const hold = async (on: boolean) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const r = await deskSend<{ changeId: string | null; text: string }>(path, { hold: on });
+      await after();
+      changed(r.text, r.changeId);
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const cleared = sheet?.k === "clear" ? sheet : null;
+  const clearNames = cleared?.preview?.groups.map((g) => g.name) ?? (cleared ? [cleared.group] : []);
+  const many = clearNames.length > 1;
   return (
     <div className="pb-16" data-desk-cast={d.state}>
       <DeskHeader title="Cast" back={{ label: d.name, href: paths.deskItem("season", id) }} name="Cast" />
@@ -168,29 +198,41 @@ export function CastPage({ id }: { id: string }) {
 
       {d.groups.length > 0 && (
         <Section title={`Starting ${T.groups}`} aside={plural(d.groups.length, T.group, T.groups)}>
-          <div className="flex flex-col gap-2">
+          <div className="border-b border-border">
             {d.groups.map((g) => (
-              <div key={g.name} data-group={g.name} className="flex items-center gap-3 rounded-[4px] bg-card p-3">
-                <span className="h-9 w-2.5 flex-none rounded-[2px]" style={{ background: g.color ?? "var(--input)" }} aria-hidden />
+              <div key={g.name} data-group={g.name} className="flex min-h-[64px] items-center gap-3 border-t border-border py-2.5 first:border-t-0">
+                <span className="h-10 w-3 flex-none rounded-[2px]" style={{ background: g.color ?? "var(--input)" }} aria-hidden />
                 <span className="min-w-0 flex-1">
-                  <b className="block text-[15px]">{g.name}</b>
-                  <small className="block text-[13px] text-muted-foreground">
+                  <b className="block text-[16px] font-semibold">{g.name}</b>
+                  <small className="block text-[14px] leading-snug text-muted-foreground">
                     {g.people} start in it{g.secretRole ? " · named like a secret role, so it gives the role away" : ""}
                   </small>
                 </span>
-                <Btn
-                  data-clear-group={g.name}
-                  className="h-10 px-3 text-[13px]"
-                  onClick={async () => {
-                    setSheet({ k: "clear", group: g.name, preview: null });
-                    const p = await deskSend<{ people: number; leagues: number }>(`/seasons/${id}`, { clearGroup: g.name, preview: true }).catch(() => null);
-                    setSheet({ k: "clear", group: g.name, preview: p });
-                  }}
-                >
-                  Not a {T.group}
-                </Btn>
+                {g.secretRole ? (
+                  <Btn data-clear-group={g.name} className="h-11 flex-none px-3 text-[14px]" onClick={() => void notGroup(g.name)}>
+                    Not a {T.group}
+                  </Btn>
+                ) : (
+                  <button type="button" data-clear-group={g.name} onClick={() => void notGroup(g.name)} className="nd-press h-11 flex-none px-1 text-[14px] font-bold underline decoration-1 underline-offset-4">
+                    Not a {T.group}
+                  </button>
+                )}
               </div>
             ))}
+          </div>
+          <div className="mt-2.5">
+            <SwitchRow
+              data="hold"
+              on={d.hold.on}
+              disabled={busy}
+              title={`Hold them until Episode ${d.hold.episode}`}
+              line={
+                d.hold.on
+                  ? `Someone who hasn't seen Episode ${d.hold.episode} sees the cast with no ${T.groups}. They arrive with its reveal, or its results in a live game.`
+                  : `Everyone sees the starting ${T.groups}, before Episode ${d.hold.episode} too.`
+              }
+              onChange={(on) => void hold(on)}
+            />
           </div>
           <p className={NOTE}>These are the {T.groups} they started in. After a swap, each game&apos;s {T.groups} come from the episode&apos;s results.</p>
         </Section>
@@ -249,34 +291,36 @@ export function CastPage({ id }: { id: string }) {
           }
         }}
       />
-      {sheet?.k === "clear" && (
-        <GuardSheet
-          open
-          onOpenChange={(o) => !o && close()}
-          title={`Take out ${sheet.group}?`}
-          subtitle="A secret role, not a group: off the season's cast and out of every league on it"
-          lines={sheet.preview ? [] : null}
-          body={
-            sheet.preview ? (
-              <p data-clear-preview className="rounded-[3px] bg-background p-3 text-[14px] leading-snug">
-                {sheet.preview.people} {sheet.preview.people === 1 ? "person starts" : "people start"} in {sheet.group}. {sheet.preview.leagues}{" "}
-                {sheet.preview.leagues === 1 ? "league loses it" : "leagues lose it"}: nobody is on it, and no board shows it.
-              </p>
-            ) : undefined
+      <MovesSheet
+        open={!!cleared}
+        onClose={close}
+        title={`${and(clearNames)}: not ${many ? T.groups : `a ${T.group}`}?`}
+        subtitle={`${d.name}${cleared?.preview?.secret ? ` · ${many ? "together: one left behind still gives the role away" : "it gives a secret role away"}` : ""}`}
+        lines={
+          cleared?.preview
+            ? [
+                ...cleared.preview.groups.map((g): MoveLine => ({ face: null, swatch: g.color ?? "var(--input)", icon: null, label: `${g.people} start in ${g.name}`, change: `No ${T.group}` })),
+                ...(cleared.preview.leagues ? [{ face: null, icon: "people" as const, label: `Its ${plural(cleared.preview.leagues, "game")}`, change: "Off every board" }] : []),
+                { face: null, icon: "poll", label: "Stats and the Cast tab", change: `No ${T.group} filter` },
+              ]
+            : null
+        }
+        cta={`Take ${many ? "them" : clearNames[0] ?? ""} out`}
+        undoNote={`Undo from History: ${and(clearNames)} go${many ? "" : "es"} back on the same people.`}
+        onConfirm={async () => {
+          if (!cleared) return;
+          try {
+            const r = await deskSend<{ changeId: string; text: string }>(`/seasons/${id}`, { clearGroup: cleared.group });
+            close();
+            await after();
+            changed(r.text, r.changeId);
+          } catch (e) {
+            close();
+            toast.quiet((e as Error).message);
+            await after();
           }
-          cta={`Take out ${sheet.group}`}
-          undoNote="Undo it from History: the group goes back on the same people."
-          onConfirm={async () => {
-            try {
-              await deskSend(`/seasons/${id}`, { clearGroup: sheet.group });
-              await after();
-              toast(`${sheet.group} taken out`);
-            } catch (e) {
-              toast.quiet((e as Error).message);
-            }
-          }}
-        />
-      )}
+        }}
+      />
     </div>
   );
 }
@@ -309,7 +353,7 @@ function CastGrid({ d, secret }: { d: DeskCast; secret: boolean }) {
               {L.map((c) => (
                 <NavLink
                   key={c.id}
-                  href={paths.deskItem("castaway", c.id)}
+                  href={paths.deskCastaway(d.id, c.id)}
                   data-castaway={c.name}
                   data-out={c.out ?? undefined}
                   className="nd-press flex flex-col overflow-hidden rounded-[3px] bg-plate text-plate-foreground"
