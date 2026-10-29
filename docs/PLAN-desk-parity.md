@@ -18,9 +18,12 @@ linked and unlinked, migration 0423; their As built is under step 3); **Step 4 r
 and 4c** (4a: a season's Research and the bot, Run now queued with what it waits behind and how far it's got, its
 schedule drawn as the next episode's night, Runs; migration 0424; 4b: an episode's page, its results from the shared facts
 with Accept all, Take it back, the desk's paste as a submission and Clear, no migration; 4c: the Bingo bank, an admin's Show
-it again outranking two flags, Paste squares with Undo, migration 0425; their As built is under step 4). **Part 5a done at
-19389d6d, part 5b is next** (a season's Cast: Ask our bot or Paste it, each answer staged; What changed; Send to its games
-with Undo; the season page's Cast row and the Inbox's cast item; migration 0426; its As built is under step 5). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
+it again outranking two flags, Paste squares with Undo, migration 0425; their As built is under step 4). **Step 5 ready to merge
+at 9f3dc05f: parts 5a and 5b** (5a: a season's Cast, Ask our bot or Paste it, each answer staged; What changed; Send to its
+games with Undo; the season page's Cast row and the Inbox's cast item; migration 0426; 5b: starting groups with Not a group,
+secret roles together, and Hold until Episode 1 without un-approving; a castaway's page under the cast with Override, Look on
+TMDB and TVmaze, Lock and Remove refused while in use, reaching every game; no migration; their As built is under step 5).
+**Part 6a is next** (Find › Games and a game's page). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
 either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
@@ -892,6 +895,70 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    our bot gives that can't be read says "what was pasted" in its History line (cast-prompt.js's words, whose shape this lane
    keeps). (bk) Classic's cast page and approve stay until step 8 and know nothing of staged answers: a classic approve leaves
    the desk's waiting answer waiting.
+   **As built, part 5b (2026-10-29):** **Starting groups** on the Cast page (`src/new/desk/cast.tsx`), in the show's own word
+   ("Starting tribes · 2 tribes"): each group with its colour and how many start in it, and Not a <group>: a quiet underlined
+   link, or a button where the group is named like a secret role ("named like a secret role, so it gives the role away").
+   **Not a <group>** (tier 2, MovesSheet, which gains a group's colour swatch in place of a face): "Faithful and Traitor: not
+   factions?", "together: one left behind still gives the role away", each group's "N start in X → No faction", "Its N games →
+   Off every board", "Stats and the Cast tab → No faction filter", Take them out, a toast with Undo and Undo from History (both
+   back on the same people). `desk-cast.ts clearGroup` takes every group named like a secret role at once (a group not so named
+   goes alone), one Recent changes line per game, and its Undo record lists each group's people (`groups`; an old `group` row
+   still undoes). **Hold them until Episode 1** (tier 1): a switch under the groups, its line by the new rule (Noticed i:
+   "Someone who hasn't seen Episode 1 sees the cast with no tribes. They arrive with its reveal, or its results in a live
+   game."), the note that a swap's groups come from results; `POST .../cast { hold }` sets `tribes_from_episode` without
+   un-approving the cast (classic's did), logs it in the cast's log and History with Undo (refused if Hold has changed since),
+   and lets any game it's due in have them at once. **A castaway's page** (`/desk/season/<id>/c/<castId>`, depth 4, Back says
+   Cast; `src/new/desk/castaway.tsx`; `routes.ts paths.deskCastaway`, upFrom the Cast page; the old `/desk/castaway/<id>` and a
+   link with the wrong season send there; Find's castaway rows and the cast's faces link there): their photo in the lower third,
+   Still in, Out ("Out in Episode 1 · voted out", an accepted result) or New (joined after the cast's first send, on nobody's
+   team); "On 1 team in 1 game" (or "On nobody's team in its N games", "· no games on it yet", "· locked"); Part of (the
+   season's cast, its size); About them: Name, Photo ("From TMDB", "From TVmaze", "A link", "None yet") and Starting tribe
+   ("Hidden: named like a secret role" for one), each with Override (tier 1: the toast "Renamed Kristian Chavez in 1 game" with
+   Undo, a History line "Renamed Kristian Chavez (was Cristian Chavez)"), the note of what each change reaches; Lock ("Answers and
+   commissioners can correct them"); History, its own lines and the cast's log (a commissioner's edit "· from <game>", a send's
+   rename, "Joined the cast"; the log's copy of a desk Override left out); and **Remove <name> from the cast** last. Photo:
+   a link (https only), No photo, or **Look on TMDB and TVmaze** (`POST /api/desk/castaways/<id> { look }`, show-art.ts
+   castPhotosFor over the season's credits): one found fills the link to Save ("TVmaze has one for them: Save to use it"), or
+   says it's the one they have, or that neither has one. **Remove**: refused while anything has them (`usesOf`: a team, a pick
+   or result in a game, found by the cast link or, unlinked, by name; the season's results, staged or accepted; a "who goes
+   home" call or a couch poll), the sheet "Brady stays in the cast", "Remove is for someone listed by mistake", why ("1 team in 1
+   game has Brady, so taking them out would change scores. If their name is wrong, override it instead."), their teams' games,
+   Override their name; otherwise a hold (tier 3, "Can't be undone": out of the cast and every game, nobody has them, so no team
+   or pick changes; an answer that lists them would bring them back as someone new), which deletes the cast row, logs it,
+   updates the cast's size without un-approving it, takes them out of every game (Noticed h: `applyApprovedCastToLeagues` with
+   `removed`) and returns to the Cast page. **Noticed bh, taken:** an Override of a name or starting group settles that person's
+   line in a waiting answer (the answer's line takes the admin's value, worked out against the cast as it was and written once
+   the override is; an answer left changing nothing is settled), and the Override's Undo puts the answer back as it was.
+   **Noticed bi, taken:** `deskSeason` no longer reads the cast, its groups or castSent (the season page reads none of them);
+   check-new-desk reads the groups from the Cast page. **Noticed j:** the season page shows no groups since 5a; the Cast page's
+   and a castaway's page's groups have the spoiler guard (Still in and Out, Hidden) and the cast's state is the lower third's.
+   No photo also clears each game's copy of the photo (the games' sync never clears one). Shared: `desk-cast.ts termsOf`,
+   `gamesOn` and `groupColors` serve the Cast page too. No migration.
+   **Left behind or changed from classic, and why (decision 10):** classic's Remove (`DELETE` the row, un-approve the season,
+   never reach a game, no in-use guard: Noticed h) is the desk's refused-while-in-use Remove reaching every game, with no
+   un-approve; classic's Hold (`tribesFromEpisode` any number, un-approving the cast) is the switch at Episode 1 (a season classic
+   held at another episode shows that episode), with no un-approve; classic's per-field PATCH edits are the castaway page's
+   Override (as since step 6b) with Undo; classic's change log is the castaway's History. Classic's cast routes stay until step
+   8 (Noticed bk). Nothing was left that the mock has.
+   **Calls made here (Claude's, within the approved screens):** Hold switched on again doesn't take groups back out of a game
+   that already shows them before its Episode 1 (the toast says how many: "· 1 game already shows them"), since a game's tribes
+   can't be told from a commissioner's; switching it off and its Undo likewise leave the games' groups as they are. The group
+   picker shows a secret-role group as "Hidden" (the mock's), so two such groups differ only by their colour. Their teams'
+   games in the refused Remove are rows without a link until part 6a builds a game's page. An Override or Lock answers with the
+   whole page again (check-new-desk reads it), so each reads the season's games twice: fine at a season's size.
+   `/code-review` found an override refused after its waiting answer was already rewritten, an Override's Undo leaving the
+   answer settled, No photo never reaching the games, Remove's guard missing a game that matched by name only, a link with the
+   wrong season, Hold's Undo unguarded and unlogged, and copies of the terms, games count and colours: all fixed.
+   **Noticed, not fixed (5b):** (bl) Remove checks what has them, then deletes: a commissioner drafting them in the seconds
+   between is skipped by `removeUnlinkedRows` (their game keeps them on a deleted row, as classic's Remove always left everyone).
+   (bm) A send's renames and regroups show on the castaway's page as the cast's log has them, with no word that a send made them
+   (`season_cast_changes` has no source column): for step 8's cleanup, or a column when it's needed.
+   Check: `scripts/dev-test/check-desk-cast.js` 152 checks with its section 8 (Season 4, sent with no games and linked to the stand-in TV listing,
+   fake-listings.js), all PASS at 390 (zt_dc_ fixture, up and down; the bot only through fake-bot.js and x-gys-bot);
+   check-desk-bingo, check-desk-episode, check-desk-research, check-desk-setup, check-desk-inbox, check-desk-people,
+   check-classic-admin ("all PASS"), check-new-settings, check-new-settling and check-bingo-bank ("ALL PASS") pass; unit tests
+   847 (tests/new-nav.test.js adds the castaway's route); check-new-desk without its rulebook section (a scratch copy, deleted)
+   passed whole, its sections 5 and 7 following the new page and the secret roles together.
 6. **Games and couches.** Find's Games (by name or join code); a game's page: its seats and who's in each (link an account,
    change a role, unlink, remove a player), its join code, delete for good (tier 3), open it (as an admin, read-only).
    **As mocked (2026-10-28, `desk-games.js` and `desk-games.css`, waiting for approval):** **Find › Games** searches name, show,
