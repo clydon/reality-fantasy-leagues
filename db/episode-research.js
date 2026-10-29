@@ -87,15 +87,19 @@ const Answer = z.enum(["yes", "no", "unknown"]);
 // research is their one source, so one paste covers a swap episode without a second prompt.
 //
 // `formatState` (F2, docs/STUDY-format-changes.md) is every show's: how the game is organised at the END of
-// the episode (who is grouped with whom, how it was played, its phase) and what changed in it, as data. It
-// sits beside `newGroup` and `merged` rather than replacing them: those are what the engine and a live
-// season's staging read today (a swap's group moves, the merge's phase start), and they keep doing so until
-// F3 reads the new state; meanwhile the two are a cross-check on each other. A cut-down ask (onlyFormat)
-// leaves it out, as it does the groups and the merge.
+// the episode (who is grouped with whom, how it was played, its phase) and what changed in it, as data. Since
+// F3 each person's group move is worked out from it (FormatStates.movesFromState, in validateResearch), so
+// beside it `newGroup` asks only for someone who moved and then went home in the same episode, whom the
+// groups at the end can't hold; a pass about some of the cast, which leaves the section out (a
+// commissioner's paste, formatForAsking), asks it of everyone as before. F2's proof: newGroup named a new
+// tribe for 7 of the 27 people who changed one, and partners' names as groups on The Challenge; the section
+// had every tribe right. `merged` stays asked beside it (it was right, the phase cues read it, and the
+// timeline crosses it with the state's merge). A cut-down ask (onlyFormat) leaves the section out, as it
+// does the groups and the merge.
 function researchSchemaFor(format, withBets = false) {
   const group = ((format.terms && format.terms.tribe) || "tribe").toLowerCase();
   let entry = format.research.checklistSchema(z, Answer);
-  if (format.hasGroups) entry = entry.extend({ newGroup: z.string().nullable().describe(newGroupText(group)) });
+  if (format.hasGroups) entry = entry.extend({ newGroup: z.string().nullable().describe(asksFormat(format) ? leftFromText(group) : newGroupText(group)) });
   return z.object({
     episodeTitle: z.string().nullable(),
     airDate: z.string().nullable().describe("As printed on the source, e.g. 'March 5, 2026'."),
@@ -170,6 +174,13 @@ const newGroupText = (group) =>
   `it (the merged ${group}'s name at the merge). Compare against the ${group} shown next to their name in ` +
   `the list you were sent. Null if they are still on that ${group}. Someone who moved and then left the ` +
   `game in this same episode (swapped, then voted out) still moved: give the ${group} they left from.`;
+
+// Beside the format section (F3): its groups at the end say everyone else's group, so newGroup is only for whoever they
+// can't hold.
+const leftFromText = (group) =>
+  `Only for someone who moved to another ${group} in this episode AND went home in it (swapped, then voted out): the ` +
+  `${group} they went home from, exactly as the show names it. Null for everyone else: who is with whom at the end ` +
+  `goes in formatState.`;
 
 const mergedText = (group) =>
   `Is the game merged by the end of this episode -- the ${plural(group)} have become one group, in this episode ` +
@@ -380,19 +391,24 @@ function buildPrompt({ showName, season, episodeNumber, castNames, castGroups = 
     "",
     ...castNames.map((n, i) => `${i + 1}. ${n}` + (groupOf(n) ? ` -- ${groupOf(n)}` : "")),
     "",
+    // Who is with whom, and any change to it, is the format section's (below) wherever it's asked: each person's new group
+    // is worked out from it (F3), and newGroup is only for whoever moved and went home the same night.
     ...(anyGroups
       ? [
           `The ${group} after each name is the one they were on going INTO this episode, as far as we know.`,
-          `If ${plural(group)} were swapped, re-divided, dissolved or merged in this episode, give each person's new`,
           ...(asksFormat(format)
-            ? [`${group} in newGroup, and the whole picture in formatState below${anythingElse ? " -- don't leave a change in notableTwist alone." : "."}`]
+            ? [
+                `If ${plural(group)} were swapped, re-divided, dissolved or merged in this episode, say so in formatState below;`,
+                `someone who moved and then went home in this same episode: the ${group} they went home from, in newGroup.`,
+              ]
             : [
+                `If ${plural(group)} were swapped, re-divided, dissolved or merged in this episode, give each person's new`,
                 `${group} in newGroup -- that is the only place a ${group} change is recorded${anythingElse ? ", so don't leave it in" : "."}`,
                 ...(anythingElse ? ["notableTwist alone."] : []),
               ]),
           "",
         ]
-      : format.hasGroups
+      : format.hasGroups && !asksFormat(format)
         ? [`If ${plural(group)} were swapped, re-divided, dissolved or merged in this episode, give each person's new ${group} in newGroup.`, ""]
         : []),
     ...(asksFormat(format) ? formatLines({ episodeNumber, castNames, formatGoingIn, labelled: anyGroups, anythingElse }) : []),
@@ -605,6 +621,11 @@ function validateLeniently(raw, schema, label) {
   // lists is repaired and reported (formats/format-state.js), so it never fails a run whose checklist is fine.
   if (raw && typeof raw === "object" && !Array.isArray(raw) && schema.shape && schema.shape.formatState) {
     raw.formatState = FormatStates.looseFormatState(raw.formatState, repairs);
+  }
+  // A person's group move, from an answer to a prompt that didn't ask it (a paste of an older skeleton): none said, null.
+  const person = schema.shape && schema.shape.castaways && schema.shape.castaways.element;
+  if (person && person.shape && person.shape.newGroup && raw && Array.isArray(raw.castaways)) {
+    for (const c of raw.castaways) if (c && typeof c === "object" && !("newGroup" in c)) c.newGroup = null;
   }
   for (let attempt = 0; attempt < 5; attempt++) {
     const result = schema.safeParse(raw);
@@ -1286,8 +1307,9 @@ function validateResearch(parsed, castNames, terms, format, opts = {}) {
 
   // Checks across the whole cast (formats/define.js episodeProblems), after the per-person ones.
   if (format.research.episodeProblems) problems.push(...format.research.episodeProblems(parsed));
-  problems.push(...tribalGroupProblems(parsed, castNames, format, opts.groups));
-  // The format section (F2): its names made the list's own, and what doesn't add up, for the reviewer. Never fatal.
+  // The format section (F2): its names made the list's own, and what doesn't add up, for the reviewer. Never fatal. Then each
+  // person's group move worked out from it (F3), before the Tribal check reads the moves.
+  let fromState = null;
   if (parsed && parsed.formatState) {
     const asked = (name) => castNames.find((n) => n.toLowerCase() === String(name || "").trim().toLowerCase()) || null;
     const roster = { castaways: castNames.map((name, i) => ({ id: String(i), name })) };
@@ -1302,7 +1324,9 @@ function validateResearch(parsed, castNames, terms, format, opts = {}) {
     const newcomers = (opts.formatGoingIn && opts.formatGoingIn.newcomers) || [];
     problems.push(...FormatStates.formatStateProblems(parsed.formatState, { resolve, entries: [...byName.values()], goingIn, newcomers, episode: opts.episode || null }));
     problems.push(...newGroupDisagreements(parsed.formatState, [...byName.values()]));
+    if (format.hasGroups) fromState = applyStateMoves([...byName.values()], parsed.formatState, opts.groups);
   }
+  problems.push(...tribalGroupProblems(parsed, castNames, format, opts.groups, fromState));
 
   const answered = [...byName.values()];
   const counts = {
@@ -1314,14 +1338,29 @@ function validateResearch(parsed, castNames, terms, format, opts = {}) {
   return { entries: answered, problems, fatal, counts };
 }
 
-// A person's newGroup (the group the engine moves them to today) against the format section's group for them, when
-// that group has a name: the same answer said twice, so a difference is worth a reviewer's look. Pure.
+// Each person's group move from the format section (F3; FormatStates.movesFromState), worked out once, here, with the same
+// groups going in the review shows (a league's own cast too), and stored as newGroup, which staging reads. The section speaks
+// for everyone it places on a named tribe or team, moved or not, over any newGroup the answer has; anyone else (someone who
+// moved and went home the same night, whom the groups at the end can't hold; a section that doesn't say) keeps what the
+// answer said. Returns { placed: who it spoke for (lower case), atEnd: whether its grouping change came at the episode's
+// end, so the groups at a vote before it were the ones going in }, for the Tribal check. In place.
+function applyStateMoves(entries, state, goingIn) {
+  const moves = FormatStates.movesFromState(state, goingIn || {});
+  const low = (s) => String(s || "").trim().toLowerCase();
+  const byName = new Map([...moves].map(([name, group]) => [low(name), group]));
+  for (const e of entries) if (e && byName.has(low(e.name))) e.newGroup = byName.get(low(e.name));
+  const grouping = ((state && state.changes) || []).filter((c) => c && FormatStates.GROUPING_KINDS.includes(c.kind) && c.kind !== "newcomer");
+  return { placed: new Set(byName.keys()), atEnd: grouping.length > 0 && grouping.every((c) => c.when === "end") };
+}
+
+// A person's newGroup (an older prompt's, a paste's) against the format section's group for them, when that group has a
+// name: the same answer said twice, so a difference is worth a reviewer's look (the section's wins). Pure.
 function newGroupDisagreements(state, entries) {
   if (!state || !Array.isArray(state.groups)) return [];
   const named = new Map(state.groups.filter((g) => g.name).flatMap((g) => g.members.map((m) => [m.toLowerCase(), g.name])));
   return entries
     .filter((e) => typeof e.newGroup === "string" && e.newGroup.trim() && named.has(String(e.name).trim().toLowerCase()))
-    .filter((e) => named.get(String(e.name).trim().toLowerCase()).toLowerCase() !== e.newGroup.trim().toLowerCase())
+    .filter((e) => FormatStates.tribeKey(named.get(String(e.name).trim().toLowerCase())) !== FormatStates.tribeKey(e.newGroup))
     .map((e) => `${e.name}: newGroup says ${e.newGroup.trim()}, but formatState has them on ${named.get(String(e.name).trim().toLowerCase())}`);
 }
 
@@ -1331,17 +1370,22 @@ function newGroupDisagreements(state, entries) {
 // night, whose move a chat leaves out because they're gone. The move is filled in, so it stages as a group
 // change the reviewer can reject, and reported in the vote's own words. Only where the format has groups
 // and the answers say who attended.
-function tribalGroupProblems(parsed, castNames, format, groups) {
+// `fromState` (applyStateMoves, F3): whoever the format section placed is never moved by this check (their group at the end
+// is the section's), and when its change came at the episode's end, everyone was still on the group they went in on at the
+// vote.
+function tribalGroupProblems(parsed, castNames, format, groups, fromState = null) {
   const votes = (format.data && format.data.research && format.data.research.groupVotes) || [];
   if (!format.hasGroups || !groups || !votes.length || (parsed && parsed.merged === "yes")) return [];
-  return votes.flatMap((vote) => groupMoves(parsed, castNames, vote, groups));
+  return votes.flatMap((vote) => missedMoves(parsed, castNames, vote, groups, fromState));
 }
 
-function groupMoves(parsed, castNames, vote, groups) {
+function missedMoves(parsed, castNames, vote, groups, fromState) {
   const asked = (name) => castNames.find((n) => n.toLowerCase() === String(name || "").trim().toLowerCase());
+  const placed = (fromState && fromState.placed) || new Set();
+  const atVote = (c) => (fromState && fromState.atEnd ? null : typeof c.newGroup === "string" && c.newGroup.trim()) || groups[asked(c.name)] || null;
   const at = ((parsed && parsed.castaways) || [])
     .filter((c) => c[vote.attended] === "yes")
-    .map((c) => ({ entry: c, name: c.name, group: (typeof c.newGroup === "string" && c.newGroup.trim()) || groups[asked(c.name)] || null }))
+    .map((c) => ({ entry: c, name: c.name, group: atVote(c), placed: placed.has(String(c.name || "").trim().toLowerCase()) }))
     .filter((c) => c.group);
   if (at.length < 3) return [];
   const counts = new Map();
@@ -1352,7 +1396,7 @@ function groupMoves(parsed, castNames, vote, groups) {
   if (n < at.length * 0.75) return [];
   const tribe = at.find((c) => c.group.toLowerCase() === top).group;
   return at
-    .filter((c) => c.group.toLowerCase() !== top)
+    .filter((c) => c.group.toLowerCase() !== top && !c.placed)
     .map((c) => {
       c.entry.newGroup = tribe;
       return Review.fill(vote.say, (key) => ({ name: c.name, group: tribe, was: c.group })[key]);

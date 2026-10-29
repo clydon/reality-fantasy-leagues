@@ -352,10 +352,14 @@ test("the review's cases: a partial ask, newcomers since, a name like a newcomer
   assert.ok(!("formatState" in R.researchSchemaFor(R.formatForAsking(ctx, CAST.slice(0, 2)), false).shape));
   assert.equal(R.formatForAsking(ctx, CAST), ctx.format, "the whole cast: asked");
   assert.doesNotMatch(R.buildPrompt({ ...ctx, castNames: CAST.slice(0, 2), format: R.formatForAsking(ctx, CAST.slice(0, 2)) }).user, /HOW THE GAME/);
-  // newGroup's paragraph and the section don't both claim to be the only place a change goes.
+  // Beside the section a group change goes in it (F3: each person's move is worked out from it), and newGroup only for whoever
+  // moved and went home the same night; a pass about some of the cast, which leaves the section out, asks newGroup as the
+  // only place.
   const swapPrompt = R.buildPrompt({ ...ctxFor(survivor), castGroups: { "Ann Able": "Hina" } }).user;
   assert.doesNotMatch(swapPrompt, /the only place/);
-  assert.match(swapPrompt, /in newGroup, and the whole picture in formatState below/);
+  assert.match(swapPrompt, /If tribes were swapped, re-divided, dissolved or merged in this episode, say so in formatState below;\nsomeone who moved and then went home in this same episode: the tribe they went home from, in newGroup\./);
+  const partialPrompt = R.buildPrompt({ ...ctxFor(survivor), castNames: CAST.slice(0, 2), castGroups: { "Ann Able": "Hina" }, format: R.formatForAsking(ctxFor(survivor), CAST.slice(0, 2)) }).user;
+  assert.match(partialPrompt, /tribe in newGroup -- that is the only place a tribe change is recorded/);
   assert.doesNotMatch(R.buildPrompt({ ...ctxFor(survivor), castGroups: { "Ann Able": "Hina" }, format: R.onlyFormat(survivor, []) }).user, /HOW THE GAME/, "a cut-down ask: no section");
   // Someone who came in an earlier episode (not on the list) keeps their place; a newcomer's own name isn't a cast member's.
   const cast = ["Leonardo Dionicio", "Bea Bell", "Cal Cole", "Dev Dunn"];

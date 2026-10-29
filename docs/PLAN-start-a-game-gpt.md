@@ -10,7 +10,11 @@ answers; scoring that combines, per question and points per bingo line, then per
 reverse, points that multiply by when). The format foundation (F1 to F4, one part a session: "Formats nobody
 announced") is under way: F1, the study (2026-10-28: [STUDY-format-changes.md](STUDY-format-changes.md), the
 seasons' ground truth as data, `format-study.js`) and F2, the research prompt's format section (2026-10-29: every show's research
-says who is with whom at each episode's end and what changed, as data; proven on 23 recorded episodes), are done; F3 is next, then F4, then A10
+says who is with whom at each episode's end and what changed, as data; proven on 23 recorded episodes), are done, and so is
+F3's first part (2026-10-29: the format's state over time, `format-timeline.js`, and its readers with their fallbacks; each
+person's tribe move worked out from the section, so `newGroup` asks only for whoever moved and went home the same night);
+F3's second part (newcomers into the cast
+and research, the timeline from the database, what reads it first) is next, then F4, then A10
 to A14 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -527,6 +531,105 @@ teams read the format's state rather than guess it), the engine track does the f
 - **F3. The engine's format state over time,** built from each episode's report, with the changes found by comparing an
   episode's state with the one before (our code, not the bot's labels), what reads it (A6's choices, A10's slots per group,
   A11's teams, A12's stages and triggers) and each piece's fallback. A corrected report works out everything after it again.
+
+  **As built (F3 part 1, 2026-10-29, on `engine`, not merged; no migration; the engine's games don't read it yet).** One
+  session, after `lane.js sync engine` (already up to date; 932 tests). Two parts: this one the state over time, its readers
+  and `newGroup`; the second (next) newcomers into the cast and research, the timeline from the database and what reads it
+  first, with a zt- fixture.
+  - **The state over time** (`src/lib/game/formats/format-timeline.js`, pure, browser-safe): `buildTimeline(reports, { cast,
+    start })` from each episode's report (`reportFrom`: its stored format section, who it has going home, `merged`), built
+    from every report at once, so a corrected one works out everything after it again. Per episode: who is with whom at its
+    end (going into the next; a group down to one is that person on their own), whether that's **sure** and, when not, why
+    (no research, no section, groups not said, carried on from an earlier episode, a change one side alone sees, an answer
+    whose changes its own groups don't show, nothing before it to check against, compared with an assumed start); how it was
+    **played** (the groups going in; the end's when a change came at its start, Survivor's swaps and the merge; the start's
+    when one came partway, Q3, with the new ones as `mid`; none when it was played apart); its **changes**, our comparison
+    (`changesBetween`) crossed with the answer's (`crossed`: both sides, as sure as the answer says; one side, unsure; a
+    phase, twist or role the answer's alone; one announced for later than the next episode `ahead`, not held against this
+    end); which groups **went home whole**, from the exits and the groups in play (never the answer's word: `wentHomeAs`
+    ours, theirs, agree); who's **unplaced** (still in, in no group, while the game is divided); and newcomers.
+  - **What F2's proof asked for:** `playedAs` is read with the groups (an episode played alone between two grouped states,
+    The Challenge 41's 9, is a split at its start, unsure unless the answer says it too, and the new groups at its end); an
+    answer that contradicts itself is unsure, and the next answer settles it (The Challenge 40's 9 and 10); our
+    divided-to-not-divided matches the answer's merge or split either way, taking its kind, and `merged: yes` the first time
+    makes our merge the answer's too; a twist or a role never moves a game's structure; a whole pair going home comes from
+    the exits.
+  - **Lifetimes and spells** (F1's questions 1, 3 and 4 as recommended, the user not having answered): a group is its exact
+    members, less who went home (a tribe that loses someone carries on; a pair down to one is none); any join or move ends
+    it; the same people together again later are a new group; someone the answer before had nowhere, placed by the next, is
+    that answer filled in, not a join. Each group: who, `shown` (the episode whose end first listed it), the episodes it
+    `played`, what ended it (`left`, `split`, `merge`, `changed`, with the change's id) and `never` (shown, gone before it
+    played: Cara Maria & Leo, Theo & Dee). Only while the game is divided: one group of everyone isn't one to ride. A
+    **spell** is the groups as a whole from one change to the next (a group going home doesn't end it).
+  - **The readers, each with the fallback a spec carries** (`FALLBACKS`: carry on, void, next stage; 'void' when none is
+    given, the safe one): `goingInto(n)` (the state at a lock, sure or why not, and changes announced for it), `playedIn(n)`;
+    **A6's choices** `groupChoices(n)` (sure groups, else void, or the last known with carry-on) and `heldThrough(group, n)`
+    (whether a group picked at the lock played it as picked); **A10's group slots** `groupSlots()` (per group: opens after
+    the episode that showed it, scores the episodes it then played, drops after its last; void for an episode whose lock or
+    play wasn't sure, and for the next episode when it never played, F1's Q2); **A12's side stages** `sideStages({ after })`
+    (a spell that held N episodes opens after the Nth, scores from the next, closes when it changes; not when the report of
+    the Nth already shows it gone, as a re-pairing at that episode's end does) and **stage triggers** `stageTriggers(kinds)`
+    (`MAJOR` by default, F1's Q5 as recommended: teams formed, pairs formed, split, merge, `swap-all`; `act` the sure ones
+    from the episode they take effect, `held` the unsure ones, flagged, never acted on); `castAt(n)` (the cast and newcomers
+    still in); **A11's teams** read `playedIn`. `timelineDiff(before, after)`: the first episode told differently, the
+    changes gone, new or told differently by id (what a stage started on one now gone undoes), the groups that moved.
+  - **Tribe moves come from the section; `newGroup` asks only for whoever moved and went home the same night; `merged`
+    stays** (the decision F2 left for F3, by the proof's numbers). Each person's tribe move is worked out from the section
+    (`FormatStates.movesFromState`, `applyStateMoves`), once, in `validateResearch`, with the same groups going in the review
+    shows (a league's own cast too), and stored as `newGroup`, which staging and re-staging read as before. The section
+    speaks for everyone it places on a named tribe or team, moved or not, over any `newGroup` an answer carries (the
+    difference is reported); a tribe's name said another way ("Hina Tribe", "the new Hina") is that tribe, kept as staged
+    (`tribeKey`); a name no tribe going in has is a new tribe (a swap's, the merge's); pairs (and named pairs with a trio,
+    unless every group is a tribe already), a group without a name and a section that doesn't say move nobody. Anyone it
+    doesn't place keeps what the answer said: beside the section `newGroup` asks only for **someone who moved and then went
+    home in the same episode** (the groups at the end can't hold them; its old ask of everyone stays for a pass about some of
+    the cast, which leaves the section out); the Tribal check still fills in a missed move, but never for someone the
+    section placed, and when the section's change came at the episode's end it reads the groups going in (the vote was
+    before it). On Survivor 49's kept answers the section's moves are 11 of 11 at the first swap and 6 of 6 at the second,
+    none wrong (`newGroup`: 1 of 11 and 6 of 6); the merge moves nobody either way (neither named the merged tribe). On The
+    Challenge 41's Episode 9 the old `newGroup` named partners as groups (22 tribes called after people); the section moves
+    nobody there. `merged` was right at the merge, the phase cues read it, and the timeline crosses it with the state's
+    merge, so it stays asked.
+  - **`changesBetween` fixed** (F2's): nobody moving, nobody new and every group carrying one on is no change, whatever the
+    sizes read as (a tribe of two beside one of three read as pairs turning into teams when an answer filled someone in);
+    pairs joined by newcomers into trios is still teams formed. F2's scores the same (`format-asks.js score`).
+  - **The proof** (`scripts/dev-test/format-asks.js timeline [--md]`, no bot: the state over time built from F2's kept
+    answers, an episode not asked carried on with the fixture's exits, the first going-in F1's truth, scored against F1's
+    fixtures; the tables in STUDY-format-changes.md, "F3: the state over time"): of 23 episodes, 20 sure, the 3 unsure exactly
+    the 3 answers that contradict themselves; **11 grouping changes called sure, all 11 right, none wrong** (every swap,
+    Survivor's two swaps and the merge, the Lock In's pairs, the claim, The Challenge 40's teams and its split); of the 13
+    the fixtures have within reach, 11 sure, 1 unsure (the episode played alone, said only by `playedAs`), 1 missed (Theo's
+    MRI swap, which the answer missed); played apart 3 of 3; whole groups home 22 of 23 from the exits (the answers' word
+    21); **lifetimes 85 of 85 exactly** (the episodes each group played, for every group the fixtures have; 3 the answers
+    made up); side stages after 11 on The Challenge 41 (the locked pairs, closed by the claim at 16), after 5 on Survivor 49
+    (closed by the swap at 6), after 4 on The Challenge 40 (the eras, closed by the split at 10), as F1 measured.
+  - **Staging, before against after** (`tests/harness/research-store-regression.js`, with F3's scenarios added: a swap
+    answered with `newGroup` alone, with both, with the section alone; someone swapped and voted out the same night; the
+    merge): every write, every stored answer and every `season_decisions` row the same, but the section-only answer, which
+    stages its two moves now (none before: the old code read only `newGroup`) and stores them as `newGroup`. The golden
+    replays: 6 seasons, 138 games, 15,753 reads, every one the same (run before the code review's fixes and again after); the
+    tracker unchanged (`--check`). No zt- fixture: no game reads the timeline yet (part 2's).
+  - **Tests:** `tests/format-timeline.test.js` (new, 13): a swap at the start and the merge (sure, played by the new
+    tribes, a tribe losing someone carrying on, lifetimes and spells, triggers, a twist never one); the merge said only by
+    `merged`; re-drawn pairs, a newcomer in a leaver's place, an episode played apart, a pair home together, a claim partway;
+    the readers and their fallbacks; an unsure change and a contradicted answer settled by the next; a missing report carried
+    on and a change announced ahead; someone left out filled in, the same people again a new group; a correction and its
+    diff; `reportFrom` and an assumed start; `movesFromState` (names said another way, named pairs with a trio, small tribes
+    already known, the merge); `newGroup` narrowed beside the section, asked of everyone in a partial pass, kept from an old
+    answer; the review's moves (the section wins, a leaver keeps the answer's, pairs move nobody); the Tribal check beside the
+    section; staging a section-only answer through the in-memory database; the code review's cases. The pinned prompt
+    sentences moved (`format-state.test.js`, `research-review.test.js`), and `format-proposal.test.js` checks both asks.
+    `npm test` 947.
+  - **Code review** (`/code-review`, before the commit; it ran this time). Taken: the moves were worked out twice (in the
+    review and again when staging, from the season's cast only, so a league's own cast would have moved everyone onto the
+    tribe they were on; now once, in the review); a tribe's name said another way moved its whole tribe every episode
+    (`tribeKey`); named pairs with a trio got past the pairs guard; dropping `newGroup` lost who moved and went home the same
+    night where the Tribal check can't tell (it's asked for them alone now); the Tribal check could move back someone the
+    section placed, and read their end group for a vote before a change at the end; a spell kept counting episodes after it
+    ended; an unsure change of unknown timing left the play sure; the first lock didn't read a sure start; a low-sure split
+    made the play sure; `changesBetween`'s shortcut hid pairs turning into trios through newcomers; the old answers' keeper
+    reached a cut-down ask (gone: the schema keeps `newGroup`); the scorer crashed on an episode the fixture lacks; the test
+    stubbed the embeddings after the module had bound them. Declined: none.
 - **F4. Blind replays:** a taped season replayed as if live (above), every game the tracker says it plays, The Challenge's
   seasons first.
 
@@ -2562,6 +2665,56 @@ From F2 (2026-10-29; the results in [STUDY-format-changes.md](STUDY-format-chang
   answers took about twice as long (136 s against 71 s on The Challenge 41's tapes; the longest 198 s), nearer the app's
   285 s stop for a bot answer. If production's runs time out, the section's JSON schema (most of the added length) could be
   shown as a filled example only. (Whoever watches the bot's research budget after the merge.)
+
+Taken by F3 part 1 (2026-10-29): F2's `newGroup` and `merged` beside the section (tribe moves worked out from it, `newGroup`
+asked beside it only for whoever moved and went home the same night; `merged` stays), the cross-check worked out per episode (the timeline, from stored research each
+time it's read), a corrected report working out everything after it (the timeline; the prompts aren't asked again), which
+the engine believes for a change at an episode's end (`effective`: its `from`, else its `when`), and what F2's proof found
+for F3 (`playedAs` with the groups, a contradicted answer unsure, whole groups home from the exits, a twist never moving
+anything). F1's questions 1, 3 and 4 taken as recommended (still the user's to confirm, with 2 and 5, below).
+
+From F3 part 1 (2026-10-29; the proof in [STUDY-format-changes.md](STUDY-format-changes.md), "F3: the state over time"):
+- **For the user, at the merge:** tribe moves from the section, with `newGroup` asked beside it only for whoever moved and
+  went home the same night (production's research asks it of everyone today, so Survivor 51's next swap would stage its tribe
+  moves from the section). Recommended: yes, with the numbers above (11 of 11 and 6 of 6 against 1 of 11 and 6 of 6;
+  partners' names as tribes on The Challenge).
+- A pass about some of the cast (a commissioner's paste) leaves the section out and asks `newGroup` of everyone, as before
+  F3: its answer replaces those people's entries, moves and all, while the stored section stays the whole cast's. (Fine
+  while such passes are rare; F3 part 2 could work the moves out again from the stored section for them.)
+- The line before the section still says the show's own word for its groups ("The agency after each name ...", "the agency
+  they went home from" on The Challenge, from its show row) beside the cast list's labels (Vets / New Threats), while the
+  schema's `newGroup` says the format's ("team") and the section says tribes, teams or pairs. (F3 part 2: one word, the
+  season's.)
+- A move staged in an episode puts someone on the new tribe for that whole episode, whether the change came at its start
+  or its end, as `newGroup` did ("the tribe they are on at the END of this episode"); the timeline knows when it came. (A6's
+  next reader, if a question about an end-of-episode swap's episode matters.)
+- **For the user, in the format-change design session (after A12), each with a recommendation:**
+  1. Each reader's fallback by default (a group question, a group slot, a side stage, a team): recommended 'void' (no
+     points either way for an episode whose groups aren't sure) for questions and slots; carry on for teams that follow the
+     people; the next stage only where a spec asks for it.
+  2. Does one tribe of everyone (the merged tribe) count as a grouping for a side stage? F1 counted it (a side draft after
+     Survivor 49's 8); the timeline doesn't (everyone's in it). Recommended: no.
+  3. A side stage whose grouping held N episodes but changed at the next one's start (Survivor 49's swap tribes, after 5)
+     opens and closes having scored nothing. Recommended: open it anyway (live, nobody knew), and say so; or wait one more
+     episode before opening (fewer empty stages, later ones).
+- A group formed partway through an episode that then went home whole (The Challenge 41's claim in 16: Aviv & Will) isn't
+  seen: the section's groups are at the end, and they've gone by then (`wentHomeAs` ours said individuals there). (A12, if a
+  game scores it; or the section asking who went home with whom.)
+- Who went home in an episode whose groups changed at its start isn't placed in its groups (the end's groups don't have
+  them), so a group answer about them is off, as A6 has it today; Survivor's Tribal check knows for a swap. (A6's next
+  reader, F3 part 2 if it matters.)
+- Neither `newGroup` nor the section named the merged tribe (Lewatu), so the merge moves nobody's tribe, as before; the
+  merge's phase comes from `merged`. The section could ask the merged group's name by itself. (The user, at the merge; G1.)
+- The timeline isn't stored: it's worked out from stored research each time it's read (one query a season). If a reader
+  needs it per request, cache it by the research rows' times. (F3 part 2, A10.)
+- `formatGoingInto` (the prompt's groups going in) is still the latest earlier stored answer that says who is with whom, not
+  the timeline's `goingInto` (which drops who left since and knows when it isn't sure). (F3 part 2.)
+- Newcomers are in the timeline (`castAt`), but still not in the season's cast or research's list, so they get no
+  checklist entry, result or exit; and A9 part 2's reverse count moves when one is added. (F3 part 2: research asks about
+  them; adding someone to the cast every league sees stays a person's, a cue on the desk.)
+- Episode 1 has nothing before it: the cast list's groups (maybe only a label) are never taken as the state going in, so
+  the premiere's own answer is the first state (its groups played it unless it says a change). A blind replay passes what
+  was known before the premiere as `start`, unsure. (F4.)
 
 From A7 (2026-10-28):
 - The late lock is a game of questions' only: lineups and picks still lock at airtime, whoever watches when. (A15, each

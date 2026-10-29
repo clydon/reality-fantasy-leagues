@@ -21,6 +21,10 @@
 //   node scripts/dev-test/format-asks.js score [<show> <season>] [--md] each answer scored, then per season and overall
 //   node scripts/dev-test/format-asks.js reread [<show> <season>]      the kept answers read again by the code as it stands
 //                                                                      (no bot): after a change to the parser or the checks
+//   node scripts/dev-test/format-asks.js timeline [<show> <season>] [--md]
+//                                                                      F3: the format's state over time built from the kept
+//                                                                      answers (format-timeline.js), scored against F1's
+//                                                                      fixtures (no bot)
 //
 // The study's set (F1's proposal): The Challenge 41 episodes 4-10 and 16, Survivor 49 3-8, The Challenge 40 2, 3, 9, 10 and
 // 12, The Traitors 4 1, 7, 8 and 9.
@@ -41,6 +45,7 @@ const path = require("path");
 const { execSync } = require("child_process");
 const Study = require("./format-study.js");
 const FS = require("../../src/lib/game/formats/format-state.js");
+const Timeline = require("../../src/lib/game/formats/format-timeline.js");
 
 const TAPES = process.env.TAPES_DIR || path.join(os.homedir(), "rfl-tapes");
 const BOT = (process.env.FORMAT_ASKS_BOT || "http://127.0.0.1:8765").replace(/\/$/, "");
@@ -586,6 +591,151 @@ function score(args) {
   if (set.length > 1) console.log(`${md ? "\n**All**\n\n" : "\n== All: "}${totalsLine(totals(all), md)}`);
 }
 
+// ---------- F3: the format's state over time, built from the kept answers (pure but for answersOf) ----------
+
+/**
+ * The season's format state over time (src/lib/game/formats/format-timeline.js) built from the kept answers as the engine
+ * builds it from stored research: each answer's format section and who it has going home; an episode between them not asked
+ * again carried on, with the fixture's exits (its research's checklist has them); the groups going into the first asked
+ * episode F1's truth, as F2's first asks were shown it. The cast: everyone the answers were asked about. Pure given the
+ * answers: { tl, asked }.
+ */
+function timelineOf(t, answers) {
+  const asked = Object.keys(answers).map(Number).filter((n) => answers[n] && answers[n].ok && answers[n].parsed).sort((a, b) => a - b);
+  if (!asked.length) return { tl: null, asked };
+  const exits = Study.exits(t);
+  const reports = [];
+  for (let n = asked[0]; n <= asked[asked.length - 1]; n++) {
+    const a = asked.includes(n) ? answers[n].parsed : null;
+    reports.push(a ? { episode: n, state: a.formatState, left: a.left || [], merged: a.merged } : { episode: n, state: null, left: [...exits].filter(([, v]) => v.episode === n).map(([k]) => k), merged: null });
+  }
+  const before = asked[0] > 1 ? truthAtEnd(t, asked[0] - 1) : null;
+  const cast = [...new Set(asked.flatMap((n) => answers[n].castAsked || []))];
+  return { tl: Timeline.buildTimeline(reports, { cast, start: before ? { after: asked[0] - 1, state: before, sure: true } : null }), asked };
+}
+
+/** Whether the fixture has episode n played without the groups that went into it (an individual episode between grouped ones). */
+function apartIn(t, n) {
+  const e = t.episodes.find((x) => x.n === n);
+  const prev = t.episodes.filter((x) => x.n < n && x.play !== "none").pop();
+  return !!(e && prev && ["individuals", "everyone"].includes(e.play) && GROUPED.has(prev.play));
+}
+
+/**
+ * The timeline against F1's fixture, over the asked episodes. Per episode: who is with whom at its end (as the answer said it,
+ * against the fixture's truth, either state counting at an end before a change at the next start), whether the timeline
+ * calls it sure, whether it was played apart (the fixture's, the timeline's), and who went home as a whole group (the fixture's,
+ * ours from the exits, the answer's word). Then the changes: every grouping change the timeline calls sure (what a game's
+ * structure would move on) against the fixture's (kind and the episode it takes effect; a swap of every group as itself), the
+ * fixture's within reach (shown in an asked episode) found sure, unsure or not at all, and the groups' lifetimes against the
+ * fixture's (the episodes each played, for groups the fixture has). Pure.
+ */
+function scoreTimeline(t, tl, asked) {
+  const rows = asked.filter((n) => truthAtEnd(t, n)).map((n) => {
+    const e = Timeline.at(tl, n);
+    const truth = truthAtEnd(t, n);
+    const main = groupScore(e.end, truth);
+    const alt = truth.alt ? groupScore(e.end, truth.alt) : null;
+    const groups = alt && alt.exact && !main.exact ? alt : main;
+    return { episode: n, sure: e.sure, why: e.why, groups, apart: { want: apartIn(t, n), got: !!(e.played && e.played.apart && divided(e.played) === false && Timeline.goingInto(tl, n).divided) }, home: { want: truth.wentHomeAs, ours: e.wentHomeAs.ours, theirs: e.wentHomeAs.theirs } };
+  });
+  const fixture = Study.changes(t).filter((c) => FS.GROUPING_KINDS.includes(c.kind) && c.kind !== "newcomer");
+  const reach = fixture.filter((c) => asked.includes(c.shown ? c.shown[0] : c.from[0]));
+  const ours = tl.episodes.filter((e) => asked.includes(e.episode)).flatMap((e) => e.changes.filter((c) => FS.GROUPING_KINDS.includes(c.kind) && c.kind !== "newcomer" && !c.ahead).map((c) => ({ ...c, at: Timeline.effective(c, e.episode) })));
+  const same = (c, f) => c.kind === f.kind && c.at === f.from[0] && (c.kind !== "swap" || !!c.allNew === !!f.allNew);
+  const sure = ours.filter((c) => c.sure === "high" && c.by === "both");
+  // Each of ours used once, a sure one before an unsure one, the same kind of swap before another.
+  const isSure = (c) => c.sure === "high" && c.by === "both";
+  const pool = [...ours].sort((a, b) => Number(isSure(b)) - Number(isSure(a)));
+  const take = (test) => {
+    const i = pool.findIndex(test);
+    return i >= 0 ? pool.splice(i, 1)[0] : null;
+  };
+  const found = reach
+    .map((f) => ({ f, hit: take((c) => same(c, f)) }))
+    .map(({ f, hit }) => ({ f, hit: hit || take((c) => c.kind === f.kind && c.at === f.from[0]) }))
+    .map(({ f, hit }) => ({ kind: f.kind, from: f.from[0], allNew: f.allNew, got: hit ? (isSure(hit) ? "sure" : "unsure") : "missed", exact: !!hit && same(hit, f) }));
+  const lines = Object.values(t.groupings || {}).some((g) => !g.label) ? Object.keys(t.groupings).filter((l) => !t.groupings[l].label).flatMap((l) => Study.lifetimes(t, l).groups) : [];
+  const lo = asked[0];
+  const hi = asked[asked.length - 1];
+  const life = tl.groups
+    .filter((g) => g.played.some((n) => asked.includes(n)))
+    .map((g) => {
+      // The same people can be together again later (a new group, Q4): the fixture's line is the one it overlaps most. Its
+      // episodes are the ones played in groups (a fixed grouping is still listed while everyone plays alone).
+      const keys = (l) => [...l.keys].map((k) => FS.keyOf(k.split(" + ")));
+      const overlap = (l) => l.episodes.filter((n) => g.played.includes(n)).length;
+      const line = lines.filter((l) => keys(l).includes(FS.keyOf(g.members)) || keys(l).includes(FS.keyOf(g.now))).sort((x, y) => overlap(y) - overlap(x))[0];
+      const grouped = (n) => GROUPED.has((t.episodes.find((e) => e.n === n) || {}).play);
+      const want = line ? line.episodes.filter((n) => n >= lo && n <= hi && grouped(n)) : null;
+      const got = g.played.filter((n) => n >= lo && n <= hi);
+      return { id: g.id, known: !!line, right: !!line && want.join() === got.join(), want, got };
+    });
+  return {
+    rows,
+    sure: sure.map((c) => ({ id: c.id, kind: c.kind, at: c.at, allNew: c.allNew, right: fixture.some((f) => same(c, f)) })),
+    found,
+    life,
+  };
+}
+
+const divided = (p) => !!p && Array.isArray(p.groups) && p.groups.length > 1;
+
+function timelineSeason(show, season, { md = false } = {}) {
+  const t = Study.loadTimeline(show, season);
+  const { tl, asked } = timelineOf(t, answersOf(show, season));
+  const out = [md ? `\n**${t.title} (${show} ${season})**\n` : `== ${t.title} (${show} ${season}): episodes ${asked.join(", ")}`];
+  if (!tl) return { lines: [...out, "no answers"], score: null };
+  const s = scoreTimeline(t, tl, asked);
+  if (md) out.push("| Ep | Groups at the end | Sure | Played apart | Went home as (ours / the answer's) |", "|---|---|---|---|---|");
+  for (const r of s.rows) {
+    const g = r.groups;
+    const cells = [
+      !g.known ? "not known" : g.expected === 0 && g.extra === 0 ? "none, none" : `${g.found} of ${g.expected}${g.extra ? `, +${g.extra}` : ""}`,
+      r.sure ? "sure" : `unsure: ${r.why.join("; ")}`,
+      r.apart.want || r.apart.got ? `${r.apart.got ? "yes" : "no"}${r.apart.got === r.apart.want ? "" : ` (want ${r.apart.want ? "yes" : "no"})`}` : "-",
+      `${r.home.ours}${r.home.ours === r.home.want ? "" : ` (want ${r.home.want})`} / ${r.home.theirs}`,
+    ];
+    out.push(md ? `| ${r.episode} | ${cells.join(" | ")} |` : `E${pad(r.episode)}  ${cells.join("  |  ")}`);
+  }
+  const say = (x) => `${x.kind}${x.allNew ? " (every group new)" : ""} from ${x.at ?? x.from}`;
+  out.push(
+    `${md ? "\n- " : "   "}sure changes (what a game's structure would move on): ${s.sure.length ? s.sure.map((c) => `${say(c)}${c.right ? "" : " WRONG"}`).join("; ") : "none"}`,
+    `${md ? "- " : "   "}the fixture's grouping changes within reach: ${s.found.length ? s.found.map((f) => `${say(f)}: ${f.got}${f.got !== "missed" && !f.exact ? " (another kind of swap)" : ""}`).join("; ") : "none"}`,
+    `${md ? "- " : "   "}lifetimes: ${s.life.filter((l) => l.known).length} of ${s.life.length} groups the fixture has, ${s.life.filter((l) => l.right).length} with the episodes it played exactly${s.life.filter((l) => l.known && !l.right).length ? ` (off: ${s.life.filter((l) => l.known && !l.right).map((l) => `${l.got.join(",")} for ${l.want.join(",")}`).join("; ")})` : ""}`,
+    `${md ? "- " : "   "}side stages (held 2): ${Timeline.sideStages(tl).filter((x) => x.opens).map((x) => `after ${x.opensAfter}${x.closesAfter ? `, closed after ${x.closesAfter}` : ""}${x.sure ? "" : " (unsure)"}`).join("; ") || "none"}`,
+    `${md ? "- " : "   "}newcomers: ${tl.newcomers.map((x) => `${x.name} (${x.episode}${x.replaces ? `, for ${x.replaces}` : ""})`).join("; ") || "none"}`
+  );
+  return { lines: out, score: s };
+}
+
+function timelineTotals(scores) {
+  const rows = scores.flatMap((s) => s.rows);
+  const sure = scores.flatMap((s) => s.sure);
+  const found = scores.flatMap((s) => s.found);
+  const life = scores.flatMap((s) => s.life);
+  return [
+    `episodes ${rows.length}: sure ${rows.filter((r) => r.sure).length}; groups at the end exactly right ${rows.filter((r) => r.groups.known && r.groups.found === r.groups.expected && !r.groups.extra).length}`,
+    `played apart ${pct(rows.filter((r) => r.apart.want && r.apart.got).length, rows.filter((r) => r.apart.want).length)} (+${rows.filter((r) => r.apart.got && !r.apart.want).length} not)`,
+    `went home as: ours ${pct(rows.filter((r) => r.home.ours === r.home.want).length, rows.length)}, the answer's ${pct(rows.filter((r) => r.home.theirs === r.home.want).length, rows.length)}`,
+    `sure grouping changes ${sure.length}, right ${sure.filter((c) => c.right).length}, wrong ${sure.filter((c) => !c.right).length}`,
+    `the fixture's within reach ${found.length}: sure ${found.filter((f) => f.got === "sure").length}, unsure ${found.filter((f) => f.got === "unsure").length}, missed ${found.filter((f) => f.got === "missed").length}`,
+    `lifetimes: ${pct(life.filter((l) => l.right).length, life.filter((l) => l.known).length)} exactly (${life.filter((l) => !l.known).length} groups the fixture doesn't have)`,
+  ];
+}
+
+function timeline(args) {
+  const md = args.includes("--md");
+  const set = args.filter((a) => !a.startsWith("--")).length > 1 ? setOf(args.slice(1), { episodes: false }) : STUDY_SET;
+  const scores = [];
+  for (const { show, season } of set) {
+    const { lines, score: s } = timelineSeason(show, season, { md });
+    console.log(lines.join("\n"));
+    if (s) scores.push(s);
+  }
+  if (scores.length) console.log(`${md ? "\n**All**\n\n" : "\n== All: "}${timelineTotals(scores).map((x) => (md ? `- ${x}` : x)).join(md ? "\n" : "; ")}`);
+}
+
 async function main() {
   const [cmd, ...rest] = process.argv.slice(2);
   if (cmd === "plan") {
@@ -601,8 +751,9 @@ async function main() {
   } else if (cmd === "reread") await reread(rest);
   else if (cmd === "ask") await ask(["ask", ...rest]);
   else if (cmd === "score") score(["score", ...rest]);
+  else if (cmd === "timeline") timeline(["timeline", ...rest]);
   else {
-    console.error("usage: format-asks.js plan | prompt <show> <season> <ep> | reread [<show> <season>] | ask [<show> <season> <eps>] [--again] [--max=N] [--pause=75] | score [<show> <season>] [--md]");
+    console.error("usage: format-asks.js plan | prompt <show> <season> <ep> | reread [<show> <season>] | ask [<show> <season> <eps>] [--again] [--max=N] [--pause=75] | score [<show> <season>] [--md] | timeline [<show> <season>] [--md]");
     process.exitCode = 2;
   }
 }
@@ -618,4 +769,4 @@ if (require.main === module) {
     });
 }
 
-module.exports = { STUDY_SET, promptFor, readAnswer, appCode: () => appCode(), truthAtEnd, changesReportedIn, goingInFor, divisionOf, groupScore, matchChanges, scoreAnswer, totals, answersOf, dirOf };
+module.exports = { STUDY_SET, promptFor, readAnswer, appCode: () => appCode(), truthAtEnd, changesReportedIn, goingInFor, divisionOf, groupScore, matchChanges, scoreAnswer, totals, answersOf, dirOf, timelineOf, apartIn, scoreTimeline };

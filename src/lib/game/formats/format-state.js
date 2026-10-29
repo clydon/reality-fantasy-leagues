@@ -245,8 +245,12 @@ function changesBetween(before, after, { left = [], newcomers = [] } = {}) {
     const kept = a.filter((g) => beforeKeys.has(keyOf(g.members))).length;
     const movedNames = a.flatMap((g) => g.members).filter((m) => moved.includes(low(m)));
     // Someone new taking the place of someone who left (Jonna for Cara Maria, beside Leo) moves nobody: their partner was
-    // on their own once Cara Maria left, so it's the newcomer change below, not a swap.
-    if (isPairs(shape) && !isPairs(a)) add('teams-formed', { moved: movedNames, allNew: kept === 0 });
+    // on their own once Cara Maria left, so it's the newcomer change below, not a swap. Nobody moved, nobody new and every
+    // group carrying one on is no change, whatever the sizes read as (a tribe of two beside one of three isn't pairs
+    // turning into teams when someone an earlier answer left out is placed; pairs joined by newcomers into trios is).
+    if (!moved.length && a.every((ga) => carries(ga)) && !a.some((ga) => ga.members.some((m) => fresh.has(low(m))))) {
+      // No change.
+    } else if (isPairs(shape) && !isPairs(a)) add('teams-formed', { moved: movedNames, allNew: kept === 0 });
     else if (!isPairs(shape) && isPairs(a)) add('pairs-formed', { moved: movedNames, allNew: kept === 0 });
     else if (moved.length) add('swap', { moved: movedNames, allNew: kept === 0 });
   }
@@ -283,4 +287,40 @@ function placedIn(state) {
   return state ? [...(state.groups || []).flatMap((g) => g.members), ...(state.alone || [])] : [];
 }
 
-module.exports = { PLAYED_AS, WENT_HOME_AS, KINDS, GROUPING_KINDS, WHEN, SURE, ALIASES, oneOf, looseFormatState, formatStateProblems, isPairs, changesBetween, crossCheck, placedIn, keyOf };
+// A group's name as the show might say it either way: "Hina", "Hina Tribe", "the new Hina" are one tribe.
+const QUALIFIERS = /\b(the|tribe|team|new|original)\b/g;
+const tribeKey = (name) => low(name).replace(/[^a-z0-9\s]/g, ' ').replace(QUALIFIERS, ' ').replace(/\s+/g, ' ').trim();
+
+/**
+ * Each person's group in an episode as its format section has it, for staging's group moves (F3: who is with whom comes
+ * from the section; `newGroup` beside it is asked only of someone who moved and went home the same night, whom the groups at
+ * the end can't hold). F2's proof: newGroup named a new tribe for 7 of the 27 people who changed one, and partners' names as
+ * groups on The Challenge; the section had every tribe right. Returns name -> the group to move them to, or null (no move),
+ * for everyone the section speaks for: everyone on a named tribe or team. A named group that is a tribe going in, said
+ * any way ("Hina Tribe" for "Hina"), keeps the staged spelling and moves only who wasn't on it; a name no tribe going in
+ * has is a new tribe (a swap's, the merge's), and everyone on it moves there. Pairs (and pairs with a trio, unless every
+ * group is a tribe already), an unnamed group (a merged tribe the answer didn't name) and a section that doesn't say who
+ * is with whom speak for nobody: the engine's groups are named tribes and teams, and The Challenge's pairs live in the
+ * format's state over time (format-timeline.js). `goingIn`: name -> their group going into the episode. Pure.
+ */
+function movesFromState(state, goingIn = {}) {
+  const out = new Map();
+  if (!state || !Array.isArray(state.groups)) return out;
+  const groups = state.groups.filter((g) => g && Array.isArray(g.members) && g.members.length > 1);
+  const was = new Map(Object.entries(goingIn || {}).map(([k, v]) => [low(k), v]));
+  const tribes = new Map();
+  for (const v of was.values()) if (text(v) && !tribes.has(tribeKey(v))) tribes.set(tribeKey(v), text(v));
+  const known = (g) => text(g.name) && tribes.has(tribeKey(g.name));
+  if (!groups.length || (isPairs(groups) && !groups.every(known))) return out;
+  for (const g of groups) {
+    if (!text(g.name)) continue;
+    const to = tribes.get(tribeKey(g.name)) || text(g.name);
+    for (const m of g.members) {
+      const before = was.get(low(m));
+      out.set(m, before && tribeKey(before) === tribeKey(to) ? null : to);
+    }
+  }
+  return out;
+}
+
+module.exports = { PLAYED_AS, WENT_HOME_AS, KINDS, GROUPING_KINDS, WHEN, SURE, ALIASES, oneOf, looseFormatState, formatStateProblems, isPairs, changesBetween, crossCheck, placedIn, keyOf, movesFromState, tribeKey };

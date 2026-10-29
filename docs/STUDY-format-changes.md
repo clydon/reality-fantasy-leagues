@@ -5,7 +5,8 @@ seasons whose stages are known, lay out how their format changed episode by epis
 research (today's prompt, recorded on the season tapes) said about each change, and whether the engine could act on it.
 Written 2026-10-28 on the `engine` branch. Nothing in F1 changed the app, the research prompt or the engine; F2 (2026-10-29)
 built the section proposed here into the prompt on the `engine` branch, and its results are near the end ("F2: the format
-section asked again").
+section asked again"); F3 (2026-10-29) built the engine's format state over time from those answers ("F3: the state over
+time", after it).
 
 **The proposals at the end (the change vocabulary, the format state's shape and the prompt section) are the user's to
 approve at the merge** that brings F2 to production. Research's prompt is shared by every show's research, production's
@@ -225,7 +226,8 @@ today's prompt for the first time), and The Traitors 4 episodes 1, 7, 8 and 9.
 ## What it means for the steps after F2
 
 - **F3** keeps the state per episode and the lifetimes as `format-study.js` does (`lifetimes`, `changes`, `stateAtEnd` are
-  the first sketch), with a `label` layer apart from the `play` layer.
+  the first sketch), with a `label` layer apart from the `play` layer. (As built: the section's groups are how people play,
+  and the labels stay the cast list's, so the timeline reads only the section; "F3: the state over time", below.)
 - **A10's group slots**: a group shown at an episode's end can be overtaken before it plays (Cara Maria & Leo, Theo & Dee);
   a group can change mid-episode (the claim in 16); a newcomer can join a group (Jonna). Each needs a rule (below).
 - **A11's teams** read the same groups; on The Challenge 39 nothing lasts more than an episode.
@@ -247,7 +249,8 @@ today's prompt for the first time), and The Traitors 4 episodes 1, 7, 8 and 9.
 5. **"Major" by default** for a stage started by a change: recommended, teams formed, pairs formed, split into individuals,
    the merge, and a swap where every group is new; not a partial swap, a newcomer, a phase or a twist.
 6. **The vocabulary, the state's shape and the prompt section above**: the user's to approve at F2's merge (as built: "F2:
-   the format section asked again", below; recommended as they are).
+   the format section asked again", below; recommended as they are). With them, F3's tribe moves from the section, `newGroup`
+   asked beside it only for whoever moved and went home the same night ("F3: the state over time"; recommended).
 
 ## F2: the format section asked again (2026-10-29)
 
@@ -437,6 +440,127 @@ answer had it (yes, partly: the kind but not the episode or when, missed), with 
 - **`newGroup` and `merged` can be worked out from the state**, and the section is the better source (item 4).
 - **Exits, not words, say a pair went home together**; `wentHomeAs` is a cross-check.
 - **Newcomers join the cast** (F3), so they get results and exits, not only a place in a group.
+
+## F3: the state over time (2026-10-29)
+
+F3's first part built the engine's format state over time from these answers (`src/lib/game/formats/format-timeline.js`; the
+plan's F3 says what it holds and what reads it). For every episode: who is with whom at its end and whether that's sure (and
+why not), how the episode was played and in which groups, what changed (our comparison crossed with the answer's), which
+groups went home whole (from the exits); for the season, every group's lifetime and every grouping's spell, and the
+newcomers. It's built from every episode's answer at once, so a corrected answer works out everything after it again.
+
+**How it was proven.** `node scripts/dev-test/format-asks.js timeline --md`, no bot: the timeline built from F2's kept
+answers as the engine builds it from stored research (an episode F2 didn't ask again is carried on with the fixture's exits;
+the groups going into the first asked episode are F1's truth, as F2's first asks were shown), and scored against F1's
+fixtures. "Sure" is what a game's structure would move on; "unsure" gets the safe fallbacks only.
+
+**In short:**
+- **Nothing wrong was called sure.** 11 grouping changes were sure, all 11 right: The Challenge 41's four re-drawn pairings,
+  the Lock In's pairs from 10 and the claim at 16; Survivor 49's two swaps and the merge; The Challenge 40's teams from 3 and
+  its split from 10. Of the 13 grouping changes the fixtures have within reach, 11 were sure, 1 unsure (The Challenge 41's
+  Episode 9 played alone, said only by `playedAs`) and 1 missed (Theo's MRI swap at 8's start, which the answer missed).
+- **The 3 unsure episodes are exactly the 3 answers that contradict themselves** (The Challenge 41's 10: a split the pairs
+  don't show; Survivor 49's 8: the split immunity's teams; The Challenge 40's 9: a split with the eras still listed), and the
+  next answer settled each one that has a next (40's 10 made the split sure).
+- **An episode played alone between paired ones is seen** (3 of 3: The Challenge 41's 9, 40's 10, Survivor 49's merge as
+  one tribe of everyone), and the Lock In's pairs come out as pairs formed (F2's comparison of groups alone had called them
+  a swap).
+- **Whole groups going home come from the exits:** 22 of 23 right (the answers said 21 of 23); the one missed is the pair
+  the claim formed partway through 16, which isn't in any state at an episode's end.
+- **Lifetimes: 85 of 85 groups the fixtures have played exactly the episodes they did** (3 groups were the answers' own
+  mistakes). Side stages after a grouping held 2 episodes, as F1 measured: The Challenge 41 after 11 (the locked pairs,
+  closed by the claim at 16), Survivor 49 after 5 (closed by the swap at 6, nothing scored), The Challenge 40 after 4 (the
+  eras as teams, closed by the split at 10).
+- **Tribe moves from the section, not `newGroup`.** Each person's tribe move is now worked out from the section (a tribe's
+  name said another way is that tribe; pairs and an unnamed group move nobody), so beside it `newGroup` asks only for
+  someone who moved and then went home in the same episode, whom the groups at the end can't hold (a pass about some of the
+  cast, which leaves the section out, still asks it of everyone). On Survivor 49 the section's moves were 11 of 11 at the
+  first swap and 6 of 6 at the second, none wrong; `newGroup` had 1 of 11 and 6 of 6. Neither named the merged tribe, so
+  the merge moves nobody's tribe either way (the merge's phase comes from `merged`, still asked). On The Challenge 41,
+  `newGroup` had named partners as groups; the section moves nobody there. **This is the user's to approve with the
+  section at the merge.**
+
+**What it means for F4 and A10 to A12.**
+- **F4** builds the timeline the same way from each replayed season's research, one report at a time, as if live: what a
+  game read at each lock is `goingInto` of the timeline as built from the reports so far, and a blind replay's `start` is
+  what was known before the premiere (unsure).
+- **A10's group slots** read `groupSlots` (a slot opens after the episode that showed its group, scores the episodes it then
+  played, drops after its last; an unsure lock voids it by default, and a group shown and never played voids the next
+  episode, F1's Q2).
+- **A11's teams** read `playedIn` (the groups that played an episode, the ones at its start when a change came partway).
+- **A12's side stages** read `sideStages` (a grouping already gone in the report of the episode it would open after never
+  opens; one changed at the next episode's start opened, live, and closes having scored nothing: a question for the user)
+  and its stage triggers `stageTriggers` (sure changes of the spec's kinds act from the episode they take effect; unsure
+  ones are held, flagged).
+- What F3 can't see: a group formed partway through an episode that went home whole, and who went home in an episode whose
+  groups changed at its start (the plan's Noticed).
+
+### The timeline, scored
+
+"Groups at the end" as the answer said them (found of the fixture's, + listed that weren't there). "Played apart": the
+episode played without the groups that went into it. "Went home as": ours (from the exits) / the answer's word.
+
+**Vets & New Threats (the-challenge 41)**
+
+| Ep | Groups at the end | Sure | Played apart | Went home as (ours / the answer's) |
+|---|---|---|---|---|
+| 4 | 14 of 14 | sure | - | individuals / individuals |
+| 5 | 13 of 13 | sure | - | individuals / individuals |
+| 6 | 12 of 13 | sure | - | individuals / individuals |
+| 7 | 11 of 12 | sure | - | individuals / individuals |
+| 8 | 9 of 11, +1 | sure | - | individuals / individuals |
+| 9 | 12 of 12 | sure | yes | nobody / nobody |
+| 10 | 11 of 11 | unsure: the answer says split-into-individuals from episode 11, but its groups don't show it | - | groups / individuals |
+| 16 | 5 of 5 | sure | - | individuals (want groups) / individuals |
+
+- sure changes: swap (every group new) from 5; swap (every group new) from 6; swap (every group new) from 7; swap (every
+  group new) from 8; pairs-formed (every group new) from 10; swap from 16
+- the fixture's grouping changes within reach: swap (every group new) from 5, 6, 7 and 8: sure; swap from 8: missed;
+  split-into-individuals from 9: unsure; pairs-formed (every group new) from 10: sure; swap from 16: sure
+- lifetimes: 74 of 76 groups the fixture has, 74 with the episodes it played exactly
+- side stages (held 2): after 11, closed after 16 (unsure: episodes 11-15 weren't asked again, so carried on)
+- newcomers: Jonna Mannion (5, for Cara Maria Sorbello)
+
+**Survivor 49 (survivor 49)**
+
+| Ep | Groups at the end | Sure | Played apart | Went home as (ours / the answer's) |
+|---|---|---|---|---|
+| 3 | 3 of 3 | sure | - | individuals / individuals |
+| 4 | 2 of 2 | sure | - | individuals / individuals |
+| 5 | 2 of 2 | sure | - | individuals / individuals |
+| 6 | 3 of 3 | sure | - | individuals / individuals |
+| 7 | none, none | sure | yes | individuals / individuals |
+| 8 | none, none | unsure: the answer says teams-formed from episode 8, but its groups don't show it | - | individuals / individuals |
+
+- sure changes: swap (every group new) from 4; swap (every group new) from 6; merge from 7 (all three right)
+- lifetimes: 7 of 8 groups the fixture has, 7 with the episodes it played exactly
+- side stages (held 2): after 5, closed after 5
+
+**Battle of the Eras (the-challenge 40)**
+
+| Ep | Groups at the end | Sure | Played apart | Went home as (ours / the answer's) |
+|---|---|---|---|---|
+| 2 | 0 of 0, +4 | sure | - | individuals / individuals |
+| 3 | 4 of 4 | sure | - | individuals / individuals |
+| 9 | 0 of 0, +3 | unsure: the answer says split-into-individuals from episode 10, but its groups don't show it | - | individuals / individuals |
+| 10 | none, none | sure | yes | individuals / individuals |
+| 12 | none, none | sure | - | individuals / individuals |
+
+- sure changes: teams-formed (every group new) from 3; split-into-individuals from 10 (both right; Episode 2's eras, listed a
+  week early, are the teams that played from 3)
+- lifetimes: 4 of 4 groups the fixture has, 4 with the episodes it played exactly
+- side stages (held 2): after 4, closed after 9 (unsure: episodes 4-8 carried on)
+
+**The Traitors (US) season 4**: no groups, nothing changed, every episode sure.
+
+**All**
+
+- episodes 23: sure 20; groups at the end exactly right 18
+- played apart 3 of 3 (+0 not)
+- went home as: ours 22 of 23, the answer's 21 of 23
+- sure grouping changes 11, right 11, wrong 0
+- the fixture's within reach 13: sure 11, unsure 1, missed 1
+- lifetimes: 85 of 85 exactly (3 groups the fixture doesn't have)
 
 ## Appendix: the timelines
 
