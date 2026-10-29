@@ -23,7 +23,7 @@ at 9f3dc05f: parts 5a and 5b** (5a: a season's Cast, Ask our bot or Paste it, ea
 games with Undo; the season page's Cast row and the Inbox's cast item; migration 0426; 5b: starting groups with Not a group,
 secret roles together, and Hold until Episode 1 without un-approving; a castaway's page under the cast with Override, Look on
 TMDB and TVmaze, Lock and Remove refused while in use, reaching every game; no migration; their As built is under step 5).
-**Part 6b done at e378f7e5, part 6c is next** (6a: Find › Games with a join code from three characters in any state, deleted ones with Restore; a game's page with its Join code and its Delete: Archive offered, restorable 30 days, then for good; migration 0427. 6b: a game's Seats, signed in, empty and out; the seat's sheet from both pages with Act as them, Link another account and Take them out; Link an account with Game admin, the seat taking their name and the couch joined; Put back; Remove a seat; the last-Commissioner guard on each; no migration; their As built is under step 6. 6c: Open it read-only). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
+**Part 6c done at f9d0f645, part 6d is next** (6a: Find › Games with a join code from three characters in any state, deleted ones with Restore; a game's page with its Join code and its Delete: Archive offered, restorable 30 days, then for good; migration 0427. 6b: a game's Seats, signed in, empty and out; the seat's sheet from both pages with Act as them, Link another account and Take them out; Link an account with Game admin, the seat taking their name and the couch joined; Put back; Remove a seat; the last-Commissioner guard on each; no migration. 6c: Open <game>, as you when you play it, else read-only in the app's show space as its couch sees it at your own mark, a History line, a site admin's read scope over the couch's game reads and every write refused while it's on; no migration; their As built is under step 6. 6d: Find › Couches and a couch's Delete, mocked and handed on from 6c, Noticed bq and bw). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
 either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
@@ -1152,6 +1152,72 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    person page's sheet. check-desk-people, -games, -cast, -bingo, -episode, -research, -setup and -inbox, check-classic-admin
    ("all PASS"), check-new-settings, check-new-settling and check-bingo-bank ("ALL PASS") pass; unit tests 847; check-new-desk
    without its rulebook section (a scratch copy, deleted) passed whole (67).
+   **As built, part 6c (2026-10-29):** **Open <game>** on a game's page (`src/new/desk/games.tsx OpenRow`, after the lower third
+   and its Deleted or Nobody runs it panel, before Part of; `desk-games.ts gameOpen`, read with the game): "As its couch sees it,
+   read-only · up to Episode 3, where you are" (the show's own episode word; "as far as you've watched" on nothing watched, "all of
+   it: you see results straight away" with Hide scores off), "As it ended, read-only" for an ended or archived one, "You play it: it
+   opens as you" with a seat (it opens the show space's Games tab on its couch, `setCouch`), and none for a deleted game or one on
+   no couch or season (a practice game, a public pool: no couch to see it as). Opening it read-only (`POST /api/desk/games/[id]
+   { open: true }`, `openReadOnly`) writes "Opened read-only" in the game's History (`admin_changes` action 'open', nothing to undo;
+   its players aren't told, as Calls made in the design said), refused for a game you play or one deleted, then the app's show
+   space opens on Games. **Read-only is the browser tab's** (`src/new/read-only.tsx`: sessionStorage, so the admin's other tabs play
+   on as themselves): while the tab is on the game's show space, every request it makes to `/api` carries `x-gys-read-only: <game
+   id>` (`src/lib/read-only.ts`; a fetch wrapper installed as the module loads). **The server:** `apiRoute` refuses every write
+   that carries it (403, "Read-only: nothing here changes. To do it as someone, act as them from their seat"), before any route's
+   own checks, which a site admin passes in most routes; only your own follow of the season (`/api/me/follows/`: the spoiler
+   chip's Change) stays open. The reads take it as **a site admin's read scope over that couch's game, never a membership**
+   (`src/lib/server/read-only.ts readOnlyFor`: a site admin, not someone acting as another; the game's couch and season must be
+   the read's, else it's the viewer's own read as ever): `/space` has that one game and the couch's people, `/games` its table as
+   anyone on the couch sees it (`game-view.ts gameView` with no seat: nobody "you", no moves, nothing to reveal), `/episodes` its
+   episodes with nobody's own line and no Fill it in (`episode-view.ts episodesSeen` with no seat), each at your own spoiler mark
+   (`season-games.ts gamesHere`'s `ro`, `readOnlyHere`). Stats and How it works read a couch's games whoever asks already
+   (`requireCouch` lets a site admin in as a viewer), and the couch's chat and Tonight's jobs are never read (**Noticed r, taken**).
+   **The show space read-only** (`show-space.tsx useShow`'s `readOnly`, the couch from the space read): under the **Read-only**
+   caption plate ("Read-only · <game> on <couch>", Back to the desk; the compact show bar sticks under it, `--nd-top`), the back
+   says Desk, the couch line "<couch> · <game>"; **Games** is the one game's table (no pills, nobody "you"), Rules and a person's
+   team open as ever, and the foot says "Through Episode 3, where you are. 4 players · run by nina."; **Episodes** says "Scored in
+   <game>", "Before <game> started" or "After <game> ended" on each row, "<game>: nothing to set before it airs" (or who's set)
+   for a game still going, and an episode's page as the couch has it; **Cast** has no Your team; **Tonight and Chat** show the
+   mock's panels ("Tonight is each player's own", "<couch>'s chat is theirs", each with Its seats, on the desk), and nothing reads
+   the chat, not even its count; no dock, badges, Your moves, reveal, waivers or watch along. What would change something says
+   Read-only before anything opens (a capture-phase guard over the show space's write controls, as the mock's DG_WRITE: Reveal,
+   Rate it, Something wrong?, an answer, It's new, Fill in what happened, Looks right to us, Suggest a fix, Change the scoring, a
+   call, a bingo square, typing; the ⋯ menu), and anything it misses is refused by the server with the same words. **Leaving the
+   show space leaves read-only** (`ReadOnlyLayer` in the signed-in layout: Back to the desk, the show bar's Desk, Its seats, on
+   the desk, the hub, or a reload on any other page), and the season's queries are dropped as it starts and ends. No migration.
+   **Left behind or changed from classic, and why (decision 10):** classic had no read-only view: a site admin opened a league in
+   classic as a synthetic all-access member (`requireLeagueRole`'s bypass), able to change anything in it without a line anywhere.
+   The desk's look is the couch's (no "you", your own spoiler mark), changes nothing, and is a line in the game's History; acting
+   for someone stays Act as them, from their seat (step 1). From the mock: the plate sits under pages pushed over the show (How it
+   works, a stats page, an episode's page, each with its own back) rather than over them; the guard chip stays on Games, Episodes
+   and Cast (Change moves your own mark), not on the Chat panel; a game on no couch (a practice game, a public pool) has no Open
+   row (the mock's games are all on couches); the foot line says "Nothing counted yet, as far as you've watched." before any
+   results.
+   **Calls made here (Claude's, within the approved screens):** read-only is per tab, not a cookie (an admin's other tabs, and their
+   own games, aren't refused); the header goes only from the game's own show space; a write is refused whatever route it's for, the
+   desk's own too, and only your own follow is let through; an archived or ended game opens at your own mark like any other (the
+   row says "As it ended"); opening it read-only twice writes two lines.
+   `/code-review` found an unreadable league failing the whole read (now that game alone, as elsewhere), the Games tab and Episodes
+   taking the first game rather than the one open, Episodes' "Scored in" past a span's end, the row's line with Hide scores off,
+   "nothing to set" while loading and for a game that's over, the header outliving the show space on a page outside the
+   signed-in layout, a copy of `gameView` and the couch's games read twice to keep one: all fixed. Its point that the guard's
+   selector list must follow every new write control stands, by design (the mock's own list; the server's refusal backs it).
+   **Noticed, not fixed (6c):** (bu) the plate sits under pushed pages (z-index 60 under their 70), so on How it works or an
+   episode's page it's hidden until you go back; the page's own back says where you are. (bv) A new write control in the show
+   space has to join the guard's list (`read-only.tsx WRITES`) to say Read-only before it opens; until then it says so only when
+   the server refuses it. (bw) Find › Couches (Browse's Couches row, with Deleted) and a couch's Delete are mocked (desk.js
+   `DK_LIST.couches`, desk-pages.js `dkCouchPage`) but weren't built here: part 6d's (bq). Couches have no `deleted_at` (0100), so
+   it needs a migration (0428) and every couch read leaving a deleted couch out.
+   Check: `scripts/dev-test/check-desk-readonly.js` 70 PASS at 390 (zt_ro_ fixture, up and down, codes Z7R, every real account and
+   league as it was): how each game opens (read-only up to episode 3, as it ended, as you, not at all), only site admins, the
+   History line and its refusals, the read scope through the API (/space, /games, /episodes; without the header, another couch,
+   a player sending it), writes refused (a reveal, a desk archive, a player's) and your own follow not, no seat or couch row made;
+   then the screens: the Open row, the plate, Games, Rules and a team, the ⋯ menu, Tonight and Chat (nothing reading the chat),
+   Episodes and Reveal, an episode's page and its flag, Cast, each way out, the header on the reads and gone after, the archived
+   and unopenable rows, and Mine opening as you. check-desk-seats, -games, -cast, -bingo, -episode, -research, -setup, -inbox and
+   -people, check-classic-admin ("all PASS"), check-new-settings, check-new-settling, check-bingo-bank ("ALL PASS"), check-new-show,
+   check-new-stats and check-new-chat pass; unit tests 847; check-new-desk without its rulebook section (a scratch copy, deleted)
+   passed whole (67).
 7. **Shows and site.** Delete a show (refused while games use it, saying which), restore an archived one, a season's details
    when adding it (number, status, wiki), the connector (wiki API, cast heading, research sites), art by URL with its framing;
    Settings: AI models, What's New preview, the rulebooks flag.
@@ -1253,6 +1319,7 @@ order, each to the approved mock and its step's Changes at approval.
 | 6a | Find › Games (a join code from three characters, any state, deleted ones within 30 days, Restore) and a game's page: Join code, its Delete (Archive offered, then for good) | m |
 | 6b | Seats (signed in, empty, out): Link an account (Game admin too, joining the couch, the seat taking their name, telling them), Unlink, Take out (the app's `takeOut`), Put back, Remove a seat; the last-Commissioner guard on each | n, o, p, q |
 | 6c | Open it read-only: a site admin's read scope over the couch's game reads, writes refused while it's on, a History line | r |
+| 6d | Find › Couches (Browse's Couches row, with Deleted) and a couch's Delete: its games go too, restorable 30 days, Restore (handed on from 6c; `couches.deleted_at`, a migration) | bq, bw |
 | 7a | A show: Add a season, Its words (`episode_term`, one source with the rulebook's), Research sites, Archive and Restore, the show's Delete | s, u, v, y |
 | 7b | Art and photos: a source and framing per frame (the poster's `art_style`, one for the backdrop), a link per frame | x |
 | 7c | Settings: Which AI our bot asks (an app setting sent with each ask), the rulebooks flag's check as a desk job and its switch, What's New as data (decision 8, once its drafts are mocked) | z |
