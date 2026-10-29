@@ -8,6 +8,8 @@
 //     --model opus --effort xhigh                    every session runs at this, from now on (saved in state.json),
 //                                                    whatever a hand-off recommends; either one alone is fine
 //     --follow-handoffs                              drop that: each session runs at what the hand-off before it says
+//     --carry-on                                     a session the loop stopped (paused, quit, or ended without its
+//                                                    hand-off) resumes at once, unasked; one that asked you still waits
 //     --max-sessions 5                               stop after this many (default 20)
 //     --budget-usd 40                                a cap per session (claude --max-budget-usd)
 //     --pause-at 0.9                                 before a session, wait while the 5-hour usage window is this full
@@ -62,12 +64,14 @@ const NEXT = path.join(DIR, "next-prompt.md");
 const IMAGE = /\.(png|jpe?g|gif|webp)$/i;
 /** How long a session's process may stay open after its result: then what it left running is ended (runSession). */
 const LINGER_MS = 60 * 1000;
+/** How long a session that ended a turn without its hand-off may stay quiet (waiting on its own background work). */
+const QUIET_MS = 20 * 60 * 1000;
 
 const EFFORTS = ["low", "medium", "high", "xhigh", "max"];
 // Never from the loop, whatever a prompt says: shipping is the user's call (CLAUDE.md, the plan's Rules).
 const DENIED = ["AskUserQuestion", "Bash(git push:*)", "Bash(git merge:*)", "PowerShell(git push:*)", "PowerShell(git merge:*)"];
 const CARRY_ON =
-  "Carry on where you left off. You were stopped mid-task (paused by the user, or by a usage limit), possibly in the middle of a command or an edit: check `git status` and anything that was running before going on.";
+  "Carry on where you left off. You were stopped mid-task (paused by the user, by a usage limit, or by the loop), possibly in the middle of a command or an edit: check `git status` and anything that was running before going on.";
 
 const PROTOCOL_TEXT = `# Running in the session loop
 
@@ -351,6 +355,7 @@ function runSession({ prompt, model, effort, name, resume, opts, logBase, onLimi
     let errText = "";
     let lingering = null;
     let lingered = false;
+    let over = false; // its hand-off (or an error) is in
     child.stdin.end(prompt);
     child.stderr.on("data", (d) => (errText += d));
     // `pause` / `stop` from another terminal.
@@ -369,6 +374,11 @@ function runSession({ prompt, model, effort, name, resume, opts, logBase, onLimi
         e = JSON.parse(line);
       } catch {
         return;
+      }
+      // Word from the session after a result without its hand-off: it's still at work.
+      if (lingering && !over && e.type !== "result") {
+        clearTimeout(lingering);
+        lingering = null;
       }
       if (e.type === "rate_limit_event" && e.rate_limit_info) {
         onLimits(e.rate_limit_info);
@@ -397,16 +407,22 @@ function runSession({ prompt, model, effort, name, resume, opts, logBase, onLimi
           const body = Array.isArray(c.content) ? c.content.map((x) => x.text ?? "").join(" ") : c.content;
           say(red(`            ✗ ${oneLine(body)}`), `            ✗ ${oneLine(body)}`);
         }
-      } else if (e.type === "result") {
+      } else if (e.type === "result" && !over) {
+        // A result ends each turn: the session's own, and one for each background task's notice it takes up (origin
+        // task-notification), which can come first: a resumed session opens with one for the commands the pause stopped
+        // (the engine lane, 2026-10-28, ended a minute into its resume). So the session is over at the result with its
+        // hand-off block (or an error), and that one stands. Then a background command it left running (the dev server it
+        // started for its checks) would keep `claude -p` open for good (the engine lane, 2026-10-28: an hour): a minute to
+        // close on its own, then what's left of it is ended. A result without a block may be a turn that waits on its own
+        // background work, so it's ended only after QUIET_MS without a word from it.
         final = e;
-        // The session is over once its result is in, but a background command it left running (the dev server it started
-        // for its checks) keeps `claude -p` open, and the loop would wait on it for good (the engine lane, 2026-10-28: an
-        // hour). A minute to close on its own, then what's left of it is ended; its result stands.
+        over = !!handOff(e.result) || !!e.is_error;
+        clearTimeout(lingering);
         lingering = setTimeout(() => {
           lingered = true;
-          say(dim(`[${clock()}] the session's over, but something it started is still running: ending it`));
+          say(dim(`[${clock()}] ${over ? "the session's over" : "the session's been quiet since its last turn"}, but something it started is still running: ending it`));
           killTree(child);
-        }, LINGER_MS);
+        }, over ? LINGER_MS : QUIET_MS);
       }
     });
     child.on("close", (code) => {
@@ -484,6 +500,7 @@ function args() {
     pauseAt: Number(val("--pause-at") ?? 0.9),
     permissionMode: val("--permission-mode") ?? "auto",
     followHandoffs: a.includes("--follow-handoffs"),
+    carryOn: a.includes("--carry-on"),
     thinking: a.includes("--thinking"),
     dryRun: a.includes("--dry-run"),
   };
@@ -515,12 +532,19 @@ async function main() {
   if (opts.prompt) run = at({ prompt: opts.prompt, model: "opus", effort: "xhigh", name: "From --prompt" });
   else if (state.pending) {
     const p = state.pending;
-    console.log(yellow(`\n${p.question ? "A session is waiting for you" : "A session was stopped partway"}: ${p.name} (${p.sessionId})`));
-    if (p.question) console.log(`\n${p.question}\n`);
-    const answer = await ask(p.question ? "Your answer (blank to stop): " : 'Enter to resume it, type a message to send it instead, or "skip" to start the next one: ');
-    if (answer === "q" || (p.question && !answer)) return;
-    if (!p.question && answer.toLowerCase() === "skip") state.pending = null;
-    else run = at({ name: p.name, model: p.model, effort: p.effort, resume: p.sessionId, prompt: answer || CARRY_ON });
+    // Its own question (a needs_input block), not one the loop wrote for a session that ended without its hand-off.
+    const asked = p.question && !/^It (ended without a hand-off block|stopped with an error)/.test(p.question);
+    if (opts.carryOn && !asked) {
+      console.log(yellow(`\nCarrying on: ${p.name} (${p.sessionId})`));
+      run = at({ name: p.name, model: p.model, effort: p.effort, resume: p.sessionId, prompt: CARRY_ON });
+    } else {
+      console.log(yellow(`\n${p.question ? "A session is waiting for you" : "A session was stopped partway"}: ${p.name} (${p.sessionId})`));
+      if (p.question) console.log(`\n${p.question}\n`);
+      const answer = await ask(p.question ? "Your answer (blank to stop): " : 'Enter to resume it, type a message to send it instead, or "skip" to start the next one: ');
+      if (answer === "q" || (p.question && !answer)) return;
+      if (!p.question && answer.toLowerCase() === "skip") state.pending = null;
+      else run = at({ name: p.name, model: p.model, effort: p.effort, resume: p.sessionId, prompt: answer || CARRY_ON });
+    }
   }
   if (!run && state.next) run = at(state.next);
   if (!run) {
