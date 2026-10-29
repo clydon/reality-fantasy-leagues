@@ -155,6 +155,8 @@ function facesFor(view: LeagueState, q: Question, playerId: string, fg?: FormatG
 /** Why a group question on the timeline's groups (F3 part 2) has nothing to pick at an episode's lock, or null. */
 function offWhy(q: Question, fg: FormatGroups | null | undefined): string | null {
   if (!fg || !readsTimeline(q)) return null;
+  if (fg.off === "apart") return "Nobody plays in a pair or team in this episode: it doesn't count either way";
+  if (fg.off === "unknown") return "Who played with whom in this episode wasn't known going into it: it doesn't count either way";
   if (!fg.lockSure && q.fallback !== "carry-on") return "Who is with whom going into this episode isn't sure: it doesn't count either way";
   if (!fg.offered.length) return "Nobody is in a pair or team going into this episode: it doesn't count either way";
   return null;

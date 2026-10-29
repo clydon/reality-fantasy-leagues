@@ -172,7 +172,11 @@ test("a pass about some of the cast: the stored section says the moves of whoeve
 test("A6 on the timeline: which source wins, the pairs offered at each lock, and how each episode was played", () => {
   const tl = TL.buildTimeline(paired(), { cast: P });
   const fg = TL.groupFacts(tl, { cast: CAST, tribes: ["Vets", "New Threats"] });
-  assert.deepEqual([...fg.keys()], [2, 3, 4, 5, 6, 7], "from the first lock with pairs going in (the premiere's are its own answer's), to the next one");
+  assert.deepEqual([...fg.keys()], [1, 2, 3, 4, 5, 6, 7], "the premiere too (F4), then from the first lock with pairs going in, to the next one");
+  // F4: the premiere was played in pairs nobody knew going in (the league's own groups at its lock were only labels): nothing
+  // offered, so it's off, never graded on the labels.
+  assert.deepEqual([fg.get(1).offered, fg.get(1).lockSure, fg.get(1).played.held.size, fg.get(1).off], [[], false, 0, "unknown"]);
+  assert.equal(fg.get(2).off, null, "the timeline's own entries carry no reason of their own");
   const names = (n) => fg.get(n).offered.map((x) => x.name);
   assert.deepEqual(names(3), ["Ann & Bea", "Cal & Dee", "Eve & Fay"], "the pairs going into 3: offered at its lock");
   assert.equal(fg.get(3).byCastaway.get(id("Cal")), fg.get(3).offered[1].id);
@@ -197,7 +201,7 @@ test("A6 on the timeline: which source wins, the pairs offered at each lock, and
   // league's tribes; an episode with research but no format section played unsure; a pair kept at a re-draw that went home
   // whole held; members matched the forgiving way.
   const later = TL.groupFacts(tl, { cast: CAST, tribes: [], through: 9 });
-  assert.deepEqual([...later.keys()], [2, 3, 4, 5, 6, 7, 8, 9]);
+  assert.deepEqual([...later.keys()], [1, 2, 3, 4, 5, 6, 7, 8, 9]);
   assert.deepEqual([later.get(9).offered, later.get(9).lockSure, later.get(9).played], [[], false, null]);
   const gap = TL.buildTimeline([report(1, [p("Ann", "Bea"), p("Cal", "Dee")]), { episode: 2, left: [], merged: null, state: null }, report(3, [p("Ann", "Bea"), p("Cal", "Dee")])], { cast: P });
   const gf = TL.groupFacts(gap, { cast: CAST });
@@ -208,6 +212,46 @@ test("A6 on the timeline: which source wins, the pairs offered at each lock, and
   assert.deepEqual(held, ["Ann & Bea"], "kept at the re-draw and voted out together: held; the re-drawn ones not");
   const loose = TL.groupFacts(tl, { cast: [{ id: "x", name: "Ann Able" }], resolve: (m) => (m === "Ann" ? "x" : null) });
   assert.deepEqual(loose.get(3).offered[0].members, ["x"]);
+});
+
+test("F4: where the league's own groups would be read, an episode played without groups, or with nobody in a group going in, is off", () => {
+  // The Challenge 40: everyone together in 1-2, the eras (the league's own groups, by name) as teams in 3-4, each for
+  // themselves from 5. Survivor after its merge reads the same: one group of everyone isn't a division.
+  const eras = [g("Era 1", "Ann", "Bea", "Cal"), g("Era 2", "Dee", "Eve", "Fay")];
+  const tl = TL.buildTimeline(
+    [
+      report(1, [], { playedAs: "everyone" }),
+      report(2, eras, { playedAs: "everyone", changes: [change("teams-formed", 3, "end")] }),
+      report(3, eras, { playedAs: "teams" }),
+      report(4, [], { playedAs: "teams", changes: [change("split-into-individuals", 5, "end")] }),
+      report(5, [], { playedAs: "individuals" }),
+    ],
+    { cast: P }
+  );
+  const fg = TL.groupFacts(tl, { cast: CAST, tribes: ["Era 1", "Era 2"], through: 6 });
+  assert.deepEqual([...fg.keys()], [1, 2, 5, 6], "3 and 4, played in the eras going in, stay the league's own");
+  assert.deepEqual([fg.get(1).offered, fg.get(1).lockSure, fg.get(1).why], [[], false, ["it was played without groups"]], "the premiere, played by everyone");
+  assert.deepEqual([fg.get(2).offered, fg.get(2).lockSure], [[], true], "nobody in a group going in, sure: nothing to pick");
+  assert.deepEqual([fg.get(5).offered, fg.get(5).lockSure, fg.get(6).offered], [[], true, []], "each for themselves from 5, and at the next lock");
+  // Graded: off, never on the eras (a daily winner's era would have been right).
+  const q = G.fullQuestion({ id: "daily", ask: "Which team wins?", answer: "group", points: 1, asked: "each", settle: { by: "moment", moment: "dailyWin", take: "who" } });
+  const who = new Map([["dailyWin", new Map([[id("Ann"), 1]])]]);
+  const facts = { from: 1, to: null, over: false, winner: null, ended: false, order: null, names: new Map(), formatGroups: fg, episodes: new Map([[5, { out: [], events: new Map([["dailyWin", 1]]), who, in: CAST.map((c) => c.id), groups: new Map(CAST.map((c, i) => [c.id, i < 3 ? "t1" : "t2"])) }]]) };
+  assert.deepEqual(G.verdictOf(q, 5, facts), { state: "off", why: "It was played without pairs or teams: it doesn't count either way" });
+  assert.deepEqual([fg.get(1).off, fg.get(2).off, fg.get(5).off, fg.get(6).off], ["apart", "apart", "apart", null], "6 has no report yet");
+  // Teams drawn at the start of an episode nobody was in a group going into (The Challenge 39's): off, as not known going in.
+  const drawn = TL.buildTimeline([report(1, [], { playedAs: "everyone" }), report(2, [g("Blue", "Ann", "Bea", "Cal"), g("Red", "Dee", "Eve", "Fay")], { playedAs: "teams", changes: [change("teams-formed", 2, "start")] })], { cast: P });
+  assert.equal(TL.groupFacts(drawn, { cast: CAST, tribes: ["Blue", "Red"] }).get(2).off, "unknown");
+  // Survivor's tribes before its merge: no entry, the league's own as before, an individual immunity among them too (played
+  // alone, the tribes still there at its end).
+  const tribes = TL.buildTimeline(
+    [
+      report(1, [g("Hina", "Ann", "Bea", "Cal"), g("Kele", "Dee", "Eve", "Fay")], { playedAs: "tribes" }),
+      report(2, [g("Hina", "Ann", "Bea", "Cal"), g("Kele", "Dee", "Eve", "Fay")], { playedAs: "individuals" }),
+    ],
+    { cast: P }
+  );
+  assert.equal(TL.groupFacts(tribes, { cast: CAST, tribes: ["Hina", "Kele"], through: 3 }).size, 0);
 });
 
 test("A6 on the timeline: graded on the pairs that played, a re-drawn pair void, an unsure episode void, carry-on follows the people", () => {

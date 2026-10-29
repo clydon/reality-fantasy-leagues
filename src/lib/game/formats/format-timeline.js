@@ -520,7 +520,9 @@ function groupLabel(g) {
  * A6 on F3 (part 2): the groups a group question asked each episode offers and is graded on, per episode, where the timeline
  * is their source: from the first episode going into which the game is divided into pairs the league doesn't hold (unstaged:
  * The Challenge's pairs), and every episode after it (one played by everyone, or each for themselves, offers none) until
- * tribes or teams are going in again, through `through` (the league's latest episode: a lock past the last report is still the
+ * tribes or teams are going in again, and (F4) where the league's own groups would be read, an episode research says was
+ * played in such pairs when nothing said so going into it (a paired season's premiere), or without groups (by everyone, each for
+ * themselves), or going into which nobody is in a group: nothing offered, so it's off, through `through` (the league's latest episode: a lock past the last report is still the
  * timeline's, its groups the last known, unsure). Tribes and teams stay the league's own (its staged tribe moves, which a person
  * accepts), so a season of them (Survivor) has no entry here and plays as before. `cast`: the league's castaways ({ id, name });
  * `resolve(name)`: a member's castaway id (the league's forgiving match), else an exact match by name; `tribes`: the league's
@@ -540,11 +542,30 @@ function groupFacts(tl, { cast = [], tribes = [], resolve = null, through = 0 } 
     const g = goingInto(tl, n);
     if (g.known && g.divided && unstaged(g.groups, tribes)) source = true;
     else if (g.known && g.divided) source = false;
-    if (!source) continue;
-    const groups = g.known && g.divided ? g.groups : [];
+    // F4 (the blind replays): where the league's own groups would be read, the timeline still knows when they aren't who
+    // plays with whom, and the episode is its with nothing offered (off, no points either way), never graded on them:
+    //   - pairedNow: research says it was played in pairs the league doesn't hold, when nothing said so going in. A paired
+    //     season's premiere (The Challenge 41's: its own pairs are in no report, the section being the state at its end, so it's
+    //     its `playedAs` and the pairs at its end; the league's groups were the cast list's labels, Vets and New Threats), or
+    //     pairs at an episode's start after everyone played together;
+    //   - apartNow: its own report says it was played without groups, by everyone or each for themselves, and nobody is in a
+    //     group at its end either (The Challenge 40's 1 and 10: its league's groups are the eras, teams only in 3-9; Survivor's
+    //     merge); one played alone between grouped states (an individual immunity before a merge) stays the league's;
+    //   - noneGoingIn: nobody is in a group going into it (each for themselves, one group of everyone), so nothing is offered
+    //     at its lock either.
+    const e = at(tl, n);
+    const pairedNow =
+      !source &&
+      !!e &&
+      e.reported &&
+      ((!!e.played && !e.played.apart && e.played.groups.length > 1 && unstaged(e.played.groups, tribes)) ||
+        (e.playedAs === 'pairs' && !!e.end && e.end.groups.length > 1 && unstaged(e.end.groups, tribes)));
+    const apartNow = !source && !pairedNow && !!e && e.reported && APART.has(e.playedAs) && !divided(e.end);
+    const noneGoingIn = !source && !pairedNow && g.known && !g.divided;
+    if (!source && !pairedNow && !apartNow && !noneGoingIn) continue;
+    const groups = source && g.known && g.divided ? g.groups : [];
     const offered = groups.map((x) => ({ id: x.id, name: groupLabel(x), members: x.members.map(idOf).filter(Boolean), names: x.members }));
     const byCastaway = new Map(offered.flatMap((x) => x.members.map((id) => [id, x.id])));
-    const e = at(tl, n);
     let played = null;
     if (e && e.reported && e.played) {
       const ids = new Set(e.played.apart ? [] : e.played.groups.map((x) => x.id));
@@ -552,7 +573,14 @@ function groupFacts(tl, { cast = [], tribes = [], resolve = null, through = 0 } 
       const whole = (x) => x.names.length > 1 && x.names.every((m) => left.has(low(m)));
       played = { sure: !!e.played.sure && e.known, held: new Set(offered.filter((x) => ids.has(x.id) || (!e.played.apart && whole(x))).map((x) => x.id)) };
     } else if (e) played = { sure: false, held: new Set() };
-    out.set(n, { offered: offered.map(({ names, ...x }) => x), byCastaway, lockSure: !!g.sure, why: g.why, played });
+    const why = pairedNow ? ["who played with whom in this episode wasn't known going into it"] : apartNow && !noneGoingIn ? ['it was played without groups'] : g.why;
+    const lockSure = (source || noneGoingIn) && !pairedNow ? !!g.sure : false;
+    // Why an entry the league's own groups would otherwise have answered is off, so the sheet and the verdict can say so:
+    // 'apart', played without groups; 'unknown', played in groups nobody knew going in (pairedNow, or groups drawn at the start
+    // of an episode nobody was in one going into: The Challenge 39's teams); null before its report (nobody in a group going in,
+    // as far as is known) and on the timeline's own entries.
+    const offAs = pairedNow ? 'unknown' : apartNow ? 'apart' : noneGoingIn && e && e.reported ? (APART.has(e.playedAs) ? 'apart' : 'unknown') : null;
+    out.set(n, { offered: offered.map(({ names, ...x }) => x), byCastaway, lockSure, why, played, off: offAs });
   }
   return out;
 }

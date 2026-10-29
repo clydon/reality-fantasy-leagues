@@ -326,6 +326,9 @@ function timelineGroups(q, episode, facts) {
  */
 function onTimeline(q, v, fg, facts) {
   if (v.state !== 'known') return v;
+  // F4: an episode the league's own groups would otherwise have answered, which the timeline knows weren't who played with whom.
+  if (fg.off === 'apart') return off("It was played without pairs or teams: it doesn't count either way");
+  if (fg.off === 'unknown') return off("Who played with whom wasn't known going into it: it doesn't count either way");
   const groups = groupsIn(v.right, { groups: fg.byCastaway });
   if (q.fallback === 'carry-on') return groups.length ? { ...v, groups } : off('Nobody it happened to was in a group');
   if (!fg.played) return facts && facts.over ? off("Who played with whom isn't known: it doesn't count either way") : WAITING;

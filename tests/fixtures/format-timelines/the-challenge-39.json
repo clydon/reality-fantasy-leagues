@@ -13,7 +13,7 @@
   ],
   "read": "2026-10-28"
  },
- "names": "wikipedia",
+ "names": "tapes",
  "episodes": [
   {
    "n": 1,
@@ -21,7 +21,7 @@
    "play": "everyone",
    "out": [
     {
-     "name": "Jessica",
+     "name": "Jessica Brody",
      "how": "eliminated"
     }
    ]
@@ -32,7 +32,7 @@
    "play": "everyone",
    "out": [
     {
-     "name": "Chauncey",
+     "name": "Chauncey Palmer",
      "how": "eliminated"
     }
    ]
@@ -43,7 +43,7 @@
    "play": "everyone",
    "out": [
     {
-     "name": "Jujuy",
+     "name": "Jujuy Jiménez",
      "how": "eliminated"
     }
    ]
@@ -54,7 +54,7 @@
    "play": "everyone",
    "out": [
     {
-     "name": "Hughie",
+     "name": "Hughie Maughan",
      "how": "eliminated"
     }
    ]
@@ -65,7 +65,7 @@
    "play": "pairs",
    "out": [
     {
-     "name": "Ciarran",
+     "name": "Ciarran Stott",
      "how": "eliminated"
     }
    ],
@@ -84,7 +84,7 @@
    "play": "teams",
    "out": [
     {
-     "name": "Callum",
+     "name": "Callum Izzard",
      "how": "eliminated"
     }
    ],
@@ -96,7 +96,7 @@
    "play": "teams",
    "out": [
     {
-     "name": "Big T",
+     "name": "Big T Fazakerley",
      "how": "eliminated"
     }
    ],
@@ -108,7 +108,7 @@
    "play": "pairs",
    "out": [
     {
-     "name": "Melissa",
+     "name": "Melissa Reeves",
      "how": "eliminated"
     }
    ],
@@ -146,7 +146,7 @@
    "play": "teams",
    "out": [
     {
-     "name": "Asaf",
+     "name": "Asaf Goren",
      "how": "eliminated"
     }
    ],
@@ -158,11 +158,11 @@
    "play": "individuals",
    "out": [
     {
-     "name": "Ravyn",
+     "name": "Ravyn Rochelle",
      "how": "purged"
     },
     {
-     "name": "Zara",
+     "name": "Zara Zoffany",
      "how": "eliminated"
     }
    ],
@@ -174,15 +174,15 @@
    "play": "individuals",
    "out": [
     {
-     "name": "Ed",
+     "name": "Ed Eason",
      "how": "purged"
     },
     {
-     "name": "Horacio",
+     "name": "Horacio Gutiérrez Jr.",
      "how": "eliminated"
     },
     {
-     "name": "Kyland",
+     "name": "Kyland Young",
      "how": "eliminated"
     }
    ],
@@ -194,15 +194,15 @@
    "play": "individuals",
    "out": [
     {
-     "name": "Michele",
+     "name": "Michele Fitzgerald",
      "how": "purged"
     },
     {
-     "name": "James",
+     "name": "James Lock",
      "how": "eliminated"
     },
     {
-     "name": "Olivia",
+     "name": "Olivia Kaiser",
      "how": "eliminated"
     }
    ],
@@ -212,14 +212,45 @@
    "n": 18,
    "phase": "Final",
    "play": "mixed",
-   "out": [],
+   "out": [
+    {
+     "name": "Jay Starrett",
+     "how": "eliminated"
+    }
+   ],
    "note": "The final: as a group, then random pairs per checkpoint, then individually."
   },
   {
    "n": 19,
    "phase": "Final",
    "play": "mixed",
-   "out": []
+   "out": [
+    {
+     "name": "Moriah Jadea",
+     "how": "eliminated"
+    },
+    {
+     "name": "Berna Canbeldek",
+     "how": "placed"
+    },
+    {
+     "name": "Corey Lay",
+     "how": "placed"
+    },
+    {
+     "name": "Colleen Schneider",
+     "how": "placed"
+    },
+    {
+     "name": "Nurys Mateo",
+     "how": "placed"
+    },
+    {
+     "name": "Emanuel Neagu",
+     "how": "won"
+    }
+   ],
+   "note": "The final's results, added in F4 from the same revision's Final section: Jay 7th and Moriah 6th (eliminated), Berna 5th, Corey 4th, Colleen 3rd, Nurys 2nd, Emanuel the winner. Wikipedia gives the final as Episodes 18/19; which of the two Jay and Moriah went home in is the tapes' recaps' (Jay in 18, Moriah in 19)."
   },
   {
    "n": 20,
@@ -257,62 +288,62 @@
      "groups": [
       {
        "members": [
-        "Asaf",
-        "Michele"
+        "Asaf Goren",
+        "Michele Fitzgerald"
        ]
       },
       {
        "members": [
-        "Berna",
-        "Emanuel"
+        "Berna Canbeldek",
+        "Emanuel Neagu"
        ]
       },
       {
        "members": [
-        "Big T",
-        "Horacio"
+        "Big T Fazakerley",
+        "Horacio Gutiérrez Jr."
        ]
       },
       {
        "members": [
-        "Callum",
-        "Colleen"
+        "Callum Izzard",
+        "Colleen Schneider"
        ]
       },
       {
        "members": [
-        "Ciarran",
-        "Zara"
+        "Ciarran Stott",
+        "Zara Zoffany"
        ]
       },
       {
        "members": [
-        "Corey",
-        "Ravyn"
+        "Corey Lay",
+        "Ravyn Rochelle"
        ]
       },
       {
        "members": [
-        "Ed",
-        "Olivia"
+        "Ed Eason",
+        "Olivia Kaiser"
        ]
       },
       {
        "members": [
-        "James",
-        "Nurys"
+        "James Lock",
+        "Nurys Mateo"
        ]
       },
       {
        "members": [
-        "Jay",
-        "Melissa"
+        "Jay Starrett",
+        "Melissa Reeves"
        ]
       },
       {
        "members": [
-        "Kyland",
-        "Moriah"
+        "Kyland Young",
+        "Moriah Jadea"
        ]
       }
      ],
@@ -332,35 +363,35 @@
       {
        "name": "Blue",
        "members": [
-        "Asaf",
-        "Callum",
-        "Ed",
-        "Michele",
-        "Nurys",
-        "Ravyn"
+        "Asaf Goren",
+        "Callum Izzard",
+        "Ed Eason",
+        "Michele Fitzgerald",
+        "Nurys Mateo",
+        "Ravyn Rochelle"
        ]
       },
       {
        "name": "Red",
        "members": [
-        "Berna",
-        "Colleen",
-        "Emanuel",
-        "Horacio",
-        "Kyland",
-        "Zara"
+        "Berna Canbeldek",
+        "Colleen Schneider",
+        "Emanuel Neagu",
+        "Horacio Gutiérrez Jr.",
+        "Kyland Young",
+        "Zara Zoffany"
        ]
       },
       {
        "name": "Turquoise",
        "members": [
-        "Big T",
-        "Corey",
-        "James",
-        "Jay",
-        "Melissa",
-        "Moriah",
-        "Olivia"
+        "Big T Fazakerley",
+        "Corey Lay",
+        "James Lock",
+        "Jay Starrett",
+        "Melissa Reeves",
+        "Moriah Jadea",
+        "Olivia Kaiser"
        ]
       }
      ],
@@ -380,50 +411,50 @@
       {
        "name": "Team 4",
        "members": [
-        "Asaf",
-        "Ed",
-        "Moriah",
-        "Nurys"
+        "Asaf Goren",
+        "Ed Eason",
+        "Moriah Jadea",
+        "Nurys Mateo"
        ]
       },
       {
        "name": "Team 6",
        "members": [
-        "Berna",
-        "Corey",
-        "Ravyn"
+        "Berna Canbeldek",
+        "Corey Lay",
+        "Ravyn Rochelle"
        ]
       },
       {
        "name": "Team 5",
        "members": [
-        "Big T",
-        "Horacio",
-        "Kyland"
+        "Big T Fazakerley",
+        "Horacio Gutiérrez Jr.",
+        "Kyland Young"
        ]
       },
       {
        "name": "Team 3",
        "members": [
-        "Callum",
-        "Michele",
-        "Zara"
+        "Callum Izzard",
+        "Michele Fitzgerald",
+        "Zara Zoffany"
        ]
       },
       {
        "name": "Team 1",
        "members": [
-        "Colleen",
-        "Jay",
-        "Olivia"
+        "Colleen Schneider",
+        "Jay Starrett",
+        "Olivia Kaiser"
        ]
       },
       {
        "name": "Team 2",
        "members": [
-        "Emanuel",
-        "James",
-        "Melissa"
+        "Emanuel Neagu",
+        "James Lock",
+        "Melissa Reeves"
        ]
       }
      ],
@@ -443,29 +474,29 @@
       {
        "name": "Blue",
        "members": [
-        "Asaf",
-        "Big T",
-        "Colleen",
-        "Ed",
-        "Horacio",
-        "Kyland",
-        "Melissa",
-        "Michele",
-        "Olivia"
+        "Asaf Goren",
+        "Big T Fazakerley",
+        "Colleen Schneider",
+        "Ed Eason",
+        "Horacio Gutiérrez Jr.",
+        "Kyland Young",
+        "Melissa Reeves",
+        "Michele Fitzgerald",
+        "Olivia Kaiser"
        ]
       },
       {
        "name": "Orange",
        "members": [
-        "Berna",
-        "Corey",
-        "Emanuel",
-        "James",
-        "Jay",
-        "Moriah",
-        "Nurys",
-        "Ravyn",
-        "Zara"
+        "Berna Canbeldek",
+        "Corey Lay",
+        "Emanuel Neagu",
+        "James Lock",
+        "Jay Starrett",
+        "Moriah Jadea",
+        "Nurys Mateo",
+        "Ravyn Rochelle",
+        "Zara Zoffany"
        ]
       }
      ],
@@ -484,51 +515,51 @@
      "groups": [
       {
        "members": [
-        "Asaf",
-        "Ravyn",
-        "Zara"
+        "Asaf Goren",
+        "Ravyn Rochelle",
+        "Zara Zoffany"
        ]
       },
       {
        "members": [
-        "Berna",
-        "Emanuel"
+        "Berna Canbeldek",
+        "Emanuel Neagu"
        ]
       },
       {
        "members": [
-        "Colleen",
-        "Ed"
+        "Colleen Schneider",
+        "Ed Eason"
        ]
       },
       {
        "members": [
-        "Corey",
-        "Olivia"
+        "Corey Lay",
+        "Olivia Kaiser"
        ]
       },
       {
        "members": [
-        "Horacio",
-        "Nurys"
+        "Horacio Gutiérrez Jr.",
+        "Nurys Mateo"
        ]
       },
       {
        "members": [
-        "James",
-        "Melissa"
+        "James Lock",
+        "Melissa Reeves"
        ]
       },
       {
        "members": [
-        "Jay",
-        "Moriah"
+        "Jay Starrett",
+        "Moriah Jadea"
        ]
       },
       {
        "members": [
-        "Kyland",
-        "Michele"
+        "Kyland Young",
+        "Michele Fitzgerald"
        ]
       }
      ],
@@ -548,27 +579,27 @@
       {
        "name": "Orange",
        "members": [
-        "Asaf",
-        "Colleen",
-        "Emanuel",
-        "Horacio",
-        "Jay",
-        "Moriah",
-        "Ravyn",
-        "Zara"
+        "Asaf Goren",
+        "Colleen Schneider",
+        "Emanuel Neagu",
+        "Horacio Gutiérrez Jr.",
+        "Jay Starrett",
+        "Moriah Jadea",
+        "Ravyn Rochelle",
+        "Zara Zoffany"
        ]
       },
       {
        "name": "Blue",
        "members": [
-        "Berna",
-        "Corey",
-        "Ed",
-        "James",
-        "Kyland",
-        "Michele",
-        "Nurys",
-        "Olivia"
+        "Berna Canbeldek",
+        "Corey Lay",
+        "Ed Eason",
+        "James Lock",
+        "Kyland Young",
+        "Michele Fitzgerald",
+        "Nurys Mateo",
+        "Olivia Kaiser"
        ]
       }
      ],
@@ -588,37 +619,37 @@
       {
        "name": "Team 3",
        "members": [
-        "Asaf",
-        "Jay",
-        "Olivia",
-        "Ravyn"
+        "Asaf Goren",
+        "Jay Starrett",
+        "Olivia Kaiser",
+        "Ravyn Rochelle"
        ]
       },
       {
        "name": "Team 2",
        "members": [
-        "Berna",
-        "Emanuel",
-        "Horacio",
-        "Zara"
+        "Berna Canbeldek",
+        "Emanuel Neagu",
+        "Horacio Gutiérrez Jr.",
+        "Zara Zoffany"
        ]
       },
       {
        "name": "Team 1",
        "members": [
-        "Colleen",
-        "Corey",
-        "James",
-        "Moriah"
+        "Colleen Schneider",
+        "Corey Lay",
+        "James Lock",
+        "Moriah Jadea"
        ]
       },
       {
        "name": "Team 4",
        "members": [
-        "Ed",
-        "Kyland",
-        "Michele",
-        "Nurys"
+        "Ed Eason",
+        "Kyland Young",
+        "Michele Fitzgerald",
+        "Nurys Mateo"
        ]
       }
      ],
@@ -638,37 +669,37 @@
       {
        "name": "Team 1",
        "members": [
-        "Asaf",
-        "Colleen",
-        "Jay",
-        "Ravyn"
+        "Asaf Goren",
+        "Colleen Schneider",
+        "Jay Starrett",
+        "Ravyn Rochelle"
        ]
       },
       {
        "name": "Team 4",
        "members": [
-        "Berna",
-        "Ed",
-        "Horacio",
-        "Zara"
+        "Berna Canbeldek",
+        "Ed Eason",
+        "Horacio Gutiérrez Jr.",
+        "Zara Zoffany"
        ]
       },
       {
        "name": "Team 3",
        "members": [
-        "Corey",
-        "Emanuel",
-        "Nurys",
-        "Olivia"
+        "Corey Lay",
+        "Emanuel Neagu",
+        "Nurys Mateo",
+        "Olivia Kaiser"
        ]
       },
       {
        "name": "Team 2",
        "members": [
-        "James",
-        "Kyland",
-        "Michele",
-        "Moriah"
+        "James Lock",
+        "Kyland Young",
+        "Michele Fitzgerald",
+        "Moriah Jadea"
        ]
       }
      ],
@@ -688,37 +719,37 @@
       {
        "name": "Team 2",
        "members": [
-        "Asaf",
-        "Colleen",
-        "Horacio",
-        "Michele"
+        "Asaf Goren",
+        "Colleen Schneider",
+        "Horacio Gutiérrez Jr.",
+        "Michele Fitzgerald"
        ]
       },
       {
        "name": "Team 4",
        "members": [
-        "Berna",
-        "Corey",
-        "Ed",
-        "Olivia"
+        "Berna Canbeldek",
+        "Corey Lay",
+        "Ed Eason",
+        "Olivia Kaiser"
        ]
       },
       {
        "name": "Team 1",
        "members": [
-        "Emanuel",
-        "Kyland",
-        "Moriah",
-        "Zara"
+        "Emanuel Neagu",
+        "Kyland Young",
+        "Moriah Jadea",
+        "Zara Zoffany"
        ]
       },
       {
        "name": "Team 3",
        "members": [
-        "James",
-        "Jay",
-        "Nurys",
-        "Ravyn"
+        "James Lock",
+        "Jay Starrett",
+        "Nurys Mateo",
+        "Ravyn Rochelle"
        ]
       }
      ],
@@ -738,37 +769,37 @@
       {
        "name": "Blue",
        "members": [
-        "Asaf",
-        "Horacio",
-        "Olivia",
-        "Zara"
+        "Asaf Goren",
+        "Horacio Gutiérrez Jr.",
+        "Olivia Kaiser",
+        "Zara Zoffany"
        ]
       },
       {
        "name": "Turquoise",
        "members": [
-        "Berna",
-        "Corey",
-        "Emanuel",
-        "Ravyn"
+        "Berna Canbeldek",
+        "Corey Lay",
+        "Emanuel Neagu",
+        "Ravyn Rochelle"
        ]
       },
       {
        "name": "Yellow",
        "members": [
-        "Colleen",
-        "Ed",
-        "Jay",
-        "Nurys"
+        "Colleen Schneider",
+        "Ed Eason",
+        "Jay Starrett",
+        "Nurys Mateo"
        ]
       },
       {
        "name": "Orange",
        "members": [
-        "James",
-        "Kyland",
-        "Michele",
-        "Moriah"
+        "James Lock",
+        "Kyland Young",
+        "Michele Fitzgerald",
+        "Moriah Jadea"
        ]
       }
      ],

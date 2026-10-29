@@ -15,7 +15,10 @@ F3's first part (2026-10-29: the format's state over time, `format-timeline.js`,
 person's tribe move worked out from the section, so `newGroup` asks only for whoever moved and went home the same night),
 and F3's second part (2026-10-29: the timeline from the database; the prompt's groups going in from it; newcomers asked about,
 staged for the season and cued for the desk; one word for the groups beside the section; A6's group question on a season
-played in pairs, graded on the pairs that played, void by default). F4, the blind replays, is next, then A10
+played in pairs, graded on the pairs that played, void by default), and F4, the blind replays (2026-10-29: five taped seasons
+replayed as if live through every game the tracker says plays, each format change arriving only in its episode's research,
+`blind.js`; two grading fixes it found: a paired season's premiere, groups the league holds that nobody plays in). The format
+foundation is done: A10 is next, then A11
 to A14 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -739,6 +742,98 @@ teams read the format's state rather than guess it), the engine track does the f
     the groups is the step's design, and its edges are the fixes above; the premiere of a paired season is in Noticed.
 - **F4. Blind replays:** a taped season replayed as if live (above), every game the tracker says it plays, The Challenge's
   seasons first.
+
+  **As built (F4, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already up to
+  date; 956 tests). The local bot didn't answer during the step (no reply after 210 s, the recorder's asks too, from 07:15 UTC),
+  so nothing was asked of it: the replays run on what's on tape.
+  - **The Challenge 39 loaded** (`tapes.js load the-challenge 39`, no bot) and its fixture moved to the tapes' cast names (190
+    names, each matched one to one; `format-study.js --check` sound, its study re-read with its research on tape, the study
+    doc's appendix regenerated). The golden replays read seven seasons now.
+  - **`scripts/dev-test/blind.js`** (new; `run`, `games`, `sections`, `summary [--md]`, `down`): a taped season replayed as if
+    live through the app's own code (playtest.js's harness, exported for it: the season's copy, the seats, the draft, the
+    lineups and picks, waivers, the results through the bot's own run on Autopilot). **Every game the tracker says plays:**
+    each ✅ row's spec once (81 distinct), checked on the season by the engine lab's own `labCheck`, those that play started
+    with `labStart` before the premiere on a zt- couch of their own (from what was known then: the season's rules, and of its
+    format nothing; the app has nowhere to hold a timeline's `start`, the previous season's format or a rules answer as of the
+    premiere, so none was passed, and the premiere item below says where one would come from), four seats (the friend-group archetypes) joining through
+    Join; a group question asked each episode also played following the people (`fallback: 'carry-on'`); and, since the
+    tracker's group question is Survivor's (which tribe wins immunity), The Challenge's own in its daily challenge
+    (`dailyWin`), both ways. Before each episode, the moves and every open question answered by habit through `answers.ts`
+    (an answer for every kind of question, each one the engine's own `answerProblem` takes), its choices as the app offers
+    them at that lock. **Each change arrives only in its episode's research:** the tape's answers, with the format section the
+    tapes don't have (the local bot's own answer where F2 asked that episode again, 23 of 88; else a stand-in from F1's
+    fixture at the episode's end, as research would say it if it were right) and who went home as the fixture has it (the
+    tapes' wrong exits: The Challenge 41's 11 and 14), the quick check's wording and the fixture's confidence, so a held
+    exit (the playtest report's findings 2 and 3) doesn't stand in for a format change. After each episode, the format state
+    over time as the app reads it from the database (what changed, sure or held, the stage triggers, group slots and side
+    stages it opens), what the next prompt would carry (the groups going in, sure or not, the newcomers on its checklist, the
+    word for its groups), and what each game did. At the season's end every question read again: anything answered still
+    waiting never settled. The checks: every game over, every score a finite number, nothing scored on an off question or a
+    void pick, no answer refused, no problem in the moves. Records: `~\rfl-tapes\replays\blind\<show>-<season>.json` and
+    `.md`; the study doc has the tables.
+  - **What it found, and fixed in the grader** (each would have scored nonsense through a format change nobody announced):
+    - **A paired season's premiere** (F3 part 2's item): The Challenge 41's group question offered the league's own groups,
+      the cast list's labels (Vets, New Threats); every pair is one of each, so everyone who answered was right. Now an
+      episode research says was played in pairs the league doesn't hold, when nothing said so going in, is the timeline's
+      with nothing offered (`groupFacts`'s `pairedNow`): off once its research lands.
+    - **Groups the league holds that nobody plays in:** The Challenge 40's eras are its league's groups (the cast list's), but
+      they were teams only in Episodes 3-9; in 1-2 everyone played together (all four eras right) and from 10 each for
+      themselves (graded on the daily winner's era). Now, where the league's own groups would be read, an episode whose own
+      report says it was played without groups (`apartNow`), or going into which nobody is in a group (`noneGoingIn`: nothing
+      offered at its lock either), is off. Survivor after its merge reads the same; its tribes before it stay the league's.
+    - Each off entry says why (`off`: 'unknown', 'apart'), so the verdict and the sheet's `offWhy` give the real reason ("It
+      was played without pairs or teams", "Who played with whom wasn't known going into it"), not "isn't sure".
+  - **What it found and left:** a question about the finale never settles on The Challenge 41 (its group question, the week's
+    points leaderboard): the finale's results stay early (the playtest report's finding 20, the survivor lane's), so its moments
+    never come in. A grader fix (off once the game is over) was built and taken out at the code review: the game is over as
+    soon as the finale's early results land, so every finale moment question would have read off through the hours before its
+    full research, on every finale night. The replay reports these apart ("waits on early results"), and the fix stays
+    finding 20's (Noticed). **The Challenge 39's fixture had no final** (F1 recorded nobody leaving in 18-19), so its blind
+    replay crowned nobody: its final added from the same Wikipedia revision (Jay 7th, Moriah 6th, Berna 5th, Corey 4th,
+    Colleen 3rd, Nurys 2nd, Emanuel the winner; which of the two episodes Jay and Moriah left in, the tapes' recaps).
+  - **The results** (the study doc's "F4: blind replays" has every season's tables): **every game ended on all five seasons**: The Challenge 41
+    51 of 51 played through, 40 and 39 50 of 51, Survivor 49 69 of 69, The Traitors 4 51 of 51 (the tracker's 81 distinct specs:
+    51 play on each Challenge season and The Traitors, 69 on Survivor; the rest name an idol, the merge or secret roles the show
+    hasn't). The one game short on 40 and 39 is the tracker's w072 ("will anyone quit?", asked once): nobody quit, and "no" waits
+    for every episode's moments while 40's finale and 39's Episode 3 stayed early (finding 20's; the replay classes it so now).
+    On The Challenge 41, "which pair wins the daily challenge" offered each episode's new pairs at every re-pairing (2-8), the
+    Lock In's twelve from 10, was off at the individual 9 and wherever the timeline wasn't sure (2: the premiere's report has
+    nothing to check against; 11: 10's answer contradicted itself; 16-17: the claim partway), and following the people offered
+    the last known there; the newcomer Jonna Mannion was on the checklist from 6, and the tapes' wrong exits were made right.
+    Every sure trigger on the five seasons was right; the held ones were the premiere's, 10's contradicted answer, the claim, the
+    finale's split and Survivor 49's split immunity. Left open (Noticed): a group question on the league's own groups at an
+    episode whose groups changed at its start (The Challenge 39's teams drawn each episode, Survivor's swaps) is graded on the new
+    groups by name.
+  - **F3 part 2's items, settled from the tapes** (its Noticed): whether `newGroup` names a partner as a team on a paired season
+    (never on production's prompt: 0 in 63 of The Challenge's full answers on tape; F2's raw answers did, 22 times in The
+    Challenge 41's 9, and F3's code already drops them); a pair voted out together at a re-draw (it never happens on the five
+    seasons); the premiere of a paired season (fixed above). Details under From F4.
+  - **Tests:** `tests/blind-replay.test.js` (new, 7): who left in each format's words; the stand-in (a newcomer and who for, the
+    re-draw sure, the Lock In's pairs after the episode played alone, none for an episode the fixture lacks); where each section
+    comes from and the merge; the quick check and the full answer as filed (the fixture's exits, the tape's title and sources
+    kept, an exit worded differently or at medium confidence made the quick check's and sure); every kind of answer the
+    players give passing `answerProblem`; a record's checks; what a game did, in a line. `format-timeline-reads.test.js`: the
+    premiere's entry, and a new test (an episode played without groups, nobody in a group going in, the eras as teams staying
+    the league's, graded off with its reason; Survivor's tribes still none, an individual immunity before the merge among
+    them). `npm test` 964.
+  - **The proof, as the plan says:** the golden replays (`golden.js`, seven seasons now, The Challenge 39 among them): 160 games,
+    19,361 reads, every one the same; the tracker unchanged (`--check`: no row's status moved; the group question it has is
+    Survivor's); `format-asks.js timeline` unchanged (23 episodes, 20 sure, 11 sure grouping changes all right, lifetimes 85 of
+    85); db/episode-research.js untouched, so no store-and-stage regression; the zt- fixtures through the engine's API on the final
+    code, `check-format-groups.js` (ALL PASS, 25) and `check-questions-who.js --api` (ALL PASS); and the blind replays themselves,
+    every game made, played and graded through the app's own writes and reads (the engine lab, Join, the draft room, the lineup and
+    pick routes, `answers.ts`, the bot's run) on zt-pt- rows.
+  - **Code review** (`/code-review`, before the commit; it ran this time). Taken: the grader's finale fix read every finale moment
+    question off through the hours before its full research (taken out: finding 20's); `apartNow` would have moved a Survivor
+    tribe question at an individual immunity before the merge off its tribes (now only an episode ending with nobody in a group);
+    the blind hooks ran after the finale's placing, undoing its rank order (now before it); an off entry said "isn't sure" when
+    its reason was known (`off`, with its words in the verdict and `offWhy`); the stale doc comment on `formatGroupsFor`; the
+    `sections` command's merge read from the show's slug (now the rulebook's) and its unguarded fields; one seat's failed read
+    skipping the others' answers; two merged branches and an alias. Declined: that `pairedNow` and `apartNow` are worked out
+    after the lock, from the episode's own report: by design (nothing is known at the lock; once research lands the episode is
+    off rather than graded on labels), and the picker at the premiere is in Noticed. After it, reviewed by hand: The Challenge
+    39's final added to its fixture, the replay's classing of questions that wait on early results, and an episode with nobody
+    in a group going in but played in groups drawn at its start ('unknown', not 'apart').
 
 The research prompt is shared by every show's research, production's included, so F2 reaches it only through a reviewed merge
 with the user's OK, like everything else.
@@ -2871,6 +2966,82 @@ From F3 part 2 (2026-10-29):
 - A pair whose members all went home in an episode with a re-draw at its start is taken to have played as offered (nobody
   else was with them at its end); two partners re-drawn apart who each went home that night would read so too. (F4, if the
   tapes show it.)
+
+Taken by F4 (2026-10-29): The Challenge 39 loaded and its fixture under the tapes' cast names (the golden replays read seven
+seasons); a blind replay starting from the fixture's exits (The Challenge 41's Nia Moore, Leo and Will); F3 part 2's three
+items for F4, settled from the tapes (below); and F3 part 1's premiere item (a blind replay's games are made before the
+premiere, with nothing of its format known).
+
+From F4 (2026-10-29; the results in [STUDY-format-changes.md](STUDY-format-changes.md), "F4: blind replays"):
+- **F3 part 2's items, settled from the tapes:**
+  - `newGroup` naming a partner as a team on a paired season: production's prompt never did, in 63 of The Challenge's full
+    answers on tape (41, 40, 39); F2's prompt (asking it of everyone beside the section) did, 22 times in The Challenge 41's
+    Episode 9, and F3's code already drops them (the section's pairs speak for whoever they place). Nothing to change.
+    But The Challenge 39's tapes name "Blue Team" and "Orange Team" (18 times) and "Individual" (15): a name like
+    "Individual" for someone the section doesn't place would be staged as a tribe of that name. (A10, or whoever next
+    touches movesFromState: read "Individual" and the like as on their own; the section's own `alone` says it better.)
+  - A pair voted out together at a re-draw: it never happens on the five seasons (The Challenge 41's nine whole pairs, in 10
+    to 17 and 19, all went home with no re-draw at their episode's start; the one at 16 is the claim's own pair, formed
+    partway). Left as built.
+  - The premiere of a paired season: its group question offered the league's own groups (The Challenge 41's Vets and New
+    Threats), and since each pair is one of each, everyone who answered was right. **Fixed in the grader**
+    (`groupFacts`): an episode research says was played in pairs the league doesn't hold, when nothing said so going in, is
+    the timeline's with nothing offered, so it's off once its research lands (no points either way). Still open: the picker
+    at the premiere's lock offers the labels, since nothing is known then. **For the user (with a recommendation):** read the
+    rulebook's `cast.groups.change: often` (data the app has at set-up: The Challenge's "All the time") so a group question
+    at the premiere of such a season offers nothing and says why, rather than labels that get voided. (G1, which checks a
+    game against the rulebook; or A10 if group slots need the premiere.)
+- **Groups the league holds that nobody plays in** (The Challenge 40's eras outside 3-9, Survivor's tribes after the merge):
+  **fixed in the grader** (`apartNow`, `noneGoingIn`), as above. Still open, the same as the premiere's: the league's own
+  groups stay its own after a split (the eras, the pre-merge tribes: the merge moves nobody), so a question asked over a window
+  or once (which reads the league's groups, F3 part 2's item) still offers them. (G1's check, or A6's next reader.)
+- **A group question on the league's own groups, at an episode whose groups changed at its start, is graded on the new groups
+  by name.** The Challenge 39 draws named teams at the start of nearly every episode (Blue, Red, Team 1 to 6, Orange...), each
+  staged as tribe moves on Autopilot, so its lock offers the teams the league then has and the episode is graded on its new
+  ones: at 7, 8, 11 and 14 the right team wasn't on offer, so nobody could be right, and at 13 it was by name only (Team 1 to 4
+  drawn afresh each episode under the same names). Survivor 49's swaps read the same: at 4 the old Hina,
+  Kele and Uli were offered and the new Kele was right by its name (members all new), a pick of the dissolved Uli wrong, not
+  void. (The pairs on the timeline already void a pick of a group that didn't play as offered.) **For the user, with the
+  format-change design session's defaults:** recommended, read the timeline's `played.held` for the league's own groups too,
+  so a pick of a group that didn't play the episode as offered is void (no points either way) on Survivor's swaps and The
+  Challenge's drawn teams alike, and offer nothing at the lock on a season whose rulebook says its groups change all the time;
+  the other way, keep grading a tribe by its name (Survivor's players may expect "Kele won" to count). (A10, whose slot per
+  group reads the same groups at a lock, or a part before it; it changes Survivor's grading at a swap, so the default is the
+  user's.)
+- **Survivor 49's premiere offered no tribes:** its cast has them (Hina, Kele and Uli, six each), but "which tribe wins
+  immunity" had nothing to pick at the premiere's lock in every game asking it (from Episode 2 on it offered the tribes), and
+  was graded on them after. Not traced in F4: perhaps the view before anyone has seen an episode. (A6's next reader.)
+- **A question about the finale never settles** (The Challenge 41: its group question and the week's points leaderboard): the
+  finale's results stay early (the playtest report's finding 20), so its moments never come in, and a question about it waits
+  after the game is over. A grader fix (off once the game is over) was built and taken out at the code review: the game is over
+  as soon as the finale's early results land, so it would have read every finale moment question off through the hours before
+  the full research, on every finale night. Nothing in the data says "the full research came and went", so the fix is finding
+  20's: the full research, applied with nothing more to score, should still take the early mark off. (The survivor lane, with
+  `season-decisions.ts`; the blind replay reports these as "waits on early results".)
+- **Episode 2 of a season in rotating pairs is always void by default:** the premiere's report has nothing before it to check
+  its changes against, so the pairs going into 2 are never sure, and a group question asked with `fallback: 'void'` is off
+  there (following the people, it offers them). **For the user, in the format-change design session:** keep it void (safe:
+  one episode a season), or count a premiere's groups sure when the answer agrees with itself (the risk: an answer's pairs
+  wrong at the premiere would be graded). Recommended: keep it void; the wizard can say so.
+- **The claim at The Challenge 41's 16** (a swap partway through an episode, its new pair going home that night) reads unsure:
+  at the episode's end only the two partners left behind are paired again, which our comparison takes as filled in, not a
+  swap, so the answer's swap is held and the group question void at 17 by default. F3 part 1's proof had it sure because its
+  episodes 11-15 were carried on. Safe as it is. (A12, whose triggers read it: two people whose partners both went home that
+  night, paired at its end, could count as the answer's swap.)
+- **The finale's own split** (The Challenge 41's 19, everyone placed): our comparison sees a split the answer doesn't say, so
+  it's held; nothing reads it after the finale. (A12, if a stage could start at a finale: the edge case is already the
+  design session's.)
+- **The tracker's group question is Survivor's** (which tribe wins immunity, `tribeImmunity`), so it doesn't play on The
+  Challenge, whose own moment for a group's win is a daily challenge (`dailyWin`): F4 added its own (`blind.js` OWN). (G1:
+  the manual's examples should name a show's own group win; the tracker could carry The Challenge's.)
+- **What the blind replay doesn't play:** Weekly Calls (Call it's calls) and Weekly Bingo (the couch's squares) are started and
+  end, but nobody plays them (neither is settled by research's format section); a newcomer's results still reach no game
+  until a person adds them to the cast (F3 part 2's cue), so Jonna Mannion's pair was offered with Jake alone resolved.
+- **The stand-ins.** Of the 88 episodes, F2's own bot answers cover 23; the rest are F1's fixture at each episode's end
+  (as research would say it if it were right). The blind replay proves the engine's side through every change; research's
+  side is F2's proof. A bot run of the whole season with today's prompt (format-asks.js `ask`, the local bot only) would
+  replace the stand-ins when the bot is free: it wasn't during F4 (no reply after 210 s since 07:15 UTC). (Whoever next has
+  the local bot to spare; then `blind.js run` again.)
 
 From A7 (2026-10-28):
 - The late lock is a game of questions' only: lineups and picks still lock at airtime, whoever watches when. (A15, each

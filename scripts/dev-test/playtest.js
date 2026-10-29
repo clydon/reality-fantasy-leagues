@@ -378,12 +378,14 @@ async function down() {
 // ---------- up: the season's copy, the players ----------
 
 /** A zt- copy of a recorded season: the show (same name and format), the season (moved to start next week), its episodes and cast. */
-async function copySeason(show, season) {
+async function copySeason(show, season, loadedId = null) {
   const { pool } = appCode();
   const Tapes = require("./tapes");
   const tape = Tapes.readTape(show, season);
   if (!tape.season || !tape.season.seasonId) throw new Error(`${show} ${season} has no tape (tapes.js status)`);
-  const realId = tape.season.seasonId;
+  // `loadedId`: this database's own row for the season (blind.js reads the tapes where they are; golden.js points a copy's
+  // season.json at it instead).
+  const realId = loadedId || tape.season.seasonId;
   const real = await one("SELECT ss.*, s.id AS sid FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [realId]);
   if (!real) throw new Error(`${show} ${season}: the tape's season isn't in this database (tapes.js load ${show} ${season})`);
   const sh = await one(
@@ -1260,7 +1262,13 @@ const resultsSteps = (mode) => ({
   both: mode === "both-exits",
 });
 
-async function fileResults(season, n, answer, mode = "autopilot") {
+/**
+ * Episode n's results through the bot's own run, its answers from the tape (`answer`), reshaped as `mode` says. `hooks`
+ * (blind.js, F4's blind replays): { quick, full }(text, { ctx, n }) each answer's say as it comes off the tape (the full one
+ * once it's upgraded and its dates moved), before `mode` reshapes and places it, with the research context the run asks with
+ * (who the prompt asks about, the groups going in).
+ */
+async function fileResults(season, n, answer, mode = "autopilot", hooks = null) {
   const { reshape, placed, both } = resultsSteps(mode);
   const { BotResearch, botSend, pool } = appCode();
   const Research = require("../../db/episode-research.js");
@@ -1284,7 +1292,7 @@ async function fileResults(season, n, answer, mode = "autopilot") {
     // that can't be read fails a full answer as before; a quick check keeps its answer as it came, only its order (and
     // --results=both-exits' additions) lost.
     let ctx = null;
-    if ((kind === "full" && (stored || reshape || placed)) || (kind === "quick" && (placed || both))) {
+    if ((kind === "full" && (stored || reshape || placed)) || (kind === "quick" && (placed || both)) || (hooks && hooks[kind])) {
       try {
         ctx = await Research.resolveSeasonResearchContext(pool, SLUG(season.show), season.number, n);
       } catch (e) {
@@ -1293,6 +1301,8 @@ async function fileResults(season, n, answer, mode = "autopilot") {
       }
     }
     const ranks = ctx && { exitMethods: ctx.format.exitMethods || [], endgame: ctx.format.endgameExitMethods || [], winner: ctx.format.winnerExitMethod ?? null };
+    // The hooks' say comes first (before both-exits and the placing), so what they file is ranked as the rest is.
+    if (kind === "quick" && hooks && hooks.quick) a = hooks.quick(a, { ctx, n });
     if (kind === "quick" && ctx && both) {
       const { text, ...did } = bothExits(a, tapedFull(season, n), { cast: ctx.castNames, exitMethods: ranks.exitMethods });
       a = text;
@@ -1304,6 +1314,7 @@ async function fileResults(season, n, answer, mode = "autopilot") {
     if (kind === "quick") quickSaid = a;
     if (kind === "full" && stored) a = upgradeStored(stored.answer, Research.researchSchemaFor(ctx.format)) || a;
     if (kind === "full") a = shiftAnswer(a, season.shiftDays);
+    if (kind === "full" && hooks && hooks.full) a = hooks.full(a, { ctx, n });
     if (kind === "full" && reshape) {
       // The quick check as the app read it; an answer it can't read is one that found nothing.
       let quick = null;
@@ -2841,7 +2852,11 @@ async function main() {
   console.log("Usage: node scripts/dev-test/playtest.js matrix|run|exits|summary|judge|compare|says|down <show> <season> (see the header comment)");
 }
 
-module.exports = { quickExits, reshapeLine, exitRank, rankInPlace, placeExits, placedLine, bothExits, bothLine, castMatcher, catchAll, resultsSteps, tapedFull, partialOf, crownedOf, atCrownOf, goingInOf, sameGoingIn, crownBySeason, stillIns, summaryLine, judgeOf, overAt, endOf, gameEnd, gameEpisodes, gameRecord, roughInItOf, stillInIt, defaultLineupOf, poolFallbackOf, stillInBreakOf, inItOf, asksOf, compareOf, compareByGame, ghostsOf, seasonExits, variantOf, changedBy, favourites, lineupTaps, claimTaps, reviewTaps, TAPS, upgradeStored, shiftAnswer, exitsOf, DIMENSIONS, NA, gamesOf, dimsFor, applies, allConfigs, pairsOf, pairwise, replayName, ROLES, seatsFor, hash01, movesThisWeek, prefer, mergeOf, spanOf, settledAt };
+// The harness itself, for blind.js (F4's blind replays): the season's copy, the players, a game's draft and weekly moves, and
+// the results through the bot's own run.
+const harness = { appCode, tsApp, down, copySeason, userFor, couchFor, join, seatIds, stateOf, memberOf, draft, moves, waivers, fileResults, answerJson, castName, pidOf, SLUG, PASSWORD, COUCH };
+
+module.exports = { harness, quickExits, reshapeLine, exitRank, rankInPlace, placeExits, placedLine, bothExits, bothLine, castMatcher, catchAll, resultsSteps, tapedFull, partialOf, crownedOf, atCrownOf, goingInOf, sameGoingIn, crownBySeason, stillIns, summaryLine, judgeOf, overAt, endOf, gameEnd, gameEpisodes, gameRecord, roughInItOf, stillInIt, defaultLineupOf, poolFallbackOf, stillInBreakOf, inItOf, asksOf, compareOf, compareByGame, ghostsOf, seasonExits, variantOf, changedBy, favourites, lineupTaps, claimTaps, reviewTaps, TAPS, upgradeStored, shiftAnswer, exitsOf, DIMENSIONS, NA, gamesOf, dimsFor, applies, allConfigs, pairsOf, pairwise, replayName, ROLES, seatsFor, hash01, movesThisWeek, prefer, mergeOf, spanOf, settledAt };
 
 if (require.main === module) {
   main()

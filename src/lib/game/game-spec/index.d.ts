@@ -201,6 +201,9 @@ export interface FormatGroups {
   lockSure: boolean;
   why: string[];
   played: { sure: boolean; held: Set<string> } | null;
+  /** F4: why an episode the league's own groups would otherwise have answered is off: 'unknown' (played in pairs nobody knew
+   *  going in), 'apart' (played without groups, or nobody in one going in); null on the timeline's own. */
+  off?: "unknown" | "apart" | null;
 }
 /** How a question stands: still to settle, off (nobody went home, right on the line), or what was right (and a count; the
  *  groups the right people were on; a question about each person, each one's verdict by castaway id). */

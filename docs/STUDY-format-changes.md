@@ -6,7 +6,8 @@ research (today's prompt, recorded on the season tapes) said about each change, 
 Written 2026-10-28 on the `engine` branch. Nothing in F1 changed the app, the research prompt or the engine; F2 (2026-10-29)
 built the section proposed here into the prompt on the `engine` branch, and its results are near the end ("F2: the format
 section asked again"); F3 (2026-10-29) built the engine's format state over time from those answers ("F3: the state over
-time", after it).
+time", after it); F4 (2026-10-29) replayed the seasons blind, as if live, through every game the engine plays ("F4: blind
+replays", after F3).
 
 **The proposals at the end (the change vocabulary, the format state's shape and the prompt section) are the user's to
 approve at the merge** that brings F2 to production. Research's prompt is shared by every show's research, production's
@@ -17,8 +18,7 @@ included, so F2 changes it on the `engine` branch only.
 - **The ground truth**: each season's Wikipedia page, read from its raw wikitext (the revision is in each file) and
   hand-checked: the format section, the game summary (who went home and how) and, for The Challenge, the team-progress
   table (who was paired or teamed with whom, episode by episode). It's stored as data in
-  `tests/fixtures/format-timelines/<show>-<season>.json`, under the tapes' cast names (The Challenge 39 isn't on tape: it
-  uses Wikipedia's short names). A grouping is a list of **spells**: who was with whom, from when it took effect (an
+  `tests/fixtures/format-timelines/<show>-<season>.json`, under the tapes' cast names (The Challenge 39's moved to them in F4, once it was on tape). A grouping is a list of **spells**: who was with whom, from when it took effect (an
   episode's start, or partway through it) and when viewers learned of it (shown at an episode's start, mid-episode or end).
 - **What research said**: the season tapes (`C:\Users\conor\rfl-tapes`, [PLAN-playtests.md](PLAN-playtests.md)). The
   Challenge 41, The Challenge 40 and The Traitors 4 were recorded on 2026-10-28 with today's prompt. Survivor 49's research
@@ -31,7 +31,7 @@ included, so F2 changes it on the `engine` branch only.
   (`stateAtEnd`: the groups as known at an episode's end).
 - **Seasons**: The Challenge 41 (*Vets & New Threats*: rotating pairs, an individual episode, locked pairs, a claim), 40
   (*Battle of the Eras*: era teams, then individual), 39 (*Battle for a New Champion*: new pairs or teams every episode,
-  then individual; not on tape, so its timeline only), Survivor 49 (two swaps and the merge) and The Traitors 4 (a Secret
+  then individual; on tape since 2026-10-29, after F1, so F1's tables had its timeline only), Survivor 49 (two swaps and the merge) and The Traitors 4 (a Secret
   Traitor, a recruit, the Dagger). The Challenge 40 finished recording its full research during this step and is now
   loaded into this lane's database too (its first golden replay: 22 games, 3,772 reads, every one the same).
 
@@ -133,7 +133,7 @@ prompt would ask `newGroup` (each person's new tribe) and `merged`, which the en
 (rulesNote, 5), the Dagger (rulesNote, 7), Eric's recruitment (**`recruitedAsTraitor`, acted on**, 9; the ultimatum in 8's
 summary), the endgame (summary, 11). No groupings: everyone plays for themselves, with secret roles.
 
-**The Challenge 39** (not on tape): Control (everyone together, 1-4), Chaos (pairs or teams drawn every episode, 5-14:
+**The Challenge 39** (on tape since 2026-10-29, after this study; its research is in the appendix's table): Control (everyone together, 1-4), Chaos (pairs or teams drawn every episode, 5-14:
 pairs, then three teams, six teams, two teams, pairs and a trio, two teams, four teams four times), Conquest
 (individual, 15-17), the final (as a group, then random pairs per checkpoint, then individual). The hardest case for any
 game built on groups: nothing lasts.
@@ -597,6 +597,117 @@ F3's second part puts the state over time to work (the plan's F3 has the details
   that survive a correction (today a group's id carries the episode it was first shown).
 - **A11's teams** and **A12's stages** read the timeline from the database the same way (`db/format-timeline.js`).
 
+## F4: blind replays (2026-10-29)
+
+F4 replayed each studied season as if it were live, through every game the engine plays, with each format change arriving
+only in its episode's research (`node scripts/dev-test/blind.js run`; the plan's F4 says how it's built). In short:
+
+- **The games**: every ✅ row of the capability tracker, each spec once, checked on the season by the engine lab's own check;
+  those that play were made before the premiere, from what was known then (the season's rules, and of its format nothing),
+  with four players of the friend-group archetypes answering every question by habit. A group question asked each episode
+  played twice, void by default and following the people, and The Challenge got its own (which pair or team wins the daily
+  challenge), since the tracker's is Survivor's tribe immunity.
+- **The research**: the tape's answers, with the format section they don't have. Where F2 asked an episode again with today's
+  prompt (23 of the 88), the local bot's own answer, mistakes and all; elsewhere a stand-in from F1's fixture at the episode's
+  end, as research would say it if it were right. Who went home is the fixture's (the tapes get a few wrong), so a held exit
+  doesn't stand in for a format change. The local bot didn't answer during F4, so nothing new was asked; a run of whole
+  seasons with today's prompt would replace the stand-ins (the plan's Noticed).
+- **What it proves**: the engine's side, through every change on five seasons: every game kept playing, scored only what
+  was settled, and ended, its questions settled but for those waiting on an episode whose results stayed early. Research's side (how often the section is right) is F2's proof.
+
+**What it found, fixed in the grader** (each would have scored nonsense through a change nobody announced):
+
+1. **A paired season's premiere was graded on labels.** The Challenge 41's "which pair wins" offered the league's own groups at
+   the premiere, the cast list's Vets and New Threats; every pair is one of each, so everyone who answered was right. Now an
+   episode research says was played in pairs, when nothing said so going in, is off once its research lands (no points
+   either way). The picker at the premiere still offers the labels, since nothing is known then: the plan's Noticed has the
+   recommendation (read the rulebook's "groups change all the time").
+2. **Groups the league holds that nobody plays in were graded.** The Challenge 40's eras are its cast list's groups, but they
+   were teams only in Episodes 3 to 9: in 1 and 2 everyone played together (all four eras were right) and from 10 each for
+   themselves (graded on the daily winner's era). Now an episode played without groups, or with nobody in a group going in,
+   is off, and nothing is offered at its lock. Survivor after its merge reads the same way; its tribes before it are as before.
+
+**What it found and left:** a question about The Challenge 41's finale never settles: the finale's results stay early (the
+playtest report's finding 20), so its moments never come in. Settling it in the grader (off once the game is over) would read
+every finale moment question off through the hours before the full research on every finale night, so the fix is finding
+20's (the plan's Noticed), and the replay reports such questions as waiting on early results, not as a game that didn't end.
+And The Challenge 39's fixture had no final (F1 recorded nobody leaving in 18 and 19), so its first blind replay crowned
+nobody: the final is in the fixture now, from the same Wikipedia revision.
+
+### The seasons, replayed
+
+`node scripts/dev-test/blind.js summary --md`. "Sections": the episodes whose format section is the local bot's own (F2's)
+against F1's stand-in. "Sure changes" and "Held": what the timeline called sure (a game's structure would move on it) and what
+it held as unsure, every kind (twists and phases too). "Waiting on early results": games with a question still waiting on an
+episode whose results stayed early (finding 20).
+
+| Season | Episodes | Sections (bot / stand-in) | Sure changes | Held | Games | Played through | Over | Waiting on early results |
+|---|---|---|---|---|---|---|---|---|
+| Survivor 49 | 13 | 6 / 7 | 5 | 1 | 69 | 69 | 69 | 0 |
+| The Challenge 39 (Battle for a New Champion) | 21 | 0 / 20 | 16 | 0 | 51 | 50 | 51 | 1 |
+| The Challenge 40 (Battle of the Eras) | 21 | 5 / 16 | 8 | 1 | 51 | 50 | 51 | 1 |
+| The Challenge 41 (Vets & New Threats) | 21 | 8 / 13 | 18 | 5 | 51 | 51 | 51 | 3 |
+| The Traitors 4 | 12 | 4 / 8 | 8 | 0 | 51 | 51 | 51 | 0 |
+
+Every game ended on every season. The two not "played through" are the same game (the tracker's w072, "will anyone quit this
+season?", asked once): nobody quit on The Challenge 40 or 39, and "no" waits for every episode's moments, while The Challenge
+40's finale and The Challenge 39's Episode 3 stayed early. The replay classes that as finding 20's now (a later run reports
+it under "waiting on early results"). Of the tracker's 81 distinct specs, 51 play on each Challenge season and The Traitors 4,
+and 69 on Survivor 49 (the rest name a moment, a phase or a role those shows don't have: an idol, the merge, secret roles).
+
+**The Challenge 41**, the hard test (rotating pairs every episode in 1-8, an individual episode at 9, the Lock In's pairs from
+10, the claim at 16, a newcomer at 5). "Which pair or team wins the daily challenge?", void by default and following the
+people, lock by lock:
+
+| Ep | Void by default | Following the people |
+|---|---|---|
+| 1 | 2 offered (the labels); off | 2 offered; off |
+| 2 | none offered; off (the premiere's report can't be checked) | 15 offered; right: Leka Sodade & Turbo |
+| 3-8 | 15, 14, 14, 13, 12, 11 offered: each episode's new pairs; the winning pair right | the same |
+| 9 | 10 offered; off (played alone) | 10 offered; off |
+| 10 | 12 offered (the Lock In's); right: Michaela Bradshaw & Cedric Hodges | the same |
+| 11 | none offered; off (10's answer contradicted itself) | 11 offered; right: Derrick Kosinski & Dee Valladares |
+| 12-15 | 10, 9, 8, 7 offered; the winning pair right | the same |
+| 16 | 6 offered; off (the claim partway: unsure) | 6 offered; right: Turbo & Sydney Segal |
+| 17 | none offered; off | 5 offered; right: Turbo & Sydney Segal |
+| 18 | 4 offered; off | 4 offered; off |
+| 19 | 4 offered; waiting (the finale's results stayed early) | the same |
+| 20-21 | none offered; off | the same |
+
+Every re-pairing reached the next lock as its new pairs, the Lock In's twelve pairs from 10, the newcomer (Jonna Mannion) on
+the checklist from 6 and in her pair (Jake Cornish & Jonna Mannion; only Jake resolves to the cast until a person adds her), and
+the tapes' wrong exits made right (Gabe Wai and Jonna Mannion at 11, Leonardo Dionicio at 14).
+
+**The Challenge 40** (everyone together in 1-2, the eras as teams in 3-9, each for themselves from 10): the group question is
+off at 1 and 2, graded on the eras in 3-9, and off from 10 (none offered from 11). The eras are the league's own groups (the
+cast list's), so they read as Survivor's tribes do; the timeline only says when nobody plays in them.
+
+**The Challenge 39** (everyone in 1-4, pairs or teams drawn at the start of nearly every episode in 5-14, each for themselves
+from 15): off in 1-5 (3 waiting on its early results) and from 15; the drawn pairs at 6 and 10 void for whoever picked
+(re-drawn at the start); but the named teams are staged as tribe moves, so each lock offered the teams the league then had
+and the episode was graded on its new ones: at 7, 8, 11 and 14 the right team wasn't on offer, and at 13 it was by name only
+(Team 1 to 4 were drawn afresh each episode in 11-13 under the same names).
+That one is the plan's Noticed (a pick of a group that didn't play as offered, on the league's own groups: void, recommended),
+with Survivor's swaps, which read the same way by name.
+
+**Survivor 49** (two swaps and the merge): the tribe question offered the tribes each lock from 2 (the premiere offered none:
+Noticed), followed the swaps at 4 and 6 by the staged tribe moves (graded on the new tribes by name), and is off from the merge
+(7) on. The split immunity at 8 (two teams for one challenge) was held, never acted on.
+
+**The Traitors 4**: no groups; the twists (the Secret Traitor, the Dagger) and the recruit came as twists and a role, never
+moving a game's structure; every game, its secret-role questions among them, ended.
+
+### What it means for A10 to A12
+
+- **A10's group slots** read the same groups a group question does: the void default holds up (a re-drawn pair, an unsure
+  lock, the premiere), and the open item above (a group that didn't play as offered, on the league's own groups) needs its
+  answer before a slot holds a tribe or a drawn team. Group ids still carry the episode a group was first shown (F3 part 2's
+  item).
+- **A11's teams** and **A12's stages** read `playedIn` and `stageTriggers`: on these seasons every sure trigger was right
+  (re-pairings, the Lock In, the swaps, the merge, the eras as teams and their split); the held ones were the premiere's, 10's
+  contradicted answer, the claim at 16, the finale's split and Survivor 49's split immunity.
+- **The blind replay is the check for each of them**: `blind.js run` after each step that touches a reader of the format.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it
@@ -637,45 +748,45 @@ tribe lifetimes, exact members (an exit ends it): 18 groups; 15 lasted 1, 1 last
 
 | Ep | Phase | Played as | teams in play | Went home |
 |---|---|---|---|---|
-| 1 | Control | everyone | none | Jessica (eliminated) |
-| 2 | Control | everyone | none | Chauncey (eliminated) |
-| 3 | Control | everyone | none | Jujuy (eliminated) |
-| 4 | Control | everyone | none | Hughie (eliminated) |
-| 5 | Chaos | pairs | 10 × 2 | Ciarran (eliminated) |
+| 1 | Control | everyone | none | Jessica Brody (eliminated) |
+| 2 | Control | everyone | none | Chauncey Palmer (eliminated) |
+| 3 | Control | everyone | none | Jujuy Jiménez (eliminated) |
+| 4 | Control | everyone | none | Hughie Maughan (eliminated) |
+| 5 | Chaos | pairs | 10 × 2 | Ciarran Stott (eliminated) |
 | 6 | Chaos | teams | Blue 6, Red 6, Turquoise 7 | - |
-| 7 | Chaos | teams | Team 4 4, Team 6 3, Team 5 3, Team 3 3, Team 1 3, Team 2 3 | Callum (eliminated) |
-| 8 | Chaos | teams | Blue 9, Orange 9 | Big T (eliminated) |
-| 9 | Chaos | pairs | 7 × 2 + 1 × 3 | Melissa (eliminated) |
+| 7 | Chaos | teams | Team 4 4, Team 6 3, Team 5 3, Team 3 3, Team 1 3, Team 2 3 | Callum Izzard (eliminated) |
+| 8 | Chaos | teams | Blue 9, Orange 9 | Big T Fazakerley (eliminated) |
+| 9 | Chaos | pairs | 7 × 2 + 1 × 3 | Melissa Reeves (eliminated) |
 | 10 | Chaos | teams | Orange 8, Blue 8 | - |
 | 11 | Chaos | teams | Team 3 4, Team 2 4, Team 1 4, Team 4 4 | - |
 | 12 | Chaos | teams | Team 1 4, Team 4 4, Team 3 4, Team 2 4 | - |
 | 13 | Chaos | teams | Team 2 4, Team 4 4, Team 1 4, Team 3 4 | - |
-| 14 | Chaos | teams | Blue 4, Turquoise 4, Yellow 4, Orange 4 | Asaf (eliminated) |
-| 15 | Conquest | individuals | none | Ravyn (purged), Zara (eliminated) |
-| 16 | Conquest | individuals | none | Ed (purged), Horacio (eliminated), Kyland (eliminated) |
-| 17 | Conquest | individuals | none | Michele (purged), James (eliminated), Olivia (eliminated) |
-| 18 | Final | mixed | none | - |
-| 19 | Final | mixed | none | - |
+| 14 | Chaos | teams | Blue 4, Turquoise 4, Yellow 4, Orange 4 | Asaf Goren (eliminated) |
+| 15 | Conquest | individuals | none | Ravyn Rochelle (purged), Zara Zoffany (eliminated) |
+| 16 | Conquest | individuals | none | Ed Eason (purged), Horacio Gutiérrez Jr. (eliminated), Kyland Young (eliminated) |
+| 17 | Conquest | individuals | none | Michele Fitzgerald (purged), James Lock (eliminated), Olivia Kaiser (eliminated) |
+| 18 | Final | mixed | none | Jay Starrett (eliminated) |
+| 19 | Final | mixed | none | Moriah Jadea (eliminated), Berna Canbeldek (placed), Corey Lay (placed), Colleen Schneider (placed), Nurys Mateo (placed), Emanuel Neagu (won) |
 | 20 | Reunion | none | - | - |
 
 | Took effect | Kind | Brought in | What | Research said | The engine today |
 |---|---|---|---|---|---|
-| 1 | twist | at the start | The prize pot moves with challenges and eliminations. | not on tape | - |
-| 5 | pairs-formed | at the start | 10 × 2. Drawn for the episode's challenge (at random, or by where people stood). | not on tape | - |
-| 5 | new-phase | at the start | Chaos: pairs or teams, and a former champion in every Arena (the Draw). | not on tape | - |
-| 6 | teams-formed | at the start | Blue 6, Red 6, Turquoise 7. Drawn for the episode's challenge (at random, or by where people stood). | not on tape | - |
-| 7 | swap | at the start | every group new. Drawn for the episode's challenge (at random, or by where people stood). | not on tape | - |
-| 8 | swap | at the start | every group new. Drawn for the episode's challenge (at random, or by where people stood). | not on tape | - |
-| 9 | pairs-formed | at the start | 7 × 2 + 1 × 3. Drawn for the episode's challenge (at random, or by where people stood). | not on tape | - |
-| 10 | teams-formed | at the start | Orange 8, Blue 8. Drawn for the episode's challenge (at random, or by where people stood). | not on tape | - |
-| 11 | swap | at the start | every group new. Drawn for the episode's challenge (at random, or by where people stood). | not on tape | - |
-| 12 | swap | at the start | every group new. Drawn for the episode's challenge (at random, or by where people stood). | not on tape | - |
-| 13 | swap | at the start | every group new. Drawn for the episode's challenge (at random, or by where people stood). | not on tape | - |
-| 14 | swap | at the start | every group new. Drawn for the episode's challenge (at random, or by where people stood). | not on tape | - |
-| 15 | split-into-individuals | at the start | Conquest: everyone for themselves. | not on tape | - |
-| 15 | new-phase | at the start | Conquest: individual, last place purged, a chain of safety. | not on tape | - |
-| 16 | twist | mid-episode | Double eliminations in 16 and 17. | not on tape | - |
-| 18 | new-phase | at the end of the episode before | The final. | not on tape | - |
+| 1 | twist | at the start | The prize pot moves with challenges and eliminations. | E1: rulesNote ("pot"), summary ("pot") | can't act (free text) |
+| 5 | pairs-formed | at the start | 10 × 2. Drawn for the episode's challenge (at random, or by where people stood). | E5: rulesNote ("pair"), summary ("pair"), notableTwist names 1 of 10 groups | can't act (free text) |
+| 5 | new-phase | at the start | Chaos: pairs or teams, and a former champion in every Arena (the Draw). | E5: rulesNote ("chaos", "champion"), summary ("chaos", "champion"), notableTwist (1 notes); E6 (late): summary ("champion"), notableTwist (1 notes) | can't act (free text) |
+| 6 | teams-formed | at the start | Blue 6, Red 6, Turquoise 7. Drawn for the episode's challenge (at random, or by where people stood). | E6: summary ("team"), notableTwist names 1 of 3 groups | can't act (free text) |
+| 7 | swap | at the start | every group new. Drawn for the episode's challenge (at random, or by where people stood). | E8 (late): newGroup on 18 | acts on it, late |
+| 8 | swap | at the start | every group new. Drawn for the episode's challenge (at random, or by where people stood). | E8: newGroup on 18 | acts on it |
+| 9 | pairs-formed | at the start | 7 × 2 + 1 × 3. Drawn for the episode's challenge (at random, or by where people stood). | E10 (late): summary ("lock-in", "lock in") | can't act (free text) |
+| 10 | teams-formed | at the start | Orange 8, Blue 8. Drawn for the episode's challenge (at random, or by where people stood). | E10: summary ("team"); E11 (late): summary ("team") | can't act (free text) |
+| 11 | swap | at the start | every group new. Drawn for the episode's challenge (at random, or by where people stood). | nothing | nothing to act on |
+| 12 | swap | at the start | every group new. Drawn for the episode's challenge (at random, or by where people stood). | nothing | nothing to act on |
+| 13 | swap | at the start | every group new. Drawn for the episode's challenge (at random, or by where people stood). | nothing | nothing to act on |
+| 14 | swap | at the start | every group new. Drawn for the episode's challenge (at random, or by where people stood). | E14: notableTwist names 1 of 4 groups; E15 (late): newGroup on 15 | acts on it, late |
+| 15 | split-into-individuals | at the start | Conquest: everyone for themselves. | E15: rulesNote ("individual"), summary ("individual"), notableTwist (9 notes); E16 (late): summary ("individual") | can't act (free text) |
+| 15 | new-phase | at the start | Conquest: individual, last place purged, a chain of safety. | E15: rulesNote ("conquest"), summary ("conquest"), notableTwist (13 notes); E16 (late): rulesNote ("conquest"), summary ("conquest", "purge"), notableTwist (3 notes) | can't act (free text) |
+| 16 | twist | mid-episode | Double eliminations in 16 and 17. | nothing | nothing to act on |
+| 18 | new-phase | at the end of the episode before | The final. | E17: summary ("final"); E18: summary ("final"), notableTwist (6 notes); E19 (late): summary ("final"), notableTwist (4 notes) | can't act (free text) |
 
 team lifetimes, an exit doesn't end it: 47 groups; 47 lasted 1; longest 1, median 1
 

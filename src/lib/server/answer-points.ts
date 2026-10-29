@@ -47,8 +47,9 @@ export const readsTimeline = Spec.readsTimeline;
 /**
  * The groups a game's group questions read from the season's format state over time (F3 part 2: format-timeline.js groupFacts),
  * by episode, when it asks one each episode and its season is played in groups the league doesn't hold (The Challenge's pairs:
- * research's format section, never staged as moves); undefined otherwise, and every episode of a season in named tribes or
- * teams (Survivor) reads the league's own as before. Worked out on read from the season's stored research (one query each
+ * research's format section, never staged as moves); undefined otherwise. A season in named tribes or teams (Survivor) reads
+ * the league's own while they're played, and since F4 an episode the timeline knows nobody played in them (after a merge, The
+ * Challenge 40's eras outside 3-9) is off, with nothing offered. Worked out on read from the season's stored research (one query each
  * time: research that just landed is read at once), never stored. Members are matched to the view's castaways the forgiving way (Core.findCastawayByName), and
  * every lock up to the league's latest episode is covered: one past the last report is the timeline's, unsure.
  */
