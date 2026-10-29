@@ -19,7 +19,8 @@
 //   6. jordan takes his answer back; riley can't (it touched games she doesn't run). The never-reviewed result was
 //      never shown, counted or applied, and no real season has a pending result with a status.
 //   7. Screens at --width: Backstage › Results (who can fill them in, filled in by, the disputed card, corrections,
-//      flags), the episode page's plate and ruling, the Episodes row, the Cast tab's "1 source" and its flag. Nothing
+//      flags), the episode page's corrections (closed above "Something wrong?", then opened: the plate and ruling), the
+//      Episodes list with no correction rows, the Cast tab's "1 source" and its flag. Nothing
 //      wider than the screen; no page errors.
 // Screenshots go to <outDir>.
 //
@@ -34,6 +35,7 @@ const path = require("path");
 const { Pool } = require("pg");
 const { open, api } = require("./browser");
 const fixture = require("./new-fixture");
+const { openCorrections, noCorrectionRows } = require("./corrections");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("check-new-community runs against a local database only");
@@ -272,8 +274,8 @@ function fullAnswer(prompt, { danny = true, eric = true, devin = true } = {}) {
     const corr = await lines("lineup", "results.correction");
     check(corr.length === 1 && corr[0].text === "Episode 6 corrected" && corr[0].detail.facts[0].name === "Eric Macksoud" && corr[0].detail.facts[0].change === "removed", "a correction line in the game, naming nobody in its text", JSON.stringify(corr.map((c) => c.text)));
     check((await lines("extra", "results.correction")).length === 1, "and in couch B's game");
-    const eps = (await as.jordan.call("GET", `/api/seasons/${sid}/episodes${A}`)).body;
-    check(eps.corrections.length === 1 && eps.corrections[0].episode === 6 && eps.corrections[0].change === "removed", "Episodes: Episode 6 corrected", JSON.stringify(eps.corrections));
+    const res6c = (await as.jordan.call("GET", `/api/seasons/${sid}/results/6${A}`)).body;
+    check(res6c.corrections.length === 1 && res6c.corrections[0].episode === 6 && res6c.corrections[0].change === "removed", "Episode 6 corrected (its results)", JSON.stringify(res6c.corrections));
     const bs3 = (await as.alex.call("GET", `/api/seasons/${sid}/backstage${A}&episode=6`)).body;
     check(bs3.fill.episodes.find((e) => e.episode === 6)?.sources === 2, "Backstage: Episode 6 now has 2 sources");
     check(bs3.flags.find((f) => f.who === "zt_nd_jordan")?.status === "upheld" && bs3.corrections[0]?.decisionId === ericId, "Backstage: jordan's flag upheld, and the correction to keep or not");
@@ -324,11 +326,16 @@ function fullAnswer(prompt, { danny = true, eric = true, devin = true } = {}) {
     check(res6b.rulings.length === 3 && res6b.corrections[0]?.ruling?.by === "zt_nd_alex", "players see the ruling on Episode 6", JSON.stringify(res6b.rulings).slice(0, 200));
 
     await j.page.goto(`${j.BASE}/show/${sid}/episodes`);
-    await j.page.locator("[data-correction-row='6']").waitFor({ timeout: 20000 });
-    check((await j.page.locator("[data-correction-row='6']").innerText()).toLowerCase().includes("house ruling"), "Episodes: Episode 6 corrected · house ruling");
-    await shot(j.page, "episodes-correction");
-    await j.page.locator("[data-correction-row='6']").click();
+    await noCorrectionRows(j.page, check);
+    await shot(j.page, "episodes-no-correction-rows");
+    await j.page.locator("[data-ep='6']").click();
+    await j.page.locator("[data-episode-page='6']").waitFor({ timeout: 20000 });
+    await j.page.locator("[data-corrections]").scrollIntoViewIfNeeded();
+    await shot(j.page, "episode-corrections-closed");
+    const plates6 = await openCorrections(j.page, check, { count: res6b.corrections.length, rulings: res6b.corrections.filter((c) => c.ruling).length, where: "jordan's Episode 6" });
+    check(plates6.some((p) => /Eric · /.test(p)), "jordan's Episode 6: Eric's reward, corrected", plates6.join(" | "));
     await j.page.locator("[data-house-ruling]").waitFor();
+    check(/still counts in your games/.test(await j.page.locator("[data-house-ruling]").innerText()), "jordan's Episode 6: the house ruling, opened");
     await fits(j.page, "the episode page");
     await shot(j.page, "episode-ruling");
 
@@ -376,8 +383,10 @@ function fullAnswer(prompt, { danny = true, eric = true, devin = true } = {}) {
     await fits(j.page, "the castaway's story");
     await shot(j.page, "story-1-source");
     await j.page.locator("[data-story-flag='6']").click();
-    await j.page.locator("[data-dispute=what]").waitFor();
-    check((await j.page.locator("[data-dispute=what]").innerText()).toLowerCase().includes("immunity"), "its flag opens Something wrong at Danny's results");
+    // The sheet reads Episode 6's results itself: its rows, not its loading block.
+    await j.page.locator("[data-dispute=what] [data-dispute-what]").first().waitFor({ timeout: 10000 });
+    const danny6 = await j.page.locator("[data-dispute=what]").innerText();
+    check(danny6.toLowerCase().includes("immunity"), "its flag opens Something wrong at Danny's results", danny6);
     await shot(j.page, "story-flag");
 
     for (const [who, b, list] of [["jordan", j, jFailed], ["alex", a, aFailed]]) {

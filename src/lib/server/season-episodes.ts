@@ -8,7 +8,6 @@ import { pool, HttpError } from "./db";
 import { EVERYTHING } from "./guard";
 import { markRevealed } from "./reveal";
 import { seasonVerdicts, type EpisodeVerdictLine } from "./ratings";
-import { couchCorrections, type Correction } from "./rulings";
 import { DEFAULT_RUNTIME_MIN, finalAtOf, seasonSchedules } from "./schedule";
 import type { ReadOnly } from "./read-only";
 import { gamesHere, type GameHere } from "./season-games";
@@ -67,8 +66,6 @@ export interface SeasonEpisodes {
   toAir: { from: number; to: number | null } | null;
   /** A player's quiet "Full scores need one paste" (step 6b): the newest episode you've seen with only its early results, when the couch lets anyone fill them in. */
   fill: { episode: number } | null;
-  /** Corrections the shared check made to the couch's games, for episodes you've seen (step 6b). */
-  corrections: Correction[];
 }
 
 /** A game you joined late and are still catching up in (StateLogic.GhostLogic). */
@@ -187,7 +184,6 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
     stillIn: view ? view.castaways.filter((c) => c.status !== "eliminated").length : null,
     toAir: count === null || highest < count ? { from: highest + 1, to: count } : null,
     fill,
-    corrections: couchId && here.length ? await couchCorrections(here.map((h) => h.game.leagueId), mark, user.id) : [],
   };
 }
 

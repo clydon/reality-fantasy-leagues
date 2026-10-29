@@ -197,7 +197,11 @@ Last updated 2026-10-27.
       (keep-up's auto, late joiners); it only picks the push's words and link.
     - The push doesn't say what changed since the early results: the data has that only per Weekly Lineup seat (the morning
       update shows it).
-    - **When:** whichever session next touches sheets, the desk's Research page, results-ways or the push.
+    - Since corrections folded into a closed section (b5766d89), the results API's `rulings` field is read only by checks:
+      one `league_rulings` query per episode page open that nothing shows.
+    - A house ruling's count and plate say "in your games" for the couch's games as a whole, so one kept in only some of
+      them reads as all (the lookup is per decision, not per game). Pre-existing wording.
+    - **When:** whichever session next touches sheets, the desk's Research page, results-ways, the push or corrections.
 
 ## Decided against (don't re-propose without new information)
 

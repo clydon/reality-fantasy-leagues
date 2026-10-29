@@ -19,7 +19,7 @@ import { CallResults } from "./calls";
 import { SheetResultRow } from "./questions";
 import { BingoResults } from "./bingo";
 import { ShowChangeCard } from "./show-change";
-import { CorrectionPlates, CorrectionRow, SomethingWrong } from "./something-wrong";
+import { EpisodeCorrections, SomethingWrong } from "./something-wrong";
 import { playsWaivers, WaiverEpisodeRow } from "./waivers";
 import { RecapsCard } from "./recaps";
 
@@ -28,10 +28,11 @@ import { RecapsCard } from "./recaps";
 // until you reveal (Reveal), one that's aired and waiting for results, and each one you've seen with who went home
 // and your line, opening its own page (?page=ep4: who went home, your games, the top scorers, what happened). Real
 // (GET /api/seasons/[id]/episodes, through the guard). A waiver week sits between the two episodes it falls between
-// (waivers.js's row): open, it goes to the Waivers page; run, to its own page in picking order (step 6a). A correction the
-// shared check made to the couch's games is a line of its own at the top, and a plate on the episode's page, which ends
-// with "Something wrong in this episode?" (step 6b, something-wrong.tsx). Each episode you've seen carries the couch's verdict
-// and your stars (step 12 part 1, rate.tsx): a show you only watch opens Rate it from the row, a show you play from its page.
+// (waivers.js's row): open, it goes to the Waivers page; run, to its own page in picking order (step 6a). The corrections
+// the shared check made to the couch's games are on the episode's page only, closed just above the "Something wrong in
+// this episode?" it ends with (step 6b, something-wrong.tsx), never lines in this list. Each episode you've seen carries
+// the couch's verdict and your stars (step 12 part 1, rate.tsx): a show you only watch opens Rate it from the row, a show
+// you play from its page.
 // A streaming season (step 14; the mock's streaming.js wEpisodes): the drop instead of this week's episode, "All 8 out ·
 // Netflix", and a season you only watch from Episode 1 down, the way you'll watch it.
 
@@ -136,9 +137,6 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
           <div aria-busy className="h-56 animate-pulse rounded-[4px] bg-card" />
         ) : (
           <>
-            {(eps.corrections ?? []).map((c) => (
-              <CorrectionRow key={`${c.episode}-${c.decisionId}`} c={c} />
-            ))}
             {list.map((e) => (
               <div key={e.number} className="contents">
                 {waiverRows(weeks(e.number))}
@@ -348,8 +346,7 @@ function EpisodeBody({
   const results = useEpisodeResults(seasonId, couchId, e.number);
   const finalWords = useFinalLine(e.stage, e.finalAt);
   return (
-    <div data-episode-page={e.number} className="mb-10 mt-3 px-4 pb-4 pt-4">
-      <CorrectionPlates results={results.data} />
+    <div data-episode-page={e.number} data-results-in={results.data ? "" : undefined} className="mb-10 mt-3 px-4 pb-4 pt-4">
       {e.stage === "early" && (
         <p className="mb-3 rounded-[3px] bg-card px-3 py-2.5 text-sm text-muted-foreground">Early results: who went home is in. {finalWords ? `${finalWords}.` : "Weekly Lineup’s full scores come later."}</p>
       )}
@@ -420,6 +417,8 @@ function EpisodeBody({
       <BingoResults target={rate} />
       <CouchMomentsCard seasonId={seasonId} couchId={couchId} episode={e.number} />
       <ShowChangeCard seasonId={seasonId} couchId={couchId} episode={e.number} seasonName={seasonName} />
+      {/* Keyed: the page keeps its body from one episode to the next, and each opens closed. */}
+      <EpisodeCorrections key={e.number} results={results.data} />
       <SomethingWrong seasonId={seasonId} couchId={couchId} episode={e.number} />
     </div>
   );
