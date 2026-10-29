@@ -11,9 +11,10 @@ Settings regrouped, the Viewing as bar; 1b: a person's actions, Let in, Act as t
 them signing in and Let them back in, with migration 0420; 1c: their couches and games, a seat's sheet, Hand on and Delete
 <name>'s account, no migration; their As built is under step 1). **Step 2 ready to merge at 28901f65** (the Inbox: Needs you
 most urgent first with each item's row to act on, Coming up, Find › Reports and a report's page, the couch nobody runs
-handed on through Hand on, Let in told by email; migration 0421; its As built is under step 2); **part 3a done at 75052bc8** (a season's
-Setup: Name, Status held over its listing's dates, Who decides results, the schedule as it reads, the season's Delete;
-migration 0422; its As built is under step 3); **part 3b (Setup's schedule) is next.** Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
+handed on through Hand on, Let in told by email; migration 0421; its As built is under step 2); **Step 3 ready to merge at 3df4e790: parts 3a and 3b** (a season's
+Setup: Name, Status held over its listing's dates, Who decides results, the season's Delete, migration 0422; its schedule:
+When it airs and Episodes previewed then saved, times and a count by hand holding over the listing's, a TV listing found,
+linked and unlinked, migration 0423; their As built is under step 3); **part 4a (Research and the bot) is next.** Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
 either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
@@ -481,6 +482,58 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    reach) counts deleted games and leaves out pools; the season page no longer shows it (its facts are Setup's), but Not
    a group still reaches deleted games: for 5b. (at) Setup's zone names come from classic's `admin-season.ts
    TIME_ZONES`: step 8 keeps it (or moves it) when classic's files go.
+   **As built, part 3b (2026-10-29):** **Setup's schedule** (`src/lib/server/desk-schedule.ts`, `src/new/desk/setup-schedule.tsx`;
+   `POST /api/desk/seasons/[id]/setup` takes `{ when }`, `{ episodes }`, each with `preview: true`, `{ listing }` and `{ unlink }`;
+   `GET /api/desk/seasons/[id]/listings?q=`). The Schedule's rows and the no-schedule panel open their sheets as mocked: **When
+   it airs** (or **Set it by hand** with no schedule): Weekly · Nightly · All at once, the first episode or the drop, the time,
+   the zone; a summary line; What moves (each episode's old and new time, the first three and "and N more") or What it sets
+   (the next episode); lineups and picks in its games lock at the new times, reminders and Coming up move, the bot's check
+   when its bot is on, "From now on your times win over its TV listing's" when they didn't; the warning when aired episodes
+   would land in the future. The server previews it (the clock lineups lock by, `air-schedule.js episodeAirTime`, on the
+   dates the view would read), so the sheet and the save agree. **Episodes**: the stepper and Not known yet, the finale's day,
+   What's cleared (classic's prune), the red "Clear and save" when aired episodes' research goes, Fewer than have aired, what's
+   added. **TV listing**: linked (its times and dates, "Yours win" or "Yours holds" when they do, Find another listing, Unlink
+   it: its times stay, "Kept from its old listing") or **Find it in the TV listings** (TVmaze through `listingsFor`, the show's
+   season with this season's number and what it fills; an ended look-alike, another show's listing once the show has its own,
+   a season another season has, and its own greyed, a tap saying why; nothing found offers Set it by hand). **Use this listing**
+   takes the listing's times, dates, count and every episode's start (`add-show.ts listedSeason`, as the daily job reads it),
+   gives a show with no listing this one, and lets go of what was held (times, count, status: Noticed a's "or says it holds"
+   settled as clearing it, as the mock's What it fills says). **Times by hand win (Noticed b): migration 0423**
+   (`show_seasons.times_held_at`, `count_held_at`, additive; `season_air_dates` recreated with its columns as they were): once
+   When it airs is saved, the season's listing rows stop counting in the view (research's exact starts still do, as the
+   mock's every-episode note says), and a listing read leaves its premiere, finale, release, drop and air time; a count set on
+   the desk holds the same way. `release` and `drop_at` are set from the desk (Noticed c). Each change is a History line
+   (`logDesk` entity 'season', actions when, count, listing, unlink) with Undo through desk-undo.ts's new 'seasonSchedule':
+   refused once it has moved on since; a link's Undo puts the season, its times and its listing rows back from a snapshot,
+   refused if its old listing has been taken since. The Schedule's aside says "Set by hand, by <who>" from the latest standing
+   When it airs line; the bot's clock is nudged after each. **Noticed ar** taken: a linked season held Ended while its dates say
+   it's on reads "not read again while it's held Ended" on its TV listing row and sheet. Setup and the season page have no
+   link left to classic's season setup; Settings' Classic admin line no longer lists it. `desk-dates.ts` holds Setup's date
+   words for both modules; `Btn` gained a `danger` tone. `/code-review` found linking deleting episode recaps (they live on
+   listing rows: now only the times come off), Not known yet clearing the finale's date (an ended linked season would have gone
+   back to Airing), a link's Undo leaving the show's listing, an aired-only correction refused as "Nothing moves" (it saves now,
+   with a line saying only aired episodes change), the search firing on every keystroke (debounced; greyed hits read no
+   episodes), aired episodes past 100 missed, a recap-only row reading as "Kept from its old listing", a binge listing labelled
+   by its weekday, and three queries at once on a transaction's client: all fixed. Check: `check-desk-setup.js` 158 PASS at 390
+   (its own TVmaze stand-in: the show with Seasons 1, 3 and 5, an ended look-alike, another show's Season 3; a listing read run
+   through `listedSeason` on held times and count); check-desk-inbox 106 (its no-schedule item's Setup now leads with Find it
+   and Set it by hand), check-desk-people 249, check-classic-admin 22, check-new-settings 111, unit tests 837; check-new-desk
+   without its rulebook section (a scratch copy, deleted) failed only (ab)'s "every league renames him", as in 3a.
+   **Left behind or changed from classic, and why (decision 10):** classic's Finale date field (the finale's date now follows
+   the count and the times, which the listings' status rule reads; Not known yet keeps the last one); a blank air time meaning
+   8 PM (the desk asks for a time); research's weekday, time and delay (paid auto research, decision 9; the bot's timing is
+   4a's). Classic's prune is ported as it was (results still settling, research and its search index, auto research's tries,
+   and the old wiki read's episodes past the count, kept because `season_air_dates` still reads old wiki dates); its "weekly
+   from the premiere" only schedule becomes Weekly, Nightly or All at once. Classic's schedule fields now hold over the
+   listing's the same way (`times_held_at`, `count_held_at`), so the two agree until step 8.
+   **Noticed, not fixed (3b):** (au) `listing.ts releaseOf` never says nightly, so a nightly season made from its listing
+   reads "Tuesdays 9:00 PM" on When it airs though its episodes' times are right; the found line says Nightly (it reads the
+   gaps). listing.ts is shared with the sports lane: for a later step. (av) A link's Undo gives the show back no listing only
+   when none of its seasons is linked; a show whose seasons were linked before the show had a TVmaze id keeps the one the link
+   gave it. (aw) A lowered count leaves `research_asks` and `bot_research_runs` past it (classic did too): for 4a, which owns
+   Runs. (ax) Each search is up to 1 + 5 + one more per usable hit TVmaze calls, uncached (`listings.ts` fetches no-store);
+   debounced at 400 ms. If the desk ever searches a lot, cache its answers. (ay) The stand-in's season dates are UTC days, so
+   its found line's range can read a day off the linked sheet's (the stand-in only: TVmaze's are the network's days).
 4. **Seasons: research and the bot.** Run now (quick, full, schedule, trivia, bingo), the bot's episode length, each run's
    timing, add or remove a run, reset; an episode's research (paste an answer, discard, clear); auto research; the bingo bank
    (an episode's squares and the season's, hide or show, write by paste). The results queue: an episode's pending results with
