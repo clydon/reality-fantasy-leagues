@@ -23,7 +23,7 @@ at 9f3dc05f: parts 5a and 5b** (5a: a season's Cast, Ask our bot or Paste it, ea
 games with Undo; the season page's Cast row and the Inbox's cast item; migration 0426; 5b: starting groups with Not a group,
 secret roles together, and Hold until Episode 1 without un-approving; a castaway's page under the cast with Override, Look on
 TMDB and TVmaze, Lock and Remove refused while in use, reaching every game; no migration; their As built is under step 5).
-**Step 6 ready to merge at 3eda3131: parts 6a, 6b, 6c and 6d** (6a: Find › Games with a join code from three characters in any state, deleted ones with Restore; a game's page with its Join code and its Delete: Archive offered, restorable 30 days, then for good; migration 0427. 6b: a game's Seats, signed in, empty and out; the seat's sheet from both pages with Act as them, Link another account and Take them out; Link an account with Game admin, the seat taking their name and the couch joined; Put back; Remove a seat; the last-Commissioner guard on each; no migration. 6c: Open <game>, as you when you play it, else read-only in the app's show space as its couch sees it at your own mark, a History line, a site admin's read scope over the couch's game reads and every write refused while it's on; no migration. 6d: Find › Couches, searched by name or who runs it, deleted ones with Restore; a couch's Delete, its games going too and its people off it, told once, restorable 30 days from Couches › Deleted, Restore with Undo, every couch read leaving a deleted one out, a trigger refusing a live game on a deleted couch; migration 0428 (Noticed bq and bw closed); their As built is under step 6). **Part 7a done at f5d3a5a7** (a show on the desk: Find › Shows with Archived's Restore, Browse's Shows row and Find's three; a show's page with Add a season, Its words written into its seasons' rulebooks too, Research sites, Archive and Restore, and its Delete, refused while it has games, by season; migration 0429, two plural words and a trigger clearing a stale one; Noticed s, u, v and y closed, ca-ce new; its As built is under step 7). Part 7b, Art and photos, is next. Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
+**Step 6 ready to merge at 3eda3131: parts 6a, 6b, 6c and 6d** (6a: Find › Games with a join code from three characters in any state, deleted ones with Restore; a game's page with its Join code and its Delete: Archive offered, restorable 30 days, then for good; migration 0427. 6b: a game's Seats, signed in, empty and out; the seat's sheet from both pages with Act as them, Link another account and Take them out; Link an account with Game admin, the seat taking their name and the couch joined; Put back; Remove a seat; the last-Commissioner guard on each; no migration. 6c: Open <game>, as you when you play it, else read-only in the app's show space as its couch sees it at your own mark, a History line, a site admin's read scope over the couch's game reads and every write refused while it's on; no migration. 6d: Find › Couches, searched by name or who runs it, deleted ones with Restore; a couch's Delete, its games going too and its people off it, told once, restorable 30 days from Couches › Deleted, Restore with Undo, every couch read leaving a deleted one out, a trigger refusing a live game on a deleted couch; migration 0428 (Noticed bq and bw closed); their As built is under step 6). **Part 7a done at f5d3a5a7** (a show on the desk: Find › Shows with Archived's Restore, Browse's Shows row and Find's three; a show's page with Add a season, Its words written into its seasons' rulebooks too, Research sites, Archive and Restore, and its Delete, refused while it has games, by season; migration 0429, two plural words and a trigger clearing a stale one; Noticed s, u, v and y closed, ca-ce new; its As built is under step 7). **Part 7b done at c1f0facf** (a show's Art and photos, `/desk/show/<id>/art`: the Header and the Cards in the crops they're used in, each with where it's from, TMDB on its own, Choose one from TMDB or a link, and its framing, dragged and zoomed, tier 1 with Undo; Cast photos by season, Find again, No art or photos; migration 0430, a source and a framing per frame, the framing bound to its image and carried on the image's address to every reader; Up next on the header frame; Noticed x closed, cf-cj new; its As built is under step 7). Part 7c, Settings, is next and ends step 7. Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
 either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
@@ -1449,6 +1449,86 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    check-bingo-bank ("ALL PASS"), check-new-show, check-new-stats and check-new-library pass; unit tests 851 (with
    tests/desk-show-sites.test.js, show-words' plural, new-nav's Shows); check-new-desk without its rulebook section (a
    scratch copy, deleted) passed whole (67).
+   **As built, part 7b (2026-10-29):** **a show's Art and photos** (`/desk/show/<id>/art`, `src/new/desk/art.tsx`; its
+   changes `src/lib/server/desk-show-art.ts`, the finder's columns `show-art.ts`, the framing `src/lib/art-frame.ts`), as
+   mocked: its lower third (Art, Off or No art; "Found on its own", "Its header from a link", "Chosen from TMDB"); **Header**
+   (On its own page) and **Cards** (Posters and the guide), each drawn in its two crops at the mock's shapes (Its page 2.1 and
+   Up next 1.08; Your shows 0.707 and The guide 1.75), with **Where it's from** and **Framing**; **Cast photos** (the newest
+   three seasons, "3 of 3 have photos · TMDB and TVmaze", Wikipedia for a sport, each to its Cast page); **Find art and
+   photos again** (a History line, no Undo: it only fills what's missing); **Switch it off** (No art or photos); History; the
+   show's Delete, last (7a's ShowDeleteRow). The show page's About row "Art and photos" ("From TMDB, on its own · header,
+   cards and cast photos", "Header from a link · cards from TMDB", "Off: its name on a plain card everywhere") replaced the
+   inline Art section. **Where it's from** (a sheet per frame): TMDB, on its own (Recommended; only when something in the
+   frame is held by hand does it change anything: a link goes, a poster or backdrop chosen from TMDB stays until TMDB's own
+   pick replaces it, so a TMDB that doesn't answer never empties a frame); Choose one from TMDB (the desk's Choose art as
+   built, now per frame: the header's backdrops, or the cards' season and show posters); A link (the address checked as an
+   https image address, then loaded out of sight: only one that opens as an image is offered, previewed in both crops with
+   "Loaded: host · 1200 × 675"; else the mock's "That doesn't look like an image's address"; "A link stops TMDB changing
+   it", "Only art we're allowed to show"). **Framing** (a sheet per frame): the whole image (its own shape, read as it loads)
+   with the main crop's window over it, dragged (the window's centre follows the finger) or moved 4% with the arrow keys
+   (a slider with its value said), zoom 1×, 1.25×, 1.5×, 2×, every crop redrawn as it moves, Back to the middle, Save the
+   framing. Each change is tier 1: a line in the show's History and Undo, which puts every art column back (a snapshot of
+   the show's and its seasons'), refused once the art has changed since; Undo of No art or photos turns them back on as they
+   were and looks for the photos again. **Noticed x**, all of it: **migration 0430** (three additive columns and a backfill,
+   rehearsed with the merge): `backdrop_by_hand` (the header held on its own: `art_by_hand` is the poster's alone now, so a
+   link on the header leaves the cards on TMDB, and the other way round; the backfill keeps a by-hand show's existing
+   backdrop held), `art_link` (the cards are a link: it shows on every season's cards over their own posters, as a cards
+   link must; classic's pasted posters stay what they were, the fallback for a season with no poster of its own), and
+   `backdrop_style` (the header's framing). The cards' framing is in `art_style` under `frame` ({ x, y, zoom, url }), beside
+   classic's own x, y and zoom (classic's framing of the show's poster, kept and still drawn wherever that poster is) and its
+   colour and strength. **A framing is bound to the image it was set on** (its `url`): a new image (TMDB's better one, one
+   chosen, a link) starts unframed, so a framing never lands on a picture nobody framed; classic's top-level framing, with no
+   image, frames the show's own poster as classic drew it. **It reaches every reader** by riding on the image's address as
+   a fragment (`…/poster.jpg#frame=64,50,1.25`, which a browser never sends): the server adds it where it hands out a show's
+   art (`show-space.ts seasonHeaders`, the catalog `way-in.ts`), so every screen that passes the address on carries it, the
+   off-limits `start-game.ts` included, and `ShowArt` (`src/new/ui/show-bar.tsx`) draws it the way the mock's svImg does
+   (object-position, and a scale from that point inside a box of its own so a zoom never spills); the landing's tiles read it
+   too. The cards' art is one SQL expression everywhere now (`art-sql.ts cardArtSql`: off, the link, the season's own, the
+   show's), in the show space, the catalog, the bell, and the desk's game and rulebook pages. **Up next** draws the header
+   frame (the backdrop, else the cards'), as the mock's crops say, so the art that grows into the show bar is the same
+   image. Classic reads `art_style` through `classicArtStyle` on `/api/shows` and `/api/shows/art` (the desk's framing in
+   place of classic's only when the desk framed the show's own poster); classic's show page keeps the desk's framing when it
+   saves its own, and its pasted poster resets `art_link`. Checks reach TMDB through a stand-in (`withTmdbFor`, the
+   `x-gys-tmdb` header under `next dev`, as listings and GIFs have; `scripts/dev-test/fake-tmdb.js`).
+   **Left behind or changed from classic, and why (decision 10):** classic's colour and strength (not brought over, as
+   planned: classic still reads them, and the desk never writes them); classic's continuous zoom (1 to 3) and its one framing
+   for the poster as drawn in classic's header (the desk frames each frame in the crops it's used in, four zooms); classic's
+   pasted URL as the only link (a link per frame now, the cards' over every season); the old single "Back to automatic"
+   (TMDB, on its own per frame). Calls made here (Claude's, within the approved screens): the header's unframed default is
+   the show bar's own (50% across, 30% down), so the desk shows what the app draws, and "its framing starts a little above
+   the middle" for a header link; a header with no backdrop shows the cards' art in its crops with a line saying so, and no
+   Framing row (nothing of its own to frame); the source line says "Chosen from TMDB" and "TVmaze's poster until TMDB has
+   one" where the mock had only TMDB or a link; a link is checked by loading it rather than by its extension alone (an
+   image address with none still works); the catalog's unframed tiles are centred (they were 50% 40%), as the desk shows.
+   `/code-review` found these, all fixed: the header's TMDB, on its own emptying it when TMDB didn't answer; classic's paste
+   leaving `art_link` on; classic's save wiping the desk's framing; framing a season's poster deleting classic's framing of
+   the show's poster (hence `frame`); the About row calling a chosen frame "on its own"; a show id that isn't one answering
+   500; the link check written twice (now `art-frame.ts cleanArtLink`).
+   **Noticed, not fixed (7b):** (cf) An art change's Undo snapshot is taken outside a lock: a finder write between a change
+   and its Undo (findArtLater after Add a season, the daily sweep) makes that Undo refused as "changed since", and one landing
+   mid-change would be put back with it. Rare; for whoever next touches show-art.ts. (cg) The cards' framing is per image:
+   framing the newest season's poster leaves the older seasons' own posters unframed, and a new season starts unframed (the
+   desk frames the newest one). (ch) Readers that draw a plain img leave the framing out: the couch hub's 22px show chip,
+   the bell's thumbnails, the desk's own list thumbnails, and push icons (the OS draws those); they're small squares. (ci)
+   Classic's framing of the show's own poster now reaches the new design wherever that poster is drawn (a season with no
+   poster of its own, or a cards link); none of production's seasons draws it today (each has its own poster). (cj)
+   Classic's show page still edits the top-level framing and its preview shows classic's, not the desk's; it goes at step 8.
+   Check: `scripts/dev-test/check-desk-art.js` 100 PASS at 390 (zt_da_ fixture, up and down, code Z7A, TMDB's stand-in and
+   the browser's images served by the check, every real account, league and show's art as it was): a player refused; each
+   frame's url, source, framing and hold, cast photos by season; a link per frame (refused when not https, the other frame
+   left alone, the finder still filling it, every season's cards and the catalog reading the cards' link); framing per frame
+   (refused on an image that changed, a zoom off the four refused, kept with its image, carried by the season's header and
+   the catalog, classic reading its own only); TMDB, on its own (a link going, refused when on its own); Choose art per
+   frame; a season's poster framed beside classic's framing of the show's poster; Undo, refused once moved on; No art or
+   photos (found photos down, every reader empty, nothing set while off, Undo back on and photos found again); then the
+   screens: the About row, the art page (crops, rows, Cast photos to each Cast page, Delete last), A link (a page's address,
+   then an image's, loaded and previewed, used), Framing (zoomed and dragged, the arrow keys, Up next's crop zoomed, Back to
+   the middle, saved), Choose one from TMDB, TMDB on its own, the player's show bar drawing the header's framing (the link,
+   46% 46%, 1.25×), the switch off and back, a show with nothing. check-show-art-ui (its desk part through the new page),
+   check-desk-shows, -couches, -readonly, -seats, -games, -cast, -bingo, -episode, -research, -setup, -inbox and -people,
+   check-classic-admin ("all PASS"), check-new-settings, check-new-settling, check-bingo-bank ("ALL PASS"), check-new-hub,
+   check-new-guide and check-header-art pass; unit tests 859 (tests/art-frame.test.js); check-new-desk without its rulebook
+   section (a scratch copy, deleted) passed whole.
 8. **Classic's admin retires**: `/admin` sends a site admin to the desk; classic's admin pages and `src/lib/admin-store.ts` go.
    So does what only classic used, each checked unused first (decision 9): the wiki read (classic's Pull cast, `db/wiki-sync.js`'s
    pull and its nightly `.github/workflows/wiki-sync.yml`) and paid Claude research's hourly `.github/workflows/auto-research.yml`.
