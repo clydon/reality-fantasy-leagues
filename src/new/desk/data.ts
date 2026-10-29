@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 // opens (nothing polls), and after a write every desk read moves on.
 
 export type { FoundItem, DeskSettings, DeskLine } from "@/lib/server/desk";
+export type { FlagCheck } from "@/lib/server/desk-rulebooks-flag";
 export type { Inbox, InboxItem, ComingUp } from "@/lib/server/desk-inbox";
 export type { DeskReport, ReportRow, ReportsList, ReportFilter } from "@/lib/server/desk-reports";
 export type { DeskFact, DeskSource } from "@/lib/server/desk-facts";

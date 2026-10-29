@@ -313,9 +313,10 @@ export function DeleteRow({ title, line, onClick, off, data }: { title: string; 
 }
 
 /** One choice in a setting's sheet: what it is, Recommended when it is, and what it does. */
-export function ChoiceCard({ on, title, line, recommended, onClick, attrs }: { on: boolean; title: string; line?: string; recommended?: boolean; onClick: () => void; attrs: Record<string, string> }) {
+export function ChoiceCard({ on, title, line, recommended, onClick, attrs, dim }: { on: boolean; title: string; line?: string; recommended?: boolean; onClick: () => void; attrs: Record<string, string>; dim?: boolean }) {
+  // `dim`: there, but not a choice (it says why when tapped).
   return (
-    <button type="button" {...attrs} aria-pressed={on} onClick={onClick} className={`nd-press rounded-[3px] p-3.5 text-left ${on ? "outline-2 -outline-offset-2 outline-foreground" : "bg-background"}`}>
+    <button type="button" {...attrs} aria-pressed={on} aria-disabled={dim || undefined} onClick={onClick} className={`nd-press rounded-[3px] p-3.5 text-left ${on ? "outline-2 -outline-offset-2 outline-foreground" : "bg-background"} ${dim ? "opacity-55" : ""}`}>
       <b className="block text-[16px]">
         {title}
         {recommended && <i className="type-caption ml-1.5 inline-block rounded-[2px] bg-secondary px-1.5 pb-0.5 pt-[3px] align-[2px] text-[11px] not-italic leading-none tracking-[0.06em]">Recommended</i>}

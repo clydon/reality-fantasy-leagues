@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { BookOpen, Check, CheckCheck, ChevronRight, Flag, KeyRound, Lock, RotateCcw, Search, Trophy, Tv, User, Users, Zap } from "lucide-react";
+import { Bot, BookOpen, Check, CheckCheck, ChevronRight, Flag, KeyRound, RotateCcw, Search, Trophy, Tv, User, Users, Zap } from "lucide-react";
 import { colourOf } from "@/lib/people";
 import { NavLink } from "../nav";
 import { paths, type DeskKind, type DeskSeasonPage, type DeskShowPage } from "../routes";
@@ -24,6 +24,7 @@ import { andList } from "./seats";
 import { useDeskStay, useRecentlyOpened } from "./trail";
 import { agoOf, ChoiceCard, DeskHeader, DeskRow, History, IconLead, ItemRow, Section, Tag } from "./parts";
 import { RulebookPage } from "./rulebook";
+import { RulebooksSheet } from "./settings-flag";
 import { EpisodePage } from "./episode";
 import { BingoPage } from "./bingo";
 import { CastPage } from "./cast";
@@ -480,7 +481,14 @@ const SIGNUPS = [
   ["open", "Anyone gets in", "Every new account plays straight away."],
 ] as const;
 
-type SheetKey = "signups" | "confirm" | "tiebreak" | "couches" | "autopilot" | "rulebooks" | "history";
+type SheetKey = "signups" | "confirm" | "tiebreak" | "couches" | "autopilot" | "ai" | "rulebooks" | "history";
+
+/** Which AI our bot asks (part 7c; ask-bot.ts BOT_PROVIDERS): each with what it means; Gemini shown, not a choice. */
+const BOT_AIS = [
+  ["chatgpt", "ChatGPT, signed in", "Our bot's own account on its computer. A full episode takes it about 2½ to 4 minutes."],
+  ["claude", "Claude", "Through the Claude Code CLI on the bot's computer, on its plan."],
+] as const;
+const AI_LINE: Record<DeskSettings["botAi"], string> = { chatgpt: "ChatGPT, signed in · free to us", claude: "Claude, through its CLI · free to us" };
 
 /** A section of Settings: its question, then its rows (the mock's desk-pages.js dkSetSec). */
 function SetSection({ title, line, children }: { title: string; line: string; children: ReactNode }) {
@@ -540,10 +548,10 @@ function ResetLink({ onClick }: { onClick: () => void }) {
 
 /**
  * Settings (the mock's desk-pages.js admSettings), grouped by the question you have: People (who gets in), Results (how a
- * result becomes everyone's), Our bot (Autopilot), Rulebooks (which rules games play by), Changes (Settings history) and
- * Not on the desk yet. Each row says its value, with a dot when it's off its recommended setting; its sheet has Reset to
- * recommended; each change is a toast with Undo and a line in Settings history. Which AI our bot asks and What's New
- * join with step 7.
+ * result becomes everyone's), Our bot (Autopilot; which AI it asks, part 7c), Rulebooks (which rules games play by: a season
+ * at a time, or every season at once after a check, part 7c's settings-flag.tsx), Changes (Settings history) and Not on the
+ * desk yet. Each row says its value, with a dot when it's off its recommended setting; its sheet has Reset to recommended;
+ * each change is a toast with Undo and a line in Settings history. What's New waits for its drafts' mock (decision 8).
  */
 function SettingsTab() {
   const q = useDesk<{ settings: DeskSettings; history: DeskLine[] }>("/settings");
@@ -606,7 +614,7 @@ function SettingsTab() {
         <DeskRow data="tiebreak" onClick={() => setSheet("tiebreak")} lead={<IconLead icon={RotateCcw} />} title="When a result is disputed" line={disputed(s.tiebreak.on)} />
         <DeskRow data="couches" onClick={() => setSheet("couches")} lead={<IconLead icon={Users} />} title="Who fills in results on new couches" dot={!s.newCouchesAnyone} line={`${fill(s.newCouchesAnyone)}${s.newCouchesAnyone ? " · recommended" : ""}`} />
       </SetSection>
-      <SetSection title="Our bot" line="What it looks up on its own.">
+      <SetSection title="Our bot" line="What it looks up on its own, and with which AI.">
         <DeskRow
           data="autopilot"
           onClick={() => setSheet("autopilot")}
@@ -614,6 +622,7 @@ function SettingsTab() {
           title="Autopilot"
           line={s.autopilot.length ? `On for ${plural(s.autopilot.length, "season", "seasons")}: ${s.autopilot.map((a) => a.name).join(", ")}` : "Off for every season"}
         />
+        <DeskRow data="bot-ai" onClick={() => setSheet("ai")} lead={<IconLead icon={Bot} />} title="Which AI our bot asks" dot={s.botAi !== "chatgpt"} line={AI_LINE[s.botAi]} />
       </SetSection>
       <SetSection title="Rulebooks" line="Which rules each season's games play by.">
         <div data-rulebooks-status>
@@ -622,7 +631,7 @@ function SettingsTab() {
             onClick={() => setSheet("rulebooks")}
             lead={<IconLead icon={BookOpen} />}
             title="Games on their season's rulebook"
-            line={rb.everywhere ? "Every season at once" : rb.seasons.length ? `On ${plural(rb.seasons.length, "season", "seasons")}: ${rb.seasons.map((x) => x.name).join(", ")} · every season at once: off` : "Off · games play by their show's rules"}
+            line={rb.everywhere ? `Every season · ${plural(rb.leagues, "league", "leagues")}` : rb.seasons.length ? `On ${plural(rb.seasons.length, "season", "seasons")}: ${rb.seasons.map((x) => x.name).join(", ")} · every season at once: off` : "Off · games play by their show's rules"}
           />
         </div>
         <DeskRow data="library" href={paths.desk("library")} lead={<IconLead icon={BookOpen} />} title="The library" line="Every rulebook and starting point" />
@@ -638,7 +647,7 @@ function SettingsTab() {
       </SetSection>
       {/* Until classic's admin retires (docs/PLAN-desk-parity.md step 8), what the desk can't do yet is done there. */}
       <SetSection title="Not on the desk yet" line="Until classic's admin retires.">
-        <DeskRow data="classic" href="/admin" lead={<IconLead icon={KeyRound} />} title="Classic admin" line="Games, a season's research and cast, shows' details, until the desk has them" />
+        <DeskRow data="classic" href="/admin" lead={<IconLead icon={KeyRound} />} title="Classic admin" line="Only What's New's preview is left there · it goes with step 8" />
       </SetSection>
 
       <Sheet open={sheet === "signups"} onOpenChange={(o) => !o && close()} title="Who gets in" subtitle="When someone makes an account">
@@ -698,17 +707,17 @@ function SettingsTab() {
           )}
         </div>
       </Sheet>
-      <Sheet open={sheet === "rulebooks"} onOpenChange={(o) => !o && close()} title="Games on their rulebook" subtitle="Season by season">
-        <p className="mb-2 text-[13px] leading-snug text-muted-foreground">
-          {rb.everywhere ? "Every season's games play by its rulebook." : "Everywhere else, games play by their show's built-in rules. A season is switched on from its rulebook's page."}
-        </p>
-        <div data-rulebooks-seasons>
-          {rb.seasons.map((x) => (
-            <ItemRow key={x.id} data="season" href={paths.deskItem("season", x.id)} tag="On" title={x.name} line="Its games play by its rulebook" />
+      <Sheet open={sheet === "ai"} onOpenChange={(o) => !o && close()} title="Which AI our bot asks" subtitle="Free to us: it runs on the bot's own computer">
+        <div className="flex flex-col gap-2">
+          {BOT_AIS.map(([v, t, d]) => (
+            <ChoiceCard key={v} attrs={{ "data-bot-ai": v }} on={s.botAi === v} title={t} line={d} recommended={v === "chatgpt"} onClick={() => (v === s.botAi ? close() : put({ botAi: v }, `Our bot asks ${v === "chatgpt" ? "ChatGPT" : "Claude"} from its next question`))} />
           ))}
+          <ChoiceCard attrs={{ "data-bot-ai": "gemini" }} dim on={false} title="Gemini" line="Can't do the research prompts yet." onClick={() => toast.quiet("Gemini can't do the research prompts yet")} />
         </div>
-        <DeskRow lead={<IconLead icon={Lock} />} title="Every season at once" line={rb.everywhere ? "On · switched from the server only" : "Off · switched from the server only"} />
+        {s.botAi !== "chatgpt" && <ResetLink onClick={() => put({ botAi: "chatgpt" }, "Our bot asks ChatGPT from its next question")} />}
+        <p className="mt-3 text-[13px] leading-snug text-muted-foreground">It asks for who went home, full results, the schedule check, trivia, bingo squares, a season&apos;s cast and Make it a game.</p>
       </Sheet>
+      <RulebooksSheet open={sheet === "rulebooks"} onClose={close} rb={rb} />
       <Sheet open={sheet === "history"} onOpenChange={(o) => !o && close()} title="Settings history" subtitle="Every change here, newest first">
         <History lines={history} emptyLine="No settings changed yet." />
       </Sheet>

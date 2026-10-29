@@ -5,7 +5,9 @@ import { undoDesk } from "@/lib/server/desk-undo";
 import { withTmdbFor } from "@/lib/server/show-art";
 
 // History's Undo on the desk (step 6b part 2): one admin change taken back (an art change's may look for art again: a dev
-// server's TMDB stand-in comes from the x-gys-tmdb header).
+// server's TMDB stand-in comes from the x-gys-tmdb header). The rulebooks flag's walks every league (part 7c): its budget.
+export const maxDuration = 300;
+
 export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: string }> }) => {
   const user = await requireDesk(req);
   const { id } = await params;

@@ -3,7 +3,9 @@ import { TIEBREAK_AFTER_MS, tiebreakOn } from "@db/bot-research.js";
 import { isSuperAdminUser, requireAuth, type SessionUser } from "./auth-helpers";
 import { confirmAt, settleEverything } from "./community-results";
 import { pool, HttpError } from "./db";
+import { BOT_PROVIDER_NAMES, BOT_PROVIDERS, botProvider, type BotProvider } from "./ask-bot";
 import { autopilotSeasons, nudgeBotClock, tiebreakReach } from "./desk-bot";
+import { restoreFlag } from "./desk-rulebooks-flag";
 import { signupMode, waitingCount } from "./way-in";
 import { SIGNUP_MODES, type SignupMode } from "@/lib/signups";
 
@@ -76,14 +78,17 @@ export interface DeskSettings {
   confirmAt: number;
   /** Who can fill in results on a couch made from now on. */
   newCouchesAnyone: boolean;
-  /** The rulebooks flag (every season's leagues play by its rulebook), and the seasons switched on one by one. */
-  rulebooks: { everywhere: boolean; seasons: { id: string; name: string }[] };
+  /** The rulebooks flag (every season's leagues play by its rulebook), the seasons switched on one by one (with how many games
+   *  play by each one's rulebook), and how many leagues play by a rulebook now. */
+  rulebooks: { everywhere: boolean; seasons: { id: string; name: string; games: number }[]; leagues: number };
   /** The tie-break run (step 6c part 2): on or off (off by default), and the airing seasons it would reach. */
   tiebreak: { on: boolean; hours: number; reach: string[] };
   /** Autopilot's trial: the seasons whose bot schedule is on, and what each checks (each season's page changes it). */
   autopilot: { id: string; name: string; line: string }[];
   /** Who gets in (step 9 part 2, src/lib/signups.ts), and how many new accounts are waiting to. */
   signups: { mode: SignupMode; waiting: number };
+  /** Which AI our bot asks (part 7c: app_settings 'bot_ai', sent with each ask by askBot). */
+  botAi: BotProvider;
 }
 
 async function setting(key: string): Promise<unknown> {
@@ -99,16 +104,21 @@ export async function newCouchesAnyone(db: Db = pool): Promise<boolean> {
 
 export async function deskSettings(): Promise<DeskSettings> {
   const { rows: live } = await pool.query(
-    `SELECT ss.id, COALESCE(ss.name, s.name || ' ' || ss.season_number) AS name FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
+    `SELECT ss.id, COALESCE(ss.name, s.name || ' ' || ss.season_number) AS name,
+            (SELECT count(*)::int FROM leagues l WHERE l.deleted_at IS NULL AND l.state->'settings' ? 'rulebook'
+                AND l.state->'settings'->>'showId' = s.slug AND l.state->'settings'->>'wikiSeason' = ss.season_number::text) AS games
+       FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
       WHERE ss.rulebook_live ORDER BY s.name, ss.season_number`
   );
+  const { rows: on } = await pool.query("SELECT count(*)::int AS n FROM leagues WHERE deleted_at IS NULL AND state->'settings' ? 'rulebook'");
   return {
     confirmAt: await confirmAt(),
     newCouchesAnyone: await newCouchesAnyone(),
-    rulebooks: { everywhere: (await setting("rulebooks")) === true, seasons: live },
+    rulebooks: { everywhere: (await setting("rulebooks")) === true, seasons: live, leagues: on[0].n },
     tiebreak: { on: await tiebreakOn(pool), hours: TIEBREAK_AFTER_MS / 3600000, reach: await tiebreakReach() },
     autopilot: await autopilotSeasons(),
     signups: { mode: await signupMode(), waiting: await waitingCount() },
+    botAi: await botProvider(),
   };
 }
 
@@ -121,7 +131,7 @@ const putSetting = (key: string, value: unknown) =>
 /** Changes one setting (with its undo in History); the Confirmed threshold settles every community fact again. */
 export async function setDeskSetting(
   user: SessionUser,
-  body: { confirmAt?: unknown; newCouchesAnyone?: unknown; tiebreak?: unknown; signups?: unknown }
+  body: { confirmAt?: unknown; newCouchesAnyone?: unknown; tiebreak?: unknown; signups?: unknown; botAi?: unknown }
 ): Promise<DeskSettings & { changeIds: string[] }> {
   const was = await deskSettings();
   // The changes made, for the toast's Undo (each sheet changes one setting; a PUT may change several).
@@ -193,6 +203,26 @@ export async function setDeskSetting(
       );
     }
   }
+  // Which AI our bot asks: sent with every ask from the next one (ask-bot.ts askBot reads it each time).
+  if (body.botAi !== undefined) {
+    if (!BOT_PROVIDERS.includes(body.botAi as BotProvider)) throw new HttpError(400, "botAi is chatgpt or claude");
+    const ai = body.botAi as BotProvider;
+    if (ai !== was.botAi) {
+      await putSetting("bot_ai", ai);
+      changeIds.push(
+        await logDesk(pool, {
+          entity: "settings",
+          entityId: "bot_ai",
+          action: "set",
+          text: `Our bot asks ${BOT_PROVIDER_NAMES[ai]}`,
+          before: was.botAi,
+          after: ai,
+          undo: { type: "setting", key: "bot_ai", value: was.botAi },
+          userId: user.id,
+        })
+      );
+    }
+  }
   return { ...(await deskSettings()), changeIds };
 }
 
@@ -212,6 +242,8 @@ export async function restoreSetting(key: string, value: unknown, userId: string
     await putSetting("tiebreak", value === true);
     nudgeBotClock();
   } else if (key === "signups" && SIGNUP_MODES.includes(value as SignupMode)) await putSetting("signups", value);
+  else if (key === "bot_ai" && BOT_PROVIDERS.includes(value as BotProvider)) await putSetting("bot_ai", value);
+  else if (key === "rulebooks") await restoreFlag(value === true);
   else throw new HttpError(409, "That setting can't be put back here");
 }
 
@@ -222,6 +254,8 @@ export const settingsLines = async () =>
     ...(await deskLines("settings", "new_couch_fill")),
     ...(await deskLines("settings", "tiebreak")),
     ...(await deskLines("settings", "signups")),
+    ...(await deskLines("settings", "bot_ai")),
+    ...(await deskLines("settings", "rulebooks")),
   ]);
 
 // ---------- shared by the Inbox (desk-inbox.ts) and Find ----------
