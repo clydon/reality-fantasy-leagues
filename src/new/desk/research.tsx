@@ -626,11 +626,24 @@ function RunSheet({ run, onClose, r, onAgain }: { run: ResearchRun | null; onClo
               }
             />
           </div>
-          {/* Its episode's results (part 4b): what it filed, and what's in the games. Bingo's bank has its page with part 4c. */}
-          {(live.kind === "full" || live.kind === "quick" || live.kind === "tiebreak" || live.kind === "trivia") && live.episode > 0 && (
+          {/* Its episode's results (part 4b): what it filed, and what's in the games; a bingo run's bank (part 4c). */}
+          {live.kind === "bingo" ? (
             <div className="mt-4 border-y border-border">
-              <DeskRow data="run-episode" href={paths.deskEpisode(r.id, live.episode)} lead={<EpisodeNumber n={live.episode} />} title={`Episode ${live.episode}'s results`} line="Its answers, and what's in the games" />
+              <DeskRow
+                data="run-bingo"
+                href={paths.deskBingo(r.id, live.forSeason ? "season" : live.episode)}
+                lead={<IconLead icon={Grid3x3} />}
+                title={live.forSeason ? "The season's squares" : `Episode ${live.episode}'s squares`}
+                line="The bingo bank"
+              />
             </div>
+          ) : (
+            (live.kind === "full" || live.kind === "quick" || live.kind === "tiebreak" || live.kind === "trivia") &&
+            live.episode > 0 && (
+              <div className="mt-4 border-y border-border">
+                <DeskRow data="run-episode" href={paths.deskEpisode(r.id, live.episode)} lead={<EpisodeNumber n={live.episode} />} title={`Episode ${live.episode}'s results`} line="Its answers, and what's in the games" />
+              </div>
+            )
           )}
           <div className="mt-4 flex gap-2">
             {live.runId && !live.queued && <CopyQuestion seasonId={r.id} runId={live.runId} />}

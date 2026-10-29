@@ -2,7 +2,7 @@
 
 import { useState, type ComponentType, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { BarChart3, Check, ChevronRight, CircleHelp, Grid3x3, Plus, Split, Users, X, Zap } from "lucide-react";
+import { BarChart3, Check, ChevronRight, CircleHelp, Grid3x3, Plus, Repeat, Split, Users, X, Zap } from "lucide-react";
 import { AskAiPasteSheet, checkFull } from "../backstage/ask-ai";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
@@ -21,8 +21,8 @@ import { NowSheet } from "./research";
 // who went home unless names are hidden), Results (Hide names: counts only, on by itself for an episode you haven't seen;
 // Not in the games yet with ✕ ✓ or Who?, Accept all; Disputed to its fact page; In every game by result, each one's sheet
 // with Correct it, Take it out, Unlock), Answers (each a source, Take it back), Paste an answer (the plain Ask an AI, what
-// it adds said first) and Ask our bot (Research's Run now), Trivia (Take it out, or Write trivia now), Bingo (a line until
-// part 4c gives the bank its page), History, and Clear its results last. Server: src/lib/server/desk-episode.ts.
+// it adds said first) and Ask our bot (Research's Run now), Trivia (Take it out, or Write trivia now), Bingo (a row to
+// the season's bank on its squares, part 4c), History, and Clear its results last. Server: src/lib/server/desk-episode.ts.
 
 const NOTE = "mt-3 text-[13px] leading-snug text-muted-foreground";
 const LINK = "inline-flex min-h-11 items-center text-[14px] font-bold underline decoration-input underline-offset-[3px]";
@@ -267,14 +267,15 @@ export function EpisodePage({ id, n }: { id: string; n: number }) {
         </Section>
       )}
 
-      {/* Bingo: a line until part 4c gives the season's bank its own page. */}
+      {/* Bingo: the season's bank on this episode's squares (part 4c). */}
       <Section title="Bingo">
         <div className="border-b border-border">
           <DeskRow
             data="bingo"
+            href={paths.deskBingo(id, n)}
             lead={<IconLead icon={Grid3x3} />}
             title={e.bingo != null ? `${plural(e.bingo, "square")} of its own` : "None of its own"}
-            line={e.bingo != null ? (e.aired ? "Its cards used them" : "Its cards use them") : e.aired ? "Its cards used the season's bank" : "Its cards use the season's bank, unless it gets its own"}
+            line={e.bingoBy ?? (e.aired ? "Its cards used the season's bank" : "Its cards use the season's bank, unless it gets its own")}
           />
         </div>
       </Section>
@@ -471,11 +472,11 @@ function AnswerLead({ a, size = 40 }: { a: EpisodeAnswer; size?: number }) {
   return <Avatar id={a.person?.id ?? a.id} name={a.person?.name ?? "?"} size={size} />;
 }
 
-const ICONS: Record<NonNullable<MoveLine["icon"]>, ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = { check: Check, plus: Plus, x: X, people: Users, poll: BarChart3, split: Split };
+const ICONS: Record<NonNullable<MoveLine["icon"]>, ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = { check: Check, plus: Plus, x: X, people: Users, poll: BarChart3, split: Split, grid: Grid3x3, repeat: Repeat };
 const moveOf = (f: EpisodeFact, change: string): MoveLine => ({ result: true, face: f.kind === "noexit" || f.unknown ? null : { name: f.name, photo: f.photo }, icon: f.kind === "noexit" ? "x" : null, label: shown(f), change });
 
 /** The guard's tier 2 sheet (the mock's previewSheet): what moves, a line each, then confirm. `lines` null while it's worked out. */
-function MovesSheet({ open, onClose, title, subtitle, lines, cta, undoNote, onConfirm }: { open: boolean; onClose: () => void; title: string; subtitle: string; lines: MoveLine[] | null; cta: string; undoNote: string; onConfirm: () => Promise<void> }) {
+export function MovesSheet({ open, onClose, title, subtitle, lines, cta, undoNote, onConfirm }: { open: boolean; onClose: () => void; title: string; subtitle: string; lines: MoveLine[] | null; cta: string; undoNote: string; onConfirm: () => Promise<void> }) {
   return (
     <GuardSheet
       open={open}

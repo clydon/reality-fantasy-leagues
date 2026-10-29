@@ -337,6 +337,7 @@ export function SeasonDeleteRow({ id, del, showId }: { id: string; del: SeasonDe
           forgetDeskPage(paths.deskItem("season", id));
           forgetDeskPage(paths.deskSeasonPage(id, "setup"));
           forgetDeskPage(paths.deskSeasonPage(id, "research"));
+          forgetDeskPage(paths.deskSeasonPage(id, "bingo"));
           const show = paths.deskItem("show", showId);
           nav.back(show, (prev) => prev === show);
           toast(`Deleted ${del.name}`);

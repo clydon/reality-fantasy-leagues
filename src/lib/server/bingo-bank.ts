@@ -41,7 +41,7 @@ export interface AdminBingoBank {
 
 type Scope = "episode" | "season";
 
-function parseIn(seasonId: string, episode: unknown, scope: unknown): { n: number; scope: Scope } {
+export function parseIn(seasonId: string, episode: unknown, scope: unknown): { n: number; scope: Scope } {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
   const n = Number(episode);
   if (!Number.isInteger(n) || n < 1 || n > 1000) throw new HttpError(400, "episode must be a positive whole number");
@@ -50,7 +50,7 @@ function parseIn(seasonId: string, episode: unknown, scope: unknown): { n: numbe
 }
 
 /** The prompt's context for a bank: the episode's (with its air time, title and note from the schedule), or the season's own. */
-async function contextFor(seasonId: string, n: number, scope: Scope, now: Date) {
+export async function contextFor(seasonId: string, n: number, scope: Scope, now: Date) {
   const schedule = (await seasonSchedules([seasonId], now)).get(seasonId);
   if (!schedule) throw new HttpError(404, "Season not found");
   const ep = schedule.episodes.find((e) => e.number === n) ?? null;

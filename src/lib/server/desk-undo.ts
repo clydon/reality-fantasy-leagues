@@ -2,6 +2,7 @@ import type { RulebookBlocks } from "@/lib/game/formats/rulebook-schema";
 import { getRulebook } from "@db/rulebooks.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { setWhoFills } from "./community-results";
+import { restoreBingoBank, restoreSquare } from "./desk-bingo";
 import { pool, HttpError } from "./db";
 import { restoreSetting } from "./desk";
 import { restoreSeasonBot } from "./desk-bot";
@@ -40,6 +41,12 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
       break;
     case "trivia":
       await writeTriviaOut(user.id, String(u.id), !!u.out);
+      break;
+    case "bingoBank":
+      await restoreBingoBank(u);
+      break;
+    case "bingoSquare":
+      await restoreSquare(u);
       break;
     case "cleared":
       await restoreCleared(u.snapshot as Parameters<typeof restoreCleared>[0], user.id);

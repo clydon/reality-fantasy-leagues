@@ -14,6 +14,7 @@
 //   /desk/[kind]/[id]                        one thing on the desk: a fact, a season, a castaway, a rulebook... (depth 2)
 //   /desk/season/[id]/setup                  a page under a season: its Setup (depth 3: docs/PLAN-desk-parity.md step 3)
 //   /desk/season/[id]/research               its Research and the bot (depth 3: step 4, part 4a)
+//   /desk/season/[id]/bingo?bank=<n>|season  its Bingo bank, on an episode or the season's (depth 3: step 4, part 4c)
 //   /desk/season/[id]/e/[n]                  one of its episodes: its results, answers and trivia (depth 4: step 4, part 4b)
 //
 // Classic owns everything else ("/", /account, /waivers, /setup, /admin...); the two designs never share a path.
@@ -80,6 +81,8 @@ export const paths = {
   deskItem: (kind: DeskKind, id: string) => `/desk/${kind}/${id}`,
   /** A page under a season (docs/PLAN-desk-parity.md steps 3-5): its Setup, its Research and the bot. */
   deskSeasonPage: (id: string, page: DeskSeasonPage) => `/desk/season/${id}/${page}`,
+  /** A season's Bingo bank, on one episode's squares or the season's (docs/PLAN-desk-parity.md part 4c). */
+  deskBingo: (id: string, bank?: number | "season") => `/desk/season/${id}/bingo${bank != null ? `?bank=${bank}` : ""}`,
   /** One of a season's episodes (docs/PLAN-desk-parity.md part 4b): its results, its answers, its trivia. */
   deskEpisode: (id: string, n: number) => `/desk/season/${id}/e/${n}`,
 };
@@ -92,7 +95,7 @@ export const DESK_KINDS = ["fact", "season", "castaway", "couch", "person", "sho
 export type DeskKind = (typeof DESK_KINDS)[number];
 export const isDeskKind = (v: string): v is DeskKind => (DESK_KINDS as readonly string[]).includes(v);
 /** The pages under a season: its Setup (step 3), its Research and the bot (step 4). */
-export const DESK_SEASON_PAGES = ["setup", "research"] as const;
+export const DESK_SEASON_PAGES = ["setup", "research", "bingo"] as const;
 export type DeskSeasonPage = (typeof DESK_SEASON_PAGES)[number];
 export const isDeskSeasonPage = (v: string | undefined): v is DeskSeasonPage => !!v && (DESK_SEASON_PAGES as readonly string[]).includes(v);
 

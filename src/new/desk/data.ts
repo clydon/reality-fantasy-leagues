@@ -15,6 +15,7 @@ export type { SeasonBot } from "@/lib/server/desk-bot";
 export type { DeskSetup, SeasonDelete, SeasonGame } from "@/lib/server/desk-setup";
 export type { DeskResearch, NowEpisode, RailRow, ResearchRun } from "@/lib/server/desk-research";
 export type { DeskEpisode, EpisodeAnswer, EpisodeFact, MoveLine, TriviaQuestion } from "@/lib/server/desk-episode";
+export type { BankSquare, DeskBingo, DeskBingoBank } from "@/lib/server/desk-bingo";
 export type { CountPlan, ListingHitRow, WhenPlan } from "@/lib/server/desk-schedule";
 export type { DeskCouch, DeskShow } from "@/lib/server/desk-couches";
 export type { DeskPerson, DeskSeatGame, PeopleList, PersonRow, PeopleFilter, PeopleSort } from "@/lib/server/desk-people";

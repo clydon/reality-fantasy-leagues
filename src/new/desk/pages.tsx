@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, CalendarDays, Check, Tv, Users, X, Zap } from "lucide-react";
+import { BookOpen, CalendarDays, Check, Grid3x3, Tv, Users, X, Zap } from "lucide-react";
 import { researchLine } from "@/lib/desk-bot-words";
 import { colourOf } from "@/lib/people";
 import { airTime } from "../clock";
@@ -236,7 +236,7 @@ function EditFactSheet({ fact, onClose, onSave }: { fact: DeskFact; onClose: () 
 // ---------- a season ----------
 
 export function SeasonPage({ id }: { id: string }) {
-  const q = useDesk<DeskSeason & { bot: SeasonBot; history: DeskLine[]; setup: { line: string; next: string; facts: string; scheduled: boolean }; delete: SeasonDelete; episodeRows: { n: number; line: string }[] }>(`/seasons/${id}`);
+  const q = useDesk<DeskSeason & { bot: SeasonBot; history: DeskLine[]; setup: { line: string; next: string; facts: string; scheduled: boolean }; delete: SeasonDelete; episodeRows: { n: number; line: string }[]; bingo: { line: string } }>(`/seasons/${id}`);
   const act = useAct<{ people: number; leagues: number }>(`/seasons/${id}`);
   const [clearing, setClearing] = useState<{ group: string; preview: { people: number; leagues: number } | null } | null>(null);
   if (q.error) return <><DeskHeader title="Season" back={back} name={null} /><NotFound error={q.error} /></>;
@@ -265,7 +265,7 @@ export function SeasonPage({ id }: { id: string }) {
         )}
       </Section>
       {/* Its Setup (docs/PLAN-desk-parity.md step 3), its Research and the bot (step 4: the bot's schedule moved there from
-          this page), and what the Inbox sends here for (step 2), the row to act on with its dot: step 5 gives a season its own
+          this page), its Bingo bank (part 4c), and what the Inbox sends here for (step 2), the row to act on with its dot: step 5 gives a season its own
           Cast; until then it's approved in classic's admin. */}
       <Section title="Running it">
         <div className="border-b border-border">
@@ -281,6 +281,7 @@ export function SeasonPage({ id }: { id: string }) {
               line={`${s.cast.length} ${s.cast.length === 1 ? "person" : "people"}, not sent to its games · approve it in classic admin for now`}
             />
           )}
+          <DeskRow href={paths.deskBingo(id)} data="bingo" lead={<IconLead icon={Grid3x3} />} title="Bingo bank" line={s.bingo.line} />
         </div>
       </Section>
       <Section title="Cast" aside={`${s.cast.length} people`}>

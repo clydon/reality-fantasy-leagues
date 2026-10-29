@@ -6,6 +6,7 @@ import { isUuid, type SessionUser } from "./auth-helpers";
 import { confirmAt, sendResults, settleNow, settleWhatIf, withNobodyOut, withdrawResults, type SubmittedFact } from "./community-results";
 import { pool, HttpError } from "./db";
 import { SEASON_NAME, logDesk, readable, type DeskLine } from "./desk";
+import { bankBrief } from "./desk-bingo";
 import { seasonBot } from "./desk-bot";
 import { mdIn, plural, whenAt, timeIn } from "./desk-dates";
 import type { Before } from "./desk-facts";
@@ -110,8 +111,10 @@ export interface DeskEpisode {
   trivia: TriviaQuestion[];
   /** Its trivia run is on the season's schedule. */
   triviaOn: boolean;
-  /** Its own bingo squares in play, or null. */
+  /** Its own bingo squares on new cards, or null: none of its own (part 4c: the row opens its bank). */
   bingo: number | null;
+  /** Who wrote them, and when: "Our bot, Run now by alex · Yesterday, 8:13 PM". */
+  bingoBy: string | null;
   history: DeskLine[];
 }
 
@@ -289,7 +292,7 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
   const s = await seasonRow(id);
   const n = episodeOf(nIn);
   const tz = s.air_tz || "America/New_York";
-  const [schedule, format, need, seen, bot, { rows: facts }, { rows: subs }, { rows: cast }, { rows: trivia }, { rows: bingo }, { rows: games }] = await Promise.all([
+  const [schedule, format, need, seen, bot, { rows: facts }, { rows: subs }, { rows: cast }, { rows: trivia }, bingo, { rows: games }] = await Promise.all([
     seasonSchedules([id], now).then((m) => m.get(id)),
     seasonFormat(pool, id, { episode: n }),
     confirmAt(),
@@ -327,7 +330,7 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
          FROM trivia_questions q WHERE q.season_id = $1 AND q.made_after = $2 ORDER BY q.created_at, q.id`,
       [id, n]
     ),
-    pool.query("SELECT count(*) FILTER (WHERE status = 'live')::int AS live, count(*)::int AS n FROM bingo_squares WHERE season_id = $1 AND episode = $2", [id, n]),
+    bankBrief(user, id, n, tz, now),
     // The games the season sync reaches (season-decisions.ts syncSeasonLeagues): not deleted, not archived.
     pool.query(
       `SELECT count(*)::int AS n FROM leagues l ${LEAGUE_SEASON_JOIN}
@@ -468,7 +471,8 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
       byAdmin: q.status !== "dropped" && q.by_admin,
     })),
     triviaOn: bot.on && bot.schedule.some((r) => r.kind === "trivia" && r.on),
-    bingo: bingo[0].n ? bingo[0].live : null,
+    bingo: bingo?.squares ?? null,
+    bingoBy: bingo?.line ?? null,
     history,
   };
 }
@@ -546,7 +550,7 @@ export interface MoveLine {
   /** One result (names hidden, the page says these as a count). */
   result?: boolean;
   face: { name: string; photo: string | null } | null;
-  icon: "check" | "plus" | "x" | "people" | "poll" | "split" | null;
+  icon: "check" | "plus" | "x" | "people" | "poll" | "split" | "grid" | "repeat" | null;
   label: string;
   change: string;
 }
