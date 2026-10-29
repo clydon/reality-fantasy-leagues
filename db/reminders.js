@@ -69,20 +69,19 @@ function morningAfter(airAt, tz) {
 async function runReminders(pool, opts = {}) {
   const now = opts.now || new Date();
   const key = (s) => `${s.slug}|${s.season_number}`;
-  // Seasons with auto-research's switch on, as when loadSeasons defaulted to it. Nothing turns that switch on since paid research
-  // went (docs/PLAN-desk-parity.md part 8b, Noticed), so these reminders wait on a decision about which seasons get them.
-  const seasons = new Map((await loadSeasons(pool, "ss.auto_research")).filter((s) => isSeasonLive(s, now)).map((s) => [key(s), s]));
-  // Every airing season, for the commissioners' results nudge (see the top of the file).
+  // Every airing season, for both the players' reminders and the commissioners' results nudge (see the top of the file). The
+  // players' went only to seasons with auto-research's switch on until that switch went with paid research; the user chose
+  // every airing season (2026-10-29, BACKLOG 23). Each person's own switches still decide what reaches them (push-core.js).
   const airing = new Map((await loadSeasons(pool, "ss.status = 'airing'")).filter((s) => isSeasonLive(s, now)).map((s) => [key(s), s]));
-  if (!seasons.size && !airing.size) return { sent: 0 };
+  if (!airing.size) return { sent: 0 };
 
   // A deleted or archived game (step 10 part 2b) hears nothing.
   const { rows: leagues } = await pool.query("SELECT id, name, state FROM leagues WHERE deleted_at IS NULL AND COALESCE(state->'settings'->>'archivedAt', '') = ''");
   let sent = 0;
   for (const league of leagues) {
     try {
-      if (seasons.size) sent += await remindLeague(pool, league, seasons, now, opts);
-      if (airing.size) sent += await remindResults(pool, league, airing, now, opts);
+      sent += await remindLeague(pool, league, airing, now, opts);
+      sent += await remindResults(pool, league, airing, now, opts);
     } catch (e) {
       // One league's bad state mustn't cost every other league its reminders.
       console.error(`[reminders] league ${league.id}:`, e.message);

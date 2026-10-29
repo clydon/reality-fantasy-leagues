@@ -54,6 +54,20 @@ test("a day out with an empty lineup slot: one 24h reminder, and a rerun sends n
   assert.equal((await runReminders(pool, { now: new Date(now.getTime() + HOUR) })).sent, 0);
 });
 
+test("players are reminded on every airing season, not only one auto-research ran (the user, 2026-10-29)", async () => {
+  const base = fakePool(league());
+  // A season with auto-research's switch off: only the query for airing seasons finds it.
+  const pool = {
+    ...base,
+    async query(sql, params) {
+      if (sql.includes("FROM show_seasons") && !sql.includes("status = 'airing'")) return { rows: [] };
+      return base.query(sql, params);
+    },
+  };
+  assert.equal((await runReminders(pool, { now: new Date(EP2_AIRS.getTime() - 20 * HOUR) })).sent, 1);
+  assert.deepEqual([...base.logged], ["u1|L1|lineup|2|24h"]);
+});
+
 test("two hours out it reminds again, once", async () => {
   const pool = fakePool(league());
   await runReminders(pool, { now: new Date(EP2_AIRS.getTime() - 20 * HOUR) });

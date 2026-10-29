@@ -168,13 +168,10 @@ Last updated 2026-10-27.
     nobody. The desk's build moves releases into the database and drafts them on the desk (PLAN-desk-parity.md, decision
     8); where a player sees them in the new design is player-facing design work, mocked first.
     - **When:** before What's New's pause ends (the user's call; nothing is announced meanwhile).
-23. **Players' lineup, pick and prediction reminders don't go (noticed 2026-10-29, the desk's step 8).**
-    `db/reminders.js remindLeague` sends them only for seasons with `auto_research` on (paid research's old default, kept
-    when step 8 moved the reminders into the Reminders and waivers job). No season has it on, and nothing can turn it on
-    since classic's admin went, so none go, as before step 8; the commissioners' morning-after results nudge goes for every
-    airing season. PLAN-desk-parity.md Noticed co.
-    - **When:** the user's call, since it sends pushes to real players: every airing season (as the nudge does), or a
-      switch on the desk's season Setup.
+23. **Done 2026-10-29: players' lineup, pick and prediction reminders go for every airing season** (the user's call).
+    `db/reminders.js` sent them only for seasons with `auto_research` on (paid research's old default), which nothing could
+    turn on after step 8, so none went. Now they go for every live airing season, as the commissioners' morning-after
+    nudge does, and each person's own "Reminders before an episode" switch still decides. PLAN-desk-parity.md Noticed co.
 24. **The formats' `wiki` sections outlived the wiki read (noticed 2026-10-29, the desk's step 8).** `castNote`, the
     episode schema, `derivedEvents`, `rejectEvent` and `roles` are read only by `validateEpisodes` and its regression
     harness now. PLAN-desk-parity.md Noticed cp.
@@ -186,8 +183,9 @@ Last updated 2026-10-27.
     providers (episode-research.js `PROVIDERS`: anthropic, gemini, grok; `providerFor` defaults to anthropic) are reachable
     only from local scripts. GitHub's `ANTHROPIC_API_KEY` Actions secret was deleted 2026-10-29; there was no
     `GEMINI_API_KEY` on GitHub or Vercel.
-    - **When:** the user, now: remove `ANTHROPIC_API_KEY` from Vercel (Production and Preview) and revoke it at Anthropic.
-      Later (the engine lane, which owns episode-research.js): take the paid providers out altogether (decision 9).
+    **Done for production 2026-10-29:** the user removed `ANTHROPIC_API_KEY` from Vercel, so nothing deployed holds a paid
+    key. The key itself stays active for local research (the user's call), and so do the paid providers, for local scripts
+    only.
 
 ## Decided against (don't re-propose without new information)
 
