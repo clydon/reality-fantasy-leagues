@@ -1,25 +1,55 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
-import { ChevronLeft, ChevronRight, Minus, Plus } from "lucide-react";
+import { useState, type ComponentType, type ReactNode } from "react";
+import { ChevronLeft, ChevronRight, Minus, Plus, Trash2 } from "lucide-react";
 import { airTime } from "../clock";
 import { NavLink, useNav } from "../nav";
 import { Btn, Chip } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { deskSend, useAfterDesk, type DeskLine } from "./data";
+import { useDeskTrail } from "./trail";
 
 // The desk's small parts (the mock's community.js admin: .adm-top, .adm-item, .adm-h, the Override sheet, the Lock row),
-// and the answer fields the rulebook editor's sheets are built from.
+// the frame every desk page shares (docs/PLAN-desk-parity.md, The desk's pages and how they link; the mock's desk.js and
+// desk-pages.js: a lower third naming the thing, a line of facts, what it's part of and made of as links, its actions,
+// History's latest three, and its Delete, last and named; Back names the page you came from), and the answer fields the
+// rulebook editor's sheets are built from.
 
-/** The desk's header: back, the title, and the Admin badge (not for someone the desk turns away). */
-export function DeskHeader({ title, back, badge = true }: { title: string; back: { label: string; href: string }; badge?: boolean }) {
+/**
+ * The desk's header: Back, the title, and the Admin badge (not for someone the desk turns away). Back names the page you
+ * came from on the desk (trail.ts), else `back`, the page's parent. `name` is this page's name on the trail (riley, Couch
+ * Council; the title when not given; null while it loads); `kind` keeps one thing's page in Find's Recently opened;
+ * `start`: one of the tabs, which start the trail.
+ */
+export function DeskHeader({
+  title,
+  back,
+  badge = true,
+  name,
+  kind,
+  start,
+}: {
+  title: string;
+  back: { label: string; href: string };
+  badge?: boolean;
+  name?: string | null;
+  kind?: string;
+  start?: boolean;
+}) {
   const nav = useNav();
+  const prev = useDeskTrail(name === undefined ? title : name, { start, kind });
+  const to = prev ?? { path: back.href.split("?")[0], href: back.href, label: back.label };
   return (
     <header className="sticky top-0 z-20 grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center border-b border-border bg-background/92 px-2.5 pt-[env(safe-area-inset-top,0px)] backdrop-blur-md">
-      <button type="button" onClick={() => nav.back(back.href)} className="flex h-14 min-w-0 items-center gap-0.5 justify-self-start rounded-[3px] pl-1 pr-2.5 text-[15px] font-semibold">
+      <button
+        type="button"
+        data-desk-back={to.label}
+        onClick={() => nav.back(to.href, (p) => p === to.path)}
+        className="flex h-14 min-w-0 max-w-full items-center gap-0.5 justify-self-start rounded-[3px] pl-1 pr-2.5 text-[15px] font-semibold"
+      >
         <ChevronLeft className="size-5 flex-none" aria-hidden />
-        <span className="truncate">{back.label}</span>
+        <span className="truncate">{to.label}</span>
       </button>
       <h1 className="type-caption max-w-[46vw] truncate text-[20px]">{title}</h1>
       {badge ? <span className="type-caption justify-self-end rounded-[2px] bg-foreground px-2 py-0.5 text-[12px] tracking-[0.06em] text-background">Admin</span> : <span />}
@@ -54,6 +84,159 @@ export function ItemRow({ href, tag, tone, title, line, data }: { href: string; 
       </span>
       <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
     </NavLink>
+  );
+}
+
+// ---------- the page frame ----------
+
+const LT_TONE = {
+  quiet: "bg-secondary text-foreground",
+  you: "bg-background text-foreground",
+  stopped: "bg-input text-foreground",
+  must: "bg-chyron text-chyron-foreground",
+};
+
+/** Who or what the page is, as a lower third: a face or art, then a caption plate with its tag, name and one line. */
+export function LowerThird({ lead, tag, tone = "quiet", title, detail }: { lead?: ReactNode; tag: string; tone?: keyof typeof LT_TONE; title: ReactNode; detail?: ReactNode }) {
+  return (
+    <section data-lower-third={tag} className="mt-4 flex items-center gap-2.5 px-4">
+      {lead}
+      <div className="flex min-h-16 min-w-0 flex-1 items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-plate">
+        <span className={`type-caption tag-cut flex flex-none items-center whitespace-nowrap pl-[11px] pr-6 text-[14px] tracking-[0.04em] ${LT_TONE[tone]}`}>{tag}</span>
+        <span className="tag-tuck flex min-w-0 flex-1 flex-col justify-center gap-[3px] py-2 pl-5 pr-2.5">
+          <b data-lower-third-name className="type-caption truncate text-[24px] leading-none">
+            {title}
+          </b>
+          {detail && <small className="truncate text-[13px] text-plate-muted">{detail}</small>}
+        </span>
+      </div>
+    </section>
+  );
+}
+
+/** The line of facts under the lower third (joined, active, how many). */
+export function Facts({ children }: { children: ReactNode }) {
+  return (
+    <p data-facts className="mt-2.5 px-4 text-[13px] leading-snug text-muted-foreground">
+      {children}
+    </p>
+  );
+}
+
+/** A row's icon in its square. */
+export function IconLead({ icon: Icon }: { icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }> }) {
+  return (
+    <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-card">
+      <Icon className="size-5" aria-hidden />
+    </span>
+  );
+}
+
+/**
+ * One row on a desk page (the mock's .idx.dk-l): a lead (an icon, a face, art), a title with one line, and a chevron when
+ * it goes somewhere. A link with `href`, a button with `onClick`, else just what it says. `dot`: off its recommended
+ * setting, or needs you.
+ */
+export function DeskRow({
+  href,
+  onClick,
+  lead,
+  title,
+  line,
+  end,
+  dot,
+  data,
+}: {
+  href?: string;
+  onClick?: () => void;
+  lead?: ReactNode;
+  title: ReactNode;
+  line?: ReactNode;
+  end?: ReactNode;
+  dot?: boolean;
+  data?: string;
+}) {
+  const cls = "nd-press flex min-h-[62px] w-full items-center gap-3 border-t border-border py-2.5 text-left first:border-t-0";
+  const body = (
+    <>
+      {lead}
+      <span className="min-w-0 flex-1">
+        <b className="line-clamp-2 block text-[16px] font-semibold leading-snug">
+          {title}
+          {dot && <i data-off className="ml-2 inline-block size-2 rounded-full bg-chyron align-[2px]" aria-label="Changed from recommended" />}
+        </b>
+        {line && <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">{line}</small>}
+      </span>
+      {end}
+      {(href || onClick) && <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />}
+    </>
+  );
+  if (href)
+    return (
+      <NavLink href={href} data-desk-row={data} className={cls}>
+        {body}
+      </NavLink>
+    );
+  if (onClick)
+    return (
+      <button type="button" data-desk-row={data} onClick={onClick} className={cls}>
+        {body}
+      </button>
+    );
+  return (
+    <div data-desk-row={data} className={cls}>
+      {body}
+    </div>
+  );
+}
+
+/** History's latest three, and All N in a sheet. */
+export function LatestHistory({ lines, emptyLine }: { lines: DeskLine[]; emptyLine?: string }) {
+  const [all, setAll] = useState(false);
+  return (
+    <Section
+      title="History"
+      aside={
+        lines.length > 3 ? (
+          <button type="button" data-history-all onClick={() => setAll(true)} className="text-[14px] font-bold text-foreground underline decoration-input underline-offset-[3px]">
+            All {lines.length}
+          </button>
+        ) : undefined
+      }
+    >
+      <History lines={lines.slice(0, 3)} emptyLine={emptyLine} />
+      <Sheet open={all} onOpenChange={setAll} title="History" subtitle={`${lines.length} lines, newest first`}>
+        <History lines={lines} />
+      </Sheet>
+    </Section>
+  );
+}
+
+/** The last thing on every desk page (decision 4): Delete, named, with one line of what it does. `off`: why it can't be. */
+export function DeleteRow({ title, line, onClick, off, data }: { title: string; line: string; onClick?: () => void; off?: boolean; data?: string }) {
+  const inner = (
+    <>
+      <span className={`grid size-10 flex-none place-items-center rounded-[3px] ${off ? "bg-secondary text-muted-foreground" : "bg-live/15 text-live"}`}>
+        <Trash2 className="size-5" aria-hidden />
+      </span>
+      <span className="min-w-0 flex-1">
+        <b className={`block text-[16px] font-bold ${off ? "text-muted-foreground" : "text-live"}`}>{title}</b>
+        <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">{line}</small>
+      </span>
+      {!off && <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />}
+    </>
+  );
+  const cls = "flex min-h-[66px] w-full items-center gap-3 border-y border-border text-left";
+  return (
+    <section className="mt-11 px-4" data-delete-row={data}>
+      {off || !onClick ? (
+        <div className={cls}>{inner}</div>
+      ) : (
+        <button type="button" onClick={onClick} className={`nd-press ${cls}`}>
+          {inner}
+        </button>
+      )}
+    </section>
   );
 }
 

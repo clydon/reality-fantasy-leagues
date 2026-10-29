@@ -1,23 +1,27 @@
 "use client";
 
 import { useState } from "react";
-import { Check, X } from "lucide-react";
+import { BookOpen, Check, Tv, X } from "lucide-react";
+import { colourOf } from "@/lib/people";
 import { airTime } from "../clock";
 import { NavLink, useNav } from "../nav";
 import { paths } from "../routes";
 import { Face } from "../show/parts";
+import { Avatar } from "../ui/bars";
 import { GuardSheet } from "../ui/guards";
 import { Btn, Chip, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { ArtSection } from "./art";
-import { deskSend, useAfterDesk, useDesk, type DeskCastaway, type DeskCouch, type DeskFact, type DeskLine, type DeskPerson, type DeskSeason, type DeskShow, type SeasonBot } from "./data";
-import { DeskHeader, FieldRow, History, ItemRow, LockRow, OverrideSheet, Section, SwitchRow, Tag } from "./parts";
+import { deskSend, useAfterDesk, useDesk, type DeskCastaway, type DeskCouch, type DeskFact, type DeskLine, type DeskSeason, type DeskShow, type SeasonBot } from "./data";
+import { DeskHeader, DeskRow, Facts, FieldRow, IconLead, ItemRow, LatestHistory, LockRow, LowerThird, OverrideSheet, Section, SwitchRow, Tag } from "./parts";
 
 // One thing on the desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js adminFact and adminEntity): a
 // disputed fact's two sides and the admin's decision; a season (its rulebook, its cast by group, its episodes' results);
-// a castaway (Override, Lock, History); a couch (who runs its games, Hand it to, who fills in); a person; a show (who added
-// it, Looks fine or Archive for one added by name, its seasons and their rulebooks, New season: step 10 part 3).
+// a castaway (Override, Lock, History); a couch (who runs its games, Hand it to, who fills in); a show (who added it,
+// Looks fine or Archive for one added by name, its seasons and their rulebooks, New season: step 10 part 3). Each in the
+// desk's page frame (docs/PLAN-desk-parity.md step 1, parts.tsx): Back names where you came from, what it's part of is a
+// link, and History shows its latest three. Each page's own actions and its Delete come with the step that builds them.
 
 const Loading = () => <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
 const back = { label: "Find", href: paths.desk("find") };
@@ -56,13 +60,13 @@ export function FactPage({ id }: { id: string }) {
   const act = useAct<DeskFact>(`/facts/${id}`);
   const [deciding, setDeciding] = useState<"yes" | "no" | null>(null);
   const [editing, setEditing] = useState(false);
-  if (q.error) return <><DeskHeader title="Fact" back={{ label: "Inbox", href: paths.desk() }} /><NotFound error={q.error} /></>;
-  if (!q.data) return <><DeskHeader title="Fact" back={{ label: "Inbox", href: paths.desk() }} /><Loading /></>;
+  if (q.error) return <><DeskHeader title="Fact" back={{ label: "Inbox", href: paths.desk() }} name={null} /><NotFound error={q.error} /></>;
+  if (!q.data) return <><DeskHeader title="Fact" back={{ label: "Inbox", href: paths.desk() }} name={null} /><Loading /></>;
   const f = q.data;
   const [tag, tone] = STATUS_TAG[f.status] ?? [f.status, "quiet"];
   return (
     <div className="pb-16" data-desk-fact={f.status}>
-      <DeskHeader title="Fact" back={{ label: "Inbox", href: paths.desk() }} />
+      <DeskHeader title="Fact" back={{ label: "Inbox", href: paths.desk() }} name={[f.name, f.label].filter(Boolean).join(" · ") || "Fact"} kind="Fact" />
       <Section>
         <div className="flex min-h-[80px] items-stretch overflow-hidden rounded-[3px] bg-plate text-plate-foreground shadow-plate">
           <Face src={f.photo} name={f.name} className="w-20 flex-none text-2xl" />
@@ -86,6 +90,9 @@ export function FactPage({ id }: { id: string }) {
             </span>
           </p>
         )}
+      </Section>
+      <Section title="Part of">
+        <DeskRow href={paths.deskItem("season", f.season.id)} data="part-of" lead={<IconLead icon={Tv} />} title={f.season.name} line={`The season · Episode ${f.episode}`} />
       </Section>
       <Section title="Says it happened" aside={f.yes.length}>
         {f.yes.length ? f.yes.map((s, i) => <SourceRow key={i} yes text={`${s.who}${s.couch ? ` · ${s.couch}` : ""}`} line={`${s.source} · ${airTime(Date.parse(s.at))}${s.method ? ` · said "${s.method}"` : ""}`} />) : <p className="text-[14px] text-muted-foreground">{f.community ? "Nobody any more." : "Decided before results were shared: no sources."}</p>}
@@ -124,9 +131,7 @@ export function FactPage({ id }: { id: string }) {
           </Btn>
         )}
       </Section>
-      <Section title="History">
-        <History lines={f.history} />
-      </Section>
+      <LatestHistory lines={f.history} />
       {deciding && (
         <GuardSheet
           open
@@ -311,28 +316,32 @@ export function SeasonPage({ id }: { id: string }) {
   const act = useAct<{ people: number; leagues: number }>(`/seasons/${id}`);
   const [clearing, setClearing] = useState<{ group: string; preview: { people: number; leagues: number } | null } | null>(null);
   const [open, setOpen] = useState<number | null>(null);
-  if (q.error) return <><DeskHeader title="Season" back={back} /><NotFound error={q.error} /></>;
-  if (!q.data) return <><DeskHeader title="Season" back={back} /><Loading /></>;
+  if (q.error) return <><DeskHeader title="Season" back={back} name={null} /><NotFound error={q.error} /></>;
+  if (!q.data) return <><DeskHeader title="Season" back={back} name={null} /><Loading /></>;
   const s = q.data;
   return (
     <div className="pb-16" data-desk-season>
-      <DeskHeader title="Season" back={back} />
-      <Section>
-        <b className="type-caption block text-[30px] leading-none">{s.name}</b>
-        <small className="mt-1 block text-[14px] text-muted-foreground">
-          {s.status ?? "Upcoming"} · {s.leagues} {s.leagues === 1 ? "league" : "leagues"} on {s.couches} {s.couches === 1 ? "couch" : "couches"}
-        </small>
-      </Section>
-      {s.rulebook && (
-        <Section title="Rulebook">
-          <ItemRow
+      <DeskHeader title="Season" back={{ label: s.show.name, href: paths.deskItem("show", s.show.id) }} name={s.name} kind="Season" />
+      <LowerThird
+        tag={s.status === "airing" ? "Airing" : s.status === "completed" ? "Ended" : "Upcoming"}
+        title={s.name}
+        detail={s.aired ? `${s.aired} ${s.aired === 1 ? "episode" : "episodes"} aired` : `${s.cast.length} in the cast`}
+      />
+      <Facts>
+        {s.leagues} {s.leagues === 1 ? "game" : "games"} on it, on {s.couches} {s.couches === 1 ? "couch" : "couches"}
+      </Facts>
+      <Section title="Part of">
+        <DeskRow href={paths.deskItem("show", s.show.id)} data="part-of" lead={<IconLead icon={Tv} />} title={s.show.name} line="The show" />
+        {s.rulebook && (
+          <DeskRow
             data="rulebook"
             href={paths.deskItem("rulebook", s.rulebook.id)}
+            lead={<IconLead icon={BookOpen} />}
             title={`${s.name}'s rulebook`}
-            line={`Version ${s.rulebook.version}${s.rulebook.edited ? " · edited" : ""} · ${s.rulebook.everywhere || s.rulebook.live ? "its leagues play by it" : "its leagues play by the show's rules"}`}
+            line={`Version ${s.rulebook.version}${s.rulebook.edited ? " · edited" : ""} · ${s.rulebook.everywhere || s.rulebook.live ? "its games play by it" : "its games play by the show's rules"}`}
           />
-        </Section>
-      )}
+        )}
+      </Section>
       <SeasonBotSection id={id} bot={s.bot} />
       <Section title="Cast" aside={`${s.cast.length} people`}>
         {s.groups.length > 0 && (
@@ -394,9 +403,7 @@ export function SeasonPage({ id }: { id: string }) {
           <p className="text-[14px] text-muted-foreground">No results yet.</p>
         )}
       </Section>
-      <Section title="History">
-        <History lines={q.data.history} />
-      </Section>
+      <LatestHistory lines={q.data.history} />
       {clearing && (
         <GuardSheet
           open
@@ -429,14 +436,14 @@ export function CastawayPage({ id }: { id: string }) {
   const q = useDesk<DeskCastaway>(`/castaways/${id}`);
   const act = useAct<DeskCastaway>(`/castaways/${id}`);
   const [field, setField] = useState<"name" | "group" | "photo" | null>(null);
-  if (q.error) return <><DeskHeader title="Castaway" back={back} /><NotFound error={q.error} /></>;
-  if (!q.data) return <><DeskHeader title="Castaway" back={back} /><Loading /></>;
+  if (q.error) return <><DeskHeader title="Castaway" back={back} name={null} /><NotFound error={q.error} /></>;
+  if (!q.data) return <><DeskHeader title="Castaway" back={back} name={null} /><Loading /></>;
   const c = q.data;
   const values = { name: c.name, group: c.group ?? "", photo: c.photoUrl ?? "" };
   const labels = { name: "Name", group: "Group", photo: "Photo" };
   return (
     <div className="pb-16" data-desk-castaway>
-      <DeskHeader title="Castaway" back={{ label: c.season.name, href: paths.deskItem("season", c.season.id) }} />
+      <DeskHeader title="Castaway" back={{ label: c.season.name, href: paths.deskItem("season", c.season.id) }} name={c.name} kind="Castaway" />
       <Section>
         <div className="flex items-center gap-3">
           <Face src={c.photo} name={c.name} className="size-[72px] flex-none rounded-[3px] text-2xl" />
@@ -445,6 +452,9 @@ export function CastawayPage({ id }: { id: string }) {
             <small className="text-[14px] text-muted-foreground">Cast · {c.season.name}</small>
           </span>
         </div>
+      </Section>
+      <Section title="Part of">
+        <DeskRow href={paths.deskItem("season", c.season.id)} data="part-of" lead={<IconLead icon={Tv} />} title={c.season.name} line="The cast" />
       </Section>
       <Section>
         <FieldRow data="name" label="Name" value={c.name} onOverride={() => setField("name")} />
@@ -459,9 +469,7 @@ export function CastawayPage({ id }: { id: string }) {
           onChange={(locked) => act({ lock: locked }, locked ? "Locked" : "Unlocked")}
         />
       </Section>
-      <Section title="History">
-        <History lines={c.history} />
-      </Section>
+      <LatestHistory lines={c.history} />
       {field && (
         <OverrideSheet
           open
@@ -480,25 +488,35 @@ export function CastawayPage({ id }: { id: string }) {
   );
 }
 
-// ---------- a couch, a person, a show ----------
+// ---------- a couch, a show (a person is people.tsx's) ----------
 
 export function CouchPage({ id }: { id: string }) {
   const q = useDesk<DeskCouch>(`/couches/${id}`);
   const act = useAct<DeskCouch>(`/couches/${id}`);
   const [filling, setFilling] = useState(false);
-  if (q.error) return <><DeskHeader title="Couch" back={back} /><NotFound error={q.error} /></>;
-  if (!q.data) return <><DeskHeader title="Couch" back={back} /><Loading /></>;
+  if (q.error) return <><DeskHeader title="Couch" back={back} name={null} /><NotFound error={q.error} /></>;
+  if (!q.data) return <><DeskHeader title="Couch" back={back} name={null} /><Loading /></>;
   const c = q.data;
+  const owner = c.members.find((m) => m.role === "owner");
   return (
     <div className="pb-16" data-desk-couch>
-      <DeskHeader title="Couch" back={back} />
-      <Section>
-        <b className="type-caption block text-[30px] leading-none">{c.name}</b>
-        <small className="mt-1 block text-[14px] text-muted-foreground">
-          {c.members.length} on it · {c.games.length} {c.games.length === 1 ? "game" : "games"}
-          {c.rulings ? ` · ${c.rulings} house ${c.rulings === 1 ? "ruling" : "rulings"}` : ""}
-        </small>
-      </Section>
+      <DeskHeader title="Couch" back={back} name={c.name} kind="Couch" />
+      <LowerThird
+        lead={
+          <span className="grid size-16 flex-none grid-cols-2 gap-0.5 overflow-hidden rounded-[3px] bg-card shadow-plate">
+            {c.members.slice(0, 4).map((m) => (
+              <Avatar key={m.userId} id={m.userId} name={m.name} size={31} colour={colourOf(m.userId, m.colour)} />
+            ))}
+          </span>
+        }
+        tag="Couch"
+        title={c.name}
+        detail={c.stranded.length ? "Nobody runs some of its games" : owner ? `Started by ${owner.name}` : `${c.members.length} on it`}
+      />
+      <Facts>
+        {c.members.length} on it · {c.games.length} {c.games.length === 1 ? "game" : "games"}
+        {c.rulings ? ` · ${c.rulings} house ${c.rulings === 1 ? "ruling" : "rulings"}` : ""}
+      </Facts>
       {c.stranded.length > 0 && (
         <Section title="Nobody runs it">
           {c.stranded.map((g) => {
@@ -519,16 +537,24 @@ export function CouchPage({ id }: { id: string }) {
           })}
         </Section>
       )}
-      <Section>
-        <FieldRow data="members" label="On the couch" value={c.members.map((m) => `${m.name}${m.role === "owner" ? " (started it)" : ""}`).join(", ") || "Nobody"} />
+      <Section title="People" aside={c.members.length}>
+        <div data-field="members">
+          {c.members.map((m) => (
+            <DeskRow key={m.userId} href={paths.deskItem("person", m.userId)} data="member" lead={<Avatar id={m.userId} name={m.name} size={40} colour={colourOf(m.userId, m.colour)} />} title={m.name} line={m.role === "owner" ? "Started it" : "On it"} />
+          ))}
+          {!c.members.length && <p className="text-[14px] text-muted-foreground">Nobody.</p>}
+        </div>
+      </Section>
+      <Section title="Games" aside={c.games.length}>
         {c.games.map((g) => (
           <FieldRow key={g.leagueId} data="game" label={`${g.gameName} · ${g.season}`} value={`${g.name} · run by ${g.runners.join(", ") || "nobody"}`} />
         ))}
+        {!c.games.length && <p className="text-[14px] text-muted-foreground">No games yet.</p>}
+      </Section>
+      <Section title="Settings">
         <FieldRow data="fill" label="Who fills in results" value={c.anyone ? "Anyone on the couch" : "Only people who run games"} onOverride={() => setFilling(true)} />
       </Section>
-      <Section title="History">
-        <History lines={c.history} />
-      </Section>
+      <LatestHistory lines={c.history} />
       <Sheet open={filling} onOpenChange={setFilling} title={`Override · ${c.name}`} subtitle="Who can fill in its results">
         <div className="flex flex-col gap-2">
           {([
@@ -555,34 +581,15 @@ export function CouchPage({ id }: { id: string }) {
   );
 }
 
-export function PersonPage({ id }: { id: string }) {
-  const q = useDesk<DeskPerson>(`/people/${id}`);
-  if (q.error) return <><DeskHeader title="Person" back={back} /><NotFound error={q.error} /></>;
-  if (!q.data) return <><DeskHeader title="Person" back={back} /><Loading /></>;
-  const p = q.data;
-  return (
-    <div className="pb-16" data-desk-person>
-      <DeskHeader title="Person" back={back} />
-      <Section>
-        <b className="type-caption block text-[30px] leading-none">{p.name}</b>
-        {p.email && <small className="mt-1 block text-[14px] text-muted-foreground">{p.email}</small>}
-      </Section>
-      <Section title="Couches">
-        {p.couches.length ? p.couches.map((c) => <ItemRow key={c.id} href={paths.deskItem("couch", c.id)} title={c.name} line={c.role === "owner" ? "Runs it" : "On it"} />) : <p className="text-[14px] text-muted-foreground">None.</p>}
-      </Section>
-      <Section title="Games">
-        {p.games.length ? p.games.map((g) => <FieldRow key={g.leagueId} label={g.role === "commissioner" ? "Runs it" : g.role === "admin" ? "Game admin" : "Plays"} value={g.name} />) : <p className="text-[14px] text-muted-foreground">None.</p>}
-      </Section>
-    </div>
-  );
-}
+/** A show's kind, as its lower third says it. */
+const KIND_WORDS: Record<string, string> = { competition: "A competition", series: "A series", talk: "A talk show", sport: "A sport" };
 
 export function ShowPage({ id }: { id: string }) {
   const q = useDesk<DeskShow>(`/shows/${id}`);
   const act = useAct<DeskShow & { seasonId?: string }>(`/shows/${id}`);
   const nav = useNav();
-  if (q.error) return <><DeskHeader title="Show" back={back} /><NotFound error={q.error} /></>;
-  if (!q.data) return <><DeskHeader title="Show" back={back} /><Loading /></>;
+  if (q.error) return <><DeskHeader title="Show" back={back} name={null} /><NotFound error={q.error} /></>;
+  if (!q.data) return <><DeskHeader title="Show" back={back} name={null} /><Loading /></>;
   const s = q.data;
   const byName = !!s.added && !s.added.listing;
   const newSeason = async () => {
@@ -594,15 +601,22 @@ export function ShowPage({ id }: { id: string }) {
   };
   return (
     <div className="pb-16" data-desk-show={s.setUp ? "game" : "watching"}>
-      <DeskHeader title="Show" back={back} />
-      <Section>
-        <b className="type-caption block text-[30px] leading-none">{s.name}</b>
-        <small className="mt-1 block text-[14px] text-muted-foreground">
-          {s.setUp ? `A game · ${s.kind ?? "competition"}` : "Not a game yet"}
-          {s.archived ? " · archived" : ""}
-          {s.added ? ` · added by ${s.added.by ?? "someone"} ${s.added.listing ? "from the TV listings" : "by name"}` : ""}
-        </small>
-      </Section>
+      <DeskHeader title="Show" back={back} name={s.name} kind="Show" />
+      <LowerThird
+        lead={
+          s.art.poster ? (
+            // eslint-disable-next-line @next/next/no-img-element -- a show's art from wherever it was found
+            <img src={s.art.poster} alt="" className="size-16 flex-none rounded-[3px] object-cover shadow-plate" />
+          ) : undefined
+        }
+        tag={s.archived ? "Archived" : s.added && !s.added.listing ? "Added by name" : s.setUp ? "A game" : "Not a game yet"}
+        title={s.name}
+        detail={`${s.setUp ? (KIND_WORDS[s.kind ?? ""] ?? "A competition") : "Not a game yet"} · ${s.seasons.length} ${s.seasons.length === 1 ? "season" : "seasons"}`}
+      />
+      <Facts>
+        {s.added ? `Added by ${s.added.by ?? "someone"} ${s.added.listing ? "from the TV listings" : "by name"}` : "From the TV listings"}
+        {s.archived ? " · archived" : ""}
+      </Facts>
       {byName && !s.reviewed && !s.archived && (
         <Section>
           <div data-show-review className="rounded-[4px] bg-card p-3.5">
@@ -640,9 +654,7 @@ export function ShowPage({ id }: { id: string }) {
         )}
       </Section>
       <ArtSection show={s} act={act} />
-      <Section title="History">
-        <History lines={s.history} emptyLine="Nothing changed here yet." />
-      </Section>
+      <LatestHistory lines={s.history} emptyLine="Nothing changed here yet." />
     </div>
   );
 }

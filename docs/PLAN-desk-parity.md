@@ -6,7 +6,9 @@ History), but a site admin still has to go back to classic for about 25 things, 
 admin at all (only Settings › Back to the classic design, or typing `/admin`). Nothing in `src/new` calls `/api/admin/*`. This
 plan closes that gap, then retires classic's admin.
 
-**Status (2026-10-28, evening): the design pass is done, and the build is planned.** Step 0 is done, and the user approved
+**Status (2026-10-28, night): the build has begun: part 1a is built** (the page frame, Find › Browse and People, Settings
+regrouped, the Viewing as bar: its As built is under step 1); **1b is next.** Before it: **the design pass was done, and the
+build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
 either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
@@ -24,7 +26,7 @@ shows in its dark theme until a reload whatever its own theme is. It reads fine,
 page load (`window.location.assign`) would fix it at the cost of the row being a link.
 
 **Noticed, not fixed (design pass):** the new design's "Viewing as" bar (`src/new/session.tsx`) is white 13px text on #5089c4,
-about 3.7:1, under the 4.5:1 floor. The step 1 mock uses #3c6ea6 (about 5:1); step 1's build takes it.
+about 3.7:1, under the 4.5:1 floor. The step 1 mock uses #3c6ea6 (about 5:1); step 1's build takes it (taken in part 1a).
 From step 3's mock (2026-10-28), all for step 3's build: (a) the daily listings job (`tv-listings.ts statusesByDate`) sets every
 season linked to a TV listing to its status by date each morning, so a status an admin changes in classic is undone the next
 day; (b) a schedule set by hand doesn't move the episodes a TV listing dated: their `season_episodes` rows (source 'listing',
@@ -142,6 +144,42 @@ can change someone's site role or ban them; that stays out until it's needed.
    each opening a list like People's (search, filters, sort, paging): People here, Reports with step 2, Couches and Games
    (with Deleted: restorable for 30 days, with Restore) with step 6, Shows with step 7, and the Library as it is. Seasons,
    episodes, castaways and results stay inside their show; the search finds them.
+   **As built, part 1a (2026-10-28):** the page frame (`src/new/desk/parts.tsx`): `DeskHeader` puts each page on a trail
+   (`src/new/desk/trail.ts`, per browser tab) named by what it shows, so Back names where you came from (kat › ZT DK Couch
+   says "‹ kat"); the tabs start it, a page already on it cuts back to it, leaving the desk ends it, and a page opened from a
+   link falls back to its parent. `LowerThird`, `Facts`, `DeskRow`, `LatestHistory` (three, then All N in a sheet) and
+   `DeleteRow` (last, named; built for 1c on, since no page in 1a's scope has a delete yet). Every desk page took the
+   frame's Back and History; the person, couch, season, castaway and show pages also took the lower third, facts and Part
+   of as links (a season's show and rulebook, a castaway's and a fact's season, a couch's people). **Find › Browse**: People
+   (accounts, who's waiting) and Library (starting points, in use, nobody's checked), then Recently opened (per browser),
+   then Airing now. **Find's search** shows three people and "All N people matching" into People, searched. **Find › People**
+   (`/desk/people`, `src/new/desk/people.tsx`, `src/lib/server/desk-people.ts`, `GET /api/desk/people`): name, username or
+   email; Everyone · Waiting (its dot) · Site admins · Can't sign in (while anyone can't); newest, last active, name; 25 at a
+   time from the server; the search, filter and sort in the address, so Back from a person returns to the list as it was. **A
+   person's page** in the frame: tag (You, Site admin, Waiting, Can't sign in, Player), name and email, joined, active and
+   devices signed in, a Waiting or Can't-sign-in panel, their couches with their games and each seat's role, History.
+   **Settings regrouped** (People, Results, Our bot, Rulebooks, Changes, Not on the desk yet): each row with its value and a
+   dot off recommended (Who gets in: invites; Sources to confirm: 2; Who fills in on new couches: anyone), each sheet with
+   Recommended and Reset to recommended, each change a toast with Undo (`PUT /api/desk/settings` answers `changeIds`) and a
+   line in Settings history, its own sheet. The **Viewing as bar** is #3c6ea6. Check: `scripts/dev-test/check-desk-people.js`
+   (zt_dk_ fixture, up and down, at 390); check-new-desk, -settling and -library updated for the new words.
+   **Left behind or changed from classic, and why (decision 10):** classic's Users page read every account (up to 1,000) and
+   searched in the browser; People reads a page at a time and searches on the server. Its Create account stays out (decision
+   5). Its sort's default was name; People's is newest first, as mocked. A username-only account's stand-in email is never
+   shown or searched (classic's search matched it). From the desk itself: Find's Library and New show buttons became Browse's
+   Library row (New show was on the Library page too, and stays there); "Airing now" stays on Find until step 7's Shows
+   list; the tie-break run's row is "When a result is disputed", and its History lines say so from now on. From the mock:
+   "signed in on 2 phones" says devices (a session can be a computer); a waiting row's "no invite" isn't said (in "You let
+   each one in" mode, invited people wait too). For later parts: Let in on a waiting row and in Who gets in (1b; the sheet
+   links to People › Waiting meanwhile), the person's actions (1b), a seat's sheet and the Delete (1c), Which AI our bot asks
+   and What's New (7c).
+   **Noticed, not fixed (1a):** (ab) `check-new-desk.js` fails on master as it stands (bf6a9154, without 1a too): the rulebook's
+   Fix a mistake saves (200) but the page never reaches version 2, and the check stops there; its "every league renames him"
+   is flaky (failed twice, passed once). Run without its rulebook section, everything else passes, Settings included. For a
+   main-folder session (the rulebook editor and S1's merge, e8d16445, are master's). (ac) A couch page's Games line names the
+   season by its show slug and number ("survivor 51": `deskCouch`), not the season's name; step 6a, where games get pages,
+   takes it. (ad) A library rulebook's "Delete it from the library" sits mid-page and is instant, against decision 4 (last,
+   named); for whichever step takes the library (7c's Settings link it).
 
 **The desk's pages and how they link** (mocked 2026-10-28 at the user's ask, `desk-pages.js`; each step builds its own page's
 actions, but the shape and links are set here). Every page: a lower third naming it, a facts line, **Part of** (what it

@@ -198,8 +198,11 @@ export async function saveFirstRun(user: SessionUser, body: { follows?: unknown;
   return { saved };
 }
 
+/** An account waiting to get in (early access): not let in, and not stopped from signing in. SQL over "user" aliased `u`. */
+export const WAITING = "u.approved = false AND u.banned IS NOT TRUE";
+
 /** Accounts waiting to get in (early access), for the desk's Who gets in. */
 export async function waitingCount(): Promise<number> {
-  const { rows } = await pool.query(`SELECT count(*)::int AS n FROM "user" WHERE approved = false AND banned IS NOT TRUE`);
+  const { rows } = await pool.query(`SELECT count(*)::int AS n FROM "user" u WHERE ${WAITING}`);
   return rows[0].n;
 }

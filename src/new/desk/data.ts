@@ -10,11 +10,15 @@ export type { Inbox, InboxItem, FoundItem, DeskSettings, DeskLine } from "@/lib/
 export type { DeskFact, DeskSource } from "@/lib/server/desk-facts";
 export type { DeskSeason, DeskCastaway } from "@/lib/server/desk-cast";
 export type { SeasonBot } from "@/lib/server/desk-bot";
-export type { DeskCouch, DeskPerson, DeskShow } from "@/lib/server/desk-couches";
+export type { DeskCouch, DeskShow } from "@/lib/server/desk-couches";
+export type { DeskPerson, PeopleList, PersonRow, PeopleFilter, PeopleSort } from "@/lib/server/desk-people";
 export type { DeskRulebook, DeskRulebookEdit } from "@/lib/server/desk-rulebooks";
 export type { DeskLibrary, LibraryTemplateCard, ProposedShape, LibraryRow, MadeRow } from "@/lib/server/desk-library";
 
 const KEY = ["new-design", "desk"] as const;
+
+/** One desk read, outside a hook (a list read a page at a time). */
+export const deskGet = <T>(path: string) => call<T>(path);
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`/api/desk${path}`, init);

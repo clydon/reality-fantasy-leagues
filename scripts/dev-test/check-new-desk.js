@@ -20,7 +20,7 @@
 //      works for jordan (seen 5) counts the update and doesn't tell it; a fix after it's live reaches the games; the
 //      show change undone; Check for changes (prompt, a pasted answer reviewed, its changes put in the draft,
 //      discarded); the suggestion marked fixed; Lock; Save as a starting point; Leagues back on the show's rules.
-//   9. Settings: Confirmed needs 3, and new couches' who-fills-in, both put back.
+//   9. Settings: Sources to confirm a result 3, and new couches' who-fills-in, both put back.
 //  10. Nothing real moved: every real league's state and every real season's results are as they were.
 //  11. Screens at --width: each page and sheet above. Nothing wider than the screen; no page errors.
 // Screenshots go to <outDir>.
@@ -533,11 +533,11 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     await d.page.locator("[data-rulebooks-status]").waitFor({ timeout: 20000 });
     await fits(d.page, "Settings");
     await shot(d.page, "settings");
-    await d.page.getByText("Confirmed needs").click();
+    await d.page.locator("[data-desk-row='confirm']").click();
     await d.page.locator("[data-confirm-at='3']").click();
-    await toasted(d.page, /Confirmed needs 3/);
+    await toasted(d.page, /Sources to confirm a result: 3/);
     check((await pool.query("SELECT value FROM app_settings WHERE key = 'confirm_at'")).rows[0]?.value === 3, "Confirmed needs 3 sources");
-    await d.page.getByText("Who fills in results, for new couches").click();
+    await d.page.locator("[data-desk-row='couches']").click();
     await d.page.locator("[data-new-couches='false']").click();
     await toasted(d.page, /New couches/);
     check((await pool.query("SELECT value FROM app_settings WHERE key = 'new_couch_fill'")).rows[0]?.value === false, "new couches: only people who run games");

@@ -1,34 +1,42 @@
 "use client";
 
-import { useState } from "react";
-import { BookOpen, Check, ChevronRight, Plus, Search } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { BookOpen, Check, CheckCheck, KeyRound, Lock, RotateCcw, Search, User, Users, Zap } from "lucide-react";
+import { colourOf } from "@/lib/people";
 import { NavLink } from "../nav";
 import { paths, type DeskKind } from "../routes";
 import { useMe } from "../session";
-import { EmptyState, Row } from "../ui/parts";
+import { Avatar } from "../ui/bars";
+import { EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { deskSend, useAfterDesk, useDesk, type DeskSettings, type DeskLine, type FoundItem, type Inbox } from "./data";
+import { deskSend, useAfterDesk, useDesk, type DeskSettings, type DeskLine, type FoundItem, type Inbox, type PersonRow } from "./data";
 import { LibraryPage } from "./library";
 import { NewShowFlow } from "./new-show";
-import { CastawayPage, CouchPage, FactPage, PersonPage, SeasonPage, ShowPage } from "./pages";
-import { DeskHeader, History, ItemRow, Section } from "./parts";
+import { CastawayPage, CouchPage, FactPage, SeasonPage, ShowPage } from "./pages";
+import { PeoplePage, PersonPage, PersonTags, useDebounced } from "./people";
+import { useDeskStay, useRecentlyOpened } from "./trail";
+import { DeskHeader, DeskRow, History, IconLead, ItemRow, Section } from "./parts";
 import { RulebookPage } from "./rulebook";
 
 // The admin's desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js admin), from the profile menu: Inbox
 // (only what the community couldn't settle, and what settled on its own this week), Find (one search; each thing has a
-// page with Override, Lock and History) and Settings. Site admins only: anyone else is told so, and every read is
-// refused by its own route. The library and New show (step 10 part 3) are pages a level down, from Find.
+// page with Override, Lock and History; with nothing typed, Browse: a list of each kind, docs/PLAN-desk-parity.md step 1)
+// and Settings (grouped by the question you have, step 1). Site admins only: anyone else is told so, and every read is
+// refused by its own route. People, the library and New show (step 10 part 3) are pages a level down, from Find.
 
 type Tab = "inbox" | "find" | "settings";
-type Page = Tab | "library" | "new";
+type Page = Tab | "library" | "new" | "people";
+
+const TAB_NAMES: Record<Tab, string> = { inbox: "Inbox", find: "Find", settings: "Settings" };
 
 export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: DeskKind; id: string } | null }) {
   const me = useMe();
+  useDeskStay();
   if (!me.isSuperAdmin) {
     return (
       <div>
-        <DeskHeader title="Admin" back={{ label: "Home", href: paths.home }} badge={false} />
+        <DeskHeader title="Admin" back={{ label: "Home", href: paths.home }} badge={false} start />
         <EmptyState title="The desk is for site admins" line="Results settle by the couches. Anything that needs an admin comes here." />
       </div>
     );
@@ -39,6 +47,7 @@ export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: Desk
     return <Page id={item.id} />;
   }
   if (tab === "library") return <LibraryPage />;
+  if (tab === "people") return <PeoplePage />;
   if (tab === "new") return <NewShowFlow />;
   return <DeskTabs tab={tab ?? "inbox"} />;
 }
@@ -53,7 +62,7 @@ function DeskTabs({ tab }: { tab: Tab }) {
   ];
   return (
     <div className="pb-16">
-      <DeskHeader title="Admin" back={{ label: "Home", href: paths.home }} />
+      <DeskHeader title="Admin" back={{ label: "Home", href: paths.home }} name={TAB_NAMES[tab]} start />
       <nav className="mx-4 mt-3 grid grid-cols-3 gap-2" aria-label="The desk">
         {tabs.map(([k, label, href]) => (
           <NavLink
@@ -128,180 +137,352 @@ function InboxTab({ data, loading }: { data: Inbox | undefined; loading: boolean
   );
 }
 
+// ---------- Find ----------
+
 const ICONS: Record<FoundItem["kind"], string> = { show: "Show", season: "Season", castaway: "Cast", couch: "Couch", person: "Person", rulebook: "Rulebook", fact: "Fact" };
 
+interface Found {
+  found: FoundItem[];
+  /** With nothing typed: Browse's lines. */
+  browse?: { people: { all: number; waiting: number }; library: { templates: number; inUse: number; unchecked: number } };
+  /** With a search: the first few people who match, and how many do. */
+  people?: { people: PersonRow[]; total: number };
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+/** What's worth knowing on a Browse line, in bold (the mock's .dk-wn). */
+const Worth = ({ children }: { children: ReactNode }) => <b className="font-bold text-foreground">{children}</b>;
+
+/** A list's small heading inside a section (the mock's .dk-sub). */
+function SubHead({ title, aside }: { title: string; aside?: ReactNode }) {
+  return (
+    <div className="mb-2 mt-5 flex items-baseline justify-between gap-3 first:mt-3.5">
+      <h2 className="type-caption text-[17px] tracking-[0.04em] text-muted-foreground">{title}</h2>
+      {aside != null && <span className="text-[13px] text-muted-foreground">{aside}</span>}
+    </div>
+  );
+}
+
+/**
+ * Find (the mock's desk.js dkBrowse and admFindList): one search. With nothing typed, Browse: a row for each kind with
+ * its own list (People and the library now; Couches, Games, Shows and Reports come with their steps), then what you
+ * opened lately, then what's airing (until Shows has its list, step 7). With a search: the first three people who match,
+ * and All N in People, searched; then everything else it finds.
+ */
 function FindTab() {
   const [q, setQ] = useState("");
-  const found = useDesk<{ found: FoundItem[] }>(`/find?q=${encodeURIComponent(q.trim())}`);
+  const term = useDebounced(q.trim(), 200);
+  const found = useDesk<Found>(`/find?q=${encodeURIComponent(term)}`);
+  const recent = useRecentlyOpened();
+  const b = found.data?.browse;
+  const people = found.data?.people;
   return (
     <Section>
-      {/* The library and New show (step 10 part 3): the rulebooks new shows start from, and a show set up from the desk. */}
-      <div className="mb-4 grid grid-cols-2 gap-2">
-        <NavLink href={paths.desk("library")} data-desk-library-link className="nd-press flex min-h-[64px] items-center gap-2.5 rounded-[4px] bg-card p-3">
-          <BookOpen className="size-5 flex-none" aria-hidden />
-          <span className="min-w-0 flex-1">
-            <b className="block text-[15px]">Library</b>
-            <small className="block text-[12.5px] leading-snug text-muted-foreground">Starting points</small>
-          </span>
-          <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
-        </NavLink>
-        <NavLink href={paths.deskNew()} data-desk-new-link className="nd-press flex min-h-[64px] items-center gap-2.5 rounded-[4px] bg-card p-3">
-          <Plus className="size-5 flex-none" aria-hidden />
-          <span className="min-w-0 flex-1">
-            <b className="block text-[15px]">New show</b>
-            <small className="block text-[12.5px] leading-snug text-muted-foreground">Set one up</small>
-          </span>
-          <ChevronRight className="size-4 flex-none text-muted-foreground" aria-hidden />
-        </NavLink>
-      </div>
-      <label className="flex h-12 items-center gap-2 rounded-[3px] bg-card px-3 outline-1 -outline-offset-1 outline-input">
-        <Search className="size-5 text-muted-foreground" aria-hidden />
-        <input data-find value={q} onChange={(e) => setQ(e.target.value)} placeholder="A show, season, castaway, couch or person" aria-label="Find anything" className="h-full min-w-0 flex-1 bg-transparent text-base outline-none" />
+      <label className="flex h-12 items-center gap-2 rounded-[3px] bg-card px-3 outline-1 -outline-offset-1 outline-input focus-within:outline-2 focus-within:outline-chyron">
+        <Search className="size-5 flex-none text-muted-foreground" aria-hidden />
+        <input data-find type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="A show, season, castaway, couch or person" aria-label="Find anything" autoComplete="off" className="h-full min-w-0 flex-1 bg-transparent text-base outline-none" />
       </label>
       <p className="mb-1 mt-2 text-[13px] leading-snug text-muted-foreground">Everything can be changed from its page. Changes show their reach before you save, and every one is in its history.</p>
-      {q.trim() === "" && <p className="mt-3 text-[13px] text-muted-foreground">Airing now:</p>}
-      <div data-found>
-        {(found.data?.found ?? []).map((f, i) => (
-          <ItemRow key={`${f.href}-${i}`} data={f.kind} href={f.href} tag={ICONS[f.kind]} title={f.title} line={f.line} />
-        ))}
-        {found.data && !found.data.found.length && <p className="mt-3 text-[14px] text-muted-foreground">Nothing matches.</p>}
-      </div>
+      {q.trim() === "" ? (
+        <>
+          <SubHead title="Browse" />
+          <div data-browse>
+            <DeskRow
+              href={paths.deskPeople()}
+              data="browse-people"
+              lead={<IconLead icon={User} />}
+              title="People"
+              line={b ? <>{plural(b.people.all, "account", "accounts")}{b.people.waiting ? <> · <Worth>{b.people.waiting} waiting to get in</Worth></> : null}</> : " "}
+            />
+            <NavLink href={paths.desk("library")} data-desk-library-link className="nd-press flex min-h-[62px] w-full items-center gap-3 border-t border-border py-2.5 text-left">
+              <IconLead icon={BookOpen} />
+              <span className="min-w-0 flex-1">
+                <b className="block text-[16px] font-semibold leading-snug">Library</b>
+                <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
+                  {b ? (
+                    <>
+                      {plural(b.library.templates, "starting point", "starting points")} · {b.library.inUse} in use
+                      {b.library.unchecked ? <> · <Worth>{b.library.unchecked} nobody&apos;s checked</Worth></> : null}
+                    </>
+                  ) : (
+                    " "
+                  )}
+                </small>
+              </span>
+            </NavLink>
+          </div>
+          <p className="mt-2.5 text-[13px] leading-snug text-muted-foreground">Seasons, episodes, castaways and results are inside their show. The search finds them all.</p>
+          {recent.length > 0 && (
+            <>
+              <SubHead title="Recently opened" />
+              <div data-recent>
+                {recent.map((r) => (
+                  <ItemRow key={r.href} data="recent" href={r.href} tag={r.kind} title={r.label} />
+                ))}
+              </div>
+            </>
+          )}
+          <SubHead title="Airing now" />
+          <div data-found>
+            {(found.data?.found ?? []).map((f, i) => (
+              <ItemRow key={`${f.href}-${i}`} data={f.kind} href={f.href} tag={ICONS[f.kind]} title={f.title} line={f.line} />
+            ))}
+            {found.data && !found.data.found.length && <p className="mt-1 text-[14px] text-muted-foreground">Nothing&apos;s airing.</p>}
+          </div>
+        </>
+      ) : (
+        <div data-found className="mt-2">
+          {/* While typing pauses, nothing: the empty search's rows aren't what you're looking for. */}
+          {term !== "" && (
+            <>
+              {people?.people.map((p) => (
+                <NavLink key={p.id} href={paths.deskItem("person", p.id)} data-desk-item="person" className="nd-press flex min-h-[64px] items-center gap-3 border-t border-border py-2.5 first:border-t-0">
+                  <Avatar id={p.id} name={p.name} size={40} colour={colourOf(p.id, p.colour)} />
+                  <span className="min-w-0 flex-1">
+                    <b className="block text-[16px] font-semibold leading-snug">
+                      {p.name}
+                      <PersonTags p={p} />
+                    </b>
+                    <small className="mt-0.5 block truncate text-[13px] leading-snug text-muted-foreground">Person · {p.email ?? "no email"}</small>
+                  </span>
+                </NavLink>
+              ))}
+              {people && people.total > people.people.length && (
+                <NavLink href={paths.deskPeople({ q: term })} data-find-all-people className="flex min-h-12 items-center border-t border-border text-[14px] font-bold underline decoration-input underline-offset-[3px]">
+                  All {people.total} people matching &ldquo;{term}&rdquo;
+                </NavLink>
+              )}
+              {(found.data?.found ?? []).map((f, i) => (
+                <ItemRow key={`${f.href}-${i}`} data={f.kind} href={f.href} tag={ICONS[f.kind]} title={f.title} line={f.line} />
+              ))}
+              {found.data && !found.data.found.length && !people?.total && <p className="mt-3 text-[14px] text-muted-foreground">Nothing matches.</p>}
+            </>
+          )}
+        </div>
+      )}
     </Section>
   );
 }
 
+// ---------- Settings ----------
+
 /** Who gets in (src/lib/signups.ts): the desk's three ways, each with what it means. */
 const SIGNUPS = [
   ["approve", "You let each one in", "Every new account waits until a site admin lets it in, invited or not. Early access as it was."],
-  ["invites", "Invites let people in", "Recommended. Someone who joins a couch with its code gets in straight away. Anyone else waits for you."],
+  ["invites", "Invites let people in", "Someone who joins a couch with its code gets in straight away. Anyone else waits for you."],
   ["open", "Anyone gets in", "Every new account plays straight away."],
 ] as const;
 
+type SheetKey = "signups" | "confirm" | "tiebreak" | "couches" | "autopilot" | "rulebooks" | "history";
+
+/** A section of Settings: its question, then its rows (the mock's desk-pages.js dkSetSec). */
+function SetSection({ title, line, children }: { title: string; line: string; children: ReactNode }) {
+  return (
+    <Section title={title}>
+      <p className="-mt-1 mb-2 text-[13px] leading-snug text-muted-foreground">{line}</p>
+      <div className="border-b border-border">{children}</div>
+    </Section>
+  );
+}
+
+/** One choice in a setting's sheet: what it is, Recommended when it is, and what it does. */
+function ChoiceCard({ on, title, line, recommended, onClick, attrs }: { on: boolean; title: string; line?: string; recommended?: boolean; onClick: () => void; attrs: Record<string, string> }) {
+  return (
+    <button type="button" {...attrs} aria-pressed={on} onClick={onClick} className={`nd-press rounded-[3px] p-3.5 text-left ${on ? "outline-2 -outline-offset-2 outline-foreground" : "bg-background"}`}>
+      <b className="block text-[16px]">
+        {title}
+        {recommended && <i className="type-caption ml-1.5 inline-block rounded-[2px] bg-secondary px-1.5 pb-0.5 pt-[3px] align-[2px] text-[11px] not-italic leading-none tracking-[0.06em]">Recommended</i>}
+      </b>
+      {line && <small className="text-[13px] leading-snug text-muted-foreground">{line}</small>}
+    </button>
+  );
+}
+
+function ResetLink({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" data-reset-recommended onClick={onClick} className="mt-2 inline-flex min-h-11 items-center text-[14px] font-bold underline decoration-input underline-offset-[3px]">
+      Reset to recommended
+    </button>
+  );
+}
+
+/**
+ * Settings (the mock's desk-pages.js admSettings), grouped by the question you have: People (who gets in), Results (how a
+ * result becomes everyone's), Our bot (Autopilot), Rulebooks (which rules games play by), Changes (Settings history) and
+ * Not on the desk yet. Each row says its value, with a dot when it's off its recommended setting; its sheet has Reset to
+ * recommended; each change is a toast with Undo and a line in Settings history. Which AI our bot asks and What's New
+ * join with step 7.
+ */
 function SettingsTab() {
   const q = useDesk<{ settings: DeskSettings; history: DeskLine[] }>("/settings");
   const after = useAfterDesk();
-  const [sheet, setSheet] = useState<"confirm" | "couches" | "tiebreak" | "signups" | null>(null);
+  const [sheet, setSheet] = useState<SheetKey | null>(null);
   if (!q.data) return <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
   const s = q.data.settings;
+  const history = q.data.history;
+  const close = () => setSheet(null);
   const put = async (body: Record<string, unknown>, done: string) => {
     try {
-      await deskSend("/settings", body, "PUT");
+      const out = await deskSend<{ changeIds: string[] }>("/settings", body, "PUT");
       await after();
       setSheet(null);
-      toast(done);
+      // Undo takes back every change the save made, the last first.
+      const ids = [...(out.changeIds ?? [])].reverse();
+      toast(
+        done,
+        ids.length
+          ? {
+              undo: async () => {
+                try {
+                  for (const id of ids) await deskSend(`/changes/${id}/undo`, {});
+                  await after();
+                  toast("Undone");
+                } catch (e) {
+                  toast.quiet((e as Error).message);
+                }
+              },
+            }
+          : {}
+      );
     } catch (e) {
       toast.quiet((e as Error).message);
     }
   };
+  const mode = SIGNUPS.find(([m]) => m === s.signups.mode);
+  const disputed = (on: boolean) => (on ? "The bot asks again after a day" : "It waits for a couch to check again");
+  const fill = (anyone: boolean) => (anyone ? "Anyone on the couch" : "Only people who run games");
+  const rb = s.rulebooks;
   return (
     <>
-      <Section title="Results">
-        <Row title="Confirmed needs" detail={`${s.confirmAt} sources that agree`} onClick={() => setSheet("confirm")} />
-        <Row title="Quick check" detail="Who went home, from one question · free" />
-        <Row
-          title="Tie-break run"
-          detail={s.tiebreak.on ? `On · when a result is disputed for a day, our bot asks once more` : "Off · a dispute waits for someone to check it again"}
-          onClick={() => setSheet("tiebreak")}
-        />
-      </Section>
-      <Section title="Autopilot trial" aside="Our bot">
-        <p className="mb-2 text-[13px] leading-snug text-muted-foreground">
-          The bot&apos;s schedule, season by season: what Autopilot will be. Couches see &ldquo;Autopilot · On for this season&rdquo; while it checks results. Change it on a season&apos;s page.
-        </p>
-        <div data-autopilot>
-          {s.autopilot.length ? (
-            s.autopilot.map((a) => <ItemRow key={a.id} data="season" href={paths.deskItem("season", a.id)} tag="On" title={a.name} line={a.line} />)
-          ) : (
-            <p className="rounded-[4px] bg-card p-3.5 text-[14px] text-muted-foreground">No season&apos;s bot is on. Switch one on from its page (Find › a season).</p>
-          )}
-        </div>
-      </Section>
-      <Section title="Couches">
-        <Row title="Who fills in results, for new couches" detail={s.newCouchesAnyone ? "Anyone on the couch" : "Only people who run games"} onClick={() => setSheet("couches")} />
-      </Section>
-      <Section title="People">
-        <Row
-          title="Who gets in"
-          detail={`${SIGNUPS.find(([m]) => m === s.signups.mode)?.[1] ?? ""}${s.signups.waiting ? ` · ${s.signups.waiting} waiting` : ""}`}
+      <SetSection title="People" line="When someone makes an account, and who's waiting.">
+        <DeskRow
+          data="signups"
           onClick={() => setSheet("signups")}
+          lead={<IconLead icon={User} />}
+          title="Who gets in"
+          dot={s.signups.mode !== "invites"}
+          line={
+            <>
+              {mode?.[1]}
+              {s.signups.waiting ? <> · <Worth>{s.signups.waiting} waiting</Worth></> : null}
+            </>
+          }
         />
-      </Section>
-      <Section title="Rulebooks">
-        <div data-rulebooks-status className="rounded-[4px] bg-card p-3.5 text-[14px] leading-snug">
-          {s.rulebooks.everywhere ? (
-            <b>Every season&apos;s leagues play by its rulebook.</b>
-          ) : s.rulebooks.seasons.length ? (
-            <>
-              <b className="block">Leagues play by their rulebook on {s.rulebooks.seasons.map((x) => x.name).join(", ")}.</b>
-              <small className="text-muted-foreground">Everywhere else they play by their show&apos;s rules. Switch a season on from its rulebook.</small>
-            </>
-          ) : (
-            <>
-              <b className="block">Leagues play by their show&apos;s rules.</b>
-              <small className="text-muted-foreground">Switch a season&apos;s leagues onto its rulebook from the rulebook&apos;s page (Find › a season). Edits reach them once they&apos;re on.</small>
-            </>
-          )}
+      </SetSection>
+      <SetSection title="Results" line="How a result becomes everyone's. Who went home is always checked for free.">
+        <DeskRow data="confirm" onClick={() => setSheet("confirm")} lead={<IconLead icon={CheckCheck} />} title="Sources to confirm a result" dot={s.confirmAt !== 2} line={`${s.confirmAt} that agree${s.confirmAt === 2 ? " · recommended" : ""}`} />
+        <DeskRow data="tiebreak" onClick={() => setSheet("tiebreak")} lead={<IconLead icon={RotateCcw} />} title="When a result is disputed" line={disputed(s.tiebreak.on)} />
+        <DeskRow data="couches" onClick={() => setSheet("couches")} lead={<IconLead icon={Users} />} title="Who fills in results on new couches" dot={!s.newCouchesAnyone} line={`${fill(s.newCouchesAnyone)}${s.newCouchesAnyone ? " · recommended" : ""}`} />
+      </SetSection>
+      <SetSection title="Our bot" line="What it looks up on its own.">
+        <DeskRow
+          data="autopilot"
+          onClick={() => setSheet("autopilot")}
+          lead={<IconLead icon={Zap} />}
+          title="Autopilot"
+          line={s.autopilot.length ? `On for ${plural(s.autopilot.length, "season", "seasons")}: ${s.autopilot.map((a) => a.name).join(", ")}` : "Off for every season"}
+        />
+      </SetSection>
+      <SetSection title="Rulebooks" line="Which rules each season's games play by.">
+        <div data-rulebooks-status>
+          <DeskRow
+            data="rulebooks"
+            onClick={() => setSheet("rulebooks")}
+            lead={<IconLead icon={BookOpen} />}
+            title="Games on their season's rulebook"
+            line={rb.everywhere ? "Every season at once" : rb.seasons.length ? `On ${plural(rb.seasons.length, "season", "seasons")}: ${rb.seasons.map((x) => x.name).join(", ")} · every season at once: off` : "Off · games play by their show's rules"}
+          />
         </div>
-      </Section>
+        <DeskRow data="library" href={paths.desk("library")} lead={<IconLead icon={BookOpen} />} title="The library" line="Every rulebook and starting point" />
+      </SetSection>
+      <SetSection title="Changes" line="Every setting changed here, with Undo.">
+        <DeskRow
+          data="history"
+          onClick={() => setSheet("history")}
+          lead={<IconLead icon={RotateCcw} />}
+          title="Settings history"
+          line={history[0] ? `${history[0].text} · ${new Date(history[0].at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : "Nothing changed yet"}
+        />
+      </SetSection>
       {/* Until classic's admin retires (docs/PLAN-desk-parity.md step 8), what the desk can't do yet is done there. */}
-      <Section title="Not on the desk yet">
-        <Row title="Classic admin" detail="People, games, a season's setup, research and cast, until the desk has them" href="/admin" />
-      </Section>
-      <Section title="History">
-        <History lines={q.data.history} emptyLine="No settings changed yet." />
-      </Section>
-      <Sheet open={sheet === "confirm"} onOpenChange={(o) => !o && setSheet(null)} title="Confirmed needs" subtitle="How many sources that agree confirm a result">
+      <SetSection title="Not on the desk yet" line="Until classic's admin retires.">
+        <DeskRow data="classic" href="/admin" lead={<IconLead icon={KeyRound} />} title="Classic admin" line="People's accounts, games, a season's setup, research and cast, until the desk has them" />
+      </SetSection>
+
+      <Sheet open={sheet === "signups"} onOpenChange={(o) => !o && close()} title="Who gets in" subtitle="When someone makes an account">
         <div className="flex flex-col gap-2">
-          {[2, 3, 4].map((n) => (
-            <button key={n} type="button" data-confirm-at={n} aria-pressed={s.confirmAt === n} onClick={() => put({ confirmAt: n }, `Confirmed needs ${n} sources`)} className={`nd-press rounded-[3px] p-3.5 text-left ${s.confirmAt === n ? "outline-2 -outline-offset-2 outline-foreground" : "bg-background"}`}>
-              <b className="block text-[16px]">{n} sources</b>
-              <small className="text-[13px] text-muted-foreground">{n === 2 ? "Recommended: two people's answers agreeing" : "Stricter: fewer results reach every league on their own"}</small>
-            </button>
+          {SIGNUPS.map(([v, t, d]) => (
+            <ChoiceCard key={v} attrs={{ "data-signups": v }} on={s.signups.mode === v} title={t} line={d} recommended={v === "invites"} onClick={() => v !== s.signups.mode && put({ signups: v }, `Who gets in: ${t.toLowerCase()}`)} />
           ))}
         </div>
-        <p className="mt-3 text-[13px] text-muted-foreground">Every shared result is settled again with the new number.</p>
+        {s.signups.mode !== "invites" && <ResetLink onClick={() => put({ signups: "invites" }, "Who gets in: invites let people in")} />}
+        <p className="mt-3 text-[13px] leading-snug text-muted-foreground">Changing this never lets in anyone already waiting.</p>
+        {s.signups.waiting > 0 && (
+          <NavLink href={paths.deskPeople({ f: "waiting" })} data-signups-waiting onClick={close} className="mt-1 inline-flex min-h-11 items-center text-[14px] font-bold underline decoration-input underline-offset-[3px]">
+            {plural(s.signups.waiting, "account is", "accounts are")} waiting: see them in People
+          </NavLink>
+        )}
       </Sheet>
-      <Sheet open={sheet === "tiebreak"} onOpenChange={(o) => !o && setSheet(null)} title="Tie-break run" subtitle={`When a result has been disputed for ${s.tiebreak.hours} hours`}>
+      <Sheet open={sheet === "confirm"} onOpenChange={(o) => !o && close()} title="Sources to confirm a result" subtitle="How many sources that agree make a result everyone's">
         <div className="flex flex-col gap-2">
           {([
-            [true, "On", "Our bot asks that episode's full results once more, as a source of its own. Most disputes settle; what doesn't comes to your Inbox. Free: about 2 minutes of the bot each."],
-            [false, "Off", "A dispute waits for someone on a couch to check it again. A flag nobody checks within a day comes to your Inbox."],
-          ] as const).map(([v, t, d]) => (
-            <button key={String(v)} type="button" data-tiebreak={String(v)} aria-pressed={s.tiebreak.on === v} onClick={() => put({ tiebreak: v }, v ? "Tie-break run on" : "Tie-break run off")} className={`nd-press rounded-[3px] p-3.5 text-left ${s.tiebreak.on === v ? "outline-2 -outline-offset-2 outline-foreground" : "bg-background"}`}>
-              <b className="block text-[16px]">{t}</b>
-              <small className="text-[13px] leading-snug text-muted-foreground">{d}</small>
-            </button>
+            [2, "Two people's answers agreeing"],
+            [3, "Stricter: fewer results reach every league on their own"],
+            [4, "Strictest: most results wait for more answers"],
+          ] as const).map(([n, d]) => (
+            <ChoiceCard key={n} attrs={{ "data-confirm-at": String(n) }} on={s.confirmAt === n} title={`${n} sources`} line={d} recommended={n === 2} onClick={() => n !== s.confirmAt && put({ confirmAt: n }, `Sources to confirm a result: ${n} that agree`)} />
+          ))}
+        </div>
+        {s.confirmAt !== 2 && <ResetLink onClick={() => put({ confirmAt: 2 }, "Sources to confirm a result: 2 that agree")} />}
+        <p className="mt-3 text-[13px] text-muted-foreground">Every shared result is settled again with the new number.</p>
+      </Sheet>
+      <Sheet open={sheet === "tiebreak"} onOpenChange={(o) => !o && close()} title="When a result is disputed" subtitle={`A result two sources disagree on, for ${s.tiebreak.hours} hours`}>
+        <div className="flex flex-col gap-2">
+          {([
+            [true, "Our bot asks that episode's full results once more, as a source of its own. Most disputes settle; what doesn't comes to your Inbox. Free: about 2 minutes of the bot each."],
+            [false, "Someone on a couch checks it again. A flag nobody checks within a day comes to your Inbox."],
+          ] as const).map(([v, d]) => (
+            <ChoiceCard key={String(v)} attrs={{ "data-tiebreak": String(v) }} on={s.tiebreak.on === v} title={disputed(v)} line={d} onClick={() => v !== s.tiebreak.on && put({ tiebreak: v }, `When a result is disputed: ${disputed(v).toLowerCase()}`)} />
           ))}
         </div>
         <p data-tiebreak-reach className="mt-3 text-[13px] leading-snug text-muted-foreground">
           {s.tiebreak.reach.length ? `It reaches every season with shared results. Airing now: ${s.tiebreak.reach.join(", ")}.` : "It reaches every season with shared results. Nothing is airing now."}
         </p>
       </Sheet>
-      <Sheet open={sheet === "signups"} onOpenChange={(o) => !o && setSheet(null)} title="Who gets in" subtitle="When someone makes an account">
-        <div className="flex flex-col gap-2">
-          {SIGNUPS.map(([v, t, d]) => (
-            <button key={v} type="button" data-signups={v} aria-pressed={s.signups.mode === v} onClick={() => put({ signups: v }, `Who gets in: ${t.toLowerCase()}`)} className={`nd-press rounded-[3px] p-3.5 text-left ${s.signups.mode === v ? "outline-2 -outline-offset-2 outline-foreground" : "bg-background"}`}>
-              <b className="block text-[16px]">{t}</b>
-              <small className="text-[13px] leading-snug text-muted-foreground">{d}</small>
-            </button>
-          ))}
-        </div>
-        <p data-signups-waiting className="mt-3 text-[13px] leading-snug text-muted-foreground">
-          {s.signups.waiting ? `${s.signups.waiting} ${s.signups.waiting === 1 ? "account is" : "accounts are"} waiting. Let them in from classic's Admin › Users for now.` : "Nobody's waiting to get in."} Changing this never lets in anyone already waiting.
-        </p>
-      </Sheet>
-      <Sheet open={sheet === "couches"} onOpenChange={(o) => !o && setSheet(null)} title="New couches" subtitle="Who fills in results, until the couch changes it">
+      <Sheet open={sheet === "couches"} onOpenChange={(o) => !o && close()} title="Who fills in results on new couches" subtitle="Until a couch changes it">
         <div className="flex flex-col gap-2">
           {([
-            [true, "Anyone on the couch", "Recommended"],
-            [false, "Only people who run games", ""],
-          ] as const).map(([v, t, d]) => (
-            <button key={String(v)} type="button" data-new-couches={String(v)} aria-pressed={s.newCouchesAnyone === v} onClick={() => put({ newCouchesAnyone: v }, `New couches: ${t.toLowerCase()}`)} className={`nd-press rounded-[3px] p-3.5 text-left ${s.newCouchesAnyone === v ? "outline-2 -outline-offset-2 outline-foreground" : "bg-background"}`}>
-              <b className="block text-[16px]">{t}</b>
-              {d && <small className="text-[13px] text-muted-foreground">{d}</small>}
-            </button>
+            [true, "Whoever has seen the episode can fill in its full results."],
+            [false, "Players can still flag a result that looks wrong."],
+          ] as const).map(([v, d]) => (
+            <ChoiceCard key={String(v)} attrs={{ "data-new-couches": String(v) }} on={s.newCouchesAnyone === v} title={fill(v)} line={d} recommended={v} onClick={() => v !== s.newCouchesAnyone && put({ newCouchesAnyone: v }, `New couches: ${fill(v).toLowerCase()}`)} />
           ))}
         </div>
+        {!s.newCouchesAnyone && <ResetLink onClick={() => put({ newCouchesAnyone: true }, "New couches: anyone on the couch")} />}
+      </Sheet>
+      <Sheet open={sheet === "autopilot"} onOpenChange={(o) => !o && close()} title="Autopilot" subtitle="The bot's schedule, season by season">
+        <p className="mb-2 text-[13px] leading-snug text-muted-foreground">Couches see &ldquo;Autopilot · On for this season&rdquo; while it checks results. Each season&apos;s page changes it.</p>
+        <div data-autopilot>
+          {s.autopilot.length ? (
+            s.autopilot.map((a) => <ItemRow key={a.id} data="season" href={paths.deskItem("season", a.id)} tag="On" title={a.name} line={a.line} />)
+          ) : (
+            <p className="rounded-[4px] bg-background p-3.5 text-[14px] text-muted-foreground">No season&apos;s bot is on. Switch one on from its page (Find › a season).</p>
+          )}
+        </div>
+      </Sheet>
+      <Sheet open={sheet === "rulebooks"} onOpenChange={(o) => !o && close()} title="Games on their rulebook" subtitle="Season by season">
+        <p className="mb-2 text-[13px] leading-snug text-muted-foreground">
+          {rb.everywhere ? "Every season's games play by its rulebook." : "Everywhere else, games play by their show's built-in rules. A season is switched on from its rulebook's page."}
+        </p>
+        <div data-rulebooks-seasons>
+          {rb.seasons.map((x) => (
+            <ItemRow key={x.id} data="season" href={paths.deskItem("season", x.id)} tag="On" title={x.name} line="Its games play by its rulebook" />
+          ))}
+        </div>
+        <DeskRow lead={<IconLead icon={Lock} />} title="Every season at once" line={rb.everywhere ? "On · switched from the server only" : "Off · switched from the server only"} />
+      </Sheet>
+      <Sheet open={sheet === "history"} onOpenChange={(o) => !o && close()} title="Settings history" subtitle="Every change here, newest first">
+        <History lines={history} emptyLine="No settings changed yet." />
       </Sheet>
     </>
   );

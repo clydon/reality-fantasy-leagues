@@ -270,7 +270,7 @@ function rulebookAnswer(prompt) {
     check((await as.jordan.call("PUT", "/api/desk/settings", { tiebreak: true })).status === 403, "the switch is the desk's (jordan refused)");
     const on = await as.desk.call("PUT", "/api/desk/settings", { tiebreak: true });
     check(on.status === 200 && on.body.settings.tiebreak.on === true && on.body.settings.tiebreak.reach.includes("ZT Survivor 51"), "the desk switches the tie-break run on; it reaches every airing season", JSON.stringify(on.body.settings?.tiebreak));
-    check(on.body.history.some((h) => /Tie-break run on/.test(h.text) && h.undoable), "a line in Settings' History, with Undo");
+    check(on.body.history.some((h) => /When a result is disputed: the bot asks again/.test(h.text) && h.undoable), "a line in Settings' History, with Undo");
     plan = await cron("GET", splitAt + DAY - 3600000);
     check(!plan.due.length && Math.abs(Date.parse(plan.next) - (splitAt + DAY)) < 2000, "on: the clock's next call is a day after the split", JSON.stringify(plan));
     const bs3 = await backstage();
@@ -414,16 +414,16 @@ function rulebookAnswer(prompt) {
     await hideOverlay(d.page);
     watch(d.page);
     await d.page.goto(`${BASE}/desk/settings`);
-    await d.page.getByText("Tie-break run").first().waitFor({ timeout: 20000 });
-    check(/On · when a result is disputed for a day/.test(await d.page.locator("main, body").first().innerText()), "Settings: the tie-break run is on");
+    await d.page.locator("[data-desk-row='tiebreak']").waitFor({ timeout: 20000 });
+    check(/The bot asks again after a day/.test(await d.page.locator("[data-desk-row='tiebreak']").innerText()), "Settings: the tie-break run is on");
     await fits("the desk's Settings", d.page);
     await shot("desk-settings", d.page);
-    await d.page.getByText("Tie-break run", { exact: true }).click();
+    await d.page.locator("[data-desk-row='tiebreak']").click();
     await d.page.locator("[data-tiebreak-reach]").waitFor();
     check(/ZT Survivor 51/.test(await d.page.locator("[data-tiebreak-reach]").innerText()), "its sheet says which airing seasons it reaches");
     await shot("desk-tiebreak-sheet", d.page);
     await d.page.locator("[data-tiebreak=false]").click();
-    check(/Tie-break run off/.test(await toasted(/Tie-break run off/, d.page)), "switched off from the sheet");
+    check(/it waits for a couch/.test(await toasted(/it waits for a couch/, d.page)), "switched off from the sheet");
     check((await pool.query("SELECT value FROM app_settings WHERE key = 'tiebreak'")).rows[0].value === false, "stored: off");
     await d.page.goto(`${BASE}/desk/season/${sid}`);
     await d.page.locator("[data-season-bot]").waitFor({ timeout: 20000 });
@@ -448,8 +448,9 @@ function rulebookAnswer(prompt) {
     await d.page.waitForFunction(() => document.querySelector("[data-switch='run-quick@5']")?.getAttribute("data-on") === "on", null, { timeout: 10000 });
     check(true, "Undo from History: the run's back on");
     await d.page.goto(`${BASE}/desk/settings`);
+    await d.page.locator("[data-desk-row='autopilot']").click({ timeout: 20000 });
     await d.page.locator("[data-autopilot]").waitFor({ timeout: 20000 });
-    check(/ZT Survivor 51/.test(await d.page.locator("[data-autopilot]").innerText()) && /Checks who went home, the full results, trivia questions and bingo squares/.test(await d.page.locator("[data-autopilot]").innerText()), "Settings › Autopilot trial: the season, and what it checks");
+    check(/ZT Survivor 51/.test(await d.page.locator("[data-autopilot]").innerText()) && /Checks who went home, the full results, trivia questions and bingo squares/.test(await d.page.locator("[data-autopilot]").innerText()), "Settings › Our bot › Autopilot: the season, and what it checks");
     await d.page.locator("[data-autopilot]").scrollIntoViewIfNeeded();
     await shot("desk-autopilot", d.page);
 

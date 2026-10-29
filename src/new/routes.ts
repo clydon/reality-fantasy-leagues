@@ -9,6 +9,7 @@
 //   /settings, /start/[step], /join/[code]   their own screens (depth 1)
 //   /desk, /desk/find, /desk/settings         the admin's desk, its three tabs (depth 1, site admins: step 6b part 2)
 //   /desk/library, /desk/new                 the rulebooks library, and New show (depth 2, pushed from Find: step 10 part 3)
+//   /desk/people                             Find › People (depth 2: docs/PLAN-desk-parity.md step 1)
 //   /desk/[kind]/[id]                        one thing on the desk: a fact, a season, a castaway, a rulebook... (depth 2)
 //
 // Classic owns everything else ("/", /account, /waivers, /setup, /admin...); the two designs never share a path.
@@ -60,6 +61,11 @@ export const paths = {
   start: (step: number) => `/start/${step}`,
   join: (code: string) => `/join/${code}`,
   desk: (tab?: "find" | "settings" | "library") => `/desk${tab ? `/${tab}` : ""}`,
+  /** Find › People, searched or filtered from the start (Browse's "N waiting", Find's "All N people matching"). */
+  deskPeople: (o: { q?: string; f?: string } = {}) => {
+    const qs = new URLSearchParams(Object.entries(o).filter(([, v]) => v) as [string, string][]).toString();
+    return `/desk/people${qs ? `?${qs}` : ""}`;
+  },
   /** New show; `season`: a season that's here, to set up (How do you want to start?). */
   deskNew: (season?: string) => `/desk/new${season ? `?season=${encodeURIComponent(season)}` : ""}`,
   deskItem: (kind: DeskKind, id: string) => `/desk/${kind}/${id}`,
@@ -68,7 +74,7 @@ export const paths = {
 /** The desk's tabs, and the kinds of thing it has a page for. */
 export const DESK_TABS = ["inbox", "find", "settings"] as const;
 /** The desk's own pages, a level down from its tabs. */
-export const DESK_PAGES = ["library", "new"] as const;
+export const DESK_PAGES = ["library", "new", "people"] as const;
 export const DESK_KINDS = ["fact", "season", "castaway", "couch", "person", "show", "rulebook"] as const;
 export type DeskKind = (typeof DESK_KINDS)[number];
 export const isDeskKind = (v: string): v is DeskKind => (DESK_KINDS as readonly string[]).includes(v);
@@ -143,7 +149,7 @@ export function upFrom(href: string, { signedIn = true }: { signedIn?: boolean }
       if ((SHOW_PAGES as readonly string[]).includes(p[2])) return paths.show(p[1]);
       return paths.home;
     case "desk":
-      if (p[1] === "library") return paths.desk("find");
+      if (p[1] === "library" || p[1] === "people") return paths.desk("find");
       if (p[1] === "new") return paths.desk("library");
       if (p[1] === "fact") return paths.desk();
       if (p[1] && isDeskKind(p[1])) return paths.desk("find");

@@ -390,10 +390,10 @@ const RULEBOOKS = "SELECT id, version, is_template, status, review_status, md5(b
         check(over <= 1, `${what}: nothing wider than the screen`, `${over}px`);
       };
 
-      // Find: Library and New show
+      // Find › Browse › Library (New show is the library's own, below)
       await pg.goto(`${BASE}/desk/find`, { waitUntil: "load" });
       await pg.locator("[data-desk-library-link]").waitFor();
-      check((await pg.locator("[data-desk-new-link]").count()) === 1, "Find: Library and New show");
+      check((await pg.locator("[data-browse] [data-desk-library-link]").count()) === 1, "Find › Browse: the Library");
       // A screenshot before the page has hydrated hides the caret on its input, which React then calls a mismatch.
       await pg.waitForTimeout(800);
       await shot("find");

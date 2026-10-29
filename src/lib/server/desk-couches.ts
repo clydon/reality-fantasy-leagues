@@ -11,13 +11,14 @@ import { artAutomatic, chooseArt, deskArt, findArtForShow, findArtLater, setArtO
 // Couches, people and shows on the desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js adminEntity):
 // a couch's people, its games and who runs each, who fills in its results (Override), and, when a game has nobody
 // running it (its only commissioner left or deleted their account: the Inbox's stranded couch), Hand it to someone who
-// plays it. A person's couches and games, to look up; a show's seasons, to go to, who added it (step 10 part 3: a show added by
+// plays it. (A person is desk-people.ts's.) A show's seasons, to go to, who added it (step 10 part 3: a show added by
 // name waits in the Inbox until the desk says Looks fine or archives it), and New season.
 
 export interface DeskCouch {
   id: string;
   name: string;
-  members: { userId: string; name: string; role: string }[];
+  /** `colour`: the one they chose for their face (null: their id picks one). */
+  members: { userId: string; name: string; role: string; colour: string | null }[];
   games: { leagueId: string; name: string; season: string; gameName: string; runners: string[]; players: { userId: string; name: string }[] }[];
   anyone: boolean;
   rulings: number;
@@ -31,7 +32,8 @@ export async function deskCouch(id: string): Promise<DeskCouch> {
   const { rows: c } = await pool.query("SELECT id, name, results_by_anyone FROM couches WHERE id = $1", [id]);
   if (!c.length) throw new HttpError(404, "Couch not found");
   const { rows: members } = await pool.query(
-    `SELECT m.user_id, COALESCE(u.username, u.name) AS name, m.role FROM couch_members m JOIN "user" u ON u.id = m.user_id WHERE m.couch_id = $1 ORDER BY m.role DESC, u.username`,
+    `SELECT m.user_id, COALESCE(u.username, u.name) AS name, m.role, st.colour FROM couch_members m JOIN "user" u ON u.id = m.user_id
+       LEFT JOIN user_settings st ON st.user_id = m.user_id WHERE m.couch_id = $1 ORDER BY m.role DESC, u.username`,
     [id]
   );
   const { rows: leagues } = await pool.query(
@@ -62,7 +64,7 @@ export async function deskCouch(id: string): Promise<DeskCouch> {
   return {
     id,
     name: c[0].name,
-    members: members.map((m) => ({ userId: m.user_id, name: m.name, role: m.role })),
+    members: members.map((m) => ({ userId: m.user_id, name: m.name, role: m.role, colour: m.colour ?? null })),
     games,
     anyone: c[0].results_by_anyone,
     rulings: rulings[0].n,
@@ -103,22 +105,6 @@ export async function couchFill(user: SessionUser, couchId: string, anyone: unkn
     userId: user.id,
   });
   return deskCouch(couchId);
-}
-
-export interface DeskPerson {
-  id: string;
-  name: string;
-  email: string | null;
-  couches: { id: string; name: string; role: string }[];
-  games: { leagueId: string; name: string; role: string }[];
-}
-
-export async function deskPerson(id: string): Promise<DeskPerson> {
-  const { rows } = await pool.query(`SELECT id, COALESCE(username, name) AS name, email FROM "user" WHERE id = $1`, [id]);
-  if (!rows.length) throw new HttpError(404, "Nobody by that id");
-  const { rows: couches } = await pool.query("SELECT c.id, c.name, m.role FROM couch_members m JOIN couches c ON c.id = m.couch_id WHERE m.user_id = $1 ORDER BY c.name", [id]);
-  const { rows: games } = await pool.query("SELECT l.id, l.name, m.role FROM league_memberships m JOIN leagues l ON l.id = m.league_id WHERE m.user_id = $1 ORDER BY l.name", [id]);
-  return { id, name: rows[0].name, email: rows[0].email, couches, games: games.map((g) => ({ leagueId: g.id, name: g.name, role: g.role })) };
 }
 
 export interface DeskShow {

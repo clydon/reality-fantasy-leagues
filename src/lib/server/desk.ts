@@ -16,7 +16,7 @@ import { SIGNUP_MODES, type SignupMode } from "@/lib/signups";
 // shows, seasons, castaways, couches, people and rulebooks; each has a page with Override, a Lock and its History) and
 // Settings. Every change the desk makes is a row in admin_changes (0113), with its undo where it has one.
 
-export type DeskEntity = "fact" | "castaway" | "season" | "rulebook" | "couch" | "settings" | "show";
+export type DeskEntity = "fact" | "castaway" | "season" | "rulebook" | "couch" | "settings" | "show" | "person";
 
 /** Site admins only: 403 for anyone else (the desk's routes and screens). */
 export async function requireDesk(req: Request): Promise<SessionUser> {
@@ -125,14 +125,16 @@ const putSetting = (key: string, value: unknown) =>
 export async function setDeskSetting(
   user: SessionUser,
   body: { confirmAt?: unknown; newCouchesAnyone?: unknown; tiebreak?: unknown; signups?: unknown }
-): Promise<DeskSettings> {
+): Promise<DeskSettings & { changeIds: string[] }> {
   const was = await deskSettings();
+  // The changes made, for the toast's Undo (each sheet changes one setting; a PUT may change several).
+  const changeIds: string[] = [];
   if (body.confirmAt !== undefined) {
     const n = Number(body.confirmAt);
     if (!Number.isInteger(n) || n < 2 || n > 5) throw new HttpError(400, "Confirmed needs 2 to 5 sources");
     if (n !== was.confirmAt) {
       await putSetting("confirm_at", n);
-      await logDesk(pool, { entity: "settings", entityId: "confirm_at", action: "set", text: `Confirmed needs ${n} sources that agree`, before: was.confirmAt, after: n, undo: { type: "setting", key: "confirm_at", value: was.confirmAt }, userId: user.id });
+      changeIds.push(await logDesk(pool, { entity: "settings", entityId: "confirm_at", action: "set", text: `Sources to confirm a result: ${n} that agree`, before: was.confirmAt, after: n, undo: { type: "setting", key: "confirm_at", value: was.confirmAt }, userId: user.id }));
       await settleEverything(user.id);
     }
   }
@@ -140,7 +142,8 @@ export async function setDeskSetting(
     if (typeof body.newCouchesAnyone !== "boolean") throw new HttpError(400, "newCouchesAnyone is true or false");
     if (body.newCouchesAnyone !== was.newCouchesAnyone) {
       await putSetting("new_couch_fill", body.newCouchesAnyone);
-      await logDesk(pool, {
+      changeIds.push(
+        await logDesk(pool, {
         entity: "settings",
         entityId: "new_couch_fill",
         action: "set",
@@ -149,7 +152,8 @@ export async function setDeskSetting(
         after: body.newCouchesAnyone,
         undo: { type: "setting", key: "new_couch_fill", value: was.newCouchesAnyone },
         userId: user.id,
-      });
+      })
+      );
     }
   }
   // The tie-break run: the bot asks a disputed episode once more after a day (db/bot-research.js), on every season.
@@ -157,16 +161,18 @@ export async function setDeskSetting(
     if (typeof body.tiebreak !== "boolean") throw new HttpError(400, "tiebreak is true or false");
     if (body.tiebreak !== was.tiebreak.on) {
       await putSetting("tiebreak", body.tiebreak);
-      await logDesk(pool, {
+      changeIds.push(
+        await logDesk(pool, {
         entity: "settings",
         entityId: "tiebreak",
         action: "set",
-        text: body.tiebreak ? "Tie-break run on: the bot checks a result disputed for a day" : "Tie-break run off",
+        text: body.tiebreak ? "When a result is disputed: the bot asks again after a day" : "When a result is disputed: it waits for a couch to check again",
         before: was.tiebreak.on,
         after: body.tiebreak,
         undo: { type: "setting", key: "tiebreak", value: was.tiebreak.on },
         userId: user.id,
-      });
+      })
+      );
       nudgeBotClock();
     }
   }
@@ -176,7 +182,8 @@ export async function setDeskSetting(
     const mode = body.signups as SignupMode;
     if (mode !== was.signups.mode) {
       await putSetting("signups", mode);
-      await logDesk(pool, {
+      changeIds.push(
+        await logDesk(pool, {
         entity: "settings",
         entityId: "signups",
         action: "set",
@@ -185,10 +192,11 @@ export async function setDeskSetting(
         after: mode,
         undo: { type: "setting", key: "signups", value: was.signups.mode },
         userId: user.id,
-      });
+      })
+      );
     }
   }
-  return deskSettings();
+  return { ...(await deskSettings()), changeIds };
 }
 
 const SIGNUP_LINES: Record<SignupMode, string> = {
@@ -369,6 +377,21 @@ export async function inbox(): Promise<Inbox> {
 
 // ---------- Find ----------
 
+/**
+ * Browse's line for the Library (docs/PLAN-desk-parity.md step 1, Find › Browse): its starting points, the seasons'
+ * rulebooks (as its In use lists them), and new ones nobody on another couch has checked (as the Inbox's).
+ */
+export async function libraryCounts(): Promise<{ templates: number; inUse: number; unchecked: number }> {
+  const { rows } = await pool.query(
+    `SELECT count(*) FILTER (WHERE r.owner_kind = 'library' AND r.is_template)::int AS templates,
+            count(*) FILTER (WHERE r.owner_kind = 'season' AND s.archived = false)::int AS "inUse",
+            count(*) FILTER (WHERE r.owner_kind = 'season' AND s.archived = false AND r.provenance->>'from' = 'made' AND r.review_status = 'unreviewed')::int AS unchecked
+       FROM rulebooks r LEFT JOIN show_seasons ss ON ss.id = r.season_id LEFT JOIN shows s ON s.id = ss.show_id
+      WHERE r.status <> 'archived'`
+  );
+  return rows[0];
+}
+
 export interface FoundItem {
   kind: "show" | "season" | "castaway" | "couch" | "person" | "rulebook" | "fact";
   title: string;
@@ -376,7 +399,10 @@ export interface FoundItem {
   href: string;
 }
 
-/** One search over everything the desk can change. An empty search lists what's airing. */
+/**
+ * One search over everything the desk can change but people (desk-people.ts findPeople: Find shows a few and links the
+ * rest to People, searched). An empty search lists what's airing.
+ */
 export async function find(q: string): Promise<FoundItem[]> {
   const term = q.trim();
   if (!term) {
@@ -420,12 +446,6 @@ export async function find(q: string): Promise<FoundItem[]> {
     [like]
   );
   out.push(...couches.map((r) => ({ kind: "couch" as const, title: r.name, line: `Couch · ${r.members} on it`, href: `/desk/couch/${r.id}` })));
-  const { rows: people } = await pool.query(
-    `SELECT u.id, COALESCE(u.username, u.name) AS name, (SELECT count(*)::int FROM couch_members m WHERE m.user_id = u.id) AS couches
-       FROM "user" u WHERE u.username ILIKE $1 OR u.name ILIKE $1 ORDER BY u.username LIMIT 6`,
-    [like]
-  );
-  out.push(...people.map((r) => ({ kind: "person" as const, title: r.name, line: `Person · ${r.couches} ${r.couches === 1 ? "couch" : "couches"}`, href: `/desk/person/${r.id}` })));
   const { rows: facts } = await pool.query(
     `SELECT d.id, d.castaway_name, d.kind, d.method, d.event_type, d.episode_number, d.fact_status, ${seasonName} AS season
        FROM season_decisions d JOIN show_seasons ss ON ss.id = d.season_id JOIN shows s ON s.id = ss.show_id

@@ -71,6 +71,12 @@ test("up from a page: where its own Back leads, on up to the hub (the phone's ba
   assert.equal(R.upFrom("/desk/new?season=abc"), "/desk/library");
   assert.equal(R.upFrom("/desk/fact/42"), "/desk");
   assert.equal(R.upFrom("/desk/castaway/7"), "/desk/find");
+  // Find › People (docs/PLAN-desk-parity.md step 1): a page a level down from Find, searched or filtered from the start.
+  assert.equal(R.upFrom("/desk/people?q=riley&f=waiting"), "/desk/find");
+  assert.equal(R.depthOf("/desk/people"), 2);
+  assert.equal(R.paths.deskPeople(), "/desk/people");
+  assert.equal(R.paths.deskPeople({ q: "kat o", f: "" }), "/desk/people?q=kat+o");
+  assert.equal(R.paths.deskPeople({ f: "waiting" }), "/desk/people?f=waiting");
   // Signed out, the top is the landing.
   assert.equal(R.upFrom("/signin"), "/welcome");
   assert.equal(R.upFrom("/start/1", { signedIn: false }), "/welcome");
