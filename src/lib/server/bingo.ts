@@ -1,5 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
-import { countLines, dealCard, firstLineAt, fullLines, seedOf, truthOf, FREE_KEY, LINES, MIN_MOMENTS, SQUARES, type BankSquare, type BingoSquare, type CalledLine, type Likelihood, type LineCount, type Truth } from "@/lib/game/bingo";
+import { countLines, dealCard, firstLineAt, fullLines, pointsPerLine, seedOf, truthOf, FREE_KEY, LINES, MIN_MOMENTS, SQUARES, type BankSquare, type BingoSquare, type CalledLine, type Likelihood, type LineCount, type Truth } from "@/lib/game/bingo";
 import { settleSays, type CallBook, type EpisodeFacts } from "@/lib/game/calls";
 import { PRESENT_MS } from "@/lib/game/watch-along";
 import { kindOf } from "@/lib/game/formats/rulebook-schema.js";
@@ -771,8 +771,10 @@ export async function leagueBingo(o: {
     from === null ? new Map<string, number>() : bingoLines(o.seasonId, userIds, { from, through, couchId: o.couchId, book: o.book }),
     o.playerId && from !== null ? bingoMove(o.userId, o.seasonId, mark, from, schedule, now) : Promise.resolve(null),
   ]);
+  // Points per line (step A9 of docs/PLAN-start-a-game-gpt.md), 1 when the game says none.
+  const each = pointsPerLine(o.state);
   return {
-    right: (p) => lines.get(o.userOf(p) ?? "") ?? 0,
+    right: (p) => (lines.get(o.userOf(p) ?? "") ?? 0) * each,
     move: null,
     bingo: move && (end === null || move.episode <= end) ? move : null,
     through,

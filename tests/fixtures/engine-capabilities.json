@@ -1355,32 +1355,236 @@
         {
           "id": "score.split",
           "what": "Split the pot (rarer right calls win more)",
-          "step": "A9"
+          "step": "A9",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "boot",
+                "ask": "Who goes home?",
+                "answer": "person",
+                "points": 10,
+                "asked": "each",
+                "share": "split",
+                "settle": {
+                  "by": "results",
+                  "take": "out"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "score.only",
           "what": "Only the only right answer scores",
-          "step": "A9"
+          "step": "A9",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "boot",
+                "ask": "Who goes home?",
+                "answer": "person",
+                "points": 5,
+                "asked": "each",
+                "share": "only",
+                "settle": {
+                  "by": "results",
+                  "take": "out"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "score.rollover",
           "what": "A jackpot that rolls over",
-          "step": "A9"
+          "step": "A9",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "boot",
+                "ask": "Who goes home?",
+                "answer": "person",
+                "points": 3,
+                "asked": "each",
+                "rollover": true,
+                "settle": {
+                  "by": "results",
+                  "take": "out"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "score.multiply",
           "what": "Multipliers (a parlay)",
-          "step": "A9"
+          "step": "A9",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers",
+              "parlays": [
+                {
+                  "of": [
+                    "out",
+                    "imm"
+                  ],
+                  "times": 3
+                }
+              ]
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "out",
+                "ask": "Who goes home?",
+                "answer": "person",
+                "points": 2,
+                "asked": "each",
+                "settle": {
+                  "by": "results",
+                  "take": "out"
+                }
+              },
+              {
+                "id": "imm",
+                "ask": "Who wins immunity?",
+                "answer": "person",
+                "points": 2,
+                "asked": "each",
+                "settle": {
+                  "by": "moment",
+                  "moment": "individualImmunity",
+                  "take": "who"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "score.doubleOrNothing",
           "what": "Double or nothing",
-          "step": "A9"
+          "step": "A9",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "idol",
+                "ask": "Will an idol be found tonight?",
+                "answer": "yesNo",
+                "points": 0,
+                "asked": "each",
+                "wager": 5,
+                "settle": {
+                  "by": "moment",
+                  "moment": "idolFound",
+                  "take": "happened"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "score.shrink",
           "what": "Points that shrink with time",
-          "step": "A9"
+          "step": "A9",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers"
+            },
+            "rank": {
+              "by": "total"
+            },
+            "ask": [
+              {
+                "id": "winner",
+                "ask": "Who wins?",
+                "answer": "person",
+                "points": 10,
+                "closes": "finale",
+                "shrink": {
+                  "points": 1,
+                  "per": "episode"
+                },
+                "settle": {
+                  "by": "results",
+                  "take": "winner"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "score.captain",
@@ -1400,7 +1604,19 @@
         {
           "id": "score.linePoints",
           "what": "Points per bingo line",
-          "step": "A9"
+          "step": "A9",
+          "spec": {
+            "preset": "weekly-bingo",
+            "score": {
+              "by": "lines",
+              "points": 5
+            }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         }
       ]
     },
@@ -2105,7 +2321,52 @@
       "step": "A9",
       "dials": [
         "score"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers",
+          "parlays": [
+            {
+              "of": [
+                "out",
+                "imm"
+              ],
+              "times": 3
+            }
+          ]
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "out",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 2,
+            "asked": "each",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            }
+          },
+          {
+            "id": "imm",
+            "ask": "Who wins immunity?",
+            "answer": "person",
+            "points": 2,
+            "asked": "each",
+            "settle": {
+              "by": "moment",
+              "moment": "individualImmunity",
+              "take": "who"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s16",
@@ -2366,7 +2627,32 @@
       "step": "A9",
       "dials": [
         "score"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "boot",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 10,
+            "asked": "each",
+            "share": "split",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s30",
@@ -2379,7 +2665,32 @@
       "step": "A9",
       "dials": [
         "score"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "boot",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 5,
+            "asked": "each",
+            "share": "only",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s31",
@@ -2405,7 +2716,32 @@
       "step": "A9",
       "dials": [
         "score"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "boot",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 3,
+            "asked": "each",
+            "rollover": true,
+            "settle": {
+              "by": "results",
+              "take": "out"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s33",
@@ -2457,7 +2793,32 @@
       "step": "A9",
       "dials": [
         "score"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "boot",
+            "ask": "Who goes home?",
+            "answer": "person",
+            "points": 1,
+            "asked": "each",
+            "wager": "total",
+            "settle": {
+              "by": "results",
+              "take": "out"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s35",
@@ -2618,7 +2979,35 @@
       "step": "A9",
       "dials": [
         "score"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers"
+        },
+        "rank": {
+          "by": "total"
+        },
+        "ask": [
+          {
+            "id": "winner",
+            "ask": "Who wins?",
+            "answer": "person",
+            "points": 10,
+            "closes": "finale",
+            "shrink": {
+              "points": 1,
+              "per": "change"
+            },
+            "settle": {
+              "by": "results",
+              "take": "winner"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s45",

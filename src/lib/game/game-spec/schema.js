@@ -18,8 +18,11 @@
 //            (nothing held); sports: { best: n } (best ball)
 //   score    { by: 'moments', points } (points: moment id -> points over the rulebook's own; null = its own)
 //            | { by: 'place' } (Outlast: 1, plus 1 for every boot outlasted) | { by: 'survive', means: staysIn | scores,
-//            points } (Survival Pool) | { by: 'lines' } (bingo) | { by: 'answers' } (only the ask's questions: Weekly
-//            Calls, a game of questions); sports: { by: 'stats', points: { HR: 5 } } (the Sport's stat keys)
+//            points } (Survival Pool) | { by: 'lines', points? } (bingo: each line `points`, 1 when it's left out: A9)
+//            | { by: 'answers', parlays? } (only the ask's questions: Weekly Calls, a game of questions. A9's parlays:
+//            [{ of: [question ids], times }], someone right on every one of them in the same window has their points on
+//            them multiplied: "who goes home AND who wins immunity, triple if both"); sports: { by: 'stats', points: { HR:
+//            5 } } (the Sport's stat keys)
 //   rank     { by: 'total' } | { by: 'streak' } (longest, ties to the total); sports: matchups | categories | roto
 //   ask      questions answered before their lock, each settled by data (A4: the question below). Beside a draft, its
 //            finale predictions (finaleQuestions); a game scored by answers, its own (Weekly Calls': the show's calls,
@@ -54,6 +57,9 @@ const VOCAB = {
   'ask.closes': { start: 'now', finale: 'now' },
   'ask.from': { cast: 'now', team: 'now' },
   'ask.each': { person: 'now' },
+  // A9: how a right answer's points are shared, and what makes them shrink.
+  'ask.share': { split: 'now', only: 'now' },
+  'ask.shrink.per': { episode: 'now', change: 'now' },
 };
 
 // A question in `ask` (A4; A6 added who a moment happened to, groups, roles and questions about each person):
@@ -72,7 +78,19 @@ const VOCAB = {
 //             pairs       `pairs` pairs drawn from who's in at the game's start (the same every time), { "a|b" (the pair's
 //                         ids, sorted): castawayId }: who outlasts whom, its points for each pair right
 //   wager   (A8) a yes or no, a choice, an over/under, or one person or group: stake up to `wager` of your points on it,
-//           { answer, stake }: right, its points and the stake; wrong, the stake lost
+//           { answer, stake }: right, its points and the stake; wrong, the stake lost. A9: 'total', any of your points (the
+//           game's, as they stand for you when you answer: "bet any of your points, double or nothing")
+//   A9, how its points combine (a wager plays alone: none of these go with one):
+//   share   split: its points are a pot for each window, split between everyone right (by what each would have earned: a
+//           right pick each), so rarer right calls win more | only: a right answer scores only when nobody else's does
+//   rollover  true (asked each, every N or by phase): a window nobody earns anything on (nobody right, or it didn't count)
+//           carries its points, and whatever it carried, into the next
+//   shrink  { points, per: episode | change } (asked once, closing at the finale: the only questions open once the game is on):
+//           an answer's points shrink by `points` for each of the game's episodes that had started when it was made (the
+//           earlier you call it, the more it's worth: A15's "a call pinned to when you made it", on the episode clock), or
+//           for each change made once the game started, a first answer made then counting as one ("seal a winner pick
+//           before the premiere; every change costs a point"); never below 0. The answers carry when (game_answers.late,
+//           changes: migration 0201)
 //   points  a right answer's (a right pick's; asked of each person, each right answer's), 0 to MAX_QUESTION_POINTS
 //   asked   once (for the game) | each (every episode it plays, each its own answer) | every (A7: once for each run of
 //           `every` episodes from the game's first, about that run) | phase (A7: once for each phase of the season the game
@@ -167,6 +185,15 @@ const MAX_CHIPS = 100;
 const MAX_PAIRS = 12;
 /** A8: the answers a wager goes on (one answer, right or wrong). */
 const WAGERS = ['person', 'group', 'yesNo', 'choice', 'overUnder'];
+/** A9: a wager of any of your points ('total'); how a right answer's points are shared; what a shrink counts. */
+const WAGER_TOTAL = 'total';
+const SHARES = ['split', 'only'];
+const SHRINK_PER = ['episode', 'change'];
+/** A9: a parlay's legs (2 to MAX_LEGS, each one answer that's right or wrong) and its most multiplier; most parlays. */
+const LEGS = ['person', 'group', 'yesNo', 'choice', 'number', 'overUnder'];
+const MAX_LEGS = 4;
+const MAX_TIMES = 10;
+const MAX_PARLAYS = 6;
 const MAX_QUESTIONS = 12;
 const MAX_PICK = 10;
 const MAX_QUESTION_POINTS = 100;
@@ -649,6 +676,9 @@ function specProblems(spec, ctx, opts) {
     if (!one('score.means', score.means)) add('score.means', 'A pick survives by staying in (staysIn) or by scoring (scores)');
     if (!(isNum(score.points) && score.points >= 0)) add('score.points', 'A right pick is worth 0 or more');
   }
+  // A9: points per bingo line (1 when it's left out).
+  if (score.by === 'lines' && score.points !== undefined && !(isInt(score.points, 1) && score.points <= MAX_QUESTION_POINTS)) add('score.points', `A line is worth 1 to ${MAX_QUESTION_POINTS} points`);
+  if (score.by === 'answers' && score.parlays !== undefined) parlayProblems(score.parlays, s).forEach(([at, p]) => add(`score.parlays${at}`, p));
   if ((score.by === 'moments' || score.by === 'stats') && !['draft', 'pick', 'squares'].includes(get.by)) add('score.by', `Scoring ${score.by} needs someone of yours: a draft or a pick`);
   if (score.by === 'place' && !(get.by === 'draft' && count === 'all')) add('score.by', 'Scoring by place counts everyone drafted: a draft, { all: true }');
   if (score.by === 'survive' && get.by !== 'pick') add('score.by', 'Surviving scores a pick');
@@ -805,7 +835,25 @@ function questionProblems(q, at, s, ids, league) {
   } else if (q.pairs !== undefined) add('pairs', 'Only a pairs answer has pairs');
   if (q.wager !== undefined) {
     if (!WAGERS.includes(q.answer) || each || (NAMES.includes(q.answer) && q.pick !== 1)) add('wager', 'A wager goes on one answer: a yes or no, a choice, an over/under, or one person or group');
-    else if (!(isInt(q.wager, 1) && q.wager <= MAX_QUESTION_POINTS)) add('wager', `Stake up to 1 to ${MAX_QUESTION_POINTS} points`);
+    else if (!(q.wager === WAGER_TOTAL || (isInt(q.wager, 1) && q.wager <= MAX_QUESTION_POINTS))) add('wager', `Stake up to 1 to ${MAX_QUESTION_POINTS} points, or 'total': any of your points`);
+    // A9: a wager plays alone (its stake is the answer's own: nothing to share, roll over or shrink).
+    else if (q.share !== undefined || q.rollover !== undefined || q.shrink !== undefined) add('wager', "A wager plays alone: no share, rollover or shrink with it");
+  }
+  // A9: how its points combine.
+  if (q.share !== undefined) {
+    if (!SHARES.includes(q.share)) add('share', `Its points are shared: ${SHARES.join(' or ')}`);
+    else if (q.answer === 'calls') add('share', "The show's calls are a point each");
+  }
+  if (q.rollover !== undefined) {
+    if (q.rollover !== true) add('rollover', 'rollover is true, or leave it out');
+    else if (q.asked === 'once') add('rollover', 'Rolling over needs a next one: ask it each episode, every few or once a phase');
+    else if (q.answer === 'calls') add('rollover', "The show's calls are a point each");
+  }
+  if (q.shrink !== undefined) {
+    const sh = q.shrink;
+    if (!(isObj(sh) && SHRINK_PER.includes(sh.per) && isInt(sh.points, 1) && sh.points <= MAX_QUESTION_POINTS)) add('shrink', `Points shrink by 1 to ${MAX_QUESTION_POINTS} per episode or per change: { points, per: episode | change }`);
+    else if (!(q.asked === 'once' && q.closes === 'finale')) add('shrink', "Only a call that stays open once the game is on shrinks: asked once, closing at the finale");
+    else if (q.share !== undefined) add('shrink', 'A shrinking call is its own: no share with it');
   }
   // Who outlasts whom and the boot order come from who went home; an order of the boot order asked each episode is one boot.
   if (how === 'results:order' && q.asked === 'each' && !windowed(q)) add('asked', 'The order they go home is over a run of episodes or the game');
@@ -845,7 +893,9 @@ const KEYS = {
   from: ['phase', 'at'],
   pool: ['of', 'where'],
   get: { draft: ['by', 'each', 'order', 'own'], pick: ['by', 'each', 'repeat'], card: ['by'], none: ['by'], squares: ['by'] },
-  score: { moments: ['by', 'points'], place: ['by'], survive: ['by', 'means', 'points'], lines: ['by'], answers: ['by'], stats: ['by', 'points'] },
+  score: { moments: ['by', 'points'], place: ['by'], survive: ['by', 'means', 'points'], lines: ['by', 'points'], answers: ['by', 'parlays'], stats: ['by', 'points'] },
+  parlay: ['of', 'times'],
+  shrink: ['points', 'per'],
   rank: ['by'],
   extras: ['waivers', 'bets', 'calls', 'draft', 'join', 'hideStarters', 'lockedDown', 'lateLock'],
   lateLock: ['hours'],
@@ -853,7 +903,7 @@ const KEYS = {
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away'],
   bets: ['points'],
-  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager'],
+  question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink'],
   settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place'],
 };
 /** The paths of keys a spec has that no game spec does. */
@@ -868,11 +918,17 @@ function unknownKeys(s) {
   if (isObj(s.span)) check(s.span.from, KEYS.from, 'span.from');
   check(s.pool, KEYS.pool, 'pool');
   if (isObj(s.get)) check(s.get, own(KEYS.get, s.get.by), 'get');
-  if (isObj(s.score)) check(s.score, own(KEYS.score, s.score.by), 'score');
+  if (isObj(s.score)) {
+    check(s.score, own(KEYS.score, s.score.by), 'score');
+    if (Array.isArray(s.score.parlays)) s.score.parlays.forEach((p, i) => check(p, KEYS.parlay, `score.parlays[${i}]`));
+  }
   check(s.rank, KEYS.rank, 'rank');
   (Array.isArray(s.ask) ? s.ask : []).forEach((q, i) => {
     check(q, KEYS.question, `ask[${i}]`);
-    if (isObj(q)) check(q.settle, KEYS.settle, `ask[${i}].settle`);
+    if (isObj(q)) {
+      check(q.settle, KEYS.settle, `ask[${i}].settle`);
+      check(q.shrink, KEYS.shrink, `ask[${i}].shrink`);
+    }
   });
   const e = s.extras;
   check(e, KEYS.extras, 'extras');
@@ -902,6 +958,45 @@ function waiverProblems(w, s) {
   if (!WAIVER_HOURS.includes(w.hours)) out.push(['.hours', `They run ${WAIVER_HOURS.join(', ')} hours before`]);
   if (typeof w.freeAgency !== 'boolean') out.push(['.freeAgency', 'freeAgency is true or false']);
   if (typeof w.autoFill !== 'boolean') out.push(['.autoFill', 'autoFill is true or false']);
+  return out;
+}
+
+/**
+ * A game of questions' parlays (A9), as [[at, problem]]: each { of: 2 to MAX_LEGS of its question ids, times: more than 1,
+ * up to MAX_TIMES }. A leg is one answer that's right or wrong (one person or group, a yes or no, a choice, a number, an
+ * over/under), plain (no share, rollover, shrink or wager: the parlay is how it combines), and every leg is asked the same way,
+ * so they share their windows; a question is in one parlay at most.
+ */
+function parlayProblems(list, s) {
+  if (!Array.isArray(list) || !list.length || list.length > MAX_PARLAYS) return [['', `Parlays are a list of 1 to ${MAX_PARLAYS}`]];
+  const out = [];
+  const qs = new Map((Array.isArray(s.ask) ? s.ask : []).filter(isObj).map((q) => [q.id, q]));
+  const used = new Set();
+  list.forEach((p, i) => {
+    const at = `[${i}]`;
+    if (!isObj(p)) return out.push([at, 'A parlay is { of: [question ids], times }']);
+    if (!(isNum(p.times) && p.times > 1 && p.times <= MAX_TIMES)) out.push([`${at}.times`, `A parlay multiplies by more than 1, up to ${MAX_TIMES}`]);
+    const of = p.of;
+    if (!(Array.isArray(of) && of.length >= 2 && of.length <= MAX_LEGS && of.every((id) => typeof id === 'string' && id))) return out.push([`${at}.of`, `A parlay is 2 to ${MAX_LEGS} questions`]);
+    if (new Set(of).size !== of.length) return out.push([`${at}.of`, 'A parlay names each question once']);
+    const legs = [];
+    for (const id of of) {
+      const q = qs.get(id);
+      if (!q) out.push([`${at}.of`, `"${id}" isn't one of its questions`]);
+      else if (used.has(id)) out.push([`${at}.of`, `"${id}" is in two parlays`]);
+      else {
+        used.add(id);
+        legs.push(q);
+      }
+    }
+    for (const q of legs) {
+      const single = LEGS.includes(q.answer) && !(NAMES.includes(q.answer) && q.pick !== 1) && q.each === undefined;
+      if (!single) out.push([`${at}.of`, `"${q.id}" isn't one answer that's right or wrong: a parlay's legs are one person or group, a yes or no, a choice, a number or an over/under`]);
+      else if (q.share !== undefined || q.rollover !== undefined || q.shrink !== undefined || q.wager !== undefined) out.push([`${at}.of`, `"${q.id}" combines its own way: a parlay's legs are plain`]);
+    }
+    const way = (q) => `${q.asked}|${q.every || ''}|${q.over || ''}`;
+    if (legs.length > 1 && legs.some((q) => way(q) !== way(legs[0]))) out.push([`${at}.of`, "A parlay's questions are asked the same way, so they're answered together"]);
+  });
   return out;
 }
 
@@ -1037,7 +1132,7 @@ function specWaitsFor(spec) {
 
 module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
-  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
+  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

@@ -14,12 +14,16 @@ export interface AnswerRow {
   question: string;
   episode: number;
   answer: unknown;
+  /** Step A9 (migration 0201): how many of the game's episodes had started when it was last changed, and how many times it was
+   *  changed once the game had started (a call whose points shrink). */
+  late?: number;
+  changes?: number;
 }
 
-/** Every answer stored for a game (game_answers, migration 0200). */
+/** Every answer stored for a game (game_answers, migrations 0200 and 0201). */
 export async function storedAnswers(leagueId: string): Promise<AnswerRow[]> {
-  const { rows } = await pool.query("SELECT player_id, question, episode, answer FROM game_answers WHERE league_id = $1", [leagueId]);
-  return rows.map((r) => ({ playerId: r.player_id as string, question: r.question as string, episode: r.episode as number, answer: r.answer }));
+  const { rows } = await pool.query("SELECT player_id, question, episode, answer, late, changes FROM game_answers WHERE league_id = $1", [leagueId]);
+  return rows.map((r) => ({ playerId: r.player_id as string, question: r.question as string, episode: r.episode as number, answer: r.answer, late: r.late as number, changes: r.changes as number }));
 }
 
 /** The season's last episode, when the season says how many it has: what finale predictions wait for. */
@@ -67,6 +71,8 @@ export async function sheetNights(o: { leagueId: string; state: LeagueState; pla
   const facts = StateLogic.AnswerLogic.facts(view);
   const seats = new Set(view.players.map((p) => p.id));
   const rows = (o.rows ?? (await storedAnswers(o.leagueId))).filter((r) => r.episode > 0 && seats.has(r.playerId));
+  // What each window earned, A9's ways of combining in (a split pot, a rollover's jackpot, a parlay).
+  const { earned } = StateLogic.AnswerLogic.grade(view, rows, facts);
   const out: SheetNights = new Map();
   // Asked each episode, or over a run or a phase (A7: a night is the episode its window opens at).
   for (const q of StateLogic.AnswerLogic.questions(view).filter((x) => x.asked !== "once" && !Spec.isCalls(x))) {
@@ -82,7 +88,7 @@ export async function sheetNights(o: { leagueId: string; state: LeagueState; pla
       if (v.state === "off") n.off++;
       if (v.state === "known") {
         if (Spec.isRight(q, v, mine, list, facts)) n.right++;
-        n.earned += Spec.pointsFor(q, v, list, facts).get(o.playerId) ?? 0;
+        n.earned += earned.get(`${q.id}|${ep}`)?.get(o.playerId) ?? 0;
       }
       out.set(ep, n);
     }

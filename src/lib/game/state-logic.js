@@ -3666,9 +3666,14 @@ class AnswerLogic {
   // The episode a question asked each episode is answered for now: this week's (currentEpisodeNumber: the one picks and
   // lineups are for), or null (waiting for its phase, past its end).
   static episodeNow(state){ return currentEpisodeNumber(state); }
-  // Grading a set of answers ([{ playerId, question, episode, answer }]: episode 0 for one asked once) to the spec's
-  // questions: { points: Map playerId -> points, verdicts: Map 'question|episode' -> verdict }. An answer to a question the
-  // game doesn't ask, or for an episode it doesn't play, earns nothing.
+  // Grading a set of answers ([{ playerId, question, episode, answer, late?, changes? }]: episode 0 for one asked once; late
+  // and changes, when it was made: game_answers') to the spec's questions: { points: Map playerId -> points, verdicts: Map
+  // 'question|episode' -> verdict, earned: Map 'question|episode' -> Map playerId -> points (each window's, A9's ways of
+  // combining in), worth: Map 'question|episode' -> a rollover's window's points with its jackpot }. An answer to a question
+  // the game doesn't ask, or for an episode it doesn't play, earns nothing.
+  //   A9: a question that rolls over is graded window by window from its first (one nobody answered rolls over too), each
+  //   one's points what the windows before it left unclaimed; a window still to settle stops it there, so nothing after it
+  //   counts until it does. A parlay multiplies the points of whoever's right on every one of its questions in a window.
   static grade(state, answers, facts){
     const f = facts || AnswerLogic.facts(state);
     const qs = new Map(AnswerLogic.questions(state).filter(q => !Spec.isCalls(q)).map(q => [q.id, q]));
@@ -3677,11 +3682,11 @@ class AnswerLogic {
     const groups = new Map();
     // Each question's windows, worked out once (A7).
     const starts = new Map();
-    const opens = (q, ep) => {
-      if(q.asked === 'each') return inPlay(state, ep);
-      if(!starts.has(q.id)) starts.set(q.id, new Set(AnswerLogic.windowStarts(state, q)));
-      return starts.get(q.id).has(ep) && inPlay(state, ep);
+    const windows = q => {
+      if(!starts.has(q.id)){ const list = AnswerLogic.windowStarts(state, q); starts.set(q.id, { list, set: new Set(list) }); }
+      return starts.get(q.id);
     };
+    const opens = (q, ep) => (q.asked === 'each' ? inPlay(state, ep) : windows(q).set.has(ep) && inPlay(state, ep));
     (answers || []).forEach(a => {
       const q = qs.get(a.question);
       if(!q || !seats.has(a.playerId)) return;
@@ -3690,16 +3695,74 @@ class AnswerLogic {
       if(q.asked !== 'once' && !opens(q, ep)) return;
       const key = q.id + '|' + ep;
       if(!groups.has(key)) groups.set(key, { q, ep, list: [] });
-      groups.get(key).list.push({ playerId: a.playerId, answer: a.answer });
+      const row = { playerId: a.playerId, answer: a.answer };
+      // When it was made (A9's shrinking calls), only when it's said.
+      if(Number.isInteger(a.late)) row.late = a.late;
+      if(Number.isInteger(a.changes)) row.changes = a.changes;
+      groups.get(key).list.push(row);
     });
-    const points = new Map();
     const verdicts = new Map();
+    const earned = new Map();
+    const worth = new Map();
     groups.forEach(({ q, ep, list }, key) => {
       const v = Spec.verdictOf(q, ep, f);
       verdicts.set(key, v);
-      Spec.pointsFor(q, v, list, f).forEach((n, pid) => points.set(pid, (points.get(pid) || 0) + n));
+      if(!q.rollover) earned.set(key, Spec.windowPoints(q, v, list, f));
     });
-    return { points, verdicts };
+    // A9: each question that rolls over, window by window.
+    qs.forEach(q => {
+      if(!q.rollover || q.asked === 'once') return;
+      let carry = 0;
+      for(const ep of windows(q).list.filter(n => inPlay(state, n))){
+        const key = q.id + '|' + ep;
+        const v = verdicts.get(key) || Spec.verdictOf(q, ep, f);
+        // The first window still to settle has its jackpot (what the read shows it's for); nothing after it is known yet.
+        const w = q.points + carry;
+        worth.set(key, w);
+        if(v.state === 'waiting') break;
+        const got = Spec.windowPoints(q, v, groups.has(key) ? groups.get(key).list : [], f, { worth: w });
+        if(groups.has(key)) earned.set(key, got);
+        carry = [...got.values()].some(n => n > 0) ? 0 : w;
+      }
+    });
+    // A9: the parlays, each window their questions share.
+    (gameOf(state).score.parlays || []).forEach(p => {
+      const legs = p.of.map(id => qs.get(id));
+      if(legs.some(q => !q)) return;
+      const eps = new Set([...groups.values()].filter(g => g.q === legs[0]).map(g => g.ep));
+      eps.forEach(ep => {
+        const keys = legs.map(q => q.id + '|' + ep);
+        if(keys.some(k => !groups.has(k))) return;
+        const right = Spec.allRight(legs.map((q, i) => ({ q, v: verdicts.get(keys[i]), answers: groups.get(keys[i]).list })), f);
+        right.forEach(pid => keys.forEach(k => {
+          const m = earned.get(k);
+          if(m && m.has(pid)) m.set(pid, roundPoints(m.get(pid) * p.times));
+        }));
+      });
+    });
+    const points = new Map();
+    // To the cent: a split pot's shares are.
+    earned.forEach(m => m.forEach((n, pid) => points.set(pid, roundPoints((points.get(pid) || 0) + n))));
+    return { points, verdicts, earned, worth };
+  }
+  // How many of the game's episodes had started at `o.now` (A9: when an answer was made, for a call whose points shrink), from
+  // its first: each one's lock (closedForPlay, the schedule's air time `o.airAtOf(n)` for one the league hasn't made yet,
+  // never for a league catching up at its own pace), or its results. None while it waits for its phase.
+  //   o: { now, airAtOf }
+  static started(state, o){
+    const first = startEpisode(state);
+    if(first === null) return 0;
+    const last = endEpisode(state);
+    const now = o && o.now !== undefined ? Number(o.now) : Date.now();
+    const catching = RevealLogic.isCatchingUp(state);
+    let n = 0;
+    for(let at = first; last === null || at <= last; at++){
+      const ep = state.episodes.find(e => e.number === at) || { number: at };
+      const airsAt = ep.airsAt || (catching || !(o && o.airAtOf) ? null : o.airAtOf(at));
+      if(!(EpisodeLogic.hasResults(ep) || closedForPlay({ ...ep, airsAt }, now))) break;
+      n++;
+    }
+    return n;
   }
   // A draft's finale predictions as answers to its two questions (state.finalePredictions: the final three and the winner
   // each player named), or none when it has no finale predictions.

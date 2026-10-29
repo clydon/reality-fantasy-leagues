@@ -9,6 +9,7 @@ import { spanName } from "@/lib/game/spans";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { bingoLines } from "./bingo";
+import { pointsPerLine } from "@/lib/game/bingo";
 import { callRights, endedThrough } from "./calls";
 import { AUTHOR_SEEN, REVEAL_SHARED, withReactions } from "./chat";
 import { couchMembers, requireCouch } from "./couches";
@@ -130,8 +131,8 @@ function spanOf(state: LeagueState, episodeTerm: string | null | undefined): Gam
   return { from, to, name: spanName(from, to, { singular: w.episode.toLowerCase(), plural: w.episodes.toLowerCase() }) };
 }
 
-/** A Weekly Calls game's right calls, or a Weekly Bingo game's lines, through `through`, by player (on its couch); over once the
- *  season's last episode is within it. */
+/** A Weekly Calls game's right calls, or a Weekly Bingo game's lines (at its points per line), through `through`, by player (on its
+ *  couch); over once the season's last episode is within it. */
 async function callsThrough(state: LeagueState, g: Game & { seasonId: string }, who: (p: string) => string | null, through: number, schedule: Parameters<typeof endedThrough>[0]) {
   const userIds = state.players.map((p) => who(p.id)).filter((id): id is string => !!id);
   // A game over a span counts its own episodes only.
@@ -140,8 +141,11 @@ async function callsThrough(state: LeagueState, g: Game & { seasonId: string }, 
   // Nothing counts while it waits for its phase (step A3).
   const from = StateLogic.startEpisode(state);
   const opts = { from: from ?? 0, through: upTo, couchId: g.couchId };
-  const rights = from === null ? new Map<string, number>() : StateLogic.getLeagueType(state).hasBingo ? await bingoLines(g.seasonId, userIds, opts) : await callRights(g.seasonId, userIds, opts);
-  return { right: (p: string) => rights.get(who(p) ?? "") ?? 0, through: upTo, ended: endedThrough(schedule, through, end) };
+  const bingo = StateLogic.getLeagueType(state).hasBingo;
+  const rights = from === null ? new Map<string, number>() : bingo ? await bingoLines(g.seasonId, userIds, opts) : await callRights(g.seasonId, userIds, opts);
+  // A bingo line's points (step A9), as its table counts them.
+  const each = bingo ? pointsPerLine(state) : 1;
+  return { right: (p: string) => (rights.get(who(p) ?? "") ?? 0) * each, through: upTo, ended: endedThrough(schedule, through, end) };
 }
 
 export async function couchHub(user: SessionUser, couchId: string): Promise<CouchHub> {

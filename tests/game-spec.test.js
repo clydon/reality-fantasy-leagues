@@ -57,8 +57,9 @@ const GAME_FIELDS = {
   "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock"],
   pickem: ["pickemCorrectPoints", "poolSurvive", "calls"],
   "weekly-calls": [],
-  "weekly-bingo": [],
-  questions: ["questions", "lateLockHours"],
+  // A9: points per line; a game of questions' parlays.
+  "weekly-bingo": ["linePoints"],
+  questions: ["questions", "lateLockHours", "parlays"],
 };
 const gameFields = (state) => [...GAME_FIELDS.every, ...GAME_FIELDS[S.getLeagueType(state).id], ...(S.WaiverLogic.supported(state) ? WAIVER_FIELDS : [])];
 

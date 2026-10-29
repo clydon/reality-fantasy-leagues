@@ -655,11 +655,15 @@ declare const StateLogic: {
     episodeNow(state: LeagueState): number | null;
     /** A7: the episode someone answers for now with a late lock (the one after their mark while it's open for them). */
     lateEpisode(state: LeagueState, mark: number | null, o?: { now?: number; airAtOf?: (episode: number) => string | null }): number | null;
+    /** earned: each window's ("question|episode") points by player, A9's ways of combining in; worth: a rollover's window's
+     *  points with its jackpot. */
     grade(
       state: LeagueState,
-      answers: { playerId: string; question: string; episode: number; answer: unknown }[],
+      answers: { playerId: string; question: string; episode: number; answer: unknown; late?: number; changes?: number }[],
       facts?: AnswerFacts
-    ): { points: Map<string, number>; verdicts: Map<string, Verdict> };
+    ): { points: Map<string, number>; verdicts: Map<string, Verdict>; earned: Map<string, Map<string, number>>; worth: Map<string, number> };
+    /** A9: how many of the game's episodes had started at `o.now` (when an answer was made). */
+    started(state: LeagueState, o?: { now?: number; airAtOf?: (episode: number) => string | null }): number;
     finaleAnswers(state: LeagueState): { playerId: string; question: string; episode: number; answer: string | string[] }[];
     finalePoints(state: LeagueState): Map<string, number>;
     finaleActual(state: LeagueState): { top3: (string | null)[]; winner: string | null };

@@ -6,7 +6,8 @@ and S2 (both parts, 2026-10-28) are built and merged into master** (their As bui
 them next (the user's, in production). A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), not yet merged: the main folder merges them (review, checks, the Neon rehearsal, the user's OK).
 A5 to A8 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time; more
-answers); A9 next, after the user's word. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+answers), and A9 part 1 (scoring that combines, per question, and points per bingo line); A9 part 2 (per lineup) next, then on
+to A14 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -1636,6 +1637,103 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
 - **A9. Scoring that combines.** Per question: split the pot, the only right answer, roll over, multiply, shrink with time,
   double or nothing. Per lineup: a captain who scores double, best ball (your best N count), scoring in reverse. Points per
   bingo line.
+
+  **Split in two (2026-10-28).** Part 1: per question (a game of questions' ways of combining) and points per bingo line. Part 2:
+  per lineup (a captain, best ball, scoring in reverse) and points that multiply by when (w046's "double in the finale"), which
+  touch a draft's own scoring in state-logic's Outlast and Weekly Lineup strategies.
+
+  **"Shrink with time", decided (2026-10-28, before A15's in-episode clock).** A call's worth shrinks with **when it was made**,
+  on the episode clock: A15's "a call pinned to when you made it, earlier is worth more", at episode grain. It fits the only
+  questions open once a game is on (asked once, closing at the finale: who wins, who makes the final few), as a point less for
+  each of the game's episodes that had started when the answer was made, or a point for each change once the game's on ("seal
+  a winner pick before the premiere; every change costs a point"). "Earlier windows worth more" (an episode, a phase or the
+  finale counting double) is a multiplier by when, part 2's, since it's the same dial for a lineup ("double in the finale").
+  A15 moves the same `late` from episodes to the runtime.
+
+  **As built (A9 part 1, 2026-10-28, on `engine`, not merged; migration 0201).** One session, after `lane.js sync engine`
+  brought in master's desk-parity plan and the lanes' keeper (893 tests then).
+  - **A question's ways of combining** (`schema.js`; a wager plays alone, as A8 has it):
+    - `share: 'split'`: its points are a pot for each window, split between everyone right, by what each would have earned (a
+      right pick each), to the cent: "10 points an episode, split between everyone who called the boot". Rarer right calls win
+      more.
+    - `share: 'only'`: a right answer scores only when nobody else's on it does (the only player who earned anything there; the
+      closest's tie on a number is nobody).
+    - `rollover: true` (asked each, every N or by phase): a window nobody earns anything on (nobody right, or it didn't count)
+      carries its points, and whatever it carried, into the next. The jackpot is unclaimed at the game's end.
+    - `shrink: { points, per: 'episode' | 'change' }` (asked once, closing at the finale): points less for each of the game's
+      episodes that had started when the answer was made, or for each change once the game had started, a first answer made
+      then counting as one (so waiting never beats sealing early); never below 0. Once the game's on, a shrinking call can be
+      changed but not taken back (409), or a take-back would start it over.
+    - `wager: 'total'`: A8's wager, staking any of your points as they stand for you when you answer (double or nothing),
+      less what you've staked on other such wagers still to settle; the stake is checked when it's given, not capped at
+      grading.
+    - A game of questions' parlays, `score: { by: 'answers', parlays: [{ of: [2 to 4 question ids], times }] }`: someone right
+      on every one of them in the same window has their points on them multiplied ("who goes home AND who wins immunity, triple
+      if both"). Legs are plain (no share, rollover, shrink or wager), one answer each, asked the same way; a question is in
+      one parlay at most; times above 1, up to 10.
+    - Points per bingo line: `score: { by: 'lines', points: 1 to 100 }` (1 when it's left out, so no stored spec changes).
+  - **The grader** (`answers.js`): `windowPoints(q, v, answers, facts, { worth })`, each window's points with a share, a
+    rollover's worth and each answer's `late`/`changes`; a question with none of them earns exactly `pointsFor`'s, by the same
+    code (no arithmetic changed for today's games); `allRight` (a parlay's legs), `shrunk`.
+  - **The engine** (`AnswerLogic.grade`): returns each window's `earned` and a rollover's `worth` beside the points. A rollover
+    is graded window by window from its first (one nobody answered rolls over too); a window still to settle at the viewer's
+    mark stops it there, so nothing after it counts until it does and someone behind never sees a jackpot they haven't reached.
+    A parlay multiplies its legs' points for whoever's right on all of them. Totals to the cent. `AnswerLogic.started` (how
+    many of the game's episodes had started at a moment: their locks, the schedule's air times, never for a league catching up).
+  - **Storage** (migration 0201): `game_answers.late` and `changes`, written by the answers API on every answer (`late` only
+    when the answer changes; the same answer again isn't a change). Every existing answer reads as made before its game,
+    unchanged. Backups read columns as they are.
+  - **The settings** (`settings.js`): `settings.parlays` (a game of questions') and `settings.linePoints` (a Weekly Bingo's), so a
+    league plays them with the game-specs flag off; `OWNED` gains both.
+  - **The server:** the answers read gives each question's `share`, `rollover`, `jackpot` (what's carried into this window, once
+    the windows before it are settled as far as you've seen), `shrink`, `worth` (what your shrinking call is worth, or one made
+    now) and `stakeMost`; what each person earned comes from the engine's grade (a split pot, a jackpot, a parlay). The sheet's
+    night lines read the same. The POST records `late` and `changes` and checks a stake of any of your points. Weekly Bingo's
+    table and the couch hub's standings are lines times its points (`bingo.ts pointsPerLine`), and the Games read's
+    `linePoints` has Tonight say "pts" for one worth more than a point.
+  - **Words:** How it works for each ("The points are a pot, split between everyone who gets it right: the fewer of you, the
+    more each gets.", "It only scores if you're the only one who gets it right.", "If nobody gets it, its points roll over to
+    the next one.", "It's worth 1 point less for each episode that's started when you make or change it...", "Once it's
+    started, each change costs 1 point.", "Stake any of your points on it...", "A parlay: right on ... together, and your
+    points on them are triple.", "Each line is worth 5 points."); the sentence says them too, and a game whose questions all
+    close at the finale says "before the finale".
+  - **The tracker:** 13 of A9's 20 rows ✅ (the pot, the only one, the jackpot, the parlay, double or nothing, shrinking with
+    time, points per line; s15, s29, s30, s32, s34, s44). Part 2's 7 wait (a captain, best ball, in reverse; s07, s08, s09;
+    w046). **Now: 137 ✅** · 102 ⏳ · 1 🆕 · 1 ❓ · 23 💬.
+  - **Research data:** nothing new. Every part grades what A4–A8 already settle.
+  - **Tests:** `tests/answers-scoring.test.js` (new, 5): the shape and where each goes; grading on facts (the pot, to the cent and
+    by right picks, only the one, a shrinking call per episode and per change, any of your points); the engine (a rollover
+    window by window at two marks, a parlay's windows, the pot); `started` by locks and air times; the settings both ways and
+    How it works. `game-spec.test.js`: the two new fields. `npm test` 898.
+  - **API:** `scripts/dev-test/check-questions-scoring.js` (new, on new-fixture.js), 38 PASS: a game of nine (the pot, a parlay
+    of who goes home and who wins immunity, only the one, a jackpot, two wagers of any of your points, two winner calls that
+    shrink); the read's ways; jordan's seal changed after Episode 6 starts (late 1, one change, worth 9; the same answer again
+    no change; take-back refused), riley's late first seal (a change already); Episode 6 graded (jordan 10: half the pot, the
+    parlay doubled; both right on the idol, neither scores); the jackpot rolled to 2; stakes against his 10 (11 refused; 4 on
+    the line leaves 6); Episode 7 (jordan 19 with the jackpot of 4 and his stake won, riley the pot alone and her stake lost);
+    the Games tab; a Weekly Bingo at 5 a line with a card's line from the results (5, said as points), the hub reading it; the
+    flag's check on both. `check-engine-lab.js` grew A9's specs (each said in its sentence, a parlay of a question the game
+    doesn't ask refused, a parlay and a line-points bingo started as test games): 45 PASS.
+  - **Re-runs** (after the code review's fixes): `check-questions-who.js` 42, `check-questions-time.js` 25,
+    `check-questions-more.js` 24, `check-engine-lab.js` 45, `check-new-start-game.js` 75, `check-phase-starts.js` 58,
+    `check-new-show.js` 81, `check-questions.js` 97 (after 9:30 PM ET: the fixture's live window, Noticed; its API half 70 before).
+  - **Golden replays** (`node scripts/dev-test/golden.js`, HEAD against the working tree, before and after the review's fixes):
+    the same 116 games, **11,981 reads, every one the same.**
+  - **`game-specs-flag.js`:** `status` on, 9 of 9, none drifted (no new default in a stored spec, so nothing to carry again);
+    `check` PASS.
+  - **Code review** (`/code-review`, before the commit).
+    - Taken:
+      - a stake of any of your points could count the same points twice across open wagers (now less what's on the line,
+        this answer's other stakes too);
+      - a first shrinking call made late counted no change, so waiting beat sealing early;
+      - the couch hub counted bingo lines without their points (one `pointsPerLine` for the table and the hub);
+      - Tonight said "10 lines" for 2 lines at 5;
+      - totals weren't rounded (a split pot's cents);
+      - describe crashed on a half-made parlay;
+      - a window's membership scanned a list for every answer (a Set again);
+      - how many episodes had started was worked out per question.
+    - Declined: one read of the answers for a POST with a wager of any of your points. The stake is checked against the
+      answers before the write, and the response reads them after it.
 - **A10. Pools and drafts.** A pool's lives, buybacks and two-pick nights; a draft slot per group (one per tribe, a guy and a
   girl); auction and a salary cap; keepers across seasons; teams two people share.
 - **A11. Winning, and who plays with whom.** A race (first to N ends the game), co-op (the group against the show, with shared
@@ -1979,6 +2077,26 @@ From A8 (2026-10-28):
 - A wager can take a player's total below zero; tables show it as it is. (U1, to say why.)
 - Orders, confidence, chips, splits, pairs and wagers have no controls on the sheet, and computer players answer none of them
   (as A4). (U1.)
+
+From A9 part 1 (2026-10-28):
+- **A question for the user (with a recommendation):** "only the only one right" is per player: on a question naming several
+  (who makes the final three), two players each alone on a different right pick both score nothing. Per pick ("each right pick
+  nobody else named") reads closer to "you only score if you're the only one who called it" there. Recommended: per pick for
+  names, per player for everything else; it's a small change in `windowPoints`. (G1 or the user's call; part 2 can take it.)
+- A split pot's shares are rounded to the cent, so a pot of 10 three ways gives out 9.99. (The user's call, if it matters.)
+- An unclaimed jackpot is lost at the game's end, and a window that didn't count (nobody went home) rolls over like one nobody
+  got. (G1, if a game wants otherwise.)
+- A stake of any of your points is checked when it's given: a result corrected later can leave a total below zero, as A8's
+  wager can. (U1, to say why.)
+- Parlays tie questions asked the same way (the same windows); one across windows ("the boot this week and the winner") isn't
+  a parlay. (G1, if it's asked for.)
+- A shrinking call is only one open once the game is on (who wins, who makes the final few, closing at the finale). A15 moves
+  `late` to the runtime for live calls.
+- `check-questions.js` (and any check that reads Tonight's Extras on new-fixture.js) fails from 8 to 9:30 PM ET: the fixture's
+  ZT Survivor 51 airs at 8 PM ET for 90 minutes, the check moves Episode 6 to today, and Tonight hides its Extras while an
+  episode is live. Run it outside that window. (Whoever next touches new-fixture.js.)
+- The sheet has no controls for A9's parts (a jackpot, a stake of any of your points, what a shrinking call is worth); the read
+  gives them. (U1.)
 
 From A7 (2026-10-28):
 - The late lock is a game of questions' only: lineups and picks still lock at airtime, whoever watches when. (A15, each

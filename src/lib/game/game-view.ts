@@ -6,6 +6,7 @@ import { latestScoredEpisode } from "./episode-team-summary";
 import { gameRules } from "./game-rules";
 import { lineupStatus } from "./lineup-view";
 import { pickWindow } from "./pool-view";
+import { pointsPerLine } from "./bingo";
 import { isBetSettled, isKnockedOut, publicMediaSrc } from "./selectors";
 import { teamEpisodeBreakdown } from "./team-episode-breakdown";
 
@@ -218,6 +219,9 @@ export interface GameView extends GameRefIn {
   call: CallMove | null;
   /** Weekly Bingo's card to hand (step 12 part 3). */
   bingo: BingoMove | null;
+  /** Weekly Bingo's points per line (step A9; 1 unless it says), so its table's totals are said as points when a line is worth
+   *  more; null for any other game. */
+  linePoints: number | null;
   /** A sheet of questions to answer now (step A4 part 2): filled in by the server (season-games.ts), which reads the answers. */
   sheet: SheetMove | null;
   predictions: PredictionMove[];
@@ -266,6 +270,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string, s
     pick: type.hasWeeklyPicks ? pickOf(view, playerId) : null,
     call: calls?.move ?? null,
     bingo: calls?.bingo ?? null,
+    linePoints: type.hasBingo ? pointsPerLine(view) : null,
     sheet: null,
     predictions: catchingUp ? [] : predictionsOf(view, playerId),
     progress: catchingUp ? null : weekProgress(full, playerId, userOf, { counts: isPublic }),

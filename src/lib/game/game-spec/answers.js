@@ -37,6 +37,9 @@
 //                                 person's own verdicts, by castaway id)
 //   pointsFor(q, verdict, answers) Map playerId -> points, for one question's answers ([{ playerId, answer }]) on one
 //                                 episode (a number answer is the closest's, so they're graded together)
+//   windowPoints(q, v, answers, facts, { worth })  the same with A9's ways of combining: a pot split between everyone right, only
+//                                 the only right one, a rollover's jackpot (worth), a shrinking call (each answer's late, changes)
+//   allRight(legs, facts)         who's right on every leg of a parlay in one window (A9)
 //   answerProblem(q, value, faces) why an answer can't be given (null: it can), faces: who (or which groups) it can name
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
 const { YES_NO, NAMES, NUMBERS, optionRange } = require('./schema.js');
@@ -458,8 +461,13 @@ const eachAnswers = (answers, id) =>
   answers.filter((a) => isObj(a.answer) && Object.prototype.hasOwnProperty.call(a.answer, id)).map((a) => ({ playerId: a.playerId, answer: a.answer[id] }));
 /** A wagered question as the answer it's on (A8): the same question without its wager. */
 const unwagered = (q) => { const b = { ...q }; delete b.wager; return b; };
-/** A wagered answer (A8), as { answer, stake } with its stake held to what the question allows. */
-const betOf = (q, a) => (isObj(a) && 'answer' in a ? { answer: a.answer, stake: Number.isInteger(a.stake) ? Math.max(0, Math.min(a.stake, q.wager)) : 0 } : null);
+/** A wagered answer (A8), as { answer, stake } with its stake held to what the question allows (A9: any of your points, 'total',
+ *  as the answer was checked when it was given: answerProblem's `most`). */
+const betOf = (q, a) => {
+  if (!isObj(a) || !('answer' in a)) return null;
+  const stake = Number.isInteger(a.stake) ? Math.max(0, a.stake) : 0;
+  return { answer: a.answer, stake: Number.isInteger(q.wager) ? Math.min(stake, q.wager) : stake };
+};
 /** A split as it's compared (A8): its numbers, most first ("5-2-1"). */
 const splitOf = (a) => (Array.isArray(a) && a.every((n) => Number.isInteger(n)) ? a.filter((n) => n > 0).sort((x, y) => y - x).join('-') : null);
 /** An order's (A8) places right: each one in its place, or within `within` of it (ties share a block of places). */
@@ -568,17 +576,76 @@ function isRight(q, v, mine, answers, facts) {
   return picks(q, mine.answer).some((x) => set.has(key(q, x)));
 }
 
+/** Two decimal places: a pot split three ways is 3.33 each. */
+const cents = (n) => Math.round(n * 100) / 100;
+/** What a shrinking call (A9) is worth: its points less `shrink.points` for each episode of the game that had started when it was
+ *  made (`late`), or each change made once the game had started (`changes`: a first answer made then is one), never below 0. */
+function shrunk(q, worth, a) {
+  const sh = q.shrink;
+  if (!isObj(sh) || !isNum(sh.points)) return worth;
+  const n = sh.per === 'change' ? (a && Number.isInteger(a.changes) ? a.changes : 0) : a && Number.isInteger(a.late) ? a.late : 0;
+  return Math.max(0, worth - sh.points * n);
+}
+
+/**
+ * What each answer to one question earns on one window, with A9's ways of combining: `o.worth`, the window's points (a rollover's
+ * jackpot added; its points by default); a share (split: the worth is a pot split between everyone right, by what each would have
+ * earned; only: a right answer scores only when nobody else's does); a shrinking call (each answer's `late` or `changes`). Answers:
+ * [{ playerId, answer, late?, changes? }]. A wager plays alone, as A8 has it. A question with none of these earns exactly
+ * pointsFor's.
+ */
+function windowPoints(q, v, answers, facts, o) {
+  const worth = o && isNum(o.worth) ? o.worth : q.points;
+  if (q.wager || (!q.share && !q.shrink && worth === q.points)) return pointsFor(q, v, answers, facts);
+  // Each answer's right ones, at a point each (every kind's points are its points times these).
+  const units = pointsFor({ ...q, points: 1 }, v, answers, facts);
+  const out = new Map();
+  const right = [...units].filter(([, u]) => u > 0);
+  if (q.share === 'split') {
+    const total = right.reduce((n, [, u]) => n + u, 0);
+    for (const [pid, u] of right) out.set(pid, cents((worth * u) / total));
+    return out;
+  }
+  if (q.share === 'only') {
+    if (right.length === 1) out.set(right[0][0], right[0][1] * worth);
+    return out;
+  }
+  const mine = new Map(answers.map((a) => [a.playerId, a]));
+  for (const [pid, u] of right) {
+    const n = u * shrunk(q, worth, mine.get(pid));
+    if (n) out.set(pid, n);
+  }
+  return out;
+}
+
+/**
+ * Who's right on every leg of a parlay (A9) in one window: legs [{ q, v, answers }] (each leg's verdict and its answers there).
+ * Every leg settled and right for them; a leg that didn't count (off) or that they left blank breaks it.
+ */
+function allRight(legs, facts) {
+  if (!legs.length || legs.some((l) => !l.v || l.v.state !== 'known')) return new Set();
+  const first = legs[0].answers.map((a) => a.playerId);
+  return new Set(first.filter((pid) => legs.every((l) => {
+    const mine = l.answers.find((a) => a.playerId === pid);
+    return !!mine && isRight(l.q, l.v, mine, l.answers, facts) === true;
+  })));
+}
+
 /**
  * Why an answer can't be given, or null: the shape each kind takes. `faces`: the ids a person or group answer can name (who's
  * still in, or your own team; the groups someone still in is on), or who a question about each person asks about, as a Set. A
  * person or group answer naming more than one is a list of different ones, at most its pick. A question about each person is
  * answered as { castawayId: answer }, for any of them.
  */
-function answerProblem(q, value, faces) {
+function answerProblem(q, value, faces, o) {
   if (q.wager) {
-    // A8: { answer, stake }, the stake 0 to the wager.
+    // A8: { answer, stake }, the stake 0 to the wager; A9's 'total', 0 to your points as they stand (o.most; none given, any).
     if (!isObj(value) || !('answer' in value)) return 'Your answer and your stake: { answer, stake }';
-    if (!(Number.isInteger(value.stake) && value.stake >= 0 && value.stake <= q.wager)) return `Stake 0 to ${q.wager} points`;
+    const most = Number.isInteger(q.wager) ? q.wager : o && isNum(o.most) ? Math.max(0, Math.floor(o.most)) : Infinity;
+    if (!(Number.isInteger(value.stake) && value.stake >= 0 && value.stake <= most)) {
+      if (most === Infinity) return 'A stake is a whole number of points, 0 or more';
+      return most === 0 ? 'You have no points to stake yet: stake 0' : `Stake 0 to ${most} points`;
+    }
     return answerProblem(unwagered(q), value.answer, faces);
   }
   if (q.each) {
@@ -644,4 +711,4 @@ function answerProblem(q, value, faces) {
   }
 }
 
-module.exports = { WAITING, verdictOf, rightAnswers, pointsFor, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf };
+module.exports = { WAITING, verdictOf, rightAnswers, pointsFor, windowPoints, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf };

@@ -168,9 +168,13 @@ function readSpec(st, copy) {
       rank: { by: 'streak' },
     });
   } else if (type === 'weekly-calls' || type === 'questions') {
-    Object.assign(spec, { get: { by: 'none' }, count: null, score: { by: 'answers' }, rank: { by: 'total' } });
+    // A game of questions' parlays (A9: settings.parlays, as its spec says them).
+    const parlays = type === 'questions' && Array.isArray(st.parlays) && st.parlays.length ? (copy ? clone(st.parlays) : st.parlays) : undefined;
+    Object.assign(spec, { get: { by: 'none' }, count: null, score: parlays ? { by: 'answers', parlays } : { by: 'answers' }, rank: { by: 'total' } });
   } else {
-    Object.assign(spec, { get: { by: 'card' }, count: null, score: { by: 'lines' }, rank: { by: 'total' } });
+    // Points per bingo line (A9: settings.linePoints), 1 when it's left out.
+    const points = Number.isInteger(st.linePoints) && st.linePoints >= 1 ? st.linePoints : undefined;
+    Object.assign(spec, { get: { by: 'card' }, count: null, score: points === undefined ? { by: 'lines' } : { by: 'lines', points }, rank: { by: 'total' } });
   }
   // The questions (A4): Weekly Calls' is the show's calls; a game of questions keeps its own (settings.questions, as its
   // spec says them); a draft's are its finale predictions while they're on.
@@ -271,6 +275,9 @@ function settingsOf(spec) {
   }
   if (type === 'questions') out.questions = clone(s.ask);
   out.lateLockHours = type === 'questions' && e.lateLock ? e.lateLock.hours : undefined;
+  // A9: a game of questions' parlays; points per bingo line.
+  out.parlays = type === 'questions' && Array.isArray(s.score.parlays) ? clone(s.score.parlays) : undefined;
+  out.linePoints = type === 'weekly-bingo' && s.score.points !== undefined ? s.score.points : undefined;
   return out;
 }
 
@@ -319,7 +326,7 @@ const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
   { fields: ['startEpisode', 'startPhase', 'endEpisode'], read: (s) => s.span },
   { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots'], read: (s) => [s.get, s.count] },
-  { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive'], read: (s) => s.score },
+  { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints'], read: (s) => s.score },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },
   { fields: ['bonusEnabled', 'defaultBetPoints'], read: (s) => s.extras.bets },

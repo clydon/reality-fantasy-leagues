@@ -9,11 +9,14 @@
 //     what isn't JSON is a 400. A6's: the tribe winner and who goes home, and who finds an idol, play there; a Traitors
 //     question is refused (no secret roles on this show), and so is each couple's judges' score (Dancing with the Stars').
 //     A7's: a question every two episodes, a late lock (in its details), which episode the merge happens in. A8's: the boot
-//     order, the week's points leaderboard, a wager, the jury vote split.
+//     order, the week's points leaderboard, a wager, the jury vote split. A9's: a pot split, only the only one, a jackpot, a
+//     parlay, a winner call that shrinks, any of your points staked, points per bingo line (each said in its sentence); a parlay
+//     of a question the game doesn't ask is refused.
 //   - Start it as a test game: on the zt- couch, through the game's writer (a game of questions asking just that, the admin its
 //     Commissioner, its spec carried, the game-specs flag's check passing); refused on a couch that isn't a test couch or a
 //     zt- fixture's (403), and for a spec that doesn't play (409). Which tribe wins immunity starts too, its faces the tribes;
-//     and a question once a phase, the season's phases recorded in it (A7).
+//     and a question once a phase, the season's phases recorded in it (A7); a parlay (A9), its parlay in its fields; a Weekly Bingo
+//     at 5 points a line (A9).
 //   - In a real browser at --width (390 by default), as the admin: the lab, a season picked, a tracker row filtered and picked
 //     (its spec fills the box), Check (plays now, the sentence), the couch picked, Start (the link to its Games tab); a refused
 //     spec shows what's wrong. Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
@@ -115,6 +118,22 @@ function check(ok, what, detail = "") {
       r = await labCheck({ spec: JSON.stringify(rowSpec(row)), row });
       check(r.status === 200 && r.body.startable && r.body.row?.state === "yes", `A8: ${what} plays on ZT Survivor 51`, JSON.stringify([r.body.problems, r.body.waits]).slice(0, 300));
     }
+    // A9: scoring that combines, each said in the sentence.
+    for (const [row, what, said] of [
+      ["score.split", "a pot split between everyone right", /split between everyone right/],
+      ["score.only", "only the only one right", /nobody else has/],
+      ["score.rollover", "a jackpot that rolls over", /roll over/],
+      ["score.multiply", "a parlay", /together: triple/],
+      ["score.shrink", "a winner call that shrinks with time", /earlier you call it/],
+      ["s34", "any of your points staked", /any of your points/],
+      ["score.linePoints", "points per bingo line", /5 points a line/],
+    ]) {
+      r = await labCheck({ spec: JSON.stringify(rowSpec(row)), row });
+      check(r.status === 200 && r.body.startable && r.body.row?.state === "yes" && said.test(r.body.describe?.sentence ?? ""), `A9: ${what} plays on ZT Survivor 51, said in its sentence`, JSON.stringify([r.body.problems, r.body.waits, r.body.describe?.sentence]).slice(0, 400));
+    }
+    const badParlay = { ...rowSpec("score.multiply"), score: { by: "answers", parlays: [{ of: ["out", "nope"], times: 3 }] } };
+    r = await labCheck({ spec: JSON.stringify(badParlay) });
+    check(r.status === 200 && !r.body.startable && r.body.problems.some((p) => p.at === "score.parlays[0].of"), "  a parlay of a question the game doesn't ask is refused", JSON.stringify(r.body.problems));
 
     // ---------- start it as a test game ----------
     const labStart = (body) => desk.call("POST", "/api/desk/lab", { action: "start", seasonId: sid, couchId: couch, ...body });
@@ -144,6 +163,12 @@ function check(ok, what, detail = "") {
     r = await labStart({ spec: rowSpec("when.perPhase") });
     const phased = r.body.leagueId ? (await pool.query("SELECT state FROM leagues WHERE id = $1", [r.body.leagueId])).rows[0]?.state : null;
     check(r.status === 200 && !!phased && G.sameValue(phased.phaseStarts, { tribes: 1 }) && G.sameValue(phased.phaseWindows, {}), "A7: a question once a phase starts as a test game, the season's phases recorded (the merge not known yet)", JSON.stringify(phased && { starts: phased.phaseStarts, windows: phased.phaseWindows }));
+    r = await labStart({ spec: rowSpec("score.multiply") });
+    const parlayed = r.body.leagueId ? (await pool.query("SELECT state FROM leagues WHERE id = $1", [r.body.leagueId])).rows[0]?.state : null;
+    check(r.status === 200 && !!parlayed && G.sameValue(parlayed.settings.parlays, rowSpec("score.multiply").score.parlays) && checkLeague(parlayed).ok, "A9: a parlay starts as a test game, its parlay in its fields", JSON.stringify(r.body).slice(0, 300));
+    r = await labStart({ spec: rowSpec("score.linePoints") });
+    const lined = r.body.leagueId ? (await pool.query("SELECT state FROM leagues WHERE id = $1", [r.body.leagueId])).rows[0]?.state : null;
+    check(r.status === 200 && lined?.settings.leagueTypeId === "weekly-bingo" && lined.settings.linePoints === 5 && checkLeague(lined).ok, "A9: a Weekly Bingo at 5 points a line starts as a test game", JSON.stringify(r.body).slice(0, 300));
 
     // ---------- in the browser ----------
     if (!apiOnly) {

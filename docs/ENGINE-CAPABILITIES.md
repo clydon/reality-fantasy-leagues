@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 124 ✅ · 115 ⏳ · 1 🆕 · 1 ❓ · 23 💬, of 264.
-**Waiting, by step:** A9 20 · A10 16 · A11 14 · A12 9 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 137 ✅ · 102 ⏳ · 1 🆕 · 1 ❓ · 23 💬, of 264.
+**Waiting, by step:** A9 7 · A10 16 · A11 14 · A12 9 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -62,7 +62,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | A choice (0, 1, 2+) | A game for Survivor 51: everyone answers one question before each episode: how many idols get played this episode, all season. A point for each right answer. |
 | ✅ | Rank them | A game for Survivor 51: everyone answers one question before each episode: rank who goes home, surest first, all season. A point for each right answer. |
 | ✅ | Spread 10 chips | A game for Survivor 51: everyone answers one question before each episode: spread 10 chips on who wins immunity, all season. A point for each right answer. |
-| ✅ | Wager your points | A game for Survivor 51: everyone answers one question before each episode: will an idol be found tonight, all season. A point for each right answer. |
+| ✅ | Wager your points | A game for Survivor 51: everyone answers one question before each episode: will an idol be found tonight, all season. A point for each right answer. Stake up to 5 points on it: double or nothing. |
 | ⏳ | Bid (an auction draft) | A10 |
 | ⏳ | Trade (buy and sell castaways) | A10 |
 | ⏳ | A random draw (names out of a hat) | A10 |
@@ -92,16 +92,16 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | Your people's place in the boot order (Outlast) | An Outlast for Survivor 51: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. |
 | ✅ | A streak (Survival Pool) | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. Longest streak wins. |
 | ✅ | Bingo lines | A Weekly Bingo for Survivor 51: a new bingo card every episode, all season. Most lines by the finale wins. |
-| ⏳ | Split the pot (rarer right calls win more) | A9 |
-| ⏳ | Only the only right answer scores | A9 |
-| ⏳ | A jackpot that rolls over | A9 |
-| ⏳ | Multipliers (a parlay) | A9 |
-| ⏳ | Double or nothing | A9 |
-| ⏳ | Points that shrink with time | A9 |
+| ✅ | Split the pot (rarer right calls win more) | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 10 points each time, split between everyone right. |
+| ✅ | Only the only right answer scores | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 5 points for a right answer nobody else has. |
+| ✅ | A jackpot that rolls over | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 3 points for each right answer. If nobody's right, the points roll over. |
+| ✅ | Multipliers (a parlay) | A game for Survivor 51: everyone answers two questions before each episode: who goes home and who wins immunity, all season. 2 points for each right answer. Right on who goes home and who wins immunity together: triple the points. |
+| ✅ | Double or nothing | A game for Survivor 51: everyone answers one question before each episode: will an idol be found tonight, all season. Stake up to 5 points on it: double or nothing. |
+| ✅ | Points that shrink with time | A game for Survivor 51: everyone answers one question before the finale: who wins, all season. 10 points for each right answer. The earlier you call it, the more it's worth. |
 | ⏳ | A captain who scores double | A9 |
 | ⏳ | Best ball (your best 3 of 5 count) | A9 |
 | ⏳ | Scoring in reverse (out early scores more) | A9 |
-| ⏳ | Points per bingo line | A9 |
+| ✅ | Points per bingo line | A Weekly Bingo for Survivor 51: a new bingo card every episode, all season. 5 points a line; most points by the finale wins. |
 
 ### How you win
 
@@ -185,7 +185,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ✅ | s12 | Survivor 51 | Confidence picks: rank everyone from most to least likely to go home; you score your confidence on whoever goes. | answer, score | A game for Survivor 51: everyone answers one question before each episode: rank everyone from most to least likely to go home, all season. A point for each right answer. |
 | ✅ | s13 | Survivor 51 | Draft the boot order before the premiere; points for every boot within 2 spots. | what | A game for Survivor 51: everyone answers one question before it starts: the boot order, all season. 2 points for each right answer. |
 | ✅ | s14 | Survivor 51 | Predict the leaderboard each week. | what | A game for Survivor 51: everyone answers one question before each episode: this week's leaderboard: the top five by points, all season. A point for each right answer. |
-| ⏳ | s15 | Survivor 51 | Parlay: who goes home AND who wins immunity, triple if both. | score | A9 |
+| ✅ | s15 | Survivor 51 | Parlay: who goes home AND who wins immunity, triple if both. | score | A game for Survivor 51: everyone answers two questions before each episode: who goes home and who wins immunity, all season. 2 points for each right answer. Right on who goes home and who wins immunity together: triple the points. |
 | ⏳ | s16 | Survivor 51 | Bounties: if your castaway votes out mine, you steal 2. | score | A14 |
 | ⏳ | s17 | The Challenge 42 | Dynasty: keep 2 of your players when they come back next season. | shape | A10 |
 | ⏳ | s18 | Survivor 51 | My partner and I share one team. | who | A10 |
@@ -199,12 +199,12 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ⏳ | s26 | Survivor 51 | Within the next 3 episodes, will there be a blindside? | when | G1: the window plays now (A7); a blindside isn't a moment research answers, so it's the new-moment path (G1: rated reliable, or the nearest settled question) |
 | ✅ | s27 | Survivor 51 | Guess which episode the merge happens in. | what | A game for Survivor 51: everyone answers one question before it starts: which episode does the merge happen in, all season. 3 points for each right answer. |
 | ⏳ | s28 | Survivor 51 | Each episode, guess who says the episode's title quote. | what, settle | A13 |
-| ⏳ | s29 | Survivor 51 | 10 points an episode, split between everyone who called the boot. | score | A9 |
-| ⏳ | s30 | Survivor 51 | You only score if you're the only one who called it. | score | A9 |
+| ✅ | s29 | Survivor 51 | 10 points an episode, split between everyone who called the boot. | score | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 10 points each time, split between everyone right. |
+| ✅ | s30 | Survivor 51 | You only score if you're the only one who called it. | score | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 5 points for a right answer nobody else has. |
 | ⏳ | s31 | Survivor 51 | Guess what most of us will pick; you score if you match the majority. | settle | A14 |
-| ⏳ | s32 | Survivor 51 | If nobody calls it, the points roll over. | score | A9 |
+| ✅ | s32 | Survivor 51 | If nobody calls it, the points roll over. | score | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 3 points for each right answer. If nobody's right, the points roll over. |
 | ✅ | s33 | Survivor 51 | Spread 10 chips on who wins immunity. | answer | A game for Survivor 51: everyone answers one question before each episode: spread 10 chips on who wins immunity, all season. A point for each right answer. |
-| ⏳ | s34 | Survivor 51 | Bet any of your points on your call, double or nothing. | score | A9 |
+| ✅ | s34 | Survivor 51 | Bet any of your points on your call, double or nothing. | score | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. A point for each right answer. Stake any of your points on it: double or nothing. |
 | ⏳ | s35 | Survivor 51 | Beat the bot: the AI makes its call too; you score when you're right and it's wrong. | win | A14 |
 | ⏳ | s36 | Survivor 51 | First to 20 points wins. | win | A11 |
 | ⏳ | s37 | The Traitors (US) 5 | Co-op: together we have 5 lives; every faithful banished we didn't see coming costs one. | win | A11 |
@@ -214,7 +214,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ✅ | s41 | Survivor 51 | My brother watches a day late: let him lock later. | when | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 2 points for each right answer. |
 | ⏳ | s42 | Dancing with the Stars 35 | Predict each episode's IMDb rating. | settle | A14: outside numbers from a vetted source: TVmaze's rating, not IMDb's |
 | ⏳ | s43 | Survivor 51 | Each week a different one of us writes 3 questions. | who | A14 |
-| ⏳ | s44 | Survivor 51 | Seal a winner pick before the premiere; every change costs a point. | score | A9 |
+| ✅ | s44 | Survivor 51 | Seal a winner pick before the premiere; every change costs a point. | score | A game for Survivor 51: everyone answers one question before the finale: who wins, all season. 10 points for each right answer. Changing your call once it starts costs points. |
 | ⏳ | s45 | Survivor 51 | A season of mini-games: bingo one week, a draft the next. | shape | A12 |
 | ✅ | s46 | Survivor 51 | For 10 random pairs, who outlasts whom? | what | A game for Survivor 51: everyone answers one question before it starts: who outlasts whom, all season. A point for each right answer. |
 | ✅ | s47 | Survivor 51 | Predict the final tribal vote split. | what | A game for Survivor 51: everyone answers one question before it starts: the final jury vote split, all season. 5 points for each right answer. |

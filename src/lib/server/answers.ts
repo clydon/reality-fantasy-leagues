@@ -64,8 +64,19 @@ export interface QuestionView {
    *  key and two faces, answered { key: castawayId }). */
   within: number | null;
   chips: number | null;
-  wager: number | null;
+  /** A9: "total", any of your points (`stakeMost` is how many that is for you now). */
+  wager: number | "total" | null;
   pairs: { key: string; faces: [QuestionFace, QuestionFace] }[] | null;
+  /** A9: how its points combine. share: split (a pot split between everyone right) or only (only the only right one scores);
+   *  rollover: a window nobody earns anything on carries its points into the next (`jackpot`: what's carried into this one, once
+   *  the windows before it are settled as far as you've seen); shrink: a call whose points shrink with each episode that's
+   *  started when it's made, or each change once the game's on (`worth`: what yours is worth, or one made now). */
+  share: "split" | "only" | null;
+  rollover: boolean;
+  jackpot: number | null;
+  shrink: { points: number; per: "episode" | "change" } | null;
+  worth: number | null;
+  stakeMost: number | null;
   /** "person": asked about each person still in (A6), answered { castawayId: answer } for any of `faces`. */
   each: "person" | null;
   /** The episode it's answered for (asked each), or null (the game's own). */
@@ -186,6 +197,40 @@ function isClosed(r: Read, q: Question, episode: number): boolean {
   return StateLogic.AnswerLogic.closed(r.h.state, q, episode, { now: r.now.getTime(), finale: r.finale?.number ?? null, airAt, mark: r.h.mark });
 }
 
+/** How many of the game's episodes have started now (A9: when an answer is made), the schedule's air time for one the league
+ *  hasn't made yet. */
+const startedNow = (r: Read) =>
+  StateLogic.AnswerLogic.started(r.h.state, { now: r.now.getTime(), airAtOf: (n) => r.schedule?.episodes.find((e) => e.number === n)?.airAt ?? null });
+
+/** What you've staked on wagers of any of your points (A9) still to settle as far as you've seen, by window ("question|episode"):
+ *  points that are already on the line, so a new stake of them can't count them again. */
+function heldStakes(qs: Question[], answers: AnswerRow[], verdicts: Map<string, Verdict>, me: string): Map<string, number> {
+  const held = new Map<string, number>();
+  for (const a of answers) {
+    const q = qs.find((x) => x.id === a.question);
+    if (a.playerId !== me || q?.wager !== Spec.WAGER_TOTAL) continue;
+    const key = `${q.id}|${q.asked === "once" ? 0 : a.episode}`;
+    const stake = (a.answer as { stake?: unknown } | null)?.stake;
+    if (verdicts.get(key)?.state !== "waiting" || !Number.isInteger(stake) || (stake as number) <= 0) continue;
+    held.set(key, stake as number);
+  }
+  return held;
+}
+/** The most you can stake on a wager of any of your points (A9) in a window (`key`): your points as they stand for you, less what's
+ *  on the line in your other wagers of them still to settle (`held`, and `staking`: the ones this answer sends); at least 0. */
+function stakeMost(points: number, held: Map<string, number>, key: string, staking?: Map<string, number>): number {
+  let most = points;
+  for (const [k, n] of held) if (k !== key && !staking?.has(k)) most -= n;
+  for (const [k, n] of staking ?? []) if (k !== key) most -= n;
+  return Math.max(0, Math.floor(most));
+}
+/** Your points as they stand for you (at your mark) and your stakes still on the line: what a wager of any of them (A9) can stake. */
+async function stakeRoom(r: Read): Promise<{ points: number; held: Map<string, number> }> {
+  const all = StateLogic.getLeagueType(r.h.state).hasQuestions ? await storedAnswers(r.h.game.leagueId) : [];
+  const graded = StateLogic.AnswerLogic.grade(r.view, all, r.facts);
+  return { points: graded.points.get(r.h.playerId) ?? 0, held: heldStakes(questionsOf(r.h.state), all, graded.verdicts, r.h.playerId) };
+}
+
 /** The episode you answer for now: this week's (the game's, not where you are), or with a late lock (step A7) the one after
  *  your mark while it's still open for you. */
 const weekOf = (r: Read) =>
@@ -237,13 +282,17 @@ async function readQuestions(r: Read, episodeIn?: unknown, rows?: AnswerRow[]): 
   const out: QuestionView[] = [];
   let points = 0;
   for (const [pid, n] of graded.points) if (pid === me) points += n;
+  // A9: your stakes still on the line, and how many of the game's episodes have started (a shrinking call made now).
+  const held = heldStakes(qs, stored, graded.verdicts, me);
+  const lateNow = startedNow(r);
   for (const q of qs) {
     // Its window this week (A7: asked each, its episode; every few or by phase, the run it's in), or the game's own (0).
     const each = q.asked !== "once";
     const at = windowFor(r, q, episode);
     if (at === null) continue;
     const ep = at;
-    const mine = all.find((a) => a.playerId === me && a.question === q.id && a.episode === ep)?.answer ?? null;
+    const mineRow = all.find((a) => a.playerId === me && a.question === q.id && a.episode === ep);
+    const mine = mineRow?.answer ?? null;
     const theirs = all.filter((a) => a.question === q.id && a.episode === ep);
     const closed = isClosed(r, q, ep);
     const { airAt } = closing(r, q, ep);
@@ -264,6 +313,13 @@ async function readQuestions(r: Read, episodeIn?: unknown, rows?: AnswerRow[]): 
       within: q.answer === "order" ? (q.within ?? 0) : null,
       chips: q.answer === "chips" ? (q.chips ?? null) : null,
       wager: q.wager ?? null,
+      share: q.share ?? null,
+      rollover: !!q.rollover,
+      jackpot: q.rollover && graded.worth.has(`${q.id}|${ep}`) ? (graded.worth.get(`${q.id}|${ep}`) ?? q.points) - q.points : null,
+      shrink: q.shrink ?? null,
+      // Yours as it was made; none yet, one made now (made once the game's on, it counts as a change).
+      worth: q.shrink ? Spec.shrunk(q, q.points, mineRow && "late" in mineRow ? mineRow : { late: lateNow, changes: lateNow > 0 ? 1 : 0 }) : null,
+      stakeMost: q.wager === Spec.WAGER_TOTAL ? stakeMost(points, held, `${q.id}|${ep}`) : null,
       pairs: q.answer === "pairs" && !behind ? pairsOf(h.state, q).map((p) => ({ key: p.key, faces: [castFace(view, p.ids[0]), castFace(view, p.ids[1])] })) : null,
       each: q.each ?? null,
       episode: each ? ep : null,
@@ -282,7 +338,8 @@ async function readQuestions(r: Read, episodeIn?: unknown, rows?: AnswerRow[]): 
       const v = graded.verdicts.get(`${q.id}|${ep}`) ?? Spec.verdictOf(q, ep, facts);
       view1.verdict = v;
       const list = theirs.map((a) => ({ playerId: a.playerId, answer: a.answer }));
-      const earned = Spec.pointsFor(q, v, list, facts);
+      // What each earned there, A9's ways of combining in (a split pot, a rollover's jackpot, a parlay, a shrinking call).
+      const earned = graded.earned.get(`${q.id}|${ep}`) ?? new Map<string, number>();
       view1.people = theirs
         .map((a) => ({
           playerId: a.playerId,
@@ -317,6 +374,12 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
   const qs = questionsOf(h.state);
   const thisWeek = weekOf(r);
   const mark = h.mark ?? Number.POSITIVE_INFINITY;
+  // How many of the game's episodes have started (A9: when an answer is made, for a call whose points shrink).
+  const late = startedNow(r);
+  // Your points as they stand for you and your stakes on the line, for a wager of any of them (A9), read once when one is staked;
+  // `staking`, the stakes this answer sends.
+  let room: { points: number; held: Map<string, number> } | null = null;
+  const staking = new Map<string, number>();
   const writes: { q: Question; ep: number; value: unknown }[] = [];
   for (const [key, value] of Object.entries(body.answers)) {
     const q = qs.find((x) => x.id === key);
@@ -343,8 +406,17 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
           : namesSomeone(q)
             ? new Set(facesFor(view, q, h.playerId).map((f) => f.id))
             : null;
-      const problem = Spec.answerProblem(q, value, faces);
+      let most: number | undefined;
+      if (q.wager === Spec.WAGER_TOTAL) {
+        room ??= await stakeRoom(r);
+        most = stakeMost(room.points, room.held, `${q.id}|${ep}`, staking);
+      }
+      const problem = Spec.answerProblem(q, value, faces, most === undefined ? undefined : { most });
       if (problem) throw new HttpError(400, problem);
+      if (q.wager === Spec.WAGER_TOTAL) staking.set(`${q.id}|${ep}`, (value as { stake: number }).stake);
+    } else if (q.shrink && late > 0) {
+      // Taken back and given again would start it over: once the game's on, a shrinking call is changed, never taken back.
+      throw new HttpError(409, `"${q.ask}" can be changed but not taken back once the game is on`);
     }
     const one = Spec.NAMES.includes(q.answer) && !q.each && Array.isArray(value) && (q.pick ?? 1) === 1;
     writes.push({ q, ep, value: one ? (value as unknown[])[0] : value });
@@ -375,14 +447,19 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
           await client.query("DELETE FROM game_answers WHERE league_id = $1 AND player_id = $2 AND question = $3 AND episode = $4", [h.game.leagueId, h.playerId, w.q.id, w.ep]);
           continue;
         }
+        // When it was made (A9): a first answer once the game's on counts as a change (sealing it early is the point), and so does
+        // each change after, which makes it as late as now; the same answer again doesn't.
         await client.query(
-          `INSERT INTO game_answers (league_id, player_id, question, episode, answer, answered_by) VALUES ($1, $2, $3, $4, $5::jsonb, $6)
-           ON CONFLICT (league_id, player_id, question, episode) DO UPDATE SET answer = EXCLUDED.answer, answered_by = EXCLUDED.answered_by, updated_at = now()`,
-          [h.game.leagueId, h.playerId, w.q.id, w.ep, JSON.stringify(w.value), user.id]
+          `INSERT INTO game_answers (league_id, player_id, question, episode, answer, answered_by, late, changes) VALUES ($1, $2, $3, $4, $5::jsonb, $6, $7, CASE WHEN $7 > 0 THEN 1 ELSE 0 END)
+           ON CONFLICT (league_id, player_id, question, episode) DO UPDATE SET
+             changes = game_answers.changes + CASE WHEN game_answers.answer IS DISTINCT FROM EXCLUDED.answer AND EXCLUDED.late > 0 THEN 1 ELSE 0 END,
+             late = CASE WHEN game_answers.answer IS DISTINCT FROM EXCLUDED.answer THEN EXCLUDED.late ELSE game_answers.late END,
+             answer = EXCLUDED.answer, answered_by = EXCLUDED.answered_by, updated_at = now()`,
+          [h.game.leagueId, h.playerId, w.q.id, w.ep, JSON.stringify(w.value), user.id, late]
         );
       }
-      const late = rows.find((w) => isClosed({ ...r, now: new Date() }, w.q, w.ep));
-      if (late) throw new HttpError(409, `"${late.q.ask}" closed as it was answered`);
+      const shut = rows.find((w) => isClosed({ ...r, now: new Date() }, w.q, w.ep));
+      if (shut) throw new HttpError(409, `"${shut.q.ask}" closed as it was answered`);
       await client.query("COMMIT");
     } catch (e) {
       await client.query("ROLLBACK").catch(() => {});

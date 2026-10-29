@@ -49,11 +49,19 @@ export type SpecScore =
   | { by: "moments"; points: Record<string, number> | null }
   | { by: "place" }
   | { by: "survive"; means: "staysIn" | "scores"; points: number }
-  | { by: "lines" }
-  /** Only the ask's questions (A4): Weekly Calls (the show's calls), a game of questions. */
-  | { by: "answers" }
+  /** A9: points per line (1 when it's left out). */
+  | { by: "lines"; points?: number }
+  /** Only the ask's questions (A4): Weekly Calls (the show's calls), a game of questions. A9's parlays: someone right on every
+   *  one of `of` in the same window has their points on them multiplied by `times`. */
+  | { by: "answers"; parlays?: SpecParlay[] }
   /** sports: the Sport's stat keys -> points */
   | { by: "stats"; points: Record<string, number> };
+
+/** A9: a parlay of a game of questions' plain questions (2 to 4, asked the same way), its multiplier when all are right. */
+export interface SpecParlay {
+  of: string[];
+  times: number;
+}
 
 export interface SpecRank {
   /** total, streak: today. sports: matchups, categories, roto. */
@@ -94,8 +102,17 @@ export interface SpecQuestion {
   chips?: number;
   /** A8: a pairs answer's pairs, drawn from who's in at the game's start. */
   pairs?: number;
-  /** A8: the most points you can stake on your answer: right, its points and the stake; wrong, the stake lost. */
-  wager?: number;
+  /** A8: the most points you can stake on your answer: right, its points and the stake; wrong, the stake lost. A9: "total", any
+   *  of your points as they stand when you answer. */
+  wager?: number | "total";
+  /** A9: split, a pot for each window split between everyone right (by what each would have earned); only, a right answer scores
+   *  only when nobody else's does. */
+  share?: "split" | "only";
+  /** A9 (asked each, every N or by phase): a window nobody earns anything on carries its points into the next. */
+  rollover?: true;
+  /** A9 (asked once, closing at the finale): its points shrink by `points` for each of the game's episodes that had started when
+   *  the answer was made, or each change made once the game started; never below 0. */
+  shrink?: { points: number; per: "episode" | "change" };
   /** A right answer's (a right pick's). */
   points: number;
   settle: SpecSettle;
@@ -314,7 +331,22 @@ export function verdictOf(q: Question, episode: number, facts: AnswerFacts): Ver
 export function rightAnswers(q: Question, v: Verdict, facts?: AnswerFacts): string[] | null;
 export function pointsFor(q: Question, v: Verdict, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): Map<string, number>;
 export function isRight(q: Question, v: Verdict, mine: { playerId: string; answer: unknown }, answers: { playerId: string; answer: unknown }[], facts?: AnswerFacts): boolean | null;
-export function answerProblem(q: Question, value: unknown, faces?: Set<string> | null): string | null;
+/** o.most: a wager of any of your points (A9), your points as they stand. */
+export function answerProblem(q: Question, value: unknown, faces?: Set<string> | null, o?: { most?: number }): string | null;
+/** A9: what each answer earns on one window with its ways of combining (a split pot, only the only right one, a rollover's worth,
+ *  a shrinking call). */
+export function windowPoints(
+  q: Question,
+  v: Verdict,
+  answers: { playerId: string; answer: unknown; late?: number; changes?: number }[],
+  facts?: AnswerFacts,
+  o?: { worth?: number }
+): Map<string, number>;
+/** A9: who's right on every leg of a parlay in one window. */
+export function allRight(legs: { q: Question; v: Verdict | undefined; answers: { playerId: string; answer: unknown }[] }[], facts?: AnswerFacts): Set<string>;
+/** A9: what a shrinking call is worth, as it was made (its late, changes). */
+export function shrunk(q: Question, worth: number, a?: { late?: number; changes?: number } | null): number;
+export const WAGER_TOTAL: "total";
 /** A8: a pairs question's pairs, drawn from who was in at the game's start (the same every time). */
 export function pairsFrom(q: Question, ids: string[]): [string, string][];
 /** A8: a pair's key for its answers ({ "a|b": who }): its two ids, sorted. */

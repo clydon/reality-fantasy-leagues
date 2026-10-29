@@ -25,6 +25,10 @@ const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven
 const say = (n) => NUMBER_WORDS[n] || String(n);
 const cap = (s) => s.replace(/^./, (c) => c.toUpperCase());
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
+const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+/** A game of questions' parlays (A9) as far as they're said: each with its list of questions (a spec still being made can have
+ *  half of one). */
+const parlaysOf = (score) => (isObj(score) && Array.isArray(score.parlays) ? score.parlays.filter((p) => isObj(p) && Array.isArray(p.of)) : []);
 /** "a, b and c". */
 const listOf = (items) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
 const pointsWord = (n) => `${n} ${n === 1 ? 'point' : 'points'}`;
@@ -125,7 +129,7 @@ function sentenceParts(s, w) {
     const each = s.ask.some((q) => q.asked === 'each');
     // A7's windows: every few episodes, or once a phase, when nothing's asked every episode.
     const every = s.ask.find((q) => q.asked === 'every');
-    const when = each ? `each ${w.part}` : every ? `every ${say(every.every)} ${w.parts}` : s.ask.some((q) => q.asked === 'phase') ? 'each phase' : 'it starts';
+    const when = each ? `each ${w.part}` : every ? `every ${say(every.every)} ${w.parts}` : s.ask.some((q) => q.asked === 'phase') ? 'each phase' : n && s.ask.every((q) => q.closes === 'finale') ? 'the finale' : 'it starts';
     put(`everyone answers ${say(n)} ${n === 1 ? 'question' : 'questions'} before ${one ? `${w.Part} ${first}` : when}`, 'ask');
     if (n) put(`: ${listOf(s.ask.map(questionPhrase))}`, 'ask');
     spanSaid = one;
@@ -145,11 +149,29 @@ function sentenceParts(s, w) {
   } else if (sc.by === 'place') put(' Each scores by how long they last: the last one standing carries you.', 'score');
   else if (sc.by === 'survive') put(' Longest streak wins.', 'rank');
   else if (sc.by === 'answers' && callsAsk(s.ask)) put(' Most right by the finale wins.', 'score');
-  else if (sc.by === 'lines') put(' Most lines by the finale wins.', 'score');
+  else if (sc.by === 'lines') put(isNum(sc.points) && sc.points !== 1 ? ` ${cap(pointsWord(sc.points))} a line; most points by the finale wins.` : ' Most lines by the finale wins.', 'score');
   else if (sc.by === 'stats' && isObj(sc.points)) put(` Scored ${statsWords(sc.points, w)}.`, 'score');
   else if (sc.by === 'answers') {
     const pts = [...new Set(s.ask.map((q) => q.points))];
-    put(pts.length === 1 ? ` ${pts[0] === 1 ? 'A point' : pointsWord(pts[0])} for each right answer.` : ' Points for each right answer.', 'score');
+    const all = (f) => s.ask.length > 0 && s.ask.every(f);
+    const some = (f) => s.ask.some(f);
+    const each = pts.length === 1 ? `${pts[0] === 1 ? 'A point' : pointsWord(pts[0])}` : 'Points';
+    // A9's ways of combining, as far as they're the whole game's.
+    let said = ` ${each} for each right answer.`;
+    if (all((q) => q.share === 'split')) said = ` ${each} each time, split between everyone right.`;
+    else if (all((q) => q.share === 'only')) said = ` ${each} for a right answer nobody else has.`;
+    else if (all((q) => q.wager !== undefined)) {
+      const w0 = s.ask[0].wager;
+      const stake = all((q) => q.wager === w0) ? (w0 === 'total' ? 'any of your points' : `up to ${pointsWord(w0)}`) : 'points';
+      said = `${pts.length === 1 && pts[0] === 0 ? '' : said} Stake ${stake} on ${s.ask.length === 1 ? 'it' : 'each'}: double or nothing.`;
+    }
+    put(said, 'score');
+    if (some((q) => q.rollover)) put(" If nobody's right, the points roll over.", 'score');
+    if (some((q) => isObj(q.shrink))) put(some((q) => isObj(q.shrink) && q.shrink.per === 'change') ? ' Changing your call once it starts costs points.' : " The earlier you call it, the more it's worth.", 'score');
+    for (const p of parlaysOf(sc)) {
+      const legs = p.of.map((id) => s.ask.find((q) => q.id === id)).filter(Boolean).map(questionPhrase);
+      put(` Right on ${listOf(legs)} together: ${{ 2: 'double', 3: 'triple', 4: 'quadruple' }[p.times] || `${p.times} times`} the points.`, 'score');
+    }
   }
   const rank = { matchups: ' Played head to head.', categories: ' Ranked by category.', roto: ' Ranked roto-style.' }[s.rank.by];
   if (rank) put(rank, 'rank');
@@ -186,9 +208,24 @@ function questionRule(q, w, each) {
   }
   const line = q.answer === 'overUnder' && typeof q.line === 'number' ? ` The line is ${q.line}.` : '';
   const from = q.answer === 'person' && q.from === 'team' ? ' From your own team.' : '';
-  // A wager (A8): its stake, double or nothing.
-  const wager = Number.isInteger(q.wager) ? ` Stake up to ${pointsWord(q.wager)} on it: right, you win them too; wrong, you lose them.` : '';
-  return `${when}${askOf(q)}${line}${from}${earn}${wager}`;
+  // A wager (A8): its stake, double or nothing; A9's, any of your points.
+  const wager = Number.isInteger(q.wager)
+    ? ` Stake up to ${pointsWord(q.wager)} on it: right, you win them too; wrong, you lose them.`
+    : q.wager === 'total' ? ' Stake any of your points on it: right, you win them too; wrong, you lose them.' : '';
+  return `${when}${askOf(q)}${line}${from}${earn}${wager}${combineWords(q, w)}`;
+}
+/** How a question's points combine (A9), as How it works says it. */
+function combineWords(q, w) {
+  let out = '';
+  if (q.share === 'split') out += ' The points are a pot, split between everyone who gets it right: the fewer of you, the more each gets.';
+  if (q.share === 'only') out += " It only scores if you're the only one who gets it right.";
+  if (q.rollover) out += ` If nobody gets it, its points roll over to the next one.`;
+  if (isObj(q.shrink)) {
+    out += q.shrink.per === 'change'
+      ? ` Once it's started, each change costs ${pointsWord(q.shrink.points)}.`
+      : ` It's worth ${pointsWord(q.shrink.points)} less for each ${w.part} that's started when you make or change it: the earlier you call it, the more it's worth.`;
+  }
+  return out;
 }
 
 /** How it works: today's five games say what the Rules sheet says (game-rules.ts), the rest in the same voice. */
@@ -236,7 +273,7 @@ function rulesOf(s, w) {
     rules.push('No draft, no team. Every show you get a new bingo card: eight things that might happen, the middle one free.');
     rules.push('Tick a square when it happens. Three in a row, down or across makes a line.');
     rules.push('A square counts once the couch agrees it happened: two of you ticking it, or saying so, settles it.');
-    rules.push('Most lines by the finale wins.');
+    rules.push(isNum(s.score.points) && s.score.points !== 1 ? `Each line is worth ${pointsWord(s.score.points)}. Most points by the finale wins.` : 'Most lines by the finale wins.');
   } else if (by === 'squares') {
     rules.push('Take your squares on the grid before it starts.');
   }
@@ -244,6 +281,12 @@ function rulesOf(s, w) {
     const each = s.ask.some((q) => q.asked !== 'once');
     rules.push(`No draft, no team. Answer ${say(s.ask.length)} ${s.ask.length === 1 ? 'question' : 'questions'}${each ? '' : ' before it starts'}:`);
     for (const q of s.ask) rules.push(questionRule(q, w, each));
+    // A9's parlays.
+    for (const p of parlaysOf(s.score)) {
+      const legs = p.of.map((id) => s.ask.find((q) => q.id === id)).filter(Boolean);
+      const times = { 2: 'double', 3: 'triple', 4: 'quadruple' }[p.times] || `${p.times} times`;
+      rules.push(`A parlay: right on ${listOf(legs.map((q) => `"${q.ask}"`))} together, and your points on them are ${times}.`);
+    }
     rules.push(each ? `Change an answer until its ${w.part} starts. Nobody sees them until then.` : 'Change your answers until it starts. Nobody sees them until then.');
     // A late lock (A7).
     if (isObj(s.extras.lateLock)) rules.push(`Watching late? Answer before you watch: until you've seen it, up to ${s.extras.lateLock.hours} hours after it airs.`);

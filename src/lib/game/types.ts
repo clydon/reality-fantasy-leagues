@@ -273,6 +273,11 @@ export interface LeagueSettings {
   /** A game of questions' late lock (step A7, the spec's extras.lateLock): hours past an episode's air time someone who
    *  hasn't seen it can still answer its questions. */
   lateLockHours?: number;
+  /** A game of questions' parlays (step A9, the spec's score.parlays): someone right on every one of `of` in a window has their
+   *  points on them multiplied by `times`. */
+  parlays?: { of: string[]; times: number }[];
+  /** Points per bingo line (step A9, the spec's score.points on a Weekly Bingo), 1 when it's left out. */
+  linePoints?: number;
   /**
    * The episode this league starts playing at (default 1): a league formed mid-season drafts and picks
    * from here, and nothing in earlier episodes scores. Read it through StateLogic.startEpisode. A game that starts when a
