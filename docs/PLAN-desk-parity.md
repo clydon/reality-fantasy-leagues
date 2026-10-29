@@ -6,13 +6,14 @@ History), but a site admin still has to go back to classic for about 25 things, 
 admin at all (only Settings › Back to the classic design, or typing `/admin`). Nothing in `src/new` calls `/api/admin/*`. This
 plan closes that gap, then retires classic's admin.
 
-**Status (2026-10-28, night): Step 1 ready to merge at 049c10db: parts 1a, 1b and 1c** (1a: the page frame, Find › Browse and People,
+**Status (2026-10-29): Step 1 ready to merge at 049c10db: parts 1a, 1b and 1c** (1a: the page frame, Find › Browse and People,
 Settings regrouped, the Viewing as bar; 1b: a person's actions, Let in, Act as them, Name and email, Reset password, Stop
 them signing in and Let them back in, with migration 0420; 1c: their couches and games, a seat's sheet, Hand on and Delete
 <name>'s account, no migration; their As built is under step 1). **Step 2 ready to merge at 28901f65** (the Inbox: Needs you
 most urgent first with each item's row to act on, Coming up, Find › Reports and a report's page, the couch nobody runs
-handed on through Hand on, Let in told by email; migration 0421; its As built is under step 2); **part 3a (Setup's season
-and results) is next.** Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
+handed on through Hand on, Let in told by email; migration 0421; its As built is under step 2); **part 3a done at 75052bc8** (a season's
+Setup: Name, Status held over its listing's dates, Who decides results, the schedule as it reads, the season's Delete;
+migration 0422; its As built is under step 3); **part 3b (Setup's schedule) is next.** Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
 either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
