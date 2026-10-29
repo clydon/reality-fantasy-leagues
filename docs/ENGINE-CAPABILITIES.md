@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 137 ✅ · 102 ⏳ · 1 🆕 · 1 ❓ · 23 💬, of 264.
-**Waiting, by step:** A9 7 · A10 16 · A11 14 · A12 9 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 145 ✅ · 95 ⏳ · 1 🆕 · 1 ❓ · 23 💬, of 265.
+**Waiting, by step:** A10 16 · A11 14 · A12 9 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -98,9 +98,10 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | Multipliers (a parlay) | A game for Survivor 51: everyone answers two questions before each episode: who goes home and who wins immunity, all season. 2 points for each right answer. Right on who goes home and who wins immunity together: triple the points. |
 | ✅ | Double or nothing | A game for Survivor 51: everyone answers one question before each episode: will an idol be found tonight, all season. Stake up to 5 points on it: double or nothing. |
 | ✅ | Points that shrink with time | A game for Survivor 51: everyone answers one question before the finale: who wins, all season. 10 points for each right answer. The earlier you call it, the more it's worth. |
-| ⏳ | A captain who scores double | A9 |
-| ⏳ | Best ball (your best 3 of 5 count) | A9 |
-| ⏳ | Scoring in reverse (out early scores more) | A9 |
+| ✅ | A captain who scores double | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, one of them a captain who scores double, all season. Scored by Survivor 51's rules. |
+| ✅ | Best ball (your best 3 of 5 count) | A game for Survivor 51: everyone drafts 5, and their best 3 count each episode, all season. Scored by Survivor 51's rules. |
+| ✅ | Scoring in reverse (out early scores more) | A game for Survivor 51: everyone drafts 3, all season. Each scores more the earlier they go home: the first one out carries you. |
+| ✅ | Points that multiply by when (an episode, a phase or the finale counting double) | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. Points in the finale count double. |
 | ✅ | Points per bingo line | A Weekly Bingo for Survivor 51: a new bingo card every episode, all season. 5 points a line; most points by the finale wins. |
 
 ### How you win
@@ -177,9 +178,9 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ⏳ | s04 | Dancing with the Stars 35 | Salary cap: couples cost more the better they're doing. | answer | A10 |
 | ⏳ | s05 | Survivor 51 | Everyone drafts one castaway from each tribe. | who | A10 |
 | ⏳ | s06 | Survivor 51 | Draft a guy and a girl each, and they score together. | who | A10 |
-| ⏳ | s07 | Survivor 51 | Reverse draft: the earlier your castaways go home, the more you score. | score | A9 |
-| ⏳ | s08 | Survivor 51 | Captain each week: one of your castaways scores double. | score | A9 |
-| ⏳ | s09 | Survivor 51 | Best ball: draft 5, your best 3 count, no lineups. | score | A9 |
+| ✅ | s07 | Survivor 51 | Reverse draft: the earlier your castaways go home, the more you score. | score | A game for Survivor 51: everyone drafts 3, all season. Each scores more the earlier they go home: the first one out carries you. |
+| ✅ | s08 | Survivor 51 | Captain each week: one of your castaways scores double. | score | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, one of them a captain who scores double, all season. Scored by Survivor 51's rules. |
+| ✅ | s09 | Survivor 51 | Best ball: draft 5, your best 3 count, no lineups. | score | A game for Survivor 51: everyone drafts 5, and their best 3 count each episode, all season. Scored by Survivor 51's rules. |
 | ⏳ | s10 | Survivor 51 | A pool with 2 lives and one buyback before the merge. | win | A10 |
 | ⏳ | s11 | Survivor 51 | On double-boot nights you pick two. | when | A10 |
 | ✅ | s12 | Survivor 51 | Confidence picks: rank everyone from most to least likely to go home; you score your confidence on whoever goes. | answer, score | A game for Survivor 51: everyone answers one question before each episode: rank everyone from most to least likely to go home, all season. A point for each right answer. |
@@ -286,7 +287,7 @@ Start a game's eval set (the playtest lane's P2, 2026-10-28), each request now t
 | ✅ | w043 | Squid Game: The Challenge | Squid Game: The Challenge draft | A Weekly Lineup for Squid Game: The Challenge: everyone drafts 5 and starts 3 each episode, all season. Scored by Squid Game: The Challenge's rules. (Checked against The Challenge's rules, a show of its kind.) |
 | ✅ | w044 | Survivor 51 | Survivor 51 from episode 7: draft 4 each, start 2, 3 points for an idol find, 5 for winning immunity, minus 2 for a vote against | A Weekly Lineup for Survivor 51: everyone drafts 4 and starts 2 each episode, Episode 7 to the finale. Scored by Survivor 51's rules, with two moments' points changed. |
 | ✅ | w045 | The Traitors (US) 5 | Traitors draft, 3 each, a point for each round table survived, 10 if your player is a traitor who wins, -5 if they get banished | A Weekly Lineup for The Traitors (US) 5: everyone drafts 3 and starts 3 each episode, all season. Scored by The Traitors (US) 5's rules, with one moment's points changed. |
-| ⏳ | w046 | Dancing with the Stars 35 | dwts: everyone drafts 2 couples, points equal to their judges score each week, double in the finale | A9: a couple's judges' score (A6) doubled in the finale (A9) |
+| ✅ | w046 | Dancing with the Stars 35 | dwts: everyone drafts 2 couples, points equal to their judges score each week, double in the finale | A Weekly Lineup for Dancing with the Stars 35: everyone drafts 2 and starts 2 each episode, all season. Scored by Dancing with the Stars 35's rules, with ten moments' points changed. Points in the finale count double. |
 | ⏳ | w047 | Survivor 51 | survivor pool but you can't pick the same person twice, and if your pick goes home you're out, last one standing wins, ties split | A11: out on a wrong pick, last one standing: players knocked out |
 | ⏳ | w048 | Below Deck 13 | Below Deck: draft 3 crew, 2 points every time they're on charter, 5 if they get fired, 3 for a hookup, minus 1 for crying | G1: on charter and a hookup aren't moments research answers: the new-moment path |
 | ✅ | w049 | The Challenge 42 | blind draft for the challenge 42 finale only, 2 each, whoever has the winner gets 10 | A Weekly Lineup for The Challenge 42: everyone drafts 2 and starts 2 each episode, just Episode 13. Scored by The Challenge 42's rules. |

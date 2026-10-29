@@ -53,8 +53,9 @@ const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFee
 const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope"];
 const GAME_FIELDS = {
   every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints"],
-  "classic-draft": [...DRAFT_FIELDS, "teamSize"],
-  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock"],
+  // A9 part 2: Outlast in reverse; best ball, a lineup's captain, points that multiply by when.
+  "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder"],
+  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes"],
   pickem: ["pickemCorrectPoints", "poolSurvive", "calls"],
   "weekly-calls": [],
   // A9: points per line; a game of questions' parlays.
@@ -414,7 +415,9 @@ test("specWaitsFor: what a spec needs that isn't built, and the step that builds
   // A phase start is built (A3 part 2): every preset plays one.
   for (const p of Object.values(P)) assert.deepEqual(waits({ ...p, span: { from: { phase: "merged" }, to: null } }), [], p.preset);
   assert.equal(G.typeOf({ ...P.outlast, span: { from: { phase: "merged", at: 9 }, to: null } }), "classic-draft");
-  assert.deepEqual(waits({ ...P["weekly-lineup"], count: { best: 3 } }), ["count:sports"]);
+  // Best ball plays (A9 part 2): Weekly Lineup's game, with no lineups.
+  assert.deepEqual(waits({ ...P["weekly-lineup"], count: { best: 3 } }), []);
+  assert.equal(G.typeOf({ ...P["weekly-lineup"], count: { best: 3 } }), "active-roster");
   assert.deepEqual(waits({ ...P["weekly-lineup"], rank: { by: "matchups" }, closes: "daily" }), ["rank.by:sports", "closes:sports"]);
   assert.deepEqual(waits({ spec: 1, get: { by: "squares" }, score: { by: "stats", points: { PTS: 1 } } }), ["get.by:sports", "score.by:sports"]);
   assert.deepEqual(waits({ ...P.outlast, pool: { of: "cast", where: { group: "tribe-1" } } }), ["pool.where:later"]);

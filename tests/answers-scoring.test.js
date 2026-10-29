@@ -102,6 +102,10 @@ test("grading A9's ways on facts: a split pot, only the only one, a shrinking ca
   // Only the only one right.
   assert.deepEqual(points(ONLY, 1, A([["ann", "a"], ["bo", "b"]])), { ann: 2 });
   assert.deepEqual(points(ONLY, 1, A([["ann", "a"], ["bo", "a"]])), {}, "two right: neither");
+  // ...per pick when it names people (A9 part 2, part 1's open item): each right pick nobody else named.
+  assert.deepEqual(points({ ...ONLY, pick: 3 }, 2, A([["ann", ["b", "d", "e"]], ["bo", ["c", "e", "f"]]])), { ann: 2, bo: 2 }, "each alone on a different right one");
+  assert.deepEqual(points({ ...ONLY, pick: 2 }, 2, A([["ann", ["b", "c"]], ["bo", ["c", "d"]]])), { ann: 2 }, "the one they share scores nobody");
+  assert.deepEqual(points(ONLY, 2, A([["ann", "b"], ["bo", "c"]])), { ann: 2, bo: 2 }, "a double boot, each calling a different one");
   const closest = { id: "n", ask: "How many go home?", answer: "number", points: 3, asked: "each", share: "only", settle: { by: "moment", moment: "idolFound", take: "count" } };
   const counted = facts({ episodes: new Map([[1, { out: [], events: new Map([["idolFound", 2]]), who: new Map(), in: IN, groups: new Map(), roles: new Map(), points: new Map() }]]) });
   assert.deepEqual(points(closest, 1, A([["ann", 1], ["bo", 3]]), counted), {}, "the closest tie: neither is the only one");
@@ -218,7 +222,7 @@ test("the settings both ways, and How it works", () => {
   const rules = G.describeSpec(game([POT, ONLY, ROLL, WIN, SEAL, ALL_IN, OUT, IMM], { score: { by: "answers", parlays: [PARLAY] } })).rules;
   assert.deepEqual(rules.slice(1, 9), [
     "Before each episode: 10 points split between everyone who calls the boot 10 points if you're right. The points are a pot, split between everyone who gets it right: the fewer of you, the more each gets.",
-    "Before each episode: Only if you're the only one 2 points if you're right. It only scores if you're the only one who gets it right.",
+    "Before each episode: Only if you're the only one 2 points if you're right. A right pick only scores if nobody else named it.",
     "Before each episode: Who goes home? Nobody right, it rolls over 2 points if you're right. If nobody gets it, its points roll over to the next one.",
     "Before the finale: Who wins? 10 points if you're right. It's worth 1 point less for each episode that's started when you make or change it: the earlier you call it, the more it's worth.",
     "Before the finale: Seal your winner: every change costs a point 10 points if you're right. Once it's started, each change costs 1 point.",

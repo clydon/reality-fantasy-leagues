@@ -14,10 +14,14 @@
 //            the ownership today: exclusive drafts snake, shared drafts blind) | { by: 'pick', each: 1, repeat: 'cycle' }
 //            (one an episode, nobody again until everyone still in is used, never twice running) | { by: 'card' }
 //            (bingo) | { by: 'none' }; sports: { by: 'squares' }
-//   count    what of yours counts each episode: { start: n } (your lineup) | { all: true } | { pick: true } | null
-//            (nothing held); sports: { best: n } (best ball)
-//   score    { by: 'moments', points } (points: moment id -> points over the rulebook's own; null = its own)
-//            | { by: 'place' } (Outlast: 1, plus 1 for every boot outlasted) | { by: 'survive', means: staysIn | scores,
+//   count    what of yours counts each episode: { start: n } (your lineup) | { all: true } | { pick: true } | { best: n }
+//            (A9 part 2: best ball, your best n each episode, no lineups; shows and sports) | null (nothing held)
+//   score    { by: 'moments', points, captain?, times? } (points: moment id -> points over the rulebook's own; null = its
+//            own. A9 part 2: captain { times }, a lineup's captain, one of your starters you name each episode, whose points
+//            multiply; times [{ times, episode | from (to) | phase | finale }], an episode, a run of them, a phase of the
+//            season or its finale whose points multiply: "double in the finale", "the first three count triple")
+//            | { by: 'place', reverse? } (Outlast: 1, plus 1 for every boot outlasted; A9 part 2's reverse: true, the
+//            earlier they go home the more, 1 plus 1 for everyone who outlasts them) | { by: 'survive', means: staysIn | scores,
 //            points } (Survival Pool) | { by: 'lines', points? } (bingo: each line `points`, 1 when it's left out: A9)
 //            | { by: 'answers', parlays? } (only the ask's questions: Weekly Calls, a game of questions. A9's parlays:
 //            [{ of: [question ids], times }], someone right on every one of them in the same window has their points on
@@ -42,7 +46,7 @@ const VOCAB = {
   'get.order': { snake: 'now', blind: 'now' },
   'get.own': { exclusive: 'now', shared: 'now' },
   'get.repeat': { cycle: 'now' },
-  count: { start: 'now', all: 'now', pick: 'now', best: 'sports' },
+  count: { start: 'now', all: 'now', pick: 'now', best: 'now' },
   'score.by': { moments: 'now', place: 'now', survive: 'now', lines: 'now', answers: 'now', stats: 'sports' },
   'score.means': { staysIn: 'now', scores: 'now' },
   'rank.by': { total: 'now', streak: 'now', matchups: 'sports', categories: 'sports', roto: 'sports' },
@@ -60,6 +64,8 @@ const VOCAB = {
   // A9: how a right answer's points are shared, and what makes them shrink.
   'ask.share': { split: 'now', only: 'now' },
   'ask.shrink.per': { episode: 'now', change: 'now' },
+  // A9 part 2: when a draft's points multiply (score.times): an episode, a run of them, a phase of the season, its finale.
+  'score.times': { episode: 'now', from: 'now', phase: 'now', finale: 'now' },
 };
 
 // A question in `ask` (A4; A6 added who a moment happened to, groups, roles and questions about each person):
@@ -194,6 +200,9 @@ const LEGS = ['person', 'group', 'yesNo', 'choice', 'number', 'overUnder'];
 const MAX_LEGS = 4;
 const MAX_TIMES = 10;
 const MAX_PARLAYS = 6;
+/** A9 part 2: the most windows a draft's points multiply in (score.times), and what each one says when it is. */
+const MAX_WHEN = 8;
+const WHEN = ['episode', 'from', 'phase', 'finale'];
 const MAX_QUESTIONS = 12;
 const MAX_PICK = 10;
 const MAX_QUESTION_POINTS = 100;
@@ -497,7 +506,8 @@ function playsAs(s) {
   const none = s.ask.length === 0;
   if (by('get') === 'draft' && own(ORDER_OF, s.get.own) === s.get.order && (none || finaleOf(s.ask))) {
     if (count === 'all' && by('score') === 'place' && by('rank') === 'total') return 'classic-draft';
-    if (count === 'start' && by('score') === 'moments' && by('rank') === 'total') return 'active-roster';
+    // Best ball (A9 part 2) is Weekly Lineup's game with no lineups: its best n count (state-logic.js's best ball variant).
+    if ((count === 'start' || count === 'best') && by('score') === 'moments' && by('rank') === 'total') return 'active-roster';
   }
   if (by('get') === 'pick' && s.get.each === 1 && s.get.repeat === 'cycle' && count === 'pick' && by('score') === 'survive' && by('rank') === 'streak' && none) {
     return 'pickem';
@@ -555,6 +565,8 @@ function flagsOf(s) {
   return {
     hasRoster: get.by === 'draft',
     hasActiveRoster: get.by === 'draft' && countKind(s.count) === 'start',
+    // A9 part 2: best ball, a draft whose best n count each episode (no lineups to set).
+    hasBestBall: get.by === 'draft' && countKind(s.count) === 'best',
     hasWeeklyPicks: get.by === 'pick',
     hasCalls: score.by === 'answers' && callsAsk(s && s.ask),
     // A game of questions (A4): scored by its answers, not the show's calls.
@@ -566,11 +578,12 @@ function flagsOf(s) {
   };
 }
 
-/** A whole spec's sizes: the team, the starters and the bench (0 where there are none). */
+/** A whole spec's sizes: the team, the starters and the bench, and how many of a best ball's count (0 where there are none). */
 function sizesOf(s) {
   const each = isObj(s && s.get) && s.get.by === 'draft' && isInt(s.get.each, 1) ? s.get.each : 0;
   const start = countKind(s && s.count) === 'start' && isInt(s.count.start, 1) ? s.count.start : 0;
-  return { each, start, bench: start ? Math.max(0, each - start) : 0 };
+  const best = countKind(s && s.count) === 'best' && isInt(s.count.best, 1) ? s.count.best : 0;
+  return { each, start, bench: start ? Math.max(0, each - start) : 0, best };
 }
 
 /**
@@ -646,6 +659,8 @@ function specProblems(spec, ctx, opts) {
     else if (count === 'start' && isInt(s.count.start, 1) && s.count.start <= get.each) {
       if (over(s.count.start, MAX_STARTERS, before && before.start)) add('count.start', `A lineup starts 1 to ${MAX_STARTERS}`);
       if (over(get.each - s.count.start, MAX_BENCH, before && before.bench)) add('get.each', `A lineup's bench is 0 to ${MAX_BENCH}`);
+    } else if (count === 'best' && isInt(s.count.best, 1) && s.count.best <= get.each && over(s.count.best, MAX_STARTERS, before && before.best)) {
+      add('count.best', `Best ball counts 1 to ${MAX_STARTERS}`);
     }
     if (!one('get.own', get.own)) add('get.own', 'A draft is exclusive or shared');
     if (!one('get.order', get.order)) add('get.order', 'A draft is snake or blind');
@@ -671,6 +686,14 @@ function specProblems(spec, ctx, opts) {
   const score = isObj(s.score) ? s.score : {};
   if (!one('score.by', score.by)) add('score.by', 'How it scores: moments, place, survive, lines, answers or stats');
   if (score.by === 'moments' && score.points !== null && !pointsMap(score.points)) add('score.points', 'Points are moment id to a number, or null for the rulebook\'s own');
+  // A9 part 2: a lineup's captain, points that multiply by when, Outlast in reverse.
+  if (score.by === 'moments' && score.captain !== undefined) {
+    const c = score.captain;
+    if (!(isObj(c) && isNum(c.times) && c.times > 1 && c.times <= MAX_TIMES)) add('score.captain', `A captain's points multiply by more than 1, up to ${MAX_TIMES}: { times: 2 }`);
+    else if (count !== 'start') add('score.captain', 'A captain is one of your starters, named each episode: a lineup ({ start: n })');
+  }
+  if (score.by === 'moments' && score.times !== undefined) timesProblems(score.times, s, league).forEach(([at, p]) => add(`score.times${at}`, p));
+  if (score.by === 'place' && score.reverse !== undefined && score.reverse !== true) add('score.reverse', 'reverse is true, or leave it out');
   if (score.by === 'stats' && !(pointsMap(score.points) && Object.keys(score.points).length)) add('score.points', 'Stats score as stat key to points');
   if (score.by === 'survive') {
     if (!one('score.means', score.means)) add('score.means', 'A pick survives by staying in (staysIn) or by scoring (scores)');
@@ -893,8 +916,10 @@ const KEYS = {
   from: ['phase', 'at'],
   pool: ['of', 'where'],
   get: { draft: ['by', 'each', 'order', 'own'], pick: ['by', 'each', 'repeat'], card: ['by'], none: ['by'], squares: ['by'] },
-  score: { moments: ['by', 'points'], place: ['by'], survive: ['by', 'means', 'points'], lines: ['by', 'points'], answers: ['by', 'parlays'], stats: ['by', 'points'] },
+  score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points'], lines: ['by', 'points'], answers: ['by', 'parlays'], stats: ['by', 'points'] },
   parlay: ['of', 'times'],
+  captain: ['times'],
+  when: ['times', 'episode', 'from', 'to', 'phase', 'finale'],
   shrink: ['points', 'per'],
   rank: ['by'],
   extras: ['waivers', 'bets', 'calls', 'draft', 'join', 'hideStarters', 'lockedDown', 'lateLock'],
@@ -921,6 +946,10 @@ function unknownKeys(s) {
   if (isObj(s.score)) {
     check(s.score, own(KEYS.score, s.score.by), 'score');
     if (Array.isArray(s.score.parlays)) s.score.parlays.forEach((p, i) => check(p, KEYS.parlay, `score.parlays[${i}]`));
+    if (s.score.by === 'moments') {
+      check(s.score.captain, KEYS.captain, 'score.captain');
+      if (Array.isArray(s.score.times)) s.score.times.forEach((t, i) => check(t, KEYS.when, `score.times[${i}]`));
+    }
   }
   check(s.rank, KEYS.rank, 'rank');
   (Array.isArray(s.ask) ? s.ask : []).forEach((q, i) => {
@@ -1000,6 +1029,43 @@ function parlayProblems(list, s) {
   return out;
 }
 
+/**
+ * When a draft's points multiply (A9 part 2: score.times), as [[at, problem]]: 1 to MAX_WHEN windows, each { times, and one of
+ * episode: n | from: n (to: m, or null or left out for the season's end) | phase: id | finale: true }. times is more than 0
+ * (half points are 0.5) and not 1, up to MAX_TIMES; an episode in two windows multiplies by both. A new game's windows are
+ * inside its episodes, and its finale needs a game that runs to it (a league's own keeps what it plays, as a span changes).
+ * Which phases there are, and whether a show has a finale results can place, is the data rule's (settleProblems).
+ */
+function timesProblems(list, s, league) {
+  if (!Array.isArray(list) || !list.length || list.length > MAX_WHEN) return [['', `When points multiply is a list of 1 to ${MAX_WHEN}`]];
+  const out = [];
+  const first = isObj(s.span) ? spanStart(s.span) : null;
+  const last = isObj(s.span) ? s.span.to : null;
+  list.forEach((t, i) => {
+    const at = `[${i}]`;
+    if (!isObj(t)) return out.push([at, 'Each is { times, and one of episode, from (and to), phase or finale }']);
+    if (!(isNum(t.times) && t.times > 0 && t.times !== 1 && t.times <= MAX_TIMES)) out.push([`${at}.times`, `Points multiply by more than 0 (half is 0.5), up to ${MAX_TIMES}, and not 1`]);
+    const kinds = WHEN.filter((k) => t[k] !== undefined);
+    if (kinds.length !== 1) return out.push([at, 'Say when, once: an episode, a run of them (from, to), a phase or the finale']);
+    const k = kinds[0];
+    if (k !== 'from' && t.to !== undefined) out.push([`${at}.to`, 'Only a run of episodes (from) has an end']);
+    if (k === 'episode' && !isInt(t.episode, 1)) out.push([`${at}.episode`, 'An episode number, 1 or later']);
+    if (k === 'from') {
+      if (!isInt(t.from, 1)) out.push([`${at}.from`, 'A run starts at an episode number, 1 or later']);
+      else if (t.to !== undefined && t.to !== null && !(isInt(t.to, 1) && t.to >= t.from)) out.push([`${at}.to`, 'A run ends at an episode from its start on, or null for the season\'s end']);
+    }
+    if (k === 'phase' && !(typeof t.phase === 'string' && t.phase)) out.push([`${at}.phase`, 'Which phase of the season']);
+    if (k === 'finale' && t.finale !== true) out.push([`${at}.finale`, 'finale is true']);
+    if (league || out.some(([where]) => where.startsWith(at))) return;
+    // A new game's: inside the episodes it plays.
+    const lo = k === 'episode' ? t.episode : k === 'from' ? t.from : null;
+    const hi = k === 'episode' ? t.episode : k === 'from' && isInt(t.to, 1) ? t.to : null;
+    if (lo !== null && ((first !== null && hi !== null && hi < first) || (last !== null && lo > last))) out.push([at, "It's outside the game's episodes, so it would never count"]);
+    if (k === 'finale' && last !== null) out.push([`${at}.finale`, 'The finale counts only in a game that runs to it: no end of its own']);
+  });
+  return out;
+}
+
 // The data-can-settle rule (the user's decision, 2026-10-27): only what data can settle. Sports: box scores and
 // scoreboards (the Sport's stat keys, finals). Shows: the results research, which counts as data.
 function settleProblems(s, ctx, opts) {
@@ -1044,6 +1110,16 @@ function settleProblems(s, ctx, opts) {
   }
   if (score.by === 'stats' && pointsMap(score.points)) {
     for (const key of Object.keys(score.points)) if (!stats.has(key)) out.push([`score.points.${key}`, `Nothing counts "${key}": it isn't one of the sport's stats`]);
+  }
+  // A9 part 2: a phase whose points multiply is one of the season's (where it starts is data: the desk confirms it); the finale
+  // is the episode that ends the season, which only a show whose results say who goes home or wins places.
+  if (score.by === 'moments' && Array.isArray(score.times)) {
+    const ids = Array.isArray(ctx.phases) ? ctx.phases.map((p) => (isObj(p) ? p.id : p)) : null;
+    score.times.forEach((t, i) => {
+      if (!isObj(t)) return;
+      if (ids && typeof t.phase === 'string' && t.phase && !ids.includes(t.phase)) out.push([`score.times[${i}].phase`, `"${t.phase}" isn't one of the season's phases`]);
+      if (t.finale === true && ctx.results === false) out.push([`score.times[${i}].finale`, "The show's results don't say who goes home or wins, so nothing says which episode is its finale"]);
+    });
   }
   (Array.isArray(s.ask) ? s.ask : []).forEach((q, i) => {
     const st = (q && q.settle) || {};
@@ -1132,7 +1208,7 @@ function specWaitsFor(spec) {
 
 module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
-  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
+  RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

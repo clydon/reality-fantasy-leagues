@@ -388,20 +388,34 @@ class Core {
 // eliminations before theirs); counting live just stops a mid-season table ranking whoever lost
 // someone early first. Plus an optional side-bet bonus layer and an optional finale-prediction layer.
 // `locked` is every owned castaway's points so far; `banked` is the part from castaways already out.
+//
+// In reverse (A9 part 2, the spec's score.reverse: "the earlier your castaways go home, the more you score"), each castaway
+// earns 1 plus 1 for everyone who outlasts them: the cast's size + 1 less their Outlast points, so out first of 18 = 18, the
+// winner 1. Counted live the same way: someone still in after k eliminations counts what they'd score if they went home next
+// (the cast less k), shrinking by 1 for each boot they outlast, so a mid-season table ranks as the end would if everyone went
+// home next.
 class EliminationOrderScoringStrategy {
+  /** Whether the game scores the boot order in reverse (A9 part 2). */
+  static reversed(state){ const score = gameOf(state).score; return score.by === 'place' && score.reverse === true; }
   /** One castaway's Classic points so far, on whatever (spoiler-trimmed) state the viewer sees. */
   static castawayPoints(state, c){
-    if(c.status==='eliminated') return typeof c.placementOrder==='number' ? c.placementOrder : 0;
+    if(c.status==='eliminated'){
+      if(typeof c.placementOrder!=='number') return 0;
+      return EliminationOrderScoringStrategy.reversed(state) ? state.castaways.length + 1 - c.placementOrder : c.placementOrder;
+    }
     return EliminationOrderScoringStrategy.stillInPoints(state);
   }
-  /** What every castaway still in has earned so far: 1 + the eliminations they've outlasted. */
+  /** What every castaway still in has earned so far: 1 + the eliminations they've outlasted (in reverse: the cast less them). */
   static stillInPoints(state){
-    return state.castaways.filter(x=>x.status==='eliminated' && typeof x.placementOrder==='number').length + 1;
+    const out = state.castaways.filter(x=>x.status==='eliminated' && typeof x.placementOrder==='number').length;
+    return EliminationOrderScoringStrategy.reversed(state) ? state.castaways.length - out : out + 1;
   }
   static compute(state){
     const results = {};
     state.players.forEach(p=> results[p.id] = {playerId:p.id, name:p.name, color:p.color, locked:0, banked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]});
     const stillInPoints = EliminationOrderScoringStrategy.stillInPoints(state);
+    // In reverse, a castaway out at place p earns the cast's size + 1 - p.
+    const reverse = EliminationOrderScoringStrategy.reversed(state) ? state.castaways.length + 1 : 0;
     // Per-player, via Core.ownedCastawayIds rather than a single scalar owner per castaway, so a
     // castaway with several owners (shared-ownership league types) contributes its placement to
     // each of them. In exclusive-ownership leagues every castaway has at most one owner, so this
@@ -411,7 +425,10 @@ class EliminationOrderScoringStrategy {
         const c = Core.getCastaway(state, cid);
         results[p.id].roster.push(c);
         if(c.status==='eliminated'){
-          if(typeof c.placementOrder==='number'){ results[p.id].locked += c.placementOrder; results[p.id].banked += c.placementOrder; }
+          if(typeof c.placementOrder==='number'){
+            const pts = reverse ? reverse - c.placementOrder : c.placementOrder;
+            results[p.id].locked += pts; results[p.id].banked += pts;
+          }
         } else {
           results[p.id].locked += stillInPoints;
         }
@@ -813,6 +830,95 @@ class ActiveRosterLogic {
     return g.get.by === 'draft' && g.count && g.count.start ? Math.max(0, (g.get.each || 0) - g.count.start) : 0;
   }
 
+  // ---- scoring that combines, per lineup (docs/PLAN-start-a-game-gpt.md step A9 part 2) ----
+  // Best ball's n (the spec's count.best: your best n each episode, no lineups), else 0.
+  static bestOf(state){
+    const g = gameOf(state);
+    return g.get.by === 'draft' && g.count && g.count.best ? g.count.best : 0;
+  }
+  // A lineup's captain (the spec's score.captain): what their points multiply by, else 0 (no captain in this game).
+  static captainTimes(state){
+    const g = gameOf(state);
+    return g.score.by === 'moments' && g.count && g.count.start && g.score.captain ? g.score.captain.times : 0;
+  }
+  // Whether the game's lineups score any way but plainly (a captain, best ball, points that multiply by when): compute's own
+  // path. A plain lineup keeps the arithmetic it always had.
+  static combines(state){
+    const g = gameOf(state);
+    return g.score.by === 'moments' && (!!ActiveRosterLogic.bestOf(state) || !!ActiveRosterLogic.captainTimes(state) || Array.isArray(g.score.times));
+  }
+  // What an episode's points multiply by (the spec's score.times): each window it's in, together -- an episode, a run of them,
+  // a phase of the season, the finale -- else 1. A phase counts from where data says it starts (state.phaseStarts, the desk's:
+  // RosterLogic.settlePhases) to where the next one known does, once this copy is up to the episode before its start (as a
+  // phase window shows: nobody behind learns a phase began); the finale is the episode that ended the season (finaleEpisodeOf),
+  // known once its results are. Scoring only reads episodes with results, so the guard never changes a score.
+  static timesFor(state, number){
+    const list = gameOf(state).score.times;
+    if(!Array.isArray(list) || gameOf(state).score.by !== 'moments') return 1;
+    const seen = SpoilerLogic.latestWithResults(state);
+    const starts = Object.values(state.phaseStarts || {}).filter(n => Number.isInteger(n) && n <= seen + 1);
+    const inPhase = id => {
+      const from = state.phaseStarts && state.phaseStarts[id];
+      if(!Number.isInteger(from) || from > seen + 1 || number < from) return false;
+      const next = starts.filter(n => n > from);
+      return !next.length || number < Math.min(...next);
+    };
+    let finale;
+    const finaleNumber = () => {
+      if(finale === undefined){ const f = finaleEpisodeOf(state); finale = f ? f.number : null; }
+      return finale;
+    };
+    let x = 1;
+    list.forEach(t => {
+      const hit = Number.isInteger(t.episode) ? number === t.episode
+        : Number.isInteger(t.from) ? number >= t.from && (t.to === undefined || t.to === null || number <= t.to)
+        : typeof t.phase === 'string' ? inPhase(t.phase)
+        : t.finale === true ? number === finaleNumber()
+        : false;
+      if(hit) x *= t.times;
+    });
+    return x;
+  }
+  // The team a player held for an episode (best ball, which has no lineups to store it): who they hold now, with every move
+  // from that episode on taken back, newest first (the mid-season log: a move made after episode k counts from k + 1, as the
+  // spoiler view and the waiver weeks have it), less anyone out before it. In the cast's order.
+  static teamFor(state, ep, playerId){
+    const team = new Set(Core.ownedCastawayIds(state, playerId));
+    const log = (state.midSeason && state.midSeason.log) || [];
+    for(let i = log.length - 1; i >= 0; i--){
+      const tx = log[i];
+      if(tx.playerId !== playerId || !Number.isInteger(tx.episode) || tx.episode < ep.number) continue;
+      if(tx.addedCastawayId) team.delete(tx.addedCastawayId);
+      if(tx.droppedCastawayId) team.add(tx.droppedCastawayId);
+    }
+    return state.castaways.filter(c => {
+      if(!team.has(c.id)) return false;
+      if(c.status !== 'eliminated') return true;
+      const exit = state.episodes.find(e => e.id === c.exitEpisodeId);
+      return !!exit && exit.number >= ep.number;
+    }).map(c => c.id);
+  }
+  // One player's points for one episode, as the game counts them: { total, lines: [{ castawayId, points, counted, captain }],
+  // captain, times }. A lineup's starters, a captain's points times its multiplier; best ball's whole team, its best n counted;
+  // and the episode's own multiplier (timesFor) on all of it. `pre`: the episode's events and multiplier, when the caller has
+  // them already (compute, every player).
+  static episodeScore(state, ep, playerId, pre){
+    const best = ActiveRosterLogic.bestOf(state);
+    const ids = best ? ActiveRosterLogic.teamFor(state, ep, playerId) : ActiveRosterLogic.lineupFor(state, ep.id, playerId);
+    const captain = best ? null : ActiveRosterLogic.captainFor(state, ep.id, playerId);
+    const times = pre && pre.times !== undefined ? pre.times : ActiveRosterLogic.timesFor(state, ep.number);
+    const raw = new Map(ids.map(id => [id, 0]));
+    ((pre && pre.events) || ActiveRosterLogic.episodeEvents(state, ep)).forEach(ev => {
+      if(raw.has(ev.castawayId)) raw.set(ev.castawayId, roundPoints(raw.get(ev.castawayId) + ActiveRosterLogic.eventPoints(state, ev)));
+    });
+    const cap = captain ? ActiveRosterLogic.captainTimes(state) : 1;
+    const lines = ids.map(id => ({ castawayId: id, points: roundPoints(raw.get(id) * (id === captain ? cap : 1) * times), counted: !best, captain: id === captain }));
+    // Best ball: the n highest count (a tie can't change the total; the cast's order breaks it).
+    if(best) [...lines].sort((a,b) => b.points - a.points).slice(0, best).forEach(l => { l.counted = true; });
+    const total = roundPoints(lines.reduce((t, l) => t + (l.counted ? l.points : 0), 0));
+    return { total, lines, captain, times };
+  }
+
   // ---- weekly lineups ----
   // Lineups are stored PER EPISODE (`episode.lineups[playerId] = castawayId[]`), never as one
   // mutable "current active set" plus a separate snapshot. That's the whole point, and it makes the
@@ -900,6 +1006,40 @@ class ActiveRosterLogic {
     const ep = state.episodes.find(e => e.id === epId);
     if(!ep.lineups) ep.lineups = {};
     ep.lineups[playerId] = [...castawayIds];
+    // A captain named for this episode is one of its starters: benching them takes the armband off.
+    if(ep.captains && ep.captains[playerId] && !castawayIds.includes(ep.captains[playerId])) ep.captains[playerId] = null;
+    return true;
+  }
+
+  // ---- a lineup's captain (A9 part 2: the spec's score.captain) ----
+  // Stored per episode like the lineup it's one of (`episode.captains[playerId] = castawayId`, null for none), and locked with
+  // it. Nobody named for an episode: the last one they named before it carries, as a lineup does (Joanna forgets), and either
+  // way only while they're in that episode's lineup (a captain benched or gone counts as none).
+  static captainFor(state, epId, playerId){
+    if(!ActiveRosterLogic.captainTimes(state)) return null;
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep) return null;
+    const named = e => !!e.captains && Object.prototype.hasOwnProperty.call(e.captains, playerId);
+    const from = named(ep) ? ep : state.episodes.filter(e => e.number < ep.number && named(e)).sort((a,b) => b.number - a.number)[0];
+    const id = from ? from.captains[playerId] : null;
+    return id && ActiveRosterLogic.lineupFor(state, epId, playerId).includes(id) ? id : null;
+  }
+  // Null when naming `castawayId` captain for the episode is fine (null: no captain), else why not -- as validateLineup says
+  // it (the episode, its lock, the game's span, the player), against `lineup` (the one being set with it) or the one they have.
+  static validateCaptain(state, epId, playerId, castawayId, lineup){
+    if(!ActiveRosterLogic.captainTimes(state)) return 'This game has no captain';
+    const ids = Array.isArray(lineup) ? lineup : ActiveRosterLogic.lineupFor(state, epId, playerId);
+    const problem = ActiveRosterLogic.validateLineup(state, epId, playerId, ids);
+    if(problem) return problem;
+    if(castawayId === null || castawayId === undefined) return null;
+    if(!ids.includes(castawayId)) return 'Your captain is one of your starters';
+    return null;
+  }
+  static setCaptain(state, epId, playerId, castawayId){
+    if(ActiveRosterLogic.validateCaptain(state, epId, playerId, castawayId)) return false;
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep.captains) ep.captains = {};
+    ep.captains[playerId] = castawayId || null;
     return true;
   }
   static lockLineups(state, epId){
@@ -1098,7 +1238,19 @@ class ActiveRosterEventScoringStrategy {
     state.castaways.forEach(c=>{
       if(c.formerOwnerId && results[c.formerOwnerId]) results[c.formerOwnerId].formerRoster.push(c);
     });
-    state.episodes.forEach(ep=>{
+    // A9 part 2: a captain, best ball or points that multiply by when, each episode as ActiveRosterLogic.episodeScore counts it.
+    // A plain lineup scores below, event by event, as it always has.
+    if(ActiveRosterLogic.combines(state)){
+      state.episodes.forEach(ep=>{
+        if(!inPlay(state, ep.number)) return;
+        const events = ActiveRosterLogic.episodeEvents(state, ep);
+        if(!events.length) return;
+        const pre = { events, times: ActiveRosterLogic.timesFor(state, ep.number) };
+        state.players.forEach(p=>{
+          results[p.id].locked = roundPoints(results[p.id].locked + ActiveRosterLogic.episodeScore(state, ep, p.id, pre).total);
+        });
+      });
+    } else state.episodes.forEach(ep=>{
       if(!inPlay(state, ep.number)) return; // before this league started (settings.startEpisode)
       ActiveRosterLogic.episodeEvents(state, ep).forEach(ev=>{
         const points = ActiveRosterLogic.eventPoints(state, ev);
@@ -1370,6 +1522,16 @@ Object.values(LEAGUE_TYPES).forEach(lt => {
     draftStrategy: BlindDraftStrategy
   };
 });
+// Best ball (docs/PLAN-start-a-game-gpt.md step A9 part 2: count { best: n }): Weekly Lineup's league type, the same id and
+// scoring strategy (ActiveRosterEventScoringStrategy, through ActiveRosterLogic.episodeScore), with no lineups to set -- each
+// episode a team's best n count. Its flags are its spec's (flagsOf: no active roster, hasBestBall), for each ownership, as the
+// variants above are built once.
+const BEST_BALL_VARIANTS = {};
+['exclusive', 'shared'].forEach(own => {
+  const lt = own === 'shared' ? SHARED_OWNERSHIP_VARIANTS['active-roster'] : LEAGUE_TYPES['active-roster'];
+  const preset = Spec.PRESETS['weekly-lineup'];
+  BEST_BALL_VARIANTS[own] = { ...lt, ...Spec.flagsOf({ ...preset, get: { ...preset.get, own, order: Spec.ORDER_OF[own] }, count: { best: 1 } }) };
+});
 // Resolves the league type the game's spec plays (game-spec playsAs: from its mechanics, never a stored name), applying
 // the ownership override above. Returns the registry entry itself in every other case, so `getLeagueType(state).id`
 // and the supports*/has* flags stay the single thing callers read -- no call site needs to know ownership exists. A spec
@@ -1377,6 +1539,7 @@ Object.values(LEAGUE_TYPES).forEach(lt => {
 function getLeagueType(state){
   const g = gameOf(state);
   const base = LEAGUE_TYPES[Spec.playsAs(g)] || LEAGUE_TYPES['classic-draft'];
+  if(base.id === 'active-roster' && Spec.countKind(g.count) === 'best') return BEST_BALL_VARIANTS[g.get.own === 'shared' ? 'shared' : 'exclusive'];
   if(g.get.by === 'draft' && g.get.own === 'shared' && SHARED_OWNERSHIP_VARIANTS[base.id]){
     return SHARED_OWNERSHIP_VARIANTS[base.id];
   }
@@ -1936,8 +2099,10 @@ class RosterLogic {
   //                      given after what it's about has aired). One that's opened (this week's, or past) never moves, and
   //                      keeps its start, so answers given for it are always graded.
   // Whether anything changed.
+  // A draft whose points multiply in a phase (A9 part 2: score.times) records the starts alone (ActiveRosterLogic.timesFor reads
+  // them); only questions have windows.
   static settlePhases(state, where){
-    if(!AnswerLogic.byPhase(state)) return false;
+    if(!readsPhases(state)) return false;
     const list = (where && Array.isArray(where.phases) ? where.phases : []).filter(p => p && typeof p.id === 'string');
     const open = Number(where && where.open);
     const starts = {};
@@ -1946,7 +2111,7 @@ class RosterLogic {
     const last = endEpisode(state);
     const was = state.phaseWindows || {};
     const windows = {};
-    list.forEach((p, i) => {
+    if(AnswerLogic.byPhase(state)) list.forEach((p, i) => {
       const had = was[p.id];
       // Opened (this week's, or past): it stays where it is, answers and all, and so does the start it opened for.
       if(Number.isInteger(had) && Number.isInteger(open) && had <= open){
@@ -1987,6 +2152,15 @@ class RosterLogic {
     const st = state && state.settings;
     if(st && st.game !== undefined) st.game = Spec.specOf(st);
   }
+}
+
+// Whether a game reads the season's phase starts, so the settle passes record them (RosterLogic.settlePhases: phase-starts.ts,
+// the season sync, Start a game, the lab): it asks by phase (A7, AnswerLogic.byPhase), or its points multiply in a phase (A9
+// part 2, score.times).
+function readsPhases(state){
+  if(AnswerLogic.byPhase(state)) return true;
+  const score = gameOf(state).score;
+  return score.by === 'moments' && Array.isArray(score.times) && score.times.some(t => t && typeof t.phase === 'string');
 }
 
 // A game's own questions (A4): any but the presets' (a draft's finale predictions, Weekly Calls' calls).
@@ -3041,7 +3215,8 @@ class WaiverLogic {
   static autoPick(state, period, playerId, n){
     const pool = MidSeasonLogic.availableFor(state, playerId).map(c => c.id).sort();
     if(!pool.length) return null;
-    if(getLeagueType(state).hasActiveRoster){
+    // A game scored by moments (a lineup, best ball) takes the free agent with the most points.
+    if(gameOf(state).score.by === 'moments'){
       const pts = {};
       pool.forEach(id => { pts[id] = WaiverLogic.castawayPoints(state, id); });
       return [...pool].sort((a,b) => pts[b] - pts[a] || hashUnit(period.id + a) - hashUnit(period.id + b))[0];
@@ -4174,6 +4349,11 @@ class GhostLogic {
       ep.lineups = ep.lineups || {};
       ep.lineups[playerId] = vEp.lineups[playerId];
     }
+    // A lineup's captain (A9 part 2), as their lineup.
+    if(vEp.captains && Object.prototype.hasOwnProperty.call(vEp.captains, playerId)){
+      ep.captains = ep.captains || {};
+      ep.captains[playerId] = vEp.captains[playerId];
+    }
     ep.picks = [...(ep.picks || []).filter(pk => pk.playerId !== playerId), ...(vEp.picks || []).filter(pk => pk.playerId === playerId)];
     return typeof result === 'string' ? result : null;
   }
@@ -4543,6 +4723,7 @@ return {
   PALETTE, SEED_CASTAWAYS,
   LEAGUE_TYPES, SHOWS, getLeagueType, gameOf, replenishAvailable, tradeAvailable, finalePredictionsAvailable, finaleOfGame, betsOn, rosterSize, originalDraftPicks,
   formatOf, startEpisode, startPhase, waitsForPhase, endEpisode, inPlay, spanView, gameOver, hasAired, closedForPlay, isWinnerExit, seasonWinner, seasonEnded,
+  readsPhases,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
   // (public/app.js's 95+ call sites, every server route) needs to change. Each is a direct
@@ -4583,7 +4764,7 @@ return {
   // Named setPickEmPick/removePickEmPick rather than the shorter setPick/removePick -- "pick" is
   // already heavily overloaded in this file (draft picks, blind-draft picks) and the longer name
   // keeps call sites unambiguous about which kind.
-  activeRosterLineupFor: ActiveRosterLogic.lineupFor, setActiveRosterLineup: ActiveRosterLogic.setLineup,
+  activeRosterLineupFor: ActiveRosterLogic.lineupFor, setActiveRosterLineup: ActiveRosterLogic.setLineup, setActiveRosterCaptain: ActiveRosterLogic.setCaptain,
   lockActiveRosterLineups: ActiveRosterLogic.lockLineups, unlockActiveRosterLineups: ActiveRosterLogic.unlockLineups,
   addScoringEvent: ActiveRosterLogic.addEvent, removeScoringEvent: ActiveRosterLogic.removeEvent, setScoringEventUnits: ActiveRosterLogic.setEventUnits,
   pickEmPickFor: PickEmLogic.pickFor, pickEmEligibility: PickEmLogic.eligibility, pickEmHistory: PickEmLogic.history,

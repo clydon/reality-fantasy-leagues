@@ -93,12 +93,30 @@ function changedPoints(points, own, moments) {
   return Object.entries(points).filter(([id, p]) => def.has(id) && def.get(id) !== p).length;
 }
 
-/** The preset's name, while the spec still plays the preset's game (the same parts); else null: "A game". */
+/** The preset's name, while the spec still plays the preset's game (the same parts); else null: "A game". Outlast in reverse
+ *  (A9 part 2) is another game. */
 function nameOf(s) {
   const p = presetOf(s);
-  const same = p && p.get.by === s.get.by && countKind(p.count) === countKind(s.count) && p.score.by === s.score.by && p.rank.by === s.rank.by;
+  const same = p && p.get.by === s.get.by && countKind(p.count) === countKind(s.count) && p.score.by === s.score.by && p.rank.by === s.rank.by && !s.score.reverse;
   return same ? PRESET_LABELS[s.preset] : null;
 }
+
+/** A multiplier in words (A9 part 2): "double", "triple", "half", "1.5 times". */
+const timesWord = (x) => ({ 2: 'double', 3: 'triple', 4: 'quadruple', 0.5: 'half' })[x] || `${x} times`;
+/** When a draft's points multiply (A9 part 2: score.times), as a phrase: "in the finale", "in Episode 7", "in Episodes 1–3",
+ *  "from Episode 10 on", "in Merged". */
+function whenPhrase(t, w) {
+  if (!isObj(t)) return '';
+  if (Number.isInteger(t.episode)) return `in ${w.Part} ${t.episode}`;
+  if (Number.isInteger(t.from)) {
+    if (t.to === undefined || t.to === null) return `from ${w.Part} ${t.from} on`;
+    return t.to === t.from ? `in ${w.Part} ${t.from}` : `in ${w.Parts} ${t.from}–${t.to}`;
+  }
+  if (typeof t.phase === 'string') return `in ${phaseWord(t.phase, w)}`;
+  return t.finale === true ? 'in the finale' : '';
+}
+/** "Points in the finale count double.", one for each window (A9 part 2). */
+const timesRules = (sc, w) => (Array.isArray(sc.times) ? sc.times.filter(isObj) : []).map((t) => `Points ${whenPhrase(t, w)} count ${timesWord(t.times)}.`);
 
 function sentenceParts(s, w) {
   const parts = [];
@@ -115,6 +133,8 @@ function sentenceParts(s, w) {
   if (by === 'draft') {
     put(`everyone drafts ${s.get.each}`, 'get');
     if (count === 'start') put(` and starts ${s.count.start} each ${w.part}`, 'count');
+    // A9 part 2: a lineup's captain.
+    if (count === 'start' && isObj(s.score.captain) && isNum(s.score.captain.times)) put(`, one of them a captain who scores ${timesWord(s.score.captain.times)}`, 'score');
     if (count === 'best') put(`, and their best ${s.count.best} count each ${w.part}`, 'count');
   } else if (by === 'pick') {
     put(`everyone picks one ${w.castaway} to ${s.score.means === 'scores' ? 'score' : 'stay in'} each ${w.part}`, 'get');
@@ -146,7 +166,10 @@ function sentenceParts(s, w) {
   if (sc.by === 'moments') {
     const changed = changedPoints(sc.points, s.get.own, w.moments);
     put(changed === null ? ` Scored by ${rules}, with the game's own points.` : changed ? ` Scored by ${rules}, with ${say(changed)} ${changed === 1 ? "moment's" : "moments'"} points changed.` : ` Scored by ${rules}.`, 'score');
-  } else if (sc.by === 'place') put(' Each scores by how long they last: the last one standing carries you.', 'score');
+    // A9 part 2: when the points multiply.
+    for (const rule of timesRules(sc, w)) put(` ${rule}`, 'score');
+  } else if (sc.by === 'place' && sc.reverse === true) put(' Each scores more the earlier they go home: the first one out carries you.', 'score');
+  else if (sc.by === 'place') put(' Each scores by how long they last: the last one standing carries you.', 'score');
   else if (sc.by === 'survive') put(' Longest streak wins.', 'rank');
   else if (sc.by === 'answers' && callsAsk(s.ask)) put(' Most right by the finale wins.', 'score');
   else if (sc.by === 'lines') put(isNum(sc.points) && sc.points !== 1 ? ` ${cap(pointsWord(sc.points))} a line; most points by the finale wins.` : ' Most lines by the finale wins.', 'score');
@@ -218,7 +241,8 @@ function questionRule(q, w, each) {
 function combineWords(q, w) {
   let out = '';
   if (q.share === 'split') out += ' The points are a pot, split between everyone who gets it right: the fewer of you, the more each gets.';
-  if (q.share === 'only') out += " It only scores if you're the only one who gets it right.";
+  // A person or group answer counts each pick on its own (A9 part 2).
+  if (q.share === 'only') out += NAMES.includes(q.answer) && !q.each ? ' A right pick only scores if nobody else named it.' : " It only scores if you're the only one who gets it right.";
   if (q.rollover) out += ` If nobody gets it, its points roll over to the next one.`;
   if (isObj(q.shrink)) {
     out += q.shrink.per === 'change'
@@ -241,17 +265,31 @@ function rulesOf(s, w) {
   if (by === 'draft') {
     rules.push(draft);
     if (count === 'start') rules.push(`Before each ${w.part}, start ${say(s.count.start)}. Only starters score.`);
-    if (count === 'best') rules.push(`Each ${w.part}, your best ${say(s.count.best)} count.`);
+    // A9 part 2: best ball, a lineup's captain, when the points multiply, Outlast in reverse.
+    if (count === 'best') rules.push(`Each ${w.part}, your best ${say(s.count.best)} count, whoever they are: no lineups to set.`);
     if (count === 'all' && s.score.by !== 'place') rules.push('Everyone you draft scores.');
     if (s.score.by === 'moments') rules.push(w.groups.length ? `Points come from what happens: ${listOf(w.groups)}.` : `Points come from what happens in each ${w.part}.`);
     if (s.score.by === 'stats' && isObj(s.score.points)) rules.push(`Points come from their stats: ${statsWords(s.score.points, w)}.`);
+    if (count === 'start' && isObj(s.score.captain) && isNum(s.score.captain.times)) {
+      rules.push(`Name one of your starters captain each ${w.part}: their points count ${timesWord(s.score.captain.times)}. Name nobody and your last captain keeps it, while they're starting.`);
+    }
+    if (s.score.by === 'moments') {
+      const times = timesRules(s.score, w);
+      rules.push(...times);
+      if (times.length > 1) rules.push(`${cap(article(w.part))} ${w.part} in two of them counts both.`);
+    }
     if (count === 'start') rules.push(`Lineups lock when the ${w.part} starts. Change yours as often as you like until then.`);
-    if (s.score.by === 'place') {
+    if (s.score.by === 'place' && s.score.reverse === true) {
+      rules.push(`Each ${w.castaway} earns 1 point, plus 1 for everyone who outlasts them.`);
+      rules.push('So the first one out scores the most and the winner 1: the earlier yours go home, the better.');
+      rules.push("While they're still in, they count what they'd score if they went home next.");
+      rules.push('No lineups to set. Just watch.');
+    } else if (s.score.by === 'place') {
       rules.push(`Each ${w.castaway} earns 1 point, plus 1 for every boot they outlast.`);
       rules.push('So they end on their place in the boot order: the last one standing carries you.');
       rules.push('No lineups to set. Just watch.');
     }
-    if (count === 'start') {
+    if (count === 'start' || count === 'best') {
       const pickups = isObj(waivers) && waivers.replace !== 'never';
       const swaps = isObj(waivers) && isObj(waivers.windows) && waivers.windows.swaps > 0;
       if (pickups) rules.push(`Lose someone? Pick who comes in on waivers.${swaps ? ' Waiver windows let you swap someone too.' : ''}`);

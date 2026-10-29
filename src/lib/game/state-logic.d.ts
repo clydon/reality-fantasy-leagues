@@ -51,6 +51,8 @@ export interface LeagueType {
   hasWeeklyPicks: boolean;
   /** Active Roster: per-episode lineups + a scoring-event log (state-logic.js's ActiveRosterLogic). */
   hasActiveRoster: boolean;
+  /** Best ball (step A9 part 2): Weekly Lineup's type with no lineups, each episode a team's best n counting. */
+  hasBestBall?: boolean;
   /** Weekly Calls: scored from each person's calls (Call it, src/lib/server/calls.ts), which aren't in the state. */
   hasCalls?: boolean;
   /** A game of questions (step A4): scored by its own answers (game_answers, answers.ts), not the state. */
@@ -138,6 +140,8 @@ declare const StateLogic: {
   };
   /** Classic scoring: 1 point per castaway, plus 1 for every elimination they outlast. */
   EliminationOrderScoringStrategy: {
+    /** In reverse (step A9 part 2): the earlier they go home, the more. */
+    reversed(state: LeagueState): boolean;
     castawayPoints(state: LeagueState, c: Castaway): number;
     stillInPoints(state: LeagueState): number;
     compute(state: LeagueState): ScoreRow[];
@@ -357,6 +361,25 @@ declare const StateLogic: {
     isLineupLocked(state: LeagueState, epId: string): boolean;
     validateLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): string | null;
     setLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): boolean;
+    /** Step A9 part 2: best ball's n (0: none); a captain's multiplier (0: no captain); whether the lineups score any way but
+     *  plainly; what an episode's points multiply by (1: plainly). */
+    bestOf(state: LeagueState): number;
+    captainTimes(state: LeagueState): number;
+    combines(state: LeagueState): boolean;
+    timesFor(state: LeagueState, number: number): number;
+    /** The captain who counts for a player in an episode (named for it, else carried from the last they named), or null. */
+    captainFor(state: LeagueState, epId: string, playerId: string): string | null;
+    validateCaptain(state: LeagueState, epId: string, playerId: string, castawayId: string | null, lineup?: string[]): string | null;
+    setCaptain(state: LeagueState, epId: string, playerId: string, castawayId: string | null): boolean;
+    /** Best ball: the team a player held for an episode (the mid-season log's moves from it on taken back). */
+    teamFor(state: LeagueState, ep: Episode, playerId: string): string[];
+    /** One player's points for one episode, as the game counts them (a captain, best ball, the episode's multiplier). */
+    episodeScore(
+      state: LeagueState,
+      ep: Episode,
+      playerId: string,
+      pre?: { events?: ScoringEvent[]; times?: number }
+    ): { total: number; lines: { castawayId: string; points: number; counted: boolean; captain: boolean }[]; captain: string | null; times: number };
     lockLineups(state: LeagueState, epId: string): boolean;
     unlockLineups(state: LeagueState, epId: string): boolean;
     carryForwardLineups(state: LeagueState, epId: string): boolean;
@@ -509,6 +532,8 @@ declare const StateLogic: {
   settleStart(state: LeagueState, where: { from: number | null; open: number }): SpecProblem[];
   /** A7: a game that asks by phase records the season's phase starts and its phase windows; whether anything changed. */
   settlePhases(state: LeagueState, where: { phases: { id: string; from: number | null }[]; open: number }): boolean;
+  /** A game that reads the season's phase starts: it asks by phase (A7), or its points multiply in a phase (A9 part 2). */
+  readsPhases(state: LeagueState): boolean;
   /** A new bet on an episode this game plays; undefined for one outside its span (before its start, after its end). */
   addBet(state: LeagueState, epId: string, label: string, points: number, createdByPlayerId: string | null): Bet | undefined;
   /** A new bet on the episode about to be played (betTarget); undefined once the game is over. */
@@ -590,6 +615,7 @@ declare const StateLogic: {
   };
   activeRosterLineupFor(state: LeagueState, epId: string, playerId: string): string[];
   setActiveRosterLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): boolean;
+  setActiveRosterCaptain(state: LeagueState, epId: string, playerId: string, castawayId: string | null): boolean;
   lockActiveRosterLineups(state: LeagueState, epId: string): boolean;
   unlockActiveRosterLineups(state: LeagueState, epId: string): boolean;
   addScoringEvent(state: LeagueState, epId: string, type: string, castawayId: string, units?: number | null): ScoringEvent | null;

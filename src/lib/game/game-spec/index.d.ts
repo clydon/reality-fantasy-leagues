@@ -40,14 +40,25 @@ export type SpecCount =
   | { start: number }
   | { all: true }
   | { pick: true }
-  /** sports: best ball */
+  /** A9 part 2: best ball, your best n each episode (no lineups); shows and sports. */
   | { best: number }
   | null;
 
+/** A9 part 2: when a draft's points multiply: one episode, a run of them (to null or left out: the season's end), a phase of
+ *  the season (where data says it starts), or its finale (the episode that ends it). An episode in two multiplies by both. */
+export type SpecWhen = { times: number } & (
+  | { episode: number }
+  | { from: number; to?: number | null }
+  | { phase: string }
+  | { finale: true }
+);
+
 export type SpecScore =
-  /** points: moment id -> points over the rulebook's own; null = its own. */
-  | { by: "moments"; points: Record<string, number> | null }
-  | { by: "place" }
+  /** points: moment id -> points over the rulebook's own; null = its own. A9 part 2: a lineup's captain, one of your starters you
+   *  name each episode, whose points multiply by `times`; and when the points multiply (`times`). */
+  | { by: "moments"; points: Record<string, number> | null; captain?: { times: number }; times?: SpecWhen[] }
+  /** A9 part 2's reverse: the earlier they go home the more (1, plus 1 for everyone who outlasts them). */
+  | { by: "place"; reverse?: true }
   | { by: "survive"; means: "staysIn" | "scores"; points: number }
   /** A9: points per line (1 when it's left out). */
   | { by: "lines"; points?: number }
@@ -383,7 +394,7 @@ export function typeOf(spec: SpecInput | GameSpec): LeagueTypeId | null;
 export function playsAs(spec: GameSpec): LeagueTypeId | null;
 /** The league type's flags, worked out from a whole spec. */
 export function flagsOf(spec: GameSpec): {
-  hasRoster: boolean; hasActiveRoster: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasBingo: boolean;
+  hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasBingo: boolean;
   supportsReplenish: boolean; supportsTrade: boolean; supportsFinalePredictions: boolean;
 };
 /**

@@ -607,6 +607,20 @@ function windowPoints(q, v, answers, facts, o) {
     return out;
   }
   if (q.share === 'only') {
+    // A person or group answer (A9 part 2, part 1's open item, decided): each right pick nobody else named scores, so two players
+    // each alone on a different right one (the final three, a double boot) both do. Anything else: the only player right.
+    if (NAMES.includes(q.answer) && !q.each) {
+      const rightSet = new Set((rightAnswers(q, v, facts) || []).map((r) => key(q, r)));
+      const by = new Map();
+      for (const a of answers) {
+        for (const x of new Set(picks(q, a.answer))) {
+          const k = key(q, x);
+          if (rightSet.has(k)) by.set(k, [...(by.get(k) || []), a.playerId]);
+        }
+      }
+      for (const [, pids] of by) if (pids.length === 1) out.set(pids[0], (out.get(pids[0]) || 0) + worth);
+      return out;
+    }
     if (right.length === 1) out.set(right[0][0], right[0][1] * worth);
     return out;
   }

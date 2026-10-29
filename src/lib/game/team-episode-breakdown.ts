@@ -43,10 +43,20 @@ export function teamEpisodeBreakdown(state: LeagueState, epId: string, playerId:
   };
   const roster = rosterAtEpisode(state, playerId, ep.id);
   const byPoints = (a: TeamEpisodeLine, b: TeamEpisodeLine) => b.points - a.points || a.c.name.localeCompare(b.c.name);
-  const started = roster.filter((c) => startedIds.includes(c.id)).map(line).sort(byPoints);
-  const benched = roster.filter((c) => !startedIds.includes(c.id)).map(line).sort(byPoints);
+  // A captain, best ball or points that multiply by when (step A9 part 2): each line as the engine counts it, and best ball's
+  // counted ones as its starters.
+  const combined = StateLogic.ActiveRosterLogic.combines(state) ? StateLogic.ActiveRosterLogic.episodeScore(state, ep, playerId) : null;
+  const counted = combined ? new Map(combined.lines.map((l) => [l.castawayId, l])) : null;
+  const lineOf = (c: Castaway): TeamEpisodeLine => {
+    const l = line(c);
+    const x = counted?.get(c.id);
+    return x ? { ...l, points: x.points } : l;
+  };
+  const starts = (c: Castaway) => (counted ? !!counted.get(c.id)?.counted : startedIds.includes(c.id));
+  const started = roster.filter(starts).map(lineOf).sort(byPoints);
+  const benched = roster.filter((c) => !starts(c)).map(lineOf).sort(byPoints);
   const bets = StateLogic.betsOn(state) ? playerBetRows(state, playerId).filter((b) => b.episode === ep.number) : [];
-  const lineup = StateLogic.roundPoints(started.reduce((t, s) => t + s.points, 0));
+  const lineup = combined ? combined.total : StateLogic.roundPoints(started.reduce((t, s) => t + s.points, 0));
   const predictions = StateLogic.roundPoints(bets.reduce((t, b) => t + b.points, 0));
   return { started, benched, bets, lineup, predictions, total: StateLogic.roundPoints(lineup + predictions) };
 }

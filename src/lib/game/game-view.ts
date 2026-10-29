@@ -301,7 +301,14 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
     return y[0] - x[0] || (y[1] ?? 0) - (x[1] ?? 0);
   });
   const keys = rows.map((r) => key(r).join(","));
-  const lastEp = type.hasActiveRoster ? latestScoredEpisode(view) : null;
+  // Best ball (step A9 part 2) has a week as a lineup does; its "last" is who counted, as it has no lineups.
+  const lastEp = type.hasActiveRoster || type.hasBestBall ? latestScoredEpisode(view) : null;
+  const lastOf = (playerId: string) =>
+    !lastEp
+      ? []
+      : type.hasBestBall
+        ? StateLogic.ActiveRosterLogic.episodeScore(view, lastEp, playerId).lines.filter((l) => l.counted).map((l) => l.castawayId)
+        : StateLogic.activeRosterLineupFor(view, lastEp.id, playerId);
   return rows.map((r, i) => {
     const first = keys.indexOf(keys[i]);
     const tied = keys.lastIndexOf(keys[i]) !== first;
@@ -317,7 +324,7 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
       week: pool ? (r.currentStreak ?? 0) : lastEp ? teamEpisodeBreakdown(view, lastEp.id, r.playerId).total : null,
       points: r.total,
       team: type.hasRoster ? teamOrder(r.roster).map((c) => c.id) : [],
-      last: lastEp ? StateLogic.activeRosterLineupFor(view, lastEp.id, r.playerId) : [],
+      last: lastOf(r.playerId),
       // Someone else's pick stays theirs until it's decided.
       picks: pool
         ? StateLogic.pickEmHistory(view, r.playerId)

@@ -1589,17 +1589,82 @@
         {
           "id": "score.captain",
           "what": "A captain who scores double",
-          "step": "A9"
+          "step": "A9",
+          "spec": {
+            "preset": "weekly-lineup",
+            "score": {
+              "by": "moments",
+              "points": null,
+              "captain": {
+                "times": 2
+              }
+            }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "score.bestBall",
           "what": "Best ball (your best 3 of 5 count)",
-          "step": "A9"
+          "step": "A9",
+          "spec": {
+            "preset": "weekly-lineup",
+            "get": {
+              "by": "draft",
+              "each": 5
+            },
+            "count": {
+              "best": 3
+            }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "score.reverse",
           "what": "Scoring in reverse (out early scores more)",
-          "step": "A9"
+          "step": "A9",
+          "spec": {
+            "preset": "outlast",
+            "score": {
+              "by": "place",
+              "reverse": true
+            }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
+        },
+        {
+          "id": "score.byWhen",
+          "what": "Points that multiply by when (an episode, a phase or the finale counting double)",
+          "step": "A9",
+          "spec": {
+            "preset": "weekly-lineup",
+            "score": {
+              "by": "moments",
+              "points": null,
+              "times": [
+                {
+                  "finale": true,
+                  "times": 2
+                }
+              ]
+            }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "score.linePoints",
@@ -2140,7 +2205,14 @@
       "step": "A9",
       "dials": [
         "score"
-      ]
+      ],
+      "spec": {
+        "preset": "outlast",
+        "score": {
+          "by": "place",
+          "reverse": true
+        }
+      }
     },
     {
       "id": "s08",
@@ -2153,7 +2225,17 @@
       "step": "A9",
       "dials": [
         "score"
-      ]
+      ],
+      "spec": {
+        "preset": "weekly-lineup",
+        "score": {
+          "by": "moments",
+          "points": null,
+          "captain": {
+            "times": 2
+          }
+        }
+      }
     },
     {
       "id": "s09",
@@ -2166,7 +2248,17 @@
       "step": "A9",
       "dials": [
         "score"
-      ]
+      ],
+      "spec": {
+        "preset": "weekly-lineup",
+        "get": {
+          "by": "draft",
+          "each": 5
+        },
+        "count": {
+          "best": 3
+        }
+      }
     },
     {
       "id": "s10",
@@ -4904,12 +4996,11 @@
         "page": {
           "show": "Dancing with the Stars",
           "season": 35,
-          "rulebook": "amazingRace",
-          "checkedAs": true
+          "rulebook": "dancing"
         },
         "words": "dwts: everyone drafts 2 couples, points equal to their judges score each week, double in the finale",
         "step": "A9",
-        "note": "a couple's judges' score (A6) doubled in the finale (A9)",
+        "note": "a couple's judges' score (A6), only that, doubled in the finale (A9 part 2)",
         "expect": {
           "about": {
             "show": "Dancing with the Stars",
@@ -4931,6 +5022,38 @@
           "flag": "question",
           "flagBy": "resolver",
           "why": "double in the finale may not be a rule data can express yet"
+        },
+        "spec": {
+          "preset": "weekly-lineup",
+          "get": {
+            "by": "draft",
+            "each": 2
+          },
+          "count": {
+            "start": 2
+          },
+          "score": {
+            "by": "moments",
+            "points": {
+              "judgesScoringPerPoint": 1,
+              "perfectScore": 0,
+              "highestScore": 0,
+              "lowestScore": 0,
+              "viewersVotingBottom": 0,
+              "viewersVotingSaved": 0,
+              "viewersVotingAtRisk": 0,
+              "eliminated": 0,
+              "withdrew": 0,
+              "runnerUp": 0,
+              "winner": 0
+            },
+            "times": [
+              {
+                "finale": true,
+                "times": 2
+              }
+            ]
+          }
         }
       },
       {

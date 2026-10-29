@@ -5,9 +5,10 @@ is headed", then today's games recreated on it, then the UI last; the GPT's word
 and S2 (both parts, 2026-10-28) are built and merged into master** (their As built is under track S); the test couch plays
 them next (the user's, in production). A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), not yet merged: the main folder merges them (review, checks, the Neon rehearsal, the user's OK).
-A5 to A8 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time; more
-answers), and A9 part 1 (scoring that combines, per question, and points per bingo line); A9 part 2 (per lineup) next, then on
-to A14 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+A5 to A9 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time; more
+answers; scoring that combines, per question and points per bingo line, then per lineup: a captain, best ball, Outlast in
+reverse, points that multiply by when). Next the format foundation (F1 to F4, one part a session: "Formats nobody
+announced"), then A10 to A14 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -130,7 +131,7 @@ changed):
                                             //     | pick (one an episode, "repeat": "cycle") | card (bingo) | none
                                             //   sports: squares, ...
   "count": { "start": 3 },                 // what of yours counts each episode: { start: n } (your lineup) | { all: true }
-                                            //   | { pick: true }; sports: { best: n } (best ball)
+                                            //   | { pick: true } | { best: n } (best ball, A9: shows and sports)
   "score": { "by": "moments", "points": null },
                                             //   moments (the rulebook's ids; null = its own points) | place (Outlast)
                                             //   | survive (Survival Pool) | answers | calls | lines (bingo)
@@ -1840,6 +1841,127 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
       - how many episodes had started was worked out per question.
     - Declined: one read of the answers for a POST with a wager of any of your points. The stake is checked against the
       answers before the write, and the response reads them after it.
+
+  **As built (A9 part 2, 2026-10-28, on `engine`, not merged; no migration).** One session, after `lane.js sync engine`
+  brought in master's format-foundation plan (898 tests then). Every part is off unless a spec says it, and none adds a default
+  to a stored spec (`fullSpec`), so today's leagues and the nine carried specs read exactly as before.
+  - **A captain** (`score.captain: { times }`, on a game scored by moments with a lineup: `count.start`): one of your starters you
+    name each episode, whose points multiply (more than 1, up to 10; "scores double" is 2), negatives too.
+    - Stored per episode like the lineup it's one of (`episode.captains[playerId]`, null for none) and locked with it
+      (`ActiveRosterLogic.validateCaptain`, through `validateLineup`'s checks: the episode, its lock, the span, the player).
+    - **Decided: nobody named carries the last captain**, as a lineup carries (Joanna forgets), and only while they're
+      starting. Benching your captain takes the armband off (`setLineup` sets it to none), and a captain benched or gone
+      counts as none.
+    - Written through the engine (`setCaptain`) and the lineup route: `PUT .../lineups/:playerId` takes an optional
+      `captainId` (null for none), checked against the lineup sent with it. A late joiner's goes through `GhostLogic.applyAs`,
+      copied back with their lineup.
+    - Computer players name their best starter.
+    - Not on best ball: there are no starters to name (refused).
+  - **Best ball** (`count: { best: n }`, now the engine's for shows too: VOCAB `count.best` 'now'): draft a team, and each
+    episode your best n count, no lineups.
+    - **Decided: Weekly Lineup's league type, not its own.** It plays as `active-roster`, a variant built once like shared
+      ownership's (`BEST_BALL_VARIANTS`, exclusive and shared): the same id and scoring strategy, with `hasActiveRoster` false
+      (no lineups: the lineup route and computer players leave it alone) and a new flag, `hasBestBall`. Why: every server read
+      treats `active-roster` as "scored by moments" (points, the week's +N, moves), while a new id would fall into Outlast's
+      branches across 45 files.
+    - Settings: `bestBall: true`, with `activeSlots` its n and `benchSlots` the rest.
+    - Each episode's team comes from the mid-season log (`ActiveRosterLogic.teamFor`), as the spoiler view and the waiver weeks
+      have it: who you hold now, with every move from that episode on taken back (a move after episode k counts from k + 1),
+      less anyone out before it. So a waiver move never reaches back.
+    - The n highest count, negatives too when fewer than n are left; a tie can't change the total (the cast's order breaks it).
+    - 1 to 8 count (the lineup's starters' limit), of a team of up to 14.
+    - Its waivers have no "replace only when short" (a lineup's: there are no starters to be short of), as Outlast's.
+  - **Outlast in reverse** (`score: { by: 'place', reverse: true }`, settings `reverseOrder`): the earlier yours go home, the
+    more. Each castaway earns 1, plus 1 for everyone who outlasts them: the cast's size + 1 less their Outlast points, so out
+    first of 18 is 18, the winner 1.
+    - **Decided: someone still in counts what they'd score if they went home next** (the cast less the boots so far), shrinking
+      by 1 for each boot they outlast. It's Outlast's live count mirrored, so a mid-season table ranks as the end would if
+      everyone went home next.
+    - In words it's "A game", not "Outlast".
+  - **Points that multiply by when** (`score.times`: [{ times, and one of `episode`, `from` (with `to`, or none for the
+    season's end), `phase`, `finale` }], up to 8, on a game scored by moments: a lineup or best ball; settings `pointsTimes`):
+    corpus w046's "double in the finale", and "earlier windows worth more".
+    - times is more than 0 and not 1, up to 10 (half points are 0.5). An episode in two windows counts both, multiplied.
+    - A new game's windows are inside its episodes, and the finale needs a game that runs to it.
+    - The data rule: a phase is one of the season's; the finale only on a show whose results say who goes home or wins.
+    - **The engine** (`ActiveRosterLogic.timesFor`):
+      - a phase counts from where data says it starts (`state.phaseStarts`, the desk's confirmed starts) to where the next
+        one known does, and only once the copy is up to the episode before its start, so nobody behind learns a phase began;
+      - the finale is the episode that ended the season (`finaleEpisodeOf`: the winner's), known once its results are;
+      - a captain and the episode's multiplier go together (a captain in a doubled finale is four times).
+    - **The settle passes record phase starts for such a game too:** `StateLogic.readsPhases` (asks by phase, or multiplies
+      in a phase) replaces `AnswerLogic.byPhase` in the desk's pass, the season sync, Start a game and the lab. Its SQL
+      (`phase-starts.ts`) reads `settings.pointsTimes`, and `settlePhases` records the starts alone (only questions have
+      windows).
+  - **One episode's score, as the engine counts it:** `ActiveRosterLogic.episodeScore` (a captain, best ball's counted ones,
+    the multiplier). `ActiveRosterEventScoringStrategy.compute` uses it only for a game that combines (`combines`). A plain
+    lineup scores event by event with the arithmetic it always had.
+    - The Games tab's week (`teamEpisodeBreakdown`), `episodePlayerPoints` (the episode lines, the reveal) and the game
+      view's "last" (best ball: who counted) read it.
+    - The waiver auto-fill's "most points" free agent now asks "scored by moments" rather than `hasActiveRoster` (the same
+      leagues today, plus best ball).
+  - **Part 1's open item, taken (agreed with its recommendation): "only the only one right" counts each pick** for a person or
+    group answer. Each right pick nobody else named scores, so two players each alone on a different right one (the final
+    three, a double boot) both do. Anything else stays per player. How it works: "A right pick only scores if nobody else
+    named it."
+  - **Through a format change** (Formats nobody announced): each part rides on data.
+    - A captain is a person named each episode, and best ball counts whoever's on your team.
+    - A phase that never starts never multiplies (the points stay plain), and a show whose season ends with no results to
+      place a finale never doubles one.
+    - Reverse counts the cast as it stands (Noticed).
+  - **Words:**
+    - the sentence: "...starts 3 each episode, one of them a captain who scores double", "Points in the finale count double.",
+      "Each scores more the earlier they go home: the first one out carries you.";
+    - How it works: "Name one of your starters captain each episode: their points count double. Name nobody and your last
+      captain keeps it, while they're starting.", "Each episode, your best three count, whoever they are: no lineups to set.",
+      "Points from Episode 10 on count double.", reverse's three lines.
+  - **The tracker:**
+    - A9's 7 waiting rows, all ✅: the dials (a captain, best ball, reverse), s07, s08, s09 and w046. w046 is now checked
+      against the Dancing with the Stars sample: its judges' points alone, the rest at 0, the finale doubled.
+    - A new dial row, `score.byWhen` ✅.
+    - **Now: 145 ✅** · 95 ⏳ · 1 🆕 · 1 ❓ · 23 💬, of 265.
+  - **Research data:** nothing new; the finale and phase starts are what A3 and A7 already record. The Challenge 40 was still
+    being recorded (the playtest lane, at Episode 8), so it isn't loaded here yet.
+  - **Tests:** `tests/lineup-scoring.test.js` (new, 8):
+    - the shape and the data rule for each part;
+    - the settings both ways, with none of the fields written for a game without it;
+    - a captain named, carried, benched and locked;
+    - best ball through a waiver move;
+    - each window's multiplier (a phase once it's begun, the finale once it's over, a spoiler view);
+    - reverse, live and final;
+    - today's lineups as before, and computer players' captains;
+    - How it works.
+
+    `answers-scoring.test.js`: only the only one per pick; `game-spec.test.js`: the new fields, best ball playing. `npm test`
+    906.
+  - **API:** `scripts/dev-test/check-lineup-scoring.js` (new, on new-fixture.js with the desk's admin), 31 PASS. The couch's
+    Weekly Lineup is a shared draft, so every expectation is worked out from each player's own lineup or team.
+    - a captain refused while the game has none, then the game made one with a captain and Merged doubled (setGame, the
+      show's ctx);
+    - jordan's lineup and captain (stored on Episode 6); a captain off the lineup refused; not sam's (403);
+    - the desk confirming the merge at 7 (the lineup game records its start, no windows);
+    - Episode 6 airing (the captain locked) and its results (doubled, the Games tab's week too);
+    - Episode 7 (the merge: the carried captain four times over);
+    - best ball (no lineups, waivers replacing right away; Episode 8, each player's best two of their team);
+    - the couch's Outlast reversed (each player's points mirrored, the first out 18, the still-in 18 less the boots, the
+      Games tab);
+    - the flag's check on both, their carried specs in step.
+
+    `check-engine-lab.js` grew part 2's specs (each said in its sentence; a captain on best ball and a phase the season
+    doesn't have refused; a captain lineup, a best ball and a reverse Outlast started as test games): 54 PASS.
+  - **Re-runs** (one at a time): `check-questions.js` 97 (after 9:30 PM ET), `check-questions-who.js` 42,
+    `check-questions-time.js` 25, `check-questions-more.js` 24, `check-questions-scoring.js` 38 (again after the per-pick
+    change: 38), `check-new-start-game.js` 75, `check-phase-starts.js` 58, `check-new-show.js` 81, and the lineup checks the part
+    touches: `check-new-computer-players.js` 42, `check-new-reveal.js` 49, `check-new-backstage-ii.js` 149, `check-waivers.js` 85.
+  - **Golden replays** (`node scripts/dev-test/golden.js`, HEAD against the working tree, before and after the per-pick change
+    and the review's fix): the same 116 games, **11,981 reads, every one the same.**
+  - **`game-specs-flag.js`:** `status` on, 9 of 9, none drifted (nothing new in a stored spec); `check` PASS.
+  - **Code review:** `/code-review` was started twice, and both times the session ended during it with nothing recorded, so the
+    diff was reviewed by hand instead.
+    - Taken: an open-ended run read "Points in Episodes 10 on" ("Points from Episode 10 on" now).
+    - Looked at and right as they are: a plain lineup's and Outlast's arithmetic (unchanged paths), the auto-fill's condition
+      (the same leagues), the lineup route's order (lineup, then captain, both against the lineup sent), a late joiner's
+      copy, and the settle passes' SQL.
 - **A10. Pools and drafts.** A pool's lives, buybacks and two-pick nights; a draft slot per group (one per tribe, a guy and a
   girl); auction and a salary cap; keepers across seasons; teams two people share.
 - **A11. Winning, and who plays with whom.** A race (first to N ends the game), co-op (the group against the show, with shared
@@ -2207,6 +2329,39 @@ From A9 part 1 (2026-10-28):
   episode is live. Run it outside that window. (Whoever next touches new-fixture.js.)
 - The sheet has no controls for A9's parts (a jackpot, a stake of any of your points, what a shrinking call is worth); the read
   gives them. (U1.)
+
+Taken by A9 part 2 (2026-10-28): part 1's question for the user ("only the only one" per pick for answers naming people), as
+recommended.
+
+From A9 part 2 (2026-10-28):
+- **Exclusive only when the pool covers every pick isn't counted yet** (the 9:10 PM decision): `specProblems` has no pool or couch
+  size in its ctx, so it never refuses an exclusive draft of 12 × 3 from 18 castaways, nor counts a shrinking pool (a later stage,
+  a side draft, group slots). The GPT's check is to make it shared, with the reason as an assumption. (A10, with the pool's
+  pieces: a ctx with the pool's size and the couch's, and unit tests for the shrinking case.)
+- No screen names a captain, and best ball still gets Weekly Lineup's lineup tab in the new design (`moves.ts` keys it on
+  `active-roster`), whose saves the route refuses. Classic's screens read `hasActiveRoster` false as Outlast's (the episode
+  lines, the standings card). Start a game and Game settings offer none of part 2's parts. (U1, or Step C for classic.)
+- Captains are in everyone's copy before the lock, as lineups are: hiding starters until the lock is a screen's courtesy
+  (`lineup-page.tsx`), so a screen for captains has to hide them with the starters. (U1.)
+- `playerEventRows`, `castawayEarnedStats` and `castawaysEverOwned` (`active-roster-rows.ts`) count lineup starters at the
+  rulebook's points: a captain's double, an episode's multiplier and best ball's counted ones aren't in the Scoreboard's per-event
+  rows. The totals, the week and the episode lines are the engine's. (U1.)
+- Best ball's team for an episode trusts the mid-season log: someone moved onto a team by hand (a commissioner's reassignment,
+  which logs nothing) reads as held from the start. (Whoever next touches ownership or waivers.)
+- Reverse counts the cast as it stands: a castaway added mid-season (The Challenge's newcomers) moves every reverse score by 1,
+  and the first one out scores the cast's size then. (F3, or A10 if it matters.)
+- A phase start confirmed late moves points already scored: the episodes from its start on take its multiplier when the desk
+  confirms it (data settles where it starts, as it should), so a table changes after the fact. (U1, to say why.)
+- Points that multiply by when are for drafts scored by moments only: "the finale's questions count double" in a game of
+  questions, and a pool's double points, aren't built. (G1, if they're asked for.)
+- Best ball's waivers can't "replace only when short" (short of its best n): they replace right away, as Outlast's. (A10, if
+  a game wants it.)
+- A late joiner's captain goes through `GhostLogic.applyAs` like their lineup, but no check plays it. (A11's late joiners.)
+- The Challenge 40 was mid-recording (the playtest lane) during this step, so the golden replays covered the five seasons
+  loaded here; load it (`tapes.js load the-challenge 40`, with `LLM_BROWSER_API_URL=http://127.0.0.1:8765`) once it's whole.
+  (F1, which studies it.)
+- `/code-review` ended the session twice when started here. If it happens again, the review is done by hand and recorded.
+  (The session loop's keeper, or whoever next looks at it.)
 
 From A7 (2026-10-28):
 - The late lock is a game of questions' only: lineups and picks still lock at airtime, whoever watches when. (A15, each

@@ -263,8 +263,12 @@ function lineups(state) {
     if (!mine.length) return;
     const best = ranked(state, pid, mine, "points").slice(0, slots);
     const current = ActiveRosterLogic.lineupFor(state, ep.id, pid);
-    if (!ActiveRosterLogic.lineupIsCarried(state, ep.id, pid) && sameSet(best, current)) return;
-    if (ActiveRosterLogic.setLineup(state, ep.id, pid, best)) made++;
+    // A game with a captain (A9 part 2): the best of them wears it.
+    const captainOk = !ActiveRosterLogic.captainTimes(state) || ActiveRosterLogic.captainFor(state, ep.id, pid) === best[0];
+    if (!ActiveRosterLogic.lineupIsCarried(state, ep.id, pid) && sameSet(best, current) && captainOk) return;
+    let set = ActiveRosterLogic.setLineup(state, ep.id, pid, best);
+    if (ActiveRosterLogic.captainTimes(state) && ActiveRosterLogic.setCaptain(state, ep.id, pid, best[0])) set = true;
+    if (set) made++;
   });
   return made;
 }

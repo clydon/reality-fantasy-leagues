@@ -231,7 +231,7 @@ export async function labStart(user: SessionUser, body: { seasonId?: unknown; co
         refused(StateLogic.setGame(s, spec as never, { ctx }), 409);
         // A game that asks by phase (step A7) records the season's phase starts and its windows now, as the desk and the
         // season sync do later (phase-starts.ts).
-        if (StateLogic.AnswerLogic.byPhase(s)) settleIn(s, await leaguePhases(client, id, season.id), await scheduleOf(season.id));
+        if (StateLogic.readsPhases(s)) settleIn(s, await leaguePhases(client, id, season.id), await scheduleOf(season.id));
         await recordChange(client, id, s, { userId: user.id, kind: "game.start", tier: 1, text: `${starter} started ${name} from the engine lab`, detail: { lab: true } });
       },
     }

@@ -133,7 +133,7 @@ export async function scheduleOf(seasonId: string, now = new Date()): Promise<Se
  * Recent changes when it moved. True when it did.
  */
 export async function settleLeague(client: PoolClient, leagueId: string, state: LeagueState, seasonId: string, schedule: SeasonSchedule | undefined, episodeTerm: string | null, now = new Date(), season?: SeasonBook): Promise<boolean> {
-  if (!StateLogic.startPhase(state) && !StateLogic.AnswerLogic.byPhase(state)) return false;
+  if (!StateLogic.startPhase(state) && !StateLogic.readsPhases(state)) return false;
   const phases = await leaguePhases(client, leagueId, seasonId, season);
   if (!settleIn(state, phases, schedule, now)) return false;
   await recordChange(client, leagueId, state, { userId: null, kind: "game.settled", tier: 1, text: settledLine(state, phases, showWords({ episode: episodeTerm }).episode) });
@@ -147,16 +147,17 @@ export async function settleLeague(client: PoolClient, leagueId: string, state: 
  * failing is logged and never stops the rest. How many moved.
  */
 export async function settleSeasonStarts(seasonId: string, now = new Date()): Promise<number> {
-  // Games that start at a phase, and games of questions that ask by phase (step A7: their phase starts and windows).
+  // Games that start at a phase, games of questions that ask by phase (step A7: their phase starts and windows), and drafts
+  // whose points multiply in a phase (A9 part 2: settings.pointsTimes, their phase starts).
+  const byPhase = `(l.state->'settings'->'questions' @> '[{"asked":"phase"}]'::jsonb OR l.state->'settings'->'questions' @> '[{"settle":{"by":"phase"}}]'::jsonb
+                    OR COALESCE(jsonb_path_exists(l.state->'settings'->'pointsTimes', '$[*].phase'), false))`;
   const { rows: leagues } = await pool.query(
-    `SELECT l.id, s.episode_term, l.state->'settings'->'startEpisode' AS start_episode,
-            (l.state->'settings'->'questions' @> '[{"asked":"phase"}]'::jsonb OR l.state->'settings'->'questions' @> '[{"settle":{"by":"phase"}}]'::jsonb) AS by_phase
+    `SELECT l.id, s.episode_term, l.state->'settings'->'startEpisode' AS start_episode, ${byPhase} AS by_phase
        FROM leagues l
        JOIN shows s ON s.slug = l.state->'settings'->>'showId'
        JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
       WHERE ss.id = $1 AND l.deleted_at IS NULL AND COALESCE(l.state->'settings'->>'archivedAt', '') = ''
-        AND (COALESCE(l.state->'settings'->>'startPhase', '') <> ''
-             OR l.state->'settings'->'questions' @> '[{"asked":"phase"}]'::jsonb OR l.state->'settings'->'questions' @> '[{"settle":{"by":"phase"}}]'::jsonb)`,
+        AND (COALESCE(l.state->'settings'->>'startPhase', '') <> '' OR ${byPhase})`,
     [seasonId]
   );
   if (!leagues.length) return 0;

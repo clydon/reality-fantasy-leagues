@@ -148,16 +148,24 @@ function readSpec(st, copy) {
     pool: { of: 'cast', where: { stillIn: true } },
   };
   let R = 0;
+  // A9 part 2: best ball (settings.bestBall: its best activeSlots count, the rest are benchSlots), a lineup's captain
+  // (captainTimes), points that multiply by when (pointsTimes), Outlast in reverse (reverseOrder). Each only when it's set, so a
+  // league that has none reads as it always did.
+  const best = type === 'active-roster' && st.bestBall === true;
   if (type === 'classic-draft') {
     R = st.teamSize;
-    Object.assign(spec, { get: { by: 'draft', each: st.teamSize, order: ORDER_OF[own], own }, count: { all: true }, score: { by: 'place' }, rank: { by: 'total' } });
+    const score = st.reverseOrder === true ? { by: 'place', reverse: true } : { by: 'place' };
+    Object.assign(spec, { get: { by: 'draft', each: st.teamSize, order: ORDER_OF[own], own }, count: { all: true }, score, rank: { by: 'total' } });
   } else if (type === 'active-roster') {
     const start = st.activeSlots || 0;
     R = start + (st.benchSlots || 0);
+    const score = { by: 'moments', points: isObj(st.eventPoints) ? (copy ? clone(st.eventPoints) : st.eventPoints) : null };
+    if (typeof st.captainTimes === 'number' && Number.isFinite(st.captainTimes) && st.captainTimes > 1) score.captain = { times: st.captainTimes };
+    if (Array.isArray(st.pointsTimes) && st.pointsTimes.length) score.times = copy ? clone(st.pointsTimes) : st.pointsTimes;
     Object.assign(spec, {
       get: { by: 'draft', each: R, order: ORDER_OF[own], own },
-      count: { start },
-      score: { by: 'moments', points: isObj(st.eventPoints) ? (copy ? clone(st.eventPoints) : st.eventPoints) : null },
+      count: best ? { best: start } : { start },
+      score,
       rank: { by: 'total' },
     });
   } else if (type === 'pickem') {
@@ -191,14 +199,15 @@ function readSpec(st, copy) {
   const join = st.allowLateJoiners === false ? 'locked' : st.joinMode === 'ask' ? 'ask' : st.joinMode === 'open' ? (sharedJoin ? 'open' : 'ask') : null;
   const timer = Number(st.draftTimer);
   spec.extras = {
-    waivers: waiversFit(spec) ? waiversOf(st, type === 'active-roster', R) : null,
+    // A lineup is short of starters; best ball has none (a loss is replaced right away, as Outlast's).
+    waivers: waiversFit(spec) ? waiversOf(st, type === 'active-roster' && !best, R) : null,
     // Side bets only beside a draft, the games that score them (a pool's, Weekly Calls' and Weekly Bingo's never counted:
     // their switch stays as it's stored, and nothing reads it).
     bets: draft && st.bonusEnabled ? { points: clampBet(st.defaultBetPoints) } : null,
     calls: type === 'pickem' && !!st.calls,
     draft: draft ? { at: typeof st.draftScheduledAt === 'string' ? st.draftScheduledAt : null, timer: DRAFT_TIMERS.includes(timer) ? timer : 0, away: st.draftAway === 'queue' ? 'queue' : 'wait' } : null,
     join,
-    hideStarters: type === 'active-roster' && st.hideStartersUntilLock === true,
+    hideStarters: type === 'active-roster' && !best && st.hideStartersUntilLock === true,
     lockedDown: st.lockedDown === true,
     // A game of questions' late lock (A7): its hours, else none.
     lateLock: type === 'questions' && LATE_HOURS.includes(st.lateLockHours) ? { hours: st.lateLockHours } : null,
@@ -245,9 +254,11 @@ function settingsOf(spec) {
     }
     if (type === 'classic-draft') out.teamSize = s.get.each;
     else {
+      // A lineup's starters, or best ball's best n (A9 part 2), are activeSlots; the rest of the team benchSlots.
+      const counts = s.count.start !== undefined ? s.count.start : s.count.best;
       Object.assign(out, {
-        activeSlots: s.count.start,
-        benchSlots: s.get.each - s.count.start,
+        activeSlots: counts,
+        benchSlots: s.get.each - counts,
         eventPoints: s.score.points === null ? undefined : clone(s.score.points),
         hideStartersUntilLock: e.hideStarters === true,
       });
@@ -278,6 +289,12 @@ function settingsOf(spec) {
   // A9: a game of questions' parlays; points per bingo line.
   out.parlays = type === 'questions' && Array.isArray(s.score.parlays) ? clone(s.score.parlays) : undefined;
   out.linePoints = type === 'weekly-bingo' && s.score.points !== undefined ? s.score.points : undefined;
+  // A9 part 2: best ball, a lineup's captain, points that multiply by when; Outlast in reverse.
+  const lineup = type === 'active-roster';
+  out.bestBall = lineup && s.count.best !== undefined ? true : undefined;
+  out.captainTimes = lineup && isObj(s.score.captain) ? s.score.captain.times : undefined;
+  out.pointsTimes = lineup && Array.isArray(s.score.times) ? clone(s.score.times) : undefined;
+  out.reverseOrder = type === 'classic-draft' && s.score.reverse === true ? true : undefined;
   return out;
 }
 
@@ -325,8 +342,8 @@ const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFee
 const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
   { fields: ['startEpisode', 'startPhase', 'endEpisode'], read: (s) => s.span },
-  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots'], read: (s) => [s.get, s.count] },
-  { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints'], read: (s) => s.score },
+  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall'], read: (s) => [s.get, s.count] },
+  { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder'], read: (s) => s.score },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },
   { fields: ['bonusEnabled', 'defaultBetPoints'], read: (s) => s.extras.bets },

@@ -200,6 +200,9 @@ export interface Episode {
   scoringEvents: ScoringEvent[];
   lineups: Record<string, string[]>;
   lineupsLocked: boolean;
+  /** A lineup's captain for this episode (step A9 part 2, a game with a captain): castaway id, or null for none. Absent: the
+   *  last one named carries (ActiveRosterLogic.captainFor). */
+  captains?: Record<string, string | null>;
   /** Kept open past its start by whoever runs the game (Backstage › Settings' lock; StateLogic.closedForPlay). */
   openPastAir?: boolean;
 }
@@ -278,6 +281,13 @@ export interface LeagueSettings {
   parlays?: { of: string[]; times: number }[];
   /** Points per bingo line (step A9, the spec's score.points on a Weekly Bingo), 1 when it's left out. */
   linePoints?: number;
+  /** Step A9 part 2, each absent unless a game says it: best ball (a Weekly Lineup's best activeSlots count each episode, no
+   *  lineups: count.best), a lineup's captain's multiplier (score.captain.times), when a draft's points multiply (score.times),
+   *  Outlast in reverse (score.reverse). */
+  bestBall?: boolean;
+  captainTimes?: number;
+  pointsTimes?: import("./game-spec/index.js").SpecWhen[];
+  reverseOrder?: boolean;
   /**
    * The episode this league starts playing at (default 1): a league formed mid-season drafts and picks
    * from here, and nothing in earlier episodes scores. Read it through StateLogic.startEpisode. A game that starts when a
