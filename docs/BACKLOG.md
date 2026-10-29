@@ -186,6 +186,18 @@ Last updated 2026-10-27.
     **Done for production 2026-10-29:** the user removed `ANTHROPIC_API_KEY` from Vercel, so nothing deployed holds a paid
     key. The key itself stays active for local research (the user's call), and so do the paid providers, for local scripts
     only.
+26. **Small things the app fixes left (noticed 2026-10-29, the desk lane's four fixes, 03e12bdc).**
+    - `npx eslint src` has one error: src/components/ui/use-sheet-swipe.ts:36 (from d4bf8730).
+    - The research run sheet's "its air time plus 1 hr" names the season's length even when the rail's episode has its own.
+    - `results-ways.ts` reads the season's schedule itself rather than desk-bot.ts `scheduleOf`, so it misses an episode's
+      own runs and our usual.
+    - check-desk-research changes our usual (app-wide) between its "Make this our usual" and the Undo: another check reading
+      our usual at that moment would see it.
+    - The final-results push's "has seen it" is show_follows' mark or seeing everything, not the guard's full seenThrough
+      (keep-up's auto, late joiners); it only picks the push's words and link.
+    - The push doesn't say what changed since the early results: the data has that only per Weekly Lineup seat (the morning
+      update shows it).
+    - **When:** whichever session next touches sheets, the desk's Research page, results-ways or the push.
 
 ## Decided against (don't re-propose without new information)
 
