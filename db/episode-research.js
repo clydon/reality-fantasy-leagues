@@ -2038,7 +2038,7 @@ function extractJsonObject(text) {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
   if (start === -1 || end <= start) {
-    throw new Error("Structured (JSON) is ticked, but there's no JSON object in what was pasted.");
+    throw new Error("There's no JSON in what was pasted: paste the AI's whole reply to the prompt (it starts with {).");
   }
   return text.slice(start, end + 1);
 }
@@ -2065,7 +2065,8 @@ async function buildPasteImportPrompt(pool, showSlug, season, episodeNumber, opt
   }
   const bets = only ? [] : await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
   return {
-    prompt: buildPastePrompt(only ? { ...ctx, format: onlyFormat(ctx.format, only) } : ctx, bets, { structured: !!opts.structured }),
+    // Always the JSON prompt: a paste is only ever read as JSON (pastedRun).
+    prompt: buildPastePrompt(only ? { ...ctx, format: onlyFormat(ctx.format, only) } : ctx, bets, { structured: true }),
     castCount: ctx.castNames.length,
     betCount: bets.length,
     only,
@@ -2356,36 +2357,20 @@ async function clearLeagueResearch(pool, leagueId, episodeNumber) {
 // MERGED answers are what's indexed and staged: staging withdraws a pending research decision its run
 // no longer reports, so staging a partial run alone would withdraw everyone it didn't ask about.
 async function pastedRun(pool, ctx, episodeNumber, trimmed, opts) {
-  // Structuring, not searching -- the cheapest model is plenty for "reorganise this text", and this
-  // path exists specifically to avoid paying for a bigger one.
-  const model = opts.model && RESEARCH_MODELS.includes(opts.model) ? opts.model : "claude-haiku-4-5";
   const only = Array.isArray(opts.only) ? opts.only : null;
   const bets = only ? [] : await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
   const schema = researchSchemaFor(only ? onlyFormat(ctx.format, only) : ctx.format, bets.length > 0);
 
-  let parsed;
-  let usage;
-  if (opts.structured) {
-    // Parsed directly: no model, no credentials, no cost. validateLeniently (via parseJsonAnswer) still
-    // repairs an out-of-list value to its catch-all and reports it, same as a model-structured answer.
-    // Deliberately NOT a fallback to the paid call when the JSON is bad -- a tick box that says "free"
-    // shouldn't quietly spend money; the admin gets the error and pastes again.
-    console.log(
-      `[research] ${ctx.showName} season ${ctx.season} episode ${episodeNumber}: parsing ${trimmed.length} ` +
-        `pasted char(s) of JSON for ${ctx.castNames.length} ${ctx.terms.castaways} (no model call)`
-    );
-    parsed = parseJsonAnswer(extractJsonObject(trimmed), schema, "The pasted JSON");
-    usage = { input_tokens: 0, output_tokens: 0 };
-  } else {
-    // structure() is Anthropic-only regardless of RESEARCH_PROVIDER/--provider -- those pick who
-    // SEARCHES, and this path does its own searching outside the app entirely.
-    requireCredentials(PROVIDERS.anthropic);
-    console.log(
-      `[research] ${ctx.showName} season ${ctx.season} episode ${episodeNumber}: structuring ${trimmed.length} ` +
-        `pasted char(s) for ${ctx.castNames.length} ${ctx.terms.castaways} (no search, model ${model})`
-    );
-    ({ parsed, usage } = await PROVIDERS.anthropic.structure({ notes: trimmed, schema, model }));
-  }
+  // Always the pasted JSON, parsed directly: no model, no credentials, no cost. Every paste prompt asks for JSON, and a
+  // paste that isn't is refused and pasted again, never handed to a paid model to tidy (decision 9: no paid research;
+  // whoever pastes can't spend the site's key). validateLeniently (via parseJsonAnswer) still repairs an out-of-list
+  // value to its catch-all and reports it.
+  console.log(
+    `[research] ${ctx.showName} season ${ctx.season} episode ${episodeNumber}: parsing ${trimmed.length} ` +
+      `pasted char(s) of JSON for ${ctx.castNames.length} ${ctx.terms.castaways} (no model call)`
+  );
+  const parsed = parseJsonAnswer(extractJsonObject(trimmed), schema, "The pasted JSON");
+  const usage = { input_tokens: 0, output_tokens: 0 };
   if (bets.length) parsed.betAnswers = betAnswersFrom(parsed, bets);
 
   if (opts.checkEpisode) {
@@ -2413,10 +2398,10 @@ async function pastedRun(pool, ctx, episodeNumber, trimmed, opts) {
     provider: "paste",
     // Who pasted: the ask-AI bot (db/bot-research.js) rather than a person.
     ...(opts.via ? { via: opts.via } : {}),
-    // No model touched a JSON paste; naming one would make the UI price a call that never happened.
-    model: opts.structured ? null : model,
-    pasteMode: opts.structured ? "json" : "text",
-    passes: opts.structured ? 0 : 1,
+    // No model touched the paste; naming one would make the UI price a call that never happened.
+    model: null,
+    pasteMode: "json",
+    passes: 0,
     researchedAt: new Date().toISOString(),
     showSlug: ctx.showSlug,
     seasonNumber: ctx.season,

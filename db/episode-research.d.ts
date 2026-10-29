@@ -72,7 +72,7 @@ export function buildPasteImportPrompt(
   showSlug: string,
   season: number,
   episodeNumber: number,
-  /** structured: ask for the checklist as JSON (schema + a pre-filled skeleton), parsed free of charge. */
+  /** structured: kept for callers; the prompt always asks for the checklist as JSON (schema + a pre-filled skeleton). */
   opts?: { structured?: boolean }
 ): Promise<{ prompt: string; castCount: number; betCount: number }>;
 
@@ -90,7 +90,8 @@ export function researchFromPaste(
   season: number,
   episodeNumber: number,
   notes: string,
-  /** merge/fill: folded into the stored answers field by field (an episode answered before); checkEpisode: refused with code
+  /** Always read as JSON, never by a paid model (`model` and `structured` are ignored); one that isn't JSON is refused.
+   *  merge/fill: folded into the stored answers field by field (an episode answered before); checkEpisode: refused with code
    *  "EPISODE_MISMATCH" when it reads like another episode's (as researchFromPasteForLeague); via: who pasted ("bot"). */
   opts?: { model?: string; dry?: boolean; structured?: boolean; merge?: boolean; fill?: boolean; checkEpisode?: boolean; via?: string }
 ): Promise<EpisodeResearchRun & { id: string | null; format: unknown; submitted: EpisodeResearch }>;

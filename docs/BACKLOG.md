@@ -179,13 +179,15 @@ Last updated 2026-10-27.
     episode schema, `derivedEvents`, `rejectEvent` and `roles` are read only by `validateEpisodes` and its regression
     harness now. PLAN-desk-parity.md Noticed cp.
     - **When:** the engine lane, as it moves formats onto specs: clear them out or keep them.
-25. **A pasted answer that isn't JSON is read by paid Claude (noticed 2026-10-29, cleaning up after the desk's step 8).**
-    `researchFromPasteForLeague` → `pastedRun` structures free text with `PROVIDERS.anthropic` (episode-research.js), so
-    Vercel keeps `ANTHROPIC_API_KEY` (Production and Preview) for it, though decision 9 ended paid research. Pastes of our
-    ChatGPT prompt's answer are JSON and skip it. The GitHub Actions copy of the key was deleted 2026-10-29 (nothing read it);
-    there was no `GEMINI_API_KEY` on GitHub or Vercel.
-    - **When:** the user's call: refuse a non-JSON paste with a clear message (or ask our bot to restructure it), then
-      remove the key from Vercel and revoke it at Anthropic.
+25. **The site's Anthropic key has nothing left to do (2026-10-29, cleaning up after the desk's step 8).** A paste is only
+    ever read as JSON now, never by a paid model (`pastedRun`; one that isn't JSON is refused with a clear message): the
+    user's rule, since our prompts always answer in JSON and nobody pasting should be able to spend the site's key. The last
+    way a paste reached paid Claude was classic admin's "Structured" tick box, which step 8 removed. The paid search
+    providers (episode-research.js `PROVIDERS`: anthropic, gemini, grok; `providerFor` defaults to anthropic) are reachable
+    only from local scripts. GitHub's `ANTHROPIC_API_KEY` Actions secret was deleted 2026-10-29; there was no
+    `GEMINI_API_KEY` on GitHub or Vercel.
+    - **When:** the user, now: remove `ANTHROPIC_API_KEY` from Vercel (Production and Preview) and revoke it at Anthropic.
+      Later (the engine lane, which owns episode-research.js): take the paid providers out altogether (decision 9).
 
 ## Decided against (don't re-propose without new information)
 
