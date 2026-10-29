@@ -10,8 +10,11 @@
 //            where it does (at: the episode it plays from). The phase stays: its words, Game settings, Run it back
 //   pool     { of: 'cast', where }: who can be picked. where { stillIn: true } (today: nobody gone before the start);
 //            sports: { teams: [ids] }; later: { group: id }
-//   get      how you get yours. { by: 'draft', each, order: snake | blind, own: exclusive | shared } (the order follows
-//            the ownership today: exclusive drafts snake, shared drafts blind) | { by: 'pick', each: 1, repeat: 'cycle' }
+//   get      how you get yours. { by: 'draft', each, order: snake | blind, own: exclusive | shared, groups? } (the order follows
+//            the ownership today: exclusive drafts snake, shared drafts blind. A10 part 1's groups: { slots: 1 | 2, own:
+//            shared | exclusive, swap, fallback: void | carry-on, points: mean | sum }, group slots beside a draft scored by
+//            moments: a slot holds a pair or a team the show forms, picked after the episode that showed it, riding with it
+//            while it lasts and dropping when it changes, GroupSlotLogic in state-logic.js) | { by: 'pick', each: 1, repeat: 'cycle' }
 //            (one an episode, nobody again until everyone still in is used, never twice running) | { by: 'card' }
 //            (bingo) | { by: 'none' }; sports: { by: 'squares' }
 //   count    what of yours counts each episode: { start: n } (your lineup) | { all: true } | { pick: true } | { best: n }
@@ -70,6 +73,13 @@ const VOCAB = {
   'ask.fallback': { void: 'now', 'carry-on': 'now', 'next-stage': 'later' },
   // A9 part 2: when a draft's points multiply (score.times): an episode, a run of them, a phase of the season, its finale.
   'score.times': { episode: 'now', from: 'now', phase: 'now', finale: 'now' },
+  // A10 part 1: group slots (get.groups), a draft's +1 or +2 slot that holds a pair or a team the show forms, read from the
+  // format's state over time: whether two people can hold the same group, what a slot does when the groups at its lock or as
+  // the episode was played aren't sure (void that episode for the slot, or follow the people), and how a group's points are
+  // its members' (their mean: the slot scores like one more person; or their sum).
+  'get.groups.own': { shared: 'now', exclusive: 'now' },
+  'get.groups.fallback': { void: 'now', 'carry-on': 'now', 'next-stage': 'later' },
+  'get.groups.points': { mean: 'now', sum: 'now' },
 };
 
 // A question in `ask` (A4; A6 added who a moment happened to, groups, roles and questions about each person):
@@ -213,6 +223,19 @@ const MAX_PARLAYS = 6;
 /** A9 part 2: the most windows a draft's points multiply in (score.times), and what each one says when it is. */
 const MAX_WHEN = 8;
 const WHEN = ['episode', 'from', 'phase', 'finale'];
+/** A10 part 1: a draft's most group slots (the user's "+1 or +2"), and a slot's defaults when the spec leaves them out (the
+ *  user's to set: the plan's Noticed for A10). */
+const MAX_GROUP_SLOTS = 2;
+const GROUP_SLOTS = { slots: 1, own: 'shared', swap: false, fallback: 'void', points: 'mean' };
+
+/**
+ * Whether a pool covers every pick of an exclusive draft (the 9:10 PM decision, Decisions: "Exclusive or shared"): `people`
+ * each taking `each` from `pool`, nobody sharing. Counted where the game drafts, and again wherever the pool shrinks (a later
+ * stage's draft, a side draft, group slots among a handful of pairs: GroupSlotLogic counts each opening). Pure.
+ */
+function covers({ pool, people, each }) {
+  return isInt(pool, 0) && isInt(people, 0) && isInt(each, 0) && people * each <= pool;
+}
 const MAX_QUESTIONS = 12;
 const MAX_PICK = 10;
 const MAX_QUESTION_POINTS = 100;
@@ -466,6 +489,8 @@ function fullSpec(spec) {
     if (!s.get.own && s.get.order) s.get.own = own(OWN_OF, s.get.order);
     if (!s.get.order && s.get.own) s.get.order = own(ORDER_OF, s.get.own);
     if (!s.get.own && !s.get.order) Object.assign(s.get, { order: 'snake', own: 'exclusive' });
+    // A10 part 1: group slots say what they leave out as the defaults (GROUP_SLOTS).
+    if (isObj(s.get.groups)) for (const [k, v] of Object.entries(GROUP_SLOTS)) if (s.get.groups[k] === undefined) s.get.groups[k] = v;
   }
   if (by === 'pick') {
     if (s.get.each === undefined) s.get.each = 1;
@@ -578,6 +603,8 @@ function flagsOf(s) {
     hasActiveRoster: get.by === 'draft' && countKind(s.count) === 'start',
     // A9 part 2: best ball, a draft whose best n count each episode (no lineups to set).
     hasBestBall: get.by === 'draft' && countKind(s.count) === 'best',
+    // A10 part 1: group slots beside the draft.
+    hasGroupSlots: get.by === 'draft' && isObj(get.groups),
     hasWeeklyPicks: get.by === 'pick',
     hasCalls: score.by === 'answers' && callsAsk(s && s.ask),
     // A game of questions (A4): scored by its answers, not the show's calls.
@@ -614,6 +641,11 @@ function sizesOf(s) {
  *                it's one. Absent: there are none
  *   ctx.grouped  false when nobody on the show is in a group (its cast has no groups): no group answers
  *   ctx.jury     false when no jury decides the finale: no jury vote split (A8)
+ *   ctx.pool     (A10 part 1) how many can be drafted where the game drafts (the cast still in then), and ctx.couch how many
+ *                people are on its couch: an exclusive draft has to cover every pick (covers: the 9:10 PM decision), else it's
+ *                shared, and the problem says why ("12 of you × 3 picks is more than 18 castaways"). Either left out: not
+ *                counted. A pool that shrinks later (a stage's or a side draft, group slots) is counted where it drafts again
+ *                (GroupSlotLogic counts each opening)
  *
  * opts.league: the spec is a league's own (every write to a league: RosterLogic.setGame), so what it already plays stays
  * as it is: a couch-answered moment of its rules (Make it ours) and points for moments its rules don't have
@@ -677,6 +709,7 @@ function specProblems(spec, ctx, opts) {
     if (!one('get.order', get.order)) add('get.order', 'A draft is snake or blind');
     else if (one('get.own', get.own) && ORDER_OF[get.own] !== get.order) add('get.order', `An ${get.own} draft is ${ORDER_OF[get.own]}: ${get.own === 'exclusive' ? 'everyone takes turns for castaways nobody else can have' : 'everyone picks in private, revealed at once'}`);
     if (!count) add('count', 'A draft says what counts: { start: n }, { all: true } or { best: n }');
+    if (get.groups !== undefined) groupSlotProblems(get.groups, s).forEach(([at, p]) => add(`get.groups${at}`, p));
   }
   if (get.by === 'pick') {
     if (get.each !== 1) add('get.each', 'A pick is one an episode');
@@ -932,7 +965,8 @@ const KEYS = {
   span: ['from', 'to'],
   from: ['phase', 'at'],
   pool: ['of', 'where'],
-  get: { draft: ['by', 'each', 'order', 'own'], pick: ['by', 'each', 'repeat'], card: ['by'], none: ['by'], squares: ['by'] },
+  get: { draft: ['by', 'each', 'order', 'own', 'groups'], pick: ['by', 'each', 'repeat'], card: ['by'], none: ['by'], squares: ['by'] },
+  groups: ['slots', 'own', 'swap', 'fallback', 'points'],
   score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points'], lines: ['by', 'points'], answers: ['by', 'parlays'], stats: ['by', 'points'] },
   parlay: ['of', 'times'],
   captain: ['times'],
@@ -959,7 +993,10 @@ function unknownKeys(s) {
   check(s.span, KEYS.span, 'span');
   if (isObj(s.span)) check(s.span.from, KEYS.from, 'span.from');
   check(s.pool, KEYS.pool, 'pool');
-  if (isObj(s.get)) check(s.get, own(KEYS.get, s.get.by), 'get');
+  if (isObj(s.get)) {
+    check(s.get, own(KEYS.get, s.get.by), 'get');
+    if (s.get.by === 'draft') check(s.get.groups, KEYS.groups, 'get.groups');
+  }
   if (isObj(s.score)) {
     check(s.score, own(KEYS.score, s.score.by), 'score');
     if (Array.isArray(s.score.parlays)) s.score.parlays.forEach((p, i) => check(p, KEYS.parlay, `score.parlays[${i}]`));
@@ -986,6 +1023,27 @@ function unknownKeys(s) {
 }
 
 const pointsMap = (p) => isObj(p) && Object.values(p).every(isNum);
+
+/**
+ * A draft's group slots (A10 part 1: get.groups), as [[at, problem]]: { slots: 1 to MAX_GROUP_SLOTS, own: shared |
+ * exclusive, swap: true | false (whether a slot's group can be changed while it lasts), fallback: void | carry-on (what a slot
+ * does in an episode whose groups at the lock, or as played, aren't sure), points: mean | sum (a group's points: its members'
+ * averaged, a slot scoring like one more person, or added up) }, beside a draft scored by moments (a lineup or best ball:
+ * the moments its members earn are what a group scores). The groups themselves are the show's, read from the format's state
+ * over time, so nothing here names one.
+ */
+function groupSlotProblems(g, s) {
+  if (!isObj(g)) return [['', 'Group slots are { slots, own, swap, fallback, points }']];
+  const out = [];
+  const one = (key, v) => own(VOCAB[key], v) !== undefined;
+  if (!(isInt(g.slots, 1) && g.slots <= MAX_GROUP_SLOTS)) out.push(['.slots', `A team has 1 to ${MAX_GROUP_SLOTS} group slots`]);
+  if (!one('get.groups.own', g.own)) out.push(['.own', 'A group slot is shared (anyone can hold the same group) or exclusive']);
+  if (typeof g.swap !== 'boolean') out.push(['.swap', 'swap is true or false: whether a slot can change its group while it lasts']);
+  if (!one('get.groups.fallback', g.fallback)) out.push(['.fallback', "When its groups aren't sure, a slot is void for that episode or follows the people: void, or carry-on"]);
+  if (!one('get.groups.points', g.points)) out.push(['.points', "A group's points are its members': their mean, or their sum"]);
+  if (!(isObj(s.score) && s.score.by === 'moments')) out.push(['', 'A group scores what its members do: group slots go with a draft scored by moments']);
+  return out;
+}
 
 /** A draft's waivers, as WaiverLogic plays them: nothing it would quietly read as something else. */
 function waiverProblems(w, s) {
@@ -1108,6 +1166,12 @@ function settleProblems(s, ctx, opts) {
     if ((strict || !opts.league) && !byData(m)) return couchWord(m);
     return null;
   };
+  // An exclusive draft only when the pool covers every pick (the 9:10 PM decision): a new game's, where it drafts. A league's own
+  // keeps the draft it made (its couch grows by people joining, who ask: extras.join).
+  const get = isObj(s.get) ? s.get : {};
+  if (!opts.league && get.by === 'draft' && get.own === 'exclusive' && isInt(get.each, 1) && isInt(ctx.pool, 0) && isInt(ctx.couch, 1) && !covers({ pool: ctx.pool, people: ctx.couch, each: get.each })) {
+    out.push(['get.own', `${ctx.couch} of you × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} is more than the ${ctx.pool} who can be drafted: make it shared, so two of you can have the same one`]);
+  }
   const score = isObj(s.score) ? s.score : {};
   if (score.by === 'moments') {
     const given = pointsMap(score.points) ? score.points : {};
@@ -1203,6 +1267,7 @@ function specWaitsFor(spec) {
   const where = isObj(s.pool) && isObj(s.pool.where) ? Object.keys(s.pool.where)[0] : null;
   if (where) val('pool.where', 'pool.where', where, where === 'teams' ? 'Picking from teams' : 'Picking from a group');
   if (isObj(s.get)) val('get.by', 'get.by', s.get.by, 'Squares');
+  if (isObj(s.get) && isObj(s.get.groups)) val('get.groups.fallback', 'get.groups.fallback', s.get.groups.fallback, "Starting the game's next stage when a slot's groups aren't sure");
   const count = countKind(s.count);
   if (count) val('count', 'count', count, 'Best ball');
   if (isObj(s.score)) val('score.by', 'score.by', s.score.by, 'Scoring by stats');
@@ -1226,6 +1291,7 @@ function specWaitsFor(spec) {
 module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
   RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
+  MAX_GROUP_SLOTS, GROUP_SLOTS, covers,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

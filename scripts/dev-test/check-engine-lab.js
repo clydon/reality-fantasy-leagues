@@ -17,7 +17,8 @@
 //     Commissioner, its spec carried, the game-specs flag's check passing); refused on a couch that isn't a test couch or a
 //     zt- fixture's (403), and for a spec that doesn't play (409). Which tribe wins immunity starts too, its faces the tribes;
 //     and a question once a phase, the season's phases recorded in it (A7); a parlay (A9), its parlay in its fields; a Weekly Bingo
-//     at 5 points a line (A9); a lineup with a captain, a best ball and a reverse Outlast (A9 part 2), each in its fields.
+//     at 5 points a line (A9); a lineup with a captain, a best ball and a reverse Outlast (A9 part 2), a Weekly Lineup with two
+//     group slots (A10 part 1), each in its fields.
 //   - In a real browser at --width (390 by default), as the admin: the lab, a season picked, a tracker row filtered and picked
 //     (its spec fills the box), Check (plays now, the sentence), the couch picked, Start (the link to its Games tab); a refused
 //     spec shows what's wrong. Nothing wider than the screen; no page errors. Screenshots go to <outDir>.
@@ -149,6 +150,11 @@ function check(ok, what, detail = "") {
     check(r.status === 200 && !r.body.startable && r.body.problems.some((p) => p.at === "score.captain"), "  a captain on best ball is refused (no starters to name)", JSON.stringify(r.body.problems));
     r = await labCheck({ spec: JSON.stringify({ ...rowSpec("score.byWhen"), score: { by: "moments", points: null, times: [{ phase: "jury", times: 2 }] } }) });
     check(r.status === 200 && !r.body.startable && r.body.problems.some((p) => p.at === "score.times[0].phase"), "  a phase the season doesn't have is refused", JSON.stringify(r.body.problems));
+    // A10 part 1: group slots, said in the sentence; refused beside a game that scores places.
+    r = await labCheck({ spec: JSON.stringify(rowSpec("who.groupSlots")), row: "who.groupSlots" });
+    check(r.status === 200 && r.body.startable && r.body.playsAs === "active-roster" && /plus two slots for a pair or team the show forms/.test(r.body.describe?.sentence ?? ""), "A10 part 1: a Weekly Lineup with two group slots plays on ZT Survivor 51, said in its sentence", JSON.stringify([r.body.problems, r.body.waits, r.body.describe?.sentence]).slice(0, 400));
+    r = await labCheck({ spec: JSON.stringify({ preset: "outlast", get: { by: "draft", each: 3, order: "snake", own: "exclusive", groups: { slots: 1 } } }) });
+    check(r.status === 200 && !r.body.startable && r.body.problems.some((p) => p.at === "get.groups"), "  group slots beside Outlast are refused (a group scores what its people do)", JSON.stringify(r.body.problems));
 
     // ---------- start it as a test game ----------
     const labStart = (body) => desk.call("POST", "/api/desk/lab", { action: "start", seasonId: sid, couchId: couch, ...body });
@@ -189,10 +195,12 @@ function check(ok, what, detail = "") {
       ["score.captain", "a Weekly Lineup with a captain", (st) => st.settings.captainTimes === 2 && S.ActiveRosterLogic.captainTimes(st) === 2],
       ["score.bestBall", "a best ball", (st) => st.settings.bestBall === true && S.getLeagueType(st).hasBestBall === true && S.ActiveRosterLogic.bestOf(st) === 3],
       ["score.reverse", "a reverse Outlast", (st) => st.settings.reverseOrder === true && S.EliminationOrderScoringStrategy.reversed(st)],
+      // A10 part 1: group slots, in their field (the defaults filled in).
+      ["who.groupSlots", "a Weekly Lineup with two group slots", (st) => st.settings.groupSlots?.slots === 2 && st.settings.groupSlots.own === "shared" && S.GroupSlotLogic.config(st)?.slots === 2],
     ]) {
       r = await labStart({ spec: rowSpec(row) });
       const st = r.body.leagueId ? (await pool.query("SELECT state FROM leagues WHERE id = $1", [r.body.leagueId])).rows[0]?.state : null;
-      check(r.status === 200 && !!st && holds(st) && checkLeague(st).ok, `A9 part 2: ${what} starts as a test game, in its fields`, JSON.stringify(r.body).slice(0, 300));
+      check(r.status === 200 && !!st && holds(st) && checkLeague(st).ok, `${row === "who.groupSlots" ? "A10 part 1" : "A9 part 2"}: ${what} starts as a test game, in its fields`, JSON.stringify(r.body).slice(0, 300));
     }
 
     // ---------- in the browser ----------

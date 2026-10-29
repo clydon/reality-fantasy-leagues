@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 145 ✅ · 95 ⏳ · 1 🆕 · 1 ❓ · 23 💬, of 265.
-**Waiting, by step:** A10 16 · A11 14 · A12 9 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 147 ✅ · 97 ⏳ · 1 🆕 · 1 ❓ · 23 💬, of 269.
+**Waiting, by step:** A10 16 · A11 14 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -127,6 +127,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ⏳ | Teams of players | A11 |
 | ⏳ | Handicaps (newcomers get a head start) | A11 |
 | ⏳ | Two people share one team | A10 |
+| ✅ | Group slots: a solo draft, plus a +1 or +2 slot for a pair or team the show forms, riding with it while it lasts | A Weekly Lineup for The Challenge 41: everyone drafts 5 and starts 3 each episode, plus two slots for a pair or team the show forms, all season. Scored by The Challenge 41's rules. |
 | ⏳ | Secret roles among the players | A14 |
 | ⏳ | A rotating host writes the questions | A14 |
 
@@ -165,6 +166,9 @@ The plan's worked examples, as people would type them on a show's page.
 | ✅ | p4 | Survivor 51 | a single episode game where we must predict different things, most correct wins | when, what | A game for Survivor 51: everyone answers three questions before Episode 6: who goes home, an idol played and how many idols get played this episode. Points for each right answer. |
 | ✅ | p5 | Dancing with the Stars 35 | everyone predicts the scores of each couple; whoever's closest to the average gets a point; ties both get points | what, answer | A game for Dancing with the Stars 35: everyone answers one question before each episode: each couple's judges' score, all season. A point for each right answer. |
 | ⏳ | p6 | Survivor 51 | every week we predict if it's going to rain | settle | G1: no rain moment: the new-moment path (Our check), likely a can't-yet with the nearest settled questions |
+| ⏳ | p7 | The Challenge 42 | I also want to automatically start a new draft stage whenever there is a major format change such as split into teams or split into individuals | shape | A12: a stage that starts on a format change of the kinds named (format-timeline.js stageTriggers, F3); what players see and whether it waits for the maker's OK are the format-change design session's |
+| ⏳ | p8 | The Challenge 42 | draft solo players in the challenge. if we ever get teams forming or pairing up that lasts for multiple episode i want us to start a 'side draft' after that episode ends | shape | A12: the solo draft plays now; the side stage that opens once a grouping has held N episodes (format-timeline.js sideStages, F3) is A12's |
+| ✅ | p9 | The Challenge 41 | a solo draft, then once teams or pairs are announced, a +1 slot on your roster for a pair or team for the next week; if they stick, you ride with them, otherwise that slot just drops for everyone | who | A Weekly Lineup for The Challenge 41: everyone drafts 5 and starts 3 each episode, plus a slot for a pair or team the show forms, all season. Scored by The Challenge 41's rules. |
 
 ## The stretch requests
 

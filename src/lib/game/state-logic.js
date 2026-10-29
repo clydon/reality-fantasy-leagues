@@ -841,11 +841,11 @@ class ActiveRosterLogic {
     const g = gameOf(state);
     return g.score.by === 'moments' && g.count && g.count.start && g.score.captain ? g.score.captain.times : 0;
   }
-  // Whether the game's lineups score any way but plainly (a captain, best ball, points that multiply by when): compute's own
-  // path. A plain lineup keeps the arithmetic it always had.
+  // Whether the game's lineups score any way but plainly (a captain, best ball, points that multiply by when, group slots: A10
+  // part 1): compute's own path. A plain lineup keeps the arithmetic it always had.
   static combines(state){
     const g = gameOf(state);
-    return g.score.by === 'moments' && (!!ActiveRosterLogic.bestOf(state) || !!ActiveRosterLogic.captainTimes(state) || Array.isArray(g.score.times));
+    return g.score.by === 'moments' && (!!ActiveRosterLogic.bestOf(state) || !!ActiveRosterLogic.captainTimes(state) || Array.isArray(g.score.times) || !!GroupSlotLogic.config(state));
   }
   // What an episode's points multiply by (the spec's score.times): each window it's in, together -- an episode, a run of them,
   // a phase of the season, the finale -- else 1. A phase counts from where data says it starts (state.phaseStarts, the desk's:
@@ -899,9 +899,10 @@ class ActiveRosterLogic {
     }).map(c => c.id);
   }
   // One player's points for one episode, as the game counts them: { total, lines: [{ castawayId, points, counted, captain }],
-  // captain, times }. A lineup's starters, a captain's points times its multiplier; best ball's whole team, its best n counted;
-  // and the episode's own multiplier (timesFor) on all of it. `pre`: the episode's events and multiplier, when the caller has
-  // them already (compute, every player).
+  // captain, times, slots }. A lineup's starters, a captain's points times its multiplier; best ball's whole team, its best n
+  // counted; a game's group slots (A10 part 1: GroupSlotLogic.episodeLines, each slot's group's points); and the episode's own
+  // multiplier (timesFor) on all of it. `pre`: the episode's events and multiplier, when the caller has them already (compute,
+  // every player).
   static episodeScore(state, ep, playerId, pre){
     const best = ActiveRosterLogic.bestOf(state);
     const ids = best ? ActiveRosterLogic.teamFor(state, ep, playerId) : ActiveRosterLogic.lineupFor(state, ep.id, playerId);
@@ -915,8 +916,9 @@ class ActiveRosterLogic {
     const lines = ids.map(id => ({ castawayId: id, points: roundPoints(raw.get(id) * (id === captain ? cap : 1) * times), counted: !best, captain: id === captain }));
     // Best ball: the n highest count (a tie can't change the total; the cast's order breaks it).
     if(best) [...lines].sort((a,b) => b.points - a.points).slice(0, best).forEach(l => { l.counted = true; });
-    const total = roundPoints(lines.reduce((t, l) => t + (l.counted ? l.points : 0), 0));
-    return { total, lines, captain, times };
+    const slots = GroupSlotLogic.episodeLines(state, ep, playerId, (pre && pre.events) || undefined, times, pre && pre.slots);
+    const total = roundPoints(lines.reduce((t, l) => t + (l.counted ? l.points : 0), 0) + slots.reduce((t, l) => t + l.points, 0));
+    return { total, lines, captain, times, slots };
   }
 
   // ---- weekly lineups ----
@@ -1132,6 +1134,228 @@ class ActiveRosterLogic {
   }
 }
 
+// ---------- GroupSlotLogic: group slots (docs/PLAN-start-a-game-gpt.md step A10 part 1, "When a grouping lasts") ----------
+// The user's third idea: a solo draft, plus a +1 or +2 slot on each team that holds a pair or a team the show forms. When the
+// show announces its groups, the slots open for the next episode; while a group lasts you ride with it (its members' points
+// are the slot's); when it ends, its slot drops, and a new pick opens with the next groups. Pairs that last make it a side
+// draft, pairs that change every episode a pick each episode: one mechanic, nothing to predict.
+//
+// The groups are the show's as the season's format state over time has them (formats/format-timeline.js, from each episode's
+// research), never the league's own tribes. The season sync writes each episode's into the league (`episode.formatGroups`,
+// settle below: only on an episode with results, and wholesale, so a corrected report reaches it at the next sync), and
+// everything here reads only those, so it's pure. A group is its exact members (F1's Q1 and Q4, as F3 takes them: a tribe
+// losing someone carries on, a pair down to one doesn't, any join or move ends it, the same people again later are a new
+// group); a slot opens after the episode that showed its groups and scores from the next, so a group revealed partway can't be
+// picked before it; a group shown that changed before it played (F1's Q2) is void for that episode, no points either way, and
+// its slot reopens for the next; a change partway through an episode leaves it to the group in force at its start (Q3). When
+// the show re-pairs everyone or goes each for themselves, every slot drops at once. Each pick is stored on the episode it's
+// for (`episode.groupSlots[playerId][slot]`) and carried, like a lineup, until a later one.
+//
+// The spec's get.groups says the rest (their defaults are the user's: the plan's Noticed for A10): `slots`, 1 or 2; `own`,
+// shared (anyone can hold the same group) or exclusive (one team's at a time, first come, and only while the groups on offer
+// cover every team's slots: otherwise that opening is shared and says why, the 9:10 PM decision); `swap`, whether a slot can
+// change its group while it lasts; `fallback`, what a slot does in an episode whose groups at the lock or as played aren't
+// sure (void: nothing either way; carry-on: it scores anyway, and a group that didn't play as picked is followed by its
+// people); `points`, a group's points as its members' mean (a slot scores like one more person) or their sum.
+class GroupSlotLogic {
+  /** The game's group slots (the spec's get.groups), or null: a draft scored by moments only. */
+  static config(state){
+    const g = gameOf(state);
+    return g.get.by === 'draft' && g.get.groups && typeof g.get.groups === 'object' && g.score.by === 'moments' ? g.get.groups : null;
+  }
+  /** What every reader below looks up, worked out once a pass (compute passes it for every player and episode): the episodes
+   *  by number, and each castaway out by the episode they went home in. */
+  static index(state){
+    const eps = new Map(state.episodes.map(e => [e.number, e]));
+    const at = new Map(state.episodes.map(e => [e.id, e.number]));
+    const exits = new Map(state.castaways.filter(c => c.status === 'eliminated' && at.has(c.exitEpisodeId)).map(c => [c.id, at.get(c.exitEpisodeId)]));
+    return { eps, exits };
+  }
+  /** Episode n's groups as the sync wrote them, or null: nothing written (no results yet, or the timeline knows nothing). */
+  static record(state, n, ix){
+    const ep = ix ? ix.eps.get(n) : state.episodes.find(e => e.number === n);
+    return ep && ep.formatGroups && EpisodeLogic.hasResults(ep) ? ep.formatGroups : null;
+  }
+  /** The group in `groups` a pick is: by its id, else by its members as picked, less anyone out before episode k (a corrected
+   *  report can move a group's id: the episode that first showed it). */
+  static find(groups, pick, exits, k){
+    // exits: each castaway out, by the episode they went home in (index().exits).
+    if(!pick || !Array.isArray(groups)) return null;
+    const byId = groups.find(g => g.id === pick.id);
+    if(byId) return byId;
+    const key = ids => [...ids].sort().join('|');
+    const want = key(pick.members);
+    const left = key(pick.members.filter(m => !(exits.has(m) && exits.get(m) < k)));
+    return groups.find(g => g.members.length > 1 && (key(g.members) === want || key(g.members) === left)) || null;
+  }
+  /**
+   * What a slot can pick going into episode n: the groups at episode n - 1's end, while the show is divided into them.
+   * { groups, sure, why, shared }: at an unsure lock nothing is offered (void, the default) or the groups as known (carry-on,
+   * flagged); `shared`: an exclusive game's opening plays shared, the groups on offer not covering every team's slots. A group
+   * none of whose members is on the league's cast can't be picked (nothing of theirs scores here).
+   */
+  static offered(state, n, ix){
+    const cfg = GroupSlotLogic.config(state);
+    const none = (why, sure) => ({ groups: [], sure: !!sure, why, shared: false });
+    if(!cfg) return none(['This game has no group slots']);
+    const prev = GroupSlotLogic.record(state, n - 1, ix);
+    if(!prev) return none(['Nothing is known yet about who is with whom going into it']);
+    const end = prev.end;
+    if(!end.divided) return none(["The show isn't divided into groups going into it"], end.sure);
+    if(!end.sure && cfg.fallback !== 'carry-on') return none(end.why.length ? end.why : ["Who is with whom going into it isn't sure"]);
+    const groups = end.groups.filter(g => g.members.length);
+    const people = state.players.filter(inLeagueRotation).length;
+    const shared = cfg.own === 'exclusive' && !Spec.covers({ pool: groups.length, people, each: cfg.slots });
+    return { groups, sure: end.sure, why: end.sure ? [] : end.why, shared };
+  }
+  /** The latest pick for a player's slot at or before episode n: { pick (null: emptied), from }, or null for none. */
+  static latestPick(state, playerId, slot, n){
+    const has = e => !!e.groupSlots && !!e.groupSlots[playerId] && Object.prototype.hasOwnProperty.call(e.groupSlots[playerId], slot);
+    const ep = state.episodes.filter(e => e.number <= n && has(e)).sort((a,b) => b.number - a.number)[0];
+    return ep ? { pick: ep.groupSlots[playerId][slot] || null, from: ep.number } : null;
+  }
+  /**
+   * What a player's slot holds in episode n, as the records say: { pick, from, status, members, unsure, why }.
+   *   held     its group played n as picked (or, following the people, its members did): it scores, `members` its people
+   *   void     it doesn't count in n either way: the lock or the episode's play wasn't sure, or the group was shown but changed
+   *            before n started (it drops after n)
+   *   dropped  its group ended before n (it didn't play an episode since it was picked as picked, or isn't among the groups
+   *            going into n): the slot is empty, open for a pick from the groups going into n
+   *   waiting  n has no record yet (no results); empty: nothing picked
+   */
+  static standing(state, playerId, slot, n, ix){
+    const cfg = GroupSlotLogic.config(state);
+    const latest = cfg ? GroupSlotLogic.latestPick(state, playerId, slot, n) : null;
+    const base = { pick: latest ? latest.pick : null, from: latest ? latest.from : null, members: [], size: 0, unsure: false, why: [] };
+    if(!latest || !latest.pick) return { ...base, status: 'empty' };
+    const pick = latest.pick;
+    const at = ix || GroupSlotLogic.index(state);
+    const out = at.exits;
+    // From the lock it was picked at to n's: it played every episode in between as picked, and was still one of the groups
+    // at each one's end (a group can end at an episode's end: a re-pairing).
+    for(let k = latest.from - 1; k < n; k++){
+      const r = GroupSlotLogic.record(state, k, at);
+      if(!r) continue;
+      if(k >= latest.from && r.played && (r.played.apart || !GroupSlotLogic.find(r.played.groups, pick, out, k))) return { ...base, status: 'dropped', endedAt: k };
+      if(!r.end.divided || !GroupSlotLogic.find(r.end.groups, pick, out, k + 1)){
+        // Not among the groups it was picked from, as the records say now (a corrected report): void for the episode it was
+        // picked for, and gone after it.
+        if(k === latest.from - 1 && n === latest.from) return { ...base, status: 'void', why: ["It isn't one of the groups going into this episode, as research now says"] };
+        return { ...base, status: 'dropped', endedAt: k };
+      }
+    }
+    const r = GroupSlotLogic.record(state, n, at);
+    if(!r) return { ...base, status: 'waiting' };
+    const lock = GroupSlotLogic.record(state, n - 1, at);
+    const lockSure = !!lock && lock.end.sure;
+    const played = r.played && !r.played.apart ? GroupSlotLogic.find(r.played.groups, pick, out, n) : null;
+    const follow = () => pick.members.filter(m => !(out.has(m) && out.get(m) < n));
+    if(!played){
+      const why = !r.played ? ["How this episode was played isn't known"] : r.played.apart ? ['It was played without groups'] : ["The group didn't play it as it was picked"];
+      // Following the people: the pick's as it was offered, its size as it was (anyone not on the league's cast, or gone home
+      // since, counting for nothing).
+      if(cfg.fallback === 'carry-on') return { ...base, status: 'held', members: follow(), size: pick.size || pick.members.length, unsure: true, why };
+      return { ...base, status: 'void', why };
+    }
+    const sure = lockSure && r.played.sure;
+    if(!sure && cfg.fallback !== 'carry-on') return { ...base, status: 'void', why: lockSure ? ["How this episode was played isn't sure"] : ["Who was with whom going into it wasn't sure"] };
+    return { ...base, status: 'held', members: played.members.slice(), size: Math.max(played.members.length, played.size || 0), unsure: !sure };
+  }
+  /**
+   * A player's slots in episode n, each with its points: [{ slot, status, pick, from, members, size, unsure, why, points }]. A
+   * held slot scores its members' points by the game's rules (the episode's events, `events` when the caller has them), their
+   * sum, or their mean over the group as research has it (`size`: someone not on the league's cast scores nothing here, and
+   * still counts in the mean), times the episode's multiplier (`times`). `ix`: index(), when the caller has it.
+   */
+  static episodeLines(state, ep, playerId, events, times, ix){
+    const cfg = GroupSlotLogic.config(state);
+    if(!cfg) return [];
+    const evs = events || ActiveRosterLogic.episodeEvents(state, ep);
+    const x = times === undefined ? ActiveRosterLogic.timesFor(state, ep.number) : times;
+    const at = ix || GroupSlotLogic.index(state);
+    const out = [];
+    for(let i = 0; i < cfg.slots; i++){
+      const st = GroupSlotLogic.standing(state, playerId, i, ep.number, at);
+      let points = 0;
+      if(st.status === 'held' && st.members.length){
+        const mine = new Set(st.members);
+        const sum = evs.filter(ev => mine.has(ev.castawayId)).reduce((t, ev) => t + ActiveRosterLogic.eventPoints(state, ev), 0);
+        points = roundPoints((cfg.points === 'sum' ? sum : sum / Math.max(st.size, st.members.length)) * x);
+      }
+      out.push({ slot: i, ...st, points });
+    }
+    return out;
+  }
+  /** Null when a player's slot can take `groupId` for the episode (null: empty it), else why not. */
+  static validatePick(state, epId, playerId, slot, groupId){
+    const cfg = GroupSlotLogic.config(state);
+    if(!cfg) return 'This game has no group slots';
+    const ep = state.episodes.find(e => e.id === epId);
+    if(!ep) return 'No such episode';
+    // Locked as its lineups are.
+    if(ActiveRosterLogic.isLineupLocked(state, epId)) return 'This episode has started: its slots are locked';
+    if(!inPlay(state, ep.number)){
+      const start = startEpisode(state);
+      if(start === null) return "This game hasn't started: it waits for its phase of the season";
+      return ep.number < start ? 'This league starts at episode ' + start : 'This game ended with episode ' + endEpisode(state);
+    }
+    if(!Core.getPlayer(state, playerId)) return 'No such player';
+    if(!(Number.isInteger(slot) && slot >= 0 && slot < cfg.slots)) return `A team has ${cfg.slots} group slot${cfg.slots === 1 ? '' : 's'}`;
+    const n = ep.number;
+    const ix = GroupSlotLogic.index(state);
+    const now = GroupSlotLogic.standing(state, playerId, slot, n, ix);
+    // A slot rides with its group while it lasts, unless the game lets it change (a pick made for this episode can, until its
+    // lock: it hasn't started).
+    const rides = s => !!s.pick && s.from < n && (s.status === 'waiting' || s.status === 'held' || s.status === 'void');
+    if(!cfg.swap && rides(now)) return 'Your slot rides with its group while that group lasts';
+    if(groupId === null || groupId === undefined) return null;
+    const offer = GroupSlotLogic.offered(state, n, ix);
+    if(!offer.groups.length) return offer.why[0] || 'No groups to pick from going into this episode';
+    const g = offer.groups.find(x => x.id === groupId);
+    if(!g) return "That group isn't one going into this episode";
+    const holds = (pid, i) => {
+      const s = GroupSlotLogic.standing(state, pid, i, n, ix);
+      return !!s.pick && s.status !== 'dropped' && s.status !== 'empty' && !!GroupSlotLogic.find([g], s.pick, ix.exits, n);
+    };
+    for(let i = 0; i < cfg.slots; i++) if(i !== slot && holds(playerId, i)) return 'That group is already in your other slot';
+    // Exclusive while the groups cover every team's slots: one team's at a time, first come. The teams that count are the ones
+    // in the game's rotation, as offered counts them: a late joiner's picks are private, as their team is.
+    if(cfg.own === 'exclusive' && !offer.shared){
+      const other = state.players.filter(p => p.id !== playerId && inLeagueRotation(p)).find(p => Array.from({ length: cfg.slots }, (_, i) => i).some(i => holds(p.id, i)));
+      if(other) return `${other.name} has that group`;
+    }
+    return null;
+  }
+  static setPick(state, epId, playerId, slot, groupId){
+    if(GroupSlotLogic.validatePick(state, epId, playerId, slot, groupId)) return false;
+    const ep = state.episodes.find(e => e.id === epId);
+    const g = groupId === null || groupId === undefined ? null : GroupSlotLogic.offered(state, ep.number).groups.find(x => x.id === groupId);
+    ep.groupSlots = ep.groupSlots || {};
+    ep.groupSlots[playerId] = ep.groupSlots[playerId] || {};
+    ep.groupSlots[playerId][slot] = g ? { id: g.id, members: g.members.slice(), size: Math.max(g.size || 0, g.members.length) } : null;
+    return true;
+  }
+  /**
+   * Writes each episode's groups (`records`: episode number -> { end, played }, the season sync's from the timeline, members as
+   * the league's castaway ids) onto the episodes that have results, and takes them off any other (results taken back, or a
+   * report gone). Wholesale, so a corrected report reaches every episode after it. A game without group slots keeps none. True
+   * when anything changed.
+   */
+  static settle(state, records){
+    const slots = !!GroupSlotLogic.config(state);
+    const get = n => (slots && (records instanceof Map ? records.get(n) : records && records[n])) || null;
+    let changed = false;
+    state.episodes.forEach(ep => {
+      const want = EpisodeLogic.hasResults(ep) ? get(ep.number) : null;
+      if(JSON.stringify(ep.formatGroups || null) === JSON.stringify(want)) return;
+      if(want) ep.formatGroups = JSON.parse(JSON.stringify(want));
+      else delete ep.formatGroups;
+      changed = true;
+    });
+    return changed;
+  }
+}
+
 // ---------- GroupLogic: tribe/team changes during a season ----------
 // Swaps, merges, new teams, weekly pairs, playing as individuals. Recorded per episode
 // (episode.groups, [{castawayId, tribeId}] -- tribeId null means "no group now"), the same way roles
@@ -1241,11 +1465,13 @@ class ActiveRosterEventScoringStrategy {
     // A9 part 2: a captain, best ball or points that multiply by when, each episode as ActiveRosterLogic.episodeScore counts it.
     // A plain lineup scores below, event by event, as it always has.
     if(ActiveRosterLogic.combines(state)){
+      // Group slots (A10 part 1): what their readers look up, once for the whole pass.
+      const slots = GroupSlotLogic.config(state) ? GroupSlotLogic.index(state) : undefined;
       state.episodes.forEach(ep=>{
         if(!inPlay(state, ep.number)) return;
         const events = ActiveRosterLogic.episodeEvents(state, ep);
         if(!events.length) return;
-        const pre = { events, times: ActiveRosterLogic.timesFor(state, ep.number) };
+        const pre = { events, times: ActiveRosterLogic.timesFor(state, ep.number), slots };
         state.players.forEach(p=>{
           results[p.id].locked = roundPoints(results[p.id].locked + ActiveRosterLogic.episodeScore(state, ep, p.id, pre).total);
         });
@@ -4110,7 +4336,7 @@ class SpoilerLogic {
     const visible = s.episodes.filter(e => !ids.has(e.id) && e.number <= seenThrough).sort((a,b) => b.number - a.number)[0];
     s.episodes.forEach(ep => {
       if(!ids.has(ep.id)) return;
-      ep.events = []; ep.scoringEvents = []; ep.exiled = []; ep.roles = []; ep.groups = [];
+      ep.events = []; ep.scoringEvents = []; ep.exiled = []; ep.roles = []; ep.groups = []; delete ep.formatGroups;
       delete ep.resultsStage; delete ep.noExit;
       ep.postMerge = visible ? !!visible.postMerge : false;
       (ep.bets || []).forEach(b => (b.predictions || []).forEach(p => { p.correct = null; }));
@@ -4353,6 +4579,11 @@ class GhostLogic {
     if(vEp.captains && Object.prototype.hasOwnProperty.call(vEp.captains, playerId)){
       ep.captains = ep.captains || {};
       ep.captains[playerId] = vEp.captains[playerId];
+    }
+    // Group slots (A10 part 1), as their lineup.
+    if(vEp.groupSlots && Object.prototype.hasOwnProperty.call(vEp.groupSlots, playerId)){
+      ep.groupSlots = ep.groupSlots || {};
+      ep.groupSlots[playerId] = vEp.groupSlots[playerId];
     }
     ep.picks = [...(ep.picks || []).filter(pk => pk.playerId !== playerId), ...(vEp.picks || []).filter(pk => pk.playerId === playerId)];
     return typeof result === 'string' ? result : null;
@@ -4777,7 +5008,7 @@ return {
   // the top of this file); SnakeDraftStrategy/BlindDraftStrategy/NoDraftStrategy and
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
-  Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
+  Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
   SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy
 };
 

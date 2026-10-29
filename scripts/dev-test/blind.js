@@ -18,7 +18,9 @@
 //     in, the newcomers on its checklist, the word for its groups: episode-research.js resolveSeasonResearchContext), and what
 //     each game did: its group questions' choices and verdicts (right, off, void picks), its table, whether it's over;
 //   - at the end, the checks: every game ended, every score a finite number, nothing scored on an off or void group pick,
-//     no answer the app refused that it offered, no problem in the moves.
+//     no answer the app refused that it offered, no problem in the moves; a game with group slots (A10 part 1), each seat's
+//     empty or dropped slot picking from the groups on offer before each episode, nothing scored by a slot not held and no
+//     pick it offered refused.
 // Nothing asks a bot. The local bot's answers are F2's, kept beside the tapes; the stand-ins are marked as such in the record.
 //
 //   node scripts/dev-test/blind.js run [<show> <season>] [--only=3,7] [--through=N] [--keep]
@@ -264,6 +266,9 @@ function problemsOf(g) {
       for (const who of v.void || []) if ((v.earned || {})[who]) out.push(`episode ${e.episode}: ${qid}: ${who}'s void pick scored`);
     }
     for (const r of e.refused || []) out.push(`episode ${e.episode}: an answer was refused: ${r}`);
+    // A10 part 1: a group slot scores only while it's held, and a pick the app offered is never refused.
+    for (const [who, lines] of Object.entries(e.slots || {})) for (const l of lines) if (l.status !== "held" && l.points) out.push(`episode ${e.episode}: ${who}'s ${l.status} group slot scored`);
+    for (const [who, did] of Object.entries(e.slotPicks || {})) for (const d of did) if (d.did === "refused") out.push(`episode ${e.episode}: ${who}'s group slot pick was refused: ${d.why}`);
   }
   if ((g.unsettled || []).length) out.push(`never settled: ${g.unsettled.join(", ")}`);
   for (const p of g.problems || []) out.push(p);
@@ -450,6 +455,75 @@ async function lookAt(r, n) {
     }
   } else {
     for (const x of S.computeScores(s)) out.table[label(x.playerId)] = Math.round(x.total * 10) / 10;
+    const slots = slotLines(r, s, n);
+    if (slots) out.slots = slots;
+  }
+  return out;
+}
+
+/**
+ * A10 part 1: a game with group slots, before episode n: each seat's empty or dropped slot takes a group on offer going into it
+ * (the one holding most of its own team, else one by its seat: a habit, the same every replay), through the app's own write
+ * (withLeagueLock settles the season's groups into the game first, then GroupSlotLogic's checks). What each seat did, by label:
+ * [{ slot, did: picked | rides | none | refused, group, why }].
+ */
+async function slotMoves(r, n) {
+  const { S, withLeagueLock } = app();
+  const out = {};
+  for (const [i, seat] of r.seats.entries()) {
+    const pid = H.pidOf(r, seat);
+    if (!pid) continue;
+    const did = [];
+    try {
+      await withLeagueLock(r.leagueId, (st) => {
+        const cfg = S.GroupSlotLogic.config(st);
+        const epObj = st.episodes.find((e) => e.number === n);
+        if (!cfg || !epObj) return;
+        const mine = new Set(st.castaways.filter((c) => (c.ownerIds || []).includes(pid)).map((c) => c.id));
+        const offer = S.GroupSlotLogic.offered(st, n);
+        // The slots riding with their groups first, so another slot never takes the group one of them has.
+        const now = Array.from({ length: cfg.slots }, (_, k) => S.GroupSlotLogic.standing(st, pid, k, n));
+        const riding = new Set(now.filter((x) => x.pick && x.status === "waiting").map((x) => x.pick.id));
+        for (let k = 0; k < cfg.slots; k++) {
+          if (now[k].pick && now[k].status === "waiting") {
+            did.push({ slot: k, did: "rides", group: now[k].pick.id });
+            continue;
+          }
+          // Not a group another of its slots has (riding with it, or picked now).
+          const taken = new Set([...riding, ...did.filter((d) => d.did === "picked").map((d) => d.group)]);
+          const free = offer.groups.filter((g) => !taken.has(g.id));
+          if (!free.length) {
+            did.push({ slot: k, did: "none", why: offer.why[0] || "nothing on offer" });
+            continue;
+          }
+          const ranked = [...free].sort((a, b) => b.members.filter((m) => mine.has(m)).length - a.members.filter((m) => mine.has(m)).length);
+          const want = ranked[0].members.some((m) => mine.has(m)) ? ranked[0] : free[(i + k) % free.length];
+          const problem = S.GroupSlotLogic.validatePick(st, epObj.id, pid, k, want.id);
+          if (problem) did.push({ slot: k, did: "refused", group: want.name, why: problem });
+          else {
+            S.GroupSlotLogic.setPick(st, epObj.id, pid, k, want.id);
+            did.push({ slot: k, did: "picked", group: want.id, name: want.name, shared: offer.shared });
+          }
+        }
+      });
+    } catch (err) {
+      did.push({ did: "refused", why: err.message });
+    }
+    out[seat.label] = did;
+  }
+  return out;
+}
+
+/** A10 part 1: what each seat's group slots did in episode n, after its results: by label, [{ slot, status, group, points }]. */
+function slotLines(r, s, n) {
+  const { S } = app();
+  const ep = s.episodes.find((e) => e.number === n);
+  if (!ep || !S.GroupSlotLogic.config(s)) return null;
+  const out = {};
+  for (const seat of r.seats) {
+    const pid = H.pidOf(r, seat);
+    if (!pid) continue;
+    out[seat.label] = S.GroupSlotLogic.episodeLines(s, ep, pid).map((l) => ({ slot: l.slot, status: l.status, group: l.pick ? l.pick.id : null, points: l.points, unsure: l.unsure }));
   }
   return out;
 }
@@ -572,6 +646,12 @@ async function run(show, season, opts = {}) {
       } catch (err) {
         r.problems.push(`episode ${ep}: moves failed: ${err.message}`);
       }
+      // Group slots (A10 part 1): each seat with an empty slot picks from the groups on offer going into this episode.
+      try {
+        if (S.inPlay(s, ep) && S.GroupSlotLogic.config(s)) e.slotPicks = await slotMoves(r, ep);
+      } catch (err) {
+        r.problems.push(`episode ${ep}: group slot picks failed: ${err.message}`);
+      }
       // Its questions, while the game is on (a game over one episode asks nothing before it; one waiting for a phase, nothing yet).
       const waiting = !!s.settings.startPhase && !Number.isInteger(s.settings.startEpisode);
       const inSpan = !waiting && ep >= (s.settings.startEpisode ?? 1) && ep <= (s.settings.endEpisode ?? Infinity);
@@ -663,6 +743,12 @@ function didLine(g, n) {
     const got = off ? `off (${o.offWhy || "nothing offered"})` : `offered ${o.faces.length}: ${o.faces.slice(0, 3).join(", ")}${o.faces.length > 3 ? ", ..." : ""}`;
     const verdict = v.state === "known" ? `right ${v.right.length ? v.right.join(", ") : "none"}${v.void.length ? `, void for ${v.void.join(", ")}` : ""}` : v.state || "no verdict";
     parts.push(`${qid}: ${got}; ${verdict}`);
+  }
+  // A10 part 1: group slots, each seat's (picked before it, then how each slot did).
+  if (e.slots) {
+    const picked = Object.values(e.slotPicks || {}).flat().filter((d) => d.did === "picked");
+    const lines = Object.entries(e.slots).flatMap(([who, ls]) => ls.map((l) => `${who} ${l.status}${l.points ? ` ${l.points}` : ""}`));
+    parts.push(`slots: ${picked.length ? `${picked.length} picked (${[...new Set(picked.map((d) => d.name))].slice(0, 3).join(", ")}${picked.some((d) => d.shared) ? ", shared" : ""}); ` : ""}${lines.join(", ")}`);
   }
   if (!parts.length) parts.push("rides on the people (nothing it plays reads the format)");
   if (e.refused && e.refused.length) parts.push(`${e.refused.length} answer(s) refused`);

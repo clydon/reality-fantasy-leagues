@@ -55,7 +55,7 @@ const GAME_FIELDS = {
   every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints"],
   // A9 part 2: Outlast in reverse; best ball, a lineup's captain, points that multiply by when.
   "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder"],
-  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes"],
+  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots"],
   pickem: ["pickemCorrectPoints", "poolSurvive", "calls"],
   "weekly-calls": [],
   // A9: points per line; a game of questions' parlays.

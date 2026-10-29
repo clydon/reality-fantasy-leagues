@@ -18,8 +18,10 @@ staged for the season and cued for the desk; one word for the groups beside the 
 played in pairs, graded on the pairs that played, void by default), and F4, the blind replays (2026-10-29: five taped seasons
 replayed as if live through every game the tracker says plays, each format change arriving only in its episode's research,
 `blind.js`; two grading fixes it found: a paired season's premiere, groups the league holds that nobody plays in). The format
-foundation is done: A10 is next, then A11
-to A14 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+foundation is done. A10 is under way, in parts: part 1, group slots and the exclusive-or-shared count (2026-10-29: a draft's +1 or
++2 slot for a pair or team the show forms, on the format's state over time, `GroupSlotLogic`), is built; part 2 (a pool's lives,
+buybacks, two-pick nights, one mulligan) is next, then A10's other parts, A11 to A14 overnight (the user's word, 2026-10-28),
+stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -2397,6 +2399,115 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
       copy, and the settle passes' SQL.
 - **A10. Pools and drafts.** A pool's lives, buybacks and two-pick nights; a draft slot per group (one per tribe, a guy and a
   girl); auction and a salary cap; keepers across seasons; teams two people share.
+
+  **Split in parts (2026-10-29), each its own session.** Part 1: the user's group slots (the 9 PM note, "When a grouping lasts")
+  on F3's grouping lifetimes, with their fallbacks from the start, and the exclusive-or-shared count as the pool shrinks (the
+  9:10 PM decision, A9 part 2's Noticed). Part 2: a pool's pieces (lives, a buyback, two-pick nights, one mulligan: s10, s11,
+  s23). Part 3: a draft's slots and prices (a draft slot per group, one per tribe, a guy and a girl; auction, a salary cap, a
+  random draw, buying and selling: s03 to s06, s22, s38, answer.bid, answer.trade, answer.draw). Part 4: keepers across seasons
+  and a team two people share (s17, s18, shape.keepers, who.sharedTeam). Each part the engine's only (no screens: U1's).
+
+  **As built (A10 part 1, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  up to date; 964 tests).
+  - **The spec** (`schema.js`): a draft's `get.groups`, `{ slots, own, swap, fallback, points }`, beside a draft scored by
+    moments (a lineup or best ball: what a group scores is what its people do; Outlast, a pick or no draft refuse it). `slots` 1
+    or 2 (`MAX_GROUP_SLOTS`, the user's "+1 or +2"); `own` shared or exclusive; `swap` whether a slot can change its group while
+    it lasts; `fallback` void or carry-on (`next-stage` A12's: `specWaitsFor` says so); `points` mean or sum. What it leaves out
+    is the defaults (`GROUP_SLOTS`: 1, shared, no swaps, void, the mean), filled by `fullSpec` only on a spec that has slots, so
+    no stored spec changes. VOCAB's `get.groups.own`, `.fallback`, `.points`; `flagsOf`'s `hasGroupSlots`. The settings:
+    `settings.groupSlots`, both ways (`OWNED`), none for a game without it.
+  - **Exclusive or shared, counted** (the 9:10 PM decision): `covers({ pool, people, each })`, and `specProblems` with
+    `ctx.pool` (how many can be drafted where the game drafts) and `ctx.couch` (how many people): an exclusive draft that
+    doesn't cover every pick is refused at `get.own`, with the reason ("7 of you × 3 picks is more than the 18 who can be drafted:
+    make it shared, so two of you can have the same one"). A new game's only (a league's own keeps its draft: people join it by
+    asking); not counted without both numbers. As the pool shrinks: group slots count each opening (below); a stage's or a side
+    draft's is A12's, with the same `covers`.
+  - **The groups, from the format's state over time** (`format-timeline.js slotRecords`): each episode's groups as a league reads
+    them, `{ end: { groups, divided, sure, why }, played: { groups, apart, sure } | null }`, the end the timeline's `goingInto`
+    the next episode and the play its `played`; members as the league's castaway ids (the forgiving match, as A6's group
+    questions), `size` the group's people as research has them (someone not on the league's cast, a newcomer not yet added,
+    still counts in a mean). **Written into the game, not read from research on every score:** `GroupSlotLogic.settle` writes
+    each one onto its episode (`episode.formatGroups`), only on an episode with results (so nothing of an episode reaches a game
+    before its results do), wholesale (a corrected report rewrites every episode after it), none for a game without slots. The
+    server's `group-slots.ts` (`slotRecordsFor`, `settleGroupSlots`) reads the season's timeline (db/format-timeline.js, one
+    query) and settles it on **every write to a game with slots** (`withLeagueLock`: before the mutation, so a pick reads
+    what's on offer now, and after it, for results it applied or slots it turned on; in a savepoint, so a failed read never
+    aborts the write). So the season sync after every result settles it, and every score, on the server or in the browser,
+    reads it from the league's state (`computeScores` is pure). Why not on read, as A6's questions: a draft's scores are
+    worked out in 15 places, the browser's among them, from the state alone. The spoiler view drops a hidden episode's record,
+    so someone behind is offered nothing they haven't seen.
+  - **The engine** (`state-logic.js GroupSlotLogic`, pure): `offered(n)`, the groups at episode n - 1's end while the show is
+    divided (none at an unsure lock with void; carry-on offers them, unsure), with `shared` when an exclusive game's opening
+    doesn't cover every team's slots (`covers`, counted over the game's rotation: a late joiner's picks are private); a pick
+    per slot on the episode it's for (`episode.groupSlots[playerId][slot]`: the group's id, its members as offered and its
+    size), carried like a lineup; `standing(n)`: held (its group played n as picked), void (the lock or the play wasn't sure,
+    or it was shown and changed before n started: F1's Q2, it reopens for the next), dropped (it ended before n: it didn't play
+    an episode since as picked, or isn't among the groups going into n; a re-pairing or each for themselves drops every slot
+    at once), waiting, empty; a pick is found by its id, else by its members (a correction that moves the episode a group was
+    first shown changes its id: F3 part 2's item). `episodeLines(n)`: each held slot's points, its people's points by the
+    game's rules, their mean over the group's size or their sum, times the episode's multiplier (A9 part 2's `score.times`);
+    carry-on follows the people (a group that didn't play as picked scores its members as picked). `validatePick` /
+    `setPick`: a group on offer, the slot's number, locked as lineups are (`isLineupLocked`), a slot riding with its group
+    while it lasts unless `swap`, not the same group in two of your slots, not another team's in an exclusive opening that
+    covers (first come). `index(state)`: the episodes by number and who went home when, once a pass.
+  - **Scoring:** `ActiveRosterLogic.combines` takes a game with slots onto `episodeScore`'s path, which adds each slot's points
+    to the episode's total and returns them as `slots` (so the Games tab's week, the episode lines and the reveal count them);
+    a plain lineup's arithmetic is untouched. `teamEpisodeBreakdown` gives each slot a line (its group, how it stood, its
+    people, its points), so a total never has points without a line. A late joiner's pick goes through `GhostLogic.applyAs`,
+    copied back with their lineup.
+  - **The route** (`/api/leagues/[id]/episodes/[epId]/group-slots/[playerId]`): `GET` what a player's slots hold going into an
+    episode and what's on offer, at their mark (the season's, guard.ts, or a late joiner's own week), on the groups the game
+    has stored (what every table scores); `PUT { slot, groupId }` (null empties it), the player's own or the commissioner's for
+    anyone, a refused pick a 400 with the reason. No screen (U1's).
+  - **Words** (`describe.js`): the sentence ("..., plus a slot for a pair or team the show forms") and How it works, a line each
+    for when a slot opens and scores, riding with a group and dropping, shared or exclusive, swaps, and the fallback.
+  - **The tracker:** a dial row (`who.groupSlots`, two slots on The Challenge 41) and the plan's three Challenge requests as
+    examples: p9 (group slots, one) ✅; p7 (a stage on a format change) and p8 (a side draft once a grouping lasts) ⏳ A12.
+    **Now: 147 ✅** · 97 ⏳ · 1 🆕 · 1 ❓ · 23 💬, of 269 (A10's 16 rows wait for its later parts; A12's are 11 now).
+  - **Research data:** nothing new: the format section (F2) and the timeline (F3) are what the slots read. On the tapes, the
+    stand-ins of F4 (`blind.js`) carry the section where F2 didn't ask.
+  - **Tests:** `tests/group-slots.test.js` (new, 10): the shape, defaults, words and settings; the exclusive count (where it
+    drafts, a later start, not without both numbers, not a league's own); `slotRecords`; a slot opening after the episode that
+    showed its groups, riding with its group, dropping at a re-pairing and picking again (the table counting it); each for
+    themselves dropping every slot; a group re-drawn at the start of the episode it was picked for void (Q2); an unsure lock void
+    or followed (carry-on, and following the people when re-drawn); two slots, swaps, exclusive first come and the count as the
+    pool shrinks (a pair down to one after an exit: the opening shared); a corrected report (void, put back, an id moved), records
+    only with results, the spoiler view, a late joiner; a group's mean over its size; a plain lineup as before.
+    `game-spec.test.js`: the new field; `blind-replay.test.js`: the record's slot checks. `npm test` 974.
+  - **API:** `scripts/dev-test/check-group-slots.js` (new, on new-fixture.js), 22 PASS: the couch's Weekly Lineup given a slot;
+    its season turned into pairs by its stored research and the season sync; the six pairs going into 6 on offer, sure; jordan's
+    and riley's picks, a second slot, someone else's slot and a group not on offer refused; sam, behind, offered nothing; the
+    lock; Episode 6 re-drawing two pairs at its start, its results through the season sync; jordan's slot held (his pair's
+    mean), riley's void, the table counting jordan's and nothing for riley's; the read hiding Episode 6 until jordan has seen it;
+    Episode 7 offering the pairs after the swap, riley's slot dropped and picking again, jordan's riding with its pair.
+    `check-engine-lab.js` grew A10's (two slots said in the sentence, slots beside Outlast refused, started as a test game in its
+    field): 50 PASS (`--api`).
+  - **Re-runs** (on the final code): `check-lineup-scoring.js`, `check-format-groups.js`, `check-questions-who.js --api`, ALL PASS.
+  - **Golden replays** (`golden.js`, HEAD against the working tree, after the code review's fixes): 7 seasons, 160 games, **19,361
+    reads, every one the same** (no game they play has slots, and nothing on their paths changed: a write to a game without
+    slots reads no timeline). The tracker `--check` up to date.
+  - **Blind replays** (`blind.js run`, the five seasons, after the code review's fixes; the seats' habit for slots: an empty or
+    dropped slot takes the group on offer holding most of its team, else one by its seat): **every game ended on all five
+    seasons**, the two slot games (two slots and one) among them on each: The Challenge 41 53 of 53, 40 53, 39 53, Survivor 49
+    71, The Traitors 4 53; no slot scored while not held, no pick the app offered refused. What the slots did (the study doc's
+    "A10 part 1: group slots, replayed blind"): on The Challenge 41's rotating pairs a fresh pick at nearly every episode,
+    nothing on offer at the premiere and at 2 (the premiere's report can't be checked: void by default, F4's item), void at
+    the Lock In's unsure 11 and the claim at 16-17; on The Challenge 40 the eras ridden through 3-9 and dropped at the split; on
+    Survivor 49 the tribes ridden, void at the swaps (re-drawn at an episode's start) and dropped at the merge; on The Traitors
+    4 nothing ever offered (no groups: a solo draft); on The Challenge 39 never held (its teams drawn at the start of nearly
+    every episode: Noticed). The first run found one problem, the replay's own habit (a seat's first slot taking the group its
+    second rode with, which the app rightly refused): fixed in `blind.js` and The Challenge 41 replayed again.
+  - **Code review** (`/code-review`, before the long runs; it ran this time). Taken: the GET's late joiner read their start, not
+    their own week (now `catchingUpMark`'s, as the PUT); a failed timeline read inside a write's transaction would have aborted
+    the write (now in a savepoint); a group's mean divided by the members on the league's cast only (now by its people as
+    research has them: `size`); the breakdown's total had slot points without a line (now `slots`); a mutation turning slots
+    on didn't read the groups until a later write; the GET settled fresh groups in memory while the tables scored the stored
+    ones (now both read the stored); exclusive counted any seat as a holder but covered only the rotation (now the rotation
+    both ways); the slot lock its own copy of the lineup lock (now `isLineupLocked`); two doc comments separated from what they
+    describe; `exits` and an episode scan per player and episode (now `index()`, once a pass); a no-op in the PUT. Partly: the
+    season-cast link for matching members (kept the forgiving match, as F3 part 2's group questions, and Noticed); the
+    `ctx.pool` check having no caller (Noticed: G1's context pack and the lab). After it, by hand: the replay's habit could put
+    the group a seat's other slot rides with into its second slot (fixed in `blind.js`), and its header.
 - **A11. Winning, and who plays with whom.** A race (first to N ends the game), co-op (the group against the show, with shared
   lives), head-to-head with playoffs, teams of players, players knocked out each week (guillotine) or cut at a phase,
   handicaps, late joiners.
@@ -3042,6 +3153,67 @@ From F4 (2026-10-29; the results in [STUDY-format-changes.md](STUDY-format-chang
   side is F2's proof. A bot run of the whole season with today's prompt (format-asks.js `ask`, the local bot only) would
   replace the stand-ins when the bot is free: it wasn't during F4 (no reply after 210 s since 07:15 UTC). (Whoever next has
   the local bot to spare; then `blind.js run` again.)
+
+Taken by A10 part 1 (2026-10-29): A9 part 2's exclusive-or-shared count (`specProblems` with `ctx.pool` and `ctx.couch`, and each
+group slot opening counted as the pool shrinks), F1's question 2 as recommended (a slot on a group shown that changed before it
+played is void for that episode and reopens for the next), and F3 part 2's group ids that last (a slot's pick is found by its
+id, else by its members).
+
+From A10 part 1 (2026-10-29):
+- **For the user, in the format-change design session (after A12), each with a recommendation (built as spec settings, the
+  defaults in `GROUP_SLOTS`):**
+  1. How many slots: +1 or +2 (`slots`). Recommended: +1 (a pair or team beside a solo team of five is one more of yours, not
+     a second game); +2 where a maker asks.
+  2. Exclusive or shared (`own`). Decided shared by default (Decisions: "Exclusive or shared"); built both, exclusive only
+     while the groups on offer cover every team's slots (else that opening is shared, `offered.shared`).
+  3. Swaps while a group lasts (`swap`). Recommended: no (you ride with it; a slot changes only when its group ends), so a
+     pick means something and Conor can't chase each week's winner; yes where a maker asks.
+  4. What a slot does when the groups at its lock or as played aren't sure (`fallback`). Recommended: void (no points either
+     way), as F3 part 2's group questions; carry-on (follow the people) where a maker asks.
+  5. A group's points (`points`): its people's mean, so a slot scores like one more person whatever the group's size, or their
+     sum (a team of four winning is worth four). Recommended: the mean.
+  6. Who gets a group first in an exclusive opening. Built: first come (each pick under the league's lock). Recommended: keep
+     first come while shared is the default; if exclusive matters, the waiver order (least points first) is the fairer one,
+     not built.
+  7. An empty slot for someone who doesn't pick (Joanna forgets). Built: it stays empty and scores nothing. Recommended: fill
+     it for them at the lock with the group holding most of their team, as a lineup carries; the player can change it before
+     the lock.
+- **On a season that draws its groups at each episode's start, a slot never holds** (the blind replay of The Challenge 39: its
+  teams drawn afresh at the start of nearly every episode, so the groups at an episode's end, the ones a slot is picked from,
+  never play the next one; every pick void, no points, on the default). Safe, and what F1's question 2 asked for, but such a
+  game is a solo draft with a slot that never counts. **For the user, in the design session, with a recommendation:** the
+  builder says so up front from the show's history (F1's lifetimes: "on the last three seasons, teams lasted one episode"),
+  and offers carry-on there (a slot follows the people picked, so a drawn team's members still score for whoever picked them)
+  or a pick each episode (A6's group question) instead. Recommended: say so and offer the pick each episode; keep void the
+  default.
+- **F4's open question doesn't reach group slots:** slots read only the format's state over time, never the league's own
+  groups, so a group re-drawn at an episode's start (The Challenge 39's teams, Survivor's swaps) voids the slot's episode
+  rather than grading it on the new group by name. The question (whether a group question on the league's own groups should
+  read the timeline's `played.held` too) stays the user's, with F4's recommendation (yes), for the design session.
+- A paired season's premiere doesn't reach slots either: a slot opens after the episode that showed its groups, so nothing is
+  offered at the premiere's lock (F4's premiere item is the group questions').
+- A season before the format section (production's research until F2 merges) has no groups in its timeline, so its slots
+  never open: the game plays as a solo draft (carry on with what's left). One group of everyone (a merged tribe) isn't divided,
+  so nothing is offered (F3 part 1's question 2, as recommended).
+- **Stale groups between a corrected report and the next write:** a game's groups are settled on every write to it, and the
+  season sync writes after every result, but research asked again that changes no result writes no league, so the GET and the
+  tables read the groups as they were until the next write. (Whoever next touches research's store: settle the season's games
+  with group slots when an answer is stored; or the season sync after any stored answer.)
+- One query more on every write to a game with group slots (its season's timeline, inside the write's transaction, in a
+  savepoint). (The merge: a line in HOSTING.md.)
+- The PUT validates against the league as it stands, as the lineup route does: a player behind could pick a group from an
+  episode they haven't seen by calling it directly, and its refusal could name one. The GET is at their mark. (U1: offer only
+  what the GET returns.)
+- Computer players don't pick group slots (bot-logic.js). (Whoever next touches computer players; A11's late joiners.)
+- `playerEventRows` and the Scoreboard's per-event rows (`active-roster-rows.ts`) don't have the slots' points, as with A9
+  part 2's captains; the totals, the week, the episode lines and the breakdown do. (U1.)
+- **No caller passes `ctx.pool` and `ctx.couch` yet**, so the exclusive count runs only where they're given: the engine lab's
+  check and G1's context pack should (the couch's size, and the cast still in where the game drafts). The decision says our
+  check makes such a draft shared, with the reason as an assumption: `specProblems` refuses it with the reason, and G2's check
+  turns that into the shared spec and its assumption. (G1, G2; the lab when it next changes.)
+- A slot's group members are matched to the league's cast the forgiving way (`Core.findCastawayByName`), as F3 part 2's group
+  questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
+  mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
 
 From A7 (2026-10-28):
 - The late lock is a game of questions' only: lineups and picks still lock at airtime, whoever watches when. (A15, each

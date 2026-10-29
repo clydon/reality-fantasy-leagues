@@ -1804,6 +1804,19 @@
           "step": "A10"
         },
         {
+          "id": "who.groupSlots",
+          "what": "Group slots: a solo draft, plus a +1 or +2 slot for a pair or team the show forms, riding with it while it lasts",
+          "spec": {
+            "preset": "weekly-lineup",
+            "get": { "by": "draft", "each": 5, "order": "blind", "own": "shared", "groups": { "slots": 2 } }
+          },
+          "page": {
+            "show": "The Challenge",
+            "season": 41,
+            "rulebook": "challenge"
+          }
+        },
+        {
           "id": "who.secret",
           "what": "Secret roles among the players",
           "step": "A14"
@@ -2111,6 +2124,51 @@
         "settle"
       ],
       "note": "no rain moment: the new-moment path (Our check), likely a can't-yet with the nearest settled questions"
+    },
+    {
+      "id": "p7",
+      "page": {
+        "show": "The Challenge",
+        "season": 42,
+        "rulebook": "challenge"
+      },
+      "words": "I also want to automatically start a new draft stage whenever there is a major format change such as split into teams or split into individuals",
+      "step": "A12",
+      "dials": [
+        "shape"
+      ],
+      "note": "a stage that starts on a format change of the kinds named (format-timeline.js stageTriggers, F3); what players see and whether it waits for the maker's OK are the format-change design session's"
+    },
+    {
+      "id": "p8",
+      "page": {
+        "show": "The Challenge",
+        "season": 42,
+        "rulebook": "challenge"
+      },
+      "words": "draft solo players in the challenge. if we ever get teams forming or pairing up that lasts for multiple episode i want us to start a 'side draft' after that episode ends",
+      "step": "A12",
+      "dials": [
+        "shape"
+      ],
+      "note": "the solo draft plays now; the side stage that opens once a grouping has held N episodes (format-timeline.js sideStages, F3) is A12's"
+    },
+    {
+      "id": "p9",
+      "page": {
+        "show": "The Challenge",
+        "season": 41,
+        "rulebook": "challenge"
+      },
+      "words": "a solo draft, then once teams or pairs are announced, a +1 slot on your roster for a pair or team for the next week; if they stick, you ride with them, otherwise that slot just drops for everyone",
+      "spec": {
+        "preset": "weekly-lineup",
+        "get": { "by": "draft", "each": 5, "order": "blind", "own": "shared", "groups": { "slots": 1 } }
+      },
+      "dials": [
+        "who"
+      ],
+      "note": "group slots (A10 part 1, on F3's grouping lifetimes): shared, no swaps while a group lasts, void when the groups aren't sure, a group's points its members' mean (the defaults, the user's to set)"
     }
   ],
   "stretch": [

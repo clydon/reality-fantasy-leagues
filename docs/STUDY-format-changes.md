@@ -708,6 +708,33 @@ moving a game's structure; every game, its secret-role questions among them, end
   contradicted answer, the claim at 16, the finale's split and Survivor 49's split immunity.
 - **The blind replay is the check for each of them**: `blind.js run` after each step that touches a reader of the format.
 
+## A10 part 1: group slots, replayed blind (2026-10-29)
+
+A10's first part built the user's group slots (the plan's "When a grouping lasts": a solo draft plus a +1 or +2 slot that
+holds a pair or a team the show forms; state-logic.js `GroupSlotLogic`, on the timeline's groups at each episode's end and as
+played). The blind replays played two such games on every season, a Weekly Lineup with two slots and one with one (the
+defaults: shared, no swaps, void when the groups aren't sure, a group's points its people's mean), each seat filling an empty
+or dropped slot before each episode with the group on offer holding most of its team. Every game ended on all five seasons
+(the season table below), and what the slots did at each change is what the design says:
+
+| Season | Groups | Slot-episodes held / void / dropped / empty (two-slot game) | What the slots did |
+|---|---|---|---|
+| The Challenge 41 | pairs re-drawn nearly every episode, the Lock In from 10, the claim at 16 | 96 / 34 / 22 / 16 | a fresh pick at nearly every episode (a pick each episode, as the user said); nothing on offer at the premiere or at 2 (the premiere's report can't be checked); void at the Lock In's unsure 11 and the claim at 16-17 |
+| The Challenge 40 | the eras as teams in 3-9, each for themselves from 10 | 56 / 8 / 88 / 16 | the eras ridden through 3-9 (a side draft, as the user said), every slot dropped at the split |
+| The Challenge 39 | teams drawn at the start of nearly every episode | 0 / 80 / 48 / 40 | never held: the groups at an episode's end, the ones a slot is picked from, never play the next (the plan's Noticed: say so up front, and offer a pick each episode there) |
+| Survivor 49 | tribes, two swaps, the merge | 24 / 24 / 48 / 8 | the tribes ridden, void at the swaps (re-drawn at an episode's start), every slot dropped at the merge (one tribe of everyone isn't a grouping) |
+| The Traitors 4 | none | 0 / 0 / 0 / 96 | nothing ever offered: the game plays as a solo draft |
+
+The season table (`blind.js summary --md`, with A10 part 1's two games among each season's):
+
+| Season | Episodes | Sections (bot / stand-in) | Sure changes | Held | Games | Played through | Over | Waiting on early results |
+|---|---|---|---|---|---|---|---|---|
+| Survivor 49 | 13 | 6 / 7 | 5 | 1 | 71 | 71 | 71 | 0 |
+| The Challenge 39 (Battle for a New Champion) | 21 | 0 / 20 | 16 | 0 | 53 | 53 | 53 | 2 |
+| The Challenge 40 (Battle of the Eras) | 21 | 5 / 16 | 8 | 1 | 53 | 53 | 53 | 2 |
+| The Challenge 41 (Vets & New Threats) | 21 | 8 / 13 | 18 | 5 | 53 | 53 | 53 | 3 |
+| The Traitors 4 | 12 | 4 / 8 | 8 | 0 | 53 | 53 | 53 | 0 |
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

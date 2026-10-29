@@ -162,8 +162,11 @@ function readSpec(st, copy) {
     const score = { by: 'moments', points: isObj(st.eventPoints) ? (copy ? clone(st.eventPoints) : st.eventPoints) : null };
     if (typeof st.captainTimes === 'number' && Number.isFinite(st.captainTimes) && st.captainTimes > 1) score.captain = { times: st.captainTimes };
     if (Array.isArray(st.pointsTimes) && st.pointsTimes.length) score.times = copy ? clone(st.pointsTimes) : st.pointsTimes;
+    // A10 part 1: group slots beside the draft (settings.groupSlots, as the spec says them).
+    const get = { by: 'draft', each: R, order: ORDER_OF[own], own };
+    if (isObj(st.groupSlots)) get.groups = copy ? clone(st.groupSlots) : st.groupSlots;
     Object.assign(spec, {
-      get: { by: 'draft', each: R, order: ORDER_OF[own], own },
+      get,
       count: best ? { best: start } : { start },
       score,
       rank: { by: 'total' },
@@ -295,6 +298,8 @@ function settingsOf(spec) {
   out.captainTimes = lineup && isObj(s.score.captain) ? s.score.captain.times : undefined;
   out.pointsTimes = lineup && Array.isArray(s.score.times) ? clone(s.score.times) : undefined;
   out.reverseOrder = type === 'classic-draft' && s.score.reverse === true ? true : undefined;
+  // A10 part 1: a lineup's or best ball's group slots.
+  out.groupSlots = lineup && isObj(s.get.groups) ? clone(s.get.groups) : undefined;
   return out;
 }
 
@@ -342,7 +347,7 @@ const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFee
 const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
   { fields: ['startEpisode', 'startPhase', 'endEpisode'], read: (s) => s.span },
-  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall'], read: (s) => [s.get, s.count] },
+  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots'], read: (s) => [s.get, s.count] },
   { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder'], read: (s) => s.score },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },

@@ -7,6 +7,7 @@ import { runBots } from "./bots";
 import { syncWaivers } from "./waivers";
 import { justProcessed, sendProcessed, snapshot as waiverSnapshot } from "./waiver-pushes";
 import { recordChange, type ChangeOf } from "./change-log";
+import { settleGroupSlots } from "./group-slots";
 import { after } from "next/server";
 
 // Re-exported so route handlers can import { pool, withLeagueLock, HttpError } from one place,
@@ -50,8 +51,14 @@ export async function withLeagueLock(
     // Then the waiver clock, so the mutation sees the week as it stands now: a claim saved after its
     // week processed is refused rather than slipped in (waivers.js).
     await syncWaivers(client, leagueId, state);
+    // A game with group slots (step A10 part 1, group-slots.ts): the season's format groups, so the mutation reads what's on
+    // offer now; settled again after it, for results it applied.
+    const slots = await settleGroupSlots(client, state, true);
     const before = change ? structuredClone(state) : null;
     await mutatorFn(state, client);
+    // A mutation that turned group slots on reads them now; one that turned them off clears them (settle keeps none).
+    if (slots) StateLogic.GroupSlotLogic.settle(state, slots);
+    else if (StateLogic.GroupSlotLogic.config(state)) await settleGroupSlots(client, state, true);
     const spec = change && before ? (typeof change === "function" ? change(before, state) : change) : null;
     // Every write leaves the league with an episode to play next (bets and picks always have
     // somewhere to go; nobody creates episodes by hand). See EpisodeLogic.ensureNextEpisode.

@@ -1,9 +1,33 @@
 // Ambient typing for state-logic.js (forked from the live app -- see the provenance comment at
 // that file's top), covering what this repo's components actually call. Not exhaustive — extend
 // as more of the file gets used.
-import type { LeagueState, ScoreRow, DraftTurn, Player, LateJoin, Castaway, Tribe, Bet, Episode, PickEmPick, ScoringEvent, EpisodeProposalPayload, MidSeasonLogEntry, WaiverPeriod, WaiverRun, WaiverClaim, WaiverPair, WaiverWindows, ReplaceRule, WaiverFeel, WaiverRecommendation } from "./types";
+import type { LeagueState, ScoreRow, DraftTurn, Player, LateJoin, Castaway, Tribe, Bet, Episode, PickEmPick, ScoringEvent, EpisodeProposalPayload, MidSeasonLogEntry, WaiverPeriod, WaiverRun, WaiverClaim, WaiverPair, WaiverWindows, ReplaceRule, WaiverFeel, WaiverRecommendation, GroupSlotPick, FormatGroup, EpisodeFormatGroups } from "./types";
 import type { GameFormat, SeasonChange, SeasonChangeSkip } from "./formats/index.js";
-import type { GameSpec, SpecContext, SpecInput, SpecProblem, Question, AnswerFacts, Verdict } from "./game-spec/index.js";
+import type { GameSpec, SpecContext, SpecInput, SpecProblem, Question, AnswerFacts, Verdict, GroupSlots } from "./game-spec/index.js";
+
+/** Step A10 part 1: what a player's group slot holds in an episode (GroupSlotLogic.standing). */
+export interface GroupSlotStanding {
+  pick: GroupSlotPick | null;
+  /** The episode its latest pick was made for. */
+  from: number | null;
+  status: "held" | "void" | "dropped" | "waiting" | "empty";
+  /** A held slot's people, the league's castaway ids, and how many the group has as research says (its mean's). */
+  members: string[];
+  size: number;
+  /** Held though its lock or play wasn't sure (a game that follows the people). */
+  unsure: boolean;
+  why: string[];
+  /** A dropped slot's: the episode its group ended at. */
+  endedAt?: number;
+}
+export interface GroupSlotIndex {
+  eps: Map<number, Episode>;
+  exits: Map<string, number>;
+}
+export interface GroupSlotLine extends GroupSlotStanding {
+  slot: number;
+  points: number;
+}
 
 /** One question in guided first-time setup, in the order it should be asked. */
 /** A season_cast row as the cast-linking functions read it. */
@@ -379,7 +403,7 @@ declare const StateLogic: {
       ep: Episode,
       playerId: string,
       pre?: { events?: ScoringEvent[]; times?: number }
-    ): { total: number; lines: { castawayId: string; points: number; counted: boolean; captain: boolean }[]; captain: string | null; times: number };
+    ): { total: number; lines: { castawayId: string; points: number; counted: boolean; captain: boolean }[]; captain: string | null; times: number; slots: GroupSlotLine[] };
     lockLineups(state: LeagueState, epId: string): boolean;
     unlockLineups(state: LeagueState, epId: string): boolean;
     carryForwardLineups(state: LeagueState, epId: string): boolean;
@@ -388,6 +412,22 @@ declare const StateLogic: {
     setEventUnits(state: LeagueState, epId: string, eventId: string, units: number | null): boolean;
     /** Recorded events plus the ones the format implies from exits and roles (`implied: true`). */
     episodeEvents(state: LeagueState, ep: Episode): ScoringEvent[];
+  };
+  /** Step A10 part 1: group slots (the spec's get.groups), on the season's format groups the sync writes into each episode. */
+  GroupSlotLogic: {
+    config(state: LeagueState): GroupSlots | null;
+    /** The episodes by number, and each castaway out by the episode they went home in: once a pass. */
+    index(state: LeagueState): GroupSlotIndex;
+    record(state: LeagueState, n: number, ix?: GroupSlotIndex): EpisodeFormatGroups | null;
+    find(groups: FormatGroup[], pick: GroupSlotPick | null, exits: Map<string, number>, k: number): FormatGroup | null;
+    /** What a slot can pick going into episode n. */
+    offered(state: LeagueState, n: number, ix?: GroupSlotIndex): { groups: FormatGroup[]; sure: boolean; why: string[]; shared: boolean };
+    latestPick(state: LeagueState, playerId: string, slot: number, n: number): { pick: GroupSlotPick | null; from: number } | null;
+    standing(state: LeagueState, playerId: string, slot: number, n: number, ix?: GroupSlotIndex): GroupSlotStanding;
+    episodeLines(state: LeagueState, ep: Episode, playerId: string, events?: ScoringEvent[], times?: number, ix?: GroupSlotIndex): GroupSlotLine[];
+    validatePick(state: LeagueState, epId: string, playerId: string, slot: number, groupId: string | null): string | null;
+    setPick(state: LeagueState, epId: string, playerId: string, slot: number, groupId: string | null): boolean;
+    settle(state: LeagueState, records: Map<number, EpisodeFormatGroups> | Record<number, EpisodeFormatGroups>): boolean;
   };
   /** The role someone holds as of an episode (or now); null for a format without roles. */
   roleOf(state: LeagueState, castawayId: string, throughEpisode?: number): string | null;

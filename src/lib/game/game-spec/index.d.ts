@@ -29,7 +29,7 @@ export interface SpecPool {
 }
 
 export type SpecGet =
-  | { by: "draft"; each: number; order: "snake" | "blind"; own: "exclusive" | "shared" }
+  | { by: "draft"; each: number; order: "snake" | "blind"; own: "exclusive" | "shared"; groups?: GroupSlots }
   | { by: "pick"; each: 1; repeat: "cycle" }
   | { by: "card" }
   | { by: "none" }
@@ -273,6 +273,21 @@ export interface GameSpec {
 /** A spec as written: anything left out is the preset's, or the defaults (fullSpec). */
 export type SpecInput = Partial<Omit<GameSpec, "extras" | "ask">> & { extras?: Partial<SpecExtras>; ask?: SpecQuestion[] };
 
+/** A10 part 1: a draft's group slots (get.groups): a slot holds a pair or a team the show forms, picked after the episode that
+ *  showed it, riding with it while it lasts and dropping when it changes (state-logic.js GroupSlotLogic). */
+export interface GroupSlots {
+  /** 1 or 2 (MAX_GROUP_SLOTS). */
+  slots: number;
+  /** shared: anyone can hold the same group; exclusive: one team's at a time, while the groups on offer cover every slot. */
+  own: "shared" | "exclusive";
+  /** Whether a slot can change its group while that group lasts. */
+  swap: boolean;
+  /** An episode whose groups at the lock or as played aren't sure: void for the slot, or follow the people. */
+  fallback: "void" | "carry-on" | "next-stage";
+  /** A group's points: its members' mean (a slot scores like one more person), or their sum. */
+  points: "mean" | "sum";
+}
+
 /** What a spec refers to, in the show's words, and the data that settles it. All optional. */
 export interface SpecContext {
   /** "Survivor 51", "the Red Sox–Yankees series". */
@@ -302,6 +317,10 @@ export interface SpecContext {
   grouped?: boolean;
   /** false when no jury decides the finale: no jury vote split (A8). */
   jury?: boolean;
+  /** A10 part 1: how many can be drafted where the game drafts, and how many people are on its couch: an exclusive draft has to
+   *  cover every pick (covers), else it's shared. Either left out: not counted. */
+  pool?: number;
+  couch?: number;
 }
 
 export interface SpecProblem {
@@ -411,6 +430,11 @@ export function spanStart(span: SpecSpan | null | undefined): number | null;
 /** The phase a span starts at, or null. */
 export function spanPhase(span: SpecSpan | null | undefined): string | null;
 
+/** A10 part 1: a draft's most group slots, and a slot's defaults when the spec leaves them out. */
+export const MAX_GROUP_SLOTS: number;
+export const GROUP_SLOTS: GroupSlots;
+/** Whether a pool covers every pick of an exclusive draft: people x each <= pool. */
+export function covers(o: { pool: number; people: number; each: number }): boolean;
 /** The spec with everything it leaves out filled in (the preset's, or the defaults); never mutates it. */
 export function fullSpec(spec: SpecInput | GameSpec): GameSpec;
 /** The league type today's engine plays it as, or null. */
@@ -419,7 +443,7 @@ export function typeOf(spec: SpecInput | GameSpec): LeagueTypeId | null;
 export function playsAs(spec: GameSpec): LeagueTypeId | null;
 /** The league type's flags, worked out from a whole spec. */
 export function flagsOf(spec: GameSpec): {
-  hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasBingo: boolean;
+  hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasBingo: boolean;
   supportsReplenish: boolean; supportsTrade: boolean; supportsFinalePredictions: boolean;
 };
 /**

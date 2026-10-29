@@ -413,6 +413,29 @@ function groupSlots(tl, { fallback = 'void' } = {}) {
 }
 
 /**
+ * A10 part 1: each episode's groups as a league with group slots reads them (state-logic.js GroupSlotLogic, its
+ * `episode.formatGroups`): who is with whom at its end, going into the next (`end`, the timeline's goingInto: divided, sure,
+ * why), and the groups that played it (`played`, as at its start: apart, sure; null when it isn't known). Members are the
+ * league's castaway ids (`resolve(name)`: its match, else nobody: someone not on its cast, a newcomer not yet added, scores
+ * nothing there, and still counts in `size`, the group's people as research has them); a group's name is its own, else its
+ * members' ("Ann & Bea"). Map episode -> record, for every episode the timeline has. Pure.
+ */
+function slotRecords(tl, { resolve = () => null } = {}) {
+  const out = new Map();
+  if (!tl) return out;
+  const face = (g) => ({ id: g.id, name: groupLabel(g), members: [...new Set(g.members.map((m) => resolve(m)).filter(Boolean))], size: g.members.length });
+  for (const e of tl.episodes) {
+    const g = goingInto(tl, e.episode + 1);
+    const divided = g.known && g.divided;
+    out.set(e.episode, {
+      end: { groups: divided ? g.groups.map(face) : [], divided, sure: !!g.sure, why: g.why.slice() },
+      played: e.played ? { groups: e.played.apart ? [] : e.played.groups.map(face), apart: !!e.played.apart, sure: !!e.played.sure && e.known } : null,
+    });
+  }
+  return out;
+}
+
+/**
  * A12: side stages, one per spell of a grouping that held `after` episodes (2 by default; the user's to choose): it opens after
  * the episode it held them by, scores from the next and closes when the grouping changes (points kept). A spell that never
  * held that long opens nothing (The Challenge 41's rotating pairs, all of The Challenge 39), and nor does one already gone
@@ -615,4 +638,4 @@ function timelineDiff(before, after) {
   };
 }
 
-module.exports = { FALLBACKS, MAJOR, TRIGGER_KINDS, effective, reportFrom, crossed, buildTimeline, at, goingInto, playedIn, groupChoices, heldThrough, groupSlots, sideStages, stageTriggers, castAt, newcomersIn, newcomerCues, groupWord, unstaged, groupLabel, groupFacts, timelineDiff };
+module.exports = { FALLBACKS, MAJOR, TRIGGER_KINDS, effective, reportFrom, crossed, buildTimeline, at, goingInto, playedIn, groupChoices, heldThrough, groupSlots, slotRecords, sideStages, stageTriggers, castAt, newcomersIn, newcomerCues, groupWord, unstaged, groupLabel, groupFacts, timelineDiff };

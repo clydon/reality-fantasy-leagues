@@ -203,8 +203,39 @@ export interface Episode {
   /** A lineup's captain for this episode (step A9 part 2, a game with a captain): castaway id, or null for none. Absent: the
    *  last one named carries (ActiveRosterLogic.captainFor). */
   captains?: Record<string, string | null>;
+  /** Step A10 part 1, a game with group slots (the spec's get.groups): each player's slots picked for this episode, by the
+   *  slot's number (null: emptied), carried until a later episode's pick (GroupSlotLogic.standing). Absent: nothing picked here. */
+  groupSlots?: Record<string, Record<string, GroupSlotPick | null>>;
+  /** Step A10 part 1: the format's groups as this episode had them (the season's format state over time, written by the season
+   *  sync for a game with group slots, only on an episode with results: GroupSlotLogic.settle). */
+  formatGroups?: EpisodeFormatGroups;
   /** Kept open past its start by whoever runs the game (Backstage › Settings' lock; StateLogic.closedForPlay). */
   openPastAir?: boolean;
+}
+
+/** A group slot's pick (step A10 part 1): the group as it was offered (its id in the season's format timeline, and its members,
+ *  the league's castaway ids, by which a correction that moved its id still finds it). */
+export interface GroupSlotPick {
+  id: string;
+  members: string[];
+  /** How many the group had as research said (members are only those on the league's cast). */
+  size?: number;
+}
+/** One of the format's groups, as an episode's record has it: its id in the timeline, its name (the show's, or its members'),
+ *  and its members as the league's castaway ids (anyone not on the league's cast left out). */
+export interface FormatGroup {
+  id: string;
+  name: string;
+  members: string[];
+  /** Its people as research has them, those not on the league's cast too. */
+  size: number;
+}
+/** An episode's groups (step A10 part 1, GroupSlotLogic.settle): who is with whom at its end, going into the next (`end`:
+ *  divided when there are two groups or more; sure as the timeline's goingInto says it, `why` when not), and the groups that
+ *  played it (`played`: as they were at its start; apart when it was played without them; null when it isn't known). */
+export interface EpisodeFormatGroups {
+  end: { groups: FormatGroup[]; divided: boolean; sure: boolean; why: string[] };
+  played: { groups: FormatGroup[]; apart: boolean; sure: boolean } | null;
 }
 
 export interface FinalePrediction {
@@ -288,6 +319,8 @@ export interface LeagueSettings {
   captainTimes?: number;
   pointsTimes?: import("./game-spec/index.js").SpecWhen[];
   reverseOrder?: boolean;
+  /** Step A10 part 1, absent unless a game says it: a lineup's or best ball's group slots (the spec's get.groups). */
+  groupSlots?: import("./game-spec/index.js").GroupSlots;
   /**
    * The episode this league starts playing at (default 1): a league formed mid-season drafts and picks
    * from here, and nothing in earlier episodes scores. Read it through StateLogic.startEpisode. A game that starts when a

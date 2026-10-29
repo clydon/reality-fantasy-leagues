@@ -147,6 +147,18 @@ test("a game's record checked at the season's end", () => {
     "episode 9: daily: B's void pick scored",
     "episode 9: moves failed",
   ]);
+  // A10 part 1: a group slot scores only while it's held, and a pick the app offered is never refused.
+  const slots = {
+    leagueId: "x",
+    over: true,
+    lastEpisode: 3,
+    episodes: [
+      { episode: 2, slotPicks: { A: [{ slot: 0, did: "picked", group: "1:a|b" }], B: [{ slot: 0, did: "refused", why: "Nope" }] }, slots: { A: [{ slot: 0, status: "held", points: 2 }] } },
+      { episode: 3, slots: { A: [{ slot: 0, status: "void", points: 1 }], B: [{ slot: 0, status: "dropped", points: 0 }] } },
+    ],
+    problems: [],
+  };
+  assert.deepEqual(B.problemsOf(slots), ["episode 2: B's group slot pick was refused: Nope", "episode 3: A's void group slot scored"]);
 });
 
 test("what a game did at an episode, in a line", () => {

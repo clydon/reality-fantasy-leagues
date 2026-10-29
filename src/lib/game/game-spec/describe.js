@@ -136,6 +136,9 @@ function sentenceParts(s, w) {
     // A9 part 2: a lineup's captain.
     if (count === 'start' && isObj(s.score.captain) && isNum(s.score.captain.times)) put(`, one of them a captain who scores ${timesWord(s.score.captain.times)}`, 'score');
     if (count === 'best') put(`, and their best ${s.count.best} count each ${w.part}`, 'count');
+    // A10 part 1: group slots.
+    const slots = groupSlotsOf(s);
+    if (slots) put(`, plus ${slots.slots === 1 ? 'a slot' : `${say(slots.slots)} slots`} for a pair or team the show forms`, 'get');
   } else if (by === 'pick') {
     put(`everyone picks one ${w.castaway} to ${s.score.means === 'scores' ? 'score' : 'stay in'} each ${w.part}`, 'get');
   } else if (by === 'card') {
@@ -252,6 +255,28 @@ function combineWords(q, w) {
   return out;
 }
 
+/** A draft's group slots (A10 part 1: get.groups), or null. */
+const groupSlotsOf = (s) => (s.get && s.get.by === 'draft' && isObj(s.get.groups) && isNum(s.get.groups.slots) ? s.get.groups : null);
+/** How group slots work, a rule a line. */
+function groupSlotRules(s, w) {
+  const g = groupSlotsOf(s);
+  if (!g) return [];
+  const one = g.slots === 1;
+  const it = one ? 'your slot' : 'each slot';
+  const out = [
+    `Beside your team you have ${one ? 'a slot' : `${say(g.slots)} slots`} for a pair or team the show forms. When the show forms them, pick ${one ? 'one' : 'one for each'} after the ${w.part} that showed them: it scores from the next ${w.part}.`,
+    `While that group lasts, ${it} scores what its people do (${g.points === 'sum' ? 'their points added up' : 'their points averaged, so it scores like one more of yours'}). When the group changes, or the show re-pairs everyone or goes each for themselves, the slot drops and you pick again from the new ones.`,
+    g.own === 'exclusive'
+      ? "Once someone has a group, nobody else can pick it, while there are enough groups for every team's slots; when there aren't, anyone can."
+      : 'Anyone can pick the same group.',
+    g.swap ? `You can change ${it}'s group before any ${w.part}.` : `${cap(it)} rides with its group while it lasts: no changing it.`,
+    g.fallback === 'carry-on'
+      ? `${cap(article(w.part))} ${w.part} where who's with whom isn't sure still counts, following the people you picked.`
+      : `${cap(article(w.part))} ${w.part} where who's with whom isn't sure doesn't count for a slot, either way, and nor does a group that changed before it played.`,
+  ];
+  return out;
+}
+
 /** How it works: today's five games say what the Rules sheet says (game-rules.ts), the rest in the same voice. */
 function rulesOf(s, w) {
   const rules = [];
@@ -279,6 +304,7 @@ function rulesOf(s, w) {
       if (times.length > 1) rules.push(`${cap(article(w.part))} ${w.part} in two of them counts both.`);
     }
     if (count === 'start') rules.push(`Lineups lock when the ${w.part} starts. Change yours as often as you like until then.`);
+    rules.push(...groupSlotRules(s, w));
     if (s.score.by === 'place' && s.score.reverse === true) {
       rules.push(`Each ${w.castaway} earns 1 point, plus 1 for everyone who outlasts them.`);
       rules.push('So the first one out scores the most and the winner 1: the earlier yours go home, the better.');
