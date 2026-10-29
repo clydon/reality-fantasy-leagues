@@ -80,7 +80,8 @@ A lane that builds to the mock reads it there by full path, read only, and shoot
 - **With the user there:** open the lane's folder in its own VS Code window and start Claude in that window, so the session
   works in that worktree.
 - **Unattended:** `node scripts/lane.js start <name> --prompt "<the step's seed prompt>"` opens a window running the session
-  loop in that lane, at Opus / xhigh and at most 3 sessions (`--max-sessions`). Each lane's loop is separate: in its window,
+  loop in that lane, at Opus / xhigh (`--effort high`, say, for less; `keep` restarts a lane at the effort it ran at) and at
+  most 3 sessions (`--max-sessions`). Each lane's loop is separate: in its window,
   `p` pauses, `s` stops after the session, `q` quits; from anywhere, `node scripts/session-loop.js status` in the lane's
   folder. A session stops for the user where it needs them (its question shows in that window); the loop never merges or
   pushes.
@@ -91,6 +92,13 @@ A lane that builds to the mock reads it there by full path, read only, and shoot
   times, 4 by default), checking every 5 minutes. It leaves a lane alone that's waiting for the user, was stopped partway or
   is done, and its log is the main folder's `.session-loop/keeper.log`. The loops wait out the 5-hour window themselves, and
   the keeper waits out the weekly one. First used 2026-10-28, when the user went to sleep with three lanes running.
+- **Steering a running lane:** write the direction in the lane's `.session-loop/notes.md` (gitignored, like the rest of that
+  folder). Before every session (a resumed one too) the loop writes `protocol.md`, which the session starts with, as its
+  hand-off rules and then that file, so a note reaches the lane's next session and outlives the keeper starting the loop
+  again. A loop runs its own folder's `scripts/session-loop.js`, so sync a stopped lane (`lane.js sync <name>`) before
+  starting it again; a loop started before that change (2026-10-28) wrote `protocol.md` once, when it started, so for it
+  append the note to `protocol.md` as well. That's how the engine lost seven evening notes on 2026-10-28: they were only in
+  `protocol.md` when the keeper restarted its loop at 9:32 PM. Put lasting direction in master's plan too, for the lane to sync.
 - **Keep the PC awake.** The laptop sleeps after an hour idle on power, and nothing a lane runs asks it to stay up. The
   keeper holds it awake while it runs: it opens `scripts/keep-awake.ps1` minimized (a "Keep awake" window, `-WhilePid` its
   own process), which ends when the keeper's window is closed. Without a keeper, an unattended night needs keep-awake.ps1 in

@@ -12,9 +12,13 @@
 //   node scripts/lane.js check <name>          starts its dev server on its port (unless one answers there already), reads
 //                                              the catalog (a database read) and the landing page, then stops what it started
 //   node scripts/lane.js dev [<name>]          its dev server on its port, in this terminal (no name: this folder's lane)
-//   node scripts/lane.js start <name> [--prompt-file <path> | --prompt "..."] [--max-sessions 3]
-//                          a new window running the session loop in that lane at Opus / xhigh, to watch, pause (p) or stop
-//                          (s); with no prompt it carries on from the lane's last hand-off
+//   node scripts/lane.js start <name> [--prompt-file <path> | --prompt "..."] [--max-sessions 3] [--effort high] [--carry-on]
+//                          a new window running the session loop in that lane, to watch, pause (p) or stop (s); with no
+//                          prompt it carries on from the lane's last hand-off (--carry-on: a session stopped partway
+//                          resumes unasked). Its model and effort: --model / --effort, else the lane's standing choice (its
+//                          state.json, so `keep` restarts a lane at what it ran at), else Opus / xhigh. A lane with nothing
+//                          uncommitted takes master first, as `sync` does (backed out if it stops), so its loop runs
+//                          master's session-loop.js
 //   node scripts/lane.js keep <name>... [--every 5] [--max-sessions 3] [--restarts 4] [--once]
 //                          stays open (until its window is closed), checking those lanes' loops every --every minutes: one
 //                          that's stopped with a hand-off still to run (out of --max-sessions, or its window closed between
@@ -266,7 +270,22 @@ function start(lane, name) {
   const loopDir = path.join(lane.dir, ".session-loop");
   fs.mkdirSync(loopDir, { recursive: true });
   const max = Number(val("--max-sessions") ?? 3);
-  const loop = ["scripts/session-loop.js", "--model", "opus", "--effort", "xhigh", "--max-sessions", String(max)];
+  // The loop runs the lane's own scripts/session-loop.js: master's, when nothing's in flight there. A merge that stops is
+  // backed out, and the loop starts as it is (its session syncs and resolves it).
+  if (!dirty(lane.dir)) {
+    const r = run("git", ["merge", "master", "--no-edit"], { cwd: lane.dir, allowFail: true });
+    if (r.status !== 0) run("git", ["merge", "--abort"], { cwd: lane.dir, allowFail: true });
+  }
+  let fixed = null;
+  try {
+    fixed = JSON.parse(fs.readFileSync(path.join(loopDir, "state.json"), "utf8")).fixed;
+  } catch {
+    /* no loop has run there yet */
+  }
+  const model = val("--model") ?? fixed?.model ?? "opus";
+  const effort = val("--effort") ?? fixed?.effort ?? "xhigh";
+  const loop = ["scripts/session-loop.js", "--model", model, "--effort", effort, "--max-sessions", String(max)];
+  if (has("--carry-on")) loop.push("--carry-on");
   if (val("--prompt-file")) loop.push("--prompt-file", path.resolve(val("--prompt-file")));
   else if (val("--prompt")) {
     const file = path.join(loopDir, `seed-${Date.now()}.md`);
