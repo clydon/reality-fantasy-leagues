@@ -16,6 +16,8 @@ export interface Me {
   impersonating: boolean;
   /** When the admin's hour as them ends (Better Auth's impersonation session). */
   impersonatingUntil?: string | null;
+  /** A site admin seeing the app as a player or a commissioner (view-as.ts): isSuperAdmin is false meanwhile. */
+  viewingAs?: "player" | "commissioner" | null;
 }
 
 const MeContext = createContext<Me | null>(null);

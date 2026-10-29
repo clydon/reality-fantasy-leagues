@@ -3,6 +3,7 @@ import { pool } from "./db";
 import { gameName } from "./league-season";
 import { sharingOf, visibleFollows, type FollowShare } from "./guard";
 import type { LeagueRole } from "./roles";
+import { viewAsFor } from "./view-as";
 
 // The pieces the new design's read endpoints are built from (/api/me/home, /api/couches/[id],
 // /api/seasons/[id]/space): a season's header, the games (leagues) on a couch or a season, and who follows
@@ -135,6 +136,8 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
       ORDER BY l.solo NULLS FIRST, l.group_id NULLS LAST, l.group_position NULLS LAST, l.name, l.id`,
     params
   );
+  // A site admin viewing as a player (view-as.ts) runs none of them.
+  const asPlayer = (await viewAsFor(viewerId)) === "player";
   return rows.map((r) => ({
     leagueId: r.id,
     name: r.name,
@@ -143,7 +146,7 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
     couchId: r.couch_id,
     seasonId: r.season_id,
     groupId: r.group_id,
-    yourRole: r.your_role,
+    yourRole: asPlayer && r.your_role ? "member" : r.your_role,
     solo: r.solo ?? null,
     archived: !!r.archived,
     span: Number.isInteger(r.end_episode) ? { from: Number.isInteger(r.start_episode) ? r.start_episode : 1, to: r.end_episode } : null,
