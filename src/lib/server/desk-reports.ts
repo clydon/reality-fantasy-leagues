@@ -148,7 +148,7 @@ export async function reportCounts(): Promise<Record<ReportFilter, number>> {
 /** One page of Find › Reports: open or done, searched by what it says or who sent it, newest first. */
 export async function deskReports(opts: { q?: string | null; f?: string | null; offset?: unknown; limit?: unknown; counts?: boolean }): Promise<ReportsList> {
   const f: ReportFilter = REPORT_FILTERS.includes(opts.f as ReportFilter) ? (opts.f as ReportFilter) : "open";
-  const offset = Math.max(0, Math.floor(Number(opts.offset) || 0));
+  const offset = Math.min(1_000_000, Math.max(0, Math.floor(Number(opts.offset) || 0)));
   const limit = Math.min(100, Math.max(1, Math.floor(Number(opts.limit) || REPORT_PAGE)));
   const term = (opts.q ?? "").trim();
   const params: unknown[] = [];

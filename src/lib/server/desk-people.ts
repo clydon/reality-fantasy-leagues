@@ -102,7 +102,7 @@ export async function deskPeople(
 ): Promise<PeopleList> {
   const f: PeopleFilter = PEOPLE_FILTERS.includes(opts.f as PeopleFilter) ? (opts.f as PeopleFilter) : "all";
   const sort: PeopleSort = PEOPLE_SORTS.includes(opts.sort as PeopleSort) ? (opts.sort as PeopleSort) : "new";
-  const offset = Math.max(0, Math.floor(Number(opts.offset) || 0));
+  const offset = Math.min(1_000_000, Math.max(0, Math.floor(Number(opts.offset) || 0)));
   const limit = Math.min(100, Math.max(1, Math.floor(Number(opts.limit) || PEOPLE_PAGE)));
   const term = (opts.q ?? "").trim();
   const params: unknown[] = [];
@@ -209,7 +209,7 @@ export async function deskPerson(user: SessionUser, id: string): Promise<DeskPer
     ),
     pool.query(
       `SELECT c.id, c.name, m.role, m.joined_at, (SELECT count(*)::int FROM couch_members x WHERE x.couch_id = c.id) AS people
-         FROM couch_members m JOIN couches c ON c.id = m.couch_id WHERE m.user_id = $1 ORDER BY m.joined_at`,
+         FROM couch_members m JOIN couches c ON c.id = m.couch_id WHERE m.user_id = $1 AND c.deleted_at IS NULL ORDER BY m.joined_at`,
       [id]
     ),
     pool.query(

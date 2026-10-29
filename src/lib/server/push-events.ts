@@ -576,6 +576,25 @@ export function notifyGameDeleted(o: { userIds: string[]; leagueId: string; name
   }));
 }
 
+/**
+ * The desk deleted a couch (docs/PLAN-desk-parity.md part 6d): everyone on it, and anyone with a seat in its games, hears
+ * once (not once a game), and that it can come back for 30 days. Under New on your couch: a couch's coming and going.
+ */
+export function notifyCouchDeleted(o: { userIds: string[]; couchId: string; name: string; games: number; key: string }) {
+  if (!o.userIds.length) return;
+  notifyAfter("couchJoined", async () => ({
+    userIds: o.userIds,
+    message: {
+      title: `${o.name} was deleted`,
+      body: `A site admin took it down${o.games ? `, with its ${o.games === 1 ? "game" : `${o.games} games`}` : ""}. Everything on it is kept for 30 days, in case it comes back.`,
+      url: "/",
+      next: "/home",
+      tag: `couch-deleted-${o.couchId}`,
+      key: `couch-deleted:${o.key}`,
+    },
+  }));
+}
+
 /** Someone joined a couch with its code (step 15 part 2): everyone already on it hears. */
 export function notifyCouchJoined(couchId: string, joinerUserId: string, joinerName: string) {
   notifyAfter("couchJoined", async () => {

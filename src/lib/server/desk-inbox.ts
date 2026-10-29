@@ -139,7 +139,7 @@ async function strandedCouches(): Promise<InboxItem[]> {
             (SELECT count(*)::int FROM leagues l2 WHERE l2.couch_id = c.id AND l2.deleted_at IS NULL) AS all_games,
             (SELECT count(*)::int FROM couch_members m WHERE m.couch_id = c.id) AS members
        FROM couches c JOIN leagues l ON l.couch_id = c.id
-      WHERE l.deleted_at IS NULL AND ${STRANDED}
+      WHERE l.deleted_at IS NULL AND c.deleted_at IS NULL AND ${STRANDED}
       GROUP BY c.id, c.name ORDER BY c.name LIMIT 20`
   );
   return rows.map((c) => ({

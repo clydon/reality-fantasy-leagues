@@ -99,12 +99,12 @@ export function couchForNewLeague(leagueId: string, userId: string, name: string
   );
 }
 
-/** Someone joined a league (a code, an invite, an admin): they're on its couch. */
+/** Someone joined a league (a code, an invite, an admin): they're on its couch (never a deleted one: it comes back with its own people). */
 export function joinedLeague(leagueId: string, userId: string): Promise<void> {
   return inStep(`join ${leagueId}`, () =>
     tx(async (c) => {
       const { rows } = await c.query(
-        `INSERT INTO couch_members (couch_id, user_id) SELECT couch_id, $2 FROM leagues WHERE id = $1 AND couch_id IS NOT NULL
+        `INSERT INTO couch_members (couch_id, user_id) SELECT l.couch_id, $2 FROM leagues l JOIN couches co ON co.id = l.couch_id AND co.deleted_at IS NULL WHERE l.id = $1
          ON CONFLICT (couch_id, user_id) DO NOTHING RETURNING couch_id`,
         [leagueId, userId]
       );
@@ -222,7 +222,8 @@ export async function healCouches(userId: string): Promise<void> {
     `SELECT l.id, l.couch_id, (cm.user_id IS NOT NULL) AS on_couch
        FROM league_memberships m JOIN leagues l ON l.id = m.league_id
        LEFT JOIN couch_members cm ON cm.couch_id = l.couch_id AND cm.user_id = m.user_id
-      WHERE m.user_id = $1 AND l.solo IS NULL AND (l.couch_id IS NULL OR cm.user_id IS NULL)`,
+      WHERE m.user_id = $1 AND l.solo IS NULL AND (l.couch_id IS NULL OR cm.user_id IS NULL)
+        AND NOT EXISTS (SELECT 1 FROM couches d WHERE d.id = l.couch_id AND d.deleted_at IS NOT NULL)`,
     [userId]
   );
   for (const r of rows) {
@@ -264,11 +265,12 @@ export async function healCouches(userId: string): Promise<void> {
 
 export type CouchRole = "owner" | "member";
 
-/** This person's role on a couch: owner or member, "viewer" for a site admin who isn't on it. 404 otherwise. */
+/** This person's role on a couch: owner or member, "viewer" for a site admin who isn't on it. 404 otherwise, and for
+ *  everyone once it's deleted (the desk's Delete: docs/PLAN-desk-parity.md part 6d; its page on the desk reads it). */
 export async function requireCouch(user: SessionUser, couchId: string): Promise<CouchRole | "viewer"> {
   if (!isUuid(couchId)) throw new HttpError(404, "Couch not found");
   const { rows } = await pool.query(
-    "SELECT c.id, cm.role FROM couches c LEFT JOIN couch_members cm ON cm.couch_id = c.id AND cm.user_id = $2 WHERE c.id = $1",
+    "SELECT c.id, cm.role FROM couches c LEFT JOIN couch_members cm ON cm.couch_id = c.id AND cm.user_id = $2 WHERE c.id = $1 AND c.deleted_at IS NULL",
     [couchId, user.id]
   );
   if (!rows.length) throw new HttpError(404, "Couch not found");
@@ -287,14 +289,14 @@ export interface CouchMember {
   picture: number | null;
 }
 
-/** Everyone on these couches, by couch, owners first then by when they joined. */
+/** Everyone on these couches, by couch, owners first then by when they joined (nobody, for a deleted couch). */
 export async function couchMembers(couchIds: string[]): Promise<Map<string, CouchMember[]>> {
   const out = new Map<string, CouchMember[]>(couchIds.map((id) => [id, []]));
   if (!couchIds.length) return out;
   const { rows } = await pool.query(
     `SELECT cm.couch_id, cm.user_id, COALESCE(u.username, u.name) AS name, cm.role, cm.joined_at, s.colour,
             (EXTRACT(EPOCH FROM p.updated_at) * 1000)::bigint AS picture
-       FROM couch_members cm JOIN "user" u ON u.id = cm.user_id
+       FROM couch_members cm JOIN couches c ON c.id = cm.couch_id AND c.deleted_at IS NULL JOIN "user" u ON u.id = cm.user_id
        LEFT JOIN user_settings s ON s.user_id = cm.user_id LEFT JOIN user_pictures p ON p.user_id = cm.user_id
       WHERE cm.couch_id = ANY($1::uuid[])
       ORDER BY (cm.role = 'owner') DESC, cm.joined_at, cm.user_id`,

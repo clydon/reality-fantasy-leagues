@@ -9,14 +9,15 @@ import { useNav } from "../nav";
 import { paths } from "../routes";
 import { Face } from "../show/parts";
 import { Avatar } from "../ui/bars";
-import { GuardSheet } from "../ui/guards";
+import { GuardSheet, HoldSheet } from "../ui/guards";
 import { Btn, Chip, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { ArtSection } from "./art";
 import { deskSend, useAfterDesk, useDesk, type DeskCouch, type DeskFact, type DeskLine, type DeskSeason, type DeskShow, type SeasonBot, type SeasonDelete } from "./data";
-import { DeskHeader, DeskRow, Facts, FieldRow, IconLead, ItemRow, LatestHistory, LowerThird, Section, Tag } from "./parts";
-import { HandOnSheet } from "./seats";
+import { deletedNote, useCouchRestore } from "./couches";
+import { dateOf, DeleteRow, DeskHeader, DeskRow, Facts, FieldRow, IconLead, ItemRow, LatestHistory, LowerThird, Section, Tag } from "./parts";
+import { CON, HandOnSheet } from "./seats";
 import { EpisodeNumber } from "./research";
 import { SeasonDeleteRow } from "./setup";
 
@@ -296,18 +297,29 @@ export function SeasonPage({ id }: { id: string }) {
 
 // ---------- a couch, a show (a person is people.tsx's) ----------
 
+/**
+ * A couch (the mock's desk-pages.js dkCouchPage): its lower third and facts; Deleted with Restore, or Nobody runs its games
+ * with Hand them on; its people, its games, who fills in its results; History; and its Delete, last (docs/PLAN-desk-parity.md
+ * part 6d: its games go too, its people come off it and are told, restorable for 30 days from Couches › Deleted).
+ */
 export function CouchPage({ id }: { id: string }) {
   const q = useDesk<DeskCouch>(`/couches/${id}`);
   const act = useAct<DeskCouch>(`/couches/${id}`);
+  const nav = useNav();
+  const after = useAfterDesk();
+  const { restore, busy } = useCouchRestore();
   const [filling, setFilling] = useState(false);
   const [handing, setHanding] = useState(false);
-  if (q.error) return <><DeskHeader title="Couch" back={back} name={null} /><NotFound error={q.error} /></>;
-  if (!q.data) return <><DeskHeader title="Couch" back={back} name={null} /><Loading /></>;
+  const [deleting, setDeleting] = useState(false);
+  const up = { label: "Couches", href: paths.deskCouches() };
+  if (q.error) return <><DeskHeader title="Couch" back={up} name={null} /><NotFound error={q.error} /></>;
+  if (!q.data) return <><DeskHeader title="Couch" back={up} name={null} /><Loading /></>;
   const c = q.data;
-  const owner = c.members.find((m) => m.role === "owner");
+  // A deleted couch's games are the ones it took, each tagged Deleted (the mock counted none; the rows said three).
+  const live = c.games.length;
   return (
-    <div className="pb-16" data-desk-couch>
-      <DeskHeader title="Couch" back={back} name={c.name} kind="Couch" />
+    <div className="pb-16" data-desk-couch={c.deleted ? "deleted" : "ok"}>
+      <DeskHeader title="Couch" back={up} name={c.name} kind="Couch" />
       <LowerThird
         lead={
           <span className="grid size-16 flex-none grid-cols-2 gap-0.5 overflow-hidden rounded-[3px] bg-card shadow-plate">
@@ -316,14 +328,40 @@ export function CouchPage({ id }: { id: string }) {
             ))}
           </span>
         }
-        tag="Couch"
+        tag={c.deleted ? "Deleted" : "Couch"}
+        tone={c.deleted ? "stopped" : "quiet"}
         title={c.name}
-        detail={c.stranded.length ? (c.stranded.length === c.games.length ? "Nobody runs its games" : "Nobody runs some of its games") : owner ? `Started by ${owner.name}` : `${c.members.length} on it`}
+        detail={
+          c.stranded.length
+            ? c.stranded.length === c.games.length
+              ? "Nobody runs its games"
+              : "Nobody runs some of its games"
+            : c.runBy.length
+              ? `Run by ${c.runBy.join(", ")}`
+              : `${c.members.length} on it`
+        }
       />
       <Facts>
-        {c.members.length} on it · {c.games.length} {c.games.length === 1 ? "game" : "games"}
-        {c.rulings ? ` · ${c.rulings} house ${c.rulings === 1 ? "ruling" : "rulings"}` : ""}
+        <span data-couch-facts>
+          Started {dateOf(c.startedAt)} · {plural(c.members.length, "person", "people")} · {plural(live, "game")}
+          {c.rulings ? ` · ${c.rulings} house ${c.rulings === 1 ? "ruling" : "rulings"}` : ""}
+        </span>
       </Facts>
+      {c.deleted && (
+        <section className="mt-5 px-4">
+          <div data-couch-deleted className="rounded-[4px] bg-card p-3.5 outline-1 -outline-offset-1 outline-input">
+            <b className="block text-[17px]">Deleted</b>
+            <small className="mt-1 block text-[14px] leading-snug text-muted-foreground">
+              {deletedNote(c.deleted)}. {c.deleted.restorable ? "Its games and chat come back with it." : "It can't come back from here."}
+            </small>
+            {c.deleted.restorable && (
+              <Btn data-couch-restore={c.id} wide className="mt-3 h-12" disabled={busy} onClick={() => void restore(c.id)}>
+                Restore {c.name}
+              </Btn>
+            )}
+          </div>
+        </section>
+      )}
       {/* The Inbox's couch nobody runs (docs/PLAN-desk-parity.md step 2, the mock's dk-state): its games handed on through
           Hand on, with no one going (tier 1, Undo puts it back as it was). */}
       {c.stranded.length > 0 && (
@@ -349,16 +387,69 @@ export function CouchPage({ id }: { id: string }) {
           {!c.members.length && <p className="text-[14px] text-muted-foreground">Nobody.</p>}
         </div>
       </Section>
-      <Section title="Games" aside={c.games.length}>
+      <Section title="Games" aside={live}>
         {c.games.map((g) => (
-          <DeskRow key={g.leagueId} href={paths.deskItem("game", g.leagueId)} data="game" lead={<IconLead icon={Trophy} />} title={g.name} line={`${[g.gameName, g.season].filter(Boolean).join(" · ")} · run by ${g.runners.join(", ") || "nobody"}`} />
+          <DeskRow
+            key={g.leagueId}
+            href={paths.deskItem("game", g.leagueId)}
+            data="game"
+            lead={<IconLead icon={Trophy} />}
+            title={
+              <>
+                {g.name}
+                {g.deleted && <i className="type-caption ml-1.5 inline-block rounded-[2px] px-1.5 pb-0.5 pt-[3px] align-[2px] text-[11px] not-italic leading-none tracking-[0.06em] text-live outline-1 -outline-offset-1 outline-live">Deleted</i>}
+              </>
+            }
+            line={`${[g.gameName, g.season].filter(Boolean).join(" · ")} · run by ${g.runners.join(", ") || "nobody"}`}
+          />
         ))}
         {!c.games.length && <p className="text-[14px] text-muted-foreground">No games yet.</p>}
       </Section>
       <Section title="Settings">
-        <FieldRow data="fill" label="Who fills in results" value={c.anyone ? "Anyone on the couch" : "Only people who run games"} onOverride={() => setFilling(true)} />
+        <FieldRow data="fill" label="Who fills in results" value={c.anyone ? "Anyone on the couch" : "Only people who run games"} onOverride={c.deleted ? undefined : () => setFilling(true)} />
       </Section>
       <LatestHistory lines={c.history} />
+      {!c.deleted &&
+        (c.off ? (
+          <DeleteRow data="couch" title={`Delete ${c.name}`} line={c.off} off />
+        ) : (
+          <DeleteRow
+            data="couch"
+            title={`Delete ${c.name}`}
+            line={live ? `Its ${plural(live, "game")} go${live === 1 ? "es" : ""} too · restorable for 30 days` : "Its people come off it · restorable for 30 days"}
+            onClick={() => setDeleting(true)}
+          />
+        ))}
+      <HoldSheet
+        open={deleting}
+        onOpenChange={setDeleting}
+        title={`Delete ${c.name}?`}
+        subtitle="Restorable for 30 days"
+        consequence=""
+        body={
+          <ul data-couch-delete className="flex flex-col gap-2 rounded-[3px] bg-background px-3.5 py-3">
+            <li className={CON}>
+              {c.members.length ? `Its ${plural(c.members.length, "person", "people")} come${c.members.length === 1 ? "s" : ""} off it and ${c.members.length === 1 ? "is" : "are"} told. They keep their accounts and their other couches.` : "Nobody's on it."}
+            </li>
+            {live > 0 && (
+              <li className={CON}>
+                Its {plural(live, "game")} {live === 1 ? "is" : "are"} deleted too: everyone&apos;s teams, picks and scores in {live === 1 ? "it" : "them"}.
+              </li>
+            )}
+            <li className={CON}>Its chat and history go with it.</li>
+          </ul>
+        }
+        cta={`delete ${c.name}`}
+        restore="Restorable for 30 days from Couches › Deleted"
+        onConfirm={async () => {
+          const out = await deskSend<{ text: string }>(`/couches/${c.id}`, { delete: true });
+          setDeleting(false);
+          await after();
+          // Couches › Deleted, where it can be restored from (the mock's '#/admin/couches/deleted').
+          nav.push(paths.deskCouches({ f: "deleted" }));
+          toast(out.text);
+        }}
+      />
       <Sheet open={filling} onOpenChange={setFilling} title={`Override · ${c.name}`} subtitle="Who can fill in its results">
         <div className="flex flex-col gap-2">
           {([
@@ -384,6 +475,8 @@ export function CouchPage({ id }: { id: string }) {
     </div>
   );
 }
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 /** A show's kind, as its lower third says it. */
 const KIND_WORDS: Record<string, string> = { competition: "A competition", series: "A series", talk: "A talk show", sport: "A sport" };

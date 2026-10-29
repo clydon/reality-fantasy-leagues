@@ -45,7 +45,7 @@ export const GET = apiRoute(async (req) => {
   await healCouches(user.id);
 
   const { rows: couchRows } = await pool.query(
-    "SELECT c.id, c.name, cm.role FROM couch_members cm JOIN couches c ON c.id = cm.couch_id WHERE cm.user_id = $1 ORDER BY c.name, c.id",
+    "SELECT c.id, c.name, cm.role FROM couch_members cm JOIN couches c ON c.id = cm.couch_id WHERE cm.user_id = $1 AND c.deleted_at IS NULL ORDER BY c.name, c.id",
     [user.id]
   );
   const couchIds = couchRows.map((c) => c.id as string);

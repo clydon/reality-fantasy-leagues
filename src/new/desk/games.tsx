@@ -110,6 +110,8 @@ function OpenRow({ g, open }: { g: DeskGame; open: GameOpen }) {
 
 /** "Archived Oct 18 by quinn · on the trophy shelf", "deleted by omar Oct 26 · until Nov 25", else null. */
 function noteOf(g: GameRow): string | null {
+  // One its couch's Delete took (part 6d): it comes back with the couch.
+  if (g.deleted?.couch === "with" && g.couch) return `deleted with ${g.couch.name} ${dateOf(g.deleted.at)} · until ${dateOf(g.deleted.until)}`;
   if (g.deleted) return `deleted${g.deleted.by ? ` by ${g.deleted.by}` : ""} ${dateOf(g.deleted.at)} · until ${dateOf(g.deleted.until)}`;
   if (g.archived) return `Archived ${dateOf(g.archived.at)}${g.archived.by ? ` by ${g.archived.by}` : ""} · on the trophy shelf`;
   return null;
@@ -190,7 +192,8 @@ export function GameListRow({ g, found, code }: { g: GameRow; found?: boolean; c
           <small className="mt-[3px] line-clamp-2 block text-[13px] leading-snug text-muted-foreground [overflow-wrap:anywhere]">{line}</small>
         </span>
       </NavLink>
-      {g.state === "deleted" && (
+      {/* A game on a deleted couch comes back with its couch, from Couches › Deleted. */}
+      {g.state === "deleted" && !g.deleted?.couch && (
         <Btn data-game-restore={g.id} className="h-11 flex-none px-3.5 text-[15px]" disabled={busy} onClick={() => void restore(g.id)}>
           Restore
         </Btn>
@@ -405,7 +408,14 @@ export function GamePage({ id }: { id: string }) {
                 const n = noteOf(g)!;
                 return n[0].toUpperCase() + n.slice(1);
               })()}
-              . {g.restorable ? "Restore it and everyone's teams, picks and scores come back as they were." : "It can't come back from here."}
+              .{" "}
+              {g.restorable
+                ? "Restore it and everyone's teams, picks and scores come back as they were."
+                : g.deleted.couch && g.couch
+                  ? g.deleted.couch === "with"
+                    ? `It went with ${g.couch.name}, and comes back with it from Couches › Deleted.`
+                    : `${g.couch.name} is deleted too: restore it first, from Couches › Deleted.`
+                  : "It can't come back from here."}
             </small>
             {g.restorable && (
               <Btn data-game-restore={g.id} wide className="mt-3 h-12" disabled={busy} onClick={() => void restore(g.id)}>

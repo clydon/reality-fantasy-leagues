@@ -142,62 +142,79 @@ export async function deleteLeague(
   o: { leagueId: string; gameName: string; couchId: string | null; seasonId: string | null },
   also?: (client: PoolClient, batch: string) => Promise<void>
 ): Promise<{ batch: string; userIds: string[] }> {
-  const batch = crypto.randomUUID();
   const client = await pool.connect();
-  let userIds: string[] = [];
   try {
     await client.query("BEGIN");
-    const { rows: lr } = await client.query("SELECT id, couch_id, group_id, group_position, state FROM leagues WHERE id = $1 AND deleted_at IS NULL FOR UPDATE", [o.leagueId]);
-    if (!lr.length) throw new HttpError(404, "That game's gone already");
-    const league = lr[0];
-    const { rows: seats } = await client.query("SELECT row_to_json(m) AS row, m.user_id, m.role FROM league_memberships m WHERE m.league_id = $1", [o.leagueId]);
-    userIds = seats.map((s) => s.user_id as string);
-    // Whoever's on the couch only for this game stays on it (as the new design keeps anyone a game loses: couches.ts).
-    await client.query(
-      `UPDATE couch_members cm SET via = 'couch' WHERE cm.couch_id = $1 AND cm.via = 'game'
-          AND cm.user_id IN (SELECT user_id FROM league_memberships WHERE league_id = $2)
-          AND NOT EXISTS (SELECT 1 FROM league_memberships m JOIN leagues o ON o.id = m.league_id
-                           WHERE o.couch_id = $1 AND o.id <> $2 AND o.deleted_at IS NULL AND m.user_id = cm.user_id)`,
-      [league.couch_id, o.leagueId]
-    );
-    // The conversation it held moves to the couch's next game here, or to the couch's own (step 4's watch-only chat).
-    const next = o.couchId && o.seasonId ? (await games(user.id, { couchIds: [o.couchId], seasonId: o.seasonId })).find((x) => x.leagueId !== o.leagueId) : undefined;
-    if (next) await client.query("UPDATE chat_messages SET league_id = $1 WHERE league_id = $2", [next.leagueId, o.leagueId]);
-    else if (league.couch_id && o.seasonId) await client.query("UPDATE chat_messages SET league_id = NULL, couch_id = $1, season_id = $2 WHERE league_id = $3", [league.couch_id, o.seasonId, o.leagueId]);
-    await client.query("DELETE FROM league_memberships WHERE league_id = $1", [o.leagueId]);
-    await client.query("UPDATE leagues SET deleted_at = now(), deleted_by = $2, group_id = NULL, group_position = NULL, updated_at = now() WHERE id = $1", [o.leagueId, user.id]);
-    const undo: GameUndo = {
-      type: "game",
-      memberships: seats.map((s) => s.row),
-      groupId: league.group_id,
-      groupPosition: league.group_position,
-      commissioners: seats.filter((s) => s.role === "commissioner").map((s) => s.user_id as string),
-    };
-    await recordChange(client, o.leagueId, league.state as LeagueState, {
-      userId: user.id,
-      kind: "game.delete",
-      tier: 3,
-      text: `${nameOf(user)} deleted ${o.gameName} (restorable for ${RESTORE_DAYS} days)`,
-      undo,
-      batch,
-      undoUntil: new Date(Date.now() + RESTORE_DAYS * 24 * 3600 * 1000),
-    });
-    if (also) await also(client, batch);
+    const out = await deleteLeagueIn(client, user, o);
+    if (also) await also(client, out.batch);
     await client.query("COMMIT");
+    return out;
   } catch (e) {
     await client.query("ROLLBACK").catch(() => {});
     throw e;
   } finally {
     client.release();
   }
+}
+
+/**
+ * deleteLeague's work inside a transaction the caller holds (a couch's delete takes its games with it in one: desk-couches.ts).
+ * `text`: the game's line in Recent changes, when it says more than who deleted it.
+ */
+export async function deleteLeagueIn(
+  client: PoolClient,
+  user: SessionUser,
+  o: { leagueId: string; gameName: string; couchId: string | null; seasonId: string | null; text?: string }
+): Promise<{ batch: string; userIds: string[] }> {
+  const batch = crypto.randomUUID();
+  const { rows: lr } = await client.query("SELECT id, couch_id, group_id, group_position, state FROM leagues WHERE id = $1 AND deleted_at IS NULL FOR UPDATE", [o.leagueId]);
+  if (!lr.length) throw new HttpError(404, "That game's gone already");
+  const league = lr[0];
+  const { rows: seats } = await client.query("SELECT row_to_json(m) AS row, m.user_id, m.role FROM league_memberships m WHERE m.league_id = $1", [o.leagueId]);
+  const userIds = seats.map((s) => s.user_id as string);
+  // Whoever's on the couch only for this game stays on it (as the new design keeps anyone a game loses: couches.ts).
+  await client.query(
+    `UPDATE couch_members cm SET via = 'couch' WHERE cm.couch_id = $1 AND cm.via = 'game'
+        AND cm.user_id IN (SELECT user_id FROM league_memberships WHERE league_id = $2)
+        AND NOT EXISTS (SELECT 1 FROM league_memberships m JOIN leagues o ON o.id = m.league_id
+                         WHERE o.couch_id = $1 AND o.id <> $2 AND o.deleted_at IS NULL AND m.user_id = cm.user_id)`,
+    [league.couch_id, o.leagueId]
+  );
+  // The conversation it held moves to the couch's next game here, or to the couch's own (step 4's watch-only chat).
+  const next = o.couchId && o.seasonId ? (await games(user.id, { couchIds: [o.couchId], seasonId: o.seasonId })).find((x) => x.leagueId !== o.leagueId) : undefined;
+  if (next) await client.query("UPDATE chat_messages SET league_id = $1 WHERE league_id = $2", [next.leagueId, o.leagueId]);
+  else if (league.couch_id && o.seasonId) await client.query("UPDATE chat_messages SET league_id = NULL, couch_id = $1, season_id = $2 WHERE league_id = $3", [league.couch_id, o.seasonId, o.leagueId]);
+  await client.query("DELETE FROM league_memberships WHERE league_id = $1", [o.leagueId]);
+  await client.query("UPDATE leagues SET deleted_at = now(), deleted_by = $2, group_id = NULL, group_position = NULL, updated_at = now() WHERE id = $1", [o.leagueId, user.id]);
+  const undo: GameUndo = {
+    type: "game",
+    memberships: seats.map((s) => s.row),
+    groupId: league.group_id,
+    groupPosition: league.group_position,
+    commissioners: seats.filter((s) => s.role === "commissioner").map((s) => s.user_id as string),
+  };
+  await recordChange(client, o.leagueId, league.state as LeagueState, {
+    userId: user.id,
+    kind: "game.delete",
+    tier: 3,
+    text: o.text ?? `${nameOf(user)} deleted ${o.gameName} (restorable for ${RESTORE_DAYS} days)`,
+    undo,
+    batch,
+    undoUntil: new Date(Date.now() + RESTORE_DAYS * 24 * 3600 * 1000),
+  });
   return { batch, userIds };
 }
 
 /** Brings a deleted game back (Recent changes' Undo): its people, its group, on the couch again. Inside the undo's transaction. */
 export async function restoreGame(client: PoolClient, leagueId: string, undo: GameUndo): Promise<void> {
-  const { rows } = await client.query("SELECT deleted_at FROM leagues WHERE id = $1 FOR UPDATE", [leagueId]);
+  const { rows } = await client.query(
+    "SELECT l.deleted_at, c.name AS couch, c.deleted_at IS NOT NULL AS couch_gone FROM leagues l LEFT JOIN couches c ON c.id = l.couch_id WHERE l.id = $1 FOR UPDATE OF l",
+    [leagueId]
+  );
   if (!rows.length) throw new HttpError(404, "That game is gone for good");
   if (!rows[0].deleted_at) throw new HttpError(409, "It's back already");
+  // A game on a deleted couch comes back with its couch (the desk's Couches › Deleted: desk-couches.ts), never on its own.
+  if (rows[0].couch_gone) throw new HttpError(409, `${rows[0].couch} is deleted: restore it, and its games come back with it`);
   // Someone whose account was deleted meanwhile (the desk's Delete) doesn't come back: their seat waits for an account.
   for (const m of undo.memberships) {
     await client.query(
@@ -233,5 +250,11 @@ export async function deletedHere(couchId: string, seasonId: string): Promise<{ 
 /** Deleted games past their 30 days go for good (with everything that hangs off them). */
 export async function purgeDeleted(): Promise<number> {
   const { rowCount } = await pool.query("DELETE FROM leagues WHERE deleted_at < now() - make_interval(days => $1)", [RESTORE_DAYS]);
+  // A deleted couch past its 30 days goes too, with whatever hangs off it (its chat, invites, plans: 0100's cascades), once
+  // none of its games is left (a game's own couch_id holds it: it has no cascade).
+  await pool.query(
+    `DELETE FROM couches c WHERE c.deleted_at < now() - make_interval(days => $1) AND NOT EXISTS (SELECT 1 FROM leagues l WHERE l.couch_id = c.id)`,
+    [RESTORE_DAYS]
+  );
   return rowCount ?? 0;
 }

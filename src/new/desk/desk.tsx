@@ -10,12 +10,13 @@ import { Avatar } from "../ui/bars";
 import { EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { deskSend, useAfterDesk, useDesk, type ComingUp, type DeskSettings, type DeskLine, type FoundItem, type GameRow, type Inbox, type InboxItem, type PeopleList, type PersonRow, type ReportRow } from "./data";
+import { deskSend, useAfterDesk, useDesk, type ComingUp, type DeskSettings, type DeskLine, type CouchRow, type FoundItem, type GameRow, type Inbox, type InboxItem, type PeopleList, type PersonRow, type ReportRow } from "./data";
 import { LibraryPage } from "./library";
 import { NewShowFlow } from "./new-show";
 import { CouchPage, FactPage, SeasonPage, ShowPage } from "./pages";
 import { LetInButton, PeoplePage, PersonPage, PersonTags, useDebounced } from "./people";
 import { ReportListRow, ReportPage, ReportsPage } from "./reports";
+import { CouchListRow, CouchesPage } from "./couches";
 import { GameListRow, GamePage, GamesPage } from "./games";
 import { andList } from "./seats";
 import { useDeskStay, useRecentlyOpened } from "./trail";
@@ -35,7 +36,7 @@ import { SetupPage } from "./setup";
 // refused by its own route. People, the library and New show (step 10 part 3) are pages a level down, from Find.
 
 type Tab = "inbox" | "find" | "settings";
-type Page = Tab | "library" | "new" | "people" | "reports" | "games";
+type Page = Tab | "library" | "new" | "people" | "reports" | "games" | "couches";
 
 const TAB_NAMES: Record<Tab, string> = { inbox: "Inbox", find: "Find", settings: "Settings" };
 
@@ -65,6 +66,7 @@ export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: Desk
   if (tab === "people") return <PeoplePage />;
   if (tab === "reports") return <ReportsPage />;
   if (tab === "games") return <GamesPage />;
+  if (tab === "couches") return <CouchesPage />;
   if (tab === "new") return <NewShowFlow />;
   return <DeskTabs tab={tab ?? "inbox"} />;
 }
@@ -271,11 +273,13 @@ interface Found {
     library: { templates: number; inUse: number; unchecked: number };
     reports: { open: number; done: number };
     games: { playing: number; deleted: number };
+    couches: { all: number; nobody: number; deleted: number };
   };
   /** With a search: the first few people who match, and how many do; the same for games (a join code too) and reports. */
   people?: { people: PersonRow[]; total: number };
   reports?: { reports: ReportRow[]; total: number };
   games?: { games: GameRow[]; total: number; code: string | null };
+  couches?: { couches: CouchRow[]; total: number };
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -294,7 +298,7 @@ function SubHead({ title, aside }: { title: string; aside?: ReactNode }) {
 
 /**
  * Find (the mock's desk.js dkBrowse and admFindList): one search. With nothing typed, Browse: a row for each kind with
- * its own list (People, Games, the library and Reports now; Couches and Shows come with their steps), then what you
+ * its own list (People, Couches, Games, the library and Reports now; Shows comes with step 7), then what you
  * opened lately, then what's airing (until Shows has its list, step 7). With a search: the first three people who match,
  * and All N in People, searched; then everything else it finds.
  */
@@ -307,6 +311,7 @@ function FindTab() {
   const people = found.data?.people;
   const reports = found.data?.reports;
   const games = found.data?.games;
+  const couches = found.data?.couches;
   return (
     <Section>
       <label className="flex h-12 items-center gap-2 rounded-[3px] bg-card px-3 outline-1 -outline-offset-1 outline-input focus-within:outline-2 focus-within:outline-chyron">
@@ -324,6 +329,23 @@ function FindTab() {
               lead={<IconLead icon={User} />}
               title="People"
               line={b ? <>{plural(b.people.all, "account", "accounts")}{b.people.waiting ? <> · <Worth>{b.people.waiting} waiting to get in</Worth></> : null}</> : " "}
+            />
+            <DeskRow
+              href={paths.deskCouches()}
+              data="browse-couches"
+              lead={<IconLead icon={Users} />}
+              title="Couches"
+              line={
+                b ? (
+                  <>
+                    {plural(b.couches.all, "couch", "couches")}
+                    {b.couches.nobody ? <> · <Worth>{b.couches.nobody} nobody runs</Worth></> : null}
+                    {b.couches.deleted ? <> · <Worth>{b.couches.deleted} deleted, restorable</Worth></> : null}
+                  </>
+                ) : (
+                  " "
+                )
+              }
             />
             <DeskRow
               href={paths.deskGames()}
@@ -397,6 +419,14 @@ function FindTab() {
                   All {people.total} people matching &ldquo;{term}&rdquo;
                 </NavLink>
               )}
+              {couches?.couches.map((c) => (
+                <CouchListRow key={c.id} c={c} found />
+              ))}
+              {couches && couches.total > couches.couches.length && (
+                <NavLink href={paths.deskCouches({ q: term })} data-find-all-couches className="flex min-h-12 items-center border-t border-border text-[14px] font-bold underline decoration-input underline-offset-[3px]">
+                  All {couches.total} couches matching &ldquo;{term}&rdquo;
+                </NavLink>
+              )}
               {games?.games.map((g) => (
                 <GameListRow key={g.id} g={g} found code={games.code} />
               ))}
@@ -416,7 +446,7 @@ function FindTab() {
                   All {reports.total} reports matching &ldquo;{term}&rdquo;
                 </NavLink>
               )}
-              {found.data && !found.data.found.length && !people?.total && !reports?.total && !games?.total && <p className="mt-3 text-[14px] text-muted-foreground">Nothing matches.</p>}
+              {found.data && !found.data.found.length && !people?.total && !reports?.total && !games?.total && !couches?.total && <p className="mt-3 text-[14px] text-muted-foreground">Nothing matches.</p>}
             </>
           )}
         </div>

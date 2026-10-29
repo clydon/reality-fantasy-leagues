@@ -263,8 +263,8 @@ export interface FoundItem {
 }
 
 /**
- * One search over everything the desk can change but people (desk-people.ts findPeople: Find shows a few and links the
- * rest to People, searched). An empty search lists what's airing.
+ * One search over everything the desk can change but people, couches, games and reports (each its own: Find shows a few and
+ * links the rest to its list, searched). An empty search lists what's airing.
  */
 export async function find(q: string): Promise<FoundItem[]> {
   const term = q.trim();
@@ -304,11 +304,7 @@ export async function find(q: string): Promise<FoundItem[]> {
     [like]
   );
   out.push(...cast.map((r) => ({ kind: "castaway" as const, title: r.name, line: `Cast · ${r.season}`, href: `/desk/season/${r.season_id}/c/${r.id}` })));
-  const { rows: couches } = await pool.query(
-    `SELECT c.id, c.name, (SELECT count(*)::int FROM couch_members m WHERE m.couch_id = c.id) AS members FROM couches c WHERE c.name ILIKE $1 ORDER BY c.name LIMIT 6`,
-    [like]
-  );
-  out.push(...couches.map((r) => ({ kind: "couch" as const, title: r.name, line: `Couch · ${r.members} on it`, href: `/desk/couch/${r.id}` })));
+  // Couches are Find's own rows, a few and All N (desk-couches.ts findCouches: docs/PLAN-desk-parity.md part 6d).
   const { rows: facts } = await pool.query(
     `SELECT d.id, d.castaway_name, d.kind, d.method, d.event_type, d.episode_number, d.fact_status, ${seasonName} AS season
        FROM season_decisions d JOIN show_seasons ss ON ss.id = d.season_id JOIN shows s ON s.id = ss.show_id

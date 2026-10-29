@@ -12,6 +12,7 @@
 //   /desk/people                             Find › People (depth 2: docs/PLAN-desk-parity.md step 1)
 //   /desk/reports                            Find › Reports (depth 2: docs/PLAN-desk-parity.md step 2)
 //   /desk/games                              Find › Games (depth 2: docs/PLAN-desk-parity.md part 6a)
+//   /desk/couches                            Find › Couches (depth 2: docs/PLAN-desk-parity.md part 6d)
 //   /desk/[kind]/[id]                        one thing on the desk: a fact, a season, a castaway, a rulebook... (depth 2)
 //   /desk/season/[id]/setup                  a page under a season: its Setup (depth 3: docs/PLAN-desk-parity.md step 3)
 //   /desk/season/[id]/research               its Research and the bot (depth 3: step 4, part 4a)
@@ -84,6 +85,11 @@ export const paths = {
     const qs = new URLSearchParams(Object.entries(o).filter(([, v]) => v) as [string, string][]).toString();
     return `/desk/games${qs ? `?${qs}` : ""}`;
   },
+  /** Find › Couches, filtered, sorted or searched from the start (a couch's Delete lands on Deleted, Find's "All N couches matching"). */
+  deskCouches: (o: { q?: string; f?: string; sort?: string } = {}) => {
+    const qs = new URLSearchParams(Object.entries(o).filter(([, v]) => v) as [string, string][]).toString();
+    return `/desk/couches${qs ? `?${qs}` : ""}`;
+  },
   /** New show; `season`: a season that's here, to set up (How do you want to start?). */
   deskNew: (season?: string) => `/desk/new${season ? `?season=${encodeURIComponent(season)}` : ""}`,
   deskItem: (kind: DeskKind, id: string) => `/desk/${kind}/${id}`,
@@ -100,7 +106,7 @@ export const paths = {
 /** The desk's tabs, and the kinds of thing it has a page for. */
 export const DESK_TABS = ["inbox", "find", "settings"] as const;
 /** The desk's own pages, a level down from its tabs. */
-export const DESK_PAGES = ["library", "new", "people", "reports", "games"] as const;
+export const DESK_PAGES = ["library", "new", "people", "reports", "games", "couches"] as const;
 export const DESK_KINDS = ["fact", "season", "castaway", "couch", "person", "show", "rulebook", "report", "game"] as const;
 export type DeskKind = (typeof DESK_KINDS)[number];
 export const isDeskKind = (v: string): v is DeskKind => (DESK_KINDS as readonly string[]).includes(v);
@@ -179,9 +185,10 @@ export function upFrom(href: string, { signedIn = true }: { signedIn?: boolean }
       if ((SHOW_PAGES as readonly string[]).includes(p[2])) return paths.show(p[1]);
       return paths.home;
     case "desk":
-      if (p[1] === "library" || p[1] === "people" || p[1] === "reports" || p[1] === "games") return paths.desk("find");
+      if (p[1] === "library" || p[1] === "people" || p[1] === "reports" || p[1] === "games" || p[1] === "couches") return paths.desk("find");
       if (p[1] === "report") return paths.deskReports();
       if (p[1] === "game") return paths.deskGames();
+      if (p[1] === "couch") return paths.deskCouches();
       if (p[1] === "new") return paths.desk("library");
       if (p[1] === "fact") return paths.desk();
       if (p[1] === "season" && p[2] && p[3] === "c") return paths.deskSeasonPage(p[2], "cast");

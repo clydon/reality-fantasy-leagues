@@ -87,6 +87,12 @@ test("up from a page: where its own Back leads, on up to the hub (the phone's ba
   assert.equal(R.paths.deskGames({ q: "7vma", f: "", sort: "big" }), "/desk/games?q=7vma&sort=big");
   assert.equal(R.upFrom("/desk/game/g1"), "/desk/games");
   assert.equal(R.depthOf("/desk/game/g1"), 2);
+  // Find › Couches and a couch's page (part 6d): Couches a level down from Find, a couch up to Couches.
+  assert.equal(R.upFrom("/desk/couches?f=deleted"), "/desk/find");
+  assert.equal(R.depthOf("/desk/couches"), 2);
+  assert.equal(R.paths.deskCouches({ f: "deleted" }), "/desk/couches?f=deleted");
+  assert.equal(R.paths.deskCouches({ q: "race night", sort: "big" }), "/desk/couches?q=race+night&sort=big");
+  assert.equal(R.upFrom("/desk/couch/c1"), "/desk/couches");
   // Signed out, the top is the landing.
   assert.equal(R.upFrom("/signin"), "/welcome");
   assert.equal(R.upFrom("/start/1", { signedIn: false }), "/welcome");

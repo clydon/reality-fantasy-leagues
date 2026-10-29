@@ -49,8 +49,10 @@ export interface GameRow {
   players: number;
   startedAt: string;
   archived: { at: string; by: string | null } | null;
-  /** Deleted: when, by whom, and the day it goes for good on its own. */
-  deleted: { at: string; by: string | null; until: string } | null;
+  /** Deleted: when, by whom, and the day it goes for good on its own; `couch`, when its couch is deleted too: "with" it (the
+   *  couch's Delete took it, and its Restore brings it back) or "gone" (it went first, and comes back on its own once the
+   *  couch is restored: part 6d). */
+  deleted: { at: string; by: string | null; until: string; couch: "with" | "gone" | null } | null;
   /** The search was a code and this game's code starts with it (the row leads with it, marked). */
   codeHit: boolean;
 }
@@ -105,7 +107,8 @@ const ORDER: Record<GameSort, string> = {
 
 const COLUMNS = `l.id, l.name, l.join_code, l.solo, l.created_at, l.deleted_at, c.id AS couch_id, c.name AS couch, ${SEASON} AS season,
   l.state->'settings'->>'leagueTypeId' AS type, st.state, ${PLAYERS} AS players,
-  l.state->'settings'->>'archivedAt' AS archived_at, COALESCE(ab.username, ab.name) AS archived_by, COALESCE(db.username, db.name) AS deleted_by`;
+  l.state->'settings'->>'archivedAt' AS archived_at, COALESCE(ab.username, ab.name) AS archived_by, COALESCE(db.username, db.name) AS deleted_by,
+  CASE WHEN c.deleted_at IS NULL THEN NULL WHEN c.deleted_at = l.deleted_at THEN 'with' ELSE 'gone' END AS couch_gone`;
 const JOINS = `CROSS JOIN LATERAL (SELECT ${STATE} AS state) st
   LEFT JOIN "user" ab ON ab.id = l.state->'settings'->>'archivedBy' LEFT JOIN "user" db ON db.id = l.deleted_by`;
 
@@ -126,6 +129,7 @@ const rowOf = (r: Record<string, unknown>, code: string | null): GameRow => ({
         at: (r.deleted_at as Date).toISOString(),
         by: (r.deleted_by as string | null) ?? null,
         until: new Date((r.deleted_at as Date).getTime() + RESTORE_DAYS * 864e5).toISOString(),
+        couch: (r.couch_gone as "with" | "gone" | null) ?? null,
       }
     : null,
   codeHit: !!code && String(r.join_code).startsWith(code),
@@ -164,7 +168,7 @@ export async function gameCounts(): Promise<Record<GameFilter, number>> {
 export async function deskGames(opts: { q?: string | null; f?: string | null; sort?: string | null; offset?: unknown; limit?: unknown; counts?: boolean }): Promise<GamesList> {
   const f: GameFilter = GAME_FILTERS.includes(opts.f as GameFilter) ? (opts.f as GameFilter) : "all";
   const sort: GameSort = GAME_SORTS.includes(opts.sort as GameSort) ? (opts.sort as GameSort) : "new";
-  const offset = Math.max(0, Math.floor(Number(opts.offset) || 0));
+  const offset = Math.min(1_000_000, Math.max(0, Math.floor(Number(opts.offset) || 0)));
   const limit = Math.min(100, Math.max(1, Math.floor(Number(opts.limit) || GAMES_PAGE)));
   const term = (opts.q ?? "").trim();
   const code = codeQuery(term);
@@ -281,7 +285,8 @@ export async function deskGame(id: string): Promise<DeskGame> {
     runBy,
     startedBy: r.started_by ?? null,
     others: r.couch_id ? r.others : 0,
-    restorable: !!r.deleted_at && !!del[0],
+    // A game on a deleted couch comes back with the couch (end-game.ts restoreGame refuses it alone).
+    restorable: !!r.deleted_at && !!del[0] && !r.couch_gone,
     off: r.solo === "public" ? "A season's public pool goes with its season" : null,
     history: byNewest([
       ...lines.map((l) => (l.undoable && Date.parse(l.at) < newest ? { ...l, undoable: false } : l)),

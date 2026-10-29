@@ -8,6 +8,7 @@ import { restoreSetting } from "./desk";
 import { restoreSeasonBot } from "./desk-bot";
 import { restoreCastaway, restoreGroups, restoreHold, setCastawayLock } from "./desk-cast";
 import { restoreCastSend } from "./desk-cast-page";
+import { restoreCouchRestored } from "./desk-couches";
 import { restoreCleared, restoreAnswer, writeTriviaOut } from "./desk-episode";
 import { restoreFact, restoreFacts } from "./desk-facts";
 import { restoreArchive, restoreRestored } from "./desk-games";
@@ -72,6 +73,8 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
       await restoreHold(user.id, String(u.seasonId), (u.value as number | null) ?? null, u.to as number | null | undefined);
       break;
     case "couchFill": {
+      const { rows: gone } = await pool.query("SELECT 1 FROM couches WHERE id = $1 AND deleted_at IS NOT NULL", [u.id]);
+      if (gone.length) throw new HttpError(409, "It's deleted: restore it first");
       const { rows: leagues } = await pool.query("SELECT id FROM leagues WHERE couch_id = $1", [u.id]);
       await setWhoFills(user.id, String(u.id), leagues.map((l) => l.id), !!u.anyone);
       break;
@@ -99,6 +102,9 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
       break;
     case "gameRestore":
       await restoreRestored(user, c.id, u);
+      break;
+    case "couchRestore":
+      await restoreCouchRestored(user, c.id, u);
       break;
     case "rulebookBase":
     case "rulebookEdit":
