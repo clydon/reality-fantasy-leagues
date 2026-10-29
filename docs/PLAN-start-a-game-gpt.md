@@ -2911,8 +2911,8 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   - **Re-runs** (on the final code): `check-market.js` ALL PASS, `check-waivers.js` all passed, `check-draft-prices.js` and
     `check-draft-spread.js` ALL PASS (the draw's log and the free-agency checks changed), `check-engine-lab.js --api` ALL PASS.
     `npx tsc --noEmit -p .` clean.
-  - **Golden replays** (`golden.js`, HEAD against the working tree, after the code review's fixes): 7 seasons, 160 games, **19,361
-    reads, every one the same** (no game they play trades; the waivers' order by standings reads `rankKey`, the points for every
+  - **Golden replays** (`golden.js`, HEAD against the working tree, after the code review's fixes, and again on the final code
+    after the computer players' market habit): 7 seasons, 160 games, **19,361 reads, every one the same** (no game they play trades; the waivers' order by standings reads `rankKey`, the points for every
     one of them; a draw's log carries a price only under a cap). Survivor 50, on tape since the playtest lane recorded it, isn't
     loaded in this lane's database, so it isn't among them.
   - **Blind replays** (`blind.js run`, the five seasons, on the final code): **every game ended on all five seasons**, the
