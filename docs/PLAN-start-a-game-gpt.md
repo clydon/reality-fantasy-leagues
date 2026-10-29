@@ -341,6 +341,33 @@ guardrails: below).
 **Decided 2026-10-28** (Decisions, above): mechanics the players decide are allowed, with guardrails; numbers from outside
 research are allowed from vetted sources, settled once at a fixed moment. A14 is planned, no longer waiting.
 
+### Formats nobody announced (the user, 2026-10-28)
+
+A taped season comes with hindsight; a live one doesn't. The Challenge changes its format from season to season and often
+several times within one (pairs, then teams, then each for themselves; a new phase; a twist), Survivor swaps tribes, and The
+Traitors adds twists. None of it is known when a game is made, so a game built on the format at its start can be thrown by
+a change mid-season. Today's replays can't show it: a taped season's "how it works" comes from a rules answer written after
+the season ended, so it already lists every change, and a change in a live season shows up only in each episode's research,
+in a catch-all text field (`notableTwist`) the engine doesn't act on. Every game has to keep playing through a change
+nobody announced:
+
+- **Ride on data, not on the format at the start.** A pick or a question names people, groups and moments as the latest data
+  has them: its choices are read at each lock, so a swap, a split or a new team changes them by itself.
+- **Notice it.** Each episode's research says when the format changed (what changed, from which episode on), as data the
+  engine reads, not only as free text.
+- **Act on it, without a person.** The engine checks every running game against the new format. What still makes sense
+  carries on. What doesn't follows a fallback its spec carries from the start (carry on with what's left, void that
+  episode's question and its points, or start the game's next stage), and the maker is told what changed and what the game
+  did. No game stops to wait for someone.
+- **Prove it with blind replays.** Replay a taped season as if it were live: the game is made from what was known before its
+  premiere (the previous season's format, or a rules answer as of the premiere), and each change arrives only in its
+  episode's research. The Challenge's three seasons are the hard test (40 and 39 go on tape next for this): every game the
+  tracker says it plays keeps playing, scores sensibly and ends.
+
+Its home is A12 (a stage the show starts, not one the game planned), and it holds for every step from A9 on, along with A6's
+choices and A7's windows. A rule call the Decisions table doesn't settle (which fallback by default, what the maker hears)
+goes in the step's Noticed with a recommendation, for the user.
+
 ## Live sports in the same engine (folded in 2026-10-28)
 
 The live-sports plan (`docs/PLAN-sports-live.md`, on the `sports` branch) is folded in here: one engine for shows and sports,
