@@ -23,7 +23,7 @@ at 9f3dc05f: parts 5a and 5b** (5a: a season's Cast, Ask our bot or Paste it, ea
 games with Undo; the season page's Cast row and the Inbox's cast item; migration 0426; 5b: starting groups with Not a group,
 secret roles together, and Hold until Episode 1 without un-approving; a castaway's page under the cast with Override, Look on
 TMDB and TVmaze, Lock and Remove refused while in use, reaching every game; no migration; their As built is under step 5).
-**Part 6c done at f9d0f645, part 6d is next** (6a: Find › Games with a join code from three characters in any state, deleted ones with Restore; a game's page with its Join code and its Delete: Archive offered, restorable 30 days, then for good; migration 0427. 6b: a game's Seats, signed in, empty and out; the seat's sheet from both pages with Act as them, Link another account and Take them out; Link an account with Game admin, the seat taking their name and the couch joined; Put back; Remove a seat; the last-Commissioner guard on each; no migration. 6c: Open <game>, as you when you play it, else read-only in the app's show space as its couch sees it at your own mark, a History line, a site admin's read scope over the couch's game reads and every write refused while it's on; no migration; their As built is under step 6. 6d: Find › Couches and a couch's Delete, mocked and handed on from 6c, Noticed bq and bw). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
+**Part 6d done at 3eda3131, step 6 ready to merge at 3eda3131: parts 6a, 6b, 6c and 6d** (6a: Find › Games with a join code from three characters in any state, deleted ones with Restore; a game's page with its Join code and its Delete: Archive offered, restorable 30 days, then for good; migration 0427. 6b: a game's Seats, signed in, empty and out; the seat's sheet from both pages with Act as them, Link another account and Take them out; Link an account with Game admin, the seat taking their name and the couch joined; Put back; Remove a seat; the last-Commissioner guard on each; no migration. 6c: Open <game>, as you when you play it, else read-only in the app's show space as its couch sees it at your own mark, a History line, a site admin's read scope over the couch's game reads and every write refused while it's on; no migration. 6d: Find › Couches, searched by name or who runs it, deleted ones with Restore; a couch's Delete, its games going too and its people off it, told once, restorable 30 days from Couches › Deleted, Restore with Undo, every couch read leaving a deleted one out, a trigger refusing a live game on a deleted couch; migration 0428 (Noticed bq and bw closed); their As built is under step 6). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
 either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
@@ -1218,6 +1218,82 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    -people, check-classic-admin ("all PASS"), check-new-settings, check-new-settling, check-bingo-bank ("ALL PASS"), check-new-show,
    check-new-stats and check-new-chat pass; unit tests 847; check-new-desk without its rulebook section (a scratch copy, deleted)
    passed whole (67).
+   **As built, part 6d (2026-10-29):** **Find › Couches** (`/desk/couches`: `routes.ts` DESK_PAGES gains `couches`,
+   `paths.deskCouches`, a couch's page up to Couches; `src/new/desk/couches.tsx`, `desk-couches.ts deskCouches`, `GET
+   /api/desk/couches`): a couch's name or who runs it (whoever has it and its games' Commissioners; a deleted one's from its
+   line and the lines of the games it took); All · Nobody runs it · New this month (Eastern) · Deleted (the first, the one
+   you're on and any with couches in it); Newest first, Most people, Name, A to Z; 25 at a time from the server, the search,
+   filter and sort in the address. A row: "6 people · 2 games · run by priya", "its games have no Commissioner", or "run by
+   priya · 1 nobody runs" under the Nobody runs it tag (a game people play with no Commissioner, as the Inbox's couch nobody
+   runs); a couch with no games is run by whoever has it; a deleted one says "Deleted by quinn Oct 29 · until Nov 28" and
+   carries Restore. **Browse's Couches row** ("34 couches · 2 nobody runs · 1 deleted, restorable") and **Find's search**
+   (three couches, "Couch · ...", and All N couches matching; couches left `desk.ts find()`'s own rows). **A couch's page**
+   (`pages.tsx CouchPage`, as mocked): the lower third Couch or Deleted with "Run by ..." or Nobody runs (some of) its games;
+   its facts ("Started Oct 27 · 2 people · 3 games"); Deleted (by whom, until when, "Its games and chat come back with it",
+   Restore <couch>) or Nobody runs its games with Hand them on; People; Games (a deleted couch's: the games it took, tagged
+   Deleted); Settings (no Override while it's deleted); History (with Started by); and **Delete <couch>** last (decision 4:
+   "Its 3 games go too · restorable for 30 days"). **Delete** (tier 3, a hold, "Restorable for 30 days"): "Its N people come
+   off it and are told. They keep their accounts and their other couches.", "Its N games are deleted too: everyone's teams,
+   picks and scores in them.", "Its chat and history go with it.", "Restorable for 30 days from Couches › Deleted". Held, it
+   all happens in one transaction (`desk-couches.ts remove`). Each game gets the new design's soft delete
+   (`end-game.ts deleteLeagueIn`: deleteLeague's body taken out so it runs in the couch's transaction), with its line in
+   Recent changes ("<who> deleted <game> with <couch> (restorable for 30 days)") and on the desk ("Deleted with <couch>"),
+   its chat staying on it. Its people's rows go into the couch's delete line (`admin_changes.after`, with the games and their
+   batches) and off the couch. Then `couches.deleted_at` is set (**migration 0428**: `deleted_at`, `deleted_by`, a partial
+   index, and the trigger below). It lands on Couches › Deleted with "Deleted <couch> and its 3 games · restore from here for
+   30 days". Its people and anyone with a seat in its games hear once, not once a game (`push-events.ts notifyCouchDeleted`,
+   under New on your couch, always in their bell). **Restore** (its page or its row; `bringBack`) brings back the couch, its
+   people as they were (anyone whose account went meanwhile stays gone; `ensureOwner`) and the games it took (each one's delete
+   line undone, `restoreGame`, a desk line "Restored with <couch>"). A game deleted before it, or one deleted for good
+   meanwhile, stays as it is. The toast says "<couch> is back, with 3 games" with Undo: deleted again, nobody told twice,
+   refused once anything has changed on it since (a game started, archived, deleted or brought back, someone joined, another
+   change on its page). Only the newest Delete or Restore has Undo in History. A test couch's Delete is off ("A test couch
+   goes from Settings › Test couch"). After 30 days a deleted couch goes for good the next time anyone deletes a game
+   (`purgeDeleted`: its games first, then the couch with its chat, invites and plans by 0100's cascades).
+   **Every couch read leaves a deleted couch out.** Its people are off it, so home, the hub, the couch switcher,
+   `couchMembers`, a person's couches and everything that reads who's on a couch find nothing. The reads by id say so too:
+   `requireCouch` 404s for everyone, a site admin included, so the couch's page, hub, chat, games and joins do. Its invite
+   codes and its games' join codes lead nowhere (`couch-joins.ts couchOfCode`, `couchInvite`, `joinCouch`); `joinedLeague`
+   and `healCouches` never put anyone on one; the desk's Inbox and a person's page leave it out. A game a deleted couch took
+   comes back only with it: `restoreGame` refuses it alone and says why, its page says "It went with <couch>, and comes back
+   with it from Couches › Deleted", and its row in Games says "deleted with <couch>" with no Restore. One deleted before its
+   couch waits for the couch. **0428's trigger** (`leagues_on_a_live_couch`, from /code-review): the database refuses a live
+   game on a deleted couch, whichever path makes it (Start a game is the engine lane's file). It reads the couch row with a
+   lock, so a game started while the couch's Delete holds that row waits, then sees it deleted.
+   **Left behind or changed from classic, and why (decision 10):** neither app had a couch delete (decision 4 made one).
+   Classic only ever removed a couch when its last league went (`leagueDeleted`, with the hard league delete), with no way
+   back and nobody told. The desk's is soft, restorable for 30 days, tells its people once, and takes its games through the
+   new design's own delete. From the mock: a deleted couch's facts and Games count the games it took ("3 games"; the mock
+   said "0 games" above three rows tagged Deleted); Browse's row adds "N deleted, restorable" as Games' does; a row with some
+   of its games run says "run by priya · 1 nobody runs"; Override isn't offered on a deleted couch.
+   **Calls made here (Claude's, within the approved screens):** one notice per person, not one per game; a game's chat stays
+   on it rather than moving to the couch's conversation, so Restore brings it back where it was; its people's rows come off
+   the couch (kept in its line) rather than a filter on every read, so nothing that reads who's on a couch can show it;
+   "this month" is Eastern; Restore tells nobody (as a game's doesn't).
+   `/code-review` found these, all fixed: the start-a-game race (the trigger); Deleted not searchable by who ran it; the
+   deleted page's "0 games"; the people count differing between the list and the page when an account went meanwhile; an
+   offset of Infinity failing the list (fixed in Games, People and Reports too); the actions reading the whole page first; a
+   copied `plural`. Kept: the notice under New on your couch (always in the bell; the switch only stops the push, as for a
+   game's delete); the filters that are redundant once its people are off it (belt and braces). Left: the `via` update a
+   couch's delete makes for each game and then throws away (a few rows).
+   **Noticed, not fixed (6d):** (bx) a few reads by couch id that come after their own gate (push-events' couch names,
+   community-results' `results_by_anyone`, `ours.ts`, start-game.ts's name) don't check `deleted_at` themselves. Nothing
+   reaches them for a deleted couch today: `requireCouch` refuses first, and the couch has nobody on it. (by) A game deleted
+   before its couch takes two steps to bring back once the couch is deleted: Restore the couch, then the game. (bz) Someone
+   whose couch was deleted sees it only in their bell; their home just leaves it out.
+   Check: `scripts/dev-test/check-desk-couches.js` 115 PASS at 390 (zt_dh_ fixture, up and down, codes Z6H, every real account,
+   league and couch as it was): the list, its filters, counts, sorts, paging and searches (by who ran a deleted one too), a
+   couch's page, a test couch's Delete off; Delete (its games with it at one moment, one deleted before left alone, each
+   game's line, its people off it and told once, not once a game), every read leaving it out (home, the couch's own read for
+   a site admin too, its chat and hub, its invite and join codes, Find, the Inbox, a person's page), a game it took refused
+   on its own, the trigger refusing a game started on it, the couch deleted 40 days ago gone for good; Restore, its Undo
+   (nobody told twice; refused with a game archived since; only the newest undoable) and someone whose account went
+   meanwhile; then the screens: Browse, the list searched and sorted, a couch's page, the hold, Couches › Deleted, the
+   deleted page, a game it took, Restore and the toast's Undo, Restore from the row, Find's three and All N, a test couch.
+   check-desk-readonly, -seats, -games, -cast, -bingo, -episode, -research, -setup, -inbox and -people, check-classic-admin
+   ("all PASS"), check-new-settings, check-new-settling, check-bingo-bank ("ALL PASS"), check-new-couches, check-new-hub and
+   check-new-chat pass; unit tests 847 (tests/new-nav.test.js adds Couches and a couch); check-new-desk without its rulebook
+   section (a scratch copy, deleted) passed whole (67).
 7. **Shows and site.** Delete a show (refused while games use it, saying which), restore an archived one, a season's details
    when adding it (number, status, wiki), the connector (wiki API, cast heading, research sites), art by URL with its framing;
    Settings: AI models, What's New preview, the rulebooks flag.
