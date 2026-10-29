@@ -23,7 +23,7 @@ at 9f3dc05f: parts 5a and 5b** (5a: a season's Cast, Ask our bot or Paste it, ea
 games with Undo; the season page's Cast row and the Inbox's cast item; migration 0426; 5b: starting groups with Not a group,
 secret roles together, and Hold until Episode 1 without un-approving; a castaway's page under the cast with Override, Look on
 TMDB and TVmaze, Lock and Remove refused while in use, reaching every game; no migration; their As built is under step 5).
-**Step 6 ready to merge at 3eda3131: parts 6a, 6b, 6c and 6d** (6a: Find › Games with a join code from three characters in any state, deleted ones with Restore; a game's page with its Join code and its Delete: Archive offered, restorable 30 days, then for good; migration 0427. 6b: a game's Seats, signed in, empty and out; the seat's sheet from both pages with Act as them, Link another account and Take them out; Link an account with Game admin, the seat taking their name and the couch joined; Put back; Remove a seat; the last-Commissioner guard on each; no migration. 6c: Open <game>, as you when you play it, else read-only in the app's show space as its couch sees it at your own mark, a History line, a site admin's read scope over the couch's game reads and every write refused while it's on; no migration. 6d: Find › Couches, searched by name or who runs it, deleted ones with Restore; a couch's Delete, its games going too and its people off it, told once, restorable 30 days from Couches › Deleted, Restore with Undo, every couch read leaving a deleted one out, a trigger refusing a live game on a deleted couch; migration 0428 (Noticed bq and bw closed); their As built is under step 6). **Part 7a done at f5d3a5a7** (a show on the desk: Find › Shows with Archived's Restore, Browse's Shows row and Find's three; a show's page with Add a season, Its words written into its seasons' rulebooks too, Research sites, Archive and Restore, and its Delete, refused while it has games, by season; migration 0429, two plural words and a trigger clearing a stale one; Noticed s, u, v and y closed, ca-ce new; its As built is under step 7). **Part 7b done at c1f0facf** (a show's Art and photos, `/desk/show/<id>/art`: the Header and the Cards in the crops they're used in, each with where it's from, TMDB on its own, Choose one from TMDB or a link, and its framing, dragged and zoomed, tier 1 with Undo; Cast photos by season, Find again, No art or photos; migration 0430, a source and a framing per frame, the framing bound to its image and carried on the image's address to every reader; Up next on the header frame; Noticed x closed, cf-cj new; its As built is under step 7). Part 7c, Settings, is next and ends step 7. Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
+**Step 6 ready to merge at 3eda3131: parts 6a, 6b, 6c and 6d** (6a: Find › Games with a join code from three characters in any state, deleted ones with Restore; a game's page with its Join code and its Delete: Archive offered, restorable 30 days, then for good; migration 0427. 6b: a game's Seats, signed in, empty and out; the seat's sheet from both pages with Act as them, Link another account and Take them out; Link an account with Game admin, the seat taking their name and the couch joined; Put back; Remove a seat; the last-Commissioner guard on each; no migration. 6c: Open <game>, as you when you play it, else read-only in the app's show space as its couch sees it at your own mark, a History line, a site admin's read scope over the couch's game reads and every write refused while it's on; no migration. 6d: Find › Couches, searched by name or who runs it, deleted ones with Restore; a couch's Delete, its games going too and its people off it, told once, restorable 30 days from Couches › Deleted, Restore with Undo, every couch read leaving a deleted one out, a trigger refusing a live game on a deleted couch; migration 0428 (Noticed bq and bw closed); their As built is under step 6). **Part 7a done at f5d3a5a7** (a show on the desk: Find › Shows with Archived's Restore, Browse's Shows row and Find's three; a show's page with Add a season, Its words written into its seasons' rulebooks too, Research sites, Archive and Restore, and its Delete, refused while it has games, by season; migration 0429, two plural words and a trigger clearing a stale one; Noticed s, u, v and y closed, ca-ce new; its As built is under step 7). **Part 7b done at c1f0facf** (a show's Art and photos, `/desk/show/<id>/art`: the Header and the Cards in the crops they're used in, each with where it's from, TMDB on its own, Choose one from TMDB or a link, and its framing, dragged and zoomed, tier 1 with Undo; Cast photos by season, Find again, No art or photos; migration 0430, a source and a framing per frame, the framing bound to its image and carried on the image's address to every reader; Up next on the header frame; Noticed x closed, cf-cj new; its As built is under step 7). **Part 7c done at a6bd1443** (the desk's Settings, part one: Which AI our bot asks, ChatGPT or Claude, sent with every ask, tier 1 with Undo; the rulebooks flag, Check every league as a desk job with its progress and tally, Switch on for every season after a check that passed, Switch it off keeping a season on by itself and a couch's own copy, Undo both ways; no migration; Noticed ck-cn new; its As built is under step 7). **What's New as data (decision 8, Noticed z) waits for its drafts editor's mock** (with the user, in the main folder): it's part 7d, which ends step 7. Parts 7a-7c could merge as they stand. Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
 either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
@@ -1529,6 +1529,74 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    check-classic-admin ("all PASS"), check-new-settings, check-new-settling, check-bingo-bank ("ALL PASS"), check-new-hub,
    check-new-guide and check-header-art pass; unit tests 859 (tests/art-frame.test.js); check-new-desk without its rulebook
    section (a scratch copy, deleted) passed whole.
+   **As built, part 7c (2026-10-29):** **the desk's Settings, part one** (no migration). **Which AI our bot asks** (Settings ›
+   Our bot, "What it looks up on its own, and with which AI."; its row "ChatGPT, signed in · free to us" or "Claude, through
+   its CLI · free to us" with the dot off Recommended): as mocked (svBotSheet), ChatGPT signed in (Recommended), Claude, and
+   Gemini greyed (`aria-disabled`; a tap says it can't do the research prompts yet), the line of what it asks for, Reset to
+   recommended as every Settings sheet has; tier 1, "Our bot asks Claude from its next question" with Undo and a line in
+   Settings history (`desk.ts setDeskSetting` `botAi`, `restoreSetting` `bot_ai`). It's `app_settings 'bot_ai'`, read by
+   `ask-bot.ts askBot` with each ask (`botProvider`, one small row) and sent as the bot's `provider`; a caller may name one
+   (`BotChoice.provider`, additive); askBot's error names the AI asked ("Claude didn't answer"). Every ask goes through askBot,
+   so the research runner (`db/bot-research.js`, its exports untouched: the cron route and the desk hand it askBot), Ask our bot
+   for a cast, One tap, Make it a game, trivia and bingo all follow it. **The rulebooks flag** (Settings › Rulebooks, its row
+   "Every season · N leagues" when on; `src/new/desk/settings-flag.tsx`; `GET` and `POST /api/desk/settings/rulebooks`,
+   `src/lib/server/desk-rulebooks-flag.ts`): as mocked (svRbSheet), the seasons on their rulebook by themselves ("On by itself
+   · 14 games play by its rulebook"), then Every season at once. **Check every league** is a desk job: the script's check,
+   moved to `db/rulebooks-flag.js` (`scripts/rulebooks-flag.js` is its command line now, its exports kept), writes nothing,
+   each league and season in its own rolled-back transaction, run after the request answers (`after()`, the route's 300 s),
+   its progress and then its tally in `app_settings 'rulebooks_check'`, polled each second while it runs (a bar, "N of M");
+   one at a time; a check whose heartbeat is 90 s old is said to have stopped and a new one may start. **The tally**: the
+   games that score exactly the same, and the ones that stay on their show's built-in rules, each a link to its game with its
+   season and why (`src/lib/rulebooks-flag-words.ts`: "No show picked", "It plays by rules of its own, not its season's
+   rulebook"); "every season's rulebook is the one its research reads". **Switch on for every season** (tier 2: the tally is
+   what moves) needs a check that passed in the last 15 minutes (an older one says so, with Check again); it runs the backfill
+   first, whose refusal is said ("Not switched on: <season>'s rulebook isn't the one its research reads"), then every league;
+   "Rulebooks for every season: on (N leagues; M stayed on built-in rules)" in Settings history, with Undo. **On, Switch it
+   off**: every league back on its show's built-in rules, "<season>, on by itself, stays on" and "A couch that made the rules
+   its own keeps them"; its History line names the seasons that stayed on; Undo switches it on again, which needs a passing
+   check too. **Confirmed, and fixed:** the script's off passed `on: false` to every league, so it took Survivor 51's leagues
+   (on by themselves, `rulebook_live`) and a couch's own copy (Make it ours) off their rulebook too; now each league is
+   walked as its own season decides (`syncLeagueRow` with no `on`), on and off. Classic admin's row: "Only What's New's
+   preview is left there · it goes with step 8".
+   **Left behind from classic, and why (decision 10):** classic's two per-browser AI models (wiki reads, paid research) and its
+   Site page's Paid AI switch: no wiki and no paid research (decision 9), so Settings has no Reading a wiki or Paid research
+   rows (Changes at approval). The flag was server-only in both; now it's the desk's. Classic's What's New preview stays in
+   classic until part 7d. **Calls made here (Claude's, within the approved screens):** the mock's "2 score differently: they
+   stay on built-in rules" is what the real check leaves on built-in rules (`syncLeagueRulebook`'s mismatch or reason); a game
+   whose rulebook would be written but score differently can't be kept off once the flag is on, so it keeps the switch off,
+   listed under "Would score differently" (a Differs tag, why, Check again), as is a season whose research reads something
+   else: the mock had no such case, and the script exits 1 on it. Deleted games aren't in the tally, but the switch walks them,
+   so a restored one plays by what the flag says. One switch at a time (an advisory lock); a switch on that fails partway is
+   put back off. The off sheet says what stays on, where the mock's on-sheet promised every league went back. The ask-AI
+   route (a commissioner's Ask ChatGPT for me) follows the setting too: it's one bot. `/code-review` found these, all fixed: an
+   Undo switching it on without a check; deleted games in the tally; a passed check too old to switch on from disappearing
+   without a word; a failed switch on left half on; two switches at once; "Switching it off puts every league back" no longer
+   true; a fourth copy of the list joiner; the check's guard missing real leagues' rulebook ids and timestamps.
+   **Noticed, not fixed (7c):** (ck) Copy that names ChatGPT is wrong while Claude is chosen: players' "Ask ChatGPT for me" and
+   "ChatGPT is searching the web" (`backstage/ask-ai.tsx`, `results.tsx`), One tap's and the recaps', rosters' and Make it a
+   game's own "ChatGPT didn't answer" (`results-ways.ts:179`, `episode-recaps.ts:211`, `rosters.ts:354`, `make-game.ts:513`),
+   the desk's "Asking ChatGPT" (`research.tsx`) and "ChatGPT reads the cast" (`cast.tsx`). Player-facing words: a copy pass
+   with the user, or "our bot" throughout. (cl) Claude goes through the Claude Code CLI on the bot's computer: the home PC's
+   bot has it; whether production's VM bot has the CLI signed in isn't checked. Choosing Claude in production without it fails
+   every ask on the VM (each falls to the next bot, then fails); check the VM first (the user's). (cm) The switch walks every
+   league inside its request (300 s): production's ~41 take seconds, but hundreds would need the check's job pattern. (cn) A
+   check that passed lets the switch go on for 15 minutes; a league whose rules change inside that window isn't checked again
+   (`syncLeagueRulebook` still refuses a legacy rulebook that isn't what it plays by, so only a non-legacy one could slip).
+   Check: `scripts/dev-test/check-desk-settings.js` 50 PASS at 390 (zt_dz_ fixture, up and down, code Z5Q, the stand-in bot;
+   it refuses to run with the flag on or the bot off ChatGPT, puts real leagues' timestamps back, and checks every real
+   league's state, rulebook and timestamp and every real rulebook as they were): a player refused; ChatGPT by default, Gemini
+   refused, Claude set with its History line, the next ask (a season's Cast › Ask our bot) asking Claude, Undo and the next
+   asking ChatGPT, a second Undo refused; the flag: Switch on refused before a check, the check started, a second refused,
+   finished with every league and season, the tally (ZT DZ Loose with why, the deleted game left out, nothing differing),
+   nothing written; Switch on (every game but ZT DZ Loose, the deleted one walked too), its History line, refused again; Switch
+   it off (ZT DZ Isle 1, on by itself, keeping its game on), its History line; Undo both ways and a refused one; a check that
+   found a game scoring differently keeping it off; a stalled check said and replaced; then the screens: Settings' Our bot
+   rows, Which AI our bot asks (Gemini greyed and saying why, Claude chosen, the toast's Undo), Games on their rulebook (Check
+   every league, the tally and its link, Switch on, Switch it off naming the season that stays), a held tally. check-desk-art,
+   -shows, -couches, -readonly, -seats, -games, -cast, -bingo, -episode, -research, -setup, -inbox and -people,
+   check-classic-admin ("all PASS"), check-new-settings, check-new-settling, check-bingo-bank ("ALL PASS"), check-show-art-ui,
+   check-rulebook-flag and `scripts/rulebooks-flag.js check` pass; unit tests 863 (tests/rulebooks-flag-words.test.js);
+   check-new-desk without its rulebook section (a scratch copy, deleted) passed whole.
 8. **Classic's admin retires**: `/admin` sends a site admin to the desk; classic's admin pages and `src/lib/admin-store.ts` go.
    So does what only classic used, each checked unused first (decision 9): the wiki read (classic's Pull cast, `db/wiki-sync.js`'s
    pull and its nightly `.github/workflows/wiki-sync.yml`) and paid Claude research's hourly `.github/workflows/auto-research.yml`.
@@ -1572,7 +1640,8 @@ order, each to the approved mock and its step's Changes at approval.
 | 6d | Find › Couches (Browse's Couches row, with Deleted) and a couch's Delete: its games go too, restorable 30 days, Restore (handed on from 6c; `couches.deleted_at`, a migration) | bq, bw |
 | 7a | A show: Add a season, Its words (`episode_term`, one source with the rulebook's), Research sites, Archive and Restore, the show's Delete | s, u, v, y |
 | 7b | Art and photos: a source and framing per frame (the poster's `art_style`, one for the backdrop), a link per frame | x |
-| 7c | Settings: Which AI our bot asks (an app setting sent with each ask), the rulebooks flag's check as a desk job and its switch, What's New as data (decision 8, once its drafts are mocked) | z |
+| 7c | Settings: Which AI our bot asks (an app setting sent with each ask), the rulebooks flag's check as a desk job and its switch | |
+| 7d | What's New as data (decision 8), once its drafts editor is mocked with the user | z |
 
 - **Every part:** merge master in (`node C:\Users\conor\reality-fantasy-leagues\scripts\lane.js sync desk`, which refuses while
   anything is uncommitted); read its step's As mocked, What the build needs, Changes at approval and Noticed items; read the
