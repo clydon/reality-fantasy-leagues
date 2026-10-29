@@ -158,9 +158,14 @@ export async function freeSeat(s: LeagueState, client: PoolClient, leagueId: str
 /**
  * Takes `userId` out of `leagueId` (tier 3), as classic's leave does: before the draft the seat goes; after it, it's
  * disabled (its team and points stay in the standings, nobody plays it). Their membership goes; the last Commissioner
- * can't go. The line carries a MemberUndo, open for 30 days.
+ * can't go. The line carries a MemberUndo, open for 30 days. `inside` runs in the same transaction, with the undo (the
+ * desk's History lines: docs/PLAN-desk-parity.md part 6b).
  */
-export async function takeOut(leagueId: string, userId: string, spec: { actor: string; batch: string; text: string }): Promise<boolean> {
+export async function takeOut(
+  leagueId: string,
+  userId: string,
+  spec: { actor: string; batch: string; text: string; inside?: (client: PoolClient, undo: MemberUndo) => Promise<void> }
+): Promise<boolean> {
   let undo: MemberUndo | null = null;
   await withLeagueLock(
     leagueId,
@@ -174,6 +179,7 @@ export async function takeOut(leagueId: string, userId: string, spec: { actor: s
       const removed = await freeSeat(s, client, leagueId, seat, userId);
       await client.query("DELETE FROM league_memberships WHERE league_id = $1 AND user_id = $2", [leagueId, userId]);
       undo = { type: "member", userId, playerId: me.player_id ?? "", name: seat?.formerName ?? seat?.name ?? "someone", role: me.role, seen: me.results_seen_through, removed };
+      await spec.inside?.(client, undo);
     },
     (): ChangeSpec | null =>
       undo

@@ -9,10 +9,10 @@ import { paths } from "../routes";
 import { HoldSheet } from "../ui/guards";
 import { Btn, EmptyState } from "../ui/parts";
 import { toast } from "../ui/toast";
-import { deskGet, deskSend, useAfterDesk, useDesk, type DeskGame, type GameFilter, type GameRow, type GameSort, type GamesList } from "./data";
+import { deskGet, deskSend, useAfterDesk, useDesk, type DeskGame, type GameFilter, type GameRow, type GameSeats, type GameSort, type GamesList } from "./data";
 import { dateOf, DeleteRow, DeskHeader, DeskRow, Facts, IconLead, LatestHistory, LowerThird, Section, useChangeToast } from "./parts";
 import { useDebounced } from "./people";
-import { HandOnSheet } from "./seats";
+import { CON, GameSeatsSection, HandOnSheet } from "./seats";
 import { forgetDeskPage } from "./trail";
 
 // Games on the desk (docs/PLAN-desk-parity.md step 6, part 6a; the mock's desk.js DK_LIST.games and desk-games.js): Find ›
@@ -20,9 +20,9 @@ import { forgetDeskPage } from "./trail";
 // · Deleted; newest, most players, name; 25 at a time, the search, filter and sort in the address), where a code-shaped
 // search finds its game whatever the filter, deleted ones within 30 days too (with Restore), and says why when no game has
 // it; and a game's page: its lower third and facts, Restore or Hand it on when it needs one, Part of (its couch, its season,
-// its rulebook), its Join code, History, and its Delete last (decision 4): Archive offered first, then restorable for 30
-// days, and for a deleted one Delete it for good, now. Seats come with part 6b and Open it read-only with 6c. Server:
-// src/lib/server/desk-games.ts.
+// its rulebook), its Join code, its Seats (part 6b: seats.tsx), History, and its Delete last (decision 4): Archive offered
+// first, then restorable for 30 days, and for a deleted one Delete it for good, now. Open it read-only comes with 6c.
+// Server: src/lib/server/desk-games.ts and desk-seat-moves.ts.
 
 const FILTERS: [GameFilter, string][] = [
   ["all", "Playing"],
@@ -45,8 +45,6 @@ const STATE_TAG: Partial<Record<GameRow["state"], [string, string]>> = {
   archived: ["Archived", "text-foreground outline-1 -outline-offset-1 outline-foreground"],
   deleted: ["Deleted", "text-live outline-1 -outline-offset-1 outline-live"],
 };
-/** One line of what a delete does (the mock's .dk-cons, as a person's Delete has it). */
-const CON = "relative pl-4 text-[15px] leading-normal before:absolute before:left-0 before:top-[.6em] before:size-1.5 before:rounded-[1px] before:bg-live";
 const MARK = "bg-transparent text-foreground underline decoration-chyron underline-offset-[3px]";
 
 /** Where a game is: its couch, or what it is on no couch. */
@@ -273,10 +271,10 @@ const LT_TAG: Record<GameRow["state"], string> = { playing: "Playing", nobody: "
 
 /**
  * A game (the mock's desk-games.js dkGamePage): its lower third and facts; Restore when it's deleted, Hand it on when
- * nobody runs it; Part of; its Join code; History; and its Delete, last.
+ * nobody runs it; Part of; its Join code; its Seats; History; and its Delete, last.
  */
 export function GamePage({ id }: { id: string }) {
-  const q = useDesk<DeskGame>(`/games/${id}`);
+  const q = useDesk<DeskGame & { seats: GameSeats | null }>(`/games/${id}`);
   const after = useAfterDesk();
   const said = useChangeToast();
   const nav = useNav();
@@ -429,6 +427,7 @@ export function GamePage({ id }: { id: string }) {
           </p>
         </Section>
       )}
+      {g.seats && <GameSeatsSection g={{ id: g.id, name: g.name, season: g.season, couch: g.couch }} seats={g.seats} />}
       <LatestHistory lines={g.history} />
       {deleted && g.deleted ? (
         <DeleteRow data="game-gone" title={`Delete ${g.name} for good, now`} line={`Can't be undone · it goes on its own ${dateOf(g.deleted.until)}`} onClick={() => setSheet("gone")} />

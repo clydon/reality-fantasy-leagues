@@ -9,6 +9,7 @@ import { pool, tx, withLeagueLock, HttpError } from "./db";
 import { logDesk, type DeskEntity } from "./desk";
 import { gameName, LEAGUE_SEASON_NAME } from "./league-season";
 import { notifyHandedOn } from "./push-events";
+import { markBatch, markDesk, restoreSeatMove } from "./desk-seat-moves";
 import { LEAGUE_ROLES, lastCommissionerProblem, setLeagueRole, type LeagueRole } from "./roles";
 
 // A seat on the desk (docs/PLAN-desk-parity.md step 1 part 1c; the mock's desk-games.js dgSeatSheet, the same sheet from a
@@ -19,7 +20,8 @@ import { LEAGUE_ROLES, lastCommissionerProblem, setLeagueRole, type LeagueRole }
 // never checked: Noticed p). Hand on (the mock's dkHandOn): games whose only Commissioner is going, to whoever plays them,
 // one person for them all or game by game; tier 1 with Undo, and the new Commissioner is told. Built for a person's seat and
 // their Delete (part 1c), a couch nobody runs (step 2) and a game's page (step 6). Classic's routes (the league memberships
-// routes for role and unlink) wrote no History, had no Undo and no guard on unlink; its link (an upsert) is step 6b's.
+// routes for role and unlink) wrote no History, had no Undo and no guard on unlink. Link, Take out, Put back and Remove a
+// seat are desk-seat-moves.ts's (part 6b).
 
 export const ROLE_TITLE: Record<LeagueRole, string> = { commissioner: "Commissioner", admin: "Game admin", member: "Player" };
 
@@ -109,7 +111,8 @@ export async function unlinkSeat(user: SessionUser, leagueId: string, userId: st
     if (!me) throw new HttpError(409, `${seat.person} isn't signed in to a seat there now`);
     if (lastCommissionerProblem(rows.map((r) => ({ userId: r.user_id, role: r.role })), userId, "member")) throw new HttpError(409, `${seat.person} runs ${seat.game} alone. Hand it to someone first.`);
     await db.query("DELETE FROM league_memberships WHERE league_id = $1 AND user_id = $2", [leagueId, userId]);
-    await recordChange(db, leagueId, null, { userId: user.id, kind: "member", tier: 1, text: `Unlinked ${seat.person}'s account from their seat`, batch });
+    // The seat it leaves empty (a game's Seats says when: desk-seat-moves.ts).
+    await recordChange(db, leagueId, null, { userId: user.id, kind: "member", tier: 1, text: `Unlinked ${seat.person}'s account from their seat`, batch, detail: { emptied: seat.playerId ? [seat.playerId] : [] } });
     return logDesk(db, {
       entity: "person",
       entityId: userId,
@@ -253,12 +256,14 @@ export async function handOn(
  */
 export async function letSeatGo(leagueId: string, userId: string, name: string, actor: string, batch: string): Promise<"went" | "stays" | null> {
   let outcome = null as "went" | "stays" | null;
+  let playerId: string | null = null;
   await withLeagueLock(
     leagueId,
     async (s, client) => {
       const { rows } = await client.query("SELECT player_id FROM league_memberships WHERE league_id = $1 AND user_id = $2 FOR UPDATE", [leagueId, userId]);
       if (!rows[0]) return;
       const seat = rows[0].player_id ? s.players.find((p) => p.id === rows[0].player_id) : null;
+      playerId = seat?.id ?? null;
       outcome = (await freeSeat(s, client, leagueId, seat, userId)) ? "went" : "stays";
       await client.query("DELETE FROM league_memberships WHERE league_id = $1 AND user_id = $2", [leagueId, userId]);
     },
@@ -269,6 +274,8 @@ export async function letSeatGo(leagueId: string, userId: string, name: string, 
         tier: 3,
         text: outcome === "went" ? `${name}'s account was deleted: their seat went from the game` : `${name}'s account was deleted: their seat stays in the standings, unplayed`,
         batch,
+        // The seat it was, for a game's Seats (desk-seat-moves.ts: Out of it, "Account deleted").
+        detail: playerId ? { deleted: playerId } : null,
       }
   );
   return outcome;
@@ -284,7 +291,7 @@ export async function letSeatGo(leagueId: string, userId: string, name: string, 
 export async function restoreSeat(user: SessionUser, changeId: string, u: Record<string, unknown>): Promise<void> {
   const batch = String(u.batch ?? "");
   const markGames = async (db: PoolClient) => {
-    await db.query("UPDATE league_changes SET undone_at = now(), undone_by = $2 WHERE batch = $1 AND undone_at IS NULL", [batch, user.id]);
+    await markBatch(db, batch, user.id);
   };
   switch (u.do) {
     case "role": {
@@ -338,9 +345,16 @@ export async function restoreSeat(user: SessionUser, changeId: string, u: Record
       }
       // A game nobody ran before goes back to nobody running it (setLeagueRole's guard would refuse that otherwise).
       for (const m of moves) await setLeagueRole(m.leagueId, m.to, m.before, markGames, { nobodyRuns: !!m.nobodyRan });
-      await pool.query("UPDATE admin_changes SET undone_at = now(), undone_by = $3 WHERE after->>'batch' = $1 AND id <> $2 AND undone_at IS NULL", [batch, changeId, user.id]);
+      await markDesk(batch, changeId, user.id);
       return;
     }
+    // Link, Take out, Put back and Remove a seat (part 6b).
+    case "link":
+    case "takeOut":
+    case "putBack":
+    case "seatBack":
+    case "remove":
+      return restoreSeatMove(user, changeId, u);
     default:
       throw new HttpError(409, "That one can't be undone here");
   }

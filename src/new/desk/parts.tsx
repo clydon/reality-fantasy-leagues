@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, type ComponentProps, type ComponentType, type ReactNode } from "react";
+import { useEffect, useState, type ComponentProps, type ComponentType, type ReactNode } from "react";
 import { ChevronLeft, ChevronRight, Minus, Plus, Trash2 } from "lucide-react";
 import { airTime } from "../clock";
 import { NavLink, useNav } from "../nav";
 import { Btn, Chip } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { deskSend, useAfterDesk, type DeskLine } from "./data";
+import { deskSend, useAfterDesk, type DeskLine, type PersonRow } from "./data";
 import { useDeskTrail } from "./trail";
 
 // The desk's small parts (the mock's community.js admin: .adm-top, .adm-item, .adm-h, the Override sheet, the Lock row),
@@ -15,6 +15,37 @@ import { useDeskTrail } from "./trail";
 // desk-pages.js: a lower third naming the thing, a line of facts, what it's part of and made of as links, its actions,
 // History's latest three, and its Delete, last and named; Back names the page you came from), and the answer fields the
 // rulebook editor's sheets are built from.
+
+/** The small tags beside a name (the mock's .dk-t): You or Site admin, Waiting, Can't sign in. */
+export function PersonTags({ p }: { p: Pick<PersonRow, "you" | "admin" | "waiting" | "stopped"> }) {
+  const tag = "type-caption ml-1.5 inline-block rounded-[2px] px-1.5 pb-0.5 pt-[3px] align-[2px] text-[11px] not-italic leading-none tracking-[0.06em]";
+  return (
+    <>
+      {(p.you || p.admin) && <i className={`${tag} bg-foreground text-background`}>{p.you ? "You" : "Site admin"}</i>}
+      {p.waiting && <i className={`${tag} text-foreground outline-1 -outline-offset-1 outline-foreground`}>Waiting</i>}
+      {p.stopped && <i className={`${tag} text-muted-foreground outline-1 -outline-offset-1 outline-input`}>Can&apos;t sign in</i>}
+    </>
+  );
+}
+
+/** What a sheet says first (the mock's .cons). */
+export function Says({ children, data }: { children: ReactNode; data?: string }) {
+  return (
+    <p data-says={data} className="rounded-[3px] bg-background p-3 text-[16px] leading-normal">
+      {children}
+    </p>
+  );
+}
+
+/** `v`, once it has stopped changing for `ms` (a search as you type). */
+export function useDebounced<T>(v: T, ms: number): T {
+  const [d, setD] = useState(v);
+  useEffect(() => {
+    const t = setTimeout(() => setD(v), ms);
+    return () => clearTimeout(t);
+  }, [v, ms]);
+  return d;
+}
 
 /** A desk change's toast, with Undo when it has one (History's Undo, through the change's id). */
 export function useChangeToast() {

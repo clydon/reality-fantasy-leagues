@@ -533,6 +533,29 @@ export function notifyHandedOn(o: { userId: string; leagueIds: string[]; games: 
 }
 
 /**
+ * The desk signed someone in to a seat, or put them back in a game they'd left (docs/PLAN-desk-parity.md part 6b): they
+ * hear, with a link to the game's show. Under Invites and join requests.
+ */
+export function notifyDeskSeat(o: { userId: string; leagueId: string; title: string; body: string; key: string }) {
+  notifyAfter("invite", async () => {
+    const ls = await leagueSeason(o.leagueId);
+    return {
+      userIds: [o.userId],
+      seasonId: ls.seasonId,
+      message: {
+        title: o.title,
+        body: o.body,
+        url: link("/", o.leagueId),
+        next: ls.seasonId ? `/show/${ls.seasonId}/games` : "/home",
+        tag: `seat-${o.leagueId}`,
+        key: `seat:${o.key}:${o.userId}`,
+        seasonId: ls.seasonId,
+      },
+    };
+  });
+}
+
+/**
  * The desk deleted a game (docs/PLAN-desk-parity.md part 6a): whoever had a seat in it hears, and that it can come back for
  * 30 days. Under A game started: a game's coming and going on your couch.
  */

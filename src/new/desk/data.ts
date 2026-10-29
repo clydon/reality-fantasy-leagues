@@ -23,6 +23,7 @@ export type { DeskCouch, DeskShow } from "@/lib/server/desk-couches";
 export type { DeskGame, GameFilter, GameRow, GameSort, GamesList } from "@/lib/server/desk-games";
 export type { DeskPerson, DeskSeatGame, PeopleList, PersonRow, PeopleFilter, PeopleSort } from "@/lib/server/desk-people";
 export type { HandOnCandidate, HandOnGame } from "@/lib/server/desk-seats";
+export type { GameSeats, LinkCandidate, SeatEmpty, SeatIn, SeatOut, SeatPerson } from "@/lib/server/desk-seat-moves";
 export type { DeskRulebook, DeskRulebookEdit } from "@/lib/server/desk-rulebooks";
 export type { DeskLibrary, LibraryTemplateCard, ProposedShape, LibraryRow, MadeRow } from "@/lib/server/desk-library";
 

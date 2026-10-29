@@ -68,8 +68,8 @@ const ORDER: Record<PeopleSort, string> = {
 };
 
 
-/** Matches $n against a person's username, name, or real email. */
-const SEARCH = (n: number) => `(u.username ILIKE $${n} OR u.name ILIKE $${n} OR (u.email ILIKE $${n} AND u.email NOT ILIKE '%@${NO_EMAIL_DOMAIN}'))`;
+/** Matches $n against a person's username, name, or real email (Link an account's search too: desk-seat-moves.ts). */
+export const SEARCH = (n: number) => `(u.username ILIKE $${n} OR u.name ILIKE $${n} OR (u.email ILIKE $${n} AND u.email NOT ILIKE '%@${NO_EMAIL_DOMAIN}'))`;
 
 const rowOf = (r: Record<string, unknown>, me: string): PersonRow => ({
   id: r.id as string,

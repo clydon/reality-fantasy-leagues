@@ -278,8 +278,11 @@ function freezes(undo: ChangeUndo): boolean {
   return false;
 }
 
-/** Someone taken out of a game (or who left it) comes back: their seat (reclaimed, or a new one if it went before the draft) and membership. */
-async function restoreMember(s: LeagueState, client: PoolClient, leagueId: string, undo: MemberUndo): Promise<void> {
+/**
+ * Someone taken out of a game (or who left it) comes back: their seat (reclaimed, or a new one if it went before the draft) and
+ * membership. Recent changes' Undo, and the desk's Put back (docs/PLAN-desk-parity.md part 6b), at any time.
+ */
+export async function restoreMember(s: LeagueState, client: PoolClient, leagueId: string, undo: MemberUndo): Promise<void> {
   const { rows } = await client.query("SELECT 1 FROM league_memberships WHERE league_id = $1 AND user_id = $2", [leagueId, undo.userId]);
   if (rows.length) throw new HttpError(409, "They're back in already");
   const { rows: who } = await client.query(`SELECT 1 FROM "user" WHERE id = $1`, [undo.userId]);

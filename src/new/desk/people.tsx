@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { keepPreviousData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownUp, Ban, Check, ChevronRight, Copy, Ellipsis, Eye, Flag, KeyRound, Lock, Mail, RotateCcw, Search, Users, Zap } from "lucide-react";
+import { ArrowDownUp, Ban, Check, ChevronRight, Copy, Ellipsis, Eye, Flag, KeyRound, Lock, Mail, Search, Users } from "lucide-react";
 import { colourOf } from "@/lib/people";
 import { NavLink, useNav } from "../nav";
 import { isUsername, USERNAME_RULE } from "@/lib/usernames";
@@ -15,7 +15,9 @@ import { Btn, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { deskGet, deskSend, useAfterDesk, useDesk, type DeskPerson, type DeskSeatGame, type PeopleFilter, type PeopleList, type PeopleSort, type PersonRow } from "./data";
-import { agoOf, dateOf, DeleteRow, DeskHeader, DeskRow, Facts, Field, IconLead, LatestHistory, LowerThird, Section, useChangeToast } from "./parts";
+import { ActSheet } from "./act";
+import { noLinkFor } from "@/lib/desk-seat-words";
+import { agoOf, dateOf, DeleteRow, DeskHeader, DeskRow, Facts, Field, IconLead, LatestHistory, LowerThird, PersonTags, Says, Section, useChangeToast, useDebounced } from "./parts";
 import { andList, HandOnSheet, ROLE_TITLE, SeatSheet, type DeskSeat, type Handed } from "./seats";
 import { forgetDeskPage } from "./trail";
 
@@ -63,6 +65,8 @@ export function LetInButton({ p, className = "" }: { p: { id: string; name: stri
   );
 }
 
+export { PersonTags, useDebounced };
+
 const FILTERS: [PeopleFilter, string][] = [
   ["all", "Everyone"],
   ["waiting", "Waiting"],
@@ -78,27 +82,6 @@ const AMONG: Partial<Record<PeopleFilter, string>> = { waiting: "the people wait
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
-/** The small tags beside a name (the mock's .dk-t): You or Site admin, Waiting, Can't sign in. */
-export function PersonTags({ p }: { p: Pick<PersonRow, "you" | "admin" | "waiting" | "stopped"> }) {
-  const tag = "type-caption ml-1.5 inline-block rounded-[2px] px-1.5 pb-0.5 pt-[3px] align-[2px] text-[11px] not-italic leading-none tracking-[0.06em]";
-  return (
-    <>
-      {(p.you || p.admin) && <i className={`${tag} bg-foreground text-background`}>{p.you ? "You" : "Site admin"}</i>}
-      {p.waiting && <i className={`${tag} text-foreground outline-1 -outline-offset-1 outline-foreground`}>Waiting</i>}
-      {p.stopped && <i className={`${tag} text-muted-foreground outline-1 -outline-offset-1 outline-input`}>Can&apos;t sign in</i>}
-    </>
-  );
-}
-
-/** `v`, once it has stopped changing for `ms` (a search as you type). */
-export function useDebounced<T>(v: T, ms: number): T {
-  const [d, setD] = useState(v);
-  useEffect(() => {
-    const t = setTimeout(() => setD(v), ms);
-    return () => clearTimeout(t);
-  }, [v, ms]);
-  return d;
-}
 
 export function PeoplePage() {
   const params = useSearchParams();
@@ -474,6 +457,9 @@ export function PersonPage({ id }: { id: string }) {
                           role: g.role,
                           alone: g.alone,
                           others: g.others,
+                          drafted: g.drafted,
+                          otherGames: c.id ? c.games.length - 1 : 0,
+                          noLink: noLinkFor(g.solo),
                         })
                       }
                       className="nd-press ml-[52px] flex min-h-[54px] w-[calc(100%-52px)] items-center gap-2.5 border-t border-border py-2 text-left"
@@ -528,6 +514,7 @@ export function PersonPage({ id }: { id: string }) {
       )}
 
       <SeatSheet
+        key={seat ? `${seat.leagueId}:${seat.user.id}` : "none"}
         seat={seat}
         open={!!seat}
         onClose={() => setSeat(null)}
@@ -621,58 +608,6 @@ function BackInButton({ p, must, onDone }: { p: DeskPerson; must?: boolean; onDo
     >
       Let {p.name} back in
     </Btn>
-  );
-}
-
-/** What a sheet says first (the mock's .cons). */
-function Says({ children }: { children: ReactNode }) {
-  return <p className="rounded-[3px] bg-background p-3 text-[16px] leading-normal">{children}</p>;
-}
-
-/** Act as them (decision 1): what it does first, then the app as them under the Viewing as bar; it's in History. */
-function ActSheet({ open, onClose, p }: { open: boolean; onClose: () => void; p: DeskPerson }) {
-  const [busy, setBusy] = useState(false);
-  const points: [typeof Eye, string][] = [
-    [Eye, "You see their couches and games, only as far as they've watched."],
-    [Zap, `Opening their results reveals them for ${p.name} too. Look around; leave Reveal to them.`],
-    [RotateCcw, `"Return to my account" at the top brings you back here, any time.`],
-  ];
-  return (
-    <Sheet open={open} onOpenChange={(o) => !o && onClose()} title={`Act as ${p.name}?`} subtitle="For an hour">
-      <div data-act-sheet>
-        <Says>For an hour you&apos;re {p.name}: anything you do is done as them. It&apos;s in History.</Says>
-        <ul className="mb-[18px] mt-3.5 flex flex-col gap-2.5">
-          {points.map(([Icon, t]) => (
-            <li key={t} className="flex items-start gap-2.5 text-[14px] leading-snug text-muted-foreground">
-              <Icon className="mt-px size-[18px] flex-none text-foreground" aria-hidden />
-              <span>{t}</span>
-            </li>
-          ))}
-        </ul>
-        <Btn
-          data-act-go
-          tone="must"
-          wide
-          disabled={busy}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              const { go } = await deskSend<{ go: string }>(`/people/${p.id}/act`, {});
-              // A full load: their session, and the design they use.
-              window.location.assign(go);
-            } catch (e) {
-              setBusy(false);
-              toast.quiet((e as Error).message);
-            }
-          }}
-        >
-          Act as {p.name}
-        </Btn>
-        <Btn wide className="mt-2" onClick={onClose}>
-          Not now
-        </Btn>
-      </div>
-    </Sheet>
   );
 }
 
