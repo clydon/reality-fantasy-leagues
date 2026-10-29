@@ -18,7 +18,9 @@ linked and unlinked, migration 0423; their As built is under step 3); **Step 4 r
 and 4c** (4a: a season's Research and the bot, Run now queued with what it waits behind and how far it's got, its
 schedule drawn as the next episode's night, Runs; migration 0424; 4b: an episode's page, its results from the shared facts
 with Accept all, Take it back, the desk's paste as a submission and Clear, no migration; 4c: the Bingo bank, an admin's Show
-it again outranking two flags, Paste squares with Undo, migration 0425; their As built is under step 4); part 5a is next. Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
+it again outranking two flags, Paste squares with Undo, migration 0425; their As built is under step 4). **Part 5a done at
+19389d6d, part 5b is next** (a season's Cast: Ask our bot or Paste it, each answer staged; What changed; Send to its games
+with Undo; the season page's Cast row and the Inbox's cast item; migration 0426; its As built is under step 5). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
 either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
@@ -818,6 +820,78 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    games sends it. Photos come from TMDB and TVmaze as now (`castPhotosFor`). The wiki page row, "Pull it again" and "reads
    names, groups and photos" go. There's no scheduled cast ask: Autopilot doesn't add one, and a name research reports that
    isn't in the cast already shows in step 4's queue.
+   **As built, part 5a (2026-10-29):** **a season's Cast** (`/desk/season/<id>/cast`: `routes.ts` DESK_SEASON_PAGES gains
+   `cast`, depth 3; `src/new/desk/cast.tsx`, `src/lib/server/desk-cast-page.ts`, the review in `src/lib/desk-cast-diff.ts`, pure,
+   with `tests/desk-cast-diff.test.js`; `GET` and `POST /api/desk/seasons/[id]/cast`, `GET .../cast/question`). As mocked, with
+   the Changes at approval (no wiki): the lower third (In the games, Not sent or No cast; "21 castaways · 2 tribes"), where it
+   came from and when it was sent ("From our bot · asked today, 9:00 am · sent Oct 9 to 15 games"); a cast not sent leads ("Our
+   bot's answer: 2 changes, not sent", what its games keep, See what changed); no cast leads with Ask our bot for it and Paste it;
+   Getting it (Ask our bot again, Paste it); its starting groups as the season page had them (Not a group, moved here; 5b redoes
+   them with Hold), the castaways by starting group four across in its games' colours, Out · Ep N greyed (an accepted exit), Still
+   in and Out when a group is named like a secret role; History (the cast's asks, answers, pastes and sends, groups taken out)
+   and the season's Delete, last. **An answer is staged** (migration 0426, additive: `season_cast_answers`; 0424's `desk_runs`,
+   not on production yet, takes a kind 'cast'): never written into the cast; only a season's latest is reviewed; one that changes
+   nothing is settled at once, and a send settles any older one. **The review** (castChanges): names the same but for case match;
+   then the nearest spelling, closest pairs first (no accents, case or punctuation, so Thien An and Thien-An are one; within an
+   edit distance of a fifth of the name, at least 2, for names of six letters or more; or a first name one is short for, Matt and
+   Matthew, within three letters, on the same surname) as a new spelling, Same person by default; a starting group the answer
+   names differently (never an empty one, never on a show without groups), ours by default, its line saying "A swap moved Carter
+   to Toka: the answer may mean their tribe now" only when a game already has them there; someone new; someone it no longer lists
+   (said, never taken out). A locked castaway is never changed by an answer. **Send to its games** (tier 2, MovesSheet: each
+   change, "Teams, picks and results: Stay as they are", "Castaways in each game: 22, from 21"; more than four joining fold into
+   one line) in one transaction: a rename by id (guarded on the name it had; the season's staged results renamed with it, as an
+   Override does), people joining with the answer's photo or the season's credits' (show-art.ts castPhotosFor: TMDB, then
+   TVmaze), starting groups, each in season_cast_changes, the answer marked sent, the cast approved with its size, a History line
+   with Undo; then every game gets it (applyApprovedCastToLeagues: a renamed castaway is the same one in each game, team, picks
+   and results kept) and results waiting on someone in it land (syncSeasonLeagues), as classic's approve did. A send names its
+   answer, so a newer one refuses it ("look at what changed again"). A cast staged and never sent (classic's pull) is a first
+   send: everyone joins its games. **Undo** puts the cast back as it was sent (renames and groups back, each guarded on what the
+   send left; who joined out of the cast and its games; a first send unapproved again, its people out of its games), refused once
+   someone who joined is on a team or in a result in a live game, or while a later send stands. **Ask our bot** is queued as Run
+   now is (desk-research.ts `queueCast`: the same ask joined, refused when the bot isn't answering, one 15 minutes old failed so
+   a new one goes in) and asked by the queue's driver (drainDeskRuns: desk-cast-page.ts `askCastNow` asks cast-prompt.js's
+   question in the show's words through askBot and stages the answer). It isn't a bot_research_runs run, so Research's Runs don't
+   list it; the queue's wait line names it ("it starts after Survivor 51's cast"). The page says it's asking and polls, and its
+   read takes over a queue nobody drives (`takeOverQueue`, as Research's read does); a failure is a History line ("Asked our bot
+   for the cast: it failed (...)"). **Paste it**: AskAiPasteSheet on the same question, then What changed at once (or "Pasted:
+   nothing changed"). **The season page's Running it › Cast** row is always there ("21 castaways · in all 15 games", "No cast
+   yet: nothing to draft or pick from", "Your paste: 1 new spelling, 1 starting tribe · not sent to its games" with its dot), the
+   classic-admin link gone; the page's groups and faces moved to the Cast page, and check-new-desk's section 7 follows them.
+   **The Inbox's cast item** (Noticed k): a season's latest answer, our bot's or a paste, with changes not sent ("Survivor 51's
+   cast: our bot's answer has changes", "1 new spelling, 1 starting tribe · not sent to its 15 games yet"), or a cast staged and
+   never sent ("N castaways, not sent"); each opens the Cast page, and sending clears it. The secret-role rule is one helper
+   (desk-cast.ts `isSecretRole`), and MovesSheet's icons gain `user`.
+   **Left behind or changed from classic, and why (decision 10):** classic's wiki pull and Pull again (the sync route,
+   wiki-sync.js's upsert by lowercased name: Noticed g) stay behind (decision 9); our bot and a paste replace them, staged and
+   compared first. Classic's approve is Send, with what moves said first and an Undo (classic's had none), and no un-approve:
+   nothing on this page un-approves a cast. Classic's per-castaway rename, photo and tribe edits are the castaway page's Override
+   (as before); its Remove and Hold starting groups are 5b's. Roles in an answer (`startingRole`) aren't the cast (cast-import.ts
+   says so too): the desk leaves them. A photo an answer gives someone already in the cast isn't a change (photos come from TMDB
+   and TVmaze, and a castaway's Photo is 5b's); someone joining takes the answer's, else the credits'. From the mock: no wiki rows;
+   the sheet is "What changed", not "on the wiki"; the group's line says what we have and names a swap only when a game shows one;
+   someone new and someone not listed are rows of their own (the mock's sheet drew only the first two kinds); a send that
+   changes nothing (Keep ours throughout, or only someone not listed) is still Send and settles the answer, since the mock has no
+   Dismiss and none was invented.
+   Noticed ab, fixed: check-new-desk's "every league renames him" picked Find's first "Eric Macksoud", which on this copy of
+   production can be the real Survivor 51 castaway: the Override then renamed that local row (its Undo put it back) and the
+   fixture's leagues never moved. It picks the fixture's ("Cast · ZT") now.
+   `/code-review` found the route without the 300 s a queued ask needs, an answer that changed nothing staying unsent (so a later
+   Override read as its news), spelling guesses too loose for short names and longer first names (Ben and Jen, Chris and
+   Christine), a stale ask joined for ever, an older send's Undo overwriting a later one and its groups unguarded, a deleted game
+   blocking an Undo, the Inbox reviewing seasons one at a time, and copies of the secret-role rule and the default pick: all
+   fixed. Left as it found: the season read (`deskSeason`) still works out the cast, groups and castSent the season page no longer
+   shows (check-new-desk reads its groups): Noticed bi.
+   Check: `scripts/dev-test/check-desk-cast.js` 82 checks, all PASS at 390 (zt_dc_ fixture, up and down; the bot only through
+   fake-bot.js and x-gys-bot); check-desk-inbox (its cast item now opens the Cast page), check-desk-bingo, check-desk-episode,
+   check-desk-research, check-desk-setup, check-desk-people, check-classic-admin, check-new-settings, check-new-settling and
+   check-bingo-bank pass; unit tests 847; check-new-desk without its rulebook section (a scratch copy, deleted) passed whole.
+   **Noticed, not fixed (5a):** (bh) a waiting answer is compared with the cast as it is now: an Override on a castaway's page
+   after the answer came in reads as the answer's new spelling, Same person by default (which would put the answer's spelling
+   back). The admin sees it before Send; for 5b, whose castaway page could settle a waiting answer's change for that person. (bi)
+   `deskSeason` still reads the cast and groups the season page no longer shows: for 5b, which redoes the groups. (bj) An answer
+   our bot gives that can't be read says "what was pasted" in its History line (cast-prompt.js's words, whose shape this lane
+   keeps). (bk) Classic's cast page and approve stay until step 8 and know nothing of staged answers: a classic approve leaves
+   the desk's waiting answer waiting.
 6. **Games and couches.** Find's Games (by name or join code); a game's page: its seats and who's in each (link an account,
    change a role, unlink, remove a player), its join code, delete for good (tier 3), open it (as an admin, read-only).
    **As mocked (2026-10-28, `desk-games.js` and `desk-games.css`, waiting for approval):** **Find › Games** searches name, show,
