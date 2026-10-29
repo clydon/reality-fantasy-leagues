@@ -23,7 +23,7 @@ at 9f3dc05f: parts 5a and 5b** (5a: a season's Cast, Ask our bot or Paste it, ea
 games with Undo; the season page's Cast row and the Inbox's cast item; migration 0426; 5b: starting groups with Not a group,
 secret roles together, and Hold until Episode 1 without un-approving; a castaway's page under the cast with Override, Look on
 TMDB and TVmaze, Lock and Remove refused while in use, reaching every game; no migration; their As built is under step 5).
-**Part 6a done at 67785bdf, part 6b is next** (6a: Find › Games with a join code from three characters in any state, deleted ones with Restore; a game's page with its Join code and its Delete: Archive offered, restorable 30 days, then for good; migration 0427; its As built is under step 6. 6b: Seats). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
+**Part 6b done at e378f7e5, part 6c is next** (6a: Find › Games with a join code from three characters in any state, deleted ones with Restore; a game's page with its Join code and its Delete: Archive offered, restorable 30 days, then for good; migration 0427. 6b: a game's Seats, signed in, empty and out; the seat's sheet from both pages with Act as them, Link another account and Take them out; Link an account with Game admin, the seat taking their name and the couch joined; Put back; Remove a seat; the last-Commissioner guard on each; no migration; their As built is under step 6. 6c: Open it read-only). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
 either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
@@ -1079,6 +1079,79 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    ("all PASS"), check-new-settings, check-new-settling and check-bingo-bank ("ALL PASS") pass; unit tests 847
    (tests/new-nav.test.js adds Games and a game); check-new-desk without its rulebook section (a scratch copy, deleted) passed
    whole. check-desk-people's Open the game now expects the game's page.
+   **As built, part 6b (2026-10-29):** **Seats** on a game's page (`src/new/desk/seats.tsx GameSeatsSection`, between Join code
+   and History; read with the game, `src/lib/server/desk-seat-moves.ts gameSeats`): "4 in · 1 empty · 1 out"; signed in (face,
+   name and tags, Active ..., the role, ⋯; "plays as <seat>" when the tables name the seat otherwise, as a seat linked before
+   6b can be); empty (a dashed chair, nobody signed in, Link on the row: "Saved by jo's invite" from a pending
+   `league_invites.player_id`, "Unlinked Oct 29" from the change line that left it empty, which Unlink and Link now write as
+   `detail.emptied`, or "Its account was deleted"); Out of it (greyed: Left, Taken out Oct 29, by you, Removed, Account deleted:
+   disabled seats, and the change log's member lines for a seat that went before a draft; "Their teams stay in the standings"
+   while one does); and the note. **The seat's sheet** (`SeatSheet`, one sheet from the game and the person): from the game, the
+   account's row (their page) and **Act as them** (step 1's, its sheet moved to `act.tsx`; not for you, another site admin,
+   someone waiting or stopped); the role; **Link another account**; Unlink; from the person, **Open the game** ("The game's page:
+   its seats, its code, its delete"); and **Take <name> out of <game>** last (tier 3, a hold: the app's `takeOut`, which gains
+   an `inside` so the desk's History lines are written in its transaction; Unlink their account instead; the only
+   Commissioner's dimmed). **Link an account** ("Who signs in to this seat?"; `GET /api/desk/games/[id]/accounts`): the couch's
+   people without a seat in the game, most active first, then a search of every account by name, username or email, the couch's
+   first, six at a time ("6 of 14: keep typing"); each line as mocked (On the couch · not in it; Not on it: they join it too;
+   In it already: their own seat is left empty; Left or Taken out of it: Put back gives them their own seat; Waiting; Can't
+   sign in; Signed in to it now), the last four not choosable; Player · Game admin · Commissioner (**Noticed q**), the seat that
+   runs the game, or someone picked who runs it alone, staying Commissioner; what moves; tier 1 (`POST
+   /api/desk/seats/[leagueId]/[userId] { link: { to, role } }` for a seat someone's in, `POST
+   /api/desk/seats/[leagueId]/player/[playerId]` for an empty one): the seat takes their name in the tables (**Noticed o**, as an
+   invite that hands a seat over names it), whoever was in it comes out and stays on the couch, they join the couch
+   (`joinedLeague`) and follow the season, and they're told (`push-events.ts notifyDeskSeat`, under Invites and join
+   requests); a line in Recent changes and History lines on the game (with the Undo), the person linked and anyone moved out.
+   Its Undo puts the memberships, the seat's name and the one moved out back (with how they were on the couch), and takes the
+   linked account off the couch if Link put them there; refused once the seat, their old seat or who's in either has changed.
+   **Take out** (`{ takeOut: true }`): after a draft their seat stays, disabled and theirs to reclaim; before one it goes; they
+   stay on the couch; its line in Recent changes keeps Backstage's 30-day restore, and the desk's Undo puts them back. **Put
+   back** (`{ putBack: true }`, someone out, by account; a removed seat by its player id): Recent changes' `restoreMember` (now
+   exported), at any time: their disabled seat reclaimed (preferred, with the line that took them out of it), else a new seat
+   when theirs went before a draft, as the role they had; the line out marked undone; back on the couch; told. Its Undo takes
+   them out again as they were (the line out standing again), refused once a draft has given a new seat a team. A deleted
+   account: "Their account was deleted, so the seat can't be theirs again." **An empty seat's sheet**: who saved it and how it
+   fills, Link an account, and **Remove <name>'s seat** (tier 3, a hold: disabled after a draft, gone before; "jo's invite still
+   lets mo onto <couch>, as a new player"), with Undo, and Put the seat back from Out of it ("It waits for an account again").
+   **The last-Commissioner guard** on Link (and its Undo), Take out and Put back's Undo (**Noticed p**, with 1c's on the role and
+   Unlink). **Noticed ah, taken:** a game brought back without an account deleted meanwhile reads that seat as empty ("Its
+   account was deleted"), with Link and Remove. A practice game or a public pool has no Link (said on the row; refused on the
+   server; `src/lib/desk-seat-words.ts`). `PersonTags`, `useDebounced` and `Says` moved to `parts.tsx`. No migration.
+   **Left behind or changed from classic, and why (decision 10):** classic's link (the memberships POST, an upsert) offered
+   Player and Commissioner only and every account in one select; it kept the seat's name, told nobody, wrote no line, had no
+   Undo, and refused a seat someone else was in. The desk adds Game admin, a search with the couch first, the seat's new name,
+   the notice, the lines and Undo, and moves whoever was in it out (onto the couch). Classic's Remove player (the players
+   DELETE: `disablePlayer` without the account id, before a draft too, no line, no way back: **Noticed n**) is the desk's Take
+   out (reclaimable; the seat goes before a draft) and, for a seat with no account, Remove the seat. Classic's prune off the
+   couch after a removal or unlink (`leftLeague`) stays behind: they stay on the couch, as the app's takeOut leaves them.
+   Classic's league read (players and memberships) is the Seats read. `outPreview` isn't called: the game's read already says
+   what the hold needs (drafted, their other games on the couch, run alone) and `takeOut` refuses the only Commissioner itself.
+   Classic's routes stay until step 8. From the mock: an empty seat is named as the seat is ("mo's seat"); computer players are
+   rows of their own ("Computer player · Normal · plays on its own", no actions: Backstage › Members adds and takes them out;
+   the mock has none), counted in the aside ("· 2 computer"); someone taken out reads "Taken out of Outlast Oct 26: Put back
+   ..." in Link's list (the mock had only "Left"); an account deleted reads "Account deleted" under Out of it.
+   **Calls made here (Claude's, within the approved screens):** Put back's Undo takes them out as they were (the mock's undo of
+   a snapshot), not as a new take-out; a game's History keeps showing the desk's line for the game's line it made, so a take out
+   later put back reads undone, beside "Put fern back"; Link's list with no search shows up to 50 of the couch.
+   `/code-review` found a link's Undo putting someone back in a seat removed meanwhile, Put back preferring a stale line over
+   the disabled seat (and its Undo after a draft), a seat put back reading "Unlinked", the change-log read capped at 300 lines,
+   Link's role for someone picked who runs the game alone and a pick a new search hid, Link reading the whole seats view to
+   check one account, the solo refusal and `Says` written out three times and the undo-marking SQL in two files: all fixed.
+   The three role-word tables (server, 1c's, the sheet's) stay one per file.
+   **Noticed, not fixed (6b):** (br) a computer player's seat can't be linked from the desk, though an invite can hand one over
+   (0042); Backstage › Members is where computer players are added and taken out; a later part, if it's wanted. (bs) A seat left
+   empty by classic's unlink or before 6b has no date ("Nobody signed in"); only lines written from 6b on say when. (bt) Linking
+   someone already in the game to another seat leaves their own seat empty under their name ("eli's seat"), which can read as
+   if they're in it twice until it's linked or removed.
+   Check: `scripts/dev-test/check-desk-seats.js` 101 PASS at 390 (zt_dt_ fixture, up and down, codes Z8T, every real account and
+   league as it was, state included): the seats read and Link's list through the API; Link refused (waiting, stopped, out, no
+   Commissioner left, a practice game), to an empty seat, moving someone out, from inside the game, each Undo (and refused once
+   the old seat went); Take out after and before a draft; Put back and its Undo; Remove a seat after and before a draft; Noticed
+   ah; then the screens: Seats, a seat's sheet, Link (the couch, a search, the summary, the toast's Undo), an empty seat's Link,
+   the only Commissioner, someone picked who runs it alone, Take out's hold, someone out and Put back, Remove the seat, and the
+   person page's sheet. check-desk-people, -games, -cast, -bingo, -episode, -research, -setup and -inbox, check-classic-admin
+   ("all PASS"), check-new-settings, check-new-settling and check-bingo-bank ("ALL PASS") pass; unit tests 847; check-new-desk
+   without its rulebook section (a scratch copy, deleted) passed whole (67).
 7. **Shows and site.** Delete a show (refused while games use it, saying which), restore an archived one, a season's details
    when adding it (number, status, wiki), the connector (wiki API, cast heading, research sites), art by URL with its framing;
    Settings: AI models, What's New preview, the rulebooks flag.
