@@ -21,6 +21,7 @@ export type { BankSquare, DeskBingo, DeskBingoBank } from "@/lib/server/desk-bin
 export type { CountPlan, ListingHitRow, WhenPlan } from "@/lib/server/desk-schedule";
 export type { CouchFilter, CouchRow, CouchSort, CouchesList, DeskCouch } from "@/lib/server/desk-couches";
 export type { DeskShow, ShowDelete, ShowFilter, ShowRow, ShowSort, ShowsList, ShowWords } from "@/lib/server/desk-shows";
+export type { ArtFrameKey, DeskFrame } from "@/lib/server/show-art";
 export type { DeskGame, GameFilter, GameOpen, GameRow, GameSort, GamesList } from "@/lib/server/desk-games";
 export type { DeskPerson, DeskSeatGame, PeopleList, PersonRow, PeopleFilter, PeopleSort } from "@/lib/server/desk-people";
 export type { HandOnCandidate, HandOnGame } from "@/lib/server/desk-seats";

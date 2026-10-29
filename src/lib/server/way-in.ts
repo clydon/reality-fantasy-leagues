@@ -2,8 +2,9 @@ import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { realEmail } from "@/lib/no-email";
 import { signupModeOf, type SignupMode } from "@/lib/signups";
-import { resolveArtStyle, type ArtStyle } from "@/lib/show-art-style";
+import { frameFor, framedUrl, UNFRAMED } from "@/lib/art-frame";
 import { isApprovedUser, isSuperAdminUser, isUuid, type SessionUser } from "./auth-helpers";
+import { cardArtSql } from "./art-sql";
 import { pool, HttpError } from "./db";
 import { setFollow } from "./follows";
 import { addShow } from "./add-show";
@@ -76,8 +77,9 @@ export interface CatalogSeason {
   label: string;
   /** "Season 51", or the season's own name. */
   season: string;
+  /** Its cards' art, carrying its framing (src/lib/art-frame.ts). */
   artUrl: string | null;
-  /** Where the art's crop centres (shows.art_style). */
+  /** Where the art's crop centres (its framing's point: shows.art_style), for a plain img. */
   artPosition: string;
   status: "upcoming" | "airing" | "completed";
   premiere: string | null;
@@ -109,7 +111,7 @@ export const plainShow = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").
 export async function catalog(now = new Date()): Promise<CatalogSeason[]> {
   const { rows } = await pool.query(
     `SELECT ss.id, ss.season_number, ss.name, ss.status, to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere,
-            s.name AS show_name, CASE WHEN s.art_off THEN NULL ELSE COALESCE(NULLIF(ss.art_url, ''), s.art_url) END AS art_url, s.art_style, s.created_by IS NULL AS curated, s.set_up_at IS NOT NULL AS ready, s.tvmaze_id,
+            s.name AS show_name, ${cardArtSql()} AS art_url, s.art_url AS own_art, s.art_style, s.created_by IS NULL AS curated, s.set_up_at IS NOT NULL AS ready, s.tvmaze_id,
             s.listing->>'network' AS network, s.listing->>'country' AS country
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
       WHERE s.archived = false`
@@ -121,14 +123,15 @@ export async function catalog(now = new Date()): Promise<CatalogSeason[]> {
     const done = r.status === "completed";
     const aired = latestAired(schedule, now);
     const next = done ? null : upNext(schedule, now);
-    const style = resolveArtStyle(r.art_style as ArtStyle | null);
+    const framed = frameFor(r.art_style, r.art_url, r.own_art);
+    const frame = framed ?? UNFRAMED.cards;
     return {
       seasonId: r.id,
       show,
       label: `${show}${r.season_number ? ` ${r.season_number}` : ""}`,
       season: r.name && !/^\s*$/.test(r.name) && !r.name.startsWith(r.show_name) ? r.name : `Season ${r.season_number}`,
-      artUrl: r.art_url || null,
-      artPosition: `${style.x}% ${style.y}%`,
+      artUrl: framedUrl(r.art_url || null, framed),
+      artPosition: `${frame.x}% ${frame.y}%`,
       status: r.status,
       premiere: r.premiere,
       aired: done ? (aired || schedule?.episodeCount || schedule?.episodes.length || null) : aired,

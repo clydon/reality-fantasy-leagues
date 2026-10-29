@@ -14,6 +14,7 @@ import { deskSend, useAfterDesk, useDesk, type ComingUp, type DeskSettings, type
 import { LibraryPage } from "./library";
 import { NewShowFlow } from "./new-show";
 import { CouchPage, FactPage, SeasonPage } from "./pages";
+import { ArtPage } from "./art";
 import { ShowListRow, ShowPage, ShowsPage, SitesPage } from "./shows";
 import { LetInButton, PeoplePage, PersonPage, PersonTags, useDebounced } from "./people";
 import { ReportListRow, ReportPage, ReportsPage } from "./reports";
@@ -59,6 +60,7 @@ export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: Desk
   if (item?.sub === "bingo") return <BingoPage id={item.id} />;
   if (item?.sub === "cast") return <CastPage id={item.id} />;
   if (item?.showPage === "sites") return <SitesPage id={item.id} />;
+  if (item?.showPage === "art") return <ArtPage id={item.id} />;
   if (item) {
     const page = { fact: FactPage, season: SeasonPage, castaway: OldCastawayPage, couch: CouchPage, person: PersonPage, show: ShowPage, rulebook: RulebookPage, report: ReportPage, game: GamePage }[item.kind];
     const Page = page;

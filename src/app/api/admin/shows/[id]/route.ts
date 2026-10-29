@@ -84,11 +84,14 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
     }
     if (key === "name" && !value) throw new HttpError(400, "name can't be empty");
     values.push(value);
-    sets.push(`${column}=$${values.length}`);
+    // The desk's framing (art_style.frame, part 7b) isn't classic's to edit: it stays.
+    if (key === "artStyle") sets.push(`art_style = NULLIF(COALESCE($${values.length}::jsonb, '{}'::jsonb) || jsonb_strip_nulls(jsonb_build_object('frame', art_style->'frame')), '{}'::jsonb)`);
+    else sets.push(`${column}=$${values.length}`);
   }
   if (!sets.length) throw new HttpError(400, "No editable fields supplied");
   // A pasted art URL is the admin's choice: the art finder (src/lib/server/show-art.ts) leaves it alone. Cleared, it finds again.
-  if ("artUrl" in body) sets.push(`art_by_hand = ${typeof body.artUrl === "string" && body.artUrl.trim() ? "true" : "false"}`);
+  // It's the show's own poster, not the desk's link over every season's (shows.art_link, part 7b).
+  if ("artUrl" in body) sets.push(`art_by_hand = ${typeof body.artUrl === "string" && body.artUrl.trim() ? "true" : "false"}`, "art_link = false");
 
   const { rows } = await pool.query(
     `UPDATE shows SET ${sets.join(", ")}, updated_at=now() WHERE id=$1 RETURNING id, slug, name, archived, format`,

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { ChartColumn, ChevronRight, Crown, Link2, Plus, RotateCcw, Tv, Trophy } from "lucide-react";
 import { airTime, calmWhen, ticks } from "../clock";
 import { START_EARLY_MS } from "@/lib/game/watch-along";
+import { UNFRAMED } from "@/lib/art-frame";
 import { ownPace } from "@/lib/game/streaming";
 import { whereWords } from "@/lib/sharing";
 import {
@@ -213,10 +214,17 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
     final: { tag: "Morning update", tone: "bg-good text-good-foreground", title: "Final scores are in", line: `Episode ${final?.episode} · every point counted` },
   }[kind];
   return (
-    // Over the show's art: Night in both themes (step 15 part 4).
+    // Over the show's header art, as its page's show bar (desk parity 7b: the Header's Up next crop), else its cards': Night in
+    // both themes (step 15 part 4).
     <section data-art-scope data-upnext={kind} className="dark relative isolate mx-4 mt-1 flex min-h-[330px] flex-col overflow-hidden rounded-[4px] text-foreground shadow-[0_18px_40px_rgba(0,0,0,.45)]">
       <span className="absolute inset-0 -z-[2] overflow-hidden">
-        <ShowArt seasonId={show.seasonId} artUrl={show.show.artUrl} name={show.show.name} className="nd-kenburns size-full" />
+        <ShowArt
+          seasonId={show.seasonId}
+          artUrl={show.show.backdropUrl || show.show.artUrl}
+          name={show.show.name}
+          position={show.show.backdropUrl ? `${UNFRAMED.header.x}% ${UNFRAMED.header.y}%` : "center"}
+          className="nd-kenburns size-full"
+        />
       </span>
       <span
         aria-hidden

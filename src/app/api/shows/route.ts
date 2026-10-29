@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
+import { classicArtStyle } from "@/lib/art-frame";
 import { pool } from "@/lib/server/db";
 
 // The show/season catalog as a COMMISSIONER sees it, for the Show and Season pickers in League
@@ -46,5 +47,7 @@ export const GET = apiRoute(async (req) => {
       ORDER BY s.name`,
     [user.id]
   );
+  // A framing the desk set on another image (a season's poster) isn't the show's poster's (art-frame.ts).
+  for (const r of rows) r.art_style = classicArtStyle(r.art_style, r.art_url);
   return NextResponse.json({ shows: rows });
 });

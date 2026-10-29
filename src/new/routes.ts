@@ -22,6 +22,7 @@
 //   /desk/season/[id]/e/[n]                  one of its episodes: its results, answers and trivia (depth 4: step 4, part 4b)
 //   /desk/season/[id]/c/[castId]             one of its cast: name, photo, starting group, Lock, Remove (depth 4: step 5, part 5b)
 //   /desk/show/[id]/sites                    a page under a show: its Research sites (depth 3: step 7, part 7a)
+//   /desk/show/[id]/art                      its Art and photos: each frame's source and framing, cast photos (depth 3: part 7b)
 //
 // Classic owns everything else ("/", /account, /waivers, /setup, /admin...); the two designs never share a path.
 
@@ -97,7 +98,7 @@ export const paths = {
     const qs = new URLSearchParams(Object.entries(o).filter(([, v]) => v) as [string, string][]).toString();
     return `/desk/shows${qs ? `?${qs}` : ""}`;
   },
-  /** A page under a show (docs/PLAN-desk-parity.md step 7): its Research sites. */
+  /** A page under a show (docs/PLAN-desk-parity.md step 7): its Research sites, its Art and photos. */
   deskShowPage: (id: string, page: DeskShowPage) => `/desk/show/${id}/${page}`,
   /** New show; `season`: a season that's here, to set up (How do you want to start?). */
   deskNew: (season?: string) => `/desk/new${season ? `?season=${encodeURIComponent(season)}` : ""}`,
@@ -124,7 +125,7 @@ export const DESK_SEASON_PAGES = ["setup", "research", "bingo", "cast"] as const
 export type DeskSeasonPage = (typeof DESK_SEASON_PAGES)[number];
 export const isDeskSeasonPage = (v: string | undefined): v is DeskSeasonPage => !!v && (DESK_SEASON_PAGES as readonly string[]).includes(v);
 /** The pages under a show: its Research sites (step 7, part 7a). */
-export const DESK_SHOW_PAGES = ["sites"] as const;
+export const DESK_SHOW_PAGES = ["sites", "art"] as const;
 export type DeskShowPage = (typeof DESK_SHOW_PAGES)[number];
 export const isDeskShowPage = (v: string | undefined): v is DeskShowPage => !!v && (DESK_SHOW_PAGES as readonly string[]).includes(v);
 

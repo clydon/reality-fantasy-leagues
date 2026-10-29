@@ -12,7 +12,6 @@ import { HoldSheet } from "../ui/guards";
 import { Btn, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { ArtSection } from "./art";
 import { deskGet, deskSend, useAfterDesk, useDesk, type DeskShow, type ShowFilter, type ShowRow, type ShowSort, type ShowsList, type ShowWords } from "./data";
 import { dateOf, DeleteRow, DeskHeader, DeskRow, Facts, Field, IconLead, LatestHistory, LowerThird, Says, Section, useChangeToast, useDebounced } from "./parts";
 import { CON } from "./seats";
@@ -23,7 +22,7 @@ import { forgetDeskPage } from "./trail";
 // (All · Airing · Not a game yet · Added by name · Archived; name or most games; 25 at a time, in the address; an archived
 // one carries Restore). A show's page: its lower third (A game, Not a game yet, Added by name or Archived), Archived with
 // Restore, or Added by name with Looks fine and Archive; Seasons (each with its status and games, the one airing with no
-// schedule dotted) and Add a season; About the show (Research sites, Its words); its art (part 7b gives it a page); History;
+// schedule dotted) and Add a season; About the show (Research sites, Art and photos: part 7b's page, art.tsx; Its words); History;
 // and its Delete, last (decision 4): refused while it has games, by season, with Archive it instead; else a hold. Every page
 // under a show ends with the show's Delete. Server: src/lib/server/desk-shows.ts.
 
@@ -62,7 +61,7 @@ function ArtLead({ url, size = 40 }: { url: string | null; size?: 40 | 64 }) {
 }
 
 /** A desk change on a show: every desk read moves on, then its toast with Undo. */
-function useShowChange(id: string) {
+export function useShowChange(id: string) {
   const after = useAfterDesk();
   const said = useChangeToast();
   return async (body: Record<string, unknown>) => {
@@ -76,6 +75,16 @@ function useShowChange(id: string) {
       throw e;
     }
   };
+}
+
+/** The About row's line on the show's page (the mock's desk-shows.js art line). */
+function artLine(s: DeskShow): string {
+  const a = s.art;
+  if (a.off) return "Off: its name on a plain card everywhere";
+  if (!a.header.url && !a.cards.url) return "Nothing on TMDB yet · its name on a plain card";
+  const from = (f: DeskShow["art"]["header"]) => (f.source === "link" ? "a link" : f.source === "chosen" ? "TMDB, chosen" : "TMDB");
+  if ([a.header, a.cards].some((f) => f.source === "link" || f.source === "chosen")) return `Header from ${from(a.header)} · cards from ${from(a.cards)}`;
+  return "From TMDB, on its own · header, cards and cast photos";
 }
 
 // ---------- Find › Shows ----------
@@ -255,7 +264,7 @@ const Loading = () => <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rou
 const toShows = { label: "Shows", href: paths.deskShows() };
 
 /** A season's number in its square (the mock's .dk-sn). */
-const SeasonNumber = ({ n }: { n: number }) => (
+export const SeasonNumber = ({ n }: { n: number }) => (
   <span className={`type-num grid h-10 min-w-10 flex-none place-items-center rounded-[3px] bg-card px-1 ${n >= 1000 ? "text-[17px]" : "text-[24px]"}`}>{n}</span>
 );
 
@@ -265,8 +274,8 @@ function seasonLine(s: DeskShow, x: DeskShow["seasons"][number], newest: boolean
   return `${pre}${STATUS_WORD[x.status]}${!x.scheduled && x.status !== "completed" ? " · no schedule yet" : ""} · ${plural(x.games, "game")}`;
 }
 
-/** The show's lower third and, on every page under it, its name and art. */
-function ShowThird({ s, tag, tone, detail }: { s: DeskShow; tag?: string; tone?: "quiet" | "stopped"; detail?: string }) {
+/** The show's lower third and, on every page under it, its name and art (its cards', unless `lead` says otherwise). */
+export function ShowThird({ s, tag, tone, detail, lead }: { s: DeskShow; tag?: string; tone?: "quiet" | "stopped"; detail?: string; lead?: string | null }) {
   const newest = s.seasons[0];
   const own =
     s.archived
@@ -276,7 +285,7 @@ function ShowThird({ s, tag, tone, detail }: { s: DeskShow; tag?: string; tone?:
         : `${newest ? `${seasonWord(null, newest.number)}${newest.status === "airing" ? " airing" : ""}` : "No seasons yet"}${s.watching ? ` · ${s.watching} watching` : ""}`;
   return (
     <LowerThird
-      lead={<ArtLead url={s.art.off ? null : s.art.poster} size={64} />}
+      lead={<ArtLead url={lead === undefined ? s.art.cards.url : lead} size={64} />}
       tag={tag ?? (s.archived ? "Archived" : s.added && !s.added.listing && !s.setUp ? "Added by name" : s.setUp ? "A game" : "Not a game yet")}
       tone={tone ?? (s.archived ? "stopped" : "quiet")}
       title={s.name}
@@ -307,18 +316,6 @@ export function ShowPage({ id }: { id: string }) {
     );
   const s = q.data;
   const byName = !!s.added && !s.added.listing;
-  // The art's own actions (part 7b gives them a page): each answers the show as it is, with a toast.
-  const artAct = async (body: unknown, done: string) => {
-    try {
-      const out = await deskSend<DeskShow>(`/shows/${id}`, body);
-      await after();
-      toast(done);
-      return out;
-    } catch (e) {
-      toast.quiet((e as Error).message);
-      throw e;
-    }
-  };
   const playing = s.delete.blocked.reduce((n, b) => n + (b.states.playing ?? 0), 0);
   return (
     <div className="pb-16" data-desk-show={s.archived ? "archived" : s.setUp ? "game" : "watching"}>
@@ -403,6 +400,7 @@ export function ShowPage({ id }: { id: string }) {
             title="Research sites"
             line={s.sites.own ? `${plural(s.sites.list.length, "site")}, its own: ${s.sites.list.slice(0, 2).map((x) => x.host).join(", ")}${s.sites.list.length > 2 ? "…" : ""}` : `Our usual: ${s.sites.usual.join(", ")}`}
           />
+          <DeskRow data="show-art" href={paths.deskShowPage(id, "art")} lead={<IconLead icon={ImageIcon} />} title="Art and photos" line={artLine(s)} />
           <DeskRow
             data="show-words"
             onClick={() => setSheet("words")}
@@ -412,7 +410,6 @@ export function ShowPage({ id }: { id: string }) {
           />
         </div>
       </Section>
-      <ArtSection show={s} act={artAct} />
       <LatestHistory lines={s.history} emptyLine="Nothing changed here yet." />
       <ShowDeleteRow s={s} />
       <AddSeasonSheet open={sheet === "add"} onClose={() => setSheet(null)} s={s} />
@@ -721,6 +718,7 @@ export function ShowDeleteRow({ s }: { s: DeskShow }) {
           const out = await deskSend<{ text: string }>(`/shows/${s.id}`, {}, "DELETE");
           forgetDeskPage(paths.deskItem("show", s.id));
           forgetDeskPage(paths.deskShowPage(s.id, "sites"));
+          forgetDeskPage(paths.deskShowPage(s.id, "art"));
           for (const x of s.seasons) forgetDeskPage(paths.deskItem("season", x.id));
           nav.back(paths.deskShows(), (prev) => prev === "/desk/shows");
           toast(out.text);

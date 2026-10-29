@@ -18,6 +18,7 @@ import { restoreSeat } from "./desk-seats";
 import { restoreSeasonSchedule } from "./desk-schedule";
 import { restoreSeasonSetup } from "./desk-setup";
 import { restoreShowArchive, restoreShowSeason, restoreShowSites, restoreShowWords } from "./desk-shows";
+import { restoreShowArt } from "./desk-show-art";
 import { restoreReview, restoreTemplateRow } from "./desk-library";
 import { restoreLive, undoRulebook, writePhase } from "./desk-rulebooks";
 
@@ -131,6 +132,9 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
       break;
     case "showSites":
       await restoreShowSites(u);
+      break;
+    case "showArt":
+      await restoreShowArt(u);
       break;
     case "showReviewed":
       await pool.query("UPDATE shows SET reviewed_at = NULL, reviewed_by = NULL, archived = COALESCE($2::boolean, archived), updated_at = now() WHERE id = $1", [

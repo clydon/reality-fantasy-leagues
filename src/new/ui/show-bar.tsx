@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { CalendarDays, ChevronLeft, MessageCircle, Trophy, Tv, Users, type LucideIcon } from "lucide-react";
+import { frameStyle, splitFrame, UNFRAMED } from "@/lib/art-frame";
 import { NavLink } from "../nav";
 import { paths, type ShowTab } from "../routes";
 
@@ -12,7 +13,8 @@ import { paths, type ShowTab } from "../routes";
 
 /**
  * A show's art, with data-art so a channel change can find it (nav.tsx grows the tapped one into the show bar). No
- * art: the name set large on a dark plate.
+ * art: the name set large on a dark plate. The framing its address carries (src/lib/art-frame.ts: the desk's, part 7b)
+ * outranks `position`; a zoom scales the image inside a box of its own, so it never spills out of `className`'s.
  */
 export function ShowArt({
   seasonId,
@@ -27,9 +29,17 @@ export function ShowArt({
   className?: string;
   position?: string;
 }) {
-  return artUrl ? (
+  const { src, frame } = splitFrame(artUrl);
+  if (src && frame && frame.zoom > 1)
+    return (
+      <span data-art={seasonId} className={`overflow-hidden ${className}`} style={{ display: "block" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL */}
+        <img src={src} alt="" className="block size-full object-cover" style={frameStyle(frame)} />
+      </span>
+    );
+  return src ? (
     // eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL
-    <img src={artUrl} alt="" data-art={seasonId} className={`object-cover ${className}`} style={{ objectPosition: position }} />
+    <img src={src} alt="" data-art={seasonId} className={`object-cover ${className}`} style={frame ? frameStyle(frame) : { objectPosition: position }} />
   ) : (
     <span
       data-art={seasonId}
@@ -84,7 +94,7 @@ export function ShowBar({
         seasonId={show.seasonId}
         artUrl={show.backdropUrl || show.artUrl}
         name={show.name}
-        position={wide ? "center 30%" : tall ? "100% 40%" : "center"}
+        position={wide ? `${UNFRAMED.header.x}% ${UNFRAMED.header.y}%` : tall ? "100% 40%" : "center"}
         className={`absolute inset-y-0 -z-[2] h-full ${tall && !wide ? "right-0 w-[70%]" : "inset-x-0 w-full"}`}
       />
       <span

@@ -1,4 +1,5 @@
 import type { PoolClient } from "pg";
+import { cardArtSql } from "./art-sql";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import type { GameUndo } from "./change-log";
 import { gameOver, normalizeCode } from "./couch-joins";
@@ -223,7 +224,7 @@ export interface DeskGame extends GameRow {
 export async function deskGame(id: string): Promise<DeskGame> {
   if (!isUuid(id)) throw new HttpError(404, "No game by that id");
   const { rows } = await pool.query(
-    `SELECT ${COLUMNS}, ss.id AS season_id, COALESCE(ss.art_url, s.art_url) AS art, l.created_by, COALESCE(cb.username, cb.name) AS started_by,
+    `SELECT ${COLUMNS}, ss.id AS season_id, ${cardArtSql()} AS art, l.created_by, COALESCE(cb.username, cb.name) AS started_by,
             (SELECT r.id FROM rulebooks r WHERE r.owner_kind = 'league' AND r.league_id = l.id AND r.status <> 'archived' LIMIT 1) AS own_book,
             (SELECT r.id FROM rulebooks r WHERE r.owner_kind = 'season' AND r.season_id = ss.id AND r.status <> 'archived' LIMIT 1) AS season_book,
             (SELECT count(*)::int FROM leagues o WHERE o.couch_id = l.couch_id AND o.id <> l.id AND o.deleted_at IS NULL) AS others

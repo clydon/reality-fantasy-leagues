@@ -12,7 +12,8 @@ import { pushRulebook } from "./desk-rulebooks";
 import { RESTORE_DAYS } from "./end-game";
 import { reachCopies } from "./ours";
 import { hasSchedule, latestAired, seasonSchedules, upNext } from "./schedule";
-import { artAutomatic, chooseArt, deskArt, findArtForShow, findArtLater, setArtOff, type DeskArt } from "./show-art";
+import { deskArtAction } from "./desk-show-art";
+import { deskArt, findArtLater, type DeskArt } from "./show-art";
 
 // A show on the desk (docs/PLAN-desk-parity.md part 7a; the mock's desk-shows.js, with step 7's Changes at approval: no
 // wiki). Find › Shows (All · Airing · Not a game yet · Added by name · Archived; name or most games; 25 at a time), and a
@@ -23,7 +24,8 @@ import { artAutomatic, chooseArt, deskArt, findArtForShow, findArtLater, setArtO
 // shows.research_domains as hostnames, null = our usual, what episode-research.js domainsFor gives); Archive and Restore
 // (tier 1, Undo); and its Delete, last (decision 4): refused while it has games (every league with the show, ended and
 // deleted ones too, by season), else gone for good with its seasons, follows and couches' chat about it. Looks fine and
-// Archive for a show added by name, New season's old action and the art's (show-art.ts) were step 6b/10's, moved here.
+// Archive for a show added by name and New season's old action were step 6b/10's, moved here. Its Art and photos page's
+// changes are desk-show-art.ts's (part 7b).
 
 const cap = (w: string) => (w ? w[0].toUpperCase() + w.slice(1) : w);
 /** A word as the sheet shows it: "castaway", but an acronym ("MP") as it is. */
@@ -269,7 +271,7 @@ export interface DeskShow {
   reviewed: { by: string | null; at: string } | null;
   seasons: ShowSeasonRow[];
   watching: number;
-  /** Its art and the finder's state (show-art.ts): Choose art, Find art and photos, No art or photos. */
+  /** Its art, each frame's source and framing, its cast photos and the finder's state (show-art.ts): its Art and photos page. */
   art: DeskArt;
   words: ShowWords;
   /** Its words' live sample: its newest season's cast and groups, and an episode. */
@@ -696,7 +698,7 @@ export async function deleteShow(user: SessionUser, id: string): Promise<{ text:
 /**
  * The desk on a show: `{ action: "reviewed" }` (Looks fine), `{ archive: true }` or `{ action: "archive" }`, `{ restore: true }`,
  * `{ action: "season", number?, status? }` (Add a season; with neither, the next one, Upcoming: New show's), `{ words }`,
- * `{ sites: { add } | { remove } | { usual: true } }`, and the art's (findArt, chooseArt, artAutomatic, artOff).
+ * `{ sites: { add } | { remove } | { usual: true } }`, and `{ art }` (its Art and photos page: desk-show-art.ts).
  */
 export async function deskShowAction(user: SessionUser, id: string, body: Record<string, unknown>): Promise<DeskShow & { seasonId?: string; changeId?: string; text?: string }> {
   const done = async (c: Change & { seasonId?: string }) => ({ ...(await deskShow(id)), ...c });
@@ -709,32 +711,10 @@ export async function deskShowAction(user: SessionUser, id: string, body: Record
   if (body.action === "season") return done(await addSeason(user, id, body));
   if (body.words && typeof body.words === "object") return done(await setWords(user, id, body.words as Record<string, unknown>));
   if (body.sites && typeof body.sites === "object") return done(await setSites(user, id, body.sites as Record<string, unknown>));
-  // Art (show-art.ts): look now, choose one by hand, back to automatic, or the off switch (part 7b gives it its page).
-  if (body.action === "findArt") {
-    const found = await findArtForShow(id);
-    const text = `Looked for art and photos: ${found.art ? "the show's art" : "no show art"}, ${found.seasons} season poster${found.seasons === 1 ? "" : "s"}, ${found.photos} photo${found.photos === 1 ? "" : "s"}`;
-    await logDesk(pool, { entity: "show", entityId: id, action: "findArt", text, userId: user.id });
-    return deskShow(id);
+  if (body.art && typeof body.art === "object") {
+    const out = await deskArtAction(user, id, body.art as Record<string, unknown>);
+    return { ...(await deskShow(id)), ...out };
   }
-  if (body.action === "chooseArt") {
-    const what = await chooseArt(id, body).catch((e) => {
-      throw new HttpError(400, (e as Error).message);
-    });
-    await logDesk(pool, { entity: "show", entityId: id, action: "chooseArt", text: `Chose ${what}`, userId: user.id });
-    return deskShow(id);
-  }
-  if (body.action === "artAutomatic") {
-    await artAutomatic(id);
-    await logDesk(pool, { entity: "show", entityId: id, action: "artAutomatic", text: "Art back to automatic", userId: user.id });
-    return deskShow(id);
-  }
-  if (body.action === "artOff") {
-    const off = body.off === true;
-    const { photos } = await setArtOff(id, off);
-    const text = off ? `No art or photos: took down the art and ${photos} found photo${photos === 1 ? "" : "s"}` : "Art and photos back on";
-    await logDesk(pool, { entity: "show", entityId: id, action: "artOff", text, userId: user.id });
-    return deskShow(id);
-  }
-  throw new HttpError(400, "action is reviewed, archive, season, findArt, chooseArt, artAutomatic or artOff; or archive, restore, words or sites");
+  throw new HttpError(400, "action is reviewed, archive or season; or archive, restore, words, sites or art");
 }
 
