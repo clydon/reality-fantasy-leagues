@@ -1937,7 +1937,16 @@
         {
           "id": "shape.keepers",
           "what": "Keepers across seasons",
-          "step": "A10"
+          "step": "A10",
+          "spec": {
+            "preset": "weekly-lineup",
+            "get": { "by": "draft", "each": 4, "order": "snake", "own": "exclusive", "keep": { "each": 1, "from": "<last season's game>", "cost": "round" } }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         }
       ]
     },
@@ -2652,7 +2661,12 @@
       "step": "A10",
       "dials": [
         "shape"
-      ]
+      ],
+      "spec": {
+        "preset": "outlast",
+        "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive", "keep": { "each": 2, "from": "<last season's game>" } }
+      },
+      "note": "keepers across seasons (A10 part 4): a game that continues the couch's game on last season, each keeping up to two of their team there who are on this season's cast (named before the draft; someone who names nobody keeps their best who are back; someone not back frees the place), the draft filling the rest"
     },
     {
       "id": "s18",

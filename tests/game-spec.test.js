@@ -50,8 +50,8 @@ const demo = (type, after) => {
 // What each kind of game is made of, written here apart from the spec's own code, so a field the spec forgets is caught:
 // the round trip takes these out of a league and writes them back from its spec alone.
 const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFeel", "autoFill", "replenishOrderBy", "waiverProcessHours", "freeAgencyEnabled", "replenishEnabled", "tradeEnabled", "swapEvery"];
-// A10 part 3: a draw and a draft spread across the cast's groups; part 3b: an auction and a draft's prices.
-const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftDraw", "draftAcross", "draftAuction", "draftBudget"];
+// A10 part 3: a draw and a draft spread across the cast's groups; part 3b: an auction and a draft's prices; part 4: keepers.
+const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftDraw", "draftAcross", "draftAuction", "draftBudget", "draftKeep"];
 const GAME_FIELDS = {
   every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints"],
   // A9 part 2: Outlast in reverse; best ball, a lineup's captain, points that multiply by when. A10 part 3c: a stock market

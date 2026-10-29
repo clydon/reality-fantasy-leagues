@@ -236,10 +236,13 @@ function check(ok, what, detail = "") {
       ["s04", "a salary cap of 100", (st) => G.sameValue(st.settings.draftBudget, { total: 100, floor: 1, gone: "zero", ceiling: 49 }) && S.BudgetLogic.cap(st) === 100],
       // A10 part 3c: a stock market (its trading's and its budget's defaults filled in), ranked by worth, trading every episode.
       ["s22", "a stock market ranked by worth", (st) => G.sameValue(st.settings.draftBudget, { total: 100, trade: { fee: 0 }, left: "cash", floor: 1, gone: "zero", ceiling: 39 }) && st.settings.draftRank === "worth" && S.MarketLogic.on(st) && G.sameValue(S.WaiverLogic.windows(st), { schedule: "everyEpisode", every: 3, swaps: 5 })],
+      // A10 part 4: keepers (their defaults filled in; the tracker's "last season's game" is no league, so nobody is offered anyone,
+      // the fallback: everyone drafts a whole team), not locked until the draft starts.
+      ["s17", "an Outlast that keeps two from last season's game", (st) => G.sameValue(st.settings.draftKeep, { each: 2, from: "<last season's game>", fallback: "best", cost: "place" }) && S.KeeperLogic.config(st)?.each === 2 && !S.KeeperLogic.locked(st) && !Object.keys(st.keepers?.options ?? {}).length],
     ]) {
       r = await labStart({ spec: rowSpec(row) });
       const st = r.body.leagueId ? (await pool.query("SELECT state FROM leagues WHERE id = $1", [r.body.leagueId])).rows[0]?.state : null;
-      const step = row === "who.groupSlots" ? "A10 part 1" : ["s05", "s38"].includes(row) ? "A10 part 3" : ["s03", "s04"].includes(row) ? "A10 part 3b" : row === "s22" ? "A10 part 3c" : /^s\d/.test(row) ? "A10 part 2" : "A9 part 2";
+      const step = row === "who.groupSlots" ? "A10 part 1" : ["s05", "s38"].includes(row) ? "A10 part 3" : ["s03", "s04"].includes(row) ? "A10 part 3b" : row === "s22" ? "A10 part 3c" : row === "s17" ? "A10 part 4" : /^s\d/.test(row) ? "A10 part 2" : "A9 part 2";
       check(r.status === 200 && !!st && holds(st) && checkLeague(st).ok, `${step}: ${what} starts as a test game, in its fields`, JSON.stringify(r.body).slice(0, 300));
     }
 

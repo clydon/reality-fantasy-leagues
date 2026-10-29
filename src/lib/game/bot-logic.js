@@ -25,7 +25,7 @@ const Formats = require("./formats/index.js");
 
 const {
   Core, DraftLogic, BlindDraftLogic, AuctionLogic, BudgetLogic, PriceLogic, MarketLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
-  EpisodeLogic, FinaleLogic, getLeagueType, rosterSize, inPlay, closedForPlay,
+  KeeperLogic, EpisodeLogic, FinaleLogic, getLeagueType, inPlay, closedForPlay,
   currentEpisode, finalePredictionsAvailable, seasonWinner,
 } = StateLogic;
 
@@ -232,15 +232,17 @@ function blindSubmissions(state) {
   if (!botIds(state).length) return [];
   if (!BlindDraftLogic.on(state) || !getLeagueType(state).hasRoster) return [];
   if (!DraftLogic.isStarted(state) || BlindDraftLogic.isRevealed(state)) return [];
-  const size = rosterSize(state);
   const active = state.castaways.filter((c) => c.status === "active").map((c) => c.id);
   return botIds(state)
-    .filter((pid) => !BlindDraftLogic.hasLocked(state, pid))
+    .filter((pid) => !BlindDraftLogic.hasLocked(state, pid) && BlindDraftLogic.eligiblePlayers(state).some((p) => p.id === pid))
     .map((pid) => {
-      // Greedy, so the tribe spread and a salary cap (step A10 part 3b) see each earlier pick.
+      // Greedy, so the tribe spread and a salary cap (step A10 part 3b) see each earlier pick; the places its keepers leave
+      // (part 4), beside them.
+      const keep = KeeperLogic.keptIds(state, pid);
+      const size = KeeperLogic.places(state, pid);
       const picks = [];
       for (let i = 0; i < size; i++) {
-        const next = draftOrderFor(state, pid, StateLogic.draftFits(state, picks, active.filter((id) => !picks.includes(id))), picks)[0];
+        const next = draftOrderFor(state, pid, StateLogic.draftFits(state, [...keep, ...picks], active.filter((id) => !picks.includes(id) && !keep.includes(id))), picks)[0];
         if (!next) break;
         picks.push(next);
       }
@@ -255,11 +257,11 @@ function blindSubmissions(state) {
 function auctionBids(state) {
   if (!botIds(state).length || !AuctionLogic.on(state) || !getLeagueType(state).hasRoster) return [];
   if (!DraftLogic.isStarted(state) || !AuctionLogic.ready(state)) return [];
-  const size = rosterSize(state);
   const free = state.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
   return botIds(state)
     .filter((pid) => !AuctionLogic.hasLocked(state, pid))
-    .map((pid) => ({ playerId: pid, bids: AuctionLogic.sheetFor(state, draftOrderFor(state, pid, free, []).slice(0, size * 2)) }))
+    // Step A10 part 4: a sheet for the places its keepers leave.
+    .map((pid) => ({ playerId: pid, bids: AuctionLogic.sheetFor(state, draftOrderFor(state, pid, free, []).slice(0, KeeperLogic.places(state, pid) * 2), pid) }))
     .filter((x) => !AuctionLogic.validateBids(state, x.playerId, x.bids));
 }
 

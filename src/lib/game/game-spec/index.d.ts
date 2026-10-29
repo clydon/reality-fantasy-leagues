@@ -32,7 +32,7 @@ export type SpecGet =
   /** A10 part 3: order "draw" deals each team at random when the draft starts (either ownership); across spreads a draft over
    *  the cast's groups as the data has them then. Part 3b: order "auction" (exclusive) sells the cast by sealed bids; a budget
    *  beside any other order is a salary cap, prices from the data. */
-  | { by: "draft"; each: number; order: "snake" | "blind" | "draw" | "auction"; own: "exclusive" | "shared"; groups?: GroupSlots; across?: DraftAcross; budget?: DraftBudget }
+  | { by: "draft"; each: number; order: "snake" | "blind" | "draw" | "auction"; own: "exclusive" | "shared"; groups?: GroupSlots; across?: DraftAcross; budget?: DraftBudget; keep?: DraftKeep }
   /** A10 part 2's second: a second pick beside the first, open every episode, counting on a night two or more go home (void, or
    *  counts like the first, on a night only one goes). */
   | { by: "pick"; each: 1; repeat: "cycle"; second?: { fallback: "void" | "counts" } }
@@ -322,6 +322,18 @@ export interface DraftBudget {
   left?: "cash" | "lost" | "bids";
 }
 
+/** A10 part 4: keepers across seasons (get.keep): a game that continues `from` (the couch's game on an earlier season of the
+ *  show), each person keeping up to `each` of their team there who are on this season's cast (named before the draft; someone
+ *  not back frees the place for the draft), the draft filling the rest. A keeper costs a place on the team, one of a snake's
+ *  earliest rounds, or their price at the draft (a salary cap's or a stock market's); someone who names nobody keeps their best
+ *  who are back, or nobody (state-logic.js KeeperLogic). */
+export interface DraftKeep {
+  each: number;
+  from: string;
+  cost: "place" | "round" | "price";
+  fallback: "best" | "none";
+}
+
 /** A10 part 3: a draft spread across the cast's groups (get.across): no more than ceil(each / groups) from one group, at least
  *  floor(each / groups) from each while it has someone to take, read from the groups the data has people on when it drafts
  *  (state-logic.js SpreadLogic). gender waits on data that says who is which (no show records it). */
@@ -364,6 +376,8 @@ export interface SpecContext {
    *  cover every pick (covers), else it's shared. Either left out: not counted. */
   pool?: number;
   couch?: number;
+  /** A10 part 4: the couch's games on the show's earlier seasons (league ids, or { id }): keepers come from one of them. */
+  games?: (string | { id: string })[];
   /** A10 part 3: how many can be drafted in each of the cast's groups where the game drafts: an exclusive spread draft has every
    *  group cover its share of every team. */
   poolGroups?: number[];
@@ -528,6 +542,9 @@ export const MARKET_LEFT: "cash";
 export function marketWaivers(each: number): SpecWaivers;
 export function marketOf(spec: unknown): boolean;
 export function budgetParts(spec: GameSpec | SpecInput | null | undefined): BudgetParts | null;
+/** A10 part 4: keepers' defaults, and keepers read from a whole spec (null: none). */
+export const KEEP: { each: number; fallback: "best" | "none" };
+export function keepParts(spec: GameSpec | SpecInput | null | undefined): { each: number; from: string | null; cost: "place" | "round" | "price"; fallback: "best" | "none" } | null;
 /** Whether a pool covers every pick of an exclusive draft: people x each <= pool. */
 export function covers(o: { pool: number; people: number; each: number }): boolean;
 /** The spec with everything it leaves out filled in (the preset's, or the defaults); never mutates it. */
@@ -538,7 +555,7 @@ export function typeOf(spec: SpecInput | GameSpec): LeagueTypeId | null;
 export function playsAs(spec: GameSpec): LeagueTypeId | null;
 /** The league type's flags, worked out from a whole spec. */
 export function flagsOf(spec: GameSpec): {
-  hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasBingo: boolean;
+  hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasKeepers: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasBingo: boolean;
   supportsReplenish: boolean; supportsTrade: boolean; supportsFinalePredictions: boolean;
 };
 /**

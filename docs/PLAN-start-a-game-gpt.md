@@ -26,8 +26,10 @@ the data has them when it drafts, one from each tribe, `SpreadLogic`; names out 
 and a girl refused, since nothing records who is which), and part 3b, a draft's prices (2026-10-29: an auction by sealed bids
 settled at once, `AuctionLogic`; a salary cap whose prices follow the data, `PriceLogic` and `BudgetLogic`), and part 3c, buying and
 selling each week (2026-10-29: a stock market on those prices, trading in the waiver weeks, cash a ledger from the logs, ranked by
-worth when the game says so, `MarketLogic`), are built; part 4 (keepers across seasons, a team two people share) is next, then A11
-to A14 overnight (the
+worth when the game says so, `MarketLogic`), and part 4, keepers across seasons (2026-10-29: a game that continues last season's,
+each keeping up to N of their team there who are on this season's cast, named before the draft and locked as it starts, the draft
+filling the rest whatever its kind, `KeeperLogic` and `keepers.ts`), are built; part 4b (a team two people share) is next, the last
+of A10, then A11 to A14 overnight (the
 user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -2415,6 +2417,11 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   and a team two people share (s17, s18, shape.keepers, who.sharedTeam). Each part the engine's only (no screens: U1's).
   Part 3 split in three as it went (2026-10-29): 3 the slots and the draw (s05, s06, s38, answer.draw), 3b the prices (an auction
   and a salary cap: s03, s04, answer.bid), 3c buying and selling each week (the stock market: s22, answer.trade), on 3b's prices.
+  Part 4 split in two as it went (2026-10-29): 4 keepers across seasons (s17, shape.keepers), and 4b a team two people share (s18,
+  who.sharedTeam), the last of A10: a seat two accounts hold meets the database's one account a seat (`league_memberships`'
+  `UNIQUE(league_id, player_id)`), the joins that refuse a taken seat, the couch's tables, records, calls and bingo credited by
+  person through a seat-to-account map that keeps one, the change log treating a co-owner's move as someone else's, and leaving a
+  seat, a session of its own.
 
   **As built (A10 part 1, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
   up to date; 964 tests).
@@ -2930,6 +2937,87 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     free-agency move working out prices twice (now once, a free-agency move recording what it read); the 'cash' pass's words
     starting with who it was, as the others do; the rank message naming worth. Not taken, as screens (Noticed, for U1): the
     classic Standings card, Scoreboard, player page, season results card and the reveal ranking by points.
+  **As built (A10 part 4, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
+  ten files: the corrections fold, no migration; 1049 tests). Keepers across seasons; a team two people share split off as part 4b
+  (above). Each piece rides on data with its fallback from the start; every default the user's (Noticed, below).
+  - **The spec** (`schema.js`): a draft's `get.keep`, `{ each, from, cost, fallback }`: a game that continues `from` (the couch's
+    game on an earlier season of the show, a league id), each seat keeping up to `each` of its team there who are on this season's
+    cast. `cost` place (a place on the team, nothing else: a snake passes over a full team, so a keeper costs one of its last
+    rounds) | round (a snake's only: it sits out one of its first rounds for each keeper) | price (their price at the draft, out of
+    a budget the data prices: a salary cap or a stock market; never an auction's bids alone); `fallback` best (someone who names
+    nobody keeps their best who are back) | none. Defaults (`KEEP`, `keepCostFor`): one each, best, `price` in a market and
+    `place` elsewhere, filled by `fullSpec` only on a spec with keepers, so no stored spec changes. VOCAB's `get.keep.cost` and
+    `.fallback`; `keepParts`; `flagsOf`'s `hasKeepers`; the settings' `draftKeep`, both ways. Refused: more than the team, no
+    `from`, a round outside a snake, a price without the data's prices. **The data rule:** `ctx.games` (the couch's games on the
+    show's earlier seasons, the context pack's), when given, holds `from` to one of them. **The exclusive count** (the 9:10 PM
+    decision) needs nothing more: each keeper takes one castaway out of the pool and one pick out of the draft, so a pool that
+    covers every pick still does (a unit test proves it on three couches).
+  - **Who can be kept** (`keepers.ts`, server): never a name a person types. For each account on this game that had a seat on
+    `from`, that seat's team there as it stands, best first by last season's own measure (an Outlast by how long they lasted, then
+    points; anything else by its points, then how long they lasted: `KeeperLogic.rankFrom`), each matched to this league's cast by
+    name as each season's cast records it (`nameKey`: accents, case, punctuation, a nickname in double quotes and a Jr. or Sr. left
+    out, nothing looser, since nothing in the data links two seasons' cast rows: `optionsFrom`). A game it can't find, on another
+    show, or not an earlier season offers nothing (everyone drafts a whole team). Every write to a game whose keepers are open
+    settles the options (`withLeagueLock`, in a savepoint: before the mutation, and after one that turned keepers on); the GET
+    works them out on its copy without writing.
+  - **Naming and the lock** (`KeeperLogic`, `state-logic.js`): a seat names up to `each` of its options before the draft (none is
+    keeping nobody; who named them recorded, `chosen.by`); in an exclusive game nobody names someone another seat named first.
+    What a seat named stays as named (a bad read of last season's game never erases it), and the lock keeps only those still among
+    its options, so someone who left the cast frees the place. They lock as the draft starts (its time, the Commissioner's Start,
+    the first pick, a draw, an auction's settling, a blind reveal: `settle` on every write and on the read that finds it due), each
+    keeper the seat's own (`acquiredVia 'keeper'`, recorded with its price where it costs one), seats that named theirs first in
+    the order they named them, then the fallback's in the draft's order. A game whose teams were drafted before its keepers locked
+    keeps its teams. A keeper isn't a pick: Undo doesn't take one back.
+  - **The draft fills the rest, whatever its kind:** a snake's turns round by round, a seat taking a turn only in a round its keepers
+    leave it (`turns`); a blind sheet of the places left, never the seat's own keeper, a full seat not waited for; a draw dealing
+    only the places left (an exclusive hat without anyone kept), its log the dealt alone; an auction's bids for the places left,
+    each seat's most bid from what its keepers leave; a salary cap counting keepers like anyone on the team; a stock market's cash
+    less a keeper's price; every seat full, a blind draft revealed and an auction settled as the keepers lock. Computer players
+    sheet and bid for the places left. `draft-view.ts`'s turns and each pick's round follow the engine's.
+  - **Words** (`describe.js`): the sentence ("everyone drafts 3, keeping up to two of last season's team who come back") and How
+    it works (who can be kept, a place each, what a keeper costs, whether someone else can have yours, the fallback, someone not
+    back).
+  - **API:** `GET/PUT /api/leagues/[id]/keepers` (a seat's options and what it named, everyone's once locked; a member names their
+    own, the commissioner anyone's; a refusal is a 400 with the reason).
+  - **The tracker:** s17 (an Outlast for The Challenge 42, keeping up to two) and shape.keepers (a snake Weekly Lineup of four whose
+    keeper costs a round) ✅. **Now: 162 ✅** · 83 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271 (A10's two left are part 4b's).
+  - **Tests:** `tests/keepers.test.js` (new, 6): the shape, defaults, words and settings both ways, what's refused, the data rule
+    and the exclusive count; names across seasons and a seat's options; naming, the lock and its fallbacks (named first, the best,
+    none, shared, a cast change, a bad read, a game already drafted); a snake by place and by round, a seat its keepers fill, keepers
+    gone from the spec; a blind sheet, every seat full, a draw (exclusive and shared), an auction; a cap counting them, a market's
+    cash, computer players. `game-spec.test.js`: `draftKeep`. `npm test` 1055.
+  - **API check:** `scripts/dev-test/check-keepers.js` (new, on new-fixture.js's couch, its own zt rows: ZT Survivor 52, four of
+    Couch Cup's castaways back, one as the new cast records him with a nickname, ten newcomers), 27 PASS: an exclusive snake Outlast
+    keeping up to two (each seat's options, best first; refusals; riley's named, who named it recorded; sam's returnee leaving the
+    cast before the draft, so nothing he named is kept; alex naming nobody and keeping his best two; the Start locking them; the snake
+    passing over a full team; nobody drafting a keeper; every team three; Couch Cup untouched) and a shared blind Weekly Lineup
+    keeping one (a sheet of the places left; another seat taking alex's keeper too; the reveal). `check-engine-lab.js --api` grew
+    s17 (started as a test game in its fields): ALL PASS. Re-runs: `check-draft-prices.js`, `check-draft-spread.js`,
+    `check-market.js` ALL PASS. `npx tsc --noEmit -p .` clean.
+  - **Golden replays** (`golden.js`, HEAD against the working tree, after the code review's fixes): 7 seasons, 160 games,
+    **19,361 reads, every one the same** (no game they play keeps anyone; the snake's turns are as before when nobody kept anyone).
+  - **Blind replays** (`blind.js run`, the five seasons, on the final code): **every game ended on all five seasons**, the tracker's
+    two keepers games among them: The Challenge 41 67 of 67, 40 67 of 67, 39 67 of 67, Survivor 49 86 of 86, The Traitors 4 65 of
+    65. `blind.js` now makes a keepers game's last season first: an Outlast for the same four seats on the show's previous season as
+    this database has it loaded, each dealt a team at random (a shared draw, so two seats can hold the same castaway), and the new
+    game keeps from it through the app's own writes. **What it found:** on The Challenge 41, 11 of 40's cast are back (Bananas among
+    them under his nickname, matched by name); on 40, 5 of 39's; each seat kept who it had among them, best first, and every team
+    filled to its size; two seats that held the same returnee in last season's shared game met in an exclusive one (Horacio
+    Gutiérrez Jr. on The Challenge 40), and the first in the draft's order kept him, the other its next one (Noticed, item 4).
+    Survivor 49, The Traitors 4 and The Challenge 39 have no previous season loaded here, so their keepers games kept nobody and
+    drafted whole teams (the fallback). The first run of the dial row (an exclusive snake of five) ran out of castaways on Survivor
+    49, since the replays start a tracker game without the couch's count; it now drafts four (Noticed). The study doc's "A10 part
+    4: keepers, replayed blind".
+  - **Code review** (`/code-review` at high, before the long runs). Taken: a salary cap's cheapest-team check counting a keeper
+    twice (an over-cap sheet let through); a blind draft or an auction whose every seat its keepers filled waiting forever (now
+    done as they lock; a full seat not waited for in an auction either); one bad read of last season's game erasing what seats had
+    named (named keepers now stay, filtered at the lock); a snake whose keepers left its spec after they locked throwing on every
+    read; How it works leaving out a cap's snake whose keepers cost a round; `nameKey` built on the engine's own name normalizing;
+    the castaway type's `acquiredVia` learning 'keeper'; the draft room's view model (`draft-view.ts`) following the engine's turns;
+    the GET refusing another seat's keepers that the state carries anyway (now anyone's, Noticed item 5). Not taken: the UUID check
+    in `keepers.ts` stays its own (the shared one sits in `auth-helpers.ts`, which imports `db.ts`, which imports `keepers.ts`); the
+    reads while keepers are open (Noticed, cost). Part 3c's optional item 3 (a shared market straight to free agency) wasn't taken:
+    it goes with part 4b or U1.
 - **A11. Winning, and who plays with whom.** A race (first to N ends the game), co-op (the group against the show, with shared
   lives), head-to-head with playoffs, teams of players, players knocked out each week (guillotine) or cut at a phase,
   handicaps, late joiners.
@@ -3636,6 +3724,55 @@ From A10 part 1 (2026-10-29):
 - A slot's group members are matched to the league's cast the forgiving way (`Core.findCastawayByName`), as F3 part 2's group
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
+
+From A10 part 4 (2026-10-29):
+- **For the user, in a design session (with A10 parts 1 to 3c's questions), each with a recommendation (built as spec settings,
+  the defaults in `KEEP` and `keepCostFor`):**
+  1. How many keepers (`get.keep.each`). Built: 1 when it's left out, up to the team's size. Options: the user's own "keep 2"; a
+     share of the team. Recommended: 1 by default (a keeper is a carry-over, the draft stays the main event), the maker's number
+     where they say one, and at most the team's size less one, so everyone drafts at least once (not built: the check allows the
+     whole team).
+  2. What a keeper costs (`cost`). Built: a place on the team and nothing else (`place`: a snake passes over a full team, so a
+     keeper costs one of your last rounds), one of a snake's earliest rounds (`round`: you sit out one of your first rounds for each),
+     or their price at the draft out of a stock market's cash (`price`; under a salary cap the cap counts keepers like anyone on the
+     team whatever they cost). Defaults: `price` in a market, else `place`. Recommended: `round` for an exclusive snake (keeping the
+     best castaways costs your top picks, as in a keeper league; `place` there makes keeping a pure edge), `place` for a shared draft
+     and a draw (nobody's pick is taken, so nothing to pay), `price` for a market (as built).
+  3. Someone who names nobody by the draft (`fallback`). Built: `best`, they keep their best who are back; or `none`. Recommended:
+     `best` (Joanna forgets; Andrew drives by).
+  4. Two wanting the same keeper in an exclusive game (only when last season's game was shared). Built: first come (whoever named
+     them first has them; the fallback's seats go after everyone who named theirs, in the draft's order). Options: neither (back in
+     the pool); last season's lower finisher first. Recommended: first come, said up front ("whoever names them first has them").
+  5. Keepers named in the open. Built: the game's state carries every seat's options and named keepers, so everyone on it sees them
+     before the draft (the GET reads any seat's). Option: hidden until the lock (as a blind draft's picks are, in a table of their
+     own). Recommended: open, as keeper leagues announce keepers (and in an exclusive game it avoids clashes).
+  6. Who's "best". Built: last season's game's own measure (an Outlast by how long they lasted, then points; any other by its points,
+     then how long they lasted). Recommended: keep.
+  7. Knowing a person across seasons. Built: by name as each season's cast records it, made comparable (accents, case, punctuation,
+     a nickname in double quotes, a Jr. or Sr.: `KeeperLogic.nameKey`), nothing looser, since nothing in the data links two
+     seasons' cast rows (no person id; the photos' TMDB and TVmaze credits are matched by name and keep no id). Options: a person id
+     kept from the listings when a cast is made; the desk confirming "back from season N" on a new cast. Recommended: names now, and
+     the desk's confirmation when the cast pipeline next changes, so a returnee recorded by a new name (a married name, a nickname
+     alone) isn't missed. (Whoever next touches season casts.)
+  8. Run it back with keepers. Not built (no screen): Run it back makes a fresh game and records nowhere which game it ran back
+     (the change log's words only). Recommended: Run it back offers "keep N from this game" (`from` set to it), and G1's context
+     pack lists the couch's games on the show's earlier seasons as `ctx.games`, which the check already reads. (U1, G1.)
+- **Built, not decided by anyone:** a keeper who leaves the cast after the lock (withdrew before the premiere) leaves an empty place,
+  which the game's waivers fill as for someone gone home (a game without waivers stays short). A computer player has no account, so
+  it keeps nobody. A game whose teams were drafted before its keepers locked keeps its teams (nobody keeps anyone). Keepers that come
+  out of a spec after they locked keep their places (their last rounds in a snake).
+- **The new design's draft room** still lays a snake out in full rounds (`draft-helpers` picksLeftFor, `draft-grid`'s rounds): with
+  keepers it would show turns a seat never takes. `draft-view.ts`'s turns and each pick's round now follow the engine's
+  (`KeeperLogic.turns`). No screen shows options, named keepers or what each kept. (U1: read the keepers route.)
+- **Cost:** every write to a game whose keepers are open reads last season's league state and both leagues' members (keepers.ts, in
+  a savepoint), and the keepers GET works the options out again; nothing once they lock. (The merge: a line in HOSTING.md.)
+- **No caller passes `ctx.games`** (the couch's games on the show's earlier seasons), so `from` is checked only for its shape; the
+  server offers nothing from a game on another show or a later season. (G1's context pack, the lab when it next changes.)
+- **The blind replays start a tracker game without the couch's count** (`ctx.pool` and `ctx.couch`, A10 part 1's item): the first
+  run of this part's shape.keepers row (an exclusive snake of five) ran out of castaways on Survivor 49 (four teams of five, 18
+  castaways), as the 9:10 PM decision's check would have refused it had anyone passed the couch. The row now drafts four. (Whoever
+  next touches blind.js or the lab: pass the replay's four seats and the cast as the count, so a row the pool can't cover is
+  reported as the check would, not started.)
 
 From A10 part 3c (2026-10-29):
 - **For the user, in a design session (with A10 parts 1 to 3b's questions), each with a recommendation (built as spec settings,

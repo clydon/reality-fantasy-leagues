@@ -303,16 +303,19 @@ export function draftView(
 
   const clock = draftClock(full);
   const draftOrder = [...full.draftOrder];
-  const turns = Array.from({ length: draftOrder.length * size }, (_, i) => snakeOwner(draftOrder, i)!);
+  // Step A10 part 4: with keepers, a seat takes a turn only in the rounds they leave it (the engine's own turns).
+  const kept = StateLogic.KeeperLogic.anyKept(full) ? StateLogic.KeeperLogic.turns(full, draftOrder) : null;
+  const turns = kept ? kept.map((t) => t.playerId) : Array.from({ length: draftOrder.length * size }, (_, i) => snakeOwner(draftOrder, i)!);
   const at = new Map(log.map((e) => [e.n, e]));
   const made = full.draftPicksMade;
   const n = draftOrder.length || 1;
   const picks: DraftPick[] = Array.from({ length: made }, (_, i) => {
     const e = at.get(i + 1);
+    const t = kept?.[i];
     return {
       n: i + 1,
-      round: Math.floor(i / n) + 1,
-      inRound: (i % n) + 1,
+      round: t ? t.round + 1 : Math.floor(i / n) + 1,
+      inRound: t ? kept!.slice(0, i).filter((x) => x.round === t.round).length + 1 : (i % n) + 1,
       playerId: e?.playerId ?? turns[i],
       castawayId: e?.castawayId ?? null,
       by: e?.by ? (nameOfUser(e.by) ?? "someone") : null,

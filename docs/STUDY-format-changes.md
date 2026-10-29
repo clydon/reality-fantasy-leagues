@@ -801,6 +801,31 @@ worth (s22). Every game ended on all five seasons (The Challenge 41, 40 and 39 6
   leave some cash at the start (a market's highest price set so the draft leaves a tenth of the budget), so a replacement at
   the lowest prices is always within reach.
 
+## A10 part 4: keepers, replayed blind (2026-10-29)
+
+A10's part 4 built keepers across seasons (state-logic.js `KeeperLogic`, the server's `keepers.ts`): a game that continues last
+season's, each seat keeping up to N of its team there who are on this season's cast, named before the draft (or its best, by
+last season's own measure, for someone who names nobody), locked as the draft starts, the draft filling the rest. Nothing in the
+data links a person across seasons, so they're matched by name as each season's cast records it (accents, case, punctuation, a
+nickname in quotes and a Jr. left out, nothing looser). The blind replays played two such games on every season: s17 (an Outlast
+of three keeping up to two) and the dial row (a snake Weekly Lineup of four keeping one, at the cost of a first round). For each,
+`blind.js` first made last season's game for the same four seats, an Outlast on the show's previous season as this database has
+it loaded, every seat dealt a team at random from its own hat (a shared draw, so two seats can hold the same castaway). Every
+game ended on all five seasons (The Challenge 41, 40 and 39 67 of 67, Survivor 49 86 of 86, The Traitors 4 65 of 65).
+
+- **Returning players are found by name.** The Challenge 41 has 11 of 40's cast (Johnny "Bananas" Devenanzio among them), 40 has
+  5 of 39's (Horacio Gutiérrez Jr. with his accent and suffix). Each seat kept who it had among them, best first, and every team
+  was filled to its size by the draft.
+- **Two seats can want the same keeper** when last season's game was shared and this one is exclusive: on The Challenge 40 the
+  tinkerer and the forgetter both had Horacio Gutiérrez Jr.; the tinkerer, first in the draft's order, kept him, and the forgetter
+  kept its other returnee (Kyland Young). The plan's Noticed (A10 part 4, item 4) asks the user how such a clash should go, with a
+  recommendation (first come, said up front).
+- **A season with no previous one loaded** (The Challenge 39, Survivor 49, The Traitors 4) keeps nobody, and every team is drafted
+  whole: the fallback when last season's game can't be found.
+- **Survivor 49 can't hold an exclusive snake of five for four** (18 castaways): the replays start a tracker game without the
+  couch's count, which the check would have refused. The dial row drafts four now; the plan's Noticed asks that the replays pass
+  their four seats as the count.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

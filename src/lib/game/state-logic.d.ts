@@ -730,7 +730,8 @@ declare const StateLogic: {
     least(state: LeagueState, picked: string[], id: string, pool: string[], prices: Map<string, number>): number;
     reason(state: LeagueState, cost: number, more?: number): string;
     pickProblem(state: LeagueState, playerId: string, castawayId: string, prices?: Map<string, number>): string | null;
-    teamProblem(state: LeagueState, castawayIds: string[]): string | null;
+    /** Part 4: `keep`, the seat's keepers, already on the team. */
+    teamProblem(state: LeagueState, castawayIds: string[], keep?: string[]): string | null;
     moveProblem(state: LeagueState, playerId: string, dropId: string | null, addId: string, prices?: Map<string, number>): string | null;
     /** Part 3c: whether a change to a team is checked against prices (a salary cap's, or a stock market's cash). */
     priced(state: LeagueState): boolean;
@@ -746,6 +747,30 @@ declare const StateLogic: {
     worth(state: LeagueState, playerId: string, prices?: Map<string, number>): number;
     view(state: LeagueState): { prices: Record<string, number>; cash: Record<string, number>; worth: Record<string, number> } | null;
   };
+  /** Step A10 part 4: keepers across seasons (the spec's get.keep): options from last season's game (the server's: keepers.ts),
+   *  named before the draft, locked as it starts; the draft fills the places they leave. */
+  KeeperLogic: {
+    config(state: LeagueState): { each: number; from: string | null; cost: "place" | "round" | "price"; fallback: "best" | "none" } | null;
+    locked(state: LeagueState): boolean;
+    options(state: LeagueState, playerId: string): string[];
+    chosen(state: LeagueState, playerId: string): string[] | null;
+    named(state: LeagueState, playerId: string): string[] | null;
+    kept(state: LeagueState, playerId: string): { castawayId: string; price?: number }[];
+    keptIds(state: LeagueState, playerId: string): string[];
+    anyKept(state: LeagueState): boolean;
+    places(state: LeagueState, playerId: string): number;
+    paid(state: LeagueState, playerId: string): number;
+    draftedAny(state: LeagueState): boolean;
+    setOptions(state: LeagueState, options: Record<string, string[]>): boolean;
+    choose(state: LeagueState, playerId: string, castawayIds: string[], by?: string): string | null;
+    due(state: LeagueState): boolean;
+    lock(state: LeagueState): boolean;
+    settle(state: LeagueState): boolean;
+    turns(state: LeagueState, order: string[]): { playerId: string; round: number }[];
+    nameKey(name: string): string;
+    rankFrom(old: LeagueState): string[];
+    optionsFrom(old: LeagueState, oldPlayerIds: string[], state: LeagueState): string[];
+  };
   /** Step A10 part 3b: an auction, by sealed bids settled at once (the bids kept out of the state: src/lib/server/auction.ts). */
   AuctionLogic: {
     on(state: LeagueState): boolean;
@@ -756,10 +781,11 @@ declare const StateLogic: {
     eligiblePlayers(state: LeagueState): Player[];
     waitingOn(state: LeagueState): Player[];
     allLockedIn(state: LeagueState, lockedPlayerIds: string[]): boolean;
-    maxBid(state: LeagueState): number;
+    /** Part 4: for a seat (`playerId`), the places its keepers leave and what they cost. */
+    maxBid(state: LeagueState, playerId?: string): number;
     maxBids(state: LeagueState): number;
     ready(state: LeagueState): boolean;
-    sheetFor(state: LeagueState, order: string[]): { castawayId: string; bid: number }[];
+    sheetFor(state: LeagueState, order: string[], playerId?: string): { castawayId: string; bid: number }[];
     validateBids(state: LeagueState, playerId: string, bids: { castawayId: string; bid: number }[]): string | null;
     outcome(state: LeagueState, bidsByPlayer: Record<string, { castawayId: string; bid: number }[]>, seed: string): {
       order: string[]; won: { playerId: string; castawayId: string; price: number; filled?: true }[]; spent: Record<string, number>; short: string[];

@@ -9,6 +9,7 @@ import { justProcessed, sendProcessed, snapshot as waiverSnapshot } from "./waiv
 import { recordChange, type ChangeOf } from "./change-log";
 import { settleGroupSlots } from "./group-slots";
 import { settleDueAuction } from "./auction";
+import { settleKeepers } from "./keepers";
 import { after } from "next/server";
 
 // Re-exported so route handlers can import { pool, withLeagueLock, HttpError } from one place,
@@ -74,6 +75,10 @@ export async function withLeagueLock(
     // A game with group slots (step A10 part 1, group-slots.ts): the season's format groups, so the mutation reads what's on
     // offer now; settled again after it, for results it applied.
     const slots = await settleGroupSlots(client, state, true);
+    // A game that keeps castaways from last season's (step A10 part 4, keepers.ts): each seat's options while they're open, and
+    // locked once the draft has started, before a draw deals or anything is picked.
+    const keepers = await settleKeepers(client, leagueId, state, true);
+    StateLogic.KeeperLogic.settle(state);
     // A draw whose scheduled time has come (step A10 part 3, StateLogic.DrawLogic): drawn now, so the mutation sees the teams.
     StateLogic.DrawLogic.settle(state);
     // An auction whose bidding closed with bids still out (step A10 part 3b, auction.ts): settled now, with the bids it has.
@@ -83,6 +88,9 @@ export async function withLeagueLock(
     // A mutation that turned group slots on reads them now; one that turned them off clears them (settle keeps none).
     if (slots) StateLogic.GroupSlotLogic.settle(state, slots);
     else if (StateLogic.GroupSlotLogic.config(state)) await settleGroupSlots(client, state, true);
+    // A mutation that turned keepers on reads their options; one that started the draft locks them.
+    if (!keepers && StateLogic.KeeperLogic.config(state)) await settleKeepers(client, leagueId, state, true);
+    StateLogic.KeeperLogic.settle(state);
     const spec = change && before ? (typeof change === "function" ? change(before, state) : change) : null;
     // Every write leaves the league with an episode to play next (bets and picks always have
     // somewhere to go; nobody creates episodes by hand). See EpisodeLogic.ensureNextEpisode.

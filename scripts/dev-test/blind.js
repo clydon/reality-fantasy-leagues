@@ -21,7 +21,9 @@
 //     no answer the app refused that it offered, no problem in the moves; a game with group slots (A10 part 1), each seat's
 //     empty or dropped slot picking from the groups on offer before each episode, nothing scored by a slot not held and no
 //     pick it offered refused; a stock market (A10 part 3c), each seat trading by habit in its waiver weeks (playtest.js's
-//     claims, within its cash), and nobody's cash below nothing.
+//     claims, within its cash), and nobody's cash below nothing; a game that keeps from last season's (A10 part 4), that game
+//     made first for the same seats on the show's previous season as this database has it loaded (lastSeasonGame), and what each
+//     seat kept recorded (none where no previous season is loaded: the fallback).
 // Nothing asks a bot. The local bot's answers are F2's, kept beside the tapes; the stand-ins are marked as such in the record.
 //
 //   node scripts/dev-test/blind.js run [<show> <season>] [--only=3,7] [--through=N] [--keep]
@@ -367,20 +369,74 @@ async function loadedSeason(show, season) {
   return rows[0].id;
 }
 
+/**
+ * A10 part 4: a game that keeps from last season's (get.keep) gets last season's game first, for the same seats: an Outlast on
+ * the show's previous season as this database has it loaded (its cast as the data records it: The Challenge 40 for 41, 39 for
+ * 40), each seat dealt a team the new game's size by a seeded shared draw before any results (so its best is by name: nobody has
+ * points yet), a zt-pt- league H.down takes out. The new game keeps from it, through the app's own write (keepers.ts reads both
+ * leagues as each seat's draft opens). A season whose previous one isn't loaded here keeps from no game (the fallback: every
+ * team drafted whole). { from: its league id or null, why, teams: { label: [names] }, back: names on this season's cast }.
+ */
+async function lastSeasonGame(g, users, seats, show, season, copy) {
+  const { pool, S } = app();
+  const each = g.spec.get && g.spec.get.each;
+  // The seats' accounts (users maps a seat's username to its user row).
+  const idOf = (seat) => users[seat.username].id;
+  const { rows } = await pool.query(
+    "SELECT ss.id FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug = $1 AND ss.season_number = $2 ORDER BY ss.created_at LIMIT 1",
+    [show, Number(season) - 1]
+  );
+  if (!rows.length) return { from: null, why: `${show} ${Number(season) - 1} isn't loaded here: nobody keeps anyone`, teams: {}, back: [] };
+  const cast = (await pool.query("SELECT id, name, tribe_name FROM season_cast WHERE season_id = $1 ORDER BY sort_order", [rows[0].id])).rows;
+  const st = S.defaultState();
+  Object.assign(st.settings, { showId: H.SLUG(show), wikiSeason: Number(season) - 1, setupComplete: true });
+  S.applySeasonCast(st, cast.map((c) => ({ id: c.id, name: c.name, tribeName: c.tribe_name, photoUrl: null })));
+  for (const seat of seats) S.addPlayer(st, seat.label);
+  const problems = S.setGame(st, { preset: "outlast", get: { by: "draft", each, order: "draw", own: "shared" } });
+  if (problems.length) throw new Error(`last season's game: ${problems[0].problem}`);
+  S.DrawLogic.draw(st, `zt-pt-keep-${show}-${season}`);
+  const slug = `zt-pt-keep-${g.n}-${season}`;
+  const { rows: made } = await pool.query(
+    "INSERT INTO leagues (name, slug, join_code, state, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id",
+    [`Last season ${g.n}`, slug, `K${String(g.n).padStart(3, "0")}${String(season).slice(-2)}`, JSON.stringify(st), idOf(seats[0])]
+  );
+  const from = made[0].id;
+  for (const [i, seat] of seats.entries()) {
+    await pool.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, $3, $4)", [from, idOf(seat), st.players[i].id, i ? "member" : "commissioner"]);
+  }
+  const here = new Set((await pool.query("SELECT name FROM season_cast WHERE season_id = $1", [copy.seasonId])).rows.map((c) => S.KeeperLogic.nameKey(c.name)));
+  const teams = Object.fromEntries(seats.map((seat, i) => [seat.label, st.castaways.filter((c) => (c.ownerIds || []).includes(st.players[i].id)).map((c) => c.name)]));
+  const back = cast.filter((c) => here.has(S.KeeperLogic.nameKey(c.name))).map((c) => c.name);
+  return { from, why: null, teams, back };
+}
+
 /** One game: made before the premiere on a couch of its own (the engine lab's start, the tinkerer its Commissioner), the
  *  other seats joining through Join, its draft if it has one. A record playtest.js's moves and waivers can play. */
-async function startGame(g, copy, users, seats) {
+async function startGame(g, copy, users, seats, show, season) {
   const { lab, pool, S } = app();
   const r = { n: 900 + g.n, name: g.label, seats: seats.map((x) => ({ ...x })), users, seasonId: copy.seasonId, lateSeat: null, log: [], problems: [], weeks: {}, did: {}, asks: {}, waivers: [], accepted: {}, opts: {}, bots: [], game: g, episodes: [] };
   r.couchId = await H.couchFor(r.n, r.seats, users, copy.seasonId);
   const lead = users[r.seats[0].username];
   try {
-    const made = await lab.labStart(lead, { seasonId: copy.seasonId, couchId: r.couchId, spec: g.spec });
+    // A10 part 4: keepers come from last season's game, made first.
+    let spec = g.spec;
+    if (spec.get && spec.get.keep) {
+      r.lastSeason = await lastSeasonGame(g, users, r.seats, show, season, copy);
+      if (r.lastSeason.from) spec = { ...spec, get: { ...spec.get, keep: { ...spec.get.keep, from: r.lastSeason.from } } };
+    }
+    const made = await lab.labStart(lead, { seasonId: copy.seasonId, couchId: r.couchId, spec });
     r.leagueId = made.leagueId;
     await pool.query("UPDATE leagues SET slug = $2 WHERE id = $1", [r.leagueId, `zt-pt-${r.n}-${r.leagueId.slice(0, 8)}`]);
     for (const seat of r.seats.slice(1)) await H.join(r, seat);
     await H.seatIds(r);
     if (S.getLeagueType(await H.stateOf(r.leagueId)).hasRoster) await H.draft(r);
+    // What each seat kept, once the draft locked them.
+    if (r.lastSeason) {
+      const s = await H.stateOf(r.leagueId);
+      r.lastSeason.kept = Object.fromEntries(r.seats.map((seat) => [seat.label, S.KeeperLogic.keptIds(s, H.pidOf(r, seat)).map((id) => S.getCastaway(s, id).name)]));
+      r.lastSeason.locked = S.KeeperLogic.locked(s);
+      r.lastSeason.sizes = Object.fromEntries(r.seats.map((seat) => [seat.label, s.castaways.filter((c) => (c.ownerIds || []).includes(H.pidOf(r, seat))).length]));
+    }
   } catch (e) {
     r.problems.push(`starting it failed: ${e.message}`);
   }
@@ -628,7 +684,7 @@ async function run(show, season, opts = {}) {
   for (const seat of seats) users[seat.username] ||= await H.userFor(seat);
   const replays = [];
   for (const g of games) {
-    const r = await startGame(g, copy, users, seats);
+    const r = await startGame(g, copy, users, seats, show, season);
     replays.push(r);
     if (r.problems.length) console.log(`  ${g.n}. ${g.label}: ${r.problems[0]}`);
   }
@@ -711,7 +767,7 @@ async function run(show, season, opts = {}) {
   for (const r of replays) {
     const s = r.leagueId ? await H.stateOf(r.leagueId) : null;
     const played = r.episodes.filter((e) => e.played);
-    const g = { n: r.game.n, label: r.game.label, variant: r.game.variant, rows: r.game.rows, sentence: r.game.sentence, playsAs: r.game.playsAs, leagueId: r.leagueId || null, span: s ? [s.settings.startEpisode ?? 1, s.settings.endEpisode ?? null] : null, over: s ? (played.length ? played[played.length - 1].over : S.gameOver(s)) : false, lastEpisode: played.length ? played[played.length - 1].episode : null, draft: r.draft || null, episodes: r.episodes, problems: r.problems, final: played.length ? played[played.length - 1].table : null };
+    const g = { n: r.game.n, label: r.game.label, variant: r.game.variant, rows: r.game.rows, sentence: r.game.sentence, playsAs: r.game.playsAs, leagueId: r.leagueId || null, span: s ? [s.settings.startEpisode ?? 1, s.settings.endEpisode ?? null] : null, over: s ? (played.length ? played[played.length - 1].over : S.gameOver(s)) : false, lastEpisode: played.length ? played[played.length - 1].episode : null, draft: r.draft || null, lastSeason: r.lastSeason || null, episodes: r.episodes, problems: r.problems, final: played.length ? played[played.length - 1].table : null };
     if (through < E) g.over = g.over || null;
     g.unsettled = (r.unsettled && r.unsettled.never) || [];
     g.waitsOnEarly = (r.unsettled && r.unsettled.early) || [];
@@ -793,6 +849,14 @@ function markdown(x) {
   for (const g of x.replays) {
     const table = g.final ? Object.entries(g.final).map(([k, v]) => `${k} ${v}`).join(", ") : "-";
     out.push(`| ${g.n} | ${cell(g.label)} | ${g.playsAs || "-"} | ${g.span ? `${g.span[0]}-${g.span[1] ?? "end"}` : "-"} | ${g.over ? "yes" : "no"} | ${cell(table)} | ${cell(g.check.length ? g.check.slice(0, 3).join("; ") : (g.waitsOnEarly || []).length ? `ok; waits on early results (finding 20): ${g.waitsOnEarly.join(", ")}` : "ok")} |`);
+  }
+  // A10 part 4: the keepers games, and what they kept from last season's.
+  for (const g of x.replays.filter((y) => y.lastSeason)) {
+    const ls = g.lastSeason;
+    out.push("");
+    out.push(ls.from
+      ? `**Game ${g.n} keeps from last season's** (its own Outlast on season ${x.season - 1}, dealt at random): ${ls.back.length} of that cast back on this one (${ls.back.join(", ") || "nobody"}). ${Object.entries(ls.teams).map(([k, v]) => `${k} had ${v.join(", ")}; kept ${(ls.kept || {})[k] && ls.kept[k].length ? ls.kept[k].join(", ") : "nobody"}`).join(". ")}. Teams after the draft: ${Object.entries(ls.sizes || {}).map(([k, v]) => `${k} ${v}`).join(", ")}${ls.locked ? "" : " (the keepers never locked)"}.`
+      : `**Game ${g.n} keeps from last season's**: ${ls.why} (every team drafted whole: ${Object.entries(ls.sizes || {}).map(([k, v]) => `${k} ${v}`).join(", ")}).`);
   }
   const notHere = x.games.filter((g) => !g.plays);
   if (notHere.length) {

@@ -160,6 +160,8 @@ function readSpec(st, copy) {
     const get = { by: 'draft', each, order, own };
     if (isObj(st.draftAcross)) get.across = copy ? clone(st.draftAcross) : st.draftAcross;
     if (isObj(st.draftBudget)) get.budget = copy ? clone(st.draftBudget) : st.draftBudget;
+    // A10 part 4: keepers from last season's game (draftKeep, as the spec says them).
+    if (isObj(st.draftKeep)) get.keep = copy ? clone(st.draftKeep) : st.draftKeep;
     return get;
   };
   if (type === 'classic-draft') {
@@ -335,6 +337,8 @@ function settingsOf(spec) {
   // A10 part 3b: an auction, and a draft's prices.
   out.draftAuction = draft && s.get.order === 'auction' ? true : undefined;
   out.draftBudget = draft && isObj(s.get.budget) ? clone(s.get.budget) : undefined;
+  // A10 part 4: keepers from last season's game.
+  out.draftKeep = draft && isObj(s.get.keep) ? clone(s.get.keep) : undefined;
   return out;
 }
 
@@ -382,7 +386,7 @@ const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFee
 const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
   { fields: ['startEpisode', 'startPhase', 'endEpisode'], read: (s) => s.span },
-  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget'], read: (s) => [s.get, s.count] },
+  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
   { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans'], read: (s) => s.score },
   { fields: ['poolRank', 'draftRank'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },

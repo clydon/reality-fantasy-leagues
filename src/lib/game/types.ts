@@ -58,7 +58,8 @@ export interface Castaway {
   exitMethod?: string;
   exitEpisodeId?: string;
   replenishClaimed?: boolean;
-  acquiredVia?: "draft" | "replenish" | "trade" | null;
+  /** Step A10 part 4: "keeper", kept from last season's game before the draft (StateLogic.KeeperLogic). */
+  acquiredVia?: "draft" | "replenish" | "trade" | "keeper" | null;
   formerOwnerId?: string | null;
   departedVia?: "replenish" | "trade" | null;
   /**
@@ -334,6 +335,8 @@ export interface LeagueSettings {
   /** Step A10 part 3c, absent unless a game says it: a stock market ranked by worth (rank.by 'worth'; its trading is the
    *  budget's trade, in draftBudget). */
   draftRank?: "worth";
+  /** Step A10 part 4, absent unless a game says it: keepers from last season's game (get.keep). */
+  draftKeep?: import("./game-spec/index.js").DraftKeep;
   /** Step A10 part 2, each absent unless a game says it: a pool's lives (score.lives), buyback (score.buyback), mulligans
    *  (score.mulligans), second pick (get.second) and last one standing (rank.by 'standing'). */
   poolLives?: number;
@@ -1089,6 +1092,14 @@ export interface LeagueState {
    *  of the state, in blind_draft_picks, as a blind draft's picks are), and once it's settled, when, its seed (the tie-break), the
    *  order it filled in, what each seat spent, and the seats it left short. */
   auction?: { lockedPlayerIds: string[]; at?: string; seed?: string; order?: string[]; spent?: Record<string, number>; short?: string[] };
+  /** A10 part 4: keepers from last season's game (state-logic.js KeeperLogic): each seat's options (the server's, keepers.ts) best
+   *  first, the keepers it named (by: the account that named them), and once they lock at the draft's start, what each kept. */
+  keepers?: {
+    options: Record<string, string[]>;
+    chosen: Record<string, { ids: string[]; at: string; by?: string }>;
+    kept?: Record<string, { castawayId: string; price?: number }[]>;
+    at?: string;
+  };
   /** A game that asks by phase (step A7, StateLogic.settlePhases): the season's phase starts it plays by, and where each later
    *  phase's window of questions opens. */
   phaseStarts?: Record<string, number>;

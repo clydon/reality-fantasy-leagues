@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 160 ✅ · 85 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
-**Waiting, by step:** A10 4 · A11 14 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 162 ✅ · 83 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
+**Waiting, by step:** A10 2 · A11 14 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -143,7 +143,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ⏳ | A season of mini-games | A12 |
 | ⏳ | A game that scores two ways (bingo lines plus answers) | A12 |
 | ⏳ | One game across two shows | A12 |
-| ⏳ | Keepers across seasons | A10 |
+| ✅ | Keepers across seasons | A Weekly Lineup for Survivor 51: everyone drafts 4 and starts 3 each episode, keeping one of last season's team if they come back, all season. Scored by Survivor 51's rules. |
 
 ### Live (watching together, now or later in sync)
 
@@ -194,7 +194,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ✅ | s14 | Survivor 51 | Predict the leaderboard each week. | what | A game for Survivor 51: everyone answers one question before each episode: this week's leaderboard: the top five by points, all season. A point for each right answer. |
 | ✅ | s15 | Survivor 51 | Parlay: who goes home AND who wins immunity, triple if both. | score | A game for Survivor 51: everyone answers two questions before each episode: who goes home and who wins immunity, all season. 2 points for each right answer. Right on who goes home and who wins immunity together: triple the points. |
 | ⏳ | s16 | Survivor 51 | Bounties: if your castaway votes out mine, you steal 2. | score | A14 |
-| ⏳ | s17 | The Challenge 42 | Dynasty: keep 2 of your players when they come back next season. | shape | A10 |
+| ✅ | s17 | The Challenge 42 | Dynasty: keep 2 of your players when they come back next season. | shape | An Outlast for The Challenge 42: everyone drafts 3, keeping up to two of last season's team who come back, all season. Each scores by how long they last: the last one standing carries you. |
 | ⏳ | s18 | Survivor 51 | My partner and I share one team. | who | A10 |
 | ⏳ | s19 | Survivor 51 | Newcomers get 5 bonus points a week. | who | A11 |
 | ⏳ | s20 | Survivor 51 | One league across Survivor and The Traitors. | shape | A12 |

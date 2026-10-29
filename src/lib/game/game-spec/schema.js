@@ -20,7 +20,14 @@
 //            draft spread across the cast's groups as the data has them when it drafts (one from each tribe: no more than
 //            ceil(each / groups) from one, and at least floor(each / groups) from each while it has someone to take; a show not
 //            divided then drafts plainly, and the spread never blocks a draft: SpreadLogic), each castaway yours wherever they
-//            go after it (then: keep, the fallback for a swap or the merge)) | { by: 'pick', each: 1, repeat: 'cycle',
+//            go after it (then: keep, the fallback for a swap or the merge). A10 part 4: keep { each, from, cost, fallback },
+//            keepers across seasons: a game that continues `from` (the couch's game on an earlier season of the show, a league
+//            id), each person keeping up to `each` of their team there who are on this season's cast as the data records it
+//            (named before the draft; someone not back can't be kept, and their place goes to the draft), kept before the
+//            draft and the draft filling the rest, whatever its kind; cost place (a place on the team, nothing else: a snake
+//            passes over a full team, so your last rounds go) | round (a snake's earliest rounds: you sit out one for each)
+//            | price (their price at the draft, from a budget the data prices: a salary cap or a stock market); fallback best
+//            (someone who names nobody keeps their best who are back) | none: KeeperLogic) | { by: 'pick', each: 1, repeat: 'cycle',
 //            second? } (one an episode, nobody again until everyone still in is used, never twice running. A10 part 2's second:
 //            { fallback: void | counts }, a second pick beside the first, open every episode, that counts on a night two or more
 //            go home: nothing at a lock says a night is a double, only its results do; on a night only one goes, void (no
@@ -114,6 +121,11 @@ const VOCAB = {
   // over does (an auction's, or a cap's): cash to trade with, lost (trading is a sale to buy), or a budget to bid on free agents
   // with on waivers (blind bidding: no step yet).
   'get.budget.left': { cash: 'now', lost: 'now', bids: 'later' },
+  // A10 part 4: keepers across seasons (get.keep: a game that continues last season's). What a keeper costs (a place on your
+  // team and nothing else; one of a snake's earliest rounds; their price at the draft, from a budget priced by the data), and
+  // what happens for someone who names nobody by the draft (they keep their best who are back, or nobody).
+  'get.keep.cost': { place: 'now', round: 'now', price: 'now' },
+  'get.keep.fallback': { best: 'now', none: 'now' },
 };
 
 // A question in `ask` (A4; A6 added who a moment happened to, groups, roles and questions about each person):
@@ -323,6 +335,28 @@ function budgetParts(s) {
 }
 /** A stock market (A10 part 3c): a draft with a budget that trades. */
 const marketOf = (s) => !!(isObj(s) && isObj(s.get) && s.get.by === 'draft' && isObj(s.get.budget) && isObj(s.get.budget.trade));
+
+/** A10 part 4: keepers' defaults when the spec leaves them out (the user's to set: Noticed). One keeper each; someone who names
+ *  nobody by the draft keeps their best who are back. What a keeper costs: their price where the draft is a stock market's (its
+ *  cash), else a place on the team. */
+const KEEP = { each: 1, fallback: 'best' };
+const keepCostFor = (s) => (marketOf(s) ? 'price' : 'place');
+/**
+ * Keepers across seasons (A10 part 4: get.keep), as the engine plays them (state-logic.js KeeperLogic) and the words say them,
+ * read the one way from a whole spec: { each, from, cost, fallback }, what it leaves out its defaults, or null for a game
+ * without them.
+ */
+function keepParts(s) {
+  const g = isObj(s) && isObj(s.get) ? s.get : null;
+  if (!g || g.by !== 'draft' || !isObj(g.keep)) return null;
+  const k = g.keep;
+  return {
+    each: isInt(k.each, 1) ? k.each : KEEP.each,
+    from: typeof k.from === 'string' ? k.from : null,
+    cost: own(VOCAB['get.keep.cost'], k.cost) ? k.cost : keepCostFor(s),
+    fallback: own(VOCAB['get.keep.fallback'], k.fallback) ? k.fallback : KEEP.fallback,
+  };
+}
 
 /**
  * A spread draft's bounds (A10 part 3: get.across) for a team of `each` over `groups` groups: no more than `most` from one,
@@ -629,6 +663,12 @@ function fullSpec(spec) {
         if (c !== null) b.ceiling = c;
       }
     }
+    // A10 part 4: keepers say what they leave out as the defaults (KEEP, and what a keeper costs: keepCostFor).
+    if (isObj(s.get.keep)) {
+      const k = s.get.keep;
+      for (const [f, v] of Object.entries(KEEP)) if (k[f] === undefined) k[f] = v;
+      if (k.cost === undefined) k.cost = keepCostFor(s);
+    }
   }
   if (by === 'pick') {
     if (s.get.each === undefined) s.get.each = 1;
@@ -779,6 +819,8 @@ function flagsOf(s) {
     hasBestBall: get.by === 'draft' && countKind(s.count) === 'best',
     // A10 part 1: group slots beside the draft.
     hasGroupSlots: get.by === 'draft' && isObj(get.groups),
+    // A10 part 4: keepers from last season's game.
+    hasKeepers: get.by === 'draft' && isObj(get.keep),
     hasWeeklyPicks: get.by === 'pick',
     hasCalls: score.by === 'answers' && callsAsk(s && s.ask),
     // A game of questions (A4): scored by its answers, not the show's calls.
@@ -815,6 +857,7 @@ function sizesOf(s) {
  *                it's one. Absent: there are none
  *   ctx.grouped  false when nobody on the show is in a group (its cast has no groups): no group answers
  *   ctx.jury     false when no jury decides the finale: no jury vote split (A8)
+ *   ctx.games    (A10 part 4) the couch's games on the show's earlier seasons (ids, or { id }): keepers come from one of them
  *   ctx.pool     (A10 part 1) how many can be drafted where the game drafts (the cast still in then), and ctx.couch how many
  *                people are on its couch: an exclusive draft has to cover every pick (covers: the 9:10 PM decision), else it's
  *                shared, and the problem says why ("12 of you × 3 picks is more than 18 castaways"). Either left out: not
@@ -889,6 +932,7 @@ function specProblems(spec, ctx, opts) {
     if (get.groups !== undefined) groupSlotProblems(get.groups, s).forEach(([at, p]) => add(`get.groups${at}`, p));
     if (get.across !== undefined) acrossProblems(get.across).forEach(([at, p]) => add(`get.across${at}`, p));
     if (get.budget !== undefined) budgetProblems(get.budget, s).forEach(([at, p]) => add(`get.budget${at}`, p));
+    if (get.keep !== undefined) keepProblems(get.keep, s).forEach(([at, p]) => add(`get.keep${at}`, p));
   }
   if (get.by === 'pick') {
     if (get.each !== 1) add('get.each', 'A pick is one an episode');
@@ -1149,8 +1193,9 @@ const KEYS = {
   span: ['from', 'to'],
   from: ['phase', 'at'],
   pool: ['of', 'where'],
-  get: { draft: ['by', 'each', 'order', 'own', 'groups', 'across', 'budget'], pick: ['by', 'each', 'repeat', 'second'], card: ['by'], none: ['by'], squares: ['by'] },
+  get: { draft: ['by', 'each', 'order', 'own', 'groups', 'across', 'budget', 'keep'], pick: ['by', 'each', 'repeat', 'second'], card: ['by'], none: ['by'], squares: ['by'] },
   groups: ['slots', 'own', 'swap', 'fallback', 'points'],
+  keep: ['each', 'from', 'cost', 'fallback'],
   across: ['of', 'then'],
   budget: ['total', 'floor', 'ceiling', 'gone', 'fallback', 'trade', 'left'],
   trade: ['fee'],
@@ -1190,6 +1235,7 @@ function unknownKeys(s) {
       check(s.get.across, KEYS.across, 'get.across');
       check(s.get.budget, KEYS.budget, 'get.budget');
       if (isObj(s.get.budget)) check(s.get.budget.trade, KEYS.trade, 'get.budget.trade');
+      check(s.get.keep, KEYS.keep, 'get.keep');
     }
     if (s.get.by === 'pick') check(s.get.second, KEYS.second, 'get.second');
   }
@@ -1306,6 +1352,28 @@ function budgetProblems(b, s) {
     if (own(VOCAB['get.budget.left'], b.left) === undefined) out.push(['.left', "The draft's money left over is cash to trade with, lost, or a budget to bid on waivers with: cash, lost or bids"]);
     else if (b.left === 'cash' && !trade) out.push(['.left', "The draft's money left over is cash to trade with only where the game trades: without trading it's worth nothing after the draft (lost)"]);
   }
+  return out;
+}
+
+/**
+ * Keepers across seasons (A10 part 4: get.keep), as [[at, problem]]: { each: 1 to the team's size, from: the game it continues
+ * (a league id: which ones are the couch's is the data rule's, settleProblems with ctx.games), cost: place | round (a snake's
+ * only: the draft taken in turns has rounds) | price (a budget the data prices: a salary cap or a stock market; an auction's
+ * prices are its bids), fallback: best | none }. Who is back is the data's (the new season's cast), never a name typed here.
+ */
+function keepProblems(k, s) {
+  if (!isObj(k)) return [['', 'Keepers are { each, from, cost, fallback }']];
+  const out = [];
+  const each = isInt(s.get.each, 1) ? s.get.each : null;
+  if (!(isInt(k.each, 1) && (each === null || k.each <= each))) out.push(['.each', each === null ? 'Keep 1 or more each' : `Keep 1 to ${each} each: a keeper takes a place on a team of ${each}`]);
+  if (!(typeof k.from === 'string' && k.from.trim() && k.from.length <= 100)) out.push(['.from', "Keepers come from last season's game: from names it"]);
+  if (own(VOCAB['get.keep.cost'], k.cost) === undefined) out.push(['.cost', 'A keeper costs a place on your team, one of your earliest rounds, or their price: place, round or price']);
+  else if (k.cost === 'round' && s.get.order !== 'snake') out.push(['.cost', 'A keeper costs a round only in a draft taken in turns (a snake): elsewhere it costs a place']);
+  else if (k.cost === 'price') {
+    const b = budgetParts(s);
+    if (!b || b.ceiling === undefined) out.push(['.cost', "A keeper's price comes from the data's prices: a salary cap or a stock market (an auction's prices are its bids)"]);
+  }
+  if (own(VOCAB['get.keep.fallback'], k.fallback) === undefined) out.push(['.fallback', 'Someone who names no keepers by the draft keeps their best who are back, or nobody: best, or none']);
   return out;
 }
 
@@ -1485,6 +1553,13 @@ function settleProblems(s, ctx, opts) {
     // as people go home a replacement waits for someone free, as an exclusive draft's waivers do).
     out.push(['get.own', `${ctx.couch} of you × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} takes all ${ctx.pool} who can be drafted, so nobody's left to buy: make it shared, so two of you can hold the same one${get.order === 'auction' ? ' (a salary cap: prices from the data, no bidding)' : ''}`]);
   }
+  // A10 part 4: keepers come from one of the couch's games on an earlier season of the show (ctx.games, the context pack's: ids,
+  // or { id }), never a game typed in. Left out: not checked. The exclusive count above needs nothing more for keepers: each
+  // keeper takes one castaway out of the pool and one pick out of the draft, so a pool that covers every pick still does.
+  if (get.by === 'draft' && isObj(get.keep) && Array.isArray(ctx.games) && typeof get.keep.from === 'string') {
+    const ids = new Set(ctx.games.map((g) => (isObj(g) ? g.id : g)));
+    if (!ids.has(get.keep.from)) out.push(['get.keep.from', "Keepers come from one of the couch's games on an earlier season of this show"]);
+  }
   // A10 part 3: a draft spread across the cast's groups needs a show whose cast has groups, and a guy and a girl needs data
   // that says who is which: no show's cast or research records it, so nothing settles it. Exclusive, each group where it
   // drafts covers its share of every team (ctx.poolGroups: how many can be drafted in each; the pool shrinking per group).
@@ -1630,7 +1705,7 @@ module.exports = {
   RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
-  marketWaivers, marketOf,
+  marketWaivers, marketOf, KEEP, keepParts,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

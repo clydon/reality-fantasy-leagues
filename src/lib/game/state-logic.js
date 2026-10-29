@@ -557,6 +557,13 @@ class SnakeDraftStrategy {
     const order = state.draftOrder;
     const n = order.length;
     if(n===0) return null;
+    // A10 part 4: with keepers, a seat takes a turn only in the rounds its keepers leave it (KeeperLogic.turns).
+    if(KeeperLogic.anyKept(state)){
+      const turns = KeeperLogic.turns(state, order);
+      if(state.draftPicksMade >= turns.length) return { isComplete:true };
+      const t = turns[state.draftPicksMade];
+      return { isComplete:false, playerId: t.playerId, personalPickNumber: t.round + 1, overallPickNumber: state.draftPicksMade + 1 };
+    }
     const totalPicksNeeded = n * rosterSize(state);
     if(state.draftPicksMade >= totalPicksNeeded) return { isComplete:true };
     const round = Math.floor(state.draftPicksMade / n);
@@ -593,6 +600,8 @@ class SnakeDraftStrategy {
   // `opts.by`: the account that made the pick for whoever's on the clock (a commissioner or Game admin helping someone
   // over the phone); `opts.auto`: the pick timer ran out and it came from their queue. Both go in the draft's log.
   static pick(state, castawayId, opts){
+    // A10 part 4: keepers lock before the first pick (the server's writes lock them already: KeeperLogic.settle).
+    KeeperLogic.settle(state);
     const turn = SnakeDraftStrategy.currentTurn(state);
     const c = Core.getCastaway(state, castawayId);
     if(!turn || turn.isComplete || !c || leagueOwnersOf(state, c).length) return;
@@ -615,7 +624,8 @@ class SnakeDraftStrategy {
   }
   static undo(state, castawayId){
     const c = Core.getCastaway(state, castawayId);
-    if(!c || c.status!=='active') return;
+    // A10 part 4: a keeper isn't a pick, so it isn't taken back as one.
+    if(!c || c.status!=='active' || c.acquiredVia==='keeper') return;
     if(c.acquiredVia==='draft'){
       state.draftPicksMade = Math.max(0, state.draftPicksMade - 1);
       if(Array.isArray(state.draftLog)) state.draftLog = state.draftLog.filter(e => e.castawayId !== castawayId);
@@ -693,7 +703,8 @@ class BlindDraftLogic {
   // concluded, not yet activated) and disabled ones (player left or was removed) -- a disabled
   // seat can never lock in, so counting it would deadlock the draft for everyone else forever.
   static eligiblePlayers(state){
-    return state.players.filter(inLeagueRotation);
+    // A10 part 4: a seat its keepers filled has nothing to pick.
+    return state.players.filter(p => inLeagueRotation(p) && KeeperLogic.places(state, p.id) > 0);
   }
   static isRevealed(state){ return !!(state.blindDraft && state.blindDraft.revealedAt); }
   static lockedPlayerIds(state){ return (state.blindDraft && state.blindDraft.lockedPlayerIds) || []; }
@@ -730,24 +741,31 @@ class BlindDraftLogic {
     if(player.disabled) return 'That seat has been disabled';
     if(player.active === false) return 'That player is not active in this draft';
     const ids = Array.isArray(castawayIds) ? castawayIds : [];
-    const teamSize = rosterSize(state);
-    if(ids.length !== teamSize) return `Pick exactly ${teamSize} castaway${teamSize===1?'':'s'}`;
+    // A10 part 4: the places its keepers leave.
+    const keep = KeeperLogic.keptIds(state, playerId);
+    const teamSize = KeeperLogic.places(state, playerId);
+    if(ids.length !== teamSize) return `Pick exactly ${teamSize} castaway${teamSize===1?'':'s'}${keep.length ? ` beside your keeper${keep.length === 1 ? '' : 's'}` : ''}`;
     if(new Set(ids).size !== ids.length) return 'Same castaway picked more than once';
     for(const id of ids){
       const c = Core.getCastaway(state, id);
       if(!c) return 'Unknown castaway in submission';
+      if(keep.includes(id)) return `${c.name} is one of your keepers already`;
       // No free-agent check: shared mode never removes anyone from availability, so the whole
       // active cast is offered to every player every time (see RosterLogic.freeAgents' comment).
       if(c.status !== 'active') return `${c.name} is already eliminated`;
     }
     // A10 part 3: spread across the cast's groups, as the data has them now; part 3b: within a salary cap at today's prices.
-    return SpreadLogic.teamProblem(state, ids) || BudgetLogic.teamProblem(state, ids);
+    return SpreadLogic.teamProblem(state, ids, keep) || BudgetLogic.teamProblem(state, ids, keep);
   }
   // Applies every player's picks at once. `picksByPlayer` is {[playerId]: castawayId[]}, read from
   // blind_draft_picks by the caller inside the same transaction that holds the league row lock.
   // Uses addOwner (not setOwner) because shared mode is the whole point -- several players can and
   // will land on the same castaway.
   static reveal(state, picksByPlayer, revealedAt){
+    if(BlindDraftLogic.isRevealed(state)) return false;
+    // A10 part 4: keepers lock before the reveal (the server's writes lock them as the draft opens); keepers that filled every
+    // team reveal it as they lock.
+    KeeperLogic.settle(state);
     if(BlindDraftLogic.isRevealed(state)) return false;
     let assigned = 0;
     // A10 part 3c: under a salary cap, what each team cost at the reveal (a blind draft has no log; a stock market's cash reads it).
@@ -885,11 +903,12 @@ class SpreadLogic {
   }
   // Why a whole team chosen at once (a blind draft's submission, everyone still in on offer) isn't spread, or null. A team spread
   // as a whole passes in any order.
-  static teamProblem(state, castawayIds){
+  // A10 part 4: `keep`, the seat's keepers, already on the team.
+  static teamProblem(state, castawayIds, keep){
     const g = SpreadLogic.groupsNow(state);
     if(!g) return null;
     const cast = (state.castaways || []).filter(c => c.status === 'active').map(c => c.id);
-    const picked = [];
+    const picked = [...(keep || [])];
     for(const id of castawayIds){
       if(!SpreadLogic.allowed(state, picked, cast.filter(c => !picked.includes(c)), g).includes(id)) return SpreadLogic.reason(state, g);
       picked.push(id);
@@ -916,6 +935,8 @@ class DrawLogic {
   static outcome(state, seed, priced){
     const each = rosterSize(state);
     const shared = gameOf(state).get.own === 'shared';
+    // A10 part 4: each team starts with its keepers, and nobody else draws someone kept in an exclusive draw.
+    const kept = new Set((state.castaways || []).filter(c => leagueOwnersOf(state, c).length).map(c => c.id));
     const shuffled = (ids, key) => [...ids].sort((a, b) => hashUnit(`${seed}|${key}|${a}`) - hashUnit(`${seed}|${key}|${b}`) || (a < b ? -1 : a > b ? 1 : 0));
     // The seats in the rotation, in the order the seed deals to (whatever order the league lists them in).
     const order = shuffled((state.players || []).filter(inLeagueRotation).map(p => p.id), 'seat');
@@ -923,23 +944,28 @@ class DrawLogic {
     const g = SpreadLogic.groupsNow(state);
     // `priced`: a salary cap's prices when the caller read them already (draw records them in the log).
     const prices = priced !== undefined ? priced : BudgetLogic.cap(state) === null ? null : PriceLogic.prices(state);
-    const teams = Object.fromEntries(order.map(id => [id, []]));
-    const common = shared ? null : shuffled(cast, 'hat');
+    const teams = Object.fromEntries(order.map(id => [id, KeeperLogic.keptIds(state, id)]));
+    const dealt = Object.fromEntries(order.map(id => [id, []]));
+    const common = shared ? null : shuffled(cast.filter(id => !kept.has(id)), 'hat');
     const hats = shared ? Object.fromEntries(order.map(id => [id, shuffled(cast, id)])) : null;
     for(let round = 0; round < each; round++){
       order.forEach(pid => {
+        if(teams[pid].length >= each) return;
         const left = shared ? hats[pid].filter(id => !teams[pid].includes(id)) : common;
         if(!left.length) return;
         const take = draftFits(state, teams[pid], left, g, prices || undefined)[0];
         teams[pid].push(take);
+        dealt[pid].push(take);
         if(!shared) common.splice(common.indexOf(take), 1);
       });
     }
-    return { order, teams, short: order.filter(id => teams[id].length < each) };
+    return { order, teams, dealt, short: order.filter(id => teams[id].length < each) };
   }
   // Draws, once: ownership as the outcome deals it, each a line in the draft's log in the order dealt (drawn: true), and the
   // draw's order as the draft's (the waivers' priority reads it). `seed`: the draw's own (a fresh one when left out).
   static draw(state, seed){
+    // A10 part 4: keepers lock before the draw deals the rest.
+    KeeperLogic.settle(state);
     if(!DrawLogic.ready(state)) return false;
     const s = seed || Core.uid('draw');
     // A10 part 3c: under a salary cap each one's price goes in the log, as a snake pick's does (a stock market's cash reads it).
@@ -951,7 +977,7 @@ class DrawLogic {
     let n = 0;
     for(let round = 0; round < rosterSize(state); round++){
       out.order.forEach(pid => {
-        const cid = out.teams[pid][round];
+        const cid = out.dealt[pid][round];
         if(!cid) return;
         if(shared) Core.addOwner(state, cid, pid);
         else Core.setOwner(state, cid, pid);
@@ -970,7 +996,7 @@ class DrawLogic {
   static ready(state){
     return DrawLogic.on(state) && !DrawLogic.drawn(state) && !state.draftPicksMade
       && (state.castaways || []).some(c => c.status === 'active') && (state.players || []).some(inLeagueRotation)
-      && !(state.castaways || []).some(c => leagueOwnersOf(state, c).length);
+      && !KeeperLogic.draftedAny(state);
   }
   // A draw that's started, by its scheduled time or the Commissioner's Start (one that couldn't deal then: nobody in the
   // rotation yet), and can deal now.
@@ -1107,16 +1133,18 @@ class BudgetLogic {
   }
   // Why a whole team chosen at once (a blind draft's) costs more than the cap, or null; never when even the cheapest team (kept
   // spread) would (the cap never blocks a draft).
-  static teamProblem(state, castawayIds){
+  // A10 part 4: `keep`, the seat's keepers, already on the team (and counted against the cap).
+  static teamProblem(state, castawayIds, keep){
     const cap = BudgetLogic.cap(state);
     if(cap === null) return null;
     const prices = PriceLogic.prices(state);
-    const cost = BudgetLogic.cost(castawayIds, prices);
+    const mine = keep || [];
+    const cost = BudgetLogic.cost([...mine, ...castawayIds], prices);
     if(cost <= cap) return null;
     const g = SpreadLogic.groupsNow(state);
-    const cheap = (state.castaways || []).filter(c => c.status === 'active').map(c => c.id).sort((x, y) => (prices.get(x) || 0) - (prices.get(y) || 0));
-    const team = [];
-    for(let i = 0; i < rosterSize(state); i++){
+    const cheap = (state.castaways || []).filter(c => c.status === 'active' && !mine.includes(c.id)).map(c => c.id).sort((x, y) => (prices.get(x) || 0) - (prices.get(y) || 0));
+    const team = [...mine];
+    while(team.length < rosterSize(state)){
       const next = SpreadLogic.allowed(state, team, cheap.filter(id => !team.includes(id)), g)[0];
       if(!next) break;
       team.push(next);
@@ -1168,7 +1196,8 @@ class MarketLogic {
   // What a player paid at the draft: the prices its log recorded (a snake's picks and a draw's under a cap, an auction's bids),
   // and a blind draft's, recorded at its reveal (it has no log).
   static draftPaid(state, playerId){
-    let n = 0;
+    // A10 part 4: and what its keepers cost, where they cost their price.
+    let n = KeeperLogic.paid(state, playerId);
     (state.draftLog || []).forEach(e => { if(e.playerId === playerId && typeof e.price === 'number') n += e.price; });
     const paid = state.blindDraft && state.blindDraft.paid;
     if(paid && typeof paid[playerId] === 'number') n += paid[playerId];
@@ -1190,6 +1219,8 @@ class MarketLogic {
       (state.draftLog || []).forEach(e => { if(out.has(e.playerId) && typeof e.price === 'number') out.set(e.playerId, out.get(e.playerId) - e.price); });
       const paid = state.blindDraft && state.blindDraft.paid;
       if(paid) out.forEach((n, id) => { if(typeof paid[id] === 'number') out.set(id, n - paid[id]); });
+      // A10 part 4: what keepers cost, where they cost their price.
+      if(KeeperLogic.anyKept(state)) out.forEach((n, id) => out.set(id, n - KeeperLogic.paid(state, id)));
     }
     ((state.midSeason && state.midSeason.log) || []).forEach(tx => {
       if(out.has(tx.playerId)) out.set(tx.playerId, out.get(tx.playerId) + (tx.sold || 0) - (tx.paid || 0) - (tx.fee || 0));
@@ -1237,6 +1268,197 @@ class MarketLogic {
   }
 }
 
+// ---------- KeeperLogic: keepers across seasons (A10 part 4: the spec's get.keep) ----------
+// "Dynasty: keep 2 of your players when they come back next season" (docs/PLAN-start-a-game-gpt.md step A10 part 4). A game that
+// continues last season's (get.keep.from: the couch's game on an earlier season of the show): before the draft, each seat names
+// up to `each` of its team there who are on this season's cast. Who can be kept is never a name a person types: the server works
+// each seat's options out from the two leagues (src/lib/server/keepers.ts: the same account's seat last season, its team as it
+// stands there, matched to this league's cast by name as each season's cast records it (nameKey), best first by last season's
+// points: optionsFrom) and writes them in (setOptions) until the keepers lock. They lock when the draft starts (its scheduled
+// time, the Commissioner's Start, the first pick: settle, on every write and on the read that finds it due), before anything is
+// drafted: each seat's keepers become its own (acquiredVia 'keeper'), recorded with what they cost under a budget that charges
+// one, and the draft fills the rest of each team, whatever its kind (a snake passes over a full team, or sits a seat out of its
+// first rounds: turns; a blind sheet, a draw, an auction and a salary cap each fill only the places left: places). Its fallbacks,
+// from the start: someone not back can't be kept, and their place goes to the draft (an option that leaves the cast before the
+// lock is dropped); someone who names nobody keeps their best who are back, or nobody (the spec's fallback); in an exclusive game
+// nobody keeps someone another seat named first; a seat with no options (new to the couch, a computer player, last season's game
+// not found) keeps nobody and drafts a whole team; a game whose teams were made before its keepers locked keeps its teams.
+//   state.keepers  { options: { playerId: [castawayId] } best first, chosen: { playerId: { ids, at, by } } (by: the account that
+//                  named them), kept: { playerId: [{ castawayId, price? }] }, at: when they locked }
+class KeeperLogic {
+  static config(state){ return Spec.keepParts(gameOf(state)); }
+  static locked(state){ return !!(state.keepers && state.keepers.at); }
+  static options(state, playerId){ return ((state.keepers && state.keepers.options) || {})[playerId] || []; }
+  // The keepers a seat named (null: none named yet, so the fallback decides at the lock; [] is keeping nobody).
+  static chosen(state, playerId){ const c = state.keepers && state.keepers.chosen && state.keepers.chosen[playerId]; return c && Array.isArray(c.ids) ? c.ids : null; }
+  // A seat's keepers once they're locked ([] before): [{ castawayId, price? }].
+  static kept(state, playerId){ return (KeeperLogic.locked(state) && state.keepers.kept && state.keepers.kept[playerId]) || []; }
+  static keptIds(state, playerId){ return KeeperLogic.kept(state, playerId).map(k => k.castawayId); }
+  static anyKept(state){ return KeeperLogic.locked(state) && Object.values(state.keepers.kept || {}).some(list => Array.isArray(list) && list.length); }
+  // The places a seat's draft fills: the team's size less its keepers.
+  static places(state, playerId){ return Math.max(0, rosterSize(state) - KeeperLogic.kept(state, playerId).length); }
+  // What a seat's keepers cost from its budget (a price each, where the game charges one), for an auction's bids and a market's cash.
+  static paid(state, playerId){ return roundPoints(KeeperLogic.kept(state, playerId).reduce((n, k) => n + (typeof k.price === 'number' ? k.price : 0), 0)); }
+  // Whether anyone holds a castaway other than as a keeper: a draft has made teams (a draw and an auction never deal over them).
+  static draftedAny(state){
+    const keep = new Set();
+    if(KeeperLogic.locked(state)) Object.entries(state.keepers.kept || {}).forEach(([pid, list]) => (list || []).forEach(k => keep.add(`${pid}|${k.castawayId}`)));
+    return (state.castaways || []).some(c => leagueOwnersOf(state, c).some(pid => !keep.has(`${pid}|${c.id}`)));
+  }
+  // Each seat's options (the server's: keepers.ts), `{ playerId: [castawayId] }` best first, written while the keepers are open:
+  // only castaways on this league's cast and still in. What a seat named stays as it named it (one bad read of last season's game
+  // never erases it): the lock keeps only those still among its options (someone who left the cast frees the place). Whether
+  // anything changed.
+  static setOptions(state, options){
+    if(!KeeperLogic.config(state) || KeeperLogic.locked(state)) return false;
+    const was = JSON.stringify(state.keepers || null);
+    const rec = state.keepers || (state.keepers = { options: {}, chosen: {} });
+    const inCast = id => { const c = Core.getCastaway(state, id); return !!c && c.status === 'active'; };
+    rec.options = {};
+    Object.entries(options || {}).forEach(([pid, ids]) => {
+      if(!Core.getPlayer(state, pid) || !Array.isArray(ids)) return;
+      const list = [...new Set(ids.filter(inCast))];
+      if(list.length) rec.options[pid] = list;
+    });
+    rec.chosen = rec.chosen || {};
+    return JSON.stringify(state.keepers) !== was;
+  }
+  // What a seat named that it can still keep (its named keepers among its options now), or null when it named none.
+  static named(state, playerId){
+    const ids = KeeperLogic.chosen(state, playerId);
+    if(ids === null) return null;
+    const opts = KeeperLogic.options(state, playerId);
+    return ids.filter(id => opts.includes(id));
+  }
+  // Why a seat can't name these keepers, or null (and they're named, `by` the account that named them): before the draft, up to
+  // `each` of its options (none is keeping nobody), and in an exclusive game nobody another seat named first.
+  static choose(state, playerId, castawayIds, by){
+    const k = KeeperLogic.config(state);
+    if(!k) return "This game doesn't keep anyone from last season";
+    if(KeeperLogic.locked(state)) return 'The keepers are locked: the draft has started';
+    const p = Core.getPlayer(state, playerId);
+    if(!p || p.disabled) return 'No such player';
+    const ids = Array.isArray(castawayIds) ? castawayIds : null;
+    if(!ids) return 'Keepers are a list of castaways';
+    const most = Math.min(k.each, rosterSize(state));
+    if(ids.length > most) return `Keep up to ${most}`;
+    if(new Set(ids).size !== ids.length) return 'The same one is in your keepers twice';
+    const opts = KeeperLogic.options(state, playerId);
+    for(const id of ids){
+      const c = Core.getCastaway(state, id);
+      if(!opts.includes(id)) return `${c ? c.name : 'They'} ${c ? "isn't" : "aren't"} one of yours from last season who's back`;
+    }
+    if(gameOf(state).get.own !== 'shared'){
+      const chosen = (state.keepers && state.keepers.chosen) || {};
+      for(const id of ids){
+        const other = Object.keys(chosen).find(pid => pid !== playerId && (KeeperLogic.named(state, pid) || []).includes(id));
+        if(other){ const c = Core.getCastaway(state, id); const o = Core.getPlayer(state, other); return `${c.name} is kept by ${o ? o.name : 'someone else'} already`; }
+      }
+    }
+    const rec = state.keepers || (state.keepers = { options: {}, chosen: {} });
+    rec.chosen = rec.chosen || {};
+    rec.chosen[playerId] = { ids: [...ids], at: new Date().toISOString(), ...(by ? { by } : {}) };
+    return null;
+  }
+  // Keepers that should lock now: the draft has started.
+  static due(state){ return !!KeeperLogic.config(state) && !KeeperLogic.locked(state) && DraftLogic.isStarted(state); }
+  // Locks them, once: seats that named theirs first (in the order they named them), then the fallback's (in the draft's order),
+  // each keeping up to `each` of its options still in, in an exclusive game none another seat has. Their price under a budget that
+  // charges one is today's. Nobody keeps anyone in a game whose teams were made before.
+  static lock(state){
+    const k = KeeperLogic.config(state);
+    if(!k || KeeperLogic.locked(state)) return false;
+    const rec = state.keepers || (state.keepers = { options: {}, chosen: {} });
+    const drafted = state.draftPicksMade || KeeperLogic.draftedAny(state);
+    rec.kept = {};
+    rec.at = new Date().toISOString();
+    if(drafted) return true;
+    const shared = gameOf(state).get.own === 'shared';
+    const prices = k.cost === 'price' ? PriceLogic.prices(state) : null;
+    const most = Math.min(k.each, rosterSize(state));
+    const taken = new Set();
+    const order = [...(state.draftOrder || []), ...(state.players || []).map(p => p.id).filter(id => !(state.draftOrder || []).includes(id))]
+      .filter(id => inLeagueRotation(Core.getPlayer(state, id)));
+    const named = order.filter(id => KeeperLogic.chosen(state, id) !== null)
+      .sort((a, b) => String(rec.chosen[a].at || '').localeCompare(String(rec.chosen[b].at || '')));
+    const rest = order.filter(id => KeeperLogic.chosen(state, id) === null);
+    [...named, ...rest].forEach(pid => {
+      const opts = KeeperLogic.options(state, pid).filter(id => { const c = Core.getCastaway(state, id); return !!c && c.status === 'active'; });
+      const want = KeeperLogic.chosen(state, pid) !== null ? KeeperLogic.named(state, pid).filter(id => opts.includes(id)) : k.fallback === 'best' ? opts : [];
+      const list = [];
+      for(const id of want){
+        if(list.length >= most) break;
+        if(!shared && taken.has(id)) continue;
+        taken.add(id);
+        if(shared) Core.addOwner(state, id, pid);
+        else Core.setOwner(state, id, pid);
+        Core.getCastaway(state, id).acquiredVia = 'keeper';
+        list.push(prices ? { castawayId: id, price: prices.get(id) || 0 } : { castawayId: id });
+      }
+      if(list.length) rec.kept[pid] = list;
+    });
+    // A blind draft or an auction whose every seat its keepers filled has nobody to wait for: done at once (a snake's turns and a
+    // draw's deal come out empty by themselves).
+    if(!(state.players || []).some(p => inLeagueRotation(p) && KeeperLogic.places(state, p.id) > 0)){
+      if(BlindDraftLogic.on(state)) BlindDraftLogic.reveal(state, {});
+      else if(AuctionLogic.on(state)) AuctionLogic.settle(state, {});
+    }
+    return true;
+  }
+  static settle(state){ return KeeperLogic.due(state) ? KeeperLogic.lock(state) : false; }
+  // A snake's turns with keepers: round by round in the snake's order, a seat taking a turn in a round its keepers leave it one
+  // (cost 'round': it sits out its first rounds, one a keeper; else it's passed over once its team is full, its last rounds).
+  static turns(state, order){
+    const each = rosterSize(state);
+    // A game whose keepers came out of its spec after they locked: their places stay taken, its last rounds.
+    const k = KeeperLogic.config(state);
+    const byRound = !!k && k.cost === 'round';
+    const kept = new Map(order.map(pid => [pid, KeeperLogic.kept(state, pid).length]));
+    const out = [];
+    for(let r = 0; r < each; r++){
+      (r % 2 === 0 ? order : [...order].reverse()).forEach(pid => {
+        const k = kept.get(pid);
+        if(byRound ? r >= k : r < each - k) out.push({ playerId: pid, round: r });
+      });
+    }
+    return out;
+  }
+  // A name as each season's cast records it, made comparable across seasons: accents, case, punctuation, a nickname in double
+  // quotes and a Jr. or Sr. left out ('Johnny "Bananas" Devenanzio' and "Johnny Devenanzio" are one person). Nothing looser: two
+  // names match only when these are the same, so a near miss is someone not back (the fallback), never somebody else.
+  static nameKey(name){
+    return normalizeName(String(name || '').replace(/["“”„][^"“”„]*["“”„]/g, ' ')).replace(/ (jr|sr|ii|iii|iv)$/, '');
+  }
+  // Last season's castaways, best first: a game scored by place by how long they lasted, then their points by its rules; any other
+  // by their points, then how long they lasted; ties by name.
+  static rankFrom(old){
+    const pts = PriceLogic.points(old);
+    const number = new Map((old.episodes || []).map(e => [e.id, e.number]));
+    const lasted = c => (c.status === 'active' ? Infinity : number.get(c.exitEpisodeId) || 0);
+    const byPlace = gameOf(old).score.by === 'place';
+    return [...(old.castaways || [])].sort((a, b) => {
+      const p = (pts.get(b.id) || 0) - (pts.get(a.id) || 0);
+      const l = lasted(b) - lasted(a);
+      return (byPlace ? (l || p) : (p || l)) || String(a.name).localeCompare(String(b.name));
+    }).map(c => c.id);
+  }
+  // A seat's options from last season's game: the team its seats there (`oldPlayerIds`: the same account's) hold as it stands,
+  // best first, each matched by nameKey to someone on this league's cast still in. Pure: the server reads the two leagues.
+  static optionsFrom(old, oldPlayerIds, state){
+    const seats = new Set(oldPlayerIds || []);
+    const mine = new Set((old.castaways || []).filter(c => ownerListOf(c).some(id => seats.has(id))).map(c => c.id));
+    const here = new Map();
+    (state.castaways || []).forEach(c => { if(c.status === 'active'){ const key = KeeperLogic.nameKey(c.name); if(key && !here.has(key)) here.set(key, c.id); } });
+    const out = [];
+    KeeperLogic.rankFrom(old).forEach(id => {
+      if(!mine.has(id)) return;
+      const match = here.get(KeeperLogic.nameKey(Core.getCastaway(old, id).name));
+      if(match && !out.includes(match)) out.push(match);
+    });
+    return out;
+  }
+}
+
 // What a team with `picked` could take next of `candidates`, kept spread across the cast's groups (SpreadLogic) and within a
 // salary cap (BudgetLogic), in their order: every candidate when neither applies, and never none while there's someone to take
 // (each one's fallback). `g` and `prices`, when they're read once a pass.
@@ -1266,7 +1488,8 @@ class AuctionLogic {
     if(!state.auction) state.auction = { lockedPlayerIds: [] };
     state.auction.lockedPlayerIds = [...playerIds];
   }
-  static eligiblePlayers(state){ return (state.players || []).filter(inLeagueRotation); }
+  // A10 part 4: a seat its keepers filled has nothing to bid on.
+  static eligiblePlayers(state){ return (state.players || []).filter(p => inLeagueRotation(p) && KeeperLogic.places(state, p.id) > 0); }
   static waitingOn(state){
     const locked = AuctionLogic.lockedPlayerIds(state);
     return AuctionLogic.eligiblePlayers(state).filter(p => !locked.includes(p.id));
@@ -1276,7 +1499,12 @@ class AuctionLogic {
     return eligible.length > 0 && eligible.every(p => lockedPlayerIds.includes(p.id));
   }
   // The most one bid can be: the budget, less the lowest price for every other place on the team.
-  static maxBid(state){ const b = PriceLogic.config(state); return b.total - b.floor * Math.max(0, rosterSize(state) - 1); }
+  // A10 part 4: for a seat with keepers (`playerId`), the places they leave and what they cost.
+  static maxBid(state, playerId){
+    const b = PriceLogic.config(state);
+    if(playerId === undefined) return b.total - b.floor * Math.max(0, rosterSize(state) - 1);
+    return b.total - KeeperLogic.paid(state, playerId) - b.floor * Math.max(0, KeeperLogic.places(state, playerId) - 1);
+  }
   // How many bids a sheet holds: three for each place on the team (backups), up to the spec's most.
   static maxBids(state){ return Math.min(Spec.MAX_BIDS, Math.max(1, rosterSize(state) * 3)); }
   // Why one player's sealed bids can't be locked in, or null: [{ castawayId, bid }], none (fill me) up to maxBids, each on someone
@@ -1294,7 +1522,7 @@ class AuctionLogic {
     const b = PriceLogic.config(state);
     const most = AuctionLogic.maxBids(state);
     if(bids.length > most) return `Bid on up to ${most}`;
-    const max = AuctionLogic.maxBid(state);
+    const max = AuctionLogic.maxBid(state, playerId);
     const seen = new Set();
     for(const x of bids){
       const c = x && typeof x === 'object' ? Core.getCastaway(state, x.castawayId) : null;
@@ -1310,14 +1538,15 @@ class AuctionLogic {
   // A sheet from an order of castaways (best first): the budget spread over the first team's worth by rank (the first the most),
   // the rest of the order (up to maxBids) as backups at the lowest price, every bid within maxBid. How computer players bid
   // (bot-logic.js auctionBids) and the replays' seats (playtest.js), each by its own order.
-  static sheetFor(state, order){
+  // A10 part 4: `playerId`, a seat's sheet for the places its keepers leave, from what they leave of the budget.
+  static sheetFor(state, order, playerId){
     const b = PriceLogic.config(state);
-    const size = rosterSize(state);
-    const max = AuctionLogic.maxBid(state);
+    const size = playerId === undefined ? rosterSize(state) : KeeperLogic.places(state, playerId);
+    const max = AuctionLogic.maxBid(state, playerId);
     const list = order.slice(0, AuctionLogic.maxBids(state));
     const weights = list.slice(0, size).map((_, i) => size - i);
     const sum = weights.reduce((n, w) => n + w, 0) || 1;
-    const spare = b.total - b.floor * size;
+    const spare = b.total - (playerId === undefined ? 0 : KeeperLogic.paid(state, playerId)) - b.floor * size;
     return list.map((id, i) => ({ castawayId: id, bid: i < size ? Math.min(max, b.floor + Math.floor((spare * weights[i]) / sum)) : b.floor }));
   }
   // Who wins whom from everyone's sealed bids ({ playerId: [{ castawayId, bid }] }), changing nothing: { order (the seats in the
@@ -1334,8 +1563,9 @@ class AuctionLogic {
     const order = AuctionLogic.eligiblePlayers(state).map(p => p.id).sort(byRank('seat'));
     const free = new Set((state.castaways || []).filter(c => c.status === 'active' && !leagueOwnersOf(state, c).length).map(c => c.id));
     const g = SpreadLogic.groupsNow(state);
-    const teams = Object.fromEntries(order.map(id => [id, []]));
-    const spent = Object.fromEntries(order.map(id => [id, 0]));
+    // A10 part 4: each team starts with its keepers, and what they cost.
+    const teams = Object.fromEntries(order.map(id => [id, KeeperLogic.keptIds(state, id)]));
+    const spent = Object.fromEntries(order.map(id => [id, KeeperLogic.paid(state, id)]));
     const won = [];
     const canPay = (pid, price) => price <= b.total - spent[pid] - b.floor * (each - teams[pid].length - 1);
     const take = (pid, cid, price, filled) => {
@@ -1373,9 +1603,11 @@ class AuctionLogic {
   // before it became an auction keeps them: it's never settled over, as a draw is never dealt over).
   static ready(state){
     return AuctionLogic.on(state) && !AuctionLogic.settled(state) && !state.draftPicksMade && (state.players || []).some(inLeagueRotation)
-      && !(state.castaways || []).some(c => leagueOwnersOf(state, c).length);
+      && !KeeperLogic.draftedAny(state);
   }
   static settle(state, bidsByPlayer, seed){
+    // A10 part 4: keepers lock before the bids are settled.
+    KeeperLogic.settle(state);
     if(!AuctionLogic.ready(state)) return false;
     const s = seed || Core.uid('auction');
     const out = AuctionLogic.outcome(state, bidsByPlayer || {}, s);
@@ -2622,7 +2854,8 @@ class DraftLogic {
   static syncOrder(state){ return getLeagueType(state).draftStrategy.syncOrder(state); }
   static currentTurn(state){ return getLeagueType(state).draftStrategy.currentTurn(state); }
   static isStarted(state){ return getLeagueType(state).draftStrategy.isStarted(state); }
-  static forceStart(state){ return getLeagueType(state).draftStrategy.forceStart(state); }
+  // A10 part 4: keepers lock as the draft starts (a draw locks them itself, before it deals).
+  static forceStart(state){ const out = getLeagueType(state).draftStrategy.forceStart(state); KeeperLogic.settle(state); return out; }
   static reorder(state, fromIdx, toIdx){ return getLeagueType(state).draftStrategy.reorder(state, fromIdx, toIdx); }
   static move(state, idx, delta){ return getLeagueType(state).draftStrategy.move(state, idx, delta); }
   static pick(state, castawayId, opts){ return getLeagueType(state).draftStrategy.pick(state, castawayId, opts); }
@@ -5858,7 +6091,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, draftFits, draftFitsFor, rankKey,
+  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts, budgetParts } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -152,6 +152,9 @@ function sentenceParts(s, w) {
     // A10 part 1: group slots.
     const slots = groupSlotsOf(s);
     if (slots) put(`, plus ${slots.slots === 1 ? 'a slot' : `${say(slots.slots)} slots`} for a pair or team the show forms`, 'get');
+    // A10 part 4: keepers from last season's game.
+    const keep = keepParts(s);
+    if (keep) put(keep.each === 1 ? `, keeping one of last season's team if they come back` : `, keeping up to ${say(keep.each)} of last season's team who come back`, 'get');
   } else if (by === 'pick') {
     put(`everyone picks one ${w.castaway} to ${s.score.means === 'scores' ? 'score' : 'stay in'} each ${w.part}`, 'get');
     // A10 part 2: a second pick.
@@ -360,6 +363,31 @@ function marketRules(s, b, w) {
   if (s.rank.by === 'worth') out.push(`Most worth wins: your cash plus your team at today's prices. Ties go to the most points.`);
   return out;
 }
+/** How keepers across seasons work (A10 part 4: get.keep), a rule a line: who can be kept, what a keeper costs, whether
+ *  someone else can have yours, the fallback for someone who names nobody, and someone who isn't back. */
+function keepRules(s, w) {
+  const k = keepParts(s);
+  if (!k) return [];
+  const out = [];
+  const b = budgetParts(s);
+  out.push(k.each === 1
+    ? `Keepers: before the draft, keep one ${w.castaway} from your team in last season's game, if they're on this season's cast. They take a place on your team of ${say(s.get.each)}, and the draft fills the rest.`
+    : `Keepers: before the draft, keep up to ${say(k.each)} ${w.castaways} from your team in last season's game, if they're on this season's cast. Each takes a place on your team of ${say(s.get.each)}, and the draft fills the rest.`);
+  // A salary cap counts the whole team at today's prices, keepers too, whatever they cost.
+  if (b && !b.auction && !b.trade) out.push(`Your keepers count against the cap at today's prices, like anyone on your team.`);
+  if (k.cost === 'price' && b && b.trade) out.push(`A keeper costs their price when the draft starts, out of your ${b.total}.`);
+  else if (k.cost === 'place' && b && (b.auction || b.trade)) out.push(`A keeper costs nothing: your ${b.total} goes on the rest of your team.`);
+  if (k.cost === 'round') out.push(`In the snake, you sit out one of your first rounds for each keeper.`);
+  else if (s.get.order === 'snake') out.push(`In the snake, someone with keepers is passed over once their team is full: a keeper costs one of your last rounds.`);
+  out.push(s.get.own === 'shared'
+    ? `Someone you keep can still be on someone else's team.`
+    : `Nobody else can have someone you keep. If two of you want the same one, whoever names them first has them.`);
+  out.push(k.fallback === 'best'
+    ? `Name nobody by the draft and you keep your best who are back (the most points last season).`
+    : `Name nobody by the draft and you keep nobody.`);
+  out.push(`Someone who isn't back can't be kept: their place goes to the draft.`);
+  return out;
+}
 /** A draft spread across the cast's groups (A10 part 3: get.across), or null. */
 const acrossOf = (s) => (s.get && s.get.by === 'draft' && isObj(s.get.across) ? s.get.across : null);
 /** How a draw and a spread draft work (A10 part 3), and a draft's prices (part 3b), a rule a line. */
@@ -409,6 +437,7 @@ function rulesOf(s, w) {
   if (by === 'draft') {
     if (draft) rules.push(draft);
     rules.push(...drawRules(s, w));
+    rules.push(...keepRules(s, w));
     if (count === 'start') rules.push(`Before each ${w.part}, start ${say(s.count.start)}. Only starters score.`);
     // A9 part 2: best ball, a lineup's captain, when the points multiply, Outlast in reverse.
     if (count === 'best') rules.push(`Each ${w.part}, your best ${say(s.count.best)} count, whoever they are: no lineups to set.`);
