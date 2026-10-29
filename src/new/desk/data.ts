@@ -6,7 +6,9 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 // The desk's reads and writes (docs/PLAN-new-design.md step 6b part 2): each page reads its /api/desk route when it
 // opens (nothing polls), and after a write every desk read moves on.
 
-export type { Inbox, InboxItem, FoundItem, DeskSettings, DeskLine } from "@/lib/server/desk";
+export type { FoundItem, DeskSettings, DeskLine } from "@/lib/server/desk";
+export type { Inbox, InboxItem, ComingUp } from "@/lib/server/desk-inbox";
+export type { DeskReport, ReportRow, ReportsList, ReportFilter } from "@/lib/server/desk-reports";
 export type { DeskFact, DeskSource } from "@/lib/server/desk-facts";
 export type { DeskSeason, DeskCastaway } from "@/lib/server/desk-cast";
 export type { SeasonBot } from "@/lib/server/desk-bot";

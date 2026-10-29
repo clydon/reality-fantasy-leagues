@@ -3,7 +3,7 @@
 import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { keepPreviousData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowDownUp, Ban, Check, ChevronRight, Copy, Ellipsis, Eye, KeyRound, Lock, Mail, RotateCcw, Search, Users, Zap } from "lucide-react";
+import { ArrowDownUp, Ban, Check, ChevronRight, Copy, Ellipsis, Eye, Flag, KeyRound, Lock, Mail, RotateCcw, Search, Users, Zap } from "lucide-react";
 import { colourOf } from "@/lib/people";
 import { NavLink, useNav } from "../nav";
 import { isUsername, USERNAME_RULE } from "@/lib/usernames";
@@ -27,15 +27,15 @@ import { forgetDeskPage } from "./trail";
 // (part 1c: seats.tsx), and Delete <name>'s account, last (tier 3), handing on first the games they run alone. Server:
 // src/lib/server/desk-people.ts (reads), desk-person-actions.ts (the actions and the Delete) and desk-seats.ts (a seat).
 
-/** Let in (tier 1): someone waiting can play at once; the toast's Undo puts them back on the list. */
+/** Let in (tier 1): someone waiting can play at once, told by email; the toast's Undo puts them back on the list. */
 export function useLetIn() {
   const after = useAfterDesk();
   const said = useChangeToast();
   return async (p: { id: string; name: string }) => {
     try {
-      const { changeId } = await deskSend<{ changeId: string }>(`/people/${p.id}`, { letIn: true });
+      const { changeId, told } = await deskSend<{ changeId: string; told: "email" | "failed" | "none" }>(`/people/${p.id}`, { letIn: true });
       await after();
-      said(`${p.name} is in · they can play now`, changeId);
+      said(`${p.name} is in · ${told === "email" ? "told by email" : told === "failed" ? "the email to tell them didn't send" : "no email to tell them by"}`, changeId);
     } catch (e) {
       toast.quiet((e as Error).message);
     }
@@ -286,7 +286,10 @@ function noCouchLine(games: DeskSeatGame[]): string {
 export function PersonPage({ id }: { id: string }) {
   const q = useDesk<DeskPerson>(`/people/${id}`);
   const letIn = useLetIn();
-  const [sheet, setSheet] = useState<"act" | "account" | "password" | "signing" | "delete" | null>(null);
+  // A report's Act as them opens this page with its sheet (?act=1); the address then loses it, so Back doesn't open it again.
+  const params = useSearchParams();
+  const wantsAct = params.get("act") === "1";
+  const [sheet, setSheet] = useState<"act" | "account" | "password" | "signing" | "delete" | null>(wantsAct ? "act" : null);
   const [busy, setBusy] = useState(false);
   const [seat, setSeat] = useState<DeskSeat | null>(null);
   const [handOn, setHandOn] = useState<{ games: { leagueId: string; name: string; couch: string | null }[]; deleting: boolean } | null>(null);
@@ -294,6 +297,9 @@ export function PersonPage({ id }: { id: string }) {
   const [handed, setHanded] = useState<Handed[]>([]);
   const [unfolded, setUnfolded] = useState<string[]>([]);
   const name = q.data?.name;
+  useEffect(() => {
+    if (wantsAct) window.history.replaceState(null, "", paths.deskItem("person", id));
+  }, [wantsAct, id]);
   // Back from acting as them (the Viewing as bar's Return, a full load): it's in their History.
   useEffect(() => {
     if (!name) return;
@@ -503,6 +509,15 @@ export function PersonPage({ id }: { id: string }) {
           </p>
         )}
       </Section>
+      {p.reports.length > 0 && (
+        <Section title="Reports they sent" aside={plural(p.reports.length, "report", "reports")}>
+          <div data-person-reports className="border-b border-border">
+            {p.reports.map((r) => (
+              <DeskRow key={r.id} href={paths.deskItem("report", r.id)} data="person-report" lead={<IconLead icon={Flag} />} title={r.title} line={`${r.done ? "Done" : "Open"} · ${agoOf(r.at)}`} />
+            ))}
+          </div>
+        </Section>
+      )}
       <LatestHistory lines={p.history} />
       {p.you ? (
         <DeleteRow data="person" off title="Delete your account" line="Not from the desk: another site admin would have to" />

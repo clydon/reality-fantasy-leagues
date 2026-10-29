@@ -203,7 +203,7 @@ const RULEBOOKS = "SELECT id, version, is_template, status, review_status, md5(b
     const yBook = await seasonBook(yacht);
     check(yBook.review_status === "unreviewed" && yBook.provenance.from === "made" && yBook.created_by === fx.users.alex, "alex made ZT Yacht Life a game: its rulebook is new (unreviewed), alex its first maker");
     let items = await inbox();
-    check(items.some((i) => i.kind === "made" && i.title === "ZT Yacht Life 2: a new rulebook" && /Made with ChatGPT by zt_nd_alex · nobody on another couch/.test(i.line) && i.href === `/desk/rulebook/${yBook.id}`), "the Inbox: a new rulebook nobody's checked", JSON.stringify(items.filter((i) => i.kind === "made")));
+    check(items.some((i) => i.kind === "made" && i.title === "ZT Yacht Life 2's rulebook needs a second look" && /Made with ChatGPT by zt_nd_alex · it needs another couch's Looks right/.test(i.line) && i.href === `/desk/rulebook/${yBook.id}`), "the Inbox: a new rulebook nobody's checked", JSON.stringify(items.filter((i) => i.kind === "made")));
     lib = await library();
     check(lib.made.some((m) => m.id === yBook.id && m.review === "unreviewed" && /^Made with ChatGPT by zt_nd_alex · new/.test(m.line)), "the library: under Made by players", JSON.stringify(lib.made));
     check(!lib.kinds.flatMap((k) => k.templates).some((t) => /ZT Yacht/.test(t.name)), "its stored format isn't a template");
@@ -326,7 +326,7 @@ const RULEBOOKS = "SELECT id, version, is_template, status, review_status, md5(b
     r = await as.alex.call("POST", "/api/me/shows", { name: "ZT Mystery Hour" });
     const mysteryShow = (await pool.query("SELECT show_id FROM show_seasons WHERE id = $1", [r.body.seasonId])).rows[0].show_id;
     items = await inbox();
-    check(items.some((i) => i.kind === "show" && i.title === "ZT Mystery Hour: added by name" && /By zt_nd_alex · not in the TV listings · 1 following/.test(i.line)), "the Inbox: a show added by name", JSON.stringify(items.filter((i) => i.kind === "show")));
+    check(items.some((i) => i.kind === "show" && i.title === "ZT Mystery Hour was added by name" && /By zt_nd_alex · 1 following · not in the TV listings/.test(i.line)), "the Inbox: a show added by name", JSON.stringify(items.filter((i) => i.kind === "show")));
     let sp = (await desk("GET", `/shows/${mysteryShow}`)).body;
     check(sp.added?.by === "zt_nd_alex" && sp.added.listing === false && !sp.reviewed && !sp.setUp, "its page: added by alex by name, not looked at", JSON.stringify(sp.added));
     r = await desk("POST", `/shows/${mysteryShow}`, { action: "reviewed" });

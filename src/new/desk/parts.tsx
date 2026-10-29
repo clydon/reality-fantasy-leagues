@@ -106,9 +106,9 @@ const TAG = {
 };
 
 /** A caption tag, the Lower Third's angled cut. */
-export function Tag({ tone = "quiet", children }: { tone?: keyof typeof TAG; children: ReactNode }) {
+export function Tag({ tone = "quiet", children, className = "" }: { tone?: keyof typeof TAG; children: ReactNode; className?: string }) {
   return (
-    <span className={`type-caption inline-flex h-7 flex-none items-center whitespace-nowrap py-0 pl-2.5 pr-4 text-[12px] tracking-[0.06em] [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)] ${TAG[tone]}`}>
+    <span className={`type-caption inline-flex h-7 flex-none items-center whitespace-nowrap py-0 pl-2.5 pr-4 text-[12px] tracking-[0.06em] [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)] ${TAG[tone]} ${className}`}>
       {children}
     </span>
   );
@@ -176,7 +176,7 @@ export function IconLead({ icon: Icon }: { icon: ComponentType<{ className?: str
 /**
  * One row on a desk page (the mock's .idx.dk-l): a lead (an icon, a face, art), a title with one line, and a chevron when
  * it goes somewhere. A link with `href`, a button with `onClick`, else just what it says. `dot`: off its recommended
- * setting, or needs you.
+ * setting (true), or the row to act on for something in the Inbox ("need").
  */
 export function DeskRow({
   href,
@@ -194,7 +194,7 @@ export function DeskRow({
   title: ReactNode;
   line?: ReactNode;
   end?: ReactNode;
-  dot?: boolean;
+  dot?: boolean | "need";
   data?: string;
 }) {
   const cls = "nd-press flex min-h-[62px] w-full items-center gap-3 border-t border-border py-2.5 text-left first:border-t-0";
@@ -204,7 +204,7 @@ export function DeskRow({
       <span className="min-w-0 flex-1">
         <b className="line-clamp-2 block text-[16px] font-semibold leading-snug">
           {title}
-          {dot && <i data-off className="ml-2 inline-block size-2 rounded-full bg-chyron align-[2px]" aria-label="Changed from recommended" />}
+          {dot && <i data-off={dot === "need" ? "need" : ""} className="ml-2 inline-block size-2 rounded-full bg-chyron align-[2px]" aria-label={dot === "need" ? "Needs you" : "Changed from recommended"} />}
         </b>
         {line && <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">{line}</small>}
       </span>

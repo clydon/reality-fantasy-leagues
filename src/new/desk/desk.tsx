@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
-import { BookOpen, Check, CheckCheck, KeyRound, Lock, RotateCcw, Search, User, Users, Zap } from "lucide-react";
+import { BookOpen, Check, CheckCheck, ChevronRight, Flag, KeyRound, Lock, RotateCcw, Search, User, Users, Zap } from "lucide-react";
 import { colourOf } from "@/lib/people";
 import { NavLink } from "../nav";
 import { paths, type DeskKind } from "../routes";
@@ -10,13 +10,15 @@ import { Avatar } from "../ui/bars";
 import { EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { deskSend, useAfterDesk, useDesk, type DeskSettings, type DeskLine, type FoundItem, type Inbox, type PeopleList, type PersonRow } from "./data";
+import { deskSend, useAfterDesk, useDesk, type ComingUp, type DeskSettings, type DeskLine, type FoundItem, type Inbox, type InboxItem, type PeopleList, type PersonRow, type ReportRow } from "./data";
 import { LibraryPage } from "./library";
 import { NewShowFlow } from "./new-show";
 import { CastawayPage, CouchPage, FactPage, SeasonPage, ShowPage } from "./pages";
 import { LetInButton, PeoplePage, PersonPage, PersonTags, useDebounced } from "./people";
+import { ReportListRow, ReportPage, ReportsPage } from "./reports";
+import { andList } from "./seats";
 import { useDeskStay, useRecentlyOpened } from "./trail";
-import { agoOf, DeskHeader, DeskRow, History, IconLead, ItemRow, Section } from "./parts";
+import { agoOf, DeskHeader, DeskRow, History, IconLead, ItemRow, Section, Tag } from "./parts";
 import { RulebookPage } from "./rulebook";
 
 // The admin's desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js admin), from the profile menu: Inbox
@@ -26,7 +28,7 @@ import { RulebookPage } from "./rulebook";
 // refused by its own route. People, the library and New show (step 10 part 3) are pages a level down, from Find.
 
 type Tab = "inbox" | "find" | "settings";
-type Page = Tab | "library" | "new" | "people";
+type Page = Tab | "library" | "new" | "people" | "reports";
 
 const TAB_NAMES: Record<Tab, string> = { inbox: "Inbox", find: "Find", settings: "Settings" };
 
@@ -42,12 +44,13 @@ export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: Desk
     );
   }
   if (item) {
-    const page = { fact: FactPage, season: SeasonPage, castaway: CastawayPage, couch: CouchPage, person: PersonPage, show: ShowPage, rulebook: RulebookPage }[item.kind];
+    const page = { fact: FactPage, season: SeasonPage, castaway: CastawayPage, couch: CouchPage, person: PersonPage, show: ShowPage, rulebook: RulebookPage, report: ReportPage }[item.kind];
     const Page = page;
     return <Page id={item.id} />;
   }
   if (tab === "library") return <LibraryPage />;
   if (tab === "people") return <PeoplePage />;
+  if (tab === "reports") return <ReportsPage />;
   if (tab === "new") return <NewShowFlow />;
   return <DeskTabs tab={tab ?? "inbox"} />;
 }
@@ -85,26 +88,110 @@ function DeskTabs({ tab }: { tab: Tab }) {
   );
 }
 
-const TAGS: Record<string, [string, "must" | "quiet"]> = {
+// Each kind's tag (the mock's desk-inbox.js): yellow only where the couches couldn't settle a result.
+const TAGS: Record<InboxItem["kind"], [string, "must" | "quiet"]> = {
   split: ["Disputed", "must"],
   stale: ["Disputed", "must"],
-  stranded: ["Couch", "quiet"],
   phase: ["Confirm", "must"],
-  suggestion: ["Report", "quiet"],
   change: ["New?", "must"],
-  made: ["Rulebook", "must"],
+  stranded: ["Couch", "quiet"],
+  schedule: ["Schedule", "quiet"],
+  cast: ["Cast", "quiet"],
+  people: ["People", "quiet"],
+  report: ["Report", "quiet"],
+  suggestion: ["Fix", "quiet"],
+  made: ["Rulebook", "quiet"],
   show: ["Show", "quiet"],
 };
 
+/** One thing that needs you (the mock's .adm-item.dk-ii): its kind's tag, what it is, a line, and the faces it's about. */
+function InboxRow({ item }: { item: InboxItem }) {
+  const [tag, tone] = TAGS[item.kind] ?? [item.kind, "quiet"];
+  return (
+    <NavLink href={item.href} data-desk-item={item.kind} className="nd-press flex min-h-[74px] items-center gap-3 border-t border-border py-2.5 last:border-b">
+      <Tag tone={tone} className="min-w-[78px]">
+        {tag}
+      </Tag>
+      <span className="min-w-0 flex-1">
+        <b className="block text-[16px] font-semibold leading-snug">{item.title}</b>
+        <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
+          {item.line}
+          {item.at ? ` · ${agoOf(item.at)}` : ""}
+        </small>
+      </span>
+      {item.faces && item.faces.length > 0 && (
+        <span className="flex flex-none" aria-hidden>
+          {item.faces.map((f, i) => (
+            <span key={f.id} className={`rounded-[3px] shadow-[0_0_0_2px_var(--background)] ${i ? "-ml-1.5" : ""}`}>
+              <Avatar id={f.id} name={f.name} size={26} colour={colourOf(f.id, f.colour)} />
+            </span>
+          ))}
+        </span>
+      )}
+      <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+    </NavLink>
+  );
+}
+
+const WEEK_SHOWN = 5;
+
+const TIME = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit" });
+
+/** "Tonight", "Today", else "Thu"; "8:05" and "PM": an airing in the phone's own time. */
+function whenOf(iso: string, now = new Date()) {
+  const d = new Date(iso);
+  const today = d.toDateString() === now.toDateString();
+  // The parts, not a split on a space: some engines put a narrow no-break space before PM.
+  const parts = TIME.formatToParts(d);
+  const hm = parts.filter((p) => (p.type !== "dayPeriod" && p.type !== "literal") || p.value === ":").map((p) => p.value).join("");
+  const ap = parts.find((p) => p.type === "dayPeriod")?.value ?? "";
+  return { day: today ? (d.getHours() >= 17 ? "Tonight" : "Today") : d.toLocaleDateString("en-US", { weekday: "short" }), hm, ap, today };
+}
+
+const HOW_ICON: Record<ComingUp["how"], typeof Zap> = { auto: Zap, espn: Check, talk: Users, couch: Users };
+
+/** One episode this week (the mock's .dk-run): day and time, the season, the episode, how its results come in. */
+function WeekRow({ c }: { c: ComingUp }) {
+  const w = whenOf(c.airAt);
+  const Icon = HOW_ICON[c.how];
+  return (
+    <NavLink href={paths.deskItem("season", c.seasonId)} data-week-row={c.season} className="nd-press flex min-h-[72px] items-center gap-3 border-b border-border py-2.5">
+      <span className={`flex w-[58px] flex-none flex-col gap-[3px] ${w.today ? "pl-2 shadow-[inset_2px_0_0_var(--foreground)]" : ""}`}>
+        <small className={`type-caption text-[12px] tracking-[0.06em] ${w.today ? "text-foreground" : "text-muted-foreground"}`}>{w.day}</small>
+        <b className="type-num whitespace-nowrap text-[24px] leading-none">
+          {w.hm}
+          <i className="ml-0.5 text-[11px] font-bold not-italic text-muted-foreground">{w.ap}</i>
+        </b>
+      </span>
+      <span className="min-w-0 flex-1">
+        <b className="block text-[16px] font-semibold leading-snug">{c.season}</b>
+        <small className="mt-px block text-[13px] text-muted-foreground">{c.title ?? `Episode ${c.episode}`}</small>
+        <em data-week-how={c.how} className="mt-1 flex items-center gap-1.5 text-[12.5px] not-italic text-muted-foreground">
+          <Icon className="size-3.5 flex-none" aria-hidden />
+          {c.line}
+        </em>
+      </span>
+      <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+    </NavLink>
+  );
+}
+
+/**
+ * The Inbox (the mock's desk-inbox.js): Needs you, one list most urgent first, each opening the page that deals with it;
+ * Coming up, the week as a rundown; and what settled on its own this week.
+ */
 function InboxTab({ data, loading }: { data: Inbox | undefined; loading: boolean }) {
+  const [allWeek, setAllWeek] = useState(false);
   if (loading || !data) return <div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" />;
+  const week = allWeek ? data.coming : data.coming.slice(0, WEEK_SHOWN);
+  const none = data.unscheduled;
   return (
     <>
       <Section title="Needs you" aside={data.items.length || "Nothing"}>
         {data.items.length ? (
           <div data-inbox>
             {data.items.map((i, k) => (
-              <ItemRow key={`${i.href}-${k}`} data={i.kind} href={i.href} tag={TAGS[i.kind][0]} tone={TAGS[i.kind][1]} title={i.title} line={i.line} />
+              <InboxRow key={`${i.href}-${k}`} item={i} />
             ))}
           </div>
         ) : (
@@ -113,6 +200,27 @@ function InboxTab({ data, loading }: { data: Inbox | undefined; loading: boolean
             <b className="type-caption mt-2 text-[22px]">Nothing needs you</b>
             <small className="text-[14px] text-muted-foreground">The couches are handling it.</small>
           </div>
+        )}
+      </Section>
+      <Section title="Coming up" aside="This week">
+        {data.coming.length ? (
+          <div data-coming className="border-t border-border">
+            {week.map((c) => (
+              <WeekRow key={`${c.seasonId}-${c.episode}`} c={c} />
+            ))}
+          </div>
+        ) : (
+          <p data-coming-none className="rounded-[4px] bg-card p-3.5 text-[14px] text-muted-foreground">Nothing airs this week.</p>
+        )}
+        {!allWeek && data.coming.length > WEEK_SHOWN && (
+          <button type="button" data-week-all onClick={() => setAllWeek(true)} className="mt-1 inline-flex min-h-11 items-center text-[15px] font-bold underline decoration-input underline-offset-[3px]">
+            All {data.coming.length} this week
+          </button>
+        )}
+        {none.length > 0 && (
+          <p data-coming-unscheduled className="mt-2.5 text-[13px] leading-snug text-muted-foreground">
+            {andList(none)} {none.length > 1 ? "have" : "has"} no schedule, so {none.length > 1 ? "they aren't" : "it isn't"} here.
+          </p>
         )}
       </Section>
       <Section title="This week, on its own">
@@ -144,9 +252,10 @@ const ICONS: Record<FoundItem["kind"], string> = { show: "Show", season: "Season
 interface Found {
   found: FoundItem[];
   /** With nothing typed: Browse's lines. */
-  browse?: { people: { all: number; waiting: number }; library: { templates: number; inUse: number; unchecked: number } };
-  /** With a search: the first few people who match, and how many do. */
+  browse?: { people: { all: number; waiting: number }; library: { templates: number; inUse: number; unchecked: number }; reports: { open: number; done: number } };
+  /** With a search: the first few people who match, and how many do; the same for reports. */
   people?: { people: PersonRow[]; total: number };
+  reports?: { reports: ReportRow[]; total: number };
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
@@ -165,7 +274,7 @@ function SubHead({ title, aside }: { title: string; aside?: ReactNode }) {
 
 /**
  * Find (the mock's desk.js dkBrowse and admFindList): one search. With nothing typed, Browse: a row for each kind with
- * its own list (People and the library now; Couches, Games, Shows and Reports come with their steps), then what you
+ * its own list (People, the library and Reports now; Couches, Games and Shows come with their steps), then what you
  * opened lately, then what's airing (until Shows has its list, step 7). With a search: the first three people who match,
  * and All N in People, searched; then everything else it finds.
  */
@@ -176,6 +285,7 @@ function FindTab() {
   const recent = useRecentlyOpened();
   const b = found.data?.browse;
   const people = found.data?.people;
+  const reports = found.data?.reports;
   return (
     <Section>
       <label className="flex h-12 items-center gap-2 rounded-[3px] bg-card px-3 outline-1 -outline-offset-1 outline-input focus-within:outline-2 focus-within:outline-chyron">
@@ -210,6 +320,13 @@ function FindTab() {
                 </small>
               </span>
             </NavLink>
+            <DeskRow
+              href={paths.deskReports()}
+              data="browse-reports"
+              lead={<IconLead icon={Flag} />}
+              title="Reports"
+              line={b ? <>{b.reports.open ? <Worth>{b.reports.open} open</Worth> : "None open"} · {b.reports.done} done</> : " "}
+            />
           </div>
           <p className="mt-2.5 text-[13px] leading-snug text-muted-foreground">Seasons, episodes, castaways and results are inside their show. The search finds them all.</p>
           {recent.length > 0 && (
@@ -255,7 +372,15 @@ function FindTab() {
               {(found.data?.found ?? []).map((f, i) => (
                 <ItemRow key={`${f.href}-${i}`} data={f.kind} href={f.href} tag={ICONS[f.kind]} title={f.title} line={f.line} />
               ))}
-              {found.data && !found.data.found.length && !people?.total && <p className="mt-3 text-[14px] text-muted-foreground">Nothing matches.</p>}
+              {reports?.reports.map((r) => (
+                <ReportListRow key={r.id} r={r} found />
+              ))}
+              {reports && reports.total > reports.reports.length && (
+                <NavLink href={paths.deskReports({ q: term })} data-find-all-reports className="flex min-h-12 items-center border-t border-border text-[14px] font-bold underline decoration-input underline-offset-[3px]">
+                  All {reports.total} reports matching &ldquo;{term}&rdquo;
+                </NavLink>
+              )}
+              {found.data && !found.data.found.length && !people?.total && !reports?.total && <p className="mt-3 text-[14px] text-muted-foreground">Nothing matches.</p>}
             </>
           )}
         </div>

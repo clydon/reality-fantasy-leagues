@@ -5,7 +5,7 @@ import { isUuid, type SessionUser } from "./auth-helpers";
 import { freeSeat } from "./backstage-members";
 import { recordChange, roleChange } from "./change-log";
 import { joinedLeague, stayedOnCouch } from "./couches";
-import { pool, withLeagueLock, HttpError } from "./db";
+import { pool, tx, withLeagueLock, HttpError } from "./db";
 import { logDesk, type DeskEntity } from "./desk";
 import { gameName, LEAGUE_SEASON_NAME } from "./league-season";
 import { notifyHandedOn } from "./push-events";
@@ -25,21 +25,6 @@ export const ROLE_TITLE: Record<LeagueRole, string> = { commissioner: "Commissio
 
 /** "a, b and c" (items may hold commas of their own). */
 export const andList = (a: string[]) => (a.length <= 1 ? (a[0] ?? "") : `${a.slice(0, -1).join(", ")} and ${a[a.length - 1]}`);
-
-async function tx<T>(fn: (db: PoolClient) => Promise<T>): Promise<T> {
-  const db = await pool.connect();
-  try {
-    await db.query("BEGIN");
-    const out = await fn(db);
-    await db.query("COMMIT");
-    return out;
-  } catch (e) {
-    await db.query("ROLLBACK").catch(() => {});
-    throw e;
-  } finally {
-    db.release();
-  }
-}
 
 interface Seat {
   playerId: string | null;
@@ -195,6 +180,8 @@ interface Move {
   leagueId: string;
   to: string;
   before: LeagueRole;
+  /** Nobody ran the game before (a couch nobody ran): its Undo may leave it that way again. */
+  nobodyRan?: boolean;
 }
 
 /**
@@ -242,10 +229,11 @@ export async function handOn(
       if (before === "commissioner") throw new HttpError(409, `${nameOf(m.to)} runs ${gameOf(m.leagueId).name} already`);
       await db.query("UPDATE league_memberships SET role = 'commissioner' WHERE league_id = $1 AND user_id = $2", [m.leagueId, m.to]);
       await roleChange(db, m.leagueId, user.id, m.to, before, "commissioner", batch);
-      moves.push({ ...m, before });
+      moves.push({ ...m, before, nobodyRan: !rows.some((r) => r.role === "commissioner") });
     }
     for (const r of by)
       await logDesk(db, { entity: "person", entityId: r.to, action: "made-commissioner", text: `Made Commissioner of ${named(r.games)}${on}`, after: { batch }, userId: user.id });
+    // A game nobody ran (a couch nobody runs): its Undo puts it back as it was, nobody running it, in the Inbox again.
     return logDesk(db, { entity: home.entity, entityId: home.id, action: "hand-on", text, after: { batch, moves }, undo: { type: "seat", do: "handOn", batch, moves }, userId: user.id });
   });
   for (const r of by) notifyHandedOn({ userId: r.to, leagueIds: r.games, games: andList(r.games.map((id) => gameOf(id).name)), key: batch });
@@ -345,10 +333,11 @@ export async function restoreSeat(user: SessionUser, changeId: string, u: Record
       for (const m of moves) {
         const { rows } = await pool.query("SELECT user_id, role FROM league_memberships WHERE league_id = $1", [m.leagueId]);
         if (rows.find((r) => r.user_id === m.to)?.role !== "commissioner") throw new HttpError(409, "Who runs those games has changed since: it can't go back");
-        if (!rows.some((r) => r.user_id !== m.to && r.role === "commissioner"))
+        if (!m.nobodyRan && !rows.some((r) => r.user_id !== m.to && r.role === "commissioner"))
           throw new HttpError(409, "Nobody else runs one of those games now: it can't go back");
       }
-      for (const m of moves) await setLeagueRole(m.leagueId, m.to, m.before, markGames);
+      // A game nobody ran before goes back to nobody running it (setLeagueRole's guard would refuse that otherwise).
+      for (const m of moves) await setLeagueRole(m.leagueId, m.to, m.before, markGames, { nobodyRuns: !!m.nobodyRan });
       await pool.query("UPDATE admin_changes SET undone_at = now(), undone_by = $3 WHERE after->>'batch' = $1 AND id <> $2 AND undone_at IS NULL", [batch, changeId, user.id]);
       return;
     }

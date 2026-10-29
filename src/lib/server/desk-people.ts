@@ -1,8 +1,9 @@
 import { NO_EMAIL_DOMAIN, realEmail } from "@/lib/no-email";
 import { LAST_ACTIVE } from "./admin-users";
 import type { SessionUser } from "./auth-helpers";
-import { pool, HttpError } from "./db";
+import { likeOf, pool, HttpError } from "./db";
 import { byNewest, deskLines, type DeskLine } from "./desk";
+import { reportsBy, type ReportRow } from "./desk-reports";
 import { gameName, LEAGUE_SEASON_NAME } from "./league-season";
 import { WAITING } from "./way-in";
 
@@ -66,8 +67,6 @@ const ORDER: Record<PeopleSort, string> = {
   name: `lower(COALESCE(u.username, u.name)), u.id`,
 };
 
-/** `%term%` for ILIKE, its wildcards taken literally. */
-export const likeOf = (term: string) => `%${term.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
 
 /** Matches $n against a person's username, name, or real email. */
 const SEARCH = (n: number) => `(u.username ILIKE $${n} OR u.name ILIKE $${n} OR (u.email ILIKE $${n} AND u.email NOT ILIKE '%@${NO_EMAIL_DOMAIN}'))`;
@@ -194,6 +193,8 @@ export interface DeskPerson extends PersonRow {
     people: number;
     games: DeskSeatGame[];
   }[];
+  /** The reports they sent, newest first (docs/PLAN-desk-parity.md step 2: Reports they sent, each a link). */
+  reports: ReportRow[];
   history: DeskLine[];
 }
 
@@ -269,6 +270,7 @@ export async function deskPerson(user: SessionUser, id: string): Promise<DeskPer
       ...seatOnly.map((s) => ({ id: s.couch_id as string, name: (s.couch as string) ?? "A couch", role: "seat" as const, people: s.people as number, games: gamesOn(s.couch_id) })),
       ...(onNoCouch.length ? [{ id: null, name: "On no couch", role: "member" as const, people: 0, games: onNoCouch }] : []),
     ],
+    reports: await reportsBy(id),
     history: byNewest([
       ...(await deskLines("person", id)),
       ...couches.map((c) => ({ id: null, text: c.role === "owner" ? `Started ${c.name}` : `Joined ${c.name}`, at: c.joined_at.toISOString(), who: null, undoable: false, undone: false })),

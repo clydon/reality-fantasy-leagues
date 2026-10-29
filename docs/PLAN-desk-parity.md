@@ -330,6 +330,67 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    episode, and how its results come in: Autopilot, ESPN, or the couches).
    **Changes at approval (2026-10-28):** the cast item is a cast answer (our bot's or a paste) with changes not sent, not a
    wiki pull (decision 9).
+   **As built, part 2 (2026-10-28):** **the Inbox** (`src/lib/server/desk-inbox.ts`, moved out of `desk.ts`; `src/new/desk/
+   desk.tsx`): Needs you is one list, most urgent first: disputes (split, stale), a phase start to confirm and something new
+   the couches split on (the yellow tags), then a couch nobody runs ("Nobody runs Wednesday Watchers' games", or the games
+   by name when only some), an airing season with no schedule, a cast not sent (a season's cast with no approval, on a show
+   that's a game), accounts waiting (one item, the first three faces, "signed up without an invite" or, in You let each one
+   in, "waiting for you to let them in"), each open report (its first sentence, from whom, what it's about, how long ago), a
+   suggested rulebook fix (tagged Fix now: Report is the reports'), a rulebook nobody else checked ("Formula 1 2026's rulebook
+   needs a second look", quiet now) and a show added by name ("... was added by name"), each with its kind's tag in a column
+   of its own and opening the page that deals with it, where the row to act on carries a dot: the couch's Hand it on, the
+   season's **Running it › Setup** or **Cast** (`DeskRow dot="need"`), People › Waiting, the report. The tab's count is what
+   Needs you lists, and dealing with one clears it there and here (every desk write refreshes the desk's reads). **Coming up**:
+   each game season's next episode in the next seven days (shows set up as games, not archived, airing or upcoming), soonest
+   first, five then All N this week: the day and time in the phone's own time (Tonight, Today, else the weekday), the season,
+   the episode (a sport's event name), and how its results come in: Autopilot (the season's bot: "who went home, then full
+   results", or "the schedule check after it"), ESPN (a season linked in `sports_links`), a talk show's "Couches tick what
+   happened", else "Couches fill in results · no bot"; under it, the airing seasons with no schedule. **Reports**: migration
+   **0421** (`issue_reports.done_at`, `done_by`, `sent_from`; `admin_changes` entity 'report'; it changes an existing table's
+   constraint, so it's rehearsed with the step's merge, as 0420). Find › Browse's Reports row ("N open · N done"), Find's search
+   (three, then All N reports matching), **Find › Reports** (`/desk/reports`, `src/new/desk/reports.tsx`, `GET /api/desk/reports`:
+   Open · Done, what it says or who sent it, newest first, 25 at a time, the search and filter in the address) and **a report's
+   page** (`/desk/report/<id>`, `GET`, `POST { done }` and `DELETE /api/desk/reports/[id]`, `src/lib/server/desk-reports.ts`):
+   the sender's face and Open or Done in the lower third ("A problem" or "An idea", from whom, when), their words whole, where
+   it was sent from ("Sent from Settings on an iPhone · the installed app · the new design": Report a problem now records the
+   device from the user agent and whether the app runs installed; an older one says its screen and design), **Mark done** or
+   Reopen (tier 1, a toast with Undo, History lines, refused once a later change stands), **Act as <sender>** (their page with
+   Act as open, `?act=1`; off with why for a deleted account, you, another site admin, someone waiting or stopped), From (the
+   sender, then the game it was sent from, on its couch's page until 6a, else the season of the show screen it came from, else
+   their couch), History (Sent by, then the desk's lines) and **Delete this report**, last (tier 3, a hold: gone for good, the
+   sender isn't told, Mark it done instead offered while it's open; a line kept in `admin_changes`). A person's page has
+   **Reports they sent**. **The couch nobody runs** hands its games on through `HandOnSheet` with no `from`, as mocked: the
+   couch page's panel ("Nobody runs its games ... Hand them on"); its Undo puts them back with nobody running them, in the
+   Inbox again (each move records `nobodyRan`; `setLeagueRole` takes `{ nobodyRuns }` for it). `desk-couches.ts handCouchGame`
+   and the couch route's `hand` are gone (Noticed ai closed). The couch page and the Inbox leave deleted games out (a deleted
+   game's seats looked stranded). **Noticed ag**: Let in now tells them by email to a real address ("You're in", through
+   `auth.ts sendAuthEmail`, now exported: Resend in production, the server's console locally), sent once they're in; the
+   toast and their History line say whether it went ("Let in, and told by email", "the email to tell them didn't send", "no
+   email to tell them by"). Shared helpers: `db.ts tx` and `likeOf` (the desk's copies use them: Noticed ak, but for
+   couches.ts and couch-joins.ts), `schedule.ts hasSchedule`. `/code-review` found a route's season cast to a uuid that a
+   mistyped address could break every read with, casts on shows that aren't games, Let in saying "told" before the email
+   went, Undo's done_by on a deleted account, AM/PM split on a space, and duplicated helpers: all fixed. Check:
+   `scripts/dev-test/check-desk-inbox.js` 105 PASS at 390 (zt_di_ fixture, up and down); check-desk-people 249 (Let in's
+   words), check-classic-admin all PASS, check-new-settings 111, check-new-library 91 (the Inbox's new words), unit tests 837;
+   check-new-desk without its rulebook section (a scratch copy, deleted) passes but for (ab)'s "every league renames him", its
+   couch section now handing on through the sheet.
+   **Left behind or changed from classic, and why (decision 10):** classic's To do listed results to review (staged results
+   stay out: decision 7), formats in draft (rulebooks replace formats; a rulebook nobody checked is the Inbox's), reports as one
+   row (each is its own item now, as mocked), casts pulled and not approved (kept, on shows that are games) and airing seasons
+   with no schedule (kept); its Coming up said "research N h later, paid" (paid research stays behind: decision 9; Autopilot,
+   ESPN or the couches instead). Classic's Reports deleted a report once it was dealt with, and showed its route raw; the desk
+   keeps it as Done and names the screen. Classic's admin pages for a season's setup and cast stay where the desk sends you
+   for now: the Running it rows link to them until steps 3 and 5 build Setup and Cast. From the mock: the cast item says
+   "isn't in its games" ("changed on the wiki" is gone with the wiki, and nothing compares a cast answer yet: step 5a); the
+   couch's "deleted their account" is "has gone" (it may have been a leave); older reports don't know their device; the
+   suggested fix's tag is Fix.
+   **Noticed, not fixed (part 2):** (al) a season whose results the admin decides (`results_by` 'admin') still says "Couches
+   fill in results" in Coming up: step 3a's Who decides results should feed its line. (am) Each Inbox kind lists at most 20
+   (as before), so the tab's count stops there for a kind; Reports › Open has every one. (an) Undo of Let in after the email
+   went leaves them told they're in and back on the list; rare, and the toast's Undo is the only way to it that fast. (ao)
+   Classic's Reports page still deletes "dealt with" reports until step 8, so one deleted there never reaches Done. (ap)
+   Classic's Report an issue doesn't send whether the app is installed (only the new design's does); its reports say the
+   device only.
 3. **Seasons: setup.** A season page's Setup: name, status, wiki page, the schedule (episode count, premiere, air time, zone),
    who decides results (the admin, or each game), delete (tier 3).
    **As mocked (2026-10-28, `desk-setup.js`, waiting for approval):** Running it › Setup opens a page of its own

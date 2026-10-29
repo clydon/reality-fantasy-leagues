@@ -137,8 +137,9 @@ export const auth = betterAuth({
 
 // Dev-mode fallback: without a real RESEND_API_KEY, reset links are logged to the server
 // console instead of emailed -- lets the whole flow be exercised locally with zero external
-// dependency, while staying a one-line swap away from actually sending mail.
-async function sendAuthEmail({ to, subject, text }: { to: string; subject: string; text: string }) {
+// dependency, while staying a one-line swap away from actually sending mail. Also the desk's
+// Let in (desk-person-actions.ts: "You're in", to someone who was waiting).
+export async function sendAuthEmail({ to, subject, text }: { to: string; subject: string; text: string }) {
   if (!process.env.RESEND_API_KEY) {
     console.log(`\n[auth email -- no RESEND_API_KEY set, logging instead of sending]\nTo: ${to}\nSubject: ${subject}\n${text}\n`);
     return;

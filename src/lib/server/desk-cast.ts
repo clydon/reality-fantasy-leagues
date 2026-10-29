@@ -4,7 +4,7 @@ import { ensureSeasonRulebook } from "@db/rulebooks.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { byNewest, deskLines, logDesk, readable, type DeskLine } from "./desk";
-import { latestAired, seasonSchedules } from "./schedule";
+import { hasSchedule, latestAired, seasonSchedules } from "./schedule";
 import { applyApprovedCastToLeagues, renameInSeasonDecisions, seasonCastRows } from "./season-cast";
 
 // A season and its cast on the desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js adminEntity): a
@@ -59,6 +59,10 @@ export interface DeskSeason {
   cast: { id: string; name: string; group: string | null; photo: string | null; locked: boolean }[];
   episodes: { number: number; facts: { id: string; name: string; label: string; status: string; live: boolean }[] }[];
   aired: number;
+  /** Something says when its episodes air (its premiere, a listing's dates or a drop): the Inbox's "no schedule" while airing. */
+  scheduled: boolean;
+  /** Its cast is sent to its games (approved), or it has none: the Inbox's cast item while it isn't (docs/PLAN-desk-parity.md step 2). */
+  castSent: boolean;
 }
 
 /** A season's desk page. Makes its rulebook if it has none (an unedited mirror of its show's format, R3's ensure). */
@@ -104,6 +108,8 @@ export async function deskSeason(id: string): Promise<DeskSeason> {
     cast: cast.map((c) => ({ id: c.id, name: c.name, group: c.tribe_name, photo: publicMediaSrc(c.photo_url), locked: !!c.locked_at })),
     episodes: [...episodes.values()].sort((a, b) => b.number - a.number),
     aired: latestAired(schedule) ?? 0,
+    scheduled: hasSchedule(schedule),
+    castSent: !!s.cast_approved_at || !cast.length,
   };
 }
 

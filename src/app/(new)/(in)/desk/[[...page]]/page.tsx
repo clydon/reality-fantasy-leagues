@@ -6,7 +6,8 @@ import { DeskScreen } from "@/new/desk/desk";
 export const metadata: Metadata = { title: "Admin" };
 
 // The admin's desk (docs/PLAN-new-design.md step 6b part 2): /desk (Inbox), /desk/find, /desk/settings, the library and New
-// show (/desk/library, /desk/new: step 10 part 3), Find › People (/desk/people: PLAN-desk-parity.md step 1), and one
+// show (/desk/library, /desk/new: step 10 part 3), Find › People (/desk/people: PLAN-desk-parity.md step 1), Find › Reports
+// (/desk/reports: step 2), and one
 // thing's page at /desk/[kind]/[id]. Site admins only: every read
 // behind it is checked by its own /api/desk route.
 export default async function DeskRoute({ params }: PageProps<"/desk/[[...page]]">) {

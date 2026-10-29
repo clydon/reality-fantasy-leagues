@@ -1,17 +1,15 @@
 import { ensureSeasonRulebook } from "@db/rulebooks.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
-import { roleChange } from "./change-log";
 import { setWhoFills } from "./community-results";
 import { pool, HttpError } from "./db";
 import { byNewest, deskLines, logDesk, type DeskLine } from "./desk";
 import { gameName } from "./league-season";
-import { setLeagueRole } from "./roles";
 import { artAutomatic, chooseArt, deskArt, findArtForShow, findArtLater, setArtOff, type DeskArt } from "./show-art";
 
 // Couches, people and shows on the desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js adminEntity):
-// a couch's people, its games and who runs each, who fills in its results (Override), and, when a game has nobody
-// running it (its only commissioner left or deleted their account: the Inbox's stranded couch), Hand it to someone who
-// plays it. (A person is desk-people.ts's.) A show's seasons, to go to, who added it (step 10 part 3: a show added by
+// a couch's people, its games and who runs each, who fills in its results (Override), and the games nobody runs (its only
+// Commissioner left or deleted their account: the Inbox's couch nobody runs), which its page hands on through Hand on
+// (desk-seats.ts handOn, with no `from`: docs/PLAN-desk-parity.md step 2). (A person is desk-people.ts's.) A show's seasons, to go to, who added it (step 10 part 3: a show added by
 // name waits in the Inbox until the desk says Looks fine or archives it), and New season.
 
 export interface DeskCouch {
@@ -38,7 +36,7 @@ export async function deskCouch(id: string): Promise<DeskCouch> {
   );
   const { rows: leagues } = await pool.query(
     `SELECT l.id, l.name, l.state->'settings'->>'leagueTypeId' AS type, l.state->'settings'->>'showId' AS show, l.state->'settings'->>'wikiSeason' AS season
-       FROM leagues l WHERE l.couch_id = $1 ORDER BY l.name`,
+       FROM leagues l WHERE l.couch_id = $1 AND l.deleted_at IS NULL ORDER BY l.name`,
     [id]
   );
   const { rows: seats } = await pool.query(
@@ -76,18 +74,6 @@ export async function deskCouch(id: string): Promise<DeskCouch> {
       ...(await deskLines("couch", id)),
     ]),
   };
-}
-
-/** Hand a game nobody runs to someone who plays it: they become its Commissioner (a line in its Recent changes). */
-export async function handCouchGame(user: SessionUser, couchId: string, body: { leagueId?: unknown; userId?: unknown }): Promise<DeskCouch> {
-  const couch = await deskCouch(couchId);
-  const game = couch.stranded.find((g) => g.leagueId === body.leagueId);
-  if (!game) throw new HttpError(404, "That game has someone running it");
-  const to = couch.games.find((g) => g.leagueId === game.leagueId)?.players.find((p) => p.userId === body.userId);
-  if (!to) throw new HttpError(400, "Hand it to someone who plays it");
-  await setLeagueRole(game.leagueId, to.userId, "commissioner", (client, before) => roleChange(client, game.leagueId, user.id, to.userId, before, "commissioner"));
-  await logDesk(pool, { entity: "couch", entityId: couchId, action: "hand", text: `Handed ${game.name} to ${to.name}`, userId: user.id });
-  return deskCouch(couchId);
 }
 
 /** Override who can fill in the couch's results. */

@@ -2,13 +2,13 @@ import crypto from "crypto";
 import type { Pool, PoolClient } from "pg";
 import { NextResponse } from "next/server";
 import { isAPIError } from "better-auth/api";
-import { auth } from "@/lib/auth";
+import { auth, sendAuthEmail } from "@/lib/auth";
 import { NO_EMAIL_DOMAIN, realEmail } from "@/lib/no-email";
 import { isUsername, USERNAME_RULE } from "@/lib/usernames";
 import { paths } from "@/new/routes";
 import type { SessionUser } from "./auth-helpers";
 import { ensureOwner } from "./couches";
-import { pool, HttpError } from "./db";
+import { pool, tx, HttpError } from "./db";
 import { logDesk } from "./desk";
 import { letSeatGo } from "./desk-seats";
 import { renameEverywhere } from "./profile";
@@ -52,20 +52,6 @@ const isAdmin = (p: Person) => p.role === "admin";
 type Db = Pool | PoolClient;
 
 /** A write and its History line together: neither without the other. */
-async function tx<T>(fn: (db: PoolClient) => Promise<T>): Promise<T> {
-  const db = await pool.connect();
-  try {
-    await db.query("BEGIN");
-    const out = await fn(db);
-    await db.query("COMMIT");
-    return out;
-  } catch (e) {
-    await db.query("ROLLBACK").catch(() => {});
-    throw e;
-  } finally {
-    db.release();
-  }
-}
 
 /**
  * Signs them out on every device: their sessions go. An hour as them begun on the desk goes too, and ends in their History
@@ -90,15 +76,35 @@ function notAnAdmin(p: Person) {
 
 // ---------- Let in ----------
 
-/** Lets someone waiting in (Who gets in): they can play at once. Undo puts them back on the list. */
-export async function letIn(user: SessionUser, id: string): Promise<{ changeId: string; name: string }> {
+/**
+ * Lets someone waiting in (Who gets in): they can play at once, and they're told by email when they have a real address
+ * (docs/PLAN-desk-parity.md Noticed ag: classic told nobody, so they found out only when they next opened the app; while
+ * they wait no phone of theirs gets notifications). The email goes once they're in, and their History line says whether it
+ * did. Undo puts them back on the list (the email has gone by then).
+ */
+export async function letIn(user: SessionUser, id: string): Promise<{ changeId: string; name: string; told: "email" | "failed" | "none" }> {
   const p = await person(id);
+  const email = realEmail(p.email);
   const changeId = await tx(async (db) => {
     const { rowCount } = await db.query(`UPDATE "user" SET approved = true, "updatedAt" = now() WHERE id = $1 AND approved = false`, [id]);
     if (!rowCount) throw new HttpError(409, `${nameOf(p)} is in already`);
-    return logDesk(db, { entity: "person", entityId: id, action: "let-in", text: "Let in", undo: { type: "person", do: "approved", value: false }, userId: user.id });
+    return logDesk(db, { entity: "person", entityId: id, action: "let-in", text: email ? "Let in" : "Let in (no email to tell them by)", undo: { type: "person", do: "approved", value: false }, userId: user.id });
   });
-  return { changeId, name: nameOf(p) };
+  if (!email) return { changeId, name: nameOf(p), told: "none" };
+  const home = (process.env.BETTER_AUTH_URL || "").replace(/\/+$/, "");
+  let told: "email" | "failed" = "email";
+  try {
+    await sendAuthEmail({
+      to: email,
+      subject: "You're in",
+      text: `You're in, ${nameOf(p)}: your account is ready, and you can play now.${home ? `\n\n${home}/` : ""}\n\nYou're getting this because you made an account and were waiting to get in.`,
+    });
+  } catch (e) {
+    console.error("[let in] the email didn't send:", (e as Error).message);
+    told = "failed";
+  }
+  await pool.query("UPDATE admin_changes SET text = $2 WHERE id = $1", [changeId, told === "email" ? "Let in, and told by email" : "Let in (the email to tell them didn't send)"]);
+  return { changeId, name: nameOf(p), told };
 }
 
 // ---------- signing in ----------

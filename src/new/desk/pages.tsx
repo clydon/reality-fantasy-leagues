@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, Check, Tv, X } from "lucide-react";
+import { BookOpen, CalendarDays, Check, Tv, Users, X } from "lucide-react";
 import { colourOf } from "@/lib/people";
 import { airTime } from "../clock";
 import { NavLink, useNav } from "../nav";
@@ -15,10 +15,11 @@ import { toast } from "../ui/toast";
 import { ArtSection } from "./art";
 import { deskSend, useAfterDesk, useDesk, type DeskCastaway, type DeskCouch, type DeskFact, type DeskLine, type DeskSeason, type DeskShow, type SeasonBot } from "./data";
 import { DeskHeader, DeskRow, Facts, FieldRow, IconLead, ItemRow, LatestHistory, LockRow, LowerThird, OverrideSheet, Section, SwitchRow, Tag } from "./parts";
+import { HandOnSheet } from "./seats";
 
 // One thing on the desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js adminFact and adminEntity): a
 // disputed fact's two sides and the admin's decision; a season (its rulebook, its cast by group, its episodes' results);
-// a castaway (Override, Lock, History); a couch (who runs its games, Hand it to, who fills in); a show (who added it,
+// a castaway (Override, Lock, History); a couch (who runs its games, Hand them on when nobody does, who fills in); a show (who added it,
 // Looks fine or Archive for one added by name, its seasons and their rulebooks, New season: step 10 part 3). Each in the
 // desk's page frame (docs/PLAN-desk-parity.md step 1, parts.tsx): Back names where you came from, what it's part of is a
 // link, and History shows its latest three. Each page's own actions and its Delete come with the step that builds them.
@@ -319,13 +320,14 @@ export function SeasonPage({ id }: { id: string }) {
   if (q.error) return <><DeskHeader title="Season" back={back} name={null} /><NotFound error={q.error} /></>;
   if (!q.data) return <><DeskHeader title="Season" back={back} name={null} /><Loading /></>;
   const s = q.data;
+  const noSchedule = s.status === "airing" && !s.scheduled;
   return (
     <div className="pb-16" data-desk-season>
       <DeskHeader title="Season" back={{ label: s.show.name, href: paths.deskItem("show", s.show.id) }} name={s.name} kind="Season" />
       <LowerThird
         tag={s.status === "airing" ? "Airing" : s.status === "completed" ? "Ended" : "Upcoming"}
         title={s.name}
-        detail={s.aired ? `${s.aired} ${s.aired === 1 ? "episode" : "episodes"} aired` : `${s.cast.length} in the cast`}
+        detail={noSchedule ? "No schedule yet" : s.aired ? `${s.aired} ${s.aired === 1 ? "episode" : "episodes"} aired` : `${s.cast.length} in the cast`}
       />
       <Facts>
         {s.leagues} {s.leagues === 1 ? "game" : "games"} on it, on {s.couches} {s.couches === 1 ? "couch" : "couches"}
@@ -342,6 +344,34 @@ export function SeasonPage({ id }: { id: string }) {
           />
         )}
       </Section>
+      {/* What the Inbox sends here for (docs/PLAN-desk-parity.md step 2), each the row to act on with its dot: steps 3 and 5
+          give a season its own Setup and Cast; until then they're done in classic's admin. */}
+      {(noSchedule || !s.castSent) && (
+        <Section title="Running it">
+          <div className="border-b border-border">
+            {noSchedule && (
+              <DeskRow
+                href={`/admin/seasons/${id}/setup`}
+                data="setup"
+                dot="need"
+                lead={<IconLead icon={CalendarDays} />}
+                title="Setup"
+                line="No schedule yet: nothing knows when it airs · set it in classic admin for now"
+              />
+            )}
+            {!s.castSent && (
+              <DeskRow
+                href={`/admin/seasons/${id}/cast`}
+                data="cast"
+                dot="need"
+                lead={<IconLead icon={Users} />}
+                title="Cast"
+                line={`${s.cast.length} ${s.cast.length === 1 ? "person" : "people"}, not sent to its games · approve it in classic admin for now`}
+              />
+            )}
+          </div>
+        </Section>
+      )}
       <SeasonBotSection id={id} bot={s.bot} />
       <Section title="Cast" aside={`${s.cast.length} people`}>
         {s.groups.length > 0 && (
@@ -494,6 +524,7 @@ export function CouchPage({ id }: { id: string }) {
   const q = useDesk<DeskCouch>(`/couches/${id}`);
   const act = useAct<DeskCouch>(`/couches/${id}`);
   const [filling, setFilling] = useState(false);
+  const [handing, setHanding] = useState(false);
   if (q.error) return <><DeskHeader title="Couch" back={back} name={null} /><NotFound error={q.error} /></>;
   if (!q.data) return <><DeskHeader title="Couch" back={back} name={null} /><Loading /></>;
   const c = q.data;
@@ -511,32 +542,29 @@ export function CouchPage({ id }: { id: string }) {
         }
         tag="Couch"
         title={c.name}
-        detail={c.stranded.length ? "Nobody runs some of its games" : owner ? `Started by ${owner.name}` : `${c.members.length} on it`}
+        detail={c.stranded.length ? (c.stranded.length === c.games.length ? "Nobody runs its games" : "Nobody runs some of its games") : owner ? `Started by ${owner.name}` : `${c.members.length} on it`}
       />
       <Facts>
         {c.members.length} on it · {c.games.length} {c.games.length === 1 ? "game" : "games"}
         {c.rulings ? ` · ${c.rulings} house ${c.rulings === 1 ? "ruling" : "rulings"}` : ""}
       </Facts>
+      {/* The Inbox's couch nobody runs (docs/PLAN-desk-parity.md step 2, the mock's dk-state): its games handed on through
+          Hand on, with no one going (tier 1, Undo puts it back as it was). */}
       {c.stranded.length > 0 && (
-        <Section title="Nobody runs it">
-          {c.stranded.map((g) => {
-            const players = c.games.find((x) => x.leagueId === g.leagueId)?.players ?? [];
-            return (
-              <div key={g.leagueId} data-stranded={g.leagueId} className="mb-2 rounded-[4px] bg-card p-3.5">
-                <b className="block text-[15px]">{g.name}</b>
-                <small className="block text-[13px] text-muted-foreground">Hand it to someone who plays it: they become its Commissioner.</small>
-                <div className="mt-2 flex flex-wrap gap-1.5">
-                  {players.map((p) => (
-                    <Btn key={p.userId} data-hand={p.name} className="h-10 px-3 text-[14px]" onClick={() => act({ hand: { leagueId: g.leagueId, userId: p.userId } }, `Handed ${g.name} to ${p.name}`)}>
-                      Hand it to {p.name}
-                    </Btn>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-        </Section>
+        <section className="mt-5 px-4">
+          <div data-stranded={c.stranded.map((g) => g.leagueId).join(" ")} className="rounded-[4px] bg-card p-3.5 outline-1 -outline-offset-1 outline-input">
+            <b className="block text-[17px]">{c.stranded.length === c.games.length ? "Nobody runs its games" : `Nobody runs ${c.stranded.length === 1 ? c.stranded[0].name : `${c.stranded.length} of its games`}`}</b>
+            <small className="mt-1 block text-[14px] leading-snug text-muted-foreground">
+              Its only Commissioner has gone.{" "}
+              {c.stranded.length > 1 ? "Hand the games to someone on the couch, and they can run them from there." : "Hand it to someone on the couch who plays it, and they can run it from there."}
+            </small>
+            <Btn data-hand-couch wide className="mt-3 h-12" onClick={() => setHanding(true)}>
+              {c.stranded.length > 1 ? "Hand them on" : "Hand it on"}
+            </Btn>
+          </div>
+        </section>
       )}
+      <HandOnSheet open={handing} onClose={() => setHanding(false)} from={null} games={c.stranded.map((g) => ({ leagueId: g.leagueId, name: g.name, couch: c.name }))} />
       <Section title="People" aside={c.members.length}>
         <div data-field="members">
           {c.members.map((m) => (

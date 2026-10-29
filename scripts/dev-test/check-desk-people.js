@@ -263,7 +263,7 @@ const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email 
     const letMaya = await act("maya", { letIn: true });
     check(letMaya.status === 200 && (await userRow("maya")).approved === true, "Let in: maya is in", JSON.stringify(letMaya.body));
     check((await act("maya", { letIn: true })).status === 409, "Let in again: refused (in already)");
-    check(lineOf(await person("maya"), /^Let in$/)?.undoable === true, "maya's History: Let in, with Undo");
+    check(letMaya.body.told === "email" && lineOf(await person("maya"), /^Let in, and told by email$/)?.undoable === true, "maya's History: Let in, told by email, with Undo");
     check((await undo(letMaya.body.changeId)).status === 200 && (await userRow("maya")).approved === false, "its Undo: maya waits again");
     check((await undo(letMaya.body.changeId)).status === 409, "undone already: refused");
 
@@ -666,7 +666,7 @@ const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email 
     await fits("People › Waiting, with Let in");
     await shot("people-waiting-let-in");
     await pg.locator(`[data-let-in='${U("maya")}']`).click();
-    check(new RegExp(`${U("maya")} is in · they can play now`).test(await toasted(/is in/)), "Let in on maya's row: a toast says she can play");
+    check(new RegExp(`${U("maya")} is in · told by email`).test(await toasted(/is in/)), "Let in on maya's row: a toast says she's in, told by email");
     await pg.waitForFunction(() => document.querySelector("[data-people-count]")?.textContent === "1 person", null, { timeout: 15000 });
     check((await userRow("maya")).approved === true, "maya is in, and off the Waiting list");
     await undoToast();

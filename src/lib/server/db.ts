@@ -18,6 +18,25 @@ export { HttpError };
 // issue_reports -- see db/migrations/0001_app_schema.sql). One pool, reused by every route.
 export const pool = new Pool({ connectionString: process.env.AUTH_DATABASE_URL });
 
+/** One transaction on a client of its own: `fn`, then COMMIT, or ROLLBACK when it throws (the desk's writes). */
+export async function tx<T>(fn: (db: PoolClient) => Promise<T>): Promise<T> {
+  const db = await pool.connect();
+  try {
+    await db.query("BEGIN");
+    const out = await fn(db);
+    await db.query("COMMIT");
+    return out;
+  } catch (e) {
+    await db.query("ROLLBACK").catch(() => {});
+    throw e;
+  } finally {
+    db.release();
+  }
+}
+
+/** `%term%` for ILIKE, its wildcards taken literally. */
+export const likeOf = (term: string) => `%${term.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
+
 // Loads a league's state row FOR UPDATE inside a transaction, runs mutatorFn(state) against the
 // in-memory object, writes the result back, and returns the updated state. Direct port of
 // SurvivorDraft's server/db.js withLeagueLock -- a real row lock means two near-simultaneous

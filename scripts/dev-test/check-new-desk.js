@@ -248,7 +248,7 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
       JSON.stringify(item("phase", /ZT Survivor 51/))
     );
     check(!!item("suggestion", /ZT Survivor 51/) && /zt_nd_jordan/.test(item("suggestion", /ZT Survivor 51/).line), "Inbox: jordan's suggested fix");
-    check(!inbox.items.some((i) => /ZT Survivor 51 has no one|ZT Traitors/.test(i.title)), "couch A's games are run, so it isn't stranded");
+    check(!inbox.items.some((i) => i.kind === "stranded" && i.href === `/desk/couch/${fx.couchId}`), "couch A's games are run, so it isn't stranded");
 
     const d = await open({ user: DESK, pass: fixture.PASSWORD, width, height: 844 });
     closers.push(d.close);
@@ -358,8 +358,11 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     await d.page.locator(`[data-stranded='${L.extra}']`).waitFor({ timeout: 20000 });
     await fits(d.page, "a couch");
     await shot(d.page, "couch-stranded");
-    await d.page.locator(`[data-stranded='${L.extra}'] [data-hand='${fixture.username("casey")}']`).click();
-    await toasted(d.page, /Handed/);
+    // Hand it on (docs/PLAN-desk-parity.md step 2): the hand-on sheet, with nobody going.
+    await d.page.locator("[data-hand-couch]").click();
+    await d.page.locator(`[data-hand-pick='${fixture.username("casey")}']`).click();
+    await d.page.locator("[data-hand-go]").click();
+    await toasted(d.page, /runs .* now/);
     const role = (await pool.query("SELECT role FROM league_memberships WHERE league_id = $1 AND user_id = $2", [L.extra, fx.users.casey])).rows[0].role;
     check(role === "commissioner", "casey runs couch B's game now", role);
     check(!(await as.desk.call("GET", "/api/desk/inbox")).body.items.some((i) => i.kind === "stranded" && /ZT Extra/.test(i.title)), "and it's off the Inbox");
