@@ -897,3 +897,17 @@ never handles it: the user does the reset and the pasting.
   migration, no pushes.** A flag is one row in `bingo_square_flags` (0146, ~60 bytes); dealing a card adds two small subqueries
   per square of the episode's bank (counted flags, an admin's flag: indexed by the flags' primary key). The hub's read gains one
   query for the couch feed's BINGO lines (couch members' cards with a call, guarded as the notice is).
+- **2026-10-29, pushed to master (deploys with migrations 0420-0430).** The desk, steps 1-7 (docs/PLAN-desk-parity.md): the
+  site admins' pages that take over classic /admin's work (classic stays until step 8). **Nothing runs on a schedule, and a page
+  polls only while something it started is running.** Storage: two new tables, `desk_runs` (a row per Run now, ~200 bytes) and
+  `season_cast_answers` (a row per cast answer, its text and the people read from it: a few KB); nullable columns on
+  `issue_reports`, `show_seasons`, `bingo_squares`, `couches` and `shows`; `admin_changes` takes person, report and game lines.
+  Two triggers: on `leagues` (a game's insert, or a change to its couch or its delete, reads its couch's row by key) and on
+  `shows` (a change to a show's words). **Run now no longer waits inside its request:** it queues a `desk_runs` row and answers at
+  once; the request driving the queue asks the bot (up to 300 s, as classic's Run now did), then hands the next queued run to a
+  request of its own through `/api/desk/runs/next` (Bearer `CRON_SECRET`, which production has): one more short function call
+  per queued run. **While a page shows something running it polls** until it ends: a run's log every 3 s, a bingo bank being
+  written or a cast being asked every 4 s, the rulebooks flag's check every 1 s; one site admin, so under a hundred small reads
+  a run. A deleted couch or game is restorable for 30 days; `purgeDeleted` removes older ones when deletes and the desk's reads
+  run, not on a schedule. Let in sends one Resend email per account let in. Which AI our bot asks (`app_settings` 'bot_ai') is
+  one small row read with each ask; it stays ChatGPT until production's bot has the Claude Code CLI signed in.
