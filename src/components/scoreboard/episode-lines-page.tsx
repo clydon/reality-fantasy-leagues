@@ -8,7 +8,7 @@ import { useCanManage, useLeagueStore } from "@/lib/store";
 import StateLogic from "@/lib/game/state-logic.js";
 import { latestScoredEpisode, parseLeagueReply } from "@/lib/game/episode-team-summary";
 import { SettingsPage, MoreOptions, fieldCls } from "@/components/setup/settings-ui";
-import { ActButton, Notice, Step, StickyBar } from "@/components/admin/admin-ui";
+import { ActButton, Notice, Step, StickyBar } from "@/components/ui/act-ui";
 import { AskAi } from "@/components/ask-ai";
 import { useTeamSummary } from "./use-team-summary";
 

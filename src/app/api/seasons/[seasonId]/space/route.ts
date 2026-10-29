@@ -8,6 +8,7 @@ import { followsOf, games, playersOf, seasonHeaders } from "@/lib/server/show-sp
 import { latestAired, latestEnded, seasonSchedules, titledFor, upNext } from "@/lib/server/schedule";
 import { seenItAsk } from "@/lib/server/keep-up";
 import { LEAGUE_SEASON_JOIN } from "@/lib/server/league-season";
+import { readOnlyFor } from "@/lib/server/read-only";
 
 // A show space's frame (docs/PLAN-new-design.md step 0b; the screens are steps 0d and 1): the show bar's
 // header, the schedule (Up next, the episodes and when they air), where you are, and the games on it, with
@@ -15,6 +16,8 @@ import { LEAGUE_SEASON_JOIN } from "@/lib/server/league-season";
 //
 // Spoiler-safe through guard.ts: no results, only air times, titles and your own progress. Someone's follow
 // shows only if they share it, with how far they are (step 15 part 3: Where I am shares both, or neither).
+//
+// Open read-only from the desk (read-only.ts): the couch's people and that one game of theirs, none of it yours.
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId: string }> }) => {
   const { seasonId } = await params;
   const user = await requireAuth(req);
@@ -26,7 +29,10 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ seasonId
   await healCouches(user.id);
 
   // A couch's games here, and your own solo games (a public pool, a practice couch: step 9 part 3) after them.
-  const gamesHere = await games(user.id, couchId ? { couchIds: [couchId], seasonId, withSolo: true } : { mine: true, seasonId });
+  const ro = await readOnlyFor(req, user, seasonId, couchId);
+  const gamesHere = ro
+    ? await games(user.id, { leagueId: ro.leagueId, seasonId })
+    : await games(user.id, couchId ? { couchIds: [couchId], seasonId, withSolo: true } : { mine: true, seasonId });
   const [schedules, seen, { rows: follow }] = await Promise.all([
     seasonSchedules([seasonId]),
     seenThrough(user.id, seasonId),

@@ -72,7 +72,7 @@ export function buildPasteImportPrompt(
   showSlug: string,
   season: number,
   episodeNumber: number,
-  /** structured: ask for the checklist as JSON (schema + a pre-filled skeleton), parsed free of charge. */
+  /** structured: kept for callers; the prompt always asks for the checklist as JSON (schema + a pre-filled skeleton). */
   opts?: { structured?: boolean }
 ): Promise<{ prompt: string; castCount: number; betCount: number }>;
 
@@ -90,8 +90,11 @@ export function researchFromPaste(
   season: number,
   episodeNumber: number,
   notes: string,
-  opts?: { model?: string; dry?: boolean; structured?: boolean }
-): Promise<EpisodeResearchRun>;
+  /** Always read as JSON, never by a paid model (`model` and `structured` are ignored); one that isn't JSON is refused.
+   *  merge/fill: folded into the stored answers field by field (an episode answered before); checkEpisode: refused with code
+   *  "EPISODE_MISMATCH" when it reads like another episode's (as researchFromPasteForLeague); via: who pasted ("bot"). */
+  opts?: { model?: string; dry?: boolean; structured?: boolean; merge?: boolean; fill?: boolean; checkEpisode?: boolean; via?: string }
+): Promise<EpisodeResearchRun & { id: string | null; format: unknown; submitted: EpisodeResearch }>;
 
 /**
  * A league's research context for one episode: its show, season, cast names (the season's staged cast, else the
@@ -181,3 +184,11 @@ export function storedBetAnswer(
 export function stageCachedSeasonResearch(pool: Pool, seasonId: string): Promise<{ episodes: number; inserted: number }>;
 
 export type { ResearchAnswer, ResearchCoverage };
+
+/** One season's episode as research reads it, by show slug and season number (the bot's quick check builds on it). */
+export function resolveSeasonResearchContext(
+  pool: Pool,
+  showSlug: string,
+  season: number,
+  episodeNumber: number
+): Promise<{ showName: string; season: number; episodeNumber: number; castNames: string[]; terms: { castaways: string; castaway: string }; format: { id: string; exitMethods: string[] } }>;

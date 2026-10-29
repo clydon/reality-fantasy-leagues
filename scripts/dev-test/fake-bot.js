@@ -2,7 +2,8 @@
 // the bot's scheduled runs (docs/PLAN-new-design.md step 6c) without ChatGPT or production's VM. It answers GET /health
 // and POST /ask like the real one; each question is answered by the check's own `answer(prompt)` (a string, or a promise
 // of one), after an optional delay, and every question asked is kept in `asked` (with `stream`: "progress" when it was
-// asked to stream how far it's got, as the real bot does: halfway through the delay, half the answer's written).
+// asked to stream how far it's got, as the real bot does: halfway through the delay, half the answer's written; and
+// `provider`, the AI it was asked to use: the desk's Settings › Which AI our bot asks).
 //
 //   const bot = await require("./fake-bot").start({ answer: (prompt) => "...", delayMs: 1500 });
 //   // point the dev server at it for a request or a browser: header  x-gys-bot: bot.url   (next dev only, loopback only)
@@ -52,7 +53,7 @@ async function start(opts = {}) {
         // stream "progress" (the real bot's, llm-browser-api): a line asking, half the delay, a line with half the answer
         // written (its pattern counted in it), the other half, then the answer on a line (a failure as { detail }).
         const streamed = body.stream === "progress";
-        bot.asked.push({ kind: kindOf(prompt), prompt, at: Date.now(), stream: streamed ? "progress" : null });
+        bot.asked.push({ kind: kindOf(prompt), prompt, at: Date.now(), stream: streamed ? "progress" : null, provider: body.provider || null });
         bot.busy++;
         const started = Date.now();
         const wait = (ms) => (ms ? new Promise((r) => setTimeout(r, ms)) : null);

@@ -94,7 +94,7 @@ interface Season {
 async function seasonOf(seasonId: string, db: Queryable = pool): Promise<Season> {
   const [{ rows }, { rows: titles }, { rows: count }] = await Promise.all([
     db.query(
-      `SELECT s.name, s.kind, s.castaway_term, s.episode_term, s.set_up_at IS NOT NULL AS ready, ss.season_number, ss.name AS season_name
+      `SELECT s.name, s.kind, s.castaway_term, s.castaway_plural, s.episode_term, s.set_up_at IS NOT NULL AS ready, ss.season_number, ss.name AS season_name
          FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1`,
       [seasonId]
     ),
@@ -108,7 +108,7 @@ async function seasonOf(seasonId: string, db: Queryable = pool): Promise<Season>
     seasonLabel: r.season_name || (r.season_number ? `season ${r.season_number}` : "this season"),
     kind: r.kind,
     ready: !!r.ready,
-    words: showWords({ castaway: r.castaway_term, episode: r.episode_term }),
+    words: showWords({ castaway: r.castaway_term, people: r.castaway_plural, episode: r.episode_term }),
     titles: titles.map((t) => t.title as string),
     people: count[0].n as number,
   };

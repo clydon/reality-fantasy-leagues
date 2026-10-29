@@ -15,7 +15,6 @@ import { useSeasonCastMode } from "@/lib/season-cast-api";
 import { SeasonCastNotice } from "./season-cast-notice";
 import { TribesSection } from "./tribes-section";
 import { CastImportSection } from "./cast-import-section";
-import { WikiConnectorSection } from "./wiki-connector-section";
 import { GroupHead, MoreButton, RowList, SettingsPage, TextSheet } from "./settings-ui";
 
 // League Settings > Castaways & tribes (docs/PLAN-ux-redesign.md, 2b): tribes as colour + name rows,
@@ -40,7 +39,6 @@ export function CastPage() {
       <CastawaysSection state={state} />
       <TribesSection state={state} />
       {!empty && <CastImportSection state={state} />}
-      <WikiConnectorSection state={state} />
     </SettingsPage>
   );
 }

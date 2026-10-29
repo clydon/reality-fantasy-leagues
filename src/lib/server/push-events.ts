@@ -507,6 +507,94 @@ export function notifyLetIn(leagueId: string, seasonId: string | null, userId: s
   }));
 }
 
+/**
+ * The desk handed someone games nobody else would run (docs/PLAN-desk-parity.md step 1, Hand on): they hear they're the
+ * Commissioner now, with a link to the first game's Backstage. One notice for all of them, under Invites and join requests.
+ */
+export function notifyHandedOn(o: { userId: string; leagueIds: string[]; games: string; key: string }) {
+  if (!o.leagueIds.length) return;
+  notifyAfter("invite", async () => {
+    const ls = await leagueSeason(o.leagueIds[0]);
+    const many = o.leagueIds.length > 1;
+    return {
+      userIds: [o.userId],
+      seasonId: ls.seasonId,
+      message: {
+        title: `You run ${o.games} now`,
+        body: `You're ${many ? "their" : "its"} Commissioner: results, waivers, rules and roles are yours.`,
+        url: link("/", o.leagueIds[0]),
+        next: ls.seasonId ? `/show/${ls.seasonId}/backstage` : "/home",
+        tag: `handed-${o.key}`,
+        key: `handed:${o.key}:${o.userId}`,
+        seasonId: ls.seasonId,
+      },
+    };
+  });
+}
+
+/**
+ * The desk signed someone in to a seat, or put them back in a game they'd left (docs/PLAN-desk-parity.md part 6b): they
+ * hear, with a link to the game's show. Under Invites and join requests.
+ */
+export function notifyDeskSeat(o: { userId: string; leagueId: string; title: string; body: string; key: string }) {
+  notifyAfter("invite", async () => {
+    const ls = await leagueSeason(o.leagueId);
+    return {
+      userIds: [o.userId],
+      seasonId: ls.seasonId,
+      message: {
+        title: o.title,
+        body: o.body,
+        url: link("/", o.leagueId),
+        next: ls.seasonId ? `/show/${ls.seasonId}/games` : "/home",
+        tag: `seat-${o.leagueId}`,
+        key: `seat:${o.key}:${o.userId}`,
+        seasonId: ls.seasonId,
+      },
+    };
+  });
+}
+
+/**
+ * The desk deleted a game (docs/PLAN-desk-parity.md part 6a): whoever had a seat in it hears, and that it can come back for
+ * 30 days. Under A game started: a game's coming and going on your couch.
+ */
+export function notifyGameDeleted(o: { userIds: string[]; leagueId: string; name: string; couch: string | null; seasonId: string | null; batch: string }) {
+  if (!o.userIds.length) return;
+  notifyAfter("gameStarted", async () => ({
+    userIds: o.userIds,
+    seasonId: o.seasonId,
+    message: {
+      title: `${o.name} was deleted`,
+      body: `A site admin took it off ${o.couch ?? "the app"}. Your team, picks and scores in it are kept for 30 days, in case it comes back.`,
+      url: "/",
+      next: "/home",
+      tag: `game-deleted-${o.leagueId}`,
+      key: `game-deleted:${o.batch}`,
+      seasonId: o.seasonId,
+    },
+  }));
+}
+
+/**
+ * The desk deleted a couch (docs/PLAN-desk-parity.md part 6d): everyone on it, and anyone with a seat in its games, hears
+ * once (not once a game), and that it can come back for 30 days. Under New on your couch: a couch's coming and going.
+ */
+export function notifyCouchDeleted(o: { userIds: string[]; couchId: string; name: string; games: number; key: string }) {
+  if (!o.userIds.length) return;
+  notifyAfter("couchJoined", async () => ({
+    userIds: o.userIds,
+    message: {
+      title: `${o.name} was deleted`,
+      body: `A site admin took it down${o.games ? `, with its ${o.games === 1 ? "game" : `${o.games} games`}` : ""}. Everything on it is kept for 30 days, in case it comes back.`,
+      url: "/",
+      next: "/home",
+      tag: `couch-deleted-${o.couchId}`,
+      key: `couch-deleted:${o.key}`,
+    },
+  }));
+}
+
 /** Someone joined a couch with its code (step 15 part 2): everyone already on it hears. */
 export function notifyCouchJoined(couchId: string, joinerUserId: string, joinerName: string) {
   notifyAfter("couchJoined", async () => {
@@ -736,12 +824,12 @@ export function notifyBingoCall(o: { seasonId: string; episode: number; couchId:
 export function notifyResearched(o: { userId: string; seasonId: string; episode: number; askedAt: Date; ok: boolean; found: number | null }) {
   notifyAfter("researchDone", async () => {
     const { rows } = await pool.query(
-      "SELECT s.name AS show_name, s.castaway_term, s.episode_term, ss.season_number FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1",
+      "SELECT s.name AS show_name, s.castaway_term, s.castaway_plural, s.episode_term, ss.season_number FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1",
       [o.seasonId]
     );
     if (!rows[0]) return null;
     const label = seasonLabel(rows[0].show_name, rows[0].season_number);
-    const w = showWords({ castaway: rows[0].castaway_term, episode: rows[0].episode_term });
+    const w = showWords({ castaway: rows[0].castaway_term, people: rows[0].castaway_plural, episode: rows[0].episode_term });
     const ep = `${w.episode} ${o.episode}`;
     const found = o.found ?? 0;
     const words = o.ok

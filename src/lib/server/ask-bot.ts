@@ -19,6 +19,23 @@ const KEY = process.env.LLM_BROWSER_API_KEY;
 
 export const askBotConfigured = URLS.length > 0 && !!KEY;
 
+/** Which AI the bot asks (the desk's Settings › Which AI our bot asks, app_settings 'bot_ai'; docs/PLAN-desk-parity.md part
+ *  7c): ChatGPT signed in on its computer (the default), or Claude through the Claude Code CLI there. Gemini can't do the
+ *  research prompts, so it isn't one. */
+export const BOT_PROVIDERS = ["chatgpt", "claude"] as const;
+export type BotProvider = (typeof BOT_PROVIDERS)[number];
+export const BOT_PROVIDER_NAMES: Record<BotProvider, string> = { chatgpt: "ChatGPT", claude: "Claude" };
+
+/** The bot's AI, as the desk set it: read with each ask (one small row), so a change reaches the next question. */
+export async function botProvider(): Promise<BotProvider> {
+  try {
+    const { rows } = await pool.query("SELECT value FROM app_settings WHERE key = 'bot_ai'");
+    return BOT_PROVIDERS.includes(rows[0]?.value) ? rows[0].value : "chatgpt";
+  } catch {
+    return "chatgpt";
+  }
+}
+
 /** How far an answer has got (the bot's stream "progress"): its stage, how much is written, and how often the asker's
  *  pattern is in it (one per person answered, say). */
 export interface BotProgress {
@@ -34,6 +51,8 @@ export interface BotChoice {
   budgetMs?: number;
   /** Hear how the answer is going while it comes (`pattern`, a regular expression, counted in what's written so far). */
   progress?: { pattern?: string | null; on: (p: BotProgress) => void };
+  /** Which AI it asks (default: the desk's setting, botProvider). */
+  provider?: BotProvider;
 }
 
 type BotAnswer = { response?: string; seconds?: number; detail?: string };
@@ -139,6 +158,7 @@ export async function askBotStatus(o: BotChoice = {}): Promise<{ available: bool
 export async function askBot(prompt: string, o: BotChoice = {}): Promise<{ answer: string; seconds: number }> {
   if (!configured(o)) throw new HttpError(404, "The ask-AI bot isn't set up here.");
   const deadline = Date.now() + Math.min(BUDGET_MS, o.budgetMs ?? BUDGET_MS);
+  const provider = o.provider ?? (await botProvider());
   const failures: string[] = [];
   for (const url of urlsFor(o)) {
     const left = deadline - Date.now();
@@ -156,7 +176,7 @@ export async function askBot(prompt: string, o: BotChoice = {}): Promise<{ answe
         // Cloudflare's tunnel doesn't cut off an answer that takes over 100 s (error 524): a full episode's research does.
         // stream "progress" keeps the line open the same way, with how far it's got on each line.
         body: JSON.stringify({
-          provider: "chatgpt",
+          provider,
           prompt,
           search: true,
           max_wait: Math.floor((left - 15_000) / 1000),
@@ -172,7 +192,7 @@ export async function askBot(prompt: string, o: BotChoice = {}): Promise<{ answe
       failures.push(`${new URL(url).host}: ${e instanceof Error ? e.message : "failed"}`);
     }
   }
-  throw new HttpError(502, `ChatGPT didn't answer. ${failures.join(" · ")}`);
+  throw new HttpError(502, `${BOT_PROVIDER_NAMES[provider]} didn't answer. ${failures.join(" · ")}`);
 }
 
 /**

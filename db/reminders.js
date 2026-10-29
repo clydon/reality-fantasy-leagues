@@ -6,12 +6,12 @@
 //   node db/reminders.js          # send whatever is due now
 //   node db/reminders.js --dry    # say what would be sent, send and record nothing
 //
-// Run hourly by .github/workflows/auto-research.yml, right after auto-research. Each (person,
+// Run hourly by .github/workflows/reminders-waivers.yml, before waivers.js. Each (person,
 // league, kind, episode, window) is sent at most once -- reminder_log's primary key -- so running it
 // more often only makes it more punctual.
 //
 // Only leagues following a real season's air schedule: the league's show/season must be in the
-// catalog with a schedule and still airing (auto-research's isSeasonLive), and a catching-up league
+// catalog with a schedule and still airing (season-clock.js isSeasonLive), and a catching-up league
 // is skipped -- it plays at its own pace, not the broadcast's.
 //
 // And one for commissioners, after an episode rather than before it: the morning after it airs (9am
@@ -26,7 +26,7 @@ const Air = require("../src/lib/game/air-schedule.js");
 const StateLogic = require("../src/lib/game/state-logic.js");
 const { actionItems, resultsDueEpisode, resultsHref } = require("../src/lib/game/action-items.js");
 const { sendPush } = require("../src/lib/server/push-core.js");
-const { loadSeasons, isSeasonLive } = require("./auto-research.js");
+const { loadSeasons, isSeasonLive } = require("./season-clock.js");
 
 const HOUR = 60 * 60 * 1000;
 // Checked nearest-first: inside 2 hours is the "2h" reminder even if the 24h one never went out (the
@@ -69,18 +69,19 @@ function morningAfter(airAt, tz) {
 async function runReminders(pool, opts = {}) {
   const now = opts.now || new Date();
   const key = (s) => `${s.slug}|${s.season_number}`;
-  const seasons = new Map((await loadSeasons(pool)).filter((s) => isSeasonLive(s, now)).map((s) => [key(s), s]));
-  // Every airing season, for the commissioners' results nudge (see the top of the file).
+  // Every airing season, for both the players' reminders and the commissioners' results nudge (see the top of the file). The
+  // players' went only to seasons with auto-research's switch on until that switch went with paid research; the user chose
+  // every airing season (2026-10-29, BACKLOG 23). Each person's own switches still decide what reaches them (push-core.js).
   const airing = new Map((await loadSeasons(pool, "ss.status = 'airing'")).filter((s) => isSeasonLive(s, now)).map((s) => [key(s), s]));
-  if (!seasons.size && !airing.size) return { sent: 0 };
+  if (!airing.size) return { sent: 0 };
 
   // A deleted or archived game (step 10 part 2b) hears nothing.
   const { rows: leagues } = await pool.query("SELECT id, name, state FROM leagues WHERE deleted_at IS NULL AND COALESCE(state->'settings'->>'archivedAt', '') = ''");
   let sent = 0;
   for (const league of leagues) {
     try {
-      if (seasons.size) sent += await remindLeague(pool, league, seasons, now, opts);
-      if (airing.size) sent += await remindResults(pool, league, airing, now, opts);
+      sent += await remindLeague(pool, league, airing, now, opts);
+      sent += await remindResults(pool, league, airing, now, opts);
     } catch (e) {
       // One league's bad state mustn't cost every other league its reminders.
       console.error(`[reminders] league ${league.id}:`, e.message);

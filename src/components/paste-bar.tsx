@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ClipboardPaste, X } from "lucide-react";
-import { ActButton } from "@/components/admin/admin-ui";
+import { ActButton } from "@/components/ui/act-ui";
 import { tourMark } from "@/lib/tour/tour-store";
 
 // Paste and Clear for the boxes where a commissioner pastes an AI chat's answer (the cast, an

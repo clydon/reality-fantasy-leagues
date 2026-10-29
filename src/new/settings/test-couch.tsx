@@ -46,7 +46,7 @@ export function useTestCouch(enabled = true) {
 /** Into a test player (from you, or from another of them), or back to you (null). A full reload: their session, their home. */
 export async function switchTo(userId: string | null, viewingAs: boolean) {
   if (viewingAs) await api.stopImpersonating();
-  if (userId) await api.adminImpersonate(userId);
+  if (userId) await api.actAsTestPlayer(userId);
   window.location.href = paths.home;
 }
 

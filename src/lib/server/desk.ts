@@ -1,22 +1,21 @@
 import type { Pool, PoolClient } from "pg";
-import { TIEBREAK_AFTER_MS, tiebreakNext, tiebreakOn, tiebreakQuestions } from "@db/bot-research.js";
-import { phaseCues } from "@db/rulebooks.js";
+import { TIEBREAK_AFTER_MS, tiebreakOn } from "@db/bot-research.js";
 import { isSuperAdminUser, requireAuth, type SessionUser } from "./auth-helpers";
 import { confirmAt, settleEverything } from "./community-results";
 import { pool, HttpError } from "./db";
+import { BOT_PROVIDER_NAMES, BOT_PROVIDERS, botProvider, type BotProvider } from "./ask-bot";
 import { autopilotSeasons, nudgeBotClock, tiebreakReach } from "./desk-bot";
-import { deskNotices } from "./show-changes";
+import { restoreFlag } from "./desk-rulebooks-flag";
 import { signupMode, waitingCount } from "./way-in";
 import { SIGNUP_MODES, type SignupMode } from "@/lib/signups";
 
 // The admin's desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js admin): results settle by
-// community, and the admin is the exception desk. Three tabs from the profile menu: Inbox (only what the community
-// couldn't settle: a split, a flag nobody's answer checked within a day, a couch nobody runs, a phase start to
-// confirm, a rulebook fix someone suggested; and the week's numbers, what settled on its own), Find (one search over
+// community, and the admin is the exception desk. Three tabs from the profile menu: Inbox (desk-inbox.ts: only what needs
+// the admin, most urgent first, and the week), Find (one search over
 // shows, seasons, castaways, couches, people and rulebooks; each has a page with Override, a Lock and its History) and
 // Settings. Every change the desk makes is a row in admin_changes (0113), with its undo where it has one.
 
-export type DeskEntity = "fact" | "castaway" | "season" | "rulebook" | "couch" | "settings" | "show";
+export type DeskEntity = "fact" | "castaway" | "season" | "rulebook" | "couch" | "settings" | "show" | "person" | "report" | "game";
 
 /** Site admins only: 403 for anyone else (the desk's routes and screens). */
 export async function requireDesk(req: Request): Promise<SessionUser> {
@@ -79,14 +78,17 @@ export interface DeskSettings {
   confirmAt: number;
   /** Who can fill in results on a couch made from now on. */
   newCouchesAnyone: boolean;
-  /** The rulebooks flag (every season's leagues play by its rulebook), and the seasons switched on one by one. */
-  rulebooks: { everywhere: boolean; seasons: { id: string; name: string }[] };
+  /** The rulebooks flag (every season's leagues play by its rulebook), the seasons switched on one by one (with how many games
+   *  play by each one's rulebook), and how many leagues play by a rulebook now. */
+  rulebooks: { everywhere: boolean; seasons: { id: string; name: string; games: number }[]; leagues: number };
   /** The tie-break run (step 6c part 2): on or off (off by default), and the airing seasons it would reach. */
   tiebreak: { on: boolean; hours: number; reach: string[] };
   /** Autopilot's trial: the seasons whose bot schedule is on, and what each checks (each season's page changes it). */
   autopilot: { id: string; name: string; line: string }[];
   /** Who gets in (step 9 part 2, src/lib/signups.ts), and how many new accounts are waiting to. */
   signups: { mode: SignupMode; waiting: number };
+  /** Which AI our bot asks (part 7c: app_settings 'bot_ai', sent with each ask by askBot). */
+  botAi: BotProvider;
 }
 
 async function setting(key: string): Promise<unknown> {
@@ -102,16 +104,21 @@ export async function newCouchesAnyone(db: Db = pool): Promise<boolean> {
 
 export async function deskSettings(): Promise<DeskSettings> {
   const { rows: live } = await pool.query(
-    `SELECT ss.id, COALESCE(ss.name, s.name || ' ' || ss.season_number) AS name FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
+    `SELECT ss.id, COALESCE(ss.name, s.name || ' ' || ss.season_number) AS name,
+            (SELECT count(*)::int FROM leagues l WHERE l.deleted_at IS NULL AND l.state->'settings' ? 'rulebook'
+                AND l.state->'settings'->>'showId' = s.slug AND l.state->'settings'->>'wikiSeason' = ss.season_number::text) AS games
+       FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
       WHERE ss.rulebook_live ORDER BY s.name, ss.season_number`
   );
+  const { rows: on } = await pool.query("SELECT count(*)::int AS n FROM leagues WHERE deleted_at IS NULL AND state->'settings' ? 'rulebook'");
   return {
     confirmAt: await confirmAt(),
     newCouchesAnyone: await newCouchesAnyone(),
-    rulebooks: { everywhere: (await setting("rulebooks")) === true, seasons: live },
+    rulebooks: { everywhere: (await setting("rulebooks")) === true, seasons: live, leagues: on[0].n },
     tiebreak: { on: await tiebreakOn(pool), hours: TIEBREAK_AFTER_MS / 3600000, reach: await tiebreakReach() },
     autopilot: await autopilotSeasons(),
     signups: { mode: await signupMode(), waiting: await waitingCount() },
+    botAi: await botProvider(),
   };
 }
 
@@ -124,15 +131,17 @@ const putSetting = (key: string, value: unknown) =>
 /** Changes one setting (with its undo in History); the Confirmed threshold settles every community fact again. */
 export async function setDeskSetting(
   user: SessionUser,
-  body: { confirmAt?: unknown; newCouchesAnyone?: unknown; tiebreak?: unknown; signups?: unknown }
-): Promise<DeskSettings> {
+  body: { confirmAt?: unknown; newCouchesAnyone?: unknown; tiebreak?: unknown; signups?: unknown; botAi?: unknown }
+): Promise<DeskSettings & { changeIds: string[] }> {
   const was = await deskSettings();
+  // The changes made, for the toast's Undo (each sheet changes one setting; a PUT may change several).
+  const changeIds: string[] = [];
   if (body.confirmAt !== undefined) {
     const n = Number(body.confirmAt);
     if (!Number.isInteger(n) || n < 2 || n > 5) throw new HttpError(400, "Confirmed needs 2 to 5 sources");
     if (n !== was.confirmAt) {
       await putSetting("confirm_at", n);
-      await logDesk(pool, { entity: "settings", entityId: "confirm_at", action: "set", text: `Confirmed needs ${n} sources that agree`, before: was.confirmAt, after: n, undo: { type: "setting", key: "confirm_at", value: was.confirmAt }, userId: user.id });
+      changeIds.push(await logDesk(pool, { entity: "settings", entityId: "confirm_at", action: "set", text: `Sources to confirm a result: ${n} that agree`, before: was.confirmAt, after: n, undo: { type: "setting", key: "confirm_at", value: was.confirmAt }, userId: user.id }));
       await settleEverything(user.id);
     }
   }
@@ -140,7 +149,8 @@ export async function setDeskSetting(
     if (typeof body.newCouchesAnyone !== "boolean") throw new HttpError(400, "newCouchesAnyone is true or false");
     if (body.newCouchesAnyone !== was.newCouchesAnyone) {
       await putSetting("new_couch_fill", body.newCouchesAnyone);
-      await logDesk(pool, {
+      changeIds.push(
+        await logDesk(pool, {
         entity: "settings",
         entityId: "new_couch_fill",
         action: "set",
@@ -149,7 +159,8 @@ export async function setDeskSetting(
         after: body.newCouchesAnyone,
         undo: { type: "setting", key: "new_couch_fill", value: was.newCouchesAnyone },
         userId: user.id,
-      });
+      })
+      );
     }
   }
   // The tie-break run: the bot asks a disputed episode once more after a day (db/bot-research.js), on every season.
@@ -157,16 +168,18 @@ export async function setDeskSetting(
     if (typeof body.tiebreak !== "boolean") throw new HttpError(400, "tiebreak is true or false");
     if (body.tiebreak !== was.tiebreak.on) {
       await putSetting("tiebreak", body.tiebreak);
-      await logDesk(pool, {
+      changeIds.push(
+        await logDesk(pool, {
         entity: "settings",
         entityId: "tiebreak",
         action: "set",
-        text: body.tiebreak ? "Tie-break run on: the bot checks a result disputed for a day" : "Tie-break run off",
+        text: body.tiebreak ? "When a result is disputed: the bot asks again after a day" : "When a result is disputed: it waits for a couch to check again",
         before: was.tiebreak.on,
         after: body.tiebreak,
         undo: { type: "setting", key: "tiebreak", value: was.tiebreak.on },
         userId: user.id,
-      });
+      })
+      );
       nudgeBotClock();
     }
   }
@@ -176,7 +189,8 @@ export async function setDeskSetting(
     const mode = body.signups as SignupMode;
     if (mode !== was.signups.mode) {
       await putSetting("signups", mode);
-      await logDesk(pool, {
+      changeIds.push(
+        await logDesk(pool, {
         entity: "settings",
         entityId: "signups",
         action: "set",
@@ -185,10 +199,31 @@ export async function setDeskSetting(
         after: mode,
         undo: { type: "setting", key: "signups", value: was.signups.mode },
         userId: user.id,
-      });
+      })
+      );
     }
   }
-  return deskSettings();
+  // Which AI our bot asks: sent with every ask from the next one (ask-bot.ts askBot reads it each time).
+  if (body.botAi !== undefined) {
+    if (!BOT_PROVIDERS.includes(body.botAi as BotProvider)) throw new HttpError(400, "botAi is chatgpt or claude");
+    const ai = body.botAi as BotProvider;
+    if (ai !== was.botAi) {
+      await putSetting("bot_ai", ai);
+      changeIds.push(
+        await logDesk(pool, {
+          entity: "settings",
+          entityId: "bot_ai",
+          action: "set",
+          text: `Our bot asks ${BOT_PROVIDER_NAMES[ai]}`,
+          before: was.botAi,
+          after: ai,
+          undo: { type: "setting", key: "bot_ai", value: was.botAi },
+          userId: user.id,
+        })
+      );
+    }
+  }
+  return { ...(await deskSettings()), changeIds };
 }
 
 const SIGNUP_LINES: Record<SignupMode, string> = {
@@ -207,6 +242,8 @@ export async function restoreSetting(key: string, value: unknown, userId: string
     await putSetting("tiebreak", value === true);
     nudgeBotClock();
   } else if (key === "signups" && SIGNUP_MODES.includes(value as SignupMode)) await putSetting("signups", value);
+  else if (key === "bot_ai" && BOT_PROVIDERS.includes(value as BotProvider)) await putSetting("bot_ai", value);
+  else if (key === "rulebooks") await restoreFlag(value === true);
   else throw new HttpError(409, "That setting can't be put back here");
 }
 
@@ -217,157 +254,40 @@ export const settingsLines = async () =>
     ...(await deskLines("settings", "new_couch_fill")),
     ...(await deskLines("settings", "tiebreak")),
     ...(await deskLines("settings", "signups")),
+    ...(await deskLines("settings", "bot_ai")),
+    ...(await deskLines("settings", "rulebooks")),
   ]);
 
-// ---------- Inbox ----------
+// ---------- shared by the Inbox (desk-inbox.ts) and Find ----------
 
-export interface InboxItem {
-  kind: "split" | "stale" | "stranded" | "phase" | "suggestion" | "change" | "made" | "show";
-  title: string;
-  line: string;
-  href: string;
-}
-
-export interface Inbox {
-  items: InboxItem[];
-  week: { researched: number; confirmed: number; settled: number; rulings: number };
-}
-
-const seasonName = `COALESCE(ss.name, s.name || ' ' || ss.season_number)`;
+/** A season's name, as SQL over `show_seasons ss` joined to `shows s`. */
+export const SEASON_NAME = `COALESCE(ss.name, s.name || ' ' || ss.season_number)`;
+const seasonName = SEASON_NAME;
 /** League `l` has people playing it and nobody running it (no Commissioner, no site admin among them). */
 export const STRANDED = `EXISTS (SELECT 1 FROM league_memberships m WHERE m.league_id = l.id)
   AND NOT EXISTS (SELECT 1 FROM league_memberships m JOIN "user" u ON u.id = m.user_id WHERE m.league_id = l.id AND (m.role = 'commissioner' OR u.role = 'admin'))`;
-const DAY = "interval '1 day'";
 /** "rewardWin" -> "Reward win": a result's id, readable where the show's own label isn't to hand. */
 export const readable = (id: string) => String(id || "").replace(/([A-Z])/g, " $1").replace(/^./, (c) => c.toUpperCase()).trim();
 /** "Brady · Found an idol", or "Nobody went home" (step 6c's fact about no one). */
-const factTitle = (f: { castaway_name: string; kind: string; method: string; event_type: string }) =>
+export const factTitle = (f: { castaway_name: string; kind: string; method: string; event_type: string }) =>
   f.kind === "noexit" ? "Nobody went home" : `${f.castaway_name} · ${f.kind === "event" ? readable(f.event_type) : f.method || f.kind}`;
-// An answer for the fact's episode since a flag was raised.
-const ANSWER_SINCE = `EXISTS (SELECT 1 FROM episode_research er WHERE er.show_id = ss.show_id AND er.season_number = ss.season_number
-  AND er.episode_number = d.episode_number AND er.source <> 'combined' AND er.withdrawn_at IS NULL AND er.researched_at > x.created_at)`;
-
-/**
- * The episodes whose tie-break run hasn't had its say yet, while the desk's switch is on ("season:episode"): their
- * disputes wait for it before they're the admin's. And the ones a tie-break has answered, for the line.
- */
-async function tiebreaks(): Promise<{ pending: Set<string>; answered: Set<string> }> {
-  const pending = new Set<string>();
-  const answered = new Set<string>();
-  if (!(await tiebreakOn(pool))) return { pending, answered };
-  for (const q of await tiebreakQuestions(pool)) {
-    const key = `${q.seasonId}:${q.episode}`;
-    if (q.tries.some((t) => t.ok === true)) answered.add(key);
-    const at = tiebreakNext(q);
-    // Still to come, and not gone stale (three days past due: the bot was down, say).
-    if (at && at.next.getTime() - at.due.getTime() <= 3 * 24 * 3600 * 1000) pending.add(key);
-  }
-  return { pending, answered };
-}
-
-/** Only what needs the admin: the community and its couches handle the rest. */
-export async function inbox(): Promise<Inbox> {
-  const items: InboxItem[] = [];
-  // A disputed fact with no flag waiting for an answer is a split the next answer didn't settle; one flagged a day
-  // ago with no answer since: either way it's the admin's now. With the tie-break run on (6c part 2), each waits for its
-  // episode's tie-break first, and reaches the desk only if that didn't settle it.
-  const tie = await tiebreaks();
-  const { rows: facts } = await pool.query(
-    `SELECT d.id, d.season_id, d.castaway_name, d.kind, d.method, d.event_type, d.episode_number, ${seasonName} AS season,
-            EXISTS (SELECT 1 FROM fact_disputes x WHERE x.decision_id = d.id AND x.status = 'open' AND NOT ${ANSWER_SINCE}) AS stale
-       FROM season_decisions d JOIN show_seasons ss ON ss.id = d.season_id JOIN shows s ON s.id = ss.show_id
-      WHERE d.locked_at IS NULL AND d.fact_status IS NOT NULL
-        AND (d.fact_status = 'disputed' OR EXISTS (SELECT 1 FROM fact_disputes x WHERE x.decision_id = d.id AND x.status = 'open'))
-        AND NOT EXISTS (SELECT 1 FROM fact_disputes x WHERE x.decision_id = d.id AND x.status = 'open' AND x.created_at > now() - ${DAY} AND NOT ${ANSWER_SINCE})
-      ORDER BY d.episode_number DESC LIMIT 30`
-  );
-  for (const f of facts) {
-    const key = `${f.season_id}:${f.episode_number}`;
-    if (tie.pending.has(key)) continue;
-    const tried = tie.answered.has(key);
-    items.push({
-      kind: f.stale ? "stale" : "split",
-      title: factTitle(f),
-      line: `${f.season} · Episode ${f.episode_number} · ${f.stale ? (tried ? "flagged, and the tie-break run didn't settle it" : "flagged a day ago, nothing's checked it") : tried ? "the sources split, the tie-break run too" : "the sources split"}`,
-      href: `/desk/fact/${f.id}`,
-    });
-  }
-  // A couch with a game people play that nobody runs: its only commissioner left or deleted their account. A site
-  // admin who plays it runs it (classic always let them), so that game isn't stranded.
-  const { rows: stranded } = await pool.query(
-    `SELECT c.id, c.name, count(DISTINCT l.id)::int AS games, (SELECT count(*)::int FROM couch_members m WHERE m.couch_id = c.id) AS members
-       FROM couches c JOIN leagues l ON l.couch_id = c.id
-      WHERE ${STRANDED}
-      GROUP BY c.id, c.name ORDER BY c.name LIMIT 20`
-  );
-  for (const c of stranded) {
-    items.push({ kind: "stranded", title: `${c.name} has no one running it`, line: `${c.games} ${c.games === 1 ? "game" : "games"} with no commissioner · ${c.members} on the couch`, href: `/desk/couch/${c.id}` });
-  }
-  // A phase that starts when the show says so (or when N are left), on an airing season, with no confirmed start, once
-  // something says it's begun: before then (the merge, three episodes in) there's nothing to confirm.
-  const { rows: books } = await pool.query(
-    `SELECT r.id, r.season_id, r.blocks, r.phase_starts, ${seasonName} AS season FROM rulebooks r JOIN show_seasons ss ON ss.id = r.season_id JOIN shows s ON s.id = ss.show_id
-      WHERE r.owner_kind = 'season' AND r.status = 'in_force' AND ss.status = 'airing'`
-  );
-  for (const b of books) {
-    const open = (b.blocks?.season?.phases ?? []).filter((p: { id: string; starts?: { type: string } }) => p?.starts && p.starts.type !== "episode" && (b.phase_starts ?? {})[p.id] == null);
-    if (!open.length) continue;
-    const cues = await phaseCues(pool, b.season_id, b.blocks);
-    for (const p of open) {
-      const c = cues[p.id];
-      if (!c) continue;
-      const why = c.by === "left" ? `${c.left} left going into Episode ${c.episode}` : `${c.by === "research" ? "Research says" : "The results say"} it began in Episode ${c.episode}`;
-      items.push({ kind: "phase", title: `${b.season}: when did ${String(p.name).toLowerCase().startsWith("the ") ? p.name : `the ${p.name}`} start?`, line: `${why} · its segments wait until it's set`, href: `/desk/rulebook/${b.id}` });
-    }
-  }
-  // Something new the couches split on, or that couldn't go in on its own (step 6c part 2).
-  for (const n of await deskNotices()) {
-    items.push({ kind: "change", title: `${n.season}: something new in Episode ${n.episode}?`, line: `${n.line ?? "The couches split"} · "${n.note.slice(0, 80)}"`, href: n.rulebookId ? `/desk/rulebook/${n.rulebookId}` : `/desk/season/${n.seasonId}` });
-  }
-  const { rows: tips } = await pool.query(
-    `SELECT g.id, g.note, g.rulebook_id, ${seasonName} AS season, COALESCE(u.username, u.name) AS who
-       FROM rulebook_suggestions g JOIN show_seasons ss ON ss.id = g.season_id JOIN shows s ON s.id = ss.show_id LEFT JOIN "user" u ON u.id = g.user_id
-      WHERE g.status = 'open' ORDER BY g.created_at LIMIT 20`
-  );
-  for (const t of tips) {
-    items.push({ kind: "suggestion", title: `A fix for ${t.season}'s rulebook`, line: `From ${t.who ?? "someone"} · "${String(t.note).slice(0, 80)}"`, href: t.rulebook_id ? `/desk/rulebook/${t.rulebook_id}` : "/desk/find" });
-  }
-  // A rulebook someone made with Make it a game (step 10 part 2a) that nobody on another couch has checked: every couch plays
-  // by it, so the desk looks it over (Take it over). Once another couch checks it, the couches have settled it.
-  const { rows: made } = await pool.query(
-    `SELECT r.id, ${seasonName} AS season, r.provenance->>'via' AS via, COALESCE(u.username, u.name) AS who
-       FROM rulebooks r JOIN show_seasons ss ON ss.id = r.season_id JOIN shows s ON s.id = ss.show_id LEFT JOIN "user" u ON u.id = r.created_by
-      WHERE r.owner_kind = 'season' AND r.status <> 'archived' AND r.provenance->>'from' = 'made' AND r.review_status = 'unreviewed'
-      ORDER BY r.created_at LIMIT 20`
-  );
-  for (const m of made) {
-    const how = m.via === "template" ? "Made from a template" : m.via === "paste" ? "Made with copy and paste" : "Made with ChatGPT";
-    items.push({ kind: "made", title: `${m.season}: a new rulebook`, line: `${how}${m.who ? ` by ${m.who}` : ""} · nobody on another couch has checked it`, href: `/desk/rulebook/${m.id}` });
-  }
-  // A show someone added by name (step 10 part 1): not in the TV listings, so nothing's known about it but its name, and it's
-  // in everyone's search. The desk looks it over (Looks fine, or archive it). Once it's a game its rulebook is what waits.
-  const { rows: named } = await pool.query(
-    `SELECT s.id, s.name, COALESCE(u.username, u.name) AS who,
-            (SELECT count(*)::int FROM show_follows f JOIN show_seasons ss ON ss.id = f.season_id WHERE ss.show_id = s.id AND f.following) AS following
-       FROM shows s LEFT JOIN "user" u ON u.id = s.created_by
-      WHERE s.created_by IS NOT NULL AND s.tvmaze_id IS NULL AND s.set_up_at IS NULL AND s.reviewed_at IS NULL AND s.archived = false
-      ORDER BY s.created_at LIMIT 20`
-  );
-  for (const n of named) {
-    items.push({ kind: "show", title: `${n.name}: added by name`, line: `By ${n.who ?? "someone"} · not in the TV listings · ${n.following} following`, href: `/desk/show/${n.id}` });
-  }
-
-  const count = async (sql: string) => (await pool.query(sql)).rows[0].n as number;
-  const week = {
-    researched: await count(`SELECT count(DISTINCT (show_id, season_number, episode_number))::int AS n FROM episode_research WHERE source <> 'combined' AND withdrawn_at IS NULL AND researched_at > now() - interval '7 days'`),
-    confirmed: await count(`SELECT count(*)::int AS n FROM season_decisions WHERE fact_status = 'confirmed' AND decided_at > now() - interval '7 days'`),
-    settled: await count(`SELECT count(*)::int AS n FROM fact_disputes WHERE status IN ('kept', 'upheld', 'checked') AND settled_at > now() - interval '7 days'`),
-    rulings: await count(`SELECT count(DISTINCT decision_id)::int AS n FROM league_rulings WHERE created_at > now() - interval '7 days'`),
-  };
-  return { items, week };
-}
 
 // ---------- Find ----------
+
+/**
+ * Browse's line for the Library (docs/PLAN-desk-parity.md step 1, Find › Browse): its starting points, the seasons'
+ * rulebooks (as its In use lists them), and new ones nobody on another couch has checked (as the Inbox's).
+ */
+export async function libraryCounts(): Promise<{ templates: number; inUse: number; unchecked: number }> {
+  const { rows } = await pool.query(
+    `SELECT count(*) FILTER (WHERE r.owner_kind = 'library' AND r.is_template)::int AS templates,
+            count(*) FILTER (WHERE r.owner_kind = 'season' AND s.archived = false)::int AS "inUse",
+            count(*) FILTER (WHERE r.owner_kind = 'season' AND s.archived = false AND r.provenance->>'from' = 'made' AND r.review_status = 'unreviewed')::int AS unchecked
+       FROM rulebooks r LEFT JOIN show_seasons ss ON ss.id = r.season_id LEFT JOIN shows s ON s.id = ss.show_id
+      WHERE r.status <> 'archived'`
+  );
+  return rows[0];
+}
 
 export interface FoundItem {
   kind: "show" | "season" | "castaway" | "couch" | "person" | "rulebook" | "fact";
@@ -376,23 +296,17 @@ export interface FoundItem {
   href: string;
 }
 
-/** One search over everything the desk can change. An empty search lists what's airing. */
+/**
+ * One search over everything the desk can change but people, couches, games and reports (each its own: Find shows a few and
+ * links the rest to its list, searched). An empty search lists what's airing.
+ */
 export async function find(q: string): Promise<FoundItem[]> {
   const term = q.trim();
-  if (!term) {
-    const { rows } = await pool.query(
-      `SELECT ss.id, ${seasonName} AS name, ss.status FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
-        WHERE ss.status = 'airing' ORDER BY s.name, ss.season_number LIMIT 12`
-    );
-    return rows.map((r) => ({ kind: "season" as const, title: r.name, line: "Season · airing", href: `/desk/season/${r.id}` }));
-  }
+  // Nothing typed is Browse's (Find › Shows has what's airing: part 7a).
+  if (!term) return [];
   const like = `%${term.replace(/[%_\\]/g, (c) => `\\${c}`)}%`;
   const out: FoundItem[] = [];
-  const { rows: shows } = await pool.query(
-    `SELECT s.id, s.name, (SELECT count(*)::int FROM show_seasons ss WHERE ss.show_id = s.id) AS seasons FROM shows s WHERE s.name ILIKE $1 ORDER BY s.name LIMIT 6`,
-    [like]
-  );
-  out.push(...shows.map((r) => ({ kind: "show" as const, title: r.name, line: `Show · ${r.seasons} ${r.seasons === 1 ? "season" : "seasons"}`, href: `/desk/show/${r.id}` })));
+  // Shows are Find's own rows, a few and All N (desk-shows.ts findShows: docs/PLAN-desk-parity.md part 7a).
   // The library's rulebooks by name (step 10 part 3): its starting points and drafts.
   const { rows: library } = await pool.query(
     `SELECT id, name, is_template FROM rulebooks WHERE owner_kind = 'library' AND status <> 'archived' AND name ILIKE $1 ORDER BY is_template DESC, name LIMIT 6`,
@@ -410,22 +324,12 @@ export async function find(q: string): Promise<FoundItem[]> {
     if (r.rulebook) out.push({ kind: "rulebook", title: `${r.name} · rulebook`, line: "Rulebook", href: `/desk/rulebook/${r.rulebook}` });
   }
   const { rows: cast } = await pool.query(
-    `SELECT sc.id, sc.name, ${seasonName} AS season FROM season_cast sc JOIN show_seasons ss ON ss.id = sc.season_id JOIN shows s ON s.id = ss.show_id
+    `SELECT sc.id, sc.season_id, sc.name, ${seasonName} AS season FROM season_cast sc JOIN show_seasons ss ON ss.id = sc.season_id JOIN shows s ON s.id = ss.show_id
       WHERE sc.name ILIKE $1 ORDER BY sc.name LIMIT 10`,
     [like]
   );
-  out.push(...cast.map((r) => ({ kind: "castaway" as const, title: r.name, line: `Cast · ${r.season}`, href: `/desk/castaway/${r.id}` })));
-  const { rows: couches } = await pool.query(
-    `SELECT c.id, c.name, (SELECT count(*)::int FROM couch_members m WHERE m.couch_id = c.id) AS members FROM couches c WHERE c.name ILIKE $1 ORDER BY c.name LIMIT 6`,
-    [like]
-  );
-  out.push(...couches.map((r) => ({ kind: "couch" as const, title: r.name, line: `Couch · ${r.members} on it`, href: `/desk/couch/${r.id}` })));
-  const { rows: people } = await pool.query(
-    `SELECT u.id, COALESCE(u.username, u.name) AS name, (SELECT count(*)::int FROM couch_members m WHERE m.user_id = u.id) AS couches
-       FROM "user" u WHERE u.username ILIKE $1 OR u.name ILIKE $1 ORDER BY u.username LIMIT 6`,
-    [like]
-  );
-  out.push(...people.map((r) => ({ kind: "person" as const, title: r.name, line: `Person · ${r.couches} ${r.couches === 1 ? "couch" : "couches"}`, href: `/desk/person/${r.id}` })));
+  out.push(...cast.map((r) => ({ kind: "castaway" as const, title: r.name, line: `Cast · ${r.season}`, href: `/desk/season/${r.season_id}/c/${r.id}` })));
+  // Couches are Find's own rows, a few and All N (desk-couches.ts findCouches: docs/PLAN-desk-parity.md part 6d).
   const { rows: facts } = await pool.query(
     `SELECT d.id, d.castaway_name, d.kind, d.method, d.event_type, d.episode_number, d.fact_status, ${seasonName} AS season
        FROM season_decisions d JOIN show_seasons ss ON ss.id = d.season_id JOIN shows s ON s.id = ss.show_id

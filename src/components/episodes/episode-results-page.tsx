@@ -13,7 +13,7 @@ import { noteApplied } from "@/lib/applied-results-store";
 import { PageBackLink } from "@/components/back-link";
 import { CastawayAvatar } from "@/components/castaway-avatar";
 import { BottomSheet } from "@/components/ui/bottom-sheet";
-import { ActButton, StepNum } from "@/components/admin/admin-ui";
+import { ActButton, StepNum } from "@/components/ui/act-ui";
 import { AskAi } from "@/components/ask-ai";
 import { PasteBar } from "@/components/paste-bar";
 import { useTourSample } from "@/lib/tour/samples";

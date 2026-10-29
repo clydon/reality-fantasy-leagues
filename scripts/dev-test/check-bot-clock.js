@@ -5,8 +5,8 @@
 //
 //   npm run dev                                   (in another terminal; .env.local needs CRON_SECRET)
 //   node scripts/dev-test/check-bot-clock.js      makes the zt-botclock show, checks, removes it
-//     --ui=<outDir> [--width=390]                 also, as linked-fixture's admin zt_tester, the season's
-//                                                 Setup page: the episode length stepper saves
+//   (its old --ui, classic's Setup page, retired with classic's admin: the desk's Research page and its episode length
+//   are check-desk-research.js's)
 //
 // Never asks the real bot: every call is GET ?dry=1, or a POST when nothing is due. Refuses a non-local
 // database, and stops if any other local season has bot research on (it would share the clock).
@@ -32,45 +32,8 @@ async function down(pool) {
   await pool.query("DELETE FROM shows WHERE slug = $1", [SLUG]); // the season and its runs go with it
 }
 
-const arg = (name) => (process.argv.find((a) => a.startsWith(`--${name}=`)) || "").slice(name.length + 3) || null;
 
 // The admin's side: Setup › Bot research shows the length (90) and its stepper saves 95.
-async function ui(pool, season, out, width) {
-  const linked = require("./linked-fixture");
-  const { open } = require("./browser");
-  await pool.query(
-    `UPDATE show_seasons SET bot_research_on = true, episode_minutes = 90,
-            bot_research_schedule = '[{"kind":"quick","after":5,"on":true},{"kind":"schedule","after":30,"on":true}]' WHERE id = $1`,
-    [season]
-  );
-  await linked.up(pool); // zt_tester is an admin
-  const { page, errors, close } = await open({ user: linked.USERNAME, pass: linked.PASSWORD, width, motion: "off" });
-  try {
-    await page.goto(`${BASE}/admin/seasons/${season}/setup`, { waitUntil: "networkidle" });
-    const more = page.getByRole("button", { name: "Episode length, minutes: one more" });
-    await more.scrollIntoViewIfNeeded();
-    await page.getByText("Each run counts from when an episode ends").waitFor();
-    await page.getByText("Quick check, 5 min after it ends").waitFor();
-    await page.getByText("Schedule check, 30 min after it ends").waitFor();
-    await page.getByText("When the next episode airs and how long it runs").waitFor();
-    // The confirmed episode 4 from the main run (moved a week, its length set by hand).
-    await page.getByText(/Next: Episode 4, .*90 min \(after a week off\), set by hand\./).waitFor();
-    await page.screenshot({ path: `${out}/bot-clock-setup-${width}.png` });
-    await more.click();
-    for (let i = 0; i < 20; i++) {
-      const { rows } = await pool.query("SELECT episode_minutes FROM show_seasons WHERE id = $1", [season]);
-      if (rows[0].episode_minutes === 95) break;
-      await page.waitForTimeout(250);
-    }
-    const { rows } = await pool.query("SELECT episode_minutes FROM show_seasons WHERE id = $1", [season]);
-    assert.equal(rows[0].episode_minutes, 95, "one tap: 90 -> 95, saved");
-    assert.deepEqual(errors, [], "no console errors");
-  } finally {
-    await close();
-    await linked.down(pool);
-  }
-}
-
 (async () => {
   const pool = new Pool({ connectionString: DB });
   try {
@@ -165,7 +128,6 @@ async function ui(pool, season, out, width) {
     r = await clock("GET", "2026-10-22T01:42:00Z");
     assert.equal(r.body.next, null);
 
-    if (arg("ui")) await ui(pool, season, arg("ui"), parseInt(arg("width") || "390", 10));
 
     console.log("check-bot-clock: all good");
   } finally {

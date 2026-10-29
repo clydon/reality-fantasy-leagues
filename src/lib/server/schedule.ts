@@ -97,6 +97,11 @@ export async function seasonSchedules(seasonIds: string[], now = new Date()): Pr
   return out;
 }
 
+/** Something says when its episodes air (a premiere, a listing's dates, research's starts, or a drop): the desk's "no schedule". */
+export function hasSchedule(schedule: SeasonSchedule | undefined): boolean {
+  return !!schedule && (schedule.episodes.some((e) => e.airAt) || !!schedule.dropAt);
+}
+
 /**
  * The episode on now or coming up next (the first that hasn't finished), and whether it's on now. A streaming season that drops
  * every episode at once (step 14) is never on: before the drop its first episode is up next, from the drop on nothing is (they're

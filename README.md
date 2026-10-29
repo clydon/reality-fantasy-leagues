@@ -937,6 +937,10 @@ return null rather than a guess).
 
 ## Wiki connector (`db/wiki-sync.js`, `wiki_proposals`)
 
+**Gone since the desk's step 8 (part 8b, 2026-10-29):** the app reads no wiki (docs/PLAN-desk-parity.md, decision 9). The
+read, its CLI and its nightly workflow went; `db/wiki-sync.js` keeps only `termsFor`, `stageSeasonCast` and the checks they
+use. Casts come from our bot or a paste on the desk's Cast. What follows is how it worked.
+
 Pulls a season's cast, and its per-episode results, off the show's wiki. Nothing it reads is ever
 applied on its own: the **cast** is staged for an admin to review and approve once per season (see
 "Cast approval is the admin's" below), and **per-episode results** are filed as pending decisions
@@ -1721,6 +1725,10 @@ once, by an admin, the way the cast already was (0011):
   catching-up league gets an episode's results when it reveals it.
 
 ### Episode list, air schedule and auto-research (db/migrations/0020)
+
+**Auto-research is gone since the desk's step 8 (part 8b, 2026-10-29):** `db/auto-research.js` went, and the hourly job
+is `.github/workflows/reminders-waivers.yml` (reminders, then waivers); the season clock it shared is `db/season-clock.js`.
+Our bot researches on its own schedule (`db/bot-research.js`). What follows is how it worked.
 
 Step 2 of each season is a list of its episodes rather than an episode-number box. Each season has an
 air schedule (premiere date + air time + time zone, weekly; the wiki's own air dates override), which

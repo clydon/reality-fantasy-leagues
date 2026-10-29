@@ -7,7 +7,7 @@ import type { ChatMessage } from "@/lib/game/types";
 import { useLeagueStore } from "@/lib/store";
 import { useChatStore, DEMO_VISITOR_ID } from "@/lib/chat-store";
 import { ChatMessageRow, ChatAuthor } from "./chat-message-row";
-import { ActButton } from "@/components/admin/admin-ui";
+import { ActButton } from "@/components/ui/act-ui";
 import StateLogic from "@/lib/game/state-logic.js";
 import { useHiddenResults } from "@/components/results-in-banner";
 import { useLateJoin } from "@/components/late-join/replay-bug";

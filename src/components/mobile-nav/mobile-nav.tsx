@@ -614,7 +614,7 @@ export function MobileNav() {
           <MoreRow icon={SparklesIcon} label={touring ? "Replay the tour" : "Take the tour"} value="5 min" onClick={takeTour} />
           <MoreRow icon={SparklesIcon} label="Commissioner tour" value="10 min" onClick={takeCommissionerTour} />
           <MoreRow icon={EpisodesIcon} label="Demo season" onClick={() => go("")} />
-          {isSuperAdmin && <MoreRow icon={ShieldIcon} label="Admin" value="Shows, users, results" onClick={() => go("/admin")} />}
+          {isSuperAdmin && <MoreRow icon={ShieldIcon} label="Admin" value="Shows, users, results" onClick={() => go("/desk")} />}
           <MoreRow
             icon={LogoutIcon}
             label={isAuthenticated ? "Log out" : "Sign in"}

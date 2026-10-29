@@ -168,6 +168,24 @@ Last updated 2026-10-27.
     nobody. The desk's build moves releases into the database and drafts them on the desk (PLAN-desk-parity.md, decision
     8); where a player sees them in the new design is player-facing design work, mocked first.
     - **When:** before What's New's pause ends (the user's call; nothing is announced meanwhile).
+23. **Done 2026-10-29: players' lineup, pick and prediction reminders go for every airing season** (the user's call).
+    `db/reminders.js` sent them only for seasons with `auto_research` on (paid research's old default), which nothing could
+    turn on after step 8, so none went. Now they go for every live airing season, as the commissioners' morning-after
+    nudge does, and each person's own "Reminders before an episode" switch still decides. PLAN-desk-parity.md Noticed co.
+24. **The formats' `wiki` sections outlived the wiki read (noticed 2026-10-29, the desk's step 8).** `castNote`, the
+    episode schema, `derivedEvents`, `rejectEvent` and `roles` are read only by `validateEpisodes` and its regression
+    harness now. PLAN-desk-parity.md Noticed cp.
+    - **When:** the engine lane, as it moves formats onto specs: clear them out or keep them.
+25. **The site's Anthropic key has nothing left to do (2026-10-29, cleaning up after the desk's step 8).** A paste is only
+    ever read as JSON now, never by a paid model (`pastedRun`; one that isn't JSON is refused with a clear message): the
+    user's rule, since our prompts always answer in JSON and nobody pasting should be able to spend the site's key. The last
+    way a paste reached paid Claude was classic admin's "Structured" tick box, which step 8 removed. The paid search
+    providers (episode-research.js `PROVIDERS`: anthropic, gemini, grok; `providerFor` defaults to anthropic) are reachable
+    only from local scripts. GitHub's `ANTHROPIC_API_KEY` Actions secret was deleted 2026-10-29; there was no
+    `GEMINI_API_KEY` on GitHub or Vercel.
+    **Done for production 2026-10-29:** the user removed `ANTHROPIC_API_KEY` from Vercel, so nothing deployed holds a paid
+    key. The key itself stays active for local research (the user's call), and so do the paid providers, for local scripts
+    only.
 
 ## Decided against (don't re-propose without new information)
 

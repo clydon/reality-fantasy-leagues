@@ -1,4 +1,5 @@
 import { CHAT_CHOICES, chatMode, MOMENTS, momentOn, momentOf, type ChatMode, type MomentId } from "@/lib/moments";
+import { cardArtSql } from "./art-sql";
 import { pool, HttpError } from "./db";
 import { seenThroughAll } from "./guard";
 import { isUuid } from "./auth-helpers";
@@ -139,7 +140,7 @@ const NOTES_SHOWN = 50;
 export async function readNotes(userId: string): Promise<{ notes: Note[]; readAt: string | null }> {
   const [{ rows }, { rows: read }, seen] = await Promise.all([
     pool.query(
-      `SELECT n.id, n.type, n.title, n.body, n.link, n.created_at, n.season_id, n.spoils, n.safe, CASE WHEN s.art_off THEN NULL ELSE COALESCE(NULLIF(ss.art_url, ''), s.art_url) END AS art_url
+      `SELECT n.id, n.type, n.title, n.body, n.link, n.created_at, n.season_id, n.spoils, n.safe, ${cardArtSql()} AS art_url
          FROM notifications n LEFT JOIN show_seasons ss ON ss.id = n.season_id LEFT JOIN shows s ON s.id = ss.show_id
         WHERE n.user_id = $1 AND n.created_at > now() - interval '${NOTES_KEPT_DAYS} days'
         ORDER BY n.created_at DESC LIMIT ${NOTES_SHOWN}`,

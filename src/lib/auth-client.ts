@@ -34,8 +34,17 @@ export function signInWithIdentifier(identifier: string, password: string) {
 //
 // Best-effort on the network call: a failed sign-out request must still get you off the page, and
 // the cookie is cleared server-side either way on the next authenticated request.
+//
+// While you're viewing as someone (Act as them), signing out ends that hour first (the desk's route, which writes its end
+// in their History) and then signs you out: signing out only the hour would leave your own session waiting in Better
+// Auth's admin_session cookie (docs/PLAN-desk-parity.md Noticed af, step 8). Not viewing as anyone, it's nothing to end.
+async function endAnyHour() {
+  await fetch("/api/desk/acting?ifActing", { method: "DELETE" }).catch(() => {});
+}
+
 export async function logOut() {
   try {
+    await endAnyHour();
     await signOut();
   } catch {
     // ignored on purpose -- see above
@@ -47,6 +56,7 @@ export async function logOut() {
 /** logOut, landing somewhere else: the new design's front door is /welcome (docs/PLAN-new-design.md step 9 part 2). */
 export async function logOutTo(to: string) {
   try {
+    await endAnyHour();
     await signOut();
   } catch {
     // ignored on purpose, as logOut

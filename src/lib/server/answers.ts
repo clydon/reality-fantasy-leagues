@@ -172,7 +172,7 @@ function castFace(view: LeagueState, id: string): QuestionFace {
 async function gameHere(user: SessionUser, seasonId: string, leagueId: unknown): Promise<GameHere> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
   if (typeof leagueId !== "string" || !isUuid(leagueId)) throw new HttpError(400, "Which game?");
-  const { here } = await gamesHere(user, seasonId, null, leagueId);
+  const { here } = await gamesHere(user, seasonId, null, null, leagueId);
   const h = here.find((x) => x.game.leagueId === leagueId);
   if (!h) throw new HttpError(404, "Game not found");
   return h;

@@ -1,5 +1,6 @@
 import { after } from "next/server";
 import { normalizeSchedule, planRuns, type BotScheduleRun } from "@db/bot-research.js";
+import { autoLine, cap, changeLine, type Run } from "@/lib/desk-bot-words";
 import type { SessionUser } from "./auth-helpers";
 import { tellBotClock } from "./ask-bot";
 import { pool, HttpError } from "./db";
@@ -72,7 +73,7 @@ export async function autopilotSeasons(): Promise<{ id: string; name: string; li
     } catch {
       schedule = [];
     }
-    return { id: r.id, name: r.name, line: scheduleLine(schedule) };
+    return { id: r.id, name: r.name, line: cap(autoLine(schedule as Run[])) };
   });
 }
 
@@ -101,30 +102,39 @@ export function nudgeBotClock(): void {
   });
 }
 
-/** What setSeasonBot changes, and puts back on Undo. */
+/** What setSeasonBot changes, and puts back on Undo. `episodeMinutes` null: an hour. */
 interface BotBefore {
   on: boolean;
   schedule: BotScheduleRun[];
+  episodeMinutes: number | null;
 }
 
 async function writeBot(seasonId: string, next: BotBefore, was: boolean): Promise<void> {
   // Switched on, the clock starts now, so runs timed before it are never picked up (as classic's Setup does); off, it's
   // cleared; left on, it stays.
   await pool.query(
-    `UPDATE show_seasons SET bot_research_on = $2, bot_research_schedule = $3::jsonb,
+    `UPDATE show_seasons SET bot_research_on = $2, bot_research_schedule = $3::jsonb, episode_minutes = $5,
             bot_research_since = CASE WHEN NOT $2 THEN NULL WHEN $4 THEN bot_research_since ELSE now() END
       WHERE id = $1`,
-    [seasonId, next.on, JSON.stringify(next.schedule), was]
+    [seasonId, next.on, JSON.stringify(next.schedule), was, next.episodeMinutes]
   );
 }
 
+const words = (b: BotBefore) => ({ on: b.on, runs: b.schedule as Run[], minutes: b.episodeMinutes ?? 60 });
+
 /**
- * Changes one season's bot: `on` (its schedule runs or not) and/or `schedule` (each run's kind, minutes after the episode
- * ends, and on or off). A line in the season's History with Undo; the bot's clock is told.
+ * Changes one season's bot: `on` (Autopilot: its schedule runs or not), `schedule` (each run's kind, its minutes, and on or
+ * off), `reset: true` (our usual five) and/or `episodeMinutes` (how long its episodes run: every run but trivia's and bingo's counts from the end; 5 to 600,
+ * null an hour). A line in the season's History with Undo; the bot's clock is told. `changeId` null: nothing changed.
  */
-export async function setSeasonBot(user: SessionUser, seasonId: string, body: { on?: unknown; schedule?: unknown }): Promise<SeasonBot> {
+export async function setSeasonBot(
+  user: SessionUser,
+  seasonId: string,
+  body: { on?: unknown; schedule?: unknown; episodeMinutes?: unknown; reset?: unknown }
+): Promise<{ bot: SeasonBot; changeId: string | null; text: string }> {
   const before = await seasonBot(seasonId);
-  const next: BotBefore = { on: before.on, schedule: before.schedule };
+  const was: BotBefore = { on: before.on, schedule: before.schedule, episodeMinutes: before.episodeMinutes };
+  const next: BotBefore = { ...was };
   if (body.on !== undefined) {
     if (typeof body.on !== "boolean") throw new HttpError(400, "on is true or false");
     next.on = body.on;
@@ -136,31 +146,35 @@ export async function setSeasonBot(user: SessionUser, seasonId: string, body: { 
       throw new HttpError(400, e instanceof Error ? e.message : "Bad schedule");
     }
   }
-  if (next.on === before.on && JSON.stringify(next.schedule) === JSON.stringify(before.schedule)) return before;
+  // Reset to our usual five (the page's Reset), said as that whatever it changes.
+  if (body.reset === true) next.schedule = normalizeSchedule(null);
+  if (body.episodeMinutes !== undefined) {
+    const n = body.episodeMinutes === null ? null : Number(body.episodeMinutes);
+    if (n !== null && (!Number.isInteger(n) || n < 5 || n > 600)) throw new HttpError(400, "An episode runs 5 minutes to 10 hours");
+    next.episodeMinutes = n === 60 ? null : n;
+  }
+  if (next.on === was.on && JSON.stringify(next.schedule) === JSON.stringify(was.schedule) && (next.episodeMinutes ?? 60) === (was.episodeMinutes ?? 60))
+    return { bot: before, changeId: null, text: "Nothing changed" };
   await writeBot(seasonId, next, before.on);
-  const text =
-    next.on !== before.on
-      ? next.on
-        ? `The bot's schedule switched on · ${scheduleLine(next.schedule).toLowerCase()}`
-        : "The bot's schedule switched off"
-      : `The bot's schedule changed · ${scheduleLine(next.schedule).toLowerCase()}`;
-  await logDesk(pool, {
+  const text = body.reset === true ? "Schedule reset to our usual five" : changeLine(words(was), words(next));
+  const changeId = await logDesk(pool, {
     entity: "season",
     entityId: seasonId,
     action: "bot",
     text,
-    before: { on: before.on, schedule: before.schedule },
+    before: was,
     after: next,
-    undo: { type: "bot", id: seasonId, on: before.on, schedule: before.schedule },
+    // The length goes back only with a line that changed it: another line's Undo leaves a length set since.
+    undo: { type: "bot", id: seasonId, on: was.on, schedule: was.schedule, ...(next.episodeMinutes !== was.episodeMinutes ? { episodeMinutes: was.episodeMinutes } : {}) },
     userId: user.id,
   });
   nudgeBotClock();
-  return seasonBot(seasonId);
+  return { bot: await seasonBot(seasonId), changeId, text };
 }
 
-/** History's Undo: the season's bot as it was. */
-export async function restoreSeasonBot(seasonId: string, was: { on: boolean; schedule: BotScheduleRun[] }): Promise<void> {
+/** History's Undo: the season's bot as it was (its episode length too, when the line kept it). */
+export async function restoreSeasonBot(seasonId: string, was: { on: boolean; schedule: BotScheduleRun[]; episodeMinutes?: number | null }): Promise<void> {
   const now = await seasonBot(seasonId);
-  await writeBot(seasonId, { on: !!was.on, schedule: normalizeSchedule(was.schedule) }, now.on);
+  await writeBot(seasonId, { on: !!was.on, schedule: normalizeSchedule(was.schedule), episodeMinutes: was.episodeMinutes === undefined ? now.episodeMinutes : was.episodeMinutes }, now.on);
   nudgeBotClock();
 }

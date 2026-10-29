@@ -31,7 +31,9 @@ export async function setLeagueRole(
   leagueId: string,
   userId: string,
   role: unknown,
-  inside?: (client: PoolClient, before: LeagueRole) => Promise<void>
+  inside?: (client: PoolClient, before: LeagueRole) => Promise<void>,
+  /** `nobodyRuns`: the change may leave the game with no Commissioner (the desk's Undo of a hand-on from a couch nobody ran). */
+  opts: { nobodyRuns?: boolean } = {}
 ): Promise<LeagueRole> {
   if (typeof role !== "string" || !LEAGUE_ROLES.includes(role as LeagueRole)) throw new HttpError(400, "role must be commissioner, admin or member");
   const client = await pool.connect();
@@ -40,7 +42,7 @@ export async function setLeagueRole(
     // Every membership of the league locked, so two Commissioners stepping down at once can't both pass.
     const { rows } = await client.query("SELECT user_id, role FROM league_memberships WHERE league_id = $1 FOR UPDATE", [leagueId]);
     if (!rows.some((r) => r.user_id === userId)) throw new HttpError(404, "Not a member of this league");
-    const problem = lastCommissionerProblem(rows.map((r) => ({ userId: r.user_id, role: r.role })), userId, role as LeagueRole);
+    const problem = opts.nobodyRuns ? null : lastCommissionerProblem(rows.map((r) => ({ userId: r.user_id, role: r.role })), userId, role as LeagueRole);
     if (problem) throw new HttpError(409, problem);
     await client.query("UPDATE league_memberships SET role = $3 WHERE league_id = $1 AND user_id = $2", [leagueId, userId, role]);
     await inside?.(client, rows.find((r) => r.user_id === userId).role);

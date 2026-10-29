@@ -135,3 +135,17 @@ export function tiebreakNext(q: Omit<TiebreakQuestion, "seasonId" | "episode">):
 export function tiebreakOn(pool: Pool): Promise<boolean>;
 /** Every episode with a question open on a shared result (or one season's), with its tie-break history. */
 export function tiebreakQuestions(pool: Pool, seasonId?: string | null): Promise<TiebreakQuestion[]>;
+
+// The desk's Research and the bot (docs/PLAN-desk-parity.md part 4a) draws the next episode's night from these.
+/** When one run of an episode is due (ms in, Date out): from its end, trivia's back from the next one, bingo's back from its
+ *  start; null when it never is. */
+export function dueAt(run: { kind: BotKind; after: number }, ends: number, nextAt: Date | null, starts?: number | null): Date | null;
+/** When each episode of a season (loadSeasonForJob's) airs, and its own length when research confirmed it. */
+export function episodeAirTimes(season: unknown): { episode: number; at: Date; minutes?: number }[];
+/** How long a season's episodes run, in minutes: its own setting, else an hour. */
+export function episodeMinutesOf(season: unknown): number;
+export const DEFAULT_EPISODE_MINUTES: number;
+/** A trivia run waits at least this long (minutes) after its episode ends. */
+export const TRIVIA_AFTER_END: number;
+/** The schedule check's question: when the next episode airs, and how long it runs. */
+export function buildSchedulePrompt(showName: string, season: number, episode: number, airedAt: Date | null, tz: string): string;

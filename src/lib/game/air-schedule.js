@@ -1,8 +1,10 @@
-// When a season's episodes air, and when its weekly auto-research runs (db/migrations/0020).
+// When a season's episodes air (db/migrations/0020).
 //
-// Shared by the admin UI (which episodes have aired, when the next auto-research is), the research
-// route (refuse an episode that hasn't aired), and db/auto-research.js (what's due now). Plain
-// CommonJS for the same reason state-logic.js is: the CLI has to require it under bare `node`.
+// Shared by the app (which episodes have aired, when lineups lock), the research routes (refuse an
+// episode that hasn't aired), and the hourly jobs and the bot's clock (db/season-clock.js, reminders.js,
+// waivers.js, bot-research.js). Plain CommonJS for the same reason state-logic.js is: the jobs require
+// it under bare `node`. (Paid research's weekly slot, nextResearchSlot, went with db/auto-research.js
+// at the desk's step 8.)
 //
 // All wall-clock times are in the season's own time zone (air_tz, e.g. America/New_York) -- "noon
 // Eastern" means noon Eastern whichever side of a DST change it falls on. No date library: Intl gives
@@ -52,11 +54,6 @@ function addDays(date, n) {
   const [y, m, d] = date.split("-").map(Number);
   const t = new Date(Date.UTC(y, m - 1, d + n));
   return t.toISOString().slice(0, 10);
-}
-
-function weekdayOf(date) {
-  const [y, m, d] = date.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
 
 /** "March 1, 2023" / "2023-03-01" / "1 March 2023" -> "2023-03-01", or null. */
@@ -125,27 +122,6 @@ function episodeAirTime(season, n, wikiAirDates) {
   return zonedToUtc(addDays(anchorDate, step * (n - anchorN)), time, tz);
 }
 
-/**
- * When auto-research picks up an episode that aired at `after`: researchDelayHours after it (0035),
- * or, for a season still on the older weekly setting, the first weekday-at-time slot at or after it
- * (0 = Sunday, in tz). Null when neither is set.
- */
-function nextResearchSlot(after, season) {
-  if (season.researchDelayHours != null) return new Date(after.getTime() + Number(season.researchDelayHours) * 3600 * 1000);
-  if (season.researchWeekday == null || !season.researchTime) return null;
-  const tz = season.airTz || "America/New_York";
-  const time = String(season.researchTime).slice(0, 5);
-  let date = localDate(after, tz);
-  for (let i = 0; i < 9; i++) {
-    if (weekdayOf(date) === Number(season.researchWeekday)) {
-      const slot = zonedToUtc(date, time, tz);
-      if (slot.getTime() >= after.getTime()) return slot;
-    }
-    date = addDays(date, 1);
-  }
-  return null;
-}
-
 /** "Thu, Oct 2, 12:00 PM EDT" in the season's zone. */
 function formatInTz(instant, tz) {
   return new Intl.DateTimeFormat("en-US", {
@@ -159,4 +135,4 @@ function formatInTz(instant, tz) {
   }).format(instant);
 }
 
-module.exports = { zonedToUtc, parseAirDate, exactAirTime, episodeAirTime, nextResearchSlot, formatInTz, localDate, WEEKDAYS, DEFAULT_AIR_TIME };
+module.exports = { zonedToUtc, parseAirDate, exactAirTime, episodeAirTime, formatInTz, localDate, WEEKDAYS, DEFAULT_AIR_TIME };

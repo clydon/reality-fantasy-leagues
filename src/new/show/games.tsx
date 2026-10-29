@@ -52,6 +52,36 @@ const spanOf = (g: GameView, words: ShowData["words"], aired: number) =>
 const anchor = (g: GameView) => `game-${g.leagueId}`;
 
 export function Games({ show }: { show: ShowData }) {
+  if (show.readOnly) return <ReadOnlyGames show={show} />;
+  return <YourGamesHere show={show} />;
+}
+
+/**
+ * Read-only (the desk's Open it, src/new/read-only.tsx; the mock's dgRoGames): the one game's table as anyone on the couch
+ * sees it, at your own mark, nobody marked "you"; Rules and a person's team open as ever. Nothing to join, start or reveal.
+ */
+function ReadOnlyGames({ show }: { show: ShowData }) {
+  const [player, setPlayer] = useState<{ row: TableRow; game: GameView } | null>(null);
+  const [rules, setRules] = useState<GameView | null>(null);
+  const ro = show.readOnly!;
+  if (!show.play) return <div aria-busy className="mx-4 mt-4 h-72 animate-pulse rounded-[4px] bg-card" />;
+  // The game open read-only, by its id: were the server to answer as yourself (it was deleted meanwhile, say), not yours.
+  const g = show.play.find((x) => x.leagueId === ro.leagueId);
+  if (!g) return <p className="px-4 pt-6 text-[15px] text-muted-foreground">{ro.name} can&apos;t be read right now.</p>;
+  const people = `${g.players} ${g.players === 1 ? "player" : "players"}${ro.runBy?.length ? ` · run by ${ro.runBy.join(", ")}` : ""}`;
+  return (
+    <>
+      <Standings play={[g]} words={show.words} aired={show.latestAired} scope={null} onPlayer={(row, game) => setPlayer({ row, game })} onRules={setRules} readOnly />
+      <p data-read-only-foot className="px-4 pt-4 text-[13px] text-muted-foreground">
+        {g.through ? `Through ${show.words.episode} ${g.through}, where you are.` : "Nothing counted yet, as far as you've watched."} {people}.
+      </p>
+      <PlayerSheet open={player} onClose={() => setPlayer(null)} />
+      <RulesSheet game={rules} play={[g]} onGame={setRules} waivers={[]} />
+    </>
+  );
+}
+
+function YourGamesHere({ show }: { show: ShowData }) {
   const playing = show.games.some((g) => g.yourRole);
   // Games on the couch here you're not in (step 9): join, ask, or see it's closed.
   const couchGames = useCouchGames(show.couch?.id ?? null, show.games.some((g) => !g.yourRole));
@@ -162,6 +192,7 @@ function Standings({
   scope,
   onPlayer,
   onRules,
+  readOnly,
 }: {
   play: GameView[];
   words: ShowData["words"];
@@ -170,6 +201,8 @@ function Standings({
   scope: Scope;
   onPlayer: (row: TableRow, game: GameView) => void;
   onRules: (g: GameView) => void;
+  /** One game, nobody's place in it to show: no pills, and the foot line is the caller's. */
+  readOnly?: boolean;
 }) {
   const twin = (g: GameView) => play.filter((x) => x.gameType === g.gameType).length > 1;
   // A game over a span that's over stands at its last episode (it says Final): the line is the running games'.
@@ -177,22 +210,24 @@ function Standings({
   const through = Math.min(...(running.length ? running : play).map((g) => g.through));
   return (
     <div className="mt-4">
-      <div className="flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
-        {play.map((g) => (
-          <button
-            key={g.leagueId}
-            type="button"
-            onClick={() => document.getElementById(anchor(g))?.scrollIntoView({ behavior: "smooth", block: "start" })}
-            className="flex h-10 flex-none items-center gap-2 rounded-[3px] border-l-[3px] bg-card px-3 text-sm font-semibold"
-            style={{ borderLeftColor: gameColour(g.gameName) }}
-          >
-            {g.solo === "public" ? "Everyone" : twin(g) ? g.name : g.gameName}
-            <b className="type-num text-[20px]">{placeOf(g)}</b>
-          </button>
-        ))}
-      </div>
+      {!readOnly && (
+        <div className="flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
+          {play.map((g) => (
+            <button
+              key={g.leagueId}
+              type="button"
+              onClick={() => document.getElementById(anchor(g))?.scrollIntoView({ behavior: "smooth", block: "start" })}
+              className="flex h-10 flex-none items-center gap-2 rounded-[3px] border-l-[3px] bg-card px-3 text-sm font-semibold"
+              style={{ borderLeftColor: gameColour(g.gameName) }}
+            >
+              {g.solo === "public" ? "Everyone" : twin(g) ? g.name : g.gameName}
+              <b className="type-num text-[20px]">{placeOf(g)}</b>
+            </button>
+          ))}
+        </div>
+      )}
       {play.map((g) => (
-        <section key={g.leagueId} id={anchor(g)} data-table={g.leagueId} className="mt-[26px] scroll-mt-28 px-4">
+        <section key={g.leagueId} id={anchor(g)} data-table={g.leagueId} className={`${readOnly ? "mt-2" : "mt-[26px]"} scroll-mt-28 px-4`}>
           <div className="mb-2.5 flex items-center gap-3">
             <span className="w-1 self-stretch rounded-[2px]" style={{ background: gameColour(g.gameName) }} aria-hidden />
             <div className="min-w-0 flex-1">
@@ -238,16 +273,18 @@ function Standings({
           ))}
         </section>
       ))}
-      <p className="px-4 pt-4 text-[13px] text-muted-foreground">
-        {/* A talk show's games have nothing to reveal: they move as you watch and the couch says what happened (Noticed). */}
-        {play.every((g) => g.gameType === "weekly-calls" || g.gameType === "weekly-bingo")
-          ? through
-            ? `Through Episode ${through}. Standings move as you watch and the couch says what happened.`
-            : "Nothing counted yet. Standings start once a show's aired and you've watched it."
-          : through
-            ? `Through Episode ${through}. Standings move when you reveal.`
-            : "No results yet. Standings start once an episode's in and you've revealed it."}
-      </p>
+      {!readOnly && (
+        <p className="px-4 pt-4 text-[13px] text-muted-foreground">
+          {/* A talk show's games have nothing to reveal: they move as you watch and the couch says what happened (Noticed). */}
+          {play.every((g) => g.gameType === "weekly-calls" || g.gameType === "weekly-bingo")
+            ? through
+              ? `Through Episode ${through}. Standings move as you watch and the couch says what happened.`
+              : "Nothing counted yet. Standings start once a show's aired and you've watched it."
+            : through
+              ? `Through Episode ${through}. Standings move when you reveal.`
+              : "No results yet. Standings start once an episode's in and you've revealed it."}
+        </p>
+      )}
     </div>
   );
 }

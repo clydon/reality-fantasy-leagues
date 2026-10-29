@@ -6,8 +6,7 @@ import { createDraft } from "@db/show-formats.js";
 
 // Self-serve "Research a new show" (docs/PLAN-rollout-order.md stage 4): any signed-in user, scoped
 // to formats THEY created -- see /api/formats/[id] for the ownership check, and create-show/route.ts
-// for why this never lets anyone touch an existing show's rules. No listing route: unlike
-// /api/admin/formats, nobody needs "all of my drafts" today -- the wizard holds the one id it just
+// for why this never lets anyone touch an existing show's rules. No listing route: nobody needs "all of my drafts" today -- the wizard holds the one id it just
 // created in React state.
 export const POST = apiRoute(async (req) => {
   const user = await requireAuth(req);

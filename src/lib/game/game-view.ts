@@ -239,25 +239,29 @@ export type UserOf = (playerId: string) => string | null;
 
 /**
  * The game as `playerId` may see it. `full`: the league's state with air times stamped; `seen`: their mark for
- * this league (null: they see results straight away).
+ * this league (null: they see results straight away). `playerId` null: no seat (the desk's Open it read-only,
+ * docs/PLAN-desk-parity.md part 6c): the table as anyone on its couch sees it, nobody marked "you", no moves and nothing
+ * to reveal; its `playerId` is "".
  */
-export function gameView(game: GameRefIn, full: LeagueState, playerId: string, seen: number | null, userOf: UserOf, calls?: GameCalls): GameView {
+export function gameView(game: GameRefIn, full: LeagueState, playerId: string | null, seen: number | null, userOf: UserOf, calls?: GameCalls): GameView {
   // A game over a span (settings.endEpisode) as it stood at its last episode, however far past it you are.
   const view = StateLogic.spanView(StateLogic.GhostLogic.viewFor(full, playerId, seen));
   const type = StateLogic.getLeagueType(view);
-  const catchingUp = StateLogic.GhostLogic.isCatchingUp(full, playerId) && Number.isInteger(seen);
+  const me = playerId ?? "";
+  const seat = playerId !== null;
+  const catchingUp = seat && StateLogic.GhostLogic.isCatchingUp(full, me) && Number.isInteger(seen);
   const end = StateLogic.endEpisode(full);
   // Results after its last episode aren't this game's to reveal.
   const hidden = StateLogic.SpoilerLogic.hiddenEpisodes(full, seen).filter((e) => end === null || e.number <= end);
-  const everyone = tableOf(view, playerId, userOf, calls?.right);
+  const everyone = tableOf(view, me, userOf, calls?.right);
   const isPublic = game.solo === "public";
   const table = isPublic ? poolTop(everyone) : everyone;
   const catchUp = catchingUp ? { week: (seen as number) + 1, latest: StateLogic.SpoilerLogic.latestWithResults(full) } : null;
   return {
     ...game,
-    playerId,
+    playerId: me,
     through: type.hasCalls || type.hasBingo ? (calls?.through ?? 0) : StateLogic.SpoilerLogic.latestWithResults(view),
-    from: StateLogic.GhostLogic.startFor(view, playerId),
+    from: StateLogic.GhostLogic.startFor(view, me),
     phase: null,
     to: end,
     over: type.hasCalls || type.hasBingo ? !!calls?.ended : StateLogic.gameOver(view),
@@ -266,15 +270,15 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string, s
     players: everyone.length,
     rules: gameRules(view),
     cast: castOf(view),
-    lineup: type.hasActiveRoster ? lineupOf(view, playerId) : null,
-    pick: type.hasWeeklyPicks ? pickOf(view, playerId) : null,
+    lineup: seat && type.hasActiveRoster ? lineupOf(view, me) : null,
+    pick: seat && type.hasWeeklyPicks ? pickOf(view, me) : null,
     call: calls?.move ?? null,
     bingo: calls?.bingo ?? null,
     linePoints: type.hasBingo ? pointsPerLine(view) : null,
     sheet: null,
-    predictions: catchingUp ? [] : predictionsOf(view, playerId),
+    predictions: catchingUp || !seat ? [] : predictionsOf(view, me),
     progress: catchingUp ? null : weekProgress(full, playerId, userOf, { counts: isPublic }),
-    revealFirst: hidden.length && !catchingUp ? hidden[0].number : null,
+    revealFirst: hidden.length && !catchingUp && seat ? hidden[0].number : null,
     catchingUp,
     catchUp,
   };

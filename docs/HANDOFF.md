@@ -26,13 +26,21 @@ production's database).
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and pushed 2026-10-29: the desk, steps 1–8** ([PLAN-desk-parity.md](PLAN-desk-parity.md); built in the desk lane;
+  steps 1–7 `ce42872b` with migrations 0420–0430, rehearsed on a Neon branch; step 8 `77b817a1`, no migration). `/desk` does
+  classic `/admin`'s work, and `/admin` now sends a site admin to the desk's page for the same thing. Step 8 also retired the
+  nightly wiki read and paid Claude research's hourly step (the job is now Reminders and waivers). What's New as data (part 7d)
+  is postponed (the user: too few players yet); players on the classic design keep its popup. Which AI our bot asks stays
+  ChatGPT: production's bot (the VM) has no Claude Code CLI signed in. **Waiting on the user:** removing the
+  `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` Actions secrets (nothing reads them now), and which seasons get players' lineup
+  reminders ([BACKLOG](BACKLOG.md) 23).
 - **Merged and deployed 2026-10-28** (`eb1e19f0`): S1 and S2 (Survivor's blocks and research's checks as rulebook data). A Neon
   snapshot branch, `pre-s2-2026-10-28`, was made first. Then the **test couch was made in production** (Settings › Test couch:
   "Test · Survivor 51", copied from the couch's three Survivor 51 games, on Today's rules as a rulebook). Tonight's episode is
   the first of the two S3 needs, with every table matching the real games at today's points.
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** A1–A3 and A4 part 1 (`engine`; A4 part 2 in progress), the playtests (`playtest`), the sports
-  plan's pointer (`sports`). Waiting on the user: S3 after two matching episodes, A2's game-specs flag on a Neon branch, the
+- **On branches, not merged:** the engine's A1–A9, F1–F4 and A10 so far (`engine`; A1–A4 merge first), the playtests
+  (`playtest`), the sports plan's pointer (`sports`). Waiting on the user: S3 after two matching episodes, A2's game-specs flag on a Neon branch, the
   rule questions in the plan's "Where the engine is headed", and an engine lab (yes or no).
 
 ## Next: moving the app onto the new design (plan written 2026-10-23)

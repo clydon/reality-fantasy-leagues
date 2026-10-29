@@ -2,16 +2,19 @@
 
 import type { ReactNode } from "react";
 import { CalendarDays, ChevronLeft, MessageCircle, Trophy, Tv, Users, type LucideIcon } from "lucide-react";
+import { frameStyle, splitFrame, UNFRAMED } from "@/lib/art-frame";
 import { NavLink } from "../nav";
 import { paths, type ShowTab } from "../routes";
 
 // A show space's frame (the mock's .sbar and .tabbar, show.js showBar / tabBar): the show bar with the show's art
-// behind it, tall on Tonight and compact on the other tabs (sticky), and the tab bar fixed at the bottom. During a
+// behind it, tall on Tonight and compact on the other tabs (sticky, under the Read-only plate while one's on: --nd-top,
+// src/new/read-only.tsx), and the tab bar fixed at the bottom. During a
 // tab move both hold still while the content nudges (new.css: .nd-showbar, .nd-tabbar, .nd-tabind).
 
 /**
  * A show's art, with data-art so a channel change can find it (nav.tsx grows the tapped one into the show bar). No
- * art: the name set large on a dark plate.
+ * art: the name set large on a dark plate. The framing its address carries (src/lib/art-frame.ts: the desk's, part 7b)
+ * outranks `position`; a zoom scales the image inside a box of its own, so it never spills out of `className`'s.
  */
 export function ShowArt({
   seasonId,
@@ -26,9 +29,17 @@ export function ShowArt({
   className?: string;
   position?: string;
 }) {
-  return artUrl ? (
+  const { src, frame } = splitFrame(artUrl);
+  if (src && frame && frame.zoom > 1)
+    return (
+      <span data-art={seasonId} className={`overflow-hidden ${className}`} style={{ display: "block" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL */}
+        <img src={src} alt="" className="block size-full object-cover" style={frameStyle(frame)} />
+      </span>
+    );
+  return src ? (
     // eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL
-    <img src={artUrl} alt="" data-art={seasonId} className={`object-cover ${className}`} style={{ objectPosition: position }} />
+    <img src={src} alt="" data-art={seasonId} className={`object-cover ${className}`} style={frame ? frameStyle(frame) : { objectPosition: position }} />
   ) : (
     <span
       data-art={seasonId}
@@ -76,14 +87,14 @@ export function ShowBar({
     <header
       // Night in both themes (step 15 part 4): it's the show's art, on its own dark plate; on Studio a dark band over the light page.
       className={`nd-showbar dark isolate z-20 flex flex-col overflow-hidden px-2 pb-2.5 pt-[calc(8px+env(safe-area-inset-top,0px))] text-white ${
-        tall ? "relative min-h-[250px] pb-4" : "sticky top-0 min-h-[96px]"
+        tall ? "relative min-h-[250px] pb-4" : "sticky top-[var(--nd-top,0px)] min-h-[96px]"
       }`}
     >
       <ShowArt
         seasonId={show.seasonId}
         artUrl={show.backdropUrl || show.artUrl}
         name={show.name}
-        position={wide ? "center 30%" : tall ? "100% 40%" : "center"}
+        position={wide ? `${UNFRAMED.header.x}% ${UNFRAMED.header.y}%` : tall ? "100% 40%" : "center"}
         className={`absolute inset-y-0 -z-[2] h-full ${tall && !wide ? "right-0 w-[70%]" : "inset-x-0 w-full"}`}
       />
       <span

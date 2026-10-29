@@ -1,12 +1,8 @@
-// Types for air-schedule.js (plain CommonJS so db/auto-research.js can require it under bare node).
+// Types for air-schedule.js (plain CommonJS so db/season-clock.js and the hourly jobs can require it under bare node).
 export interface AirSeason {
   premiereDate?: string | null;
   airTime?: string | null;
   airTz?: string | null;
-  researchWeekday?: number | null;
-  researchTime?: string | null;
-  /** Research each episode this many hours after it airs (takes over from weekday/time). */
-  researchDelayHours?: number | null;
   /** How it airs (show_seasons.release, 0104): weekly when left out. */
   release?: "weekly" | "nightly" | "binge" | null;
   /** When a binge season drops every episode (show_seasons.drop_at). */
@@ -17,7 +13,6 @@ export function parseAirDate(text: string | null | undefined): string | null;
 /** An exact start research confirmed (season_episodes, 0067), e.g. "2026-11-06T01:00:00Z"; else null. */
 export function exactAirTime(text: string | null | undefined): Date | null;
 export function episodeAirTime(season: AirSeason, n: number, wikiAirDates?: Record<number, string | null>): Date | null;
-export function nextResearchSlot(after: Date, season: AirSeason): Date | null;
 export function formatInTz(instant: Date, tz?: string | null): string;
 export function localDate(instant: Date, tz: string): string;
 export const WEEKDAYS: string[];

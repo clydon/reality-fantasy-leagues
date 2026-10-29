@@ -4,7 +4,9 @@ import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { BookOpen, CalendarDays, Ellipsis, EyeOff, Eye, KeyRound, Bell, LogOut, Plus, RotateCcw, Tv, UserPlus, Users, X } from "lucide-react";
 import { airTime, calm, justAired, ticks } from "../clock";
-import { chatCouch, gameAdmin, useAfterReveal, useAfterWatching, watching, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader } from "../data";
+import { chatCouch, gameAdmin, useAfterReveal, useAfterWatching, watching, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type Couch, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type Space } from "../data";
+import { leaveToDesk, ReadOnlyPanel, useReadOnly, type ReadOnlyGame } from "../read-only";
+import { READ_ONLY_SAYS } from "@/lib/read-only";
 import { movesByDue } from "../hub/sections";
 import { useNav } from "../nav";
 import { isShowTab, paths, SHOW_TABS, type ShowTab } from "../routes";
@@ -49,11 +51,16 @@ import { showWords } from "@/lib/game/show-words";
  *  read comes back), its games, whether you run one of them, and your games as you play them (moves, tables). */
 export function useShow(seasonId: string) {
   const home = useHome();
-  const couch = useCouchForSeason(home.data, seasonId);
-  const space = useSpace(seasonId, couch?.id ?? null, !!home.data);
-  const play = useSeasonGames(seasonId, couch?.id ?? null, !!home.data);
-  const episodes = useSeasonEpisodes(seasonId, couch?.id ?? null, !!home.data);
-  const cached = home.data?.shows.find((s) => s.seasonId === seasonId);
+  // A couch's game opened read-only from the desk (src/new/read-only.tsx): its couch, which isn't yours, and that game alone.
+  const readOnly = useReadOnly(seasonId);
+  const yourCouch = useCouchForSeason(home.data, seasonId);
+  const couchId = readOnly ? readOnly.couchId : (yourCouch?.id ?? null);
+  const canRead = !!home.data || !!readOnly;
+  const space = useSpace(seasonId, couchId, canRead);
+  const play = useSeasonGames(seasonId, couchId, canRead);
+  const episodes = useSeasonEpisodes(seasonId, couchId, canRead);
+  const couch = readOnly ? readOnlyCouch(readOnly, space.data) : yourCouch;
+  const cached = readOnly ? undefined : home.data?.shows.find((s) => s.seasonId === seasonId);
   const header: SeasonHeader | undefined = space.data ?? cached;
   const games: GameRef[] = space.data?.games ?? cached?.games ?? [];
   const yours = games.filter((g) => g.yourRole);
@@ -70,8 +77,10 @@ export function useShow(seasonId: string) {
     games,
     runs,
     people,
+    /** Opened read-only from the desk: the couch's view of this game, at your own mark; nothing here changes. */
+    readOnly,
     // From the couch the home already has, so the tab bar doesn't change once the space comes back.
-    solo: !couch || couch.members.length <= 1,
+    solo: !readOnly && (!couch || couch.members.length <= 1),
     seenThrough: space.data ? space.data.you.seenThrough : (cached?.seenThrough ?? 0),
     /** What the show calls its episodes and its people ("Game 4", "Players": lib/game/show-words.ts, 0142). */
     words: showWords(header?.show.terms),
@@ -107,6 +116,18 @@ export function useShow(seasonId: string) {
 }
 
 export type ShowData = ReturnType<typeof useShow>;
+
+/** The couch of a game open read-only, from its space read (its people); you're not on it. */
+function readOnlyCouch(ro: ReadOnlyGame, space: Space | undefined): Couch {
+  return {
+    id: ro.couchId,
+    name: ro.couch,
+    yourRole: "member",
+    members: (space?.people ?? []).map((p) => ({ userId: p.userId, name: p.name, role: p.role, joinedAt: "", colour: null, picture: null, watching: [] })),
+    games: space?.games ?? [],
+    seasons: [],
+  };
+}
 
 /** As people say a show: "The Traitors", not "The Traitors (US)". */
 const plainName = (name: string) => name.replace(/\s*\([^)]*\)\s*$/, "").trim() || name;
@@ -190,14 +211,16 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
   const show = useShow(seasonId);
   const nav = useNav();
   const status = useAirStatus(show);
-  // The Chat tab's badge, every 30 s (the open chat polls its own instead, and reading it clears this).
-  const badge = useChatBadge(seasonId, chatCouch(show), show.episodes?.reveal?.episode ?? null, tab !== "chat");
+  const ro = show.readOnly;
+  // The Chat tab's badge, every 30 s (the open chat polls its own instead, and reading it clears this). Read-only: the
+  // couch's chat is theirs, so not even its count.
+  const badge = useChatBadge(seasonId, ro ? null : chatCouch(show), show.episodes?.reveal?.episode ?? null, tab !== "chat");
 
   if (show.notFound) {
     return <EmptyState icon={Tv} title="Show not found" line="It may have been removed." />;
   }
   const tabs = show.solo ? SHOW_TABS.filter((t) => t !== "chat") : SHOW_TABS;
-  const dock = dockShows(show, tab);
+  const dock = !ro && dockShows(show, tab);
   // Room under the content for what sits over its foot: the tab bar, the dock, Chat's composer.
   const foot = 96 + (dock ? 72 : 0) + (tab === "chat" ? 72 : 0);
   return (
@@ -206,9 +229,9 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
         <ShowBar
           show={{ seasonId, name: show.header.show.name, seasonNumber: show.header.seasonNumber, artUrl: show.header.show.artUrl, backdropUrl: show.header.show.backdropUrl }}
           tall={tab === "tonight"}
-          back={{ label: "Home", onClick: () => nav.back(paths.home) }}
+          back={ro ? { label: "Desk", onClick: () => leaveToDesk(nav, ro) } : { label: "Home", onClick: () => nav.back(paths.home) }}
           status={status}
-          menu={<ShowMenu seasonId={seasonId} show={show} />}
+          menu={ro ? <ReadOnlyMenu /> : <ShowMenu seasonId={seasonId} show={show} />}
           below={<CouchLine show={show} />}
         />
       ) : (
@@ -220,25 +243,43 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
         seasonId={seasonId}
         tabs={tabs}
         current={tab}
-        badges={{ tonight: show.movesDue + (show.episodes?.reveal ? 1 : 0), chat: tab === "chat" ? 0 : (badge.data?.unread ?? 0) }}
+        badges={ro ? {} : { tonight: show.movesDue + (show.episodes?.reveal ? 1 : 0), chat: tab === "chat" ? 0 : (badge.data?.unread ?? 0) }}
         labels={{ episodes: show.words.episodesTab, cast: show.words.peopleTab }}
       />
-      <MovesSheet show={show} seasonId={seasonId} />
-      <RemindSheet show={show} />
-      <RevealScreen show={show} seasonId={seasonId} />
-      <MorningSheet show={show} seasonId={seasonId} />
+      {/* Read-only (src/new/read-only.tsx): only what's for looking, How it works and the stats page. */}
+      {!ro && (
+        <>
+          <MovesSheet show={show} seasonId={seasonId} />
+          <RemindSheet show={show} />
+          <RevealScreen show={show} seasonId={seasonId} />
+          <MorningSheet show={show} seasonId={seasonId} />
+        </>
+      )}
       {show.header && (
         <HowItWorksPage seasonId={seasonId} couchId={show.couch?.id ?? null} name={show.header.show.name} seasonNumber={show.header.seasonNumber} artUrl={show.header.show.artUrl} />
       )}
       {show.header && <ShowStatsPage seasonId={seasonId} couchId={show.couch?.id ?? null} name={show.header.show.name} />}
-      {/* The season's public pool (step 9 part 3), pushed from the Games tab or the solo hub (?page=pool). */}
-      <PoolPage show={show} />
-      {/* Make it a game (step 10 part 2a), pushed from the Games tab, Tonight's plate or the ⋯ menu (?page=make). */}
-      {show.header && <MakeGamePage show={show} />}
-      {/* Watch along (step 13), over the show from Tonight's card, the hub or a link (?page=watch&ep=). */}
-      <WatchAlongPage show={show} />
-      <WaiverOverlays seasonId={seasonId} show={show} />
+      {!ro && (
+        <>
+          {/* The season's public pool (step 9 part 3), pushed from the Games tab or the solo hub (?page=pool). */}
+          <PoolPage show={show} />
+          {/* Make it a game (step 10 part 2a), pushed from the Games tab, Tonight's plate or the ⋯ menu (?page=make). */}
+          {show.header && <MakeGamePage show={show} />}
+          {/* Watch along (step 13), over the show from Tonight's card, the hub or a link (?page=watch&ep=). */}
+          <WatchAlongPage show={show} />
+          <WaiverOverlays seasonId={seasonId} show={show} />
+        </>
+      )}
     </>
+  );
+}
+
+/** The ⋯ menu while read-only: everything in it would change something (the mock's DG_WRITE has #showMenu). */
+function ReadOnlyMenu() {
+  return (
+    <button type="button" aria-label="Show menu: read-only" data-read-only-menu onClick={() => toast.quiet(READ_ONLY_SAYS)} className="grid size-11 place-items-center rounded-[3px] text-white">
+      <Ellipsis className="size-5" aria-hidden />
+    </button>
   );
 }
 
@@ -260,13 +301,15 @@ function CouchLine({ show }: { show: ShowData }) {
           ))}
         </span>
       )}
-      {show.solo
-        ? "Watching solo"
-        : watchers
-          ? watchers.length
-            ? `${watchers.length} on the couch ${watchers.length === 1 ? "watches" : "watch"}`
-            : (show.couch?.name ?? "Your couch")
-          : `${show.couch?.name ?? "Your couch"} · ${games} ${games === 1 ? "game" : "games"}`}
+      {show.readOnly
+        ? `${show.readOnly.couch} · ${show.readOnly.name}`
+        : show.solo
+          ? "Watching solo"
+          : watchers
+            ? watchers.length
+              ? `${watchers.length} on the couch ${watchers.length === 1 ? "watches" : "watch"}`
+              : (show.couch?.name ?? "Your couch")
+            : `${show.couch?.name ?? "Your couch"} · ${games} ${games === 1 ? "game" : "games"}`}
       {show.streaming && (
         <span data-streaming className="type-caption rounded-[2px] px-[7px] py-[2px] text-[11px] tracking-[0.05em] outline-1 -outline-offset-1 outline-dashed outline-white/60">
           Streaming
@@ -555,17 +598,17 @@ export function TabScreen({ seasonId, tab }: { seasonId: string; tab: ShowTab })
   if (!show.header) return <TabSkeleton />;
   return (
     <div data-tab={tab}>
-      {tab !== "tonight" && (
+      {tab !== "tonight" && !(show.readOnly && tab === "chat") && (
         <div className="px-4 pt-4">
           <GuardChip seenThrough={show.seenThrough} ep={show.words.ep} onChange={() => openWhere(show)} />
         </div>
       )}
-      {tab === "tonight" && <Tonight seasonId={seasonId} show={show} />}
+      {tab === "tonight" && (show.readOnly ? <ReadOnlyPanel game={show.readOnly} kind="tonight" /> : <Tonight seasonId={seasonId} show={show} />)}
       {tab === "episodes" && <Episodes seasonId={seasonId} show={show} />}
       {tab === "games" && <Games show={show} />}
       {/* A sport nobody's made a game of has a roster, not a cast with stats (show/roster.tsx). */}
       {tab === "cast" && (show.header?.show.kind === "sport" && !show.ready ? <Roster seasonId={seasonId} show={show} /> : <Cast seasonId={seasonId} show={show} />)}
-      {tab === "chat" && <Chat seasonId={seasonId} show={show} />}
+      {tab === "chat" && (show.readOnly ? <ReadOnlyPanel game={show.readOnly} kind="chat" /> : <Chat seasonId={seasonId} show={show} />)}
     </div>
   );
 }

@@ -148,16 +148,21 @@ export async function handOnCouch(user: SessionUser, couchId: string, to: unknow
   });
 }
 
-/** The couch a code leads to: a couch's invite, else (so the couch's old codes still work) a league's join code. */
+/** The couch a code leads to: a couch's invite, else (so the couch's old codes still work) a league's join code. A deleted
+ *  couch's codes lead nowhere until it's restored (the desk's Delete: docs/PLAN-desk-parity.md part 6d). */
 async function couchOfCode(code: string): Promise<{ couchId: string; from: string | null } | null> {
   if (!code) return null;
   const { rows } = await pool.query(
-    `SELECT i.couch_id, COALESCE(u.username, u.name) AS from_name FROM couch_invites i LEFT JOIN "user" u ON u.id = i.created_by
+    `SELECT i.couch_id, COALESCE(u.username, u.name) AS from_name FROM couch_invites i JOIN couches c ON c.id = i.couch_id AND c.deleted_at IS NULL
+       LEFT JOIN "user" u ON u.id = i.created_by
       WHERE i.code = $1 AND (i.expires_at IS NULL OR i.expires_at > now())`,
     [code]
   );
   if (rows.length) return { couchId: rows[0].couch_id, from: rows[0].from_name ?? null };
-  const { rows: league } = await pool.query("SELECT couch_id FROM leagues WHERE join_code = $1 AND couch_id IS NOT NULL", [code]);
+  const { rows: league } = await pool.query(
+    "SELECT l.couch_id FROM leagues l JOIN couches c ON c.id = l.couch_id AND c.deleted_at IS NULL WHERE l.join_code = $1",
+    [code]
+  );
   return league.length ? { couchId: league[0].couch_id, from: null } : null;
 }
 
@@ -189,7 +194,7 @@ export async function couchInvite(rawCode: unknown, viewer: SessionUser | null):
   const code = normalizeCode(rawCode);
   const found = await couchOfCode(code);
   if (!found) throw new HttpError(404, "No couch with that code. Check it with whoever sent it.");
-  const { rows } = await pool.query("SELECT id, name FROM couches WHERE id = $1", [found.couchId]);
+  const { rows } = await pool.query("SELECT id, name FROM couches WHERE id = $1 AND deleted_at IS NULL", [found.couchId]);
   if (!rows.length) throw new HttpError(404, "No couch with that code. Check it with whoever sent it.");
   const members = (await couchMembers([found.couchId])).get(found.couchId) ?? [];
   const list = await couchGameList(viewer, found.couchId);
@@ -213,7 +218,7 @@ export async function joinCouch(user: SessionUser, rawCode: unknown, opts: { let
   if (!found) throw new HttpError(404, "No couch with that code. Check it with whoever sent it.");
   const { rows: count } = await pool.query("SELECT count(*)::int AS n FROM couch_members WHERE user_id = $1", [user.id]);
   const joined = await tx(async (c) => {
-    const { rows } = await c.query("SELECT name FROM couches WHERE id = $1 FOR UPDATE", [found.couchId]);
+    const { rows } = await c.query("SELECT name FROM couches WHERE id = $1 AND deleted_at IS NULL FOR UPDATE", [found.couchId]);
     if (!rows.length) throw new HttpError(404, "No couch with that code. Check it with whoever sent it.");
     if (opts.letIn) await c.query(`UPDATE "user" SET approved = true WHERE id = $1`, [user.id]);
     const { rows: was } = await c.query("SELECT via FROM couch_members WHERE couch_id = $1 AND user_id = $2", [found.couchId, user.id]);
@@ -305,7 +310,7 @@ export interface JoinGame {
 
 /** It's over: a winner, or nobody left, or its span's last episode is in (StateLogic.gameOver); for a game scored outside its
  *  state, its season's (or span's) last episode has aired. */
-function gameOver(s: LeagueState, schedule: SeasonSchedule | undefined): boolean {
+export function gameOver(s: LeagueState, schedule: SeasonSchedule | undefined): boolean {
   const type = StateLogic.getLeagueType(s);
   return type.hasCalls || type.hasBingo ? endedThrough(schedule, latestAired(schedule), StateLogic.endEpisode(s)) : StateLogic.gameOver(s);
 }

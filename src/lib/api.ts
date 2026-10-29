@@ -1,11 +1,9 @@
-import type { LeagueState, Membership, ChatMessage, ChatRead, AdminUser, AdminLeague, AdminMembership, Player, Report, LeagueInvite, MyInvite, WikiProposal, AppliedProposal, AdminShow, CatalogShow, ShowSeason, WikiSeasonSyncResult, SeasonCastMember, SeasonResearchResult, SuggestedBetAnswer, SeasonDecisionsResponse, LeagueDecisionSync, FormatOption, StoredFormat, StoredFormatSummary, Proposal, SeasonRuleChange, SeasonRuleChangeWithReview, EpisodeResearchPanel, ResearchApplySummary, LeagueRuleset, WaiverClaim } from "@/lib/game/types";
+import type { LeagueState, Membership, ChatMessage, ChatRead, LeagueInvite, MyInvite, CatalogShow, SuggestedBetAnswer, StoredFormat, Proposal, EpisodeResearchPanel, ResearchApplySummary, LeagueRuleset, WaiverClaim } from "@/lib/game/types";
 import type { FormatData } from "@/lib/game/formats/index";
 import type { ArtStyle } from "@/lib/show-art-style";
-import type { SeasonCheck } from "@/lib/game/formats/season-check";
 import type { DemoSeasonData } from "@/lib/game/demo-season-builder";
 import type { ActionItem } from "@/lib/game/action-items.js";
 import type { CommissionerItem } from "@/lib/game/commissioner-items";
-import type { AdminBingoBank } from "@/lib/server/bingo-bank";
 
 export interface EpisodeTeamSummary {
   /** Every team's saved "why it mattered" line, by player id. */
@@ -125,10 +123,13 @@ export const api = {
       items: (ActionItem & { leagueId: string; leagueName: string })[];
       commish?: (CommissionerItem & { leagueId: string; leagueName: string })[];
     }>("/api/me/actions"),
-  // Better Auth's own admin-plugin endpoint (not a custom route -- it already does exactly this,
-  // swapping the session cookie back to the impersonator's). Needs an explicit empty JSON body --
-  // Better Auth 400s on "Invalid JSON in request body" for a truly bodyless POST.
-  stopImpersonating: () => localFetch<{ ok: true }>("/api/auth/admin/stop-impersonating", { method: "POST", body: "{}" }),
+  // Return to my account: Better Auth's stop-impersonating through the desk's route, which writes the end of an hour
+  // begun on the desk in that person's History and answers where to go back to (their desk page, or null for the front
+  // door; docs/PLAN-desk-parity.md part 1b).
+  stopImpersonating: () => localFetch<{ back: string | null }>("/api/desk/acting", { method: "DELETE" }),
+  // Settings › Test couch's switches: Act as them on the desk's route, logged in their History, its return going home.
+  actAsTestPlayer: (userId: string) =>
+    localFetch<{ go: string }>(`/api/desk/people/${encodeURIComponent(userId)}/act`, { method: "POST", body: JSON.stringify({ from: "test-couch" }) }),
   leagueState: (leagueId: string) =>
     localFetch<LeagueStateResponse>(`/api/leagues/${leagueId}/state`),
   // Linked leagues (league-groups.ts): one shared chat and reveal for the same friends' leagues.
@@ -411,44 +412,6 @@ export const api = {
       body: JSON.stringify({ emoji }),
     }),
 
-  // Admin routes -- superAdmin-only server-side (requireSuperAdmin), cross-league scope (not
-  // the per-league LeagueState everything else here reads/writes).
-  adminListUsers: () => localFetch<{ users: AdminUser[] }>("/api/admin/users"),
-  adminCreateUser: (username: string) =>
-    localFetch<{ user: AdminUser; tempPassword: string }>("/api/admin/users", {
-      method: "POST",
-      body: JSON.stringify({ username }),
-    }),
-  adminResetPassword: (userId: string) =>
-    localFetch<{ tempPassword: string }>(`/api/admin/users/${userId}/reset-password`, {
-      method: "POST",
-    }),
-  adminUserLeagues: (userId: string) =>
-    localFetch<{ leagues: { id: string; name: string; role: "member" | "commissioner"; membership_id: string; player_id: string }[] }>(
-      `/api/admin/users/${userId}/leagues`
-    ),
-  adminUpdateUser: (userId: string, changes: { username?: string; email?: string }) =>
-    localFetch<{ user: AdminUser }>(`/api/admin/users/${userId}`, { method: "PATCH", body: JSON.stringify(changes) }),
-  adminDeleteUser: (userId: string) => localFetch<{ ok: true }>(`/api/admin/users/${userId}`, { method: "DELETE" }),
-  adminApproveUser: (userId: string) => localFetch<{ user: AdminUser }>(`/api/admin/users/${userId}/approve`, { method: "POST" }),
-  // Response body isn't used (the impersonation cookie swap is the whole point); the caller does
-  // a full reload right after, same as stopImpersonating.
-  adminImpersonate: (userId: string) => localFetch<unknown>(`/api/admin/users/${userId}/impersonate`, { method: "POST" }),
-
-  adminListLeagues: () => localFetch<{ leagues: AdminLeague[] }>("/api/admin/leagues"),
-  adminDeleteLeague: (leagueId: string) => localFetch<{ ok: true }>(`/api/admin/leagues/${leagueId}`, { method: "DELETE" }),
-  adminLeagueMemberships: (leagueId: string) =>
-    localFetch<{ players: Player[]; memberships: AdminMembership[] }>(`/api/admin/leagues/${leagueId}/memberships`),
-  adminLinkMembership: (leagueId: string, userId: string, playerId: string, role: "member" | "commissioner") =>
-    localFetch<{ membership: AdminMembership }>(`/api/admin/leagues/${leagueId}/memberships`, {
-      method: "POST",
-      body: JSON.stringify({ userId, playerId, role }),
-    }),
-  adminUnlinkMembership: (leagueId: string, membershipId: string) =>
-    localFetch<{ ok: true }>(`/api/admin/leagues/${leagueId}/memberships/${membershipId}`, { method: "DELETE" }),
-  adminDeletePlayer: (leagueId: string, playerId: string) =>
-    localFetch<{ ok: true; player: Player }>(`/api/admin/leagues/${leagueId}/players/${playerId}`, { method: "DELETE" }),
-
   // League Settings -- commissioner-only server-side (requireLeagueRole('commissioner') on every
   // route in server/routes/roster.js), same generic field/value PATCH pattern as updateEpisode.
   renameLeague: (leagueId: string, name: string) =>
@@ -547,21 +510,6 @@ export const api = {
   leaveLeague: (leagueId: string) =>
     localFetch<{ ok: true }>(`/api/leagues/${leagueId}/leave`, { method: "POST" }),
 
-  // Wiki connector (db/wiki-sync.js). Proposals live in their own table, not in league state, so
-  // these return their own shapes and have no mock-mode branch -- same as invites and chat.
-  listWikiProposals: (leagueId: string) =>
-    localFetch<{ proposals: WikiProposal[] }>(`/api/leagues/${leagueId}/wiki-proposals`),
-  // `applied` is shaped by `kind` -- the three apply paths report different things, so the caller
-  // narrows on kind rather than this pretending they share a shape.
-  applyWikiProposal: (leagueId: string, id: string) =>
-    localFetch<{
-      state: LeagueState;
-      kind: "cast" | "eliminations" | "scoringEvents";
-      applied: AppliedProposal | null;
-    }>(`/api/leagues/${leagueId}/wiki-proposals/${id}`, { method: "POST" }),
-  rejectWikiProposal: (leagueId: string, id: string) =>
-    localFetch<{ ok: true }>(`/api/leagues/${leagueId}/wiki-proposals/${id}`, { method: "DELETE" }),
-
   // Catch-up mode (StateLogic.RevealLogic): raise this league's reveal pointer by one episode, which
   // applies that episode's admin-accepted results (db/migrations/0019).
   revealNextEpisode: (leagueId: string) =>
@@ -582,7 +530,7 @@ export const api = {
     ),
 
   // Show/season catalog. The plain /api/shows read is commissioner-facing (the Show and Season
-  // pickers in League Settings); everything under /api/admin/* is super-admin catalog management.
+  // pickers in League Settings); managing the catalog is the desk's (/api/desk/*).
   listShows: () => localFetch<{ shows: CatalogShow[] }>("/api/shows"),
   // The curated shows' art for the front door's show roll -- public, no auth.
   showArt: () => localFetch<{ shows: { name: string; artUrl: string; artStyle: ArtStyle | null }[] }>("/api/shows/art"),
@@ -605,55 +553,8 @@ export const api = {
       { method: "PATCH", body: JSON.stringify({ leagueTypeId, order, hidden }) }
     ),
 
-  adminListShows: () => localFetch<{ shows: AdminShow[]; formatOptions: FormatOption[] }>("/api/admin/shows"),
-
-  // Stored show formats (docs/PLAN-stage-3-format-proposals.md): research a new show with any chat,
-  // review the proposal, approve it.
-  adminListFormats: () => localFetch<{ formats: StoredFormatSummary[] }>("/api/admin/formats"),
-  adminFormatPrompt: (q: { name: string; wiki?: string; castaway?: string; tribe?: string; seasons?: string }) =>
-    localFetch<{ prompt: string }>(
-      `/api/admin/formats/prompt?${new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]).toString()}`
-    ),
-  adminCreateFormat: (answer: string) =>
-    localFetch<{ format: StoredFormat }>("/api/admin/formats", { method: "POST", body: JSON.stringify({ answer }) }),
-  adminGetFormat: (id: string) => localFetch<{ format: StoredFormat }>(`/api/admin/formats/${encodeURIComponent(id)}`),
-  adminSaveFormat: (id: string, proposal: Proposal) =>
-    localFetch<{ format: StoredFormat; leaguesUpdated: number }>(`/api/admin/formats/${encodeURIComponent(id)}`, {
-      method: "PATCH",
-      body: JSON.stringify({ proposal }),
-    }),
-  // createShow: a new show playing by it; or showId: switch that show (and its leagues) to it.
-  adminApproveFormat: (id: string, body: { createShow?: boolean; showId?: string; domains?: string[] }) =>
-    localFetch<{ format: StoredFormat; show: { id: string; slug: string; name: string } | null; leaguesUpdated: number }>(
-      `/api/admin/formats/${encodeURIComponent(id)}/approve`,
-      { method: "POST", body: JSON.stringify(body) }
-    ),
-  adminDeleteFormat: (id: string) =>
-    localFetch<{ ok: true }>(`/api/admin/formats/${encodeURIComponent(id)}`, { method: "DELETE" }),
-
-  // Season rule changes (docs/PLAN-season-rule-changes.md): "check for rule changes" on one season.
-  adminRuleChanges: (seasonId: string) =>
-    localFetch<{ changes: SeasonRuleChange[]; flags: { episode: number; note: string }[]; airedThrough: number | null }>(`/api/admin/seasons/${seasonId}/rule-changes`),
-  adminRuleCheckPrompt: (seasonId: string) => localFetch<{ prompt: string }>(`/api/admin/seasons/${seasonId}/rule-changes/prompt`),
-  adminRecordRuleCheck: (seasonId: string, answer: string) =>
-    localFetch<{ change: SeasonRuleChangeWithReview }>(`/api/admin/seasons/${seasonId}/rule-changes`, { method: "POST", body: JSON.stringify({ answer }) }),
-  adminGetRuleChange: (seasonId: string, id: string) =>
-    localFetch<{ change: SeasonRuleChangeWithReview }>(`/api/admin/seasons/${seasonId}/rule-changes/${id}`),
-  adminSaveRuleChange: (seasonId: string, id: string, proposal: SeasonCheck, effectiveEpisode: number | null) =>
-    localFetch<{ change: SeasonRuleChangeWithReview; leaguesUpdated: number; leaguesFailed: { leagueId: string; name: string; error: string }[] }>(`/api/admin/seasons/${seasonId}/rule-changes/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify({ proposal, effectiveEpisode }),
-    }),
-  adminApproveRuleChange: (seasonId: string, id: string) =>
-    localFetch<{ change: SeasonRuleChangeWithReview; leaguesUpdated: number; leaguesFailed: { leagueId: string; name: string; error: string }[] }>(`/api/admin/seasons/${seasonId}/rule-changes/${id}/approve`, { method: "POST" }),
-  adminWithdrawRuleChange: (seasonId: string, id: string) =>
-    localFetch<{ ok: true; leaguesUpdated: number; leaguesFailed: { leagueId: string; name: string; error: string }[] }>(`/api/admin/seasons/${seasonId}/rule-changes/${id}/withdraw`, { method: "POST" }),
-  adminDeleteRuleChange: (seasonId: string, id: string) =>
-    localFetch<{ ok: true }>(`/api/admin/seasons/${seasonId}/rule-changes/${id}`, { method: "DELETE" }),
-
-  // Self-serve twin of the above (docs/PLAN-rollout-order.md stage 4): any signed-in user, but
-  // scoped to formats they created, and -- unlike adminApproveFormat -- never able to switch an
-  // EXISTING show onto a format. Used by the create-league wizard's "+ Add it" tile.
+  // Stored show formats, self-serve (docs/PLAN-rollout-order.md stage 4): any signed-in user, scoped to formats they
+  // created, never able to switch an EXISTING show onto a format. Used by the create-league wizard's "+ Add it" tile.
   formatPrompt: (q: { name: string; wiki?: string; castaway?: string; tribe?: string; seasons?: string }) =>
     localFetch<{ prompt: string }>(
       `/api/formats/prompt?${new URLSearchParams(Object.entries(q).filter(([, v]) => v) as [string, string][]).toString()}`
@@ -670,15 +571,6 @@ export const api = {
   askAiStatus: () => localFetch<{ allowed: boolean; available: boolean; busy: boolean }>("/api/ask-ai"),
   askAi: (prompt: string) =>
     localFetch<{ answer: string; seconds: number }>("/api/ask-ai", { method: "POST", body: JSON.stringify({ prompt }) }),
-  // (admin) Bot research (db/bot-research.js): a season's runs, and one run now outside the schedule.
-  adminBotRuns: (seasonId: string, episode?: number) =>
-    localFetch<{ runs: BotResearchRun[] }>(`/api/admin/seasons/${seasonId}/bot-research${episode ? `?episode=${episode}` : ""}`),
-  // Bingo's ("Write squares now") is for an episode coming up: `scope: "season"` writes the season's own bank.
-  adminBotRunNow: (seasonId: string, episode: number, kind: "quick" | "full" | "schedule" | "trivia" | "bingo", opts: { scope?: "episode" | "season" } = {}) =>
-    localFetch<{ ok: boolean; message: string; seconds: number }>(`/api/admin/seasons/${seasonId}/bot-research`, {
-      method: "POST",
-      body: JSON.stringify({ episode, kind, ...(opts.scope ? { scope: opts.scope } : {}) }),
-    }),
   createFormat: (answer: string) =>
     localFetch<{ format: StoredFormat }>("/api/formats", { method: "POST", body: JSON.stringify({ answer }) }),
   getFormat: (id: string) => localFetch<{ format: StoredFormat }>(`/api/formats/${encodeURIComponent(id)}`),
@@ -693,151 +585,6 @@ export const api = {
       { method: "POST", body: JSON.stringify(body) }
     ),
   deleteFormat: (id: string) => localFetch<{ ok: true }>(`/api/formats/${encodeURIComponent(id)}`, { method: "DELETE" }),
-
-  adminCreateShow: (body: {
-    name: string;
-    castawayTerm?: string;
-    tribeTerm?: string;
-    wikiApiUrl?: string;
-    castSectionHeading?: string;
-    format?: string;
-  }) =>
-    localFetch<{ show: { id: string; slug: string; name: string } }>("/api/admin/shows", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-  adminUpdateShow: (
-    id: string,
-    changes: Partial<{
-      name: string;
-      castawayTerm: string;
-      tribeTerm: string;
-      wikiApiUrl: string;
-      castSectionHeading: string;
-      researchDomains: string;
-      format: string;
-      artUrl: string;
-      artStyle: ArtStyle | null;
-      archived: boolean;
-    }>
-  ) =>
-    localFetch<{ show: { id: string; slug: string; name: string; archived: boolean } }>(`/api/admin/shows/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(changes),
-    }),
-  adminDeleteShow: (id: string) => localFetch<{ ok: true }>(`/api/admin/shows/${id}`, { method: "DELETE" }),
-  adminCreateSeason: (
-    showId: string,
-    body: { seasonNumber: number; name?: string; wikiUrl?: string; status?: string; castSize?: number; premiereDate?: string; finaleDate?: string }
-  ) =>
-    localFetch<{ season: ShowSeason }>(`/api/admin/shows/${showId}/seasons`, {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
-  adminUpdateSeason: (id: string, changes: Record<string, unknown>) =>
-    localFetch<{
-      season: ShowSeason;
-      leaguesOnOldNumber: number;
-      /** Set when episodeCount was saved: what was cleared from past that episode. */
-      pruned: { pendingResults: number; researchedEpisodes: number; wikiReadTrimmed: boolean; decidedResultsKept: number } | null;
-    }>(`/api/admin/seasons/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify(changes),
-    }),
-  // The season's staged cast, as Admin > Shows & Seasons reviews it (db/migrations/0011). Approving
-  // is what puts it into leagues -- there's no per-league cast proposal any more.
-  adminSeasonCast: (id: string) =>
-    localFetch<{
-      cast: SeasonCastMember[];
-      approvedAt: string | null;
-      /** Held until a catching-up league reveals this episode; null sends tribes with the cast. */
-      tribesFromEpisode: number | null;
-      leagueCount: number;
-      castawayTerm: string;
-      tribeTerm: string;
-    }>(`/api/admin/seasons/${id}/cast`),
-  adminEditSeasonCast: (id: string, change: { tribesFromEpisode?: number | null; remove?: string }) =>
-    localFetch<{ cast: SeasonCastMember[]; approvedAt: null; tribesFromEpisode: number | null }>(
-      `/api/admin/seasons/${id}/cast`,
-      { method: "PATCH", body: JSON.stringify(change) }
-    ),
-  adminApproveSeasonCast: (id: string) =>
-    localFetch<{
-      approvedAt: string;
-      castSize: number;
-      applied: { leagueId: string; leagueName: string; added: string[]; skipped: string[]; error?: string }[];
-    }>(`/api/admin/seasons/${id}/cast/approve`, { method: "POST" }),
-  adminDeleteSeason: (id: string) =>
-    localFetch<{ ok: true; leaguesAffected: number }>(`/api/admin/seasons/${id}`, { method: "DELETE" }),
-  // On-demand wiki pull for one season. Slow by nature (it reads the wiki, then runs an LLM
-  // extraction) -- callers show a pending state rather than assuming this returns quickly.
-  adminSyncSeason: (id: string, kind: "cast", force = false, model?: string) =>
-    localFetch<WikiSeasonSyncResult>(`/api/admin/seasons/${id}/sync`, {
-      method: "POST",
-      body: JSON.stringify({ kind, force, model }),
-    }),
-
-  /**
-   * Research one episode of a season with a web-searching model (db/episode-research.js). Slow and
-   * paid, so the UI asks for one episode at a time; `force` re-researches an episode that already
-   * has a cached answer.
-   */
-  // Season decisions (db/migrations/0019): every episode result for a season, decided once by an
-  // admin. Deciding syncs every league on the season, and the response says what each one got.
-  adminListDecisions: (seasonId: string) => localFetch<SeasonDecisionsResponse>(`/api/admin/seasons/${seasonId}/decisions`),
-  adminDecide: (
-    seasonId: string,
-    decisionId: string,
-    action: "accept" | "reject",
-    edits?: { castawayName?: string; method?: string; eventType?: string }
-  ) =>
-    localFetch<{ ok: true; leagues: LeagueDecisionSync[] }>(`/api/admin/seasons/${seasonId}/decisions/${decisionId}`, {
-      method: "POST",
-      body: JSON.stringify({ action, ...(edits || {}) }),
-    }),
-  // Throw away one episode's research and the undecided results it staged (e.g. run before it aired).
-  // scope "all" clears the whole episode: its undecided wiki results and cached wiki read too.
-  adminDiscardResearch: (seasonId: string, episode: number, scope: "research" | "all" | "everything" = "research") =>
-    localFetch<{ ok: true; removedResults: number; decidedKept: number; leaguesUndone?: number }>(
-      `/api/admin/seasons/${seasonId}/research?episode=${episode}${scope === "research" ? "" : `&scope=${scope}`}`, {
-      method: "DELETE",
-    }),
-  // `ids` narrows it to those rows (one scoring event's group); omitted, every pending row.
-  adminAcceptEpisode: (seasonId: string, episode: number, ids?: string[]) =>
-    localFetch<{ ok: true; accepted: number; leagues: LeagueDecisionSync[] }>(
-      `/api/admin/seasons/${seasonId}/decisions/accept-episode`,
-      { method: "POST", body: JSON.stringify({ episode, ids }) }
-    ),
-
-  adminResearchEpisode: (id: string, episode: number, opts: { force?: boolean; provider?: string; model?: string } = {}) =>
-    localFetch<SeasonResearchResult>(`/api/admin/seasons/${id}/research`, {
-      method: "POST",
-      body: JSON.stringify({ episode, ...opts }),
-    }),
-  // The paste-import path: no search, no API key of the admin's own -- they get the prompt below from
-  // their own web-searching chat and paste the answer back, which costs one cheap structuring call
-  // instead of a search-and-answer one. See db/episode-research.js's "manual / paste import" section.
-  // Bingo's bank by hand (docs/PLAN-bingo-bank.md step 1): an episode's bank and the season's own, with the prompt for one;
-  // a chat's answer filed as that bank.
-  adminBingoBank: (id: string, episode: number, scope: "episode" | "season") =>
-    localFetch<AdminBingoBank>(`/api/admin/seasons/${id}/bingo?episode=${episode}&scope=${scope}`),
-  // Hide a square (an admin's flag takes it out of new cards at once), or take the flag back.
-  adminFlagBingoSquare: (id: string, episode: number, scope: "episode" | "season", square: string, on: boolean) =>
-    localFetch<AdminBingoBank>(`/api/admin/seasons/${id}/bingo`, { method: "POST", body: JSON.stringify({ episode, scope, flag: square, on }) }),
-  adminSaveBingoBank: (id: string, episode: number, scope: "episode" | "season", answer: string) =>
-    localFetch<AdminBingoBank & { live: number; dropped: number }>(`/api/admin/seasons/${id}/bingo`, {
-      method: "POST",
-      body: JSON.stringify({ episode, scope, answer }),
-    }),
-  adminPasteImportPrompt: (id: string, episode: number, structured = false) =>
-    localFetch<{ prompt: string; castCount: number; betCount: number }>(
-      `/api/admin/seasons/${id}/research/prompt?episode=${episode}${structured ? "&structured=1" : ""}`
-    ),
-  adminResearchFromPaste: (id: string, episode: number, notes: string, opts: { model?: string; structured?: boolean } = {}) =>
-    localFetch<SeasonResearchResult>(`/api/admin/seasons/${id}/research`, {
-      method: "POST",
-      body: JSON.stringify({ episode, notes, ...opts }),
-    }),
 
   // Web Push (src/lib/push-client.ts calls these; src/lib/server/push-core.js sends).
   registerPushSubscription: (sub: { endpoint: string; keys: { p256dh: string; auth: string } }) =>
@@ -857,8 +604,6 @@ export const api = {
   sendTestPush: (type?: string) =>
     localFetch<{ sent: number; removed: number }>("/api/me/push-test", { method: "POST", body: JSON.stringify(type ? { type } : {}) }),
 
-  adminListReports: () => localFetch<{ reports: Report[] }>("/api/admin/reports"),
-  adminDeleteReport: (id: string) => localFetch<{ ok: true }>(`/api/admin/reports/${id}`, { method: "DELETE" }),
   // Not admin-gated -- any signed-in user can submit one (requireAuth server-side).
   submitReport: (type: "issue" | "feature", message: string, route: string, leagueId: string | null, leagueName: string | null) =>
     localFetch<{ ok: true }>("/api/reports", {

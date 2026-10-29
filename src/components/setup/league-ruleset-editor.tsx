@@ -6,7 +6,7 @@ import { reviewRuleset } from "@/lib/game/formats/ruleset-review.js";
 import { camelId } from "@/lib/game/formats/proposal.js";
 import { BarButton, ConfirmBar, PlainButton } from "@/components/draft/draft-ui";
 import { Input } from "@/components/ui/input";
-import { Notes, CategorySelect, RuleLine, ruleAtPath } from "@/components/admin/format-review-screen";
+import { Notes, CategorySelect, RuleLine, ruleAtPath } from "@/components/formats/format-review-screen";
 import { cn } from "cn";
 
 // The editable half of League Settings > Scoring & rules, on its own page, /setup/rules/edit

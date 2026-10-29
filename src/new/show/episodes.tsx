@@ -45,8 +45,9 @@ function progressLine(show: ShowData): string | null {
 }
 
 /** An episode row's one line: your night in Weekly Lineup if you play it ("You +6 in Weekly Lineup"), else your first
- *  game's, else how they left. */
-function rowLine(e: EpisodeRow): string {
+ *  game's, else how they left. Read-only (`ro`, the desk's Open it: nobody's night), whether the game counted it. */
+function rowLine(e: EpisodeRow, ro?: ReadOnlyLine | null): string {
+  if (ro) return ro.from === null || e.number < ro.from ? `Before ${ro.name} started` : ro.to !== null && e.number > ro.to ? `After ${ro.name} ended` : `Scored in ${ro.name}`;
   const l = e.lines?.find((x) => x.gameType === "active-roster") ?? e.lines?.[0];
   if (!l) return e.out?.length ? (e.out[0].method ?? "Out") : "Nothing recorded";
   if (l.line === "Before the game started") return "Before your games started";
@@ -60,8 +61,12 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
   const t = up?.airAt ? Date.parse(up.airAt) : null;
   const eps = show.episodes;
   const openReveal = useOpenReveal();
-  const progress = progressLine(show);
-  const wv = useSeasonWaivers(seasonId, show.couch?.id ?? null, playsWaivers(show));
+  // Read-only: the game open (by its id), who's set in it, or that a game still going has nothing to set (the mock's
+  // "Outlast: nothing to set before it airs").
+  const roGame = show.readOnly ? show.play?.find((g) => g.leagueId === show.readOnly!.leagueId) : undefined;
+  const ro: ReadOnlyLine | null = show.readOnly && roGame ? { name: show.readOnly.name, from: roGame.from, to: roGame.to } : null;
+  const progress = progressLine(show) ?? (ro && roGame && !roGame.over && !roGame.archived ? `${ro.name}: nothing to set before it airs` : null);
+  const wv = useSeasonWaivers(seasonId, show.couch?.id ?? null, playsWaivers(show) && !show.readOnly);
   const rateFor = (n: number): RateTarget => ({ seasonId, couchId: show.couch?.id ?? null, episode: n, label: rateLabel(show), solo: show.solo });
   // Each waiver week after the episode that opened it: in a newest-first list, just above that episode's row.
   const weeks = (n: number) => (wv.data?.games ?? []).filter((w) => (w.run?.episode ?? w.period?.episode) === n && (w.run || (w.stage === "open" && (w.replace.length || w.swapsAllowed))));
@@ -142,7 +147,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                 ) : e.status === "aired" ? (
                   <AiredRow e={e} solo={show.solo} streaming={show.streaming} word={show.words.episode} onRate={() => openRate(rateFor(e.number))} />
                 ) : (
-                  <SeenRow e={e} solo={show.solo} />
+                  <SeenRow e={e} solo={show.solo} ro={ro} />
                 )}
               </div>
             ))}
@@ -249,7 +254,11 @@ function WaitingRow({ e }: { e: EpisodeRow }) {
   );
 }
 
-function SeenRow({ e, solo }: { e: EpisodeRow; solo: boolean }) {
+/** The game open read-only, for an episode row's line: its name, its first episode and its last (null: the season's end). */
+/** `from` null: a game waiting for a phase of the season (step A3 of docs/PLAN-start-a-game-gpt.md), not started yet. */
+type ReadOnlyLine = { name: string; from: number | null; to: number | null };
+
+function SeenRow({ e, solo, ro }: { e: EpisodeRow; solo: boolean; ro: ReadOnlyLine | null }) {
   const page = usePushedPage(`ep${e.number}`);
   const out = e.out ?? [];
   return (
@@ -265,7 +274,7 @@ function SeenRow({ e, solo }: { e: EpisodeRow; solo: boolean }) {
       <span className="min-w-0 flex-1">
         <b className="block truncate text-base font-semibold">{out.length ? `${out.map((c) => first(c.name)).join(" and ")} out` : "No one out"}</b>
         <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">
-          {rowLine(e)}
+          {rowLine(e, ro)}
           {e.stage === "early" ? " · full scores to come" : ""}
         </small>
       </span>

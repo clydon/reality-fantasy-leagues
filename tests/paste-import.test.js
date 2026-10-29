@@ -174,7 +174,7 @@ for (const format of FORMATS) {
 }
 
 test("a paste with no JSON in it is a clear error, not a charge", () => {
-  assert.throws(() => R.extractJsonObject("I couldn't find anything about that episode."), /no JSON object/);
+  assert.throws(() => R.extractJsonObject("I couldn't find anything about that episode."), /no JSON in what was pasted/);
   assert.throws(() => parse(FORMATS[0], [], "{ this is not json }"), /valid JSON/);
 });
 

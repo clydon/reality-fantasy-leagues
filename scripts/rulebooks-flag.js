@@ -9,153 +9,17 @@
 //                                           rolled-back transaction. Exit 1 on any difference.
 //   node scripts/rulebooks-flag.js on       the backfill (db/backfill-rulebooks.js; refuses if a season's rulebook
 //                                           isn't its format), the flag on, then settings.rulebook into every league
-//   node scripts/rulebooks-flag.js off      the flag off, then settings.rulebook out of every league: back on
-//                                           showFormat / leagueRulesetData, which were never removed
+//   node scripts/rulebooks-flag.js off      the flag off, then settings.rulebook out of every league but a season's switched
+//                                           on by itself (rulebook_live) and a couch's own copy: back on showFormat /
+//                                           leagueRulesetData, which were never removed
 //
 // The database is RULEBOOKS_DATABASE_URL if set (a Neon branch, from the user's own terminal), else AUTH_DATABASE_URL
 // (.env.local). It prints the host; on or off anywhere but localhost needs --yes. Each league is written under its
 // own row lock (db/rulebooks.js syncLeagueRow) and only when its settings.rulebook changed; re-running picks up where
-// a run stopped.
+// a run stopped. The check and the switch are db/rulebooks-flag.js's, which the desk's Settings runs too.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const { Pool } = require("pg");
-const S = require("../src/lib/game/state-logic.js");
-const R = require("../db/rulebooks.js");
-const ShowFormats = require("../db/show-formats.js");
-const { backfill, BACKFILL_LOCK } = require("../db/backfill-rulebooks.js");
-
-// A list compared as a set: each item by its content, whatever order its keys came back in (jsonb's own).
-const sortKeys = (v) => (Array.isArray(v) ? v.map(sortKeys) : v && typeof v === "object" ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, sortKeys(v[k])])) : v);
-const asSet = (list) => list.map((x) => JSON.stringify(sortKeys(x))).sort();
-
-/**
- * Everything a league's rules decide, for comparing two states: standings, each episode's events and points, the end. With
- * `sets`, each episode's events and the catalog are sets: a built-in's blocks compiled list them in their own order.
- */
-function scoringSnapshot(state, { sets = false } = {}) {
-  const format = S.formatOf(state);
-  const events = (state.episodes || []).map((ep) => S.ActiveRosterLogic.episodeEvents(state, ep).map((e) => [e.type, e.castawayId, S.ActiveRosterLogic.eventPoints(state, e)]));
-  const catalog = format.events.map((e) => [e.id, e.defaultPoints, !!e.implied]);
-  return {
-    scores: S.computeScores(state),
-    events: sets ? events.map(asSet) : events,
-    ended: S.seasonEnded(state),
-    winner: (S.seasonWinner(state) || {}).id || null,
-    catalog: sets ? asSet(catalog) : catalog,
-    exits: [format.exitMethods, format.winnerExitMethod, format.endgameExitMethods],
-  };
-}
-
-/**
- * Whether `state` with its settings.rulebook scores as it does without one: { same, rules, differs? }. A rulebook that's
- * its built-in's blocks compiled (a season made since docs/PLAN-start-a-game-gpt.md S2, at its `phaseStarts`) has those
- * blocks' rules, not the format's data, in their order: its events and catalog compare as sets.
- */
-function comparePlayed(state, { phaseStarts = {} } = {}) {
-  const plain = structuredClone(state);
-  delete plain.settings.rulebook;
-  const book = state.settings.rulebook;
-  const blocks = book && book.reader === "research" ? R.builtInBlocksCompile(S.formatOf(plain).id, phaseStarts) : null;
-  const fromBlocks = !!blocks && R.sameData(book.data, blocks);
-  const a = scoringSnapshot(state, { sets: fromBlocks });
-  const b = scoringSnapshot(plain, { sets: fromBlocks });
-  const differs = Object.keys(a).filter((k) => !R.sameData(a[k], b[k]));
-  return { same: !differs.length, rules: fromBlocks || R.sameData(S.formatOf(state).data, S.formatOf(plain).data), differs };
-}
-
-const leagueList = async (pool) => (await pool.query("SELECT id, slug FROM leagues ORDER BY created_at")).rows;
-
-/** The read-only check: every league and season, nothing written. -> { leagues: [...], seasons: [...], ok } */
-async function check(pool, { log = console.log } = {}) {
-  const leagues = [];
-  for (const l of await leagueList(pool)) {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      const { rows } = await client.query("SELECT state FROM leagues WHERE id=$1", [l.id]);
-      const state = rows[0].state;
-      const result = await R.syncLeagueRulebook(client, l.id, state.settings, { on: true });
-      const compared = result.written ? comparePlayed(state, { phaseStarts: (await R.getRulebook(client, result.id)).phaseStarts }) : null;
-      leagues.push({ slug: l.slug, ...result, ...(compared || {}) });
-    } finally {
-      await client.query("ROLLBACK");
-      client.release();
-    }
-  }
-  const seasons = [];
-  const { rows } = await pool.query("SELECT ss.id, ss.season_number, s.slug, s.format FROM show_seasons ss JOIN shows s ON s.id = ss.show_id ORDER BY s.slug, ss.season_number");
-  for (const ss of rows) {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      const { row } = await R.ensureSeasonRulebook(client, ss.id);
-      const ruled = await R.seasonRulebookFormat(client, ss.id, { formatId: ss.format, on: true });
-      const today = await ShowFormats.resolveFormat(client, ss.format);
-      seasons.push({ season: `${ss.slug} ${ss.season_number}`, ruled: !!ruled, same: !ruled || R.isFormatsRules(row, today) });
-    } finally {
-      await client.query("ROLLBACK");
-      client.release();
-    }
-  }
-  for (const l of leagues) {
-    const what = l.written ? `${l.source} rulebook v${l.version}: ${l.same && l.rules ? "scores the same" : `DIFFERS (${l.differs.join(", ") || "rules"})`}` : `stays on the old path: ${l.mismatch || l.reason}`;
-    log(`  ${l.written && !(l.same && l.rules) ? "FAIL" : l.mismatch ? "NOTE" : "ok  "} league ${l.slug}: ${what}`);
-  }
-  for (const s of seasons) log(`  ${s.same ? "ok  " : "FAIL"} season ${s.season}: ${s.ruled ? (s.same ? "its rulebook is the format research reads" : "its rulebook ISN'T the format research reads") : "research keeps today's path"}`);
-  const ok = leagues.every((l) => !l.written || (l.same && l.rules)) && seasons.every((s) => s.same);
-  return { leagues, seasons, ok };
-}
-
-/** Turns the flag on (after the backfill) or off, then walks every league. -> { written, removed, unchanged, stayed: [...] } */
-async function flip(pool, on, { log = console.log } = {}) {
-  if (on) {
-    const client = await pool.connect();
-    try {
-      await client.query("BEGIN");
-      await client.query("SELECT pg_advisory_xact_lock($1)", [BACKFILL_LOCK]);
-      const report = await backfill(client);
-      const bad = report.checks.filter((c) => !c.same);
-      if (bad.length) {
-        await client.query("ROLLBACK");
-        throw new Error(`a season's rulebook isn't its format (${bad.map((c) => c.season).join(", ")}): not turning it on`);
-      }
-      await client.query("COMMIT");
-      log(`[rulebooks] backfill: ${Object.entries(report.counts).map(([k, c]) => `${k} ${c.created} new, ${c.updated} refreshed`).join("; ")}`);
-    } catch (e) {
-      await client.query("ROLLBACK").catch(() => {});
-      throw e;
-    } finally {
-      client.release();
-    }
-  }
-  await R.setRulebooksOn(pool, on);
-  log(`[rulebooks] flag ${on ? "on" : "off"}; syncing every league`);
-  const tally = { written: 0, removed: 0, unchanged: 0, stayed: [] };
-  for (const l of await leagueList(pool)) {
-    const r = await R.syncLeagueRow(pool, l.id, { on });
-    if (!r) continue;
-    if (r.saved && r.written) tally.written += 1;
-    else if (r.saved) tally.removed += 1;
-    else tally.unchanged += 1;
-    if (on && !r.written) tally.stayed.push(`${l.slug}: ${r.mismatch || r.reason}`);
-  }
-  log(`[rulebooks] ${tally.written} written, ${tally.removed} removed, ${tally.unchanged} already in step`);
-  for (const s of tally.stayed) log(`  on the old path: ${s}`);
-  return tally;
-}
-
-async function status(pool, { log = console.log } = {}) {
-  const on = await R.rulebooksOn(pool);
-  const { rows } = await pool.query(
-    `SELECT count(*)::int AS leagues,
-            count(*) FILTER (WHERE l.state->'settings' ? 'rulebook')::int AS carrying,
-            count(*) FILTER (WHERE (l.state->'settings'->'rulebook'->>'version')::int < r.version)::int AS behind
-       FROM leagues l LEFT JOIN rulebooks r ON r.id::text = l.state->'settings'->'rulebook'->>'id'`
-  );
-  const { rows: books } = await pool.query("SELECT owner_kind, count(*)::int AS n FROM rulebooks WHERE status <> 'archived' GROUP BY owner_kind ORDER BY owner_kind");
-  log(`[rulebooks] flag ${on ? "ON" : "off"}; ${rows[0].carrying} of ${rows[0].leagues} leagues carry settings.rulebook, ${rows[0].behind} behind their rulebook`);
-  log(`[rulebooks] rulebooks: ${books.map((b) => `${b.n} ${b.owner_kind}`).join(", ") || "none (run db/backfill-rulebooks.js)"}`);
-  return { on, ...rows[0] };
-}
+const { scoringSnapshot, comparePlayed, check, flip, status } = require("../db/rulebooks-flag.js");
 
 async function main() {
   const [command] = process.argv.slice(2);
