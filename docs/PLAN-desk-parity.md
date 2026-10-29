@@ -23,7 +23,7 @@ at 9f3dc05f: parts 5a and 5b** (5a: a season's Cast, Ask our bot or Paste it, ea
 games with Undo; the season page's Cast row and the Inbox's cast item; migration 0426; 5b: starting groups with Not a group,
 secret roles together, and Hold until Episode 1 without un-approving; a castaway's page under the cast with Override, Look on
 TMDB and TVmaze, Lock and Remove refused while in use, reaching every game; no migration; their As built is under step 5).
-**Part 6a is next** (Find › Games and a game's page). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
+**Part 6a done at 67785bdf, part 6b is next** (6a: Find › Games with a join code from three characters in any state, deleted ones with Restore; a game's page with its Join code and its Delete: Archive offered, restorable 30 days, then for good; migration 0427; its As built is under step 6. 6b: Seats). Before the build: **the design pass was done, and the build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
 either (decision 9); classic isn't the spec (decision 10). Each step below has its Changes at approval. One screen is still to
@@ -1006,6 +1006,79 @@ their season's rulebook, each a link; the library) · **Telling players** (What'
    is); the desk's Take out is the app's (reclaimable; the seat stays after a draft), not classic's; a seat linked to another
    account takes that account's name; a code search matches from three characters across every state; no "new join code"
    (neither app has one); the seat's sheet is one sheet from both pages.
+   **As built, part 6a (2026-10-29):** **Find › Games** (`/desk/games`: `routes.ts` DESK_PAGES gains `games`, `paths.deskGames`;
+   `src/new/desk/games.tsx`, `src/lib/server/desk-games.ts`, `GET /api/desk/games`): a game's name, its season, its show, its
+   couch, its kind ("Outlast") or its whole code; Playing · Nobody runs it · Ended · Archived · Deleted (the first, the one
+   you're on and any with games in it, as mocked); Newest first, Most players, Name, A to Z; 25 at a time from the server, the
+   search, filter and sort in the address. A code-shaped search (three to six letters and numbers, any case, a dash anywhere or
+   one space after the first three, read as the join flow reads it: `couch-joins.ts normalizeCode`) also finds every game whose
+   code starts with it, whatever the filter, deleted ones within their 30 days too; the row leads "Join code <mark>Z9WA</mark>A3
+   · Outlast · ZT DG Show 2 · ZT DG Couch", and a deleted one carries Restore. No match: "No game has the code QX7P0Z" and why
+   ("Codes never have a 0, O, 1 or I, so it was misread somewhere.", "No code starts that way. Codes are six letters and
+   numbers.", "Check it with whoever sent it."), and that a deleted game's code finds it for 30 days. **Browse's Games row**
+   ("39 playing · 1 deleted, restorable") and **Find's search** (three games and All N games matching, a code too). **A
+   game's page** (`/desk/game/<id>`: DESK_KINDS gains `game`, up is Games; `GET`, `POST` and `DELETE /api/desk/games/[id]`):
+   its season's art in the lower third with Playing, Ended, Archived or Deleted, the season and couch; its facts ("Outlast ·
+   Started Oct 25 · 3 players · run by jo", a site admin in a seat "(site admin)", an archived one's "Archived Oct 26 by quinn
+   · on the trophy shelf"); Deleted (by whom, until when) with Restore, or Nobody runs it with Hand it on (step 1's
+   HandOnSheet, no `from`); Part of (its couch, its season, its rulebook: its own copy or its season's; a game on no couch
+   says what it is); **Join code** (the code big, Copy, who it lets in, or "The game's over: the code still leads to ...,
+   and lets nobody into ..." once it's ended or archived; none for a deleted game, a practice game or a public pool, which
+   nobody joins by code: `join-league.ts`); History (the desk's lines, the game's Recent changes and Started by, latest three
+   and All N; only the newest of Archive, Delete and Restore has Undo, and a desk Archive undone from Recent changes shows
+   undone); and **Delete <game>** last (decision 4). Delete (tier 3, a hold): what it does ("3 players lose their teams, picks
+   and scores in it, and are told", "<couch>'s other games are untouched"), **Archive it instead** (tier 1, a toast with Undo,
+   a History line; Backstage's archive, `end-game.ts archiveLeague`), else the new design's soft delete (Noticed m):
+   `end-game.ts deleteLeague`, the body of Backstage's deleteGame taken out to serve both (the seats into its line's undo, off
+   its group, the chat to the couch's next game here or its own conversation), restorable for 30 days, a line in the game's
+   Recent changes (its Commissioner can bring it back there too) and one in its desk History; its players are told
+   (`push-events.ts notifyGameDeleted`: "<game> was deleted ... kept for 30 days, in case it comes back"). **Restore** (from
+   its page, or its row in the list): `restoreGame`, the delete line marked undone, a toast with Undo (deleted again; refused
+   once anything's changed since). A deleted game's page ends with **Delete <game> for good, now** ("Can't be undone · it goes
+   on its own Nov 28"; a hold: it's gone now instead, its join code stops finding it): the row deleted, a line on the game and
+   on its couch ("Deleted ZT DG Spare for good (Survival Pool on ZT DG Show 2)"), then Games (the list it came from, else
+   Deleted). A season's public pool has no Archive or Delete ("A season's public pool goes with its season", as step 3's
+   season delete and 1c's account delete leave it). **Links:** a seat's Open the game (`seats.tsx`) opens the game's page
+   ("The game's page: its join code, its delete"; 6b makes it the mock's "its seats, its code, its delete"); a castaway's
+   refused Remove lists their games as links (`castaway.tsx`); the couch page's Games are rows to each game's page, its season
+   by name (**Noticed ac, taken**); a report's game opens its page. `admin_changes` entity 'game' (**migration 0427**, widening
+   the check as 0420 and 0421 did: rehearsed with the step's merge); desk-undo.ts's `gameArchive` and `gameRestore`.
+   **Left behind or changed from classic, and why (decision 10):** classic's Leagues page read every league at once and
+   searched in the browser by name or whole code; its delete (`/api/admin/leagues/[leagueId]` DELETE) was a hard `DELETE FROM
+   leagues` with no way back, its players not told, and `leagueDeleted` deleted the couch too when it had no games left
+   (Noticed m). The desk pages on the server, finds a code from three characters in any state, soft deletes with 30 days to
+   restore, tells the players, offers Archive first, deletes for good only a deleted game, and keeps the couch. Classic's league
+   read (its state, members and memberships) is the game's page as far as 6a goes; its players and memberships routes (link,
+   role, unlink, remove) are 6b's; classic's routes stay until step 8. From the mock: the title is the league's own name ("Last
+   Survivor Standing"), with its kind in the facts and the row (the mock's games were named by their kinds); no "won by" on an
+   ended row (the list doesn't read each game's standings); Open <game> (6c) and Seats (6b) aren't on the page yet; "it goes on
+   its own Nov 28" (the mock read "until Nov 25").
+   **Calls made here (Claude's, within the approved screens):** the list's Ended is "its season is completed" (after Deleted and
+   Archived), worked out in SQL so the counts and pages are the server's; a game's page reads it as the app does
+   (`couch-joins.ts gameOver`, now exported: a winner, a span over, a talk show's last episode aired), so a game over a span that
+   has finished is Ended on its page and Playing in the list until its season completes (Noticed bn). Nobody runs it leaves out
+   a season's public pool (nobody's meant to run one). A code's no-match is said when the code has a number in it; a word
+   ("pool", which no code could be) gets Nothing matches with Search playing games. The players are told under A game started
+   (the nearest of the notice switches). A Restore's Undo deletes it again without telling anyone a second time.
+   `/code-review` found a desk Archive undone from Recent changes still showing Undo, a site admin's seat missing from "run
+   by", Delete for good leaving no record for a game on no couch, a word taken for a code, the chips' counts recounted for
+   every page, an unused parameter and a copy of the join flow's code reading: all fixed; and the span (Noticed bn) and chat
+   (bo) items below.
+   **Noticed, not fixed (6a):** (bn) the list's Ended and a game's page can differ for a game over a span (above); a stored
+   "over" would let the list say it. (bo) A game whose season isn't in the catalog (a `settings.showId` with no season row,
+   e.g. one made in classic) keeps its chat on itself when deleted, with no season on the couch to move it to, so the chat
+   goes with it for good. (bp) Each of the game's actions reads the whole page (`deskGame`) before it starts; fine at the
+   desk's size. (ah, from 1c) stays for 6b: a deleted game brought back has a seat with nobody signed in when its account went
+   meanwhile. (bq) Find › Couches (Browse's Couches row, with Deleted) and a couch's Delete (new with decision 4, "built in 6"
+   in The desk's pages) aren't in any part's row of The build lane's table: for 6c, or a part of their own after it.
+   Check: `scripts/dev-test/check-desk-games.js` 116 PASS at 390 (zt_dg_ fixture, up and down; its games' codes start Z9W and
+   it refuses to run if a real code does; every real account and league as it was): the list, filters, counts, sorts, paging,
+   codes in every state, a page's facts, Archive and its Undo (and from Recent changes), Delete with the bell, Restore and its
+   Undo, Delete for good; then the screens, from Browse to a deleted game's Restore, both holds, a seat's Open the game and a
+   castaway's refused Remove. check-desk-cast, -bingo, -episode, -research, -setup, -inbox and -people, check-classic-admin
+   ("all PASS"), check-new-settings, check-new-settling and check-bingo-bank ("ALL PASS") pass; unit tests 847
+   (tests/new-nav.test.js adds Games and a game); check-new-desk without its rulebook section (a scratch copy, deleted) passed
+   whole. check-desk-people's Open the game now expects the game's page.
 7. **Shows and site.** Delete a show (refused while games use it, saying which), restore an archived one, a season's details
    when adding it (number, status, wiki), the connector (wiki API, cast heading, research sites), art by URL with its framing;
    Settings: AI models, What's New preview, the rulebooks flag.
