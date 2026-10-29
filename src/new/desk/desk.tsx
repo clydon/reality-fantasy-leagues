@@ -20,6 +20,7 @@ import { andList } from "./seats";
 import { useDeskStay, useRecentlyOpened } from "./trail";
 import { agoOf, ChoiceCard, DeskHeader, DeskRow, History, IconLead, ItemRow, Section, Tag } from "./parts";
 import { RulebookPage } from "./rulebook";
+import { ResearchPage } from "./research";
 import { SetupPage } from "./setup";
 
 // The admin's desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js admin), from the profile menu: Inbox
@@ -45,6 +46,7 @@ export function DeskScreen({ tab, item }: { tab: Page | null; item: { kind: Desk
     );
   }
   if (item?.sub === "setup") return <SetupPage id={item.id} />;
+  if (item?.sub === "research") return <ResearchPage id={item.id} />;
   if (item) {
     const page = { fact: FactPage, season: SeasonPage, castaway: CastawayPage, couch: CouchPage, person: PersonPage, show: ShowPage, rulebook: RulebookPage, report: ReportPage }[item.kind];
     const Page = page;
@@ -609,10 +611,10 @@ function SettingsTab() {
         {!s.newCouchesAnyone && <ResetLink onClick={() => put({ newCouchesAnyone: true }, "New couches: anyone on the couch")} />}
       </Sheet>
       <Sheet open={sheet === "autopilot"} onOpenChange={(o) => !o && close()} title="Autopilot" subtitle="The bot's schedule, season by season">
-        <p className="mb-2 text-[13px] leading-snug text-muted-foreground">Couches see &ldquo;Autopilot · On for this season&rdquo; while it checks results. Each season&apos;s page changes it.</p>
+        <p className="mb-2 text-[13px] leading-snug text-muted-foreground">Couches see &ldquo;Autopilot · On for this season&rdquo; while it checks results. Each season&apos;s Research and the bot changes it.</p>
         <div data-autopilot>
           {s.autopilot.length ? (
-            s.autopilot.map((a) => <ItemRow key={a.id} data="season" href={paths.deskItem("season", a.id)} tag="On" title={a.name} line={a.line} />)
+            s.autopilot.map((a) => <ItemRow key={a.id} data="season" href={paths.deskSeasonPage(a.id, "research")} tag="On" title={a.name} line={a.line} />)
           ) : (
             <p className="rounded-[4px] bg-background p-3.5 text-[14px] text-muted-foreground">No season&apos;s bot is on. Switch one on from its page (Find › a season).</p>
           )}

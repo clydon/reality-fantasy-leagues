@@ -27,7 +27,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
   const user = await requireDesk(req);
   const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as { clearGroup?: unknown; preview?: unknown; bot?: { on?: unknown; schedule?: unknown } };
-  if (body.bot && typeof body.bot === "object") return NextResponse.json({ bot: await setSeasonBot(user, id, body.bot) });
+  if (body.bot && typeof body.bot === "object") return NextResponse.json({ bot: (await setSeasonBot(user, id, body.bot)).bot });
   return NextResponse.json(await clearGroup(user, id, { group: body.clearGroup, preview: body.preview }));
 });
 

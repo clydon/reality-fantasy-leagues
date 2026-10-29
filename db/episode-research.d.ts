@@ -181,3 +181,11 @@ export function storedBetAnswer(
 export function stageCachedSeasonResearch(pool: Pool, seasonId: string): Promise<{ episodes: number; inserted: number }>;
 
 export type { ResearchAnswer, ResearchCoverage };
+
+/** One season's episode as research reads it, by show slug and season number (the bot's quick check builds on it). */
+export function resolveSeasonResearchContext(
+  pool: Pool,
+  showSlug: string,
+  season: number,
+  episodeNumber: number
+): Promise<{ showName: string; season: number; episodeNumber: number; castNames: string[]; terms: { castaways: string; castaway: string }; format: { id: string; exitMethods: string[] } }>;

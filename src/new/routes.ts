@@ -13,6 +13,7 @@
 //   /desk/reports                            Find › Reports (depth 2: docs/PLAN-desk-parity.md step 2)
 //   /desk/[kind]/[id]                        one thing on the desk: a fact, a season, a castaway, a rulebook... (depth 2)
 //   /desk/season/[id]/setup                  a page under a season: its Setup (depth 3: docs/PLAN-desk-parity.md step 3)
+//   /desk/season/[id]/research               its Research and the bot (depth 3: step 4, part 4a)
 //
 // Classic owns everything else ("/", /account, /waivers, /setup, /admin...); the two designs never share a path.
 
@@ -76,7 +77,7 @@ export const paths = {
   /** New show; `season`: a season that's here, to set up (How do you want to start?). */
   deskNew: (season?: string) => `/desk/new${season ? `?season=${encodeURIComponent(season)}` : ""}`,
   deskItem: (kind: DeskKind, id: string) => `/desk/${kind}/${id}`,
-  /** A page under a season (docs/PLAN-desk-parity.md steps 3-5): its Setup. */
+  /** A page under a season (docs/PLAN-desk-parity.md steps 3-5): its Setup, its Research and the bot. */
   deskSeasonPage: (id: string, page: DeskSeasonPage) => `/desk/season/${id}/${page}`,
 };
 
@@ -87,8 +88,8 @@ export const DESK_PAGES = ["library", "new", "people", "reports"] as const;
 export const DESK_KINDS = ["fact", "season", "castaway", "couch", "person", "show", "rulebook", "report"] as const;
 export type DeskKind = (typeof DESK_KINDS)[number];
 export const isDeskKind = (v: string): v is DeskKind => (DESK_KINDS as readonly string[]).includes(v);
-/** The pages under a season: its Setup (step 3). */
-export const DESK_SEASON_PAGES = ["setup"] as const;
+/** The pages under a season: its Setup (step 3), its Research and the bot (step 4). */
+export const DESK_SEASON_PAGES = ["setup", "research"] as const;
 export type DeskSeasonPage = (typeof DESK_SEASON_PAGES)[number];
 export const isDeskSeasonPage = (v: string | undefined): v is DeskSeasonPage => !!v && (DESK_SEASON_PAGES as readonly string[]).includes(v);
 

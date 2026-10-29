@@ -353,6 +353,11 @@ export async function setCount(user: SessionUser, id: string, raw: unknown, prev
       const research = await db.query("DELETE FROM episode_research WHERE show_id = $1 AND season_number = $2 AND episode_number > $3", [r.show_id, r.season_number, n]);
       await db.query("DELETE FROM episode_text_chunks WHERE show_id = $1 AND season_number = $2 AND episode_number > $3", [r.show_id, r.season_number, n]);
       await db.query("DELETE FROM auto_research_attempts WHERE season_id = $1 AND episode_number > $2", [id, n]);
+      // The bot's (Noticed aw, part 4a): asks for results, Run nows still queued, and its finished runs past the count (one
+      // still asking finishes; trivia's and bingo's rows let go of the run).
+      await db.query("DELETE FROM research_asks WHERE season_id = $1 AND episode_number > $2", [id, n]);
+      await db.query("DELETE FROM desk_runs WHERE season_id = $1 AND episode_number > $2 AND started_at IS NULL", [id, n]);
+      await db.query("DELETE FROM bot_research_runs WHERE season_id = $1 AND episode_number > $2 AND finished_at IS NOT NULL", [id, n]);
       await db.query(
         `UPDATE wiki_extractions SET payload = jsonb_set(payload, '{episodes}', COALESCE((SELECT jsonb_agg(e) FROM jsonb_array_elements(payload->'episodes') e WHERE (e->>'number')::int <= $3), '[]'::jsonb))
           WHERE show_id = $1 AND season_number = $2 AND kind = 'episodes' AND EXISTS (SELECT 1 FROM jsonb_array_elements(payload->'episodes') e WHERE (e->>'number')::int > $3)`,

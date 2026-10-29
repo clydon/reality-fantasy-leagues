@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { BookOpen, CalendarDays, Check, Tv, Users, X } from "lucide-react";
+import { BookOpen, CalendarDays, Check, Tv, Users, X, Zap } from "lucide-react";
+import { researchLine } from "@/lib/desk-bot-words";
 import { colourOf } from "@/lib/people";
 import { airTime } from "../clock";
 import { NavLink, useNav } from "../nav";
@@ -14,7 +15,7 @@ import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { ArtSection } from "./art";
 import { deskSend, useAfterDesk, useDesk, type DeskCastaway, type DeskCouch, type DeskFact, type DeskLine, type DeskSeason, type DeskShow, type SeasonBot, type SeasonDelete } from "./data";
-import { DeskHeader, DeskRow, Facts, FieldRow, IconLead, ItemRow, LatestHistory, LockRow, LowerThird, OverrideSheet, Section, SwitchRow, Tag } from "./parts";
+import { DeskHeader, DeskRow, Facts, FieldRow, IconLead, ItemRow, LatestHistory, LockRow, LowerThird, OverrideSheet, Section, Tag } from "./parts";
 import { HandOnSheet } from "./seats";
 import { SeasonDeleteRow } from "./setup";
 
@@ -233,86 +234,6 @@ function EditFactSheet({ fact, onClose, onSave }: { fact: DeskFact; onClose: () 
 
 // ---------- a season ----------
 
-type BotRun = SeasonBot["schedule"][number];
-const RUN_WORDS: Record<BotRun["kind"], string> = { quick: "Who went home", full: "The full results", schedule: "When the next episode airs", trivia: "Trivia", bingo: "Bingo squares" };
-const RUN_LINES: Record<BotRun["kind"], string> = {
-  quick: "Free for every couch: keeps whoever runs a game spoiler-safe.",
-  full: "Every scoring moment, for every game on the season.",
-  schedule: "Moves lineup locks and reminders when the show takes a week off.",
-  trivia: "Questions on the episode and the season so far for trivia, each checked by a second ask.",
-  bingo: "Thirty squares for the episode's bingo cards before it airs, each checked by a second ask. The season's own once, too.",
-};
-/** When a run is, in words: trivia's count back from the next episode, bingo's from this one's start, the rest from its end. */
-const runWhen = (r: BotRun) => (r.kind === "trivia" ? "before the next one" : r.kind === "bingo" ? "before it airs" : "after it ends");
-const minutes = (m: number) => (m < 60 ? `${m} min` : Number.isInteger(m / 60) ? `${m / 60} h` : `${Math.floor(m / 60)} h ${m % 60} min`);
-// The runs a season can switch on: its own, and the usual ones it hasn't got (off until switched on).
-const USUAL: BotRun[] = [
-  { kind: "quick", after: 5, on: false },
-  { kind: "full", after: 60, on: false },
-  { kind: "full", after: 540, on: false },
-  { kind: "schedule", after: 30, on: false },
-  { kind: "trivia", after: 1440, on: false },
-  { kind: "bingo", after: 1440, on: false },
-];
-
-/**
- * The bot's schedule for a season (step 6c part 2): Autopilot's trial. On or off, each run on or off, and its latest runs.
- * Each change is a line in the season's History with Undo.
- */
-function SeasonBotSection({ id, bot }: { id: string; bot: SeasonBot }) {
-  const act = useAct<{ bot: SeasonBot }>(`/seasons/${id}`);
-  const runs = [...bot.schedule, ...USUAL.filter((u) => !bot.schedule.some((r) => r.kind === u.kind && r.after === u.after) && !(u.kind === "schedule" && bot.schedule.some((r) => r.kind === "schedule")))].sort((a, b) => a.after - b.after);
-  const save = (body: { on?: boolean; schedule?: BotRun[] }, done: string) => act({ bot: body }, done).catch(() => undefined);
-  // A run of its own is switched on or off in place; a usual one it hasn't got is added, on.
-  const flip = (run: BotRun) => {
-    const own = bot.schedule.some((r) => r.kind === run.kind && r.after === run.after);
-    const schedule = own ? bot.schedule.map((r) => (r.kind === run.kind && r.after === run.after ? { ...r, on: !r.on } : r)) : [...bot.schedule, { ...run, on: true }];
-    void save({ schedule }, `${RUN_WORDS[run.kind]} ${run.on ? "off" : "on"} · undo from History`);
-  };
-  return (
-    <Section title="Autopilot trial" aside="Our bot">
-      <div data-season-bot className="flex flex-col gap-2">
-        <SwitchRow
-          data="bot"
-          on={bot.on}
-          title="The bot's schedule"
-          line={
-            bot.on
-              ? `On: our bot asks after each episode ends (${bot.episodeMinutes ?? 60} min after it starts). Its answers are sources like anyone's.`
-              : "Off: the bot asks only when a couch taps One tap. Switch it on to try Autopilot on this season."
-          }
-          onChange={(on) => save({ on }, on ? "The bot's schedule is on · undo from History" : "The bot's schedule is off · undo from History")}
-        />
-        {runs.map((r) => (
-          <SwitchRow
-            key={`${r.kind}@${r.after}`}
-            data={`run-${r.kind}@${r.after}`}
-            on={r.on}
-            disabled={!bot.on}
-            title={`${RUN_WORDS[r.kind]} · ${minutes(r.after)} ${runWhen(r)}`}
-            line={RUN_LINES[r.kind]}
-            onChange={() => flip(r)}
-          />
-        ))}
-      </div>
-      {bot.recent.length > 0 && (
-        <div data-bot-runs className="mt-3">
-          <p className="type-caption text-[11px] tracking-[0.06em] text-muted-foreground">Latest runs</p>
-          {bot.recent.map((r, i) => (
-            <div key={`${r.at}-${i}`} className="flex items-start gap-2 border-t border-border py-2 text-[13px] first:border-t-0">
-              <span className={`mt-0.5 flex-none font-bold ${r.ok ? "text-good" : r.ok === false ? "text-chyron-line" : "text-muted-foreground"}`}>{r.ok ? "Done" : r.ok === false ? "Failed" : "Asking"}</span>
-              <span className="min-w-0 flex-1 text-muted-foreground">
-                Episode {r.episode} · {r.kind === "tiebreak" ? "tie-break" : r.slot === "tap" ? "One tap" : (RUN_WORDS[r.kind as BotRun["kind"]] ?? r.kind).toLowerCase()} · {airTime(Date.parse(r.at))}
-                {r.message ? <span className="block truncate">{r.message}</span> : null}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </Section>
-  );
-}
-
 export function SeasonPage({ id }: { id: string }) {
   const q = useDesk<DeskSeason & { bot: SeasonBot; history: DeskLine[]; setup: { line: string; next: string; facts: string; scheduled: boolean }; delete: SeasonDelete }>(`/seasons/${id}`);
   const act = useAct<{ people: number; leagues: number }>(`/seasons/${id}`);
@@ -343,11 +264,13 @@ export function SeasonPage({ id }: { id: string }) {
           />
         )}
       </Section>
-      {/* Its Setup (docs/PLAN-desk-parity.md step 3), and what the Inbox sends here for (step 2), the row to act on with its
-          dot: step 5 gives a season its own Cast; until then it's approved in classic's admin. */}
+      {/* Its Setup (docs/PLAN-desk-parity.md step 3), its Research and the bot (step 4: the bot's schedule moved there from
+          this page), and what the Inbox sends here for (step 2), the row to act on with its dot: step 5 gives a season its own
+          Cast; until then it's approved in classic's admin. */}
       <Section title="Running it">
         <div className="border-b border-border">
           <DeskRow href={paths.deskSeasonPage(id, "setup")} data="setup" dot={noSchedule ? "need" : undefined} lead={<IconLead icon={CalendarDays} />} title="Setup" line={s.setup.line} />
+          <DeskRow href={paths.deskSeasonPage(id, "research")} data="research" lead={<IconLead icon={Zap} />} title="Research and the bot" line={researchLine({ on: s.bot.on, schedule: s.bot.schedule })} />
           {!s.castSent && (
             <DeskRow
               href={`/admin/seasons/${id}/cast`}
@@ -360,7 +283,6 @@ export function SeasonPage({ id }: { id: string }) {
           )}
         </div>
       </Section>
-      <SeasonBotSection id={id} bot={s.bot} />
       <Section title="Cast" aside={`${s.cast.length} people`}>
         {s.groups.length > 0 && (
           <div className="mb-3 flex flex-col gap-2">

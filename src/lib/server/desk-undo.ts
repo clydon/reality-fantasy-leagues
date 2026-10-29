@@ -80,7 +80,11 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
       await pool.query("UPDATE shows SET reviewed_at = NULL, reviewed_by = NULL, archived = $2, updated_at = now() WHERE id = $1", [String(u.id), !!u.archived]);
       break;
     case "bot":
-      await restoreSeasonBot(String(u.id), { on: !!u.on, schedule: u.schedule as Parameters<typeof restoreSeasonBot>[1]["schedule"] });
+      await restoreSeasonBot(String(u.id), {
+        on: !!u.on,
+        schedule: u.schedule as Parameters<typeof restoreSeasonBot>[1]["schedule"],
+        ...("episodeMinutes" in u ? { episodeMinutes: (u.episodeMinutes as number | null) ?? null } : {}),
+      });
       break;
     case "phase": {
       const r = await getRulebook(pool, String(u.id));
