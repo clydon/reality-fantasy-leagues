@@ -1,7 +1,8 @@
-// Dev-only check for a season's Setup on the desk (docs/PLAN-desk-parity.md step 3, part 3a), against this lane's dev server,
-// on a fixture of its own (zt_ds_ people, a ZT DS couch, the ZT DS Show with four seasons: 1 airing on its TV listing with
-// two games on it, one ended; 2 ended with nothing playing it but a deleted game, a follower and research; 3 airing with no
-// schedule; 4 upcoming on its listing):
+// Dev-only check for a season's Setup on the desk (docs/PLAN-desk-parity.md step 3, parts 3a and 3b), against this lane's dev
+// server, on a fixture of its own (zt_ds_ people, a ZT DS couch, the ZT DS Show with five seasons: 1 airing on its TV listing
+// with two games on it, one ended; 2 ended with nothing playing it but a deleted game, a follower and research; 3 and 5
+// airing with no schedule; 4 upcoming on its listing) and TVmaze's stand-in (fake-listings.js: the ZT DS Show with seasons
+// 1, 3 and 5, an ended look-alike, and another show's Season 3):
 //   1. Only site admins: zt_ds_jo (a player) is refused Setup's read and changes, and a season's Delete.
 //   2. Setup's read: the lower third's next episode, its facts, The season's rows, the Schedule as it reads now (the
 //      rundown, every episode, When it airs, Episodes, TV listing), Who decides results, the Delete's games in the way.
@@ -11,12 +12,21 @@
 //      its listing's dates lets them move it, each with Undo; refused when it's that already.
 //   5. Who decides results: You decide (results_admin_since from the switch), the Inbox's Coming up line says so, what only
 //      the desk accepted counted, back to sources saying it leaves, Undo putting the old cutoff back.
-//   6. The Delete: refused while games play it (ended ones too), a deleted game doesn't hold it; gone with its research and
+//   6. The schedule (3b): When it airs previewed (what moves, the listing's times it wins over, aired episodes put in the
+//      future), saved (times_held_at: the listing's rows stop counting, "Set by hand, by zt_ds_desk"), the same again
+//      refused; Episodes previewed (cleared, red, fewer than aired, added, not known) and saved with classic's prune; a read
+//      of its listing (add-show.ts listedSeason) leaving both; Undo of each. Find it in the TV listings (its season, an ended
+//      look-alike greyed, another show's greyed once the show has its listing), Use this listing (the show gains it, every
+//      episode's time, held things let go), linked again refused, Undo, Unlink (its times kept), Undo; a held Ended says its
+//      listing isn't read (Noticed ar).
+//   7. The Delete: refused while games play it (ended ones too), a deleted game doesn't hold it; gone with its research and
 //      follows, a line on the show's History.
-//   7. Screens at --width: the season page (Running it › Setup's line, its Delete refused with the games listed), Setup
-//      (the rundown, All N episodes, Name with the toast's Undo, Status held and Back, Who decides), a season with no
-//      schedule, Delete's hold from Setup landing on the show. Nothing wider than the screen; no page errors.
-//   8. Nothing real moved: every account that isn't zt_ is as it was, and no real season's status or results_by.
+//   8. Screens at --width: the season page (Running it › Setup's line, its Delete refused with the games listed), Setup
+//      (the rundown, All N episodes, Name with the toast's Undo, Status held and Back, Who decides), When it airs (what
+//      moves, saved, the toast's Undo), Episodes (fewer than aired: Clear and save, red), a season with no schedule (Set it
+//      by hand's What it sets; Find it in the TV listings, its look-alike greyed, Use this listing), its TV listing linked
+//      and Unlink it, Delete's hold from Setup landing on the show. Nothing wider than the screen; no page errors.
+//   9. Nothing real moved: every account that isn't zt_ is as it was, and no real season's status, results_by, listing or holds.
 // Screenshots go to <outDir>.
 //
 //   node scripts/lane.js dev                                  (this lane's server, in another terminal; BASE from .env.local)
@@ -25,7 +35,8 @@
 //
 // up/down: zt_ds_ accounts (their sessions, seats and couch rows), the ZT DS couch and its zt-ds- games, the ZT DS Show and
 // its seasons (and the research kept by its show and number), and the admin_changes lines its desk admin makes; --keep
-// leaves the fixture up. Refuses a non-local database. Prints PASS/FAIL.
+// leaves the fixture up. TVmaze is only ever the stand-in (the x-gys-listings header). Refuses a non-local database. Prints
+// PASS/FAIL.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const crypto = require("crypto");
 const fs = require("fs");
@@ -33,6 +44,7 @@ const path = require("path");
 const { Pool } = require("pg");
 const S = require("../../src/lib/game/state-logic.js");
 const { open, api, BASE } = require("./browser");
+const listings = require("./fake-listings");
 const { settle } = require("./motion");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
@@ -104,6 +116,7 @@ async function up(pool) {
   // 3: airing with nothing to say when. 4: upcoming on its listing.
   ids.s3 = await season(3, "status", "'airing'");
   ids.s4 = await season(4, "status, premiere_date, air_time, air_tz, release, listing_id", "'upcoming', current_date + 30, '20:00', 'America/New_York', 'weekly', 990004");
+  ids.s5 = await season(5, "status", "'airing'");
   await pool.query("INSERT INTO show_follows (user_id, season_id, following) VALUES ($1, $2, true)", [ids.jo, ids.s2]);
   await pool.query(`INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance) VALUES ($1, 2, 1, '{}'::jsonb, '{}'::jsonb)`, [ids.show]);
 
@@ -149,8 +162,22 @@ async function up(pool) {
 
 const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email || coalesce(role, '') || approved::text || coalesce(banned::text, ''), ',' ORDER BY id)) AS h
   FROM "user" WHERE username IS NULL OR username NOT LIKE 'zt\\_%'`;
-const REAL_SEASONS = `SELECT md5(string_agg(ss.id || ss.status || ss.results_by || coalesce(ss.name, '') || coalesce(ss.status_held_at::text, ''), ',' ORDER BY ss.id)) AS h
+const REAL_SEASONS = `SELECT md5(string_agg(ss.id || ss.status || ss.results_by || coalesce(ss.name, '') || coalesce(ss.status_held_at::text, '')
+    || coalesce(ss.listing_id::text, '') || coalesce(ss.times_held_at::text, '') || coalesce(ss.count_held_at::text, '') || coalesce(ss.episode_count::text, '')
+    || coalesce(ss.air_time::text, '') || coalesce(ss.premiere_date::text, ''), ',' ORDER BY ss.id)) AS h
   FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug NOT LIKE 'zt-%'`;
+
+/** TVmaze's stand-in: the ZT DS Show (its Season 1 is Show 1's listing, 990001; Seasons 3 and 5 to be found), an ended
+ *  look-alike with no Season 3, and another show with a Season 3. */
+function standIn(now = Date.now()) {
+  const ztn = { name: "ZTN", country: { name: "United States", code: "US", timezone: "America/New_York" } };
+  const show = (id, name, o = {}) => ({ id, name, type: "Reality", language: "English", genres: [], status: o.ended ? "Ended" : "Running", premiered: "2020-01-01", ended: o.ended ?? null, network: o.network ?? ztn, webChannel: null, image: null, url: `https://www.tvmaze.com/shows/${id}`, schedule: { time: "21:00", days: ["Tuesday"] } });
+  return [
+    { show: show(990101, NAME), seasons: [listings.weekly(990001, 1, 6, 3, now), listings.weekly(9901013, 3, 6, 2, now), listings.weekly(9901015, 5, 8, 3, now)] },
+    { show: show(990102, `${NAME} Juniors`, { ended: "2018-05-01" }), seasons: [listings.weekly(9901021, 1, 6, 6, now - 3000 * 864e5)] },
+    { show: show(990103, `${NAME} (Australia)`, { network: { name: "ZT Seven", country: { name: "Australia", code: "AU", timezone: "Australia/Sydney" } } }), seasons: [listings.weekly(9901033, 3, 10, 4, now)] },
+  ];
+}
 
 (async () => {
   const pool = new Pool({ connectionString: DB });
@@ -166,7 +193,10 @@ const REAL_SEASONS = `SELECT md5(string_agg(ss.id || ss.status || ss.results_by 
   const closers = [];
   try {
     const ids = await up(pool);
-    const as = { desk: await api({ user: U("desk"), pass: PASSWORD }), jo: await api({ user: U("jo"), pass: PASSWORD }) };
+    const tv = await listings.start({ shows: standIn() });
+    closers.push(tv.close);
+    const headers = { "x-gys-listings": tv.url };
+    const as = { desk: await api({ user: U("desk"), pass: PASSWORD, headers }), jo: await api({ user: U("jo"), pass: PASSWORD, headers }) };
     const undo = (id) => as.desk.call("POST", `/api/desk/changes/${id}/undo`, {});
     const setup = async (id) => (await as.desk.call("GET", `/api/desk/seasons/${id}/setup`)).body;
     const change = (id, body) => as.desk.call("POST", `/api/desk/seasons/${id}/setup`, body);
@@ -275,15 +305,140 @@ const REAL_SEASONS = `SELECT md5(string_agg(ss.id || ss.status || ss.results_by 
     check((await undo(r.body.changeId)).status === 200 && (await col(ids.s1, "results_by")) === "leagues", "Undo the switch: sources again");
     await pool.query("DELETE FROM season_decisions WHERE season_id = $1", [ids.s1]);
 
-    // ---- 6. the Delete (API) ----
+    // ---- 6. the schedule (3b) ----
+    const ET = "America/New_York";
+    const etTime = (t) => new Date(t).toLocaleTimeString("en-US", { timeZone: ET, hour: "numeric", minute: "2-digit" });
+    const prem1 = await col(ids.s1, "to_char(premiere_date, 'YYYY-MM-DD')");
+    // Show 1's listing dates every episode at 8:00 PM Eastern (its own air time says 8:05): the listing's rows win until
+    // times are set by hand (Noticed b).
+    await pool.query(
+      `INSERT INTO season_episodes (season_id, number, air_at, runtime_min, title, source)
+       SELECT $1, n, (($2::date + (n - 1) * 7) + time '20:00') AT TIME ZONE 'America/New_York', 60, 'Night ' || n, 'listing' FROM generate_series(1, 6) n`,
+      [ids.s1, prem1]
+    );
+    let sx = await setup(ids.s1);
+    check(/ 8:00 PM Eastern · /.test(sx.rows.when) && sx.source === "From its TV listing" && !sx.timesHeld, "the listing's per-episode times win while nothing's set by hand", sx.rows.when);
+    check(sx.form.how === "weekly" && sx.form.premiere === prem1 && sx.form.time === "20:05" && sx.form.tz === ET && sx.zones.some(([z, n]) => z === ET && n === "Eastern"), "When it airs opens on what's set", JSON.stringify(sx.form));
+    check(/^Its times: \w+days at 8:00 PM Eastern, kept current each morning\.$/.test(sx.listing?.times || "") && /^Its dates move the status on: airing from \w{3} \d+, ended after \w{3} \d+\.$/.test(sx.listing?.dates || ""), "its TV listing's sheet: its times and its dates", JSON.stringify(sx.listing));
+    const want = { how: "weekly", premiere: prem1, time: "21:00", tz: ET };
+    let pv = (await change(ids.s1, { when: want, preview: true })).body;
+    const airedNow = sx.episodes.filter((e) => e.aired).length;
+    check(!pv.fresh && !pv.same && pv.moved === 6 - airedNow && pv.rows.length === Math.min(3, pv.moved) && pv.rows[0].from === "8:00 PM" && pv.rows[0].to === "9:00 PM" && pv.listingWins && pv.games === 1 && !pv.bot && (!pv.warn || /^Episode \d has aired/.test(pv.warn.title)), "When it airs, previewed: what moves, from the listing's 8:00 PM", JSON.stringify(pv));
+    check(/^\w+days 9:00 PM Eastern: Episode 1 \w{3} \d+, the finale \w{3} \d+\.$/.test(pv.summary) && pv.more === Math.max(0, pv.moved - 3), "its summary, and how many more", pv.summary);
+    const later = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+    pv = (await change(ids.s1, { when: { ...want, premiere: later }, preview: true })).body;
+    check(!!pv.warn && /aired, but this puts (it|them) in the future$/.test(pv.warn.title), "a first episode a month on: aired episodes would land in the future", JSON.stringify(pv.warn));
+    pv = (await change(ids.s1, { when: { ...want, how: "nightly" }, preview: true })).body;
+    check(/^Nightly, 9:00 PM Eastern/.test(pv.summary) && pv.moved > 0, "Nightly: its summary", pv.summary);
+    check((await change(ids.s1, { when: { ...want, time: "25:00" } })).status === 400 && (await change(ids.s1, { when: { ...want, how: "daily" } })).status === 400 && (await change(ids.s1, { when: { ...want, premiere: "" } })).status === 400, "a bad time, way or date: refused");
+    const w = await change(ids.s1, { when: want });
+    check(w.status === 200 && /^Saved · Episode \d airs .+, 9:00 PM$/.test(w.body.text) && !!(await col(ids.s1, "times_held_at")) && (await col(ids.s1, "to_char(air_time, 'HH24:MI')")) === "21:00", "saved: its times win over its listing's", JSON.stringify(w.body));
+    const dates = (await pool.query("SELECT air_dates FROM season_air_dates WHERE season_id = $1", [ids.s1])).rows[0].air_dates;
+    check(Object.keys(dates).length === 0, "the listing's rows no longer count in season_air_dates", JSON.stringify(dates));
+    sx = await setup(ids.s1);
+    check(/ 9:00 PM Eastern · /.test(sx.rows.when) && sx.source === "Set by hand, by zt_ds_desk" && sx.timesHeld && sx.rows.listing === "ZT DS Show on ZTN · your 9:00 PM wins over its 8:00 PM" && /Yours, 9:00 PM, win\.$/.test(sx.listing.times), "Setup: set by hand, by whom, winning over its listing", `${sx.source} | ${sx.rows.listing} | ${sx.listing.times}`);
+    check(sx.history[0].text === "Times changed by hand: " + sx.rows.when.split(" · ")[0], "a History line", sx.history[0].text);
+    check((await change(ids.s1, { when: want })).status === 409, "the same times again: refused, nothing moves");
+    // Episodes
+    const aired1 = sx.episodes.filter((e) => e.aired).length;
+    let cp = (await change(ids.s1, { episodes: 1, preview: true })).body;
+    check(cp.cleared.length === 2 && /^Episodes 2 to 6 come off the list/.test(cp.cleared[0]) && cp.clears && cp.warn?.title === "Fewer than have aired" && /has aired \d+\./.test(cp.warn.line) && /^The finale was /.test(cp.finale), "Episodes down to 1, previewed: what's cleared, red, fewer than aired", JSON.stringify(cp));
+    cp = (await change(ids.s1, { episodes: 8, preview: true })).body;
+    check(!cp.cleared.length && !cp.clears && /^Episodes 7 and 8 are added, to \w{3} \w{3} \d+\.$/.test(cp.added || "") && /^The finale is /.test(cp.finale), "up to 8: what's added", JSON.stringify(cp));
+    cp = (await change(ids.s1, { episodes: null, preview: true })).body;
+    check(/nothing counts as the finale/.test(cp.unknown || "") && cp.finale === "Not known: nothing counts as the finale", "not known yet: what that means", JSON.stringify(cp));
+    check((await change(ids.s1, { episodes: 0 })).status === 400 && (await change(ids.s1, { episodes: 6 })).status === 409, "0 episodes or the count it has: refused");
+    await pool.query(`INSERT INTO episode_research (show_id, season_number, episode_number, payload, provenance) VALUES ($1, 1, 2, '{}', '{}'), ($1, 1, 5, '{}', '{}'), ($1, 1, 1, '{}', '{}')`, [ids.show]);
+    await pool.query(
+      `INSERT INTO season_decisions (season_id, episode_number, kind, castaway_name, method, status) VALUES ($1, 4, 'elimination', 'Zt Pending', 'voted out', 'pending'), ($1, 3, 'elimination', 'Zt Kept', 'voted out', 'accepted')`,
+      [ids.s1]
+    );
+    const keep = Math.max(1, aired1 - 1);
+    const c = await change(ids.s1, { episodes: keep });
+    const left = (await pool.query("SELECT episode_number FROM episode_research WHERE show_id = $1 AND season_number = 1 ORDER BY 1", [ids.show])).rows.map((x) => x.episode_number);
+    const dec = (await pool.query("SELECT status FROM season_decisions WHERE season_id = $1 ORDER BY status", [ids.s1])).rows.map((x) => x.status);
+    check(c.status === 200 && (await col(ids.s1, "episode_count")) === keep && !!(await col(ids.s1, "count_held_at")) && left.every((n) => n <= keep), `${keep} episodes: saved, held, research past it cleared`, `${JSON.stringify(c.body)} | ${left}`);
+    check(dec.join() === (keep < 3 ? "accepted" : "accepted") && /cleared research on \d+ episodes? and 1 result still settling$/.test((await setup(ids.s1)).history[0].text), "a result still settling past it cleared, a confirmed one kept; History says so", `${dec} | ${(await setup(ids.s1)).history[0].text}`);
+    // A read of its listing leaves the times and count set by hand (add-show.ts listedSeason, as the daily job reads it).
+    const { listedSeason } = loadServer("../../src/lib/server/add-show.ts");
+    const theirs = standIn()[0];
+    await listedSeason(ids.show, theirs.show, theirs.seasons[0].season, tv.url, new Date(), ids.s1);
+    check(
+      (await col(ids.s1, "to_char(air_time, 'HH24:MI')")) === "21:00" && (await col(ids.s1, "episode_count")) === keep && (await col(ids.s1, "to_char(premiere_date, 'YYYY-MM-DD')")) === prem1 &&
+        Object.keys((await pool.query("SELECT air_dates FROM season_air_dates WHERE season_id = $1", [ids.s1])).rows[0].air_dates).length === 0,
+      "a read of its listing leaves what's set by hand"
+    );
+    check((await undo(c.body.changeId)).status === 200 && (await col(ids.s1, "episode_count")) === 6 && !(await col(ids.s1, "count_held_at")), "Undo the count: 6 again, not held");
+    check((await undo(w.body.changeId)).status === 200 && !(await col(ids.s1, "times_held_at")) && (await col(ids.s1, "to_char(air_time, 'HH24:MI')")) === "20:05", "Undo the times: its own 8:05 PM, the listing's rows winning again");
+    // (The read above rewrote its listing's rows from the stand-in, whose episodes air at 9:00 PM Eastern in October.)
+    sx = await setup(ids.s1);
+    check(!/8:05/.test(sx.rows.when) && sx.source === "From its TV listing" && !sx.timesHeld, "Setup: from its TV listing again, its times the listing's", sx.rows.when);
+    check((await undo(w.body.changeId)).status === 409, "an Undo once undone: refused");
+    await pool.query("DELETE FROM season_decisions WHERE season_id = $1", [ids.s1]);
+    await pool.query("DELETE FROM season_episodes WHERE season_id = $1", [ids.s1]);
+    // Find it in the TV listings, Use this listing, Unlink it
+    const find = async (id, q = NAME) => (await as.desk.call("GET", `/api/desk/seasons/${id}/listings?q=${encodeURIComponent(q)}`)).body;
+    let f5 = await find(ids.s5);
+    const a5 = f5.hits.find((h) => h.tvmazeId === 990101);
+    const jr = f5.hits.find((h) => h.tvmazeId === 990102);
+    check(a5 && !a5.off && a5.listingId === 9901015 && /^Season 5 · \w+days \d+:00 PM · 8 episodes · \w{3} \d+ to \w{3} \d+$/.test(a5.line) && a5.fills.length === 3 && /^\w+days at \d+:00 PM Eastern, from \w{3} \d+: Episode 4 is next, /.test(a5.fills[0].text) && /^8 episodes: the finale /.test(a5.fills[1].text), "found: its Season 5, what it fills", JSON.stringify(a5));
+    check(jr && jr.off === "ZT DS Show Juniors ended in 2018: it has no Season 5" && jr.line === "Ended 2018 · no season airing now", "an ended look-alike greyed, saying why", JSON.stringify(jr));
+    check((await as.jo.call("GET", `/api/desk/seasons/${ids.s5}/listings?q=zt`)).status === 403, "a player can't search from Setup");
+    check((await change(ids.s5, { listing: { tvmazeId: 990101, listingId: 9901013 } })).status === 409, "a listing's other season: refused");
+    // A recap kept on a listing row (episode-recaps.ts) stays through linking and its Undo.
+    await pool.query("INSERT INTO season_episodes (season_id, number, summary, summary_at, source) VALUES ($1, 2, 'ZT a recap', now(), 'listing')", [ids.s5]);
+    const l5 = await change(ids.s5, { listing: { tvmazeId: 990101, listingId: 9901015 } });
+    const tvmazeOf = async () => (await pool.query("SELECT tvmaze_id FROM shows WHERE id = $1", [ids.show])).rows[0].tvmaze_id;
+    const rowsOf = async (id) => (await pool.query("SELECT count(*)::int AS n FROM season_episodes WHERE season_id = $1 AND source = 'listing' AND air_at IS NOT NULL", [id])).rows[0].n;
+    const recapOf = async (id, n) => (await pool.query("SELECT summary FROM season_episodes WHERE season_id = $1 AND number = $2", [id, n])).rows[0]?.summary ?? null;
+    check(l5.status === 200 && /^Linked · Episode 4 airs /.test(l5.body.text) && (await col(ids.s5, "listing_id")) === 9901015 && (await tvmazeOf()) === 990101 && (await rowsOf(ids.s5)) === 8 && (await col(ids.s5, "episode_count")) === 8, "Use this listing: linked, the show gains its listing, every episode's time", JSON.stringify(l5.body));
+    sx = await setup(ids.s5);
+    check(sx.scheduled && sx.linked && sx.source === "From its TV listing" && /^Linked to its TV listing: ZTN, \w+days \d+:00 PM$/.test(sx.history[0].text), "Setup: scheduled from its listing, a History line", `${sx.source} | ${sx.history[0].text}`);
+    check((await change(ids.s5, { listing: { tvmazeId: 990101, listingId: 9901015 } })).status === 409, "the same listing again: refused");
+    const f3 = await find(ids.s3);
+    const au = f3.hits.find((h) => h.tvmazeId === 990103);
+    check(au && au.off === "ZT DS Show is linked to another show's listing" && f3.hits.find((h) => h.tvmazeId === 990101 && !h.off && h.listingId === 9901013), "once the show has its listing, another show's is greyed", JSON.stringify(f3.hits.map((h) => [h.tvmazeId, h.off])));
+    f5 = await find(ids.s5);
+    check(f5.hits.find((h) => h.tvmazeId === 990101)?.off === "ZT DS Show 5 is linked to it already", "its own listing, greyed: linked already");
+    check((await recapOf(ids.s5, 2)) === "ZT a recap", "the recap on its listing row stays");
+    check((await undo(l5.body.changeId)).status === 200 && (await col(ids.s5, "listing_id")) === null && (await rowsOf(ids.s5)) === 0 && !(await setup(ids.s5)).scheduled && (await recapOf(ids.s5, 2)) === "ZT a recap", "Undo: no listing, no schedule again, the recap kept");
+    const l5b = await change(ids.s5, { listing: { tvmazeId: 990101, listingId: 9901015 } });
+    await change(ids.s5, { status: "completed" });
+    sx = await setup(ids.s5);
+    check(/ · not read again while it's held Ended$/.test(sx.rows.listing) && /not read again while it's held Ended/.test(sx.listing.times), "held Ended over dates that say it's on: its listing isn't read again (Noticed ar)", sx.rows.listing);
+    await change(ids.s5, { statusBack: true });
+    const un = await change(ids.s5, { unlink: true });
+    sx = await setup(ids.s5);
+    check(un.status === 200 && un.body.text === "Unlinked · its times stay as they are" && (await col(ids.s5, "listing_id")) === null && sx.scheduled && (await rowsOf(ids.s5)) === 8 && sx.source === "Kept from its old listing" && sx.rows.listing === "Not linked · nothing updates on its own", "Unlink it: its times stay, kept from its old listing", `${sx.source} | ${sx.rows.listing}`);
+    check((await change(ids.s5, { unlink: true })).status === 409, "unlinked already: refused");
+    check((await undo(un.body.changeId)).status === 200 && (await col(ids.s5, "listing_id")) === 9901015, "Undo Unlink: linked again");
+    check(l5b.status === 200, "linked again after its Undo");
+    // A linking that reads nothing: the stand-in down, the season as it was.
+    tv.down = true;
+    const failedLink = await change(ids.s3, { listing: { tvmazeId: 990101, listingId: 9901013 } });
+    tv.down = false;
+    check(failedLink.status === 503 && (await col(ids.s3, "listing_id")) === null, "TV listings not answering: refused, nothing linked", JSON.stringify(failedLink.body));
+
+    // Only aired episodes dated differently (an ended season's wrong first date): saved, nothing in games moves.
+    pv = (await change(ids.s2, { when: { how: "weekly", premiere: "2025-03-04", time: "21:00", tz: ET }, preview: true })).body;
+    check(!pv.same && pv.airedOnly && pv.moved === 0 && !pv.warn, "an ended season's first date corrected: aired episodes only", JSON.stringify(pv));
+    const fix = await change(ids.s2, { when: { how: "weekly", premiere: "2025-03-04", time: "21:00", tz: ET } });
+    check(fix.status === 200 && (await col(ids.s2, "to_char(premiere_date, 'YYYY-MM-DD')")) === "2025-03-04" && (await col(ids.s2, "to_char(finale_date, 'YYYY-MM-DD')")) === "2025-03-25", "saved, its finale's date with it", JSON.stringify(fix.body));
+    check((await undo(fix.body.changeId)).status === 200 && (await col(ids.s2, "to_char(finale_date, 'YYYY-MM-DD')")) === "2025-03-26", "Undo: its dates as they were");
+    // Not known yet keeps the finale's date (the listings' status rule reads it).
+    const unk = await change(ids.s2, { episodes: null });
+    check(unk.status === 200 && (await col(ids.s2, "episode_count")) === null && (await col(ids.s2, "to_char(finale_date, 'YYYY-MM-DD')")) === "2025-03-26" && (await col(ids.s2, "status")) === "completed", "Episodes: not known yet keeps its finale's date", JSON.stringify(unk.body));
+    await undo(unk.body.changeId);
+
+    // ---- 7. the Delete (API) ----
     const del1 = await as.desk.call("DELETE", `/api/desk/seasons/${ids.s1}`);
     check(del1.status === 409 && /2 games play/.test(del1.body.error) && !!(await col(ids.s1, "id")), "Delete refused while games play it", JSON.stringify(del1.body));
     const del4 = await as.desk.call("DELETE", `/api/desk/seasons/${ids.s4}`);
     check(del4.status === 200 && !(await col(ids.s4, "id")) && (await pool.query("SELECT 1 FROM admin_changes WHERE entity = 'show' AND entity_id = $1 AND text = 'Deleted ZT DS Show 4'", [ids.show])).rows.length === 1, "Delete: gone, a line on the show's History", JSON.stringify(del4.body));
     check((await as.desk.call("GET", `/api/desk/seasons/${ids.s4}/setup`)).status === 404, "its Setup is gone too");
 
-    // ---- 7. screens ----
-    const d = await open({ user: U("desk"), pass: PASSWORD, width, height: 844 });
+    // ---- 8. screens ----
+    const d = await open({ user: U("desk"), pass: PASSWORD, width, height: 844, headers });
     closers.push(d.close);
     const failed = [];
     d.page.on("response", (res) => res.status() >= 400 && !res.url().endsWith("/favicon.ico") && failed.push(`${res.status()} ${res.url().replace(BASE, "")}`));
@@ -338,7 +493,7 @@ const REAL_SEASONS = `SELECT md5(string_agg(ss.id || ss.status || ss.results_by 
     check((await pg.locator("[data-desk-back]").getAttribute("data-desk-back")) === "ZT DS Show 1", "Back names the season");
     check(/Airing/i.test(await pg.locator("[data-lower-third]").getAttribute("data-lower-third")), "Setup's lower third: Airing");
     check((await pg.locator("[data-setup-run]").count()) >= 2 && /Episode 6 · the finale/.test(await pg.locator("[data-setup-rundown]").innerText()), "the rundown: next two and the finale");
-    check((await pg.locator("[data-desk-row='setup-when']").getAttribute("href")) === `/admin/seasons/${ids.s1}/setup`, "the schedule's rows open classic admin's Setup until 3b");
+    check((await pg.locator("[data-desk-setup] a[href^='/admin']").count()) === 0, "nothing on Setup links to classic admin");
     await fits("Setup");
     await shot("setup");
     await shot("setup-full", true);
@@ -396,12 +551,81 @@ const REAL_SEASONS = `SELECT md5(string_agg(ss.id || ss.status || ss.results_by 
     await shot("setup-after", true);
     await change(ids.s1, { resultsBy: "leagues" });
 
+    // When it airs: what moves, saved, the toast's Undo
+    await pg.locator("[data-desk-row='setup-when']").click();
+    await pg.locator("[data-when-how='weekly'][aria-checked=true]").waitFor({ timeout: 10000 });
+    await pg.locator("[data-when-time]").fill("21:00");
+    await pg.locator("[data-when-move]").first().waitFor({ timeout: 15000 });
+    check(/8:05 PM[\s\S]*9:00 PM/.test(await pg.locator("[data-when-move]").first().innerText()) && /Lineups and picks in its 1 game lock at the new times/.test(await pg.locator("[data-points='when']").innerText()), "When it airs: each episode's old and new time, and what moves with it");
+    check(/^\w+days 9:00 PM Eastern: Episode 1/.test(await pg.locator("[data-when-summary]").innerText()), "its summary line");
+    await fits("When it airs");
+    await shot("setup-when");
+    await shot("setup-when-full", true);
+    await pg.locator("[data-when-save]").click();
+    check(/^Saved · Episode \d airs .*9:00 PM/.test(await toasted(/Saved/)), "a toast: saved, when the next airs");
+    await pg.waitForFunction(() => /9:00 PM/.test(document.querySelector("[data-desk-row='setup-when']")?.textContent || ""), null, { timeout: 15000 }).catch(() => {});
+    check(/9:00 PM Eastern/.test(await line("setup-when")) && /Set by hand, by zt_ds_desk/.test(await pg.locator("[data-desk-setup]").innerText()), "When it airs reads 9:00 PM; the Schedule's aside names who set it", await line("setup-when"));
+    await pg.locator("[data-toast] button", { hasText: "Undo" }).click();
+    await pg.waitForFunction(() => /8:05 PM/.test(document.querySelector("[data-desk-row='setup-when']")?.textContent || ""), null, { timeout: 15000 }).catch(() => {});
+    check((await col(ids.s1, "to_char(air_time, 'HH24:MI')")) === "20:05" && !(await col(ids.s1, "times_held_at")), "the toast's Undo puts its times back");
+
+    // Episodes: fewer than have aired turns the button red
+    await pg.locator("[data-desk-row='setup-count']").click();
+    await pg.locator("[data-count-n]").waitFor({ timeout: 10000 });
+    for (let i = 0; i < 6 && (await pg.locator("[data-count-n]").innerText()) !== "1"; i++) await pg.locator("[data-count-step='-1']").click();
+    await pg.locator("[data-warn='count']").waitFor({ timeout: 15000 }).catch(() => {});
+    check((await pg.locator("[data-count-cleared] li").count()) === 2 && /Fewer than have aired/.test(await pg.locator("[data-warn='count']").innerText()) && /^Clear and save: 1 episode$/i.test((await pg.locator("[data-count-save]").innerText()).trim()), "down to 1: what's cleared, the warning, Clear and save");
+    check(/bg-live/.test(await pg.locator("[data-count-save]").getAttribute("class")), "the button turns red");
+    await fits("Episodes");
+    await shot("setup-count-fewer");
+    await shut();
+    check((await col(ids.s1, "episode_count")) === 6, "closed unsaved: still 6");
+
     // A season with no schedule
     await pg.goto(`${BASE}/desk/season/${ids.s3}/setup`);
     await pg.locator("[data-setup-none]").waitFor({ timeout: 30000 });
     check(/No schedule/i.test(await pg.locator("[data-lower-third]").getAttribute("data-lower-third")) && (await pg.locator("[data-setup-run]").count()) === 0, "no schedule: its lower third and no rundown");
     await fits("Setup with no schedule");
     await shot("setup-no-schedule");
+    check(/Find it in the TV listings/.test(await pg.locator("[data-setup-find]").innerText()) && /bg-chyron/.test(await pg.locator("[data-setup-find]").getAttribute("class")) && (await pg.locator("[data-setup-hand]").count()) === 1, "no schedule: Find it in the TV listings (the yellow) and Set it by hand");
+
+    // Set it by hand: what it sets, unsaved
+    await pg.locator("[data-setup-hand]").click();
+    await pg.locator("[data-when-premiere]").waitFor({ timeout: 10000 });
+    check(/Pick the day the first episode aired, or airs/.test(await pg.locator("[data-when-summary]").innerText()) && (await pg.locator("[data-when-save]").isDisabled()), "Set it by hand: pick a day first");
+    await pg.locator("[data-when-premiere]").fill(new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10));
+    await pg.locator("[data-when-move]").first().waitFor({ timeout: 15000 });
+    check(/What it sets/i.test(await pg.locator("[data-when-what]").innerText()) && /Reminders, the TV guide and the Inbox's Coming up start/.test(await pg.locator("[data-points='when']").innerText()) && /Save the schedule/.test(await pg.locator("[data-when-save]").innerText()), "What it sets: the next episode, and what starts");
+    await shot("setup-by-hand");
+    await shut();
+
+    // Find it in the TV listings: its look-alike greyed, Use this listing
+    await pg.locator("[data-setup-find]").click();
+    await pg.locator("[data-listing-hit='990101']").waitFor({ timeout: 20000 });
+    check((await pg.locator("[data-listing-hit='990102'][data-off]").count()) === 1 && (await pg.locator("[data-listing-hit='990103'][data-off]").count()) === 1, "the ended look-alike and another show's listing greyed");
+    await pg.locator("[data-listing-hit='990102']").click();
+    check(/ended in 2018: it has no Season 3/.test(await toasted(/ended in/)), "tapping a greyed one says why");
+    await pg.locator("[data-listing-hit='990101']").click();
+    await pg.locator("[data-listing-fills]").waitFor({ timeout: 10000 });
+    check(/6 episodes: the finale/.test(await pg.locator("[data-listing-fills]").innerText()) && /It moves the status on by its dates/.test(await pg.locator("[data-listing-fills]").innerText()), "What it fills");
+    await fits("Find it in the TV listings");
+    await shot("setup-find");
+    await pg.locator("[data-listing-use]").click();
+    check(/^Linked · Episode 3 airs /.test(await toasted(/Linked/)), "a toast: linked, when the next airs");
+    await pg.waitForFunction(() => !document.querySelector("[data-setup-none]") && !!document.querySelector("[data-setup-run]"), null, { timeout: 15000 }).catch(() => {});
+    check((await pg.locator("[data-setup-none]").count()) === 0 && (await pg.locator("[data-setup-run]").count()) >= 2 && /From its TV listing/.test(await pg.locator("[data-desk-setup]").innerText()), "linked: the rundown, from its TV listing");
+    await shot("setup-linked", true);
+
+    // Its TV listing, then Unlink it
+    await pg.locator("[data-desk-row='setup-listing']").click();
+    await pg.locator("[data-listing-linked]").waitFor({ timeout: 10000 });
+    check(/Its times: \w+days at \d+:00 PM Eastern, kept current each morning/.test(await pg.locator("[data-points='listing']").innerText()), "its TV listing: its times");
+    await fits("its TV listing");
+    await shot("setup-listing");
+    await pg.locator("[data-listing-unlink]").click();
+    check(/Unlinked · its times stay as they are/.test(await toasted(/Unlinked/)), "a toast: unlinked, its times stay");
+    await pg.waitForFunction(() => /Not linked/.test(document.querySelector("[data-desk-row='setup-listing']")?.textContent || ""), null, { timeout: 15000 }).catch(() => {});
+    check(/Not linked/.test(await line("setup-listing")) && (await pg.locator("[data-setup-run]").count()) >= 2 && /Kept from its old listing/.test(await pg.locator("[data-desk-setup]").innerText()), "unlinked: its times kept from its old listing");
 
     // Delete from Setup: the hold, then the show
     await pg.goto(`${BASE}/desk/season/${ids.s2}/setup`);
@@ -449,11 +673,16 @@ const REAL_SEASONS = `SELECT md5(string_agg(ss.id || ss.status || ss.results_by 
 
 /** The daily listings job's status step (tv-listings.ts statusesByDate), loaded from the source; null when it can't be. */
 function loadListings() {
+  return loadServer("../../src/lib/server/tv-listings.ts");
+}
+
+/** A server module, loaded from the source; {} when it can't be. */
+function loadServer(file) {
   try {
     const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src"), "@db": path.join(__dirname, "..", "..", "db") } });
-    return jiti("../../src/lib/server/tv-listings.ts");
+    return jiti(file);
   } catch (e) {
-    console.error("couldn't load tv-listings.ts:", e.message);
+    console.error(`couldn't load ${file}:`, e.message);
     return {};
   }
 }

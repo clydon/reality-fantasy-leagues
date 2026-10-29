@@ -2,23 +2,25 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Activity, Check, Clock, Hash, Pencil, Tv, Users } from "lucide-react";
+import { Activity, Check, Clock, Hash, Pencil, Search, Tv, Users } from "lucide-react";
 import { useNav } from "../nav";
 import { paths } from "../routes";
 import { HoldSheet } from "../ui/guards";
-import { Btn, BtnLink, EmptyState } from "../ui/parts";
+import { Btn, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { deskSend, useAfterDesk, useDesk, type DeskSetup, type SeasonDelete } from "./data";
 import { ChoiceCard, DeleteRow, DeskHeader, DeskRow, Facts, Field, IconLead, LatestHistory, LowerThird, Section, useChangeToast } from "./parts";
+import { CountSheet, ListingSheet, WhenSheet } from "./setup-schedule";
 import { forgetDeskPage } from "./trail";
 
 // A season's Setup (docs/PLAN-desk-parity.md step 3; the mock's desk-setup.js), from the season page's Running it › Setup
 // and the Inbox's airing season with no schedule: the season as it's set in the lower third (its status, name and next
 // episode), The season (Name, Status), its Schedule as it reads now, Results (Who decides results), History and the
 // season's Delete, last, the same as the season page's (SeasonDeleteRow). Name, Status and Who decides are tier 1, a toast
-// with Undo and a History line. The schedule's rows (When it airs, Episodes, TV listing) and finding it in the listings are
-// part 3b's: until then they open classic admin's Setup. Server: src/lib/server/desk-setup.ts.
+// with Undo and a History line. The schedule's rows (When it airs, Episodes, TV listing) and the no-schedule panel's Find it
+// in the TV listings and Set it by hand open their sheets (part 3b, setup-schedule.tsx). Server: src/lib/server/desk-setup.ts
+// and desk-schedule.ts.
 
 const STATUS: [DeskSetup["status"], string, string][] = [
   ["upcoming", "Upcoming", "Not on yet: no episode counts as aired. Games can start ahead of it."],
@@ -44,7 +46,7 @@ function useSetupChange(id: string) {
 
 export function SetupPage({ id }: { id: string }) {
   const q = useDesk<DeskSetup>(`/seasons/${id}/setup`);
-  const [sheet, setSheet] = useState<"name" | "status" | "results" | "episodes" | null>(null);
+  const [sheet, setSheet] = useState<"name" | "status" | "results" | "episodes" | "when" | "count" | "listing" | "find" | null>(null);
   const back = { label: "Season", href: paths.deskItem("season", id) };
   if (q.error)
     return (
@@ -61,7 +63,6 @@ export function SetupPage({ id }: { id: string }) {
       </>
     );
   const s = q.data;
-  const classic = `/admin/seasons/${id}/setup`;
   const close = () => setSheet(null);
   return (
     <div className="pb-16" data-desk-setup={s.status}>
@@ -75,10 +76,13 @@ export function SetupPage({ id }: { id: string }) {
             <small className="mt-1 block text-[14px] leading-snug text-muted-foreground">
               Nothing knows when it airs: no reminders, no guide card, no Coming up, and no research until it has one. The TV listings usually have it.
             </small>
-            <BtnLink data-setup-classic href={classic} tone="must" wide className="mt-3.5">
-              Set it in classic admin
-            </BtnLink>
-            <small className="mt-2 block text-[13px] leading-snug text-muted-foreground">Finding it in the TV listings comes to the desk next; until then, classic admin sets it.</small>
+            <Btn data-setup-find tone="must" wide className="mt-3.5" onClick={() => setSheet("find")}>
+              <Search className="size-[18px]" aria-hidden />
+              Find it in the TV listings
+            </Btn>
+            <Btn data-setup-hand wide className="mt-2" onClick={() => setSheet("when")}>
+              Set it by hand
+            </Btn>
           </div>
         </section>
       )}
@@ -120,11 +124,10 @@ export function SetupPage({ id }: { id: string }) {
           </button>
         )}
         <div className="mt-2 border-b border-border">
-          <DeskRow data="setup-when" href={classic} lead={<IconLead icon={Clock} />} title="When it airs" line={s.rows.when} />
-          <DeskRow data="setup-count" href={classic} lead={<IconLead icon={Hash} />} title="Episodes" line={s.rows.episodes} />
-          <DeskRow data="setup-listing" href={classic} lead={<IconLead icon={Tv} />} title="TV listing" line={s.rows.listing} />
+          <DeskRow data="setup-when" onClick={() => setSheet("when")} lead={<IconLead icon={Clock} />} title="When it airs" line={s.rows.when} />
+          <DeskRow data="setup-count" onClick={() => setSheet("count")} lead={<IconLead icon={Hash} />} title="Episodes" line={s.rows.episodes} />
+          <DeskRow data="setup-listing" onClick={() => setSheet(s.linked ? "listing" : "find")} lead={<IconLead icon={Tv} />} title="TV listing" line={s.rows.listing} />
         </div>
-        <p className={NOTE}>Changing these comes to the desk next: until then they open classic admin&apos;s Setup.</p>
       </Section>
       <Section title="Results">
         <div className="border-b border-border">
@@ -136,6 +139,9 @@ export function SetupPage({ id }: { id: string }) {
       <NameSheet open={sheet === "name"} onClose={close} s={s} />
       <StatusSheet open={sheet === "status"} onClose={close} s={s} />
       <ResultsSheet open={sheet === "results"} onClose={close} s={s} />
+      <WhenSheet open={sheet === "when"} onClose={close} s={s} />
+      <CountSheet open={sheet === "count"} onClose={close} s={s} />
+      <ListingSheet open={sheet === "listing" || sheet === "find"} onClose={close} s={s} search={sheet === "find"} onByHand={() => setTimeout(() => setSheet("when"), 250)} />
       <Sheet open={sheet === "episodes"} onOpenChange={(o) => !o && close()} title={allEpisodes(s)} subtitle={`${s.name} · ${s.zone} time`}>
         <div data-setup-episodes>
           {s.episodes.map((e) => (
@@ -152,7 +158,9 @@ export function SetupPage({ id }: { id: string }) {
             </div>
           ))}
         </div>
-        <p className={NOTE}>{s.linked ? "From its TV listing, kept current each morning." : "Set by hand: from the first, at one time. An episode research dates differently keeps its own."}</p>
+        <p className={NOTE}>
+          {s.timesHeld || !s.linked ? "Set by hand: from the first, at one time. An episode research dates differently keeps its own." : "From its TV listing, kept current each morning."}
+        </p>
       </Sheet>
     </div>
   );

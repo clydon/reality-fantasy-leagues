@@ -66,6 +66,9 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<RoutePar
   }
   if ("premiereDate" in body) push("premiere_date", body.premiereDate || null);
   if ("finaleDate" in body) push("finale_date", body.finaleDate || null);
+  // Times and a count set by hand win over a TV listing's, as the desk's Setup sets them (0423).
+  if (["premiereDate", "finaleDate", "airTime", "airTz"].some((f) => f in body)) sets.push("times_held_at = COALESCE(times_held_at, now())");
+  if ("episodeCount" in body) sets.push("count_held_at = COALESCE(count_held_at, now())");
   // Air schedule + auto-research (0020).
   const hhmm = (v: unknown, field: string) => {
     const s = String(v ?? "").trim();

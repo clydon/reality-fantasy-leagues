@@ -1,18 +1,19 @@
 import type { PoolClient } from "pg";
-import { TIME_ZONES } from "@/lib/admin-season";
 import { seasonStatus, type TvSeason } from "@/lib/game/listing";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { confirmAt } from "./community-results";
+import { dayGap, dayIn, fmt, mdIn, plural, timeIn, yearOf, ymd, zoneOf, ZONES } from "./desk-dates";
 import { pool, tx, HttpError } from "./db";
 import { SEASON_NAME, logDesk } from "./desk";
 import { nudgeBotClock } from "./desk-bot";
 import { seasonLines } from "./desk-cast";
+import { listingTimes } from "./desk-schedule";
 import { hasSchedule, latestAired, seasonSchedules, upNext, type SeasonSchedule } from "./schedule";
 import { syncSeasonLeagues } from "./season-decisions";
 
 // A season's Setup on the desk (docs/PLAN-desk-parity.md step 3; the mock's desk-setup.js): the season as it's set (its
 // status, name and next episode), The season (Name; Status, which holds over its TV listing's dates once set here:
-// status_held_at, 0422), its Schedule as it reads now (part 3b changes it), Results (who decides), History and the
+// status_held_at, 0422), its Schedule (its sheets' changes are desk-schedule.ts, part 3b), Results (who decides), History and the
 // season's Delete, the same as the season page's: refused while games play it, else gone for good. Name, Status and Who
 // decides are tier 1, each a line in the season's History with Undo. Dates and times are in the season's own zone, as
 // its schedule is set ("Wednesdays 8:05 PM Eastern").
@@ -20,27 +21,6 @@ import { syncSeasonLeagues } from "./season-decisions";
 type Status = "upcoming" | "airing" | "completed";
 const STATUS_WORD: Record<Status, string> = { upcoming: "Upcoming", airing: "Airing", completed: "Ended" };
 const NAME_MAX = 60;
-const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
-
-// ---------- dates in the season's zone ----------
-
-const ymd = (t: Date, tz: string) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(t);
-const dayGap = (a: string, b: string) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86_400_000);
-const fmt = (t: Date, tz: string, o: Intl.DateTimeFormatOptions) => t.toLocaleString("en-US", { timeZone: tz, ...o }).replace(",", "");
-const yearOf = (t: Date, tz: string, now: Date) => (ymd(t, tz).slice(0, 4) !== ymd(now, tz).slice(0, 4) ? `, ${ymd(t, tz).slice(0, 4)}` : "");
-/** "8:05 PM". */
-const timeIn = (t: Date, tz: string) => fmt(t, tz, { hour: "numeric", minute: "2-digit" });
-/** "Sep 23", "Dec 17, 2025". */
-const mdIn = (t: Date, tz: string, now: Date) => fmt(t, tz, { month: "short", day: "numeric" }) + yearOf(t, tz, now);
-/** "tonight", "today", "tomorrow", "yesterday", else "Wed Nov 4". */
-function dayIn(t: Date, tz: string, now: Date): string {
-  const k = dayGap(ymd(now, tz), ymd(t, tz));
-  if (k === 0) return Number(fmt(t, tz, { hour: "numeric", hour12: false })) >= 17 ? "tonight" : "today";
-  if (k === 1) return "tomorrow";
-  if (k === -1) return "yesterday";
-  return fmt(t, tz, { weekday: "short", month: "short", day: "numeric" }) + yearOf(t, tz, now);
-}
-const zoneOf = (tz: string) => TIME_ZONES.find(([id]) => id === tz)?.[1] ?? tz;
 
 /** The status a season's listing dates give it today: the listings' own rule (listing.ts seasonStatus), as the daily job's. */
 const statusByDates = (premiere: string | null, finale: string | null, now = new Date()): Status =>
@@ -65,6 +45,12 @@ interface SetupRow {
   listing: { name?: string; network?: string } | null;
   results_by: "admin" | "leagues";
   results_admin_since: Date | null;
+  release: "weekly" | "nightly" | "binge";
+  air_time: string | null;
+  air_tz: string | null;
+  drop_at: Date | null;
+  times_held_at: Date | null;
+  count_held_at: Date | null;
 }
 
 async function setupRow(id: string, db: Pick<PoolClient, "query"> = pool, lock = false): Promise<SetupRow> {
@@ -72,7 +58,8 @@ async function setupRow(id: string, db: Pick<PoolClient, "query"> = pool, lock =
   const { rows } = await db.query(
     `SELECT ss.id, ${SEASON_NAME} AS name, ss.name AS own_name, s.name || ' ' || ss.season_number AS default_name, ss.show_id, s.name AS show_name,
             s.slug, ss.season_number, ss.status, ss.status_held_at, to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere,
-            to_char(ss.finale_date, 'YYYY-MM-DD') AS finale, ss.listing_id, s.listing, ss.results_by, ss.results_admin_since
+            to_char(ss.finale_date, 'YYYY-MM-DD') AS finale, ss.listing_id, s.listing, ss.results_by, ss.results_admin_since,
+            ss.release, to_char(ss.air_time, 'HH24:MI') AS air_time, ss.air_tz, ss.drop_at, ss.times_held_at, ss.count_held_at
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1${lock ? " FOR UPDATE OF ss" : ""}`,
     [id]
   );
@@ -182,9 +169,18 @@ export interface DeskSetup {
   next: string;
   facts: string;
   rows: { status: string; when: string; episodes: string; listing: string; results: string };
+  /** Times set by hand win over its listing's (0423), and a count set by hand holds over its listing's. */
+  timesHeld: boolean;
+  countHeld: boolean;
+  /** When it airs as its sheet opens: how, the first episode (or the drop), the time and zone. */
+  form: { how: "weekly" | "nightly" | "binge"; premiere: string; time: string; tz: string };
+  /** The zones When it airs offers: [id, name]. */
+  zones: [string, string][];
+  /** Its TV listing's sheet, when it's linked: what the listing says and what it does. */
+  listing: { name: string; network: string | null; times: string; dates: string } | null;
   /** The season page's Running it › Setup line. */
   setupLine: string;
-  /** The Schedule section's aside: "From its TV listing", "Set by hand", or nothing. */
+  /** The Schedule section's aside: "From its TV listing", "Set by hand, by alex", "Kept from its old listing", or nothing. */
   source: string | null;
   rundown: ({ kind: "ep" } & RundownRow | { kind: "gap"; text: string })[];
   episodes: { number: number; date: string; time: string; finale: boolean; aired: boolean; tonight: boolean }[];
@@ -237,15 +233,28 @@ function rundownOf(sch: SeasonSchedule, status: Status, now: Date): DeskSetup["r
   return out;
 }
 
+/** When it airs as its sheet opens: what's set, else weekly at 8 PM from nothing, in its zone. */
+function formOf(s: SetupRow, tz: string): DeskSetup["form"] {
+  if (s.release === "binge" && s.drop_at) return { how: "binge", premiere: ymd(s.drop_at, tz), time: fmt(s.drop_at, tz, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }), tz };
+  return { how: s.release === "binge" ? "weekly" : s.release, premiere: s.premiere ?? "", time: s.air_time ?? "20:00", tz };
+}
+
 /** A season's Setup page. */
 export async function deskSetup(id: string, now = new Date()): Promise<DeskSetup> {
   const s = await setupRow(id);
-  const [schedules, del, n, history, onlyYours] = await Promise.all([
+  const [schedules, del, n, history, onlyYours, listed, byHand] = await Promise.all([
     seasonSchedules([id], now),
     seasonDelete(s),
     confirmAt(),
     seasonLines(id),
     s.results_by === "admin" ? onlyYoursCount(pool, id, s.results_admin_since) : 0,
+    pool.query("SELECT number, air_at FROM season_episodes WHERE season_id = $1 AND source = 'listing' AND air_at IS NOT NULL ORDER BY number", [id]),
+    // Who set its times by hand, for the Schedule's aside: the latest When it airs still standing.
+    pool.query(
+      `SELECT COALESCE(u.username, u.name) AS who FROM admin_changes c LEFT JOIN "user" u ON u.id = c.user_id
+        WHERE c.entity = 'season' AND c.entity_id = $1 AND c.action = 'when' AND c.undone_at IS NULL ORDER BY c.created_at DESC LIMIT 1`,
+      [id]
+    ),
   ]);
   const sch = schedules.get(id)!;
   const tz = sch.airTz || "America/New_York";
@@ -284,12 +293,24 @@ export async function deskSetup(id: string, now = new Date()): Promise<DeskSetup
   }
 
   const listingName = s.listing?.name ?? s.show_name;
+  const lt = listingTimes(
+    listed.rows.map((r) => ({ number: r.number, airAt: r.air_at ? (r.air_at as Date).toISOString() : null })),
+    tz,
+    now
+  );
+  // Your time against the listing's: the next episode's, else the last.
+  const ownRef = upNext(sch, now)?.airAt ?? lastEp?.airAt ?? null;
+  const ownTime = ownRef ? timeIn(new Date(ownRef), tz) : null;
+  // Held Ended over dates that say it's on, the daily job stops reading its listing (tv-listings.ts keepSeasons; Noticed ar).
+  const notRead = linked && !!s.status_held_at && status === "completed" && statusByDates(s.premiere, s.finale, now) !== "completed";
+  const kept = notRead ? "not read again while it's held Ended" : status === "completed" ? "its times, as it aired" : "its times, kept current each morning";
+  const yours = s.times_held_at && ownTime && lt.time && ownTime !== lt.time ? ownTime : null;
   const rows = {
     status: `${STATUS_WORD[status]}${linked ? (s.status_held_at ? " · set by hand, held over its listing" : status === "completed" ? " · by its TV listing's dates" : " · moves on by its TV listing's dates") : ""}`,
     when,
     episodes: count ? `${count}${finale && count > 1 ? ` · the finale ${status === "completed" || Date.parse(finale.airAt!) < now.getTime() ? "was" : "is"} ${dayIn(new Date(finale.airAt!), tz, now)}` : ""}` : "Not known yet",
     listing: linked
-      ? `${listingName}${s.listing?.network ? ` on ${s.listing.network}` : ""} · ${status === "completed" ? "its times, as it aired" : "its times, kept current each morning"}`
+      ? `${listingName}${s.listing?.network ? ` on ${s.listing.network}` : ""} · ${s.times_held_at ? (yours ? `your ${yours} wins over its ${lt.time}` : "your times win over its") : kept}`
       : "Not linked · nothing updates on its own",
     results:
       s.results_by === "admin"
@@ -312,10 +333,34 @@ export async function deskSetup(id: string, now = new Date()): Promise<DeskSetup
     next,
     facts: `${plural(del.games.length + (del.pool != null ? 1 : 0) + del.practice, "game")} on it${scheduled && count && status === "airing" ? ` · ${Math.min(aired, count)} of ${count} aired` : ""}`,
     rows,
+    timesHeld: !!s.times_held_at,
+    countHeld: !!s.count_held_at,
+    form: formOf(s, tz),
+    zones: ZONES.some(([z]) => z === tz) ? ZONES : [...ZONES, [tz, tz]],
+    listing: linked
+      ? {
+          name: listingName,
+          network: s.listing?.network ?? null,
+          times: `Its times: ${lt.how === "nightly" ? "nightly" : lt.days}${lt.time ? ` at ${lt.time} ${lt.zone}` : ""}, ${
+            notRead ? "not read again while it's held Ended" : status === "completed" ? "as it aired" : "kept current each morning"
+          }.${s.times_held_at ? (yours ? ` Yours, ${yours}, win.` : " Yours win.") : ""}`,
+          dates: `Its dates move the status on: ${lt.first ? `airing from ${mdIn(lt.first, tz, now)}` : "not dated yet"}${count && lt.last ? `, ended after ${mdIn(lt.last, tz, now)}` : ""}.${
+            s.status_held_at ? " Yours holds for now." : ""
+          }`,
+        }
+      : null,
     setupLine: scheduled
       ? `${when.split(" · ")[0]} · ${count ? plural(count, "episode") : "episodes not known"} · ${s.results_by === "admin" ? "you decide results" : "results from sources"}`
       : "No schedule yet: nothing knows when it airs",
-    source: linked ? "From its TV listing" : scheduled ? "Set by hand" : null,
+    source: s.times_held_at
+      ? `Set by hand${byHand.rows[0]?.who ? `, by ${byHand.rows[0].who}` : ""}`
+      : linked
+        ? "From its TV listing"
+        : listed.rows.length && scheduled
+          ? "Kept from its old listing"
+          : scheduled
+            ? "Set by hand"
+            : null,
     rundown: scheduled ? rundownOf(sch, status, now) : [],
     episodes: dated.map((e) => {
       const t = new Date(e.airAt!);

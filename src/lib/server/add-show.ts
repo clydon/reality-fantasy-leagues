@@ -180,9 +180,14 @@ export async function listedSeason(showId: string, show: TvShow, season: TvSeaso
       );
       id = rows[0]?.id ?? (await c.query("SELECT id FROM show_seasons WHERE show_id = $1 AND season_number = $2", [showId, season.number])).rows[0].id;
     } else {
+      // A status, times or count set by hand hold over the listing's (0422, 0423: the desk's Setup).
       await c.query(
-        `UPDATE show_seasons SET status = CASE WHEN status_held_at IS NULL THEN $2 ELSE status END, premiere_date = $3, finale_date = $4, episode_count = $5, release = $6, drop_at = $7,
-                air_time = COALESCE($8, air_time), art_url = COALESCE(art_url, $9), listing_fetched_at = now(), updated_at = now()
+        `UPDATE show_seasons SET status = CASE WHEN status_held_at IS NULL THEN $2 ELSE status END,
+                premiere_date = CASE WHEN times_held_at IS NULL THEN $3 ELSE premiere_date END,
+                finale_date = CASE WHEN times_held_at IS NULL AND count_held_at IS NULL THEN $4 ELSE finale_date END,
+                episode_count = CASE WHEN count_held_at IS NULL THEN $5 ELSE episode_count END,
+                release = CASE WHEN times_held_at IS NULL THEN $6 ELSE release END, drop_at = CASE WHEN times_held_at IS NULL THEN $7 ELSE drop_at END,
+                air_time = CASE WHEN times_held_at IS NULL THEN COALESCE($8, air_time) ELSE air_time END, art_url = COALESCE(art_url, $9), listing_fetched_at = now(), updated_at = now()
           WHERE id = $1 AND listing_id IS NOT NULL`,
         [id, row.status, row.premiere, row.finale, row.count, row.release, row.dropAt, row.airTime, row.art]
       );

@@ -380,7 +380,7 @@ const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email 
     // No schedule and a cast not sent: their seasons, each with the row to act on and its dot
     await row("schedule", "ZT DI Nosched 1").click();
     await pg.locator("[data-setup-none]").waitFor({ timeout: 20000 });
-    check((await pg.locator("[data-setup-classic]").getAttribute("href")) === `/admin/seasons/${ids.nosched}/setup`, "no schedule: its Setup, leading with No schedule yet, set in classic admin until 3b");
+    check((await pg.locator("[data-setup-find]").count()) === 1 && (await pg.locator("[data-setup-hand]").count()) === 1, "no schedule: its Setup, leading with No schedule yet: Find it in the TV listings, or Set it by hand");
     check(/No schedule yet/.test(await pg.locator("[data-lower-third-name]").locator("..").innerText()), "its lower third says no schedule yet");
     await fits("a season with no schedule");
     await shot("setup-no-schedule");

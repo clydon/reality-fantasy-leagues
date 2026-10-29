@@ -558,7 +558,7 @@ function SettingsTab() {
       </SetSection>
       {/* Until classic's admin retires (docs/PLAN-desk-parity.md step 8), what the desk can't do yet is done there. */}
       <SetSection title="Not on the desk yet" line="Until classic's admin retires.">
-        <DeskRow data="classic" href="/admin" lead={<IconLead icon={KeyRound} />} title="Classic admin" line="People's accounts, games, a season's setup, research and cast, until the desk has them" />
+        <DeskRow data="classic" href="/admin" lead={<IconLead icon={KeyRound} />} title="Classic admin" line="Games, a season's research and cast, shows' details, until the desk has them" />
       </SetSection>
 
       <Sheet open={sheet === "signups"} onOpenChange={(o) => !o && close()} title="Who gets in" subtitle="When someone makes an account">

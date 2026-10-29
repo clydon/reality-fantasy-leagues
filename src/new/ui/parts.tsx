@@ -19,6 +19,8 @@ const BTN = {
   optional: "bg-card outline-1 -outline-offset-1 outline-input",
   /** A plain strong action that isn't a duty (bone fill). */
   ink: "bg-foreground text-background",
+  /** It clears something for good (the desk's "Clear and save"). */
+  danger: "bg-live text-live-foreground",
 };
 
 const btnClass = (tone: keyof typeof BTN, wide?: boolean) =>

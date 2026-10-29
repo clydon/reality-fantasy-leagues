@@ -10,6 +10,7 @@ import { restoreFact } from "./desk-facts";
 import { restorePerson } from "./desk-person-actions";
 import { restoreReport } from "./desk-reports";
 import { restoreSeat } from "./desk-seats";
+import { restoreSeasonSchedule } from "./desk-schedule";
 import { restoreSeasonSetup } from "./desk-setup";
 import { restoreReview, restoreTemplateRow } from "./desk-library";
 import { restoreLive, undoRulebook, writePhase } from "./desk-rulebooks";
@@ -55,6 +56,9 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
       break;
     case "seasonSetup":
       await restoreSeasonSetup(user, u);
+      break;
+    case "seasonSchedule":
+      await restoreSeasonSchedule(user, u);
       break;
     case "report":
       await restoreReport(u);
