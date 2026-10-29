@@ -3,7 +3,7 @@
 import { useState, type ComponentType } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Zap, Check, CircleHelp, Clock, Copy, DoorOpen, Grid3x3, Lock, Minus, Plus, RotateCcw, Tv, Users, X } from "lucide-react";
-import { KINDS, LADDER, MAX_RUNS, NOW_ORDER, TRIVIA_AFTER_END, USUAL, and, cap, dur, isUsual, missing, runTime, usualAfter, when, type Run, type RunKind } from "@/lib/desk-bot-words";
+import { BINGO_BANK_LACK, KINDS, LADDER, MAX_RUNS, NOW_ORDER, TRIVIA_AFTER_END, and, cap, countWord, dur, endLadder, lackingKinds, missing, runTime, usualAfter, usualWords, when, type Run, type RunKind } from "@/lib/desk-bot-words";
 import { paths } from "../routes";
 import { Btn, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
@@ -15,9 +15,15 @@ import { SeasonDeleteRow } from "./setup";
 // A season's Research and the bot (docs/PLAN-desk-parity.md step 4, part 4a; the mock's desk-research.js rsPage), from the
 // season page's Running it: Autopilot on or off and the next run in the lower third; Run now (five kinds, each saying what it
 // does before it asks, queued behind whatever the bot is asking: one question at a time); its schedule drawn as the next
-// episode's night (each run at its time, its switch, its timing in a sheet; the episode's length; Add a run, Reset, and our
-// usual runs it hasn't got); Runs (done, failed, asking with how far it's got, waiting); History; the season's Delete. The
-// page polls while a run asks or waits. Server: src/lib/server/desk-research.ts; schedule changes desk-bot.ts setSeasonBot.
+// episode's night (each run at its time, its switch, its timing in a sheet; the episode's length; Add a run, Reset, Make this
+// our usual, and our usual runs it hasn't got); Runs (done, failed, asking with how far it's got, waiting); History; the
+// season's Delete. The page polls while a run asks or waits. Server: src/lib/server/desk-research.ts; schedule changes
+// desk-bot.ts setSeasonBot.
+//
+// The research pattern (the user, 2026-10-29): a run's sheet and Add a run say whether a change is for every episode or the
+// rail's episode only (its own runs, marked on the rail, with Back to the season's schedule); a run counted from the end steps
+// an hour at a time on the clock past its first hour (endLadder); a season follows our usual until its runs change, and Make
+// this our usual (tier 2) makes its runs ours; a usual kind it has no run of says what that costs.
 
 type Kind = RunKind;
 const ICON: Record<Kind, ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = { full: Check, quick: DoorOpen, schedule: Clock, trivia: CircleHelp, bingo: Grid3x3 };
@@ -43,7 +49,18 @@ function usePage(id: string) {
 function useBotChange(id: string) {
   const changed = useChangeToast();
   const after = useAfterDesk();
-  return async (body: { on?: boolean; schedule?: Run[]; episodeMinutes?: number; reset?: true }) => {
+  return async (body: {
+    on?: boolean;
+    schedule?: Run[];
+    episodeMinutes?: number;
+    reset?: true;
+    /** One run changed (from a slot to a run), added (no from) or taken off (no to); `was`, the slots it moved from. */
+    run?: { from?: string; to?: Run; was?: string[] };
+    /** That episode's own runs instead of every episode's. */
+    episode?: number;
+    back?: true;
+    makeUsual?: true;
+  }) => {
     try {
       const out = await deskSend<{ changeId: string | null; text: string }>(`/seasons/${id}/research`, body);
       await after();
@@ -61,6 +78,7 @@ type SheetState =
   | { k: "add" }
   | { k: "addKind"; kind: Kind }
   | { k: "reset" }
+  | { k: "usual" }
   | { k: "length" }
   | { k: "runs" }
   | null;
@@ -86,10 +104,11 @@ export function ResearchPage({ id }: { id: string }) {
     );
   const r = q.data;
   const close = () => setSheet(null);
-  const usual = isUsual(r.runs);
-  const miss = missing(r.runs);
+  const miss = missing(r.runs, r.usual);
+  const lack = lackingKinds(r.runs, r.usual);
   const full = r.runs.length >= MAX_RUNS;
-  const add = (run: Run) => (full ? toast.quiet(`A season has ${MAX_RUNS} runs at most: take one off first`) : change({ schedule: [...r.runs, { ...run, on: true }] }));
+  const add = (run: Run) => (full ? toast.quiet(`A season has ${MAX_RUNS} runs at most: take one off first`) : change({ run: { to: { kind: run.kind, after: run.after, on: true } } }));
+  const rail = r.rail;
   return (
     <div className="pb-16" data-desk-research={r.on ? "on" : "off"}>
       <DeskHeader title="Research" back={{ label: r.name, href: paths.deskItem("season", id) }} name="Research" />
@@ -122,12 +141,17 @@ export function ResearchPage({ id }: { id: string }) {
       <Section
         title="Its schedule"
         aside={
-          usual ? (
-            "Our usual five"
+          r.follows ? (
+            <span data-follows>Our usual {countWord(r.usual.length)}</span>
           ) : (
-            <button type="button" data-reset onClick={() => setSheet({ k: "reset" })} className="text-[14px] font-bold text-foreground underline decoration-input underline-offset-[3px]">
-              Reset
-            </button>
+            <span className="flex gap-4">
+              <button type="button" data-reset onClick={() => setSheet({ k: "reset" })} className="text-[14px] font-bold text-foreground underline decoration-input underline-offset-[3px]">
+                Reset
+              </button>
+              <button type="button" data-make-usual onClick={() => setSheet({ k: "usual" })} className="text-[14px] font-bold text-foreground underline decoration-input underline-offset-[3px]">
+                Make this our usual
+              </button>
+            </span>
           )
         }
       >
@@ -140,14 +164,38 @@ export function ResearchPage({ id }: { id: string }) {
           </span>
           <Pill on={r.on} />
         </button>
-        {r.rail ? (
+        {rail ? (
           <>
             <div className="mb-1 mt-5 flex items-baseline justify-between gap-3">
-              <h3 className="type-caption text-[18px] text-muted-foreground">Around Episode {r.rail.n}</h3>
-              <span className="text-[13px] text-muted-foreground">{cap(r.rail.airs)}</span>
+              <h3 className="type-caption text-[18px] text-muted-foreground">Around Episode {rail.n}</h3>
+              <span className="text-[13px] text-muted-foreground">{cap(rail.airs)}</span>
             </div>
-            <Rail rows={r.rail.rows} paused={!r.on} onLength={() => setSheet({ k: "length" })} onRun={(i) => setSheet({ k: "time", i })} onSwitch={(i) => change({ schedule: r.runs.map((x, k) => (k === i ? { ...x, on: !x.on } : x)) })} />
-            {r.rail.note && <p className={NOTE}>{r.rail.note}</p>}
+            <Rail
+              rows={rail.rows}
+              n={rail.n}
+              paused={!r.on}
+              onLength={() => setSheet({ k: "length" })}
+              onRun={(i) => setSheet({ k: "time", i })}
+              // Its switch: for the episode alone when it has runs of its own (its sheet says which), else every episode.
+              onSwitch={(i) => {
+                const x = rail.runs[i];
+                void change({ run: { from: `${x.kind}@${x.after}`, to: { kind: x.kind, after: x.after, on: !x.on }, was: x.was }, ...(rail.own ? { episode: rail.n } : {}) });
+              }}
+            />
+            {rail.own && (
+              <div data-episode-own className="mt-2 rounded-[4px] bg-card p-3.5">
+                <b className="block text-[15px]">Episode {rail.n} has its own runs</b>
+                <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">
+                  {rail.rows.some((x) => x.mine) ? `Marked “Episode ${rail.n} only”. ` : ""}
+                  {rail.gone.length ? `Taken off for it: ${and(rail.gone.map((g) => `${KINDS[g.kind].short} (${when(g)})`))}. ` : ""}
+                  Every other episode keeps the season&apos;s schedule.
+                </small>
+                <Btn data-episode-back wide className="mt-3" onClick={() => void change({ episode: rail.n, back: true })}>
+                  Back to the season&apos;s schedule
+                </Btn>
+              </div>
+            )}
+            {rail.note && <p className={NOTE}>{rail.note}</p>}
           </>
         ) : (
           <p data-rail-none className="mt-3 rounded-[4px] bg-card p-3.5 text-[14px] text-muted-foreground">
@@ -170,7 +218,7 @@ export function ResearchPage({ id }: { id: string }) {
             </div>
             <div data-missing className="border-b border-border">
               {miss.map((m, j) => (
-                <div key={`${m.kind}@${m.after}`} data-missing-run={`${m.kind}@${m.after}`} className="flex min-h-[62px] items-center gap-3 border-t border-border">
+                <div key={`${m.kind}@${m.after}`} data-missing-run={`${m.kind}@${m.after}`} className="flex min-h-[62px] items-center gap-3 border-t border-border py-2">
                   <IconLead icon={ICON[m.kind]} />
                   <span className="min-w-0 flex-1">
                     <b className="block text-[15px] font-semibold">
@@ -178,6 +226,12 @@ export function ResearchPage({ id }: { id: string }) {
                       {miss.slice(0, j).some((y) => y.kind === m.kind) || (m.kind === "full" && r.runs.some((y) => y.kind === "full")) ? ", again" : ""}
                     </b>
                     <small className="block text-[13px] text-muted-foreground">{cap(when(m))}</small>
+                    {/* A kind it has no run of at all: what that costs (the Inbox has it too, while it's airing). */}
+                    {lack.includes(m.kind) && !miss.slice(0, j).some((y) => y.kind === m.kind) && (
+                      <em data-missing-lack={m.kind} className="mt-0.5 block text-[13px] font-semibold not-italic leading-snug">
+                        No {KINDS[m.kind].named.toLowerCase()} run: {m.kind === "bingo" && r.now.seasonSquares ? BINGO_BANK_LACK : KINDS[m.kind].lack}
+                      </em>
+                    )}
                   </span>
                   <Btn data-add-missing={`${m.kind}@${m.after}`} className="h-11 px-4 text-[15px]" onClick={() => add(m)}>
                     Add
@@ -236,33 +290,20 @@ export function ResearchPage({ id }: { id: string }) {
               <IconLead icon={ICON[k]} />
               <span className="min-w-0">
                 <b className="block text-[16px]">{KINDS[k].t}</b>
-                <small className="text-[13px] leading-snug text-muted-foreground">{KINDS[k].add}</small>
+                <small className="text-[13px] leading-snug text-muted-foreground">
+                  {KINDS[k].add} {usualWords(k, r.usual)}
+                </small>
               </span>
             </button>
           ))}
         </div>
       </Sheet>
-      <Sheet open={sheet?.k === "reset"} onOpenChange={(o) => !o && close()} title="Reset to our usual five" subtitle={r.name}>
+      <Sheet open={sheet?.k === "reset"} onOpenChange={(o) => !o && close()} title={`Reset to our usual ${countWord(r.usual.length)}`} subtitle={r.name}>
         <p className="mb-2 text-[14px] text-muted-foreground">
-          Replaces its {plural(r.runs.length, "run")} with these{r.rail ? `, shown around Episode ${r.rail.n}` : ""}:
+          Replaces its {plural(r.runs.length, "run")} with these{rail ? `, shown around Episode ${rail.n}` : ""}. It follows our usual from now on, and changes with it.
+          {rail?.own ? ` Episode ${rail.n} keeps its own runs.` : ""}
         </p>
-        <div data-reset-list className="border-b border-border">
-          {USUAL.map((u, i) => (
-            <div key={`${u.kind}@${u.after}`} className="flex min-h-[62px] items-center gap-3 border-t border-border">
-              <IconLead icon={ICON[u.kind]} />
-              <span className="min-w-0 flex-1">
-                <b className="block text-[15px] font-semibold">
-                  {KINDS[u.kind].t}
-                  {i === 2 ? ", again" : ""}
-                </b>
-                <small className="block text-[13px] text-muted-foreground">
-                  {cap(when(u))}
-                  {r.rail ? ` · ${timeOf(r.rail, u) ?? "not around this one"}` : ""}
-                </small>
-              </span>
-            </div>
-          ))}
-        </div>
+        <RunList runs={r.usual} rail={rail} data="reset-list" />
         <Btn
           data-reset-go
           tone="must"
@@ -273,7 +314,42 @@ export function ResearchPage({ id }: { id: string }) {
             void change({ reset: true });
           }}
         >
-          Reset to these five
+          Reset to these {countWord(r.usual.length)}
+        </Btn>
+      </Sheet>
+      <Sheet open={sheet?.k === "usual"} onOpenChange={(o) => !o && close()} title="Make this our usual" subtitle={r.name}>
+        <p className="mb-2 text-[14px] text-muted-foreground">Our usual becomes its {plural(r.runs.length, "run")}:</p>
+        <RunList runs={r.runs} rail={null} data="usual-list" />
+        <div className="mt-4">
+          <Points
+            items={[
+              [
+                Users,
+                r.reach.follow.length
+                  ? `${and(r.reach.follow)} ${r.reach.follow.length === 1 ? "follows" : "follow"} our usual, and ${r.reach.follow.length === 1 ? "changes" : "change"} with it.`
+                  : "No other season with Autopilot on follows our usual now.",
+              ],
+              [
+                Lock,
+                r.reach.own.length
+                  ? `${and(r.reach.own)} ${r.reach.own.length === 1 ? "has its" : "have their"} own schedule, and ${r.reach.own.length === 1 ? "keeps it" : "keep theirs"}.`
+                  : "A season with its own schedule keeps it.",
+              ],
+              [RotateCcw, `${r.name} follows our usual from now on. A run that moved isn't asked again about an episode it already ran for.`],
+            ]}
+          />
+        </div>
+        <Btn
+          data-make-usual-go
+          tone="must"
+          wide
+          className="mt-4"
+          onClick={() => {
+            close();
+            void change({ makeUsual: true });
+          }}
+        >
+          Make this our usual
         </Btn>
       </Sheet>
       <LengthSheet open={sheet?.k === "length"} onClose={close} r={r} change={change} />
@@ -319,7 +395,7 @@ function timeOf(rail: NonNullable<DeskResearch["rail"]>, run: { kind: Kind; afte
 }
 
 /** The next episode's night: a time, the rail, each thing on it, a run's switch (the mock's rsRundown). */
-function Rail({ rows, paused, onLength, onRun, onSwitch }: { rows: RailRow[]; paused: boolean; onLength: () => void; onRun: (i: number) => void; onSwitch: (i: number) => void }) {
+function Rail({ rows, n, paused, onLength, onRun, onSwitch }: { rows: RailRow[]; n: number; paused: boolean; onLength: () => void; onRun: (i: number) => void; onSwitch: (i: number) => void }) {
   return (
     <div data-rail className="relative">
       {rows.map((row, k) => {
@@ -346,7 +422,9 @@ function Rail({ rows, paused, onLength, onRun, onSwitch }: { rows: RailRow[]; pa
           </span>
         );
         const marker = row.type === "run";
-        const dot = !marker
+        const dot = row.type === "final"
+          ? `rounded-[2px] ${paused ? "bg-input" : "bg-good"}`
+          : !marker
           ? `rounded-[2px] ${paused ? "bg-input" : "bg-foreground"}`
           : row.done
             ? row.done.ok
@@ -361,9 +439,9 @@ function Rail({ rows, paused, onLength, onRun, onSwitch }: { rows: RailRow[]; pa
             <i className={`absolute left-1 top-1/2 -mt-1.5 size-3 ${dot}`} />
           </span>
         );
-        if (row.type === "start")
+        if (row.type === "start" || row.type === "final")
           return (
-            <div key={row.key} data-rail-row="start" className="grid min-h-16 grid-cols-[64px_20px_minmax(0,1fr)_auto] items-center gap-x-2.5">
+            <div key={row.key} data-rail-row={row.type} className="grid min-h-16 grid-cols-[64px_20px_minmax(0,1fr)_auto] items-center gap-x-2.5">
               {time}
               {node}
               <span className="min-w-0">
@@ -392,6 +470,11 @@ function Rail({ rows, paused, onLength, onRun, onSwitch }: { rows: RailRow[]; pa
             <button type="button" data-rail-run={row.key} onClick={() => onRun(row.i!)} className="min-h-14 min-w-0 py-2 text-left">
               <b className={`block text-[16px] font-semibold leading-snug ${paused || !row.on ? "text-muted-foreground" : ""}`}>{row.title}</b>
               <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">{row.line}</small>
+              {row.mine && (
+                <span data-rail-mine className="type-caption mt-1 inline-block rounded-[2px] bg-secondary px-1.5 text-[12px] tracking-[0.06em]">
+                  Episode {n} only
+                </span>
+              )}
               {row.done && (
                 <em className="mt-1 flex items-center gap-1 text-[12.5px] not-italic">
                   {row.done.ok ? <Check className="size-3.5 flex-none text-good" aria-hidden /> : <X className="size-3.5 flex-none text-live" aria-hidden />}
@@ -697,44 +780,113 @@ function CopyQuestion({ seasonId, runId }: { seasonId: string; runId: string }) 
   );
 }
 
-/** A run's timing on a stepper (refusing a duplicate), or take it off; or a new run's (Add it). */
+/** A list of runs (Reset's our usual, Make this our usual's), each with when it lands around the rail's episode. */
+function RunList({ runs, rail, data }: { runs: Run[]; rail: DeskResearch["rail"]; data: string }) {
+  return (
+    <div {...{ [`data-${data}`]: "" }} className="border-b border-border">
+      {runs.map((u, i) => (
+        <div key={`${u.kind}@${u.after}`} className="flex min-h-[62px] items-center gap-3 border-t border-border">
+          <IconLead icon={ICON[u.kind]} />
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px] font-semibold">
+              {KINDS[u.kind].t}
+              {runs.slice(0, i).some((y) => y.kind === u.kind) ? ", again" : ""}
+            </b>
+            <small className="block text-[13px] text-muted-foreground">
+              {cap(when(u))}
+              {u.on ? "" : " · off"}
+              {rail ? ` · ${timeOf(rail, u) ?? "not around this one"}` : ""}
+            </small>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** "12" and "PM", "6:30" and "AM": a moment on the clock in `tz`. */
+function clockOf(t: number, tz: string): [string, string] {
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).formatToParts(t);
+  const h = parts.find((p) => p.type === "hour")?.value ?? "";
+  const m = parts.find((p) => p.type === "minute")?.value ?? "00";
+  return [m === "00" ? h : `${h}:${m}`, parts.find((p) => p.type === "dayPeriod")?.value ?? ""];
+}
+
+/**
+ * A run's sheet: for every episode or the rail's episode only (its own runs), its timing on a stepper (refusing a duplicate)
+ * and its switch, or take it off; or a new run's timing (Add it). Counted from the end, past its first hour a step is an hour
+ * on the clock for the rail's episode (endLadder), shown as that time; what's kept is the minutes from its end.
+ */
 function TimeSheet({ open, onClose, r, i, kind, change }: { open: boolean; onClose: () => void; r: DeskResearch; i: number | null; kind: Kind | null; change: ReturnType<typeof useBotChange> }) {
-  const was = i != null ? r.runs[i] : null;
+  const rail = r.rail;
+  // A run on the rail is one of the rail's runs (the episode's own, or the season's).
+  const list = rail ? rail.runs : r.runs;
+  const was = i != null ? (list[i] ?? null) : null;
   const k: Kind = was?.kind ?? kind ?? "full";
-  const ladder = [...LADDER[KINDS[k].from]];
-  const start = was?.after ?? usualAfter(k);
+  const from = KINDS[k].from;
+  const endMs = rail ? Date.parse(rail.endAt) : null;
+  const ladder = from === "end" ? endLadder(endMs, rail?.tz ?? null) : [...LADDER[from]];
+  const start = was?.after ?? usualAfter(k, r.usual);
   if (!ladder.includes(start)) ladder.push(start);
   ladder.sort((a, b) => a - b);
-  const dupAt = (after: number) => r.runs.some((y, q) => q !== i && y.kind === k && y.after === after);
+  // Which episodes: its own runs' change is for the episode by default, any other for every episode.
+  const [scopeIn, setScope] = useState<"every" | "episode" | null>(null);
+  const scope = rail ? (scopeIn ?? (was && rail.own ? "episode" : "every")) : "every";
+  const target = scope === "episode" ? list : r.runs;
+  const slot = was ? `${was.kind}@${was.after}` : null;
+  const dupAt = (after: number) => target.some((y) => y.kind === k && y.after === after && `${y.kind}@${y.after}` !== slot);
   let first = ladder.indexOf(start);
   if (!was) while (dupAt(ladder[first]) && first < ladder.length - 1) first++;
   const [j, setJ] = useState<number | null>(null);
+  const [onIn, setOn] = useState<boolean | null>(null);
   const idx = j ?? first;
   const after = ladder[idx];
-  const run = { kind: k, after, on: true };
+  const on = onIn ?? was?.on ?? true;
+  const run: Run = { kind: k, after, on };
   const dup = dupAt(after);
-  const same = !!was && after === was.after;
+  // Nothing to save: the same timing and switch, for this episode, or for every episode when the season has it so already.
+  const same = !!was && after === was.after && on === was.on && (scope === "episode" || r.runs.some((y) => y.kind === k && y.after === after && y.on === on));
   const shut = () => {
     setJ(null);
+    setOn(null);
+    setScope(null);
     onClose();
   };
-  const t = r.rail ? timeOf(r.rail, run) : null;
-  const [v, unit] = durN(after);
-  const from = KINDS[k].from;
+  const t = rail ? timeOf(rail, run) : null;
+  const [v, unit] = from === "end" && after > 60 && endMs !== null && rail ? clockOf(endMs + after * 60_000, rail.tz) : durN(after);
+  const which = scope === "episode" && rail ? { episode: rail.n } : {};
   return (
     <Sheet open={open} onOpenChange={(o) => !o && shut()} title={was ? KINDS[k].t : `Add ${KINDS[k].short}`} subtitle={was ? `When it runs · ${r.name}` : `${r.name} · ${r.runs.length} of ${MAX_RUNS} runs`}>
+      {rail && (
+        <div role="radiogroup" aria-label="Which episodes" className="mb-3 grid grid-cols-2 gap-2">
+          {(["every", "episode"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              role="radio"
+              aria-checked={scope === s}
+              data-time-scope={s}
+              onClick={() => setScope(s)}
+              className={`nd-press min-h-14 rounded-[3px] px-3 py-2 text-left ${scope === s ? "bg-foreground text-background" : "bg-background"}`}
+            >
+              <b className="block text-[15px] leading-tight">{s === "every" ? "Every episode" : `Episode ${rail.n} only`}</b>
+              <small className={`block text-[12.5px] ${scope === s ? "text-background/80" : "text-muted-foreground"}`}>{s === "every" ? "Its schedule" : cap(rail.airs)}</small>
+            </button>
+          ))}
+        </div>
+      )}
       <div className="flex min-h-16 items-center gap-3">
         <span className="min-w-0 flex-1">
           <b data-time-when className="block text-[16px]">
             {cap(when(run))}
           </b>
-          <small className="mt-0.5 block text-[13px] text-muted-foreground">{r.rail ? (t ? `Around Episode ${r.rail.n}: ${t}` : `Not around Episode ${r.rail.n}`) : "No episode coming up"}</small>
+          <small className="mt-0.5 block text-[13px] text-muted-foreground">{rail ? (t ? `Around Episode ${rail.n}: ${t}` : `Not around Episode ${rail.n}`) : "No episode coming up"}</small>
         </span>
         <span className="flex flex-none items-center">
           <button type="button" data-time-step="-1" aria-label="Sooner" onClick={() => setJ(Math.max(0, idx - 1))} className="grid size-11 place-items-center rounded-[3px] bg-secondary">
             <Minus className="size-5" aria-hidden />
           </button>
-          <b data-time-value className="type-num w-[64px] text-center text-[28px]" aria-live="polite">
+          <b data-time-value className="type-num w-[76px] whitespace-nowrap text-center text-[28px]" aria-live="polite">
             {v}
             <i className="ml-0.5 text-[13px] not-italic text-muted-foreground">{unit}</i>
           </b>
@@ -745,8 +897,18 @@ function TimeSheet({ open, onClose, r, i, kind, change }: { open: boolean; onClo
       </div>
       {dup && (
         <em data-time-dup role="alert" className="mt-1 block text-[14px] not-italic text-live">
-          There&apos;s already {KINDS[k].short} {when(run)}.
+          There&apos;s already {KINDS[k].short} {when(run)}
+          {scope === "episode" && rail ? ` for Episode ${rail.n}` : ""}.
         </em>
+      )}
+      {was && (
+        <button type="button" role="switch" aria-checked={on} data-time-on={on ? "on" : "off"} onClick={() => setOn(!on)} className="nd-press mt-1 flex min-h-14 w-full items-center gap-3 border-t border-border text-left">
+          <span className="min-w-0 flex-1">
+            <b className="block text-[16px]">Runs</b>
+            <small className="block text-[13px] text-muted-foreground">{on ? "On" : "Off: it stays on the schedule, switched off"}</small>
+          </span>
+          <Pill on={on} />
+        </button>
       )}
       <div className="mt-3">
         <Points
@@ -754,11 +916,14 @@ function TimeSheet({ open, onClose, r, i, kind, change }: { open: boolean; onClo
             [
               Clock,
               from === "end"
-                ? `Counted from when the episode ends: its air time plus ${dur(r.minutes)}, or its own length when research knows it.`
+                ? `Counted from when the episode ends: its air time plus ${dur(r.minutes)}, or its own length when research knows it. Past its first hour, a step is an hour on the clock.`
                 : from === "next"
                   ? `Counted back from when the next episode airs, never sooner than ${dur(TRIVIA_AFTER_END)} after this one ends (for the recaps). With no next episode, from its end.`
                   : "Counted back from when it airs. Never once it has.",
             ],
+            scope === "episode" && rail
+              ? [Tv, `For Episode ${rail.n} alone: every other episode keeps the season's schedule.`]
+              : [Tv, rail?.own ? `For every episode, Episode ${rail.n}'s own runs too.` : r.follows ? "For every episode: it has its own schedule from now on (Reset follows our usual again)." : "For every episode."],
             [Zap, "The bot's clock hears at once."],
           ]}
         />
@@ -771,7 +936,7 @@ function TimeSheet({ open, onClose, r, i, kind, change }: { open: boolean; onClo
         disabled={dup || same}
         onClick={() => {
           shut();
-          void change({ schedule: was ? r.runs.map((x, q) => (q === i ? { ...x, after } : x)) : [...r.runs, run] });
+          void change({ run: { ...(slot ? { from: slot } : {}), to: run, ...(was?.was ? { was: was.was } : {}) }, ...which });
         }}
       >
         {was ? "Save" : "Add it"}
@@ -783,10 +948,10 @@ function TimeSheet({ open, onClose, r, i, kind, change }: { open: boolean; onClo
           className="mt-2"
           onClick={() => {
             shut();
-            void change({ schedule: r.runs.filter((_, q) => q !== i) });
+            void change({ run: { from: slot!, ...(was.was ? { was: was.was } : {}) }, ...which });
           }}
         >
-          Take it off the schedule
+          {scope === "episode" && rail ? `Take it off for Episode ${rail.n}` : "Take it off the schedule"}
         </Btn>
       )}
     </Sheet>

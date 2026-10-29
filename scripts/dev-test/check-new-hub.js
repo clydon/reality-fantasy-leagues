@@ -152,7 +152,9 @@ const placePoints = (place, of) => (of < 2 ? 0 : Math.round(1 + (9 * (of - Math.
     const samHome = await as.sam.call("GET", "/api/me/home");
     const alexHome = await as.alex.call("GET", "/api/me/home");
     const res = (home) => home.body.shows.find((s) => s.seasonId === sid)?.results;
-    check(JSON.stringify(res(samHome)) === JSON.stringify({ reveal: { episode: 4, stage: "final" }, final: null }), "the home tells sam Episode 4's results are in", JSON.stringify(res(samHome)));
+    // With when its final results were due (final-results.js: noon the day after it aired), long past.
+    const samDue = res(samHome);
+    check(samDue?.reveal?.episode === 4 && samDue.reveal.stage === "final" && Date.parse(samDue.reveal.finalAt) < Date.now() && samDue.final === null, "the home tells sam Episode 4's results are in", JSON.stringify(samDue));
     check(JSON.stringify(res(alexHome)) === JSON.stringify({ reveal: null, final: null }), "and alex nothing", JSON.stringify(res(alexHome)));
     check((await as.casey.call("GET", `/api/couches/${fx.couchId}/hub`)).status === 404, "someone off the couch gets a 404");
 
@@ -331,8 +333,8 @@ const placePoints = (place, of) => (of < 2 ? 0 : Math.round(1 + (9 * (of - Math.
     // ---- a week behind: results lead ----
     await markTo("alex", 4);
     await hubReady();
-    check((await page.locator("[data-hub] [data-status]").getAttribute("data-status")) === "reveal" && /Results are in · ZT Survivor Episode 5/.test(await text("[data-hub] [data-status]")), "a week behind: the status line leads with the results", await text("[data-hub] [data-status]"));
-    check((await page.locator("[data-upnext]").getAttribute("data-upnext")) === "reveal" && /Episode 5 results are in/.test(await text("[data-upnext]")), "and so does Up next, with Reveal on its plate");
+    check((await page.locator("[data-hub] [data-status]").getAttribute("data-status")) === "reveal" && /Final results are in · ZT Survivor Episode 5/.test(await text("[data-hub] [data-status]")), "a week behind: the status line leads with the results", await text("[data-hub] [data-status]"));
+    check((await page.locator("[data-upnext]").getAttribute("data-upnext")) === "reveal" && /Episode 5 final results are in/i.test(await text("[data-upnext]")), "and so does Up next, with Reveal on its plate");
     await page.screenshot({ path: path.join(out, "hub-results-in.png") });
     await page.locator("[data-upnext] a.nd-press").click();
     await page.waitForURL(`**/show/${sid}/tonight`);

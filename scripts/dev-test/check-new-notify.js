@@ -306,7 +306,7 @@ async function person(pool, who, role = null) {
     await expect((rs) => rs.some((x) => x.who === "riley") && rs.some((x) => x.who === "jordan"));
     await wait(2000);
     const re = got("riley");
-    check(re.length === 1 && re[0].title === `Episode 6: ${OUT6} went home` && /^ZT Survivor 51 · Final scores the morning after\./.test(re[0].body), "riley (sees results straight away): who went home, once for three games", JSON.stringify(re));
+    check(re.length === 1 && re[0].title === `Episode 6: ${OUT6} went home` && /^ZT Survivor 51 · Final results soon\./.test(re[0].body), "riley (sees results straight away): who went home, once for three games", JSON.stringify(re));
     check(re[0]?.url.startsWith("/episodes?league="), "on classic: classic's Episodes");
     const je = got("jordan");
     check(je.length === 1 && je[0].title === "Episode 6 results are in" && /^ZT Survivor 51 · Reveal when you've watched\./.test(je[0].body) && !JSON.stringify(je).includes("Cristian"), "jordan (seen 5): only that they're in, no name anywhere", JSON.stringify(je));
@@ -329,8 +329,8 @@ async function person(pool, who, role = null) {
     await expect((rs) => rs.some((x) => x.who === "jordan") && rs.some((x) => x.who === "sam"));
     const jf = got("jordan");
     const sf = got("sam");
-    check(jf.length === 1 && jf[0].title === "Episode 6 final scores are in" && /Reveal when you've watched/.test(jf[0].body), "jordan: Final scores are in, once", JSON.stringify(jf));
-    check(sf.length === 1 && sf[0].title === "Episode 6 final scores are in" && !JSON.stringify(sf).includes("Cristian"), "sam (final not switched off): Final scores are in, no names", JSON.stringify(sf));
+    check(jf.length === 1 && jf[0].title === "Episode 6 final results are in" && /Reveal when you've watched/.test(jf[0].body), "jordan: Final results are in (past its time: at once), once", JSON.stringify(jf));
+    check(sf.length === 1 && sf[0].title === "Episode 6 final results are in" && !JSON.stringify(sf).includes("Cristian"), "sam (final not switched off): Final results are in, no names", JSON.stringify(sf));
     check(got("riley").length === 0 && (await notes("riley", `final:${sid}:6`)).length === 1, "riley switched it off in classic: no push, but his bell keeps it");
     // The bell, read back through the guard: riley hides scores again, on Episode 5.
     await save("riley", { hideScores: true });

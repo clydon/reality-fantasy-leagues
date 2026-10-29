@@ -24,6 +24,7 @@ import { Tonight } from "../show/tonight";
 import { WaiverOverlays } from "../show/waivers";
 import { Avatar, useNow } from "../ui/bars";
 import { HoldSheet } from "../ui/guards";
+import { Loaded } from "../ui/loaded";
 import { toast } from "../ui/toast";
 import { usePushedPage } from "../ui/page";
 import { EmptyState, GuardChip, Row } from "../ui/parts";
@@ -62,7 +63,9 @@ export function useShow(seasonId: string) {
   const couch = readOnly ? readOnlyCouch(readOnly, space.data) : yourCouch;
   const cached = readOnly ? undefined : home.data?.shows.find((s) => s.seasonId === seasonId);
   const header: SeasonHeader | undefined = space.data ?? cached;
-  const games: GameRef[] = space.data?.games ?? cached?.games ?? [];
+  // Until the space comes back, the home's games for this show as the space picks them (show-space.ts games()): this
+  // couch's and your own solo ones, not your games on another couch, so the count and your moves don't change once it's in.
+  const games: GameRef[] = space.data?.games ?? cached?.games.filter((g) => (couchId ? g.couchId === couchId || (!!g.solo && !!g.yourRole) : !!g.yourRole)) ?? [];
   const yours = games.filter((g) => g.yourRole);
   // An archived game (step 10 part 2b) stands still: Backstage runs the rest.
   const runs = games.filter((g) => (g.yourRole === "commissioner" || g.yourRole === "admin") && !g.archived);
@@ -244,7 +247,7 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
         tabs={tabs}
         current={tab}
         badges={ro ? {} : { tonight: show.movesDue + (show.episodes?.reveal ? 1 : 0), chat: tab === "chat" ? 0 : (badge.data?.unread ?? 0) }}
-        labels={{ episodes: show.words.episodesTab, cast: show.words.peopleTab }}
+        labels={show.header ? { episodes: show.words.episodesTab, cast: show.words.peopleTab } : null}
       />
       {/* Read-only (src/new/read-only.tsx): only what's for looking, How it works and the stats page. */}
       {!ro && (
@@ -597,19 +600,22 @@ export function TabScreen({ seasonId, tab }: { seasonId: string; tab: ShowTab })
   const show = useShow(seasonId);
   if (!show.header) return <TabSkeleton />;
   return (
-    <div data-tab={tab}>
-      {tab !== "tonight" && !(show.readOnly && tab === "chat") && (
-        <div className="px-4 pt-4">
-          <GuardChip seenThrough={show.seenThrough} ep={show.words.ep} onChange={() => openWhere(show)} />
-        </div>
-      )}
-      {tab === "tonight" && (show.readOnly ? <ReadOnlyPanel game={show.readOnly} kind="tonight" /> : <Tonight seasonId={seasonId} show={show} />)}
-      {tab === "episodes" && <Episodes seasonId={seasonId} show={show} />}
-      {tab === "games" && <Games show={show} />}
-      {/* A sport nobody's made a game of has a roster, not a cast with stats (show/roster.tsx). */}
-      {tab === "cast" && (show.header?.show.kind === "sport" && !show.ready ? <Roster seasonId={seasonId} show={show} /> : <Cast seasonId={seasonId} show={show} />)}
-      {tab === "chat" && (show.readOnly ? <ReadOnlyPanel game={show.readOnly} kind="chat" /> : <Chat seasonId={seasonId} show={show} />)}
-    </div>
+    // The tab's sections, all at once once they're in (ui/loaded.tsx); a tab of its own each time.
+    <Loaded key={tab} fallback={<TabSkeleton />}>
+      <div data-tab={tab}>
+        {tab !== "tonight" && !(show.readOnly && tab === "chat") && (
+          <div className="px-4 pt-4">
+            <GuardChip seenThrough={show.seenThrough} ep={show.words.ep} onChange={() => openWhere(show)} />
+          </div>
+        )}
+        {tab === "tonight" && (show.readOnly ? <ReadOnlyPanel game={show.readOnly} kind="tonight" /> : <Tonight seasonId={seasonId} show={show} />)}
+        {tab === "episodes" && <Episodes seasonId={seasonId} show={show} />}
+        {tab === "games" && <Games show={show} />}
+        {/* A sport nobody's made a game of has a roster, not a cast with stats (show/roster.tsx). */}
+        {tab === "cast" && (show.header?.show.kind === "sport" && !show.ready ? <Roster seasonId={seasonId} show={show} /> : <Cast seasonId={seasonId} show={show} />)}
+        {tab === "chat" && (show.readOnly ? <ReadOnlyPanel game={show.readOnly} kind="chat" /> : <Chat seasonId={seasonId} show={show} />)}
+      </div>
+    </Loaded>
   );
 }
 

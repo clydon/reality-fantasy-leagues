@@ -26,6 +26,14 @@ production's database).
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and pushed 2026-10-29 evening: the app fixes** (the desk lane, `03e12bdc`, migration 0431, a new table): back
+  closes a bottom sheet; pages show their loading look once, never content that disappears; early and final results (final
+  at 12:00 noon the day after, in the season's zone, said wherever early results are, with an "Episode N final results are
+  in" push from the hourly job and the reveal to watch again); the research pattern (runs for one episode only, our usual
+  runs as data with "Make this our usual", run times on the hour, no usual run quietly missing; our usual is now who went
+  home at the episode's end, full results 1 h and 12 h after). Players' reminders go for every airing season (`666123fe`).
+  **Waiting on the user:** Survivor 51 keeps its own saved schedule (with a schedule check), so the desk lists the usual runs
+  it differs from until they're added there, or the schedule is reset to our usual. Leftovers: [BACKLOG](BACKLOG.md) 26.
 - **Merged and pushed 2026-10-29: the desk, steps 1–8** ([PLAN-desk-parity.md](PLAN-desk-parity.md); built in the desk lane;
   steps 1–7 `ce42872b` with migrations 0420–0430, rehearsed on a Neon branch; step 8 `77b817a1`, no migration). `/desk` does
   classic `/admin`'s work, and `/admin` now sends a site admin to the desk's page for the same thing. Step 8 also retired the

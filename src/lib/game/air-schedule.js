@@ -135,4 +135,4 @@ function formatInTz(instant, tz) {
   }).format(instant);
 }
 
-module.exports = { zonedToUtc, parseAirDate, exactAirTime, episodeAirTime, formatInTz, localDate, WEEKDAYS, DEFAULT_AIR_TIME };
+module.exports = { zonedToUtc, parseAirDate, exactAirTime, episodeAirTime, formatInTz, localDate, addDays, WEEKDAYS, DEFAULT_AIR_TIME };

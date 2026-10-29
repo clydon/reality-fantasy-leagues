@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ChevronRight, Clock, Eye } from "lucide-react";
 import { airTime, dayOf } from "../clock";
 import { useEpisodeResults, useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverWeek } from "../data";
+import { midLine, useFinalLine } from "../final-words";
 import { gameInk, ordinal } from "../games";
 import { episodesOf, type ShowData } from "../screens/show-space";
 import { PushedPage, usePushedPage } from "../ui/page";
@@ -61,6 +62,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
   const t = up?.airAt ? Date.parse(up.airAt) : null;
   const eps = show.episodes;
   const openReveal = useOpenReveal();
+  const finalWords = useFinalLine(eps?.reveal?.stage, eps?.reveal?.finalAt);
   // Read-only: the game open (by its id), who's set in it, or that a game still going has nothing to set (the mock's
   // "Outlast: nothing to set before it airs").
   const roGame = show.readOnly ? show.play?.find((g) => g.leagueId === show.readOnly!.leagueId) : undefined;
@@ -111,8 +113,8 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
               {show.words.ep} {eps.reveal.episode}
             </span>
             <span className="flex flex-1 flex-col justify-center gap-[3px] py-[7px] pl-5 pr-2.5">
-              <span className="type-caption text-[19px]">{eps.reveal.stage === "early" ? "Early results are in" : "Results are in"}</span>
-              <span className="text-[13px] text-plate-muted">Hidden until you reveal</span>
+              <span className="type-caption text-[19px]">{eps.reveal.stage === "early" ? "Early results are in" : "Final results are in"}</span>
+              <span className="text-[13px] text-plate-muted">{eps.reveal.stage === "early" && finalWords ? `Hidden until you reveal · ${midLine(finalWords)}` : "Hidden until you reveal"}</span>
             </span>
             <span className="grid place-items-center px-3">
               <ChevronRight className="size-5" aria-hidden />
@@ -181,6 +183,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
 }
 
 function HiddenRow({ e, onReveal }: { e: EpisodeRow; onReveal: () => void }) {
+  const finalWords = useFinalLine(e.stage, e.finalAt);
   return (
     <button
       type="button"
@@ -193,8 +196,8 @@ function HiddenRow({ e, onReveal }: { e: EpisodeRow; onReveal: () => void }) {
         <Eye className="size-5" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">
-        <b className="block text-base font-semibold">{e.stage === "early" ? "Early results are in" : "Results are in"}</b>
-        <small className="mt-0.5 block text-[13px] text-muted-foreground">Hidden until you reveal</small>
+        <b className="block text-base font-semibold">{e.stage === "early" ? "Early results are in" : "Final results are in"}</b>
+        <small className="mt-0.5 block text-[13px] text-muted-foreground">{e.stage === "early" && finalWords ? `Hidden until you reveal · ${midLine(finalWords)}` : "Hidden until you reveal"}</small>
       </span>
       <span className="text-[15px] font-semibold text-chyron-line">Reveal</span>
     </button>
@@ -343,11 +346,12 @@ function EpisodeBody({
 }) {
   const out = e.out ?? [];
   const results = useEpisodeResults(seasonId, couchId, e.number);
+  const finalWords = useFinalLine(e.stage, e.finalAt);
   return (
     <div data-episode-page={e.number} className="mb-10 mt-3 px-4 pb-4 pt-4">
       <CorrectionPlates results={results.data} />
       {e.stage === "early" && (
-        <p className="mb-3 rounded-[3px] bg-card px-3 py-2.5 text-sm text-muted-foreground">Early results: who went home is in. Weekly Lineup&rsquo;s full scores come later.</p>
+        <p className="mb-3 rounded-[3px] bg-card px-3 py-2.5 text-sm text-muted-foreground">Early results: who went home is in. {finalWords ? `${finalWords}.` : "Weekly Lineup’s full scores come later."}</p>
       )}
       <div className="flex flex-col gap-2.5">
         {out.map((c) => (

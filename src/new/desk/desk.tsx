@@ -7,7 +7,7 @@ import { NavLink } from "../nav";
 import { paths, type DeskKind, type DeskSeasonPage, type DeskShowPage } from "../routes";
 import { useMe } from "../session";
 import { Avatar } from "../ui/bars";
-import { EmptyState } from "../ui/parts";
+import { Btn, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { deskSend, useAfterDesk, useDesk, type ComingUp, type DeskSettings, type DeskLine, type CouchRow, type FoundItem, type GameRow, type Inbox, type InboxItem, type PeopleList, type PersonRow, type ReportRow, type ShowRow } from "./data";
@@ -22,7 +22,7 @@ import { CouchListRow, CouchesPage } from "./couches";
 import { GameListRow, GamePage, GamesPage } from "./games";
 import { andList } from "./seats";
 import { useDeskStay, useRecentlyOpened } from "./trail";
-import { agoOf, ChoiceCard, DeskHeader, DeskRow, History, IconLead, ItemRow, Section, Tag } from "./parts";
+import { agoOf, ChoiceCard, DeskHeader, DeskRow, History, IconLead, ItemRow, Section, Tag, useChangeToast } from "./parts";
 import { RulebookPage } from "./rulebook";
 import { RulebooksSheet } from "./settings-flag";
 import { EpisodePage } from "./episode";
@@ -118,6 +118,7 @@ const TAGS: Record<InboxItem["kind"], [string, "must" | "quiet"]> = {
   change: ["New?", "must"],
   stranded: ["Couch", "quiet"],
   schedule: ["Schedule", "quiet"],
+  usual: ["Research", "quiet"],
   cast: ["Cast", "quiet"],
   people: ["People", "quiet"],
   report: ["Report", "quiet"],
@@ -126,9 +127,13 @@ const TAGS: Record<InboxItem["kind"], [string, "must" | "quiet"]> = {
   show: ["Show", "quiet"],
 };
 
-/** One thing that needs you (the mock's .adm-item.dk-ii): its kind's tag, what it is, a line, and the faces it's about. */
+/**
+ * One thing that needs you (the mock's .adm-item.dk-ii): its kind's tag, what it is, a line, and the faces it's about. One
+ * with an Add (a usual run a season's own schedule hasn't) adds it in one tap, with the toast's Undo, beside the link.
+ */
 function InboxRow({ item }: { item: InboxItem }) {
   const [tag, tone] = TAGS[item.kind] ?? [item.kind, "quiet"];
+  if (item.add) return <InboxAddRow item={item} add={item.add} tag={tag} tone={tone} />;
   return (
     <NavLink href={item.href} data-desk-item={item.kind} className="nd-press flex min-h-[74px] items-center gap-3 border-t border-border py-2.5 last:border-b">
       <Tag tone={tone} className="min-w-[78px]">
@@ -152,6 +157,44 @@ function InboxRow({ item }: { item: InboxItem }) {
       )}
       <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
     </NavLink>
+  );
+}
+
+function InboxAddRow({ item, add, tag, tone }: { item: InboxItem; add: NonNullable<InboxItem["add"]>; tag: string; tone: "must" | "quiet" }) {
+  const changed = useChangeToast();
+  const after = useAfterDesk();
+  const [busy, setBusy] = useState(false);
+  return (
+    <div data-desk-item={item.kind} className="flex min-h-[74px] items-center gap-3 border-t border-border py-2.5 last:border-b">
+      <NavLink href={item.href} className="nd-press flex min-w-0 flex-1 items-center gap-3">
+        <Tag tone={tone} className="min-w-[78px]">
+          {tag}
+        </Tag>
+        <span className="min-w-0 flex-1">
+          <b className="block text-[16px] font-semibold leading-snug">{item.title}</b>
+          <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">{item.line}</small>
+        </span>
+      </NavLink>
+      <Btn
+        data-inbox-add={`${add.seasonId}:${add.kind}`}
+        className="h-11 flex-none px-4 text-[15px]"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            const out = await deskSend<{ changeId: string | null; text: string }>(`/seasons/${add.seasonId}/research`, { addUsual: add.kind });
+            await after();
+            changed(out.text, out.changeId);
+          } catch (e) {
+            toast.quiet((e as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        Add
+      </Btn>
+    </div>
   );
 }
 

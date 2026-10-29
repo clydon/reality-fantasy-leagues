@@ -919,3 +919,13 @@ never handles it: the user does the reset and the pasting.
   remove**. Nothing new polls or runs. In the database, `wiki_proposals` and the seasons' auto-research columns stay,
   unread (a few KB); `wiki_extractions` stays and is still read (the episodes' titles and dates it holds: `schedule.ts`,
   `desk-schedule.ts`, episode research), and the desk's schedule and Clear still prune `auto_research_attempts`.
+- **2026-10-29 evening, pushed to master (deploys with migration 0431).** The app fixes: back closes a bottom sheet, pages
+  show their loading look once, early and final results, the research pattern. **One new table**, `bot_research_episodes`
+  (a row per episode given runs of its own: a few hundred bytes), and `app_settings` 'bot_usual' (our usual runs, once the
+  desk saves them). **The hourly Reminders and waivers job does a little more:** `db/reminders.js` finalResults sends
+  "Episode N final results are in" at 12:00 noon the day after an episode (the season's zone), once per person and episode:
+  for each airing season (or one whose finale was in the last 3 days), the episodes whose final time came in the last day,
+  then one query for the show's name and its members' marks. `season-clock.js` loadSeasons reads `bot_research_episodes`
+  per season (a primary-key lookup, for the job, waivers and the bot's plan), and the plan reads 'bot_usual' once. Our
+  usual runs: who went home at the episode's end, full results 1 h and 12 h after, trivia, bingo. Nothing else new polls
+  or runs on a schedule.

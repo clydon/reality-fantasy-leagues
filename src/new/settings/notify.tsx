@@ -11,7 +11,7 @@ import { toast } from "../ui/toast";
 import { Choice, SwitchRow } from "./controls";
 
 // What we notify you about (docs/PLAN-new-design.md step 15 part 2; the mock's settings.js accountRoute): this phone's
-// notifications on or off, then the moments (moments.js: Lineup reminders, Early results are in, Final scores are in, Invites and
+// notifications on or off, then the moments (moments.js: Lineup reminders, Early results are in, Final results are in, Invites and
 // join requests, and two the mock didn't have: On the couch, and Backstage for whoever runs a game), then Couch chat's three
 // choices. A switch saves as it's tapped, with Undo. Whatever's off, the bell on the hub still lists it.
 
@@ -82,7 +82,8 @@ function PhoneRow({ devices, state, setState }: { devices: number; state: PhoneS
   };
   const Icon = state === "on" ? BellRing : state === "off" || state === "loading" ? Smartphone : BellOff;
   return (
-    <div className="flex min-h-[64px] items-center gap-3 py-2" data-phone={state}>
+    // Still asking the browser: the page waits for it (ui/loaded.tsx) rather than saying "Checking…" and then the answer.
+    <div className="flex min-h-[64px] items-center gap-3 py-2" data-phone={state} aria-busy={state === "loading" || undefined}>
       <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary">
         <Icon className="size-5" aria-hidden />
       </span>

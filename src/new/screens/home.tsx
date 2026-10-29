@@ -12,6 +12,7 @@ import { SoloHub } from "../hub/solo-hub";
 import { NotesBell } from "../hub/notes";
 import { useMe } from "../session";
 import { TopBar } from "../ui/bars";
+import { Loaded } from "../ui/loaded";
 import { Btn, EmptyState } from "../ui/parts";
 
 // The hub (/home; the mock's refine.js wireHub), in its two shapes, or solo (on no couch: hub/solo-hub.tsx, step 9 part 3):
@@ -46,14 +47,17 @@ export function HomeScreen() {
       <TopBar me={me} onProfile={() => setProfile(true)} bell={<NotesBell />} />
       {error ? (
         <EmptyState title="Couldn't load your couch" line={error.message} action={<Btn wide onClick={() => refetch()}>Try again</Btn>} />
-      ) : !home ? (
-        <HomeSkeleton />
-      ) : shape === "solo" ? (
-        <SoloHub home={home} />
-      ) : shape === "grow" ? (
-        <GrowHub home={home} couch={couch} hub={hub} newCouch={newCouch} />
       ) : (
-        <FocusHub home={home} couch={couch} hub={hub} />
+        // The hub's sections, all at once once they're in (ui/loaded.tsx): the couch's numbers come in a read of their own.
+        <Loaded fallback={<HomeSkeleton />}>
+          {!home ? null : shape === "solo" ? (
+            <SoloHub home={home} />
+          ) : shape === "grow" ? (
+            <GrowHub home={home} couch={couch} hub={hub} newCouch={newCouch} />
+          ) : (
+            <FocusHub home={home} couch={couch} hub={hub} />
+          )}
+        </Loaded>
       )}
       <ProfileSheet open={profile} onOpenChange={setProfile} me={me} couch={couch} hub={hub} />
       <CouchPages home={home} couch={couch} hub={hub} />

@@ -9,6 +9,7 @@ import { SEASON_NAME, logDesk, readable, type DeskLine } from "./desk";
 import { bankBrief } from "./desk-bingo";
 import { seasonBot } from "./desk-bot";
 import { mdIn, plural, whenAt, timeIn } from "./desk-dates";
+import { finalResultsAt } from "@/lib/game/final-results.js";
 import type { Before } from "./desk-facts";
 import { seenThrough } from "./guard";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
@@ -98,6 +99,8 @@ export interface DeskEpisode {
   meta: string;
   /** Not aired: when it ends, for "Results come in after it ends at 9:05 PM". */
   endsAt: string | null;
+  /** Players' final results (12:00 noon the day after it airs, final-results.js): "Fri, 12:00 PM", and whether that's passed. */
+  finalAt: { when: string; passed: boolean } | null;
   /** The viewer has seen it (Hide names starts off), by their mark like any page. */
   seen: boolean;
   /** Who decides results: "admin" (nothing reaches the games until accepted) or "leagues" (sources agreeing). */
@@ -452,6 +455,7 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
       ? [`${plural(live.length, "result")} in every game`, waiting.length && `${waiting.length} not yet`, disputed.length && `${disputed.length} disputed`, `from ${plural(subs.length, "answer")}`].filter(Boolean).join(" · ")
       : "No answers yet",
     endsAt,
+    finalAt: ((f) => (f ? { when: whenAt(f, tz, now), passed: f.getTime() <= now.getTime() } : null))(airAt ? finalResultsAt(airAt, tz) : null),
     seen: seen >= n,
     resultsBy: s.results_by === "admin" ? "admin" : "leagues",
     confirmAt: need,
@@ -470,7 +474,7 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
       out: q.status === "dropped" ? `its check dropped it${q.note ? `: ${q.note}` : ""}` : q.by_admin ? "taken out by an admin" : q.flags >= 2 ? 'two "Wrong?" flags from players' : null,
       byAdmin: q.status !== "dropped" && q.by_admin,
     })),
-    triviaOn: bot.on && bot.schedule.some((r) => r.kind === "trivia" && r.on),
+    triviaOn: bot.on && (bot.episodes[n] ?? bot.schedule).some((r) => r.kind === "trivia" && r.on),
     bingo: bingo?.squares ?? null,
     bingoBy: bingo?.line ?? null,
     history,

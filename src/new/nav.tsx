@@ -4,6 +4,7 @@ import { useEffect, useLayoutEffect, useRef, ViewTransition, type ComponentProps
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { navKind, type NavKind } from "./routes";
+import { leaveThroughSheets, navigating } from "./ui/sheet-history";
 
 // Motion that grounds navigation (docs/PLAN-new-design.md step 0c; the mock's nav.js): every move says where you
 // went. The rules are in routes.ts (navKind); the animations are CSS in src/app/(new)/new.css, keyed on
@@ -84,6 +85,7 @@ export function NavLink({ channel, onClick, ...props }: ComponentProps<typeof Li
         onClick?.(e);
         if (e.defaultPrevented || !isPlainClick(e) || typeof props.href !== "string") return;
         markNav(navKind(pathname, props.href, { channel }));
+        navigating();
         replacing = !!props.replace;
         // The art that grows: the link's own, or its card's (data-art-scope) when the art sits beside the link.
         const card = e.currentTarget.closest<HTMLElement>("[data-art-scope]") ?? e.currentTarget;
@@ -111,12 +113,14 @@ function nameReturnArt(fromPath: string) {
   nameArt(art ?? null);
 }
 
-/** The browser's back, moving the screen as `kind` says (see the top of this file). */
+/** The browser's back, moving the screen as `kind` says (see the top of this file). From an open sheet (a desk page's
+ *  Delete, held down), past the sheet's entry too. */
 function historyBack(kind: NavKind) {
   const seq = markNav(kind);
   backing = true;
+  const by = -1 - leaveThroughSheets();
   if (!document.startViewTransition) {
-    window.history.back();
+    window.history.go(by);
     return;
   }
   let skipped = false;
@@ -130,7 +134,7 @@ function historyBack(kind: NavKind) {
           clearTimeout(timer);
           resolve();
         });
-        window.history.back();
+        window.history.go(by);
       })
   );
   t.ready.catch(() => (skipped = true));
@@ -146,6 +150,7 @@ export function useNav() {
   return {
     push(href: string, opts?: { channel?: boolean }) {
       markNav(navKind(pathname, href, opts));
+      navigating();
       router.push(href);
     },
     /**
@@ -157,6 +162,7 @@ export function useNav() {
         historyBack(navKind(pathname, previousPath));
       } else {
         markNav(navKind(pathname, parent));
+        navigating();
         router.push(parent);
       }
     },

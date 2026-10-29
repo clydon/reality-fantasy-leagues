@@ -9,7 +9,8 @@ import { hiddenFromGroup, outOfGroupChat } from "./late-join";
 import { EVERYTHING, seenThrough, shares } from "./guard";
 import { AUTHOR_SEEN } from "./chat";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
-import { seasonSchedules } from "./schedule";
+import { finalAtOf, seasonSchedules } from "./schedule";
+import { finalWhen } from "@/lib/game/final-results.js";
 import { after } from "next/server";
 import { clock, nudgeMessage, resultsLine, sendWindow, type WindowSnapshot } from "./waiver-pushes";
 import { showWords } from "@/lib/game/show-words";
@@ -167,10 +168,13 @@ function outNames(state: LeagueState, ep: LeagueState["episodes"][number]): stri
 }
 
 /**
- * An episode's results came in (or moved on): the season's moments, Early results are in and Final scores are in, once per
+ * An episode's results came in (or moved on): the season's moments, Early results are in and Final results are in, once per
  * person however many of their games play the season (three linked games' results are one notice: the bell's keys
- * results:<season>:<n> and final:<season>:<n>). Early: who went home is in; final: the full results (the morning after). Results
- * that arrive final at once are both, in one notice.
+ * results:<season>:<n> and final:<season>:<n>). Early: who went home is in, and when the final results come; final: the full
+ * results, said at their time (the user, 2026-10-29: 12:00 noon the day after it airs, the season's zone, final-results.js).
+ * Final results that land before that time say nothing new to anyone told already (the hourly job, db/reminders.js, says
+ * they're in at that time) and are the early notice to anyone not; after it, they're told at once, as they settle. Results
+ * that arrive final at once after that time are both, in one notice.
  *
  * The words are the guard's for each reader: someone who has seen the episode (or sees results straight away) hears who went
  * home; anyone else only that results are in, to reveal when they've watched. In a waivers league both end with when the week
@@ -192,19 +196,26 @@ export function notifyEpisodeResults(leagueId: string, state: LeagueState, epId:
     const R = `results:${scope}:${n}`;
     const F = `final:${scope}:${n}`;
     const names = outNames(state, ep);
+    const finalAt = ls.seasonId ? finalAtOf((await seasonSchedules([ls.seasonId])).get(ls.seasonId))(n) : null;
+    const now = Date.now();
+    // Before the final time, final results are only the early notice: the final one goes at that time.
+    const early = stage === "early" || (finalAt !== null && Date.parse(finalAt) > now);
+    // What the early notice says about the final results, in the reader's own zone.
+    const finalNote = (reader: PushReader) =>
+      finalAt === null ? "Final results to follow." : Date.parse(finalAt) > now ? `Final results by ${finalWhen(finalAt, now, reader.tz || ls.airTz)}.` : "Final results soon.";
     const message = async (reader: PushReader): Promise<PushMessage | null> => {
       const told = await keysOf(reader.userId, [R, F]);
-      const kind = stage === "early" ? (told.size ? null : "early") : told.has(F) ? null : told.has(R) ? "final" : "both";
+      const kind = early ? (told.size ? null : "early") : told.has(F) ? null : told.has(R) ? "final" : "both";
       if (!kind) return null;
       const sees = (await markOf(reader.userId, ls.seasonId, leagueId)) >= n;
       const waiver = kind === "final" ? "" : await resultsLine(pool, state, n, reader.tz);
       const safe = {
-        title: `Episode ${n} ${kind === "final" ? "final scores are" : "results are"} in`,
+        title: `Episode ${n} ${kind === "final" ? "final results are" : "results are"} in`,
         body: `${ls.label} · Reveal when you've watched.${waiver}`,
       };
       const named = kind !== "final" && sees;
       const words = named
-        ? { title: `Episode ${n}: ${names} went home`, body: `${ls.label} · ${kind === "both" ? "Final scores are in." : "Final scores the morning after."}${waiver}` }
+        ? { title: `Episode ${n}: ${names} went home`, body: `${ls.label} · ${kind === "both" ? "Final results are in." : finalNote(reader)}${waiver}` }
         : kind === "final" && sees
           ? { title: safe.title, body: `${ls.label} · See where you stand.` }
           : safe;
@@ -219,7 +230,7 @@ export function notifyEpisodeResults(leagueId: string, state: LeagueState, epId:
         ...(kind === "both" ? { anyOf: ["episodeResults", "finalScores"] } : {}),
       } satisfies PushMessage;
     };
-    return { userIds, seasonId: ls.seasonId, message };
+    return { userIds, seasonId: ls.seasonId, message, type: early ? "episodeResults" : "finalScores" };
   });
 }
 

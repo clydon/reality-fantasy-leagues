@@ -12,6 +12,7 @@ import { paths } from "../routes";
 import { isTabOf, useShow, type ShowData } from "../screens/show-space";
 import { Avatar, useNow } from "../ui/bars";
 import { Btn, BtnLink, EmptyState } from "../ui/parts";
+import { useShown } from "../ui/loaded";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { first } from "./moves";
@@ -410,9 +411,11 @@ function SnakeRoom({ seasonId, show, game, onSettings }: { seasonId: string; sho
 
   // The order strip keeps the pick on the clock in view.
   const strip = useRef<HTMLDivElement>(null);
+  // Once it's on screen (ui/loaded.tsx).
+  const shown = useShown();
   useEffect(() => {
-    strip.current?.querySelector<HTMLElement>("[data-now]")?.scrollIntoView({ block: "nearest", inline: "center" });
-  }, [clock?.n]);
+    if (shown) strip.current?.querySelector<HTMLElement>("[data-now]")?.scrollIntoView({ block: "nearest", inline: "center" });
+  }, [clock?.n, shown]);
 
   async function draft() {
     if (!selected || !clock || busy) return;

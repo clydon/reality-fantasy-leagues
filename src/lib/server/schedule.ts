@@ -1,4 +1,5 @@
 import * as Air from "@/lib/game/air-schedule.js";
+import { finalResultsAt } from "@/lib/game/final-results.js";
 import { pool } from "./db";
 
 // A season's episodes as the new design lists them (the show header, Up next, later the guide), on the same
@@ -95,6 +96,14 @@ export async function seasonSchedules(seasonIds: string[], now = new Date()): Pr
     });
   }
   return out;
+}
+
+/** When each episode's final results are in for players (final-results.js: 12:00 noon the day after it airs, the season's zone). */
+export function finalAtOf(schedule: SeasonSchedule | undefined): (n: number) => string | null {
+  return (n) => {
+    const airAt = schedule?.episodes.find((e) => e.number === n)?.airAt;
+    return airAt ? (finalResultsAt(airAt, schedule!.airTz)?.toISOString() ?? null) : null;
+  };
 }
 
 /** Something says when its episodes air (a premiere, a listing's dates, research's starts, or a drop): the desk's "no schedule". */

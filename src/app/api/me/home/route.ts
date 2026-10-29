@@ -8,7 +8,7 @@ import { questionMoves } from "@/lib/server/answers";
 import { dueMoves } from "@/lib/server/due-moves";
 import { seenThrough } from "@/lib/server/guard";
 import { followsOf, games, seasonHeaders, type Game } from "@/lib/server/show-space";
-import { latestAired, latestEnded, seasonSchedules, titledFor, upNext } from "@/lib/server/schedule";
+import { finalAtOf, latestAired, latestEnded, seasonSchedules, titledFor, upNext } from "@/lib/server/schedule";
 import { seenItAsk, type KeepUp } from "@/lib/server/keep-up";
 import { hiddenFor, weekOf } from "@/lib/server/guide";
 import { plansFor } from "@/lib/server/watch-plans";
@@ -146,7 +146,8 @@ export const GET = apiRoute(async (req) => {
       results: resultsDue(
         myGames.filter((g) => g.seasonId === id && live(g)).map((g) => states.get(g.leagueId)).filter((st) => !!st),
         seen,
-        earlySeen.get(id)
+        earlySeen.get(id),
+        finalAtOf(schedule)
       ),
     });
   }
