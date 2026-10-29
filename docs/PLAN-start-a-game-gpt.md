@@ -47,6 +47,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Mechanics the players decide (2026-10-28) | **Allowed** (the user's hunch, Claude's call): votes among the players, matching the majority, the top scorer's twist, a rotating host, secret roles, bounties. Guardrails: facts about the show are still settled only by data (a host's questions must be data-settled; the couch never decides what happened); answers that depend on each other stay hidden until the lock; a player-decided outcome changes the game only, never someone's place on the couch. |
 | Numbers from outside research (2026-10-28) | **Allowed from vetted sources** (the user's hunch, Claude's call): free, with terms that allow it (TVmaze's episode ratings, ESPN's stats), settled once at a fixed moment (a rating seven days after airing) and stored, because outside numbers drift. A new source goes into HOSTING.md first. |
 | The engine lab (2026-10-28) | **Yes**, in A5: an admin-only, plain page on the desk for trying the engine's pieces before the UI exists. |
+| Exclusive or shared (2026-10-28) | **Shared whenever the math says so** (the user: "many things will just mathematically have to be shared, no way around it", as in a 12-person Survivor game where everyone drafts several castaways). An exclusive draft only when the pool covers every pick, counted where the game drafts and as the pool shrinks (a later stage, a side draft, group slots among fourteen pairs); otherwise our check makes it shared and the wizard says why ("12 players × 3 picks is more than 18 castaways: two of you can have the same one"). Group slots are shared by default. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -254,6 +255,9 @@ The user's examples, as people would type them on a show's page. They go into th
 | Survivor 51 | "a single episode game where we must predict different things, most correct wins" | Yes: one episode (A3), a game of questions (A4): who goes home, yes or no, how many | A6 for "who wins immunity" questions |
 | Dancing with the Stars 34 | "everyone predicts the scores of each couple; whoever's closest to the average gets a point; ties both get points" | Closest wins and ties all score (A4's number answer) | A6: a question for each couple, settled by research's `judgesScore`. The wizard asks: this episode or the season? The judges' total or their average? |
 | Survivor 51 | "every week we predict if it's going to rain" | A yes-or-no question each episode, once a moment settles it (A4) | No rain moment: the new-moment path (Our check). Likely rated unreliable, so a can't-yet with the nearest settled questions |
+| The Challenge | "I also want to automatically start a new draft stage whenever there is a major format change such as split into teams or split into individuals" | No | A12: a stage that starts on a format change of the kinds named, from each episode's research (Formats nobody announced, below). The wizard says what "major" covers. What players see, and whether the new draft waits for the maker's OK, are the format-change design session's (below) |
+| The Challenge | "draft solo players in the challenge. if we ever get teams forming or pairing up that lasts for multiple episode i want us to start a 'side draft' after that episode ends" | The solo draft: yes (a draft of people) | F3's grouping lifetimes ("lasts" is known only once it has: held N episodes), A12's side stage that opens on a lasting grouping and closes when it changes. If pairs change every episode, it never opens, and the builder says so up front from the show's history (F1). "When a grouping lasts", below |
+| The Challenge | A solo draft, then once teams or pairs are announced, a +1 or +2 slot on your roster for a pair or team for the next week ("Liz & Mark", "Justin & Susan"); if they stick, you ride with them, otherwise that slot just drops for everyone | The solo draft: yes | Group slots (A10, on F3's grouping lifetimes): "When a grouping lasts", below |
 
 What these need is in the engine track (Steps: A6, A9, A12, A13).
 
@@ -346,6 +350,108 @@ guardrails: below).
 
 **Decided 2026-10-28** (Decisions, above): mechanics the players decide are allowed, with guardrails; numbers from outside
 research are allowed from vetted sources, settled once at a fixed moment. A14 is planned, no longer waiting.
+
+### Formats nobody announced (the user, 2026-10-28)
+
+A taped season comes with hindsight; a live one doesn't. The Challenge changes its format from season to season and often
+several times within one (pairs, then teams, then each for themselves; a new phase; a twist), Survivor swaps tribes, and The
+Traitors adds twists. None of it is known when a game is made, so a game built on the format at its start can be thrown by
+a change mid-season. Today's replays can't show it: a taped season's "how it works" comes from a rules answer written after
+the season ended, so it already lists every change, and a change in a live season shows up only in each episode's research,
+in a catch-all text field (`notableTwist`) the engine doesn't act on. Every game has to keep playing through a change
+nobody announced:
+
+- **Ride on data, not on the format at the start.** A pick or a question names people, groups and moments as the latest data
+  has them: its choices are read at each lock, so a swap, a split or a new team changes them by itself.
+- **Notice it.** Each episode's research says when the format changed (what changed, from which episode on), as data the
+  engine reads, not only as free text.
+- **Act on it, without a person.** The engine checks every running game against the new format. What still makes sense
+  carries on. What doesn't follows a fallback its spec carries from the start (carry on with what's left, void that
+  episode's question and its points, or start the game's next stage), and the maker is told what changed and what the game
+  did. No game stops to wait for someone.
+- **Prove it with blind replays.** Replay a taped season as if it were live: the game is made from what was known before its
+  premiere (the previous season's format, or a rules answer as of the premiere), and each change arrives only in its
+  episode's research. The Challenge's three seasons are the hard test (40 and 39 go on tape next for this): every game the
+  tracker says it plays keeps playing, scores sensibly and ends.
+
+Its home is A12 (a stage the show starts, not one the game planned), and it holds for every step from A9 on, along with A6's
+choices and A7's windows. A rule call the Decisions table doesn't settle (which fallback by default, what the maker hears)
+goes in the step's Noticed with a recommendation, for the user.
+
+**The foundation first: the prompt, then the engine, then the UI** (the user, 2026-10-28: "the prompt has to be prepared and
+get this information cleanly so we can act upon it"). What research says today can't be acted on: in The Challenge 41's
+episode 5 every pair was redrawn, and its research says so only as 29 notes in `notableTwist`, one per person ("Re-paired
+with ..."), mixed with a coin toss and someone leaving. So right after A9, before A10 (whose draft slots per group and A11's
+teams read the format's state rather than guess it), the engine track does the format foundation, one part a session:
+
+- **F1. Study The Challenge.** Past seasons give the ground truth: their stages are known, so the study can check how each
+  change would have come in live. For each season (41 on tape; 40 and 39 as they land; Survivor 49's swap and merge and The
+  Traitors 4's twists as the other shows' checks), a timeline: each episode's grouping (pairs, teams, each for themselves,
+  and who's with whom), its phase, how people go home, and every change, with its kind, the episode it took effect and how
+  the show brought it in (announced ahead, at the episode's start, mid-episode, at its end). Then today's prompt against it:
+  for each change, what that episode's research said, where, and whether the engine could act on it. Written up as its own
+  doc for the user.
+- **F2. The research prompt's format section,** the same for any show: the format's state at the episode's end, as data (the
+  grouping, who's with whom, the phase), and what changed in the episode, as a kind from a small vocabulary with the episode
+  it took effect, and how sure. Proven by asking recorded episodes again with it, through the local bot only, and scoring the
+  answers against F1's timelines, as the bingo check was proven.
+- **F3. The engine's format state over time,** built from each episode's report, with the changes found by comparing an
+  episode's state with the one before (our code, not the bot's labels), what reads it (A6's choices, A10's slots per group,
+  A11's teams, A12's stages and triggers) and each piece's fallback. A corrected report works out everything after it again.
+- **F4. Blind replays:** a taped season replayed as if live (above), every game the tracker says it plays, The Challenge's
+  seasons first.
+
+The research prompt is shared by every show's research, production's included, so F2 reaches it only through a reviewed merge
+with the user's OK, like everything else.
+
+**When a grouping lasts** (the user's second example, 2026-10-28: a solo draft, plus a side draft when teams or pairs form
+and last). "Lasts" can't be known when a grouping forms, and on some seasons pairs change almost every episode, so the
+engine gives a game several ways to meet a change, and the builder picks with the maker:
+- **Follow the people** (the safest default): a game drafts people, and whatever their group does flows to them each episode
+  (a pair's win scores both), so no change ever breaks it.
+- **A side draft once a grouping has lasted:** it opens after a grouping has held N episodes (2, say), scores from then on,
+  and closes when that grouping changes, its points kept. If pairs change every episode, it never opens.
+- **A pick each episode instead:** "which pair wins this week", its choices the pairs on screen now, for groupings that
+  don't last.
+- **Ask the game's people at the moment:** "The Challenge formed teams of four (since episode 6). Start a side draft?" One
+  tap for the maker or a quick vote of the players (A14's votes), and the game's default if nobody answers by the next lock.
+- **The show's history sets expectations:** F1 measures how long groupings lasted on each show's recent seasons, so the
+  builder can say so up front ("on the last three seasons, pairs lasted one to three episodes: a side draft might open once,
+  or never; a pick each episode fits better").
+- **Group slots** (the user's third idea, and the one that needs no guessing): a solo draft, plus a +1 or +2 slot on each
+  roster that holds a pair or a team. When groupings are announced, the slots open for the next episode; while that group
+  lasts you ride with it; when it ends, its slot drops. Pairs that last make it a side draft, and pairs that change every
+  episode make it a pick each episode, with one mechanic and nothing to predict. What keeps it clean: a group is its exact
+  members, so any change to them ends it (a partner leaves, a swap, a re-pairing); when the show re-pairs everyone or goes
+  each for themselves, every slot drops at once; a slot opens after the episode that announced the groups and scores from
+  the next one (a group revealed mid-episode can't be picked before it). Shared by default (Decisions: exclusive or shared);
+  open for the design session: +1 or +2, and whether a slot can be swapped while its group lasts.
+
+The engine builds all of them (F3's grouping lifetimes: who's in it, from which episode, until which); which ones the builder
+offers, their defaults and how the asking looks are the format-change design session's.
+
+**A change can also be what a game is built around** (the user, 2026-10-28): "automatically start a new draft stage whenever
+there is a major format change such as split into teams or split into individuals" (Requests from a show's page). So:
+
+- **A stage can start on a format change**, as well as on an episode or a rulebook phase: of the kinds the spec names, from the
+  episode the research says it took effect. A new draft is one thing a stage can start with.
+- **"Major" is data, not a judgment at game time.** Research reports each change as one of a small vocabulary of kinds (teams
+  formed, split into individuals, pairs, a swap, a merge, a new phase, a twist), and the spec names which kinds count. The
+  wizard says in words what the game will treat as major.
+- **Only a reliable report moves a game's structure.** A change research is unsure of gets the safe fallbacks only, and is
+  flagged. A structural action that came from research that turns out wrong is undone when the research is corrected, as a
+  result taken back is.
+- **A structural action can wait for the maker's OK or run by itself with an undo.** The engine builds both; which is the
+  default is the user's call.
+
+**There's a lot at stake, so the decisions are the user's, made in a design session, not in a lane** (the user, 2026-10-28).
+Lanes build the engine's pieces (the vocabulary, the triggers, the fallbacks, both kinds of structural action, the undo, blind
+replays) and decide nothing a person sees. The format-change design session, with the user and mocked at 390 first like the
+rest, settles: how a maker asks for it (the builder's words, the wizard's assumptions); what players see when a change lands
+(what changed, what the game did, a new draft opening and its deadline); what the maker and the commissioner can confirm,
+change or undo; how a wrong report is put right in front of the players; and the edge cases (a change during a draft, two
+changes in one episode, a change in the finale, a change that comes back). It runs after A12, so it designs on what the
+engine does, before any of its UI is built; then the UI follows it (U0 for the wizard's part, the game pages for the rest).
 
 ## Live sports in the same engine (folded in 2026-10-28)
 
@@ -1879,10 +1985,14 @@ three days. The loops stop at 90% of the week, so the user's own sessions keep t
   going on past A6 to A8, the A1–A4 merge prepared and checked in a throwaway worktree (`rfl-merge`, port 3006, branch
   `merge-engine`), and the desk's build as a lane once its first designs are approved. That evening, with A8 done, the user
   sent the engine on through A9–A14 overnight, one fresh session a step, stopping before A15 (the watch along's concept is
-  still open). A step that needs the user partway leaves its question in its Noticed, and the next step goes on.
-- **No push on an episode night** (the user, 2026-10-28). A push to master deploys production and runs its migrations, so
-  nothing ships on the evening of an episode the couch plays (Survivor 51: Wednesdays, 8 PM ET). The A1–A4 merge moved to
-  2026-10-29, after that night's results are accepted and the test couch is compared.
+  still open). A step that needs the user partway leaves its question in its Noticed, and the next step goes on. At 7:45 PM
+  the user started the desk's build early (its lane was set up for Thursday's reset): it took sports' slot, sports stops after
+  L5 part 2 (a STOP file), and the keeper watches the engine and the desk.
+- **No big merge on an episode night** (the user, 2026-10-28). A push to master deploys production and runs its migrations,
+  so a big merge or a migration doesn't ship on the evening of an episode the couch plays (Survivor 51: Wednesdays, 8 PM
+  ET). The A1–A4 merge moved to 2026-10-29, after that night's results are accepted and the test couch is compared. A small
+  push that's been checked is the user's call: that evening, before the episode, they pushed four small app files (no
+  migrations).
 The main session records each switch here.
 
 **The rules that keep the quality:**
