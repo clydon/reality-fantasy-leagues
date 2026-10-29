@@ -10,11 +10,11 @@ import { Avatar } from "../ui/bars";
 import { EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { deskSend, useAfterDesk, useDesk, type DeskSettings, type DeskLine, type FoundItem, type Inbox, type PersonRow } from "./data";
+import { deskSend, useAfterDesk, useDesk, type DeskSettings, type DeskLine, type FoundItem, type Inbox, type PeopleList, type PersonRow } from "./data";
 import { LibraryPage } from "./library";
 import { NewShowFlow } from "./new-show";
 import { CastawayPage, CouchPage, FactPage, SeasonPage, ShowPage } from "./pages";
-import { PeoplePage, PersonPage, PersonTags, useDebounced } from "./people";
+import { agoOf, LetInButton, PeoplePage, PersonPage, PersonTags, useDebounced } from "./people";
 import { useDeskStay, useRecentlyOpened } from "./trail";
 import { DeskHeader, DeskRow, History, IconLead, ItemRow, Section } from "./parts";
 import { RulebookPage } from "./rulebook";
@@ -285,6 +285,44 @@ function SetSection({ title, line, children }: { title: string; line: string; ch
   );
 }
 
+const WAITING_SHOWN = 25;
+
+/** Who gets in's Waiting (the mock's dkWhoSheet): each with Let in, newest first; past 25, the rest in People. */
+function WaitingList({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const q = useDesk<PeopleList>(open ? `/people?f=waiting&sort=new&limit=${WAITING_SHOWN}&counts=0` : null);
+  if (!q.data) return open ? <div aria-busy className="mt-4 h-24 animate-pulse rounded-[4px] bg-background" /> : null;
+  const { people, total } = q.data;
+  return (
+    <div data-signups-waiting className="mt-4">
+      <div className="mb-1 flex items-baseline justify-between gap-3 border-b border-border pb-2">
+        <h3 className="type-caption text-[20px] text-muted-foreground">Waiting</h3>
+        <span className="text-[13px] text-muted-foreground">{total || ""}</span>
+      </div>
+      {people.length ? (
+        people.map((p) => (
+          <div key={p.id} data-waiting-row={p.name} className="flex items-center gap-2.5 border-b border-border">
+            <NavLink href={paths.deskItem("person", p.id)} onClick={onClose} className="nd-press flex min-h-[62px] min-w-0 flex-1 items-center gap-3 py-2">
+              <Avatar id={p.id} name={p.name} size={36} colour={colourOf(p.id, p.colour)} />
+              <span className="min-w-0 flex-1">
+                <b className="block truncate text-[16px] font-semibold">{p.name}</b>
+                <small className="block truncate text-[13px] text-muted-foreground">Signed up {agoOf(p.joinedAt)}</small>
+              </span>
+            </NavLink>
+            <LetInButton p={p} />
+          </div>
+        ))
+      ) : (
+        <p className="py-3 text-[14px] text-muted-foreground">Nobody&apos;s waiting.</p>
+      )}
+      {total > people.length && (
+        <NavLink href={paths.deskPeople({ f: "waiting" })} data-signups-all onClick={onClose} className="mt-1 inline-flex min-h-11 items-center text-[14px] font-bold underline decoration-input underline-offset-[3px]">
+          All {total} waiting, in People
+        </NavLink>
+      )}
+    </div>
+  );
+}
+
 /** One choice in a setting's sheet: what it is, Recommended when it is, and what it does. */
 function ChoiceCard({ on, title, line, recommended, onClick, attrs }: { on: boolean; title: string; line?: string; recommended?: boolean; onClick: () => void; attrs: Record<string, string> }) {
   return (
@@ -417,11 +455,7 @@ function SettingsTab() {
         </div>
         {s.signups.mode !== "invites" && <ResetLink onClick={() => put({ signups: "invites" }, "Who gets in: invites let people in")} />}
         <p className="mt-3 text-[13px] leading-snug text-muted-foreground">Changing this never lets in anyone already waiting.</p>
-        {s.signups.waiting > 0 && (
-          <NavLink href={paths.deskPeople({ f: "waiting" })} data-signups-waiting onClick={close} className="mt-1 inline-flex min-h-11 items-center text-[14px] font-bold underline decoration-input underline-offset-[3px]">
-            {plural(s.signups.waiting, "account is", "accounts are")} waiting: see them in People
-          </NavLink>
-        )}
+        <WaitingList open={sheet === "signups"} onClose={close} />
       </Sheet>
       <Sheet open={sheet === "confirm"} onOpenChange={(o) => !o && close()} title="Sources to confirm a result" subtitle="How many sources that agree make a result everyone's">
         <div className="flex flex-col gap-2">

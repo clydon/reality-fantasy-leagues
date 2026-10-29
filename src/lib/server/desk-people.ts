@@ -134,6 +134,27 @@ export async function peopleCounts(): Promise<{ all: number; waiting: number }> 
 
 // ---------- a person ----------
 
+/**
+ * When they were stopped from signing in, and by whom, from the desk's lines: a stop (unless undone), a let back in (and,
+ * undone, a stop again at the Undo). The latest says it, if it's a stop; else the stop came from elsewhere (null).
+ */
+function lastStop(rows: Record<string, unknown>[]): { at: Date; who: string | null; userId: string | null } | null {
+  const turns: { at: Date; stop: boolean; who?: string | null; userId?: string | null }[] = [];
+  for (const r of rows) {
+    const at = r.created_at as Date;
+    const undone = r.undone_at as Date | null;
+    if (r.action === "stop") {
+      turns.push({ at, stop: true, who: r.who as string | null, userId: r.user_id as string | null });
+      if (undone) turns.push({ at: undone, stop: false });
+    } else {
+      turns.push({ at, stop: false });
+      if (undone) turns.push({ at: undone, stop: true, who: r.undoer as string | null, userId: r.undone_by as string | null });
+    }
+  }
+  const last = turns.sort((a, b) => b.at.getTime() - a.at.getTime())[0];
+  return last?.stop ? { at: last.at, who: last.who ?? null, userId: last.userId ?? null } : null;
+}
+
 export type SeatRole = "commissioner" | "admin" | "member";
 
 export interface DeskPerson extends PersonRow {
@@ -141,6 +162,8 @@ export interface DeskPerson extends PersonRow {
   username: string | null;
   /** Phones and computers they're signed in on now. */
   devices: number;
+  /** Stopped from signing in: since when and by whom (the desk's line; null for a stop made elsewhere), and why. */
+  stop: { since: string | null; by: string | null; byYou: boolean; why: string | null } | null;
   /**
    * Their couches, each with the games they have a seat in there: started it, on it, or only a seat there (a couch they
    * aren't on, which a join that didn't finish can leave); games on no couch last, as one with no id.
@@ -156,9 +179,9 @@ export interface DeskPerson extends PersonRow {
 }
 
 export async function deskPerson(user: SessionUser, id: string): Promise<DeskPerson> {
-  const [{ rows }, { rows: couches }, { rows: seats }] = await Promise.all([
+  const [{ rows }, { rows: couches }, { rows: seats }, { rows: stops }, { rows: hours }] = await Promise.all([
     pool.query(
-      `SELECT ${PERSON}, u.username,
+      `SELECT ${PERSON}, u.username, u."banReason" AS why,
               (SELECT count(*)::int FROM session x WHERE x."userId" = u.id AND x."impersonatedBy" IS NULL AND x."expiresAt" > now()) AS devices
          FROM "user" u LEFT JOIN user_settings st ON st.user_id = u.id WHERE u.id = $1`,
       [id]
@@ -177,6 +200,19 @@ export async function deskPerson(user: SessionUser, id: string): Promise<DeskPer
         WHERE m.user_id = $1 AND l.deleted_at IS NULL ORDER BY l.created_at`,
       [id]
     ),
+    pool.query(
+      `SELECT c.action, c.created_at, c.undone_at, c.user_id, c.undone_by, COALESCE(u.username, u.name) AS who, COALESCE(v.username, v.name) AS undoer
+         FROM admin_changes c LEFT JOIN "user" u ON u.id = c.user_id LEFT JOIN "user" v ON v.id = c.undone_by
+        WHERE c.entity = 'person' AND c.entity_id = $1 AND c.action IN ('stop', 'back-in')`,
+      [id]
+    ),
+    // An hour as them that ended without Return (the admin signed out, or it ran out): ended by the hour's end, at least.
+    pool.query(
+      `SELECT a.after->>'until' AS until, COALESCE(u.username, u.name) AS who FROM admin_changes a LEFT JOIN "user" u ON u.id = a.user_id
+        WHERE a.entity = 'person' AND a.entity_id = $1 AND a.action = 'act' AND (a.after->>'until')::timestamptz < now()
+          AND NOT EXISTS (SELECT 1 FROM admin_changes e WHERE e.entity = 'person' AND e.entity_id = $1 AND e.action = 'act-end' AND e.after->>'sessionId' = a.after->>'sessionId')`,
+      [id]
+    ),
   ]);
   if (!rows.length) throw new HttpError(404, "Nobody by that id");
   const gamesOn = (couchId: string | null) =>
@@ -186,10 +222,12 @@ export async function deskPerson(user: SessionUser, id: string): Promise<DeskPer
   const seatOnly = [...new Map(seats.filter((s) => s.couch_id && !on.has(s.couch_id)).map((s) => [s.couch_id as string, s])).values()];
   const onNoCouch = gamesOn(null);
   const p = rows[0];
+  const stopLine = p.stopped ? lastStop(stops) : null;
   return {
     ...rowOf(p, user.id),
     username: p.username,
     devices: p.devices,
+    stop: p.stopped ? { since: stopLine?.at.toISOString() ?? null, by: stopLine?.who ?? null, byYou: !!stopLine && stopLine.userId === user.id, why: (p.why as string | null) || null } : null,
     couches: [
       ...couches.map((c) => ({ id: c.id as string, name: c.name as string, role: (c.role === "owner" ? "owner" : "member") as "owner" | "member", people: c.people as number, games: gamesOn(c.id) })),
       ...seatOnly.map((s) => ({ id: s.couch_id as string, name: (s.couch as string) ?? "A couch", role: "seat" as const, people: s.people as number, games: gamesOn(s.couch_id) })),
@@ -199,6 +237,7 @@ export async function deskPerson(user: SessionUser, id: string): Promise<DeskPer
       ...(await deskLines("person", id)),
       ...couches.map((c) => ({ id: null, text: c.role === "owner" ? `Started ${c.name}` : `Joined ${c.name}`, at: c.joined_at.toISOString(), who: null, undoable: false, undone: false })),
       { id: null, text: "Made an account", at: (p.joined as Date).toISOString(), who: null, undoable: false, undone: false },
+      ...hours.map((h) => ({ id: null, text: "Acting as them ended, by the end of the hour", at: new Date(h.until).toISOString(), who: h.who, undoable: false, undone: false })),
     ]),
   };
 }

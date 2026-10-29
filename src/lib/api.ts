@@ -125,10 +125,10 @@ export const api = {
       items: (ActionItem & { leagueId: string; leagueName: string })[];
       commish?: (CommissionerItem & { leagueId: string; leagueName: string })[];
     }>("/api/me/actions"),
-  // Better Auth's own admin-plugin endpoint (not a custom route -- it already does exactly this,
-  // swapping the session cookie back to the impersonator's). Needs an explicit empty JSON body --
-  // Better Auth 400s on "Invalid JSON in request body" for a truly bodyless POST.
-  stopImpersonating: () => localFetch<{ ok: true }>("/api/auth/admin/stop-impersonating", { method: "POST", body: "{}" }),
+  // Return to my account: Better Auth's stop-impersonating through the desk's route, which writes the end of an hour
+  // begun on the desk in that person's History and answers where to go back to (their desk page, or null for the front
+  // door; docs/PLAN-desk-parity.md part 1b).
+  stopImpersonating: () => localFetch<{ back: string | null }>("/api/desk/acting", { method: "DELETE" }),
   leagueState: (leagueId: string) =>
     localFetch<LeagueStateResponse>(`/api/leagues/${leagueId}/state`),
   // Linked leagues (league-groups.ts): one shared chat and reveal for the same friends' leagues.

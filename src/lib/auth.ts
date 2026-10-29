@@ -130,7 +130,8 @@ export const auth = betterAuth({
     // set-password, impersonate/stop-impersonating, ban, sessions, remove -- see that endpoint
     // list in node_modules/better-auth/dist/plugins/admin/routes.mjs. League-scoped admin actions
     // (leagues/memberships) still need custom routes; this plugin has no concept of a league.
-    admin(),
+    // A stopped account (the desk's Stop them signing in: its ban) is told so plainly at sign-in.
+    admin({ bannedUserMessage: "This account can't sign in right now." }),
   ],
 });
 

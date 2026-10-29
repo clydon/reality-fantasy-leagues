@@ -245,10 +245,10 @@ export function AuthGate({ children, hasSession }: { children: ReactNode; hasSes
   // boot() re-run -- simpler and more robust than trying to patch every piece of client state
   // (store identity, loaded league, membership, playerAccounts) back by hand.
   async function handleStopImpersonating() {
-    await api.stopImpersonating();
-    // Deliberately a full reload, not router.push() -- see the comment above this function.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = "/";
+    const { back } = await api.stopImpersonating();
+    // Deliberately a full reload, not router.push() -- see the comment above this function. An hour begun on the desk
+    // goes back to that person's page there.
+    window.location.href = back ?? "/";
   }
 
   // The new design (step 0c): its own layout, src/app/(new)/.

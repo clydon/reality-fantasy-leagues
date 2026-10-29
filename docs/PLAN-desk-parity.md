@@ -6,8 +6,9 @@ History), but a site admin still has to go back to classic for about 25 things, 
 admin at all (only Settings › Back to the classic design, or typing `/admin`). Nothing in `src/new` calls `/api/admin/*`. This
 plan closes that gap, then retires classic's admin.
 
-**Status (2026-10-28, night): the build has begun: part 1a is built** (the page frame, Find › Browse and People, Settings
-regrouped, the Viewing as bar: its As built is under step 1); **1b is next.** Before it: **the design pass was done, and the
+**Status (2026-10-28, night): the build has begun: parts 1a and 1b are built** (1a: the page frame, Find › Browse and
+People, Settings regrouped, the Viewing as bar; 1b: a person's actions, Let in, Act as them, Name and email, Reset password,
+Stop them signing in and Let them back in, with migration 0420; their As built is under step 1); **1c is next.** Before it: **the design pass was done, and the
 build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
@@ -180,6 +181,51 @@ can change someone's site role or ban them; that stays out until it's needed.
    season by its show slug and number ("survivor 51": `deskCouch`), not the season's name; step 6a, where games get pages,
    takes it. (ad) A library rulebook's "Delete it from the library" sits mid-page and is instant, against decision 4 (last,
    named); for whichever step takes the library (7c's Settings link it).
+   **As built, part 1b (2026-10-28):** a person's actions (`src/lib/server/desk-person-actions.ts`; `POST /api/desk/people/[id]`
+   with `letIn`, `signIn`, `name`/`email` or `password`; `/act`; `DELETE /api/desk/acting`), each a line in their History
+   (`admin_changes` entity 'person': **migration 0420** widens its check; it changes an existing table's constraint, so it's
+   rehearsed with the step's merge) written in one transaction with the change, and the tier 1 ones with Undo on the toast
+   and in History, refused while a later line of its kind stands (stopped, let back, stopped again: only the latest undoes).
+   **Let in** on their page (the yellow), on a waiting row in Find › People, and in Settings › Who gets in's Waiting list
+   (newest first, 25, then "All N waiting, in People"). **Act as them**: the sheet says what it does first; Better Auth's
+   impersonation from the desk, its start a line holding the session and when the hour ends; then the app's front door as them
+   (their own design). The Viewing as bar says the minutes left and returns on its own with under a minute to go (once the hour
+   has run out nothing can end it); **Return to my account** goes through the desk's route in both designs (classic's bar and
+   the test couch's switches too: `api.stopImpersonating`), which writes the end ("Stopped acting as them · 4 minutes") when the
+   hour began on the desk and comes back to their page with "Back to your account · it's in kat's History". An hour cut short
+   by a stop or a reset ends there ("they were signed out"); one that ended any other way (Settings' Sign out, or it ran out)
+   shows "ended, by the end of the hour" at the hour's end. Off on your own page, another site admin's (Better Auth's rule),
+   someone waiting or someone stopped, each saying why. **Reset password**: three groups of four (no 0, O, 1, I or L; about 59
+   bits), shown once with Copy; hashed by Better Auth's own hasher and written to their credential account (made with Google
+   alone: one is added) in the transaction that signs them out everywhere. **Name and email**: the name is the username, by
+   the app's sign-up rule (`src/lib/usernames.ts`, now shared with Settings' rename), refused under the field when taken (the
+   admin's own too); a new name reaches their seats and messages (`profile.ts renameEverywhere`, shared too); a username-only
+   account's email field is empty ("None yet"), never the stand-in; an email the desk sets counts as verified (no link was
+   sent to check it). **Stop them signing in** (an optional reason, 200 characters, only admins see) and **Let them back in**:
+   Better Auth's ban columns and their sessions deleted, as its banUser does; their page says "Since Oct 28, by you:
+   "reason"", worked out from the stop and let-back lines and their Undos (a stop made outside the desk: no date). At sign-in a
+   stopped account reads "This account can't sign in right now." (`auth.ts bannedUserMessage`, both designs; Better Auth's
+   said "banned ... contact support"). Check: `check-desk-people.js` 162 PASS at 390 (each action through the API, then each
+   sheet, the app as kat and back, Who gets in); check-new-settings 111, check-classic-admin all PASS, unit tests 837;
+   check-new-desk without its rulebook section passes but for (ab)'s "every league renames him", which failed both runs here
+   (desk-cast's Override, which 1b doesn't touch).
+   **Left behind or changed from classic, and why (decision 10):** classic's reset password left them signed in and gave 12
+   hex characters, and could reset your own (signing you out): the desk signs them out everywhere, gives a password you can
+   read out, and sends you to Settings for yours. Classic's name and email went through Better Auth's `adminUpdateUser`, whose
+   taken check runs against the admin (classic's PATCH worked round half of it): the desk checks against the person and writes
+   the columns, and renames their seats and messages as Settings does (classic didn't). Classic's impersonation wasn't logged,
+   ran out silently and returned to the front door; its approve had no Undo; it had no stop. No site roles (decision 6).
+   Classic's delete (`users/[userId]` DELETE) and their games (`users/[userId]/leagues`) are 1c's. From the mock: devices, not
+   phones; the name rule is the app's 3 to 30, not the mock's 20; the temporary password is groups of letters and numbers, not
+   words (more of them to guess); the waiting panel's "or delete the account at the bottom of this page" waits for 1c's Delete;
+   Password and Signing in on another site admin's page are rows saying why (the mock has no other admin); the toast back
+   from acting is as mocked.
+   **Noticed, not fixed (1b):** (ae) the test couch's switches still start an hour through classic's
+   `/api/admin/users/[userId]/impersonate` (`api.adminImpersonate`), which isn't logged: step 8 moves them before that route
+   goes. (af) Settings' Sign out while viewing as someone signs out the hour as them, not you; your own session waits in Better
+   Auth's admin_session cookie, so you have to sign in again; for step 8 or the next session that touches the bar. (ag)
+   Letting someone in doesn't tell them (no push or email; classic didn't either): they find out when they next open the app;
+   for step 2, beside the Inbox's accounts waiting.
 
 **The desk's pages and how they link** (mocked 2026-10-28 at the user's ask, `desk-pages.js`; each step builds its own page's
 actions, but the shape and links are set here). Every page: a lower third naming it, a facts line, **Part of** (what it

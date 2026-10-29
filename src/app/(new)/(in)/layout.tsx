@@ -26,6 +26,7 @@ export default async function SignedInLayout({ children }: { children: React.Rea
     name: user.username || user.name,
     isSuperAdmin: user.role === "admin",
     impersonating: !!(session.session as { impersonatedBy?: unknown }).impersonatedBy,
+    impersonatingUntil: (session.session as { impersonatedBy?: unknown }).impersonatedBy ? new Date(session.session.expiresAt).toISOString() : null,
   };
   // The couch sheets (switch, details, invite, start, join, leave: step 9), the watching ones (Add a show, where you are:
   // step 10), Start a game (step 10 part 2b), planned nights (step 11 part 3), Rate it (step 12 part 1), Call it and the couch's

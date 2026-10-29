@@ -1,21 +1,85 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
 import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
-import { ArrowDownUp, Search, Users } from "lucide-react";
+import { ArrowDownUp, Ban, ChevronRight, Copy, Eye, KeyRound, Lock, Mail, RotateCcw, Search, Users, Zap } from "lucide-react";
 import { colourOf } from "@/lib/people";
 import { NavLink } from "../nav";
+import { isUsername, USERNAME_RULE } from "@/lib/usernames";
 import { paths } from "../routes";
+import { BACK_FROM_ACTING } from "../session";
 import { Avatar } from "../ui/bars";
-import { EmptyState } from "../ui/parts";
-import { deskGet, useDesk, type DeskPerson, type PeopleFilter, type PeopleList, type PeopleSort, type PersonRow } from "./data";
+import { Btn, EmptyState } from "../ui/parts";
+import { Sheet } from "../ui/sheet";
+import { toast } from "../ui/toast";
+import { deskGet, deskSend, useAfterDesk, useDesk, type DeskPerson, type PeopleFilter, type PeopleList, type PeopleSort, type PersonRow } from "./data";
 import { DeskHeader, DeskRow, Facts, IconLead, LatestHistory, LowerThird, Section } from "./parts";
 
 // Find › People (docs/PLAN-desk-parity.md step 1; the mock's desk.js dkPeople): everyone, searched by name, username or
 // email; Everyone · Waiting · Site admins (and Can't sign in while anyone can't), each with its count; newest, last active
-// or name; 25 at a time with Show 25 more. The search, filter and sort live in the address (replaced, not pushed), so
-// Back from a person comes back to the list as it was. Server: src/lib/server/desk-people.ts.
+// or name; 25 at a time with Show 25 more; Let in on a waiting row. The search, filter and sort live in the address
+// (replaced, not pushed), so Back from a person comes back to the list as it was. A person's page and its actions (part
+// 1b): Let in, Act as them, Name and email, Password, Signing in. Server: src/lib/server/desk-people.ts (reads) and
+// desk-person-actions.ts (the actions).
+
+/** A desk change's toast, with Undo when it has one (History's Undo, through the change's id). */
+export function useChangeToast() {
+  const after = useAfterDesk();
+  return (text: string, changeId?: string | null) =>
+    toast(
+      text,
+      changeId
+        ? {
+            undo: async () => {
+              try {
+                await deskSend(`/changes/${changeId}/undo`, {});
+                await after();
+                toast("Undone");
+              } catch (e) {
+                toast.quiet((e as Error).message);
+              }
+            },
+          }
+        : {}
+    );
+}
+
+/** Let in (tier 1): someone waiting can play at once; the toast's Undo puts them back on the list. */
+export function useLetIn() {
+  const after = useAfterDesk();
+  const said = useChangeToast();
+  return async (p: { id: string; name: string }) => {
+    try {
+      const { changeId } = await deskSend<{ changeId: string }>(`/people/${p.id}`, { letIn: true });
+      await after();
+      said(`${p.name} is in · they can play now`, changeId);
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    }
+  };
+}
+
+/** Let in, on a waiting row (the mock's .dk-let). */
+export function LetInButton({ p, className = "" }: { p: { id: string; name: string }; className?: string }) {
+  const letIn = useLetIn();
+  const [busy, setBusy] = useState(false);
+  return (
+    <button
+      type="button"
+      data-let-in={p.name}
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        await letIn(p);
+        setBusy(false);
+      }}
+      className={`nd-press h-11 flex-none rounded-[3px] bg-card px-[15px] text-[14px] font-extrabold outline-1 -outline-offset-1 outline-input disabled:opacity-60 ${className}`}
+    >
+      Let in
+    </button>
+  );
+}
 
 const FILTERS: [PeopleFilter, string][] = [
   ["all", "Everyone"],
@@ -198,17 +262,17 @@ export function PeoplePage() {
   );
 }
 
-/** One person in the list: their face, name and tags; then how they're doing, or when they signed up while they wait. */
+/** One person in the list: their face, name and tags; then how they're doing, or when they signed up while they wait (with Let in). */
 function PersonListRow({ p, term }: { p: PersonRow; term: string }) {
   const t = term.toLowerCase();
   // When it's the email that matched, it's marked.
   const emailHit = !!t && !!p.email && !p.name.toLowerCase().includes(t) && p.email.toLowerCase().includes(t);
   const email = p.email ? emailHit ? <mark className="bg-transparent text-foreground underline decoration-chyron underline-offset-[3px]">{p.email}</mark> : p.email : "no email";
-  return (
+  const row = (
     <NavLink
       href={paths.deskItem("person", p.id)}
       data-person-row={p.name}
-      className={`nd-press flex min-h-[66px] items-center gap-3 border-t border-border py-2.5 ${p.stopped ? "[&_[data-face]]:grayscale" : ""}`}
+      className={`nd-press flex min-h-[66px] min-w-0 flex-1 items-center gap-3 py-2.5 ${p.waiting ? "" : "border-t border-border"} ${p.stopped ? "[&_[data-face]]:grayscale" : ""}`}
     >
       <Avatar id={p.id} name={p.name} size={40} colour={colourOf(p.id, p.colour)} />
       <span className="min-w-0 flex-1">
@@ -228,6 +292,13 @@ function PersonListRow({ p, term }: { p: PersonRow; term: string }) {
       </span>
     </NavLink>
   );
+  if (!p.waiting) return row;
+  return (
+    <div data-waiting-row={p.name} className="flex items-center gap-2.5 border-t border-border">
+      {row}
+      <LetInButton p={p} />
+    </div>
+  );
 }
 
 // ---------- a person ----------
@@ -236,12 +307,27 @@ const ROLE: Record<string, string> = { commissioner: "Commissioner", admin: "Gam
 
 /**
  * A person (the mock's dkPerson), in the page frame: who they are as a lower third, when they joined and were last active,
- * whether they're waiting or can't sign in, their couches with the games they have a seat in there and each seat's role,
- * and History. Its actions come with step 1's later parts: Act as them, Let in, the account and signing in (1b); a
- * seat's sheet and the Delete, last (1c).
+ * whether they're waiting (Let them in) or can't sign in (Let them back in), Act as them, their account (Name and email,
+ * Password, Signing in), their couches with the games they have a seat in there and each seat's role, and History. A
+ * seat's sheet and the Delete, last, come with part 1c.
  */
 export function PersonPage({ id }: { id: string }) {
   const q = useDesk<DeskPerson>(`/people/${id}`);
+  const letIn = useLetIn();
+  const [sheet, setSheet] = useState<"act" | "account" | "password" | "signing" | null>(null);
+  const [busy, setBusy] = useState(false);
+  const name = q.data?.name;
+  // Back from acting as them (the Viewing as bar's Return, a full load): it's in their History.
+  useEffect(() => {
+    if (!name) return;
+    try {
+      if (sessionStorage.getItem(BACK_FROM_ACTING) !== name) return;
+      sessionStorage.removeItem(BACK_FROM_ACTING);
+    } catch {
+      return;
+    }
+    toast(`Back to your account · it's in ${name}'s History`);
+  }, [name]);
   const back = { label: "People", href: paths.deskPeople() };
   if (q.error)
     return (
@@ -261,6 +347,17 @@ export function PersonPage({ id }: { id: string }) {
   const [tag, tone] = p.you ? (["You", "you"] as const) : p.admin ? (["Site admin", "you"] as const) : p.waiting ? (["Waiting", "quiet"] as const) : p.stopped ? (["Can't sign in", "stopped"] as const) : (["Player", "quiet"] as const);
   const games = p.couches.reduce((n, c) => n + c.games.length, 0);
   const couches = p.couches.filter((c) => c.id && c.role !== "seat").length;
+  const close = () => setSheet(null);
+  // Act as them: not yourself, another site admin, someone waiting or someone who can't sign in (each says why).
+  const actOff = p.you
+    ? "Not on your own page: you're already you"
+    : p.admin
+      ? "Not another site admin's account"
+      : p.waiting
+        ? "Once they're in: until then there's nothing to see"
+        : p.stopped
+          ? "Not while they can't sign in: let them back in first"
+          : null;
   return (
     <div className="pb-16" data-desk-person={p.name}>
       <DeskHeader title="Person" back={back} name={p.name} kind="Person" />
@@ -279,18 +376,85 @@ export function PersonPage({ id }: { id: string }) {
         Joined {dateOf(p.joinedAt)} · {p.you ? "that's you" : `active ${agoOf(p.activeAt)}`}
         {p.devices ? ` · signed in on ${plural(p.devices, "device", "devices")}` : ""}
       </Facts>
-      {(p.waiting || p.stopped) && (
+      {p.waiting && (
         <Section>
-          <div data-person-state={p.waiting ? "waiting" : "stopped"} className="rounded-[4px] bg-card p-3.5 outline-1 -outline-offset-1 outline-input">
-            <b className="block text-[17px]">{p.waiting ? "Waiting to get in" : `${p.name} can't sign in`}</b>
-            <small className="mt-1 block text-[14px] leading-snug text-muted-foreground">
-              {p.waiting
-                ? `Made an account ${dateOf(p.joinedAt)}. Until they're let in, they see "You're on the list". Let them in from classic's admin for now (Settings › Not on the desk yet).`
-                : "Their seats, scores and messages are untouched."}
-            </small>
-          </div>
+          <StatePanel data="waiting" title="Waiting to get in" line={`Made an account ${dateOf(p.joinedAt)}. Until you let them in, they see "You're on the list".`}>
+            <Btn
+              data-person-let-in
+              tone="must"
+              wide
+              className="mt-3 h-12"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                await letIn(p);
+                setBusy(false);
+              }}
+            >
+              Let {p.name} in
+            </Btn>
+            <small className="mt-2.5 block text-[13px] leading-snug text-muted-foreground">Not someone you know? Leave them waiting.</small>
+          </StatePanel>
         </Section>
       )}
+      {p.stopped && (
+        <Section>
+          <StatePanel data="stopped" title={`${p.name} can't sign in`} line={`${stoppedSentence(p.stop)} Their seats, scores and messages are untouched.`}>
+            <BackInButton p={p} />
+          </StatePanel>
+        </Section>
+      )}
+      <Section>
+        {actOff ? (
+          <div data-act="off" className="flex min-h-[68px] items-center gap-3 rounded-[4px] bg-card p-3">
+            <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-secondary text-muted-foreground">
+              <Eye className="size-5" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <b className="block text-[16px] text-muted-foreground">{p.you ? "Act as them" : `Act as ${p.name}`}</b>
+              <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">{actOff}</small>
+            </span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            data-act="on"
+            onClick={() => setSheet("act")}
+            className="nd-press flex min-h-[68px] w-full items-center gap-3 rounded-[4px] bg-card p-3 text-left outline-1 -outline-offset-1 outline-input"
+          >
+            <span className="grid size-10 flex-none place-items-center rounded-[3px] bg-[#3c6ea6] text-white">
+              <Eye className="size-5" aria-hidden />
+            </span>
+            <span className="min-w-0 flex-1">
+              <b className="block text-[16px]">Act as {p.name}</b>
+              <small className="mt-0.5 block text-[13px] leading-snug text-muted-foreground">See and use the app as they do, for an hour</small>
+            </span>
+            <ChevronRight className="size-5 flex-none text-muted-foreground" aria-hidden />
+          </button>
+        )}
+      </Section>
+      <Section title="Account">
+        <div className="border-b border-border">
+          <DeskRow data="account" onClick={() => setSheet("account")} lead={<IconLead icon={Mail} />} title="Name and email" line={`${p.username ?? p.name} · ${p.email ?? "no email"}`} />
+          {p.you ? (
+            <DeskRow data="password" href={paths.settings} lead={<IconLead icon={KeyRound} />} title="Password" line="Yours: change it in Settings" />
+          ) : p.admin ? (
+            <DeskRow data="password" lead={<IconLead icon={KeyRound} />} title="Password" line="Not another site admin's: theirs is changed in their Settings" />
+          ) : (
+            <DeskRow data="password" onClick={() => setSheet("password")} lead={<IconLead icon={KeyRound} />} title="Password" line="Reset it: a temporary one, shown once" />
+          )}
+          {!p.you && p.admin && <DeskRow data="signing" lead={<IconLead icon={Lock} />} title="Signing in" line="Not another site admin's" />}
+          {!p.you && !p.admin && (
+            <DeskRow
+              data="signing"
+              onClick={() => setSheet("signing")}
+              lead={<IconLead icon={Lock} />}
+              title="Signing in"
+              line={p.stopped ? (p.stop?.since ? `Stopped since ${dateOf(p.stop.since)}` : "Stopped") : p.waiting ? `Can sign in; sees "You're on the list"` : `Allowed · ${signedInOn(p.devices)}`}
+            />
+          )}
+        </div>
+      </Section>
       <Section title="Couches and games" aside={games || couches ? `${couches ? plural(couches, "couch", "couches") : "no couch"} · ${plural(games, "game", "games")}` : undefined}>
         {p.couches.length ? (
           <div data-person-couches className="border-b border-border">
@@ -329,6 +493,346 @@ export function PersonPage({ id }: { id: string }) {
         )}
       </Section>
       <LatestHistory lines={p.history} />
+
+      {!actOff && <ActSheet open={sheet === "act"} onClose={close} p={p} />}
+      <AccountSheet key={`${p.username}-${p.email}`} open={sheet === "account"} onClose={close} p={p} />
+      {!p.you && !p.admin && <PasswordSheet open={sheet === "password"} onClose={close} p={p} />}
+      {!p.you && !p.admin && <SigningSheet open={sheet === "signing"} onClose={close} p={p} />}
     </div>
+  );
+}
+
+/** "2 devices", or "not signed in now". */
+const signedInOn = (n: number) => (n ? `signed in on ${plural(n, "device", "devices")}` : "not signed in now");
+
+/** "Since Oct 20, by you: "Spam in the couch chat"." (what's known of it), or "" for a stop with nothing on record. */
+function stoppedSentence(stop: DeskPerson["stop"]): string {
+  if (!stop) return "";
+  const when = [stop.since ? `Since ${dateOf(stop.since)}` : null, stop.since && (stop.byYou || stop.by) ? `by ${stop.byYou ? "you" : stop.by}` : null].filter(Boolean).join(", ");
+  const why = stop.why ? `"${stop.why}"` : "";
+  return when || why ? `${[when, why].filter(Boolean).join(": ")}.` : "";
+}
+
+/** The panel under the facts while they wait or can't sign in (the mock's .dk-state). */
+function StatePanel({ data, title, line, children }: { data: string; title: string; line: string; children: ReactNode }) {
+  return (
+    <div data-person-state={data} className="rounded-[4px] bg-card p-3.5 outline-1 -outline-offset-1 outline-input">
+      <b className="block text-[17px]">{title}</b>
+      <small className="mt-1 block text-[14px] leading-snug text-muted-foreground">{line}</small>
+      {children}
+    </div>
+  );
+}
+
+/** Let them back in (tier 1, Undo). `must`: the sheet's yellow; the panel's is an outline. */
+function BackInButton({ p, must, onDone }: { p: DeskPerson; must?: boolean; onDone?: () => void }) {
+  const after = useAfterDesk();
+  const said = useChangeToast();
+  const [busy, setBusy] = useState(false);
+  return (
+    <Btn
+      data-back-in
+      tone={must ? "must" : "optional"}
+      wide
+      className={must ? "mt-3.5" : "mt-3 h-12"}
+      disabled={busy}
+      onClick={async () => {
+        setBusy(true);
+        try {
+          const { changeId } = await deskSend<{ changeId: string }>(`/people/${p.id}`, { signIn: true });
+          onDone?.();
+          await after();
+          said(`${p.name} can sign in again`, changeId);
+        } catch (e) {
+          toast.quiet((e as Error).message);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      Let {p.name} back in
+    </Btn>
+  );
+}
+
+/** What a sheet says first (the mock's .cons). */
+function Says({ children }: { children: ReactNode }) {
+  return <p className="rounded-[3px] bg-background p-3 text-[16px] leading-normal">{children}</p>;
+}
+
+/** Act as them (decision 1): what it does first, then the app as them under the Viewing as bar; it's in History. */
+function ActSheet({ open, onClose, p }: { open: boolean; onClose: () => void; p: DeskPerson }) {
+  const [busy, setBusy] = useState(false);
+  const points: [typeof Eye, string][] = [
+    [Eye, "You see their couches and games, only as far as they've watched."],
+    [Zap, `Opening their results reveals them for ${p.name} too. Look around; leave Reveal to them.`],
+    [RotateCcw, `"Return to my account" at the top brings you back here, any time.`],
+  ];
+  return (
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()} title={`Act as ${p.name}?`} subtitle="For an hour">
+      <div data-act-sheet>
+        <Says>For an hour you&apos;re {p.name}: anything you do is done as them. It&apos;s in History.</Says>
+        <ul className="mb-[18px] mt-3.5 flex flex-col gap-2.5">
+          {points.map(([Icon, t]) => (
+            <li key={t} className="flex items-start gap-2.5 text-[14px] leading-snug text-muted-foreground">
+              <Icon className="mt-px size-[18px] flex-none text-foreground" aria-hidden />
+              <span>{t}</span>
+            </li>
+          ))}
+        </ul>
+        <Btn
+          data-act-go
+          tone="must"
+          wide
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true);
+            try {
+              const { go } = await deskSend<{ go: string }>(`/people/${p.id}/act`, {});
+              // A full load: their session, and the design they use.
+              window.location.assign(go);
+            } catch (e) {
+              setBusy(false);
+              toast.quiet((e as Error).message);
+            }
+          }}
+        >
+          Act as {p.name}
+        </Btn>
+        <Btn wide className="mt-2" onClick={onClose}>
+          Not now
+        </Btn>
+      </div>
+    </Sheet>
+  );
+}
+
+/** A field in a desk sheet (the mock's .dk-fl): its label, the input at 16px, a line under it or its problem. */
+function Field({ label, hint, error, data, ...input }: { label: ReactNode; hint?: string; error?: string | null; data: string } & Omit<ComponentProps<"input">, "className">) {
+  return (
+    <label className="mt-3.5 block first:mt-0">
+      <span className="mb-1.5 block text-[13px] font-bold text-muted-foreground">{label}</span>
+      <input
+        data-field-input={data}
+        aria-invalid={error ? true : undefined}
+        autoComplete="off"
+        spellCheck={false}
+        {...input}
+        className="h-12 w-full rounded-[4px] bg-background px-3 text-base outline-1 -outline-offset-1 outline-input placeholder:text-muted-foreground focus:outline-2 focus:outline-chyron aria-invalid:outline-live"
+      />
+      {error ? (
+        <em role="alert" data-field-error={data} className="mt-1.5 block text-[13px] not-italic text-live">
+          {error}
+        </em>
+      ) : (
+        hint && <small className="mt-1.5 block text-[12.5px] leading-snug text-muted-foreground">{hint}</small>
+      )}
+    </label>
+  );
+}
+
+/** Name and email: their username, checked as sign-up checks it, and the email Forgot password sends to (tier 1, Undo). */
+function AccountSheet({ open, onClose, p }: { open: boolean; onClose: () => void; p: DeskPerson }) {
+  const after = useAfterDesk();
+  const said = useChangeToast();
+  const [name, setName] = useState(p.username ?? "");
+  const [email, setEmail] = useState(p.email ?? "");
+  const [errors, setErrors] = useState<{ name?: string; email?: string }>({});
+  const [busy, setBusy] = useState(false);
+  const save = async () => {
+    const n = name.trim().toLowerCase();
+    const e = email.trim();
+    if ((n || p.username) && !isUsername(n)) return setErrors({ name: USERNAME_RULE });
+    if (e && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return setErrors({ email: "That doesn't look like an email" });
+    const nameChanged = !!n && n !== p.username;
+    const emailChanged = !!e && e.toLowerCase() !== (p.email ?? "").toLowerCase();
+    if (!nameChanged && !emailChanged) return onClose();
+    setBusy(true);
+    setErrors({});
+    try {
+      // Not deskSend: a problem with one field comes back as { error, field }, shown under that field.
+      const res = await fetch(`/api/desk/people/${p.id}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ ...(nameChanged ? { name: n } : {}), ...(emailChanged ? { email: e } : {}) }),
+      });
+      const out = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (out.field) setErrors({ [out.field]: out.error });
+        else toast.quiet(out.error || "Couldn't save that");
+        return;
+      }
+      onClose();
+      await after();
+      said(out.renamed ? `Renamed to ${out.name} · their games show the new name` : "Email saved", out.changeId);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()} title="Name and email" subtitle={`${p.name}'s account`}>
+      <form
+        data-account-sheet
+        onSubmit={(ev) => {
+          ev.preventDefault();
+          void save();
+        }}
+      >
+        <Field
+          data="name"
+          label="Name"
+          value={name}
+          placeholder={p.username ? undefined : "None yet"}
+          onChange={(ev) => setName(ev.target.value)}
+          error={errors.name}
+          hint={p.username ? "Also their username: it's what they sign in with and what the couch sees." : `They have no username yet: the couch sees "${p.name}". One here is what they'd sign in with and what the couch sees.`}
+          autoCapitalize="none"
+        />
+        <Field
+          data="email"
+          label="Email"
+          type="email"
+          value={email}
+          placeholder={p.email ? undefined : "None yet"}
+          onChange={(ev) => setEmail(ev.target.value)}
+          error={errors.email}
+          hint={p.email ? "Where Forgot password sends the link." : "They signed up with a username alone. An email here is where Forgot password sends the link."}
+        />
+        <Btn data-account-save type="submit" tone="must" wide className="mt-4" disabled={busy}>
+          Save
+        </Btn>
+      </form>
+    </Sheet>
+  );
+}
+
+/** Reset password: a temporary one, shown once; the old one stops working and they're signed out everywhere. */
+function PasswordSheet({ open, onClose, p }: { open: boolean; onClose: () => void; p: DeskPerson }) {
+  const after = useAfterDesk();
+  const [password, setPassword] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const done = () => {
+    onClose();
+    // Shown once: gone with the sheet.
+    setTimeout(() => setPassword(null), 300);
+  };
+  return (
+    <Sheet open={open} onOpenChange={(o) => !o && done()} title={`Reset ${p.name}'s password`} subtitle="A temporary one, shown once">
+      <div data-password-sheet>
+        {password ? (
+          <>
+            <p className="text-[14px] leading-snug text-muted-foreground">Give it to {p.name} yourself, by text or in person. It isn&apos;t shown again; they can change it in Settings.</p>
+            <div className="mt-3 flex items-center gap-2.5 rounded-[3px] bg-plate py-2.5 pl-3.5 pr-2.5 text-plate-foreground shadow-plate">
+              <b data-temp-password className="type-caption min-w-0 flex-1 text-[26px] tabular-nums tracking-[0.05em] [overflow-wrap:anywhere]">
+                {password}
+              </b>
+              <button
+                type="button"
+                data-copy-password
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(password);
+                    toast("Copied");
+                  } catch {
+                    toast.quiet("Couldn't copy: select it instead");
+                  }
+                }}
+                className="nd-press flex h-11 flex-none items-center gap-1.5 rounded-[3px] bg-plate-foreground px-3.5 text-[15px] font-bold text-plate"
+              >
+                <Copy className="size-4" aria-hidden />
+                Copy
+              </button>
+            </div>
+            <Btn data-password-done wide className="mt-3" onClick={done}>
+              Done
+            </Btn>
+          </>
+        ) : (
+          <>
+            <Says>Their old password stops working at once, and they&apos;re signed out on every device. You get a temporary one to give them.</Says>
+            <Btn
+              data-password-make
+              tone="must"
+              wide
+              className="mt-3.5"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  const out = await deskSend<{ password: string }>(`/people/${p.id}`, { password: "reset" });
+                  setPassword(out.password);
+                  await after();
+                } catch (e) {
+                  toast.quiet((e as Error).message);
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Make a temporary password
+            </Btn>
+          </>
+        )}
+      </div>
+    </Sheet>
+  );
+}
+
+/** Signing in: Stop them (an optional reason only admins see; tier 1, Undo), or, stopped, Let them back in. */
+function SigningSheet({ open, onClose, p }: { open: boolean; onClose: () => void; p: DeskPerson }) {
+  const after = useAfterDesk();
+  const said = useChangeToast();
+  const [why, setWhy] = useState("");
+  const [busy, setBusy] = useState(false);
+  if (p.stopped)
+    return (
+      <Sheet open={open} onOpenChange={(o) => !o && onClose()} title="Signing in" subtitle={`${p.name} can't sign in`}>
+        <div data-signing-sheet="stopped">
+          <Says>{stoppedSentence(p.stop) || "Stopped."}</Says>
+          <BackInButton p={p} must onDone={onClose} />
+        </div>
+      </Sheet>
+    );
+  return (
+    <Sheet open={open} onOpenChange={(o) => !o && onClose()} title="Signing in" subtitle={p.waiting ? `${p.name} is waiting` : `${p.name} · ${signedInOn(p.devices)}`}>
+      <form
+        data-signing-sheet="allowed"
+        onSubmit={async (ev) => {
+          ev.preventDefault();
+          setBusy(true);
+          try {
+            const { changeId } = await deskSend<{ changeId: string }>(`/people/${p.id}`, { signIn: false, why });
+            onClose();
+            setWhy("");
+            await after();
+            said(`${p.name} can't sign in`, changeId);
+          } catch (e) {
+            toast.quiet((e as Error).message);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <Says>
+          Stop {p.name} signing in: they&apos;re signed out on every device now and can&apos;t sign in again until you let them back. Their seats, scores and messages stay as they are, and their couches aren&apos;t told.
+        </Says>
+        <Field
+          data="why"
+          label={
+            <>
+              Why <i className="font-normal not-italic">(only admins see it)</i>
+            </>
+          }
+          value={why}
+          maxLength={200}
+          placeholder="Optional"
+          onChange={(ev) => setWhy(ev.target.value)}
+        />
+        <Btn data-stop type="submit" wide className="mt-4 text-live" disabled={busy}>
+          <Ban className="size-[18px]" aria-hidden />
+          Stop {p.name} signing in
+        </Btn>
+      </form>
+    </Sheet>
   );
 }
