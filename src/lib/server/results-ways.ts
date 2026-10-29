@@ -1,6 +1,6 @@
 import crypto from "crypto";
 import { after } from "next/server";
-import { normalizeSchedule } from "@db/bot-research.js";
+import { normalizeSchedule, usualSchedule } from "@db/bot-research.js";
 import { askBot, askBotStatus } from "./ask-bot";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { backstageScope, fillScope, pasteResults, resultsPrompt, type BackstageScope, type PasteResult } from "./backstage";
@@ -130,7 +130,8 @@ export async function waysRead(user: SessionUser, seasonId: string, couchId: str
   if (!rows.length) throw new HttpError(404, "Season not found");
   let schedule: { kind: string; on: boolean }[] = [];
   try {
-    schedule = rows[0].bot_research_on ? normalizeSchedule(rows[0].bot_research_schedule) : [];
+    // No schedule of its own: our usual's.
+    schedule = rows[0].bot_research_on ? normalizeSchedule(rows[0].bot_research_schedule, rows[0].bot_research_schedule == null ? await usualSchedule(pool) : undefined) : [];
   } catch {
     schedule = [];
   }

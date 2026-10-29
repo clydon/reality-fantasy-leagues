@@ -16,6 +16,8 @@ async function loadSeasons(pool, where, params = []) {
             ss.episode_count, ss.status, ss.release, ss.drop_at,
             ss.bot_research_on, ss.bot_research_schedule, ss.bot_research_since, ss.episode_minutes,
             to_char(ss.finale_date, 'YYYY-MM-DD') AS finale_date,
+            -- Episodes with runs of their own (0431): { "7": [runs] }, over the season's schedule for that episode alone.
+            (SELECT json_object_agg(e.episode_number, e.schedule) FROM bot_research_episodes e WHERE e.season_id = ss.id) AS bot_research_episodes,
             -- The wiki's dates with research-confirmed starts over them, and confirmed lengths (0067).
             sad.air_dates AS wiki_air_dates, sad.runtimes AS episode_runtimes
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
@@ -33,6 +35,7 @@ async function loadSeasons(pool, where, params = []) {
       release: r.release,
       dropAt: r.drop_at,
     },
+    bot_research_episodes: r.bot_research_episodes || {},
     wikiAirDates: r.wiki_air_dates || {},
     episodeRuntimes: r.episode_runtimes || {},
   }));

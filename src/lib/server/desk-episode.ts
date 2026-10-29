@@ -474,7 +474,7 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
       out: q.status === "dropped" ? `its check dropped it${q.note ? `: ${q.note}` : ""}` : q.by_admin ? "taken out by an admin" : q.flags >= 2 ? 'two "Wrong?" flags from players' : null,
       byAdmin: q.status !== "dropped" && q.by_admin,
     })),
-    triviaOn: bot.on && bot.schedule.some((r) => r.kind === "trivia" && r.on),
+    triviaOn: bot.on && (bot.episodes[n] ?? bot.schedule).some((r) => r.kind === "trivia" && r.on),
     bingo: bingo?.squares ?? null,
     bingoBy: bingo?.line ?? null,
     history,

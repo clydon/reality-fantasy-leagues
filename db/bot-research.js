@@ -16,6 +16,13 @@
 //                       season without its own bank yet (the fallback for an episode without squares) gets that written too,
 //                       as a job of its own in the same window (slot bingo@season), so each call stays one write and one check
 //
+// That's our usual (DEFAULT_SCHEDULE), which the desk can change (the user, 2026-10-29: "Make this our usual"): app_settings
+// 'bot_usual' when it's been set (usualSchedule), DEFAULT_SCHEDULE when not. A season with no schedule of its own
+// (bot_research_schedule NULL) follows it and changes with it; a season with its own keeps it exactly. An episode can have runs
+// of its own (bot_research_episodes, 0431: "Episode N only" on the desk), which the planner reads for that episode alone. A run
+// that moved (retimed, or our usual changed under it) carries the slots it was (`was`, carryWas), so an episode it already ran
+// for isn't asked again at its new time.
+//
 // Each call to POST /api/cron/bot-research runs at most one due run (the bot answers one question at a
 // time anyway) and says when the next one comes due (nextRunAt). The VM's tick calls only then, so the
 // database sleeps between runs (docs/HOSTING.md: on Neon's Free plan a database never left idle for 5
@@ -67,6 +74,10 @@ const DEFAULT_SCHEDULE = [
 // Our usual's slots before 2026-10-29, which a run under today's counts as: an episode the old usual already asked about isn't
 // asked again the day this changes (quick@5 then is quick@0 now, the second full run's 9 hours then is 12 now).
 const SLOT_WAS = { "quick@0": ["quick@5"], "full@720": ["full@540"] };
+// Our usual as the desk set it (app_settings), and how many earlier slots a moved run remembers.
+const USUAL_KEY = "bot_usual";
+const MAX_WAS = 6;
+const SLOT_RE = /^(quick|full|schedule|trivia|bingo)@\d{1,5}$/;
 // A bingo run's two asks share the route's 300s as trivia's do.
 const BINGO_WRITE_MS = 160_000;
 const BINGO_TOTAL_MS = 280_000;
@@ -108,6 +119,17 @@ const ASKED_RETRY_MS = 2 * MIN;
 const PEOPLE_PATTERN = '"name"\\s*:';
 
 const slotOf = (run) => `${run.kind}@${run.after}`;
+
+/**
+ * The slots whose tries count as a run's in an episode whose runs are `list`: its own, those it moved from (`was`), and our
+ * old usual's (SLOT_WAS), but never a slot another run in the list holds now (that run's tries are its own). The planner
+ * (slots) and the desk's rail both read it. Pure.
+ */
+function triedAs(run, list) {
+  const slot = slotOf(run);
+  const here = new Set(list.map(slotOf));
+  return [slot, ...[...(run.was || []), ...(SLOT_WAS[slot] || [])].filter((s) => !here.has(s))];
+}
 
 /**
  * When one run (a slot of one episode, due at `due`) may next be tried, or null for never: `due` itself
@@ -156,19 +178,23 @@ function dueAt(run, ends, nextAt, starts = null) {
  * confirmed one, else the season's) plus the run's minutes; trivia's, a day (by default) before the next one; bingo's, a day
  * (by default) before this one, no try once it airs (`until`, which dueRuns and nextRunAt both keep to). `seasonBank` false: the
  * season has no bingo bank of its own yet, so each bingo slot has a twin (forSeason) for it, due with it and listed after it,
- * with tries of its own.
+ * with tries of its own. `episodes`: { [n]: runs } for the episodes with runs of their own, read in place of `schedule`.
  */
-function slots({ schedule, since, airTimes, episodeMinutes = 0, history, seasonBank = true }) {
+function slots({ schedule, episodes = {}, since, airTimes, episodeMinutes = 0, history, seasonBank = true }) {
   const out = [];
   for (const { episode, at: airedAt, minutes } of airTimes) {
     const ends = airedAt.getTime() + (minutes ?? episodeMinutes) * MIN;
     const next = airTimes.find((e) => e.episode === episode + 1);
-    for (const run of schedule) {
+    // An episode's own runs, when it has them (0431), in place of the season's.
+    const list = episodes[episode] || schedule;
+    for (const run of list) {
       if (!run.on) continue;
       const due = dueAt(run, ends, next ? next.at : null, airedAt.getTime());
       if (!due || (since && due < since)) continue;
       const slot = slotOf(run);
-      const at = (s) => nextTryAt(run.kind, due, history.filter((h) => h.episode_number === episode && (h.slot === s || (SLOT_WAS[s] || []).includes(h.slot))));
+      // A run's tries are its slot's, and those of the slots it was before it moved (triedAs).
+      const was = triedAs(run, list);
+      const at = (s) => nextTryAt(run.kind, due, history.filter((h) => h.episode_number === episode && (s === slot ? was.includes(h.slot) : h.slot === s)));
       const until = run.kind === "bingo" ? airedAt : null;
       out.push({ episode, slot, kind: run.kind, after: run.after, at: due, next: at(slot), until });
       if (run.kind === "bingo" && !seasonBank) out.push({ episode, slot: SEASON_BINGO_SLOT, kind: "bingo", after: run.after, at: due, next: at(SEASON_BINGO_SLOT), until, forSeason: true });
@@ -357,9 +383,12 @@ async function settleAsk(pool, seasonId, episode, ok, message, found) {
   return rows[0] ? { userId: rows[0].asked_by, askedAt: rows[0].asked_at, ok, found: ok ? found : null, message: ok ? null : message } : null;
 }
 
-/** A schedule from a request body or the column, cleaned up; throws on anything malformed. */
-function normalizeSchedule(input) {
-  if (input == null) return DEFAULT_SCHEDULE.map((r) => ({ ...r }));
+/**
+ * A schedule from a request body or the column, cleaned up; throws on anything malformed. Null is our usual (`usual`, the
+ * desk's when it's set: usualSchedule; DEFAULT_SCHEDULE by default). A run's `was` (the slots it moved from) is kept.
+ */
+function normalizeSchedule(input, usual = DEFAULT_SCHEDULE) {
+  if (input == null) return usual.map((r) => ({ ...r, ...(r.was ? { was: [...r.was] } : {}) }));
   if (!Array.isArray(input)) throw new Error("schedule must be a list of runs");
   if (input.length > MAX_RUNS) throw new Error(`At most ${MAX_RUNS} runs`);
   const out = input.map((r) => {
@@ -367,8 +396,16 @@ function normalizeSchedule(input) {
     const after = Number(r && r.after);
     if (!KINDS.includes(kind)) throw new Error(`A run's kind must be ${KINDS.join(" or ")}`);
     if (!Number.isInteger(after) || after < 0 || after > MAX_AFTER) throw new Error(`"after" must be 0 to ${MAX_AFTER} minutes`);
-    return { kind, after, on: r.on !== false };
+    const was = Array.isArray(r.was) ? [...new Set(r.was.filter((s) => typeof s === "string" && SLOT_RE.test(s) && s !== `${kind}@${after}`))].slice(-MAX_WAS) : [];
+    return { kind, after, on: r.on !== false, ...(was.length ? { was } : {}) };
   });
+  // A slot a run moved from that another run holds now isn't its to remember: that run's tries are its own.
+  const held = new Set(out.map(slotOf));
+  for (const r of out) {
+    if (!r.was) continue;
+    r.was = r.was.filter((s) => !held.has(s));
+    if (!r.was.length) delete r.was;
+  }
   // Two entries for the same slot would share their run history, so the second could never run.
   const seen = new Set();
   for (const r of out) {
@@ -379,9 +416,75 @@ function normalizeSchedule(input) {
   return out.sort((a, b) => a.after - b.after);
 }
 
+/** Our usual runs: the desk's (app_settings 'bot_usual', "Make this our usual") when set and sound, else DEFAULT_SCHEDULE. */
+async function usualSchedule(pool) {
+  const { rows } = await pool.query("SELECT value FROM app_settings WHERE key = $1", [USUAL_KEY]);
+  if (!rows[0] || !Array.isArray(rows[0].value)) return normalizeSchedule(null);
+  try {
+    return normalizeSchedule(rows[0].value);
+  } catch {
+    return normalizeSchedule(null);
+  }
+}
+
+/**
+ * The runs of `after` with what they were in `before`: of each kind, the runs that went and the runs that came, in time
+ * order, pair up as moved, and a moved run carries the slots it was (`was`), so an episode it already ran for isn't asked
+ * again at its new time (slots). A retimed run, a run our usual moved, an episode's own copy of one. Pure.
+ */
+function carryWas(before, after) {
+  const has = (list, r) => list.some((x) => slotOf(x) === slotOf(r));
+  const out = after.map((r) => ({ ...r, ...(r.was ? { was: [...r.was] } : {}) }));
+  for (const kind of KINDS) {
+    const gone = before.filter((r) => r.kind === kind && !has(after, r)).sort((a, b) => a.after - b.after);
+    const came = out.filter((r) => r.kind === kind && !has(before, r)).sort((a, b) => a.after - b.after);
+    for (let i = 0; i < Math.min(gone.length, came.length); i++) {
+      const was = [...new Set([...(came[i].was || []), ...(gone[i].was || []), slotOf(gone[i])])].filter((s) => s !== slotOf(came[i])).slice(-MAX_WAS);
+      came[i].was = was;
+    }
+  }
+  return out;
+}
+
+/**
+ * One run changed in a list of runs (the desk's): `from` (a slot) becomes `to` (a run: retimed, switched), `to` added (no
+ * `from`, or a `from` the list hasn't), or `from` taken off (no `to`). A `to` whose slot another run has throws. `loose` (an
+ * episode's own runs, reached by a change to every episode): a `from` it hasn't is left as it is, and a `to` it has already
+ * only takes `from` off. The moved run keeps what it was, and remembers its old slot (carryWas). Pure; normalized.
+ */
+function changeRun(list, from, to, { loose = false } = {}) {
+  const i = from ? list.findIndex((r) => slotOf(r) === from) : -1;
+  if (loose && from && i < 0) return list;
+  const rest = list.filter((_, k) => k !== i);
+  // An episode's own runs with no room for one more keep what they have (the change for every episode still goes ahead).
+  if (loose && to && rest.length >= MAX_RUNS) return list;
+  if (!to) return normalizeSchedule(rest);
+  if (rest.some((r) => slotOf(r) === slotOf(to))) {
+    if (loose) return normalizeSchedule(rest);
+    const when = to.kind === "trivia" ? "before the next episode" : to.kind === "bingo" ? "before it airs" : "after it ends";
+    throw new Error(`There's already a ${to.kind} run ${to.after} minutes ${when}`);
+  }
+  const moved = { kind: to.kind, after: to.after, on: to.on !== false, ...(i >= 0 && list[i].was ? { was: list[i].was } : {}) };
+  return normalizeSchedule(carryWas(list, [...rest, moved]));
+}
+
+/** An episode's own runs as the column has them ({ "7": [runs] }), each cleaned up; one that isn't sound is left out. */
+function normalizeEpisodes(input) {
+  const out = {};
+  for (const [n, runs] of Object.entries(input || {})) {
+    try {
+      if (Number.isInteger(Number(n)) && Number(n) > 0 && Array.isArray(runs)) out[Number(n)] = normalizeSchedule(runs);
+    } catch {
+      /* left out: the season's schedule stands for it */
+    }
+  }
+  return out;
+}
+
 /**
  * The runs due at `now` for one season, earliest first. Pure.
  *   schedule        -- normalized runs
+ *   episodes        -- { [n]: normalized runs } for the episodes with runs of their own (0431), in place of `schedule`
  *   since           -- when bot research was switched on (Date); runs timed before it never run
  *   airTimes        -- [{ episode, at: Date, minutes? }]: when each episode starts airing, and its own length
  *                      when known (later ones are ignored)
@@ -390,9 +493,9 @@ function normalizeSchedule(input) {
  *   seasonBank      -- the season has a bingo bank of its own (false: its bingo runs write one too); true by default
  * A job for the season's own bingo bank carries `forSeason`.
  */
-function dueRuns({ schedule, since, airTimes, episodeMinutes = 0, history, now, seasonBank = true }) {
+function dueRuns({ schedule, episodes = {}, since, airTimes, episodeMinutes = 0, history, now, seasonBank = true }) {
   const t = now.getTime();
-  return slots({ schedule, since, airTimes, episodeMinutes, history, seasonBank })
+  return slots({ schedule, episodes, since, airTimes, episodeMinutes, history, seasonBank })
     .filter((s) => s.next && s.next.getTime() <= t && t - s.at.getTime() <= STALE_MS[s.kind] && (!s.until || t < s.until.getTime()))
     .map(({ episode, slot, kind, after, at, forSeason }) => ({ episode, slot, kind, after, at, ...(forSeason ? { forSeason } : {}) }))
     .sort((a, b) => a.at - b.at);
@@ -403,10 +506,10 @@ function dueRuns({ schedule, since, airTimes, episodeMinutes = 0, history, now, 
  * episode's air time, aired or not. Pure; the same rules as dueRuns, so the VM is never told to come back
  * for a run that then isn't due.
  */
-function nextRunAt({ schedule, since, airTimes, episodeMinutes = 0, history, now, seasonBank = true }) {
+function nextRunAt({ schedule, episodes = {}, since, airTimes, episodeMinutes = 0, history, now, seasonBank = true }) {
   const t = now.getTime();
   let best = null;
-  for (const s of slots({ schedule, since, airTimes, episodeMinutes, history, seasonBank })) {
+  for (const s of slots({ schedule, episodes, since, airTimes, episodeMinutes, history, seasonBank })) {
     if (!s.next) continue;
     const when = Math.max(s.next.getTime(), t);
     if (when - s.at.getTime() > STALE_MS[s.kind] || (s.until && when >= s.until.getTime())) continue;
@@ -548,22 +651,26 @@ const episodeMinutesOf = (season) => season.episode_minutes || DEFAULT_EPISODE_M
 async function planRuns(pool, { now = new Date(), seasonId } = {}) {
   const due = [];
   let next = null;
-  for (const season of await loadBotSeasons(pool, seasonId)) {
-    if (season.status !== "airing") continue;
+  const seasons = (await loadBotSeasons(pool, seasonId)).filter((s) => s.status === "airing");
+  // Our usual, for the seasons that follow it (no schedule of their own).
+  const usual = seasons.some((s) => s.bot_research_schedule == null) ? await usualSchedule(pool) : DEFAULT_SCHEDULE;
+  for (const season of seasons) {
     const { rows: history } = await pool.query(
       "SELECT episode_number, slot, started_at, ok FROM bot_research_runs WHERE season_id=$1",
       [season.id]
     );
-    const schedule = normalizeSchedule(season.bot_research_schedule);
+    const schedule = normalizeSchedule(season.bot_research_schedule, usual);
+    const episodes = normalizeEpisodes(season.bot_research_episodes);
     const input = {
       schedule,
+      episodes,
       since: season.bot_research_since ? new Date(season.bot_research_since) : null,
       airTimes: episodeAirTimes(season),
       episodeMinutes: episodeMinutesOf(season),
       history,
       now,
       // Asked only of a season whose schedule has bingo on: its own bank yet?
-      seasonBank: schedule.some((r) => r.kind === "bingo" && r.on) ? await Bingo.hasBank(pool, season.id, null) : true,
+      seasonBank: [schedule, ...Object.values(episodes)].some((l) => l.some((r) => r.kind === "bingo" && r.on)) ? await Bingo.hasBank(pool, season.id, null) : true,
     };
     if (SeasonClock.isSeasonLive(season, now)) due.push(...dueRuns(input).map((r) => ({ ...r, season })));
     const when = nextRunAt(input);
@@ -797,6 +904,12 @@ async function runNext(pool, { ask, send = null, now = new Date(), dry = false, 
 
 module.exports = {
   DEFAULT_SCHEDULE,
+  triedAs,
+  USUAL_KEY,
+  usualSchedule,
+  carryWas,
+  changeRun,
+  normalizeEpisodes,
   MAX_ATTEMPTS,
   TIEBREAK_AFTER_MS,
   tiebreakNext,

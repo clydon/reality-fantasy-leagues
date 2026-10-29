@@ -180,7 +180,8 @@ export async function deskBingo(user: SessionUser, id: string, bankIn: unknown, 
   ]);
   const airAt = (e: number) => sch.episodes.find((x) => x.number === e)?.airAt ?? null;
   const isAired = sel !== "season" && sel <= aired;
-  const inSchedule = bot.on && bot.schedule.some((r) => r.kind === "bingo" && r.on);
+  // The episode's own runs when it has them (0431), else the season's.
+  const inSchedule = bot.on && (sel === "season" ? bot.schedule : (bot.episodes[sel] ?? bot.schedule)).some((r) => r.kind === "bingo" && r.on);
   const own = nx ? (c.get(nx) ?? 0) : 0;
   const dealtNext = dealt[0].n;
   const at = sel === "season" ? null : airAt(sel);

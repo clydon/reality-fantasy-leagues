@@ -1,16 +1,16 @@
 import { after } from "next/server";
 import { buildPasteImportPrompt, resolveSeasonResearchContext } from "@db/episode-research.js";
-import { buildQuickPrompt, buildSchedulePrompt, dueAt, episodeAirTimes, episodeMinutesOf, loadSeasonForJob, runJob, RUNNING_STALE_MS, SEASON_BINGO_SLOT } from "@db/bot-research.js";
+import { buildQuickPrompt, buildSchedulePrompt, dueAt, episodeAirTimes, episodeMinutesOf, loadSeasonForJob, runJob, RUNNING_STALE_MS, SEASON_BINGO_SLOT, triedAs } from "@db/bot-research.js";
 import { castFor, buildTriviaPrompt } from "@db/trivia-research.js";
 import { adminBingoBank } from "./bingo-bank";
-import { KINDS, cap, dur, researchLine, when, type Run, type RunKind } from "@/lib/desk-bot-words";
+import { KINDS, cap, dur, researchLine, sameRun, when, type Run, type RunKind } from "@/lib/desk-bot-words";
 import { finalResultsAt } from "@/lib/game/final-results.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { askBot, askBotStatus } from "./ask-bot";
 import { botSend } from "./bot-results";
 import { pool, HttpError } from "./db";
 import { SEASON_NAME, logDesk, type DeskLine } from "./desk";
-import { seasonBot } from "./desk-bot";
+import { seasonBot, usualReach } from "./desk-bot";
 import { dayGap, fmt, mdIn, plural, timeIn, ymd } from "./desk-dates";
 import { askCastNow } from "./desk-cast-page";
 import { waitingEpisodes } from "./desk-episode";
@@ -72,9 +72,11 @@ export interface RailRow {
   ap: string;
   title: string;
   line: string;
-  /** The run's place in the schedule. */
+  /** The run's place in the rail's runs (the episode's own, or the season's). */
   i?: number;
   on?: boolean;
+  /** The episode's own: a run the season's schedule hasn't, or has switched the other way ("Episode N only"). */
+  mine?: boolean;
   /** How it went, for a run whose time has passed. */
   done?: { ok: boolean; line: string } | null;
 }
@@ -98,7 +100,14 @@ export interface DeskResearch {
   on: boolean;
   since: string | null;
   minutes: number;
+  /** Its runs: its own schedule, or our usual's while it follows it. */
   runs: Run[];
+  /** It has no schedule of its own: it follows our usual (and changes with it). */
+  follows: boolean;
+  /** Our usual runs (Reset's, Not in its schedule's, Make this our usual's). */
+  usual: Run[];
+  /** Who our usual reaches (Make this our usual says): the seasons, Autopilot on, that follow it, and those with their own. */
+  reach: { follow: string[]; own: string[] };
   /** The lower third's line. */
   next: string;
   meta: string;
@@ -108,6 +117,11 @@ export interface DeskResearch {
     n: number;
     airs: string;
     rows: RailRow[];
+    /** The runs its rows are: the episode's own when it has them, else the season's. */
+    runs: Run[];
+    /** The episode has runs of its own; `gone`, the season's it has taken off. */
+    own: boolean;
+    gone: Run[];
     note: string | null;
     /** For a run's sheet, which works out a new timing's time: the episode's start and end, the next one's start, the zone. */
     airAt: string;
@@ -326,20 +340,26 @@ async function runsOf(seasonId: string, tz: string, now: Date, limit: number): P
   return { log: [...waiting, ...rows.map((r) => runView(r, tz, now))], total: count[0].n + waiting.length, wait };
 }
 
-/** The next episode's night (the mock's rsCycle and rsRundown): the episode whose runs are still to come, else the next. */
-function railOf(season: SeasonJob, runs: Run[], minutes: number, history: RunRow[], now: Date, tz: string, count: number | null): DeskResearch["rail"] {
+/**
+ * The next episode's night (the mock's rsCycle and rsRundown): the episode whose runs are still to come, else the next. Its
+ * runs are its own when it has them (`episodes`), each one the season's hasn't marked as its own.
+ */
+function railOf(season: SeasonJob, schedule: Run[], episodes: Record<number, Run[]>, minutes: number, history: RunRow[], now: Date, tz: string, count: number | null): DeskResearch["rail"] {
   const times = episodeAirTimes(season).filter((e) => !count || e.episode <= count);
   const t = now.getTime();
+  const runsOf = (e: { episode: number }) => episodes[e.episode] ?? schedule;
   const endOf = (e: { at: Date; minutes?: number }) => e.at.getTime() + (e.minutes ?? minutes) * MIN;
   const dues = (e: { episode: number; at: Date; minutes?: number }) => {
     const next = times.find((x) => x.episode === e.episode + 1);
-    return runs.map((r) => dueAt(r, endOf(e), next ? next.at : null, e.at.getTime()));
+    return runsOf(e).map((r) => dueAt(r, endOf(e), next ? next.at : null, e.at.getTime()));
   };
   const aired = times.filter((e) => e.at.getTime() <= t);
   const last = aired[aired.length - 1];
-  let ep = last && runs.some((r, i) => r.on && (dues(last)[i]?.getTime() ?? 0) > t) ? last : times.find((e) => e.at.getTime() > t);
+  let ep = last && runsOf(last).some((r, i) => r.on && (dues(last)[i]?.getTime() ?? 0) > t) ? last : times.find((e) => e.at.getTime() > t);
   if (!ep && last && endOf(last) > t) ep = last;
   if (!ep) return null;
+  const runs = runsOf(ep);
+  const own = !!episodes[ep.episode];
   const end = new Date(endOf(ep));
   const d = dues(ep);
   type Item = { t: Date; row: Omit<RailRow, "day" | "hm" | "ap"> };
@@ -358,9 +378,12 @@ function railOf(season: SeasonJob, runs: Run[], minutes: number, history: RunRow
     const again = seen.has(r.kind);
     seen.add(r.kind);
     const title = r.kind === "trivia" ? `Trivia about Episode ${ep.episode}` : r.kind === "bingo" ? `Bingo squares for Episode ${ep.episode}` : again ? `${KINDS[r.kind].t}, again` : KINDS[r.kind].t;
-    const tried = due.getTime() <= t ? history.find((h) => h.episode_number === ep.episode && h.slot === `${r.kind}@${r.after}` && h.ok !== null) : null;
+    // Its tries: the planner's (db/bot-research.js triedAs: its slot's, and the slots it moved from).
+    const slots = triedAs(r, runs);
+    const tried = due.getTime() <= t ? history.find((h) => h.episode_number === ep.episode && slots.includes(h.slot) && h.ok !== null) : null;
+    const mine = own && !schedule.some((x) => sameRun(x, r) && x.on === r.on);
     const line = `${cap(when(r))}${r.kind === "schedule" ? `: when Episode ${ep.episode + 1} airs` : ""}${r.kind === "full" && again ? " · merged into the first" : ""}${r.on ? "" : " · off"}`;
-    items.push({ t: due, row: { key: `${r.kind}@${r.after}`, type: "run", title, line, i, on: r.on, done: tried ? { ok: !!tried.ok, line: tried.ok ? (tried.message ?? "Done") : "Failed" } : null } });
+    items.push({ t: due, row: { key: `${r.kind}@${r.after}`, type: "run", title, line, i, on: r.on, mine, done: tried ? { ok: !!tried.ok, line: tried.ok ? (tried.message ?? "Done") : "Failed" } : null } });
   });
   // Starts before ends before runs before players' final results at the same minute; Now goes before the first thing still
   // to come.
@@ -382,6 +405,10 @@ function railOf(season: SeasonJob, runs: Run[], minutes: number, history: RunRow
     n: ep.episode,
     airs: at(ep.at, tz, now),
     rows,
+    runs,
+    own,
+    // The season's runs it hasn't (not one it moved: that one's marked where it is now).
+    gone: own ? schedule.filter((x) => !runs.some((r) => sameRun(r, x) || (r.was ?? []).includes(`${x.kind}@${x.after}`))) : [],
     airAt: ep.at.toISOString(),
     endAt: end.toISOString(),
     nextAt: following ? following.at.toISOString() : null,
@@ -394,7 +421,7 @@ function railOf(season: SeasonJob, runs: Run[], minutes: number, history: RunRow
 export async function deskResearch(id: string, origin: string | null = null, now = new Date()): Promise<DeskResearch> {
   const season = await job(id);
   const tz = season.air_tz || "America/New_York";
-  const [bot, setup, history, { rows: hist }, { rows: week }, { rows: answers }, { rows: banks }, { rows: head }, { log, total, wait }, waiting] = await Promise.all([
+  const [bot, setup, history, { rows: hist }, { rows: week }, { rows: answers }, { rows: banks }, { rows: head }, { log, total, wait }, waiting, reach] = await Promise.all([
     seasonBot(id),
     deskSetup(id, now),
     pool.query(
@@ -415,13 +442,14 @@ export async function deskResearch(id: string, origin: string | null = null, now
     pool.query("SELECT driven_at FROM desk_runs WHERE done_at IS NULL ORDER BY asked_at, id LIMIT 1"),
     runsOf(id, tz, now, 30),
     waitingEpisodes(id),
+    usualReach(id),
   ]);
   // A queue nobody's driving (its driver was cut off): this read takes over, after its answer.
   if (origin && head[0] && (!head[0].driven_at || now.getTime() - head[0].driven_at.getTime() > DRIVE_STALE_MS)) after(() => drainDeskRuns(origin));
   const minutes = bot.episodeMinutes ?? episodeMinutesOf(season);
   const runs = bot.schedule as Run[];
   const count = setup.count;
-  const rail = setup.scheduled && setup.status !== "completed" ? railOf(season, runs, minutes, hist, now, tz, count) : null;
+  const rail = setup.scheduled && setup.status !== "completed" ? railOf(season, runs, bot.episodes as Record<number, Run[]>, minutes, hist, now, tz, count) : null;
   const railNote = rail ? null : !setup.scheduled ? "No schedule yet, so nothing runs: Setup gives it one." : "No episode coming up, so nothing runs on its own. Run now still works.";
   const asking = log.find((l) => l.ok === null && !l.queued);
   const nextRun =
@@ -451,6 +479,9 @@ export async function deskResearch(id: string, origin: string | null = null, now
     since: bot.since ? mdIn(new Date(bot.since), tz, now) : null,
     minutes,
     runs,
+    follows: bot.follows,
+    usual: bot.usual as Run[],
+    reach,
     next: asking ? `Asking now: ${asking.title.split(" · ")[1]}` : nextAt ? `Next: ${nextAt}` : bot.on ? "Nothing due" : "Nothing runs on its own",
     meta: `Asks ChatGPT · ${week[0].n ? `${plural(week[0].n, "run")} this week` : "nothing run this week"}`,
     games: setup.delete.games.length,

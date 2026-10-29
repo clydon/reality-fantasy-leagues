@@ -5,7 +5,7 @@ import { setWhoFills } from "./community-results";
 import { restoreBingoBank, restoreSquare } from "./desk-bingo";
 import { pool, HttpError } from "./db";
 import { restoreSetting } from "./desk";
-import { restoreSeasonBot } from "./desk-bot";
+import { restoreEpisodeBot, restoreSeasonBot, restoreUsual } from "./desk-bot";
 import { restoreCastaway, restoreGroups, restoreHold, setCastawayLock } from "./desk-cast";
 import { restoreCastSend } from "./desk-cast-page";
 import { restoreCouchRestored } from "./desk-couches";
@@ -145,9 +145,18 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
     case "bot":
       await restoreSeasonBot(String(u.id), {
         on: !!u.on,
-        schedule: u.schedule as Parameters<typeof restoreSeasonBot>[1]["schedule"],
+        // Null: it followed our usual (the research pattern, 2026-10-29); older lines always have its runs.
+        schedule: (u.schedule ?? null) as Parameters<typeof restoreSeasonBot>[1]["schedule"],
         ...("episodeMinutes" in u ? { episodeMinutes: (u.episodeMinutes as number | null) ?? null } : {}),
+        ...(u.episodes ? { episodes: u.episodes as Parameters<typeof restoreSeasonBot>[1]["episodes"] } : {}),
+        legacy: u.v !== 2,
       });
+      break;
+    case "botEpisode":
+      await restoreEpisodeBot(String(u.id), Number(u.episode), (u.schedule ?? null) as Parameters<typeof restoreEpisodeBot>[2]);
+      break;
+    case "botUsual":
+      await restoreUsual(String(u.id), u.usual ?? null, u.schedule as Parameters<typeof restoreUsual>[2]);
       break;
     case "phase": {
       const r = await getRulebook(pool, String(u.id));

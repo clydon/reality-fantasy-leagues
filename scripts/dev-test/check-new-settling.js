@@ -434,17 +434,19 @@ function rulebookAnswer(prompt) {
     check(/Autopilot on/.test(await toasted(/Autopilot on/, d.page)), "the season's bot switched on");
     await d.page.locator("[data-switch=autopilot][data-on=on]").waitFor();
     let row = (await pool.query("SELECT bot_research_on, bot_research_since, bot_research_schedule FROM show_seasons WHERE id = $1", [sid])).rows[0];
-    check(row.bot_research_on && row.bot_research_since && row.bot_research_schedule.length === DEFAULT_SCHEDULE.length, "stored: on, from now, the usual runs", JSON.stringify(row));
-    await d.page.locator("[data-rail-switch='quick@5']").click();
-    await toasted(/Who went home \(5 min after it ends\) off/, d.page);
-    await d.page.locator("[data-rail-row='quick@5'][data-on=off]").waitFor();
+    // Switched on, it follows our usual (no schedule of its own) until its runs change (the research pattern, 2026-10-29).
+    check(row.bot_research_on && row.bot_research_since && row.bot_research_schedule === null, "stored: on, from now, following our usual", JSON.stringify(row));
+    const quick = `quick@${DEFAULT_SCHEDULE.find((r) => r.kind === "quick").after}`;
+    await d.page.locator(`[data-rail-switch='${quick}']`).click();
+    await toasted(/Who went home \(.*\) off/, d.page);
+    await d.page.locator(`[data-rail-row='${quick}'][data-on=off]`).waitFor();
     row = (await pool.query("SELECT bot_research_schedule FROM show_seasons WHERE id = $1", [sid])).rows[0];
-    check(row.bot_research_schedule.find((r) => r.kind === "quick").on === false, "a run switched off");
+    check(row.bot_research_schedule?.length === DEFAULT_SCHEDULE.length && row.bot_research_schedule.find((r) => r.kind === "quick").on === false, "a run switched off: its own schedule now");
     await shot("desk-season-bot-on", d.page);
     const hist = (await as.desk.call("GET", `/api/desk/seasons/${sid}/research`)).body.history;
     check(hist[0] && /off$/.test(hist[0].text) && hist[0].undoable && /^Autopilot on/.test(hist[1]?.text || ""), "History: both changes, with Undo", JSON.stringify(hist.slice(0, 2)));
     await d.page.locator(`[data-undo-desk='${hist[0].id}']`).click();
-    await d.page.waitForFunction(() => document.querySelector("[data-rail-row='quick@5']")?.getAttribute("data-on") === "on", null, { timeout: 10000 });
+    await d.page.waitForFunction((q) => document.querySelector(`[data-rail-row='${q}']`)?.getAttribute("data-on") === "on", quick, { timeout: 10000 });
     check(true, "Undo from History: the run's back on");
     await d.page.goto(`${BASE}/desk/settings`);
     await d.page.locator("[data-desk-row='autopilot']").click({ timeout: 20000 });

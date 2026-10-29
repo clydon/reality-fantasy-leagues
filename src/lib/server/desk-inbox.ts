@@ -1,7 +1,9 @@
-import { normalizeSchedule, tiebreakNext, tiebreakOn, tiebreakQuestions, type BotScheduleRun } from "@db/bot-research.js";
+import { tiebreakNext, tiebreakOn, tiebreakQuestions, usualSchedule, type BotScheduleRun } from "@db/bot-research.js";
+import { BINGO_BANK_LACK, KINDS, when, type RunKind } from "@/lib/desk-bot-words";
 import { phaseCues } from "@db/rulebooks.js";
 import { pool } from "./db";
 import { factTitle, SEASON_NAME as seasonName, STRANDED } from "./desk";
+import { lackingUsual, scheduleOf } from "./desk-bot";
 import { castInboxItems } from "./desk-cast-page";
 import { openReports } from "./desk-reports";
 import { andList } from "./desk-seats";
@@ -12,15 +14,16 @@ import { signupMode, WAITING } from "./way-in";
 // The desk's Inbox (docs/PLAN-new-design.md step 6b part 2; docs/PLAN-desk-parity.md step 2, the mock's desk-inbox.js).
 // Needs you is one list, most urgent first, each with its kind and the page that deals with it: a dispute the couches
 // couldn't settle (and a phase start to confirm, something new they split on), a couch nobody runs, a season airing with no
-// schedule, a cast not sent to its games, accounts waiting to get in, reports, a suggested rulebook fix, a rulebook nobody
-// else has checked, a show added by name. Dealing with one on its page clears it here, and from the tab's count. Staged
+// schedule, one whose own schedule has no run of one of our usual's kinds (the research pattern, 2026-10-29: "Survivor 51 has
+// no Bingo run", with a one-tap Add), a cast not sent to its games, accounts waiting to get in, reports, a suggested rulebook
+// fix, a rulebook nobody else has checked, a show added by name. Dealing with one on its page clears it here, and from the tab's count. Staged
 // results never come here (decision 7): results settle by sources, and only disputes reach the desk. Coming up is the week
 // as a rundown: each airing season's next episode, when, and how its results come in (Autopilot, ESPN or the couches).
 // Classic's To do (admin-home.tsx) listed results to review, casts to approve, formats in draft, reports and airing seasons
 // with no schedule, and Coming up with "research N h later"; what the desk leaves behind is in the plan's As built.
 
 export interface InboxItem {
-  kind: "split" | "stale" | "phase" | "change" | "stranded" | "schedule" | "cast" | "people" | "report" | "suggestion" | "made" | "show";
+  kind: "split" | "stale" | "phase" | "change" | "stranded" | "schedule" | "usual" | "cast" | "people" | "report" | "suggestion" | "made" | "show";
   title: string;
   line: string;
   href: string;
@@ -28,6 +31,8 @@ export interface InboxItem {
   faces?: { id: string; name: string; colour: string | null }[];
   /** When it was sent (a report): the screen says how long ago, after the line. */
   at?: string;
+  /** A one-tap Add beside it: our usual's runs of a kind, for the season (POST its research { addUsual: kind }). */
+  add?: { seasonId: string; kind: RunKind };
 }
 
 /** One airing season's next episode this week, and how its results come in. */
@@ -151,21 +156,16 @@ async function strandedCouches(): Promise<InboxItem[]> {
 }
 
 /** How a season's results come in, for Coming up. */
-function howResults(s: { bot_on: boolean; schedule: unknown; espn: boolean; kind: string | null; results_by: string }): Pick<ComingUp, "how" | "line"> {
-  const how = howTheyCome(s);
+function howResults(s: { bot_on: boolean; schedule: unknown; espn: boolean; kind: string | null; results_by: string }, usual: BotScheduleRun[]): Pick<ComingUp, "how" | "line"> {
+  const how = howTheyCome(s, usual);
   // Setup's Who decides results (docs/PLAN-desk-parity.md part 3a): what the desk accepts reaches its games too.
   if (s.results_by !== "admin") return how;
   return how.how === "couch" ? { how: "admin", line: "You decide results · couches' answers count too" } : { how: how.how, line: `${how.line} · you decide too` };
 }
 
-function howTheyCome(s: { bot_on: boolean; schedule: unknown; espn: boolean; kind: string | null }): Pick<ComingUp, "how" | "line"> {
+function howTheyCome(s: { bot_on: boolean; schedule: unknown; espn: boolean; kind: string | null }, usual: BotScheduleRun[]): Pick<ComingUp, "how" | "line"> {
   if (s.bot_on) {
-    let runs: BotScheduleRun[] = [];
-    try {
-      runs = normalizeSchedule(s.schedule).filter((r) => r.on);
-    } catch {
-      runs = [];
-    }
+    const runs = scheduleOf(s.schedule, usual).filter((r) => r.on);
     const quick = runs.some((r) => r.kind === "quick");
     const full = runs.some((r) => r.kind === "full");
     if (quick || full) return { how: "auto", line: `Autopilot: ${quick && full ? "who went home, then full results" : quick ? "who went home after it" : "full results after it"}` };
@@ -180,7 +180,7 @@ function howTheyCome(s: { bot_on: boolean; schedule: unknown; espn: boolean; kin
  * The week, and the airing seasons with no schedule: each game season's next episode in the next seven days (a show set up
  * as a game; a watched-only show's episodes aren't the desk's), and whether its results come in on their own.
  */
-async function theWeek(now = new Date()): Promise<{ coming: ComingUp[]; unscheduled: { id: string; name: string }[] }> {
+async function theWeek(usual: BotScheduleRun[], now = new Date()): Promise<{ coming: ComingUp[]; unscheduled: { id: string; name: string }[] }> {
   const { rows } = await pool.query(
     `SELECT ss.id, ${seasonName} AS name, ss.status, s.kind, ss.bot_research_on AS bot_on, ss.bot_research_schedule AS schedule, ss.results_by,
             EXISTS (SELECT 1 FROM sports_links sl WHERE sl.season_id = ss.id AND sl.provider = 'espn' AND sl.linked > 0) AS espn
@@ -199,7 +199,7 @@ async function theWeek(now = new Date()): Promise<{ coming: ComingUp[]; unschedu
     }
     const next = upNext(sch, now);
     if (!next?.airAt || Date.parse(next.airAt) > now.getTime() + WEEK_MS) continue;
-    coming.push({ seasonId: r.id, season: r.name, episode: next.number, title: r.kind === "sport" ? next.title : null, airAt: next.airAt, ...howResults(r) });
+    coming.push({ seasonId: r.id, season: r.name, episode: next.number, title: r.kind === "sport" ? next.title : null, airAt: next.airAt, ...howResults(r, usual) });
   }
   coming.sort((a, b) => Date.parse(a.airAt) - Date.parse(b.airAt));
   return { coming, unscheduled };
@@ -231,15 +231,17 @@ async function waiting(): Promise<InboxItem[]> {
 
 /** Only what needs the admin: the community and its couches handle the rest. Most urgent first. */
 export async function inbox(now = new Date()): Promise<Inbox> {
-  const [split, phases, notices, stranded, week, casts, people, reports] = await Promise.all([
+  const usual = await usualSchedule(pool);
+  const [split, phases, notices, stranded, week, casts, people, reports, lacking] = await Promise.all([
     disputes(),
     phaseStarts(),
     deskNotices(),
     strandedCouches(),
-    theWeek(now),
+    theWeek(usual, now),
     castInboxItems(),
     waiting(),
     openReports(20),
+    lackingUsual(usual),
   ]);
   const items: InboxItem[] = [...split, ...phases];
   // Something new the couches split on, or that couldn't go in on its own (step 6c part 2).
@@ -249,6 +251,15 @@ export async function inbox(now = new Date()): Promise<Inbox> {
   items.push(...stranded);
   // An airing season nothing says the dates of: no reminders, no guide card, no research until it has one.
   for (const s of week.unscheduled) items.push({ kind: "schedule", title: `${s.name} is airing with no schedule`, line: "No reminders, no guide card, and no research until it has one", href: `/desk/season/${s.id}/setup` });
+  // A season with its own schedule keeps it exactly, so a kind our usual gained never reached it: no usual run quietly missing.
+  for (const l of lacking)
+    items.push({
+      kind: "usual",
+      title: `${l.name} has no ${KINDS[l.kind].named} run: ${l.kind === "bingo" && l.bank ? BINGO_BANK_LACK : KINDS[l.kind].lack}`,
+      line: `Our usual has it ${l.usual.map((u) => when(u)).join(", and again ")}`,
+      href: `/desk/season/${l.id}/research`,
+      add: { seasonId: l.id, kind: l.kind },
+    });
   items.push(...casts, ...people);
   for (const r of reports) items.push({ kind: "report", title: r.title, line: `From ${r.who.name} · ${r.about}`, href: `/desk/report/${r.id}`, at: r.at });
   const { rows: tips } = await pool.query(

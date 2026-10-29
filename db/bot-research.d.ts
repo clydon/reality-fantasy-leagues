@@ -14,6 +14,8 @@ export interface BotScheduleRun {
    *  bingo's, before this one airs. */
   after: number;
   on: boolean;
+  /** The slots it was before it moved (retimed, or our usual moved it): their tries count as its own. */
+  was?: string[];
 }
 export interface QuickAnswer {
   found: boolean;
@@ -74,8 +76,23 @@ export interface BotSend {
 
 export const DEFAULT_SCHEDULE: BotScheduleRun[];
 export const MAX_ATTEMPTS: number;
-/** A schedule from a request body, cleaned up; throws (with a message for the admin) if malformed. */
-export function normalizeSchedule(input: unknown): BotScheduleRun[];
+/** A schedule from a request body, cleaned up; throws (with a message for the admin) if malformed. Null: our usual (`usual`,
+ *  DEFAULT_SCHEDULE by default). */
+export function normalizeSchedule(input: unknown, usual?: BotScheduleRun[]): BotScheduleRun[];
+/** Our usual as app_settings keeps it ("Make this our usual"). */
+export const USUAL_KEY: string;
+/** Our usual runs: the desk's when set and sound, else DEFAULT_SCHEDULE. */
+export function usualSchedule(pool: Pool): Promise<BotScheduleRun[]>;
+/** `after`'s runs, each moved one (paired by kind, in time order, with one of `before`'s that went) carrying the slots it was. */
+export function carryWas(before: BotScheduleRun[], after: BotScheduleRun[]): BotScheduleRun[];
+/** One run changed: `from` (a slot) to `to`, `to` added, or `from` taken off; `loose` for an episode's own runs. Throws on a
+ *  `to` another run has the slot of (not loose). */
+export function changeRun(list: BotScheduleRun[], from: string | null | undefined, to: BotScheduleRun | null | undefined, o?: { loose?: boolean }): BotScheduleRun[];
+/** The slots whose tries count as `run`'s in an episode whose runs are `list`: its own, those it moved from, our old usual's;
+ *  never one another run in `list` holds now. */
+export function triedAs(run: BotScheduleRun, list: BotScheduleRun[]): string[];
+/** The episodes' own runs as the column has them, cleaned up: { [n]: runs }. */
+export function normalizeEpisodes(input: unknown): Record<number, BotScheduleRun[]>;
 export function slotOf(run: { kind: BotKind; after: number }): string;
 /** The earliest due run across every season with bot research on, run; or { job: null }. Either way,
  *  `next`: when the next run comes due (now if one already is), or null when none is left. */
