@@ -331,6 +331,9 @@ export interface LeagueSettings {
    *  auction's budget, or a salary cap). */
   draftAuction?: boolean;
   draftBudget?: import("./game-spec/index.js").DraftBudget;
+  /** Step A10 part 3c, absent unless a game says it: a stock market ranked by worth (rank.by 'worth'; its trading is the
+   *  budget's trade, in draftBudget). */
+  draftRank?: "worth";
   /** Step A10 part 2, each absent unless a game says it: a pool's lives (score.lives), buyback (score.buyback), mulligans
    *  (score.mulligans), second pick (get.second) and last one standing (rank.by 'standing'). */
   poolLives?: number;
@@ -878,6 +881,8 @@ export interface EpisodeProposalPayload {
 export interface BlindDraftState {
   lockedPlayerIds: string[];
   revealedAt: string | null;
+  /** Under a salary cap (step A10 part 3c): what each team cost at the reveal (a stock market's cash reads it). */
+  paid?: Record<string, number>;
 }
 
 /** One pick of a turn-based draft, in its own log (state-logic.js SnakeDraftStrategy.pick). */
@@ -893,6 +898,10 @@ export interface DraftLogEntry {
   auto?: boolean;
   /** A10 part 3: dealt by a draw (names out of a hat), nobody's pick. */
   drawn?: boolean;
+  /** A10 part 3b: what it cost (a snake pick under a salary cap, an auction's winning bid; part 3c: a draw's under a cap). */
+  price?: number;
+  /** A10 part 3b: an auction's place the bids didn't fill, filled at the lowest price. */
+  filled?: boolean;
 }
 
 // A completed pickup (replenish) or add/drop (trade): Transactions. MidSeasonLogic.applyPickup /
@@ -913,6 +922,10 @@ export interface MidSeasonLogEntry {
   via?: "waivers" | "freeAgency" | "auto";
   /** The waiver week it belongs to. */
   periodId?: string;
+  /** A stock market (step A10 part 3c): what the move sold for and paid, at the prices then, and its fee (the cash ledger). */
+  sold?: number;
+  paid?: number;
+  fee?: number;
   /** The castaway fields the move overwrote, as they were (only keys they had), so it can be undone
    * exactly (MidSeasonLogic.revert). */
   prev?: {
@@ -936,8 +949,8 @@ export interface WaiverPass {
   castawayId: string;
   /** ahead: someone higher in the waiver order took them; yours: your own earlier claim landed them;
    * gone: not a free agent by then; pickupFirst: pre-v2 runs only (pickups went before add/drops); cap: it would have taken the
-   * team past its salary cap (step A10 part 3b). */
-  reason: "ahead" | "pickupFirst" | "yours" | "gone" | "cap";
+   * team past its salary cap (step A10 part 3b); cash: a stock market's, not enough cash for it (part 3c). */
+  reason: "ahead" | "pickupFirst" | "yours" | "gone" | "cap" | "cash";
   byPlayerId?: string;
 }
 
@@ -1153,6 +1166,9 @@ export interface ScoreRow {
   out?: number | null;
   mulligans?: number;
   buybacks?: number;
+  /** A stock market (step A10 part 3c): cash, and worth (cash plus the team at today's prices: what it ranks by, rank worth). */
+  cash?: number | null;
+  worth?: number;
 }
 
 export interface DraftTurn {

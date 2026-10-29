@@ -152,6 +152,9 @@ declare const StateLogic: {
     standingKey(row: ScoreRow): number[];
     compareKeys(a: number[], b: number[]): number;
   };
+  /** The order a game's table ranks a score row in (compareKeys, higher first): a pool's standing or streak, a stock market's
+   *  worth (step A10 part 3c), else the points. */
+  rankKey(state: LeagueState, row: Pick<ScoreRow, "total"> & Partial<ScoreRow>): number[];
   /** Step A10 part 2: a pool's lives, buyback, mulligans and second pick. */
   PickEmLogic: {
     parts(state: LeagueState): PoolParts | null;
@@ -729,6 +732,19 @@ declare const StateLogic: {
     pickProblem(state: LeagueState, playerId: string, castawayId: string, prices?: Map<string, number>): string | null;
     teamProblem(state: LeagueState, castawayIds: string[]): string | null;
     moveProblem(state: LeagueState, playerId: string, dropId: string | null, addId: string, prices?: Map<string, number>): string | null;
+    /** Part 3c: whether a change to a team is checked against prices (a salary cap's, or a stock market's cash). */
+    priced(state: LeagueState): boolean;
+  };
+  /** Step A10 part 3c: a stock market, buying and selling each week at the data's prices; cash a ledger from the logs. */
+  MarketLogic: {
+    config(state: LeagueState): import("./game-spec/index.js").BudgetParts | null;
+    on(state: LeagueState): boolean;
+    draftPaid(state: LeagueState, playerId: string): number;
+    cash(state: LeagueState, playerId: string): number | null;
+    terms(state: LeagueState, dropId: string | null, addId: string, prices?: Map<string, number>): { sold: number; paid: number; fee?: number };
+    moveProblem(state: LeagueState, playerId: string, dropId: string | null, addId: string, prices?: Map<string, number>): string | null;
+    worth(state: LeagueState, playerId: string, prices?: Map<string, number>): number;
+    view(state: LeagueState): { prices: Record<string, number>; cash: Record<string, number>; worth: Record<string, number> } | null;
   };
   /** Step A10 part 3b: an auction, by sealed bids settled at once (the bids kept out of the state: src/lib/server/auction.ts). */
   AuctionLogic: {

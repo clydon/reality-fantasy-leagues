@@ -82,8 +82,9 @@ export interface SpecParlay {
 }
 
 export interface SpecRank {
-  /** total, streak: today; standing (A10 part 2): last one standing, a pool with lives. sports: matchups, categories, roto. */
-  by: "total" | "streak" | "standing" | "matchups" | "categories" | "roto";
+  /** total, streak: today; standing (A10 part 2): last one standing, a pool with lives; worth (A10 part 3c): a stock market's,
+   *  cash plus the team at today's prices. sports: matchups, categories, roto. */
+  by: "total" | "streak" | "standing" | "worth" | "matchups" | "categories" | "roto";
 }
 
 /** A10 part 2: a pool's buyback. before: a phase of the season or an episode (someone out before it can buy back), or null (any
@@ -314,6 +315,11 @@ export interface DraftBudget {
   ceiling?: number;
   gone?: "zero" | "last";
   fallback?: "fill" | "short";
+  /** A10 part 3c: a stock market, buying and selling each week at the data's prices (an auction's too, after its bids), each
+   *  trade costing `fee`; its trades are its waiver windows' swaps. */
+  trade?: { fee: number };
+  /** What the draft's money left over does: cash to trade with (a market's default), lost, or bids on waivers (no step yet). */
+  left?: "cash" | "lost" | "bids";
 }
 
 /** A10 part 3: a draft spread across the cast's groups (get.across): no more than ceil(each / groups) from one group, at least
@@ -512,7 +518,15 @@ export interface BudgetParts {
   ceiling?: number | null;
   gone?: "zero" | "last";
   fallback?: "fill" | "short";
+  trade?: { fee: number };
+  left?: "cash" | "lost" | "bids";
 }
+/** A10 part 3c: a stock market's defaults (a trade costs nothing; the money left over is cash), its waivers when the spec leaves
+ *  them out (a window after every episode, the whole team each), and whether a spec is one. */
+export const TRADE: { fee: number };
+export const MARKET_LEFT: "cash";
+export function marketWaivers(each: number): SpecWaivers;
+export function marketOf(spec: unknown): boolean;
 export function budgetParts(spec: GameSpec | SpecInput | null | undefined): BudgetParts | null;
 /** Whether a pool covers every pick of an exclusive draft: people x each <= pool. */
 export function covers(o: { pool: number; people: number; each: number }): boolean;

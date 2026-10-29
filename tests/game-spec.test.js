@@ -54,9 +54,10 @@ const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFee
 const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftDraw", "draftAcross", "draftAuction", "draftBudget"];
 const GAME_FIELDS = {
   every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints"],
-  // A9 part 2: Outlast in reverse; best ball, a lineup's captain, points that multiply by when.
+  // A9 part 2: Outlast in reverse; best ball, a lineup's captain, points that multiply by when. A10 part 3c: a stock market
+  // ranked by worth.
   "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder"],
-  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots"],
+  "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "draftRank"],
   // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing.
   pickem: ["pickemCorrectPoints", "poolSurvive", "calls", "poolLives", "poolBuyback", "poolMulligans", "poolSecond", "poolRank"],
   "weekly-calls": [],

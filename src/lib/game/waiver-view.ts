@@ -130,7 +130,9 @@ function movesOf(view: LeagueState, results: WaiverResult[], me: string, faces: 
           ? `${who(pass.byPlayerId)} got ${name(pass.castawayId)} first`
           : pass.reason === "cap"
             ? `${name(pass.castawayId)} would have taken the team past the cap`
-            : `${name(pass.castawayId)} was already gone`
+            : pass.reason === "cash"
+              ? `${name(pass.castawayId)} cost more than the cash on hand`
+              : `${name(pass.castawayId)} was already gone`
         : "";
       const choice = r.choice ?? 1;
       let why: string;

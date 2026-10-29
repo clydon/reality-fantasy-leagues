@@ -24,8 +24,10 @@ foundation is done. A10 is under way, in parts: part 1, group slots and the excl
 one standing, `PickEmLogic.parts`), and part 3, a draft's slots and the draw (2026-10-29: a draft spread across the cast's groups as
 the data has them when it drafts, one from each tribe, `SpreadLogic`; names out of a hat, seeded and recorded, `DrawLogic`; a guy
 and a girl refused, since nothing records who is which), and part 3b, a draft's prices (2026-10-29: an auction by sealed bids
-settled at once, `AuctionLogic`; a salary cap whose prices follow the data, `PriceLogic` and `BudgetLogic`), are built; part 3c
-(buying and selling each week: the stock market) is next, then part 4, A11 to A14 overnight (the
+settled at once, `AuctionLogic`; a salary cap whose prices follow the data, `PriceLogic` and `BudgetLogic`), and part 3c, buying and
+selling each week (2026-10-29: a stock market on those prices, trading in the waiver weeks, cash a ledger from the logs, ranked by
+worth when the game says so, `MarketLogic`), are built; part 4 (keepers across seasons, a team two people share) is next, then A11
+to A14 overnight (the
 user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -2829,6 +2831,105 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     copied from the blind draft's (now shared); free agency's cap refusal shown before its own; the draft room not giving the
     budget or what each spent. Not taken: nothing. After it, by hand: `golden.js` failing a season that made no game, and the API
     check's two cross-kind withdrawals.
+
+  **As built (A10 part 3c, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
+  64 files, its migration 0431 applied to the lane's database with `npm run migrate`; 1041 tests). Buying and selling each week, a
+  stock market, on part 3b's prices, each piece riding on data with its fallback from the start; every default the user's
+  (Noticed, below).
+  - **The spec** (`schema.js`): a budget's `trade: { fee }` makes it a stock market (beside a salary cap's draft or an auction,
+    scored by moments: its prices are part 3b's, each castaway's points so far by the game's rules, by standing; after an auction
+    the same prices, so an auction that trades has a ceiling and `gone` too). `left`, what the draft's money left over does:
+    `cash` (to trade with: a market's default), `lost` (worth nothing after the draft, as an auction's always was; trading is then
+    a sale to buy), or `bids` (a budget to bid on free agents with on waivers: VOCAB 'later', `specWaitsFor` says it waits: 3b's
+    Noticed item 11, decided only as a setting). `rank.by: 'worth'`, a market's: cash plus the team at today's prices, ties to
+    the points. A market's trades are its waivers' moves, so a market whose spec leaves its waivers out gets `marketWaivers`: a
+    window after every episode, the whole team tradeable in each, someone gone home sold and replaced whenever (replace
+    'always'); the rest as waivers off. Defaults (`TRADE`, `MARKET_LEFT`): no fee, cash. Refused: worth without a market; `left:
+    cash` without trading; a fee past the budget; trading on a game scored by place; a market whose windows allow no trade; a
+    market whose prices before anyone's scored would put every team over the budget (every game is made before its premiere:
+    "everyone costs 11, so a team of 2 would cost 22, more than the 20 everyone has: a highest price of at most 19 fits"). **The
+    exclusive count** (the 9:10 PM decision): an exclusive market needs someone left over to buy, so a couch whose teams take
+    the whole pool is told "nobody's left to buy: make it shared"; shared, two can hold the same castaway. No stored spec changes
+    (absent unless a game says it). `marketOf`; the settings both ways (`settings.js`): the budget in `draftBudget` as before,
+    and `draftRank: 'worth'` (a lineup's or best ball's).
+  - **The cash ledger** (`MarketLogic`, `state-logic.js`): never stored, worked out from the logs: the budget (or nothing, when
+    the money left over is lost), less what the draft's log recorded each castaway at (a snake's picks under the cap, as 3b
+    recorded them; a draw's, now recorded too; an auction's bids), less a blind draft's recorded at its reveal
+    (`blindDraft.paid`: a blind draft has no log), plus what each move's log entry recorded it sold for, less what it paid and
+    its fee (`MidSeasonLogic.log` stamps `sold`, `paid` and `fee` on every move in a market, at today's prices, read once a run
+    and once a free-agency move). So **Undo last waiver run and the spoiler views take the cash back with the move** (they take
+    the log entry back), and a pick taken back gives its price back. `cash`, `cashAll` (everyone's in one pass), `terms`,
+    `moveProblem`, `worth`, `view` (prices, cash and worth for the screens).
+  - **Trading** rides on the waiver weeks: open after an episode's results until the next airs, closed while one is on (the
+    lock); claims in private, processed in waiver order, then free agency. A trade is a waivers move (a swap sells someone still
+    in, a replacement someone gone home), selling at today's price and buying at theirs: `BudgetLogic.moveProblem` answers with
+    the market's rule, so every check that held a team to a cap holds a market to its cash (a claim, the run, free agency,
+    autofill, computer players). **Nobody spends more than they have**: a move that would leave cash below nothing (or lower, when
+    it's already below, only ever from a draft the cap's fallback let go over) is refused with why ("C4 Person costs 15, and a
+    trade 1: you'd have 9 to spend"); the run passes it for want of cash (`WaiverPass.reason 'cash'`, its words in
+    `waivers-model.ts` and `waiver-view.ts`). **Someone gone home** sells for nothing or their last price (3b's `gone`). **A
+    replacement nobody can afford isn't filled** at the close: they hold who they have (the market's fallback, where the cap's is
+    the cheapest); **someone who doesn't trade keeps what they have**. Whether two can hold the same one is the draft's ownership.
+    Picking a feel for a market's waivers keeps it trading (`WaiverLogic.recommend`'s `market`: every episode, the whole team).
+  - **Computer players and the replays' seats** (`bot-logic.js waiverClaim`, which playtest.js's seats claim through by habit)
+    trade within their cash: in a market they rank, of those they rate higher, only the ones a sale pays for (the best overall is
+    the dearest, refused for want of cash), so a castaway whose price ran ahead of their form pays for one who's in form now.
+    The first blind run found the seats barely trading without it (three moves in The Challenge 41's 21 episodes: everyone
+    starts with nothing left, and the three best-rated free agents are the dearest). playtest.js's waiver record says each
+    trade's price, what it sold for and its fee, and each seat's cash after the week; blind.js keeps the cash and checks it never
+    goes below nothing.
+  - **Ranking:** a market's score rows carry `cash` and `worth`; ranked by worth they sort by it, ties to the points. **One rank
+    key** (`StateLogic.rankKey`: a pool's standing or streak, a market's worth, else the points) for the engine's sorts, the
+    table (`game-view.ts tableOf`, its number the worth) and the waivers' order by standings (least points first reads worth in
+    a market ranked by it).
+  - **Words** (`describe.js`): the sentence ("everyone drafts 5 with 100 to spend, then buys and sells after every episode ...
+    Most worth wins: cash plus the team at today's prices"; an auction's "has 100 to bid on a team of 4, then buys and sells
+    after every episode") and How it works (the market's prices, the draft within the budget and its fallback, the money left
+    over, when trading opens and how much, a fee, someone gone home, who can buy whom, keeping what you have, worth).
+  - **The tracker:** s22 (a shared Weekly Lineup of five, 100 each, trading after every episode, ranked by worth) and
+    answer.trade (an exclusive snake Weekly Lineup of four that trades) ✅. **Now: 160 ✅** · 85 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
+  - **Tests:** `tests/stock-market.test.js` (new, 8): the shape, defaults, words and settings both ways, what's refused, the
+    exclusive count, `bids` waiting; cash through every kind of draft (a snake, a pick taken back, money left over lost, a blind
+    reveal, a draw, an auction that trades) and none without a market; a waiver week (at today's prices, refused at the claim
+    with why, the run's 'cash' pass, each move's log entry, free agency, Undo taking it back, a fee, exclusive buying only who
+    nobody holds); someone gone home (zero: a replacement nobody can afford refused and not filled; last: filled); the spoiler
+    view taking a week's trades and cash back, the view, ranked by worth (the rows, the table) and by points; computer players'
+    claims within their cash, the recommendation keeping a market trading; the code review's cases (one rank key, the waiver
+    order by worth, a market over its budget, free agency's prices read once, everyone's cash in one pass); computer players
+    selling one whose price ran ahead of its form for one a sale pays for (after the blind replays). `game-spec.test.js`:
+    `draftRank`. `npm test` 1049.
+  - **API:** `scripts/dev-test/check-market.js` (new, on new-fixture.js), 18 PASS: Lineup League a shared market of two (30
+    each, a trade 1) ranked by worth: its waivers every episode, both tradeable; everyone's blind team revealed, what each paid
+    recorded, cash the rest; a week open after Episode 5; riley's claim on the dearest refused (400, saying what she'd have), a
+    cheaper one claimed; riley refused Process now (403); alex's Process now running it (the log: 12 sold, 6 paid, the fee 1);
+    free agency refusing riley the dearest (400) and jordan buying it (shared: alex keeps his); worth 30, 30, 29, 29; the couch
+    hub ranking it by worth; sam's copy (seen through 3) without the week's trades; alex's Undo taking them back with the cash.
+    ZT Extra an exclusive snake market (the draft's log 11, 25, 11, 23; casey's cash the rest; casey can't buy one of alex's,
+    409, and can buy one nobody holds). Pool Party a Weekly Lineup auction that trades from Episode 1: settled at jordan's read,
+    everyone filled at 1 each, 18 left each, the data's prices after it. `check-engine-lab.js` grew s22 (started as a test game in
+    its fields): 66 PASS (`--api`).
+  - **Re-runs** (on the final code): `check-market.js` ALL PASS, `check-waivers.js` all passed, `check-draft-prices.js` and
+    `check-draft-spread.js` ALL PASS (the draw's log and the free-agency checks changed), `check-engine-lab.js --api` ALL PASS.
+    `npx tsc --noEmit -p .` clean.
+  - **Golden replays** (`golden.js`, HEAD against the working tree, after the code review's fixes): 7 seasons, 160 games, **19,361
+    reads, every one the same** (no game they play trades; the waivers' order by standings reads `rankKey`, the points for every
+    one of them; a draw's log carries a price only under a cap). Survivor 50, on tape since the playtest lane recorded it, isn't
+    loaded in this lane's database, so it isn't among them.
+  - **Blind replays** (`blind.js run`, the five seasons, on the final code): **every game ended on all five seasons**, the
+    tracker's two new ones among them: The Challenge 41 65 of 65, 40 65, 39 65, Survivor 49 84 of 84, The Traitors 4 63 of 63; no
+    problem in any game's moves, nobody's cash below nothing in any week. The tinkerer traded one to six times a season, selling
+    one whose price had run ahead of their form for one in form (Survivor 49's s22: Sophie Segreti sold at 21 for Rizo Velovic at
+    14). **What it found:** a first run, before the seats ranked only what a sale pays for, barely traded (stopped, and run again
+    on the habit above); and **nobody could replace someone gone home**: drafted before the premiere, every team costs exactly the
+    budget, someone gone home sells for nothing and the cheapest costs 1, so a seat that hadn't made money trading held its
+    castaways out all season (Noticed, items 1, 5 and 7). The study doc's "A10 part 3c: the stock market, replayed blind".
+  - **Code review** (`/code-review` at high, before the long runs). Taken: one rank key in the engine (`StateLogic.rankKey`),
+    read by the table and by the waivers' order by standings (least points first had put the worth leader first); a market whose
+    prices before anyone's scored put every team over its budget, now refused, and How it works saying the draft's fallback;
+    the scores working out cash twice a row (now everyone's in one pass, `cashAll`, and worth given it); a draw and a
+    free-agency move working out prices twice (now once, a free-agency move recording what it read); the 'cash' pass's words
+    starting with who it was, as the others do; the rank message naming worth. Not taken, as screens (Noticed, for U1): the
+    classic Standings card, Scoreboard, player page, season results card and the reveal ranking by points.
 - **A11. Winning, and who plays with whom.** A race (first to N ends the game), co-op (the group against the show, with shared
   lives), head-to-head with playoffs, teams of players, players knocked out each week (guillotine) or cut at a phase,
   handicaps, late joiners.
@@ -3536,6 +3637,71 @@ From A10 part 1 (2026-10-29):
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
 
+From A10 part 3c (2026-10-29):
+- **For the user, in a design session (with A10 parts 1 to 3b's questions), each with a recommendation (built as spec settings,
+  the defaults in `TRADE`, `MARKET_LEFT`, `marketWaivers`, 3b's `BUDGET`, `CAP` and `ceilingFor`):**
+  1. The starting cash. Built: the budget (100), and the draft spends from it. With the default highest price, a team drafted
+     before the premiere costs exactly the budget (every price is the middle, which an average team affords), so everyone starts
+     with nothing left: trading is a sale to buy until prices move (worth changes only as prices do, and by fees). Options: (a)
+     as built, said up front ("you spend it all on your team; what you sell for is what you buy with"); (b) a lower highest price
+     for a market, so some cash is left to start (100 for 5: 1 to 35 leaves 10); (c) cash on top of the budget; (d) a lowest
+     price of 0 for a market, so a replacement at the lowest price is always free. **The blind replays settle the direction:**
+     with (a), someone gone home selling for nothing and the cheapest costing 1, nobody who hadn't made money trading could
+     ever replace someone gone home (their teams emptied all season). Recommended: (b), a market's highest price set so the draft
+     leaves a tenth of the budget, enough for a replacement at the lowest prices; with item 5's zero kept.
+  2. How often trading opens. Built: after every episode until the next airs (a window after every episode, the whole team
+     tradeable). Options: every two or three episodes (the windows' `every`); only when whoever runs it opens one. Recommended:
+     every episode (it's what a stock market is).
+  3. Claims first, then free agency. Built: as the waivers do (private claims, processed in waiver order a day before the next
+     airs, then buys first come, first served), shared or exclusive. In a shared market nothing's contested, so the claims step
+     only delays a trade. Options: a shared market straight to free agency once the results are in (a waivers setting: not
+     built). Recommended: straight to free agency for a shared market, as its own small piece (part 4 or U1); exclusive keeps
+     claims (two can want the same one).
+  4. How it ranks. Built: the game's points by default (what each castaway scores while you hold them, as every draft ranks), or
+     worth when the spec says so (cash plus the team at today's prices, ties to the points). Options: worth by default for a
+     market; both, with a winner of each. Recommended: as built, with G1's words making "stock market" rank by worth (s22's
+     spec does) and the screens showing both numbers.
+  5. Someone gone home. Built: sells for nothing (3b's `gone: zero`, the default) or for the price they went home at (`last`).
+     Recommended: nothing (losing value when yours goes home is the market's risk; `last` makes going home free).
+  6. A fee or a limit on trades. Built: a fee each trade (`trade.fee`, 0 by default), on a swap and a replacement alike; the
+     trades each window are the waivers' swaps (the whole team by default). Recommended: no fee and the whole team (cash itself
+     limits trades); a fee of 1 if a couch churns.
+  7. A replacement nobody can afford. Built: not filled at the close (they hold who they have); the autofill takes the most
+     points among those they can afford. Option: the cap's fallback (the cheapest, cash below nothing). Recommended: keep
+     (nobody spends what they haven't got).
+  8. An auction's money left over (3b's item 11). Built, as a setting (`left`): cash to trade with where the game trades (the
+     default), lost (worth nothing after the draft, as before), or a budget to bid on free agents with on waivers (`bids`:
+     waits, not built). Recommended: cash where it trades, lost where it doesn't; blind bidding on waivers its own later piece,
+     if a couch asks.
+  9. Exclusive or shared (the 9:10 PM decision). Built: shared whenever the math says so; an exclusive market needs someone left
+     over to buy (else "make it shared"), and as people go home an exclusive market's replacement waits for someone free (as an
+     exclusive draft's waivers do). Recommended: shared by default for a market (s22), exclusive only for a small couch.
+  10. Selling without buying (holding cash, a place empty). Not built: every trade is a sale and a buy, so a team stays full
+     (lineups need it). Recommended: keep.
+  11. A result corrected after trades. Built: each move keeps the prices it was made at (a trade is a trade), so a correction
+     moves prices, and worth, from then on, never what someone paid. Option: re-price the trades after it (as the format's
+     state over time works everything out again). Recommended: keep.
+- **The classic screens rank a market by points:** the Standings card, the Scoreboard's lineup board, the player page, the
+  season results card's champions and the reveal's "X leads with N" each build their own rank key from the points, and show
+  points; the new design's table (`tableOf`) reads `StateLogic.rankKey` and shows worth. No screen shows cash, a price, worth or a
+  trade's cost, and the waivers' claim and free agency screens trade without saying what anything costs (a refusal says why).
+  (U1: read `StateLogic.rankKey` and `MarketLogic.view`; offer only what the view shows at their mark.)
+- A draft made after results a viewer hasn't seen records its prices from them, so a viewer behind could read them in someone's
+  cash, as 3b's refusal words can. (U1, with 3b's.)
+- A late joiner given castaways (`activatePlayer`) pays nothing for them, and whoever runs the game can move castaways with the
+  classic roster tools outside the ledger. (A11's late joiners; U1.)
+- Computer players and the replays' seats trade by their ratings within their cash, not by price (no buying low, selling high).
+  (Whoever next touches computer players, if a couch finds them easy.)
+- `PriceLogic.prices` is worked out again on each read that needs it (the scores, the view, a claim). (U1's views: cache by the
+  results' last change, with 3b's.)
+- playtest.js's waiver record lists a week's moves when its run processes; the autofill at its close (when the next episode's
+  results arrive) lands in the log after, so no week's record lists it (the cash follows it). (Whoever next touches playtest.js's
+  waivers.)
+- blind.js's table records each seat's points, in the engine's order; a market ranked by worth isn't recorded with its worth.
+  (Whoever next touches blind.js's records.)
+- The round-trip test (`every league in the local database round-trips through its spec`) fails while blind.js's games stand (`--keep`, or mid-run): a spread draft on The Challenge, its Rules sheet saying
+  "teams" where the words say "groups". (Whoever next touches describe's group words; not this part's.)
+
 From A10 part 3b (2026-10-29):
 - **For the user, in a design session (with A10 parts 1 to 3's questions), each with a recommendation (built as spec settings,
   the defaults in `BUDGET`, `AUCTION`, `CAP` and `ceilingFor`):**
@@ -3571,7 +3737,8 @@ From A10 part 3b (2026-10-29):
   10. A team over the cap after its prices moved. Built: it keeps its team; a change can't take it further over (the cheapest
      replacement for someone gone home excepted). Recommended: keep.
   11. An auction's money left over. Built: worth nothing after the auction. Options: carried into waivers as a budget to bid on
-     free agents with (blind bidding on waivers), or as part 3c's cash to trade with. Recommended: decide with part 3c.
+     free agents with (blind bidding on waivers), or as part 3c's cash to trade with. Recommended: decide with part 3c. (Taken
+     by part 3c, as a setting: `get.budget.left`, its item 8.)
   12. An auction the pool doesn't cover, or shared. Built: refused, "make it a salary cap" (the 9:10 PM decision: an auction needs
      castaways nobody else can have, and its shared version is a cap). Recommended: keep, as G2's check turns it into a cap with
      the reason as an assumption.

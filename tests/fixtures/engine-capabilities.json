@@ -1075,7 +1075,17 @@
           "id": "answer.trade",
           "what": "Trade (buy and sell castaways)",
           "step": "A10",
-          "note": "part 3c: buying and selling each week, on part 3b's prices"
+          "spec": {
+            "preset": "weekly-lineup",
+            "get": { "by": "draft", "each": 4, "order": "snake", "own": "exclusive", "budget": { "total": 100, "trade": {} } },
+            "count": { "start": 2 }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          },
+          "note": "a stock market (A10 part 3c): drafted under the budget, then after every episode sell one of yours at today's price and buy someone at theirs, prices from points so far by the game's rules; cash a ledger from the logs, nobody spending more than they have"
         },
         {
           "id": "answer.draw",
@@ -2707,10 +2717,16 @@
       },
       "words": "Stock market: buy and sell castaways each week.",
       "step": "A10",
-      "note": "part 3c: buying and selling each week, on part 3b's prices (a sale refills the budget; what someone gone home is worth)",
       "dials": [
         "answer"
-      ]
+      ],
+      "spec": {
+        "preset": "weekly-lineup",
+        "get": { "by": "draft", "each": 5, "order": "blind", "own": "shared", "budget": { "total": 100, "trade": {} } },
+        "count": { "start": 3 },
+        "rank": { "by": "worth" }
+      },
+      "note": "a stock market (A10 part 3c): everyone has 100 to buy a team, then buys and sells after every episode at prices that follow how each is doing (a sale refills their cash; someone gone home sells for nothing); the most worth wins, cash plus the team at today's prices"
     },
     {
       "id": "s23",

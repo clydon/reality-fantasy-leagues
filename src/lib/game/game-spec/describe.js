@@ -99,8 +99,9 @@ function changedPoints(points, own, moments) {
  *  (A9 part 2) is another game. */
 function nameOf(s) {
   const p = presetOf(s);
-  // A pool with lives ranked by who's still standing (A10 part 2) is still a Survival Pool.
-  const rank = p && (p.rank.by === s.rank.by || (s.score.by === 'survive' && s.rank.by === 'standing'));
+  // A pool with lives ranked by who's still standing (A10 part 2) is still a Survival Pool; a draft's stock market ranked by worth
+  // (part 3c) is still its draft's game.
+  const rank = p && (p.rank.by === s.rank.by || (s.score.by === 'survive' && s.rank.by === 'standing') || (s.get.by === 'draft' && s.rank.by === 'worth'));
   const same = p && p.get.by === s.get.by && countKind(p.count) === countKind(s.count) && p.score.by === s.score.by && rank && !s.score.reverse;
   return same ? PRESET_LABELS[s.preset] : null;
 }
@@ -140,7 +141,10 @@ function sentenceParts(s, w) {
     const budget = budgetParts(s);
     put(s.get.order === 'draw' ? `everyone gets ${s.get.each} drawn at random` : s.get.order === 'auction' ? `everyone ${budget ? `has ${budget.total} to bid` : 'bids'} on a team of ${s.get.each}` : `everyone drafts ${s.get.each}`, 'get');
     if (acrossOf(s)) put(` from across the ${w.group}s`, 'get');
-    if (budget && !budget.auction) put(` under a salary cap of ${budget.total}`, 'get');
+    // Part 3c: a stock market buys and sells when its waiver windows open.
+    if (budget && budget.trade && !budget.auction) put(` with ${budget.total} to spend`, 'get');
+    else if (budget && !budget.auction) put(` under a salary cap of ${budget.total}`, 'get');
+    if (budget && budget.trade) put(`, then buys and sells ${tradeWhen(s, w)}`, 'get');
     if (count === 'start') put(` and starts ${s.count.start} each ${w.part}`, 'count');
     // A9 part 2: a lineup's captain.
     if (count === 'start' && isObj(s.score.captain) && isNum(s.score.captain.times)) put(`, one of them a captain who scores ${timesWord(s.score.captain.times)}`, 'score');
@@ -215,7 +219,8 @@ function sentenceParts(s, w) {
       put(` Right on ${listOf(legs)} together: ${{ 2: 'double', 3: 'triple', 4: 'quadruple' }[p.times] || `${p.times} times`} the points.`, 'score');
     }
   }
-  const rank = { matchups: ' Played head to head.', categories: ' Ranked by category.', roto: ' Ranked roto-style.' }[s.rank.by];
+  // A10 part 3c: a stock market ranked by worth.
+  const rank = { worth: " Most worth wins: cash plus the team at today's prices.", matchups: ' Played head to head.', categories: ' Ranked by category.', roto: ' Ranked roto-style.' }[s.rank.by];
   if (rank) put(rank, 'rank');
   return parts;
 }
@@ -328,6 +333,33 @@ function groupSlotRules(s, w) {
   return out;
 }
 
+/** When a stock market trades (A10 part 3c), as its waiver windows open: "after every episode", "every 2 episodes", "when a
+ *  window opens". */
+function tradeWhen(s, w) {
+  const win = isObj(s.extras.waivers) && isObj(s.extras.waivers.windows) ? s.extras.waivers.windows : null;
+  if (!win || win.schedule === 'manual') return 'when a window opens';
+  return win.schedule === 'everyEpisode' ? `after every ${w.part}` : `every ${say(win.every)} ${w.parts}`;
+}
+/** How a stock market trades (A10 part 3c), a rule a line: the money left over, when trading opens and how much, what someone
+ *  gone home sells for, the fallback (keep what you have), whether two can hold the same one, and worth when it ranks by it. */
+function marketRules(s, b, w) {
+  const out = [];
+  const win = isObj(s.extras.waivers) && isObj(s.extras.waivers.windows) ? s.extras.waivers.windows : null;
+  const swaps = win ? win.swaps : 0;
+  if (b.auction) out.push(`After the auction, each ${w.castaway} is priced ${b.floor} to ${b.ceiling} by how they're doing, their points so far by this game's rules (the best costs most), and prices move after every ${w.part}.`);
+  out.push(b.left === 'lost'
+    ? `What you don't spend in the draft is lost: after it, you trade with what you sell for.`
+    : `What you don't spend in the draft is cash to trade with.`);
+  const when = tradeWhen(s, w);
+  const fee = b.trade.fee ? `, each trade costing ${b.trade.fee}` : '';
+  out.push(`${cap(when)}, until the next ${w.part} starts, sell one of yours at today's price and buy someone at theirs: ${swaps >= s.get.each ? 'as many as your team' : swaps === 1 ? 'one trade' : `up to ${say(swaps)} trades`} each time${fee}. What you sell for goes into your cash, and nobody spends more than they have.`);
+  if (isObj(s.extras.waivers) && s.extras.waivers.replace !== 'never') out.push(`Someone gone home sells for ${b.gone === 'last' ? 'what they cost when they went' : 'nothing'}, and you can buy someone in their place then too.`);
+  else out.push(`Someone gone home is worth ${b.gone === 'last' ? 'what they cost when they went' : 'nothing'}.`);
+  out.push(s.get.own === 'shared' ? `Anyone still in can be bought, by more than one of you.` : `You can buy only someone nobody holds.`);
+  out.push("Don't trade and you keep who you have.");
+  if (s.rank.by === 'worth') out.push(`Most worth wins: your cash plus your team at today's prices. Ties go to the most points.`);
+  return out;
+}
 /** A draft spread across the cast's groups (A10 part 3: get.across), or null. */
 const acrossOf = (s) => (s.get && s.get.by === 'draft' && isObj(s.get.across) ? s.get.across : null);
 /** How a draw and a spread draft work (A10 part 3), and a draft's prices (part 3b), a rule a line. */
@@ -340,10 +372,15 @@ function drawRules(s, w) {
     out.push(b.fallback === 'fill'
       ? `A team the bids didn't fill (or someone who didn't bid) is filled from who's left, at random, at ${b.floor} each.`
       : `A team the bids didn't fill stays short.`);
+  } else if (b && b.trade) {
+    out.push(`It's a stock market: everyone has ${b.total} to buy a team. Each ${w.castaway} costs ${b.floor} to ${b.ceiling} by how they're doing, their points so far by this game's rules (the best costs most), and prices move after every ${w.part}. Before anyone's scored, everyone costs the same.`);
+    out.push(`Your team costs no more than ${b.total} when you draft it, while anyone left would keep it within (if nobody would, you can still fill it, and start short).`);
   } else if (b) {
     out.push(`There's a salary cap of ${b.total}: each ${w.castaway} costs ${b.floor} to ${b.ceiling} by how they're doing, their points so far by this game's rules (the best costs most). Before anyone's scored, everyone costs the same.`);
     out.push(`Your team's prices add up to no more than the cap when you draft it and whenever you change it. Prices move after every ${w.part}: a team that goes over keeps its ${w.castaway}s, but a change can't take it further over. Someone gone home counts as ${b.gone === 'last' ? 'what they cost when they went' : 'nothing'}.`);
   }
+  // A10 part 3c: buying and selling each week.
+  if (b && b.trade) out.push(...marketRules(s, b, w));
   if (s.get.order === 'draw') {
     out.push(s.get.own === 'shared'
       ? `Nobody picks: when the draft starts, everyone is dealt ${say(s.get.each)} at random, each from a hat of their own, so the same ${w.castaway} can be on more than one team.`
@@ -398,7 +435,8 @@ function rulesOf(s, w) {
       rules.push('So they end on their place in the boot order: the last one standing carries you.');
       rules.push('No lineups to set. Just watch.');
     }
-    if (count === 'start' || count === 'best') {
+    // A10 part 3c: a stock market's moves are its trades (drawRules says them).
+    if ((count === 'start' || count === 'best') && !(budgetParts(s) || {}).trade) {
       const pickups = isObj(waivers) && waivers.replace !== 'never';
       const swaps = isObj(waivers) && isObj(waivers.windows) && waivers.windows.swaps > 0;
       if (pickups) rules.push(`Lose someone? Pick who comes in on waivers.${swaps ? ' Waiver windows let you swap someone too.' : ''}`);

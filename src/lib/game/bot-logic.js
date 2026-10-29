@@ -24,7 +24,7 @@ const Formats = require("./formats/index.js");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const {
-  Core, DraftLogic, BlindDraftLogic, AuctionLogic, BudgetLogic, PriceLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
+  Core, DraftLogic, BlindDraftLogic, AuctionLogic, BudgetLogic, PriceLogic, MarketLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
   EpisodeLogic, FinaleLogic, getLeagueType, rosterSize, inPlay, closedForPlay,
   currentEpisode, finalePredictionsAvailable, seasonWinner,
 } = StateLogic;
@@ -335,15 +335,24 @@ function waiverClaim(state, playerId, period) {
   const cap = owed.count + swapsLeft + 2;
   const pairs = [];
   const adds = new Set();
-  // A salary cap (step A10 part 3b): only pairs that keep the team within it (or no further over), at today's prices.
-  const prices = BudgetLogic.cap(state) === null ? null : PriceLogic.prices(state);
+  // A salary cap (step A10 part 3b): only pairs that keep the team within it (or no further over), at today's prices. A stock
+  // market (part 3c): only pairs their cash covers, so a swap buys whom they rate above what their sale brings in.
+  const prices = BudgetLogic.priced(state) ? PriceLogic.prices(state) : null;
   const push = (addId, dropId) => {
     if (prices && BudgetLogic.moveProblem(state, playerId, dropId, addId, prices)) return;
     if (!adds.has(addId) && adds.size >= cap) return;
     adds.add(addId);
     pairs.push({ addId, dropId });
   };
-  if (owed.count) ranked(state, playerId, offered, "value").slice(0, owed.count + 2).forEach((a) => owed.outIds.forEach((d) => push(a, d)));
+  // A stock market (part 3c): of those they rate, only the ones the sale pays for, the best of them (the best overall would be
+  // the dearest, refused for want of cash), so a castaway whose price has run ahead of how they rate them pays for one who hasn't.
+  const market = MarketLogic.on(state);
+  const affords = (a, d) => !market || !MarketLogic.moveProblem(state, playerId, d, a, prices);
+  if (owed.count) {
+    const reps = ranked(state, playerId, offered, "value");
+    if (market) owed.outIds.forEach((d) => reps.filter((a) => affords(a, d)).slice(0, owed.count + 2).forEach((a) => push(a, d)));
+    else reps.slice(0, owed.count + 2).forEach((a) => owed.outIds.forEach((d) => push(a, d)));
+  }
   if (swapsLeft > 0) {
     const level = levelOf(state, playerId);
     const r = ratings(state, level);
@@ -352,7 +361,7 @@ function waiverClaim(state, playerId, period) {
     ranked(state, playerId, mine, "value")
       .reverse()
       .slice(0, swapsLeft)
-      .forEach((drop) => best.filter((id) => r[id].value - r[drop].value > level.swap).slice(0, 3).forEach((a) => push(a, drop)));
+      .forEach((drop) => best.filter((id) => r[id].value - r[drop].value > level.swap && affords(id, drop)).slice(0, 3).forEach((a) => push(a, drop)));
   }
   return { pairs };
 }

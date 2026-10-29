@@ -513,6 +513,16 @@ class PickEmScoringStrategy {
     return 0;
   }
 }
+// The order a game's table ranks a score row in, as a key compared from its first number on (higher first, compareKeys): a
+// pool's last one standing (standingKey) or longest streak, then its points; a stock market ranked by worth (A10 part 3c), its
+// worth, then its points; anything else, its points. One definition for the engine's own sorts, the table (game-view.ts
+// tableOf) and the waivers' order by standings (Weekly Calls' and Weekly Bingo's tables rank by what's counted outside the state).
+function rankKey(state, r){
+  const g = gameOf(state);
+  if(g.get.by === 'pick') return g.rank.by === 'standing' ? PickEmScoringStrategy.standingKey(r) : [r.longestStreak || 0, r.total];
+  if(g.rank.by === 'worth' && MarketLogic.on(state)) return [r.worth || 0, r.total];
+  return [r.total];
+}
 // Weekly Calls (docs/PLAN-new-design.md step 12 part 2): a talk show's season game, scored from each person's calls
 // (Call it), which live in the episode_calls table, not in a league's state, as a couch's calls are one per person and
 // episode whatever game reads them. So in here everyone is level at 0; the server's game view counts the calls
@@ -740,6 +750,9 @@ class BlindDraftLogic {
   static reveal(state, picksByPlayer, revealedAt){
     if(BlindDraftLogic.isRevealed(state)) return false;
     let assigned = 0;
+    // A10 part 3c: under a salary cap, what each team cost at the reveal (a blind draft has no log; a stock market's cash reads it).
+    const prices = BudgetLogic.cap(state) === null ? null : PriceLogic.prices(state);
+    const paid = {};
     Object.keys(picksByPlayer).forEach(playerId => {
       if(!Core.getPlayer(state, playerId)) return; // seat removed between locking and reveal
       (picksByPlayer[playerId] || []).forEach(castawayId => {
@@ -748,10 +761,12 @@ class BlindDraftLogic {
         Core.addOwner(state, castawayId, playerId);
         c.acquiredVia = 'draft';
         assigned++;
+        if(prices) paid[playerId] = roundPoints((paid[playerId] || 0) + (prices.get(castawayId) || 0));
       });
     });
     if(!state.blindDraft) state.blindDraft = { lockedPlayerIds: [], revealedAt: null };
     state.blindDraft.revealedAt = revealedAt || new Date().toISOString();
+    if(prices) state.blindDraft.paid = paid;
     // Keeps isStarted() true and gives the same "picks made" figure the snake draft exposes. Not a
     // turn pointer here -- there are no turns to advance -- just a count of what landed.
     state.draftPicksMade = assigned;
@@ -898,7 +913,7 @@ class DrawLogic {
   static drawn(state){ return !!(state.draw && state.draw.at); }
   // Who draws whom from `seed`, changing nothing: { order: the seats in the order they're dealt to, teams: { playerId:
   // [castawayId] } in the order drawn, short: seats dealt fewer than `each` }.
-  static outcome(state, seed){
+  static outcome(state, seed, priced){
     const each = rosterSize(state);
     const shared = gameOf(state).get.own === 'shared';
     const shuffled = (ids, key) => [...ids].sort((a, b) => hashUnit(`${seed}|${key}|${a}`) - hashUnit(`${seed}|${key}|${b}`) || (a < b ? -1 : a > b ? 1 : 0));
@@ -906,7 +921,8 @@ class DrawLogic {
     const order = shuffled((state.players || []).filter(inLeagueRotation).map(p => p.id), 'seat');
     const cast = (state.castaways || []).filter(c => c.status === 'active').map(c => c.id).sort();
     const g = SpreadLogic.groupsNow(state);
-    const prices = BudgetLogic.cap(state) === null ? null : PriceLogic.prices(state);
+    // `priced`: a salary cap's prices when the caller read them already (draw records them in the log).
+    const prices = priced !== undefined ? priced : BudgetLogic.cap(state) === null ? null : PriceLogic.prices(state);
     const teams = Object.fromEntries(order.map(id => [id, []]));
     const common = shared ? null : shuffled(cast, 'hat');
     const hats = shared ? Object.fromEntries(order.map(id => [id, shuffled(cast, id)])) : null;
@@ -926,7 +942,9 @@ class DrawLogic {
   static draw(state, seed){
     if(!DrawLogic.ready(state)) return false;
     const s = seed || Core.uid('draw');
-    const out = DrawLogic.outcome(state, s);
+    // A10 part 3c: under a salary cap each one's price goes in the log, as a snake pick's does (a stock market's cash reads it).
+    const prices = BudgetLogic.cap(state) === null ? null : PriceLogic.prices(state);
+    const out = DrawLogic.outcome(state, s, prices);
     const shared = gameOf(state).get.own === 'shared';
     const at = new Date().toISOString();
     if(!Array.isArray(state.draftLog)) state.draftLog = [];
@@ -938,7 +956,7 @@ class DrawLogic {
         if(shared) Core.addOwner(state, cid, pid);
         else Core.setOwner(state, cid, pid);
         Core.getCastaway(state, cid).acquiredVia = 'draft';
-        state.draftLog.push({ n: ++n, playerId: pid, castawayId: cid, at, drawn: true });
+        state.draftLog.push(prices ? { n: ++n, playerId: pid, castawayId: cid, at, drawn: true, price: prices.get(cid) || 0 } : { n: ++n, playerId: pid, castawayId: cid, at, drawn: true });
       });
     }
     state.draftPicksMade = n;
@@ -1012,7 +1030,8 @@ class PriceLogic {
   // cap's gone rule (nothing, or what they cost going into the episode they went home in). Empty without a cap.
   static prices(state, through){
     const b = PriceLogic.config(state);
-    if(!b || b.auction) return new Map();
+    // A10 part 3c: an auction that trades (a stock market) prices from the data after its bids, as a cap does.
+    if(!b || (b.auction && !b.trade)) return new Map();
     const at = through == null ? PriceLogic.latest(state) : through;
     const number = new Map((state.episodes || []).map(e => [e.id, e.number]));
     const exitOf = c => (c.status === 'eliminated' ? number.get(c.exitEpisodeId) || 0 : null);
@@ -1046,8 +1065,11 @@ class PriceLogic {
 }
 
 class BudgetLogic {
-  // A salary cap's budget, or null (no cap: an auction's budget is spent in the auction).
+  // A salary cap's budget, or null (no cap: an auction's budget is spent in the auction). A stock market drafted under a cap (A10
+  // part 3c) has one at its draft too: a team costs no more than the budget it starts with.
   static cap(state){ return PriceLogic.capOn(state) ? PriceLogic.config(state).total : null; }
+  // Whether a change to a team is checked against prices: a salary cap's, or a stock market's cash (part 3c).
+  static priced(state){ return BudgetLogic.cap(state) !== null || MarketLogic.on(state); }
   static cost(ids, prices){ return roundPoints(ids.reduce((n, id) => n + (prices.get(id) || 0), 0)); }
   // `candidates` (castaway ids that could be taken now) that keep a team with `picked` within the cap, with room left to fill its
   // other places at the cheapest of the rest, in their order: all of them without a cap, or when none does (the cap never blocks
@@ -1105,6 +1127,8 @@ class BudgetLogic {
   // `addId`) takes it past the cap at today's prices, or null: within the cap, or no further over than it is (a team that went
   // over as its prices moved keeps its team; a change can't take it further over).
   static moveProblem(state, playerId, dropId, addId, prices){
+    // A10 part 3c: a stock market's moves are bought with cash, not held to a cap.
+    if(MarketLogic.on(state)) return MarketLogic.moveProblem(state, playerId, dropId, addId, prices);
     const cap = BudgetLogic.cap(state);
     if(cap === null) return null;
     const p = prices || PriceLogic.prices(state);
@@ -1121,6 +1145,95 @@ class BudgetLogic {
     }
     const c = Core.getCastaway(state, addId);
     return `${c ? c.name : 'They'} cost${c ? 's' : ''} ${p.get(addId) || 0}: your team would cost ${after}, and the cap is ${cap}`;
+  }
+}
+
+// ---------- MarketLogic: buying and selling each week (A10 part 3c: the spec's get.budget.trade, a stock market) ----------
+// "Stock market: buy and sell castaways each week" (docs/PLAN-start-a-game-gpt.md step A10 part 3c), on part 3b's prices: each
+// castaway's price is where they stand on points so far by the game's own rules (PriceLogic), moving with every episode's results.
+// Everyone starts with the budget and buys a team at the draft (a salary cap's draft, within the budget, or an auction's bids);
+// after it they trade in the waiver weeks (open after an episode's results until the next airs, closed while one is on): a
+// trade is one of the waivers' moves (a swap sells someone still in, a replacement someone gone home), selling at today's price
+// and buying at theirs, each paying the trade's fee; how often trading opens and how many trades a week are the waiver windows'.
+// Cash is never stored: it's a ledger worked out from the logs, the budget (or nothing, when what the draft left is lost) less
+// what the draft's log recorded each castaway at, plus what each move's log entry recorded it sold for, less what it paid and its
+// fee. So Undo last waiver run and the spoiler views take it back with the move. Its fallbacks, from the start: nobody spends
+// more than they have (a move that would take cash below nothing, or lower when it's already below, is refused, and a
+// replacement nobody can afford isn't filled: they hold who they have); someone who doesn't trade keeps what they have; someone
+// gone home sells for nothing or their last price (the budget's gone); whether two can hold the same castaway is the draft's
+// ownership. Worth (rank 'worth') is cash plus the team at today's prices.
+class MarketLogic {
+  static config(state){ const b = PriceLogic.config(state); return b && b.trade ? b : null; }
+  static on(state){ return Spec.marketOf(gameOf(state)); }
+  // What a player paid at the draft: the prices its log recorded (a snake's picks and a draw's under a cap, an auction's bids),
+  // and a blind draft's, recorded at its reveal (it has no log).
+  static draftPaid(state, playerId){
+    let n = 0;
+    (state.draftLog || []).forEach(e => { if(e.playerId === playerId && typeof e.price === 'number') n += e.price; });
+    const paid = state.blindDraft && state.blindDraft.paid;
+    if(paid && typeof paid[playerId] === 'number') n += paid[playerId];
+    return roundPoints(n);
+  }
+  // A player's cash: the budget less what the draft cost (nothing, when the draft's money left over is lost), and every move's
+  // sale less what it bought and its fee. Null without a market.
+  static cash(state, playerId){
+    const all = MarketLogic.cashAll(state, [playerId]);
+    return all ? all.get(playerId) : null;
+  }
+  // Everyone's cash (`playerIds`, every seat when left out) in one pass over the logs, as { playerId -> cash }, or null.
+  static cashAll(state, playerIds){
+    const b = MarketLogic.config(state);
+    if(!b) return null;
+    const kept = b.left !== 'lost';
+    const out = new Map((playerIds || (state.players || []).map(p => p.id)).map(id => [id, kept ? b.total : 0]));
+    if(kept){
+      (state.draftLog || []).forEach(e => { if(out.has(e.playerId) && typeof e.price === 'number') out.set(e.playerId, out.get(e.playerId) - e.price); });
+      const paid = state.blindDraft && state.blindDraft.paid;
+      if(paid) out.forEach((n, id) => { if(typeof paid[id] === 'number') out.set(id, n - paid[id]); });
+    }
+    ((state.midSeason && state.midSeason.log) || []).forEach(tx => {
+      if(out.has(tx.playerId)) out.set(tx.playerId, out.get(tx.playerId) + (tx.sold || 0) - (tx.paid || 0) - (tx.fee || 0));
+    });
+    out.forEach((n, id) => out.set(id, roundPoints(n)));
+    return out;
+  }
+  // What a move sells and buys at, at today's prices (`prices`: read once a pass), and its fee: what its log entry records.
+  static terms(state, dropId, addId, prices){
+    const b = MarketLogic.config(state);
+    const p = prices || PriceLogic.prices(state);
+    const out = { sold: dropId ? (p.get(dropId) || 0) : 0, paid: p.get(addId) || 0 };
+    if(b && b.trade.fee) out.fee = b.trade.fee;
+    return out;
+  }
+  // Why a player can't make a move (sell `dropId`, buy `addId`), or null: what they'd have after it is nothing or more, or no
+  // less than they have now (cash below nothing, only ever from a draft that went over or a result corrected after a move, can't
+  // go lower).
+  static moveProblem(state, playerId, dropId, addId, prices){
+    const drop = dropId ? Core.getCastaway(state, dropId) : null;
+    const t = MarketLogic.terms(state, drop && ownerListOf(drop).includes(playerId) ? dropId : null, addId, prices);
+    const before = MarketLogic.cash(state, playerId);
+    const after = roundPoints(before + t.sold - t.paid - (t.fee || 0));
+    if(after >= 0 || after >= before) return null;
+    const c = Core.getCastaway(state, addId);
+    return `${c ? c.name : 'They'} cost${c ? 's' : ''} ${t.paid}${t.fee ? `, and a trade ${t.fee}` : ''}: you'd have ${roundPoints(before + t.sold)} to spend`;
+  }
+  // Cash plus the team at today's prices (someone gone home by the budget's gone rule). `prices` and `cash`, when read once a pass.
+  static worth(state, playerId, prices, cash){
+    const p = prices || PriceLogic.prices(state);
+    return roundPoints((cash == null ? MarketLogic.cash(state, playerId) : cash) + BudgetLogic.cost(Core.ownedCastawayIds(state, playerId), p));
+  }
+  // The market as it stands, for the screens and the checks: { prices: { castawayId: price }, cash and worth: { playerId: n } },
+  // or null without one. On a viewer's copy (GhostLogic.viewFor) it's as of their mark.
+  static view(state){
+    if(!MarketLogic.on(state)) return null;
+    const prices = PriceLogic.prices(state);
+    const ids = (state.players || []).filter(p => !isGhost(p)).map(p => p.id);
+    const cash = MarketLogic.cashAll(state, ids);
+    return {
+      prices: Object.fromEntries(prices),
+      cash: Object.fromEntries(cash),
+      worth: Object.fromEntries(ids.map(id => [id, MarketLogic.worth(state, id, prices, cash.get(id))])),
+    };
   }
 }
 
@@ -2034,6 +2147,13 @@ class ActiveRosterEventScoringStrategy {
     // to how the main score is earned, so an Active Roster league can still use them.
     const bets = addSideLayers(state, results);
     Object.values(results).forEach(r=> r.total = roundPoints(r.locked + (bets? r.bonus:0) + r.finale));
+    // A10 part 3c: a stock market's cash and worth beside each row, ranked by worth when the game ranks by it (ties to the points).
+    if(MarketLogic.on(state)){
+      const prices = PriceLogic.prices(state);
+      const cash = MarketLogic.cashAll(state);
+      Object.values(results).forEach(r => { r.cash = cash.get(r.playerId); r.worth = MarketLogic.worth(state, r.playerId, prices, r.cash); });
+      if(gameOf(state).rank.by === 'worth') return Object.values(results).sort((a,b) => PickEmScoringStrategy.compareKeys(rankKey(state, b), rankKey(state, a)));
+    }
     return Object.values(results).sort((a,b)=>b.total-a.total);
   }
 }
@@ -3204,11 +3324,12 @@ class MidSeasonLogic {
       const list = MidSeasonLogic.priorityList(state);
       return [...playerIds].sort((a,b) => list.indexOf(a) - list.indexOf(b));
     }
+    // By the game's own standings (rankKey: its points, or a stock market's worth: A10 part 3c).
     const scores = ScoringLogic.compute(state);
-    const scoreOf = id => (scores.find(s => s.playerId === id) || { total: 0 }).total;
+    const keyOf = id => rankKey(state, scores.find(s => s.playerId === id) || { total: 0 });
     const dir = mode === 'leastPoints' ? 1 : -1;
     const tiebreak = MidSeasonLogic.reverseDraftOrder(state);
-    return [...playerIds].sort((a,b) => dir * (scoreOf(a) - scoreOf(b)) || tiebreak.indexOf(a) - tiebreak.indexOf(b));
+    return [...playerIds].sort((a,b) => dir * PickEmScoringStrategy.compareKeys(keyOf(a), keyOf(b)) || tiebreak.indexOf(a) - tiebreak.indexOf(b));
   }
   // ---- Active Roster's replenish threshold ----
   // The spec's waivers.short (settings.replenishAt): a roster down to this many castaways still in the game may replenish
@@ -3279,6 +3400,9 @@ class MidSeasonLogic {
     // `|| []`: league rows are read from Postgres without migrateLeagueState, so a league that
     // predates the log (and 0008's backfill) has no array to push onto yet.
     const tx = { id: Core.uid('tx'), at: new Date().toISOString(), episode: lastCompletedEpisode(state), ...entry };
+    // A10 part 3c: a stock market's move records what it sold for and paid, at today's prices, and its fee (MarketLogic.cash
+    // reads them; a caller that read the prices once a pass passes them in `entry`).
+    if(tx.paid === undefined && MarketLogic.on(state)) Object.assign(tx, MarketLogic.terms(state, tx.droppedCastawayId, tx.addedCastawayId));
     (state.midSeason.log = state.midSeason.log || []).push(tx);
     return tx;
   }
@@ -3477,7 +3601,7 @@ class WaiverLogic {
 
   // ---- The recommendation (PLAN-waivers-v2.md "Defaults") ----
   // Pure. { C: cast size, T: teams, R: roster size, S: starting spots (Classic: R), E: episodes, start,
-  // shared, type: 'classic-draft' | 'active-roster', feel }. null where there are no waivers (Eliminator
+  // shared, type: 'classic-draft' | 'active-roster', feel, market }. null where there are no waivers (Eliminator
   // Pool, shared Classic); { feasible: false, need, have } when the teams can't be drafted from the cast;
   // else { feasible: true, s, freeAgents, settings } with settings ready to write onto the league.
   // The thresholds (0.3, 1, the clamp) are first guesses: tune after a season.
@@ -3519,6 +3643,12 @@ class WaiverLogic {
       if(feel === 'competitive') X -= 1;
       waiverWindows = X <= 1 ? { schedule: 'everyEpisode', every: 2, swaps: 1 } : { schedule: 'every', every: X, swaps: 1 };
     }
+    // A10 part 3c: a stock market trades: a window after every episode, the whole team each, and someone gone home sold and
+    // replaced whenever, whatever the feel (game-spec marketWaivers).
+    if(o.market){
+      rule = 'always';
+      waiverWindows = { schedule: 'everyEpisode', every: 3, swaps: R };
+    }
     const waiverProcessHours = feel === 'casual' ? 48 : feel === 'competitive' ? (T <= 4 ? 12 : 24) : (T > 6 ? 48 : 24);
     return {
       feasible: true, s, freeAgents: shared ? null : C - T * R,
@@ -3558,6 +3688,7 @@ class WaiverLogic {
       shared: MidSeasonLogic.isShared(state),
       type: getLeagueType(state).id,
       feel: feel || WaiverLogic.config(state).waiverFeel,
+      market: MarketLogic.on(state),
     });
   }
   /** Writes the recommendation for `feel` onto the league. False when there's none (or it can't fit). */
@@ -3890,8 +4021,8 @@ class WaiverLogic {
     const parsed = WaiverLogic.pairsOf(state, period, playerId, input);
     const owed = WaiverLogic.replacementsOwed(state, playerId, period);
     const swapsLeft = WaiverLogic.swapsLeft(state, period, playerId);
-    // A10 part 3b: a salary cap's prices, read once a claim.
-    const prices = BudgetLogic.cap(state) === null ? undefined : PriceLogic.prices(state);
+    // A10 part 3b: a salary cap's prices, read once a claim (part 3c: a stock market's too).
+    const prices = BudgetLogic.priced(state) ? PriceLogic.prices(state) : undefined;
     if(parsed.legacy){
       // The pre-v2 shape keeps its own limits: a pickup list, and one add/drop of up to 3 adds.
       if(parsed.pickupIds.length){
@@ -3951,7 +4082,7 @@ class WaiverLogic {
     const swapsLeft = WaiverLogic.swapsLeft(state, period, playerId);
     const max = owed.count + swapsLeft + 2;
     const adds = new Set();
-    const prices = BudgetLogic.cap(state) === null ? undefined : PriceLogic.prices(state);
+    const prices = BudgetLogic.priced(state) ? PriceLogic.prices(state) : undefined;
     const keep = pairs.filter(x => {
       if(WaiverLogic.pairProblem(state, period, playerId, x, owed, swapsLeft, prices)) return false;
       if(!adds.has(x.addId) && adds.size >= max) return false;
@@ -3984,8 +4115,10 @@ class WaiverLogic {
     // A pair's kind is fixed for the run: nobody's status changes in it.
     const isOut = id => { const c = Core.getCastaway(state, id); return !!c && c.status !== 'active'; };
     const kindOf = x => (isOut(x.dropId) ? 'pickup' : 'addDrop');
-    // A10 part 3b: a salary cap's prices, read once (nothing's results change in a run).
-    const prices = BudgetLogic.cap(state) === null ? null : PriceLogic.prices(state);
+    // A10 part 3b: a salary cap's prices, read once (nothing's results change in a run). Part 3c: a stock market's, each move
+    // recording what it sold and bought at; a pass for want of cash says so ('cash').
+    const prices = BudgetLogic.priced(state) ? PriceLogic.prices(state) : null;
+    const market = MarketLogic.on(state);
     const run = {};
     orderBefore.forEach(pid => {
       const c = claimsByPlayer && claimsByPlayer[pid];
@@ -4001,7 +4134,7 @@ class WaiverLogic {
       if(!drop || !ownerListOf(drop).includes(pid)) return { silent: true };
       if(drop.status !== 'active' ? r.repLeft <= 0 : r.swapLeft <= 0) return { silent: true };
       if((shared || !justDropped.has(x.addId)) && MidSeasonLogic.isAvailableFor(state, x.addId, pid)){
-        return prices && BudgetLogic.moveProblem(state, pid, x.dropId, x.addId, prices) ? { castawayId: x.addId, reason: 'cap' } : null;
+        return prices && BudgetLogic.moveProblem(state, pid, x.dropId, x.addId, prices) ? { castawayId: x.addId, reason: market ? 'cash' : 'cap' } : null;
       }
       if(r.mine.has(x.addId)) return { castawayId: x.addId, reason: 'yours' };
       if(firstTaker[x.addId]) return { castawayId: x.addId, reason: 'ahead', byPlayerId: firstTaker[x.addId] };
@@ -4017,9 +4150,10 @@ class WaiverLogic {
           const why = blocked(pid, x);
           if(why){ if(!why.silent) r.why[i] = why; continue; }
           const kind = kindOf(x);
+          const m = market ? { ...meta, ...MarketLogic.terms(state, x.dropId, x.addId, prices) } : meta;
           const tx = kind === 'pickup'
-            ? MidSeasonLogic.applyPickup(state, pid, x.addId, x.dropId, meta)
-            : MidSeasonLogic.applyAddDrop(state, pid, x.dropId, x.addId, meta);
+            ? MidSeasonLogic.applyPickup(state, pid, x.addId, x.dropId, m)
+            : MidSeasonLogic.applyAddDrop(state, pid, x.dropId, x.addId, m);
           r.done.add(i);
           // Why the ones ranked above it for the same drop didn't go (each told once), and which choice
           // it was among that drop's adds.
@@ -4083,6 +4217,9 @@ class WaiverLogic {
     if(!inLeagueRotation(Core.getPlayer(state, playerId))) return 'Not in this league’s waivers';
     if(!addId || !MidSeasonLogic.isAvailableFor(state, addId, playerId)) return 'They’re not a free agent any more';
     const meta = { via: 'freeAgency', periodId: p.id, episode: p.episode, at: new Date(now || Date.now()).toISOString() };
+    // A10 part 3b and 3c: a salary cap's or a stock market's prices, read once (a market's move records what it sold and paid).
+    const prices = BudgetLogic.priced(state) ? PriceLogic.prices(state) : undefined;
+    const entryOf = (sold) => (MarketLogic.on(state) ? { ...meta, ...MarketLogic.terms(state, sold, addId, prices) } : meta);
     const owed = WaiverLogic.replacementsOwed(state, playerId, p);
     if(!dropId){
       if(!owed.count) return 'Choose who to drop';
@@ -4093,17 +4230,17 @@ class WaiverLogic {
     if(drop.status !== 'active'){
       if(!owed.count) return 'You can’t replace anyone this week';
       if(!owed.outIds.includes(drop.id)) return `${drop.name} can’t be replaced`;
-      // A10 part 3b: within a salary cap at today's prices, or no further over.
-      const over = BudgetLogic.moveProblem(state, playerId, drop.id, addId);
+      // A10 part 3b: within a salary cap at today's prices, or no further over; part 3c: a stock market's, within cash.
+      const over = BudgetLogic.moveProblem(state, playerId, drop.id, addId, prices);
       if(over) return over;
-      MidSeasonLogic.applyPickup(state, playerId, addId, drop.id, meta);
+      MidSeasonLogic.applyPickup(state, playerId, addId, drop.id, entryOf(drop.id));
       return null;
     }
     if(!WaiverLogic.swapsAllowed(p)) return 'No swaps this week';
     if(!WaiverLogic.swapsLeft(state, p, playerId)) return 'You’ve used this window’s swaps';
-    const over = BudgetLogic.moveProblem(state, playerId, dropId, addId);
+    const over = BudgetLogic.moveProblem(state, playerId, dropId, addId, prices);
     if(over) return over;
-    MidSeasonLogic.applyAddDrop(state, playerId, dropId, addId, meta);
+    MidSeasonLogic.applyAddDrop(state, playerId, dropId, addId, entryOf(dropId));
     return null;
   }
 
@@ -4139,12 +4276,19 @@ class WaiverLogic {
     let pool = MidSeasonLogic.availableFor(state, playerId).map(c => c.id).sort();
     if(!pool.length) return null;
     // A10 part 3b: a salary cap fills with someone who keeps the team within it (or no further over); with nobody who does, the
-    // cheapest, so nobody plays short (the cap's fallback: it never leaves a place empty).
-    if(BudgetLogic.cap(state) !== null){
+    // cheapest, so nobody plays short (the cap's fallback: it never leaves a place empty). Part 3c: a stock market fills only
+    // with someone they can afford; with nobody, nobody (its fallback: they hold who they have, and nobody spends what they
+    // haven't got).
+    if(BudgetLogic.priced(state)){
       const prices = PriceLogic.prices(state);
       const fits = pool.filter(id => !BudgetLogic.moveProblem(state, playerId, dropId, id, prices));
-      const cheapest = Math.min(...pool.map(id => prices.get(id) || 0));
-      pool = fits.length ? fits : pool.filter(id => (prices.get(id) || 0) === cheapest);
+      if(MarketLogic.on(state)){
+        if(!fits.length) return null;
+        pool = fits;
+      } else {
+        const cheapest = Math.min(...pool.map(id => prices.get(id) || 0));
+        pool = fits.length ? fits : pool.filter(id => (prices.get(id) || 0) === cheapest);
+      }
     }
     // A game scored by moments (a lineup, best ball) takes the free agent with the most points.
     if(gameOf(state).score.by === 'moments'){
@@ -5714,7 +5858,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, AuctionLogic, draftFits, draftFitsFor,
+  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

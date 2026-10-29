@@ -44,7 +44,8 @@
 //            them multiplied: "who goes home AND who wins immunity, triple if both"); sports: { by: 'stats', points: { HR:
 //            5 } } (the Sport's stat keys)
 //   rank     { by: 'total' } | { by: 'streak' } (longest, ties to the total) | { by: 'standing' } (A10 part 2, a pool with lives:
-//            last one standing, whoever's still in first, then whoever went out last; ties to the total, then lives left);
+//            last one standing, whoever's still in first, then whoever went out last; ties to the total, then lives left)
+//            | { by: 'worth' } (A10 part 3c, a stock market: cash plus the team at today's prices; ties to the total);
 //            sports: matchups | categories | roto
 //   ask      questions answered before their lock, each settled by data (A4: the question below). Beside a draft, its
 //            finale predictions (finaleQuestions); a game scored by answers, its own (Weekly Calls': the show's calls,
@@ -67,7 +68,7 @@ const VOCAB = {
   count: { start: 'now', all: 'now', pick: 'now', best: 'now' },
   'score.by': { moments: 'now', place: 'now', survive: 'now', lines: 'now', answers: 'now', stats: 'sports' },
   'score.means': { staysIn: 'now', scores: 'now' },
-  'rank.by': { total: 'now', streak: 'now', standing: 'now', matchups: 'sports', categories: 'sports', roto: 'sports' },
+  'rank.by': { total: 'now', streak: 'now', standing: 'now', worth: 'now', matchups: 'sports', categories: 'sports', roto: 'sports' },
   closes: { start: 'now', daily: 'sports', weekly: 'sports' },
   'pool.where': { stillIn: 'now', teams: 'sports', group: 'later' },
   'ask.answer': {
@@ -109,6 +110,10 @@ const VOCAB = {
   // fill (fill it from what's left at the lowest price, or leave it short).
   'get.budget.gone': { zero: 'now', last: 'now' },
   'get.budget.fallback': { fill: 'now', short: 'now' },
+  // A10 part 3c: buying and selling each week (get.budget.trade: a stock market, on part 3b's prices). What a draft's money left
+  // over does (an auction's, or a cap's): cash to trade with, lost (trading is a sale to buy), or a budget to bid on free agents
+  // with on waivers (blind bidding: no step yet).
+  'get.budget.left': { cash: 'now', lost: 'now', bids: 'later' },
 };
 
 // A question in `ask` (A4; A6 added who a moment happened to, groups, roles and questions about each person):
@@ -290,10 +295,12 @@ function ceilingFor(total, each, floor) {
 }
 
 /**
- * A draft's prices (A10 part 3b), as the engine plays them (state-logic.js PriceLogic, BudgetLogic, AuctionLogic) and the words
- * say them, read the one way from a whole spec: { auction (true: what a castaway costs is a bid; false: their price from the
- * data, a salary cap), total (everyone's), floor (the lowest price or bid), ceiling and gone (a cap's), fallback (an auction's) },
- * or null for a draft without them.
+ * A draft's prices (A10 part 3b), as the engine plays them (state-logic.js PriceLogic, BudgetLogic, AuctionLogic, MarketLogic) and
+ * the words say them, read the one way from a whole spec: { auction (true: what a castaway costs at the draft is a bid; false:
+ * their price from the data, a salary cap), total (everyone's), floor (the lowest price or bid), ceiling and gone (a cap's, and a
+ * market's after an auction: its prices from the data), fallback (an auction's), trade ({ fee }: part 3c's stock market, buying
+ * and selling each week at the data's prices; absent without it), left (what the draft's money left over does: a market's, or one
+ * said) }, or null for a draft without them.
  */
 function budgetParts(s) {
   const g = isObj(s) && isObj(s.get) ? s.get : null;
@@ -303,13 +310,19 @@ function budgetParts(s) {
   const total = isInt(b.total, 1) ? b.total : BUDGET.total;
   const floor = isInt(b.floor, 0) ? b.floor : BUDGET.floor;
   const out = { auction, total, floor };
+  const trade = isObj(b.trade) ? { fee: isInt(b.trade.fee, 0) ? b.trade.fee : TRADE.fee } : null;
   if (auction) out.fallback = own(VOCAB['get.budget.fallback'], b.fallback) ? b.fallback : AUCTION.fallback;
-  else {
+  if (!auction || trade) {
     out.ceiling = isInt(b.ceiling, 0) ? b.ceiling : ceilingFor(total, g.each, floor);
     out.gone = own(VOCAB['get.budget.gone'], b.gone) ? b.gone : CAP.gone;
   }
+  if (trade) out.trade = trade;
+  const left = own(VOCAB['get.budget.left'], b.left) ? b.left : trade ? MARKET_LEFT : null;
+  if (left) out.left = left;
   return out;
 }
+/** A stock market (A10 part 3c): a draft with a budget that trades. */
+const marketOf = (s) => !!(isObj(s) && isObj(s.get) && s.get.by === 'draft' && isObj(s.get.budget) && isObj(s.get.budget.trade));
 
 /**
  * A spread draft's bounds (A10 part 3: get.across) for a team of `each` over `groups` groups: no more than `most` from one,
@@ -372,6 +385,13 @@ const NO_WAIVERS = {
   freeAgency: true,
   autoFill: true,
 };
+/** A10 part 3c: a stock market's defaults when the spec leaves them out (the user's to set: Noticed). A trade costs nothing; a
+ *  draft's money left over is cash to trade with. Its trades are its waivers' moves, so a market whose spec leaves its waivers out
+ *  gets marketWaivers: a window after every episode, its whole team tradeable in each (a swap sells one still in), and someone gone
+ *  home sold and replaced whenever (replace 'always'); the rest as waivers off. */
+const TRADE = { fee: 0 };
+const MARKET_LEFT = 'cash';
+const marketWaivers = (each) => ({ ...NO_WAIVERS, replace: 'always', windows: { schedule: 'everyEpisode', every: 3, swaps: isInt(each, 1) ? each : 1 } });
 const DRAFT_ROOM = { at: null, timer: 0, away: 'wait' };
 const BETS = { points: 1 };
 
@@ -596,8 +616,15 @@ function fullSpec(spec) {
     if (isObj(s.get.budget)) {
       const b = s.get.budget;
       const auction = s.get.order === 'auction';
-      for (const [k, v] of Object.entries({ ...BUDGET, ...(auction ? AUCTION : CAP) })) if (b[k] === undefined) b[k] = v;
-      if (!auction && b.ceiling === undefined) {
+      // Part 3c: a market's trading says what it leaves out as the defaults (TRADE), and its money left over is cash; after an
+      // auction its prices come from the data, as a cap's do (CAP and the ceiling).
+      const trade = isObj(b.trade);
+      if (trade) {
+        for (const [k, v] of Object.entries(TRADE)) if (b.trade[k] === undefined) b.trade[k] = v;
+        if (b.left === undefined) b.left = MARKET_LEFT;
+      }
+      for (const [k, v] of Object.entries({ ...BUDGET, ...(auction ? AUCTION : {}), ...(!auction || trade ? CAP : {}) })) if (b[k] === undefined) b[k] = v;
+      if ((!auction || trade) && b.ceiling === undefined) {
         const c = ceilingFor(b.total, s.get.each, b.floor);
         if (c !== null) b.ceiling = c;
       }
@@ -628,7 +655,8 @@ function fullSpec(spec) {
   // while the spec still gets its castaways the preset's way, else off: a game with no preset starts with no side bets.
   const pe = fits ? p.extras : null;
   const dflt = {
-    waivers: waiversFit(s) ? NO_WAIVERS : null,
+    // A10 part 3c: a stock market trades on its waivers (marketWaivers).
+    waivers: waiversFit(s) ? (marketOf(s) ? marketWaivers(s.get.each) : NO_WAIVERS) : null,
     bets: pe ? pe.bets : null,
     calls: pe ? pe.calls : false,
     draft: isObj(s.get) && s.get.by === 'draft' ? DRAFT_ROOM : null,
@@ -664,7 +692,8 @@ function playsAs(s) {
   if (drafted && (none || finaleOf(s.ask))) {
     if (count === 'all' && by('score') === 'place' && by('rank') === 'total') return 'classic-draft';
     // Best ball (A9 part 2) is Weekly Lineup's game with no lineups: its best n count (state-logic.js's best ball variant).
-    if ((count === 'start' || count === 'best') && by('score') === 'moments' && by('rank') === 'total') return 'active-roster';
+    // A10 part 3c: a stock market can rank by worth.
+    if ((count === 'start' || count === 'best') && by('score') === 'moments' && (by('rank') === 'total' || (by('rank') === 'worth' && marketOf(s)))) return 'active-roster';
   }
   // A10 part 2: a pool with lives can rank by who's still standing.
   if (by('get') === 'pick' && s.get.each === 1 && s.get.repeat === 'cycle' && count === 'pick' && by('score') === 'survive' && (by('rank') === 'streak' || by('rank') === 'standing') && none) {
@@ -905,9 +934,11 @@ function specProblems(spec, ctx, opts) {
   if (score.by === 'lines' && get.by !== 'card') add('score.by', 'Lines are a bingo card\'s: get card');
   if (score.by === 'answers' && !(Array.isArray(s.ask) && s.ask.length)) add('ask', 'A game scored by answers asks at least one question');
   const rank = isObj(s.rank) ? s.rank : {};
-  if (!one('rank.by', rank.by)) add('rank.by', 'How it ranks: total, streak, standing, matchups, categories or roto');
+  if (!one('rank.by', rank.by)) add('rank.by', 'How it ranks: total, streak, standing, worth, matchups, categories or roto');
   if (rank.by === 'streak' && score.by !== 'survive') add('rank.by', 'A streak is a Survival Pool\'s');
   if (rank.by === 'standing' && !(score.by === 'survive' && score.lives !== undefined)) add('rank.by', 'Last one standing is a pool with lives: a wrong pick costs one, and at none you\'re out');
+  // A10 part 3c: worth is a stock market's: cash plus the team at today's prices.
+  if (rank.by === 'worth' && !marketOf(s)) add('rank.by', "Ranking by worth is a stock market's (cash plus your team at today's prices): a budget that trades");
   if (!one('closes', s.closes)) add('closes', 'Moves close at the start, daily or weekly');
 
   // ask
@@ -1121,7 +1152,8 @@ const KEYS = {
   get: { draft: ['by', 'each', 'order', 'own', 'groups', 'across', 'budget'], pick: ['by', 'each', 'repeat', 'second'], card: ['by'], none: ['by'], squares: ['by'] },
   groups: ['slots', 'own', 'swap', 'fallback', 'points'],
   across: ['of', 'then'],
-  budget: ['total', 'floor', 'ceiling', 'gone', 'fallback'],
+  budget: ['total', 'floor', 'ceiling', 'gone', 'fallback', 'trade', 'left'],
+  trade: ['fee'],
   second: ['fallback'],
   score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays'], stats: ['by', 'points'] },
   buyback: ['times', 'before', 'cost'],
@@ -1157,6 +1189,7 @@ function unknownKeys(s) {
       check(s.get.groups, KEYS.groups, 'get.groups');
       check(s.get.across, KEYS.across, 'get.across');
       check(s.get.budget, KEYS.budget, 'get.budget');
+      if (isObj(s.get.budget)) check(s.get.budget.trade, KEYS.trade, 'get.budget.trade');
     }
     if (s.get.by === 'pick') check(s.get.second, KEYS.second, 'get.second');
   }
@@ -1232,26 +1265,46 @@ function acrossProblems(a) {
  * to the budget) and gone: zero | last }. Everyone can afford a team at the lowest price (total at least floor × each). A salary
  * cap's prices are each castaway's points so far by the game's own rules, so it goes with a draft scored by moments (scored by
  * place, everyone still in has the same points, and nothing would cost more). Any draft order but an auction is a cap.
+ * A10 part 3c: trade { fee: 0 to the budget } makes it a stock market (buying and selling each week at the data's prices, a cap's
+ * or, after an auction, the same prices: so an auction that trades has a ceiling and gone too), scored by moments; left (what the
+ * draft's money left over does): cash (to trade with) or lost, only where it trades, or bids (a budget to bid on waivers with:
+ * no step yet, specWaitsFor).
  */
 function budgetProblems(b, s) {
-  if (!isObj(b)) return [['', 'A budget is { total, floor, ceiling, gone } (a salary cap) or { total, floor, fallback } (an auction)']];
+  if (!isObj(b)) return [['', 'A budget is { total, floor, ceiling, gone } (a salary cap) or { total, floor, fallback } (an auction), with trade to buy and sell each week']];
   const out = [];
   const auction = s.get.order === 'auction';
+  const trade = b.trade !== undefined;
   const each = isInt(s.get.each, 1) ? s.get.each : null;
   if (!(isInt(b.total, 1) && b.total <= MAX_BUDGET)) out.push(['.total', `Everyone's budget is 1 to ${MAX_BUDGET}`]);
   if (!isInt(b.floor, 0)) out.push(['.floor', 'The lowest price is 0 or more']);
   else if (isInt(b.total, 1) && each !== null && b.floor * each > b.total) out.push(['.floor', `${each} at the lowest price, ${b.floor} each, is more than the budget: nobody could fill a team`]);
   if (auction) {
-    if (b.ceiling !== undefined) out.push(['.ceiling', "An auction's prices are its bids: no highest price (a bid is up to what you can spend)"]);
-    if (b.gone !== undefined) out.push(['.gone', "What someone gone home counts for is a salary cap's (an auction's prices are what was paid)"]);
+    if (!trade && b.ceiling !== undefined) out.push(['.ceiling', "An auction's prices are its bids: no highest price (a bid is up to what you can spend)"]);
+    if (!trade && b.gone !== undefined) out.push(['.gone', "What someone gone home counts for is a salary cap's (an auction's prices are what was paid)"]);
     if (own(VOCAB['get.budget.fallback'], b.fallback) === undefined) out.push(['.fallback', "A team the bids didn't fill is filled from what's left at the lowest price, or left short: fill, or short"]);
-  } else {
-    if (b.fallback !== undefined) out.push(['.fallback', "Filling a team the bids didn't is an auction's (a salary cap's draft picks every place)"]);
+  } else if (b.fallback !== undefined) out.push(['.fallback', "Filling a team the bids didn't is an auction's (a salary cap's draft picks every place)"]);
+  if (!auction || trade) {
     if (!(isInt(b.ceiling, 0) && (!isInt(b.floor, 0) || b.ceiling >= b.floor) && (!isInt(b.total, 1) || b.ceiling <= b.total)) && (b.ceiling !== undefined || each !== null)) {
       out.push(['.ceiling', 'The highest price is from the lowest to the budget']);
     }
-    if (own(VOCAB['get.budget.gone'], b.gone) === undefined) out.push(['.gone', 'Someone gone home counts against the cap as nothing, or the price they went home at: zero, or last']);
-    if (!(isObj(s.score) && s.score.by === 'moments')) out.push(['', "A salary cap's prices are each castaway's points so far by the game's rules: a draft scored by moments (scored by place, everyone still in has the same points, so nothing would cost more)"]);
+    if (own(VOCAB['get.budget.gone'], b.gone) === undefined) out.push(['.gone', trade ? 'Someone gone home sells for nothing, or the price they went home at: zero, or last' : 'Someone gone home counts against the cap as nothing, or the price they went home at: zero, or last']);
+    if (!(isObj(s.score) && s.score.by === 'moments')) out.push(['', trade ? "A stock market's prices are each castaway's points so far by the game's rules: a draft scored by moments (scored by place, everyone still in has the same points, so nothing would cost more)" : "A salary cap's prices are each castaway's points so far by the game's rules: a draft scored by moments (scored by place, everyone still in has the same points, so nothing would cost more)"]);
+  }
+  if (trade) {
+    if (!isObj(b.trade)) out.push(['.trade', 'Trading is { fee }: what each trade costs, 0 for nothing']);
+    else if (!(isInt(b.trade.fee, 0) && (!isInt(b.total, 1) || b.trade.fee <= b.total))) out.push(['.trade.fee', 'A trade costs 0 to the budget']);
+    // Before anyone's scored everyone costs the middle price, so a team drafted then (every game made before its premiere) costs
+    // that many times it: within the budget, or everyone would start with less than nothing to trade with (an auction's bids
+    // are its own).
+    if (!auction && isInt(b.total, 1) && isInt(b.floor, 0) && isInt(b.ceiling, 0) && each !== null) {
+      const middle = Math.round((b.floor + b.ceiling) / 2);
+      if (middle * each > b.total) out.push(['.ceiling', `Before anyone's scored everyone costs ${middle}, so a team of ${each} would cost ${middle * each}, more than the ${b.total} everyone has: a highest price of at most ${ceilingFor(b.total, each, b.floor)} fits`]);
+    }
+  }
+  if (b.left !== undefined) {
+    if (own(VOCAB['get.budget.left'], b.left) === undefined) out.push(['.left', "The draft's money left over is cash to trade with, lost, or a budget to bid on waivers with: cash, lost or bids"]);
+    else if (b.left === 'cash' && !trade) out.push(['.left', "The draft's money left over is cash to trade with only where the game trades: without trading it's worth nothing after the draft (lost)"]);
   }
   return out;
 }
@@ -1310,6 +1363,8 @@ function waiverProblems(w, s) {
   const win = w.windows;
   if (!(isObj(win) && WINDOW_SCHEDULES.includes(win.schedule) && isInt(win.every, 2) && isInt(win.swaps, 0))) out.push(['.windows', 'Windows are { schedule: everyEpisode | every | manual, every: 2 or more, swaps: 0 or more }']);
   else if (roster !== null && win.swaps > roster) out.push(['.windows.swaps', `A window swaps at most the team: ${roster}`]);
+  // A10 part 3c: a stock market's trades are its windows' swaps.
+  else if (marketOf(s) && win.swaps === 0) out.push(['.windows.swaps', 'A stock market trades in its waiver windows: each needs at least one trade (a swap)']);
   if (!WAIVER_ORDERS.includes(w.order)) out.push(['.order', `The order is ${WAIVER_ORDERS.join(', ')}`]);
   if (!WAIVER_HOURS.includes(w.hours)) out.push(['.hours', `They run ${WAIVER_HOURS.join(', ')} hours before`]);
   if (typeof w.freeAgency !== 'boolean') out.push(['.freeAgency', 'freeAgency is true or false']);
@@ -1425,6 +1480,10 @@ function settleProblems(s, ctx, opts) {
     const more = `${ctx.couch} of you × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} is more than the ${ctx.pool} who can be drafted`;
     // A10 part 3b: an auction can't be shared; its shared version is a salary cap (prices from the data, no bidding).
     out.push(['get.own', get.order === 'auction' ? `${more}: an auction needs castaways nobody else can have, so make it a salary cap (prices from the data, no bidding), where two of you can have the same one` : `${more}: make it shared, so two of you can have the same one`]);
+  } else if (!opts.league && marketOf(s) && get.own === 'exclusive' && isInt(get.each, 1) && isInt(ctx.pool, 0) && isInt(ctx.couch, 1) && ctx.couch * get.each >= ctx.pool) {
+    // A10 part 3c: an exclusive stock market needs someone left over to buy, or nobody can ever trade (the count where it drafts;
+    // as people go home a replacement waits for someone free, as an exclusive draft's waivers do).
+    out.push(['get.own', `${ctx.couch} of you × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} takes all ${ctx.pool} who can be drafted, so nobody's left to buy: make it shared, so two of you can hold the same one${get.order === 'auction' ? ' (a salary cap: prices from the data, no bidding)' : ''}`]);
   }
   // A10 part 3: a draft spread across the cast's groups needs a show whose cast has groups, and a guy and a girl needs data
   // that says who is which: no show's cast or research records it, so nothing settles it. Exclusive, each group where it
@@ -1545,6 +1604,7 @@ function specWaitsFor(spec) {
   if (isObj(s.get)) val('get.by', 'get.by', s.get.by, 'Squares');
   if (isObj(s.get) && isObj(s.get.groups)) val('get.groups.fallback', 'get.groups.fallback', s.get.groups.fallback, "Starting the game's next stage when a slot's groups aren't sure");
   if (isObj(s.get) && isObj(s.get.across)) val('get.across.of', 'get.across.of', s.get.across.of, 'A draft of a guy and a girl each');
+  if (isObj(s.get) && isObj(s.get.budget)) val('get.budget.left', 'get.budget.left', s.get.budget.left, "Bidding on waivers with the draft's money left over");
   const count = countKind(s.count);
   if (count) val('count', 'count', count, 'Best ball');
   if (isObj(s.score)) val('score.by', 'score.by', s.score.by, 'Scoring by stats');
@@ -1569,7 +1629,8 @@ module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
   RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, poolParts,
-  DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts,
+  DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
+  marketWaivers, marketOf,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

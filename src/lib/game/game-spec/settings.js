@@ -179,7 +179,8 @@ function readSpec(st, copy) {
       get,
       count: best ? { best: start } : { start },
       score,
-      rank: { by: 'total' },
+      // A10 part 3c: a stock market ranked by worth (draftRank).
+      rank: { by: st.draftRank === 'worth' ? 'worth' : 'total' },
     });
   } else if (type === 'pickem') {
     // A10 part 2: a pool's lives (poolLives), buyback (poolBuyback, as the spec says it), mulligans (poolMulligans), second pick
@@ -312,6 +313,8 @@ function settingsOf(spec) {
   out.poolMulligans = pool && s.score.mulligans !== undefined ? s.score.mulligans : undefined;
   out.poolSecond = pool && isObj(s.get.second) ? clone(s.get.second) : undefined;
   out.poolRank = pool && s.rank.by === 'standing' ? 'standing' : undefined;
+  // A10 part 3c: a lineup's or best ball's stock market ranked by worth.
+  out.draftRank = type === 'active-roster' && s.rank.by === 'worth' ? 'worth' : undefined;
   if (type === 'questions') out.questions = clone(s.ask);
   out.lateLockHours = type === 'questions' && e.lateLock ? e.lateLock.hours : undefined;
   // A9: a game of questions' parlays; points per bingo line.
@@ -381,7 +384,7 @@ const PARTS = [
   { fields: ['startEpisode', 'startPhase', 'endEpisode'], read: (s) => s.span },
   { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget'], read: (s) => [s.get, s.count] },
   { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans'], read: (s) => s.score },
-  { fields: ['poolRank'], read: (s) => s.rank },
+  { fields: ['poolRank', 'draftRank'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },
   { fields: ['bonusEnabled', 'defaultBetPoints'], read: (s) => s.extras.bets },

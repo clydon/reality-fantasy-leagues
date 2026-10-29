@@ -299,10 +299,10 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
   const callsGame = !!type.hasCalls || !!type.hasBingo || !!type.hasQuestions;
   const calls = StateLogic.pickEmCallsOn(view) || callsGame;
   const bots = new Set(view.players.filter((p) => p.automated).map((p) => p.id));
-  // A pool with lives ranked by who's still standing (step A10 part 2) by the engine's own order.
-  const standing = pool && StateLogic.gameOf(view).rank.by === "standing";
-  const key = (r: ScoreRow): number[] =>
-    callsGame ? [right(r.playerId)] : standing ? StateLogic.PickEmScoringStrategy.standingKey(r) : pool ? [r.longestStreak ?? 0, r.total] : [r.total];
+  // The engine's own order (StateLogic.rankKey): a pool with lives by who's still standing (step A10 part 2), else its streak; a
+  // stock market ranked by worth (part 3c), cash plus the team at today's prices; else the points.
+  const worth = !pool && !callsGame && StateLogic.gameOf(view).rank.by === "worth";
+  const key = (r: ScoreRow): number[] => (callsGame ? [right(r.playerId)] : StateLogic.rankKey(view, r));
   const rows = [...StateLogic.computeScores(view)].sort((a, b) => StateLogic.PickEmScoringStrategy.compareKeys(key(b), key(a)));
   const keys = rows.map((r) => key(r).join(","));
   // Best ball (step A9 part 2) has a week as a lineup does; its "last" is who counted, as it has no lineups.
@@ -324,7 +324,7 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
       you,
       rank: `${tied ? "T" : ""}${first + 1}`,
       place: first + 1,
-      total: callsGame ? right(r.playerId) : pool ? (r.longestStreak ?? 0) : r.total,
+      total: callsGame ? right(r.playerId) : pool ? (r.longestStreak ?? 0) : worth ? (r.worth ?? 0) : r.total,
       week: pool ? (r.currentStreak ?? 0) : lastEp ? teamEpisodeBreakdown(view, lastEp.id, r.playerId).total : null,
       points: r.total,
       team: type.hasRoster ? teamOrder(r.roster).map((c) => c.id) : [],

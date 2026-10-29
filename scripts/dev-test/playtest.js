@@ -920,8 +920,11 @@ async function waivers(r, n) {
     .catch((e) => r.problems.push(`Episode ${n}: Waivers › Run now refused: ${e.message}`));
   const after = await stateOf(r.leagueId);
   const log = (after.midSeason?.log || []).filter((x) => x.periodId === period.id || x.episode === n);
-  out.ran = log.map((x) => `${nameIn(after, x.playerId)}: ${x.addedCastawayId ? `+${castName(after, x.addedCastawayId)}` : ""}${x.droppedCastawayId ? ` -${castName(after, x.droppedCastawayId)}` : ""}${x.via ? ` (${x.via})` : ""}`);
+  // A stock market (A10 part 3c): each trade's price, what it sold for, and the seat's cash after the week.
+  const priced = (x) => (typeof x.paid === "number" ? ` at ${x.paid}${x.droppedCastawayId ? `, sold at ${x.sold}` : ""}${x.fee ? `, fee ${x.fee}` : ""}` : "");
+  out.ran = log.map((x) => `${nameIn(after, x.playerId)}: ${x.addedCastawayId ? `+${castName(after, x.addedCastawayId)}` : ""}${x.droppedCastawayId ? ` -${castName(after, x.droppedCastawayId)}` : ""}${x.via ? ` (${x.via})` : ""}${priced(x)}`);
   out.moved = log.map((x) => ({ seat: seatOf(r, x.playerId)?.label ?? nameIn(after, x.playerId), addId: x.addedCastawayId || null, dropId: x.droppedCastawayId || null, via: x.via || null }));
+  if (S.MarketLogic.on(after)) out.cash = Object.fromEntries(r.seats.filter((seat) => pidOf(r, seat)).map((seat) => [seat.label, S.MarketLogic.cash(after, pidOf(r, seat))]));
   const still = wipedOut(r, after);
   out.backIn = out.wiped.filter((label) => !still.includes(label));
   return out;

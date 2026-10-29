@@ -777,6 +777,30 @@ Challenge 41, 40 and 39 63 of 63, Survivor 49 82 of 82, The Traitors 4 61 of 61)
   and move after each episode"), offer the cap where teams change each episode, and a draft after Episode 1 where a maker wants
   the draft itself to bite.
 
+## A10 part 3c: the stock market, replayed blind (2026-10-29)
+
+A10's part 3c built buying and selling each week on part 3b's prices (state-logic.js `MarketLogic`): everyone has the budget to
+buy a team at the draft, then sells one of theirs at today's price and buys someone at theirs in each waiver week, cash a ledger
+worked out from the logs, nobody spending more than they have. The blind replays played two such games on every season: an
+exclusive snake Weekly Lineup of four that trades (`answer.trade`) and a shared Weekly Lineup of five, 100 each, ranked by
+worth (s22). Every game ended on all five seasons (The Challenge 41, 40 and 39 65 of 65, Survivor 49 84 of 84, The Traitors 4
+63 of 63), with no problem in any game's moves and nobody's cash below nothing in any week.
+
+- **The trades happened where a castaway's price ran ahead of their form.** Only the tinkerer swaps by habit (the other three
+  seats only replace someone gone home, or nothing); it traded one to six times a season, selling high and buying in form
+  (Survivor 49's s22: Sophie Segreti sold at 21 for Rizo Velovic at 14, 7 in hand; Steven Ramm at 22 for Savannah Louie at 14;
+  Alex Moore at 39 for Sophi Balerdi at 35; then MC Chukwujekwu bought at 26 with Rizo's 18 and what it had saved). The first run,
+  before the seats learned to rank only what a sale pays for, barely traded: the best-rated free agents were the dearest.
+- **Nobody could replace someone who went home.** Every game is drafted before the premiere, when every price is the middle,
+  so a team costs exactly the budget and everyone starts with nothing left; someone gone home sells for nothing, and the
+  cheapest still in costs 1, so a seat that hadn't made money trading held its castaways out for the rest of the season (the
+  autofill fills only someone they can afford). The game keeps playing, as its fallback says, but the seats that don't trade
+  watch their teams empty (on The Challenge 41 and 40 the drive-by and the forgetter ended near or below zero).
+- **What it means:** the starting cash and what someone gone home sells for decide whether a market is playable for a couch
+  that doesn't trade. The plan's Noticed (A10 part 3c, items 1, 5 and 7) has the options for the user, with a recommendation:
+  leave some cash at the start (a market's highest price set so the draft leaves a tenth of the budget), so a replacement at
+  the lowest prices is always within reach.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

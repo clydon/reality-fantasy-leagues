@@ -20,7 +20,8 @@
 //   - at the end, the checks: every game ended, every score a finite number, nothing scored on an off or void group pick,
 //     no answer the app refused that it offered, no problem in the moves; a game with group slots (A10 part 1), each seat's
 //     empty or dropped slot picking from the groups on offer before each episode, nothing scored by a slot not held and no
-//     pick it offered refused.
+//     pick it offered refused; a stock market (A10 part 3c), each seat trading by habit in its waiver weeks (playtest.js's
+//     claims, within its cash), and nobody's cash below nothing.
 // Nothing asks a bot. The local bot's answers are F2's, kept beside the tapes; the stand-ins are marked as such in the record.
 //
 //   node scripts/dev-test/blind.js run [<show> <season>] [--only=3,7] [--through=N] [--keep]
@@ -269,6 +270,8 @@ function problemsOf(g) {
     // A10 part 1: a group slot scores only while it's held, and a pick the app offered is never refused.
     for (const [who, lines] of Object.entries(e.slots || {})) for (const l of lines) if (l.status !== "held" && l.points) out.push(`episode ${e.episode}: ${who}'s ${l.status} group slot scored`);
     for (const [who, did] of Object.entries(e.slotPicks || {})) for (const d of did) if (d.did === "refused") out.push(`episode ${e.episode}: ${who}'s group slot pick was refused: ${d.why}`);
+    // A10 part 3c: a stock market's cash never goes below nothing (every game here is drafted before the premiere, within its budget).
+    for (const [who, v] of Object.entries(e.cash || {})) if (!Number.isFinite(v) || v < 0) out.push(`episode ${e.episode}: ${who}'s cash is ${v}`);
   }
   if ((g.unsettled || []).length) out.push(`never settled: ${g.unsettled.join(", ")}`);
   for (const p of g.problems || []) out.push(p);
@@ -691,6 +694,7 @@ async function run(show, season, opts = {}) {
         e.played = true;
         const w = await H.waivers(r, ep);
         if (w) e.waivers = w.ran;
+        if (w && w.cash) e.cash = w.cash;
       } catch (err) {
         r.problems.push(`episode ${ep}: after the results: ${err.message}`);
       }

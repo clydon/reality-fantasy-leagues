@@ -267,6 +267,7 @@ export function passLine(state: LeagueState, p: WaiverPass, me: string | null, n
   if (p.reason === "ahead") return `${capFirst(playerName(state, p.byPlayerId, me, "you"))} got ${name(p.castawayId)} first`;
   if (p.reason === "yours" || p.reason === "pickupFirst") return `${name(p.castawayId)} came in for another spot`;
   if (p.reason === "cap") return `${name(p.castawayId)} would have taken your team past the cap`;
+  if (p.reason === "cash") return `${name(p.castawayId)} cost more than you had`;
   return `${name(p.castawayId)} was already gone`;
 }
 
