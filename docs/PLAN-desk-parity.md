@@ -6,9 +6,10 @@ History), but a site admin still has to go back to classic for about 25 things, 
 admin at all (only Settings › Back to the classic design, or typing `/admin`). Nothing in `src/new` calls `/api/admin/*`. This
 plan closes that gap, then retires classic's admin.
 
-**Status (2026-10-28, night): the build has begun: parts 1a and 1b are built** (1a: the page frame, Find › Browse and
-People, Settings regrouped, the Viewing as bar; 1b: a person's actions, Let in, Act as them, Name and email, Reset password,
-Stop them signing in and Let them back in, with migration 0420; their As built is under step 1); **1c is next.** Before it: **the design pass was done, and the
+**Status (2026-10-28, night): step 1 is built: parts 1a, 1b and 1c** (1a: the page frame, Find › Browse and People,
+Settings regrouped, the Viewing as bar; 1b: a person's actions, Let in, Act as them, Name and email, Reset password, Stop
+them signing in and Let them back in, with migration 0420; 1c: their couches and games, a seat's sheet, Hand on and Delete
+<name>'s account, no migration; their As built is under step 1); **part 2 (the Inbox) is next.** Before it: **the design pass was done, and the
 build planned.** Step 0 is done, and the user approved
 steps 1-7's screens (the site mock, `.impeccable/mocks/site/desk*.js` and `.css`, each step's group in Mock scenarios) with two
 changes and a standing rule: What's New becomes data, drafted on the desk (decision 8); no wiki, and so no paid Claude research
@@ -226,6 +227,76 @@ can change someone's site role or ban them; that stays out until it's needed.
    Auth's admin_session cookie, so you have to sign in again; for step 8 or the next session that touches the bar. (ag)
    Letting someone in doesn't tell them (no push or email; classic didn't either): they find out when they next open the app;
    for step 2, beside the Inbox's accounts waiting.
+   **As built, part 1c (2026-10-28):** **their couches and games** on their page (`src/new/desk/people.tsx`): each game row
+   (its role, a ⋯) opens its **seat's sheet** (`src/new/desk/seats.tsx SeatSheet`, built for step 6b's game page too, which
+   adds Act as them, Link another account and Take them out to it): the role (Commissioner, Game admin, Player; tier 1, a toast
+   with Undo), the only Commissioner's other roles and Unlink dimmed under "runs it alone. Hand it on first" (a game nobody else
+   plays says there's nobody to hand it to); **Unlink** (tier 1, Undo: the seat keeps its team and scores, playing with nobody
+   signed in; they stay on the couch, as the app's takeOut leaves them, and the Undo puts back how they were on it; refused for
+   the only Commissioner, which closes Noticed p); **Open the game**. A busy person (more than six games) sees a couch with more
+   than three folded to two, "N more on <couch>". Games on no couch say what they are (practice games, public pools, games
+   from before couches). Server: `src/lib/server/desk-seats.ts`, `POST /api/desk/seats/[leagueId]/[userId]` (`{ role }`,
+   `{ unlink: true }`: the seat route step 6b adds Link, Take out and Put back to). Each change is a line in the person's History
+   (`admin_changes` entity 'person', its Undo through desk-undo.ts's new 'seat' case) and one in the game's own Recent changes
+   (the role as Backstage writes it, `roleChange`; Unlink a 'member' line whose Undo is the desk's), in one transaction; the
+   desk's Undo marks the game's line undone too, and is refused once their role has moved on, someone else is in the seat or
+   the seat has changed. **Hand on** (`HandOnSheet`; `GET` and `POST /api/desk/hand-on`): games whose only Commissioner is
+   going, to whoever plays them and can sign in, most active first; one person for them all (only someone who plays every one;
+   the first tagged Most active) or game by game (Different people for different games, One person for all N). Tier 1: every
+   game and its lines in one transaction (refused whole when one can't be: they've left it, or run it already); a role line
+   in each game's Recent changes, "Handed R1, R2 and R3 on Race Night to dana" in the leaver's History (with the Undo, which is
+   refused when it would leave a game with nobody running it) and "Made Commissioner of ..." in each taker's; whoever ran them
+   stays one too; each new Commissioner is told, one notice for all their games (`push-events.ts notifyHandedOn`, type
+   `invite`: Settings' Invites and join requests; it opens the first game's Backstage). From a seat (its one game) and from the
+   Delete (every game they run alone that someone else plays); built for step 2's couch nobody runs and step 6's game page (no
+   `from`: the hand-on line goes on the couch's History). **Delete <name>'s account** (`DELETE /api/desk/people/[id]`,
+   `desk-person-actions.ts deleteAccount`), the last thing on the page, named (decision 4): off on your own page ("Not from the
+   desk: another site admin would have to") and another site admin's. Tier 3 with a hold (`HoldSheet` takes a body and a
+   subtitle now): what it does said first, as the mock's list (their seats that stay, marked as left; their seats that go;
+   games only they play, which go too; the couches they come off; invites they sent that nobody's used), then, while they run
+   games alone that someone else plays, "Nobody else runs ... Hand them on first, or <couch> comes to your Inbox" with Hand
+   them on, and once handed, who runs them now; Leave them waiting (someone waiting) or Stop them signing in instead (anyone
+   else; nothing instead for someone stopped). It stops them signing in first (signed out, "Being deleted"), lets each seat go
+   as the app's takeOut does (`freeSeat`, taken out of `takeOut` in backstage-members.ts and shared: after a draft the seat
+   stays in the standings, disabled; before one, or in a game with no draft, it goes), each with a tier 3 line in the game's
+   Recent changes and no Undo; deletes the games only they play (their practice games; not a season's public pool), each with
+   a line on its couch's History; then the account (the database's cascades take their place on each couch, follows, ratings,
+   settings and pending invites; their messages stay under their name), hands a couch they started to whoever's next
+   (`ensureOwner`) and removes a couch left with nobody and no games. Stopped partway, it says so ("Delete again finishes
+   it"). Then People, with them off the trail and Recently opened (`trail.ts forgetDeskPage`), and "Deleted kat's account".
+   The waiting panel's "or delete the account at the bottom of this page" is back. Two guards elsewhere for an account that's
+   gone: a deleted game brought back leaves out its membership (`end-game.ts restoreGame` failed on the foreign key) and
+   Recent changes' restore of someone taken out says "Their account was deleted" (`league-changes.ts restoreMember`).
+   `/code-review` found the delete and the hand-on each committing game by game (a failure partway left games changed with no
+   History line or Undo), orphaned games and couches, the list-joining with commas inside, the hand-on sheet losing its picks on
+   a refetch and wording that didn't match what happens: all fixed. Check: `check-desk-people.js` 249 PASS at 390 (a seat's
+   role and Unlink with their lines, Undos and refusals through the API, Hand on and its Undo and the bell, a Delete; then the
+   seat's sheet run alone and not, Unlink and its Undo, pri's folded couch, pri's Delete with Hand them on game by game and the
+   hold, and what's left after: R1's seat kept and disabled, R2's and the pools' gone, the practice game gone, Race handed to
+   c13); check-new-settings 111, check-classic-admin all PASS, unit tests 837; check-new-desk without its rulebook section
+   passes but for (ab)'s "every league renames him".
+   **Left behind or changed from classic, and why (decision 10):** classic's delete (`users/[userId]` DELETE) disabled every
+   seat in every game (`StateLogic.disablePlayer`) and called Better Auth's `removeUser`: the desk lets each seat go as the
+   app's own takeOut does (a seat stays only where the game has drafted, as when someone leaves, so a draft never waits on a
+   dead seat), deletes the games nobody else can play, passes on a couch they started, and logs a line in each game; it deletes
+   the user row itself, in a transaction (as 1b writes Better Auth's columns), since `removeUser` runs nothing the cascades
+   don't. Classic's `users/[userId]/leagues` read is the person's own read now (each seat's role, run alone, others in it,
+   drafted). Classic's role change (the memberships POST, an upsert) and unlink (memberships DELETE, then `leftLeague`'s prune)
+   wrote no History or Recent changes and had no Undo; its unlink had no last-Commissioner guard (Noticed p) and took them off
+   the couch, where the desk's leaves them on it, as the app's takeOut does. Classic's link (the upsert with a player) is
+   step 6b's. **Open the game** opens the game's couch page ("On <couch>'s page: who plays it and who runs it") until step 6a
+   gives games a page of their own; 6a points it there with the mock's line. From the mock: the Delete row's line says what
+   happens as it is ("1 seat stays, 7 go"; the mock always said "their seats stay, marked as left"); the sheet has the lines the
+   mock didn't need (seats that go, games only they play, invites nobody's used); a game nobody else plays has nobody to hand
+   it to, said on its seat's sheet.
+   **Noticed, not fixed (1c):** (ah) a deleted game (restorable for 30 days) keeps its people's memberships in its Undo, not the
+   table, so deleting an account doesn't let that seat go: brought back, the game has their seat playing with nobody signed in
+   (an empty seat: step 6b's Link an account or Remove the seat) and maybe nobody running it (the Inbox's couch nobody runs);
+   for step 6a or 6b. (ai) The couch page's "Hand it to ..." (`desk-couches.ts handCouchGame`) is the old way: no Undo, no
+   notice, a line on the couch only; step 2's couch nobody runs moves it onto `HandOnSheet` (no `from`) and handCouchGame goes.
+   (aj) Deleting an account ends a watch together they started for everyone in it (`watch_sessions.started_by` cascades); short
+   lived, so the sheet doesn't say it. (ak) Four small `tx` helpers (desk-person-actions, desk-seats, couches, roles) do one
+   thing; one in db.ts some day, for whoever next touches it.
 
 **The desk's pages and how they link** (mocked 2026-10-28 at the user's ask, `desk-pages.js`; each step builds its own page's
 actions, but the shape and links are set here). Every page: a lower third naming it, a facts line, **Part of** (what it

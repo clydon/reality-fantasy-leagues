@@ -8,6 +8,7 @@ import { restoreSeasonBot } from "./desk-bot";
 import { restoreCastaway, restoreGroup, setCastawayLock } from "./desk-cast";
 import { restoreFact } from "./desk-facts";
 import { restorePerson } from "./desk-person-actions";
+import { restoreSeat } from "./desk-seats";
 import { restoreReview, restoreTemplateRow } from "./desk-library";
 import { restoreLive, undoRulebook, writePhase } from "./desk-rulebooks";
 
@@ -46,6 +47,9 @@ export async function undoDesk(user: SessionUser, changeId: string): Promise<{ t
       break;
     case "person":
       await restorePerson(c.entity_id, c.id, u);
+      break;
+    case "seat":
+      await restoreSeat(user, c.id, u);
       break;
     case "rulebookBase":
     case "rulebookEdit":

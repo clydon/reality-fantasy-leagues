@@ -18,3 +18,7 @@ const GAME_NAMES: Record<string, string> = {
 export function gameName(leagueTypeId: string | null | undefined): string {
   return GAME_NAMES[leagueTypeId || "classic-draft"] ?? "Outlast";
 }
+
+/** A league's season by name ("Survivor 51"), as SQL over `leagues l` (null for a league not in the catalog). */
+export const LEAGUE_SEASON_NAME = `(SELECT COALESCE(ss.name, s.name || ' ' || ss.season_number) FROM shows s JOIN show_seasons ss ON ss.show_id = s.id
+  WHERE s.slug = l.state->'settings'->>'showId' AND ss.season_number::text = l.state->'settings'->>'wikiSeason')`;

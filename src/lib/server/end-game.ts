@@ -170,8 +170,13 @@ export async function restoreGame(client: PoolClient, leagueId: string, undo: Ga
   const { rows } = await client.query("SELECT deleted_at FROM leagues WHERE id = $1 FOR UPDATE", [leagueId]);
   if (!rows.length) throw new HttpError(404, "That game is gone for good");
   if (!rows[0].deleted_at) throw new HttpError(409, "It's back already");
+  // Someone whose account was deleted meanwhile (the desk's Delete) doesn't come back: their seat waits for an account.
   for (const m of undo.memberships) {
-    await client.query("INSERT INTO league_memberships SELECT * FROM json_populate_record(NULL::league_memberships, $1::json) ON CONFLICT DO NOTHING", [JSON.stringify(m)]);
+    await client.query(
+      `INSERT INTO league_memberships SELECT r.* FROM json_populate_record(NULL::league_memberships, $1::json) r
+        WHERE EXISTS (SELECT 1 FROM "user" u WHERE u.id = r.user_id) ON CONFLICT DO NOTHING`,
+      [JSON.stringify(m)]
+    );
   }
   const { rows: group } = undo.groupId ? await client.query("SELECT 1 FROM league_groups WHERE id = $1", [undo.groupId]) : { rows: [] };
   await client.query("UPDATE leagues SET deleted_at = NULL, deleted_by = NULL, group_id = $2, group_position = $3, updated_at = now() WHERE id = $1", [

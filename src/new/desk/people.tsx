@@ -2,48 +2,30 @@
 
 import { useEffect, useState, type ComponentProps, type ReactNode } from "react";
 import { useSearchParams } from "next/navigation";
-import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
-import { ArrowDownUp, Ban, ChevronRight, Copy, Eye, KeyRound, Lock, Mail, RotateCcw, Search, Users, Zap } from "lucide-react";
+import { keepPreviousData, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
+import { ArrowDownUp, Ban, Check, ChevronRight, Copy, Ellipsis, Eye, KeyRound, Lock, Mail, RotateCcw, Search, Users, Zap } from "lucide-react";
 import { colourOf } from "@/lib/people";
-import { NavLink } from "../nav";
+import { NavLink, useNav } from "../nav";
 import { isUsername, USERNAME_RULE } from "@/lib/usernames";
 import { paths } from "../routes";
 import { BACK_FROM_ACTING } from "../session";
 import { Avatar } from "../ui/bars";
+import { HoldSheet } from "../ui/guards";
 import { Btn, EmptyState } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
-import { deskGet, deskSend, useAfterDesk, useDesk, type DeskPerson, type PeopleFilter, type PeopleList, type PeopleSort, type PersonRow } from "./data";
-import { DeskHeader, DeskRow, Facts, IconLead, LatestHistory, LowerThird, Section } from "./parts";
+import { deskGet, deskSend, useAfterDesk, useDesk, type DeskPerson, type DeskSeatGame, type PeopleFilter, type PeopleList, type PeopleSort, type PersonRow } from "./data";
+import { agoOf, dateOf, DeleteRow, DeskHeader, DeskRow, Facts, IconLead, LatestHistory, LowerThird, Section, useChangeToast } from "./parts";
+import { andList, HandOnSheet, ROLE_TITLE, SeatSheet, type DeskSeat, type Handed } from "./seats";
+import { forgetDeskPage } from "./trail";
 
 // Find › People (docs/PLAN-desk-parity.md step 1; the mock's desk.js dkPeople): everyone, searched by name, username or
 // email; Everyone · Waiting · Site admins (and Can't sign in while anyone can't), each with its count; newest, last active
 // or name; 25 at a time with Show 25 more; Let in on a waiting row. The search, filter and sort live in the address
 // (replaced, not pushed), so Back from a person comes back to the list as it was. A person's page and its actions (part
-// 1b): Let in, Act as them, Name and email, Password, Signing in. Server: src/lib/server/desk-people.ts (reads) and
-// desk-person-actions.ts (the actions).
-
-/** A desk change's toast, with Undo when it has one (History's Undo, through the change's id). */
-export function useChangeToast() {
-  const after = useAfterDesk();
-  return (text: string, changeId?: string | null) =>
-    toast(
-      text,
-      changeId
-        ? {
-            undo: async () => {
-              try {
-                await deskSend(`/changes/${changeId}/undo`, {});
-                await after();
-                toast("Undone");
-              } catch (e) {
-                toast.quiet((e as Error).message);
-              }
-            },
-          }
-        : {}
-    );
-}
+// 1b): Let in, Act as them, Name and email, Password, Signing in; their couches and games, each opening its seat's sheet
+// (part 1c: seats.tsx), and Delete <name>'s account, last (tier 3), handing on first the games they run alone. Server:
+// src/lib/server/desk-people.ts (reads), desk-person-actions.ts (the actions and the Delete) and desk-seats.ts (a seat).
 
 /** Let in (tier 1): someone waiting can play at once; the toast's Undo puts them back on the list. */
 export function useLetIn() {
@@ -95,25 +77,6 @@ const SORTS: [PeopleSort, string][] = [
 const AMONG: Partial<Record<PeopleFilter, string>> = { waiting: "the people waiting", admins: "site admins", stopped: "people who can't sign in" };
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-
-/** "now", "12 minutes ago", "2 hours ago", "yesterday", "6 days ago", else "Oct 9". */
-export function agoOf(iso: string | null, now = Date.now()): string {
-  if (!iso) return "never";
-  const m = Math.max(0, Math.round((now - Date.parse(iso)) / 60000));
-  if (m < 2) return "just now";
-  if (m < 60) return `${m} minutes ago`;
-  if (m < 120) return "an hour ago";
-  if (m < 1440) return `${Math.floor(m / 60)} hours ago`;
-  if (m < 2880) return "yesterday";
-  if (m < 10080) return `${Math.round(m / 1440)} days ago`;
-  return dateOf(iso);
-}
-
-/** "Oct 9" (this year), else "Oct 9, 2025". */
-export function dateOf(iso: string, now = new Date()): string {
-  const d = new Date(iso);
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(d.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }) });
-}
 
 /** The small tags beside a name (the mock's .dk-t): You or Site admin, Waiting, Can't sign in. */
 export function PersonTags({ p }: { p: Pick<PersonRow, "you" | "admin" | "waiting" | "stopped"> }) {
@@ -303,19 +266,33 @@ function PersonListRow({ p, term }: { p: PersonRow; term: string }) {
 
 // ---------- a person ----------
 
-const ROLE: Record<string, string> = { commissioner: "Commissioner", admin: "Game admin", member: "Player" };
+/** "Practice games and public pools": what a person's games on no couch are. */
+function noCouchLine(games: DeskSeatGame[]): string {
+  const kinds = [
+    games.some((g) => g.solo === "practice") && "practice games",
+    games.some((g) => g.solo === "public") && "public pools",
+    games.some((g) => !g.solo) && "games from before couches",
+  ].filter(Boolean) as string[];
+  const line = andList(kinds);
+  return line.charAt(0).toUpperCase() + line.slice(1);
+}
 
 /**
  * A person (the mock's dkPerson), in the page frame: who they are as a lower third, when they joined and were last active,
  * whether they're waiting (Let them in) or can't sign in (Let them back in), Act as them, their account (Name and email,
- * Password, Signing in), their couches with the games they have a seat in there and each seat's role, and History. A
- * seat's sheet and the Delete, last, come with part 1c.
+ * Password, Signing in), their couches with the games they have a seat in there and each seat's role (each opens its
+ * seat's sheet; a busy person's couches fold to two games until opened), History, and Delete <name>'s account, last.
  */
 export function PersonPage({ id }: { id: string }) {
   const q = useDesk<DeskPerson>(`/people/${id}`);
   const letIn = useLetIn();
-  const [sheet, setSheet] = useState<"act" | "account" | "password" | "signing" | null>(null);
+  const [sheet, setSheet] = useState<"act" | "account" | "password" | "signing" | "delete" | null>(null);
   const [busy, setBusy] = useState(false);
+  const [seat, setSeat] = useState<DeskSeat | null>(null);
+  const [handOn, setHandOn] = useState<{ games: { leagueId: string; name: string; couch: string | null }[]; deleting: boolean } | null>(null);
+  // Who took which games this visit (the Delete's "dana runs ... now").
+  const [handed, setHanded] = useState<Handed[]>([]);
+  const [unfolded, setUnfolded] = useState<string[]>([]);
   const name = q.data?.name;
   // Back from acting as them (the Viewing as bar's Return, a full load): it's in their History.
   useEffect(() => {
@@ -393,7 +370,7 @@ export function PersonPage({ id }: { id: string }) {
             >
               Let {p.name} in
             </Btn>
-            <small className="mt-2.5 block text-[13px] leading-snug text-muted-foreground">Not someone you know? Leave them waiting.</small>
+            <small className="mt-2.5 block text-[13px] leading-snug text-muted-foreground">Not someone you know? Leave them waiting, or delete the account at the bottom of this page.</small>
           </StatePanel>
         </Section>
       )}
@@ -458,33 +435,67 @@ export function PersonPage({ id }: { id: string }) {
       <Section title="Couches and games" aside={games || couches ? `${couches ? plural(couches, "couch", "couches") : "no couch"} · ${plural(games, "game", "games")}` : undefined}>
         {p.couches.length ? (
           <div data-person-couches className="border-b border-border">
-            {p.couches.map((c) => (
-              <div key={c.id ?? "none"} data-person-couch={c.name} className="border-t border-border first:border-t-0">
-                {c.id ? (
-                  <DeskRow
-                    href={paths.deskItem("couch", c.id)}
-                    lead={<IconLead icon={Users} />}
-                    title={c.name}
-                    line={`${c.role === "owner" ? "Started it" : c.role === "seat" ? "A seat here, not on the couch" : "On it"} · ${plural(c.people, "person", "people")}`}
-                    data="couch"
-                  />
-                ) : (
-                  <DeskRow lead={<IconLead icon={Users} />} title="On no couch" line="Games from before couches" data="couch" />
-                )}
-                {c.games.map((g) => (
-                  <div key={g.leagueId} data-person-game={g.name} className="ml-[52px] flex min-h-[54px] items-center gap-2.5 border-t border-border py-2">
-                    <span className="min-w-0 flex-1">
-                      <b className="block truncate text-[15px] font-semibold">{g.name}</b>
-                      <small className="block truncate text-[12.5px] text-muted-foreground">
-                        {g.game}
-                        {g.season ? ` · ${g.season}` : ""}
-                      </small>
-                    </span>
-                    <span className={`whitespace-nowrap text-[13px] font-semibold ${g.role === "member" ? "text-muted-foreground" : ""}`}>{ROLE[g.role] ?? g.role}</span>
-                  </div>
-                ))}
-              </div>
-            ))}
+            {p.couches.map((c) => {
+              const key = c.id ?? "none";
+              // A busy person (more than six games): a couch with more than three shows two until it's opened.
+              const fold = games > 6 && c.games.length > 3 && !unfolded.includes(key);
+              return (
+                <div key={key} data-person-couch={c.name} className="border-t border-border first:border-t-0">
+                  {c.id ? (
+                    <DeskRow
+                      href={paths.deskItem("couch", c.id)}
+                      lead={<IconLead icon={Users} />}
+                      title={c.name}
+                      line={`${c.role === "owner" ? "Started it" : c.role === "seat" ? "A seat here, not on the couch" : "On it"} · ${plural(c.people, "person", "people")}`}
+                      data="couch"
+                    />
+                  ) : (
+                    <DeskRow lead={<IconLead icon={Users} />} title="On no couch" line={noCouchLine(c.games)} data="couch" />
+                  )}
+                  {(fold ? c.games.slice(0, 2) : c.games).map((g) => (
+                    <button
+                      key={g.leagueId}
+                      type="button"
+                      data-person-game={g.name}
+                      aria-label={`${p.name} in ${g.name}${g.season ? ` on ${g.season}` : ""}: ${ROLE_TITLE[g.role]}`}
+                      onClick={() =>
+                        setSeat({
+                          leagueId: g.leagueId,
+                          game: g.name,
+                          season: g.season ? `${g.game} · ${g.season}` : g.game,
+                          couch: c.id ? { id: c.id, name: c.name } : null,
+                          user: { id: p.id, name: p.name },
+                          role: g.role,
+                          alone: g.alone,
+                          others: g.others,
+                        })
+                      }
+                      className="nd-press ml-[52px] flex min-h-[54px] w-[calc(100%-52px)] items-center gap-2.5 border-t border-border py-2 text-left"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <b className="block truncate text-[15px] font-semibold">{g.name}</b>
+                        <small className="block truncate text-[12.5px] text-muted-foreground">
+                          {g.game}
+                          {g.season ? ` · ${g.season}` : ""}
+                        </small>
+                      </span>
+                      <span className={`whitespace-nowrap text-[13px] font-semibold ${g.role === "member" ? "text-muted-foreground" : ""}`}>{ROLE_TITLE[g.role]}</span>
+                      <Ellipsis className="size-[18px] flex-none text-muted-foreground" aria-hidden />
+                    </button>
+                  ))}
+                  {fold && (
+                    <button
+                      type="button"
+                      data-person-unfold={c.name}
+                      onClick={() => setUnfolded((u) => [...u, key])}
+                      className="ml-[52px] flex min-h-[54px] w-[calc(100%-52px)] items-center border-t border-border text-left text-[14px] font-bold underline decoration-input underline-offset-[3px]"
+                    >
+                      {c.games.length - 2} more on {c.name}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <p className="rounded-[4px] bg-card p-3.5 text-[14px] leading-snug text-muted-foreground">
@@ -493,7 +504,50 @@ export function PersonPage({ id }: { id: string }) {
         )}
       </Section>
       <LatestHistory lines={p.history} />
+      {p.you ? (
+        <DeleteRow data="person" off title="Delete your account" line="Not from the desk: another site admin would have to" />
+      ) : p.admin ? (
+        <DeleteRow data="person" off title={`Delete ${p.name}'s account`} line="Not another site admin's account" />
+      ) : (
+        <DeleteRow data="person" title={`Delete ${p.name}'s account`} line={deleteLine(p)} onClick={() => setSheet("delete")} />
+      )}
 
+      <SeatSheet
+        seat={seat}
+        open={!!seat}
+        onClose={() => setSeat(null)}
+        onHandOn={(s) => {
+          setSeat(null);
+          setTimeout(() => setHandOn({ games: [{ leagueId: s.leagueId, name: s.game, couch: s.couch?.name ?? null }], deleting: false }), 250);
+        }}
+      />
+      <HandOnSheet
+        open={!!handOn}
+        onClose={() => setHandOn(null)}
+        from={{ id: p.id, name: p.name }}
+        games={handOn?.games ?? []}
+        deleting={handOn?.deleting}
+        onDone={(h) => {
+          setHanded((was) => [...was, ...h]);
+          if (handOn?.deleting) setTimeout(() => setSheet("delete"), 250);
+        }}
+      />
+      {!p.you && !p.admin && (
+        <DeleteSheet
+          open={sheet === "delete"}
+          onClose={close}
+          p={p}
+          handed={handed}
+          onHandOn={(runs) => {
+            close();
+            setTimeout(() => setHandOn({ games: runs, deleting: true }), 250);
+          }}
+          onStopInstead={() => {
+            close();
+            setTimeout(() => setSheet("signing"), 250);
+          }}
+        />
+      )}
       {!actOff && <ActSheet open={sheet === "act"} onClose={close} p={p} />}
       <AccountSheet key={`${p.username}-${p.email}`} open={sheet === "account"} onClose={close} p={p} />
       {!p.you && !p.admin && <PasswordSheet open={sheet === "password"} onClose={close} p={p} />}
@@ -834,5 +888,150 @@ function SigningSheet({ open, onClose, p }: { open: boolean; onClose: () => void
         </Btn>
       </form>
     </Sheet>
+  );
+}
+
+// ---------- Delete ----------
+
+/** The games they're in, by what their Delete does to each (desk-person-actions.ts deleteAccount). */
+function seatsOf(p: DeskPerson) {
+  const all = p.couches.flatMap((c) => c.games.map((g) => ({ ...g, couch: c.id ? c.name : null })));
+  // A game only they play (a practice game too) goes with them; a season's public pool stays, as anyone's.
+  const only = all.filter((g) => g.others === 0 && g.solo !== "public");
+  const rest = all.filter((g) => !only.includes(g));
+  return {
+    all,
+    only,
+    stays: rest.filter((g) => g.drafted),
+    goes: rest.filter((g) => !g.drafted),
+    // The games they run alone that someone else could take (Hand them on).
+    runs: all.filter((g) => g.alone && g.others > 0),
+  };
+}
+
+/** The Delete row's line: what it does, in brief. */
+function deleteLine(p: DeskPerson): string {
+  const { all, stays } = seatsOf(p);
+  if (!all.length) return "Can't be undone";
+  if (stays.length === all.length) return "Can't be undone · their seats stay, marked as left";
+  if (!stays.length) return `Can't be undone · they come out of ${plural(all.length, "game", "games")}`;
+  return `Can't be undone · ${stays.length} ${stays.length === 1 ? "seat stays" : "seats stay"}, ${all.length - stays.length} go`;
+}
+
+/**
+ * Delete <name>'s account (tier 3, the mock's dkDelete): what it does to their seats said first, then a hold. While they
+ * run a game alone that someone else plays, it says so and offers Hand them on (one person, or game by game); once
+ * they're handed on it says who runs them now. Someone waiting can be left waiting instead, anyone else stopped from
+ * signing in instead.
+ */
+function DeleteSheet({
+  open,
+  onClose,
+  p,
+  handed,
+  onHandOn,
+  onStopInstead,
+}: {
+  open: boolean;
+  onClose: () => void;
+  p: DeskPerson;
+  handed: Handed[];
+  onHandOn: (runs: { leagueId: string; name: string; couch: string | null }[]) => void;
+  onStopInstead: () => void;
+}) {
+  const nav = useNav();
+  const client = useQueryClient();
+  const { all, only, stays, goes, runs } = seatsOf(p);
+  const nameOf = (id: string) => all.find((g) => g.leagueId === id)?.name ?? "a game";
+  const couchOf = (id: string) => all.find((g) => g.leagueId === id)?.couch ?? null;
+  // Handed on this visit, and still not theirs alone (an Undo since puts a game back in the warning).
+  const ok = handed.map((h) => ({ ...h, games: h.games.filter((id) => !runs.some((r) => r.leagueId === id)) })).filter((h) => h.games.length);
+  const okCouches = [...new Set(ok.flatMap((h) => h.games.map(couchOf)))];
+  const runCouch = new Set(runs.map((r) => r.couch)).size === 1 ? runs[0]?.couch : null;
+  // A game on no couch (from before couches) reaches no Inbox.
+  const toInbox = runs.every((r) => r.couch);
+  const them = runs.length > 1 ? "them" : "it";
+  const couches = p.couches.filter((c) => c.id && c.role !== "seat").map((c) => c.name);
+  const lines = [`${p.name}'s account goes for good: they can't sign in, and it can't be restored.`];
+  if (stays.length)
+    lines.push(
+      stays.length === 1
+        ? "Their seat in 1 game stays, marked as left, so its table keeps their scores."
+        : `Their seats in ${stays.length} games stay, marked as left, so the tables keep their scores.`
+    );
+  if (goes.length)
+    lines.push(
+      goes.length === 1
+        ? `Their seat in ${goes[0].name} goes, as when someone leaves: it hasn't drafted, or has no draft.`
+        : `Their seats in ${goes.length} games go, as when someone leaves: those haven't drafted, or have no draft.`
+    );
+  if (only.length)
+    lines.push(
+      only.length > 1 ? `${only.length} games only they play go too.` : only[0].solo === "practice" ? "Their practice game goes too." : `${only[0].name} goes too: nobody else plays it.`
+    );
+  if (couches.length) lines.push(`They come off ${andList(couches)}.`);
+  if (p.invites) lines.push(p.invites === 1 ? "An invite they sent that nobody's used stops working." : `${p.invites} invites they sent that nobody's used stop working.`);
+  if (!all.length && !couches.length) lines.push("They aren't on a couch, so nothing else changes.");
+  const body = (
+    <div data-delete-sheet>
+      <ul data-delete-says className="flex flex-col gap-2 rounded-[3px] bg-background px-3.5 py-3">
+        {lines.map((l) => (
+          <li key={l} className="relative pl-4 text-[15px] leading-normal before:absolute before:left-0 before:top-[.6em] before:size-1.5 before:rounded-[1px] before:bg-live">
+            {l}
+          </li>
+        ))}
+      </ul>
+      {runs.length > 0 && (
+        <div data-delete-runs className="mt-2.5 rounded-[3px] bg-card px-3.5 py-3 shadow-[inset_0_0_0_1.5px_var(--color-chyron)]">
+          <b className="block text-[15px]">
+            Nobody else runs {runCouch ? `${andList(runs.map((r) => r.name))} on ${runCouch}` : andList(runs.map((r) => (r.couch ? `${r.name} on ${r.couch}` : r.name)))}
+          </b>
+          <small className="mt-1 block text-[13px] leading-snug text-muted-foreground">
+            {toInbox
+              ? `Hand ${them} on first, or ${runCouch ? `${runCouch} comes` : `${them} come`} to your Inbox with nobody running ${them}.`
+              : `Hand ${them} on first, or nobody runs ${them}.`}
+          </small>
+          <Btn data-delete-hand-on wide className="mt-2.5 h-11 text-[15px]" onClick={() => onHandOn(runs.map((r) => ({ leagueId: r.leagueId, name: r.name, couch: r.couch })))}>
+            Hand {them} on
+          </Btn>
+        </div>
+      )}
+      {ok.length > 0 && (
+        <p data-delete-handed className="mt-2.5 flex items-start gap-2 rounded-[3px] bg-background px-3.5 py-3 text-[14px] leading-normal">
+          <Check className="mt-px size-[18px] flex-none text-good" strokeWidth={2.6} aria-hidden />
+          <span>
+            {ok.map((h) => `${h.name} runs ${andList(h.games.map(nameOf))}`).join("; ")}
+            {okCouches.length === 1 && okCouches[0] ? ` on ${okCouches[0]}` : ""} now, so every game keeps a Commissioner.
+          </span>
+        </p>
+      )}
+    </div>
+  );
+  return (
+    <HoldSheet
+      open={open}
+      onOpenChange={(o) => !o && onClose()}
+      title={`Delete ${p.name}'s account?`}
+      subtitle="This can't be undone"
+      consequence=""
+      body={body}
+      cta={`delete ${p.name}'s account`}
+      restore="Can't be undone"
+      alt={
+        p.waiting
+          ? { label: "Leave them waiting", line: "They stay on the list and can't play until you let them in.", onClick: onClose }
+          : p.stopped
+            ? undefined
+            : { label: "Stop them signing in instead", line: "Keeps everything, and you can let them back any time.", onClick: onStopInstead }
+      }
+      onConfirm={async () => {
+        await deskSend(`/people/${p.id}`, {}, "DELETE");
+        forgetDeskPage(paths.deskItem("person", p.id));
+        nav.back(paths.deskPeople(), (prev) => prev === paths.deskPeople());
+        toast(`Deleted ${p.name}'s account`);
+        // Every desk read moves on but this page's own, which is gone.
+        await client.invalidateQueries({ queryKey: ["new-design"], predicate: (q) => q.queryKey[2] !== `/people/${p.id}` });
+      }}
+    />
   );
 }

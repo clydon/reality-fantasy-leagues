@@ -3,13 +3,14 @@ import { apiRoute } from "@/lib/server/api-route";
 import { HttpError } from "@/lib/server/db";
 import { requireDesk } from "@/lib/server/desk";
 import { deskPerson } from "@/lib/server/desk-people";
-import { FieldError, letBackIn, letIn, resetPassword, saveAccount, stopSigningIn } from "@/lib/server/desk-person-actions";
+import { deleteAccount, FieldError, letBackIn, letIn, resetPassword, saveAccount, stopSigningIn } from "@/lib/server/desk-person-actions";
 
 // A person on the desk (docs/PLAN-desk-parity.md step 1): GET who they are, their couches and games, their History.
 // POST one of their actions (part 1b), each a History line: `{ letIn: true }`; `{ signIn: false, why? }` (stop them) or
 // `{ signIn: true }` (let them back); `{ name?, email? }` (a problem with one field answers `{ error, field }`);
 // `{ password: "reset" }` (answers the temporary password, once). Each answers `{ changeId }` for the toast's Undo.
-// Act as them is its own route (./act), since it swaps the session.
+// Act as them is its own route (./act), since it swaps the session. DELETE: their account, for good (part 1c, tier 3),
+// answering `{ name }`. A seat's role and Unlink are /api/desk/seats/[leagueId]/[userId]; Hand on is /api/desk/hand-on.
 export const GET = apiRoute(async (req, { params }: { params: Promise<{ id: string }> }) => {
   const user = await requireDesk(req);
   return NextResponse.json(await deskPerson(user, (await params).id));
@@ -33,4 +34,9 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ id: str
     }
   }
   throw new HttpError(400, "letIn, signIn, name or email, or password");
+});
+
+export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ id: string }> }) => {
+  const user = await requireDesk(req);
+  return NextResponse.json(await deleteAccount(user, (await params).id));
 });

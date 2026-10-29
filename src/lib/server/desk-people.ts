@@ -3,7 +3,7 @@ import { LAST_ACTIVE } from "./admin-users";
 import type { SessionUser } from "./auth-helpers";
 import { pool, HttpError } from "./db";
 import { byNewest, deskLines, type DeskLine } from "./desk";
-import { gameName } from "./league-season";
+import { gameName, LEAGUE_SEASON_NAME } from "./league-season";
 import { WAITING } from "./way-in";
 
 // People on the desk (docs/PLAN-desk-parity.md step 1; the mock's desk.js): Find › People, everyone, searched by name,
@@ -157,11 +157,30 @@ function lastStop(rows: Record<string, unknown>[]): { at: Date; who: string | nu
 
 export type SeatRole = "commissioner" | "admin" | "member";
 
+/** A game someone has a seat in, as their page shows it (and its seat's sheet and the Delete read it). */
+export interface DeskSeatGame {
+  leagueId: string;
+  name: string;
+  season: string | null;
+  game: string;
+  role: SeatRole;
+  /** Its only Commissioner: their role and Unlink wait until it's handed on. */
+  alone: boolean;
+  /** How many others are signed in to its seats (who it could be handed to). */
+  others: number;
+  /** It has drafted: a seat that's let go stays in the standings, unplayed (before a draft, or with none, it goes). */
+  drafted: boolean;
+  /** A practice game or a public pool (no couch). */
+  solo: "practice" | "public" | null;
+}
+
 export interface DeskPerson extends PersonRow {
   /** Their username, if they have one (the name they sign in with). */
   username: string | null;
   /** Phones and computers they're signed in on now. */
   devices: number;
+  /** Invites they sent that nobody's used yet (their Delete takes them). */
+  invites: number;
   /** Stopped from signing in: since when and by whom (the desk's line; null for a stop made elsewhere), and why. */
   stop: { since: string | null; by: string | null; byYou: boolean; why: string | null } | null;
   /**
@@ -173,7 +192,7 @@ export interface DeskPerson extends PersonRow {
     name: string;
     role: "owner" | "member" | "seat";
     people: number;
-    games: { leagueId: string; name: string; season: string | null; game: string; role: SeatRole }[];
+    games: DeskSeatGame[];
   }[];
   history: DeskLine[];
 }
@@ -182,7 +201,8 @@ export async function deskPerson(user: SessionUser, id: string): Promise<DeskPer
   const [{ rows }, { rows: couches }, { rows: seats }, { rows: stops }, { rows: hours }] = await Promise.all([
     pool.query(
       `SELECT ${PERSON}, u.username, u."banReason" AS why,
-              (SELECT count(*)::int FROM session x WHERE x."userId" = u.id AND x."impersonatedBy" IS NULL AND x."expiresAt" > now()) AS devices
+              (SELECT count(*)::int FROM session x WHERE x."userId" = u.id AND x."impersonatedBy" IS NULL AND x."expiresAt" > now()) AS devices,
+              (SELECT count(*)::int FROM league_invites i WHERE i.invited_by = u.id AND i.status = 'pending') AS invites
          FROM "user" u LEFT JOIN user_settings st ON st.user_id = u.id WHERE u.id = $1`,
       [id]
     ),
@@ -192,10 +212,11 @@ export async function deskPerson(user: SessionUser, id: string): Promise<DeskPer
       [id]
     ),
     pool.query(
-      `SELECT l.id, l.name, l.couch_id, c.name AS couch, m.role, l.state->'settings'->>'leagueTypeId' AS type,
-              (SELECT count(*)::int FROM couch_members x WHERE x.couch_id = l.couch_id) AS people,
-              (SELECT COALESCE(ss.name, s.name || ' ' || ss.season_number) FROM shows s JOIN show_seasons ss ON ss.show_id = s.id
-                WHERE s.slug = l.state->'settings'->>'showId' AND ss.season_number::text = l.state->'settings'->>'wikiSeason') AS season
+      `SELECT l.id, l.name, l.couch_id, c.name AS couch, m.role, l.solo, l.state->'settings'->>'leagueTypeId' AS type,
+              (SELECT count(*)::int FROM couch_members x WHERE x.couch_id = l.couch_id) AS people, ${LEAGUE_SEASON_NAME} AS season,
+              COALESCE((l.state->>'draftPicksMade')::int, 0) > 0 AS drafted,
+              (SELECT count(*)::int FROM league_memberships o WHERE o.league_id = l.id AND o.user_id <> m.user_id) AS others,
+              m.role = 'commissioner' AND NOT EXISTS (SELECT 1 FROM league_memberships o WHERE o.league_id = l.id AND o.user_id <> m.user_id AND o.role = 'commissioner') AS alone
          FROM league_memberships m JOIN leagues l ON l.id = m.league_id LEFT JOIN couches c ON c.id = l.couch_id
         WHERE m.user_id = $1 AND l.deleted_at IS NULL ORDER BY l.created_at`,
       [id]
@@ -216,7 +237,21 @@ export async function deskPerson(user: SessionUser, id: string): Promise<DeskPer
   ]);
   if (!rows.length) throw new HttpError(404, "Nobody by that id");
   const gamesOn = (couchId: string | null) =>
-    seats.filter((s) => s.couch_id === couchId).map((s) => ({ leagueId: s.id, name: s.name, season: s.season, game: gameName(s.type), role: s.role as SeatRole }));
+    seats
+      .filter((s) => s.couch_id === couchId)
+      .map(
+        (s): DeskSeatGame => ({
+          leagueId: s.id,
+          name: s.name,
+          season: s.season,
+          game: gameName(s.type),
+          role: s.role as SeatRole,
+          alone: s.alone,
+          others: s.others,
+          drafted: s.drafted,
+          solo: s.solo ?? null,
+        })
+      );
   const on = new Set(couches.map((c) => c.id as string));
   // A seat on a couch they aren't on: the couch still shows, with the seat under it.
   const seatOnly = [...new Map(seats.filter((s) => s.couch_id && !on.has(s.couch_id)).map((s) => [s.couch_id as string, s])).values()];
@@ -227,6 +262,7 @@ export async function deskPerson(user: SessionUser, id: string): Promise<DeskPer
     ...rowOf(p, user.id),
     username: p.username,
     devices: p.devices,
+    invites: p.invites,
     stop: p.stopped ? { since: stopLine?.at.toISOString() ?? null, by: stopLine?.who ?? null, byYou: !!stopLine && stopLine.userId === user.id, why: (p.why as string | null) || null } : null,
     couches: [
       ...couches.map((c) => ({ id: c.id as string, name: c.name as string, role: (c.role === "owner" ? "owner" : "member") as "owner" | "member", people: c.people as number, games: gamesOn(c.id) })),

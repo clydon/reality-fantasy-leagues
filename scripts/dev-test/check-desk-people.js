@@ -6,12 +6,17 @@
 // Recently opened, Settings regrouped (a dot off recommended, a toast with Undo, Reset to recommended, Settings history);
 // and a person's actions (1b): Let in (a waiting row, their page, Who gets in), Stop them signing in and Let them back in,
 // Reset password, Name and email, and Act as them (the sheet, the app as them under the Viewing as bar, #3c6ea6, with the
-// minutes left, Return back to their page, both ends in their History).
+// minutes left, Return back to their page, both ends in their History); and their couches and games and their Delete
+// (1c): a seat's sheet (its role, the only Commissioner's dimmed with Hand it on; Unlink; Open the game), each with its
+// History line, its line in the game's Recent changes and its Undo; Hand on (one person, or game by game; the new
+// Commissioner told); a busy person's couches folded; and Delete <name>'s account, last: what it does to their seats said
+// first, Hand them on, the hold, and what's left after (seats kept or gone as the app's takeOut, practice games gone, the
+// couch handed to someone).
 //   1. Only site admins: zt_dk_kat (a player) is refused the people routes and the actions.
 //   2. The list's API: filters, searches (username, name, email; a username-only account's stand-in email never shown or
 //      matched; % and _ taken literally), sorts, paging, and a person's read. Then each action through the API: what it
 //      writes, who it signs out, what it refuses, its History line and its Undo (refused once a later change stands in
-//      the way).
+//      the way). Then a seat's role and Unlink, Hand on and Delete through the API (1c).
 //   3. Screens at --width: Find, People, a person, a couch, each action's sheet, the app as kat, Settings and its sheets.
 //      Nothing wider than the screen; no page errors.
 //   4. Nothing real moved: every account that isn't zt_dk_ is as it was; the settings it changes are put back.
@@ -21,8 +26,8 @@
 //   node scripts/dev-test/check-desk-people.js <outDir> [--width=390] [--keep]
 //   node scripts/dev-test/check-desk-people.js --down          (takes the fixture down, nothing else)
 //
-// up/down: zt_dk_ accounts (and their sessions, seats and couch rows), the "ZT DK Couch" couch and its zt-dk- games, and
-// the admin_changes lines its desk admin makes; --keep leaves the fixture up. Refuses a non-local database. Prints
+// up/down: zt_dk_ accounts (and their sessions, seats and couch rows), the ZT DK couches and their zt-dk- games (a practice
+// game too), and the admin_changes lines its desk admin makes; --keep leaves the fixture up. Refuses a non-local database. Prints
 // PASS/FAIL.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const crypto = require("crypto");
@@ -46,6 +51,9 @@ if (!out && !onlyDown) throw new Error("usage: check-desk-people.js <outDir> [--
 const PASSWORD = "zt-pass-12345";
 const U = (k) => `zt_dk_${k}`;
 const COUCH = "ZT DK Couch";
+// pri's couches (1c): Race, whose three games pri runs alone, and Lounge, where pri plays four (pri's page folds it).
+const RACE = "ZT DK Race";
+const LOUNGE = "ZT DK Lounge";
 const CROWD = 26;
 const SETTINGS = ["confirm_at", "new_couch_fill", "signups", "tiebreak"];
 
@@ -60,7 +68,7 @@ function check(ok, what, detail = "") {
 async function down(pool) {
   await pool.query(`DELETE FROM admin_changes WHERE user_id IN (SELECT id FROM "user" WHERE username LIKE 'zt\\_dk\\_%')`);
   await pool.query("DELETE FROM leagues WHERE slug LIKE 'zt-dk-%'");
-  await pool.query("DELETE FROM couches WHERE name = $1", [COUCH]);
+  await pool.query("DELETE FROM couches WHERE name = ANY($1)", [[COUCH, RACE, LOUNGE]]);
   await pool.query(`DELETE FROM "user" WHERE username LIKE 'zt\\_dk\\_%'`);
 }
 
@@ -92,6 +100,8 @@ async function up(pool) {
   await add("ben", { banned: true, age: 60 * 24 * 20, seen: 60 * 24 * 8 });
   await add("solo", { email: `zt_dk_solo.q7w2x9@no-email.invalid`, age: 60 * 24 * 10, seen: 60 * 30 });
   await add("named", { name: "Wren Example", age: 60 * 24 * 12, seen: 60 * 5 });
+  await add("pri", { age: 60 * 24 * 25, seen: 60 * 7 });
+  await add("gone", { age: 60 * 24 * 3, seen: 60 * 24 * 3 });
   for (let i = 1; i <= CROWD; i++) await add(`c${String(i).padStart(2, "0")}`, { age: 60 * 24 * 2 + i * 7, seen: 60 * 24 + i * 13 });
   // kat is on the new design (Act as opens it)
   await pool.query("INSERT INTO user_settings (user_id, ui) VALUES ($1, 'new')", [ids.kat]);
@@ -129,6 +139,42 @@ async function up(pool) {
     ids[`game${n}`] = rows[0].id;
     await pool.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, 'p1', $3), ($1, $4, 'p2', $5)", [rows[0].id, ids.kat, katRole, ids.c01, c01Role]);
   }
+  // pri (1c): runs Race's three games alone (R1 has drafted; R2 hasn't; R3 is a pool) with c13 in all three, c14 in R1 and
+  // R2, c15 in R3; plays Lounge's four, which c16 runs; and has a practice game.
+  const couchOf = async (name, owner, members) => {
+    const { rows } = await pool.query("INSERT INTO couches (name, created_by) VALUES ($1, $2) RETURNING id", [name, ids[owner]]);
+    for (const [i, k] of [owner, ...members].entries())
+      await pool.query("INSERT INTO couch_members (couch_id, user_id, role, joined_at) VALUES ($1, $2, $3, now() - make_interval(days => $4))", [rows[0].id, ids[k], k === owner ? "owner" : "member", 20 - i]);
+    return rows[0].id;
+  };
+  ids.race = await couchOf(RACE, "pri", ["c13", "c14", "c15"]);
+  ids.lounge = await couchOf(LOUNGE, "c16", ["pri"]);
+  const league = async (key, name, o) => {
+    const s = S.defaultState();
+    s.players = o.seats.map(([k], i) => ({ id: `p${i + 1}`, name: U(k), color: "#5089c9", disabled: false, active: true }));
+    if (o.bots) s.players.push(...o.bots.map((b, i) => ({ id: `b${i + 1}`, name: b, color: "#888888", disabled: false, active: true, automated: true })));
+    s.draftOrder = s.players.map((p) => p.id);
+    Object.assign(s.settings, { leagueTypeId: o.type, showId: "zt-dk-none", wikiSeason: "1" });
+    const state = S.migrateLeagueState(s);
+    if (o.drafted) state.draftPicksMade = 2;
+    const { rows } = await pool.query("INSERT INTO leagues (name, slug, join_code, state, created_by, couch_id, solo) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id", [
+      name,
+      `zt-dk-${key}`,
+      code(),
+      state,
+      ids.pri,
+      o.couch ?? null,
+      o.solo ?? null,
+    ]);
+    ids[key] = rows[0].id;
+    for (const [i, [k, role]] of o.seats.entries())
+      await pool.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, $3, $4)", [rows[0].id, ids[k], `p${i + 1}`, role]);
+  };
+  await league("r1", "ZT DK R1", { couch: ids.race, type: "classic-draft", drafted: true, seats: [["pri", "commissioner"], ["c13", "member"], ["c14", "member"]] });
+  await league("r2", "ZT DK R2", { couch: ids.race, type: "classic-draft", seats: [["pri", "commissioner"], ["c13", "member"], ["c14", "member"]] });
+  await league("r3", "ZT DK R3", { couch: ids.race, type: "pickem", seats: [["pri", "commissioner"], ["c13", "member"], ["c15", "member"]] });
+  for (const n of [1, 2, 3, 4]) await league(`l${n}`, `ZT DK L${n}`, { couch: ids.lounge, type: "pickem", seats: [["c16", "commissioner"], ["pri", "member"]] });
+  await league("practice", "Practice · Outlast", { solo: "practice", type: "classic-draft", drafted: true, seats: [["pri", "member"]], bots: ["Bot A", "Bot B", "Bot C"] });
   return ids;
 }
 
@@ -149,7 +195,7 @@ const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email 
   const closers = [];
   try {
     const ids = await up(pool);
-    const total = 7 + CROWD;
+    const total = 9 + CROWD;
     const as = { desk: await api({ user: U("desk"), pass: PASSWORD }), kat: await api({ user: U("kat"), pass: PASSWORD }) };
 
     // ---- 1. only site admins ----
@@ -330,10 +376,121 @@ const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email 
 
     // another site admin: not stopped, reset or acted as
     await pool.query(`UPDATE "user" SET role = 'admin' WHERE id = $1`, [ids.c11]);
-    const asAdmin = [await act("c11", { signIn: false }), await act("c11", { password: "reset" }), await as.desk.call("POST", `/api/desk/people/${ids.c11}/act`, {})];
-    check(asAdmin.every((r) => r.status === 409) && (await userRow("c11")).banned !== true, "another site admin: not stopped, reset or acted as", asAdmin.map((r) => r.status).join(","));
+    const asAdmin = [
+      await act("c11", { signIn: false }),
+      await act("c11", { password: "reset" }),
+      await as.desk.call("POST", `/api/desk/people/${ids.c11}/act`, {}),
+      await as.desk.call("DELETE", `/api/desk/people/${ids.c11}`),
+    ];
+    check(asAdmin.every((r) => r.status === 409) && (await userRow("c11"))?.banned !== true, "another site admin: not stopped, reset, acted as or deleted", asAdmin.map((r) => r.status).join(","));
     await pool.query(`UPDATE "user" SET role = NULL WHERE id = $1`, [ids.c11]);
     check((await as.desk.call("POST", `/api/desk/people/${ids.c11}`, null)).status === 400, "a body that isn't an object: refused, not a 500");
+
+    // ---- 2c. a seat, Hand on and Delete (part 1c), through the API ----
+    const seatCall = (lg, k, body) => as.desk.call("POST", `/api/desk/seats/${ids[lg]}/${ids[k]}`, body);
+    const roleIn = async (lg, k) => (await pool.query("SELECT role FROM league_memberships WHERE league_id = $1 AND user_id = $2", [ids[lg], ids[k]])).rows[0]?.role ?? null;
+    const gameLines = async (lg) => (await pool.query("SELECT kind, tier, text, undo, undone_at FROM league_changes WHERE league_id = $1 ORDER BY created_at", [ids[lg]])).rows;
+    const stateOf = async (lg) => (await pool.query("SELECT state FROM leagues WHERE id = $1", [ids[lg]])).rows[0]?.state;
+    const seatRefused = [
+      await as.kat.call("POST", `/api/desk/seats/${ids.game1}/${ids.c01}`, { role: "admin" }),
+      await as.kat.call("GET", `/api/desk/hand-on?games=${ids.r1}`),
+      await as.kat.call("POST", "/api/desk/hand-on", { moves: [{ leagueId: ids.r1, to: ids.c13 }] }),
+      await as.kat.call("DELETE", `/api/desk/people/${ids.c01}`),
+    ];
+    check(seatRefused.every((r) => r.status === 403), "a player is refused a seat, Hand on and Delete", seatRefused.map((r) => r.status).join(","));
+    const katGames = (await person("kat")).couches[0].games;
+    check(katGames[0].alone && katGames[0].others === 1 && !katGames[1].alone, "kat's read: she runs Game 1 alone, with one other in it; not Game 2", JSON.stringify(katGames));
+    const priRead = await person("pri");
+    const priGames = priRead.couches.flatMap((c) => c.games);
+    check(
+      priRead.couches.map((c) => c.name).join() === `${RACE},${LOUNGE},On no couch` && priGames.length === 8 && priGames.filter((g) => g.alone).length === 3 && priGames.find((g) => g.name === "ZT DK R1").drafted && !priGames.find((g) => g.name === "ZT DK R2").drafted && priGames.find((g) => g.solo === "practice"),
+      "pri's read: Race's three run alone, R1 drafted, R2 not, Lounge's four, a practice game",
+      JSON.stringify(priRead.couches.map((c) => [c.name, c.games.length]))
+    );
+
+    // the role, its lines and its Undo
+    const toAdmin = await seatCall("game1", "c01", { role: "admin" });
+    check(toAdmin.status === 200 && (await roleIn("game1", "c01")) === "admin" && toAdmin.body.text === `${U("c01")} is a Game admin in ZT DK Game 1`, "c01 made Game admin in Game 1", JSON.stringify(toAdmin.body));
+    check((await gameLines("game1")).some((l) => l.kind === "role" && l.text === `Made ${U("c01")} a Game admin`), "a line in Game 1's Recent changes");
+    check(lineOf(await person("c01"), /^Made Game admin in ZT DK Game 1 on ZT DK Couch$/)?.undoable === true, "c01's History: Made Game admin in ZT DK Game 1 on ZT DK Couch, with Undo");
+    check((await seatCall("game1", "c01", { role: "admin" })).status === 409 && (await seatCall("game1", "c01", { role: "boss" })).status === 400, "the same role again, or no role: refused");
+    check((await undo(toAdmin.body.changeId)).status === 200 && (await roleIn("game1", "c01")) === "member", "its Undo: a Player again");
+    check((await gameLines("game1")).find((l) => l.kind === "role")?.undone_at, "and Game 1's line is marked undone");
+    const r1 = await seatCall("game1", "c01", { role: "admin" });
+    const r2 = await seatCall("game1", "c01", { role: "commissioner" });
+    check((await undo(r1.body.changeId)).status === 409 && (await roleIn("game1", "c01")) === "commissioner", "an Undo under a later role change: refused");
+    check((await undo(r2.body.changeId)).status === 200 && (await undo(r1.body.changeId)).status === 200 && (await roleIn("game1", "c01")) === "member", "the later one's Undo, then the first's: a Player again");
+
+    // the only Commissioner
+    const lone = [await seatCall("game1", "kat", { role: "member" }), await seatCall("game1", "kat", { role: "admin" }), await seatCall("game1", "kat", { unlink: true })];
+    check(lone.every((r) => r.status === 409) && (await roleIn("game1", "kat")) === "commissioner", "kat runs Game 1 alone: her role and Unlink are refused", lone.map((r) => r.status).join(","));
+    check(/runs ZT DK Game 1 alone\. Hand it to someone first/.test(lone[2].body.error), "Unlink says to hand it on first", lone[2].body.error);
+
+    // Unlink, its lines and its Undo
+    const un = await seatCall("game1", "c01", { unlink: true });
+    check(
+      un.status === 200 && (await roleIn("game1", "c01")) === null && (await stateOf("game1")).players.some((x) => x.id === "p2" && !x.disabled),
+      "Unlink c01 from Game 1: the seat plays on, nobody signed in",
+      JSON.stringify(un.body)
+    );
+    check(un.body.text === `Unlinked · ${U("c01")}'s seat waits for an account`, "the toast says the seat waits for an account", un.body.text);
+    check((await pool.query("SELECT 1 FROM couch_members WHERE couch_id = $1 AND user_id = $2", [ids.couch, ids.c01])).rows.length === 1, "c01 stays on the couch");
+    check((await gameLines("game1")).some((l) => l.kind === "member" && l.text === `Unlinked ${U("c01")}'s account from their seat` && !l.undo), "a line in Game 1's Recent changes (its Undo is the desk's)");
+    check(lineOf(await person("c01"), /^Unlinked from ZT DK Game 1 on ZT DK Couch$/)?.undoable === true, "c01's History: Unlinked from ZT DK Game 1 on ZT DK Couch, with Undo");
+    check((await seatCall("game1", "c01", { unlink: true })).status === 404, "unlinked already: nothing to unlink");
+    const back1 = await undo(un.body.changeId);
+    const c01Seat = (await pool.query("SELECT player_id, role FROM league_memberships WHERE league_id = $1 AND user_id = $2", [ids.game1, ids.c01])).rows[0];
+    check(back1.status === 200 && c01Seat?.player_id === "p2" && c01Seat.role === "member", "its Undo: c01 signed in to their seat again, as a Player", JSON.stringify(c01Seat));
+    const un2 = await seatCall("game1", "c01", { unlink: true });
+    await pool.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, 'p2', 'member')", [ids.game1, ids.c02]);
+    check((await undo(un2.body.changeId)).status === 409, "Unlink's Undo once someone else is in the seat: refused");
+    await pool.query("DELETE FROM league_memberships WHERE league_id = $1 AND user_id = $2", [ids.game1, ids.c02]);
+    check((await undo(un2.body.changeId)).status === 200 && (await roleIn("game1", "c01")) === "member", "once they're out of it, the Undo goes through");
+
+    // Hand on: who could take pri's games, then one handed and undone
+    const ho = (await as.desk.call("GET", `/api/desk/hand-on?games=${ids.r1},${ids.r2},${ids.r3}&from=${ids.pri}`)).body;
+    const plays = (k) => ho.candidates.find((c) => c.name === U(k))?.plays.length;
+    check(
+      ho.games?.map((g) => g.name).join() === "ZT DK R1,ZT DK R2,ZT DK R3" && ho.candidates.map((c) => c.name).join() === [U("c13"), U("c14"), U("c15")].join() && plays("c13") === 3 && plays("c14") === 2 && plays("c15") === 1,
+      "Hand on pri's games: who plays them, most active first, and which",
+      JSON.stringify(ho)
+    );
+    const hand1 = await as.desk.call("POST", "/api/desk/hand-on", { from: ids.pri, moves: [{ leagueId: ids.r3, to: ids.c15 }] });
+    check(
+      hand1.status === 200 && (await roleIn("r3", "c15")) === "commissioner" && (await roleIn("r3", "pri")) === "commissioner" && hand1.body.text === `${U("c15")} runs ZT DK R3 now`,
+      "Hand R3 to c15: a Commissioner, and pri still one",
+      JSON.stringify(hand1.body)
+    );
+    check((await gameLines("r3")).some((l) => l.kind === "role" && l.text === `Made ${U("c15")} a Commissioner`), "a line in R3's Recent changes");
+    check(
+      lineOf(await person("pri"), new RegExp(`^Handed ZT DK R3 on ${RACE} to ${U("c15")}$`))?.undoable === true && lineOf(await person("c15"), new RegExp(`^Made Commissioner of ZT DK R3 on ${RACE}$`)),
+      "History: the hand-on on pri's (with Undo), Made Commissioner on c15's"
+    );
+    let told = [];
+    for (let i = 0; i < 20 && !told.length; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      told = (await pool.query("SELECT title FROM notifications WHERE user_id = $1 AND key LIKE 'handed:%'", [ids.c15])).rows;
+    }
+    check(told.length === 1 && told[0].title === "You run ZT DK R3 now", "c15 is told: You run ZT DK R3 now (in the bell)", JSON.stringify(told));
+    const wrong = [
+      await as.desk.call("POST", "/api/desk/hand-on", { from: ids.pri, moves: [{ leagueId: ids.r3, to: ids.c14 }] }),
+      await as.desk.call("POST", "/api/desk/hand-on", { from: ids.pri, moves: [] }),
+      await as.desk.call("POST", "/api/desk/hand-on", { from: ids.pri, moves: [{ leagueId: ids.r3, to: ids.c13 }, { leagueId: ids.r3, to: ids.c15 }] }),
+    ];
+    check(wrong.every((r) => r.status === 400), "to someone who doesn't play it, to nobody, or a game twice: refused", wrong.map((r) => r.status).join(","));
+    const again = await as.desk.call("POST", "/api/desk/hand-on", { from: ids.pri, moves: [{ leagueId: ids.r1, to: ids.c13 }, { leagueId: ids.r3, to: ids.c15 }] });
+    check(again.status === 409 && /runs ZT DK R3 already/.test(again.body.error) && (await roleIn("r1", "c13")) === "member", "R3 to c15, who runs it already: refused, and R1 isn't handed either", JSON.stringify(again.body));
+    check((await undo(hand1.body.changeId)).status === 200 && (await roleIn("r3", "c15")) === "member", "its Undo: c15 a Player again");
+    check(lineOf(await person("c15"), /^Made Commissioner of/)?.undone && (await gameLines("r3")).find((l) => l.kind === "role")?.undone_at, "and c15's line and R3's are marked undone too");
+    // an Undo that would leave a game with nobody running it
+    const hand2 = await as.desk.call("POST", "/api/desk/hand-on", { from: ids.pri, moves: [{ leagueId: ids.r3, to: ids.c15 }] });
+    await pool.query("UPDATE league_memberships SET role = 'member' WHERE league_id = $1 AND user_id = $2", [ids.r3, ids.pri]);
+    check((await undo(hand2.body.changeId)).status === 409 && (await roleIn("r3", "c15")) === "commissioner", "its Undo once nobody else runs it: refused");
+    await pool.query("UPDATE league_memberships SET role = 'commissioner' WHERE league_id = $1 AND user_id = $2", [ids.r3, ids.pri]);
+    check((await undo(hand2.body.changeId)).status === 200, "and with pri running it again, it goes through");
+
+    // Delete: not yourself (an account with nothing to it is deleted at the end, once the counts are read)
+    check((await as.desk.call("DELETE", `/api/desk/people/${ids.desk}`)).status === 400, "Delete your own account: refused");
 
     // ---- 3. screens ----
     const d = await open({ user: U("desk"), pass: PASSWORD, width, height: 844 });
@@ -391,7 +548,11 @@ const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email 
     await pg.waitForFunction((t) => document.querySelector("[data-people-count]")?.textContent === `${t} people`, total, { timeout: 15000 });
     check((await pg.locator("[data-people-search]").inputValue()) === "zt_dk", "People opens searched");
     check((await back()) === "Find", "People's Back says Find", await back());
-    check((await pg.locator("[data-person-row]").count()) === 25 && /Show 8 more/.test(await pg.locator("[data-people-more]").innerText()), "25 at a time: Show 8 more", await pg.locator("[data-people-more]").innerText().catch(() => "none"));
+    check(
+      (await pg.locator("[data-person-row]").count()) === 25 && new RegExp(`Show ${total - 25} more`).test(await pg.locator("[data-people-more]").innerText()),
+      `25 at a time: Show ${total - 25} more`,
+      await pg.locator("[data-people-more]").innerText().catch(() => "none")
+    );
     await fits("People");
     await shot("people");
     await pg.locator("[data-people-more]").click();
@@ -675,6 +836,174 @@ const REAL_USERS = `SELECT md5(string_agg(id || coalesce(username, '') || email 
     await shot("settings-history");
     await pg.keyboard.press("Escape");
     await pg.waitForTimeout(450);
+
+    // ---- their couches and games, and their Delete (part 1c), on the screens ----
+    const seatSheet = () => pg.locator("[data-seat-sheet]");
+    // kat runs Game 1 alone: the other roles dimmed, Unlink dimmed, Hand it on first
+    await openPerson("kat");
+    await pg.locator("[data-person-game='ZT DK Game 1']").click();
+    await seatSheet().waitFor({ timeout: 10000 });
+    check(/runs ZT DK Game 1 alone\. Hand it on first/.test(await pg.locator("[data-seat-alone]").innerText()), "kat in Game 1: she runs it alone, Hand it on first");
+    check(
+      (await pg.locator("[data-seat-role='commissioner']").getAttribute("aria-pressed")) === "true" &&
+        (await pg.locator("[data-seat-role='member']").getAttribute("aria-disabled")) === "true" &&
+        (await pg.locator("[data-seat-row='unlink']").getAttribute("aria-disabled")) === "true",
+      "Commissioner chosen; Player and Unlink dimmed"
+    );
+    check((await pg.locator("[data-seat-row='open']").getAttribute("href")) === `/desk/couch/${ids.couch}`, "Open ZT DK Game 1: its couch's page, until games have pages");
+    await fits("a seat's sheet, run alone");
+    await shot("seat-alone");
+    // dimmed (aria-disabled), but a finger can still tap it: force past Playwright's enabled check
+    await pg.locator("[data-seat-role='member']").click({ force: true });
+    check(/Every game needs a Commissioner/.test(await toasted(/Every game needs/)) && (await roleIn("game1", "kat")) === "commissioner", "tapping Player says to hand it on; nothing changes");
+    await pg.locator("[data-seat-hand-on]").click();
+    await pg.locator("[data-hand-on='same']").waitFor({ timeout: 15000 });
+    check(
+      (await pg.locator(`[data-hand-pick='${U("c01")}']`).getAttribute("aria-checked")) === "true" && (await pg.locator("[data-hand-go]").innerText()) === `Hand it to ${U("c01")}`,
+      "Hand it on: c01, who plays it, chosen; Hand it to c01"
+    );
+    await fits("Hand it on, one game");
+    await shot("hand-on-one");
+    await closeSheet();
+
+    // c01 in Game 1: Game admin and its Undo, then Unlink and its Undo
+    await openPerson("c01");
+    await pg.locator("[data-person-game='ZT DK Game 1']").click();
+    await seatSheet().waitFor({ timeout: 10000 });
+    check((await pg.locator("[data-seat-alone]").count()) === 0 && /The seat keeps its team and scores/.test(await pg.locator("[data-seat-row='unlink']").innerText()), "c01 in Game 1: no Hand it on; Unlink says what it does");
+    await shot("seat-player");
+    await pg.locator("[data-seat-role='admin']").click();
+    check(new RegExp(`${U("c01")} is a Game admin in ZT DK Game 1`).test(await toasted(/Game admin/)), "Game admin: a toast says so");
+    await pg.waitForFunction(() => /Game admin/.test(document.querySelector("[data-person-game='ZT DK Game 1']")?.textContent || ""), null, { timeout: 15000 });
+    check((await roleIn("game1", "c01")) === "admin", "c01's row says Game admin");
+    await undoToast();
+    await pg.waitForFunction(() => /Player/.test(document.querySelector("[data-person-game='ZT DK Game 1']")?.textContent || ""), null, { timeout: 15000 });
+    check((await roleIn("game1", "c01")) === "member", "the toast's Undo: a Player again");
+    await pg.locator("[data-person-game='ZT DK Game 1']").click();
+    await seatSheet().waitFor({ timeout: 10000 });
+    await pg.locator("[data-seat-row='unlink']").click();
+    check(/seat waits for an account/.test(await toasted(/Unlinked/)), "Unlink: a toast says the seat waits for an account");
+    await pg.waitForFunction(() => !document.querySelector("[data-person-game='ZT DK Game 1']"), null, { timeout: 15000 });
+    check((await roleIn("game1", "c01")) === null, "Game 1 is off c01's page");
+    await undoToast();
+    await pg.locator("[data-person-game='ZT DK Game 1']").waitFor({ timeout: 15000 });
+    check((await roleIn("game1", "c01")) === "member", "the toast's Undo: back in their seat");
+
+    // pri: a busy person's couches fold; Delete is the last thing on the page
+    await openPerson("pri");
+    check((await pg.locator(`[data-person-couch='${LOUNGE}'] [data-person-game]`).count()) === 2 && (await pg.locator(`[data-person-unfold='${LOUNGE}']`).innerText()) === `2 more on ${LOUNGE}`, "Lounge's four games fold to two: 2 more on ZT DK Lounge");
+    check((await pg.locator(`[data-person-couch='${RACE}'] [data-person-game]`).count()) === 3 && (await pg.locator(`[data-person-unfold='${RACE}']`).count()) === 0, "Race's three show in full");
+    check(/Practice games/.test(await pg.locator("[data-person-couch='On no couch']").innerText()), "the practice game: On no couch, Practice games");
+    await fits("a busy person");
+    await shot("person-busy");
+    await pg.locator(`[data-person-unfold='${LOUNGE}']`).click();
+    await pg.waitForFunction((c) => document.querySelectorAll(`[data-person-couch='${c}'] [data-person-game]`).length === 4, LOUNGE, { timeout: 10000 });
+    check(true, "opened: all four");
+    const lastSection = await pg.evaluate(() => {
+      const secs = [...document.querySelectorAll("[data-desk-person] > section")];
+      return secs.at(-1)?.getAttribute("data-delete-row");
+    });
+    check(lastSection === "person" && /^Delete zt_dk_pri's account/.test(await pg.locator("[data-delete-row='person']").innerText()), "Delete zt_dk_pri's account is the last thing on the page", String(lastSection));
+    check(/Can't be undone · 1 seat stays, 7 go/.test(await pg.locator("[data-delete-row='person']").innerText()), "its line: 1 seat stays, 7 go");
+    await pg.locator("[data-delete-row='person']").scrollIntoViewIfNeeded();
+    await shot("person-delete-row");
+
+    // pri's Delete: what it does first; Race's games handed on game by game; then the hold
+    await pg.locator("[data-delete-row='person'] button").click();
+    await pg.locator("[data-delete-sheet]").waitFor({ timeout: 10000 });
+    const says = (await pg.locator("[data-delete-says]").innerText()).replace(/\s+/g, " ");
+    check(
+      /zt_dk_pri's account goes for good/.test(says) &&
+        /Their seat in 1 game stays, marked as left/.test(says) &&
+        /Their seats in 6 games go, as when someone leaves: those haven't drafted, or have no draft/.test(says) &&
+        /Their practice game goes too/.test(says) &&
+        new RegExp(`They come off ${RACE} and ${LOUNGE}`).test(says),
+      "the sheet says what happens to their seats, their practice game and their couches",
+      says
+    );
+    check(new RegExp(`Nobody else runs ZT DK R1, ZT DK R2 and ZT DK R3 on ${RACE}`).test(await pg.locator("[data-delete-runs]").innerText()), "and that nobody else runs Race's three");
+    check(/Stop them signing in instead/.test(await sheetOpen().innerText()) && /Can't be undone/.test(await sheetOpen().innerText()), "Stop them signing in instead is offered; it can't be undone");
+    await fits("the Delete sheet");
+    await shot("delete-sheet");
+    await pg.locator("[data-delete-hand-on]").click();
+    await pg.locator("[data-hand-on='same']").waitFor({ timeout: 15000 });
+    check(
+      (await pg.locator(`[data-hand-pick='${U("c13")}']`).getAttribute("aria-checked")) === "true" &&
+        /Most active/i.test(await pg.locator(`[data-hand-pick='${U("c13")}']`).innerText()) &&
+        (await pg.locator(`[data-hand-pick='${U("c14")}']`).getAttribute("aria-disabled")) === "true" &&
+        /Plays ZT DK R1 and ZT DK R2 only/.test(await pg.locator(`[data-hand-pick='${U("c14")}']`).innerText()),
+      "Hand them on: c13 plays all 3 (most active, chosen); c14 dimmed, plays two only"
+    );
+    check((await pg.locator("[data-hand-go]").innerText()) === `Hand all 3 to ${U("c13")}` && /stays one too until the account goes/.test(await pg.locator("[data-hand-note]").innerText()), "Hand all 3 to c13; pri stays one too until the account goes");
+    await fits("Hand them on");
+    await shot("hand-on-same");
+    await pg.locator("[data-hand-each]").click();
+    await pg.locator("[data-hand-on='each']").waitFor({ timeout: 5000 });
+    await pg.locator(`[data-hand-per='ZT DK R1:${U("c14")}']`).click();
+    check((await pg.locator(`[data-hand-per='ZT DK R1:${U("c14")}']`).getAttribute("aria-pressed")) === "true", "game by game: R1 to c14");
+    await fits("Hand them on, game by game");
+    await shot("hand-on-each");
+    await pg.locator("[data-hand-go]").click();
+    check(new RegExp(`${U("c14")} runs ZT DK R1; ${U("c13")} runs ZT DK R2 and ZT DK R3 now`).test(await toasted(/runs/)), "handed: a toast says who runs what");
+    await pg.locator("[data-delete-handed]").waitFor({ timeout: 15000 });
+    check(
+      new RegExp(`${U("c14")} runs ZT DK R1; ${U("c13")} runs ZT DK R2 and ZT DK R3 on ${RACE} now, so every game keeps a Commissioner`).test(await pg.locator("[data-delete-handed]").innerText()) &&
+        (await pg.locator("[data-delete-runs]").count()) === 0,
+      "back on the Delete: who runs them now, and no warning"
+    );
+    check((await roleIn("r1", "c14")) === "commissioner" && (await roleIn("r2", "c13")) === "commissioner" && (await roleIn("r3", "c13")) === "commissioner", "each is a Commissioner now");
+    await shot("delete-handed");
+    const holdBox = await pg.locator("[data-hold]").boundingBox();
+    await pg.mouse.move(holdBox.x + holdBox.width / 2, holdBox.y + holdBox.height / 2);
+    await pg.mouse.down();
+    await pg.waitForTimeout(250);
+    await pg.mouse.up();
+    await pg.locator("[data-hold-hint]").waitFor({ timeout: 5000 });
+    check(!!(await userRow("pri")), "a tap: nothing, and a line says to hold it");
+    await pg.mouse.down();
+    await pg.waitForTimeout(1800);
+    await pg.mouse.up();
+    check(new RegExp(`Deleted ${U("pri")}'s account`).test(await toasted(/Deleted/)), "held: a toast says it's deleted");
+    await pg.locator("[data-desk-people]").waitFor({ timeout: 15000 });
+    check((await back()) === "Find", "back on People, whose Back says Find", await back());
+    check(!(await userRow("pri")), "pri's account is gone");
+    const r1State = await stateOf("r1");
+    const priSeat = r1State.players.find((x) => x.id === "p1");
+    check(priSeat?.disabled === true && priSeat.formerName === U("pri"), "R1 had drafted: pri's seat stays, marked as left", JSON.stringify(priSeat));
+    check(!(await stateOf("r2")).players.some((x) => x.id === "p1") && !(await stateOf("l1")).players.some((x) => x.name === U("pri")), "R2 hadn't, and L1 is a pool: pri's seats there go");
+    check(!(await stateOf("practice")), "the practice game is gone");
+    check((await gameLines("r1")).some((l) => l.kind === "member" && l.tier === 3 && !l.undo && l.text === `${U("pri")}'s account was deleted: their seat stays in the standings, unplayed`), "R1's Recent changes: the seat stays, no Undo");
+    check((await gameLines("r2")).some((l) => l.text === `${U("pri")}'s account was deleted: their seat went from the game`), "R2's: the seat went");
+    const raceOwner = (await pool.query("SELECT user_id FROM couch_members WHERE couch_id = $1 AND role = 'owner'", [ids.race])).rows;
+    check(raceOwner.length === 1 && raceOwner[0].user_id === ids.c13, "Race passes to c13 (its earliest Commissioner)", JSON.stringify(raceOwner));
+    await pg.goto(`${BASE}/desk/find`);
+    await pg.locator("[data-find]").waitFor({ timeout: 15000 });
+    check(!(await pg.locator("[data-recent]").innerText().catch(() => "")).includes(U("pri")), "pri is off Recently opened");
+
+    // someone waiting: Leave them waiting; someone stopped: no "instead"; your own page: no Delete
+    await pool.query(`UPDATE "user" SET approved = false WHERE id = $1`, [ids.maya]);
+    await openPerson("maya");
+    check(/or delete the account at the bottom of this page/.test(await pg.locator("[data-person-state='waiting']").innerText()), "the waiting panel points at the Delete");
+    await pg.locator("[data-delete-row='person'] button").click();
+    await pg.locator("[data-delete-sheet]").waitFor({ timeout: 10000 });
+    check(/They aren't on a couch, so nothing else changes/.test(await pg.locator("[data-delete-says]").innerText()), "maya's Delete: nothing else changes");
+    await fits("the Delete sheet, someone waiting");
+    await shot("delete-waiting");
+    await sheetOpen().getByRole("button", { name: "Leave them waiting" }).click();
+    await pg.waitForTimeout(450);
+    check((await pg.locator("[data-delete-sheet]").count()) === 0 && !!(await userRow("maya")), "Leave them waiting: the sheet closes, nothing deleted");
+    await openPerson("ben");
+    await pg.locator("[data-delete-row='person'] button").click();
+    await pg.locator("[data-delete-sheet]").waitFor({ timeout: 10000 });
+    check(!/instead|Leave them waiting/.test(await sheetOpen().innerText()), "ben (stopped): no Stop them instead");
+    await closeSheet();
+    await openPerson("desk");
+    check(/Delete your account/.test(await pg.locator("[data-delete-row='person']").innerText()) && (await pg.locator("[data-delete-row='person'] button").count()) === 0, "your own page: Delete your account, off");
+    // an account with nothing to it, through the API
+    const goneDel = await as.desk.call("DELETE", `/api/desk/people/${ids.gone}`);
+    check(goneDel.status === 200 && goneDel.body.name === U("gone") && !(await userRow("gone")), "Delete gone's account: it's gone", JSON.stringify(goneDel.body));
+    check((await pool.query("SELECT 1 FROM admin_changes WHERE entity = 'person' AND entity_id = $1 AND action = 'delete'", [ids.gone])).rows.length === 1, "a line for the record");
+    check((await as.desk.call("DELETE", `/api/desk/people/${ids.gone}`)).status === 404 && (await as.desk.call("GET", `/api/desk/people/${ids.gone}`)).status === 404, "deleted: nobody by that id");
 
     const errs = d.errors.filter((e) => !/Failed to load resource/.test(e));
     // Refusals it asks for: 403s and 404s, and Name and email's taken name (409).

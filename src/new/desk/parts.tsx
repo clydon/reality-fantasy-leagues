@@ -16,6 +16,47 @@ import { useDeskTrail } from "./trail";
 // History's latest three, and its Delete, last and named; Back names the page you came from), and the answer fields the
 // rulebook editor's sheets are built from.
 
+/** A desk change's toast, with Undo when it has one (History's Undo, through the change's id). */
+export function useChangeToast() {
+  const after = useAfterDesk();
+  return (text: string, changeId?: string | null) =>
+    toast(
+      text,
+      changeId
+        ? {
+            undo: async () => {
+              try {
+                await deskSend(`/changes/${changeId}/undo`, {});
+                await after();
+                toast("Undone");
+              } catch (e) {
+                toast.quiet((e as Error).message);
+              }
+            },
+          }
+        : {}
+    );
+}
+
+/** "now", "12 minutes ago", "2 hours ago", "yesterday", "6 days ago", else "Oct 9". */
+export function agoOf(iso: string | null, now = Date.now()): string {
+  if (!iso) return "never";
+  const m = Math.max(0, Math.round((now - Date.parse(iso)) / 60000));
+  if (m < 2) return "just now";
+  if (m < 60) return `${m} minutes ago`;
+  if (m < 120) return "an hour ago";
+  if (m < 1440) return `${Math.floor(m / 60)} hours ago`;
+  if (m < 2880) return "yesterday";
+  if (m < 10080) return `${Math.round(m / 1440)} days ago`;
+  return dateOf(iso);
+}
+
+/** "Oct 9" (this year), else "Oct 9, 2025". */
+export function dateOf(iso: string, now = new Date()): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", ...(d.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }) });
+}
+
 /**
  * The desk's header: Back, the title, and the Admin badge (not for someone the desk turns away). Back names the page you
  * came from on the desk (trail.ts), else `back`, the page's parent. `name` is this page's name on the trail (riley, Couch

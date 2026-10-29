@@ -14,9 +14,9 @@ import { deskSend, useAfterDesk, useDesk, type DeskSettings, type DeskLine, type
 import { LibraryPage } from "./library";
 import { NewShowFlow } from "./new-show";
 import { CastawayPage, CouchPage, FactPage, SeasonPage, ShowPage } from "./pages";
-import { agoOf, LetInButton, PeoplePage, PersonPage, PersonTags, useDebounced } from "./people";
+import { LetInButton, PeoplePage, PersonPage, PersonTags, useDebounced } from "./people";
 import { useDeskStay, useRecentlyOpened } from "./trail";
-import { DeskHeader, DeskRow, History, IconLead, ItemRow, Section } from "./parts";
+import { agoOf, DeskHeader, DeskRow, History, IconLead, ItemRow, Section } from "./parts";
 import { RulebookPage } from "./rulebook";
 
 // The admin's desk (docs/PLAN-new-design.md step 6b part 2; the mock's community.js admin), from the profile menu: Inbox

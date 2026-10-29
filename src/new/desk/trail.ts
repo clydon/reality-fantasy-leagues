@@ -119,3 +119,12 @@ export function useDeskStay() {
     };
   }, []);
 }
+
+/** A page whose thing is gone (an account deleted): off the trail and Recently opened, so nothing goes back to it. */
+export function forgetDeskPage(path: string) {
+  const { trail, recent } = useTrailStore.getState();
+  const next = { trail: trail.filter((c) => c.path !== path), recent: recent.filter((r) => r.href.split("?")[0] !== path) };
+  useTrailStore.setState(next);
+  write(session(), TRAIL, next.trail);
+  write(local(), RECENT, next.recent);
+}

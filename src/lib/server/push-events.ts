@@ -507,6 +507,31 @@ export function notifyLetIn(leagueId: string, seasonId: string | null, userId: s
   }));
 }
 
+/**
+ * The desk handed someone games nobody else would run (docs/PLAN-desk-parity.md step 1, Hand on): they hear they're the
+ * Commissioner now, with a link to the first game's Backstage. One notice for all of them, under Invites and join requests.
+ */
+export function notifyHandedOn(o: { userId: string; leagueIds: string[]; games: string; key: string }) {
+  if (!o.leagueIds.length) return;
+  notifyAfter("invite", async () => {
+    const ls = await leagueSeason(o.leagueIds[0]);
+    const many = o.leagueIds.length > 1;
+    return {
+      userIds: [o.userId],
+      seasonId: ls.seasonId,
+      message: {
+        title: `You run ${o.games} now`,
+        body: `You're ${many ? "their" : "its"} Commissioner: results, waivers, rules and roles are yours.`,
+        url: link("/", o.leagueIds[0]),
+        next: ls.seasonId ? `/show/${ls.seasonId}/backstage` : "/home",
+        tag: `handed-${o.key}`,
+        key: `handed:${o.key}:${o.userId}`,
+        seasonId: ls.seasonId,
+      },
+    };
+  });
+}
+
 /** Someone joined a couch with its code (step 15 part 2): everyone already on it hears. */
 export function notifyCouchJoined(couchId: string, joinerUserId: string, joinerName: string) {
   notifyAfter("couchJoined", async () => {

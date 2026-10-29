@@ -7,8 +7,10 @@ import { NO_EMAIL_DOMAIN, realEmail } from "@/lib/no-email";
 import { isUsername, USERNAME_RULE } from "@/lib/usernames";
 import { paths } from "@/new/routes";
 import type { SessionUser } from "./auth-helpers";
+import { ensureOwner } from "./couches";
 import { pool, HttpError } from "./db";
 import { logDesk } from "./desk";
+import { letSeatGo } from "./desk-seats";
 import { renameEverywhere } from "./profile";
 
 // A person's actions on the desk (docs/PLAN-desk-parity.md step 1, part 1b; the mock's desk.js dkLetIn, dkActSheet,
@@ -23,7 +25,8 @@ import { renameEverywhere } from "./profile";
 // refuses a banned account) plus signing them out (deleting their sessions), as its banUser does. The password is its
 // credential account's, hashed by Better Auth's own hasher, as its setUserPassword does, so the reset, signing them out
 // and its line are one transaction. Nothing here stops or resets another site admin, as Better Auth's rule keeps anyone
-// from acting as one.
+// from acting as one. Delete (part 1c) is the account gone for good: classic's (Better Auth's removeUser after disabling
+// every seat) weighed against the app's own takeOut, whose rule it now follows seat by seat.
 
 interface Person {
   id: string;
@@ -276,6 +279,62 @@ async function writeAccount(db: Db, id: string, a: { username: string | null; na
   if (a.email !== null) set("email", a.email);
   if (a.emailVerified !== null) set(`"emailVerified"`, a.emailVerified);
   if (sets.length) await db.query(`UPDATE "user" SET ${sets.join(", ")}, "updatedAt" = now() WHERE id = $1`, args);
+}
+
+// ---------- Delete ----------
+
+/**
+ * Deletes their account for good (tier 3; it can't come back). Not your own, nor another site admin's. They're signed out
+ * and can't sign in first ("Being deleted"), so nothing of theirs moves meanwhile; then each seat goes as the app's takeOut
+ * lets one go (letSeatGo: after a draft it stays in the standings, unplayed; before one, or in a game with no draft, it
+ * goes), with a line in each game's Recent changes. A game only they play (their practice games too; not a season's public
+ * pool) goes with them, a line on its couch's History. Then the account goes, and with it (the database's cascades) their
+ * place on each couch, their follows, ratings and settings, and invites they sent that nobody's used; their messages stay,
+ * under their name. A couch they started passes to whoever's next (couches.ts ensureOwner), and one left with nobody and no
+ * games goes. Games they ran alone and didn't hand on are left with nobody running them (on a couch, the Inbox has them).
+ * Stopped partway (a game that wouldn't let their seat go), it says so: they can't sign in, and Delete again finishes it.
+ */
+export async function deleteAccount(user: SessionUser, id: string): Promise<{ name: string }> {
+  if (id === user.id) throw new HttpError(400, "Not your own account: another site admin would have to");
+  const p = await person(id);
+  if (isAdmin(p)) throw new HttpError(409, "Not another site admin's account");
+  const name = nameOf(p);
+  await tx(async (db) => {
+    await db.query(`UPDATE "user" SET banned = true, "banReason" = COALESCE("banReason", 'Being deleted'), "updatedAt" = now() WHERE id = $1`, [id]);
+    await signOutEverywhere(db, id);
+  });
+  const { rows: seats } = await pool.query(
+    `SELECT l.id, l.name, l.couch_id, l.solo IS DISTINCT FROM 'public' AND NOT EXISTS (SELECT 1 FROM league_memberships o WHERE o.league_id = l.id AND o.user_id <> $1) AS alone
+       FROM league_memberships m JOIN leagues l ON l.id = m.league_id WHERE m.user_id = $1`,
+    [id]
+  );
+  const batch = crypto.randomUUID();
+  try {
+    for (const s of seats.filter((r) => !r.alone)) await letSeatGo(s.id, id, name, user.id, batch);
+  } catch (e) {
+    console.error(`[desk] deleting ${id} stopped partway:`, e);
+    throw new HttpError(500, `Deleting ${name}'s account stopped partway: they can't sign in, and Delete again finishes it`);
+  }
+  const { rows: couches } = await pool.query("SELECT couch_id FROM couch_members WHERE user_id = $1", [id]);
+  await tx(async (db) => {
+    // The games only they play: nobody could ever play them again.
+    const { rows: gone } = await db.query(
+      `DELETE FROM leagues l WHERE l.id = ANY($1::uuid[]) AND NOT EXISTS (SELECT 1 FROM league_memberships o WHERE o.league_id = l.id AND o.user_id <> $2) RETURNING l.name, l.couch_id`,
+      [seats.filter((r) => r.alone).map((r) => r.id), id]
+    );
+    for (const g of gone.filter((r) => r.couch_id))
+      await logDesk(db, { entity: "couch", entityId: g.couch_id, action: "game-gone", text: `${g.name} went with ${name}'s account: nobody else played it`, userId: user.id });
+    await logDesk(db, { entity: "person", entityId: id, action: "delete", text: `Deleted the account (${name})`, before: { name }, userId: user.id });
+    await db.query(`DELETE FROM "user" WHERE id = $1`, [id]);
+    for (const c of couches) {
+      await ensureOwner(db, c.couch_id);
+      await db.query(
+        "DELETE FROM couches c WHERE c.id = $1 AND NOT EXISTS (SELECT 1 FROM couch_members m WHERE m.couch_id = c.id) AND NOT EXISTS (SELECT 1 FROM leagues l WHERE l.couch_id = c.id)",
+        [c.couch_id]
+      );
+    }
+  });
+  return { name };
 }
 
 // ---------- Undo ----------

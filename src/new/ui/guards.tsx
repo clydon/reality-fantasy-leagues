@@ -116,13 +116,17 @@ const HOLD_MS = 1400;
 /**
  * Tier 3 (the mock's guards.js holdSheet): the consequence in a sentence, an easier way out when there is one (`alt`),
  * and "Hold to …": pressed and held for 1.4 s, by pointer or by Space/Enter; a tap or an early let-go does nothing but
- * say to hold it down. `problem`: why it can't happen at all (the last Commissioner), in place of the button.
+ * say to hold it down. `problem`: why it can't happen at all (the last Commissioner), in place of the button. `body`: what
+ * happens said at more length than a sentence (the desk's Delete: a list, and what to do first), in place of `consequence`;
+ * `subtitle`: under the title (default: it's hard to undo).
  */
 export function HoldSheet({
   open,
   onOpenChange,
   title,
+  subtitle = "This one is hard to undo",
   consequence,
+  body,
   cta,
   problem,
   alt,
@@ -132,8 +136,10 @@ export function HoldSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: string;
+  subtitle?: string;
   /** What happens, in a sentence; null while it's worked out. */
   consequence: string | null;
+  body?: ReactNode;
   cta: string;
   problem?: string | null;
   alt?: { label: string; line: string; onClick: () => void };
@@ -178,9 +184,11 @@ export function HoldSheet({
     setHint(true);
   };
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title={title} subtitle="This one is hard to undo">
+    <Sheet open={open} onOpenChange={onOpenChange} title={title} subtitle={subtitle}>
       <div data-guard="3">
-        {consequence === null ? (
+        {body ? (
+          body
+        ) : consequence === null ? (
           <div aria-busy className="h-16 animate-pulse rounded-[3px] bg-background" />
         ) : (
           <p className="text-[16px] leading-snug">{consequence}</p>
@@ -203,7 +211,7 @@ export function HoldSheet({
             <button
               type="button"
               data-hold
-              disabled={consequence === null || busy}
+              disabled={(consequence === null && !body) || busy}
               aria-label={`Hold to ${cta}`}
               // A finger that rolls a few pixels as it presses was handed to scrolling, which cancelled the hold mid-press
               // (check-hold-touch.js): touch-none keeps the touch here. A finger is also captured by what it lands on (the

@@ -11,7 +11,8 @@ export type { DeskFact, DeskSource } from "@/lib/server/desk-facts";
 export type { DeskSeason, DeskCastaway } from "@/lib/server/desk-cast";
 export type { SeasonBot } from "@/lib/server/desk-bot";
 export type { DeskCouch, DeskShow } from "@/lib/server/desk-couches";
-export type { DeskPerson, PeopleList, PersonRow, PeopleFilter, PeopleSort } from "@/lib/server/desk-people";
+export type { DeskPerson, DeskSeatGame, PeopleList, PersonRow, PeopleFilter, PeopleSort } from "@/lib/server/desk-people";
+export type { HandOnCandidate, HandOnGame } from "@/lib/server/desk-seats";
 export type { DeskRulebook, DeskRulebookEdit } from "@/lib/server/desk-rulebooks";
 export type { DeskLibrary, LibraryTemplateCard, ProposedShape, LibraryRow, MadeRow } from "@/lib/server/desk-library";
 
@@ -39,7 +40,7 @@ export function useDesk<T>(path: string | null) {
 }
 
 /** A desk write; the answer is the page as it is now (or what the action says). */
-export const deskSend = <T>(path: string, body: unknown, method: "POST" | "PUT" = "POST") =>
+export const deskSend = <T>(path: string, body: unknown, method: "POST" | "PUT" | "DELETE" = "POST") =>
   call<T>(path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 
 /** After a desk write: every desk read, and anything the new design shows of what changed. */

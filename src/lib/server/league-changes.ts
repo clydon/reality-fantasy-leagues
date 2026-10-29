@@ -282,6 +282,8 @@ function freezes(undo: ChangeUndo): boolean {
 async function restoreMember(s: LeagueState, client: PoolClient, leagueId: string, undo: MemberUndo): Promise<void> {
   const { rows } = await client.query("SELECT 1 FROM league_memberships WHERE league_id = $1 AND user_id = $2", [leagueId, undo.userId]);
   if (rows.length) throw new HttpError(409, "They're back in already");
+  const { rows: who } = await client.query(`SELECT 1 FROM "user" WHERE id = $1`, [undo.userId]);
+  if (!who.length) throw new HttpError(409, "Their account was deleted");
   let playerId = undo.playerId;
   const seat = s.players.find((p) => p.id === playerId);
   if (seat?.disabled && (!seat.disabledFromUserId || seat.disabledFromUserId === undo.userId)) StateLogic.reclaimPlayer(s, playerId);
