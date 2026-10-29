@@ -15,5 +15,7 @@ export function exactAirTime(text: string | null | undefined): Date | null;
 export function episodeAirTime(season: AirSeason, n: number, wikiAirDates?: Record<number, string | null>): Date | null;
 export function formatInTz(instant: Date, tz?: string | null): string;
 export function localDate(instant: Date, tz: string): string;
+/** "YYYY-MM-DD" plus `n` days. */
+export function addDays(date: string, n: number): string;
 export const WEEKDAYS: string[];
 export const DEFAULT_AIR_TIME: string;

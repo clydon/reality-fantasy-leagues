@@ -4,6 +4,7 @@ import { buildQuickPrompt, buildSchedulePrompt, dueAt, episodeAirTimes, episodeM
 import { castFor, buildTriviaPrompt } from "@db/trivia-research.js";
 import { adminBingoBank } from "./bingo-bank";
 import { KINDS, cap, dur, researchLine, when, type Run, type RunKind } from "@/lib/desk-bot-words";
+import { finalResultsAt } from "@/lib/game/final-results.js";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { askBot, askBotStatus } from "./ask-bot";
 import { botSend } from "./bot-results";
@@ -63,7 +64,8 @@ export interface ResearchRun {
 /** One row of the next episode's night. */
 export interface RailRow {
   key: string;
-  type: "start" | "end" | "run" | "now";
+  /** final: players' final results (12:00 noon the day after it airs, final-results.js), which the runs land before. */
+  type: "start" | "end" | "run" | "final" | "now";
   /** The day, on a day's first row ("Tonight", "Fri", "Nov 4"). */
   day: string;
   hm: string;
@@ -345,6 +347,10 @@ function railOf(season: SeasonJob, runs: Run[], minutes: number, history: RunRow
     { t: ep.at, row: { key: "start", type: "start", title: `Episode ${ep.episode} starts`, line: ep.episode === 1 ? "The premiere" : count === ep.episode ? "The finale" : fmt(ep.at, tz, { weekday: "long", month: "long", day: "numeric" }) } },
     { t: end, row: { key: "end", type: "end", title: "It ends", line: `Episodes run ${dur(ep.minutes ?? minutes)}${ep.minutes && ep.minutes !== minutes ? " (this one, by its research)" : ""}` } },
   ];
+  // Players' final results: the push and "Final results are in" (the user, 2026-10-29). The runs before it land in them.
+  const final = finalResultsAt(ep.at, tz);
+  if (final)
+    items.push({ t: final, row: { key: "final", type: "final", title: "Final results for players", line: "Their push, and “Final results are in”: what's in by now" } });
   const seen = new Set<string>();
   runs.forEach((r, i) => {
     const due = d[i];
@@ -356,8 +362,9 @@ function railOf(season: SeasonJob, runs: Run[], minutes: number, history: RunRow
     const line = `${cap(when(r))}${r.kind === "schedule" ? `: when Episode ${ep.episode + 1} airs` : ""}${r.kind === "full" && again ? " · merged into the first" : ""}${r.on ? "" : " · off"}`;
     items.push({ t: due, row: { key: `${r.kind}@${r.after}`, type: "run", title, line, i, on: r.on, done: tried ? { ok: !!tried.ok, line: tried.ok ? (tried.message ?? "Done") : "Failed" } : null } });
   });
-  // Starts before ends before runs at the same minute; Now goes before the first thing still to come.
-  const order = { start: 0, end: 1, run: 2, now: 3 };
+  // Starts before ends before runs before players' final results at the same minute; Now goes before the first thing still
+  // to come.
+  const order = { start: 0, end: 1, run: 2, final: 3, now: 4 };
   items.sort((a, b) => a.t.getTime() - b.t.getTime() || order[a.row.type] - order[b.row.type]);
   const nowAt = items.findIndex((x) => x.t.getTime() > t);
   items.splice(nowAt < 0 ? items.length : nowAt, 0, { t: now, row: { key: "now", type: "now", title: "Now", line: "" } });

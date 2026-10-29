@@ -514,6 +514,7 @@ function fullAnswer(prompt) {
     await shut();
     await pg.goto(`${BASE}/desk/season/${ids.season}/e/6`);
     await pg.locator("[data-not-aired]").waitFor({ timeout: 30000 });
+    check(/Players get who went home then, and their final results [^.]*12:00 PM\./.test(await pg.locator("[data-not-aired]").innerText()), "and when players get their final results (12:00 PM the next day)", await pg.locator("[data-not-aired]").innerText());
     check(/Results come in after it ends at 9:00 PM/.test(await pg.locator("[data-not-aired]").innerText()) && /Coming up/i.test(await pg.locator("[data-lower-third]").getAttribute("data-lower-third")) && (await pg.locator("[data-delete-row='clear-episode'] button").count()) === 0, "Episode 6: hasn't aired, nothing to clear");
     await shot("not-aired");
 

@@ -121,6 +121,7 @@ export function EpisodePage({ id, n }: { id: string; n: number }) {
             <b className="block text-[16px]">Hasn&apos;t aired</b>
             <small className="mt-0.5 block text-[14px] leading-snug text-muted-foreground">
               Results come in after it ends{e.endsAt ? ` at ${e.endsAt}` : ""}: couches&apos; answers, and whatever our bot&apos;s schedule asks.
+              {e.finalAt ? ` Players get who went home then, and their final results ${e.finalAt.when}.` : ""}
             </small>
           </div>
         </Section>
@@ -128,6 +129,11 @@ export function EpisodePage({ id, n }: { id: string; n: number }) {
 
       {e.aired && (
         <Section title="Results">
+          {e.finalAt && (
+            <p data-final-at className="pb-2 text-[13px] leading-snug text-muted-foreground">
+              Players&apos; final results {e.finalAt.passed ? "were due" : "are due"} {e.finalAt.when}: their push, and &ldquo;Final results are in&rdquo;, with what&apos;s in by then.
+            </p>
+          )}
           <button type="button" role="switch" aria-checked={hide} data-hide-names={hide ? "on" : "off"} onClick={() => setHide(!hide)} className="nd-press flex min-h-[60px] w-full items-center gap-3 text-left">
             <span className="min-w-0 flex-1">
               <b className="block text-[16px]">Hide names</b>

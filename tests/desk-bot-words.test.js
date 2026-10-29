@@ -26,9 +26,9 @@ test("a schedule change's line", () => {
   const usual = W.USUAL.map((r) => ({ ...r }));
   const base = { on: true, runs: usual, minutes: 60 };
   const off = usual.map((r) => (r.kind === "quick" ? { ...r, on: false } : r));
-  assert.strictEqual(W.changeLine(base, { ...base, runs: off }), "Who went home (5 min after it ends) off");
-  const moved = usual.map((r) => (r.after === 540 ? { ...r, after: 720 } : r));
-  assert.strictEqual(W.changeLine(base, { ...base, runs: moved }), "Full results: 12 hr after it ends (was 9 hr after it ends)");
+  assert.strictEqual(W.changeLine(base, { ...base, runs: off }), "Who went home (at its end) off");
+  const moved = usual.map((r) => (r.after === 720 ? { ...r, after: 540 } : r));
+  assert.strictEqual(W.changeLine(base, { ...base, runs: moved }), "Full results: 9 hr after it ends (was 12 hr after it ends)");
   assert.strictEqual(W.changeLine(base, { ...base, runs: [...usual, { kind: "schedule", after: 30, on: true }] }), "Schedule check added, 30 min after it ends");
   assert.strictEqual(W.changeLine(base, { ...base, runs: usual.filter((r) => r.kind !== "bingo") }), "Bingo squares (a day before it airs) taken off");
   assert.strictEqual(W.changeLine(base, { ...base, on: false }), "Autopilot off");

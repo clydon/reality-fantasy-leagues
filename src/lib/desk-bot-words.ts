@@ -13,8 +13,8 @@ export interface Run {
 export type CountFrom = "end" | "next" | "air";
 
 export const KINDS: Record<RunKind, { t: string; short: string; now: string; add: string; took: string; from: CountFrom }> = {
-  full: { t: "Full results", short: "full results", now: "The whole checklist for an episode", add: "The whole checklist. Usually 1 hr after it ends, and again at 9 hr.", took: "about 3 minutes", from: "end" },
-  quick: { t: "Who went home", short: "who went home", now: "Who left, and the headline", add: "Who left, and the headline. Usually 5 min after it ends.", took: "about 30 seconds", from: "end" },
+  full: { t: "Full results", short: "full results", now: "The whole checklist for an episode", add: "The whole checklist. Usually 1 hr after it ends, and again at 12 hr, before players' final results at noon.", took: "about 3 minutes", from: "end" },
+  quick: { t: "Who went home", short: "who went home", now: "Who left, and the headline", add: "Who left, and the headline. Usually at its end.", took: "about 30 seconds", from: "end" },
   schedule: { t: "Schedule check", short: "the schedule check", now: "When the next one airs", add: "When the next episode airs, and how long it runs. Usually 30 min after.", took: "under a minute", from: "end" },
   trivia: { t: "Trivia", short: "trivia", now: "Six questions, then checked", add: "Six questions about it. Usually a day before the next episode.", took: "about 2 minutes", from: "next" },
   bingo: { t: "Bingo squares", short: "bingo squares", now: "Thirty squares, then checked", add: "Thirty squares for it. Usually a day before it airs.", took: "up to 4 minutes", from: "air" },
@@ -24,9 +24,9 @@ export const NOW_ORDER: RunKind[] = ["full", "quick", "schedule", "trivia", "bin
 
 /** Our usual five (db/bot-research.js DEFAULT_SCHEDULE). */
 export const USUAL: Run[] = [
-  { kind: "quick", after: 5, on: true },
+  { kind: "quick", after: 0, on: true },
   { kind: "full", after: 60, on: true },
-  { kind: "full", after: 540, on: true },
+  { kind: "full", after: 720, on: true },
   { kind: "trivia", after: 1440, on: true },
   { kind: "bingo", after: 1440, on: true },
 ];
@@ -34,7 +34,7 @@ export const USUAL: Run[] = [
 export const MAX_RUNS = 8;
 /** The timings a run's stepper steps through, by what it counts from. */
 export const LADDER: Record<CountFrom, number[]> = {
-  end: [5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 360, 540, 720, 1440, 2880],
+  end: [0, 5, 10, 15, 20, 30, 45, 60, 90, 120, 180, 240, 360, 540, 720, 1440, 2880],
   next: [180, 360, 720, 1080, 1440, 2160, 2880],
   air: [60, 180, 360, 720, 1080, 1440, 2160, 2880],
 };
@@ -64,9 +64,10 @@ export function dur(m: number): string {
   if (m < 60) return `${m} min`;
   return m % 60 ? `${Math.floor(m / 60)} hr ${m % 60} min` : `${m / 60} hr`;
 }
-/** "9 hr after it ends", "a day before the next episode", "a day before it airs". */
+/** "At its end" (counted from the end, 0), "9 hr after it ends", "a day before the next episode", "a day before it airs". */
 export function when(r: { kind: RunKind; after: number }): string {
   const f = KINDS[r.kind].from;
+  if (r.after === 0 && f === "end") return "at its end";
   return `${dur(r.after)} ${f === "end" ? "after it ends" : f === "next" ? "before the next episode" : "before it airs"}`;
 }
 export const cap = (t: string) => (t ? t[0].toUpperCase() + t.slice(1) : t);

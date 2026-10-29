@@ -11,7 +11,7 @@ import { toast } from "../ui/toast";
 import { Choice, SwitchRow } from "./controls";
 
 // What we notify you about (docs/PLAN-new-design.md step 15 part 2; the mock's settings.js accountRoute): this phone's
-// notifications on or off, then the moments (moments.js: Lineup reminders, Early results are in, Final scores are in, Invites and
+// notifications on or off, then the moments (moments.js: Lineup reminders, Early results are in, Final results are in, Invites and
 // join requests, and two the mock didn't have: On the couch, and Backstage for whoever runs a game), then Couch chat's three
 // choices. A switch saves as it's tapped, with Undo. Whatever's off, the bell on the hub still lists it.
 

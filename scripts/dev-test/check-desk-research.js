@@ -51,10 +51,11 @@ const PASSWORD = "zt-pass-12345";
 const U = (k) => `zt_dr_${k}`;
 const SHOW = "zt-dr-show";
 const NAME = "ZT DR Show";
+// Our usual (db/bot-research.js DEFAULT_SCHEDULE, since 2026-10-29: who went home at its end, full again before noon's final results).
 const USUAL = [
-  { kind: "quick", after: 5, on: true },
+  { kind: "quick", after: 0, on: true },
   { kind: "full", after: 60, on: true },
-  { kind: "full", after: 540, on: true },
+  { kind: "full", after: 720, on: true },
   { kind: "trivia", after: 1440, on: true },
   { kind: "bingo", after: 1440, on: true },
 ];
@@ -178,10 +179,12 @@ const REAL_BOTS = `SELECT md5(string_agg(ss.id || ss.bot_research_on::text || co
     check(end.hm === "9:05" && end.line === "Episodes run 1 hr", "it ends an hour later", JSON.stringify(end));
     const runRows = rail.rows.filter((x) => x.type === "run");
     check(runRows.length >= 3 && runRows.every((x) => /^(quick|full|trivia|bingo)@\d+$/.test(x.key) && x.on), "each run on the rail, on", runRows.map((x) => x.key).join());
-    const quick = runRows.find((x) => x.key === "quick@5");
-    check(!!quick && quick.hm === "9:10" && quick.line === "5 min after it ends", "who went home: 5 minutes after it ends", JSON.stringify(quick));
-    const again = runRows.find((x) => x.key === "full@540");
-    check(!!again && again.title === "Full results, again" && /merged into the first/.test(again.line) && again.hm === "6:05" && again.ap === "AM", "full results again: 9 hours on, merged into the first", JSON.stringify(again));
+    const quick = runRows.find((x) => x.key === "quick@0");
+    check(!!quick && quick.hm === "9:05" && quick.line === "At its end", "who went home: at its end", JSON.stringify(quick));
+    const again = runRows.find((x) => x.key === "full@720");
+    check(!!again && again.title === "Full results, again" && /merged into the first/.test(again.line) && again.hm === "9:05" && again.ap === "AM", "full results again: 12 hours on, merged into the first", JSON.stringify(again));
+    const fin = rail.rows.find((x) => x.type === "final");
+    check(!!fin && fin.hm === "12:00" && fin.ap === "PM" && fin.title === "Final results for players" && rail.rows.indexOf(fin) > rail.rows.indexOf(again), "players' final results: 12:00 PM the next day, after the last full run", JSON.stringify(fin));
     const nowAt = rail.rows.findIndex((x) => x.type === "now");
     check(nowAt >= 0 && (Date.parse(rail.airAt) > Date.now() ? rail.rows[nowAt + 1]?.type === "start" || rail.rows.slice(0, nowAt).every((x) => x.type === "run") : rail.rows.slice(0, nowAt).some((x) => x.type === "start")), "Now sits before what's still to come", JSON.stringify(rail.rows.map((x) => x.type)));
     check(r1.now.aired.length >= 2 && r1.now.aired[0].label === "The latest" && r1.now.scheduleEpisode === r1.now.aired[0].n && r1.now.bingo.length >= 1, "Run now's episodes: the aired ones, latest first; bingo's still to come", JSON.stringify(r1.now));
@@ -195,11 +198,11 @@ const REAL_BOTS = `SELECT md5(string_agg(ss.id || ss.bot_research_on::text || co
 
     // ---- 3. the schedule ----
     let c = await change(ids.s1, { schedule: USUAL.map((x) => (x.kind === "quick" ? { ...x, on: false } : x)) });
-    check(c.status === 200 && c.body.text === "Who went home (5 min after it ends) off" && !!c.body.changeId, "a run switched off: its line", JSON.stringify(c.body));
+    check(c.status === 200 && c.body.text === "Who went home (at its end) off" && !!c.body.changeId, "a run switched off: its line", JSON.stringify(c.body));
     check((await sched(ids.s1)).runs.find((x) => x.kind === "quick").on === false, "stored: off");
     const offId = c.body.changeId;
-    c = await change(ids.s1, { schedule: USUAL.map((x) => (x.kind === "full" && x.after === 540 ? { ...x, after: 720 } : x.kind === "quick" ? { ...x, on: false } : x)) });
-    check(c.body.text === "Full results: 12 hr after it ends (was 9 hr after it ends)", "retimed: its line", c.body.text);
+    c = await change(ids.s1, { schedule: USUAL.map((x) => (x.kind === "full" && x.after === 720 ? { ...x, after: 540 } : x.kind === "quick" ? { ...x, on: false } : x)) });
+    check(c.body.text === "Full results: 9 hr after it ends (was 12 hr after it ends)", "retimed: its line", c.body.text);
     c = await change(ids.s1, { schedule: [...USUAL, { kind: "trivia", after: 1440, on: true }] });
     check(c.status === 400 && /Two trivia runs/.test(c.body.error || ""), "a duplicate run refused", JSON.stringify(c.body));
     let now1 = (await sched(ids.s1)).runs;
@@ -215,7 +218,7 @@ const REAL_BOTS = `SELECT md5(string_agg(ss.id || ss.bot_research_on::text || co
     check(c.body.text === "Episode length: 1 hr 30 min (was 1 hr)" && (await sched(ids.s1)).m === 90, "the episode's length", c.body.text);
     const lenId = c.body.changeId;
     r1 = await page(ids.s1);
-    check(r1.minutes === 90 && r1.rail.rows.find((x) => x.type === "end").hm === "9:35" && r1.rail.rows.find((x) => x.key === "quick@5").hm === "9:40", "every run moves with the end", JSON.stringify(r1.rail.rows.filter((x) => x.type !== "now").map((x) => `${x.key}=${x.hm}`)));
+    check(r1.minutes === 90 && r1.rail.rows.find((x) => x.type === "end").hm === "9:35" && r1.rail.rows.find((x) => x.key === "quick@0").hm === "9:35", "every run moves with the end", JSON.stringify(r1.rail.rows.filter((x) => x.type !== "now").map((x) => `${x.key}=${x.hm}`)));
     check((await change(ids.s1, { episodeMinutes: 2 })).status === 400 && (await change(ids.s1, { episodeMinutes: 601 })).status === 400, "a length out of range refused");
     c = await change(ids.s1, { episodeMinutes: 90 });
     check(c.status === 200 && c.body.changeId === null, "the same length again changes nothing");
@@ -384,30 +387,30 @@ const REAL_BOTS = `SELECT md5(string_agg(ss.id || ss.bot_research_on::text || co
     await shut();
 
     // A run's timing, and the toast's Undo
-    await pg.locator("[data-rail-run='full@540']").click();
+    await pg.locator("[data-rail-run='full@720']").click();
     await pg.locator("[data-time-save]").waitFor({ timeout: 10000 });
-    check((await pg.locator("[data-time-save]").isDisabled()) && /9 hr after it ends/.test(await pg.locator("[data-time-when]").innerText()), "a run's timing: as it is, Save off");
+    check((await pg.locator("[data-time-save]").isDisabled()) && /12 hr after it ends/.test(await pg.locator("[data-time-when]").innerText()), "a run's timing: as it is, Save off");
     await pg.locator("[data-time-step='1']").click();
-    check(/12 hr after it ends/.test(await pg.locator("[data-time-when]").innerText()) && /Around Episode \d: /.test(await dialog()), "later: 12 hr, and when that lands");
-    for (let k = 0; k < 7; k++) await pg.locator("[data-time-step='-1']").click();
+    check(/a day after it ends/i.test(await pg.locator("[data-time-when]").innerText()) && /Around Episode \d: /.test(await dialog()), "later: a day, and when that lands");
+    for (let k = 0; k < 8; k++) await pg.locator("[data-time-step='-1']").click();
     check((await pg.locator("[data-time-dup]").count()) === 1 && (await pg.locator("[data-time-save]").isDisabled()), "1 hr: a duplicate of the first, refused");
     for (let k = 0; k < 5; k++) await pg.locator("[data-time-step='1']").click();
     await shot("run-timing");
     await pg.locator("[data-time-save]").click();
-    check(/Full results: 6 hr after it ends \(was 9 hr after it ends\)/.test(await toasted(/Full results:/)), "saved: a toast with its line");
+    check(/Full results: 6 hr after it ends \(was 12 hr after it ends\)/.test(await toasted(/Full results:/)), "saved: a toast with its line");
     check((await sched(ids.s1)).runs.some((x) => x.kind === "full" && x.after === 360), "stored: 6 hr");
     await pg.locator("[data-toast] button", { hasText: "Undo" }).click();
     await pg.waitForFunction(() => /Undone/.test(document.querySelector("[data-toast]")?.textContent || ""), null, { timeout: 10000 });
-    check((await sched(ids.s1)).runs.some((x) => x.kind === "full" && x.after === 540), "the toast's Undo: 9 hr again");
+    check((await sched(ids.s1)).runs.some((x) => x.kind === "full" && x.after === 720), "the toast's Undo: 12 hr again");
     // A run switched off on the rail, then Not in its schedule and Reset
-    await pg.locator("[data-rail-switch='quick@5']").click();
+    await pg.locator("[data-rail-switch='quick@0']").click();
     await toasted(/Who went home/);
-    await pg.locator("[data-rail-row='quick@5'][data-on='off']").waitFor({ timeout: 10000 });
+    await pg.locator("[data-rail-row='quick@0'][data-on='off']").waitFor({ timeout: 10000 });
     check(true, "a run switched off from the rail");
-    await pg.locator("[data-rail-run='quick@5']").click();
+    await pg.locator("[data-rail-run='quick@0']").click();
     await pg.locator("[data-time-off]").click();
-    check(/Who went home \(5 min after it ends\) taken off/.test(await toasted(/taken off/)), "taken off the schedule");
-    await pg.locator("[data-missing-run='quick@5']").waitFor({ timeout: 10000 });
+    check(/Who went home \(at its end\) taken off/.test(await toasted(/taken off/)), "taken off the schedule");
+    await pg.locator("[data-missing-run='quick@0']").waitFor({ timeout: 10000 });
     check((await pg.locator("[data-reset]").count()) === 1, "Not in its schedule lists it, and Reset shows");
     await pg.locator("[data-missing]").scrollIntoViewIfNeeded();
     await shot("not-in-schedule");

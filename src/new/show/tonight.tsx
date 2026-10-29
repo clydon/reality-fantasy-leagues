@@ -15,6 +15,7 @@ import { useMe } from "../session";
 import { namesOf } from "../hub/sections";
 import { PlayIt } from "./games";
 import { Avatar, useNow } from "../ui/bars";
+import { useFinalLine, useFinalWhen } from "../final-words";
 import { Btn, BtnLink, GuardChip } from "../ui/parts";
 import { toast } from "../ui/toast";
 import { ShowArt } from "../ui/show-bar";
@@ -448,11 +449,13 @@ function DoneCard({ icon: Icon, title, line, action }: { icon: typeof Check; tit
 // ---------- after an episode ----------
 
 /** The three stages of an episode's results, for the bar under Waiting and early results. */
-function StageBar({ episode, stage, airAt }: { episode: number; stage: "waiting" | "early" | "final"; airAt: string | null }) {
+function StageBar({ episode, stage, airAt, finalAt }: { episode: number; stage: "waiting" | "early" | "final"; airAt: string | null; finalAt: string | null }) {
+  // When the final results come (final-words.ts: 12:00 noon the day after it airs, in your own time).
+  const finalWhen = useFinalWhen(stage === "final" ? null : finalAt);
   const steps: [typeof stage, string, string][] = [
     ["waiting", "Aired", airAt ? (justAired(airAt) ? "Just now" : airTime(Date.parse(airAt))) : "It's out"],
     ["early", "Early results", "Who went home"],
-    ["final", "Final scores", "Every point"],
+    ["final", "Final results", finalWhen ?? "Every point"],
   ];
   const at = steps.findIndex((s) => s[0] === stage);
   return (
@@ -480,6 +483,7 @@ function AfterEpisode({ seasonId, show }: { seasonId: string; show: ShowData }) 
   const openReveal = useOpenReveal();
   const openMorning = useOpenMorning();
   const eps = show.episodes;
+  const finalWords = useFinalLine(eps?.reveal?.stage, eps?.reveal?.finalAt);
   // Who the chat's reveal lines say has revealed it (the frame polls this with the Chat tab's badge).
   const revealed = useChatBadge(seasonId, chatCouch(show), eps?.reveal?.episode ?? null).data?.revealed ?? [];
   if (!eps || show.upNext?.live) return null;
@@ -495,9 +499,11 @@ function AfterEpisode({ seasonId, show }: { seasonId: string; show: ShowData }) 
           <span className="type-caption inline-block bg-chyron py-1 pl-2 pr-4 text-xs tracking-[0.06em] text-chyron-foreground [clip-path:polygon(0_0,100%_0,calc(100%_-_8px)_100%,0_100%)]">
             Episode {n}
           </span>
-          <b className="type-caption mt-3 block text-[34px] leading-none text-white">{early ? "Early results are in" : "Results are in"}</b>
+          <b className="type-caption mt-3 block text-[34px] leading-none text-white">{early ? "Early results are in" : "Final results are in"}</b>
           <small className="mt-2 block text-sm leading-snug text-white/85">
-            {early ? "Who went home, Survival Pool and Outlast. Weekly Lineup's full scores come later." : "Watched it? Reveal for every game at once. Nothing shows until then."}
+            {early
+              ? `Who went home, Survival Pool and Outlast. ${finalWords ? `${finalWords}.` : "Weekly Lineup's full scores come later."}`
+              : "Watched it? Reveal for every game at once. Nothing shows until then."}
           </small>
           {revealed.length > 0 && (
             <small data-revealed className="mt-2 flex items-start gap-1.5 text-[13px] font-semibold leading-snug text-white/85">
@@ -510,7 +516,7 @@ function AfterEpisode({ seasonId, show }: { seasonId: string; show: ShowData }) 
             Reveal Episode {n}
           </Btn>
         </div>
-        {early && <StageBar episode={n} stage="early" airAt={eps.episodes.find((e) => e.number === n)?.airAt ?? null} />}
+        {early && <StageBar episode={n} stage="early" airAt={eps.episodes.find((e) => e.number === n)?.airAt ?? null} finalAt={eps.reveal.finalAt} />}
       </section>
     );
   }
@@ -526,7 +532,7 @@ function AfterEpisode({ seasonId, show }: { seasonId: string; show: ShowData }) 
             <small className="mt-1.5 block text-sm leading-snug text-muted-foreground">Who went home usually lands a little after the episode ends. Nothing is spoiled in the meantime.</small>
           </span>
         </div>
-        <StageBar episode={eps.waiting.episode} stage="waiting" airAt={eps.waiting.airAt} />
+        <StageBar episode={eps.waiting.episode} stage="waiting" airAt={eps.waiting.airAt} finalAt={eps.waiting.finalAt ?? null} />
       </section>
     );
   }
@@ -545,7 +551,7 @@ function AfterEpisode({ seasonId, show }: { seasonId: string; show: ShowData }) 
             Morning update
           </span>
           <span className="flex flex-1 flex-col justify-center gap-[3px] py-[7px] pl-5 pr-2.5">
-            <span className="text-[17px] font-bold">Final scores are in</span>
+            <span className="text-[17px] font-bold">Final results are in</span>
             <span className="text-[13px] text-plate-muted">Episode {n} · every point counted</span>
           </span>
           <span className="grid place-items-center px-3">

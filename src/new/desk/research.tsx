@@ -346,7 +346,9 @@ function Rail({ rows, paused, onLength, onRun, onSwitch }: { rows: RailRow[]; pa
           </span>
         );
         const marker = row.type === "run";
-        const dot = !marker
+        const dot = row.type === "final"
+          ? `rounded-[2px] ${paused ? "bg-input" : "bg-good"}`
+          : !marker
           ? `rounded-[2px] ${paused ? "bg-input" : "bg-foreground"}`
           : row.done
             ? row.done.ok
@@ -361,9 +363,9 @@ function Rail({ rows, paused, onLength, onRun, onSwitch }: { rows: RailRow[]; pa
             <i className={`absolute left-1 top-1/2 -mt-1.5 size-3 ${dot}`} />
           </span>
         );
-        if (row.type === "start")
+        if (row.type === "start" || row.type === "final")
           return (
-            <div key={row.key} data-rail-row="start" className="grid min-h-16 grid-cols-[64px_20px_minmax(0,1fr)_auto] items-center gap-x-2.5">
+            <div key={row.key} data-rail-row={row.type} className="grid min-h-16 grid-cols-[64px_20px_minmax(0,1fr)_auto] items-center gap-x-2.5">
               {time}
               {node}
               <span className="min-w-0">

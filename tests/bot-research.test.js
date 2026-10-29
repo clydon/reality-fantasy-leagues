@@ -6,13 +6,37 @@ const Bot = require("../db/bot-research.js");
 
 const AIRED = new Date("2026-10-22T00:05:00Z"); // Wednesday 8:05pm Eastern
 const min = (n) => new Date(AIRED.getTime() + n * 60 * 1000);
-// The runs after an episode, as these tests were written for them: bingo's (before an episode airs) has tests of its own below.
-const schedule = Bot.normalizeSchedule(null).filter((r) => r.kind !== "bingo");
+// The runs after an episode, as these tests were written for them (our usual before 2026-10-29: the timing rules don't change
+// with it): bingo's (before an episode airs) has tests of its own below.
+const schedule = Bot.normalizeSchedule([
+  { kind: "quick", after: 5 },
+  { kind: "full", after: 60 },
+  { kind: "full", after: 540 },
+  { kind: "trivia", after: 1440 },
+]);
 const due = (now, history = [], extra = {}) =>
   Bot.dueRuns({ schedule, since: null, airTimes: [{ episode: 5, at: AIRED }], history, now, ...extra }).map((r) => r.slot);
 
-test("the default schedule: quick at 5 minutes, full at 1 and 9 hours, trivia a day before the next episode, bingo a day before this one", () => {
-  assert.deepEqual(Bot.normalizeSchedule(null).map(Bot.slotOf), ["quick@5", "full@60", "full@540", "trivia@1440", "bingo@1440"]);
+test("the default schedule: quick at its end, full at 1 and 12 hours (before noon's final results), trivia a day before the next episode, bingo a day before this one", () => {
+  assert.deepEqual(Bot.normalizeSchedule(null).map(Bot.slotOf), ["quick@0", "full@60", "full@720", "trivia@1440", "bingo@1440"]);
+  // An 8:05 PM Eastern start, 90 minutes: the last full run at 9:35 AM, before 12:00 PM's final results.
+  const last = Bot.dueAt({ kind: "full", after: 720 }, AIRED.getTime() + 90 * 60 * 1000, null, AIRED.getTime());
+  assert.equal(last.toISOString(), "2026-10-22T13:35:00.000Z");
+});
+
+test("an episode our old usual already asked about isn't asked again under the new one", () => {
+  const usual = Bot.normalizeSchedule(null).filter((r) => r.kind === "quick" || r.kind === "full");
+  const done = ["quick@5", "full@60", "full@540"].map((slot) => ({ episode_number: 5, slot, started_at: min(30), ok: true }));
+  const due = (history) => Bot.dueRuns({ schedule: usual, since: null, airTimes: [{ episode: 5, at: AIRED }], episodeMinutes: 90, history, now: min(90 + 12 * 60 + 5) }).map((r) => r.slot);
+  assert.deepEqual(due([]), ["full@60", "full@720"], "without history: the full runs (the quick check has gone stale)");
+  assert.deepEqual(due(done), []);
+});
+
+test("a quick check at the episode's end is due at its end", () => {
+  const atEnd = Bot.normalizeSchedule([{ kind: "quick", after: 0 }]);
+  const due = (now) => Bot.dueRuns({ schedule: atEnd, since: null, airTimes: [{ episode: 5, at: AIRED }], episodeMinutes: 90, history: [], now }).map((r) => r.slot);
+  assert.deepEqual(due(min(89)), []);
+  assert.deepEqual(due(min(90)), ["quick@0"]);
 });
 
 test("trivia counts back from the next episode: a day before a weekly one, 3 hours after the end for a nightly one, none for a double", () => {

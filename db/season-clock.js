@@ -13,7 +13,7 @@ async function loadSeasons(pool, where, params = []) {
   const { rows } = await pool.query(
     `SELECT ss.id, ss.season_number, s.slug, s.id AS show_id,
             to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere_date, to_char(ss.air_time, 'HH24:MI') AS air_time, ss.air_tz,
-            ss.episode_count, ss.status,
+            ss.episode_count, ss.status, ss.release, ss.drop_at,
             ss.bot_research_on, ss.bot_research_schedule, ss.bot_research_since, ss.episode_minutes,
             to_char(ss.finale_date, 'YYYY-MM-DD') AS finale_date,
             -- The wiki's dates with research-confirmed starts over them, and confirmed lengths (0067).
@@ -29,6 +29,9 @@ async function loadSeasons(pool, where, params = []) {
       premiereDate: r.premiere_date,
       airTime: r.air_time,
       airTz: r.air_tz,
+      // How it airs (0104): a nightly season's episodes a day apart, a binge one's all at its drop.
+      release: r.release,
+      dropAt: r.drop_at,
     },
     wikiAirDates: r.wiki_air_dates || {},
     episodeRuntimes: r.episode_runtimes || {},

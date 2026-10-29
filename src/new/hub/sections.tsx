@@ -27,6 +27,7 @@ import {
 } from "../data";
 import { openCouchSheet } from "../couch/couch-sheets";
 import { openStartGame } from "../couch/start-game";
+import { midLine, useFinalLine } from "../final-words";
 import { ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
@@ -94,6 +95,8 @@ const revealing = (home: Home) => home.shows.filter((s) => s.results?.reveal).so
 export function StatusLine({ home }: { home: Home }) {
   const moves = movesByDue(home.moves);
   const reveal = revealing(home)[0];
+  // When the early results' episode has its final ones (final-words.ts).
+  const finalWords = useFinalLine(reveal?.results.reveal?.stage, reveal?.results.reveal?.finalAt);
   const first = moves[0];
   const morning = home.shows.find((s) => s.results?.final);
   const show = reveal ?? (first && showOfMove(home, first)) ?? morning;
@@ -105,7 +108,8 @@ export function StatusLine({ home }: { home: Home }) {
       <span className="flex-1">
         {kind === "reveal" ? (
           <>
-            <b className="text-foreground">{reveal.results.reveal!.stage === "early" ? "Early results are in" : "Results are in"}</b> · {showName(reveal)} Episode {reveal.results.reveal!.episode}
+            <b className="text-foreground">{reveal.results.reveal!.stage === "early" ? "Early results are in" : "Final results are in"}</b> · {showName(reveal)} Episode {reveal.results.reveal!.episode}
+            {reveal.results.reveal!.stage === "early" && finalWords ? ` · ${midLine(finalWords)}` : ""}
             {moves.length ? ` · ${due}` : ""}
           </>
         ) : kind === "moves" ? (
@@ -114,7 +118,7 @@ export function StatusLine({ home }: { home: Home }) {
           </>
         ) : kind === "final" ? (
           <>
-            <b className="text-foreground">Final scores are in</b> · {showName(morning!)} Episode {morning!.results.final!.episode}
+            <b className="text-foreground">Final results are in</b> · {showName(morning!)} Episode {morning!.results.final!.episode}
           </>
         ) : (
           <>
@@ -191,6 +195,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
     (move && pool.find((p) => p.leagueId === move.leagueId)) ?? [...pool].sort((a, b) => Number(a.label !== "lineups set") - Number(b.label !== "lineups set"))[0];
   const t = up?.airAt ? Date.parse(up.airAt) : null;
   const now = useNow(t != null && ticks(t));
+  const finalWords = useFinalLine(reveal?.stage, reveal?.finalAt);
   const name = showName(show);
   const href = paths.show(show.seasonId);
   const kind = reveal ? "reveal" : move ? "move" : final ? "final" : "set";
@@ -202,8 +207,8 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
     reveal: {
       tag: "Reveal",
       tone: "bg-chyron text-chyron-foreground",
-      title: `Episode ${reveal?.episode} ${reveal?.stage === "early" ? "early results" : "results"} are in`,
-      line: reveal?.stage === "early" ? "Who went home · full scores come later" : "Watched it? Reveal for every game at once",
+      title: `Episode ${reveal?.episode} ${reveal?.stage === "early" ? "early" : "final"} results are in`,
+      line: reveal?.stage === "early" ? `Who went home · ${finalWords ? midLine(finalWords) : "final results later"}` : "Watched it? Reveal for every game at once",
     },
     move: {
       tag: move ? (MOVE_TAG[move.kind] ?? "To do") : "",
@@ -211,7 +216,7 @@ export function UpNext({ home, show, couch }: { home: Home; show: HomeShow; couc
       title: move?.text ?? "",
       line: move?.deadline ? `${move.kind === "lineup" || move.kind === "pick" ? "Locks" : "Due"} ${calmWhen(Date.parse(move.deadline), now)}` : (move?.leagueName ?? ""),
     },
-    final: { tag: "Morning update", tone: "bg-good text-good-foreground", title: "Final scores are in", line: `Episode ${final?.episode} · every point counted` },
+    final: { tag: "Morning update", tone: "bg-good text-good-foreground", title: "Final results are in", line: `Episode ${final?.episode} · every point counted` },
   }[kind];
   return (
     // Over the show's header art, as its page's show bar (desk parity 7b: the Header's Up next crop), else its cards': Night in

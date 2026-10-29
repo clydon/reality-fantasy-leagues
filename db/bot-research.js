@@ -3,9 +3,10 @@
 // air time plus the season's episode length, 0066), for free. A season's schedule is a list of runs, by
 // default:
 //
-//   quick @   5 min -- who left the game and the episode's headline, while it's still news
+//   quick @   0 min -- who left the game and the episode's headline, at its end (players' early results)
 //   full  @  60 min -- the whole research checklist, staged for review like a pasted answer
-//   full  @ 540 min -- the checklist again once the overnight recaps are up, merged into the first
+//   full  @ 720 min -- the checklist again once the morning's recaps are up, merged into the first, before players'
+//                      final results at 12:00 noon (src/lib/game/final-results.js)
 //   trivia  1440 min -- trivia questions about it and the season so far (db/trivia-research.js), checked by a second
 //                       prompt. Its minutes count BACK from when the NEXT episode airs, so it lands a day before that
 //                       one whether the show airs weekly or most nights (and never sooner than TRIVIA_AFTER_END after
@@ -52,13 +53,20 @@ const KINDS = ["quick", "full", "schedule", "trivia", "bingo"];
 const TIEBREAK_SLOT = "tiebreak";
 // The season's own bingo bank, written once, in the window of an episode's bingo run (dueAt).
 const SEASON_BINGO_SLOT = "bingo@season";
+// Our usual runs (the user, 2026-10-29: early results right after the episode, final ones at 12:00 noon the next day,
+// src/lib/game/final-results.js). Who went home at its end (its retries catch it if it isn't out yet); full results an hour
+// on, and again 12 hours after the end: for an evening episode (an 8 to 10 PM end) that's 8 to 10 AM, late enough for the
+// morning's sources and early enough to finish, retries and all, before noon.
 const DEFAULT_SCHEDULE = [
-  { kind: "quick", after: 5, on: true },
+  { kind: "quick", after: 0, on: true },
   { kind: "full", after: 60, on: true },
-  { kind: "full", after: 540, on: true },
+  { kind: "full", after: 720, on: true },
   { kind: "trivia", after: 1440, on: true },
   { kind: "bingo", after: 1440, on: true },
 ];
+// Our usual's slots before 2026-10-29, which a run under today's counts as: an episode the old usual already asked about isn't
+// asked again the day this changes (quick@5 then is quick@0 now, the second full run's 9 hours then is 12 now).
+const SLOT_WAS = { "quick@0": ["quick@5"], "full@720": ["full@540"] };
 // A bingo run's two asks share the route's 300s as trivia's do.
 const BINGO_WRITE_MS = 160_000;
 const BINGO_TOTAL_MS = 280_000;
@@ -160,7 +168,7 @@ function slots({ schedule, since, airTimes, episodeMinutes = 0, history, seasonB
       const due = dueAt(run, ends, next ? next.at : null, airedAt.getTime());
       if (!due || (since && due < since)) continue;
       const slot = slotOf(run);
-      const at = (s) => nextTryAt(run.kind, due, history.filter((h) => h.episode_number === episode && h.slot === s));
+      const at = (s) => nextTryAt(run.kind, due, history.filter((h) => h.episode_number === episode && (h.slot === s || (SLOT_WAS[s] || []).includes(h.slot))));
       const until = run.kind === "bingo" ? airedAt : null;
       out.push({ episode, slot, kind: run.kind, after: run.after, at: due, next: at(slot), until });
       if (run.kind === "bingo" && !seasonBank) out.push({ episode, slot: SEASON_BINGO_SLOT, kind: "bingo", after: run.after, at: due, next: at(SEASON_BINGO_SLOT), until, forSeason: true });

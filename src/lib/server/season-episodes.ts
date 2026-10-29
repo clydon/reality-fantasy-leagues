@@ -9,7 +9,7 @@ import { EVERYTHING } from "./guard";
 import { markRevealed } from "./reveal";
 import { seasonVerdicts, type EpisodeVerdictLine } from "./ratings";
 import { couchCorrections, type Correction } from "./rulings";
-import { DEFAULT_RUNTIME_MIN, seasonSchedules } from "./schedule";
+import { DEFAULT_RUNTIME_MIN, finalAtOf, seasonSchedules } from "./schedule";
 import type { ReadOnly } from "./read-only";
 import { gamesHere, type GameHere } from "./season-games";
 import { seasonFactsFor } from "./season-stats";
@@ -39,6 +39,8 @@ export interface EpisodeRow extends Partial<Omit<EpisodeSeen, "number" | "stage"
    *  you've seen it (by where you are). */
   status: EpisodeStatus;
   stage: "early" | "final" | null;
+  /** When its final results are in for players (12:00 noon the day after it airs, the season's zone: final-results.js). */
+  finalAt?: string | null;
   watched?: boolean;
   /** Its title from the listings, once you've seen it (a title can give an episode away). */
   title?: string | null;
@@ -53,12 +55,13 @@ export interface SeasonEpisodes {
   seenThrough: number | null;
   /** Newest first: hidden ones, the one waiting, then every one you've seen. */
   episodes: EpisodeRow[];
-  /** The next episode to reveal (the first whose results are in past your mark), and how far its results are. */
-  reveal: { episode: number; stage: "early" | "final" } | null;
-  /** An episode that's finished airing with nothing in yet. */
-  waiting: { episode: number; airAt: string | null } | null;
+  /** The next episode to reveal (the first whose results are in past your mark), how far its results are, and when its
+   *  final results are in. */
+  reveal: { episode: number; stage: "early" | "final"; finalAt: string | null } | null;
+  /** An episode that's finished airing with nothing in yet, and when its final results are due. */
+  waiting: { episode: number; airAt: string | null; finalAt?: string | null } | null;
   /** The morning update: the episode you revealed early whose final scores are in now. */
-  final: { episode: number } | null;
+  final: { episode: number; finalAt: string | null } | null;
   stillIn: number | null;
   toAir: { from: number; to: number | null } | null;
   /** A player's quiet "Full scores need one paste" (step 6b): the newest episode you've seen with only its early results, when the couch lets anyone fill them in. */
@@ -85,6 +88,7 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   const here = all.filter((h) => !StateLogic.getLeagueType(h.state).hasCalls && !StateLogic.getLeagueType(h.state).hasBingo);
   const schedule = schedules.get(seasonId);
   const airAt = (n: number) => schedule?.episodes.find((e) => e.number === n)?.airAt ?? null;
+  const finalAt = finalAtOf(schedule);
   const now = Date.now();
   const finished = (n: number) => {
     const ep = schedule?.episodes.find((e) => e.number === n);
@@ -118,7 +122,7 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   }
   if (!here.length) for (const ep of await notPlaying(user, seasonId, couchId, mark)) seenRows.set(ep.number, ep);
 
-  const rows: EpisodeRow[] = [...seenRows.values()].map((ep) => ({ ...ep, airAt: airAt(ep.number), status: "seen" as const }));
+  const rows: EpisodeRow[] = [...seenRows.values()].map((ep) => ({ ...ep, airAt: airAt(ep.number), finalAt: finalAt(ep.number), status: "seen" as const }));
   // A show you only watch (step 10): every episode that's aired is listed, with results or not, seen by you or not yet.
   if (!here.length) {
     for (const e of schedule?.episodes ?? []) {
@@ -132,16 +136,16 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   const hiddenFrom = Number.isFinite(mark) ? mark + 1 : latest + 1;
   for (let n = hiddenFrom; n <= latest; n++) {
     const stage = stageAcross(states, n);
-    if (stage && !seenRows.has(n)) rows.push({ number: n, airAt: airAt(n), status: "hidden", stage });
+    if (stage && !seenRows.has(n)) rows.push({ number: n, airAt: airAt(n), finalAt: finalAt(n), status: "hidden", stage });
   }
   // The latest episode that's finished airing with no results in any of your games yet.
   const aired = (schedule?.episodes ?? []).filter((e) => finished(e.number)).map((e) => e.number);
   const last = aired.length ? Math.max(...aired) : 0;
-  const waiting = here.length && last > latestIn(here.map((h) => h.state)) && !rows.some((r) => r.number === last) ? { episode: last, airAt: airAt(last) } : null;
+  const waiting = here.length && last > latestIn(here.map((h) => h.state)) && !rows.some((r) => r.number === last) ? { episode: last, airAt: airAt(last), finalAt: finalAt(last) } : null;
   if (waiting) rows.push({ number: waiting.episode, airAt: waiting.airAt, status: "waiting", stage: null });
   rows.sort((a, b) => b.number - a.number);
 
-  const due = resultsDue(states, mark, follow.rows[0]?.early_seen as number | null | undefined);
+  const due = resultsDue(states, mark, follow.rows[0]?.early_seen as number | null | undefined, finalAt);
   const count = schedule?.episodeCount ?? null;
   const highest = Math.max(0, ...rows.map((r) => r.number), last);
   const view = here[0] ? StateLogic.GhostLogic.viewFor(here[0].state, here[0].playerId, here[0].mark) : null;
@@ -196,6 +200,8 @@ async function seasonResults(seasonId: string, mark: number): Promise<EpisodeSee
 export interface SeasonReveal {
   episode: number;
   stage: "early" | "final";
+  /** When its final results are in for players (final-results.js), for the early reveal's word on it. */
+  finalAt: string | null;
   /** Revealed before: watching it again (or, early_seen, its final scores). */
   again: boolean;
   out: OutFace[];
@@ -293,9 +299,11 @@ export async function revealSeason(user: SessionUser, seasonId: string, couchId:
   }
   const first = parts.find((p) => p.out.length || p.happened.length) ?? parts[0];
   const nextUp = latestIn(states) > n ? n + 1 : null;
+  const finalAt = finalAtOf((await seasonSchedules([seasonId])).get(seasonId))(n);
   return {
     episode: n,
     stage,
+    finalAt,
     again,
     out: first.out,
     happened: first.happened,

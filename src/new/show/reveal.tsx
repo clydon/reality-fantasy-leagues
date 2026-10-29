@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { ChevronRight, Send } from "lucide-react";
+import { useSearchParams } from "next/navigation";
+import { ChevronRight, Eye, Send } from "lucide-react";
 import { chatCouch, postToCouch, revealEpisode, useAfterReveal, type SeasonReveal } from "../data";
 import { ordinal } from "../games";
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
+import { useFinalLine } from "../final-words";
 import { usePushedPage } from "../ui/page";
 import { Btn } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
@@ -35,9 +37,10 @@ function ask(n: number) {
   listeners.forEach((l) => l());
 }
 
-/** Opens the reveal of episode `n`. */
+/** Opens the reveal of episode `n`. A link opens one too: ?page=reveal&ep=N (the "Final results are in" push's Watch the
+ *  final results, for an episode you've revealed: the reveal answers it as it is now). */
 export function useOpenReveal() {
-  const page = usePushedPage("reveal");
+  const page = usePushedPage("reveal", ["ep"]);
   return (n: number) => {
     ask(n);
     page.show();
@@ -80,8 +83,11 @@ export function headline(r: SeasonReveal): string {
 }
 
 export function RevealScreen({ show, seasonId }: { show: ShowData; seasonId: string }) {
-  const page = usePushedPage("reveal");
-  const n = useAsked() ?? show.episodes?.reveal?.episode ?? null;
+  const page = usePushedPage("reveal", ["ep"]);
+  const linked = Number(useSearchParams().get("ep")) || null;
+  const tapped = useAsked();
+  // A link's episode first: an earlier tap's is still in `asked`.
+  const n = linked ?? tapped ?? show.episodes?.reveal?.episode ?? null;
   const mounted = useSyncExternalStore(noop, () => true, () => false);
   if (!mounted) return null;
   return createPortal(
@@ -213,6 +219,7 @@ function Kicker({ children }: { children: ReactNode }) {
 
 function Opener({ r, show }: { r: SeasonReveal; show: ShowData }) {
   const season = show.header?.seasonNumber;
+  const finalWords = useFinalLine(r.stage, r.finalAt);
   return (
     <div>
       <Kicker>
@@ -233,7 +240,7 @@ function Opener({ r, show }: { r: SeasonReveal; show: ShowData }) {
         </h2>
       )}
       <p className="mt-4 text-[15px] text-muted-foreground">
-        {r.stage === "early" ? "Early results: who went home. Weekly Lineup's full scores come later. " : ""}Tap anywhere to go on
+        {r.stage === "early" ? `Early results: who went home. ${finalWords ? `${finalWords}.` : "Weekly Lineup's full scores come later."} ` : ""}Tap anywhere to go on
       </p>
     </div>
   );
@@ -594,6 +601,7 @@ export function MorningSheet({ show, seasonId }: { show: ShowData; seasonId: str
   }, [n, seasonId, couchId, after]);
   const r = read && read.n === n ? read.r : null;
   const error = read && read.n === n ? read.error : null;
+  const openReveal = useOpenReveal();
   const lineup = r?.lineup ?? null;
   const soFar = r?.soFar ?? null;
   const before = new Map((soFar?.starters ?? []).map((s) => [s.name, s.points]));
@@ -603,7 +611,7 @@ export function MorningSheet({ show, seasonId }: { show: ShowData; seasonId: str
     <Sheet
       open={n != null}
       onOpenChange={(o) => !o && askMorning(null)}
-      title="Final scores"
+      title="Final results"
       subtitle={n != null ? `Episode ${n}${lineup ? ` · ${lineup.gameName}` : ""} · every point counted` : undefined}
     >
       <div data-morning-sheet={n ?? undefined} className="pb-2">
@@ -676,7 +684,21 @@ export function MorningSheet({ show, seasonId }: { show: ShowData; seasonId: str
                 })}
               </div>
             )}
-            <Btn tone="ink" wide className="mt-4" onClick={() => askMorning(null)}>
+            {/* The reveal again, with the final results (the user, 2026-10-29: "Last Time On"), only ever by a tap. */}
+            <Btn
+              wide
+              data-watch-final
+              className="mt-4"
+              onClick={() => {
+                const ep = n!;
+                askMorning(null);
+                setTimeout(() => openReveal(ep), 250);
+              }}
+            >
+              <Eye className="size-5" aria-hidden />
+              Watch the final results
+            </Btn>
+            <Btn tone="ink" wide className="mt-2" onClick={() => askMorning(null)}>
               Done
             </Btn>
           </>
