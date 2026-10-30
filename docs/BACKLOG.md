@@ -270,6 +270,15 @@ Last updated 2026-10-27.
     page with a timeout (or leave it to `browser.close()` at the end), and look at why the close hangs (a back-forward-cache
     restore? the service worker?). **When:** whoever next runs or extends check-sheet-back.
 
+31. **Desk rows didn't open their sheets on a mouse click from Claude in Chrome (noticed 2026-10-30, setting Survivor 51's
+    episode count to 13 in production).** On the desk's season Setup page at desktop width, Episodes and When it airs did
+    nothing when clicked (by element and by coordinate, three tries), with no console error; the page was hydrated and the
+    row's React onClick was there, and `element.click()` from the page opened the sheet at once (the stepper and Save then
+    worked as normal). Sign in's button clicked fine the same way. Either the extension's clicks don't reach `nd-press` rows
+    (a gesture layer, phone-back.tsx's edge swipe, or the press style?) or a real desktop mouse can't open them either: try a
+    real mouse on the desk first. **When:** the next desk or nd-press change; until then a Chrome session opens a row with
+    `document.querySelector('[data-desk-row="<name>"]').click()`.
+
 
 
 ## Decided against (don't re-propose without new information)
