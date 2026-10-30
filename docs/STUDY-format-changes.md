@@ -900,6 +900,34 @@ all five seasons (The Challenge 41, 40 and 39 73 of 73, Survivor 49 93 of 93, Th
 - **Nothing reads a format change:** a pool's picks name people as the cast has them at each lock (who's still in), so The Challenge's
   re-pairings, Survivor 49's swaps and merge and The Traitors 4's twists change nothing for it, which the replays bear out.
 
+## A11 part 2b: a game of questions' knockouts, replayed blind (2026-10-30)
+
+A11's part 2b gave a game of questions a race and cuts on its answers' points, and lives on its answers (a wrong answer, or none,
+to a question a life rides on costs one once it's settled; at none you're out), walked over the graded answers by the server on each
+copy of the league it reads (state-logic.js `AnswerLogic.walk`, handed to the engine as `answerWalk`). Its first tracker game is
+the stretch request s48, "Guess every elimination winner; a wrong guess knocks you out" (Who wins the elimination? each episode, by
+The Challenge's `eliminationWin`, one life, last one standing), which plays on The Challenge's three seasons only: Survivor 49's and
+The Traitors 4's rules have no elimination winner. The blind replays played it with every other game: every game ended on all five
+seasons (The Challenge 41, 40 and 39 74 of 74, Survivor 49 93 of 93, The Traitors 4 71 of 71), no answer refused (the harness answers
+nothing for a seat that's out or after a game ended early, as the app offers nothing then).
+
+| Season | s48: over at | How |
+|---|---|---|
+| The Challenge 41 | 1 | Tinkerer and Drive-by guessed the premiere's elimination winner wrong; Forgetter and Fan answered nothing: everyone out the same night, tied on 0 |
+| The Challenge 40 | 2 | The premiere had no elimination winner (nobody lost a life); in 2 only Drive-by named one of its six winners: the last one standing, on 1 |
+| The Challenge 39 | 1 | As on 41: two wrong, two silent, everyone out at once |
+
+- **It reads elimination winners, not the format:** who won an elimination is a moment research records per person, so The
+  Challenge's pairs, teams and each-for-themselves stretches reach it only as who won (on 40's pairs episodes, several winners at once:
+  naming any of them is right). A night with no elimination winner (40's premiere) is off: nothing to be wrong about, nobody loses a
+  life, answered or not.
+- **One life among four seats is over at once:** two of the four seats skip weeks by habit, so on a premiere with an elimination they
+  answer nothing and go out, and two guesses at a single winner are likely wrong: on 41 and 39 the night sent everyone left out
+  together, and by default (`rank.allOut` 'points') they're all out, tied on nothing. The game's own end is the user's (A11 part 2b's
+  Noticed items 1 and 5): all back in for such a night, or a missed answer forgiven, would have kept it going.
+- **The walk on what each has seen:** the tables recorded are as the runner sees them once each episode is in; the unit tests and
+  `check-answer-knockouts.js` prove that a viewer behind isn't knocked out by what they haven't seen.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

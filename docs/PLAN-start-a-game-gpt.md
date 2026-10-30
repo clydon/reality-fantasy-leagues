@@ -35,9 +35,10 @@ seat's state depends on one, one leaving keeping it for the other, each credited
 players knocked out in a draft (first to N points ends it; the guillotine, a cut after an episode or before a phase, last one
 standing, a knocked-out player's castaways back in the pool, `KnockoutLogic`, `lastEpisode`), and part 2, a pool's knockouts (a
 pick that never repeats; one or none left ending it, and the night everyone left goes out, as settings: `rank.oneLeft`,
-`rank.allOut`, `PickEmLogic.walk`), are built; part 2b (a game of questions' race and knockouts, walked over its answers), then
-parts 3 to 5 (co-op, head to head, teams and handicaps) are next, then A12 to A14 overnight (the user's word, 2026-10-28),
-stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+`rank.allOut`, `PickEmLogic.walk`), and part 2b, a game of questions' race and knockouts (2026-10-30: lives on its answers, its
+race and cuts on their points, walked over the graded answers by the server on each copy it reads and handed to the engine,
+`AnswerLogic.walk`, `answerWalk`), are built; parts 3 to 5 (co-op, head to head, teams and handicaps) are next, then A12 to A14
+overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -3335,6 +3336,110 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     fan, who don't pick every week, went out after Episode 1 on every season (one life: A10 part 2's item 2 seen live). No night
     sent everyone left out together and nobody ran out of people to pick: the unit tests and the API check prove those. The study
     doc's "A11 part 2: a pool's knockouts, replayed blind".
+
+  **As built (A11 part 2b, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
+  edits to the words corpus carried into the tracker's fixture, where A5 moved it; 1085 tests). A game of questions' race and
+  knockouts (s48, "Guess every elimination winner; a wrong guess knocks you out"). Every default and everything a person sees is the
+  user's (Noticed, below).
+  - **The spec** (`schema.js`): `score.lives` beside `score.by 'answers'` (1 to `MAX_LIVES`) on a game of questions (never Weekly
+    Calls'): a wrong answer, or none, to a question it rides on costs one once that question is settled, and at none you're out;
+    `score.livesOn`, the questions it rides on (each asked each episode, about that episode alone: `livesQuestion`), else every
+    one asked so. `rank.race` and `rank.cut` as a draft's, on the answers' points. Last one standing (`rank.by 'standing'`) whenever
+    it knocks players out (`fullSpec` fills it for lives as for cuts); `rank.oneLeft` (with lives or cuts) and `rank.allOut` (with
+    lives) as a pool's, their defaults `ANSWERS_END` (ends; points), read by `answerParts` and never filled in. Refused: lives on
+    Weekly Calls, lives ranked by the total, lives with nothing asked each episode about it alone, `livesOn` naming a question that
+    isn't (asked once, every N, over N), an unknown one or one twice, `livesOn` without lives, `allOut` with cuts only. `playsAs`: a
+    game of questions ranked standing when it knocks players out. `flagsOf`: `hasRace` and `hasCuts` for it too, `hasAnswerLives`.
+    KEYS, the types. Settings both ways: `questionsLives`, `questionsLivesOn`, `questionsRace`, `questionsCut`, with `rankOneLeft`
+    and `rankAllOut` (`OWNED`); last one standing isn't stored (it's the only way such a game ranks: the code review).
+  - **Words** (`describe.js`): the sentence ("One life: a wrong answer, or none, costs one. Last one standing wins.", the questions
+    named when `livesOn` picks some, a race, cuts, and an end that isn't the default); How it works (lives, a night that doesn't
+    count costing nobody, answering and scoring nothing more once out, last one standing and one or none left ending it, `allOut`, a
+    race, waiting for the answers to settle; "Most points wins." only without them).
+  - **The engine** (`state-logic.js` `AnswerLogic.walk`, pure, over answers and facts as `grade` takes them): episode by episode, the
+    game's with results; each one's points through it from the windows settled by then (`answers.js` `factsThrough`: the facts as they
+    stood once that episode was in, the season's end only when it came by then: `facts.endedAt`); then a race, lives (each question it
+    rides on, settled there: each wrong or missing answer costs one; off, or a void pick, costs nothing; everyone left out the same
+    night: `allOut`), cuts (`KnockoutLogic.cutAfter`, now shared with a draft's walk: the code review), one left. Plain data back:
+    `{ ends, out, lives, shared, totals }`, the totals as the table shows them (frozen at each one's last episode in; at an early end,
+    graded through it with the game over). The server hands it to the engine on a shallow copy (`withWalk`: `answerWalk`, never on the
+    state itself, never stored), and `KnockoutLogic.endsAt` and `outs` read it (`walkOf`), so `lastEpisode`, `gameOver`, `spanView`,
+    `endedBefore` and `isOut` do; `ScoringLogic.compute` puts its `out`, totals, lives and `shared` on the rows (`applyWalk`), and
+    `rankKey` ranks a game of questions standing by `standingKey`. A copy that hides anything (`viewThrough`, `viewFor`) drops the
+    walk, and `spanView` keeps it on the copy it cuts at the game's end. `liveRows`: someone out keeps only their answers to windows
+    settled by their last episode in (none about the whole game, none to a window still open then), so they take no share of a pot
+    settled after them (the code review).
+  - **Why the server walks and hands it over** (the seed left the way open): the walk needs the answers (`game_answers`) and the
+    format's groups (F3's timeline, `formatGroupsFor`), neither in the state, and it has to be worked out on each viewer's own
+    spoiler-trimmed copy. So the walk is a pure function the server calls with what it reads anyway, and its result is small plain
+    data on a copy, which every engine reader picks up without learning about answers; any copy that hides something drops it, so a
+    walk never outlives the data it was worked from, and a state without one plays as its span says (nobody out), the safe fallback
+    for a reader not taught yet. Not taken: putting the answers on the state for the engine to walk when asked (the timeline's groups
+    are Maps that the spoiler guard's JSON copies lose, and the answers would ride along into a league's writes).
+  - **The server:** `answer-points.ts` `walked` (the viewer's copy walked: its view cut at the end, its facts, the answers that
+    count, the walk; a copy already carrying the walk of exactly what they see keeps it) and `asItStands` (the league walked over
+    every answer and result: for the refusals and which results are the game's to reveal); `leagueAnswers` and `answerStanding` hand
+    over the walk with the points (frozen), the hub's `through` stops at the game's end, `sheetNights` reads the answers that count;
+    `viewOf` is gone (the code review). `season-games.ts` `gamesHere` walks the league as it stands for every reader of a season's
+    games (`GameHere.answers`, reused by the Games tab, the sheet, the episodes' nights and the reveal). `game-view.ts` `gameView`
+    puts the viewer's walk (`GameCalls.walk`) on its copy, and `tableOf` ranks a walked game as the engine does; `couch-hub.ts`
+    `standingOf` the same. `answers.ts`: its reads walk the game (your points the walk's); `GameQuestions.out` (your last episode in,
+    as far as you've seen) and `.ended`; this week's is none once it ended as far as you've seen, and a past episode after the end is
+    refused (400); `answerQuestions`, as the league stands, refuses an answer past someone's last episode in, or about the whole game
+    once they're out ("You’re out of this game", 409), and past where the game ended ("This game ended with Episode N"), while an
+    episode up to then stays answerable while it's open for you (a late lock: the code review); the sheet asks nothing of someone out.
+    The same refusals now hold for a draft that cuts (part 1): a cut player's finale predictions are refused and their sheet is gone,
+    as part 1's "no more moves" has it (their total is frozen, so the predictions could never count).
+  - **The fallbacks:** a night that doesn't count (nobody went home, nothing happened: off) costs nobody a life, answered or not, and
+    a void pick (F3's group fallback) neither; a verdict still to settle stops the walk at the newest episode with results, as does
+    early results there for a race or a cut (points still to come); one still to settle once a later episode has results costs
+    nothing (The Challenge 39's Episode 3); lives on who goes home count on early results, as a pool's picks do; a tie (a race's: the
+    most points then, sharing it; a cut's: part 1's); everyone left out the same night (`allOut`); one left (`oneLeft`); a corrected
+    result works it all out again; late joiners: a ghost outside, someone catching up in (never losing a life or cut, holding the end
+    off), a late start from their start.
+  - **The tracker:** s48 ✅ (The Challenge 42: Who wins the elimination? each episode, by `eliminationWin`, one life, last one
+    standing). **Now: 172 ✅** · 73 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271; A11's six left: win.coop, s37 (part 3), win.h2h (part 4),
+    who.teams, who.handicap, s19 (part 5).
+  - **Tests:** `tests/answer-knockouts.test.js` (new, 8): the shape, defaults, words and settings both ways, and what's refused
+    (s48 on The Challenge's rules); one life (a wrong or missing answer out, the last one standing ending it, frozen points, the
+    table's order, `lastEpisode`, `gameOver`, `spanView` keeping the walk) and two; each fallback (a quiet night, an answer still to
+    settle, an earlier episode left early, a corrected result, a void pick); each wrong answer its own life; everyone out the same
+    night by points, shared or all back, and a lone survivor never spared; one left playing on; the field (a ghost, someone catching
+    up, a late start); a race and a guillotine on the answers' points; someone out's later answers and their answer about the whole
+    game counting for nobody, a copy that hides anything dropping the walk, a viewer behind not knocked out; the Games tab's table
+    from the walk it's handed, and s48 on a Challenge league. `game-spec.test.js`'s fields, `pool-knockouts.test.js`'s message.
+    `npm test` 1093.
+  - **API check:** `scripts/dev-test/check-answer-knockouts.js` (new, on new-fixture.js's couch), 23 PASS: jordan's Survival Pool made
+    a game of questions through `setGame` with the show's ctx (Who goes home? each episode, one life); Episode 6 answered through the
+    answers route, its result through the season sync (early results: all a who-goes-home question needs), riley and sam out; the
+    Games tab as jordan reads it (alex and jordan tied first, riley and sam tied after) and as sam does (seen 5: nobody out, all
+    level); riley's questions read saying she's out, her sheet asking nothing, alex's asking Episode 7's; riley's and sam's answers for
+    7 refused; an answer of riley's for 7 written as if made before her result counting for nobody; Episode 7, jordan the last one
+    standing, over at 7, her questions read saying it ended, an answer for 8 refused; the hub (first, over, the plaque hers); Episode
+    7's result corrected (re-decided), alex the last one standing; the sheet's nights. `check-questions.js`, `-who`, `-time`,
+    `-scoring`, `-more` (`--api`), `check-knockouts.js`, `check-pool-knockouts.js` and `check-engine-lab.js --api` ALL PASS. `npx tsc
+    --noEmit -p .` clean.
+  - **Code review** (`/code-review` at high, before the long runs; ten findings). Taken: with a late lock, someone who watches late
+    was refused an answer to an episode still open for them, because the league as it stands counted it missing (the refusals now
+    cover only what's after their last episode in, or about the whole game); someone out still took a share of a pot settled after
+    them through their answer about the whole game, or to a window still open (`liveRows` by when each window settles); the cuts
+    copied from a draft's walk (`KnockoutLogic.cutAfter`, shared); `questionsRank` stored though it's implied; a dead check in the
+    walk; `viewOf` left with no caller; the episodes' sheet reading the answers again. Not taken (Noticed): the refusals naming what
+    someone hasn't seen (part 1's), lives taken on early results (a pool's), the walk unmemoised, and the refusals for a draft's cut
+    player (kept: part 1's rule).
+  - **The harness** (`blind.js`, which answers every open question by habit): nothing is answered for a seat that's out or after a
+    game ended early, as the app offers nothing then (`asItStands`, as playtest.js's moves skip them); each episode's record says
+    who's out and the lives left.
+  - **Golden replays** (`golden.js`, HEAD against the working tree, after the code review's fixes): 7 seasons, 160 games, **19,361
+    reads, every one the same** (no game they play knocks players out of a game of questions; a draft's cuts, now through the shared
+    `cutAfter`, read the same).
+  - **Blind replays** (`blind.js run`, the five seasons, on the final code): **every game ended on all five seasons**, s48 among
+    them on The Challenge's three (41, 40 and 39 74 of 74, Survivor 49 93 of 93, The Traitors 4 71 of 71: s48 plays only where the
+    rules have who won an elimination), no answer refused. s48 was over at 1 on 41 and 39 (the tinkerer and the drive-by guessed
+    wrong at the premiere and the forgetter and the fan answered nothing: everyone left out the same night, all tied on 0, sharing
+    first by default) and at 2 on 40 (its premiere had no elimination winner, so nobody lost a life; in 2 only the drive-by was right).
+    So one life among four seats ends it at once: item 5's `allOut` 'back' would have kept it going. The study doc's "A11 part 2b:
+    a game of questions' knockouts, replayed blind".
 - **A12. Stages.** A game made of phases or mini-games, each with its own rules and an overall: a second draft at the merge, a
   season of mini-games, a game that scores two ways (bingo lines plus answers), one game across two shows.
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
@@ -4048,6 +4153,49 @@ From A10 part 1 (2026-10-29):
 - A slot's group members are matched to the league's cast the forgiving way (`Core.findCastawayByName`), as F3 part 2's group
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
+
+From A11 part 2b (2026-10-30):
+- **For the user, in a design session (with parts 1 and 2's questions and A10's), each with a recommendation (built as spec
+  settings or engine rules, the defaults in `ANSWERS_END` and `AnswerLogic.walk`, never filled into a spec):**
+  1. A missed answer. Built: it costs a life, as a missed pick does (s48's "a wrong guess" read as a wrong answer or none). Options:
+     a missed answer forgiven (nothing that night); filled at the lock with the most-picked answer. Recommended: as built for the rule,
+     with A10 part 2's item 2 deciding a fill or a forgiven first miss for pools and games of questions together (in the blind
+     replays the forgetter and the fan, who don't answer every week, were out at the premiere on The Challenge 41 and 39 for
+     answering nothing: Joanna forgets).
+  2. Several questions a night. Built: each wrong (or missing) answer to a question a life rides on costs its own life. Options: one
+     life a night at most, however many are wrong. Recommended: as built (each guess is a guess), the wizard saying it where a game
+     asks more than one.
+  3. Which questions a life rides on. Built: `livesOn`, else every question asked each episode about that episode alone. Recommended:
+     as built; the GPT names them when the words do ("a wrong guess at the elimination"), G1's.
+  4. How it ranks. Built: last one standing whenever it knocks players out (whoever's still in by their points, then whoever went out
+     last, ties to the points). Options: most points wins, a wrong guess only freezing you (ranked by the total). Recommended: as built
+     (the request says knocked out; "most points" is a different game and can be its own setting later).
+  5. Its end. Built: `ANSWERS_END`, one or none left ends it (a draft's), the night everyone left goes out all out by their points (a
+     pool's). Recommended: decide it with part 2's items 2 and 3 as one rule for every game that knocks players out (ends; all back).
+     The blind replays argue for all back: s48 with one life was over at the premiere on two of three seasons, everyone out at once
+     and tied on nothing.
+  6. Lives on early results. Built: a who-goes-home question settles on early results (who went home), so someone can be out right
+     after the episode, a correction at the final results working it out again; a moment's question waits for the full results.
+     Recommended: keep, as a pool's (part 2's Noticed item on a pool's end): the user's, with it.
+  7. A late lock with lives. Built: someone who watches late reads as out to everyone else (their answer missing) until they answer
+     within their window, then the walk is worked out again; they can still answer an episode up to their last one in. Options: a
+     missing answer is pending, not wrong, until everyone's late window has passed (the walk would need the clock and each one's mark:
+     the server has both). Recommended: pending, when a game has both (rare); not built.
+  8. What players and the maker are told (out, a life lost, the game over early, a shared win, the refusals) is U1's.
+- **Not walked yet:** the couch's game list (`couch-joins.ts` `gameOver`, its `ended`), Game settings' span (`backstage-games.ts`
+  `spanState`), the desk's games list (`desk-games.ts`) and the join route (`GhostLogic.allowed`: nobody new once someone's out) read a
+  game of questions without its walk: running to its span's end, nobody out. Recommended: `asItStands` in each (one answers read
+  per game of questions with knockouts). (Part 5's late joiners for the join; U1 for the lists.)
+- **The refusals name what happened** (part 1's item, the same here): sam, who hasn't seen the episode that put him out, is told
+  "You’re out of this game" when he answers; someone behind a game's early end, "This game ended with Episode N". (U1.)
+- **The walk isn't memoised:** a read of a game of questions with knockouts walks it a few times (the league as it stands in
+  `gamesHere`, each viewer's copy in the table, the sheet and the nights; the hub twice), each a grade per episode. Nothing at a
+  couch's size; an incremental grade or a memo before a public game of questions knocks players out. (Whoever next profiles the
+  engine, with parts 1 and 2's.)
+- Someone out's answer about the whole game leaves its question's "everyone's answers" once they're out (it counts for nobody:
+  `liveRows`). (U1.)
+- The table's rows (`TableRow`) still don't carry `out` or lives (part 1's item). (U1.)
+- Start a game, Game settings and the engine lab offer none of part 2b's fields (the lab starts the tracker's rows). (U1.)
 
 From A11 part 2 (2026-10-29):
 - **For the user, in a design session (with part 1's and A10's questions), each with a recommendation (built as spec settings,

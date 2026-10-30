@@ -10,7 +10,8 @@ import { publicMediaSrc } from "@/lib/game/selectors";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { HttpError, pool, withLeagueLock } from "./db";
 import { seasonSchedules, type SeasonSchedule } from "./schedule";
-import { answerFacts, finaleEpisode, readsTimeline, storedAnswers, viewOf, type AnswerRow } from "./answer-points";
+import { finaleEpisode, readsTimeline, walked, type AnswerRow } from "./answer-points";
+import type { AnswerWalk } from "@/lib/game/state-logic.js";
 import { seasonBook } from "./calls";
 import { gamesHere, type GameHere } from "./season-games";
 
@@ -116,6 +117,11 @@ export interface GameQuestions {
   /** Where you are (the last episode you've seen), or null when you see results as they come: a locked question past it says
    *  "once you've seen it", not "waiting". */
   mark: number | null;
+  /** Step A11 part 2b: in a game that knocks players out, the last episode that counted for you once you're out (as far as you've
+   *  seen), else null: you answer nothing more. */
+  out: number | null;
+  /** Where the game ended early (a race won, one left), as far as you've seen, else null: nothing after it is asked. */
+  ended: number | null;
 }
 
 
@@ -178,10 +184,15 @@ async function gameHere(user: SessionUser, seasonId: string, leagueId: unknown):
   return h;
 }
 
+/** A game ready for its questions: `h.state` is the league as it stands (a game that knocks players out walked over every answer:
+ *  season-games.ts gamesHere), `view` your copy, walked as far as you've seen (answer-points.ts walked), `rows` its answers that
+ *  count (a game of questions'; none of someone's for an episode after they went out). */
 interface Read {
   h: GameHere;
   view: LeagueState;
   facts: AnswerFacts;
+  rows: AnswerRow[];
+  walk: AnswerWalk | null;
   schedule: SeasonSchedule | undefined;
   finale: { number: number; airAt: string | null } | null;
   now: Date;
@@ -191,11 +202,11 @@ async function readOf(user: SessionUser, seasonId: string, leagueId: unknown, no
   return readFrom(await gameHere(user, seasonId, leagueId), seasonId, now);
 }
 
-/** A game already read (season-games.ts gamesHere) ready for its questions. */
-async function readFrom(h: GameHere, seasonId: string, now: Date): Promise<Read> {
+/** A game already read (season-games.ts gamesHere) ready for its questions. `rows`: its answers when they've been read already. */
+async function readFrom(h: GameHere, seasonId: string, now: Date, rows?: AnswerRow[]): Promise<Read> {
   const schedule = (await seasonSchedules([seasonId], now)).get(seasonId);
-  const view = viewOf(h);
-  return { h, view, facts: await answerFacts(h.state, view), schedule, finale: finaleEpisode(schedule), now };
+  const w = await walked({ leagueId: h.game.leagueId, state: h.state, playerId: h.playerId, mark: h.mark, rows: rows ?? h.answers });
+  return { h, view: w.view, facts: w.facts, rows: w.rows, walk: w.walk, schedule, finale: finaleEpisode(schedule), now };
 }
 
 /** The episode whose start closes a question, and its air time (the league's, else the schedule's). */
@@ -242,15 +253,21 @@ function stakeMost(points: number, held: Map<string, number>, key: string, staki
 }
 /** Your points as they stand for you (at your mark) and your stakes still on the line: what a wager of any of them (A9) can stake. */
 async function stakeRoom(r: Read): Promise<{ points: number; held: Map<string, number> }> {
-  const all = StateLogic.getLeagueType(r.h.state).hasQuestions ? await storedAnswers(r.h.game.leagueId) : [];
+  const all = StateLogic.getLeagueType(r.h.state).hasQuestions ? r.rows : [];
   const graded = StateLogic.AnswerLogic.grade(r.view, all, r.facts);
-  return { points: graded.points.get(r.h.playerId) ?? 0, held: heldStakes(questionsOf(r.h.state), all, graded.verdicts, r.h.playerId) };
+  return { points: yourPoints(r, graded.points), held: heldStakes(questionsOf(r.h.state), all, graded.verdicts, r.h.playerId) };
 }
 
+/** Your points as they stand for you: a game's walk's (step A11 part 2b: frozen once you're out), else graded. */
+const yourPoints = (r: Read, points: Map<string, number>) => (r.walk ? (r.walk.totals[r.h.playerId] ?? 0) : (points.get(r.h.playerId) ?? 0));
+
 /** The episode you answer for now: this week's (the game's, not where you are), or with a late lock (step A7) the one after
- *  your mark while it's still open for you. */
-const weekOf = (r: Read) =>
-  StateLogic.AnswerLogic.lateEpisode(r.h.state, r.h.mark, { now: r.now.getTime(), airAtOf: (n) => r.schedule?.episodes.find((e) => e.number === n)?.airAt ?? null });
+ *  your mark while it's still open for you. None after the game ended early as far as you've seen (step A11 part 2b: a race won,
+ *  one left; answerQuestions refuses an answer after it as the league stands). */
+const weekOf = (r: Read) => {
+  const n = StateLogic.AnswerLogic.lateEpisode(r.h.state, r.h.mark, { now: r.now.getTime(), airAtOf: (e) => r.schedule?.episodes.find((x) => x.number === e)?.airAt ?? null });
+  return n !== null && StateLogic.KnockoutLogic.endedBefore(r.view, n) ? null : n;
+};
 
 /** The window a question is answered for at an episode (step A7: its own asked each; the run or phase it's in), or 0 asked once,
  *  or null when it has none there. A phase's window shows once you're up to the episode before it: someone further behind never
@@ -271,7 +288,7 @@ export async function gameQuestions(user: SessionUser, seasonId: string, leagueI
   return readQuestions(r, episodeIn);
 }
 
-async function readQuestions(r: Read, episodeIn?: unknown, rows?: AnswerRow[]): Promise<GameQuestions> {
+async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestions> {
   const { h, view, facts } = r;
   const me = h.playerId;
   const qs = questionsOf(h.state);
@@ -281,14 +298,16 @@ async function readQuestions(r: Read, episodeIn?: unknown, rows?: AnswerRow[]): 
   let episode = thisWeek;
   if (episodeIn !== undefined && episodeIn !== null && episodeIn !== "") {
     const n = Number(episodeIn);
-    if (!Number.isInteger(n) || n < 1 || !StateLogic.inPlay(h.state, n)) throw new HttpError(400, "Which episode?");
+    // Step A11 part 2b: nor one after the game ended early, as far as you've seen.
+    if (!Number.isInteger(n) || n < 1 || !StateLogic.inPlay(h.state, n) || StateLogic.KnockoutLogic.endedBefore(view, n)) throw new HttpError(400, "Which episode?");
     episode = n;
   }
   // Only the players your copy of the league has: a late joiner you can't see (viewFor takes them out) isn't counted,
   // listed or graded.
   const names = new Map(view.players.map((p) => [p.id, p.name]));
-  // A draft's finale predictions are in its state; only a game of questions keeps its answers in game_answers.
-  const stored = StateLogic.getLeagueType(h.state).hasQuestions ? (rows ?? (await storedAnswers(h.game.leagueId))) : [];
+  // A draft's finale predictions are in its state; only a game of questions keeps its answers in game_answers (those that count:
+  // step A11 part 2b, none of someone's for an episode after they went out).
+  const stored = StateLogic.getLeagueType(h.state).hasQuestions ? r.rows : [];
   const all = [...stored, ...StateLogic.AnswerLogic.finaleAnswers(h.state)].filter((a) => names.has(a.playerId));
   // A late joiner catching up answers nothing until they're on the live episode (answerQuestions refuses it): each open
   // question waits for them, with no episode to see (catchUp null).
@@ -296,8 +315,7 @@ async function readQuestions(r: Read, episodeIn?: unknown, rows?: AnswerRow[]): 
   const mark = h.mark ?? Number.POSITIVE_INFINITY;
   const graded = StateLogic.AnswerLogic.grade(view, all, facts);
   const out: QuestionView[] = [];
-  let points = 0;
-  for (const [pid, n] of graded.points) if (pid === me) points += n;
+  const points = yourPoints(r, graded.points);
   // A9: your stakes still on the line, and how many of the game's episodes have started (a shrinking call made now).
   const held = heldStakes(qs, stored, graded.verdicts, me);
   const lateNow = startedNow(r);
@@ -385,7 +403,17 @@ async function readQuestions(r: Read, episodeIn?: unknown, rows?: AnswerRow[]): 
     if (n > seenUpTo) continue;
     for (const g of fg.offered) if (!groups.some((x) => x.id === g.id)) groups.push({ id: g.id, name: g.name, photo: null });
   }
-  return { leagueId: h.game.leagueId, episode, questions: out, points, cast, groups, mark: h.mark };
+  return {
+    leagueId: h.game.leagueId,
+    episode,
+    questions: out,
+    points,
+    cast,
+    groups,
+    mark: h.mark,
+    out: StateLogic.KnockoutLogic.outOf(view, me),
+    ended: r.walk && StateLogic.gameOver(view) ? r.walk.ends : null,
+  };
 }
 
 /** Answer, change or take back your answers before each question locks. */
@@ -395,6 +423,12 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
   const isMap = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
   if (!isMap(body.answers)) throw new HttpError(400, "answers must be { question: answer }");
   if (StateLogic.GhostLogic.isCatchingUp(h.state, h.playerId)) throw new HttpError(409, "Catch up first: questions open once you're on the live episode");
+  // Step A11 part 2b: someone out answers nothing after their last episode in, and nobody answers past where the game ended early
+  // (a race won, one left), nor about the whole game then, as the league stands (h.state carries its walk over every answer:
+  // season-games.ts gamesHere). An episode up to it can still be answered while it's open for you (a late lock): your answer
+  // there is what decides it.
+  const ended = StateLogic.KnockoutLogic.endsAt(h.state);
+  const outAt = StateLogic.KnockoutLogic.outOf(h.state, h.playerId);
   const qs = questionsOf(h.state);
   const thisWeek = weekOf(r);
   const mark = h.mark ?? Number.POSITIVE_INFINITY;
@@ -413,9 +447,15 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       // Its window this week (A7): an episode named is this week's, or the one its window opens at.
       const at = windowFor(r, q, thisWeek);
       const asked = body.episode === undefined || body.episode === null ? thisWeek : Number(body.episode);
+      // Step A11 part 2b: the episode it's for, as said (none this week: the game ended, as far as you've seen).
+      const named = asked ?? at;
+      if (ended !== null && (named === null || named > ended)) throw new HttpError(409, `This game ended with Episode ${ended}`);
+      if (outAt !== null && (named === null || named > outAt)) throw new HttpError(409, "You’re out of this game");
       if (thisWeek === null || at === null || (asked !== thisWeek && asked !== at)) throw new HttpError(409, thisWeek === null || at === null ? "There's nothing to answer for yet" : `Answers are open for Episode ${thisWeek}`);
       ep = at;
     }
+    if (ended !== null && (q.asked === "once" || ep > ended)) throw new HttpError(409, `This game ended with Episode ${ended}`);
+    if (outAt !== null && (q.asked === "once" || ep > outAt)) throw new HttpError(409, "You’re out of this game");
     if (isClosed(r, q, ep)) {
       const { at } = closing(r, q, ep);
       throw new HttpError(409, at === null ? `"${q.ask}" is closed` : `"${q.ask}" closed when Episode ${at} started`);
@@ -492,7 +532,9 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       client.release();
     }
   }
-  return readQuestions(stateWrites.length ? await readOf(user, seasonId, leagueId, now) : r);
+  // Read again with what was written: the state's, or the answers (an answer to an open question settles nothing, so the walk the
+  // league carries still holds).
+  return readQuestions(stateWrites.length ? await readOf(user, seasonId, leagueId, now) : rows.length ? await readFrom({ ...h, answers: undefined }, seasonId, now) : r);
 }
 
 /**
@@ -531,12 +573,13 @@ export { contextOf };
 export async function sheetOf(user: SessionUser, seasonId: string, h: GameHere, now = new Date(), rows?: AnswerRow[]): Promise<SheetMove | null> {
   const qs = questionsOf(h.state);
   if (!qs.length) return null;
-  const g = await readQuestions(await readFrom(h, seasonId, now), undefined, rows);
+  const g = await readQuestions(await readFrom(h, seasonId, now, rows));
   return summaryOf(g, !!StateLogic.finaleOfGame(h.state));
 }
 
-/** A read's questions as a move. */
+/** A read's questions as a move: none once you're out (step A11 part 2b: you answer nothing more). */
 function summaryOf(g: GameQuestions, finale: boolean): SheetMove | null {
+  if (g.out !== null) return null;
   const open = g.questions.filter((q) => q.status === "open");
   const behind = g.questions.find((q) => q.status === "behind")?.catchUp ?? null;
   if (!open.length && behind === null) return null;

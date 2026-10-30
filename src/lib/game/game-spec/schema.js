@@ -49,10 +49,12 @@
 //            episode before then is back in from the next with one life, `cost` points off their total, `times` in a game;
 //            mulligans n, your first n wrong picks forgiven: no life lost, the streak carries on) | { by: 'lines', points? }
 //            (bingo: each line `points`, 1 when it's left out: A9)
-//            | { by: 'answers', parlays? } (only the ask's questions: Weekly Calls, a game of questions. A9's parlays:
-//            [{ of: [question ids], times }], someone right on every one of them in the same window has their points on
-//            them multiplied: "who goes home AND who wins immunity, triple if both"); sports: { by: 'stats', points: { HR:
-//            5 } } (the Sport's stat keys)
+//            | { by: 'answers', parlays?, lives?, livesOn? } (only the ask's questions: Weekly Calls, a game of questions. A9's
+//            parlays: [{ of: [question ids], times }], someone right on every one of them in the same window has their points
+//            on them multiplied: "who goes home AND who wins immunity, triple if both". A11 part 2b, a game of questions': lives
+//            n, a wrong answer, or none, to a question livesOn names (else every one asked each episode about it alone) costs
+//            one on a night it's settled, and at none you're out: "guess every elimination winner; a wrong guess knocks you
+//            out"); sports: { by: 'stats', points: { HR: 5 } } (the Sport's stat keys)
 //   rank     { by: 'total' } | { by: 'streak' } (longest, ties to the total) | { by: 'standing' } (A10 part 2, a pool with lives:
 //            last one standing, whoever's still in first, then whoever went out last; ties to the total, then lives left)
 //            | { by: 'worth' } (A10 part 3c, a stock market: cash plus the team at today's prices; ties to the total);
@@ -71,7 +73,10 @@
 //            game ends there: a draft's default) | plays (it runs to its end: a pool's default, as A10 part 2 built it); and a
 //            pool's allOut, the night everyone left goes out together: points (they're all out, ranked by their points: the
 //            default) | share (they're all out and share the win, whatever their points) | back (they're all back in for
-//            the next episode, with the lives they had that night). The defaults are the user's (A11 part 2's Noticed)
+//            the next episode, with the lives they had that night). A11 part 2b: a game of questions' race and cuts as a
+//            draft's (on its answers' points), and its lives (score.lives) knock players out too, ranked last one standing,
+//            its oneLeft and allOut as a pool's (their defaults ANSWERS_END). The defaults are the user's (A11 part 2's and
+//            2b's Noticed)
 //   ask      questions answered before their lock, each settled by data (A4: the question below). Beside a draft, its
 //            finale predictions (finaleQuestions); a game scored by answers, its own (Weekly Calls': the show's calls,
 //            CALLS)
@@ -493,6 +498,9 @@ const CUT_AT = ['every', 'episode', 'phase'];
 // ranked by their points (A10 part 2). Read by knockoutParts and poolParts, never filled in (a stored spec reads the same).
 const DRAFT_END = { oneLeft: 'ends' };
 const POOL_END = { oneLeft: 'plays', allOut: 'points' };
+// A11 part 2b: a game of questions that knocks players out ends once one is left, as a draft that cuts does; the night everyone
+// left goes out (lives) they're all out, ranked by their points, as a pool's (the user's to set: Noticed).
+const ANSWERS_END = { oneLeft: 'ends', allOut: 'points' };
 /** A rank's said end value, else the default. */
 const endOf = (rank, key, dflt) => (isObj(rank) && own(VOCAB[`rank.${key}`], rank[key]) ? rank[key] : dflt[key]);
 /** A draft's race and cuts (A11 part 1), read the one way from a whole spec: { race: { to } | null, cuts: [...], oneLeft (part 2:
@@ -502,6 +510,31 @@ function knockoutParts(s) {
   const race = isObj(s.rank.race) && isInt(s.rank.race.to, 1) ? { to: s.rank.race.to } : null;
   const cuts = Array.isArray(s.rank.cut) ? s.rank.cut.filter((c) => isObj(c) && isObj(c.at)).map((c) => ({ ...CUT, ...c })) : [];
   return race || cuts.length ? { race, cuts, oneLeft: endOf(s.rank, 'oneLeft', DRAFT_END) } : null;
+}
+/** A game of questions: nothing held, scored by its own questions (not Weekly Calls' calls). */
+const questionsGame = (s) => isObj(s) && isObj(s.get) && s.get.by === 'none' && isObj(s.score) && s.score.by === 'answers' && Array.isArray(s.ask) && s.ask.length > 0 && !callsAsk(s.ask);
+/** A question a life can ride on (A11 part 2b): asked each episode, about that episode alone, so it's right or wrong once that
+ *  episode's results are in. */
+const livesQuestion = (q) => isObj(q) && q.asked === 'each' && !(Number.isInteger(q.over) && q.over > 1);
+/**
+ * A game of questions' race, cuts and lives (A11 part 2b: rank.race and rank.cut on its answers' points, score.lives), read the one
+ * way from a whole spec: { race: { to } | null, cuts, lives (null: none), on (the questions a wrong answer, or none, costs a life
+ * on: score.livesOn, else every one asked each episode about it alone), oneLeft (with lives or cuts), allOut (with lives) },
+ * their defaults ANSWERS_END; null for a game of questions with none of them (every one before it) or a game that isn't one.
+ */
+function answerParts(s) {
+  if (!questionsGame(s)) return null;
+  const rank = isObj(s.rank) ? s.rank : {};
+  const race = isObj(rank.race) && isInt(rank.race.to, 1) ? { to: rank.race.to } : null;
+  const cuts = Array.isArray(rank.cut) ? rank.cut.filter((c) => isObj(c) && isObj(c.at)).map((c) => ({ ...CUT, ...c })) : [];
+  const lives = isInt(s.score.lives, 1) ? s.score.lives : null;
+  if (!race && !cuts.length && lives === null) return null;
+  const on = lives === null ? [] : Array.isArray(s.score.livesOn) ? s.score.livesOn.filter((id) => typeof id === 'string') : s.ask.filter(livesQuestion).map((q) => q.id);
+  return {
+    race, cuts, lives, on,
+    oneLeft: lives !== null || cuts.length ? endOf(rank, 'oneLeft', ANSWERS_END) : null,
+    allOut: lives !== null ? endOf(rank, 'allOut', ANSWERS_END) : null,
+  };
 }
 /** How many accounts can hold one of a whole spec's seats (extras.seats): 1 unless it shares them. */
 const seatPeople = (s) => (isObj(s) && isObj(s.extras) && isObj(s.extras.seats) && isInt(s.extras.seats.people, 2) ? s.extras.seats.people : 1);
@@ -768,12 +801,14 @@ function fullSpec(spec) {
       if (b.cost === undefined) b.cost = isNum(s.score.points) ? Math.min(Math.max(s.score.points, 0), MAX_BUYBACK_COST) : 1;
     }
   }
-  if (s.rank === undefined) s.rank = { by: isObj(s.score) && s.score.by === 'survive' ? 'streak' : 'total' };
+  // A11 part 2b: a game of questions with lives ranks last one standing, as one that cuts does.
+  const answerLives = isObj(s.score) && s.score.by === 'answers' && s.score.lives !== undefined;
+  if (s.rank === undefined) s.rank = { by: isObj(s.score) && s.score.by === 'survive' ? 'streak' : answerLives ? 'standing' : 'total' };
   // A11 part 1: a rank that says only its race or its cuts takes its order from them (cuts rank last one standing) or from the
   // game's; each cut says what it leaves out as the defaults (CUT).
   if (isObj(s.rank)) {
     if (s.rank.by === undefined) {
-      s.rank.by = Array.isArray(s.rank.cut) && s.rank.cut.length ? 'standing' : fits ? p.rank.by : isObj(s.score) && s.score.by === 'survive' ? 'streak' : 'total';
+      s.rank.by = (Array.isArray(s.rank.cut) && s.rank.cut.length) || answerLives ? 'standing' : fits ? p.rank.by : isObj(s.score) && s.score.by === 'survive' ? 'streak' : 'total';
     }
     if (Array.isArray(s.rank.cut)) s.rank.cut.forEach((c) => { if (isObj(c)) for (const [k, v] of Object.entries(CUT)) if (c[k] === undefined) c[k] = v; });
   }
@@ -831,9 +866,12 @@ function playsAs(s) {
   if (by('get') === 'pick' && s.get.each === 1 && (s.get.repeat === 'cycle' || s.get.repeat === 'never') && count === 'pick' && by('score') === 'survive' && (by('rank') === 'streak' || by('rank') === 'standing') && none) {
     return 'pickem';
   }
-  if (by('get') === 'none' && !count && by('score') === 'answers' && by('rank') === 'total') {
-    if (callsAsk(s.ask)) return 'weekly-calls';
-    if (!none && s.ask.length <= MAX_QUESTIONS && s.ask.every(playable)) return 'questions';
+  if (by('get') === 'none' && !count && by('score') === 'answers') {
+    if (callsAsk(s.ask)) return by('rank') === 'total' ? 'weekly-calls' : null;
+    // A11 part 2b: a game of questions that knocks players out (lives, cuts) ranks last one standing.
+    const knocks = isInt(s.score.lives, 1) || (isObj(s.rank) && Array.isArray(s.rank.cut) && s.rank.cut.length > 0);
+    const ranks = by('rank') === 'total' || (by('rank') === 'standing' && knocks);
+    if (ranks && !none && s.ask.length <= MAX_QUESTIONS && s.ask.every(playable)) return 'questions';
   }
   if (by('get') === 'card' && !count && by('score') === 'lines' && by('rank') === 'total' && none) return 'weekly-bingo';
   return null;
@@ -922,9 +960,10 @@ function flagsOf(s) {
     hasGroupSlots: get.by === 'draft' && isObj(get.groups),
     // A10 part 4: keepers from last season's game.
     hasKeepers: get.by === 'draft' && isObj(get.keep),
-    // A11 part 1: a draft's race (first to N ends it) and players knocked out.
-    hasRace: !!(knockoutParts(s) && knockoutParts(s).race),
-    hasCuts: !!(knockoutParts(s) && knockoutParts(s).cuts.length),
+    // A11 part 1: a draft's race (first to N ends it) and players knocked out; part 2b, a game of questions' too, and its lives.
+    hasRace: !!((knockoutParts(s) || answerParts(s) || {}).race),
+    hasCuts: !!((knockoutParts(s) || answerParts(s) || { cuts: [] }).cuts.length),
+    hasAnswerLives: !!(answerParts(s) && answerParts(s).lives),
     hasWeeklyPicks: get.by === 'pick',
     hasCalls: score.by === 'answers' && callsAsk(s && s.ask),
     // A game of questions (A4): scored by its answers, not the show's calls.
@@ -1082,6 +1121,8 @@ function specProblems(spec, ctx, opts) {
   // A9: points per bingo line (1 when it's left out).
   if (score.by === 'lines' && score.points !== undefined && !(isInt(score.points, 1) && score.points <= MAX_QUESTION_POINTS)) add('score.points', `A line is worth 1 to ${MAX_QUESTION_POINTS} points`);
   if (score.by === 'answers' && score.parlays !== undefined) parlayProblems(score.parlays, s).forEach(([at, p]) => add(`score.parlays${at}`, p));
+  // A11 part 2b: lives on a game of questions' answers.
+  if (score.by === 'answers' && (score.lives !== undefined || score.livesOn !== undefined)) answerLivesProblems(score, s).forEach(([at, p]) => add(`score${at}`, p));
   if ((score.by === 'moments' || score.by === 'stats') && !['draft', 'pick', 'squares'].includes(get.by)) add('score.by', `Scoring ${score.by} needs someone of yours: a draft or a pick`);
   if (score.by === 'place' && !(get.by === 'draft' && count === 'all')) add('score.by', 'Scoring by place counts everyone drafted: a draft, { all: true }');
   if (score.by === 'survive' && get.by !== 'pick') add('score.by', 'Surviving scores a pick');
@@ -1091,10 +1132,15 @@ function specProblems(spec, ctx, opts) {
   const rank = isObj(s.rank) ? s.rank : {};
   if (!one('rank.by', rank.by)) add('rank.by', 'How it ranks: total, streak, standing, worth, matchups, categories or roto');
   if (rank.by === 'streak' && score.by !== 'survive') add('rank.by', 'A streak is a Survival Pool\'s');
-  // A11 part 1: last one standing is also a draft's that knocks players out (rank.cut).
+  // A11 part 1: last one standing is also a draft's that knocks players out (rank.cut); part 2b, a game of questions' that does
+  // (its cuts, or its lives).
   const cutsSaid = Array.isArray(rank.cut) && rank.cut.length > 0;
-  if (rank.by === 'standing' && !(score.by === 'survive' && score.lives !== undefined) && !(get.by === 'draft' && cutsSaid)) {
-    add('rank.by', "Last one standing is a pool with lives (a wrong pick costs one, and at none you're out) or a draft that knocks players out");
+  const askKnocks = questionsGame(s) && (score.lives !== undefined || cutsSaid);
+  if (rank.by === 'standing' && !(score.by === 'survive' && score.lives !== undefined) && !(get.by === 'draft' && cutsSaid) && !askKnocks) {
+    add('rank.by', "Last one standing is a pool with lives (a wrong pick costs one, and at none you're out), or a draft or a game of questions that knocks players out");
+  }
+  if (questionsGame(s) && score.lives !== undefined && rank.by !== 'standing') {
+    add('rank.by', "A game that knocks players out ranks last one standing: whoever's still in, then whoever went out last");
   }
   if (rank.race !== undefined || rank.cut !== undefined) knockoutProblems(rank, s, league).forEach(([at, p]) => add(`rank${at}`, p));
   if (rank.oneLeft !== undefined || rank.allOut !== undefined) endProblems(rank, s).forEach(([at, p]) => add(`rank${at}`, p));
@@ -1323,7 +1369,7 @@ const KEYS = {
   budget: ['total', 'floor', 'ceiling', 'gone', 'fallback', 'trade', 'left'],
   trade: ['fee'],
   second: ['fallback'],
-  score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays'], stats: ['by', 'points'] },
+  score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn'], stats: ['by', 'points'] },
   buyback: ['times', 'before', 'cost'],
   before: ['phase', 'episode'],
   parlay: ['of', 'times'],
@@ -1553,16 +1599,17 @@ function poolProblems(score, s, league) {
  */
 function knockoutProblems(rank, s, league) {
   const out = [];
-  const draft = isObj(s.get) && s.get.by === 'draft';
+  // A11 part 2b: a game of questions' too, on its answers' points.
+  const draft = (isObj(s.get) && s.get.by === 'draft') || questionsGame(s);
   if (rank.race !== undefined) {
     if (!(isObj(rank.race) && isInt(rank.race.to, 1) && rank.race.to <= MAX_RACE)) out.push(['.race', `A race is { to: 1 to ${MAX_RACE} points }: the first there wins`]);
-    else if (!draft) out.push(['.race', "A race is a draft's for now: a game of questions' comes with A11 part 2b"]);
+    else if (!draft) out.push(['.race', "A race is a draft's or a game of questions': whoever's points get there first"]);
     else if (rank.by !== 'total' && rank.by !== 'standing') out.push(['.race', 'A race is won on points: it ranks by the total, or last one standing']);
   }
   if (rank.cut === undefined) return out;
   const list = rank.cut;
   if (!Array.isArray(list) || !list.length || list.length > MAX_CUTS) return [...out, ['.cut', `Players knocked out is a list of 1 to ${MAX_CUTS} cuts`]];
-  if (!draft) out.push(['.cut', isObj(s.get) && s.get.by === 'pick' ? "A pool knocks players out with its lives (a wrong pick costs one, and at none you're out): score.lives" : "Knocking players out by their points is a draft's for now: a game of questions' comes with A11 part 2b"]);
+  if (!draft) out.push(['.cut', isObj(s.get) && s.get.by === 'pick' ? "A pool knocks players out with its lives (a wrong pick costs one, and at none you're out): score.lives" : "Knocking players out by their points is a draft's or a game of questions'"]);
   else if (rank.by !== 'standing') out.push(['.by', "A game that knocks players out ranks last one standing: whoever's still in, then whoever went out last"]);
   const first = isObj(s.span) ? spanStart(s.span) : null;
   const last = isObj(s.span) ? s.span.to : null;
@@ -1592,16 +1639,44 @@ function knockoutProblems(rank, s, league) {
  */
 function endProblems(rank, s) {
   const out = [];
-  const pool = isObj(s.get) && s.get.by === 'pick' && isObj(s.score) && s.score.by === 'survive' && s.score.lives !== undefined;
-  const cuts = isObj(s.get) && s.get.by === 'draft' && Array.isArray(rank.cut) && rank.cut.length > 0;
+  // A11 part 2b: a game of questions with lives is like a pool with them (a wrong answer can send everyone left at once); one
+  // that cuts, like a draft that does.
+  const pool = (isObj(s.get) && s.get.by === 'pick' && isObj(s.score) && s.score.by === 'survive' && s.score.lives !== undefined) || (questionsGame(s) && s.score.lives !== undefined);
+  const cuts = ((isObj(s.get) && s.get.by === 'draft') || questionsGame(s)) && Array.isArray(rank.cut) && rank.cut.length > 0;
   const standing = rank.by === 'standing' && (pool || cuts);
   if (rank.oneLeft !== undefined) {
     if (own(VOCAB['rank.oneLeft'], rank.oneLeft) === undefined) out.push(['.oneLeft', 'Once one of you is left: ends (the game ends there) or plays (it runs to its end)']);
-    else if (!standing) out.push(['.oneLeft', 'One left is last one standing\'s: a pool with lives, or a draft that knocks players out, ranked by who\'s still standing']);
+    else if (!standing) out.push(['.oneLeft', 'One left is last one standing\'s: a pool with lives, or a draft or a game of questions that knocks players out, ranked by who\'s still standing']);
   }
   if (rank.allOut !== undefined) {
     if (own(VOCAB['rank.allOut'], rank.allOut) === undefined) out.push(['.allOut', 'The night everyone left goes out: points (all out, ranked by their points), share (all out, sharing the win) or back (all back in)']);
-    else if (!(pool && rank.by === 'standing')) out.push(['.allOut', cuts ? "A cut never sends everyone left, so a draft's night can't empty the game" : 'Everyone left going out at once is a pool\'s with lives, ranked by who\'s still standing']);
+    else if (!(pool && rank.by === 'standing')) out.push(['.allOut', cuts ? "A cut never sends everyone left, so its night can't empty the game" : 'Everyone left going out at once is a pool\'s, or a game of questions\', with lives, ranked by who\'s still standing']);
+  }
+  return out;
+}
+
+/**
+ * Lives on a game of questions' answers (A11 part 2b: score.lives, score.livesOn), as [[at, problem]]: lives 1 to MAX_LIVES (a
+ * wrong answer, or none, to a question it counts costs one on a night that question is settled, and at none you're out);
+ * livesOn, the questions that count (1 to MAX_QUESTIONS of the game's own, each asked each episode about it alone, so it's right or
+ * wrong once that episode's results are in), else every one asked so. Weekly Calls' calls are the couch's to settle: none there.
+ */
+function answerLivesProblems(score, s) {
+  const out = [];
+  if (!questionsGame(s)) return [['.lives', "Lives ride on a game of questions' answers (Weekly Calls' calls are the couch's to settle)"]];
+  if (score.lives !== undefined && !(isInt(score.lives, 1) && score.lives <= MAX_LIVES)) out.push(['.lives', `A game of questions has 1 to ${MAX_LIVES} lives`]);
+  const on = score.livesOn;
+  if (on !== undefined) {
+    if (score.lives === undefined) return [...out, ['.livesOn', 'Which questions cost a life is for a game with lives: score.lives']];
+    if (!Array.isArray(on) || !on.length || on.length > MAX_QUESTIONS) return [...out, ['.livesOn', `The questions a wrong answer costs a life on: a list of 1 to ${MAX_QUESTIONS} of the game's question ids`]];
+    on.forEach((id, i) => {
+      const q = s.ask.find((x) => isObj(x) && x.id === id);
+      if (!q) out.push([`.livesOn[${i}]`, `"${id}" isn't one of the game's questions`]);
+      else if (on.indexOf(id) !== i) out.push([`.livesOn[${i}]`, `"${id}" is named twice`]);
+      else if (!livesQuestion(q)) out.push([`.livesOn[${i}]`, "A life rides on a question asked each episode, about that episode alone: it's right or wrong once that episode's results are in"]);
+    });
+  } else if (!s.ask.some(livesQuestion)) {
+    out.push(['.lives', 'A life rides on a question asked each episode, about that episode alone: this game asks none']);
   }
   return out;
 }
@@ -1920,7 +1995,7 @@ module.exports = {
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
   marketWaivers, marketOf, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
-  MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END,
+  MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END, ANSWERS_END, answerParts, livesQuestion,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

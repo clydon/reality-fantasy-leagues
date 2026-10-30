@@ -72,8 +72,10 @@ export type SpecScore =
   /** A9: points per line (1 when it's left out). */
   | { by: "lines"; points?: number }
   /** Only the ask's questions (A4): Weekly Calls (the show's calls), a game of questions. A9's parlays: someone right on every
-   *  one of `of` in the same window has their points on them multiplied by `times`. */
-  | { by: "answers"; parlays?: SpecParlay[] }
+   *  one of `of` in the same window has their points on them multiplied by `times`. A11 part 2b, a game of questions': lives (a
+   *  wrong answer, or none, to a question `livesOn` names, else every one asked each episode about it alone, costs one; out at
+   *  none). */
+  | { by: "answers"; parlays?: SpecParlay[]; lives?: number; livesOn?: string[] }
   /** sports: the Sport's stat keys -> points */
   | { by: "stats"; points: Record<string, number> };
 
@@ -87,7 +89,8 @@ export interface SpecRank {
   /** total, streak: today; standing (A10 part 2): last one standing, a pool with lives; worth (A10 part 3c): a stock market's,
    *  cash plus the team at today's prices. sports: matchups, categories, roto. */
   by: "total" | "streak" | "standing" | "worth" | "matchups" | "categories" | "roto";
-  /** A11 part 1, beside a draft: a race (the first to `to` points wins, the game ending there) and players knocked out. */
+  /** A11 part 1, beside a draft (part 2b, a game of questions too): a race (the first to `to` points wins, the game ending there)
+   *  and players knocked out. */
   race?: { to: number };
   cut?: { at: { every: number } | { episode: number } | { phase: string }; out?: number | "half"; tie?: "keep" | "all"; quiet?: "cut" | "skip" }[];
   /** A11 part 2, beside last one standing: once one or none is left, the game ends there or plays on (a draft's default ends, a
@@ -214,6 +217,8 @@ export interface AnswerFacts {
   startIn?: string[];
   /** A8: the finalists' jury votes, once the season is over. */
   jury?: Map<string, number> | null;
+  /** A11 part 2b: the episode the season ended in (the winner's), or null. */
+  endedAt?: number | null;
   /** F3 part 2: the groups a group question asked each episode reads from the format's state over time, by episode, on a
    *  season played in groups the league doesn't hold (format-timeline.js groupFacts). */
   formatGroups?: Map<number, FormatGroups>;
@@ -474,6 +479,8 @@ export function windowPoints(
 ): Map<string, number>;
 /** A9: who's right on every leg of a parlay in one window. */
 export function allRight(legs: { q: Question; v: Verdict | undefined; answers: { playerId: string; answer: unknown }[] }[], facts?: AnswerFacts): Set<string>;
+/** A11 part 2b: the facts as they stood once episode `k` was in (the walk's totals through it). */
+export function factsThrough(facts: AnswerFacts, k: number): AnswerFacts;
 /** A9: what a shrinking call is worth, as it was made (its late, changes). */
 export function shrunk(q: Question, worth: number, a?: { late?: number; changes?: number } | null): number;
 export const WAGER_TOTAL: "total";
@@ -519,6 +526,21 @@ export const SECOND_PICK: { fallback: "void" | "counts" };
 export const NEVER: { fallback: "miss" | "skip" };
 export const DRAFT_END: { oneLeft: "ends" | "plays" };
 export const POOL_END: { oneLeft: "ends" | "plays"; allOut: "points" | "share" | "back" };
+/** A11 part 2b: a game of questions' race, cuts and lives, read the one way the engine and the words read them (their ends'
+ *  defaults ANSWERS_END); null for a game of questions with none of them, or any other game. */
+export const ANSWERS_END: { oneLeft: "ends" | "plays"; allOut: "points" | "share" | "back" };
+export interface AnswerParts {
+  race: { to: number } | null;
+  cuts: { at: { every: number } | { episode: number } | { phase: string }; out: number | "half"; tie: "keep" | "all"; quiet: "cut" | "skip" }[];
+  lives: number | null;
+  /** The questions a wrong answer, or none, costs a life on (none without lives). */
+  on: string[];
+  oneLeft: "ends" | "plays" | null;
+  allOut: "points" | "share" | "back" | null;
+}
+export function answerParts(spec: GameSpec | SpecInput | null | undefined): AnswerParts | null;
+/** A question a life can ride on: asked each episode, about that episode alone. */
+export function livesQuestion(q: unknown): boolean;
 /** A10 part 2: a pool's lives (null: none, nobody's out), mulligans (0: none), buyback (with lives, its defaults filled), second
  *  pick and last one standing, read the one way the engine and the words read them; null for a pool with none, or no pool. */
 export interface PoolParts {
@@ -584,6 +606,7 @@ export function playsAs(spec: GameSpec): LeagueTypeId | null;
 /** The league type's flags, worked out from a whole spec. */
 export function flagsOf(spec: GameSpec): {
   hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasKeepers: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasBingo: boolean;
+  hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean;
   supportsReplenish: boolean; supportsTrade: boolean; supportsFinalePredictions: boolean;
 };
 /**

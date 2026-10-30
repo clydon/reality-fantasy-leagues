@@ -117,6 +117,19 @@ function draftRankOf(st, lineup, copy) {
   if (by === 'standing') endsOf(st, rank, false);
   return rank;
 }
+/**
+ * A11 part 2b: a game of questions' rank, from its settings: by its total, or last one standing once it knocks players out (lives,
+ * or players knocked out by their points: questionsCut), with a race (questionsRace) as the spec says it, and last one standing's
+ * end (its allOut with lives). Each only when it's set.
+ */
+function questionsRankOf(st, lives, copy) {
+  const cut = Array.isArray(st.questionsCut) && st.questionsCut.length ? (copy ? clone(st.questionsCut) : st.questionsCut) : null;
+  const rank = { by: cut || lives ? 'standing' : 'total' };
+  if (isObj(st.questionsRace)) rank.race = copy ? clone(st.questionsRace) : st.questionsRace;
+  if (cut) rank.cut = cut;
+  if (rank.by === 'standing') endsOf(st, rank, lives);
+  return rank;
+}
 /** A11 part 2: last one standing's end as its settings say it (rankOneLeft; a pool's rankAllOut too), each only when it's set. */
 function endsOf(st, rank, pool) {
   if (Object.prototype.hasOwnProperty.call(VOCAB['rank.oneLeft'], st.rankOneLeft)) rank.oneLeft = st.rankOneLeft;
@@ -230,7 +243,16 @@ function readSpec(st, copy) {
   } else if (type === 'weekly-calls' || type === 'questions') {
     // A game of questions' parlays (A9: settings.parlays, as its spec says them).
     const parlays = type === 'questions' && Array.isArray(st.parlays) && st.parlays.length ? (copy ? clone(st.parlays) : st.parlays) : undefined;
-    Object.assign(spec, { get: { by: 'none' }, count: null, score: parlays ? { by: 'answers', parlays } : { by: 'answers' }, rank: { by: 'total' } });
+    const score = parlays ? { by: 'answers', parlays } : { by: 'answers' };
+    // A11 part 2b: a game of questions' lives (questionsLives, on questionsLivesOn), its race and cuts (questionsRace, questionsCut)
+    // and its end (rankOneLeft, rankAllOut); last one standing whenever it knocks players out (lives or cuts: the only way it can
+    // rank then). Each only when it's set, so a game of questions that has none reads as it always did.
+    const lives = type === 'questions' && Number.isInteger(st.questionsLives) && st.questionsLives >= 1;
+    if (lives) {
+      score.lives = st.questionsLives;
+      if (Array.isArray(st.questionsLivesOn) && st.questionsLivesOn.length) score.livesOn = copy ? clone(st.questionsLivesOn) : st.questionsLivesOn;
+    }
+    Object.assign(spec, { get: { by: 'none' }, count: null, score, rank: type === 'questions' ? questionsRankOf(st, lives, copy) : { by: 'total' } });
   } else {
     // Points per bingo line (A9: settings.linePoints), 1 when it's left out.
     const points = Number.isInteger(st.linePoints) && st.linePoints >= 1 ? st.linePoints : undefined;
@@ -351,7 +373,15 @@ function settingsOf(spec) {
   out.poolRepeat = pool && s.get.repeat === 'never' ? 'never' : undefined;
   out.poolFallback = pool && s.get.repeat === 'never' ? s.get.fallback : undefined;
   out.rankOneLeft = s.rank.by === 'standing' && s.rank.oneLeft !== undefined ? s.rank.oneLeft : undefined;
-  out.rankAllOut = pool && s.rank.by === 'standing' && s.rank.allOut !== undefined ? s.rank.allOut : undefined;
+  // A11 part 2b: a game of questions with lives, as a pool with them.
+  const asks = type === 'questions';
+  const askLives = asks && s.score.lives !== undefined;
+  out.rankAllOut = (pool || askLives) && s.rank.by === 'standing' && s.rank.allOut !== undefined ? s.rank.allOut : undefined;
+  // A11 part 2b: a game of questions' lives, race and cuts (last one standing is theirs: the only way it ranks then).
+  out.questionsLives = askLives ? s.score.lives : undefined;
+  out.questionsLivesOn = askLives && Array.isArray(s.score.livesOn) ? clone(s.score.livesOn) : undefined;
+  out.questionsRace = asks && isObj(s.rank.race) ? clone(s.rank.race) : undefined;
+  out.questionsCut = asks && Array.isArray(s.rank.cut) ? clone(s.rank.cut) : undefined;
   // A10 part 3c: a lineup's or best ball's stock market ranked by worth; A11 part 1: a draft's last one standing, its race and its
   // cuts.
   out.draftRank = type === 'active-roster' && s.rank.by === 'worth' ? 'worth' : draft && s.rank.by === 'standing' ? 'standing' : undefined;
@@ -428,8 +458,8 @@ const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
   { fields: ['startEpisode', 'startPhase', 'endEpisode'], read: (s) => s.span },
   { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
-  { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans'], read: (s) => s.score },
-  { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut'], read: (s) => s.rank },
+  { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn'], read: (s) => s.score },
+  { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut', 'questionsRace', 'questionsCut'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },
   { fields: ['seatPeople'], read: (s) => seatPeople(s) },

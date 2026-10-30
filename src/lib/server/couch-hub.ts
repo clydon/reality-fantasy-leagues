@@ -1,4 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
+import type { AnswerWalk } from "@/lib/game/state-logic.js";
 import { answerStanding, storedAnswers } from "./answer-points";
 import { foldFor, isFolded, revealedThrough } from "@/lib/game/chat-fold";
 import { accoladesOf, fieldOf, rankingsOf, trophiesOf, yourNumbers, type Accolade, type GameStanding, type Person, type Rankings, type StandingRow, type TrophyShelf, type YourNumbers } from "@/lib/game/couch-standings";
@@ -100,10 +101,12 @@ function standingOf(
   playerId: string | null,
   mark: number | null,
   userOf: (p: string) => string | null,
-  calls?: { right: (p: string) => number; through: number; ended: boolean },
+  calls?: { right: (p: string) => number; through: number; ended: boolean; walk?: AnswerWalk | null },
   usersOf: (p: string) => string[] = () => []
 ): { rows: StandingRow[]; through: number; ended: boolean } {
-  const view = StateLogic.GhostLogic.viewFor(state, playerId, mark);
+  // Step A11 part 2b: a game of questions' walk on your copy (answer-points.ts answerStanding): who's out, ranked as it ranks.
+  const seenView = StateLogic.GhostLogic.viewFor(state, playerId, mark);
+  const view = calls?.walk ? StateLogic.AnswerLogic.withWalk(seenView, calls.walk) : seenView;
   const pool = StateLogic.getLeagueType(view).hasWeeklyPicks;
   const called = new Map<string, number>();
   // Side bets called right, where they count (beside a draft: a pool's or Weekly Calls' never scored).

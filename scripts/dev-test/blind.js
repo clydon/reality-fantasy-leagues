@@ -446,10 +446,14 @@ async function startGame(g, copy, users, seats, show, season) {
 /** Every open question of a game answered by each seat that plays this week, through answers.ts as the app's sheet sends
  *  them. What it offered (a group question's faces and why there are none) and what it refused, for the record. */
 async function answerAll(r, n) {
-  const { answers } = app();
+  const { answers, S } = app();
   const offered = {};
   const answered = {};
   const refused = [];
+  // A11 part 2b: as the app offers nothing after a game ended early, nor to a seat that's out (as playtest.js's moves skip them),
+  // nothing is answered then: the league as it stands, a game of questions walked over its answers.
+  const s = await standing(r);
+  if (S.KnockoutLogic.endedBefore(s, n)) return { offered, answered, refused };
   for (const seat of r.seats) {
     const user = r.users[seat.username];
     let gq;
@@ -463,7 +467,7 @@ async function answerAll(r, n) {
     for (const q of gq.questions) {
       if (q.answer === "group" && seat === r.seats[0]) offered[q.id] = { faces: (q.faces || []).map((f) => f.name), offWhy: q.offWhy || null, status: q.status };
     }
-    if (!answersThisWeek(seat, n) || !open.length) continue;
+    if (!answersThisWeek(seat, n) || !open.length || S.KnockoutLogic.isOut(s, H.pidOf(r, seat))) continue;
     const body = {};
     for (const q of open) {
       const v = answerFor(seat, q, n);
@@ -480,6 +484,12 @@ async function answerAll(r, n) {
   return { offered, answered, refused };
 }
 
+/** The league as it stands (A11 part 2b: a game of questions that races or knocks players out walked over its answers, as the
+ *  app reads it: answer-points.ts asItStands). */
+async function standing(r) {
+  return (await app().points.asItStands(r.leagueId, await H.stateOf(r.leagueId))).state;
+}
+
 /** What a game shows after episode n's results, as its runner sees it: its group questions' verdicts (what was right, who
  *  earned what, whose pick was void), its table, whether it's over. */
 async function lookAt(r, n) {
@@ -492,6 +502,12 @@ async function lookAt(r, n) {
     const st = await points.answerStanding({ leagueId: r.leagueId, state: s, playerId: null, mark: null });
     if (st) for (const p of s.players) out.table[label(p.id)] = st.right(p.id);
     if (st) out.over = st.ended;
+    // A11 part 2b: who's out (the last episode that counted for them), and nothing more to read once it ended early.
+    if (st && st.walk) {
+      out.out = Object.fromEntries(Object.entries(st.walk.out).map(([pid, k]) => [label(pid), k]));
+      if (Object.keys(st.walk.lives).length) out.lives = Object.fromEntries(Object.entries(st.walk.lives).map(([pid, k]) => [label(pid), k]));
+      if (st.walk.ends !== null && n > st.walk.ends) return out;
+    }
     try {
       const gq = await answers.gameQuestions(r.users[r.seats[0].username], r.seasonId, r.leagueId, n);
       for (const q of gq.questions.filter((x) => x.episode === n || x.episode === null)) {

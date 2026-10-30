@@ -927,7 +927,25 @@ declare const StateLogic: {
     finaleAnswers(state: LeagueState): { playerId: string; question: string; episode: number; answer: string | string[] }[];
     finalePoints(state: LeagueState): Map<string, number>;
     finaleActual(state: LeagueState): { top3: (string | null)[]; winner: string | null };
+    /** A11 part 2b: a game of questions' race, cuts and lives, walked over its graded answers (null: a game with none of them). */
+    walk(state: LeagueState, answers: { playerId: string; question: string; episode: number; answer: unknown; late?: number; changes?: number }[], facts: AnswerFacts): AnswerWalk | null;
+    /** A copy of the state carrying its walk (never the state itself); the walk a state carries, or null. */
+    withWalk(state: LeagueState, walk: AnswerWalk | null): LeagueState;
+    walkOf(state: LeagueState): AnswerWalk | null;
+    /** The answers that count: someone out keeps only their answers to windows settled by their last episode in. */
+    liveRows<T extends { playerId: string; question: string; episode: number }>(state: LeagueState, rows: T[], out: Map<string, number> | Record<string, number>): T[];
+    liveAnswers<T extends { playerId: string; question: string; episode: number }>(state: LeagueState, rows: T[]): T[];
+    applyWalk(state: LeagueState, rows: ScoreRow[], walk: AnswerWalk): ScoreRow[];
   };
 };
+/** A11 part 2b: a game of questions' walk (AnswerLogic.walk): where it ends early, who's out after which episode, lives left (with
+ *  lives), who went out together sharing it, and each one's points as the table shows them (frozen once out). Plain data. */
+export interface AnswerWalk {
+  ends: number | null;
+  out: Record<string, number>;
+  lives: Record<string, number>;
+  shared: string[];
+  totals: Record<string, number>;
+}
 
 export default StateLogic;

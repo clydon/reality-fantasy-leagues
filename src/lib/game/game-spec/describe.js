@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -304,13 +304,56 @@ function cutPhrase(c, w) {
   const when = Number.isInteger(c.at.episode) ? `After ${w.Part} ${c.at.episode}` : `Before ${phaseWord(c.at.phase, w)} starts`;
   return `${when} ${many || 'the lowest on points'} ${c.out === 1 || c.out === 'half' ? 'is' : 'are'} cut.`;
 }
-/** The sentence's words for a draft's race and cuts (A11 part 1). */
+/** The sentence's words for a draft's race and cuts (A11 part 1), and a game of questions' with its lives (part 2b). */
 function knockoutPhrases(s, w) {
-  const k = knockoutParts(s);
+  const a = answerParts(s);
+  const k = knockoutParts(s) || a;
   if (!k) return [];
-  const out = k.cuts.map((c) => cutPhrase(c, w));
+  const out = [];
+  if (a && a.lives) out.push(`${cap(say(a.lives))} ${a.lives === 1 ? 'life' : 'lives'}: a wrong answer${livesWhich(s, a)}, or none, costs one.`);
+  out.push(...k.cuts.map((c) => cutPhrase(c, w)));
   if (k.race) out.push(`First to ${pointsWord(k.race.to)} wins: the game ends there.`);
-  else if (k.cuts.length) out.push('Last one standing wins.');
+  else if (k.cuts.length || (a && a.lives)) out.push('Last one standing wins.');
+  // A11 part 2b: a game of questions' end, where it isn't the default.
+  if (a && a.oneLeft === 'plays') out.push('With one of you left it plays on.');
+  if (a && a.allOut === 'share') out.push('If everyone left goes out together, they share the win.');
+  if (a && a.allOut === 'back') out.push("If everyone left goes out together, they're all back in.");
+  return out;
+}
+/** Which questions a life rides on, as a phrase (A11 part 2b): "" when it's every one asked each episode, else ' to "Who wins the
+ *  elimination?"'. */
+function livesWhich(s, a) {
+  const all = s.ask.filter(livesQuestion).map((q) => q.id);
+  if (a.on.length === all.length && a.on.every((id) => all.includes(id))) return '';
+  const asks = a.on.map((id) => s.ask.find((q) => q.id === id)).filter(Boolean).map((q) => `"${q.ask}"`);
+  return asks.length ? ` to ${listOf(asks)}` : '';
+}
+/** How a game of questions' race, cuts and lives work (A11 part 2b), a rule a line, as the engine plays them (AnswerLogic.walk);
+ *  its last line says who wins. */
+function answerKnockoutRules(s, w) {
+  const a = answerParts(s);
+  const out = [];
+  if (a.lives) {
+    const which = livesWhich(s, a);
+    out.push(`You have ${say(a.lives)} ${a.lives === 1 ? 'life' : 'lives'}: a wrong answer${which || ` to a question asked each ${w.part}`}, or none, costs one once it's settled. At none you're out.`);
+    out.push(`${cap(article(w.part))} ${w.part} where it doesn't count (nobody went home, or nothing settles it) costs nobody a life.`);
+  }
+  for (const c of a.cuts) {
+    let rule = cutPhrase(c, w);
+    if (Number.isInteger(c.at.every)) rule += ' A tie on those points goes to whoever has fewer in all.';
+    rule += c.tie === 'all' ? ' Tied at the line, you all go, unless that would be everyone left.' : ' Tied at the line, nobody tied there goes.';
+    if (c.quiet === 'skip') rule += ` ${cap(article(w.part))} ${w.part} nobody goes home has no cut.`;
+    out.push(rule);
+  }
+  if (a.lives || a.cuts.length) {
+    out.push("Once you're out you answer nothing more and score nothing more: your points stay where they were.");
+    out.push(`Last one standing wins: whoever's still in by their points, then whoever went out last. ${a.oneLeft === 'plays' ? 'With one of you left it plays on to the end, their points still growing.' : "Once one of you is left, or none, it's over."}`);
+    if (a.allOut === 'share') out.push(`If everyone still in goes out the same ${w.part}, you're all out and share the win, whatever your points.`);
+    if (a.allOut === 'back') out.push(`If everyone still in goes out the same ${w.part}, you're all back in for the next, with the lives you had.`);
+  }
+  if (a.race) out.push(`First to ${pointsWord(a.race.to)} wins: the game ends after that ${w.part}, and the most points then win (a tie shares it). If nobody gets there, the most points at the end win.`);
+  else if (!a.lives && !a.cuts.length) out.push('Most points wins.');
+  out.push(`A life, a cut or a finish waits for ${article(w.part)} ${w.part}'s answers to be settled.`);
   return out;
 }
 /** How a draft's race and cuts work (A11 part 1), a rule a line, as the engine plays them (KnockoutLogic). */
@@ -585,7 +628,9 @@ function rulesOf(s, w) {
     rules.push(each ? `Change an answer until its ${w.part} starts. Nobody sees them until then.` : 'Change your answers until it starts. Nobody sees them until then.');
     // A late lock (A7).
     if (isObj(s.extras.lateLock)) rules.push(`Watching late? Answer before you watch: until you've seen it, up to ${s.extras.lateLock.hours} hours after it airs.`);
-    rules.push('Most points wins.');
+    // A11 part 2b: a race, cuts and lives say who wins.
+    if (answerParts(s)) rules.push(...answerKnockoutRules(s, w));
+    else rules.push('Most points wins.');
   }
   const rank = {
     matchups: `You play someone head to head each ${w.part}: the most points wins it.`,

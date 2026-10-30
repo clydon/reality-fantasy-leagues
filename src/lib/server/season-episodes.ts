@@ -75,7 +75,7 @@ const catchingUpIn = (h: GameHere) => StateLogic.GhostLogic.isCatchingUp(h.state
 async function revealSheet(h: GameHere, n: number): Promise<RevealSheet | undefined> {
   if (!StateLogic.getLeagueType(h.state).hasQuestions) return undefined;
   try {
-    const o = { leagueId: h.game.leagueId, state: h.state, playerId: h.playerId, rows: await storedAnswers(h.game.leagueId) };
+    const o = { leagueId: h.game.leagueId, state: h.state, playerId: h.playerId, rows: h.answers ?? (await storedAnswers(h.game.leagueId)) };
     const [was, now, nights] = await Promise.all([leagueAnswers({ ...o, mark: n - 1 }), leagueAnswers({ ...o, mark: n }), sheetNights({ ...o, mark: n })]);
     return { was, now, nights };
   } catch (e) {
@@ -118,7 +118,7 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   for (const h of order) {
     // A Prediction Sheet's nights come from its answers (step A4 part 2: answer-points.ts sheetNights); read-only, nobody's.
     const sheet = !h.readOnly && StateLogic.getLeagueType(h.state).hasQuestions
-      ? await sheetNights({ leagueId: h.game.leagueId, state: h.state, playerId: h.playerId, mark: h.mark }).catch((e) => {
+      ? await sheetNights({ leagueId: h.game.leagueId, state: h.state, playerId: h.playerId, mark: h.mark, rows: h.answers }).catch((e) => {
           console.error(`[season-episodes] sheet nights ${h.game.leagueId}:`, e);
           return undefined;
         })

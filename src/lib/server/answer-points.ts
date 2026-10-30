@@ -3,6 +3,7 @@ import * as Spec from "@/lib/game/game-spec/index.js";
 import type { SheetNights } from "@/lib/game/episode-view";
 import type { GameCalls } from "@/lib/game/game-view";
 import type { AnswerFacts, FormatGroups } from "@/lib/game/game-spec/index.js";
+import type { AnswerWalk } from "@/lib/game/state-logic.js";
 import { groupFacts } from "@/lib/game/formats/format-timeline.js";
 import type { LeagueState } from "@/lib/game/types";
 import { timelineForShow } from "@db/format-timeline.js";
@@ -36,9 +37,55 @@ export function finaleEpisode(schedule: SeasonSchedule | undefined): { number: n
   return { number: n, airAt: schedule?.episodes.find((e) => e.number === n)?.airAt ?? null };
 }
 
-/** The game as a viewer sees it: at their mark (the spoiler guard's view), as it stood at a span's end. */
-export const viewOf = (h: { state: LeagueState; playerId: string | null; mark: number | null }) =>
-  StateLogic.spanView(StateLogic.GhostLogic.viewFor(h.state, h.playerId, h.mark));
+/** A game of questions as someone may see it (walked): its view, the facts its questions are graded on there, the answers that
+ *  count (none of someone's for an episode after they went out) and its walk (null for a game that neither races nor knocks
+ *  players out). */
+export interface Walked {
+  view: LeagueState;
+  facts: AnswerFacts;
+  rows: AnswerRow[];
+  walk: AnswerWalk | null;
+}
+
+/**
+ * The game as a viewer sees it: at their mark (the spoiler guard's view), as it stood at its end. A game of questions that races
+ * or knocks players out (step A11 part 2b: Spec.answerParts) is walked over its graded answers on the viewer's own copy first
+ * (StateLogic.AnswerLogic.walk), so it ends, and knocks anyone out, only as far as they've seen, and the copy carries the walk
+ * (withWalk) for everything the engine reads of it: its end (lastEpisode, gameOver, spanView), the scores' `out` and the rank. A
+ * state that already carries the walk of exactly what this viewer sees (asItStands', nothing hidden from them) keeps it. `rows`:
+ * the game's answers when they've been read already.
+ */
+export async function walked(o: { leagueId: string; state: LeagueState; playerId: string | null; mark: number | null; rows?: AnswerRow[] }): Promise<Walked> {
+  const A = StateLogic.AnswerLogic;
+  const seen = StateLogic.GhostLogic.viewFor(o.state, o.playerId, o.mark);
+  const all = o.rows ?? (StateLogic.getLeagueType(o.state).hasQuestions ? await storedAnswers(o.leagueId) : []);
+  // The format's groups, read once (the seen copy and the one cut at the game's end have the same cast).
+  const formatGroups = await formatGroupsFor(o.state, seen);
+  const factsOf = (v: LeagueState): AnswerFacts => {
+    const f = A.facts(v);
+    return formatGroups ? { ...f, formatGroups } : f;
+  };
+  if (!Spec.answerParts(StateLogic.gameOf(seen))) {
+    const view = StateLogic.spanView(seen);
+    return { view, facts: factsOf(view), rows: all, walk: null };
+  }
+  const walk = A.walkOf(seen) ?? A.walk(seen, all, factsOf(seen));
+  const view = StateLogic.spanView(A.withWalk(seen, walk));
+  return { view, facts: factsOf(view), rows: walk ? A.liveRows(seen, all, walk.out) : all, walk };
+}
+
+/**
+ * A game of questions that races or knocks players out (step A11 part 2b), as it stands: the league walked over all its answers and
+ * every result (StateLogic.AnswerLogic.walk), on a copy that carries the walk, for what reads the league itself: whether someone is
+ * out or the game has ended (answers.ts refuses their answers; the questions close), and which results are its to reveal. Any
+ * other game, the state as it is. `rows`: the answers read (to reuse), when it read them.
+ */
+export async function asItStands(leagueId: string, state: LeagueState, rows?: AnswerRow[]): Promise<{ state: LeagueState; rows?: AnswerRow[] }> {
+  if (!Spec.answerParts(StateLogic.gameOf(state))) return { state, rows };
+  const all = rows ?? (await storedAnswers(leagueId));
+  const walk = StateLogic.AnswerLogic.walk(state, all, await answerFacts(state, state));
+  return { state: StateLogic.AnswerLogic.withWalk(state, walk), rows: all };
+}
 
 /** Whether a question reads its groups from the format's state over time where the season has them (A6 on F3 part 2): the
  *  grader's own test (game-spec answers.js). */
@@ -78,9 +125,20 @@ export async function answerFacts(state: LeagueState, view: LeagueState): Promis
  */
 export async function leagueAnswers(o: { leagueId: string; state: LeagueState; playerId: string | null; mark: number | null; rows?: AnswerRow[] }): Promise<GameCalls | null> {
   if (!StateLogic.getLeagueType(o.state).hasQuestions) return null;
-  const view = viewOf(o);
-  const { points } = StateLogic.AnswerLogic.grade(view, o.rows ?? (await storedAnswers(o.leagueId)), await answerFacts(o.state, view));
-  return { right: (p) => points.get(p) ?? 0, move: null };
+  const w = await walked(o);
+  // Step A11 part 2b: a game that races or knocks players out has its points in its walk (frozen once someone's out), and the
+  // table reads who's out from the walk (gameView puts it on its copy of the league).
+  return { right: pointsOf(w), move: null, walk: w.walk };
+}
+
+/** Each one's points as the table shows them: a walk's (frozen once out), else graded on the view. */
+function pointsOf(w: Walked): (playerId: string) => number {
+  if (w.walk) {
+    const totals = w.walk.totals;
+    return (p) => totals[p] ?? 0;
+  }
+  const { points } = StateLogic.AnswerLogic.grade(w.view, w.rows, w.facts);
+  return (p) => points.get(p) ?? 0;
 }
 
 /**
@@ -89,11 +147,11 @@ export async function leagueAnswers(o: { leagueId: string; state: LeagueState; p
  */
 export async function answerStanding(o: { leagueId: string; state: LeagueState; playerId: string | null; mark: number | null; rows?: AnswerRow[] }) {
   if (!StateLogic.getLeagueType(o.state).hasQuestions) return undefined;
-  const view = viewOf(o);
-  const { points } = StateLogic.AnswerLogic.grade(view, o.rows ?? (await storedAnswers(o.leagueId)), await answerFacts(o.state, view));
-  const end = StateLogic.endEpisode(view);
-  const seen = StateLogic.SpoilerLogic.latestWithResults(view);
-  return { right: (p: string) => points.get(p) ?? 0, through: end === null ? seen : Math.min(seen, end), ended: StateLogic.gameOver(view) };
+  const w = await walked(o);
+  // Through its last episode: its span's end, or where it ended early (step A11 part 2b).
+  const end = StateLogic.lastEpisode(w.view);
+  const seen = StateLogic.SpoilerLogic.latestWithResults(w.view);
+  return { right: pointsOf(w), through: end === null ? seen : Math.min(seen, end), ended: StateLogic.gameOver(w.view), walk: w.walk };
 }
 
 /**
@@ -102,10 +160,10 @@ export async function answerStanding(o: { leagueId: string; state: LeagueState; 
  * "Your night" line (episode-view.ts nightIn); the game's own questions (asked once) are the sheet's, not a night's.
  */
 export async function sheetNights(o: { leagueId: string; state: LeagueState; playerId: string; mark: number | null; rows?: AnswerRow[] }): Promise<SheetNights> {
-  const view = viewOf(o);
-  const facts = await answerFacts(o.state, view);
+  // Step A11 part 2b: as walked (an answer of someone's for an episode after they went out counts for nobody).
+  const { view, facts, rows: live } = await walked(o);
   const seats = new Set(view.players.map((p) => p.id));
-  const rows = (o.rows ?? (await storedAnswers(o.leagueId))).filter((r) => r.episode > 0 && seats.has(r.playerId));
+  const rows = live.filter((r) => r.episode > 0 && seats.has(r.playerId));
   // What each window earned, A9's ways of combining in (a split pot, a rollover's jackpot, a parlay).
   const { earned } = StateLogic.AnswerLogic.grade(view, rows, facts);
   const out: SheetNights = new Map();

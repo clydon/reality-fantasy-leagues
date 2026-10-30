@@ -63,7 +63,7 @@ test("a pick that never repeats, and last one standing's end: their shape, defau
   assert.deepEqual(at(outlast({ by: "standing", cut, allOut: "share" })), ["rank.allOut"], "a cut never takes everyone");
   assert.deepEqual(at(outlast({ by: "total", oneLeft: "ends" })), ["rank.oneLeft"], "a draft that knocks nobody out");
   assert.match(G.specProblems(pool({ lives: 1 }, null, { by: "standing", cut }), CTX).find((p) => p.at === "rank.cut").problem, /lives/);
-  assert.match(G.specProblems(pool({ lives: 1 }, null, { by: "standing", race: { to: 5 } }), CTX).find((p) => p.at === "rank.race").problem, /part 2b/);
+  assert.match(G.specProblems(pool({ lives: 1 }, null, { by: "standing", race: { to: 5 } }), CTX).find((p) => p.at === "rank.race").problem, /a game of questions/);
   assert.deepEqual(at({ ...W047, get: { ...W047.get, never: true } }), ["get.never"], "a misspelled key is reported");
   // The settings, both ways (none written for a pool without them).
   const fields = G.settingsOf(W047);

@@ -1104,6 +1104,9 @@ export interface LeagueState {
    *  phase's window of questions opens. */
   phaseStarts?: Record<string, number>;
   phaseWindows?: Record<string, number>;
+  /** A11 part 2b: a game of questions' race, cuts and lives as the server walked them over its answers on exactly this copy
+   *  (StateLogic.AnswerLogic.withWalk): never stored; a copy that hides anything drops it. */
+  answerWalk?: { ends: number | null; out: Record<string, number>; lives: Record<string, number>; shared: string[]; totals: Record<string, number> };
   settings: LeagueSettings;
 }
 
@@ -1173,9 +1176,11 @@ export interface ScoreRow {
   currentStreak?: number;
   /** A pool with lives, a buyback, mulligans or a second pick (step A10 part 2): lives left (null without lives), the episode
    *  they went out in for good (null while in), mulligans and buybacks left. A draft that knocks players out (step A11 part 1:
-   *  KnockoutLogic): `out`, the last episode that counts for them (null while in), their total frozen there. */
+   *  KnockoutLogic): `out`, the last episode that counts for them (null while in), their total frozen there; part 2b, a game of
+   *  questions' (AnswerLogic.applyWalk), `shared` for those out together sharing it. */
   lives?: number | null;
   out?: number | null;
+  shared?: boolean;
   mulligans?: number;
   buybacks?: number;
   /** A stock market (step A10 part 3c): cash, and worth (cash plus the team at today's prices: what it ranks by, rank worth). */

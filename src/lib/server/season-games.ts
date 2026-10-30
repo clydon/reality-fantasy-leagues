@@ -1,5 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
-import { leagueAnswers, storedAnswers } from "./answer-points";
+import { asItStands, leagueAnswers, storedAnswers, type AnswerRow } from "./answer-points";
 import { sheetOf } from "./answers";
 import { gameView, weekProgress, type GameRefIn, type GameView, type UserOf, type WeekProgress } from "@/lib/game/game-view";
 import type { LeagueState } from "@/lib/game/types";
@@ -66,6 +66,21 @@ export interface GameHere {
   userOf: UserOf;
   /** Open read-only from the desk (read-only.ts): the couch's game with no seat of yours in it; `playerId` is "". */
   readOnly?: true;
+  /** Step A11 part 2b: a game of questions that races or knocks players out, its answers, read once for its walk (answer-points.ts
+   *  asItStands: `state` carries the league's as it stands) and reused by what reads it next. */
+  answers?: AnswerRow[];
+}
+
+/** A league ready to read: a game of questions that races or knocks players out walked as it stands (step A11 part 2b). One that
+ *  can't be walked (its answers unreadable) reads as it would without its knockouts, as any other reader without them does. */
+async function standingHere(leagueId: string, ready: LeagueState): Promise<{ state: LeagueState; answers?: AnswerRow[] }> {
+  try {
+    const { state, rows } = await asItStands(leagueId, ready);
+    return { state, answers: rows };
+  } catch (e) {
+    console.error(`[season-games] walk ${leagueId}:`, e);
+    return { state: ready };
+  }
 }
 
 /**
@@ -88,7 +103,8 @@ export async function gamesHere(user: SessionUser, seasonId: string, couchId: st
       if (!seat || !state) continue;
       try {
         const ready = await readyLeague(g.leagueId, state);
-        here.push({ game: g, ref: refOf(g), state: ready, playerId: seat.playerId, mark: markFor(ready, seat, seen), userOf: (p) => users.get(g.leagueId)?.get(p) ?? null });
+        const { state: walked, answers } = await standingHere(g.leagueId, ready);
+        here.push({ game: g, ref: refOf(g), state: walked, playerId: seat.playerId, mark: markFor(ready, seat, seen), userOf: (p) => users.get(g.leagueId)?.get(p) ?? null, ...(answers ? { answers } : {}) });
       } catch (e) {
         console.error(`[season-games] league ${g.leagueId}:`, e);
       }
@@ -106,9 +122,10 @@ async function readOnlyHere(user: SessionUser, seasonId: string, ro: ReadOnly): 
   if (!state) return { seen, here: [] };
   try {
     const ready = await readyLeague(g.leagueId, state);
+    const { state: walked, answers } = await standingHere(g.leagueId, ready);
     return {
       seen,
-      here: [{ game: g, ref: refOf(g), state: ready, playerId: "", mark: seen === EVERYTHING ? null : seen, userOf: (p) => users.get(g.leagueId)?.get(p) ?? null, readOnly: true }],
+      here: [{ game: g, ref: refOf(g), state: walked, playerId: "", mark: seen === EVERYTHING ? null : seen, userOf: (p) => users.get(g.leagueId)?.get(p) ?? null, readOnly: true, ...(answers ? { answers } : {}) }],
     };
   } catch (e) {
     // As gamesHere: an unreadable state costs that game, not the show space (the Games tab says it can't be read).
@@ -138,7 +155,7 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
   const type = StateLogic.getLeagueType(h.state);
   // A game of questions (step A4) ranks by its answers' points, graded at your mark (answer-points.ts); its answers are
   // read once for its table and its sheet.
-  const rows = type.hasQuestions ? await storedAnswers(h.game.leagueId).catch(() => undefined) : undefined;
+  const rows = type.hasQuestions ? (h.answers ?? (await storedAnswers(h.game.leagueId).catch(() => undefined))) : undefined;
   const calls = await (type.hasQuestions ? leagueAnswers({ ...o, leagueId: h.game.leagueId, rows }) : type.hasBingo ? leagueBingo(o) : leagueCalls(o)).catch((e) => {
     console.error(`[season-games] calls ${h.game.leagueId}:`, e);
     return null;

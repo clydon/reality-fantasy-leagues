@@ -1,5 +1,6 @@
 import type { Castaway, LeagueState, ScoreRow } from "./types";
 import StateLogic from "./state-logic.js";
+import type { AnswerWalk } from "./state-logic.js";
 import { castawayEventStats } from "./active-roster-rows";
 import { castawayPoints, teamOrder } from "./classic-view";
 import { latestScoredEpisode } from "./episode-team-summary";
@@ -144,6 +145,8 @@ export interface GameCalls {
   bingo?: BingoMove | null;
   through?: number;
   ended?: boolean;
+  /** Step A11 part 2b: a game of questions' walk on this viewer's own copy (answer-points.ts walked): who's out, where it ended. */
+  walk?: AnswerWalk | null;
 }
 
 export interface PredictionMove {
@@ -245,8 +248,10 @@ export type UserOf = (playerId: string) => string | null;
  * to reveal; its `playerId` is "".
  */
 export function gameView(game: GameRefIn, full: LeagueState, playerId: string | null, seen: number | null, userOf: UserOf, calls?: GameCalls): GameView {
-  // A game over a span (settings.endEpisode) as it stood at its last episode, however far past it you are.
-  const view = StateLogic.spanView(StateLogic.GhostLogic.viewFor(full, playerId, seen));
+  // A game over a span (settings.endEpisode) as it stood at its last episode, however far past it you are. Step A11 part 2b: a game
+  // of questions' walk on your copy (answer-points.ts), so it ends, and knocks anyone out, only as far as you've seen.
+  const seenView = StateLogic.GhostLogic.viewFor(full, playerId, seen);
+  const view = StateLogic.spanView(calls?.walk ? StateLogic.AnswerLogic.withWalk(seenView, calls.walk) : seenView);
   const type = StateLogic.getLeagueType(view);
   const me = playerId ?? "";
   const seat = playerId !== null;
@@ -304,7 +309,10 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
   // The engine's own order (StateLogic.rankKey): a pool with lives by who's still standing (step A10 part 2), else its streak; a
   // stock market ranked by worth (part 3c), cash plus the team at today's prices; else the points.
   const worth = !pool && !callsGame && StateLogic.gameOf(view).rank.by === "worth";
-  const key = (r: ScoreRow): number[] => (callsGame ? [right(r.playerId)] : StateLogic.rankKey(view, r));
+  // Step A11 part 2b: a game of questions that races or knocks players out ranks as the engine does, its rows carrying its walk
+  // (who's out, their points frozen there).
+  const walked = !!StateLogic.AnswerLogic.walkOf(view);
+  const key = (r: ScoreRow): number[] => (callsGame && !walked ? [right(r.playerId)] : StateLogic.rankKey(view, r));
   const rows = [...StateLogic.computeScores(view)].sort((a, b) => StateLogic.PickEmScoringStrategy.compareKeys(key(b), key(a)));
   // A pool's seasons, read once (step A11 part 2: a pool that walks everyone together walks once for the table).
   const histories = pool ? StateLogic.PickEmLogic.histories(view) : null;

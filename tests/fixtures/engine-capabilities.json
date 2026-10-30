@@ -3534,10 +3534,35 @@
       },
       "words": "Guess every elimination winner; a wrong guess knocks you out.",
       "step": "A11",
-      "note": "part 2b: a game of questions' knockouts, walked over its answers",
       "dials": [
         "win"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers",
+          "lives": 1
+        },
+        "rank": {
+          "by": "standing"
+        },
+        "ask": [
+          {
+            "id": "elimination",
+            "ask": "Who wins the elimination?",
+            "answer": "person",
+            "points": 1,
+            "asked": "each",
+            "settle": {
+              "by": "moment",
+              "moment": "eliminationWin",
+              "take": "who"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s49",

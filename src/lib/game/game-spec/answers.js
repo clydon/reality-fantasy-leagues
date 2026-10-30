@@ -23,6 +23,7 @@
 //     seen          (A7) the last episode the viewer has seen with results
 //     startIn       (A8) who was in at the game's first episode (a pairs question's pairs are drawn from them)
 //     jury          (A8) the finalists' jury votes, once the season is over (null before)
+//     endedAt       (A11 part 2b) the episode the season ended in (the winner's), or null
 //     formatGroups  (F3 part 2) Map episode -> the groups a group question asked each episode reads from the format's state over
 //                   time, on a season played in pairs the league doesn't hold (format-timeline.js groupFacts: offered at the
 //                   lock, each person's, whether that was sure, and how the episode was played); the server's, never the state's
@@ -43,6 +44,7 @@
 //   windowPoints(q, v, answers, facts, { worth })  the same with A9's ways of combining: a pot split between everyone right, only
 //                                 the only right one, a rollover's jackpot (worth), a shrinking call (each answer's late, changes)
 //   allRight(legs, facts)         who's right on every leg of a parlay in one window (A9)
+//   factsThrough(facts, k)        the facts as they stood once episode k was in (A11 part 2b's walk)
 //   answerProblem(q, value, faces) why an answer can't be given (null: it can), faces: who (or which groups) it can name
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
 const { YES_NO, NAMES, NUMBERS, optionRange } = require('./schema.js');
@@ -773,4 +775,28 @@ function answerProblem(q, value, faces, o) {
   }
 }
 
-module.exports = { WAITING, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf };
+/**
+ * The facts as they stood once episode `k` was in (A11 part 2b: a game of questions' race, cuts and lives walk its answers episode
+ * by episode): the episodes through it, the phases begun by then, the season's end and finish only when it came by then
+ * (`endedAt`), and the game over when its span's last is in. Each episode's own facts are as they stand now, so a corrected result
+ * works the walk out again. What a window settled by `k` earns is what it earns in the walk's totals through `k`.
+ */
+function factsThrough(facts, k) {
+  const upTo = (m) => (m instanceof Map ? new Map([...m].filter(([n]) => n <= k)) : m);
+  const ended = !!facts.ended && Number.isInteger(facts.endedAt) && facts.endedAt <= k;
+  const phases = facts.phases instanceof Map ? new Map([...facts.phases].filter(([, n]) => n <= k)) : facts.phases;
+  return {
+    ...facts,
+    episodes: upTo(facts.episodes),
+    over: ended || (facts.to !== null && k >= facts.to && facts.episodes.has(facts.to)),
+    winner: ended ? facts.winner : null,
+    ended,
+    order: ended ? facts.order : null,
+    jury: ended ? facts.jury : null,
+    phases,
+    seen: Number.isInteger(facts.seen) ? Math.min(facts.seen, k) : k,
+    ...(facts.formatGroups ? { formatGroups: upTo(facts.formatGroups) } : {}),
+  };
+}
+
+module.exports = { WAITING, readsTimeline, verdictOf, rightAnswers, pointsFor, windowPoints, allRight, shrunk, isRight, answerProblem, spanEpisodes, pairsFrom, pairKey, windowOf, factsThrough };

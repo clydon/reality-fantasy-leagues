@@ -65,7 +65,8 @@ const GAME_FIELDS = {
   "weekly-calls": [],
   // A9: points per line; a game of questions' parlays.
   "weekly-bingo": ["linePoints"],
-  questions: ["questions", "lateLockHours", "parlays", "seatPeople"],
+  // A11 part 2b: a game of questions' lives (on which questions), race and cuts, and its end.
+  questions: ["questions", "lateLockHours", "parlays", "seatPeople", "questionsLives", "questionsLivesOn", "questionsRace", "questionsCut", "rankOneLeft", "rankAllOut"],
 };
 // A10 part 4b: a team two people share, wherever a seat has something to share (not a call or a bingo card).
 GAME_FIELDS["classic-draft"].push("seatPeople");

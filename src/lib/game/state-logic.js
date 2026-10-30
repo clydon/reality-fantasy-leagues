@@ -152,7 +152,9 @@ function inPlay(state, episodeNumber){
 function spanView(state){
   const end = lastEpisode(state);
   if(end === null || !(state.episodes || []).some(e => e.number > end && EpisodeLogic.hasResults(e))) return state;
-  return SpoilerLogic.viewThrough(state, end);
+  const view = SpoilerLogic.viewThrough(state, end);
+  // A11 part 2b: a game of questions' walk holds for its copy cut at the game's end (nothing it read is after it).
+  return state.answerWalk && view !== state ? AnswerLogic.withWalk(view, state.answerWalk) : view;
 }
 // The game is over: its season is (seasonEnded), or its span's last episode has results.
 function gameOver(state){
@@ -543,8 +545,9 @@ function rankKey(state, r){
   const g = gameOf(state);
   if(g.get.by === 'pick') return g.rank.by === 'standing' ? PickEmScoringStrategy.standingKey(r) : [r.longestStreak || 0, r.total];
   if(g.rank.by === 'worth' && MarketLogic.on(state)) return [r.worth || 0, r.total];
-  // A11 part 1: a draft that knocks players out, last one standing (its rows carry `out`: KnockoutLogic.apply).
-  if(g.get.by === 'draft' && g.rank.by === 'standing') return PickEmScoringStrategy.standingKey(r);
+  // A11 part 1: a draft that knocks players out, last one standing (its rows carry `out`: KnockoutLogic.apply); part 2b, a game of
+  // questions' (AnswerLogic.applyWalk).
+  if((g.get.by === 'draft' || g.score.by === 'answers') && g.rank.by === 'standing') return PickEmScoringStrategy.standingKey(r);
   return [r.total];
 }
 // Weekly Calls (docs/PLAN-new-design.md step 12 part 2): a talk show's season game, scored from each person's calls
@@ -567,7 +570,10 @@ class ScoringLogic {
   static compute(state){
     const view = spanView(state);
     const rows = getLeagueType(state).scoringStrategy.compute(view);
-    return KnockoutLogic.on(view) ? KnockoutLogic.apply(view, rows) : rows;
+    if(KnockoutLogic.on(view)) return KnockoutLogic.apply(view, rows);
+    // A11 part 2b: a game of questions' walk, its points and who's out, as the server worked them out (AnswerLogic.walk).
+    const walk = AnswerLogic.walkOf(view);
+    return walk ? AnswerLogic.applyWalk(view, rows, walk) : rows;
   }
 }
 
@@ -700,32 +706,40 @@ class KnockoutLogic {
       const { number: k, quiet, totals } = series[i];
       const total = id => totals.get(id) || 0;
       if(parts.race && inAt(k).some(p => total(p.id) >= parts.race.to)){ ends = k; break; }
-      parts.cuts.forEach(c => {
-        const left = inAt(k);
-        if(left.length < 2) return;
-        let key = null;
-        if(Number.isInteger(c.at.every)){
-          if((k - start + 1) % c.at.every !== 0 || (quiet && c.quiet === 'skip')) return;
-          // The points over the window: through this episode, less through the last one scored before it.
-          const before = series.slice(0, i).filter(x => x.number <= k - c.at.every).pop();
-          key = id => [total(id) - (before ? before.totals.get(id) || 0 : 0), total(id)];
-        } else if(Number.isInteger(c.at.episode)){
-          if(k !== c.at.episode || (quiet && c.quiet === 'skip')) return;
-          key = id => [total(id)];
-        } else if(typeof c.at.phase === 'string'){
-          // After the episode before the phase starts, once data says where (as a phase's multiplier reads it: timesFor).
-          const from = state.phaseStarts && state.phaseStarts[c.at.phase];
-          if(!Number.isInteger(from) || k !== from - 1 || (quiet && c.quiet === 'skip')) return;
-          key = id => [total(id)];
-        }
-        if(!key) return;
-        KnockoutLogic.cut(left, key, c).forEach(id => out.set(id, k));
-      });
+      // The points through the last episode scored at or before n (a window's start).
+      const before = n => { const x = series.slice(0, i).filter(y => y.number <= n).pop(); return x ? x.totals : null; };
+      KnockoutLogic.cutAfter(state, parts.cuts, { k, start, quiet, inAt, total, before, out });
       // One left of everyone (whatever their start; someone catching up counts): it's over, unless the game plays on (A11 part
       // 2: oneLeft 'plays', the last one's points still growing).
       if(parts.cuts.length && parts.oneLeft === 'ends' && everyone.length >= 2 && everyone.filter(p => !out.has(p.id)).length <= 1) ends = k;
     }
     return { out, ends, series };
+  }
+  // The cuts after episode k, each in turn on who's left then (A11 part 1; part 2b, a game of questions' too, on its answers' points):
+  // every n episodes of the game by the points over them (`before(n)`: the totals through the last episode walked at or before n),
+  // ties to the total; after an episode, or the episode before a phase starts (once data says where, as a phase's multiplier reads
+  // it: timesFor), by the total. A night nobody goes home (`quiet`) has no cut where the cut skips it. Who goes is set in `out`.
+  //   o: { k, start, quiet, inAt(k) (who can be cut), total(id) (through k), before(n), out (Map) }
+  static cutAfter(state, cuts, o){
+    cuts.forEach(c => {
+      const left = o.inAt(o.k);
+      if(left.length < 2) return;
+      const skip = o.quiet && c.quiet === 'skip';
+      let key = null;
+      if(Number.isInteger(c.at.every)){
+        if((o.k - o.start + 1) % c.at.every !== 0 || skip) return;
+        const before = o.before(o.k - c.at.every);
+        key = id => [o.total(id) - (before ? before.get(id) || 0 : 0), o.total(id)];
+      } else if(Number.isInteger(c.at.episode)){
+        if(o.k !== c.at.episode || skip) return;
+        key = id => [o.total(id)];
+      } else if(typeof c.at.phase === 'string'){
+        const from = state.phaseStarts && state.phaseStarts[c.at.phase];
+        if(!Number.isInteger(from) || o.k !== from - 1 || skip) return;
+        key = id => [o.total(id)];
+      }
+      if(key) KnockoutLogic.cut(left, key, c).forEach(id => o.out.set(id, o.k));
+    });
   }
   // Who a cut sends home: the bottom `out` (or half, rounded down) of those left by `key` (lowest first), never everyone; a tie
   // at the line keeps them all, or sends them all (tie 'all') unless that's everyone left.
@@ -742,10 +756,20 @@ class KnockoutLogic {
     return below.map(r => r.id);
   }
   // Where the game ends early: the episode a race was won or one was left, else null. A11 part 2: a pool's too, where one or none
-  // left ends it (PickEmLogic.endsAt), so lastEpisode, gameOver, spanView and endedBefore read both.
-  static endsAt(state){ return KnockoutLogic.on(state) ? KnockoutLogic.run(state).ends : PickEmLogic.endsAt(state); }
-  // Each player knocked out, and the last episode that counts for them (Map playerId -> episode number).
-  static outs(state){ return KnockoutLogic.on(state) ? KnockoutLogic.run(state).out : new Map(); }
+  // left ends it (PickEmLogic.endsAt), so lastEpisode, gameOver, spanView and endedBefore read both; part 2b, a game of questions'
+  // as the walk its state carries has it (AnswerLogic.walkOf: none, the span's end).
+  static endsAt(state){
+    if(KnockoutLogic.on(state)) return KnockoutLogic.run(state).ends;
+    const walk = AnswerLogic.walkOf(state);
+    return walk ? walk.ends : PickEmLogic.endsAt(state);
+  }
+  // Each player knocked out, and the last episode that counts for them (Map playerId -> episode number). A11 part 2b: a game of
+  // questions' as its walk has it.
+  static outs(state){
+    if(KnockoutLogic.on(state)) return KnockoutLogic.run(state).out;
+    const walk = AnswerLogic.walkOf(state);
+    return walk ? new Map(Object.entries(walk.out)) : new Map();
+  }
   // The last episode that counts for someone knocked out, or null while they're in.
   static outOf(state, playerId){
     const n = KnockoutLogic.outs(state).get(playerId);
@@ -5405,6 +5429,8 @@ class AnswerLogic {
     });
     const winner = seasonWinner(state);
     const ended = seasonEnded(state);
+    // The episode the season ended in (A11 part 2b: what was known through an episode, answers.js factsThrough).
+    const finaleEp = ended ? finaleEpisodeOf(state) : null;
     // Where each phase started (A7: state.phaseStarts, recorded from the season's confirmed starts), once the viewer has seen
     // that episode: a start confirmed ahead, or past their mark, says nothing yet.
     const seen = SpoilerLogic.latestWithResults(state);
@@ -5419,6 +5445,7 @@ class AnswerLogic {
     return {
       from, to: span.to, over: gameOver(state), episodes,
       winner: winner ? winner.id : null, ended, order: ended ? AnswerLogic.finishOrder(state) : null,
+      endedAt: finaleEp ? finaleEp.number : null,
       names: new Map(cast.map(c => [c.id, c.name])),
       groupNames: new Map((state.tribes || []).map(t => [t.id, t.name])),
       phases, windows, seen,
@@ -5614,6 +5641,155 @@ class AnswerLogic {
     earned.forEach(m => m.forEach((n, pid) => points.set(pid, roundPoints((points.get(pid) || 0) + n))));
     return { points, verdicts, earned, worth };
   }
+  // ---------- A11 part 2b: a game of questions' race, cuts and lives (game-spec answerParts) ----------
+  // A game of questions is scored from its answers, which live outside the state (game_answers), so its race, its cuts on points
+  // and its lives (a wrong answer, or none, costs one; at none you're out) are walked over its graded answers by whoever holds
+  // them: the server (src/lib/server/answer-points.ts), on each copy of the league it reads, the viewer's own (spoiler-trimmed, so
+  // nobody is knocked out by what they haven't seen) and the league as it stands (for the refusals). It hands the result to the
+  // engine on a copy of that state (withWalk: `answerWalk`, plain data, never stored), so lastEpisode, gameOver, spanView, the
+  // scores' `out` and the rank read it as they read a draft's (KnockoutLogic). A copy that hides anything drops it (viewThrough,
+  // viewFor): the walk is that copy's to work out again. A state without one reads as the game would without its knockouts (its
+  // span's end, nobody out): the safe fallback.
+  //   - Episode by episode, the game's with results, as part 1's series: through each, every player's points from the windows
+  //     settled by then (factsThrough: rollovers, shares and parlays as the grade has them).
+  //   - A race: the first to `to` points ends it after that episode (the most points then win, a tie sharing it).
+  //   - Lives: each question it rides on, asked that episode, once settled: a wrong answer, or none, costs a life (each wrong one
+  //     its own). Off (nobody went home, nothing settles it), or a void answer (a group that didn't play as offered), costs
+  //     nothing. Everyone left losing their last life the same night: rank.allOut (all out by points, all out sharing it, or all
+  //     back with the lives they had), as a pool's.
+  //   - Cuts: as a draft's (KnockoutLogic.cut), on the answers' points.
+  //   - The newest episode with results waits while it's early (a race or cuts: points still to come) or a question a life rides
+  //     on is still to settle there; an earlier one, once a later episode has results, counts as it stands (still to settle costs
+  //     nothing). One left of everyone (oneLeft 'ends') ends it.
+  //   - Who's in it: as part 1's (a ghost outside; someone catching up in, never losing a life or cut until caught up; a late start
+  //     from their start). Someone out answers nothing more (answers.ts refuses it): an answer of theirs for a later episode counts
+  //     for nobody (liveAnswers), and their points stay at their last episode in.
+  // Returns { ends, out: { playerId: last episode in }, lives: { playerId: left } (with lives), shared: [playerId] (out together,
+  // sharing it), totals: { playerId: points as the table shows them } }, or null for a game with none of it.
+  static walk(state, answers, facts){
+    const parts = Spec.answerParts(gameOf(state));
+    if(!parts) return null;
+    const rows = Array.isArray(answers) ? answers : [];
+    const start = startEpisode(state);
+    const everyone = (state.players || []).filter(p => !isGhost(p) && !p.disabled && p.active !== false);
+    const catching = new Set(everyone.filter(p => GhostLogic.isCatchingUp(state, p.id)).map(p => p.id));
+    const startOf = new Map(everyone.map(p => [p.id, GhostLogic.startFor(state, p.id)]));
+    const qs = new Map(AnswerLogic.questions(state).map(q => [q.id, q]));
+    const lifeQs = parts.on.map(id => qs.get(id)).filter(Boolean);
+    const to = endEpisode(state);
+    const eps = start === null ? [] : (state.episodes || []).filter(e => e.number >= start && (to === null || e.number <= to) && EpisodeLogic.hasResults(e)).sort((a,b) => a.number - b.number);
+    const newest = eps.length ? eps[eps.length - 1].number : null;
+    const out = new Map();
+    const lives = new Map(everyone.map(p => [p.id, parts.lives || 0]));
+    const shared = new Set();
+    const series = new Map();
+    let ends = null;
+    const live = () => AnswerLogic.liveRows(state, rows, out);
+    // Who can lose a life, be cut or finish a race after episode k: in, started by then, and caught up.
+    const inAt = k => everyone.filter(p => !out.has(p.id) && !catching.has(p.id) && (startOf.get(p.id) || start) <= k);
+    for(const ep of eps){
+      const k = ep.number;
+      const fk = Spec.factsThrough(facts, k);
+      // Lives lost at k: each question a life rides on, settled there.
+      const lost = new Map();
+      let waiting = false;
+      for(const q of lifeQs){
+        const v = Spec.verdictOf(q, k, fk);
+        if(v.state === 'waiting'){ waiting = true; continue; }
+        if(v.state !== 'known') continue;
+        const list = rows.filter(a => a.question === q.id && a.episode === k).map(a => ({ playerId: a.playerId, answer: a.answer }));
+        inAt(k).forEach(p => {
+          const mine = list.find(a => a.playerId === p.id);
+          if((mine ? Spec.isRight(q, v, mine, list, fk) : false) === false) lost.set(p.id, (lost.get(p.id) || 0) + 1);
+        });
+      }
+      if(k === newest && (waiting || ((parts.race || parts.cuts.length) && EpisodeLogic.resultsStage(ep) === 'early'))) break;
+      const totals = AnswerLogic.grade(state, live(), fk).points;
+      series.set(k, totals);
+      const total = id => totals.get(id) || 0;
+      if(parts.race && inAt(k).some(p => total(p.id) >= parts.race.to)){ ends = k; break; }
+      if(parts.lives && lost.size){
+        const left = everyone.filter(p => !out.has(p.id));
+        const gone = inAt(k).filter(p => lives.get(p.id) - (lost.get(p.id) || 0) <= 0);
+        // Everyone left going out the same night (two or more, nobody catching up still in): the game's allOut.
+        const all = gone.length >= 2 && gone.length === left.length;
+        if(!(all && parts.allOut === 'back')){
+          lost.forEach((n, id) => lives.set(id, Math.max(0, lives.get(id) - n)));
+          gone.forEach(p => { out.set(p.id, k); if(all && parts.allOut === 'share') shared.add(p.id); });
+        }
+      }
+      // Its cuts, as a draft's (the points through the last episode walked at or before a window's start).
+      const before = n => { const at = [...series.keys()].filter(x => x <= n && x < k).pop(); return at === undefined ? null : series.get(at); };
+      KnockoutLogic.cutAfter(state, parts.cuts, { k, start, quiet: !!ep.noExit, inAt, total, before, out });
+      if((parts.lives || parts.cuts.length) && parts.oneLeft === 'ends' && everyone.length >= 2 && everyone.filter(p => !out.has(p.id)).length <= 1){ ends = k; break; }
+    }
+    // The points the table shows: at the game's end (a race won, one left: its questions about the game settle there), or as they
+    // stand; someone out, as they stood at their last episode in.
+    const final = ends === null ? facts : { ...Spec.factsThrough(facts, ends), over: true };
+    const points = AnswerLogic.grade(state, live(), final).points;
+    const totals = {};
+    (state.players || []).forEach(p => {
+      const k = out.get(p.id);
+      totals[p.id] = Number.isInteger(k) && series.has(k) ? series.get(k).get(p.id) || 0 : points.get(p.id) || 0;
+    });
+    return {
+      ends,
+      out: Object.fromEntries(out),
+      lives: parts.lives ? Object.fromEntries(lives) : {},
+      shared: [...shared],
+      totals,
+    };
+  }
+  // A copy of `state` carrying a game of questions' walk (AnswerLogic.walk, worked out on exactly this state's data): never the
+  // state itself, so nothing that's saved carries it.
+  static withWalk(state, walk){ return walk ? { ...state, answerWalk: walk } : state; }
+  // The walk a state carries (a game of questions that races or knocks players out), or null.
+  static walkOf(state){
+    const w = state && state.answerWalk;
+    return w && Spec.answerParts(gameOf(state)) ? w : null;
+  }
+  // A game of questions' answers that count: someone out keeps only their answers to windows settled by their last episode in (an
+  // episode's own, a run of them that ended by then); one about the game (asked once) or a window still open then counts for
+  // nobody, so their points stay where they were and they take no share of anyone else's. `out`: Map or { playerId: episode }.
+  static liveRows(state, rows, out){
+    const at = id => (out instanceof Map ? out.get(id) : out && out[id]);
+    const qs = new Map(AnswerLogic.questions(state).map(q => [q.id, q]));
+    const starts = new Map();
+    // Where a window opening at `ep` ends: its own end (over N, every N), else where the next phase's opens (null: not known yet).
+    const endOf = (q, ep) => {
+      if(q.asked === 'each') return ep + (Number.isInteger(q.over) && q.over > 1 ? q.over - 1 : 0);
+      if(q.asked === 'every') return ep + q.every - 1;
+      if(!starts.has(q.id)) starts.set(q.id, AnswerLogic.windowStarts(state, q));
+      const next = starts.get(q.id).find(n => n > ep);
+      return next === undefined ? null : next - 1;
+    };
+    return (rows || []).filter(a => {
+      const k = at(a.playerId);
+      if(!Number.isInteger(k)) return true;
+      const q = qs.get(a.question);
+      if(!q) return true;
+      if(q.asked === 'once') return false;
+      const end = endOf(q, a.episode);
+      return end !== null && end <= k;
+    });
+  }
+  // The answers that count as a state's walk has it (all of them without one).
+  static liveAnswers(state, rows){
+    const w = AnswerLogic.walkOf(state);
+    return w ? AnswerLogic.liveRows(state, rows, w.out) : rows || [];
+  }
+  // The score rows with a game of questions' walk on them: each one's `out`, their points as the walk has them (frozen once out),
+  // lives left, and `shared` for those who went out together sharing it; ranked as the game ranks (rankKey).
+  static applyWalk(state, rows, walk){
+    rows.forEach(r => {
+      const k = walk.out[r.playerId];
+      r.out = Number.isInteger(k) ? k : null;
+      r.total = walk.totals[r.playerId] || 0;
+      if(walk.lives && r.playerId in walk.lives) r.lives = walk.lives[r.playerId];
+      if(walk.shared.includes(r.playerId)) r.shared = true;
+    });
+    return rows.sort((a,b) => PickEmScoringStrategy.compareKeys(rankKey(state, b), rankKey(state, a)));
+  }
   // How many of the game's episodes had started at `o.now` (A9: when an answer was made, for a call whose points shrink), from
   // its first: each one's lock (closedForPlay, the schedule's air time `o.airAtOf(n)` for one the league hasn't made yet,
   // never for a league catching up at its own pace), or its results. None while it waits for its phase.
@@ -5794,6 +5970,8 @@ class SpoilerLogic {
     const hidesChanges = ['seasonRuleChanges', 'adoptedRuleChanges'].some(k => (st[k] || []).some(changeHidden));
     if(!hidden.length && !hidesChanges) return state;
     const s = JSON.parse(JSON.stringify(state));
+    // A game of questions' walk (A11 part 2b) was worked out on more than this copy holds: it's the copy's to work out again.
+    delete s.answerWalk;
     ['seasonRuleChanges', 'adoptedRuleChanges'].forEach(k => {
       if(!s.settings[k]) return;
       s.settings[k] = s.settings[k].filter(c => !changeHidden(c));
@@ -5981,6 +6159,8 @@ class GhostLogic {
     const catchingUp = GhostLogic.isCatchingUp(state, viewerId) && Number.isInteger(seenThrough);
     if(!others.size && !catchingUp) return full ? state : SpoilerLogic.viewThrough(state, seenThrough);
     let s = JSON.parse(JSON.stringify(state));
+    // A game of questions' walk (A11 part 2b) was worked out on more than this copy holds: it's the copy's to work out again.
+    delete s.answerWalk;
     if(others.size) GhostLogic.stripPlayers(s, others);
     if(catchingUp || !full) s = SpoilerLogic.viewThrough(s, full ? seenThrough + 1 : seenThrough);
     if(catchingUp) GhostLogic.rewindTo(s, seenThrough);

@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 171 ✅ · 74 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
-**Waiting, by step:** A11 7 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 172 ✅ · 73 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
+**Waiting, by step:** A11 6 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -225,7 +225,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ⏳ | s45 | Survivor 51 | A season of mini-games: bingo one week, a draft the next. | shape | A12 |
 | ✅ | s46 | Survivor 51 | For 10 random pairs, who outlasts whom? | what | A game for Survivor 51: everyone answers one question before it starts: who outlasts whom, all season. A point for each right answer. |
 | ✅ | s47 | Survivor 51 | Predict the final tribal vote split. | what | A game for Survivor 51: everyone answers one question before it starts: the final jury vote split, all season. 5 points for each right answer. |
-| ⏳ | s48 | The Challenge 42 | Guess every elimination winner; a wrong guess knocks you out. | win | A11: part 2b: a game of questions' knockouts, walked over its answers |
+| ✅ | s48 | The Challenge 42 | Guess every elimination winner; a wrong guess knocks you out. | win | A game for The Challenge 42: everyone answers one question before each episode: who wins the elimination, all season. A point for each right answer. One life: a wrong answer, or none, costs one. Last one standing wins. |
 | ⏳ | s49 | Survivor 51 | At the halfway mark everyone calls who goes home; it locks at minute 30 of the episode. | live | A15 |
 | ⏳ | s50 | Survivor 51 | Lock in your boot call any time during the episode; the earlier you call it, the more it's worth. | live | A15 |
 | ⏳ | s51 | Survivor 51 | With 10 minutes left you get one chance to change your call, for half points. | live | A15 |
