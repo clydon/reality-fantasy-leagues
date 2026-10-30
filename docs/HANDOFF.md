@@ -21,7 +21,7 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
-## The show's ⋯ menu, rebuilt for the casual player (2026-10-30; on branch `ccr-f159a099-99lrdv`, not merged)
+## The show's ⋯ menu, rebuilt for the casual player (2026-10-30; merged to master and pushed the same day, no migration)
 The user found the menu "way too cluttered and hard to read/navigate" (11 rows for a player, scrolling, every row the same weight).
 Mockups (a private design canvas, https://claude.ai/artifact/Snuugqw4eb5E2Ut4gVKxT4, options A–D) and the pick (D) are in that
 canvas; this is what was built. **The rule it follows, and the rule for the next row: if a tab already carries it prominently,
@@ -58,9 +58,24 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   `npx next typegen` before `tsc`. For `browser.js`, point `LOCALAPPDATA` at a folder holding `npm-cache/_npx/x/node_modules/playwright`
   (a symlink to Playwright) and `ms-playwright/chromium-NNNN/chrome-win64/chrome.exe` (a shell script that `exec`s the Linux
   Chromium with `--no-sandbox`).
-- **Waiting on the user:** a What's New entry for this (none written: its wording needs their approval first); whether planning a *second*
-  night should stay only in Everything else; phone-back from Everything else closes the whole menu (it's one history entry, like
-  every sheet) rather than stepping back to the first sheet.
+- **Checked on the user's PC before the merge (2026-10-30),** with master (the engine merge, df527fe6 and after) merged in first, in
+  a review worktree on a copy of the local database: the 13 checks that open the menu pass (show-menu, watching, draft, backstage,
+  backstage-ii, couches, make-it, plans, start-game, shell, show, notify, sheet-back). check-new-shell's show wall passes here: the
+  cloud run's failure was its database's missing catalog. check-sheet-back hangs about one run in four, on master's code as well
+  (BACKLOG 30); it passes when it doesn't.
+- **No What's New entry:** What's New is paused (2026-10-27) and the new design has no popup.
+- **Waiting on the user:** whether planning a *second* night should stay only in Everything else; phone-back from Everything else
+  closes the whole menu (it's one history entry, like every sheet) rather than stepping back to the first sheet; and the review's
+  suggestions (2026-10-30), none made yet:
+  - The Notifications row's yellow dot never goes away for a player who chooses not to turn them on (the reminder ask respects
+    Not now; the dot doesn't), yellow is for what you must do, and a commissioner's menu then carries three yellows. Drop the dot;
+    "Off on this phone · turn on" already says it.
+  - The spoiler card leads a player's menu, though the chip with Change is on every tab past Tonight and a player's place moves
+    on its own as they reveal; under a Backstage plate it makes two heavy blocks. A plain Where you are row lower down.
+  - Wording: "On for your other phone" is wrong on an iPhone whose Home Screen app gets them (Safari reads as "install" there):
+    "On for another device or the Home Screen app"; "Add it to your Home Screen first" reads oddly as a row's line: "Add to Home
+    Screen to get them". check-new-show-menu.js's PHONE_LINES lists the lines.
+  - A draft row's dot sits under Everything else with no dot on that row (the dock's Draft button carries a live turn already).
 
 ## Now (2026-10-28): the Start-a-game GPT plan, run in lanes
 - **Read [PLAN-start-a-game-gpt.md](PLAN-start-a-game-gpt.md) first.** Hardened with the user on 2026-10-28: the engine to its
