@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 162 ✅ · 83 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
-**Waiting, by step:** A10 2 · A11 14 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 164 ✅ · 81 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
+**Waiting, by step:** A11 14 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -127,7 +127,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | Late joiners (anyone on the couch can join) | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. |
 | ⏳ | Teams of players | A11 |
 | ⏳ | Handicaps (newcomers get a head start) | A11 |
-| ⏳ | Two people share one team | A10 |
+| ✅ | Two people share one team | An Outlast for The Challenge 41: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. Up to two of you can share a team. |
 | ✅ | Group slots: a solo draft, plus a +1 or +2 slot for a pair or team the show forms, riding with it while it lasts | A Weekly Lineup for The Challenge 41: everyone drafts 5 and starts 3 each episode, plus two slots for a pair or team the show forms, all season. Scored by The Challenge 41's rules. |
 | ✅ | A draft spread across the show's groups (one from each tribe), as the data has them when it drafts | A Weekly Lineup for The Challenge 41: everyone drafts 5 from across the teams and starts 3 each episode, all season. Scored by The Challenge 41's rules. |
 | ⏳ | Secret roles among the players | A14 |
@@ -195,7 +195,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ✅ | s15 | Survivor 51 | Parlay: who goes home AND who wins immunity, triple if both. | score | A game for Survivor 51: everyone answers two questions before each episode: who goes home and who wins immunity, all season. 2 points for each right answer. Right on who goes home and who wins immunity together: triple the points. |
 | ⏳ | s16 | Survivor 51 | Bounties: if your castaway votes out mine, you steal 2. | score | A14 |
 | ✅ | s17 | The Challenge 42 | Dynasty: keep 2 of your players when they come back next season. | shape | An Outlast for The Challenge 42: everyone drafts 3, keeping up to two of last season's team who come back, all season. Each scores by how long they last: the last one standing carries you. |
-| ⏳ | s18 | Survivor 51 | My partner and I share one team. | who | A10 |
+| ✅ | s18 | Survivor 51 | My partner and I share one team. | who | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. Up to two of you can share a team. |
 | ⏳ | s19 | Survivor 51 | Newcomers get 5 bonus points a week. | who | A11 |
 | ⏳ | s20 | Survivor 51 | One league across Survivor and The Traitors. | shape | A12 |
 | 🆕 | s21 | Survivor 51 | A kids' version, no points shown. | shape | how a game shows, not what it is: a setting for the UI track |

@@ -31,6 +31,6 @@ export const PUT = apiRoute(async (req, { params }: { params: Promise<{ leagueId
     if (mark === null) return StateLogic.setPickEmPick(s, epId, playerId, castawayId, opts);
     const problem = StateLogic.GhostLogic.applyAs(s, playerId, mark, epId, (v) => StateLogic.setPickEmPick(v, epId, playerId, castawayId, opts));
     if (problem) throw new HttpError(400, problem);
-  }, forPlayerChange(user.id, membership.playerId, playerId ?? "", "pick", (name) => (opts ? `Made ${name}'s second pick` : `Made ${name}'s pick`)));
+  }, forPlayerChange(user.id, membership.playerId, playerId ?? "", "pick", (name) => (opts ? `Made ${name}'s second pick` : `Made ${name}'s pick`), { kind: "pick", episodeId: epId }));
   return stateResponse(req, state);
 });

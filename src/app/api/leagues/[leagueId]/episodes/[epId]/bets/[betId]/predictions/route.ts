@@ -21,6 +21,6 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
     refuseWhileCatchingUp(s, playerId, "Predictions");
     refuseLockedBet(s, epId);
     StateLogic.addBetPrediction(s, epId, betId, playerId, guess);
-  }, forPlayerChange(user.id, membership.playerId, playerId ?? "", "prediction", (name) => `Made ${name}'s prediction`));
+  }, forPlayerChange(user.id, membership.playerId, playerId ?? "", "prediction", (name) => `Made ${name}'s prediction`, { kind: "prediction", episodeId: epId }));
   return stateResponse(req, state);
 });

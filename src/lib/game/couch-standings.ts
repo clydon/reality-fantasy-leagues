@@ -20,6 +20,9 @@ export interface StandingRow {
   streak?: number;
   /** Predictions called right, as far as you've seen. */
   called?: number;
+  /** A10 part 4b: the seat (its player id) the row is for. A team two people share is one row a person, each credited with the
+   *  team's place, and one team in the field (fieldOf). */
+  seat?: string;
 }
 
 export interface GameStanding {
@@ -102,17 +105,28 @@ export interface Rankings {
   counted: { year: number; all: number };
 }
 
-const counts = (g: GameStanding) => g.through > 0 && g.rows.length >= 2;
+/** How many teams a game's rows are: a team two people share counts once (its rows share a `seat`). */
+export function fieldOf(rows: StandingRow[]): number {
+  const seats = new Set<string>();
+  let lone = 0;
+  for (const r of rows) {
+    if (r.seat) seats.add(r.seat);
+    else lone++;
+  }
+  return seats.size + lone;
+}
+
+const counts = (g: GameStanding) => g.through > 0 && fieldOf(g.rows) >= 2;
 
 function totals(games: GameStanding[], people: Person[], rowsOf: (g: GameStanding) => StandingRow[] | null) {
   const by = new Map(people.map((p) => [p.userId, { ...p, total: 0, games: 0, shows: new Map<string, number>() }]));
   for (const g of games) {
     const rows = rowsOf(g);
-    if (!rows || rows.length < 2) continue;
+    if (!rows || fieldOf(rows) < 2) continue;
     for (const r of rows) {
       const t = r.userId ? by.get(r.userId) : undefined;
       if (!t) continue;
-      const pts = placePoints(r.place, rows.length);
+      const pts = placePoints(r.place, fieldOf(rows));
       t.total += pts;
       t.games++;
       t.shows.set(g.showId, (t.shows.get(g.showId) ?? 0) + pts);
@@ -156,7 +170,8 @@ export function rankingsOf(games: GameStanding[], people: Person[], me: string, 
       for (const g of all) {
         const mine = g.rows.find((r) => r.userId === me);
         const theirs = g.rows.find((r) => r.userId === p.userId);
-        if (!mine || !theirs) continue;
+        // Two on one team (step A10 part 4b) didn't play each other.
+        if (!mine || !theirs || (mine.seat && mine.seat === theirs.seat)) continue;
         out.games++;
         if (mine.place < theirs.place) out.won++;
         else if (mine.place > theirs.place) out.lost++;
@@ -230,6 +245,8 @@ export function trophiesOf(games: GameStanding[], people: Person[], me: string):
   const winnersOf = (g: GameStanding) => g.rows.filter((r) => r.place === 1);
   const plaques: Plaque[] = order.map((g) => {
     const top = winnersOf(g);
+    // One winner: one team, though two people sharing it are a row each (step A10 part 4b).
+    const one = fieldOf(top) === 1;
     const second = g.rows.find((r) => r.place === 2);
     // The same game's previous run on the couch (the show's previous season, or this season's previous span), if it had ended too.
     const prev = order.filter((x) => x.showId === g.showId && x.gameType === g.gameType && x.leagueId !== g.leagueId && earlier(x, g))[0];
@@ -244,8 +261,8 @@ export function trophiesOf(games: GameStanding[], people: Person[], me: string):
       artUrl: g.artUrl,
       you: mine ? { place: mine.place, rank: mine.rank } : null,
       winners: top.map((r) => ({ userId: r.userId, name: r.userId ? (member.get(r.userId)?.name ?? r.name) : r.name })),
-      by: top.length === 1 && second && pointsGame(g) ? Math.round((top[0].total - second.total) * 10) / 10 : null,
-      ranItBack: top.length === 1 && !!top[0].userId && prevWinners.has(top[0].userId),
+      by: one && second && pointsGame(g) ? Math.round((top[0].total - second.total) * 10) / 10 : null,
+      ranItBack: one && top.some((r) => !!r.userId && prevWinners.has(r.userId)),
     };
   });
 
@@ -261,10 +278,13 @@ export function trophiesOf(games: GameStanding[], people: Person[], me: string):
   const back = plaques.find((p) => p.ranItBack);
   if (back) {
     const standing = new Map(ended.map((g) => [g.leagueId, g]));
-    const prev = plaques.find((p) => p.leagueId !== back.leagueId && p.gameName === back.gameName && p.winners.some((w) => w.userId === back.winners[0].userId) && earlier(standing.get(p.leagueId)!, standing.get(back.leagueId)!));
+    const before = (p: Plaque, userId: string | null) => p.leagueId !== back.leagueId && p.gameName === back.gameName && p.winners.some((w) => w.userId === userId) && earlier(standing.get(p.leagueId)!, standing.get(back.leagueId)!);
+    // Of a shared team that won, whichever of them won it before too.
+    const winner = back.winners.find((w) => plaques.some((p) => before(p, w.userId))) ?? back.winners[0];
+    const prev = plaques.find((p) => before(p, winner.userId));
     // "Survivor 49 and 50"; two spans of one season, "Survivor 51 · Episodes 6–7 and Episodes 8–9".
     const line = !prev ? back.label : prev.seasonId === back.seasonId ? `${back.label} · ${prev.span} and ${back.span}` : `${prev.label} and ${back.label.replace(/^.*?(\d+)$/, "$1")}`;
-    records.push({ key: "ranItBack", title: "Ran it back", line, who: member.get(back.winners[0].userId!)! });
+    records.push({ key: "ranItBack", title: "Ran it back", line, who: member.get(winner.userId!)! });
   }
   let streak: { who: string; n: number; label: string } | null = null;
   for (const g of games.filter(counts)) for (const r of g.rows) if (r.userId && member.has(r.userId) && (r.best ?? 0) > (streak?.n ?? 1)) streak = { who: r.userId, n: r.best!, label: g.label };
@@ -304,7 +324,7 @@ export function yourNumbers(games: GameStanding[], rankings: Rankings | null, tr
   for (const g of played) {
     const r = g.rows.find((x) => x.userId === me)!;
     const s = perShow.get(g.showId) ?? { pts: 0, n: 0, g };
-    s.pts += placePoints(r.place, g.rows.length);
+    s.pts += placePoints(r.place, fieldOf(g.rows));
     s.n++;
     if ((g.year ?? 0) >= (s.g.year ?? 0)) s.g = g;
     perShow.set(g.showId, s);

@@ -269,6 +269,8 @@ export interface SpecExtras {
   /** A7, a game of questions': someone who hasn't seen an episode answers its questions until they have, up to these hours past
    *  its air time; null: none. */
   lateLock: { hours: 12 | 24 | 48 | 72 } | null;
+  /** A10 part 4b: a team two people share: how many accounts can hold one seat (2 to MAX_SEAT_PEOPLE). Left out: one a seat. */
+  seats?: { people: number };
 }
 
 export interface GameSpec {
@@ -376,6 +378,8 @@ export interface SpecContext {
    *  cover every pick (covers), else it's shared. Either left out: not counted. */
   pool?: number;
   couch?: number;
+  /** A10 part 4b: how many teams the couch makes when some share one (extras.seats): counted in place of couch. */
+  teams?: number;
   /** A10 part 4: the couch's games on the show's earlier seasons (league ids, or { id }): keepers come from one of them. */
   games?: (string | { id: string })[];
   /** A10 part 3: how many can be drafted in each of the cast's groups where the game drafts: an exclusive spread draft has every
@@ -547,6 +551,12 @@ export const KEEP: { each: number; fallback: "best" | "none" };
 export function keepParts(spec: GameSpec | SpecInput | null | undefined): { each: number; from: string | null; cost: "place" | "round" | "price"; fallback: "best" | "none" } | null;
 /** Whether a pool covers every pick of an exclusive draft: people x each <= pool. */
 export function covers(o: { pool: number; people: number; each: number }): boolean;
+/** A10 part 4b: a shared seat's default people, the most one seat holds, and how many a whole spec's seat holds (1 unless shared). */
+export const SEATS: { people: number };
+export const MAX_SEAT_PEOPLE: number;
+export function seatPeople(spec: GameSpec | SpecInput | null | undefined): number;
+/** A10 part 4b: the teams the exclusive count counts (ctx.teams, else ctx.couch), or null. */
+export function teamsOf(ctx: SpecContext | null | undefined): { n: number; said: string } | null;
 /** The spec with everything it leaves out filled in (the preset's, or the defaults); never mutates it. */
 export function fullSpec(spec: SpecInput | GameSpec): GameSpec;
 /** The league type today's engine plays it as, or null. */

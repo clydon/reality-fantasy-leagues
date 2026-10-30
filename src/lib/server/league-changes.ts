@@ -12,6 +12,7 @@ import { deletedHere, restoreGame } from "./end-game";
 import { refused } from "./game-writes";
 import { undoRulebookChange } from "./ours";
 import { setLeagueRole } from "./roles";
+import { shareCheck } from "./shared-seats";
 import { syncLeagueDecisions } from "./season-decisions";
 import { games } from "./show-space";
 
@@ -293,14 +294,21 @@ export async function restoreMember(s: LeagueState, client: PoolClient, leagueId
   if (!who.length) throw new HttpError(409, "Their account was deleted");
   let playerId = undo.playerId;
   const seat = s.players.find((p) => p.id === playerId);
-  if (seat?.disabled && (!seat.disabledFromUserId || seat.disabledFromUserId === undo.userId)) StateLogic.reclaimPlayer(s, playerId);
+  let slot = 0;
+  if (undo.shared && seat && !seat.disabled) {
+    // A team they shared (step A10 part 4b), still held by the others on it: back on it while it has room.
+    const share = await shareCheck(client, leagueId, s, playerId, { back: true });
+    if ("problem" in share) throw new HttpError(409, `Their team has changed since: ${share.problem.charAt(0).toLowerCase()}${share.problem.slice(1)}`);
+    slot = share.slot;
+  } else if (seat?.disabled && (!seat.disabledFromUserId || seat.disabledFromUserId === undo.userId)) StateLogic.reclaimPlayer(s, playerId);
   else if (undo.removed || !seat) playerId = StateLogic.addPlayer(s, undo.name).id;
   else throw new HttpError(409, "Their seat has changed since");
-  await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through, explainer_seen_at) VALUES ($1, $2, $3, $4, $5, now())", [
+  await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through, explainer_seen_at, seat_slot) VALUES ($1, $2, $3, $4, $5, now(), $6)", [
     leagueId,
     undo.userId,
     playerId,
     undo.role,
     undo.seen,
+    slot,
   ]);
 }

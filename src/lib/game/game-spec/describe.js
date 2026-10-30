@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -225,6 +225,8 @@ function sentenceParts(s, w) {
   // A10 part 3c: a stock market ranked by worth.
   const rank = { worth: " Most worth wins: cash plus the team at today's prices.", matchups: ' Played head to head.', categories: ' Ranked by category.', roto: ' Ranked roto-style.' }[s.rank.by];
   if (rank) put(rank, 'rank');
+  // A10 part 4b: a team two people share.
+  if (seatPeople(s) > 1) put(` Up to ${say(seatPeople(s))} of you can share a team.`, 'extras');
   return parts;
 }
 
@@ -522,6 +524,10 @@ function rulesOf(s, w) {
     roto: 'Ranked roto-style: each stat ranks everyone, and the ranks add up.',
   }[s.rank.by];
   if (rank) rules.push(rank);
+  // A10 part 4b: a team two people share.
+  if (seatPeople(s) > 1) {
+    rules.push(`Sharing a team: up to ${say(seatPeople(s))} of you can hold one ${by === 'pick' ? 'place' : 'team'}, joining by an invite to it. Any of you can make its moves, and the last one made counts. It's one ${by === 'pick' ? 'place' : 'team'} in the game's table.`);
+  }
   // Side bets count only beside a draft (a pool, Weekly Calls and Weekly Bingo never scored them).
   if (isObj(s.extras.bets) && betsFit(s)) {
     rules.push(`Predictions: a right answer earns its points (usually ${s.extras.bets.points}), once at least two of you have answered.`);
@@ -582,6 +588,11 @@ function detailsOf(s, w) {
   // A game of questions' late lock (A7).
   if (s.score.by === 'answers' && !callsAsk(s.ask)) out.push({ id: 'lateLock', label: 'Watching late', recommended: rec('lateLock'), value: isObj(e.lateLock) ? `Answer until you've seen it, up to ${e.lateLock.hours} hours after it airs` : 'Answers lock as it starts' });
   out.push({ id: 'lockedDown', label: 'Locked down', recommended: rec('lockedDown'), value: e.lockedDown ? 'Nobody new, and the rules stay as they are' : 'No' });
+  // A10 part 4b: a team two people share (never beside a call or a bingo card: each person's own).
+  if (!(s.score.by === 'lines' || callsAsk(s.ask) || e.calls === true)) {
+    const people = seatPeople(s);
+    out.push({ id: 'seats', label: 'Sharing a team', recommended: people === 1, value: people > 1 ? `Up to ${say(people)} a team` : 'One each' });
+  }
   return out;
 }
 

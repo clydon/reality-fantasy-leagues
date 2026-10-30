@@ -18,7 +18,7 @@
 const {
   SPEC_VERSION, TYPE_PRESETS, REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS,
   MAX_BET_POINTS, ORDER_OF, CALLS, fullSpec, typeOf, playsAs, specProblems, waiversFit, sameValue, spanStart, spanPhase,
-  finaleQuestions, finaleOf, LATE_HOURS,
+  finaleQuestions, finaleOf, LATE_HOURS, MAX_SEAT_PEOPLE, seatPeople,
 } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -236,6 +236,9 @@ function readSpec(st, copy) {
     // A game of questions' late lock (A7): its hours, else none.
     lateLock: type === 'questions' && LATE_HOURS.includes(st.lateLockHours) ? { hours: st.lateLockHours } : null,
   };
+  // A10 part 4b: a team two people share (seatPeople), said only where it's on: one a seat is said by leaving it out.
+  const people = Number(st.seatPeople);
+  if (Number.isInteger(people) && people >= 2 && people <= MAX_SEAT_PEOPLE) spec.extras.seats = { people };
   return spec;
 }
 
@@ -339,6 +342,8 @@ function settingsOf(spec) {
   out.draftBudget = draft && isObj(s.get.budget) ? clone(s.get.budget) : undefined;
   // A10 part 4: keepers from last season's game.
   out.draftKeep = draft && isObj(s.get.keep) ? clone(s.get.keep) : undefined;
+  // A10 part 4b: how many accounts can hold one seat.
+  out.seatPeople = seatPeople(s) > 1 ? seatPeople(s) : undefined;
   return out;
 }
 
@@ -391,6 +396,7 @@ const PARTS = [
   { fields: ['poolRank', 'draftRank'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },
+  { fields: ['seatPeople'], read: (s) => seatPeople(s) },
   { fields: ['bonusEnabled', 'defaultBetPoints'], read: (s) => s.extras.bets },
   { fields: ['draftScheduledAt', 'draftTimer', 'draftAway'], read: (s) => s.extras.draft },
   // The questions: a draft's finale predictions in their fields, a game of questions' own in settings.questions (Weekly

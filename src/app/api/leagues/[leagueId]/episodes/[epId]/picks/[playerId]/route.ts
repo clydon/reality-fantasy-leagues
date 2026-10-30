@@ -26,7 +26,7 @@ export const DELETE = apiRoute(
         return;
       }
       StateLogic.removePickEmPick(s, epId, playerId, opts);
-    }, forPlayerChange(user.id, membership.playerId, playerId, "pick", (name) => (opts ? `Cleared ${name}'s second pick` : `Cleared ${name}'s pick`)));
+    }, forPlayerChange(user.id, membership.playerId, playerId, "pick", (name) => (opts ? `Cleared ${name}'s second pick` : `Cleared ${name}'s pick`), { kind: "pick", episodeId: epId }));
     return NextResponse.json(state);
   }
 );

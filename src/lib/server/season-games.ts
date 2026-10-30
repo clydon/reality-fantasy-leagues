@@ -28,16 +28,18 @@ interface Seat {
   marked: number | null;
 }
 
-/** Your seat in each of these leagues, and every seat's account (for faces). */
+/** Your seat in each of these leagues, and every seat's account (for faces). A team two people share (step A10 part 4b:
+ *  shared-seats.ts) is its first account's, except to someone on it, who sees it as theirs. */
 async function seatsIn(userId: string, leagueIds: string[]) {
   const { rows } = await pool.query(
-    "SELECT league_id, user_id, player_id, results_seen_through FROM league_memberships WHERE league_id = ANY($1::uuid[])",
+    "SELECT league_id, user_id, player_id, results_seen_through FROM league_memberships WHERE league_id = ANY($1::uuid[]) ORDER BY seat_slot, created_at",
     [leagueIds]
   );
   const mine = new Map<string, Seat>();
   const users = new Map<string, Map<string, string>>(leagueIds.map((id) => [id, new Map()]));
   for (const r of rows) {
-    if (r.player_id) users.get(r.league_id)?.set(r.player_id, r.user_id);
+    const seats = users.get(r.league_id);
+    if (r.player_id && seats && (!seats.has(r.player_id) || r.user_id === userId)) seats.set(r.player_id, r.user_id);
     if (r.user_id === userId && r.player_id) mine.set(r.league_id, { playerId: r.player_id, marked: r.results_seen_through });
   }
   return { mine, users };

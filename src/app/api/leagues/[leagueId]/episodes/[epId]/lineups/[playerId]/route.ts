@@ -51,7 +51,7 @@ export const PUT = apiRoute(
             });
       if (problem) throw new HttpError(400, problem);
       if (mark === null) write(s);
-    }, forPlayerChange(user.id, membership.playerId, playerId, "lineup", (name) => `Set ${name}'s lineup`));
+    }, forPlayerChange(user.id, membership.playerId, playerId, "lineup", (name) => `Set ${name}'s lineup`, { kind: "lineup", episodeId: epId }));
     return stateResponse(req, state);
   }
 );

@@ -59,12 +59,15 @@ const GAME_FIELDS = {
   "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder"],
   "active-roster": [...DRAFT_FIELDS, "activeSlots", "benchSlots", "eventPoints", "hideStartersUntilLock", "bestBall", "captainTimes", "pointsTimes", "groupSlots", "draftRank"],
   // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing.
-  pickem: ["pickemCorrectPoints", "poolSurvive", "calls", "poolLives", "poolBuyback", "poolMulligans", "poolSecond", "poolRank"],
+  pickem: ["pickemCorrectPoints", "poolSurvive", "calls", "poolLives", "poolBuyback", "poolMulligans", "poolSecond", "poolRank", "seatPeople"],
   "weekly-calls": [],
   // A9: points per line; a game of questions' parlays.
   "weekly-bingo": ["linePoints"],
-  questions: ["questions", "lateLockHours", "parlays"],
+  questions: ["questions", "lateLockHours", "parlays", "seatPeople"],
 };
+// A10 part 4b: a team two people share, wherever a seat has something to share (not a call or a bingo card).
+GAME_FIELDS["classic-draft"].push("seatPeople");
+GAME_FIELDS["active-roster"].push("seatPeople");
 const gameFields = (state) => [...GAME_FIELDS.every, ...GAME_FIELDS[S.getLeagueType(state).id], ...(S.WaiverLogic.supported(state) ? WAIVER_FIELDS : [])];
 
 /** Everything state-logic.js reads of a league's settings, as it reads it (what's switched off, not what it would be). */
@@ -542,6 +545,7 @@ test("describeSpec: the sentence for each game, and the details nobody asked abo
     finale: ["Off", true],
     hideStarters: ["Shown as they're set", true],
     lockedDown: ["No", true],
+    seats: ["One each", true],
   });
   const tuned = clone(G.PRESETS.outlast);
   Object.assign(tuned.extras, { join: "locked", bets: null, draft: { at: null, timer: 120, away: "queue" }, waivers: { ...G.NO_WAIVERS, replace: "always", windows: { schedule: "every", every: 3, swaps: 1 } } });

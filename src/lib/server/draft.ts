@@ -5,7 +5,7 @@ import type { LeagueState } from "@/lib/game/types";
 import type { LeagueMembership, SessionUser } from "./auth-helpers";
 import { lockAuctionBids, unlockAuctionBids, type Bid } from "./auction";
 import { lockBlindPicks, unlockBlindPicks } from "./blind-draft";
-import { plainChange, settingsSetChange, type ChangeSpec } from "./change-log";
+import { plainChange, seatMoveOf, settingsSetChange, type ChangeOf, type ChangeSpec } from "./change-log";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { refused } from "./game-writes";
 import { notifyDraftNudge, notifyDraftTurn } from "./push-events";
@@ -46,6 +46,20 @@ function requireSnake(s: LeagueState) {
 export async function pickInDraft(a: DraftActor, leagueId: string, castawayId: string, n?: number | null): Promise<{ state: LeagueState; batch: string | null }> {
   const batch = crypto.randomUUID();
   let forOther = false;
+  const line = (_before: LeagueState, after: LeagueState): ChangeSpec | null => {
+    if (!forOther) return null;
+    const e = after.draftLog?.[after.draftLog.length - 1];
+    if (!e) return null;
+    return {
+      userId: a.user.id,
+      kind: "draft",
+      tier: 1,
+      text: `Drafted ${castName(after, e.castawayId)} for ${nameOf(after, e.playerId)}`,
+      batch,
+      undo: { type: "draftPick", castawayId: e.castawayId, playerId: e.playerId, n: e.n },
+    };
+  };
+  const change: ChangeOf = line;
   const state = await withLeagueLock(
     leagueId,
     (s) => {
@@ -55,6 +69,8 @@ export async function pickInDraft(a: DraftActor, leagueId: string, castawayId: s
       if (n != null && turn.overallPickNumber !== n) throw new HttpError(409, "That pick was just made: have another look");
       forOther = turn.playerId !== a.membership.playerId;
       if (forOther && !runs(a)) throw new HttpError(403, "It's not your turn");
+      // Their own pick, on a team two people share (step A10 part 4b): who made it is recorded (withLeagueLock reads it after).
+      if (!forOther) Object.assign(change, { seatMove: { userId: a.user.id, playerId: turn.playerId, kind: "draft" } });
       // A draft spread across the cast's groups (step A10 part 3): a pick that doesn't keep the team spread, and why.
       const spread = StateLogic.SpreadLogic.pickProblem(s, turn.playerId, castawayId);
       if (spread) throw new HttpError(400, spread);
@@ -65,19 +81,7 @@ export async function pickInDraft(a: DraftActor, leagueId: string, castawayId: s
       StateLogic.draftToCurrentTurn(s, castawayId, forOther ? { by: a.user.id } : undefined);
       if (s.draftPicksMade === made) throw new HttpError(409, "Someone already has them");
     },
-    (before, after): ChangeSpec | null => {
-      if (!forOther) return null;
-      const e = after.draftLog?.[after.draftLog.length - 1];
-      if (!e) return null;
-      return {
-        userId: a.user.id,
-        kind: "draft",
-        tier: 1,
-        text: `Drafted ${castName(after, e.castawayId)} for ${nameOf(after, e.playerId)}`,
-        batch,
-        undo: { type: "draftPick", castawayId: e.castawayId, playerId: e.playerId, n: e.n },
-      };
-    }
+    change
   );
   notifyDraftTurn(leagueId, state, a.user.id);
   return { state, batch: forOther ? batch : null };
@@ -245,8 +249,8 @@ export async function lockBlindFor(a: DraftActor, leagueId: string, playerId: un
       if (StateLogic.BlindDraftLogic.hasLocked(s, playerId)) throw new HttpError(400, "Already locked in — withdraw first to change your picks");
       await lockBlindPicks(client, leagueId, s, playerId, castawayIds as string[]);
     },
-    // Never who they picked: only that someone locked in for them.
-    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Locked in ${nameOf(after, playerId)}'s draft picks`) : undefined
+    // Never who they picked: only that someone locked in for them. Their own, on a team they share: who did (step A10 part 4b).
+    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Locked in ${nameOf(after, playerId)}'s draft picks`) : seatMoveOf(a.user.id, a.membership.playerId, playerId, { kind: "sheet" })
   );
 }
 
@@ -262,7 +266,7 @@ export async function unlockBlindFor(a: DraftActor, leagueId: string, playerId: 
       if (StateLogic.BlindDraftLogic.isRevealed(s)) throw new HttpError(400, "The draft has already been revealed");
       await unlockBlindPicks(client, leagueId, s, playerId);
     },
-    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Opened ${nameOf(after, playerId)}'s draft picks again`) : undefined
+    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Opened ${nameOf(after, playerId)}'s draft picks again`) : seatMoveOf(a.user.id, a.membership.playerId, playerId, { kind: "sheet" })
   );
 }
 
@@ -283,8 +287,8 @@ export async function lockBidsFor(a: DraftActor, leagueId: string, playerId: unk
       if (StateLogic.AuctionLogic.hasLocked(s, playerId)) throw new HttpError(400, "Already locked in — withdraw first to change your bids");
       await lockAuctionBids(client, leagueId, s, playerId, sheet);
     },
-    // Never what they bid: only that someone locked in for them.
-    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Locked in ${nameOf(after, playerId)}'s bids`) : undefined
+    // Never what they bid: only that someone locked in for them. Their own, on a team they share: who did (step A10 part 4b).
+    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Locked in ${nameOf(after, playerId)}'s bids`) : seatMoveOf(a.user.id, a.membership.playerId, playerId, { kind: "sheet" })
   );
 }
 
@@ -300,7 +304,7 @@ export async function unlockBidsFor(a: DraftActor, leagueId: string, playerId: s
       if (StateLogic.AuctionLogic.settled(s)) throw new HttpError(400, "The auction is over");
       await unlockAuctionBids(client, leagueId, s, playerId);
     },
-    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Opened ${nameOf(after, playerId)}'s bids again`) : undefined
+    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Opened ${nameOf(after, playerId)}'s bids again`) : seatMoveOf(a.user.id, a.membership.playerId, playerId, { kind: "sheet" })
   );
 }
 

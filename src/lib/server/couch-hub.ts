@@ -1,7 +1,7 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import { answerStanding, storedAnswers } from "./answer-points";
 import { foldFor, isFolded, revealedThrough } from "@/lib/game/chat-fold";
-import { accoladesOf, rankingsOf, trophiesOf, yourNumbers, type Accolade, type GameStanding, type Person, type Rankings, type StandingRow, type TrophyShelf, type YourNumbers } from "@/lib/game/couch-standings";
+import { accoladesOf, fieldOf, rankingsOf, trophiesOf, yourNumbers, type Accolade, type GameStanding, type Person, type Rankings, type StandingRow, type TrophyShelf, type YourNumbers } from "@/lib/game/couch-standings";
 import { tableOf } from "@/lib/game/game-view";
 import type { Taste } from "@/lib/game/ratings";
 import { showWords } from "@/lib/game/show-words";
@@ -93,13 +93,15 @@ export interface CouchHub {
 
 /** What a game's table says, for one viewer at their mark: who placed where, the streaks, predictions called. `calls`: Weekly
  *  Calls' or Weekly Bingo's (step 12), each player's right calls or lines, the episode they're through and whether the season's
- *  over (neither is in the state). */
+ *  over (neither is in the state). `usersOf`: every account on a seat; a team two people share (step A10 part 4b) is a row for
+ *  each of them, each credited with its place, and one team in the field (couch-standings.ts fieldOf: the rows' `seat`). */
 function standingOf(
   state: LeagueState,
   playerId: string | null,
   mark: number | null,
   userOf: (p: string) => string | null,
-  calls?: { right: (p: string) => number; through: number; ended: boolean }
+  calls?: { right: (p: string) => number; through: number; ended: boolean },
+  usersOf: (p: string) => string[] = () => []
 ): { rows: StandingRow[]; through: number; ended: boolean } {
   const view = StateLogic.GhostLogic.viewFor(state, playerId, mark);
   const pool = StateLogic.getLeagueType(view).hasWeeklyPicks;
@@ -114,7 +116,11 @@ function standingOf(
     total: r.total,
     ...(pool ? { best: r.total, streak: r.week ?? 0 } : {}),
     called: called.get(r.playerId) ?? 0,
-  }));
+    seat: r.playerId,
+  })).flatMap((row) => {
+    const on = usersOf(row.seat);
+    return on.length > 1 ? on.map((u) => ({ ...row, userId: u })) : [row];
+  });
   // A game over a span stands at its last episode (StateLogic.spanView), and is over once that's in (gameOver).
   const end = StateLogic.endEpisode(view);
   const seen = StateLogic.SpoilerLogic.latestWithResults(view);
@@ -158,16 +164,21 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
   const [headers, states, seats, marks, schedules] = await Promise.all([
     seasonHeaders(seasonIds),
     leagueStates(ids),
-    ids.length ? pool.query("SELECT league_id, user_id, player_id FROM league_memberships WHERE league_id = ANY($1::uuid[])", [ids]) : { rows: [] },
+    ids.length ? pool.query("SELECT league_id, user_id, player_id FROM league_memberships WHERE league_id = ANY($1::uuid[]) ORDER BY seat_slot, created_at", [ids]) : { rows: [] },
     Promise.all(seasonIds.map(async (id) => [id, await seenThrough(user.id, id)] as const)).then((xs) => new Map(xs)),
     seasonSchedules(seasonIds),
   ]);
-  const userOf = new Map<string, Map<string, string>>(ids.map((id) => [id, new Map()]));
+  // Each seat's accounts, its first first (a team two people share: step A10 part 4b); a seat's face is its first's.
+  const usersOf = new Map<string, Map<string, string[]>>(ids.map((id) => [id, new Map()]));
   const mine = new Map<string, string>();
   for (const r of seats.rows) {
-    if (r.player_id) userOf.get(r.league_id)?.set(r.player_id, r.user_id);
+    if (r.player_id) {
+      const on = usersOf.get(r.league_id);
+      on?.set(r.player_id, [...(on.get(r.player_id) ?? []), r.user_id]);
+    }
     if (r.user_id === user.id && r.player_id) mine.set(r.league_id, r.player_id);
   }
+  const userOf = new Map<string, Map<string, string>>(ids.map((id) => [id, new Map([...(usersOf.get(id) ?? new Map<string, string[]>())].map(([p, us]) => [p, us[0]]))]));
 
   // Each game as you may see it: now, and one episode back (who moved).
   const standings: GameStanding[] = [];
@@ -178,6 +189,7 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
     const seen = marks.get(g.seasonId) ?? 0;
     const mark = seen === EVERYTHING ? null : seen;
     const who = (p: string) => userOf.get(g.leagueId)?.get(p) ?? null;
+    const onSeat = (p: string) => usersOf.get(g.leagueId)?.get(p) ?? [];
     try {
       // Weekly Calls and Weekly Bingo are through the latest show that's aired and you've seen, scored from the couch's calls or cards.
       const type = StateLogic.getLeagueType(state);
@@ -187,9 +199,9 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
       const rows = type.hasQuestions ? await storedAnswers(g.leagueId) : [];
       const answers = (m: number | null) => answerStanding({ leagueId: g.leagueId, state, playerId: me, mark: m, rows });
       const calls = type.hasQuestions ? await answers(mark) : type.hasCalls || type.hasBingo ? await callsThrough(state, g, who, Math.min(seen, latestAired(schedule)), schedule) : undefined;
-      const now = standingOf(state, me, mark, who, calls);
+      const now = standingOf(state, me, mark, who, calls, onSeat);
       const back = calls && now.through >= 2 ? (type.hasQuestions ? await answers(now.through - 1) : await callsThrough(state, g, who, now.through - 1, schedule)) : undefined;
-      const before = now.through >= 2 ? standingOf(state, mine.get(g.leagueId) ?? null, now.through - 1, who, back).rows : null;
+      const before = now.through >= 2 ? standingOf(state, mine.get(g.leagueId) ?? null, now.through - 1, who, back, onSeat).rows : null;
       standings.push({
         leagueId: g.leagueId,
         name: g.name,
@@ -229,7 +241,8 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
         label: g.label,
         artUrl: g.artUrl,
         rank: g.through > 0 && me ? me.rank : null,
-        of: g.rows.length,
+        // Teams, not rows: a team two people share is one (step A10 part 4b).
+        of: fieldOf(g.rows),
         through: g.through,
         ended: g.ended,
       };

@@ -254,12 +254,16 @@ function waiverAdmin(l: Loaded, me: string, mark: number | null, users: Map<stri
   };
 }
 
-/** Who each seat is, by league (for faces and "you"). */
-async function usersByLeague(leagueIds: string[]): Promise<Map<string, Map<string, string>>> {
+/** Who each seat is, by league (for faces and "you"): a team two people share (step A10 part 4b) is its first account's, except
+ *  to `me` when they're on it. */
+async function usersByLeague(leagueIds: string[], me: string | null = null): Promise<Map<string, Map<string, string>>> {
   const out = new Map<string, Map<string, string>>(leagueIds.map((id) => [id, new Map()]));
   if (!leagueIds.length) return out;
-  const { rows } = await pool.query("SELECT league_id, user_id, player_id FROM league_memberships WHERE league_id = ANY($1::uuid[]) AND player_id IS NOT NULL", [leagueIds]);
-  for (const r of rows) out.get(r.league_id)?.set(r.player_id, r.user_id);
+  const { rows } = await pool.query("SELECT league_id, user_id, player_id FROM league_memberships WHERE league_id = ANY($1::uuid[]) AND player_id IS NOT NULL ORDER BY seat_slot, created_at", [leagueIds]);
+  for (const r of rows) {
+    const seats = out.get(r.league_id);
+    if (seats && (!seats.has(r.player_id) || r.user_id === me)) seats.set(r.player_id, r.user_id);
+  }
   return out;
 }
 
@@ -278,7 +282,7 @@ async function runBatches(leagueIds: string[]): Promise<Map<string, string>> {
 export async function waiversAdmin(scope: BackstageScope): Promise<{ games: WaiverAdminGame[] }> {
   const loaded = await load(scope);
   const ids = loaded.map((l) => l.game.leagueId);
-  const [mark, users, batches] = await Promise.all([markOf(scope), usersByLeague(ids), runBatches(ids)]);
+  const [mark, users, batches] = await Promise.all([markOf(scope), usersByLeague(ids, scope.user.id), runBatches(ids)]);
   const games: WaiverAdminGame[] = [];
   for (const l of loaded) {
     const g = waiverAdmin(l, scope.user.id, mark, users.get(l.game.leagueId) ?? new Map(), batches);
@@ -338,7 +342,7 @@ export async function waiverWrite(scope: BackstageScope, leagueId: unknown, body
     if (body.action === "claimView") {
       const state = await readyLeague(id, (await leagueStates([id])).get(id)!);
       check(state);
-      const users = (await usersByLeague([id])).get(id) ?? new Map();
+      const users = (await usersByLeague([id], scope.user.id)).get(id) ?? new Map();
       const week = waiverWeek({ leagueId: id, name: game.name, gameType: game.gameType, gameName: game.gameName, yourRole: game.yourRole }, state, body.playerId, mark, (p) => users.get(p) ?? null, null);
       if (!week) throw new HttpError(409, "Waivers aren't open");
       return { week };

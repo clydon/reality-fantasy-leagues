@@ -7,6 +7,7 @@ import { runBots } from "./bots";
 import { syncWaivers } from "./waivers";
 import { justProcessed, sendProcessed, snapshot as waiverSnapshot } from "./waiver-pushes";
 import { recordChange, type ChangeOf } from "./change-log";
+import { recordSeatMove, seatRoom } from "./shared-seats";
 import { settleGroupSlots } from "./group-slots";
 import { settleDueAuction } from "./auction";
 import { settleKeepers } from "./keepers";
@@ -92,6 +93,10 @@ export async function withLeagueLock(
     if (!keepers && StateLogic.KeeperLogic.config(state)) await settleKeepers(client, leagueId, state, true);
     StateLogic.KeeperLogic.settle(state);
     const spec = change && before ? (typeof change === "function" ? change(before, state) : change) : null;
+    // A move on a team two people share (step A10 part 4b): who made it, in this transaction. Only where the game shares its
+    // seats, so no other game pays for a query.
+    const move = typeof change === "function" ? change.seatMove : undefined;
+    if (move && seatRoom(state) > 1) await recordSeatMove(client, leagueId, move.playerId, move.userId, move.kind, move.episodeId);
     // Every write leaves the league with an episode to play next (bets and picks always have
     // somewhere to go; nobody creates episodes by hand). See EpisodeLogic.ensureNextEpisode.
     StateLogic.ensureNextEpisode(state);

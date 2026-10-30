@@ -78,7 +78,7 @@ export const PUT = apiRoute(async (req, { params }: { params: Promise<{ leagueId
       if (problem) throw new HttpError(400, problem);
       if (mark === null) StateLogic.GroupSlotLogic.setPick(s, epId, playerId, n, id);
     },
-    forPlayerChange(user.id, membership.playerId, playerId, "lineup", (name) => `Set ${name}'s group slot`)
+    forPlayerChange(user.id, membership.playerId, playerId, "lineup", (name) => `Set ${name}'s group slot`, { kind: "groupSlot", episodeId: epId })
   );
   return stateResponse(req, state);
 });

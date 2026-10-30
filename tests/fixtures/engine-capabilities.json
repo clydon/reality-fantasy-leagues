@@ -1852,7 +1852,18 @@
         {
           "id": "who.sharedTeam",
           "what": "Two people share one team",
-          "step": "A10"
+          "step": "A10",
+          "spec": {
+            "preset": "outlast",
+            "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" },
+            "extras": { "seats": { "people": 2 } }
+          },
+          "page": {
+            "show": "The Challenge",
+            "season": 41,
+            "rulebook": "challenge"
+          },
+          "note": "a team two people share (A10 part 4b): up to two accounts on one seat, a second joining by an invite to it; either makes its moves (the last one counts, who made it recorded); one team in the game's table and in the exclusive count, each credited on the couch"
         },
         {
           "id": "who.groupSlots",
@@ -2679,7 +2690,12 @@
       "step": "A10",
       "dials": [
         "who"
-      ]
+      ],
+      "spec": {
+        "preset": "weekly-lineup",
+        "extras": { "seats": { "people": 2 } }
+      },
+      "note": "a team two people share (A10 part 4b): a Weekly Lineup where up to two of you hold one team"
     },
     {
       "id": "s19",

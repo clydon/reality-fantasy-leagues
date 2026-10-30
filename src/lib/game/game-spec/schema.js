@@ -376,6 +376,17 @@ function spreadBounds(each, groups) {
 function covers({ pool, people, each }) {
   return isInt(pool, 0) && isInt(people, 0) && isInt(each, 0) && people * each <= pool;
 }
+
+/**
+ * The teams the exclusive count counts (A10 part 4b), from specProblems' ctx: `ctx.teams` when it's given (a team two people
+ * share is one team: teams, not people), else `ctx.couch` (everyone their own team, the most there can be: fail closed). As
+ * { n, said } ("7 of you", "6 teams"), or null when neither is a count.
+ */
+function teamsOf(ctx) {
+  const c = isObj(ctx) ? ctx : {};
+  if (isInt(c.teams, 1)) return { n: c.teams, said: c.teams === c.couch ? `${c.teams} of you` : `${c.teams} ${c.teams === 1 ? 'team' : 'teams'}` };
+  return isInt(c.couch, 1) ? { n: c.couch, said: `${c.couch} of you` } : null;
+}
 const MAX_QUESTIONS = 12;
 const MAX_PICK = 10;
 const MAX_QUESTION_POINTS = 100;
@@ -407,6 +418,10 @@ const JOINS = ['open', 'ask', 'locked'];
 //   lateLock      (A7) a game of questions' late lock: { hours: 12 | 24 | 48 | 72 }, or null. Someone who hasn't seen an
 //                 episode can still answer its questions after it starts, until they've seen it, up to that many hours past
 //                 its air time; everyone else's answers stay hidden from them until then
+//   seats         (A10 part 4b) a team two people share: { people: 2 to MAX_SEAT_PEOPLE }, how many accounts can hold one seat
+//                 (a second joins by an invite to that seat, while it has room). Left out (or null): one a seat, as every game
+//                 today; fullSpec leaves it out then, so no stored spec changes. Not beside Weekly Calls or Weekly Bingo, or a
+//                 pool's weekly call: those are each person's own (a call, a card), so a seat has nothing to share
 
 /** Waivers off: a draft as Start a game makes one today (nothing replaced, windows only when opened). */
 const NO_WAIVERS = {
@@ -428,6 +443,12 @@ const MARKET_LEFT = 'cash';
 const marketWaivers = (each) => ({ ...NO_WAIVERS, replace: 'always', windows: { schedule: 'everyEpisode', every: 3, swaps: isInt(each, 1) ? each : 1 } });
 const DRAFT_ROOM = { at: null, timer: 0, away: 'wait' };
 const BETS = { points: 1 };
+/** A10 part 4b: a seat two people share. Its default when the spec says `seats: {}` (the user's to set: Noticed), and the most
+ *  accounts one seat holds. */
+const SEATS = { people: 2 };
+const MAX_SEAT_PEOPLE = 4;
+/** How many accounts can hold one of a whole spec's seats (extras.seats): 1 unless it shares them. */
+const seatPeople = (s) => (isObj(s) && isObj(s.extras) && isObj(s.extras.seats) && isInt(s.extras.seats.people, 2) ? s.extras.seats.people : 1);
 
 const extrasOf = (o) => ({ waivers: null, bets: null, calls: false, draft: null, join: null, hideStarters: false, lockedDown: false, lateLock: null, ...o });
 
@@ -708,6 +729,9 @@ function fullSpec(spec) {
   s.extras = {};
   for (const k of Object.keys(dflt)) s.extras[k] = e[k] !== undefined ? e[k] : clone(dflt[k]);
   for (const k of Object.keys(e)) if (!(k in s.extras)) s.extras[k] = e[k];
+  // A10 part 4b: a shared seat says what it leaves out as the default (SEATS); null is one a seat, said by leaving it out.
+  if (s.extras.seats === null) delete s.extras.seats;
+  else if (isObj(s.extras.seats)) for (const [k, v] of Object.entries(SEATS)) if (s.extras.seats[k] === undefined) s.extras.seats[k] = v;
   return s;
 }
 
@@ -863,6 +887,8 @@ function sizesOf(s) {
  *                shared, and the problem says why ("12 of you × 3 picks is more than 18 castaways"). Either left out: not
  *                counted. A pool that shrinks later (a stage's or a side draft, group slots) is counted where it drafts again
  *                (GroupSlotLogic counts each opening)
+ *   ctx.teams    (A10 part 4b) how many teams the couch makes when some share one (extras.seats): counted in place of
+ *                ctx.couch, a shared team once (teamsOf). Left out: ctx.couch, everyone their own
  *
  * opts.league: the spec is a league's own (every write to a league: RosterLogic.setGame), so what it already plays stays
  * as it is: a couch-answered moment of its rules (Make it ours) and points for moments its rules don't have
@@ -1024,6 +1050,12 @@ function specProblems(spec, ctx, opts) {
     if (e.lateLock !== null) {
       if (!(isObj(e.lateLock) && LATE_HOURS.includes(e.lateLock.hours))) add('extras.lateLock', `A late lock is { hours: ${LATE_HOURS.join(', ')} }, or null`);
       else if (!(score.by === 'answers' && !callsAsk(s.ask))) add('extras.lateLock', "A late lock is for a game's own questions (Weekly Calls' calls are Call it's)");
+    }
+    // A10 part 4b: a team two people share. A call and a bingo card are each person's own (Call it's calls, made once for every
+    // game that counts them; a card dealt to a person), so a seat in those games has nothing to share.
+    if (e.seats !== undefined) {
+      if (!(isObj(e.seats) && isInt(e.seats.people, 2) && e.seats.people <= MAX_SEAT_PEOPLE)) add('extras.seats', `A shared team is { people: 2 to ${MAX_SEAT_PEOPLE} }, or left out for one a team`);
+      else if (score.by === 'lines' || callsAsk(s.ask) || e.calls === true) add('extras.seats', `${score.by === 'lines' ? 'A bingo card' : 'A call'} is each person's own, so two people can't share one: each plays their own`);
     }
   }
 
@@ -1208,8 +1240,9 @@ const KEYS = {
   when: ['times', 'episode', 'from', 'to', 'phase', 'finale'],
   shrink: ['points', 'per'],
   rank: ['by'],
-  extras: ['waivers', 'bets', 'calls', 'draft', 'join', 'hideStarters', 'lockedDown', 'lateLock'],
+  extras: ['waivers', 'bets', 'calls', 'draft', 'join', 'hideStarters', 'lockedDown', 'lateLock', 'seats'],
   lateLock: ['hours'],
+  seats: ['people'],
   waivers: ['feel', 'replace', 'short', 'windows', 'order', 'hours', 'freeAgency', 'autoFill'],
   windows: ['schedule', 'every', 'swaps'],
   draft: ['at', 'timer', 'away'],
@@ -1262,7 +1295,7 @@ function unknownKeys(s) {
   const e = s.extras;
   check(e, KEYS.extras, 'extras');
   if (isObj(e)) {
-    for (const k of ['waivers', 'draft', 'bets', 'lateLock']) check(e[k], KEYS[k], `extras.${k}`);
+    for (const k of ['waivers', 'draft', 'bets', 'lateLock', 'seats']) check(e[k], KEYS[k], `extras.${k}`);
     if (isObj(e.waivers)) check(e.waivers.windows, KEYS.windows, 'extras.waivers.windows');
   }
   return out;
@@ -1544,14 +1577,16 @@ function settleProblems(s, ctx, opts) {
   // An exclusive draft only when the pool covers every pick (the 9:10 PM decision): a new game's, where it drafts. A league's own
   // keeps the draft it made (its couch grows by people joining, who ask: extras.join).
   const get = isObj(s.get) ? s.get : {};
-  if (!opts.league && get.by === 'draft' && get.own === 'exclusive' && isInt(get.each, 1) && isInt(ctx.pool, 0) && isInt(ctx.couch, 1) && !covers({ pool: ctx.pool, people: ctx.couch, each: get.each })) {
-    const more = `${ctx.couch} of you × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} is more than the ${ctx.pool} who can be drafted`;
+  // A10 part 4b: teams, not people (teamsOf: ctx.teams, else ctx.couch).
+  const teams = teamsOf(ctx);
+  if (!opts.league && get.by === 'draft' && get.own === 'exclusive' && isInt(get.each, 1) && isInt(ctx.pool, 0) && teams && !covers({ pool: ctx.pool, people: teams.n, each: get.each })) {
+    const more = `${teams.said} × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} is more than the ${ctx.pool} who can be drafted`;
     // A10 part 3b: an auction can't be shared; its shared version is a salary cap (prices from the data, no bidding).
     out.push(['get.own', get.order === 'auction' ? `${more}: an auction needs castaways nobody else can have, so make it a salary cap (prices from the data, no bidding), where two of you can have the same one` : `${more}: make it shared, so two of you can have the same one`]);
-  } else if (!opts.league && marketOf(s) && get.own === 'exclusive' && isInt(get.each, 1) && isInt(ctx.pool, 0) && isInt(ctx.couch, 1) && ctx.couch * get.each >= ctx.pool) {
+  } else if (!opts.league && marketOf(s) && get.own === 'exclusive' && isInt(get.each, 1) && isInt(ctx.pool, 0) && teams && teams.n * get.each >= ctx.pool) {
     // A10 part 3c: an exclusive stock market needs someone left over to buy, or nobody can ever trade (the count where it drafts;
     // as people go home a replacement waits for someone free, as an exclusive draft's waivers do).
-    out.push(['get.own', `${ctx.couch} of you × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} takes all ${ctx.pool} who can be drafted, so nobody's left to buy: make it shared, so two of you can hold the same one${get.order === 'auction' ? ' (a salary cap: prices from the data, no bidding)' : ''}`]);
+    out.push(['get.own', `${teams.said} × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} takes all ${ctx.pool} who can be drafted, so nobody's left to buy: make it shared, so two of you can hold the same one${get.order === 'auction' ? ' (a salary cap: prices from the data, no bidding)' : ''}`]);
   }
   // A10 part 4: keepers come from one of the couch's games on an earlier season of the show (ctx.games, the context pack's: ids,
   // or { id }), never a game typed in. Left out: not checked. The exclusive count above needs nothing more for keepers: each
@@ -1569,9 +1604,9 @@ function settleProblems(s, ctx, opts) {
     // Groups with someone in them, as the spread reads them (SpreadLogic.groupsNow).
     const sizes = Array.isArray(ctx.poolGroups) ? ctx.poolGroups.filter((n) => isInt(n, 1)) : [];
     const b = spreadBounds(get.each, sizes.length);
-    if (!opts.league && get.across.of === 'group' && get.own === 'exclusive' && b && b.least && isInt(ctx.couch, 1)) {
+    if (!opts.league && get.across.of === 'group' && get.own === 'exclusive' && b && b.least && teams) {
       const short = Math.min(...sizes);
-      if (!covers({ pool: short, people: ctx.couch, each: b.least })) out.push(['get.own', `${ctx.couch} of you each need ${b.least} from every group, and one has only ${short}: make it shared, so two of you can have the same one`]);
+      if (!covers({ pool: short, people: teams.n, each: b.least })) out.push(['get.own', `${teams.said} each need ${b.least} from every group, and one has only ${short}: make it shared, so two of you can have the same one`]);
     }
   }
   const score = isObj(s.score) ? s.score : {};
@@ -1705,7 +1740,7 @@ module.exports = {
   RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
-  marketWaivers, marketOf, KEEP, keepParts,
+  marketWaivers, marketOf, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

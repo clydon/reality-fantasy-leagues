@@ -34,14 +34,15 @@ export async function keeperOptionsFor(db: Pool | PoolClient, leagueId: string, 
   const { rows: members } = await db.query("SELECT league_id, user_id, player_id FROM league_memberships WHERE league_id = ANY($1::uuid[])", [[leagueId, from]]);
   const seatsThen = new Map<string, string[]>();
   for (const m of members) if (m.league_id === from) seatsThen.set(m.user_id, [...(seatsThen.get(m.user_id) ?? []), m.player_id]);
-  const out: Record<string, string[]> = {};
+  // A team two people share (step A10 part 4b) is offered both their teams there, ranked together, best first.
+  const thenOf = new Map<string, string[]>();
   for (const m of members) {
     if (m.league_id !== leagueId) continue;
     const then = seatsThen.get(m.user_id);
-    if (!then) continue;
-    const list = StateLogic.KeeperLogic.optionsFrom(old, then, state);
-    out[m.player_id] = [...new Set([...(out[m.player_id] ?? []), ...list])];
+    if (then) thenOf.set(m.player_id, [...new Set([...(thenOf.get(m.player_id) ?? []), ...then])]);
   }
+  const out: Record<string, string[]> = {};
+  for (const [seat, then] of thenOf) out[seat] = StateLogic.KeeperLogic.optionsFrom(old, then, state);
   return out;
 }
 

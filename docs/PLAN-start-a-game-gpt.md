@@ -28,8 +28,10 @@ settled at once, `AuctionLogic`; a salary cap whose prices follow the data, `Pri
 selling each week (2026-10-29: a stock market on those prices, trading in the waiver weeks, cash a ledger from the logs, ranked by
 worth when the game says so, `MarketLogic`), and part 4, keepers across seasons (2026-10-29: a game that continues last season's,
 each keeping up to N of their team there who are on this season's cast, named before the draft and locked as it starts, the draft
-filling the rest whatever its kind, `KeeperLogic` and `keepers.ts`), are built; part 4b (a team two people share) is next, the last
-of A10, then A11 to A14 overnight (the
+filling the rest whatever its kind, `KeeperLogic` and `keepers.ts`), and part 4b, a team two people share (2026-10-29: up to N
+accounts on one seat, a second joining by an invite to it, either making its moves, who made each recorded, the lowest mark where the
+seat's state depends on one, one leaving keeping it for the other, each credited on the couch, the exclusive count by teams,
+`shared-seats.ts`, migration 0202), are built. **A10 is done**; A11 is next, then A12 to A14 overnight (the
 user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -3018,6 +3020,97 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     in `keepers.ts` stays its own (the shared one sits in `auth-helpers.ts`, which imports `db.ts`, which imports `keepers.ts`); the
     reads while keepers are open (Noticed, cost). Part 3c's optional item 3 (a shared market straight to free agency) wasn't taken:
     it goes with part 4b or U1.
+
+  **As built (A10 part 4b, 2026-10-29, on `engine`, not merged; migration 0202).** One session, after `lane.js sync engine` (master's
+  view-as, one conflict in `show-space.ts` kept both sides; 1055 tests). A team two people share, the last of A10. Each piece rides
+  on data with its fallback from the start; every default and everything a person sees is the user's (Noticed, below).
+  - **The spec** (`schema.js`): `extras.seats`, `{ people }`: how many accounts can hold one seat, 2 to `MAX_SEAT_PEOPLE` (4); `{}`
+    is two (`SEATS`). Left out (or null) is one a seat, as every game today: `fullSpec` leaves it out then, so no stored spec changes
+    and nothing drifts (`game-specs-flag.js`). `seatPeople(spec)`; the settings' `seatPeople`, both ways (`OWNED`), written only where
+    it shares. Refused beside Weekly Calls, Weekly Bingo and a pool's weekly call: a call and a bingo card are each person's own (Call
+    it's calls are made once for every game; a card is dealt to a person), so a seat there has nothing to share (Noticed, item 5).
+    Words (`describe.js`): the sentence ("Up to two of you can share a team."), How it works (joining by an invite, any of them
+    making its moves, the last one counting, one team in the game's table), and a detail, Sharing a team (One each, recommended).
+  - **The exclusive count, by teams** (the 9:10 PM decision): `teamsOf(ctx)`, `ctx.teams` beside `ctx.couch` (how many teams the couch
+    makes when some share one), counted in place of the couch wherever the count is (a draft, a stock market, a spread draft): "6
+    teams × 3 picks". Without `ctx.teams` it counts `ctx.couch`, everyone their own team, the most there can be (fail closed). No
+    caller passes either yet (G1's context pack, the lab).
+  - **The database** (`db/migrations/0202_shared_seats.sql`): `league_memberships.seat_slot` (0 the seat's first, every join until now
+    and every join that takes a seat of its own; 1 and up those who joined to share it), and `UNIQUE(league_id, player_id, seat_slot)`
+    in place of `UNIQUE(league_id, player_id)`, so a seat still can't take a second account by accident: only a join that means to
+    share it picks another slot. `UNIQUE(league_id, user_id)` stays (one seat an account a league). `seat_moves` (league, seat, kind,
+    episode): who made a shared seat's latest move of each kind, written only on a seat two or more hold.
+  - **Joining** (`shared-seats.ts` `shareCheck`, `join-league.ts`, the invites route): a second person joins by an invite to the
+    seat, from someone on it or the commissioner, while the game shares, the seat has room, nobody new is shut out (Who can join
+    locked, Lock it down) and the seat isn't a late joiner still catching up or choosing where to start. They take its lowest free
+    slot; the seat keeps its name, team and history; they join its couch and follow its season. Their spoiler mark starts where they
+    are on the season (`show_follows`, `seenThrough`), never past the latest results, as joining a game under way does. An invite that
+    can't share any more (full, the game stopped sharing, catching up) lets them in as a new player, as a hand-over invite whose seat
+    was taken does today. Checked again inside the join's lock, so two can't take the last place.
+  - **Acting**: every act-for-a-seat check already compares the seat with the caller's own membership (`requireLeagueRole`'s
+    playerId), so any of them can make its moves (lineups, picks, group slots, side bets, finale picks, blind sheets, auction bids,
+    draft picks, keepers, answers, waiver claims); the last write wins. **Who made it** is recorded where nothing recorded it:
+    `forPlayerChange` and a new `seatMoveOf` carry a seat move to `withLeagueLock`, which writes `seat_moves` in the move's own
+    transaction, only where the game shares its seats (no query for any other game); waiver claims (`updated_by`), answers
+    (`answered_by`) and keepers (`chosen.by`) record theirs already. A co-owner's own move is no Recent changes line (tier 0, as a
+    player's own always was).
+  - **Marks** (fail closed): each person keeps their own spoiler mark. Where the seat's own state depends on one, it's the lowest of
+    the seat's (`seatMark`): a late joiner's week (`catchingUpMark`), and the reveal moving the seat's catching up and its
+    `seenThrough` (`reveal.ts`), so one of them revealing never carries the other past what they've seen. A commissioner's waiver nudge
+    to a shared seat is worded for whoever has seen least (`waiver-pushes.js`).
+  - **Leaving**: one leaving keeps the seat for the others, as it is (`freeSeat`, so Members & roles' take out, Leave these games and
+    the desk's account deletion; classic's leave route, now through the league's lock and `freeSeat` too); the last one leaving
+    frees it as before. Taken out of a shared team, the
+    line's `MemberUndo` says so (`shared`), and Undo (or the desk's Put back) puts them back on it at a free slot while it has room
+    (`restoreMember`). Renaming your account doesn't rename a team you share (`renameSeats`). The desk's Link (replacing an account
+    on a seat) gives the new one the replaced one's slot.
+  - **The couch** (`couch-hub.ts`, `couch-standings.ts`): each person on a shared team is credited with its place: a standings row
+    each, the rows carrying their `seat`, and the field counting the team once (`fieldOf`), so nobody else's points change (a place of
+    four teams, not five rows); trophies go to both; head to head, your numbers and the accolades follow. One team, credited once, is
+    the other option (Noticed, item 3).
+  - **Seat-to-account maps**: the game views' (`season-games.ts` `seatsIn`), the waiver admin's (`backstage-games.ts`) and the couch's
+    now take a shared seat's first account (by `seat_slot`), not whichever row came last, and someone on a shared seat sees it as theirs
+    (so "you" in every view, Weekly Calls' own tally, the draft's own pick). Keepers (`keepers.ts`): a shared team is offered both
+    their teams from last season's game, ranked together.
+  - **API:** no new route: the invites route (`POST /api/leagues/[id]/invites` with `playerId` a held seat) and the accept route.
+    `shared-seats.ts` has `seatAccounts` and `seatMoves` for U1's screens.
+  - **The tracker:** who.sharedTeam (an exclusive snake Outlast of three on The Challenge 41, two a team) and s18 (a Weekly Lineup on
+    Survivor 51, two a team) ✅. **Now: 164 ✅** · 81 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271. A10's rows are all ✅.
+  - **Tests:** `tests/shared-seats.test.js` (new, 5): the shape, default, words and settings both ways (a game that never shared reads
+    with no seats); what's refused (one, five, a fraction, a misspelled key, bingo, calls, a pool's call, a league's own); the
+    exclusive count by teams (a draft, a market, a spread draft; fail closed without `ctx.teams`); the room and the next slot; the
+    couch crediting both while the field counts the team once (a trophy each, the plaque's margin, Ran it back for whichever of them
+    won before, partners never in each other's head to head). `game-spec.test.js`: `seatPeople` among the fields, the new detail.
+    `npm test` 1060.
+  - **API check:** `scripts/dev-test/check-shared-seats.js` (new, on new-fixture.js's couch: casey, the fixture's fifth person,
+    joins riley's team in ZT Lineup), 28 PASS: refused before the game shares; sharing on; jordan can't invite onto riley's team;
+    riley invites casey, casey accepts (slot 1, the seat's name kept, her mark 4 where she is, not the latest 5), the team full
+    after; casey and riley each setting the team's lineup (the last counts, `seat_moves` saying who, no Recent changes line), casey
+    refused jordan's; the couch crediting casey with the team's place among four teams; casey leaving (riley keeps it), back by
+    invite, riley leaving (casey keeps it, its name, its lineup); riley back by casey's invite (the free slot 0), taken out by alex
+    (the team stays casey's, the Undo saying so), and Undo putting her back beside casey. Re-runs, after the code review's fixes:
+    `check-keepers.js` ALL PASS, `check-desk-seats.js`, `check-new-backstage-ii.js`, `check-new-couches.js`, `check-new-hub.js` and
+    `check-new-reveal.js` all passed (the hub's and the reveal's first runs each failed a step while an edit recompiled the dev
+    server under them; alone, both passed), `check-engine-lab.js --api` ALL PASS. `npx tsc --noEmit -p .` clean.
+  - **Golden replays** (`golden.js`, HEAD against the working tree, before the code review's fixes and again after them): 7 seasons,
+    160 games, **19,361 reads, every one the same** both times (nothing they play shares a seat; a seat's moves and marks are as
+    before with one account on it).
+  - **Blind replays** (`blind.js run`, the five seasons, on the code after the review's fixes): **every game ended on all five
+    seasons**, the tracker's two sharing games among them: The Challenge 41 69 of 69, 40 69 of 69, 39 69 of 69, Survivor 49 88 of 88,
+    The Traitors 4 67 of 67. The replays' four seats each have an account of their own, so the sharing games play as one account a
+    seat: they prove a game that shares its seats plays and ends through every format change (a shared team is one seat to every
+    format reader), not the sharing, which `check-shared-seats.js` does (Noticed). The study doc's "A10 part 4b: a shared team,
+    replayed blind".
+  - **Code review** (`/code-review` at high, before the long runs). Taken: the desk's Undo of a Link putting the account that came out
+    back at slot 0 (a collision on a shared team: now its own slot, saved in the undo); the hub's own games saying "of 5" for four
+    teams (`fieldOf`); an invite to share losing to reclaiming an old seat of theirs (the invite wins now, as a hand-over's does);
+    classic's leave checking for the partner outside the league's lock (two leaving at once could leave a team with nobody: now
+    through `withLeagueLock` and `freeSeat`); someone joining to share never seeing How this league works (their explainer mark now
+    unset, as any newcomer's); the desk's account deletion saying a shared team stays "unplayed" (it says the others keep it); a
+    shared winning team losing its plaque's margin and Ran it back, and partners counted as a tie against each other (one team a
+    winner by `fieldOf`, partners never in each other's head to head: unit-tested); the reveal able to move a late joiner's
+    `seenThrough` back (forward only now); `takeOut` asking the database what its locked rows already said. Not taken: `seatMoves` (the
+    reader for `seat_moves`) stays exported with no caller, for U1's screens.
 - **A11. Winning, and who plays with whom.** A race (first to N ends the game), co-op (the group against the show, with shared
   lives), head-to-head with playoffs, teams of players, players knocked out each week (guillotine) or cut at a phase,
   handicaps, late joiners.
@@ -3724,6 +3817,62 @@ From A10 part 1 (2026-10-29):
 - A slot's group members are matched to the league's cast the forgiving way (`Core.findCastawayByName`), as F3 part 2's group
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
+
+From A10 part 4b (2026-10-29):
+- **For the user, in a design session (with A10 parts 1 to 4's questions), each with a recommendation (built as spec settings or
+  server rules, the defaults in `SEATS`, `MAX_SEAT_PEOPLE` and `shared-seats.ts`):**
+  1. How many people a team (`extras.seats.people`). Built: 2 when the spec says `seats: {}`, up to 4, none unless the game says so.
+     Options: two only (the request is "my partner and I"); up to a family's four. Recommended: two by default, up to four where the
+     maker says so, and sharing off unless asked for (it changes who's in the game, so it's never a silent default).
+  2. Whether both must agree. Built: either of them makes the team's moves, the last one counts, who made each recorded
+     (`seat_moves`). Options: a move one makes waits for the other's OK; one of them the team's captain whose word wins; a push to the
+     other when one changes something ("casey changed your lineup"). Recommended: as built, with U1 showing who made each move on the
+     team's own screens and no push (Joanna forgets: a lineup waiting for an OK would sit unset at airtime).
+  3. What the couch shows, and who's credited. Built: each person on a shared team is credited with its place (their own row in the
+     couch's standings, the field counting the team once, a trophy each, head to head between the two a tie). Options: one team,
+     credited once (a row "riley & casey", which isn't a person the couch's tables know: rankings, trophies and your numbers are by
+     account); only the seat's first. Recommended: each credited, as built (couples on a couch want the season to count for both), and
+     U1 showing a shared team once in a game's own table, with both names.
+  4. How the second person joins. Built: an invite to the seat (the invites route's `playerId`), from someone on it or the
+     commissioner, no OK needed from the commissioner when it's someone on the seat; refused while Who can join is locked or the game
+     is locked down, while the seat is a late joiner catching up, and when it's full. Options: a "share my team" link; asking to join a
+     team (as Ask to join); the commissioner's OK for every second person. Recommended: the invite now, a share link in U1, and Who
+     can join's rule for it too (ask means the commissioner lets them in).
+  5. Calls and bingo. Built: refused beside Weekly Calls, Weekly Bingo and a pool's weekly call, since a call is a person's own across
+     every game (Call it's) and a bingo card is dealt to a person. Options: allow them, the team counting the better of the two's calls
+     or lines, their sum, or its first's. Recommended: keep it refused (a couple plays those as two people, which is what they are),
+     and the wizard saying why.
+  6. What players and the maker are told, and the team's name. Built: the join's push says "casey joined", as any join does; the seat
+     keeps its first person's name, and renaming an account doesn't rename a shared team; nobody is told when the other makes a move.
+     Options: name a shared team after both ("riley & casey") when the second joins; tell the commissioner when someone joins a team.
+     Recommended: both names by default when the second joins (changeable on the team's screen), and the join's push saying whose team
+     ("casey joined riley's team").
+  7. Someone leaving a shared team. Built: the others keep it as it is; the one who left comes back only by another invite (the seat
+     isn't disabled, so it isn't theirs to reclaim), or by Undo, onto a free place. Recommended: keep; U1 saying so on Leave ("riley
+     keeps the team").
+  8. A late joiner and a shared team. Built: a seat still choosing where to start, or catching up, takes nobody else until it's caught
+     up; where the seat's own state depends on a mark, it's the lowest of its people's (fail closed). Recommended: keep (catching up is
+     one person's pace; two at two paces on one team would leave its week unclear).
+- **Built, not decided by anyone:** a game that stops sharing keeps everyone already on a seat until they leave, and nobody new joins
+  one; an invite that can't share any more lets them in as a new player (as a hand-over invite whose seat was taken does); a computer
+  player's seat is never shared (it has no account to share with: the invite route hands it over as before); someone taken out of a
+  shared team that's since filled can't be put back on it (Undo refuses, saying why).
+- **What the screens still read one account a seat** (U1, and the desk lane's for the desk): classic's setup (`state/route.ts`'s
+  `playerAccounts`, `players-section.tsx` shows one username); Members & roles (`backstage-members.ts` lists both under the seat's
+  name); the desk's seat pages (`desk-seat-moves.ts` `lineFor` shows one, `desk-seats.ts` `unlinkSeat` says a seat "waits for an
+  account" while the other still holds it, the desk's Link replaces rather than adds alongside); the test couch's stand-in seats
+  (`test-couch.ts`); the faces in previews (`backstage.ts`, `ours.ts`, `rulings.ts`: whichever account's row came last). None of them
+  changes a score or a mark.
+- **The couch's game tables list a shared team once a person** (couch-hub's standings rows, item 3): a screen that shows a game's rows
+  from the hub shows riley and casey as two rows with the same place. (U1: group a game's rows by `seat`.)
+- **Cost:** a move on a shared seat writes one `seat_moves` row in its own transaction; a game that doesn't share pays nothing (no
+  query). Joining to share reads the season's follow once. (The merge: a line in HOSTING.md.)
+- **No caller passes `ctx.teams` (or `ctx.couch`)**, so the count by teams is the check's only; G1's context pack should pass the
+  couch's people and, where a game shares, its teams. The blind replays play the tracker's two sharing games with one account a seat
+  (sharing changes who acts, not what scores), so they prove the games play, not the sharing; the API check does that. (Whoever next
+  touches blind.js: put two of its seats' people on one team in a game that shares.)
+- **Part 3c's item 3** (a shared market straight to free agency once the results are in) wasn't taken here either: it's a waivers
+  setting of its own, for U1 or a small part of A11.
 
 From A10 part 4 (2026-10-29):
 - **For the user, in a design session (with A10 parts 1 to 3c's questions), each with a recommendation (built as spec settings,

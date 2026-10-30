@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import { LAST_ACTIVE } from "./last-active";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { freeSeat } from "./backstage-members";
+import { othersOnSeat } from "./shared-seats";
 import { recordChange, roleChange } from "./change-log";
 import { joinedLeague, stayedOnCouch } from "./couches";
 import { pool, tx, withLeagueLock, HttpError } from "./db";
@@ -256,6 +257,8 @@ export async function handOn(
  */
 export async function letSeatGo(leagueId: string, userId: string, name: string, actor: string, batch: string): Promise<"went" | "stays" | null> {
   let outcome = null as "went" | "stays" | null;
+  // A team they shared (step A10 part 4b) stays with the others on it, playing.
+  let shared = false;
   let playerId: string | null = null;
   await withLeagueLock(
     leagueId,
@@ -264,6 +267,7 @@ export async function letSeatGo(leagueId: string, userId: string, name: string, 
       if (!rows[0]) return;
       const seat = rows[0].player_id ? s.players.find((p) => p.id === rows[0].player_id) : null;
       playerId = seat?.id ?? null;
+      shared = !!seat && (await othersOnSeat(client, leagueId, seat.id, userId));
       outcome = (await freeSeat(s, client, leagueId, seat, userId)) ? "went" : "stays";
       await client.query("DELETE FROM league_memberships WHERE league_id = $1 AND user_id = $2", [leagueId, userId]);
     },
@@ -272,7 +276,7 @@ export async function letSeatGo(leagueId: string, userId: string, name: string, 
         userId: actor,
         kind: "member",
         tier: 3,
-        text: outcome === "went" ? `${name}'s account was deleted: their seat went from the game` : `${name}'s account was deleted: their seat stays in the standings, unplayed`,
+        text: outcome === "went" ? `${name}'s account was deleted: their seat went from the game` : shared ? `${name}'s account was deleted: the team they shared stays with the others on it` : `${name}'s account was deleted: their seat stays in the standings, unplayed`,
         batch,
         // The seat it was, for a game's Seats (desk-seat-moves.ts: Out of it, "Account deleted").
         detail: playerId ? { deleted: playerId } : null,

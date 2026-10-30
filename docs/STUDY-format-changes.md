@@ -826,6 +826,18 @@ game ended on all five seasons (The Challenge 41, 40 and 39 67 of 67, Survivor 4
   couch's count, which the check would have refused. The dial row drafts four now; the plan's Noticed asks that the replays pass
   their four seats as the count.
 
+## A10 part 4b: a shared team, replayed blind (2026-10-29)
+
+A10's part 4b let up to N accounts hold one seat (the spec's `extras.seats`, the server's `shared-seats.ts`): a second person
+joins by an invite to it, either makes its moves (the last one counts, who made each recorded), each keeps their own spoiler mark
+(the lowest where the seat's own state depends on one), one leaving keeps it for the other, and the couch credits each of them with
+the team's place. None of that touches the format: a shared team is one team, and every format reader (group slots, a spread draft,
+group questions, a stage that starts on a change) reads it as one seat. The blind replays played the tracker's two sharing games on
+every season, who.sharedTeam (an exclusive snake Outlast of three, two a team) and s18 (a Weekly Lineup, two a team), with one
+account a seat (the replays' four seats each have their own), so they prove the games play and end through every format change
+(The Challenge 41, 40 and 39 69 of 69, Survivor 49 88 of 88, The Traitors 4 67 of 67), not the sharing itself: that is
+`check-shared-seats.js`, through the app's API. A replay with two of its people on one team is the plan's Noticed (A10 part 4b).
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

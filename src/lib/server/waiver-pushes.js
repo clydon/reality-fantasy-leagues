@@ -260,8 +260,10 @@ async function nudgeMessage(db, leagueId, state, playerId, byName) {
   const [name, season] = await Promise.all([leagueName(db, leagueId), seasonOf(db, state)]);
   const tz = m[0].tz || season.tz;
   const n = p.episode;
+  // A team two people share (step A10 part 4b) is told for the one who's seen least, so nobody on it is spoiled.
+  const seen = Math.min(...m.map((x) => x.seen));
   const what =
-    m[0].seen < n
+    seen < n
       ? `Reveal Episode ${n} before then to make any claims.`
       : W.replacementsOwed(state, playerId, p).count
         ? "You have someone to replace."
