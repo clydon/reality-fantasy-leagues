@@ -4391,9 +4391,9 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     off the league type (the label stays the league type's, R3's); the guard's SQL check missing a filter split across lines (it reads
     the query whole). Kept, said here: the two moves each taking the states map (each chooses its own games, as before; the map covers
     every game with a season, the only ones either ever made a move for); a desk search by the stored type's ids (R3's, above).
-- **R2.** The game-specs flag on in production (the user's OK), then a week of watching every table. **Done 2026-10-30, 2:39 PM**
-  (the main folder's `.session-loop/flag-on-prod.ps1`, the user's Copy and Enter: the read-only check passed on all 10 leagues,
-  then 10 of 10 carry their spec); the week of watching runs to 2026-11-06.
+- **R2.** The game-specs flag on in production (the user's OK), then a week of watching every table.
+  **Done 2026-10-30, 2:39 PM** (the main folder's `.session-loop/flag-on-prod.ps1`, the user's Copy and Enter: the read-only
+  check passed on all 10 leagues, then 10 of 10 carry their spec); the week of watching runs to 2026-11-06.
 - **R3.** The old type code goes: `LEAGUE_TYPES`, the literal comparisons (45 files), and the UI's flags, read from the spec.
 
 **G. The Start-a-game GPT** (alongside the engine track; its screens are the UI track's).
