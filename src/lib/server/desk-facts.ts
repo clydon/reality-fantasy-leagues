@@ -45,7 +45,7 @@ export interface DeskFact {
   leagues: number;
   rulings: number;
   /** For editing it: the season's cast and the show's ways out and moments. */
-  choices: { cast: string[]; methods: string[]; events: { id: string; label: string }[] };
+  choices: { cast: string[]; methods: string[]; events: { id: string; label: string }[]; groups: string[] };
   history: DeskLine[];
 }
 
@@ -103,7 +103,10 @@ export async function deskFact(id: string): Promise<DeskFact> {
             (SELECT count(*)::int FROM league_rulings r WHERE r.decision_id = $3) AS rulings`,
     [d.slug, String(d.season_number), id]
   );
-  const { rows: cast } = await pool.query("SELECT name FROM season_cast WHERE season_id = $1 ORDER BY sort_order, name", [d.season_id]);
+  const [{ rows: cast }, groups] = await Promise.all([
+    pool.query("SELECT name FROM season_cast WHERE season_id = $1 ORDER BY sort_order, name", [d.season_id]),
+    seasonGroups(d.season_id),
+  ]);
   const status = (d.fact_status ?? (d.status === "accepted" ? "canonical" : d.status === "rejected" ? "removed" : "reported")) as FactStatus;
   const locked = d.locked_at || (d.fact_status === null && d.status !== "pending") ? { by: d.locked_name, at: (d.locked_at ?? d.decided_at ?? d.created_at).toISOString() } : null;
 
@@ -137,9 +140,23 @@ export async function deskFact(id: string): Promise<DeskFact> {
       cast: cast.map((c) => c.name),
       methods: format.data.exitMethods,
       events: format.data.events.filter((e: { implied?: boolean }) => !e.implied).map((e: { id: string; label: string }) => ({ id: e.id, label: e.label })),
+      groups,
     },
     history: byNewest(lines),
   };
+}
+
+/** A season's groups (tribes, teams), for correcting a move: the cast's starting ones, then any its moves name. */
+export async function seasonGroups(seasonId: string): Promise<string[]> {
+  const { rows } = await pool.query<{ name: string }>(
+    `SELECT name FROM (
+       SELECT tribe_name AS name, 0 AS o FROM season_cast WHERE season_id = $1 AND COALESCE(tribe_name, '') <> ''
+       UNION SELECT COALESCE(applied->>'method', method), 1 FROM season_decisions
+        WHERE season_id = $1 AND kind = 'group' AND status = 'accepted' AND COALESCE(applied->>'method', method) <> ''
+     ) g GROUP BY name ORDER BY min(o), name`,
+    [seasonId]
+  );
+  return rows.map((r) => r.name);
 }
 
 export type Before = { status: string; fact_status: string | null; locked_at: string | null; locked_by: string | null; applied: unknown; decided_at: string | null; decided_by: string | null };
@@ -182,6 +199,11 @@ export async function decideFact(user: SessionUser, id: string, body: { decide?:
       const t = typeof e.eventType === "string" && e.eventType.trim() ? e.eventType.trim() : fact.eventType;
       if (!fact.choices.events.some((x) => x.id === t)) throw new HttpError(400, `"${t}" isn't a moment on this show`);
       applied.eventType = t;
+    } else if (fact.kind === "group") {
+      // A move to the group they went to (Survivor 51's Episode 3 had Carter "to Savu", the tribe he left).
+      const g = typeof e.method === "string" && e.method.trim() ? e.method.trim() : fact.method;
+      if (!fact.choices.groups.includes(g)) throw new HttpError(400, `"${g}" isn't one of ${fact.season.name}'s groups`);
+      applied.method = g;
     }
     await pool.query(`UPDATE season_decisions SET applied = $3::jsonb, status = 'accepted', fact_status = 'canonical', ${lockSql} WHERE id = $1`, [id, user.id, JSON.stringify(applied)]);
     text = `Overrode it: ${castawayName}${applied.method ? ` · ${applied.method}` : ""}${applied.eventType ? ` · ${readable(applied.eventType)}` : ""} · canonical, locked`;

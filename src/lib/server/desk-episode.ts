@@ -11,7 +11,7 @@ import { seasonBot } from "./desk-bot";
 import { mdIn, plural, whenAt, timeIn } from "./desk-dates";
 import { andList } from "./desk-seats";
 import { finalResultsAt } from "@/lib/game/final-results.js";
-import type { Before } from "./desk-facts";
+import { seasonGroups, type Before } from "./desk-facts";
 import { seenThrough } from "./guard";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { DEFAULT_RUNTIME_MIN, seasonSchedules } from "./schedule";
@@ -111,7 +111,7 @@ export interface DeskEpisode {
   facts: EpisodeFact[];
   answers: EpisodeAnswer[];
   /** For Correct: the cast still in for the episode (photos), and the show's ways out and moments. */
-  choices: { cast: { name: string; photo: string | null }[]; methods: string[]; events: { id: string; label: string }[] };
+  choices: { cast: { name: string; photo: string | null }[]; methods: string[]; events: { id: string; label: string }[]; groups: string[] };
   trivia: TriviaQuestion[];
   /** Its trivia run is on the season's schedule. */
   triviaOn: boolean;
@@ -470,6 +470,7 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
       cast: cast.filter((c) => !c.out).map((c) => ({ name: c.name, photo: publicMediaSrc(c.photo_url) })),
       methods: format.data.exitMethods,
       events: events.filter((e) => !e.implied).map((e) => ({ id: e.id, label: e.label })),
+      groups: await seasonGroups(id),
     },
     trivia: trivia.map((q) => ({
       id: q.id,

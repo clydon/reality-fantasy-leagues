@@ -701,7 +701,14 @@ function CorrectSheet({ e, f, onClose, decide }: { e: DeskEpisode; f: EpisodeFac
   };
   if (!f) return null;
   const name = who ?? (f.unknown ? f.guess : f.name);
-  const options = f.kind === "elimination" ? e.choices.methods.map((m) => [m, m] as const) : f.kind === "event" ? e.choices.events.map((x) => [x.id, x.label] as const) : [];
+  const options =
+    f.kind === "elimination"
+      ? e.choices.methods.map((m) => [m, m] as const)
+      : f.kind === "event"
+        ? e.choices.events.map((x) => [x.id, x.label] as const)
+        : f.kind === "group"
+          ? e.choices.groups.map((g) => [g, g] as const)
+          : [];
   const current = f.kind === "event" ? (e.choices.events.find((x) => x.label === f.label)?.id ?? "") : f.label;
   // An exit with no way out given (or a moment not in the list) starts on the list's first, as the select shows it.
   const value = what ?? (options.some(([v]) => v === current) ? current : (options[0]?.[0] ?? current));
@@ -727,7 +734,7 @@ function CorrectSheet({ e, f, onClose, decide }: { e: DeskEpisode; f: EpisodeFac
       </div>
       {options.length > 0 && (
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-[14px] font-bold text-muted-foreground">What happened</span>
+          <span className="mb-1.5 block text-[14px] font-bold text-muted-foreground">{f.kind === "group" ? "Moved to" : "What happened"}</span>
           <select data-what value={value} onChange={(ev) => setWhat(ev.target.value)} className="h-12 w-full rounded-[3px] bg-background px-3 text-[16px] outline-1 -outline-offset-1 outline-input">
             {options.map(([v, l]) => (
               <option key={v} value={v}>
@@ -748,7 +755,7 @@ function CorrectSheet({ e, f, onClose, decide }: { e: DeskEpisode; f: EpisodeFac
           shut();
           void decide(
             f,
-            { edit: { castawayName: name, ...(f.kind === "elimination" ? { method: value } : f.kind === "event" ? { eventType: value } : {}) } },
+            { edit: { castawayName: name, ...(f.kind === "elimination" || f.kind === "group" ? { method: value } : f.kind === "event" ? { eventType: value } : {}) } },
             `Corrected · ${name.split(" ")[0]} · ${label}, in ${allGames(e.games)}`
           );
         }}
