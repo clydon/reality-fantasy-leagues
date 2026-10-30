@@ -1,6 +1,7 @@
-// Dev-only check of the field sports' readers and standings (src/lib/sports/: FieldSport, Golf; docs/PLAN-start-a-game-gpt.md
-// track L, L5 part 3) against the REAL ESPN, on as many finished events as asked: check-sport-reduce.js's sibling for a field.
-// For each event, ESPN's answers (golf: its board and its leaderboard, asked together) and:
+// Dev-only check of the field sports' readers and standings (src/lib/sports/: FieldSport, Golf, Racing;
+// docs/PLAN-start-a-game-gpt.md track L, L5 part 3) against the REAL ESPN, on as many finished events as asked:
+// check-sport-reduce.js's sibling for a field. For each golf event, ESPN's answers (its board and its leaderboard, asked
+// together) and:
 //  - each competitor's plays (golf's holes, or rounds where the tour's board has none), added up, against ESPN's own numbers:
 //    strokes and score to par, round by round and in all; the front and back nines (ESPN's outScore, inScore); the kinds of
 //    holes where ESPN's board counts them (birdies, bogeys, double bogeys, eagles, pars); a withdrawal, a disqualification, a
@@ -8,22 +9,39 @@
 //  - the standings from the plays alone (no final's correction) against ESPN's final places (the place, tied or not, and who's
 //    cut, withdrew or was disqualified), and after each round against ESPN's place after it (`currentPosition`);
 //  - the timeline (the plays and the final's correction) against every number ESPN gives, earnings and season points too.
+// For each race weekend (racing/f1, racing/nascar-premier, racing/nascar-secondary, racing/nascar-truck, racing/irl), its board
+// and its scored sessions' core answers (racing.ts: every session but practice, whose place the board has; each driver's
+// statistics a call, F1's status a call), and:
+//  - each driver's plays, added up, against ESPN's own numbers, session by session and in all (the place, the grid as ESPN's
+//    `pole` statistic, laps, laps led, pit stops, the fastest lap, F1's statuses, bonus and penalty points) and the event's
+//    championship points (F1's race number is the weekend's: the plays have the sprint's and the race's apart);
+//  - the standings from the plays alone against ESPN's order (the disqualified and whoever didn't qualify out);
+//  - ESPN's own, listed apart (they don't fail an event): its wins, top 5 and top 10 against the standings' (all 0 in some
+//    races), and NASCAR's and IndyCar's laps led against the race's laps;
+//  - F1's points from 2025 (no fastest-lap point): the race's less the sprint's against its table by place, the sprint's
+//    against the sprint's table (failing an event: the split would be wrong);
+//  - with --standings (a whole season: --season, no --max or --events), each driver's championship points over the season's
+//    events, less their penalty points, against ESPN's season standings (`site.web.api.espn.com/apis/v2/sports/racing/<series>/standings?season=`; F1's
+//    event by event too; NASCAR's are reset for its playoffs, so its totals are only told).
 // Real calls, no app server, no database, nothing written but its cache.
 //
 //   node scripts/dev-test/check-field-reduce.js --league=golf/pga [--season=2026] [--max=60] [--verbose]
 //   node scripts/dev-test/check-field-reduce.js --league=golf/pga --events=401811941,401850917
 //   (golf/lpga, golf/eur, golf/liv, golf/champions-tour, golf/ntw ...) [--cache=<dir>]
+//   node scripts/dev-test/check-field-reduce.js --league=racing/f1 --season=2025 [--standings] [--verbose]
 //
 // Without --events, the tour's finished events of the season (its board's calendar: one uncached call), at most --max; an event
 // called off (STATUS_CANCELED) or played as match play (the Presidents Cup) is listed apart. --cache keeps each finished answer as
 // a file (default: rfl-espn-cache in the OS temp folder, shared with check-sport-reduce.js and record-espn.js), so running it again
-// asks ESPN nothing. Prints each event OK or its differences (the reader's notes under --verbose), then a total; exits 1 on any
-// difference.
+// asks ESPN nothing (racing's: racing-<series>-board-<event>.json and racing-<series>-core-<event>-<session>.json, the session's
+// competitors with each one's statistics and status in place of ESPN's links). Prints each event OK or its differences (the
+// reader's notes under --verbose), then a total; exits 1 on any difference.
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } });
-const { sportOf, FieldSport, boardCounts, fieldEventOf } = jiti("../../src/lib/sports/index.ts");
+const { sportOf, FieldSport, boardCounts, fieldEventOf, coreStats } = jiti("../../src/lib/sports/index.ts");
+const { cachedRaceCore } = require("./espn-race-core");
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, "").split("=")).map(([k, ...v]) => [k, v.length ? v.join("=") : true]));
 const league = args.league || "golf/pga";
@@ -50,12 +68,31 @@ async function get(url, file, done) {
 /** An event over for good: final, or called off (it won't change either way). */
 const over = (e) => e?.status?.type?.state === "post";
 
-/** ESPN's answers for an event: golf's board and leaderboard (the cache's names: golf-<tour>-board-<id>, -leaderboard-<id>). */
+/** What racing's core calls cost (espn-race-core.js counts them). */
+const wire = { calls: 0, bytes: 0, raw: 0 };
+/** ESPN's answer, or null for one it refuses. */
+async function ask(url) {
+  wire.calls++;
+  const res = await fetch(url, { headers: { "User-Agent": "GameYourShow/1.0" } });
+  return res.ok ? res.json() : null;
+}
+
+/** ESPN's answers for an event: golf's board and leaderboard (the cache's names: golf-<tour>-board-<id>, -leaderboard-<id>);
+ *  racing's board and each scored session's core (racing-<series>-board-<id>, -core-<id>-<session>). */
 async function answer(id) {
   if (slug === "golf") {
     const board = await get(`${SITE}/${league}/scoreboard/${id}`, `golf-${tour}-board-${id}.json`, over);
     const leaderboard = await get(`${SITE}/golf/leaderboard?event=${id}`, `golf-${tour}-leaderboard-${id}.json`, (j) => over(fieldEventOf({ leaderboard: j }, "leaderboard")));
     return { board, leaderboard };
+  }
+  if (slug === "racing") {
+    const board = await get(`${SITE}/${league}/scoreboard/${id}`, `racing-${tour}-board-${id}.json`, over);
+    const core = {};
+    for (const c of board.competitions ?? []) {
+      if (/^FP/.test(c.type?.abbreviation ?? "") || !(c.competitors ?? []).length) continue;
+      core[String(c.id)] = await cachedRaceCore(cacheDir, { series: tour, event: id, session: String(c.id), done: c.status?.type?.state === "post", wire });
+    }
+    return { board, core };
   }
   throw new Error(`no answers for ${slug} yet`);
 }
@@ -74,7 +111,107 @@ async function events() {
 
 const fmt = (s) => (s.place == null ? `${s.status}` : `${s.tied ? "T" : ""}${s.place}`);
 
+/** F1's points tables from 2025 (no fastest-lap point): the race's 1st to 10th, the sprint's 1st to 8th. */
+const F1_RACE = [25, 18, 15, 12, 10, 8, 6, 4, 2, 1];
+const F1_SPRINT = [8, 7, 6, 5, 4, 3, 2, 1];
+
+/** A race weekend's differences (racing.ts): see the header. */
+function racingDifferences(ans) {
+  const box = sport.readBox(ans);
+  const ev = sport.fieldEvent(ans);
+  const notes = [];
+  const plays = sport.readPlays(ans, notes);
+  const out = [];
+  const apart = [];
+  const numbers = { all: 0, same: 0, apart: 0 };
+  const same = (ok, msg, why) => {
+    numbers.all++;
+    if (ok) numbers.same++;
+    else if (why) (numbers.apart++, apart.push(`${why}: ${msg}`));
+    else out.push(msg);
+  };
+  if (!box) return { out: ["no board"], apart, notes, plays, numbers };
+  const state = sport.reduce(plays, null, ev);
+  for (const [id, p] of Object.entries(box.people)) {
+    const have = state.lines[id] ?? {};
+    for (const [k, v] of Object.entries(p.stats)) if (!sport.placeKeys.includes(k)) same(Math.abs((have[k] ?? 0) - v) < 1e-9, `${p.name} ${k}: ESPN ${v}, plays ${have[k] ?? 0}`);
+    for (const [r, s] of Object.entries(p.parts)) for (const [k, v] of Object.entries(s)) same((state.parts[id]?.[r]?.[k] ?? 0) === v, `${p.name} session ${r} ${k}: ESPN ${v}, plays ${state.parts[id]?.[r]?.[k] ?? 0}`);
+    // ESPN's wins, top 5 and 10 (0 for everyone in some races) against the standings'.
+    for (const k of ["W", "TOP5", "TOP10"]) same((have[k] ?? 0) === (p.stats[k] ?? 0), `${p.name} ${k}: ESPN ${p.stats[k] ?? 0}, the standings ${have[k] ?? 0}`, "ESPN's wins, top 5 and 10 not the order's");
+  }
+  for (const id of Object.keys(state.lines)) if (!box.people[id]) out.push(`the plays credit ${id}, who isn't on ESPN's board`);
+  const mine = new Map(state.standings.map((s) => [s.id, s]));
+  for (const s of box.standings) {
+    const m = mine.get(s.id);
+    same(m && m.place === s.place && m.tied === s.tied && m.status === s.status, `${box.people[s.id].name}: ESPN ${fmt(s)}, plays ${m ? fmt(m) : "none"}`);
+  }
+  if (state.standings.length !== box.standings.length) out.push(`the standings list ${state.standings.length}, ESPN's ${box.standings.length}`);
+  const board = fieldEventOf(ans, "board");
+  const year = Number(String(board?.date ?? "").slice(0, 4));
+  for (const c of board?.competitions ?? []) {
+    const abbr = c.type?.abbreviation ?? "Race";
+    const core = ans.core?.[String(c.id)]?.competitors ?? [];
+    if (!core.length || !["Race", "SR"].includes(abbr)) continue;
+    // NASCAR's and IndyCar's laps led add up to the race's laps (F1's lapsLead isn't laps).
+    if (tour !== "f1") {
+      const led = core.reduce((a, x) => a + (coreStats(x).lapsLead ?? 0), 0);
+      same(led === c.status?.period, `${abbr}: laps led add up to ${led}, the race ran ${c.status?.period}`, "ESPN's laps led not the race's laps");
+      // Whoever ESPN lists without a place didn't qualify (the reader reads nothing else of theirs), but some have laps.
+      for (const x of core) if (x.order == null && (coreStats(x).lapsCompleted ?? 0) > 0) same(false, `${box.people[String(x.id)]?.name}: ${coreStats(x).lapsCompleted} laps, no place`, "ESPN's laps for one it gives no place");
+    }
+    // F1's points by its tables, the race's own (the weekend's less the sprint's) from the plays.
+    if (tour === "f1" && year >= 2025) {
+      const period = plays.find((p) => p.session === abbr)?.period;
+      for (const x of core) {
+        const id = String(x.id);
+        const dq = x.status?.type?.name === "STATUS_DISQUALIFIED";
+        const want = dq ? 0 : (abbr === "SR" ? F1_SPRINT : F1_RACE)[(x.order ?? 99) - 1] ?? 0;
+        const got = state.parts[id]?.[period]?.CHPTS ?? 0;
+        same(got === want, `${box.people[id]?.name} ${abbr === "SR" ? "sprint" : "race"} ${x.order}${dq ? " (disqualified)" : ""}: points ${got}, F1's table ${want}`);
+      }
+    }
+  }
+  const end = sport.reduce(sport.timeline(ans), null, ev);
+  for (const [id, p] of Object.entries(box.people)) {
+    for (const [k, v] of Object.entries(p.stats)) if (!sport.placeKeys.includes(k) && Math.abs((end.lines[id]?.[k] ?? 0) - v) > 1e-9) out.push(`timeline: ${p.name} ${k}: ESPN ${v}, ${end.lines[id]?.[k] ?? 0}`);
+  }
+  if (box.final && JSON.stringify(end.standings) !== JSON.stringify(box.standings)) out.push("timeline: the standings aren't ESPN's");
+  return { out, apart, notes, plays, numbers, points: Object.fromEntries(Object.entries(end.lines).map(([id, l]) => [id, (l.CHPTS ?? 0) - (l.PEN ?? 0)])) };
+}
+
+/** Each driver's championship points over the season's events, less their penalty points (ESPN's are before them: IndyCar's
+ *  season is their sum less its penalties), against ESPN's season standings (F1's event by event too). */
+async function seasonStandings(byEvent) {
+  const st = await ask(`https://site.web.api.espn.com/apis/v2/sports/racing/${tour}/standings?season=${args.season}`);
+  const drivers = (st?.children ?? []).find((c) => /driver/i.test(c.name ?? "")) ?? st?.children?.[0];
+  const rows = drivers?.standings?.entries ?? [];
+  let total = 0;
+  let totalSame = 0;
+  let cells = 0;
+  let cellsSame = 0;
+  const off = [];
+  for (const e of rows) {
+    const id = String(e.athlete?.id);
+    const espn = e.stats?.find((s) => s.name === "championshipPts")?.value ?? null;
+    const mine = Object.values(byEvent).reduce((a, pts) => a + (pts[id] ?? 0), 0);
+    total++;
+    if (mine === espn) totalSame++;
+    else off.push(`${e.athlete?.displayName}: ESPN ${espn}, the plays ${mine}`);
+    for (const s of e.stats ?? []) {
+      if (!s.id || !byEvent[s.id] || !s.played || typeof s.value !== "number") continue;
+      cells++;
+      if ((byEvent[s.id][id] ?? 0) === s.value) cellsSame++;
+      else off.push(`${e.athlete?.displayName} at ${s.abbreviation ?? s.id}: ESPN ${s.value}, the plays ${byEvent[s.id][id] ?? 0}`);
+    }
+  }
+  console.log(`\nThe season's standings (ESPN's ${args.season}): ${totalSame} of ${total} drivers' points the plays' over its ${Object.keys(byEvent).length} events${cells ? `; event by event ${cellsSame} of ${cells}` : ""}${tour.startsWith("nascar") ? " (NASCAR's are reset for its playoffs: told, not checked)" : ""}`);
+  for (const o of off.slice(0, 12)) console.log(`        ${o}`);
+  if (off.length > 12) console.log(`        ... and ${off.length - 12} more`);
+  return tour.startsWith("nascar") || !off.length;
+}
+
 function differences(ans) {
+  if (slug === "racing") return racingDifferences(ans);
   const box = sport.readBox(ans);
   const ev = sport.fieldEvent(ans);
   const notes = [];
@@ -207,6 +344,7 @@ function differences(ans) {
   const numbers = { all: 0, same: 0, apart: 0 };
   const after = { all: 0, same: 0, rounds: 0, inOrder: 0 };
   const current = { all: 0, same: 0 };
+  const byEvent = {};
   for (const id of ids) {
     let ans;
     try {
@@ -220,12 +358,14 @@ function differences(ans) {
     const name = lb?.name ?? fieldEventOf(ans, "board")?.name ?? id;
     const st = lb?.status?.type ?? fieldEventOf(ans, "board")?.status?.type ?? {};
     const scoring = lb?.tournament?.scoringSystem?.name;
-    if (!st.completed || !sport.fieldEvent(ans) || !(lb?.competitions?.[0]?.competitors ?? []).length) {
+    const field = slug === "racing" ? (fieldEventOf(ans, "board")?.competitions ?? []).some((c) => (c.competitors ?? []).length) : (lb?.competitions?.[0]?.competitors ?? []).length;
+    if (!st.completed || !sport.fieldEvent(ans) || !field) {
       none++;
-      console.log(`NONE  ${id}  ${name}  (${st.name}${scoring ? `, ${scoring}` : ""}: not a finished stroke-play field)`);
+      console.log(`NONE  ${id}  ${name}  (${st.name}${scoring ? `, ${scoring}` : ""}: not a finished ${slug === "racing" ? "race weekend" : "stroke-play field"})`);
       continue;
     }
     const r = differences(ans);
+    if (r.points) byEvent[id] = r.points;
     plays += r.plays.length;
     for (const k of Object.keys(numbers)) numbers[k] += r.numbers[k] ?? 0;
     for (const k of Object.keys(after)) after[k] += r.after?.[k] ?? 0;
@@ -234,13 +374,20 @@ function differences(ans) {
     const holes = r.plays.filter((p) => p.hole != null).length;
     if (r.out.length) bad++;
     else if (r.apart.length) butApart++;
-    console.log(`${r.out.length ? "FAIL" : r.apart.length ? "OK* " : "OK  "}  ${id}  ${name}  (${r.plays.length} plays, ${holes ? `${holes} holes` : "rounds only"}${scoring && scoring !== "Medal" ? `, ${scoring}` : ""}; the places after each round in ESPN's order ${r.after.inOrder}/${r.after.rounds}, its own ${r.after.same}/${r.after.all}${r.apart.length ? `; ${r.apart.length} of ESPN's own apart` : ""})`);
+    const what =
+      slug === "racing"
+        ? `${r.plays.length} plays, ${[...new Set(r.plays.map((p) => p.session))].join(" ")}${r.apart.length ? `; ${r.apart.length} of ESPN's own apart` : ""}`
+        : `${r.plays.length} plays, ${holes ? `${holes} holes` : "rounds only"}${scoring && scoring !== "Medal" ? `, ${scoring}` : ""}; the places after each round in ESPN's order ${r.after.inOrder}/${r.after.rounds}, its own ${r.after.same}/${r.after.all}${r.apart.length ? `; ${r.apart.length} of ESPN's own apart` : ""}`;
+    console.log(`${r.out.length ? "FAIL" : r.apart.length ? "OK* " : "OK  "}  ${id}  ${name}  (${what})`);
     for (const d of r.out.slice(0, 20)) console.log(`        ${d}`);
     for (const d of r.apart.slice(0, 6)) console.log(`        apart: ${d}`);
     if (r.out.length > 20) console.log(`        ... and ${r.out.length - 20} more`);
     if (args.verbose || r.out.length) for (const n of r.notes) console.log(`        note: ${n}`);
   }
   const read = ids.length - none;
-  console.log(`\n${read - bad - butApart} of ${read} events add up to ESPN's own numbers and places, ${read - bad} but for ESPN's own differences apart (${plays} plays read; ${numbers.same} of ${numbers.all} numbers, ${((100 * numbers.same) / Math.max(1, numbers.all)).toFixed(1)}%, ${numbers.apart} apart; the places after a round in ESPN's order in ${after.inOrder} of ${after.rounds} rounds, ESPN's own start place ${after.same} of ${after.all}; ESPN's currentPosition, the place when each finished a round, the same as after it ${current.same} of ${current.all}).${none ? ` ${none} more weren't a finished stroke-play field.` : ""}`);
-  process.exit(bad ? 1 : 0);
+  const golfOnly = slug === "golf" ? `; the places after a round in ESPN's order in ${after.inOrder} of ${after.rounds} rounds, ESPN's own start place ${after.same} of ${after.all}; ESPN's currentPosition, the place when each finished a round, the same as after it ${current.same} of ${current.all}` : "";
+  console.log(`\n${read - bad - butApart} of ${read} events add up to ESPN's own numbers and places, ${read - bad} but for ESPN's own differences apart (${plays} plays read; ${numbers.same} of ${numbers.all} numbers, ${((100 * numbers.same) / Math.max(1, numbers.all)).toFixed(1)}%, ${numbers.apart} apart${golfOnly}).${none ? ` ${none} more weren't a finished ${slug === "racing" ? "race weekend" : "stroke-play field"}.` : ""}${wire.calls ? ` ${wire.calls} uncached calls.` : ""}`);
+  let standingsOk = true;
+  if (args.standings && slug === "racing" && args.season && !args.max && !args.events) standingsOk = await seasonStandings(byEvent);
+  process.exit(bad || !standingsOk ? 1 : 0);
 })();

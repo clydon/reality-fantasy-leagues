@@ -330,7 +330,7 @@ export const msOf = (t: string | number | Date | null | undefined): number | nul
 /**
  * A sport: its vocabulary (groups, positions, stats, periods, locks) and its readers. One subclass per sport (Baseball,
  * Basketball, Football, Hockey), grouped by shape: TeamSport for a box score and timestamped plays; FieldSport for a field of
- * competitors and its standings (golf; racing next); BoutSport (MMA, tennis) when L5 brings it.
+ * competitors and its standings (golf, racing); BoutSport (MMA, tennis) when L5 brings it.
  */
 export abstract class Sport {
   /** ESPN's sport slug, the first half of its league paths ("baseball" of "baseball/mlb"): its defaults' key. A slug's sports
@@ -526,14 +526,36 @@ export function isFinal(summary: EspnSummary): boolean {
 
 /* ---- A field: golf's tournament, racing's race weekend (L5 part 3). ---- */
 
-/** ESPN's answers for a field's event, asked together: a field has no summary (golf's `summary?event=` is a 404). Golf's are its
- *  event board (`golf/<tour>/scoreboard/<event>`: every hole, in the order played, where the tour's feed has them) and its
- *  leaderboard (`golf/leaderboard?event=`: places, tee times, who's cut or withdrew, the cut, a playoff). `_asked`: when they
- *  were had (a live answer's poll, a recording's), which is when anything ESPN gives no time for became known. */
+/** ESPN's answers for a field's event, asked together: a field has no summary (golf's `summary?event=` is a 404, racing's a 404
+ *  or 502). Golf's are its event board (`golf/<tour>/scoreboard/<event>`: every hole, in the order played, where the tour's feed
+ *  has them) and its leaderboard (`golf/leaderboard?event=`: places, tee times, who's cut or withdrew, the cut, a playoff).
+ *  Racing's are its event board (`racing/<series>/scoreboard/<event>`: each session in finishing order) and, from ESPN's core
+ *  API, each session's competitors with their statistics and status (`core`, by the session's id: racing.ts says what's in
+ *  them). `_asked`: when they were had (a live answer's poll, a recording's), which is when anything ESPN gives no time for
+ *  became known. */
 export interface FieldAnswer {
   _asked?: string;
   board?: EspnFieldEvent | { events?: EspnFieldEvent[] };
   leaderboard?: { events?: EspnFieldEvent[] };
+  core?: Record<string, EspnCoreSession>;
+}
+
+/** One session of a race weekend from ESPN's core API (`sports.core.api.espn.com/v2/sports/racing/leagues/<series>/events/<id>/
+ *  competitions/<id>`): its competitors (`/competitors?limit=200`, one call) with each one's statistics (`/competitors/<id>/
+ *  statistics`) and, for F1, status (`/competitors/<id>/status`) put in place of ESPN's links (a call each). */
+export interface EspnCoreSession {
+  competitors?: EspnCoreCompetitor[];
+}
+
+export interface EspnCoreCompetitor {
+  id?: string | number;
+  order?: number;
+  /** The grid: where they started the session (a race's or a sprint's). */
+  startOrder?: number;
+  winner?: boolean;
+  vehicle?: { number?: string; manufacturer?: string; team?: string; sponsor?: string };
+  statistics?: { splits?: { categories?: { stats?: { name?: string; value?: number }[] }[] } };
+  status?: { period?: number; type?: { name?: string; state?: string } };
 }
 
 /** ESPN's event on a field's board or leaderboard, only the parts the readers read. */
@@ -608,6 +630,8 @@ export interface FieldEntry {
   members: string[];
   /** As ESPN's flag says ("Australia"), or null. */
   country: string | null;
+  /** A driver's car: its number and its team as ESPN names it (F1's constructor, NASCAR's team or else its maker). */
+  car?: { number: string | null; team: string | null };
 }
 
 /** Still in it, or out of it: golf's cut, a withdrawal, a disqualification. */
@@ -642,11 +666,13 @@ export interface FieldBox extends FieldEvent {
   standings: Standing[];
 }
 
-/** A field's play: one competitor's (golf's hole), in its part (`period`: the round), and golf's hole. The final's correction
- *  carries ESPN's final standings (`places`), which then stand. */
+/** A field's play: one competitor's (golf's hole), in its part (`period`: golf's round, racing's session), and golf's hole or
+ *  racing's session (ESPN's abbreviation: "FP1", "Qual", "SS", "SR", "Race"). The final's correction carries ESPN's final
+ *  standings (`places`), which then stand. */
 export interface FieldPlay extends Play {
   who: string;
   hole?: number;
+  session?: string;
   places?: Standing[];
 }
 
@@ -662,9 +688,10 @@ export interface FieldState {
 }
 
 /**
- * A field sport: competitors in a field and their standings (golf; racing next). ESPN times nothing in a field, so a play's `at`
- * is when it was known by at the latest (golf: a round's holes by the next round's first tee time; the last round's at the
- * final, or at a live answer's `_asked`), and a later watch moves part by part. A subclass reads ESPN's answers into a FieldBox
+ * A field sport: competitors in a field and their standings (golf, racing). ESPN times nothing in a field, so a play's `at` is
+ * when it was known by at the latest (golf: a round's holes by the next round's first tee time; racing: a session's results by
+ * the next session's start; the last part's at the final, or at a live answer's `_asked`), and a later watch moves part by
+ * part. A subclass reads ESPN's answers into a FieldBox
  * and plays and says how its standings rank; reducing, the final's correction and the timeline are the same for all of them.
  */
 export abstract class FieldSport extends Sport {
@@ -677,7 +704,7 @@ export abstract class FieldSport extends Sport {
   abstract fieldEvent(answer: FieldAnswer): FieldEvent | null;
   /** The standings from everyone's lines and parts, as the sport ranks them. */
   abstract rank(state: Omit<FieldState, "standings">, event: FieldEvent): Standing[];
-  /** What a place puts in someone's line (golf's POS, W, TOP10, CUT). */
+  /** What a place puts in someone's line (golf's POS, W, TOP10, CUT; racing's POS, W, PODIUM). */
   abstract placeStats(standing: Standing, event: FieldEvent): Stats;
   /** The stats placeStats puts in a line: the final's correction leaves them to the standings (`places`). */
   abstract readonly placeKeys: string[];

@@ -446,7 +446,7 @@ test("Golf's defaults are data the spec reads: Yahoo's points per hole and round
   assert.match(d.scoring.source, /Yahoo/);
   assert.deepEqual(d.scoring.points, { HIO: 5, ALB: 15, EAG: 9, BIR: 3.5, PAR: 0.5, BOG: -1.3, DBL: -5, WORSE: -5, BFR: 5, BS3: 3, BS4: 5, BS5: 10, BS6: 18 });
   for (const k of Object.keys(d.scoring.points)) assert.ok(golf.stat(k), k);
-  assert.deepEqual(d.scoring.byPlace, { 1: 25, 2: 12, 3: 10, "4-10": 8, "11-20": 3 });
+  assert.deepEqual(d.scoring.byPlace, { POS: { 1: 25, 2: 12, 3: 10, "4-10": 8, "11-20": 3 } });
   assert.deepEqual(d.categories.stats, []);
   assert.deepEqual(d.slots.lineup, [{ slot: "G", n: 6, takes: ["golfers"] }]);
   assert.equal(d.specs.season.spec.get.each, sum(d.slots.lineup.map((s) => s.n)) + d.slots.bench, "a season's draft fills its slots and bench");

@@ -430,7 +430,7 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   session: part 1, soccer (built 2026-10-28: As built below); part 2, college (basketball, football, baseball, hockey) and the
   WNBA; then golf and racing (FieldSport); then MMA and tennis (BoutSport).
   - **Part 3 split in two (2026-10-30):** 3a, golf (FieldSport and Golf: built 2026-10-30, As built below); 3b, racing (F1,
-    NASCAR, IndyCar on FieldSport: what ESPN gives is in 3a's As built).
+    NASCAR's three series, IndyCar on FieldSport: built 2026-10-30, As built below).
   - **Part 2 split in three (2026-10-28):** 2a, college basketball and the WNBA (built: As built below); 2b, college football
     (its own grammar of plays, on Football's vocabulary and box reader: built 2026-10-30, As built below); 2c, college baseball
     (its own box and two feeds: built 2026-10-30, As built below). **College hockey isn't readable from ESPN** (looked at in
@@ -1011,6 +1011,11 @@ UI.
   weekend (`racing/f1` 600057447, FP1 10-30 to the race 11-01, `--until=final`) and NASCAR's Cup race at Martinsville
   (`racing/nascar-premier` 202611010020, 11-01 19:00 UTC): a field's `--compare` is still to write (L5 part 3a's Noticed), so
   their answers wait for it (golf's and F1's final answers: the event's final, Sunday).
+  **L5 part 3b (2026-10-30, from 05:30 ET):** still none final (the college games that evening, the WNBA's Game 7 on 10-31, golf's
+  round 2 from 13:05 UTC, F1's FP1 from 18:30 UTC): handed on. F1's and NASCAR's recorders were restarted at 09:56 UTC, to the same
+  ends, to record the core API's session on too (`record-espn-live.js`: L5 part 3b's As built); a field's `--compare` is written,
+  so golf's, F1's and NASCAR's compare once final (golf's against the event's final, Sunday; before it, against the round's last
+  answer, which the compare says).
 - **A phone's data**: an estimated 15-30 MB a game at 15 s, since every answer is the whole summary (no ETag, so no 304s).
   ESPN's core API pages a game's plays (`sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}/events/{id}/competitions/
   {id}/plays?limit=&page=`, CORS `*`, cached 15 minutes once final), so a poll could fetch only the newest page and a small
@@ -1676,7 +1681,8 @@ for it is below, looked at in this session).
   13:05 UTC, the LPGA's Maybank round 3 from 23:15). The PGA's round 2 is being recorded (below): whether the board lists each
   hole as it's played, how `thru` and `hole` move, whether `currentPosition` is filled as each player finishes, and how far
   behind the course ESPN runs (no hole time to measure it by: the order holes appear in). `record-espn-live.js --compare` for a
-  field is to write: the holes each answer showed against the final's (a hole rescored), places as they went.
+  field is to write: the holes each answer showed against the final's (a hole rescored), places as they went. **3b:** written
+  (L5 part 3b's As built); the round's recording compares once it's over.
 - **Hole times can't come from ESPN**, so a later watch of a golf broadcast moves round by round, and a game's "live" moment for a
   hole is when a phone first saw it (live calls on golf: A15's window per round, or per hole by first sight).
 - **A round's known-by is the next round's first tee time**: right in every event looked at, but a round finished early the next
@@ -1694,6 +1700,132 @@ for it is below, looked at in this session).
   read then; whether they're filled later is unchecked.
 - **Match play (the Presidents Cup, Solheim Cup, TGL) and Stableford** aren't read: match play with the bouts (BoutSport, MMA and
   tennis's part), Stableford if ever asked for (its points are its own table).
+
+**L5 part 3b as built: racing (2026-10-30, `sports`, not merged; no migration, no ESPN calls from the app, nothing stored).**
+Master still hadn't A1-A4 (the main session's order).
+- **What ESPN gives for racing** (checked 2026-10-30 on every finished event of the 2025 and 2026 seasons of its five series: F1's
+  42 weekends, NASCAR's 79 Cup, 64 O'Reilly and 48 Truck races, IndyCar's 35; ~13,000 calls, ~51 MB, cached):
+  - **No summary** (F1's a 404, the others' a 502). An event is its **board** (`racing/<series>/scoreboard/<event>`, one call,
+    `max-age` 1-10 s, 1-11 KB unpacked): its sessions with their start, status (`period`: laps) and competitors in finishing order
+    (`order`, `winner`, the driver's name and flag). F1's: FP1, FP2, FP3, Qual, Race, or on its six sprint weekends a season FP1,
+    SS (sprint qualifying), SR (the sprint), Qual, Race; NASCAR's and IndyCar's: the race alone, untyped, whoever didn't qualify
+    listed without an `order` (a doubleheader, or a Duel, is an event of its own). And the **core API**: each session's
+    competitors (`sports.core.api.espn.com/v2/sports/racing/leagues/<series>/events/<id>/competitions/<id>/competitors?limit=200`,
+    one call: `order`, `startOrder` the grid, `winner`, the car's number, maker or team, NASCAR's sponsor), each driver's
+    statistics (`.../competitors/<id>/statistics`, a call each: laps completed and led, championship, bonus and penalty points,
+    pits taken, place, wins, `pole` (the place started, not a pole), top 5 and 10, total time, behind, the qualifying runs'
+    times, the fastest lap's number) and F1's status (`.../status`, a call each: classified, retired, disqualified; NASCAR's and
+    IndyCar's a 400, "not supported"), `max-age` 600-900 s once final. Practice's core adds nothing a game reads.
+  - **An event's answer** is the board and each scored session's core: an F1 weekend ~211 calls and ~410 KB unpacked (a sprint
+    weekend's four sessions, two calls a driver), a NASCAR or IndyCar race ~40 calls and ~200 KB. **A phone could poll the board**
+    (one call: the running order, if ESPN fills it in live, which the recordings will say) **and the core's list** (one call,
+    16-27 KB unpacked: the grid), **not the statistics** (20-44 calls an ask): they're the final's, saved once by the server (L3).
+  - **Where ESPN's numbers aren't what they say** (each read in its data): **F1's `lapsLead` isn't laps** (1 to 4 for each who led,
+    a race's adding up to 1 to 5), so F1 reads only who led; **F1's race `championshipPts` are the weekend's** (the sprint's taken
+    off, F1's table by place in 875 of 875 finishes; the sprint's its table in 252 of 252), a practice's, qualifying's or sprint
+    qualifying's a copy of the sprint's or 0; **the grid is `startOrder`** (the `pole` statistic), not the qualifying place in
+    163 of 875 F1 starts; **ESPN's `winner`, wins, top 5 and 10 are 0 for everyone in 25 of 226 NASCAR and IndyCar races** (12
+    Cup: the Clash, the Duels, the All-Star races, Martinsville 2025, Pocono and Atlanta 2026; 6 O'Reilly; 5 Truck; IndyCar's
+    Detroit 2025 and Mid-Ohio 2026; some of them at Road America 2026); NASCAR's and IndyCar's laps led add up to the race's laps
+    but in 10 of 226 (the 2025 Daytona 500's 202 of 201, Indianapolis 2025's 161 of 168, Thermal 2025's none); NASCAR's stage
+    points are one `bonus`, never stage by stage; IndyCar's `bonus` is its qualifying points and lap-led bonuses; **the
+    championship points are before a penalty's** (`penaltyPts`: IndyCar's season standings are their sum less them); NASCAR and
+    IndyCar have no pit stops, fastest lap or status, so a car out of the race isn't told from one running laps down; whoever
+    didn't qualify has no order and mostly no statistics (4 with laps: ESPN's own); F1's 2026 sprint qualifying statuses are
+    missing at the Dutch and Singapore Grands Prix.
+- **`Racing`** (`src/lib/sports/racing.ts`, a FieldSport): an instance a series (`RACING_SERIES`: NASCAR's Cup, O'Reilly and Truck
+  series, F1, IndyCar; Cup first, so `sportById("racing")` is the series whose defaults are the sport's), each reading what its
+  feed has (`feed`: F1's, or NASCAR's and IndyCar's "counted"); sessions as its parts (a play's `period`; `FieldPlay.session`,
+  ESPN's abbreviation); one group of drivers; locks per event. **Its vocabulary** (keys unique in the sport, a series offering
+  what its feed has): the race (FIN, GRID, PG places gained, POLE, LAPS, LEADLAP, LEDANY led at all; NASCAR's and IndyCar's LED
+  laps led and MOSTLED; F1's FL fastest lap, PITS, DNF, DQ; NASCAR's and IndyCar's DNQ), F1's sprint (SPR, SGRID, SPG, SLAPS,
+  SFL, SDNF, SDQ), qualifying (QUAL, Q2 and Q3 reached: a time set in them, QDQ, SQ sprint qualifying), practice (FP1-FP3 places),
+  the standings (POS, W, PODIUM, TOP5, TOP10) and points (CHPTS the series' own for the event, BONUS, PEN). Places are counts,
+  lower better: added over events, their average is the series' average finish. **Its plays**: each session's result for each
+  driver in the session's own keys (its place the board's order, else the core's), known when the next session starts (or the
+  answers' `_asked`, if earlier); the last session's at `_asked`, or for a finished event read with none 12 hours after its
+  start; a race's or a sprint's grid, and NASCAR's and IndyCar's non-qualifiers once the race's order is out, at its start; the
+  race's points less the sprint's. **Its standings**: the race's order (live, the running order); the disqualified out (their
+  FIN kept), whoever didn't qualify out after them (golf's "cut"); nobody placed before the race has an order. Its `score`: the
+  series' points so far less penalties. `coreStats` reads a competitor's statistics by name. In `sport.ts`: `FieldAnswer.core`
+  (`EspnCoreSession`, `EspnCoreCompetitor`), `FieldEntry.car` (number, team), `FieldPlay.session`.
+- **Defaults** (`src/lib/sports/defaults/racing.json`): the sport's own, **DraftKings' NASCAR** (45, 42, 41 for the first three,
+  then a point less a place and two less after the 10th, 20th and 30th, as three guides give it; a place gained 1, a place lost
+  -1; a lap led 0.25; its fastest laps left out, not in ESPN's NASCAR feed; six drivers); `leagues` for F1, **the official F1
+  Fantasy, 2026** (qualifying 10 down to 1, -5 disqualified; the sprint 8 down to 1, its fastest lap 5, a retirement -10; the race
+  25 down to 1, a place gained 1, its fastest lap 10, a retirement or disqualification -20; overtakes and driver of the day left
+  out, ESPN hasn't them; its constructors L4's; five drivers) and IndyCar, **its own championship points less penalties** (the
+  INDYCAR Fantasy Challenge publishes no values). `defaultsFor(sport, league)` gives a league's own parts. `SportDefaults.byPlace`
+  is now each place stat's table, keyed by the stat (golf's `{ POS: ... }`; racing's POS, SPR, QUAL).
+- **Fixtures** (`record-espn.js` records a race weekend: its board and each scored session's core, only the statistics the reader
+  reads): F1's 2025 Chinese Grand Prix (`f1-600052046.json`, 54 KB: a sprint weekend, three disqualified after the race), F1's
+  2026 Miami Grand Prix (`f1-600057432.json`, 59 KB: 22 cars, a sprint and a qualifying disqualification, retirements), NASCAR's
+  2025 Daytona 500 (`nascar-premier-202502160001.json`, 32 KB: four didn't qualify, penalties, 202 laps led of 201) and
+  IndyCar's 2025 Indianapolis 500 (`irl-202505250106.json`, 26 KB: one didn't qualify, three moved to the back after the race,
+  one out before the start).
+- **Checks.**
+  - `tests/sports-racing.test.js` (8): the vocabulary per series; **the proof** on all four (each driver's plays come to ESPN's
+    own numbers session by session, ESPN's `pole` statistic is the grid and its place the board's order, the standings ESPN's
+    order, the final's correction nothing); F1's weekend (each session's keys, the sprint's points and the race's apart, the
+    disqualified, the fastest laps, Q2 and Q3); NASCAR's and IndyCar's (laps led and the most, bonus, penalties and the score,
+    non-qualifiers); **the moments** (practice known at sprint qualifying's start, the sprint's grid at its start, its result
+    and points at qualifying's, the race 12 hours after its start read later or when asked, NASCAR's grid at the green flag);
+    live (the running order at `_asked`, a grid before the start, a penalised grid, no `_asked` only at the end); ESPN's own
+    (no wins flags, laps for a non-qualifier, one on the board only, nobody a non-qualifier before the order's out); the defaults
+    (scored by the tables on Byron's Daytona 500, Piastri's and Hamilton's Chinese Grand Prix).
+  - `check-field-reduce.js` reads racing (`--league=racing/<series> --season`; its cache `racing-<series>-board-<event>` and
+    `-core-<event>-<session>`; `--standings` checks the season's standings): **F1 42 of 42 weekends every number** (25,854) **and
+    its season standings event by event** (875 of 875; Bahrain and Saudi Arabia 2026 called off); NASCAR's Cup 62 of 79 races
+    exactly, 79 but for ESPN's own (its wins flags, laps led, laps for a non-qualifier), O'Reilly 54 of 64 (64), Truck 40 of 48
+    (48), **IndyCar 31 of 35 (35), and its season standings exactly** (67 of 67 drivers, their points less penalties); NASCAR's
+    are reset for its playoffs (told). 229 of 268 events exactly, all 268 but for ESPN's own; F1's points against its tables from
+    2025 (the sprint's and the race's split). The reader was written against both seasons: none was held out (golf's 2025 was).
+  - `espn-race-core.js` (new, reusable): a session's core answer for the three scripts, a few calls at a time, cached only
+    complete.
+  - `record-espn-live.js`: racing's recordings ask the core too (the session on's competitors every ask, their statistics every
+    5 minutes, a session's in full once it's over); F1's and NASCAR's recorders restarted on it (L2's Noticed). **Its `--compare`
+    for a field is written** (3a's Noticed): each answer recorded while play was on, read by Golf or Racing, against the event's
+    final (check-field-reduce.js's cache, asked once final; before then the recording's last answer, which it says): plays shown
+    otherwise and how long they took to settle, plays dropped; golf's holes per answer, how `thru` moved, whether
+    `currentPosition` is filled in as each one finishes, the places shown against the places after the round; racing's laps,
+    order and leader changes, the answers with the final order and from when, the core's order against the board's and its
+    statistics as they went; the bytes per answer and per hour. Exercised on recordings made up from cached finished events (a
+    one-off, not kept); the real ones aren't final yet.
+  - check-live-clock.js at 30x, 22 of 22 (a field's recordings aren't replayed); golf's 2026 PGA Tour 41 of 41 still; 985 unit
+    tests; `tsc` clean; eslint clean on `src/lib/sports`.
+  - `/code-review` on the diff (its fixes: a live race's first answers, before ESPN's order is out, read everyone as a
+    non-qualifier, now only once others are placed; one on the board but not in the core had no DNQ; failed or partial core
+    answers could be cached, now one shared fetch caching only complete ones; `sportById("racing")` was F1's while
+    `defaultsFor("racing")` is NASCAR's, now Cup comes first; the score less penalties; each session's statistics worked out
+    once; the core's calls batched; an unused names map. Checked and kept: two untyped competitions in one event aren't guessed
+    at, never seen, a doubleheader being two events).
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data (the dev checks asked ESPN ~13,000 times,
+    every finished answer cached).
+
+**L5 part 3b (racing) noticed, not fixed:**
+- **What a live racing answer has is still to see**: F1's Mexico City weekend (FP1 18:30 UTC 10-30 to the race 11-01 20:00 UTC)
+  and NASCAR's Martinsville Cup race (11-01 19:00 UTC) are being recorded with the core: whether the board's order is the
+  running order live, whether the core's list and statistics move during a session (laps, laps led), how soon a session's first
+  order shows (no lap has a time, so ESPN's lag can't be measured otherwise). `--compare` each once final.
+- **A field has no live poller yet** (3a's, still): racing's would ask the board every 15-60 s and maybe the core's list, the
+  statistics once at a session's end (or the server's, L3). With the recordings' numbers.
+- **NASCAR's and IndyCar's retirements aren't in ESPN's data** (no status): a car out isn't told from one laps down, so a game
+  scores laps completed or the lead lap instead; nor NASCAR's stage results (one `bonus`), DraftKings' fastest laps, or F1's laps
+  led (its `lapsLead` counts something else). The wizard should say what a series can't score. (G3, U0.)
+- **ESPN's wins, top-5 and top-10 flags are unreliable** (0 for everyone in 25 of 226 races): the reader takes them from the
+  order; anything else reading ESPN's flags (the server's stored finals, L1 part 3) should too.
+- **A session's results are known by the next one's start**: F1's sessions are 1.5 to 24 hours apart, so a later watch sees
+  practice's places up to a day late; a finished event read with no `_asked` puts the race 12 hours after its start (a later
+  watch synced to the race sees its result late, never early).
+- **Q2 and Q3 are a time set in them**: one through who set no time isn't told (2026 Miami's Q3 has nine times; one qualifier
+  was disqualified).
+- **NASCAR's playoff resets aren't modelled**: a season-long game adds the events' points (F1's add up to its standings event by
+  event, IndyCar's less penalties to its season's).
+- **Teams**: `FieldEntry.car.team` is read (F1's constructor, NASCAR's team) but nothing scores a team; F1 Fantasy's constructors
+  and DraftKings' constructor slot need team scoring (L4).
+- **DraftKings' NASCAR finish table is from guides** (its own rules page wasn't readable; three agree on 45, 42, 41 and the
+  steps); F1 Fantasy's from a page listing it (fantasy.formula1.com needs a browser).
+- **No racing season was held out**: the next races (Mexico City, Martinsville) are the first the reader wasn't written against.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;
