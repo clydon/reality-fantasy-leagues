@@ -2,7 +2,7 @@ import crypto from "crypto";
 import type { PoolClient } from "pg";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueDecisionSync, LeagueState } from "@/lib/game/types";
-import { applyDecision, orderPlacementsByEpisode, ownResults, removeOwn, undoDetail, unitsOf, type CastRef, type DecisionRow, type LedgerDetail, type OwnResult } from "@/lib/game/decision-apply";
+import { applyDecision, orderPlacementsByEpisode, ownResults, removeOwn, settledKinds, undoDetail, unitsOf, type CastRef, type DecisionRow, type LedgerDetail, type OwnResult } from "@/lib/game/decision-apply";
 import { resultsDiff } from "@/lib/game/results-changes";
 import { recordChange, type ChangeUndo } from "./change-log";
 import { pool, withLeagueLock } from "./db";
@@ -31,7 +31,8 @@ import { notifyBingoLines, notifyEpisodeResults, notifyFlagsSettled } from "./pu
 //
 // Making every game match (opts.match, the desk's episode page): a league's own results for an episode, ones no season
 // decision gave it or found there (a commissioner's, classic's per-game research), are taken out, so every game on the
-// season has the same results. Who went home is only taken out where the season has settled it for that episode.
+// season has the same results. Only kinds the season has settled for that episode come out (settledKinds): who went home
+// only where it says who did, a tribe swap only where it has the episode's moves.
 //
 // A house ruling (league_rulings) is the one exception: that league keeps a result the shared check corrected, applied
 // here in place of the shared one. A correction that reaches a league (something it had taken out, or changed) leaves a
@@ -285,9 +286,9 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
     const { rows: now } = await client.query<{ detail: LedgerDetail }>("SELECT detail FROM league_applied_decisions WHERE league_id=$1", [leagueId]);
     const details = now.map((r) => r.detail);
     for (const n of opts.match) {
-      // Who went home comes out only where the season says who did (an elimination or nobody): never on a guess.
-      const settled = decisions.some((d) => d.episode_number === n && (d.kind === "elimination" || d.kind === "noexit"));
-      const own = ownResults(state, details, n).filter((o) => settled || (o.kind !== "elimination" && o.kind !== "noexit"));
+      // Only kinds the season has settled for the episode: never who went home, or a tribe swap, on the season's silence.
+      const kinds = settledKinds(decisions, n);
+      const own = ownResults(state, details, n).filter((o) => kinds.has(o.kind));
       if (!own.length) continue;
       const name = (id: string) => state.castaways.find((c) => c.id === id)?.name ?? "";
       const list = corrected.get(n) ?? [];
@@ -349,8 +350,8 @@ export interface GameApart {
 
 /**
  * The games on a season whose results for episode `n` aren't the season's, for the desk's episode page: each one's own
- * results (ownResults) and how many of the season's it's missing. Games that match aren't listed. Who went home is listed
- * as its own only where the season has settled it, as making them match takes it out only then.
+ * results (ownResults) and how many of the season's it's missing. Games that match aren't listed. A result is listed as its
+ * own only in a kind the season has settled for the episode (settledKinds), as making them match takes out only those.
  */
 export async function gamesApart(seasonId: string, n: number): Promise<GameApart[]> {
   const { rows: leagues } = await pool.query(
@@ -382,7 +383,7 @@ export async function gamesApart(seasonId: string, n: number): Promise<GameApart
     [seasonId, n, season[0]?.since ?? null, season[0]?.results_by === "admin"]
   );
   const { rows: cast } = await pool.query<{ id: string; name: string }>("SELECT id, name FROM season_cast WHERE season_id=$1", [seasonId]);
-  const settled = facts.some((f) => f.kind === "elimination" || f.kind === "noexit");
+  const kinds = settledKinds(facts, n);
   const out: GameApart[] = [];
   for (const l of leagues) {
     const state = l.state as LeagueState;
@@ -404,7 +405,7 @@ export async function gamesApart(seasonId: string, n: number): Promise<GameApart
     }
     const name = (id: string) => state.castaways.find((c) => c.id === id)?.name ?? "";
     const own = ownResults(state, [...mine.map((r) => r.detail), ...found], n)
-      .filter((o) => settled || (o.kind !== "elimination" && o.kind !== "noexit"))
+      .filter((o) => kinds.has(o.kind))
       .map((o) => ({ name: name(o.castawayId), label: labelOf(state, ownRow(state, n, o)) }));
     if (own.length || missing) out.push({ leagueId: l.id, name: l.name, couch: l.couch, own, missing });
   }

@@ -116,6 +116,21 @@ test("who went home stays where the season hasn't settled it; it comes out once 
   assert.equal(s.castaways.find((c) => c.name === "Alan Turing").placementOrder, 1);
 });
 
+test("a kind the season says nothing about stays: a tribe swap only the game has", async () => {
+  const s = league();
+  const [t1] = types(s);
+  StateLogic.addTribe(s, "Toka");
+  const toka = s.tribes.find((t) => t.name === "Toka");
+  const ep = StateLogic.ensureEpisodeNumber(s, 1, false);
+  StateLogic.addGroupChange(s, ep.id, s.castaways[0].id, toka.id);
+  applyResearchDecisions(s, 1, [{ kind: "event", castawayName: "Alan Turing", eventType: t1 }]);
+  // The season has a moment for Grace and nothing about groups.
+  const world = { decisions: [decision("d-grace", "event", "Grace Hopper", { event_type: t1 })], ledger: new Map(), changes: [] };
+  await syncLeagueDecisions(fakeClient(world), "league-a", s, { match: [1] });
+  assert.deepEqual(said(s), [`${t1} Grace`], "Alan's moment, a kind the season settled, came out");
+  assert.equal(s.episodes.find((e) => e.number === 1).groups.length, 1, "the swap stayed");
+});
+
 test("without `match`, a game's own results are left alone", async () => {
   const s = league();
   const [t1, t2] = types(s);

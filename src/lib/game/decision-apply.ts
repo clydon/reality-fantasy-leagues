@@ -153,6 +153,16 @@ export function ownResults(state: LeagueState, details: LedgerDetail[], n: numbe
   return out;
 }
 
+/**
+ * The kinds of result the season has settled for an episode (who went home counting "nobody" too): making a game match takes
+ * out only its own results of these kinds, never a kind the season says nothing about (a tribe swap research didn't report).
+ */
+export function settledKinds(decisions: Pick<DecisionRow, "episode_number" | "kind">[], n: number): Set<DecisionRow["kind"]> {
+  const kinds = new Set<DecisionRow["kind"]>(decisions.filter((d) => d.episode_number === n).map((d) => (d.kind === "noexit" ? "elimination" : d.kind)));
+  if (kinds.has("elimination")) kinds.add("noexit");
+  return kinds;
+}
+
 /** Takes one of a league's own results out (as undoDetail takes out what a decision gave it). */
 export function removeOwn(state: LeagueState, n: number, own: OwnResult) {
   undoDetail(state, { episodeNumber: n, castawayId: own.castawayId, kind: own.kind, eventType: own.eventType, eventId: own.eventId });
