@@ -262,6 +262,14 @@ Last updated 2026-10-27.
       and `couchCorrections` read every correction's id as a season decision's uuid. It reads only decision ids now, and such a
       correction offers no ruling to keep (`keepable`); `check-match-season.js` reads both after Make every game match.
 
+30. **check-sheet-back.js hangs about one run in four (noticed 2026-10-30, checking the show's ⋯ menu before its merge).** After
+    the hub's guide case ("back again goes where the hub came from": a back to /settings that loads the page in full), its
+    `page.close()` never returns, and Playwright's close has no timeout, so the check sits until it's killed. `DEBUG=pw:api`
+    shows `page.close started` with nothing after it. It happens on master's code without the menu change too (c10b4258's
+    `src/new`), so it's the check or Chromium, not the app; every run that gets past it passes all 27 cases. Close the case's
+    page with a timeout (or leave it to `browser.close()` at the end), and look at why the close hangs (a back-forward-cache
+    restore? the service worker?). **When:** whoever next runs or extends check-sheet-back.
+
 
 
 ## Decided against (don't re-propose without new information)

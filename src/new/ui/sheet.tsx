@@ -2,26 +2,29 @@
 
 import { useRef, type ReactNode } from "react";
 import { Dialog } from "@base-ui/react/dialog";
-import { X } from "lucide-react";
+import { ChevronLeft, X } from "lucide-react";
 import { useSheetSwipe } from "@/components/ui/use-sheet-swipe";
 import { useSheetHistory } from "./sheet-history";
 
 // The new design's sheet (the mock's .sheet): rises from the bottom of the phone column over a scrim, a grab
 // handle, a condensed caps title with one line under it, and a close button. Base UI's Dialog traps focus and
 // closes on Escape or a scrim tap; a swipe down closes it too (classic's use-sheet-swipe.ts), and so does the phone's
-// back (./sheet-history.ts). Reduced motion: no slide, the scrim still fades.
+// back (./sheet-history.ts). Reduced motion: no slide, the scrim still fades. `back`: a sheet reached from another one (the show's
+// ⋯ menu › Everything else) puts a back arrow before its title, for the sheet it came from.
 
 export function Sheet({
   open,
   onOpenChange,
   title,
   subtitle,
+  back,
   children,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title: ReactNode;
   subtitle?: ReactNode;
+  back?: { label: string; onClick: () => void };
   children: ReactNode;
 }) {
   const popupRef = useRef<HTMLDivElement>(null);
@@ -45,10 +48,22 @@ export function Sheet({
             <i className="mx-auto block h-1 w-10 rounded-full bg-input" />
           </div>
           <div className="flex flex-none items-center justify-between gap-3 px-4 pb-2.5 pt-1">
-            <div className="min-w-0 [overflow-wrap:anywhere]">
-              <Dialog.Title className="type-caption text-[26px]">{title}</Dialog.Title>
-              {subtitle && <Dialog.Description className="mt-[5px] text-[13px] font-medium text-muted-foreground">{subtitle}</Dialog.Description>}
-            </div>
+            {back ? (
+              <div className="flex min-w-0 items-center gap-1">
+                <button type="button" aria-label={back.label} data-sheet-back onClick={back.onClick} className="-ml-2.5 grid size-10 flex-none place-items-center rounded-[3px] hover:bg-secondary">
+                  <ChevronLeft className="size-5" aria-hidden />
+                </button>
+                <div className="min-w-0 [overflow-wrap:anywhere]">
+                  <Dialog.Title className="type-caption text-[26px]">{title}</Dialog.Title>
+                  {subtitle && <Dialog.Description className="mt-[5px] text-[13px] font-medium text-muted-foreground">{subtitle}</Dialog.Description>}
+                </div>
+              </div>
+            ) : (
+              <div className="min-w-0 [overflow-wrap:anywhere]">
+                <Dialog.Title className="type-caption text-[26px]">{title}</Dialog.Title>
+                {subtitle && <Dialog.Description className="mt-[5px] text-[13px] font-medium text-muted-foreground">{subtitle}</Dialog.Description>}
+              </div>
+            )}
             <Dialog.Close aria-label="Close" className="grid size-10 flex-none place-items-center rounded-[3px] hover:bg-secondary">
               <X className="size-5" aria-hidden />
             </Dialog.Close>

@@ -110,7 +110,9 @@ async function foreignKeys(db) {
       WHERE c.contype = 'f' AND ns.nspname = 'public'`
   );
   const bare = (t) => t.replace(/^public\./, "").replace(/^"(.*)"$/, "$1");
-  return rows.map((r) => {
+  // A multi-column key on a table the backup doesn't take (season_events, 0148: a sport's games) is no concern of it.
+  const ours = rows.filter((r) => r.n === 1 || TABLES.includes(bare(r.tbl)));
+  return ours.map((r) => {
     if (r.n !== 1) throw new Error(`${r.tbl}: a multi-column foreign key; backup-common.js only handles single columns`);
     // checked: a CHECK constraint reads the column (rulebooks_owner_shape needs a season's season_id), so a restore
     // can't leave it empty for a moment.

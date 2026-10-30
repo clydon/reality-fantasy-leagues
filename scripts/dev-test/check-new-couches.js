@@ -19,7 +19,7 @@
 //   back), a couch's details (members, code, seasons, leaving it guarded), starting a couch (Get the couch going with its
 //   code), joining one with the code boxes (to its invite page); kat's invite page (Join the couch, then each game's
 //   button), joining Weekly Lineup live with a team, Tonight's catch-up strip and a catch-up reveal, Commercial break's
-//   Join a game; alex's Backstage request (Let in), Game settings' Who can join, Members' Invite, the show's ⋯ Invite,
+//   Join a game; alex's Backstage request (Let in), Game settings' Who can join, Members' Invite, the show's ⋯ Invite a friend,
 //   Settings' couches; the invite page signed out. Nothing wider than the screen; no page errors.
 // Screenshots go to <outDir>.
 //
@@ -380,9 +380,9 @@ async function newcomer(pool, who) {
       await sheetGone(page);
       await page.goto(`${BASE}/show/${sid}/tonight`);
       await page.getByRole("button", { name: /Show menu/ }).click();
-      await sheet(page).getByText("Invite to this show").click();
+      await sheet(page).getByText("Invite a friend").click();
       await sheet(page).locator(`[data-invite-code="${code}"]`).waitFor({ timeout: 10_000 });
-      check(/Invite to ZT Survivor 51/i.test(await sheet(page).innerText()) && /They join ZT Survivor 51 too/i.test(await sheet(page).innerText()), "the show's ⋯ menu: Invite to this show");
+      check(/Invite to ZT Survivor 51/i.test(await sheet(page).innerText()) && /They join ZT Survivor 51 too/i.test(await sheet(page).innerText()), "the show's ⋯ menu: Invite a friend");
       await shot("invite-show", page);
       await page.keyboard.press("Escape");
       await sheetGone(page);
