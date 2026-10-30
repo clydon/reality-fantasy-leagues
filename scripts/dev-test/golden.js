@@ -28,12 +28,15 @@ const { Pool } = require("pg");
 
 const ROOT = path.join(__dirname, "..", "..");
 const DB = process.env.AUTH_DATABASE_URL || "";
-if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("golden.js runs against a local database only");
-const args = process.argv.slice(2);
+const MAIN = require.main === module;
+if (MAIN && !/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("golden.js runs against a local database only");
+const args = MAIN ? process.argv.slice(2) : [];
 const opt = (k, d) => (args.find((a) => a.startsWith(`--${k}=`)) || "").slice(k.length + 3) || d;
 const before = opt("before", "HEAD");
 const TAPES = process.env.TAPES_DIR || path.join(os.homedir(), "rfl-tapes");
-const work = path.join(os.tmpdir(), `rfl-golden-${Date.now()}`);
+// The work folder (the trees, the tapes' copies). Required as a module, it's `tree`, `untree` and `read` (season-forward.js
+// reads its kept states through these trees), in a work folder of the caller's (setWork).
+let work = path.join(os.tmpdir(), `rfl-golden-${Date.now()}`);
 const run = (cmd, argv, o = {}) => {
   const r = spawnSync(cmd, argv, { encoding: "utf8", maxBuffer: 1 << 28, ...o });
   if (r.status !== 0) throw new Error(`${cmd} ${argv.join(" ")}: ${r.stderr || r.stdout}`);
@@ -43,6 +46,7 @@ const run = (cmd, argv, o = {}) => {
 /** A code tree: `ref`'s files (git archive), or the working tree's (null). Shares node_modules and .models by directory links. */
 function tree(dir, ref) {
   fs.mkdirSync(dir, { recursive: true });
+  fs.mkdirSync(work, { recursive: true });
   if (ref) {
     // `ref`'s files written into the folder through a throwaway index: the lane's own index and working tree stay as they are.
     const env = { ...process.env, GIT_INDEX_FILE: path.join(work, `${path.basename(dir)}.index`) };
@@ -100,7 +104,9 @@ function read(S, st) {
   });
 }
 
-(async () => {
+module.exports = { tree, untree, read, setWork: (dir) => (work = dir) };
+
+if (MAIN) (async () => {
   const pool = new Pool({ connectionString: DB });
   let failures = 0;
   fs.mkdirSync(work, { recursive: true });
