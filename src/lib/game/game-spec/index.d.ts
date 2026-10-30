@@ -4,7 +4,7 @@
 import type { LeagueSettings } from "../types";
 
 export type PresetId = "outlast" | "weekly-lineup" | "survival-pool" | "weekly-calls" | "weekly-bingo";
-export type LeagueTypeId = "classic-draft" | "active-roster" | "pickem" | "weekly-calls" | "weekly-bingo" | "questions";
+export type LeagueTypeId = "classic-draft" | "active-roster" | "pickem" | "weekly-calls" | "weekly-bingo" | "questions" | "stages";
 /** Who builds a value: today's engine, a later step, the sports branch, or no step yet. */
 export type Builder = "now" | "sports" | "later";
 
@@ -18,8 +18,21 @@ export interface PhaseFrom {
 export interface SpecSpan {
   /** The episode it starts at, or a phase start. */
   from: number | PhaseFrom;
-  /** Its last episode, or null: the season's end. */
-  to: number | null;
+  /** Its last episode, or null: the season's end. A12 part 1: before a phase starts ({ phase }; { phase, at } once settled, at its
+   *  last episode). */
+  to: number | null | PhaseFrom;
+}
+
+/** A12 part 1: a stage of a game in stages: its id, its name, and its game (a spec of its own, played as a league of its own). */
+export interface SpecStage {
+  id: string;
+  name: string | null;
+  game: GameSpec;
+}
+/** A12 part 1: how a game in stages' stages add up: their totals, points for places (`places` [1st, 2nd, ...]), or stages won. */
+export interface SpecOverall {
+  by: "points" | "places" | "wins";
+  places?: number[];
 }
 
 export interface SpecPool {
@@ -77,6 +90,8 @@ export type SpecScore =
    *  none). A11 part 3: co-op (rank.by "coop"), the lives the couch's together, a night costing one unless enough of you saw it
    *  coming (`saves`: one right answer among you, most of those who answered, all of them; COOP's default one). */
   | { by: "answers"; parlays?: SpecParlay[]; lives?: number; livesOn?: string[]; saves?: "one" | "most" | "all" }
+  /** A12 part 1: a game in stages, scored by its stages (its overall). */
+  | { by: "stages" }
   /** sports: the Sport's stat keys -> points */
   | { by: "stats"; points: Record<string, number> };
 
@@ -291,7 +306,9 @@ export interface SpecExtras {
   /** A Survival Pool's weekly Who goes home? call (the public pool): counted, not ranked. */
   calls: boolean;
   /** A draft's room; null: no draft. */
-  draft: { at: string | null; timer: 0 | 60 | 120; away: "wait" | "queue" } | null;
+  /** A12 part 1's opens: any (any time before the game starts; left out) or start (once its start is known and the episode before
+   *  it has results). */
+  draft: { at: string | null; timer: 0 | 60 | 120; away: "wait" | "queue"; opens?: "any" | "start" } | null;
   /** Who can join; null: the recommended (open where castaways can be on several teams, else ask). */
   join: "open" | "ask" | "locked" | null;
   /** A lineup's starters stay hidden until the lock. */
@@ -318,10 +335,13 @@ export interface GameSpec {
   /** start: today. sports: daily, weekly. */
   closes: "start" | "daily" | "weekly";
   extras: SpecExtras;
+  /** A12 part 1: a game in stages' stages (2 to MAX_STAGES) and how they add up; its own parts are then what fullStaged fills. */
+  stages?: SpecStage[];
+  overall?: SpecOverall;
 }
 
 /** A spec as written: anything left out is the preset's, or the defaults (fullSpec). */
-export type SpecInput = Partial<Omit<GameSpec, "extras" | "ask">> & { extras?: Partial<SpecExtras>; ask?: SpecQuestion[] };
+export type SpecInput = Partial<Omit<GameSpec, "extras" | "ask" | "stages">> & { extras?: Partial<SpecExtras>; ask?: SpecQuestion[]; stages?: { id: string; name?: string | null; game: SpecInput }[] };
 
 /** A10 part 1: a draft's group slots (get.groups): a slot holds a pair or a team the show forms, picked after the episode that
  *  showed it, riding with it while it lasts and dropping when it changes (state-logic.js GroupSlotLogic). */
@@ -529,6 +549,17 @@ export const OUTSIDE: string[];
 export function spanStart(span: SpecSpan | null | undefined): number | null;
 /** The phase a span starts at, or null. */
 export function spanPhase(span: SpecSpan | null | undefined): string | null;
+/** A12 part 1: the episode a span plays through (an end at a phase's once it's settled), or null. */
+export function spanEnd(span: SpecSpan | null | undefined): number | null;
+/** A12 part 1: the phase a span ends before, or null. */
+export function spanEndPhase(span: SpecSpan | null | undefined): string | null;
+/** A12 part 1: a game in stages' most stages, a stage's longest name, the overall's most places, its default, and the games a stage
+ *  can be. */
+export const MAX_STAGES: number;
+export const MAX_STAGE_NAME: number;
+export const MAX_PLACES: number;
+export const OVERALL: SpecOverall;
+export const STAGE_KINDS: LeagueTypeId[];
 
 /** A10 part 1: a draft's most group slots, and a slot's defaults when the spec leaves them out. */
 export const MAX_GROUP_SLOTS: number;
@@ -679,7 +710,7 @@ export function playsAs(spec: GameSpec): LeagueTypeId | null;
 /** The league type's flags, worked out from a whole spec. */
 export function flagsOf(spec: GameSpec): {
   hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasKeepers: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasBingo: boolean;
-  hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean; hasCoop: boolean; hasMatchups: boolean; hasTeams: boolean; hasHandicap: boolean;
+  hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean; hasCoop: boolean; hasMatchups: boolean; hasTeams: boolean; hasHandicap: boolean; hasStages: boolean;
   supportsReplenish: boolean; supportsTrade: boolean; supportsFinalePredictions: boolean;
 };
 /**

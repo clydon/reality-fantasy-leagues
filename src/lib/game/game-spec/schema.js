@@ -7,7 +7,10 @@
 //   preset   the preset it started from (its name, Run it back), or null
 //   span     { from, to }: episodes of the season; to null = the season's end. from is an episode number, or a phase of
 //            the season's rulebook (A3): { phase } while the game waits for it to start, { phase, at } once data says
-//            where it does (at: the episode it plays from). The phase stays: its words, Game settings, Run it back
+//            where it does (at: the episode it plays from). The phase stays: its words, Game settings, Run it back. A12 part 1:
+//            to can be a phase too, the game ending before it starts ("before the merge"): { phase } while that's unknown (it
+//            runs on), { phase, at } once data says where the phase starts (at: the episode before it, the game's last), settled
+//            as a start at a phase is (state-logic.js RosterLogic.settleStart), so a game to a phase and one from it meet
 //   pool     { of: 'cast', where }: who can be picked. where { stillIn: true } (today: nobody gone before the start);
 //            sports: { teams: [ids] }; later: { group: id }
 //   get      how you get yours. { by: 'draft', each, order: snake | blind, own: exclusive | shared, groups? } (the order follows
@@ -101,7 +104,20 @@
 //            finale predictions (finaleQuestions); a game scored by answers, its own (Weekly Calls': the show's calls,
 //            CALLS)
 //   closes   'start': moves lock at each episode's start (today's airtime lock); sports: 'daily' | 'weekly'
-//   extras   the details nobody asked about, recommended and out of sight (EXTRAS below)
+//   extras   the details nobody asked about, recommended and out of sight (EXTRAS below). A12 part 1: the draft room's opens,
+//            'any' (any time before the game starts: today's, and what leaving it out means) | 'start' (once the game's start is
+//            known and the episode before it has results, so it drafts from who's still in then: a second draft at the merge;
+//            an exclusive draft that no longer covers every pick then is played shared, the 9:10 PM decision's fallback:
+//            RosterLogic.settleDraftShare)
+//
+// A12 part 1, a game in stages: { spec, preset: null, stages, overall, extras? }, nothing else of its own (its rules are its
+// stages'). stages: 2 to MAX_STAGES, in order, each { id, name, game }: `game` a spec of its own (any game today's engine plays
+// but bingo and Weekly Calls, which score outside the game), its span where it plays (a stage that doesn't say where it ends
+// ends where the next starts: the episode before it, or the phase it starts at; a later stage's draft opens at its start unless
+// it says: stageGames), each starting where the one before ends. Each stage is played as a league of its own, tied to this one
+// (src/lib/server/stages.ts), and this one's table is the overall: { by: points (each stage's total added up) | places (points
+// for where you finish each stage that's over: `places` [1st, 2nd, ...], else one for each of you below you, plus one) | wins
+// (stages won, ties all win; then places, then points) }. OVERALL's default: points. StageLogic in state-logic.js.
 //
 // Who builds each value is in VOCAB: 'now' the engine plays it today (after A2, through the spec; a phase start since A3;
 // questions since A4), 'sports' the sports branch, 'later' no step yet. specProblems says what's wrong with a spec, specWaitsFor what
@@ -118,7 +134,8 @@ const VOCAB = {
   // A11 part 2: a pick that never repeats, on a night you've picked everyone still in: a missed pick, or nothing that night.
   'get.fallback': { miss: 'now', skip: 'now' },
   count: { start: 'now', all: 'now', pick: 'now', best: 'now' },
-  'score.by': { moments: 'now', place: 'now', survive: 'now', lines: 'now', answers: 'now', stats: 'sports' },
+  // A12 part 1: a game in stages scores by its stages (StageLogic).
+  'score.by': { moments: 'now', place: 'now', survive: 'now', lines: 'now', answers: 'now', stages: 'now', stats: 'sports' },
   'score.means': { staysIn: 'now', scores: 'now' },
   // A11 part 3: co-op, the couch against the show (a game of questions whose lives are everyone's together: won or lost by all).
   // A11 part 4: head to head (matchups), a draft's on a show (each episode's points against someone's, with playoffs); L4 brings it
@@ -203,6 +220,11 @@ const VOCAB = {
   // history (the server's, never a person's word): new to the couch (no game on it on an earlier season), or new to the show on it.
   'rank.handicap.who': { new: 'now' },
   'rank.handicap.newTo': { couch: 'now', show: 'now' },
+  // A12 part 1: a game in stages' overall: each stage's total added up, points for each place, or stages won.
+  'overall.by': { points: 'now', places: 'now', wins: 'now' },
+  // A12 part 1: when a draft room opens: any time before its game starts (today's), or once the game's start is known and the
+  // episode before it has results, so it drafts from who's still in (a second draft at the merge).
+  'extras.draft.opens': { any: 'now', start: 'now' },
 };
 
 // A question in `ask` (A4; A6 added who a moment happened to, groups, roles and questions about each person):
@@ -656,6 +678,13 @@ function teamParts(s) {
 // by handicapParts, never filled in. Up to MAX_HANDICAP points an episode.
 const HANDICAP = { who: 'new', newTo: 'couch' };
 const MAX_HANDICAP = 50;
+// A12 part 1: a game in stages: 2 to MAX_STAGES of them, a name up to MAX_STAGE_NAME; the overall's points for each place, 1 to
+// MAX_PLACES of them; OVERALL its default; the games a stage can be (bingo and Weekly Calls score outside the game: later parts).
+const MAX_STAGES = 6;
+const MAX_STAGE_NAME = 40;
+const MAX_PLACES = 12;
+const OVERALL = { by: 'points' };
+const STAGE_KINDS = ['classic-draft', 'active-roster', 'pickem', 'questions'];
 /**
  * A handicap (A11 part 5b: rank.handicap), read the one way from a whole spec: { points, who, newTo }, the defaults HANDICAP; null for
  * a game without one, or one the engine doesn't play it on: a draft (Outlast, a lineup, best ball, an auction) or a game of
@@ -852,6 +881,8 @@ function fullSpec(spec) {
   const p = presetOf(s);
   if (s.spec === undefined) s.spec = SPEC_VERSION;
   if (s.preset === undefined) s.preset = null;
+  // A12 part 1: a game in stages is its stages, each whole (fullStaged).
+  if (s.stages !== undefined) return fullStaged(s);
   // The preset's parts while the spec still gets its castaways the preset's way; a spec that changed that (a pick on a
   // Weekly Lineup) has its own game, so only the parts that don't depend on it (span, pool, ...) come from the preset.
   if (s.get === undefined) s.get = p ? clone(p.get) : clone(DEFAULTS.get);
@@ -974,6 +1005,63 @@ function fullSpec(spec) {
 }
 
 /**
+ * A game in stages, whole (A12 part 1): each stage's game whole (stageGames), the overall's default (OVERALL), and its own parts
+ * what a game in stages is: nothing held, scored by its stages (score.by 'stages'), its span from its first stage's start to its
+ * last's end, who can join and locked down as said. Never changes what it says.
+ */
+function fullStaged(s) {
+  if (Array.isArray(s.stages)) s.stages = stageGames(s.stages);
+  const games = Array.isArray(s.stages) ? s.stages.filter((x) => isObj(x) && isObj(x.game) && isObj(x.game.span)).map((x) => x.game) : [];
+  if (s.span === undefined) s.span = games.length ? { from: clone(games[0].span.from), to: clone(games[games.length - 1].span.to) } : clone(DEFAULTS.span);
+  for (const k of ['pool', 'ask', 'closes']) if (s[k] === undefined) s[k] = clone(DEFAULTS[k]);
+  if (isObj(s.span)) {
+    if (s.span.from === undefined) s.span.from = 1;
+    if (s.span.to === undefined) s.span.to = null;
+  }
+  if (isObj(s.pool) && s.pool.where === undefined) s.pool.where = null;
+  if (s.get === undefined) s.get = { by: 'none' };
+  if (s.count === undefined) s.count = null;
+  if (s.score === undefined) s.score = { by: 'stages' };
+  if (s.rank === undefined) s.rank = { by: 'total' };
+  if (s.overall === undefined) s.overall = clone(OVERALL);
+  else if (isObj(s.overall) && s.overall.by === undefined) s.overall.by = OVERALL.by;
+  const e = isObj(s.extras) ? s.extras : {};
+  s.extras = extrasOf({});
+  for (const k of Object.keys(e)) s.extras[k] = e[k];
+  return s;
+}
+/**
+ * A game in stages' stages, each one's game whole (fullSpec): a stage that doesn't say where it ends ends where the next starts
+ * (the episode before it, or the phase it starts at), and a later stage's draft opens at its start unless it says (it drafts
+ * from who's still in then: a second draft at the merge). Never changes what a stage says.
+ */
+function stageGames(list) {
+  return list.map((st, i) => {
+    if (!isObj(st)) return st;
+    const out = { ...st };
+    if (out.name === undefined) out.name = null;
+    if (!isObj(st.game) || st.game.stages !== undefined) return out;
+    const g = clone(st.game);
+    const next = list[i + 1];
+    const nextFrom = isObj(next) && isObj(next.game) && isObj(next.game.span) ? next.game.span.from : undefined;
+    if (g.span === undefined) g.span = {};
+    if (isObj(g.span) && g.span.to === undefined) {
+      if (isInt(nextFrom, 2)) g.span.to = nextFrom - 1;
+      else if (phaseFrom(nextFrom)) g.span.to = { phase: nextFrom.phase };
+    }
+    const said = isObj(st.game.extras) && isObj(st.game.extras.draft) && st.game.extras.draft.opens !== undefined;
+    const full = fullSpec(g);
+    if (i > 0 && !said && isObj(full.get) && full.get.by === 'draft' && isObj(full.extras) && isObj(full.extras.draft)) full.extras.draft = { ...full.extras.draft, opens: 'start' };
+    out.game = full;
+    return out;
+  });
+}
+/** Two stages in a row that play at the same time: the later one starts on or before the episode the earlier one ends with
+ *  (A12's later parts), both said as episodes. */
+const stagesOverlap = (a, b) => isObj(a) && isObj(b) && isObj(a.game) && isObj(b.game) && isObj(a.game.span) && isObj(b.game.span)
+  && isInt(a.game.span.to, 1) && isInt(b.game.span.from, 1) && b.game.span.from <= a.game.span.to;
+
+/**
  * The league type today's engine plays this spec as (settings.leagueTypeId), or null when no game plays it yet. Only the
  * mechanics decide, never the preset's name: a spec the GPT writes plays the game its parts make.
  */
@@ -984,6 +1072,14 @@ function typeOf(spec) {
  *  getLeagueType asks this on nearly every read. */
 function playsAs(s) {
   if (!isObj(s)) return null;
+  // A12 part 1: a game in stages, each stage a game a stage can be today, one after another.
+  if (s.stages !== undefined) {
+    const list = s.stages;
+    const ok = Array.isArray(list) && list.length >= 2 && list.length <= MAX_STAGES && isObj(s.get) && s.get.by === 'none' && isObj(s.score) && s.score.by === 'stages'
+      && list.every((st) => isObj(st) && isObj(st.game) && STAGE_KINDS.includes(playsAs(st.game)))
+      && list.every((st, i) => i === 0 || !stagesOverlap(list[i - 1], st));
+    return ok ? 'stages' : null;
+  }
   const by = (k) => (isObj(s[k]) ? s[k].by : undefined);
   const count = countKind(s.count);
   if (!plainParts(s)) return null;
@@ -1051,6 +1147,19 @@ function spanStart(span) {
 }
 /** The phase a span starts at (its id), or null for one that starts at an episode. */
 const spanPhase = (span) => (isObj(span) && isObj(span.from) && typeof span.from.phase === 'string' && span.from.phase ? span.from.phase : null);
+/** An end at a phase, well formed (A12 part 1): { phase: an id, at?: the game's last episode, the one before the phase starts }. */
+const phaseTo = (t) => isObj(t) && typeof t.phase === 'string' && !!t.phase && (t.at === undefined || isInt(t.at, 1));
+/**
+ * The episode a span plays through: its number, an end at a phase's `at` once it's settled, or null (the season's end, or an end
+ * at a phase still unknown: it runs on until data says where the phase starts).
+ */
+function spanEnd(span) {
+  const t = isObj(span) ? span.to : undefined;
+  if (isInt(t, 1)) return t;
+  return isObj(t) && isInt(t.at, 1) ? t.at : null;
+}
+/** The phase a span ends before (its id), or null. */
+const spanEndPhase = (span) => (isObj(span) && isObj(span.to) && typeof span.to.phase === 'string' && span.to.phase ? span.to.phase : null);
 
 /**
  * A pool's lives, buyback, mulligans and second pick (A10 part 2), as the engine plays them (state-logic.js PickEmLogic.parts)
@@ -1116,6 +1225,8 @@ function flagsOf(s) {
     hasTeams: !!teamParts(s),
     // A11 part 5b: a handicap.
     hasHandicap: !!handicapParts(s),
+    // A12 part 1: a game in stages (its table the overall).
+    hasStages: score.by === 'stages',
     hasWeeklyPicks: get.by === 'pick',
     hasCalls: score.by === 'answers' && callsAsk(s && s.ask),
     // A game of questions (A4): scored by its answers, not the show's calls.
@@ -1176,6 +1287,12 @@ function specProblems(spec, ctx, opts) {
   const one = (key, v) => own(VOCAB[key], v) !== undefined;
   if (s.spec !== SPEC_VERSION) add('spec', `Spec version ${SPEC_VERSION} is the only one`);
   if (s.preset !== null && !presetOf(s)) add('preset', `No preset is called "${s.preset}"`);
+  // A12 part 1: a game in stages is checked as its stages and its overall.
+  if (spec.stages !== undefined) {
+    stagedProblems(spec, s, ctx, opts, add);
+    return out;
+  }
+  if (spec.overall !== undefined) add('overall', "The overall is a game in stages': how its stages' tables add up");
 
   // span
   if (!isObj(s.span)) add('span', 'The span says which episodes it plays');
@@ -1186,7 +1303,14 @@ function specProblems(spec, ctx, opts) {
       if (from.at !== undefined && !isInt(from.at, 1)) add('span.from.at', "Where a phase start plays from is an episode number, 1 or later (left out while it's unknown)");
     } else if (!isInt(from, 1)) add('span.from', 'It starts at an episode number, 1 or later');
     const first = spanStart(s.span);
-    if (s.span.to !== null && !(isInt(s.span.to, 1) && (first === null || s.span.to >= first))) add('span.to', 'It ends at an episode from its start on, or null for the season\'s end');
+    const to = s.span.to;
+    if (isObj(to)) {
+      // A12 part 1: an end at a phase (the game's last episode the one before it starts), settled as a start at a phase is; one
+      // whose phase starts before the game does never plays (at: the episode before its start).
+      if (typeof to.phase !== 'string' || !to.phase) add('span.to.phase', 'An end at a phase names the phase it ends before');
+      else if (spanPhase(s.span) === to.phase) add('span.to.phase', "It can't end where it starts: the phase it ends before comes after the one it starts at");
+      if (to.at !== undefined && !(isInt(to.at, 1) && (first === null || to.at >= first - 1))) add('span.to.at', "Where an end at a phase stops is an episode number, the one before the phase starts (left out while that's unknown)");
+    } else if (to !== null && !(isInt(to, 1) && (first === null || to >= first))) add('span.to', "It ends at an episode from its start on, before a phase of the season ({ phase }), or null for the season's end");
   }
 
   // pool
@@ -1255,6 +1379,7 @@ function specProblems(spec, ctx, opts) {
   // score and rank
   const score = isObj(s.score) ? s.score : {};
   if (!one('score.by', score.by)) add('score.by', 'How it scores: moments, place, survive, lines, answers or stats');
+  else if (score.by === 'stages') add('score.by', "Scoring by stages is a game in stages': give it its stages");
   if (score.by === 'moments' && score.points !== null && !pointsMap(score.points)) add('score.points', 'Points are moment id to a number, or null for the rulebook\'s own');
   // A9 part 2: a lineup's captain, points that multiply by when, Outlast in reverse.
   if (score.by === 'moments' && score.captain !== undefined) {
@@ -1336,7 +1461,9 @@ function specProblems(spec, ctx, opts) {
     if (e.draft !== null) {
       if (get.by !== 'draft') add('extras.draft', 'Only a draft has a draft room');
       else if (!(isObj(e.draft) && (e.draft.at === null || isInstant(e.draft.at)) && DRAFT_TIMERS.includes(e.draft.timer) && (e.draft.away === 'wait' || e.draft.away === 'queue'))) {
-        add('extras.draft', 'The draft room is { at: an ISO time with its zone, or null; timer: 0, 60 or 120; away: wait | queue }');
+        add('extras.draft', 'The draft room is { at: an ISO time with its zone, or null; timer: 0, 60 or 120; away: wait | queue; opens?: any | start }');
+      } else if (e.draft.opens !== undefined && own(VOCAB['extras.draft.opens'], e.draft.opens) === undefined) {
+        add('extras.draft.opens', "When the draft opens: any (any time before the game starts) or start (once its start is known and the episode before it has results)");
       }
     } else if (get.by === 'draft') add('extras.draft', 'A draft has a draft room');
     if (e.join !== null && !JOINS.includes(e.join)) add('extras.join', 'Who can join: open, ask, locked or null');
@@ -1518,7 +1645,10 @@ const isInstant = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2
 
 // Every key a spec can have, so a misspelled one ("scoring", "sideBets") is reported, not quietly played as the default.
 const KEYS = {
-  top: ['spec', 'preset', 'span', 'pool', 'get', 'count', 'score', 'rank', 'ask', 'closes', 'extras'],
+  top: ['spec', 'preset', 'span', 'pool', 'get', 'count', 'score', 'rank', 'ask', 'closes', 'extras', 'stages', 'overall'],
+  // A12 part 1: a stage of a game in stages, and its overall.
+  stage: ['id', 'name', 'game'],
+  overall: ['by', 'places'],
   span: ['from', 'to'],
   from: ['phase', 'at'],
   pool: ['of', 'where'],
@@ -1529,7 +1659,7 @@ const KEYS = {
   budget: ['total', 'floor', 'ceiling', 'gone', 'fallback', 'trade', 'left'],
   trade: ['fee'],
   second: ['fallback'],
-  score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves'], stats: ['by', 'points'] },
+  score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves'], stages: ['by'], stats: ['by', 'points'] },
   buyback: ['times', 'before', 'cost'],
   before: ['phase', 'episode'],
   parlay: ['of', 'times'],
@@ -1548,7 +1678,7 @@ const KEYS = {
   seats: ['people'],
   waivers: ['feel', 'replace', 'short', 'windows', 'order', 'hours', 'freeAgency', 'autoFill'],
   windows: ['schedule', 'every', 'swaps'],
-  draft: ['at', 'timer', 'away'],
+  draft: ['at', 'timer', 'away', 'opens'],
   bets: ['points'],
   question: ['id', 'ask', 'answer', 'points', 'settle', 'asked', 'closes', 'pick', 'from', 'line', 'options', 'each', 'every', 'over', 'within', 'chips', 'pairs', 'wager', 'share', 'rollover', 'shrink', 'fallback'],
   settle: ['by', 'take', 'moment', 'role', 'phase', 'stat', 'place'],
@@ -1563,6 +1693,8 @@ function unknownKeys(s) {
   check(s, KEYS.top, '');
   check(s.span, KEYS.span, 'span');
   if (isObj(s.span)) check(s.span.from, KEYS.from, 'span.from');
+  // A12 part 1: an end at a phase.
+  if (isObj(s.span)) check(s.span.to, KEYS.from, 'span.to');
   check(s.pool, KEYS.pool, 'pool');
   if (isObj(s.get)) {
     check(s.get, own(KEYS.get, s.get.by), 'get');
@@ -1778,7 +1910,7 @@ function knockoutProblems(rank, s, league) {
   if (!draft) out.push(['.cut', isObj(s.get) && s.get.by === 'pick' ? "A pool knocks players out with its lives (a wrong pick costs one, and at none you're out): score.lives" : "Knocking players out by their points is a draft's or a game of questions'"]);
   else if (rank.by !== 'standing') out.push(['.by', "A game that knocks players out ranks last one standing: whoever's still in, then whoever went out last"]);
   const first = isObj(s.span) ? spanStart(s.span) : null;
-  const last = isObj(s.span) ? s.span.to : null;
+  const last = isObj(s.span) ? spanEnd(s.span) : null;
   list.forEach((c, i) => {
     const at = `.cut[${i}]`;
     if (!isObj(c)) return out.push([at, 'Each cut is { at, out, tie, quiet }']);
@@ -1895,7 +2027,7 @@ function matchupProblems(rank, s, league) {
     else {
       const rounds = playoffRounds(p.teams);
       const first = isObj(s.span) ? spanStart(s.span) : null;
-      const last = isObj(s.span) ? s.span.to : null;
+      const last = isObj(s.span) ? spanEnd(s.span) : null;
       const word = `${rounds} ${rounds === 1 ? 'round' : 'rounds'}`;
       if (p.from !== undefined) {
         if (!isInt(p.from, 1)) out.push(['rank.playoffs.from', 'The playoffs start at an episode number, 1 or later (left out: the game\'s last episodes)']);
@@ -2085,7 +2217,7 @@ function timesProblems(list, s, league) {
   if (!Array.isArray(list) || !list.length || list.length > MAX_WHEN) return [['', `When points multiply is a list of 1 to ${MAX_WHEN}`]];
   const out = [];
   const first = isObj(s.span) ? spanStart(s.span) : null;
-  const last = isObj(s.span) ? s.span.to : null;
+  const last = isObj(s.span) ? spanEnd(s.span) : null;
   list.forEach((t, i) => {
     const at = `[${i}]`;
     if (!isObj(t)) return out.push([at, 'Each is { times, and one of episode, from (and to), phase or finale }']);
@@ -2121,6 +2253,15 @@ function settleProblems(s, ctx, opts) {
     const at = ctx.phases.findIndex((p) => (isObj(p) ? p.id : p) === phase);
     if (at < 0) out.push(['span.from.phase', `"${phase}" isn't one of the season's phases`]);
     else if (at === 0) out.push(['span.from.phase', 'The first phase starts with Episode 1: start it there']);
+  }
+  // A12 part 1: an end at a phase: one of the season's, never its first (nothing comes before it), after the phase it starts at.
+  const endPhase = spanEndPhase(s.span);
+  if (endPhase && Array.isArray(ctx.phases)) {
+    const ids = ctx.phases.map((p) => (isObj(p) ? p.id : p));
+    const at = ids.indexOf(endPhase);
+    if (at < 0) out.push(['span.to.phase', `"${endPhase}" isn't one of the season's phases`]);
+    else if (at === 0) out.push(['span.to.phase', 'The first phase starts with Episode 1: nothing comes before it']);
+    else if (phase && phase !== endPhase && ids.indexOf(phase) >= at) out.push(['span.to.phase', `It starts with ${phase}, so it can only end before a phase after it`]);
   }
   const moments = Array.isArray(ctx.moments) ? ctx.moments : [];
   const momentById = new Map(moments.map((m) => [m.id, m]));
@@ -2289,6 +2430,8 @@ const STEP_NAMES = {
  */
 function specWaitsFor(spec) {
   const s = fullSpec(spec);
+  // A12 part 1: a game in stages waits for whatever its stages do, and for what a stage can't be yet.
+  if (s.stages !== undefined) return stagedWaits(s);
   const out = [];
   const need = (at, step, what) => out.push({ at, step, problem: `${what} comes with ${STEP_NAMES[step]}` });
   const val = (key, at, v, what) => {
@@ -2321,6 +2464,93 @@ function specWaitsFor(spec) {
   return steps;
 }
 
+/**
+ * A game in stages' problems (A12 part 1), each through `add`: 2 to MAX_STAGES stages, each { id, name, game }, its game a spec of
+ * its own checked as one (with ctx; the exclusive count only for the first stage, which drafts where the game starts: a later
+ * stage's is counted when its draft opens, from who's still in then, RosterLogic.settleDraftShare), never a game in stages itself;
+ * in order, each starting where the one before ends (an episode after the one it ends with, or the phase it ends before); the
+ * overall; and nothing of its own beyond its stages, the overall, who can join and locked down. `spec` as written (what a stage
+ * says), `s` whole.
+ */
+function stagedProblems(spec, s, ctx, opts, add) {
+  const list = s.stages;
+  if (!Array.isArray(list) || list.length < 2 || list.length > MAX_STAGES) return add('stages', `A game in stages has 2 to ${MAX_STAGES} of them (one stage is just a game)`);
+  // Its own parts are what a game in stages fills (fullStaged): anything else is a stage's to say.
+  const fill = { get: { by: 'none' }, count: null, score: { by: 'stages' }, rank: { by: 'total' }, pool: { of: 'cast', where: { stillIn: true } }, ask: [], closes: 'start' };
+  for (const k of Object.keys(fill)) if (spec[k] !== undefined && !sameValue(spec[k], fill[k])) add(k, 'A game in stages has its rules in each stage: say them there');
+  // Its span runs from its first stage's start to its last's end (settled as any game's is).
+  const span = s.span;
+  if (!(isObj(span) && (isInt(span.from, 1) || phaseFrom(span.from)) && (span.to === null || isInt(span.to, 1) || phaseTo(span.to)))) add('span', "A game in stages plays from its first stage's start to its last's end");
+  for (const k of Object.keys(s)) if (!KEYS.top.includes(k)) add(k, `"${k}" isn't part of a game spec`);
+  const e = isObj(s.extras) ? s.extras : {};
+  const plain = extrasOf({});
+  for (const k of Object.keys(e)) {
+    if (k === 'join') {
+      if (e.join !== null && !JOINS.includes(e.join)) add('extras.join', 'Who can join: open, ask, locked or null');
+    } else if (k === 'lockedDown') {
+      if (typeof e.lockedDown !== 'boolean') add('extras.lockedDown', 'lockedDown is true or false');
+    } else if (!(k in plain) || !sameValue(e[k], plain[k])) add(`extras.${k}`, `A game in stages' ${k} is each stage's`);
+  }
+  const ids = new Set();
+  const stageOpts = { league: !!(opts && opts.league) };
+  list.forEach((st, i) => {
+    const at = `stages[${i}]`;
+    if (!isObj(st)) return add(at, 'Each stage is { id, name, game }');
+    for (const k of Object.keys(st)) if (!KEYS.stage.includes(k)) add(`${at}.${k}`, `"${k}" isn't part of a stage`);
+    if (typeof st.id !== 'string' || !QUESTION_ID.test(st.id)) add(`${at}.id`, "A stage's id is letters, digits, '.', '_' or '-', up to 40");
+    else if (ids.has(st.id)) add(`${at}.id`, `Two stages can't both be "${st.id}"`);
+    else ids.add(st.id);
+    if (st.name !== null && !(typeof st.name === 'string' && st.name.trim() && st.name.length <= MAX_STAGE_NAME)) add(`${at}.name`, `A stage's name is up to ${MAX_STAGE_NAME} letters, or null`);
+    const raw = Array.isArray(spec.stages) && isObj(spec.stages[i]) ? spec.stages[i].game : undefined;
+    if (!isObj(raw)) return add(`${at}.game`, 'Each stage is a game: its own spec');
+    if (raw.stages !== undefined) return add(`${at}.game.stages`, "A stage is one game: stages don't nest");
+    if (i > 0 && !(isObj(raw.span) && raw.span.from !== undefined)) add(`${at}.game.span.from`, 'A stage after the first says where it starts: an episode, or a phase of the season');
+    // A later stage drafts where it starts, from who's still in then: its exclusive count waits for its draft to open.
+    const c = ctx && i > 0 ? { ...ctx, pool: undefined } : ctx;
+    specProblems(st.game, c, stageOpts).forEach((p) => add(`${at}.game${p.at ? `.${p.at}` : ''}`, p.problem));
+  });
+  // One after another: each starts where the one before ends.
+  for (let i = 0; i + 1 < list.length; i++) {
+    const a = list[i];
+    const b = list[i + 1];
+    if (!isObj(a) || !isObj(b) || !isObj(a.game) || !isObj(b.game) || !isObj(a.game.span) || !isObj(b.game.span)) continue;
+    const end = a.game.span.to;
+    const from = b.game.span.from;
+    const at = `stages[${i + 1}].game.span.from`;
+    if (end === null) add(`stages[${i}].game.span.to`, 'A stage before another ends where the next starts: give it an end (an episode, or the phase the next starts at)');
+    else if (phaseTo(end)) {
+      if (!(phaseFrom(from) && from.phase === end.phase)) add(at, `It starts where the stage before ends: when ${end.phase} starts`);
+    } else if (isInt(end, 1) && phaseFrom(from)) add(at, `It starts where the stage before ends, after its last episode (${end}): or end that one before ${from.phase}`);
+    else if (isInt(end, 1) && isInt(from, 1) && from > end + 1) add(at, `It starts where the stage before ends: ${end + 1}, the episode after its last (nothing plays between them)`);
+  }
+  const o = s.overall;
+  if (!isObj(o)) return add('overall', 'The overall is { by: points | places | wins, places? }');
+  for (const k of Object.keys(o)) if (!KEYS.overall.includes(k)) add(`overall.${k}`, `"${k}" isn't part of the overall`);
+  if (own(VOCAB['overall.by'], o.by) === undefined) add('overall.by', "How the stages add up: points (each stage's total added up), places (points for where you finish each) or wins (stages won)");
+  if (o.places !== undefined) {
+    const p = o.places;
+    if (o.by !== 'places') add('overall.places', "Points for each place are the overall by places'");
+    else if (!(Array.isArray(p) && p.length >= 1 && p.length <= MAX_PLACES && p.every((x) => isNum(x) && x >= 0 && x <= MAX_QUESTION_POINTS) && p.every((x, j) => j === 0 || x <= p[j - 1]))) {
+      add('overall.places', `Points for 1st, 2nd and on: 1 to ${MAX_PLACES} numbers, 0 to ${MAX_QUESTION_POINTS}, none more than the place before`);
+    }
+  }
+}
+/** What a game in stages waits for (A12 part 1): each stage's waits, a stage of bingo or Weekly Calls (scored outside the game),
+ *  and stages that play at the same time (A12's later parts). */
+function stagedWaits(s) {
+  const out = [];
+  const list = Array.isArray(s.stages) ? s.stages : [];
+  list.forEach((st, i) => {
+    if (!isObj(st) || !isObj(st.game)) return;
+    specWaitsFor(st.game).forEach((x) => out.push({ ...x, at: `stages[${i}].game${x.at ? `.${x.at}` : ''}` }));
+    const kind = playsAs(st.game);
+    if (kind === 'weekly-bingo' || kind === 'weekly-calls') out.push({ at: `stages[${i}].game`, step: 'later', problem: `A stage of ${kind === 'weekly-bingo' ? 'bingo' : 'Weekly Calls'} (scored outside the game) comes with A12's later parts` });
+    if (i > 0 && stagesOverlap(list[i - 1], st)) out.push({ at: `stages[${i}].game.span.from`, step: 'later', problem: "Stages that play at the same time come with A12's later parts" });
+  });
+  if (!out.length && !playsAs(s)) out.push({ at: '', step: null, problem: 'No game plays this way yet' });
+  return out;
+}
+
 module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
   RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
@@ -2334,5 +2564,6 @@ module.exports = {
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,
   fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, specWaitsFor, waiversFit, finaleFits, betsFit, countKind, presetOf, sameValue, own,
-  spanStart, spanPhase,
+  spanStart, spanPhase, spanEnd, spanEndPhase, phaseTo,
+  MAX_STAGES, MAX_STAGE_NAME, MAX_PLACES, OVERALL, STAGE_KINDS, stageGames, stagesOverlap,
 };

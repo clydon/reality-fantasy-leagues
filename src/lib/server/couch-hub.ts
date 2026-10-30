@@ -1,6 +1,6 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import type { AnswerWalk } from "@/lib/game/state-logic.js";
-import { answerStanding, storedAnswers } from "./answer-points";
+import { answerStanding, asItStands, storedAnswers } from "./answer-points";
 import { foldFor, isFolded, revealedThrough } from "@/lib/game/chat-fold";
 import { accoladesOf, fieldOf, rankingsOf, trophiesOf, yourNumbers, type Accolade, type GameStanding, type Person, type Rankings, type StandingRow, type TrophyShelf, type YourNumbers } from "@/lib/game/couch-standings";
 import { tableOf } from "@/lib/game/game-view";
@@ -202,7 +202,11 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
   // Each game as you may see it: now, and one episode back (who moved).
   const standings: GameStanding[] = [];
   for (const g of list) {
-    const state = states.get(g.leagueId);
+    // Step A12 part 1: a stage counts inside its game in stages, whose table (the overall, its stages' tables read as they stand) is
+    // the one the couch's standings read.
+    if (g.stageOf) continue;
+    const stored = states.get(g.leagueId);
+    const state = stored && StateLogic.StageLogic.on(stored) ? (await asItStands(g.leagueId, stored)).state : stored;
     const header = headers.get(g.seasonId);
     if (!state || !header) continue;
     const seen = marks.get(g.seasonId) ?? 0;

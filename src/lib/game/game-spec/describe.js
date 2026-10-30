@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -57,8 +57,18 @@ function wordsOf(ctx) {
 const phaseWord = (id, w) => w.phases.get(id) || id;
 
 /** "Episode 7 to the finale", "Games 1–3", "just Game 1", "all season"; a phase start (A3): "from when Merged starts",
- *  and once that's settled "Episode 9 to the finale, starting with Merged" (aired or still to come). */
+ *  and once that's settled "Episode 9 to the finale, starting with Merged" (aired or still to come). An end at a phase (A12 part
+ *  1): "until Merged starts", "Episode 2 until Merged starts", and once that's settled "Episodes 1–8, until Merged". */
 function spanWords(span, w) {
+  const endPhase = spanEndPhase(span);
+  if (endPhase) {
+    const name = phaseWord(endPhase, w);
+    const first = spanStart(span);
+    const last = spanEnd(span);
+    const start = isObj(span.from) ? (first === null ? `from when ${phaseWord(span.from.phase, w)} starts` : `${w.Part} ${first}`) : span.from === 1 ? '' : `${w.Part} ${span.from}`;
+    if (last !== null && first !== null) return last < first ? `never: ${name} came first` : last === first ? `just ${w.Part} ${first}, until ${name}` : `${w.Parts} ${first}–${last}, until ${name}`;
+    return `${start ? `${start} ` : ''}until ${name} starts`;
+  }
   if (isObj(span.from)) {
     const name = phaseWord(span.from.phase, w);
     const at = spanStart(span);
@@ -674,6 +684,8 @@ function rulesOf(s, w) {
   const waivers = s.extras.waivers;
   if (by === 'draft') {
     if (draft) rules.push(draft);
+    // A12 part 1: a draft that opens at its game's start drafts from who's still in then.
+    if (isObj(s.extras.draft) && s.extras.draft.opens === 'start') rules.push(`The draft opens once it's known where the game starts and the ${w.part} before it has results, so you draft from who's still in.`);
     rules.push(...drawRules(s, w));
     rules.push(...keepRules(s, w));
     if (count === 'start') rules.push(`Before each ${w.part}, start ${say(s.count.start)}. Only starters score.`);
@@ -810,8 +822,13 @@ function rulesOf(s, w) {
       ? `It starts when ${name} starts: nothing before then scores.`
       : `It starts with ${name}, at ${w.Part} ${at}: the ${w.parts} before it are history.`);
   }
-  const end = s.span.to;
-  if (end !== null) rules.push(end === spanStart(s.span) ? `It's one ${w.part}: ${w.Part} ${end}, then it's over.` : `It ends with ${w.Part} ${end}: nothing after it scores, and the table there is final.`);
+  // A12 part 1: an end at a phase, known once that phase's start is.
+  const endPhase = spanEndPhase(s.span);
+  const end = spanEnd(s.span);
+  if (endPhase) {
+    const name = phaseWord(endPhase, w);
+    rules.push(end === null ? `It ends when ${name} starts: nothing from then on scores, and the table there is final.` : `It ends with ${w.Part} ${end}, before ${name}: nothing after it scores, and the table there is final.`);
+  } else if (end !== null) rules.push(end === spanStart(s.span) ? `It's one ${w.part}: ${w.Part} ${end}, then it's over.` : `It ends with ${w.Part} ${end}: nothing after it scores, and the table there is final.`);
   return rules;
 }
 
@@ -830,6 +847,8 @@ function detailsOf(s, w) {
       s.get.order === 'draw' ? `At random, out of ${s.get.own === 'shared' ? 'a hat each' : 'one hat'}` : s.get.order === 'auction' ? 'An auction: sealed bids, settled at once' : s.get.own === 'shared' ? 'In private, revealed at once' : 'Snake: everyone takes turns',
       d.timer ? `${d.timer === 60 ? '60 seconds' : '2 minutes'} a pick, then ${d.away === 'queue' ? 'from their queue' : 'it waits'}` : 'No pick timer',
       d.at ? `at ${d.at}` : 'no time set',
+      // A12 part 1: a draft that opens at its game's start.
+      ...(d.opens === 'start' ? [`opens once the ${w.part} before it is in`] : []),
     ].join(' · ') });
   }
   const sharedJoin = s.get.by !== 'draft' || s.get.own === 'shared';
@@ -862,12 +881,55 @@ function detailsOf(s, w) {
   return out;
 }
 
+const OVERALL_WORDS = {
+  points: "Overall, each stage's points add up.",
+  places: 'Overall, each stage you finish scores by your place',
+  wins: 'Overall, the most stages won wins (ties all win a stage); level on that, by your places, then your points.',
+};
+const NTH = ['first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth', 'eleventh', 'twelfth'];
+/** ": 4 for first, 3 for second ..." for the overall by places: its points, else one for each of you below you, plus one. */
+function placesWords(o) {
+  if (Array.isArray(o.places) && o.places.length) return `: ${listOf(o.places.map((p, i) => `${p} for ${NTH[i]}`))}, nothing below that.`;
+  return ': one point for each of you below you, plus one.';
+}
+/**
+ * A game in stages in words (A12 part 1): "A game in two stages for Survivor 51: Before the merge, a Weekly Lineup ...; then
+ * After the merge, an Outlast .... Overall, each stage's points add up.", How it works the overall then each stage's sentence and
+ * rules, the details its own (who can join, locked down).
+ */
+function describeStages(s, ctx) {
+  const w = wordsOf(ctx);
+  const stages = s.stages.filter((x) => isObj(x) && isObj(x.game));
+  const each = stages.map((st, i) => {
+    const d = describeSpec(st.game, { ...(isObj(ctx) ? ctx : {}), show: null });
+    return { label: st.name || `Stage ${i + 1}`, d, sentence: d.sentence.replace(/^An? /, (m) => m.toLowerCase()).replace(/\.$/, '') };
+  });
+  const parts = [{ text: `A game in ${say(stages.length)} stages`, at: 'preset' }];
+  if (w.show) parts.push({ text: ` for ${w.show}`, at: 'about' });
+  parts.push({ text: ': ', at: null });
+  each.forEach((x, i) => parts.push({ text: `${i ? '; then ' : ''}${x.label}, ${x.sentence}`, at: 'span' }));
+  const o = isObj(s.overall) ? s.overall : { by: 'points' };
+  const overall = o.by === 'places' ? `${OVERALL_WORDS.places}${placesWords(o)}` : OVERALL_WORDS[o.by] || OVERALL_WORDS.points;
+  parts.push({ text: `. ${overall}`, at: 'rank' });
+  const rules = [overall];
+  if (o.by === 'places' || o.by === 'wins') rules.push("A stage counts once it's over.");
+  each.forEach((x) => rules.push(`${x.label}: ${x.d.sentence}`, ...x.d.rules.map((r) => `${x.label}: ${r}`)));
+  const e = isObj(s.extras) ? s.extras : {};
+  const details = [
+    { id: 'join', label: 'Who can join', recommended: e.join === null, value: e.lockedDown ? "Nobody new while it's locked down" : own(JOIN_WORDS, e.join) || JOIN_WORDS.open },
+    { id: 'lockedDown', label: 'Locked down', recommended: e.lockedDown !== true, value: e.lockedDown ? 'Nobody new, and the rules stay as they are' : 'No' },
+  ];
+  return { name: null, sentence: parts.map((p) => p.text).join(''), parts, rules, details };
+}
+
 /**
  * The spec in words: its sentence (and its parts), How it works and its details. A spec still being made (no score yet, a
  * part missing) is said as far as it goes: the wizard shows it while the GPT and the person fill it in.
  */
 function describeSpec(spec, ctx) {
   const full = fullSpec(spec);
+  // A12 part 1: a game in stages, said stage by stage.
+  if (Array.isArray(full.stages) && playsAs(full) === 'stages') return describeStages(full, ctx);
   const part = (v, dflt) => (isObj(v) ? v : dflt);
   const s = {
     ...full,

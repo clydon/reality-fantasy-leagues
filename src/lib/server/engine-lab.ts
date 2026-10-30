@@ -4,10 +4,11 @@ import type { SpecContext, SpecDescription, SpecProblem, SpecWait } from "@/lib/
 import * as Capabilities from "@/lib/game/game-spec/capabilities.js";
 import { pageName, trackerStatus } from "@/lib/game/capability-rows";
 import tracker from "../../../tests/fixtures/engine-capabilities.json";
+import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { contextOf, questionBook } from "./answers";
 import { recordChange } from "./change-log";
-import { HttpError, pool } from "./db";
+import { HttpError, pool, syncStages } from "./db";
 import { followLeagueProgress } from "./follows";
 import { refused } from "./game-writes";
 import { makeLeague } from "./new-game";
@@ -15,6 +16,7 @@ import { copyOf } from "./ours";
 import { leaguePhases, scheduleOf, settleIn } from "./phase-starts";
 import { seasonSchedules } from "./schedule";
 import { startFrom } from "./start-game";
+import { seatIn } from "./stages";
 
 // The engine lab (docs/PLAN-start-a-game-gpt.md step A5; GET/POST /api/desk/lab): an admin's plain page for trying the engine's
 // pieces on a real season before the UI exists. Pick a season, then paste a spec or pick a row of the capability tracker
@@ -23,7 +25,8 @@ import { startFrom } from "./start-game";
 // plays as, and the row's status there. "Start it as a test game" makes it a game on the admin's test couch (Settings › Test
 // couch) or, locally, a zt- fixture's couch they're on (one a zt_ account made), through the game's writer (RosterLogic.setGame
 // with the season's ctx), never on a real couch: from the next episode to air unless the spec says, with a line in its Recent
-// changes. G1 plugs the GPT in here later: words, the draft, our check, the spec.
+// changes. G1 plugs the GPT in here later: words, the draft, our check, the spec. A game in stages (step A12 part 1) starts as its
+// game and a league for each stage (makeStages), tied to it (stages.ts).
 
 export interface LabSeason {
   seasonId: string;
@@ -204,16 +207,17 @@ export async function labStart(user: SessionUser, body: { seasonId?: unknown; co
   if (!couch) throw new HttpError(403, "Test games go on your test couch (Settings › Test couch) or a zt- fixture's couch");
   const { ctx, copyId } = await rulesOn(season, couch.couchId);
   const pasted = specFrom(body.spec) as Record<string, unknown>;
-  const spec = pasted && typeof pasted === "object" && !pasted.span ? { ...pasted, span: { from: startFrom((await seasonSchedules([season.id])).get(season.id), new Date()), to: null } } : pasted;
+  const spec = withStart(pasted, startFrom((await seasonSchedules([season.id])).get(season.id), new Date()));
   const verdict = verdictOf(season, ctx, spec);
   if (!verdict.startable || !verdict.playsAs) throw new HttpError(409, verdict.problems[0]?.problem ?? verdict.waits[0]?.problem ?? "No game plays this way yet");
   const starter = (user as { username?: string | null }).username || user.name;
-  const { rows: taken } = await pool.query("SELECT count(*)::int AS n FROM leagues WHERE couch_id = $1 AND name LIKE 'Lab · %'", [couch.couchId]);
-  const name = `Lab · ${verdict.describe?.name ?? "a game"}${taken[0].n ? ` ${taken[0].n + 1}` : ""}`;
+  const { rows: taken } = await pool.query("SELECT count(*)::int AS n FROM leagues WHERE couch_id = $1 AND name LIKE 'Lab · %' AND stage_of IS NULL", [couch.couchId]);
+  const name = `Lab · ${verdict.describe?.name ?? (verdict.playsAs === "stages" ? "Stages" : "a game")}${taken[0].n ? ` ${taken[0].n + 1}` : ""}`;
   let seat = "";
   let made: string | null = null;
-  // A game of questions starts from Survival Pool's type (nothing held, its results in its state), as Start a game's does.
-  const type = verdict.playsAs === "questions" ? "pickem" : verdict.playsAs;
+  // A game of questions starts from Survival Pool's type (nothing held, its results in its state), as Start a game's does; a game in
+  // stages too (its stages are leagues of their own).
+  const type = verdict.playsAs === "questions" || verdict.playsAs === "stages" ? "pickem" : verdict.playsAs;
   const leagueId = await makeLeague(
     { id: season.id, number: season.number, slug: season.slug },
     {
@@ -230,8 +234,8 @@ export async function labStart(user: SessionUser, body: { seasonId?: unknown; co
         await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, $3, 'commissioner')", [id, user.id, seat]);
         refused(StateLogic.setGame(s, spec as never, { ctx }), 409);
         // A game that asks by phase (step A7) records the season's phase starts and its windows now, as the desk and the
-        // season sync do later (phase-starts.ts).
-        if (StateLogic.readsPhases(s)) settleIn(s, await leaguePhases(client, id, season.id), await scheduleOf(season.id));
+        // season sync do later (phase-starts.ts); one that starts or ends at a phase (A3, A12 part 1) settles it, when it's known.
+        if (StateLogic.readsPhases(s) || StateLogic.startPhase(s) || StateLogic.endPhase(s)) settleIn(s, await leaguePhases(client, id, season.id), await scheduleOf(season.id));
         await recordChange(client, id, s, { userId: user.id, kind: "game.start", tier: 1, text: `${starter} started ${name} from the engine lab`, detail: { lab: true } });
       },
     }
@@ -241,6 +245,65 @@ export async function labStart(user: SessionUser, body: { seasonId?: unknown; co
     throw e;
   });
   if (!leagueId) throw new HttpError(500, "Couldn't make the game, try again");
+  // A game in stages: a league for each stage, tied to it; one that can't be made takes the game (and the stages made) away.
+  if (verdict.playsAs === "stages") {
+    await makeStages(user, leagueId, name, spec, season, couch.couchId, copyId, ctx).catch(async (e) => {
+      await pool.query("DELETE FROM leagues WHERE id = $1 AND created_by = $2", [leagueId, user.id]);
+      throw e;
+    });
+  }
   await followLeagueProgress(user.id, leagueId);
   return { leagueId, name, seasonId: season.id };
+}
+
+/** A spec that doesn't say where it starts starts with `from` (the next episode to air); a game in stages, its first stage. */
+function withStart(pasted: Record<string, unknown>, from: number): Record<string, unknown> {
+  if (!pasted || typeof pasted !== "object") return pasted;
+  if (Array.isArray(pasted.stages)) {
+    const [first, ...rest] = pasted.stages as Record<string, unknown>[];
+    const game = first && typeof first.game === "object" && first.game ? (first.game as Record<string, unknown>) : null;
+    const span = game && typeof game.span === "object" && game.span ? (game.span as Record<string, unknown>) : null;
+    if (!game || (span && span.from !== undefined)) return pasted;
+    return { ...pasted, stages: [{ ...first, game: { ...game, span: { ...(span ?? {}), from } } }, ...rest] };
+  }
+  return pasted.span ? pasted : { ...pasted, span: { from, to: null } };
+}
+
+/**
+ * A game in stages' stage leagues (step A12 part 1, stages.ts), each an ordinary game on the same couch, season and rules, made as
+ * the game was (makeLeague), its spec the stage's game written through its writer with the season's ctx (a later stage's exclusive
+ * count waits for its draft to open: StateLogic.settleDraftShare), tied to the game (stage_of, stage_key), with the game's seats under
+ * the same ids and their memberships; a stage that starts or ends at a phase settled when that's known.
+ */
+async function makeStages(user: SessionUser, parentId: string, name: string, spec: unknown, season: LabSeasonRow, couchId: string, copyId: string | null, ctx: SpecContext): Promise<void> {
+  const full = Spec.fullSpec(spec as never);
+  const { rows } = await pool.query("SELECT state FROM leagues WHERE id = $1", [parentId]);
+  const parent = rows[0].state as LeagueState;
+  for (const [i, stage] of (full.stages ?? []).entries()) {
+    const kind = Spec.playsAs(stage.game);
+    const stageCtx: SpecContext = i > 0 ? { ...ctx, pool: undefined } : ctx;
+    await makeLeague(
+      { id: season.id, number: season.number, slug: season.slug },
+      {
+        name: `${name} · ${stage.name || `Stage ${i + 1}`}`,
+        createdBy: user.id,
+        type: kind === "questions" ? "pickem" : (kind as string),
+        couchId,
+        rulebookId: copyId,
+        // The game's seats before the results arrive (so nobody's a late joiner), as the game's were; their memberships, and anyone
+        // else's, with the sync below.
+        before: (s) => {
+          for (const p of parent.players.filter((x) => !x.ghost && !x.disabled)) seatIn(s, p);
+        },
+        after: async (s, client, id) => {
+          refused(StateLogic.setGame(s, stage.game, { ctx: stageCtx }), 409);
+          await client.query("UPDATE leagues SET stage_of = $2, stage_key = $3 WHERE id = $1", [id, parentId, stage.id]);
+          if (StateLogic.readsPhases(s) || StateLogic.startPhase(s) || StateLogic.endPhase(s)) settleIn(s, await leaguePhases(client, id, season.id), await scheduleOf(season.id));
+          await recordChange(client, id, s, { userId: user.id, kind: "game.start", tier: 1, text: `${stage.name || `Stage ${i + 1}`} of ${name}, from the engine lab`, detail: { lab: true, stageOf: parentId } });
+        },
+      }
+    );
+  }
+  // Every stage's memberships, as the game's (stages.ts).
+  await syncStages(parentId, parent);
 }

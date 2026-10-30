@@ -10,6 +10,7 @@ import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { leagueStates } from "./league-states";
 import { syncLeagueDecisions } from "./season-decisions";
 import { games, type Game } from "./show-space";
+import { deleteStages, restoreStages } from "./stages";
 
 // Archive or delete a game (docs/PLAN-new-design.md step 10 part 2b; the mock's settings.js "Archive or delete a game" and
 // guards.js' tiers), from Backstage › Game settings, for its Commissioner.
@@ -186,6 +187,8 @@ export async function deleteLeagueIn(
   else if (league.couch_id && o.seasonId) await client.query("UPDATE chat_messages SET league_id = NULL, couch_id = $1, season_id = $2 WHERE league_id = $3", [league.couch_id, o.seasonId, o.leagueId]);
   await client.query("DELETE FROM league_memberships WHERE league_id = $1", [o.leagueId]);
   await client.query("UPDATE leagues SET deleted_at = now(), deleted_by = $2, group_id = NULL, group_position = NULL, updated_at = now() WHERE id = $1", [o.leagueId, user.id]);
+  // Step A12 part 1: a game in stages takes its stages with it (stages.ts).
+  await deleteStages(client, o.leagueId, user.id);
   const undo: GameUndo = {
     type: "game",
     memberships: seats.map((s) => s.row),
@@ -232,6 +235,8 @@ export async function restoreGame(client: PoolClient, leagueId: string, undo: Ga
   // What scored while it was gone reaches it now.
   const { rows: st } = await client.query("SELECT state FROM leagues WHERE id = $1", [leagueId]);
   const state = st[0].state as LeagueState;
+  // Step A12 part 1: a game in stages brings its stages back, their memberships mirrored from its own (stages.ts).
+  if (StateLogic.StageLogic.on(state)) await restoreStages(client, leagueId, state);
   await syncLeagueDecisions(client, leagueId, state);
   StateLogic.ensureNextEpisode(state);
   await client.query("UPDATE leagues SET state = $1 WHERE id = $2", [JSON.stringify(state), leagueId]);

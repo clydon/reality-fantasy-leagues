@@ -48,8 +48,11 @@ summed or their mean, by their points or head to head between the teams, `rank.t
 the game starts, `rank.handicap`, `HandicapLogic`, `handicaps.ts`), and part 5c (2026-10-30: teams that follow the show's own groups
 refused, with why and what rides the show's groups instead; the late joiners' leftovers: nobody new once someone's out in every game
 that knocks people out, someone catching up in a pool with lives, a late joiner dealt after a draw and paying under a price, a late
-joiner's captain and second pick played through the routes, computer players' group slots), are built, so A11 is done; A12 (stages)
-is next, then A13 and A14
+joiner's captain and second pick played through the routes, computer players' group slots), are built, so A11 is done. A12 (stages) is
+under way, in parts (2026-10-30): part 1, the stage spec and its overall (a game in stages, each stage a game and a league of its own tied
+to it, on an episode or a phase; a second draft at the merge, drafting from who's left and counted as it opens; the overall by points,
+places or stages won, at each viewer's mark; a game that ends before a phase; `StageLogic`, `stages.ts`, migration 0203), is built; parts 2
+to 4 next (a stage a format change starts, when a grouping lasts, mini-games and two shows), then A13 and A14
 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -4107,6 +4110,129 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     "A11 part 5c: the late joiners' leftovers, replayed blind".
 - **A12. Stages.** A game made of phases or mini-games, each with its own rules and an overall: a second draft at the merge, a
   season of mini-games, a game that scores two ways (bingo lines plus answers), one game across two shows.
+
+  **Split in parts (2026-10-30), each its own session, the engine's only (no screens: U1's and track V's).** Each piece rides on data
+  with its fallback from the start; every default, what players and the maker are told, and the edge cases (a change during a draft,
+  two in one episode, one in the finale, one that comes back) go in the part's Noticed, for the format-change design session after A12.
+  - **Part 1: the stage spec, stages on an episode or a phase, the overall, a second draft counted where it drafts** (shape.stages,
+    shape.phaseRules, s39; a game that ends before a phase, when.toPhase): built (below).
+  - **Part 2: a stage started by a format change** (p7): a stage that starts on a change of the kinds the spec names (F3's `MAJOR` by
+    default, `stageTriggers`: the sure ones acted on from the episode they take effect, the unsure ones held and flagged), again at every
+    such change ("whenever": a stage made each time from the spec's own), the maker's OK or by itself with an undo (both built, a spec
+    setting), a stage started on a report later corrected undone (`timelineDiff`: its start waits again and what it scored goes, as a
+    result taken back does), the 'next-stage' fallbacks VOCAB marks 'later' (`ask.fallback`, `get.groups.fallback`), proven on The
+    Challenge's three seasons and Survivor 49's swaps and merge, replayed blind.
+  - **Part 3: when a grouping lasts** (p8): a side stage that opens once a grouping has held N episodes (F3's `sideStages`), scores from
+    then on and closes when it changes (its points kept), follow the people, a pick each episode from the groupings on screen, and a
+    decision point for the game's people with the game's default if nobody answers by the next lock (the maker's OK now, A14's vote
+    later); and A11 part 5c's backing team if a request asks.
+  - **Part 4: mini-games, two ways of scoring, two shows, late joiners** (shape.minis, shape.twoWays, shape.twoShows, s45, s20, p1):
+    stages of bingo and Weekly Calls (their tables from the server's own counts), stages that play at the same time, a stage on another
+    show's season, and someone joining a game in stages once it has started.
+
+  **As built (A12 part 1, 2026-10-30, on `engine`, not merged; migration 0203).** One session, after `lane.js sync engine` (master's
+  daylight-saving fixes and handoff; 1141 tests). A game in stages, on episodes and phases, with its overall. Every default and
+  everything a person sees is the user's (Noticed, below).
+  - **The shape: a stage is a league of its own.** A stage that's bingo one week and a draft the next, two ways of scoring at once and
+    one game across two shows can't share one league's state, and a game's own data (its answers, its bingo cards, its draft) is keyed
+    by its league. So a game in stages is a league (the game: its seats, its table the overall) and each stage is an ordinary league,
+    a game the engine plays exactly as it would alone, tied to it (`leagues.stage_of`, `stage_key`, migration 0203, a stage deleted with
+    its game), on the same couch and season, its results the season sync's like any league's.
+  - **The spec** (`schema.js`): `{ spec, preset: null, stages, overall, extras? }`. `stages`: 2 to `MAX_STAGES` (6), each `{ id, name,
+    game }`, `game` an ordinary spec checked as one (with the show's ctx; the exclusive count only for the first stage, where the game
+    drafts: a later stage's waits for its draft to open), never nested, in order: each starts where the one before ends (the episode
+    after its last, or the phase it ends before; a gap, which nobody would play, is refused; stages that overlap wait for part 4). A
+    stage that doesn't say where it ends ends where the next starts (`stageGames`), and a later stage's draft opens at its start unless
+    it says. Its own parts are what a game in stages is (`fullStaged`: nothing held, `score.by` 'stages', its span from its first stage's
+    start to its last's end); anything else said there is refused ("its rules are its stages'"), as an overall on a game that isn't in
+    stages. `overall`: `{ by: points | places | wins, places? }` (VOCAB `overall.by`; `OVERALL` points): each stage's total as its table
+    shows it added up (every stage as it stands); points for each place in a stage that's over (`places` [1st, 2nd, ...], else one for
+    each of you below you, plus one; ties share the higher place); stages won (ties all win), then places, then points. A stage of bingo
+    or Weekly Calls (scored outside the game) waits for part 4 (`specWaitsFor`); `playsAs` 'stages' only when every stage plays one of
+    `STAGE_KINDS`. Its settings (`settings.js`): `leagueTypeId` 'stages', `settings.stages` (each game whole) and `stageOverall`, both
+    ways (the round trip, `withSpec`). Its words (`describe.js describeStages`): "A game in two stages for Survivor 51: Pre-merge, an
+    Outlast ...; then Post-merge, ... Overall, the most stages won wins ...", How it works the overall then each stage's own.
+  - **A game that ends before a phase** (`span.to { phase }`, `{ phase, at }` once settled; `spanEnd`, `spanEndPhase`, settings'
+    `endPhase`): it runs on while the phase's start is unknown, then ends with the episode before where a game starting at that phase
+    would play from (`RosterLogic.settleStart`'s `where.end`, the same rule as a start: its first episode, or the first still open once
+    it's begun), so a stage that ends before the merge and the next that starts at it always meet; it never moves once the episode after
+    it has aired, waits again when the phase's start is cleared, and one whose phase came before its start never plays. Settled where a
+    phase start is (`phase-starts.ts settleIn`, the desk's confirm through `settleSeasonStarts`, the season sync's backstop), each with
+    its line ("Ends before Merged, with Episode 7"); every reader of `span.to` reads `spanEnd` (`endEpisode`, `inPlay`, the knockouts'
+    series, the answers' facts, the cut, playoff and points-times checks). A plain request on its own: "a Weekly Lineup until the merge".
+  - **A draft that opens at its game's start** (`extras.draft.opens`: 'any', today's, by leaving it out; 'start', a later stage's
+    default; settings' `draftOpens`): it opens once the game's start is known and the episode before it has results, so it drafts from
+    who's still in (`DraftLogic.waits`, with why; `isStarted`, a pick, a draw and an auction's bids wait for it; a Start before then
+    waits too, and the draft room's start route refuses with the reason), and stays open once anyone is on a team (`DraftLogic.begun`).
+    As it opens, an exclusive draft that no longer covers every pick (the seats in its rotation × each, against who's still in) is played
+    shared from then on (`RosterLogic.settleDraftShare`: a snake becomes a private draft revealed at once, a draw deals each seat from its
+    own hat, waivers go where a shared draft has none; an auction stays, filling what it can), once, before anyone's on a team, through
+    `setGame`, with a line in its Recent changes ("The draft is shared: 4 of you × 3 is more than the 11 still in, so two of you can have
+    the same one"): the 9:10 PM decision counted where the game drafts and as the pool shrinks (db.ts runs it before and after every
+    write's mutation, `stages.ts settleStageDraft`).
+  - **The overall** (`state-logic.js StageLogic`, the league type 'stages' with `StagesScoringStrategy`, `rankKey`): from the stages'
+    tables as the server reads them (`answer-points.ts stageWalk`, in `asItStands`, so every walked reader has it: the Games tab, the
+    couch's game list, the hub): each stage league as it stands (a game of questions graded and walked on its answers), its table after
+    each episode it played, the one anyone on its couch sees at that mark (`gameView`, no seat), to its end; never stored. The game's
+    copy at a viewer's mark reads each stage's last entry by then (`SpoilerLogic.viewThrough` cuts the walk too), so someone behind
+    sees only what they've seen. A stage not yet started counts nothing; someone not in a stage's table scores nothing there. The game
+    ends with its last stage (`StageLogic.endsAt` in `lastEpisode`, early where that stage ended early), and nobody new joins it once its
+    first stage has started (`StageLogic.started` in `GhostLogic.allowed`; a code join then waits, inactive: `addPlayer`).
+  - **The server** (`src/lib/server/stages.ts`): the game holds the seats; each stage mirrors them and their memberships (`seatStage`,
+    `mirrorMemberships`: a seat the game has added to the stage under the same player id through `addPlayer`, so the stage's own rule for
+    someone joining holds; a seat gone from the game taken out where the stage hasn't begun, else left with its team and points; names,
+    leaving, coming back and computer players mirrored; a membership the game no longer has, a hand-over and a role change mirrored),
+    through each stage's own `withLeagueLock` after any write to the game commits (`db.ts syncStages`, from `withLeagueLock` and
+    `join-league.ts`; only the stages that differ, `stagesToSeat`), so the stage's bots, settles and draft share run as on any write.
+    The engine lab makes a game in stages (`engine-lab.ts makeStages`: the game, then a league per stage with its spec through `setGame`
+    and the season's ctx, tied, seated, its phases settled; a spec that doesn't say where it starts starts its first stage with the next
+    episode to air). Deleting the game takes its stages with it, restoring brings them back (`end-game.ts`, `deleteStages`,
+    `restoreStages`). The couch's hub counts the game, never its stages (`show-space.ts` `Game.stageOf`); the stages are on the couch's
+    lists as games of their own (their moves are there: U1 and track V decide how they're shown). `GAME_NAMES` calls it "Stages" (a
+    working name).
+  - **The tracker:** shape.stages (a second draft at the merge: a Weekly Lineup before it, another drafted at it, the overall by points),
+    shape.phaseRules (a Weekly Lineup before the merge, a Survival Pool after it, by places), s39 (pre-merge and post-merge Outlasts with
+    their own exclusive drafts, by stages won) and two new rows, shape.episodes (the season's halves by episode, so The Challenge and The
+    Traitors play stages too) and when.toPhase (until the merge), ✅. **183 ✅** · 64 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 273 (A12's are 8 now).
+    s39's first stage drafts 4 × 3 = 12 exclusively, which every taped season's cast covers; its second is counted as it opens.
+  - **Tests:** `tests/stages.test.js` (new, 8): a game that ends before a phase (its spec, words, settings, where it settles, never
+    moving once the next has aired, cleared, one that never plays, one from phase to phase); a stage that ends before the merge and the
+    next always meeting; a draft that opens at its start (waiting with why, a Start waiting, nothing counted before, opened by the
+    episode before's results, made shared with waivers gone, one that fits staying exclusive and drafting from who's left, open once
+    begun, a draw, today's drafts untouched); the staged spec (whole, in order, its words and settings, every problem and wait, the
+    exclusive count only where the first stage drafts); a game in stages through the engine (two Outlast drafts, the second at the
+    merge from who's left and shared, the overall by points, places and wins at each viewer's mark, read as the server reads the stages:
+    `gameView` at each episode); ties sharing a place and a win; nobody new once it's started; a gap refused. `game-spec.test.js`'s
+    fields: `endPhase`, `draftOpens`, `stages`, `stageOverall`. `npm test` 1149.
+  - **API check:** `scripts/dev-test/check-stages.js` (new, on new-fixture.js's couch and `check-kit.js`), 34 PASS: the desk's admin starts
+    s39 from the engine lab (the game and two stage leagues, tied, its seat in each; Pre-merge from Episode 6 until Merged, Post-merge
+    waiting with its draft at its start); alex, riley, jordan and sam join the game on the couch and are seated in both stages under the
+    same ids; Post-merge's draft refused with why; Pre-merge drafted through the pick route; Episode 6 through the season sync, the Games
+    tab's table the first stage's (at a viewer's mark: alex caught up first); jordan leaves (out of both stages, a disabled seat with its
+    team in the begun one, gone from the other); the desk confirms Merged at 8 (Pre-merge ends with 7, Post-merge starts with 8, a line in
+    each, its draft now waiting for 7); Episode 7: the draft opens and is shared (4 × 3 more than the 11 still in, its line), nobody new
+    can join, drafted in private through the blind lock route; Episode 8: the game's table each seat's two stages added up; sam behind
+    sees nothing, then Pre-merge only; the hub counts the game, not its stages; deleted and restored with its stages. Also ALL PASS:
+    `check-phase-starts.js`, `check-engine-lab.js`, `check-late-joins.js`, `check-new-couches.js --api`, `check-desk-games.js`,
+    `check-group-slots.js`, `check-knockouts.js`, `check-new-computer-players.js --api`. `npx tsc --noEmit -p .` clean.
+  - **Code review** (`/code-review` at high, before the long runs; ten findings, all taken). The seat sync only ever added seats and
+    memberships: a seat leaving the game stayed seated and in charge in every stage, a hand-over or a role change never reached them, and
+    a waiting seat got a membership in a stage it wasn't in (now `seatStage` and `mirrorMemberships` mirror both ways); it wrote the
+    stages raw inside the game's transaction, skipping their bots and settles (now each through its own write after the game's commits,
+    only those that differ); deleting the game left its stages live (soft delete: they go and come back with it now); the season's phase
+    walk skipped a game asking by phase whose end could still move; a gap between stages passed (refused); `stageWalk` read the stages one
+    after another (side by side; its cost is Noticed); the lab copied seats its own way (`seatIn`, shared) and counted stage leagues in its
+    names; the join route walked a game in stages to find someone out (none is). Then, by hand, a code join once the game has started waits
+    inactive and isn't seated in its stages.
+  - **Golden replays** (`golden.js`, HEAD against the working tree, after the code review's fixes): 7 seasons, 160 games, **19,361 reads,
+    every one the same** (no game they play is in stages, ends before a phase or has a draft that opens at its start).
+  - **Blind replays** (`blind.js run`, the five seasons, on the final code; `blind.js` plays each stage as a game of its own beside the
+    game, its draft when it opens, and reads the game's table as it stands): **every game ended on all five seasons** (Survivor 49 110 of
+    110: 102 tracker games and eight stage records; The Challenge 41, 40 and 39 81 of 81; The Traitors 4 79 of 79), nothing refused. On
+    Survivor 49 the merge came in with Episode 7's results, so the stages ending before it ended with 7 and the next started with 8;
+    s39's second draft opened at 8 and went shared (4 × 3 more than the 11 left); each overall added up as its rule says (shape.stages
+    by points, the Tinkerer 45 + 64 = 109; s39 by stages won, one each for the Fan and the Tinkerer). The season's halves (shape.episodes)
+    played on all five. The study doc's "A12 part 1: stages, replayed blind".
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
   and checked as now); episode facts (who said the title quote) through new research questions rated reliable (Our check).
 - **A14. The players' own mechanics** (allowed 2026-10-28, with the Decisions table's guardrails): votes among the players,
@@ -4853,6 +4979,56 @@ From A10 part 1 (2026-10-29):
 - A slot's group members are matched to the league's cast the forgiving way (`Core.findCastawayByName`), as F3 part 2's group
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
+
+Taken by A12 part 1 (2026-10-30): A11 part 4's item 12 in part (a stage that starts at a phase and a game that ends before one are
+built; the playoffs starting when research names the final stays with the desk's finale episode); A11 part 4's early ends' dispatcher
+in part (`StageLogic.endsAt` sits beside `KnockoutLogic.endsAt` in `lastEpisode`, not inside its dispatch).
+
+From A12 part 1 (2026-10-30):
+- **For the user, in the format-change design session (after A12), each with a recommendation (built as spec settings or engine rules):**
+  1. The overall by default (`OVERALL`: points). Options: places (a stage you finish scores by your place), stages won. Recommended:
+     points when every stage scores the same way (a second draft at the merge is one game going on: its points are alike), places when
+     they don't (a lineup's points beside a pool's streak aren't), the wizard saying which; wins only when the words say "an overall
+     winner of the stages".
+  2. Places' points. Built: one for each of you below you, plus one (4, 3, 2, 1 for four), ties sharing the higher; `places` for a
+     table of the maker's ("10 for first, 6 for second"). Recommended: keep.
+  3. When a stage counts in the overall. Built: by points as it stands, every episode; by places and wins only once it's over.
+     Options: places as they stand too (a live overall that moves every week). Recommended: keep (a place in a stage that isn't over
+     isn't a place yet), the game's page showing the stage in progress beside the overall (track V).
+  4. A later stage's draft. Built: it opens at its stage's start (once the episode before has results), its exclusive count then, and
+     nothing makes it finish before the stage's first lock (a snake not finished scores whoever's drafted, a blind draft not revealed
+     scores nobody). Options: a deadline (the stage's first lock), with the pick timer and "away: queue" on by default and anyone not
+     done picked for (as computer players pick); or the stage's first episode skipped for the draft. Recommended: the deadline with
+     picks made for whoever isn't done, said in the draft room ("Picks close when Episode 8 starts").
+  5. An exclusive later draft that no longer fits who's left. Built: shared from then on, said in its Recent changes (the decision's
+     fallback, automatic). Options: fewer each (3 → 2) to stay exclusive; ask the maker. Recommended: shared (the decision), the draft
+     room saying why before anyone picks.
+  6. Nobody new once the first stage has started. Built (a code join waits, inactive, and isn't seated in the stages). Options: join the
+     stage in play as its late joiner (its own rules) and every later stage from its start. Recommended: that, in part 4.
+  7. What players see. Built: each stage is a game on the couch's lists (its moves are there) and the game is too (its table the
+     overall); the hub counts the game only. Recommended: the game's page shows the overall and its stages inside it (track V's stages
+     block), the couch's lists the game alone, each stage's moves reached from the game's page.
+  8. The edge cases: the merge confirmed after its first episode aired (built: the first stage keeps that episode, the second starts
+     with the next, as A3's starts do); the merge moved later by a correction (both stages move together until the episode after the
+     first one's end has aired, then neither does); a merge that never comes (the first stage runs to the season's end, the second
+     never starts, the overall is the first's); a stage that never plays (its end's phase came before its start: "never"). Recommended:
+     keep, each said on the game's page.
+- **`stageWalk`'s cost:** every read of a game in stages works out each stage's table at each episode it played (a `gameView` each:
+  about 26 for two stages over 13 episodes), on the Games tab, the couch's game list, the hub and the join route. Fine for a few games;
+  cache each stage's walk by its `updated_at` if it shows. (The merge: a line in HOSTING.md; whoever next sees a slow couch.)
+- **Seats reach the stages from `withLeagueLock` and `joinLeague` only**, after the game's write commits: the desk's seat moves
+  (`desk-seat-moves.ts`, its own transaction) and anything else that writes a game's memberships without a write to the game reach its
+  stages at the game's next write. A failed sync is logged and done again by the next write. (Whoever next touches seat moves; part 4.)
+- **A seat that left a begun stage and comes back** gets a seat of its own again in the game (reclaimed by account there), but in the
+  begun stage it's a new seat: the old one, left with its team, isn't reclaimed. (Part 4's late joiners.)
+- **Changing a game in stages' stages after it's made** (Game settings, a typed change) writes the game's spec but doesn't remake its
+  stage leagues: only the lab makes them. (G2, U1: a write that changes the stages.)
+- **The stages are on the couch's lists** (the Games tab, the couch's game list, Start a game's "already on this couch"), each a game,
+  beside the game itself. (U1 and track V.)
+- **The lab passes no `ctx.pool` or `ctx.couch`** (as before), so the first stage's exclusive count runs only where they're given (G1);
+  a later stage's runs as its draft opens, from the stage's own seats and cast.
+- The stage sentences inside a game in stages' words say "the show's rules" (each stage described without the show's name), and the
+  sentence joins them with semicolons. (U0, with the wizard's words.)
 
 Taken by A11 part 5c (2026-10-30): part 5's teams that follow the show's groups (refused, below); A10 part 1's computer players and
 group slots; A9 part 2's and A10 part 2's late joiner's captain and second pick (a check plays them); A10 part 3's someone who joins after

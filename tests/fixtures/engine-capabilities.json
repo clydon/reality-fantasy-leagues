@@ -148,6 +148,13 @@
           }
         },
         {
+          "id": "when.toPhase",
+          "what": "Until a phase of the season starts (before the merge)",
+          "step": "A12",
+          "spec": { "preset": "weekly-lineup", "span": { "from": 1, "to": { "phase": "merged" } } },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" }
+        },
+        {
           "id": "when.span",
           "what": "For a stretch (just tonight, episodes 8 to 10)",
           "spec": {
@@ -2045,12 +2052,41 @@
         {
           "id": "shape.stages",
           "what": "Stages (a second draft at the merge)",
-          "step": "A12"
+          "step": "A12",
+          "spec": {
+            "stages": [
+              { "id": "pre", "name": "Before the merge", "game": { "preset": "weekly-lineup", "span": { "from": 1 } } },
+              { "id": "post", "name": "After the merge", "game": { "preset": "weekly-lineup", "span": { "from": { "phase": "merged" } } } }
+            ],
+            "overall": { "by": "points" }
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" }
         },
         {
           "id": "shape.phaseRules",
           "what": "Rules per phase",
-          "step": "A12"
+          "step": "A12",
+          "spec": {
+            "stages": [
+              { "id": "pre", "name": "Before the merge", "game": { "preset": "weekly-lineup", "span": { "from": 1 } } },
+              { "id": "post", "name": "After the merge", "game": { "preset": "survival-pool", "span": { "from": { "phase": "merged" } } } }
+            ],
+            "overall": { "by": "places" }
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" }
+        },
+        {
+          "id": "shape.episodes",
+          "what": "Stages by episode: the season's two halves, each its own game, plus an overall",
+          "step": "A12",
+          "spec": {
+            "stages": [
+              { "id": "first", "name": "First half", "game": { "preset": "weekly-lineup", "span": { "from": 1 } } },
+              { "id": "second", "name": "Second half", "game": { "preset": "survival-pool", "span": { "from": 7 } } }
+            ],
+            "overall": { "by": "places" }
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" }
         },
         {
           "id": "shape.minis",
@@ -3408,7 +3444,15 @@
       "step": "A12",
       "dials": [
         "shape"
-      ]
+      ],
+      "spec": {
+        "stages": [
+          { "id": "pre", "name": "Pre-merge", "game": { "preset": "outlast", "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" }, "span": { "from": 1 } } },
+          { "id": "post", "name": "Post-merge", "game": { "preset": "outlast", "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" }, "span": { "from": { "phase": "merged" } } } }
+        ],
+        "overall": { "by": "wins" }
+      },
+      "note": "a game in stages (A12 part 1): each stage its own game and league, the second drafting at the merge from who's left (counted then: shared when four of you × 3 is more than who's still in), the overall by stages won"
     },
     {
       "id": "s40",

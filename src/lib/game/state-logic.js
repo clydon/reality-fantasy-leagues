@@ -130,20 +130,27 @@ function startPhase(state){ return Spec.spanPhase(gameOf(state).span); }
 function waitsForPhase(state){ return startEpisode(state) === null; }
 // The episode this league plays through (span.to; settings.endEpisode): a game over a span -- one game, a series, a
 // stretch of the season (docs/PLAN-sports-data.md step 6) -- ends there. Nothing after it scores, no picks or
-// lineups are made for it, and the game is over once it has results. Null (the default): to the season's end.
-function endEpisode(state){ return gameOf(state).span.to; }
+// lineups are made for it, and the game is over once it has results. Null (the default): to the season's end. A game that
+// ends before a phase starts (step A12 part 1: span.to { phase }) ends at the episode before it once data says where that is
+// (RosterLogic.settleStart), and runs on (null) until then.
+function endEpisode(state){ return Spec.spanEnd(gameOf(state).span); }
+// The phase this league ends before (its id), or null (step A12 part 1).
+function endPhase(state){ return Spec.spanEndPhase(gameOf(state).span); }
 // The episode the game plays through, as the data has it: its span's end, or earlier where a draft's race was won or its cuts
 // left one (step A11 part 1: KnockoutLogic.endsAt), or where head to head's playoffs end (part 4: MatchupLogic.endsAt). It's over there (gameOver) and scores as it stood then (spanView); the
 // span's end (endEpisode) stays what the game was made with, for what it says and for Game settings.
 function lastEpisode(state){
   const to = endEpisode(state);
-  const early = KnockoutLogic.endsAt(state);
+  // A12 part 1: a game in stages ends with its last stage, which may end early (StageLogic.endsAt).
+  const ends = [KnockoutLogic.endsAt(state), StageLogic.endsAt(state)].filter(n => n !== null);
+  const early = ends.length ? Math.min(...ends) : null;
   return early === null ? to : to === null ? early : Math.min(to, early);
 }
 function inPlay(state, episodeNumber){
   const span = gameOf(state).span;
   const from = Spec.spanStart(span);
-  return from !== null && episodeNumber >= from && (span.to === null || episodeNumber <= span.to);
+  const to = Spec.spanEnd(span);
+  return from !== null && episodeNumber >= from && (to === null || episodeNumber <= to);
 }
 // The league as its span saw it: results after its last episode taken out (as the spoiler guard takes out what
 // someone hasn't seen), so a game over a span scores, and is shown, as it stood at its end, whatever came after
@@ -543,6 +550,11 @@ class PickEmScoringStrategy {
 // tableOf) and the waivers' order by standings (Weekly Calls' and Weekly Bingo's tables rank by what's counted outside the state).
 function rankKey(state, r){
   const g = gameOf(state);
+  // A12 part 1: a game in stages ranks by its overall: points; points for places, then points; stages won, then places, then points.
+  if(g.score.by === 'stages'){
+    const by = g.overall && g.overall.by;
+    return by === 'wins' ? [r.wins || 0, r.placePoints || 0, r.stagePoints || 0] : by === 'places' ? [r.placePoints || 0, r.stagePoints || 0] : [r.total || 0];
+  }
   if(g.get.by === 'pick') return g.rank.by === 'standing' ? PickEmScoringStrategy.standingKey(r) : [r.longestStreak || 0, r.total];
   if(g.rank.by === 'worth' && MarketLogic.on(state)) return [r.worth || 0, r.total];
   // A11 part 1: a draft that knocks players out, last one standing (its rows carry `out`: KnockoutLogic.apply); part 2b, a game of
@@ -570,6 +582,19 @@ function rankKey(state, r){
 class CallsScoringStrategy {
   static compute(state){
     return state.players.map(p => ({playerId:p.id, name:p.name, color:p.color, locked:0, bonus:0, finale:0, total:0, roster:[], formerRoster:[]}));
+  }
+}
+// A game in stages (docs/PLAN-start-a-game-gpt.md step A12 part 1): its table is the overall, worked out from its stages' tables
+// as the server hands them over (StageLogic), sorted as rankKey ranks it.
+class StagesScoringStrategy {
+  static compute(state){
+    const by = new Map(StageLogic.overall(state).map(r => [r.playerId, r]));
+    const rows = state.players.map(p => {
+      const r = by.get(p.id) || { overall: 0, points: 0, placePoints: 0, wins: 0, stages: [] };
+      return { playerId: p.id, name: p.name, color: p.color, locked: r.overall, bonus: 0, finale: 0, total: r.overall, roster: [], formerRoster: [],
+        stages: r.stages, stagePoints: r.points, placePoints: r.placePoints, wins: r.wins };
+    });
+    return rows.sort((a, b) => PickEmScoringStrategy.compareKeys(rankKey(state, b), rankKey(state, a)));
   }
 }
 // Thin dispatcher -- see the "League types" comment near the top of this file. Delegates to
@@ -638,7 +663,7 @@ class KnockoutLogic {
     const game = gameOf(state);
     const from = Spec.spanStart(game.span);
     if(from === null) return [];
-    const to = game.span.to;
+    const to = Spec.spanEnd(game.span);
     const episodes = (state.episodes || []).filter(e => e.number >= from && (to === null || e.number <= to) && EpisodeLogic.hasResults(e)).sort((a,b) => a.number - b.number);
     const players = state.players || [];
     const outlast = game.score.by === 'place';
@@ -2236,7 +2261,8 @@ class DrawLogic {
   // A draw that can deal: not drawn, a cast and someone to deal to, and nobody on a team yet (a league whose teams were made
   // another way before it became a draw keeps them: it's never dealt over).
   static ready(state){
-    return DrawLogic.on(state) && !DrawLogic.drawn(state) && !state.draftPicksMade
+    // A12 part 1: never before a draft that opens at its game's start has opened (DraftLogic.waits).
+    return DrawLogic.on(state) && !DrawLogic.drawn(state) && !state.draftPicksMade && !DraftLogic.waits(state)
       && (state.castaways || []).some(c => c.status === 'active') && (state.players || []).some(inLeagueRotation)
       && !KeeperLogic.draftedAny(state);
   }
@@ -4105,6 +4131,15 @@ const LEAGUE_TYPES = {
     draftStrategy: NoDraftStrategy,
     scoringStrategy: CallsScoringStrategy
   },
+  // A game in stages (docs/PLAN-start-a-game-gpt.md step A12 part 1): no draft and no team of its own, each stage a game played as a
+  // league of its own (stages.ts), its table the overall from the stages' tables (StageLogic).
+  'stages': {
+    id: 'stages',
+    name: 'Stages',
+    description: 'A game in stages, each a game of its own with its own rules and its own draft; the overall adds them up.',
+    draftStrategy: NoDraftStrategy,
+    scoringStrategy: StagesScoringStrategy
+  },
   'active-roster': {
     id: 'active-roster',
     name: 'Active Roster',
@@ -4117,7 +4152,8 @@ const LEAGUE_TYPES = {
 };
 // The flags, from each type's preset (its exclusive draft, for the two drafts: the shared variants below are the other).
 // A game of questions has no preset: its flags are any such game's (nothing held, scored by its own answers).
-Object.values(LEAGUE_TYPES).forEach(lt => Object.assign(lt, Spec.flagsOf(Spec.PRESETS[Spec.TYPE_PRESETS[lt.id]] || { get: { by: 'none' }, count: null, score: { by: 'answers' }, ask: [] })));
+// A game in stages (A12 part 1) has its own: nothing held, scored by its stages.
+Object.values(LEAGUE_TYPES).forEach(lt => Object.assign(lt, Spec.flagsOf(Spec.PRESETS[Spec.TYPE_PRESETS[lt.id]] || (lt.id === 'stages' ? { get: { by: 'none' }, count: null, score: { by: 'stages' }, ask: [] } : { get: { by: 'none' }, count: null, score: { by: 'answers' }, ask: [] }))));
 // NOT the catalog, and no longer a default either: a new league starts with showId null and the
 // commissioner picks from the catalog (defaultState / SetupLogic). The real catalog of shows and
 // seasons lives in Postgres (db/migrations/0006_shows_and_seasons.sql), is managed by a super-admin
@@ -4252,15 +4288,114 @@ function betsOn(state){
 // method to whichever league type's draftStrategy is active; today that's always
 // SnakeDraftStrategy, so behavior is unchanged from before this split.
 class DraftLogic {
+  // A12 part 1: a draft that opens at its game's start (the draft room's opens 'start': a later stage's, by default) drafts from
+  // who's still in then. Why it isn't open yet, or null (open, or a draft that opens any time): it opens once the game's start is
+  // known and the episode before it has results, and stays open once anyone is on a team from it, whatever those results do after.
+  // A Start before then waits for it (isStarted stays false; a draw deals and an auction settles only once it's open).
+  static waits(state){
+    const g = gameOf(state);
+    const room = g.get.by === 'draft' ? g.extras.draft : null;
+    if(!room || room.opens !== 'start' || DraftLogic.begun(state)) return null;
+    const first = startEpisode(state);
+    if(first === null) return "The draft opens once it's known where the game starts";
+    if(first <= 1) return null;
+    const before = (state.episodes || []).find(e => e.number === first - 1);
+    return before && EpisodeLogic.hasResults(before) ? null : `The draft opens once Episode ${first - 1}'s results are in`;
+  }
+  // Anyone is on a team from the draft: a pick, a draw, a blind draft's reveal, an auction settled.
+  static begun(state){ return (state.draftPicksMade || 0) > 0 || DrawLogic.drawn(state) || BlindDraftLogic.isRevealed(state) || AuctionLogic.settled(state); }
   static syncOrder(state){ return getLeagueType(state).draftStrategy.syncOrder(state); }
   static currentTurn(state){ return getLeagueType(state).draftStrategy.currentTurn(state); }
-  static isStarted(state){ return getLeagueType(state).draftStrategy.isStarted(state); }
+  static isStarted(state){ return !DraftLogic.waits(state) && getLeagueType(state).draftStrategy.isStarted(state); }
   // A10 part 4: keepers lock as the draft starts (a draw locks them itself, before it deals).
   static forceStart(state){ const out = getLeagueType(state).draftStrategy.forceStart(state); KeeperLogic.settle(state); return out; }
   static reorder(state, fromIdx, toIdx){ return getLeagueType(state).draftStrategy.reorder(state, fromIdx, toIdx); }
   static move(state, idx, delta){ return getLeagueType(state).draftStrategy.move(state, idx, delta); }
-  static pick(state, castawayId, opts){ return getLeagueType(state).draftStrategy.pick(state, castawayId, opts); }
+  static pick(state, castawayId, opts){ if(DraftLogic.waits(state)) return; return getLeagueType(state).draftStrategy.pick(state, castawayId, opts); }
   static undo(state, castawayId){ return getLeagueType(state).draftStrategy.undo(state, castawayId); }
+}
+
+// ---------- StageLogic: a game in stages (docs/PLAN-start-a-game-gpt.md step A12 part 1: the spec's stages and overall) ----------
+// "Pre-merge and post-merge are separate games with their own drafts, plus an overall winner", "a second draft at the merge". A game
+// in stages is a league whose spec names its stages, each a game of its own played as a league of its own tied to it
+// (src/lib/server/stages.ts: leagues.stage_of), so every stage plays exactly as that game does alone; this league holds the seats (a
+// seat joining it joins every stage) and its table is the overall. The stages' tables reach it as the server reads them (stageWalk,
+// as a game of questions' answers do: answer-points.ts asItStands), each as it stood after every episode it played, so a viewer's
+// copy reads the overall at their mark (SpoilerLogic.viewThrough cuts the walk too):
+//   state.stageWalk  { stages: [{ key, leagueId, from, to, entries: [{ episode, over, rows: [{ playerId, points, place }] }] }] }
+// The overall (spec.overall): points (each stage's total as its table shows it, added up, every stage as it stands), places (for
+// each stage that's over, points for your place there: `places` [1st, 2nd, ...], else one for each of you below you plus one; ties
+// share the higher place) or wins (stages won, ties all win; level on that, places, then points). A stage not started for the viewer
+// counts nothing, and someone not in a stage's table scores nothing from it. Nothing is stored: the walk is worked out on each read.
+class StageLogic {
+  static on(state){ return !!state && Spec.playsAs(gameOf(state)) === 'stages'; }
+  static stages(state){ return StageLogic.on(state) ? gameOf(state).stages : []; }
+  static overallOf(state){ const o = gameOf(state).overall; return o && typeof o === 'object' ? o : Spec.OVERALL; }
+  static walkOf(state){ return state && state.stageWalk && Array.isArray(state.stageWalk.stages) ? state.stageWalk : null; }
+  static withWalk(state, walk){ return walk ? { ...state, stageWalk: walk } : state; }
+  // The walk as a viewer through episode n sees it: each stage's tables through n.
+  static cutWalk(walk, n){
+    if(!walk || !Array.isArray(walk.stages) || !Number.isInteger(n)) return walk;
+    return { ...walk, stages: walk.stages.map(st => ({ ...st, entries: (st.entries || []).filter(e => e.episode <= n) })) };
+  }
+  // Each stage as it stood after the latest episode this copy has results for: { key, name, leagueId, from, to, started, over,
+  // rows }, in the spec's order.
+  static standings(state){
+    const walk = StageLogic.walkOf(state);
+    const latest = SpoilerLogic.latestWithResults(state);
+    return StageLogic.stages(state).map(st => {
+      const w = walk ? walk.stages.find(x => x.key === st.id) : null;
+      const entries = w ? (w.entries || []).filter(e => e.episode <= latest) : [];
+      const last = entries.length ? entries[entries.length - 1] : null;
+      return { key: st.id, name: st.name || null, leagueId: w ? w.leagueId : null, from: w ? w.from : null, to: w ? w.to : null, started: !!last, over: !!(last && last.over), rows: last ? last.rows : [] };
+    });
+  }
+  // Points for a place in a stage that's over: the overall's `places`, else one for each of `count` below it, plus one.
+  static placePoints(o, place, count){
+    if(!Number.isInteger(place) || place < 1) return 0;
+    if(Array.isArray(o.places) && o.places.length) return Number(o.places[place - 1]) || 0;
+    return Math.max(0, count - place + 1);
+  }
+  // The overall, a row for each seat playing the game's own season: { playerId, overall, points, placePoints, wins, stages: [{ key,
+  // points, place, over }] }.
+  static overall(state){
+    const o = StageLogic.overallOf(state);
+    const stands = StageLogic.standings(state);
+    return (state.players || []).filter(p => !isGhost(p)).map(p => {
+      let points = 0;
+      let placePoints = 0;
+      let wins = 0;
+      const stages = stands.map(st => {
+        const r = st.rows.find(x => x.playerId === p.id);
+        if(!r) return { key: st.key, points: null, place: null, over: st.over };
+        points += Number(r.points) || 0;
+        if(st.over){
+          placePoints += StageLogic.placePoints(o, r.place, st.rows.length);
+          if(r.place === 1) wins += 1;
+        }
+        return { key: st.key, points: r.points, place: r.place, over: st.over };
+      });
+      const overall = o.by === 'places' ? roundPoints(placePoints) : o.by === 'wins' ? wins : roundPoints(points);
+      return { playerId: p.id, overall, points: roundPoints(points), placePoints: roundPoints(placePoints), wins, stages };
+    });
+  }
+  // Every stage is over, as far as this copy has seen.
+  static over(state){ const st = StageLogic.standings(state); return st.length > 0 && st.every(x => x.over); }
+  // The episode the game ends with once its last stage is over (where that stage ended: early, if it did), else null.
+  static endsAt(state){
+    if(!StageLogic.on(state)) return null;
+    const st = StageLogic.standings(state);
+    const last = st[st.length - 1];
+    return last && last.over && Number.isInteger(last.to) ? last.to : null;
+  }
+  // Its first stage has started: the game's first episode has results, or has aired. Nobody new joins then (GhostLogic.allowed).
+  static started(state){
+    if(!StageLogic.on(state)) return false;
+    const first = startEpisode(state);
+    if(first === null) return false;
+    if(SpoilerLogic.latestWithResults(state) >= first) return true;
+    return hasAired((state.episodes || []).find(e => e.number === first));
+  }
 }
 
 // ---------- RosterLogic: players, tribes, castaways, league settings ----------
@@ -4286,7 +4421,9 @@ class RosterLogic {
     if(opts && opts.automated) newPlayer.automated = true;
     const turn = DraftLogic.currentTurn(state); // reflects players/draftOrder BEFORE this one is added
     const underway = GhostLogic.isUnderway(state);
-    const out = underway && (opts && typeof opts.someoneOut === 'boolean' ? opts.someoneOut : GhostLogic.someoneOut(state));
+    // A12 part 1: a game in stages whose first stage has started takes nobody new either (a code join, which nothing else gates,
+    // waits inactive, as one once someone's out does).
+    const out = (underway && (opts && typeof opts.someoneOut === 'boolean' ? opts.someoneOut : GhostLogic.someoneOut(state))) || StageLogic.started(state);
     const late = !newPlayer.automated && !out && GhostLogic.allowed(state) && underway;
     state.players.push(newPlayer);
     if(late){
@@ -4751,18 +4888,58 @@ class RosterLogic {
   // waits again: a game waiting for its phase has none (Start a game and Game settings set one only once it's settled), so it
   // can't be over before it starts. Returns setGame's problems ([] when it's written, or when there's nothing to change: a
   // game that starts at an episode, or one already right).
+  //
+  // A12 part 1: an end at a phase (span.to { phase }) settles the same way, from `where.end` (that phase's first episode, or
+  // null): the game's last episode is the one before where a game starting at that phase would play from, so a stage that ends
+  // before a phase and the next that starts at it always meet. It never moves once the episode after it has aired (the next stage
+  // has started), waits again (runs on) when the phase's start is cleared, and is never before its own start (a game whose end's
+  // phase came first never plays: its last episode the one before its first). An end at a phase stays when the start waits again.
   static settleStart(state, where){
     const game = gameOf(state);
-    const phase = Spec.spanPhase(game.span);
     const open = Number(where && where.open);
-    if(!phase || !Number.isInteger(open) || open < 1) return [];
-    const at = Spec.spanStart(game.span);
-    if(at !== null && at < open) return [];
-    const known = where && Number.isInteger(where.from) && where.from >= 1 ? where.from : null;
-    const want = known === null ? null : Math.max(known, open);
-    if(want === at) return [];
-    const to = want === null || (game.span.to !== null && game.span.to < want) ? null : game.span.to;
-    return RosterLogic.setGame(state, { ...game, span: { from: want === null ? { phase } : { phase, at: want }, to } });
+    if(!Number.isInteger(open) || open < 1) return [];
+    const span = { ...game.span };
+    const phase = Spec.spanPhase(span);
+    if(phase){
+      const at = Spec.spanStart(span);
+      const known = where && Number.isInteger(where.from) && where.from >= 1 ? where.from : null;
+      const want = known === null ? null : Math.max(known, open);
+      if(!(at !== null && at < open) && want !== at){
+        span.from = want === null ? { phase } : { phase, at: want };
+        if(!Spec.spanEndPhase(span) && (want === null || (span.to !== null && span.to < want))) span.to = null;
+      }
+    }
+    const endPhase = Spec.spanEndPhase(span);
+    if(endPhase){
+      const last = Spec.spanEnd(span);
+      const known = where && Number.isInteger(where.end) && where.end >= 1 ? where.end : null;
+      const first = Spec.spanStart(span);
+      let want = known === null ? null : Math.max(known, open) - 1;
+      if(want !== null && first !== null && want < first - 1) want = first - 1;
+      if(want !== null && want < 1) want = null;
+      if(!(last !== null && last + 1 < open) && want !== last) span.to = want === null ? { phase: endPhase } : { phase: endPhase, at: want };
+    }
+    if(Spec.sameValue(span, game.span)) return [];
+    return RosterLogic.setGame(state, { ...game, span });
+  }
+  // A12 part 1: a draft that opens at its game's start (DraftLogic.waits) drafts from who's still in then, so whether an exclusive
+  // one covers every pick is counted as it opens (the 9:10 PM decision: shared whenever the math says so, counted where the game
+  // drafts and as the pool shrinks): when the seats in its rotation times the picks each are more than who's still in, it's
+  // played shared from then on (a snake becomes a private draft revealed at once, a draw deals each seat from its own hat; an
+  // auction stays as it is and fills what it can, its own fallback; waivers go where a shared draft has none). Once, before anyone
+  // is on a team, written through setGame. What it did ({ was, pool, teams, each }) for whoever runs the game to be told, or null.
+  static settleDraftShare(state){
+    const g = gameOf(state);
+    if(g.get.by !== 'draft' || g.get.own !== 'exclusive' || g.get.order === 'auction' || !g.extras.draft || g.extras.draft.opens !== 'start') return null;
+    if(DraftLogic.waits(state) || DraftLogic.begun(state)) return null;
+    const pool = (state.castaways || []).filter(c => c.status === 'active').length;
+    const teams = (state.players || []).filter(inLeagueRotation).length;
+    const each = g.get.each;
+    if(!teams || Spec.covers({ pool, people: teams, each })) return null;
+    const next = { ...g, get: { ...g.get, own: 'shared', order: g.get.order === 'draw' ? 'draw' : 'blind' } };
+    if(!Spec.waiversFit(next)) next.extras = { ...g.extras, waivers: null };
+    if(RosterLogic.setGame(state, next).length) return null;
+    return { was: g.get.order, pool, teams, each };
   }
   // A game that asks by phase (A7, AnswerLogic.byPhase) records what it needs of the season's phases, as a start at a phase
   // does (settleStart): `where` { phases: [{ id, from }] in order (the rulebook it plays by: phase-starts.ts), open: the first
@@ -6455,7 +6632,7 @@ class AnswerLogic {
       .map(([phase, at]) => ({ phase, at, from: Number.isInteger(starts[phase]) ? starts[phase] : at }))
       .sort((a, b) => a.at - b.at);
     return {
-      from, to: span.to, over: gameOver(state), episodes,
+      from, to: Spec.spanEnd(span), over: gameOver(state), episodes,
       winner: winner ? winner.id : null, ended, order: ended ? AnswerLogic.finishOrder(state) : null,
       endedAt: finaleEp ? finaleEp.number : null,
       names: new Map(cast.map(c => [c.id, c.name])),
@@ -7077,6 +7254,8 @@ class SpoilerLogic {
     const s = JSON.parse(JSON.stringify(state));
     // A game of questions' walk (A11 part 2b) was worked out on more than this copy holds: it's the copy's to work out again.
     delete s.answerWalk;
+    // A12 part 1: a game in stages' walk, each stage's tables through this mark only.
+    if(s.stageWalk) s.stageWalk = StageLogic.cutWalk(s.stageWalk, seenThrough);
     ['seasonRuleChanges', 'adoptedRuleChanges'].forEach(k => {
       if(!s.settings[k]) return;
       s.settings[k] = s.settings[k].filter(c => !changeHidden(c));
@@ -7167,7 +7346,8 @@ class GhostLogic {
   // On unless a commissioner switched it off (absent = on, so it covers every league that predates it), or locked the game down.
   // A11 part 1: nor once someone is knocked out of the game (a newcomer would join a field already cut: the fallback). Part 5c: the
   // same rule for every game that knocks people out (someoneOut).
-  static allowed(state){ return gameOf(state).extras.join !== 'locked' && !GhostLogic.lockedDown(state) && !GhostLogic.someoneOut(state); }
+  // A12 part 1: nor once a game in stages' first stage has started (a seat joins it to join every stage: StageLogic.started).
+  static allowed(state){ return gameOf(state).extras.join !== 'locked' && !GhostLogic.lockedDown(state) && !GhostLogic.someoneOut(state) && !StageLogic.started(state); }
   // Whether anyone playing the league's own season is out of the game for good: a draft's cuts and a game of questions' walk
   // (KnockoutLogic.outs; a game of questions' only where the state carries its walk, which the server's copy as it stands does:
   // answer-points.ts asItStands, so whatever reads joining walks it first), or a pool's lives run out with no buyback left
@@ -7738,7 +7918,7 @@ return {
   // ---- constants ----
   PALETTE, SEED_CASTAWAYS,
   LEAGUE_TYPES, SHOWS, getLeagueType, gameOf, replenishAvailable, tradeAvailable, finalePredictionsAvailable, finaleOfGame, betsOn, rosterSize, originalDraftPicks,
-  formatOf, startEpisode, startPhase, waitsForPhase, endEpisode, lastEpisode, inPlay, spanView, gameOver, hasAired, closedForPlay, isWinnerExit, seasonWinner, seasonEnded,
+  formatOf, startEpisode, startPhase, waitsForPhase, endEpisode, endPhase, lastEpisode, inPlay, spanView, gameOver, hasAired, closedForPlay, isWinnerExit, seasonWinner, seasonEnded,
   readsPhases,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
@@ -7761,6 +7941,7 @@ return {
   applyEliminationsImport: EpisodeLogic.applyEliminationsImport,
   applyScoringEventsImport: EpisodeLogic.applyScoringEventsImport,
   updateSettings: RosterLogic.updateSettings, setGame: RosterLogic.setGame, syncGame: RosterLogic.syncGame, settleStart: RosterLogic.settleStart, settlePhases: RosterLogic.settlePhases,
+  settleDraftShare: RosterLogic.settleDraftShare,
   reorderDraft: DraftLogic.reorder, moveDraftOrder: DraftLogic.move, draftToCurrentTurn: DraftLogic.pick, undraft: DraftLogic.undo,
   MidSeasonLogic, availableFor: MidSeasonLogic.availableFor, replenishNeed: MidSeasonLogic.replenishNeed,
   addEpisode: EpisodeLogic.add, removeEpisode: EpisodeLogic.remove, updateEpisode: EpisodeLogic.update,
@@ -7794,8 +7975,8 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, TeamLogic, HandicapLogic, draftFits, draftFitsFor, rankKey,
-  SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
+  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, TeamLogic, HandicapLogic, StageLogic, draftFits, draftFitsFor, rankKey,
+  SnakeDraftStrategy, StagesScoringStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 
 });

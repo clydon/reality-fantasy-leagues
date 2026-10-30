@@ -2,7 +2,7 @@ import type { PoolClient } from "pg";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
-import { pool, HttpError } from "./db";
+import { pool, HttpError, syncStages } from "./db";
 import { asItStands } from "./answer-points";
 import { leagueSeason, notifyMemberJoined } from "./push-events";
 import { joinedLeague } from "./couches";
@@ -74,6 +74,8 @@ export async function joinLeague(
       );
       if (afterJoin) await afterJoin(client);
       await client.query("COMMIT");
+      // Step A12 part 1: a game in stages, the same seat in every stage.
+      await syncStages(league.id, state);
       await joinedLeague(league.id, user.id);
       await followLeagueProgress(user.id, league.id);
       notifyMemberJoined(league.id, user.id, (user as { username?: string | null }).username || user.name, false);
@@ -92,7 +94,8 @@ export async function joinLeague(
     } else {
       // Step A11 part 5c of docs/PLAN-start-a-game-gpt.md: nobody new plays once someone's out, a game of questions read as it stands
       // (its walk isn't in its state): the seat waits, inactive, as one joining after a finished draft does.
-      const someoneOut = StateLogic.GhostLogic.someoneOut((await asItStands(league.id, state)).state);
+      // A game in stages has nobody out of it (its stages' knockouts are theirs): no walk to read.
+      const someoneOut = StateLogic.StageLogic.on(state) ? false : StateLogic.GhostLogic.someoneOut((await asItStands(league.id, state)).state);
       playerId = StateLogic.addPlayer(state, (user as { username?: string | null }).username || user.name, { someoneOut }).id;
     }
 
@@ -104,6 +107,8 @@ export async function joinLeague(
     );
     if (afterJoin) await afterJoin(client);
     await client.query("COMMIT");
+    // Step A12 part 1: a game in stages, the seat in every stage too.
+    await syncStages(league.id, state);
     // On the league's couch, and following its season (couches.ts, follows.ts): after the commit, so neither
     // can cost the join.
     await joinedLeague(league.id, user.id);

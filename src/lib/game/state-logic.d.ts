@@ -200,6 +200,10 @@ declare const StateLogic: {
   DraftLogic: {
     currentTurn(state: LeagueState): DraftTurn | null;
     isStarted(state: LeagueState): boolean;
+    /** A12 part 1: why a draft that opens at its game's start isn't open yet, or null. */
+    waits(state: LeagueState): string | null;
+    /** Anyone is on a team from the draft. */
+    begun(state: LeagueState): boolean;
   };
   LEAGUE_TYPES: Record<string, LeagueType>;
   SHOWS: Record<string, Show>;
@@ -429,8 +433,11 @@ declare const StateLogic: {
   startPhase(state: LeagueState): string | null;
   /** Waiting for its phase to start: nothing is in play, asked or scored yet. */
   waitsForPhase(state: LeagueState): boolean;
-  /** The last episode a game over a span plays (settings.endEpisode), or null: to the season's end. */
+  /** The last episode a game over a span plays (settings.endEpisode), or null: to the season's end (or an end at a phase not yet
+   *  known: A12 part 1). */
   endEpisode(state: LeagueState): number | null;
+  /** A12 part 1: the phase a game ends before (settings.endPhase), or null. */
+  endPhase(state: LeagueState): string | null;
   /** Step A11 part 1: the episode the game plays through as the data has it: its span's end, or earlier where a draft's race was
    *  won or its cuts left one (KnockoutLogic.endsAt). gameOver and spanView read it; endEpisode stays the span it was made with. */
   lastEpisode(state: LeagueState): number | null;
@@ -645,10 +652,14 @@ declare const StateLogic: {
   setGame(state: LeagueState, spec: SpecInput | GameSpec, opts?: { ctx?: SpecContext | null }): SpecProblem[];
   /** A league carrying its spec (settings.game) carries what its fields play. */
   syncGame(state: LeagueState): void;
+  /** A12 part 1: a draft that opens at its game's start, exclusive, made shared as it opens when the seats' picks are more than who's
+   *  still in (the 9:10 PM decision's fallback). What it did, or null. */
+  settleDraftShare(state: LeagueState): { was: string; pool: number; teams: number; each: number } | null;
   /** Where a game that starts at a phase plays from (step A3): the later of the phase's first episode (`from`, null while
    *  unknown: it waits again) and the first episode still open for moves (`open`); never once that's aired. Through
    *  setGame: its problems, [] when written or nothing changed. */
-  settleStart(state: LeagueState, where: { from: number | null; open: number }): SpecProblem[];
+  /** A3; A12 part 1's `end`: the first episode of the phase a game ends before. */
+  settleStart(state: LeagueState, where: { from: number | null; end?: number | null; open: number }): SpecProblem[];
   /** A7: a game that asks by phase records the season's phase starts and its phase windows; whether anything changed. */
   settlePhases(state: LeagueState, where: { phases: { id: string; from: number | null }[]; open: number }): boolean;
   /** A game that reads the season's phase starts: it asks by phase (A7), or its points multiply in a phase (A9 part 2). */
@@ -867,6 +878,20 @@ declare const StateLogic: {
   };
   /** Step A11 part 5b: a handicap (rank.handicap): points each episode the game plays for newcomers, by the couch's history (the
    *  server's stamp, state.seatHistory), kept once the game has started (settle); the points worked out on every read. */
+  /** A12 part 1: a game in stages (its stages each a league of their own: stages.ts), its table the overall from the stages' tables
+   *  the server hands over (stageWalk). */
+  StageLogic: {
+    on(state: LeagueState): boolean;
+    stages(state: LeagueState): { id: string; name: string | null; game: import("./game-spec/index.js").GameSpec }[];
+    walkOf(state: LeagueState): StageWalk | null;
+    withWalk(state: LeagueState, walk: StageWalk | null): LeagueState;
+    cutWalk(walk: StageWalk, n: number): StageWalk;
+    standings(state: LeagueState): { key: string; name: string | null; leagueId: string | null; from: number | null; to: number | null; started: boolean; over: boolean; rows: StageRow[] }[];
+    overall(state: LeagueState): { playerId: string; overall: number; points: number; placePoints: number; wins: number; stages: { key: string; points: number | null; place: number | null; over: boolean }[] }[];
+    over(state: LeagueState): boolean;
+    endsAt(state: LeagueState): number | null;
+    started(state: LeagueState): boolean;
+  };
   HandicapLogic: {
     parts(state: LeagueState): import("./game-spec/index.js").HandicapParts | null;
     on(state: LeagueState): boolean;
@@ -1023,6 +1048,16 @@ declare const StateLogic: {
 };
 /** A11 part 5b: a handicap as a game's screens read it (HandicapLogic.view): its points an episode, what newcomers are new to, the
  *  seats it names, whether you're one, and whether who's new is kept yet (once the game has started). */
+/** A12 part 1: a game in stages' stages' tables as the server reads them (stages.ts stageWalk), each as it stood after each episode
+ *  it played. */
+export interface StageRow {
+  playerId: string;
+  points: number;
+  place: number;
+}
+export interface StageWalk {
+  stages: { key: string; leagueId: string; from: number | null; to: number | null; entries: { episode: number; over: boolean; rows: StageRow[] }[] }[];
+}
 export interface HandicapView {
   points: number;
   newTo: "couch" | "show";

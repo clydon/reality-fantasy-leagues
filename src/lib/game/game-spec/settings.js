@@ -18,7 +18,7 @@
 const {
   SPEC_VERSION, TYPE_PRESETS, REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS,
   MAX_BET_POINTS, ORDER_OF, CALLS, fullSpec, typeOf, playsAs, specProblems, waiversFit, sameValue, spanStart, spanPhase,
-  finaleQuestions, finaleOf, LATE_HOURS, MAX_SEAT_PEOPLE, seatPeople, NEVER, VOCAB, MATCHUP_KEYS,
+  finaleQuestions, finaleOf, LATE_HOURS, MAX_SEAT_PEOPLE, seatPeople, NEVER, VOCAB, MATCHUP_KEYS, spanEnd, spanEndPhase, OVERALL,
 } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -46,7 +46,8 @@ const clampBet = (v) => {
 /**
  * Where it starts and its last episode (endEpisode: null, or one from the start on). A start at an episode is startEpisode
  * (default 1); a start at a phase of the season's rulebook (A3) is startPhase, with startEpisode null while it waits for
- * that phase ({ phase }) and the episode it plays from once that's settled ({ phase, at }).
+ * that phase ({ phase }) and the episode it plays from once that's settled ({ phase, at }). An end at a phase (A12 part 1) is
+ * endPhase, with endEpisode the game's last episode once that's settled ({ phase, at }; { phase } while it's unknown).
  */
 function spanOf(st) {
   const n = Number(st.startEpisode);
@@ -55,6 +56,8 @@ function spanOf(st) {
   const from = phase ? (at === null ? { phase } : { phase, at }) : (at === null ? 1 : at);
   const first = phase ? at : from;
   const to = Number(st.endEpisode);
+  const endPhase = typeof st.endPhase === 'string' && st.endPhase ? st.endPhase : null;
+  if (endPhase) return { from, to: Number.isInteger(to) && to >= 1 ? { phase: endPhase, at: to } : { phase: endPhase } };
   return { from, to: Number.isInteger(to) && to >= (first === null ? 1 : first) ? to : null };
 }
 
@@ -162,8 +165,9 @@ function endsOf(st, rank, pool) {
   return rank;
 }
 
-/** Today's league types: the five presets', and a game of questions (A4: no preset, its questions in settings.questions). */
-const LEAGUE_TYPES = [...Object.keys(TYPE_PRESETS), 'questions'];
+/** Today's league types: the five presets', a game of questions (A4: no preset, its questions in settings.questions), and a game
+ *  in stages (A12 part 1: its stages in settings.stages, its overall in settings.stageOverall). */
+const LEAGUE_TYPES = [...Object.keys(TYPE_PRESETS), 'questions', 'stages'];
 
 /**
  * The spec a league's settings play: its league type's mechanics, their parameters, its span, its questions and its extras.
@@ -199,6 +203,7 @@ function usable(g) {
 /** specOf's reading; `copy`: the points map copied (specOf), else the stored one (gameOf, read only). */
 function readSpec(st, copy) {
   const type = LEAGUE_TYPES.includes(st.leagueTypeId) ? st.leagueTypeId : 'classic-draft';
+  if (type === 'stages') return stagedOf(st, copy);
   const own = st.ownershipMode === 'shared' ? 'shared' : 'exclusive';
   const draft = type === 'classic-draft' || type === 'active-roster';
   const spec = {
@@ -306,7 +311,7 @@ function readSpec(st, copy) {
     // their switch stays as it's stored, and nothing reads it).
     bets: draft && st.bonusEnabled ? { points: clampBet(st.defaultBetPoints) } : null,
     calls: type === 'pickem' && !!st.calls,
-    draft: draft ? { at: typeof st.draftScheduledAt === 'string' ? st.draftScheduledAt : null, timer: DRAFT_TIMERS.includes(timer) ? timer : 0, away: st.draftAway === 'queue' ? 'queue' : 'wait' } : null,
+    draft: draft ? draftRoomOf(st, timer) : null,
     join,
     hideStarters: type === 'active-roster' && !best && st.hideStartersUntilLock === true,
     lockedDown: st.lockedDown === true,
@@ -317,6 +322,36 @@ function readSpec(st, copy) {
   const people = Number(st.seatPeople);
   if (Number.isInteger(people) && people >= 2 && people <= MAX_SEAT_PEOPLE) spec.extras.seats = { people };
   return spec;
+}
+
+/** A draft's room as its settings say it; A12 part 1's opens (draftOpens) only when it's set, so a draft that has none reads as it
+ *  always did. */
+function draftRoomOf(st, timer) {
+  const room = { at: typeof st.draftScheduledAt === 'string' ? st.draftScheduledAt : null, timer: DRAFT_TIMERS.includes(timer) ? timer : 0, away: st.draftAway === 'queue' ? 'queue' : 'wait' };
+  if (Object.prototype.hasOwnProperty.call(VOCAB['extras.draft.opens'], st.draftOpens)) room.opens = st.draftOpens;
+  return room;
+}
+/**
+ * A game in stages as its settings say it (A12 part 1): its stages (settings.stages, each game whole as the spec wrote it) and its
+ * overall (stageOverall), its span, who can join and locked down; the rest what a game in stages is (schema.js fullStaged).
+ */
+function stagedOf(st, copy) {
+  const join = st.allowLateJoiners === false ? 'locked' : st.joinMode === 'ask' ? 'ask' : st.joinMode === 'open' ? 'open' : null;
+  return {
+    spec: SPEC_VERSION,
+    preset: null,
+    stages: Array.isArray(st.stages) ? (copy ? clone(st.stages) : st.stages) : [],
+    span: spanOf(st),
+    pool: { of: 'cast', where: { stillIn: true } },
+    ask: [],
+    closes: 'start',
+    get: { by: 'none' },
+    count: null,
+    score: { by: 'stages' },
+    rank: { by: 'total' },
+    overall: isObj(st.stageOverall) ? (copy ? clone(st.stageOverall) : st.stageOverall) : clone(OVERALL),
+    extras: { waivers: null, bets: null, calls: false, draft: null, join, hideStarters: false, lockedDown: st.lockedDown === true, lateLock: null },
+  };
 }
 
 /**
@@ -338,7 +373,9 @@ function settingsOf(spec) {
     // A phase start (A3): startPhase, with startEpisode null while it waits (spanOf reads both back).
     startEpisode: spanStart(s.span),
     startPhase: spanPhase(s.span) || undefined,
-    endEpisode: s.span.to,
+    // A12 part 1: an end at a phase is endPhase, with endEpisode once it's settled.
+    endEpisode: spanEnd(s.span),
+    endPhase: spanEndPhase(s.span) || undefined,
     allowLateJoiners: e.join !== 'locked',
     joinMode: e.join === null ? undefined : e.join,
     lockedDown: e.lockedDown === true,
@@ -351,6 +388,8 @@ function settingsOf(spec) {
       draftScheduledAt: e.draft ? e.draft.at : null,
       draftTimer: e.draft ? e.draft.timer : 0,
       draftAway: e.draft ? e.draft.away : 'wait',
+      // A12 part 1: when the draft opens, only when it's said.
+      draftOpens: e.draft && e.draft.opens !== undefined ? e.draft.opens : undefined,
       finalePredictionsEnabled: !!finale,
     });
     if (finale) {
@@ -449,6 +488,9 @@ function settingsOf(spec) {
   out.draftKeep = draft && isObj(s.get.keep) ? clone(s.get.keep) : undefined;
   // A10 part 4b: how many accounts can hold one seat.
   out.seatPeople = seatPeople(s) > 1 ? seatPeople(s) : undefined;
+  // A12 part 1: a game in stages' stages and overall.
+  out.stages = type === 'stages' ? clone(s.stages) : undefined;
+  out.stageOverall = type === 'stages' ? clone(s.overall) : undefined;
   return out;
 }
 
@@ -495,7 +537,9 @@ function withSpec(settings, spec) {
 const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFeel', 'autoFill', 'replenishOrderBy', 'waiverProcessHours', 'freeAgencyEnabled', 'replenishEnabled', 'tradeEnabled', 'swapEvery'];
 const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
-  { fields: ['startEpisode', 'startPhase', 'endEpisode'], read: (s) => s.span },
+  { fields: ['startEpisode', 'startPhase', 'endEpisode', 'endPhase'], read: (s) => s.span },
+  // A12 part 1: a game in stages' stages and its overall.
+  { fields: ['stages', 'stageOverall'], read: (s) => [s.stages || null, s.overall || null] },
   { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
   { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves'], read: (s) => s.score },
   { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut', 'questionsRank', 'questionsRace', 'questionsCut', 'rankMatchups', 'rankTeams', 'rankHandicap'], read: (s) => s.rank },
@@ -503,7 +547,7 @@ const PARTS = [
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },
   { fields: ['seatPeople'], read: (s) => seatPeople(s) },
   { fields: ['bonusEnabled', 'defaultBetPoints'], read: (s) => s.extras.bets },
-  { fields: ['draftScheduledAt', 'draftTimer', 'draftAway'], read: (s) => s.extras.draft },
+  { fields: ['draftScheduledAt', 'draftTimer', 'draftAway', 'draftOpens'], read: (s) => s.extras.draft },
   // The questions: a draft's finale predictions in their fields, a game of questions' own in settings.questions (Weekly
   // Calls' is its type's).
   { fields: ['finalePredictionsEnabled', 'finaleTop3Points', 'finaleWinnerPoints', 'finalePredictionScope'], read: (s) => (s.get.by === 'draft' ? finaleOf(s.ask) : null) },

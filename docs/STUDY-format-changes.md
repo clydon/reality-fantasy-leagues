@@ -1094,6 +1094,37 @@ dealt after a draw and paying under a price, a late joiner's captain and second 
   a drawn game's late deal and a late team's price never run here; `tests/late-joins.test.js` and `scripts/dev-test/check-late-joins.js`
   play them. Computer players don't sit in the replays.
 
+## A12 part 1: stages, replayed blind (2026-10-30)
+
+A12's part 1 built a game in stages (the spec's `stages` and `overall`, state-logic.js `StageLogic`): each stage a game of its own,
+played as a league of its own tied to the game (src/lib/server/stages.ts), the game's table the overall; a game that ends before a
+phase starts; and a later stage's draft that opens at its start, from who's still in, made shared then when an exclusive one no longer
+fits. `blind.js` plays each stage as a game of its own (a record each, its draft when it opens) beside the game, whose table it reads as
+it stands. Nothing here reads the show's format changes: a stage a format change starts is part 2's.
+
+- **Every game ended on all five seasons**, the stages among them: Survivor 49 110 of 110 (102 tracker games, eight stage records), The
+  Challenge 41, 40 and 39 81 of 81 (79 and two), The Traitors 4 79 of 79 (77 and two); nothing refused; the questions waiting on early
+  results are finding 20's as before (2, 2 and 3 on The Challenge).
+- **On Survivor 49, the merge** (research says it from Episode 7, known once its results are in): the stages that end before Merged
+  end with 7 and the ones that start at it start with 8, as a start at a phase known only once it's begun always has (A3). The Weekly
+  Lineup until the merge (when.toPhase) played 1 to 7 and was over there.
+
+| Game (Survivor 49) | Its stages | The second draft | The overall |
+|---|---|---|---|
+| A second draft at the merge (shape.stages, by points) | Weekly Lineups, 1–7 and 8 on | at 8, from the 11 left | the Tinkerer 45 + 64 = 109, the Fan 21.5 + 63.5 = 85, the Drive-by 71, the Forgetter 51 |
+| Rules per phase (shape.phaseRules, by places) | a Weekly Lineup 1–7, a Survival Pool 8 on | (a pool: none) | the Tinkerer 4 + 4 = 8, the Drive-by 5, the Fan 5, the Forgetter 3 |
+| Pre-merge and post-merge Outlasts (s39, by stages won) | Outlasts of 3 each, 1–7 and 8 on | at 8: 4 × 3 is more than the 11 left, so shared | the Fan won Pre-merge (22), the Tinkerer Post-merge (42): one each |
+| The season's halves (shape.episodes, by places) | a Weekly Lineup 1–6, a Survival Pool 7 on | (a pool: none) | the Tinkerer 7, the Drive-by 6, the Fan 5, the Forgetter 3 |
+
+- **The season's halves on the other shows** (shape.episodes: a Weekly Lineup for Episodes 1 to 6, a Survival Pool from 7, by places),
+  each stage over where it ends, the game over with the second: The Challenge 41 the Tinkerer and the Drive-by 7 each, The Challenge 40
+  the Tinkerer and the Fan 6, The Challenge 39 the Tinkerer 8, The Traitors 4 the Drive-by 7. The first half's ties share a place (The
+  Challenge 41's Fan and Forgetter, -5 each, 2 points each).
+- **Not on these replays:** a seat leaving mid-game, a game deleted and restored, the merge corrected, and someone joining once the game
+  has started (the four seats stay all season); `tests/stages.test.js` and `scripts/dev-test/check-stages.js` cover them. The stages
+  ride the show's results only: The Challenge's re-pairings and Survivor 49's swaps reach each stage through its own game (its group
+  questions' and slots' fallbacks), never its structure; that's part 2's.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

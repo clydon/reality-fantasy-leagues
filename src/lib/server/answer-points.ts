@@ -1,13 +1,14 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import * as Spec from "@/lib/game/game-spec/index.js";
 import type { SheetNights } from "@/lib/game/episode-view";
-import type { GameCalls } from "@/lib/game/game-view";
+import { gameView, type GameCalls } from "@/lib/game/game-view";
 import type { AnswerFacts, FormatGroups } from "@/lib/game/game-spec/index.js";
-import type { AnswerWalk } from "@/lib/game/state-logic.js";
+import type { AnswerWalk, StageWalk } from "@/lib/game/state-logic.js";
 import { groupFacts } from "@/lib/game/formats/format-timeline.js";
 import type { LeagueState } from "@/lib/game/types";
 import { timelineForShow } from "@db/format-timeline.js";
 import { HttpError, pool } from "./db";
+import { stagesOf } from "./stages";
 import type { SeasonSchedule } from "./schedule";
 
 // A game of questions' points, for its tables (step A4 of docs/PLAN-start-a-game-gpt.md; answers.ts reads and writes the
@@ -81,10 +82,45 @@ export async function walked(o: { leagueId: string; state: LeagueState; playerId
  * other game, the state as it is. `rows`: the answers read (to reuse), when it read them.
  */
 export async function asItStands(leagueId: string, state: LeagueState, rows?: AnswerRow[]): Promise<{ state: LeagueState; rows?: AnswerRow[] }> {
+  // Step A12 part 1: a game in stages, its stages' tables (stageWalk), so its own table is the overall.
+  if (StateLogic.StageLogic.on(state)) return { state: StateLogic.StageLogic.withWalk(state, await stageWalk(leagueId, state)), rows };
   if (!Spec.answerParts(StateLogic.gameOf(state))) return { state, rows };
   const all = rows ?? (await storedAnswers(leagueId));
   const walk = StateLogic.AnswerLogic.walk(state, all, await answerFacts(state, state));
   return { state: StateLogic.AnswerLogic.withWalk(state, walk), rows: all };
+}
+
+/** What a stage's table is read as: anyone on its couch, no seat (game-view.ts gameView's `playerId` null). */
+const STAGE_REF = { leagueId: "", name: "", gameType: "", gameName: "", yourRole: null };
+
+/**
+ * A game in stages' stages' tables (step A12 part 1: StateLogic.StageLogic reads them): each stage league as it stands (a game of
+ * questions graded and walked on its answers, as its own table is), its table as it stood after each episode it played, the table
+ * anyone on its couch sees at that mark (game-view.ts gameView, no seat), up to the episode it's over at; so the game's overall reads
+ * at any viewer's mark. One query for the stages and one for each game of questions' answers; worked out on read, never stored.
+ */
+export async function stageWalk(parentId: string, parent: LeagueState): Promise<StageWalk | null> {
+  if (!StateLogic.StageLogic.on(parent)) return null;
+  // Each stage's walk side by side.
+  const stages: StageWalk["stages"] = await Promise.all(
+    (await stagesOf(pool, parentId)).map(async (r) => {
+      const questions = StateLogic.getLeagueType(r.state).hasQuestions;
+      const answers = questions ? await storedAnswers(r.id) : undefined;
+      const { state } = await asItStands(r.id, r.state, answers);
+      const from = StateLogic.startEpisode(state);
+      const latest = StateLogic.SpoilerLogic.latestWithResults(state);
+      const entries: StageWalk["stages"][number]["entries"] = [];
+      for (let n = from ?? latest + 1; n <= latest; n++) {
+        if (!state.episodes.some((e) => e.number === n && StateLogic.episodeHasResults(e))) continue;
+        const calls = questions ? await leagueAnswers({ leagueId: r.id, state, playerId: null, mark: n, rows: answers }) : null;
+        const v = gameView(STAGE_REF, state, null, n, () => null, calls ?? undefined);
+        entries.push({ episode: n, over: v.over, rows: v.table.map((t) => ({ playerId: t.playerId, points: t.total, place: t.place })) });
+        if (v.over) break;
+      }
+      return { key: r.key, leagueId: r.id, from, to: StateLogic.lastEpisode(state), entries };
+    })
+  );
+  return { stages };
 }
 
 /** Whether a question reads its groups from the format's state over time where the season has them (A6 on F3 part 2): the
