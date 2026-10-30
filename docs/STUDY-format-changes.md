@@ -1239,6 +1239,22 @@ each episode's format record has `side` (opened, closed and held there).
 - **Not on these replays:** the maker's OK, a corrected report taking a side draft away and bringing it back, a close withdrawn, research
   missing for a while: `tests/side-stages.test.js` and `scripts/dev-test/check-side-stages.js` cover them.
 
+## A12 part 4a: mini-games and two ways of scoring, replayed blind (2026-10-30)
+
+A12's part 4a adds a stage of bingo or Weekly Calls (its table the server's own counts of each seat's lines or right calls,
+answer-points.ts `outsideCounts`) and a stage `alongside: true` that plays at the same time as the game's own stages. Neither reads the
+format's state over time, so these replays show only that the two new tracker games play through every season and end: shape.minis
+(Bingo for Episodes 1 to 4, then a Draft, an Outlast of 2 each, 5 to 8, then Weekly Calls to the end) and shape.twoWays (bingo all
+season with a game of answers, "Who goes home?" each episode, alongside it).
+
+- **Every game played through and over on all five seasons**: Survivor 49 126 of 126, The Challenge 41 101 of 101, 40 95 of 95, 39 103
+  of 103, The Traitors 4 90 of 90 (part 3's numbers plus seven each: the two games and their five stages); nothing refused.
+- **Each stage ended where its span says**, a stage of bingo or Calls too: Bingo with 4, the Draft with 8, Calls and the stage alongside
+  with the season (on The Challenge, its last episode on the schedule, 21).
+- **The overall is the stages added up**; on the tapes nobody ticks a bingo card or makes a call, so bingo and Calls stages score 0 here
+  and the overall is the Draft's points (shape.minis) or the answers' (shape.twoWays: Survivor 49 the Tinkerer and the Drive-By 2 each).
+  Lines and calls counted into the overall are `tests/mini-stages.test.js`'s and `scripts/dev-test/check-mini-stages.js`'s.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

@@ -70,7 +70,10 @@ can't be played as the groups stand ends there and the next starts, once researc
 unsure, void and held; `format-timeline.js groupsGone`, through part 2's plan), and so is part 3, when a grouping lasts (2026-10-30: a side
 stage beside the game's own, a copy of it for each grouping research is sure has held N episodes, from the episode after until research
 is sure it changed, its points kept; `side` { held }, `format-timeline.js sideTriggers`, `StageLogic.sidePlan`, through part 2's
-machinery); part 4 next. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+machinery), and part 4 is under way, in parts: 4a, mini-games and two ways of scoring (2026-10-30: a stage of bingo or Weekly Calls, its
+table the server's own counts of each seat's lines or right calls; a season of mini-games one after another; a stage `alongside` the
+game's own, at the same time, bingo lines plus answers added up; `answer-points.ts outsideCounts`, `schema.js stageAlongside`), is built;
+4b (a stage on another show's season) and 4c (late joiners) next. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -4152,7 +4155,16 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     new, and no request asks for the backing team).
   - **Part 4: mini-games, two ways of scoring, two shows, late joiners** (shape.minis, shape.twoWays, shape.twoShows, s45, s20, p1):
     stages of bingo and Weekly Calls (their tables from the server's own counts), stages that play at the same time, a stage on another
-    show's season, and someone joining a game in stages once it has started.
+    show's season, and someone joining a game in stages once it has started. **Split in three (2026-10-30), each its own session:**
+    - **4a: mini-games and two ways of scoring:** a stage of bingo or Weekly Calls, a season of mini-games one after another, and a stage
+      alongside the game's own, at the same time (two ways of scoring is two stages at once, so stages at the same time came here, not
+      with two shows): built (below).
+    - **4b: one game across two shows** (shape.twoShows, s20): a stage league on another season (the season sync, the couch, spoiler
+      marks per season, the overall at each viewer's marks), and 4a's Noticed item 5 first (two stages of bingo, or of Weekly Calls, at
+      the same time refused).
+    - **4c: late joiners** (A12 part 1's item 6): someone joining a game in stages once it has started joins the stage in play as its own
+      late joiner and every later stage from its start; a seat that left a begun stage and comes back; seats reaching the stages only
+      from `withLeagueLock` and `joinLeague`.
 
   **As built (A12 part 1, 2026-10-30, on `engine`, not merged; migration 0203).** One session, after `lane.js sync engine` (master's
   daylight-saving fixes and handoff; 1141 tests). A game in stages, on episodes and phases, with its overall. Every default and
@@ -4509,6 +4521,79 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     two (the starting tribes held 1 and 2: from 3, the swap at 4's start known from 4's research, so 3 to 4; the first swap's tribes held
     4 and 5: from 6, the second swap at 6's start, so just 6; the merged tribe is no grouping); The Traitors 4 none (never in groups).
     Every side draft's 4 × 2 fitted who was left as it opened (exclusive). The study doc's "A12 part 3".
+
+  **As built (A12 part 4a, mini-games and two ways of scoring, 2026-10-30, on `engine`, not merged; no migration).** One session, after
+  `lane.js sync engine` (already up to date; 1192 tests). Part 4 split in three (above): this part is the stages scored outside the game
+  and the stages at the same time; two shows (4b) and late joiners (4c) next. Every default and everything a person sees is the user's
+  (Noticed, below).
+  - **A stage of bingo or Weekly Calls** (`schema.js STAGE_KINDS`: 'weekly-bingo', 'weekly-calls' beside part 1's four; `stagedWaits` no
+    longer waits for them): a stage league like any other (the lab makes it as its kind, `Spec.madeAs`), its seats mirrored, its cards and
+    calls each person's on the season as always. Its table at each episode is the server's own count (`answer-points.ts outsideCounts`,
+    from `stageWalk`): each seat's lines at the game's points per line (`pointsPerLine`) or right calls, from the stage's start through
+    that episode, on its couch, by the seat's first account, as `leagueBingo` and `leagueCalls` count them (`bingoLines` and `callRights`
+    fill a count by episode, `byEpisode`, through `calls.ts addAt`, in one read each); handed to `gameView` as its `GameCalls`, so the
+    table ranks and places as the stage's own does. Its entries run through the later of its results and the latest aired (a talk show's
+    lines and calls are the couch's say, with no results): the walk marks it `outside`, and `StageLogic.standings` reads such a stage
+    through the latest aired episode, every other through its results. Over once its last episode or the season's is within the episode,
+    or once its season's winner is crowned there (`gameOver`: a schedule's count can run past the final). Each season's schedule and calls
+    book are read once a walk.
+  - **A season of mini-games** (shape.minis): stages of any kind one after another, bingo, then a draft from who's still in (its draft
+    opening at its start), then Weekly Calls; nothing new beyond the kinds.
+  - **A stage alongside the game's own** (`alongside: true`, `KEYS.stage`; `isAlongside`, `stageAlongside`, `isBeside`): it plays at the
+    same time as the game's own stages, so two ways of scoring is a stage of bingo with one of answers alongside it, the overall adding
+    them up. It comes after the game's own (`mainCount` now stops at the first stage beside them, side or alongside), never the first,
+    never with `on` or `side`, never starting or ending another (`fallsTo`), no 'next-stage' in it (nothing after it of the game's own);
+    its span the game's own unless it says (`stageGames`: from the first stage's start, to the last's end), inside it when it says (from
+    the game's start on, starting by its end, ending by its end, or the same phase it ends before: `alongsideSpan`, said once at its start
+    when it starts after the game ends); its draft opening at its start, counted then. The game's own stages one after another as before,
+    and now an overlap among them is refused with what to do ("to play at the same time, put it after the game's own stages with
+    alongside: true"), where it used to wait for this part. The lab makes it at the start with the game's own stages. Its words
+    (`describe.js`): "...; and beside it, Calls, a Weekly Calls: ...", How it works "Calls: it plays at the same time as Bingo, its points
+    counting in the overall with Bingo's."
+  - **The engine** (`state-logic.js StageLogic`): standings rows say `alongside`; the game ends with its own last stage (`endsAt` leaves
+    out side and alongside rows); once that's over, every stage beside it counts as it stood at the game's end and is over there (a game
+    that ended early, its race won or one left standing, still counts the stage beside it by places and wins); part 2's chain copies only
+    the stages a change starts (`chainPlan`: `stageOn`, so a stage alongside after them is never taken for one); `stagedWaits`' 'later'
+    for a stage after one a change starts skips a stage beside the game's own.
+  - **The tracker:** shape.minis (Bingo for Episodes 1 to 4, a Draft, an Outlast of 2 each, 5 to 8, then Weekly Calls) and shape.twoWays
+    (bingo all season with a game of answers alongside, "Who goes home?" each episode) play, ✅; s45 ("bingo one week, a draft the next")
+    waits on a rule decision, ❓ (stages that take turns all season: Noticed item 1); p1 waits on A13 (its trivia), its bingo half playing
+    as shape.twoWays shows. **187 ✅** · 59 ⏳ · 1 🆕 · 3 ❓ · 23 💬, of 273, and `--check`.
+  - **Tests:** `tests/mini-stages.test.js` (new, 5): stages of bingo and Weekly Calls and a season of mini-games (whole, words, settings,
+    each stage's own league, a bingo stage at a phase); a stage alongside (whole, its span the game's, its own inside it, a phase end,
+    every problem, an overlap refused with what to do, its words, its settings); one alongside a stage a change starts (part 2's plan
+    copying only that stage, nothing waiting); two ways of scoring through the engine (each stage's league as its kind, the counts handed in
+    as the server's, the overall by points and places at each mark, the game's table, an alongside stage that ends earlier); and the review's
+    cases (a game ended early counting the stage beside it as it stood then, by places; a stage scored outside counting an aired episode
+    while a draft's waits for results; a late start said once). `tests/stages.test.js`: a bingo stage plays, an overlap is refused (no longer
+    waits). `npm test` 1197; `tsc` clean. `game-specs-flag.js check`: PASS (this lane's database, the flag on).
+  - **API check:** `scripts/dev-test/check-mini-stages.js` (new, on new-fixture.js's couch), 26 PASS: the desk's admin starts a season of
+    mini-games from the lab (Bingo at 5 a line for Episode 6, a Draft from 7, Calls alongside from 6: three stage leagues as their kinds,
+    tied, the admin seated; Calls from 6 to the season's end, the Draft's draft waiting for 6's results); alex, riley, jordan and sam join
+    and are seated in all three; Episode 6 (the season's clock moved past it): alex's card has a line (immunity, the free middle, an idol
+    found), riley's ticks none, alex and jordan call who goes home, riley doesn't: Bingo's own table alex 5, Calls' alex 1 and jordan 1,
+    the game's (the overall) alex 6, jordan 1, riley 0, the stages as the server reads them (Bingo over with 6, the Draft not started,
+    Calls alongside); the Draft's draft opens and is drafted through the pick route; Episode 7: the game's table each seat's three stages
+    added up, its end the Draft's; sam, behind, sees nothing; the flag's check passes on the game and its three stages. Also ALL PASS:
+    `check-stages.js`, `check-change-stages.js`, `check-next-stage.js`, `check-side-stages.js`.
+  - **The code review** (`/code-review` at high, before the long runs; eight findings, all taken): a stage of bingo or Calls had entries
+    only at episodes with results, so a talk show's never started (now through the latest aired, read so by the standings); a game that
+    ended early left a stage alongside never over, so by places or wins it counted nothing (now over at the game's end, as it stood then);
+    each such stage read its season's schedule and book again (once a walk now), summed every episode for every seat at every episode
+    (added up once), and the count by episode was written twice (`addAt`); two tests of what's alongside with different truthiness (one
+    now); a stage alongside starting after the game's end was refused at a path nobody wrote (said at its start, once); describe.js tested
+    it a third way (`stageAlongside`). Then, by hand, a bingo or Calls stage's end also reads the engine's `gameOver` (its season's winner).
+  - **Golden replays:** `golden.js` (HEAD, A12 part 3, against the working tree, on the final code): 7 seasons, 160 games, **19,361 reads,
+    every one the same** (no game they play is in stages). Against master's (production's engine, `--before=master`): the same, every one
+    the same but R1 part 3's 20 (The Challenge 40's Survival Pool, one seat's pick of a winner at the final), nothing else. A stage of bingo,
+    of Calls or alongside changes no game that doesn't have one, so the Survivor 51 rehearsal isn't run for this part (golden is the proof).
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game played through and over on all five seasons**:
+    Survivor 49 126 of 126, The Challenge 41 101 of 101, 40 95 of 95, 39 103 of 103, The Traitors 4 90 of 90 (part 3's numbers plus seven
+    each: shape.minis' game and its three stages, shape.twoWays' game and its two); nothing refused; the questions waiting on early results
+    finding 20's 3, 2 and 2. shape.minis: Bingo 1 to 4, the Draft 5 to 8 (drafted at 5 from who was left), Calls 9 to the end, each over
+    there, the overall the three added up (the Draft's points alone, since nobody ticks a card or makes a call on the tapes); shape.twoWays:
+    Bingo and Who goes home side by side all season, both over at the season's end, the overall
+    the answers' points (Survivor 49: the Tinkerer and the Drive-By 2 each). The study doc's "A12 part 4a".
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
   and checked as now); episode facts (who said the title quote) through new research questions rated reliable (Our check).
 - **A14. The players' own mechanics** (allowed 2026-10-28, with the Decisions table's guardrails): votes among the players,
@@ -5472,6 +5557,49 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From A12 part 4a (2026-10-30):
+- **For the user, in the format-change design session (after A12), with A12 parts 1's to 3's items, each with a recommendation (built as
+  spec rules or engine rules):**
+  1. **A season of mini-games that take turns** (s45, "bingo one week, a draft the next", ❓ in the tracker): stages one after another
+     play (shape.minis), but not a season that alternates every episode. Options: (a) a new piece, stages that take turns (`turns`: each
+     stage plays one episode, or N, in turn, all season, a fresh copy of it each turn on part 2's copies: a draft the next week drafts from
+     who's left, for any season's length); (b) the season written out as one-episode stages (MAX_STAGES raised to a season's length: a
+     league per episode, about 30 KB each, all read by every overall: some 400 KB a read on Survivor, 600 KB on The Challenge); (c) read
+     the words as stages of a few episodes each (within MAX_STAGES 6). Recommended: (a), its own part after 4c if the user wants it, the
+     builder saying up front how many leagues it makes.
+  2. **Which stage is the game's own in two ways of scoring.** Built: the first stage is the game's own, the stage alongside plays at the
+     same time, its span the game's unless it says (inside it), and the game ends with its own. Option: stages that are all alongside, none
+     the game's own. Recommended: as built (the overall is the same either way; one stage has to say where the game ends).
+  3. **A game that ends early with a stage beside it** (a race won, one left standing: A11's ends). Built: the stage beside counts as it
+     stood at the game's end and is over there, its place and win counting. Option: the stage beside plays on to its own end and the game
+     ends only then. Recommended: as built (the game's end is its own stages', part 3's rule).
+  4. **When a stage of bingo or Calls counts an episode.** Built: once it has aired (lines and a talk show's calls need no results; a
+     competition show's moment squares and calls settle on results, so they count 0 until then), while a draft's or a pool's stage counts
+     at results: the overall can move twice for one episode. Option: every stage at results only (a talk show's bingo stage then never
+     counts: no results). Recommended: as built, the game's page saying when each stage counts.
+  5. **Two stages of bingo (or of Weekly Calls) at the same time in one game** count the same lines twice: a card is each person's for the
+     season's episode, not the stage's, so both stages read the same card. Built: allowed (nothing refuses it). Recommended: our check
+     refuses two stages of the same kind scored outside the game whose spans can overlap (a stage alongside, or the game's own and one
+     alongside), with why; a small schema rule, first in part 4b.
+  6. **What players and the maker are told.** Built: the words above; each stage a game on the couch's lists (part 1's item 7). Recommended:
+     the game's page shows the stages side by side where they play at the same time (track V's stages block).
+- **Weekly Bingo's and Weekly Calls' own tables say over only by the schedule's episode count** (`leagueBingo`, `leagueCalls`:
+  `endedThrough`), while the engine's `gameOver` knows a season's winner: on The Challenge's taped seasons the schedule counts 21 against a
+  final at 19, so their own tables never say over there. The stage walk reads both. (Whoever next touches leagueBingo or leagueCalls:
+  `|| gameOver`, with golden's word, as it changes what live tables say.)
+- **A stage's own sentence says "by the finale" where the stage ends earlier** ("Most lines by the finale wins" for Episodes 1–4), part
+  1's stage sentences again. (U0, with the wizard's words.)
+- **`stageWalk`'s cost, again:** a stage of bingo or Calls adds a few queries to every read of its game (its season, its seats, its lines
+  or calls; the season's schedule and book once a walk) and a `gameView` for each aired episode. (The merge: a line in HOSTING.md beside
+  part 1's; cache each stage's walk by its `updated_at` and the season's newest card or call if it shows.)
+- **The blind replays play no bingo ticks or calls** (the tapes have none), so bingo and Calls stages there score 0 and prove only that
+  the games play through and end; the sums are the unit tests' and check-mini-stages.js's. (P5, if the playtests ever tick cards.)
+- **A stage alongside's draft is counted as it opens** (as any later stage's), even when it starts with the game; the lab passes no
+  `ctx.pool` anyway (part 1's item). (G1, with the context pack: count it with the first stage when both start together.)
+- **A stage alongside ending at an episode while the game ends before a phase** can't be checked until the phase is known; if the phase
+  comes first, the stage beside counts only as it stood at the game's end (the standings' cap), and its own league plays on to its own
+  end unseen by the overall. (Nothing to do; said for the design session.)
 
 From A12 part 3 (2026-10-30):
 - **For the user, in the format-change design session (after A12), with A12 parts 1's, 2's and 2b's items, each with a recommendation

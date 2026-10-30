@@ -6,7 +6,7 @@ import { kindOf } from "@/lib/game/formats/rulebook-schema.js";
 import type { BingoMove, GameCalls } from "@/lib/game/game-view";
 import type { LeagueState } from "@/lib/game/types";
 import { isUuid, type SessionUser } from "./auth-helpers";
-import { endedThrough, episodeFacts, openEpisode, OPEN, othersSharing, saysOn, scopeOf, seasonBook, settledSays, SHARED, type SayRow } from "./calls";
+import { addAt, endedThrough, episodeFacts, openEpisode, OPEN, othersSharing, saysOn, scopeOf, seasonBook, settledSays, SHARED, type SayRow } from "./calls";
 import { HttpError, pool } from "./db";
 import { refuseTestPlayer } from "./test-players";
 import { EVERYTHING, seenThrough } from "./guard";
@@ -673,7 +673,11 @@ export async function bingoLinesOn(seasonId: string, n: number, only?: string[],
  * the line ticked and settled as happened, by the season's results or (a talk show) the couch's says (`couchId`'s people who
  * share the show; with no couch, each person's own).
  */
-export async function bingoLines(seasonId: string, userIds: string[], opts: { from: number; through: number; couchId: string | null; book?: CallBook }): Promise<Map<string, number>> {
+export async function bingoLines(
+  seasonId: string,
+  userIds: string[],
+  opts: { from: number; through: number; couchId: string | null; book?: CallBook; byEpisode?: Map<number, Map<string, number>> }
+): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   const upTo = Number.isFinite(opts.through) ? opts.through : 100000;
   if (!userIds.length || upTo < Math.max(1, opts.from)) return out;
@@ -712,7 +716,10 @@ export async function bingoLines(seasonId: string, userIds: string[], opts: { fr
     // A bank's card counts its called lines (step 3); one from before the banks, every ticked line.
     const called = callsOn(squares) ? calledOf(r.called_lines).map((c) => c.line) : null;
     const lines = countLines(squares, new Set((r.ticked as number[]).map(Number)), t, called).standing;
-    if (lines) out.set(r.user_id, (out.get(r.user_id) ?? 0) + lines);
+    if (!lines) continue;
+    out.set(r.user_id, (out.get(r.user_id) ?? 0) + lines);
+    // Step A12 part 4a of docs/PLAN-start-a-game-gpt.md: each episode's lines too, for a stage's table at each episode (stageWalk).
+    if (opts.byEpisode) addAt(opts.byEpisode, r.episode, r.user_id, lines);
   }
   return out;
 }

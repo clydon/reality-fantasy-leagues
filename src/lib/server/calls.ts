@@ -420,6 +420,13 @@ export async function callEpisode(
 
 // ---------- what the season games read ----------
 
+/** `n` more for `userId` at `episode`, in a count by episode (callRights' and bingo.ts bingoLines' byEpisode: step A12 part 4a). */
+export function addAt(byEpisode: Map<number, Map<string, number>>, episode: number, userId: string, n: number): void {
+  const at = byEpisode.get(episode) ?? new Map<string, number>();
+  at.set(userId, (at.get(userId) ?? 0) + n);
+  byEpisode.set(episode, at);
+}
+
 /**
  * How many calls each of these people got right on a season, from episode `from` through `through` (a viewer's mark), as the
  * season's results (or, a talk show's, the couch's says: `couchId`'s people who share the show) settle them. `only`: some
@@ -428,7 +435,7 @@ export async function callEpisode(
 export async function callRights(
   seasonId: string,
   userIds: string[],
-  opts: { from: number; through: number; couchId: string | null; only?: (key: string) => boolean; book?: CallBook }
+  opts: { from: number; through: number; couchId: string | null; only?: (key: string) => boolean; book?: CallBook; byEpisode?: Map<number, Map<string, number>> }
 ): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   const upTo = Number.isFinite(opts.through) ? opts.through : 100000;
@@ -454,7 +461,12 @@ export async function callRights(
   const verdictFor = (c: MadeCall) =>
     verdictOf(c.key, talk && c.key.startsWith("m:") ? "couch" : "results", facts.get(c.episode) ?? null, said.get(opts.couchId ? `${c.episode}|${c.key}` : `${c.userId}|${c.episode}|${c.key}`) ?? null);
   // Each call against its own verdict (a talk show with no couch settles each person's by their own say).
-  for (const c of calls) if ((!opts.only || opts.only(c.key)) && isRight(verdictFor(c), c.answer)) out.set(c.userId, (out.get(c.userId) ?? 0) + 1);
+  for (const c of calls) {
+    if ((opts.only && !opts.only(c.key)) || !isRight(verdictFor(c), c.answer)) continue;
+    out.set(c.userId, (out.get(c.userId) ?? 0) + 1);
+    // Step A12 part 4a of docs/PLAN-start-a-game-gpt.md: each episode's right calls too, for a stage's table at each episode.
+    if (opts.byEpisode) addAt(opts.byEpisode, c.episode, c.userId, 1);
+  }
   return out;
 }
 

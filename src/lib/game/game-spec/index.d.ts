@@ -33,6 +33,8 @@ export interface SpecStage {
   on?: SpecOn;
   /** A12 part 3: a side stage, beside the game's own: a copy for each grouping research is sure held `held` episodes. */
   side?: SpecSide;
+  /** A12 part 4a: a stage alongside the game's own, at the same time (two ways of scoring at once). */
+  alongside?: true;
 }
 /** A12 part 3: a side stage. */
 export interface SpecSide {
@@ -363,7 +365,7 @@ export interface GameSpec {
 }
 
 /** A spec as written: anything left out is the preset's, or the defaults (fullSpec). */
-export type SpecInput = Partial<Omit<GameSpec, "extras" | "ask" | "stages">> & { extras?: Partial<SpecExtras>; ask?: SpecQuestion[]; stages?: { id: string; name?: string | null; game: SpecInput; on?: Partial<SpecOn>; side?: Partial<SpecSide> }[] };
+export type SpecInput = Partial<Omit<GameSpec, "extras" | "ask" | "stages">> & { extras?: Partial<SpecExtras>; ask?: SpecQuestion[]; stages?: { id: string; name?: string | null; game: SpecInput; on?: Partial<SpecOn>; side?: Partial<SpecSide>; alongside?: true }[] };
 
 /** A10 part 1: a draft's group slots (get.groups): a slot holds a pair or a team the show forms, picked after the episode that
  *  showed it, riding with it while it lasts and dropping when it changes (state-logic.js GroupSlotLogic). */
@@ -600,6 +602,9 @@ export const SIDE: SpecSide;
 export const MAX_HELD: number;
 export function stageSide(stage: unknown): SpecSide | null;
 export function mainCount(stages: unknown[]): number;
+/** A12 part 4a: a stage alongside the game's own stages (true), or null; and a stage beside them, side or alongside. */
+export function stageAlongside(stage: unknown): true | null;
+export function isBeside(stage: unknown): boolean;
 /** The league type a game is made as before its spec is written: a game of questions as a pool, any other as itself. */
 export function madeAs(kind: LeagueTypeId): LeagueTypeId;
 

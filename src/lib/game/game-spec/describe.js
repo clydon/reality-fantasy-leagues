@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -982,6 +982,11 @@ function describeStages(s, ctx) {
     const label = each[i].label;
     rules.push(`${label}: once research is sure the ${w.group}s have held ${heldWords(side)} and go on as they are, it opens with the next ${w.part} (a new one each time they last), and plays until research is sure they changed, its points kept; until research is sure, it carries on.`);
     rules.push(ch.ok === 'maker' ? `${label}: whoever runs the game says whether it opens; if nobody does by its first ${w.part}, ${ch.unanswered === 'start' ? 'it opens anyway' : "it doesn't"}.` : `${label}: it opens by itself; whoever runs the game can call it off.`);
+  });
+  // A12 part 4a: a stage alongside the game's own, at the same time.
+  stages.forEach((st, i) => {
+    if (i < mains || !stageAlongside(st)) return;
+    rules.push(`${each[i].label}: it plays at the same time as ${mains > 1 ? "the game's own stages" : each[0].label}, its points counting in the overall with ${mains > 1 ? 'theirs' : `${each[0].label}'s`}.`);
   });
   // A12 part 2b: where a 'next-stage' fallback ends its stage.
   stages.forEach((st, i) => {

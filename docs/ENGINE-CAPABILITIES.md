@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 185 ✅ · 62 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 273.
-**Waiting, by step:** A12 6 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 187 ✅ · 59 ⏳ · 1 🆕 · 3 ❓ · 23 💬, of 273.
+**Waiting, by step:** A12 2 · A13 4 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -142,8 +142,8 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | Stages (a second draft at the merge) | A game in two stages for Survivor 51: Before the merge, a Weekly Lineup: everyone drafts 5 and starts 3 each episode, until Merged starts. Scored by the show's rules; then After the merge, a Weekly Lineup: everyone drafts 5 and starts 3 each episode, from when Merged starts. Scored by the show's rules. Overall, each stage's points add up. |
 | ✅ | Rules per phase | A game in two stages for Survivor 51: Before the merge, a Weekly Lineup: everyone drafts 5 and starts 3 each episode, until Merged starts. Scored by the show's rules; then After the merge, a Survival Pool: everyone picks one person to stay in each episode, from when Merged starts. Longest streak wins. Overall, each stage you finish scores by your place: one point for each of you below you, plus one. |
 | ✅ | Stages by episode: the season's two halves, each its own game, plus an overall | A game in two stages for Survivor 51: First half, a Weekly Lineup: everyone drafts 5 and starts 3 each episode, Episodes 1–6. Scored by the show's rules; then Second half, a Survival Pool: everyone picks one person to stay in each episode, Episode 7 to the finale. Longest streak wins. Overall, each stage you finish scores by your place: one point for each of you below you, plus one. |
-| ⏳ | A season of mini-games | A12 |
-| ⏳ | A game that scores two ways (bingo lines plus answers) | A12 |
+| ✅ | A season of mini-games | A game in three stages for Survivor 51: Bingo, a Weekly Bingo: a new bingo card every episode, Episodes 1–4. Most lines by the finale wins; then Draft, an Outlast: everyone drafts 2, Episodes 5–8. Each scores by how long they last: the last one standing carries you; then Calls, a Weekly Calls: two calls before every episode, Episode 9 to the finale. Most right by the finale wins. Overall, each stage's points add up. |
+| ✅ | A game that scores two ways (bingo lines plus answers) | A game in two stages for Survivor 51: Bingo, a Weekly Bingo: a new bingo card every episode, all season. Most lines by the finale wins; and beside it, Who goes home, a game: everyone answers one question before each episode: who goes home, all season. A point for each right answer. Overall, each stage's points add up. |
 | ⏳ | One game across two shows | A12 |
 | ✅ | Keepers across seasons | A Weekly Lineup for Survivor 51: everyone drafts 4 and starts 3 each episode, keeping one of last season's team if they come back, all season. Scored by Survivor 51's rules. |
 
@@ -164,7 +164,7 @@ The plan's worked examples, as people would type them on a show's page.
 
 | | Id | On the page of | They type | Dials | Plays as, or needs |
 |---|---|---|---|---|---|
-| ⏳ | p1 | Survivor 51 | bingo cards and trivia every episode, bingo lines are worth 5 points, correct trivia questions earn one point | shape, score, what | A12: A13 trivia questions, A9 points per line, A12 a game that scores two ways |
+| ⏳ | p1 | Survivor 51 | bingo cards and trivia every episode, bingo lines are worth 5 points, correct trivia questions earn one point | shape, score, what | A13: A13 trivia questions; its bingo half plays since A12 part 4a (a stage of bingo at 5 points a line, A9's, with a stage of trivia alongside it, the game's two ways of scoring added up in the overall: shape.twoWays), its trivia half A13's |
 | ⏳ | p2 | baseball: Red Sox–Yankees series | a homer draft: everyone picks 3 players they think gets a home run | settle | L3: a shared draft, 3 each, scored by stats |
 | ✅ | p3 | Survivor 51 | each week you must correctly predict the tribe winner and who goes home | what | A game for Survivor 51: everyone answers two questions before each episode: which tribe wins immunity and who goes home, all season. Points for each right answer. |
 | ✅ | p4 | Survivor 51 | a single episode game where we must predict different things, most correct wins | when, what | A game for Survivor 51: everyone answers three questions before Episode 6: who goes home, an idol played and how many idols get played this episode. Points for each right answer. |
@@ -224,7 +224,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ⏳ | s42 | Dancing with the Stars 35 | Predict each episode's IMDb rating. | settle | A14: outside numbers from a vetted source: TVmaze's rating, not IMDb's |
 | ⏳ | s43 | Survivor 51 | Each week a different one of us writes 3 questions. | who | A14 |
 | ✅ | s44 | Survivor 51 | Seal a winner pick before the premiere; every change costs a point. | score | A game for Survivor 51: everyone answers one question before the finale: who wins, all season. 10 points for each right answer. Changing your call once it starts costs points. |
-| ⏳ | s45 | Survivor 51 | A season of mini-games: bingo one week, a draft the next. | shape | A12 |
+| ❓ | s45 | Survivor 51 | A season of mini-games: bingo one week, a draft the next. | shape | stages that take turns all season (bingo one episode, a draft the next, again and again: a new piece, a fresh copy of each stage every other episode on part 2's copies, for any season's length), or the season written out as stages (MAX_STAGES 6 can't hold a season of one-episode stages; raising it to a season's length is a league per episode, each read by every overall); a season of mini-games one after another plays since A12 part 4a (shape.minis); the user's (A12 part 4a's Noticed) |
 | ✅ | s46 | Survivor 51 | For 10 random pairs, who outlasts whom? | what | A game for Survivor 51: everyone answers one question before it starts: who outlasts whom, all season. A point for each right answer. |
 | ✅ | s47 | Survivor 51 | Predict the final tribal vote split. | what | A game for Survivor 51: everyone answers one question before it starts: the final jury vote split, all season. 5 points for each right answer. |
 | ✅ | s48 | The Challenge 42 | Guess every elimination winner; a wrong guess knocks you out. | win | A game for The Challenge 42: everyone answers one question before each episode: who wins the elimination, all season. A point for each right answer. One life: a wrong answer, or none, costs one. Last one standing wins. |

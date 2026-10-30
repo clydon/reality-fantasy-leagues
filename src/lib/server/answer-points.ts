@@ -2,10 +2,12 @@ import StateLogic from "@/lib/game/state-logic.js";
 import * as Spec from "@/lib/game/game-spec/index.js";
 import type { SheetNights } from "@/lib/game/episode-view";
 import { gameView, type GameCalls } from "@/lib/game/game-view";
+import { pointsPerLine } from "@/lib/game/bingo";
 import type { AnswerFacts, FormatGroups } from "@/lib/game/game-spec/index.js";
 import type { AnswerWalk, StageWalk } from "@/lib/game/state-logic.js";
 import { groupFacts } from "@/lib/game/formats/format-timeline.js";
 import type { LeagueState } from "@/lib/game/types";
+import type { CallBook } from "@/lib/game/calls";
 import { timelineForShow } from "@db/format-timeline.js";
 import { HttpError, pool } from "./db";
 import { stagesOf } from "./stages";
@@ -95,12 +97,15 @@ const STAGE_REF = { leagueId: "", name: "", gameType: "", gameName: "", yourRole
 
 /**
  * A game in stages' stages' tables (step A12 part 1: StateLogic.StageLogic reads them): each stage league as it stands (a game of
- * questions graded and walked on its answers, as its own table is), its table as it stood after each episode it played, the table
- * anyone on its couch sees at that mark (game-view.ts gameView, no seat), up to the episode it's over at; so the game's overall reads
- * at any viewer's mark. One query for the stages and one for each game of questions' answers; worked out on read, never stored.
+ * questions graded and walked on its answers, as its own table is; part 4a: bingo's lines and Weekly Calls' right calls counted as
+ * their own tables count them, outsideCounts), its table as it stood after each episode it played, the table anyone on its couch sees
+ * at that mark (game-view.ts gameView, no seat), up to the episode it's over at; so the game's overall reads at any viewer's mark. One
+ * query for the stages, one for each game of questions' answers and a few for each stage of bingo or Calls (each season's schedule
+ * and calls book read once); worked out on read, never stored.
  */
 export async function stageWalk(parentId: string, parent: LeagueState): Promise<StageWalk | null> {
   if (!StateLogic.StageLogic.on(parent)) return null;
+  const seasons = new Map<string, Promise<SeasonReads>>();
   // Each stage's walk side by side.
   const stages: StageWalk["stages"] = await Promise.all(
     (await stagesOf(pool, parentId)).map(async (r) => {
@@ -110,17 +115,78 @@ export async function stageWalk(parentId: string, parent: LeagueState): Promise<
       const from = StateLogic.startEpisode(state);
       const latest = StateLogic.SpoilerLogic.latestWithResults(state);
       const entries: StageWalk["stages"][number]["entries"] = [];
-      for (let n = from ?? latest + 1; n <= latest; n++) {
-        if (!state.episodes.some((e) => e.number === n && StateLogic.episodeHasResults(e))) continue;
-        const calls = questions ? await leagueAnswers({ leagueId: r.id, state, playerId: null, mark: n, rows: answers }) : null;
+      // Step A12 part 4a: a stage of bingo or Weekly Calls, scored outside its state: an entry at each episode with results or aired
+      // (a talk show's lines and calls are the couch's say, with no results).
+      const outside = await outsideCounts(r.id, state, seasons);
+      const through = outside ? Math.max(latest, outside.aired) : latest;
+      for (let n = from ?? through + 1; n <= through; n++) {
+        if (!state.episodes.some((e) => e.number === n && StateLogic.episodeHasResults(e)) && !(outside && n <= outside.aired)) continue;
+        const calls = questions ? await leagueAnswers({ leagueId: r.id, state, playerId: null, mark: n, rows: answers }) : outside ? outside.at(n) : null;
         const v = gameView(STAGE_REF, state, null, n, () => null, calls ?? undefined);
         entries.push({ episode: n, over: v.over, rows: v.table.map((t) => ({ playerId: t.playerId, points: t.total, place: t.place })) });
         if (v.over) break;
       }
-      return { key: r.key, leagueId: r.id, from, to: StateLogic.lastEpisode(state), entries };
+      return { key: r.key, leagueId: r.id, from, to: StateLogic.lastEpisode(state), ...(outside ? { outside: true } : {}), entries };
     })
   );
   return { stages };
+}
+
+/** A season's schedule and calls book, read once for every stage of bingo or Calls on it (stageWalk). */
+type SeasonReads = { schedule: SeasonSchedule | undefined; book: CallBook };
+
+/**
+ * A stage of bingo or Weekly Calls (step A12 part 4a): its table at each episode `n` as its own table counts it (bingo.ts leagueBingo,
+ * calls.ts leagueCalls): each seat's lines (at the game's points per line) or right calls from its start through n, on its couch, by
+ * the seat's first account; over once its last episode (or the season's, or its winner crowned) is within n. Read once, each line or call by its episode,
+ * through the later of its latest results and the latest aired (`aired`). `seasons`: each season's schedule and book, shared by the
+ * stages. Null for any other game, or one on no season.
+ */
+async function outsideCounts(leagueId: string, state: LeagueState, seasons: Map<string, Promise<SeasonReads>>): Promise<{ at: (n: number) => GameCalls; aired: number } | null> {
+  const pieces = StateLogic.piecesOf(state);
+  if (!pieces.hasBingo && !pieces.hasCalls) return null;
+  const [{ leagueSeason }, { seasonSchedules, latestAired }, { bingoLines }, { callRights, endedThrough, seasonBook }] = await Promise.all([
+    import("./push-events"),
+    import("./schedule"),
+    import("./bingo"),
+    import("./calls"),
+  ]);
+  const { seasonId, couchId } = await leagueSeason(leagueId);
+  if (!seasonId) return null;
+  if (!seasons.has(seasonId)) seasons.set(seasonId, (async () => ({ schedule: (await seasonSchedules([seasonId])).get(seasonId), book: await seasonBook(seasonId) }))());
+  const { schedule, book } = (await seasons.get(seasonId)) as SeasonReads;
+  const aired = latestAired(schedule);
+  const start = StateLogic.startEpisode(state);
+  const end = StateLogic.endEpisode(state);
+  const upTo = Math.min(Math.max(StateLogic.SpoilerLogic.latestWithResults(state), aired), end ?? Number.POSITIVE_INFINITY);
+  const { rows } = await pool.query("SELECT user_id, player_id FROM league_memberships WHERE league_id = $1 AND player_id IS NOT NULL ORDER BY seat_slot, created_at", [leagueId]);
+  const userOf = new Map<string, string>();
+  for (const m of rows) if (!userOf.has(m.player_id)) userOf.set(m.player_id as string, m.user_id as string);
+  const byEpisode = new Map<number, Map<string, number>>();
+  if (start !== null && upTo >= start) {
+    const opts = { from: start, through: upTo, couchId, book, byEpisode };
+    const users = [...new Set(userOf.values())];
+    await (pieces.hasBingo ? bingoLines(seasonId, users, opts) : callRights(seasonId, users, opts));
+  }
+  // Each account's count through each episode, added up once.
+  const through = new Map<number, Map<string, number>>();
+  const run = new Map<string, number>();
+  for (let e = start ?? upTo + 1; e <= upTo; e++) {
+    for (const [u, k] of byEpisode.get(e) ?? []) run.set(u, (run.get(u) ?? 0) + k);
+    through.set(e, new Map(run));
+  }
+  const each = pieces.hasBingo ? pointsPerLine(state) : 1;
+  return {
+    aired,
+    at: (n) => {
+      const counts = through.get(Math.min(n, upTo));
+      const right = (p: string) => (counts?.get(userOf.get(p) ?? "") ?? 0) * each;
+      // Over once its last episode or the season's is within n, or, as the engine knows a season is over, its winner crowned by n (a
+      // schedule's episode count can run past the final).
+      const ended = endedThrough(schedule, n, end) || StateLogic.gameOver(StateLogic.GhostLogic.viewFor(state, null, n));
+      return { right, move: null, through: end === null ? n : Math.min(n, end), ended };
+    },
+  };
 }
 
 /** Whether a question reads its groups from the format's state over time where the season has them (A6 on F3 part 2): the

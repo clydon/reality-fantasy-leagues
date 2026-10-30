@@ -2091,12 +2091,29 @@
         {
           "id": "shape.minis",
           "what": "A season of mini-games",
-          "step": "A12"
+          "step": "A12",
+          "spec": {
+            "stages": [
+              { "id": "bingo", "name": "Bingo", "game": { "preset": "weekly-bingo", "span": { "from": 1, "to": 4 } } },
+              { "id": "draft", "name": "Draft", "game": { "preset": "outlast", "get": { "by": "draft", "each": 2, "order": "snake", "own": "exclusive" }, "span": { "from": 5, "to": 8 } } },
+              { "id": "calls", "name": "Calls", "game": { "preset": "weekly-calls", "span": { "from": 9 } } }
+            ],
+            "overall": { "by": "points" }
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" }
         },
         {
           "id": "shape.twoWays",
           "what": "A game that scores two ways (bingo lines plus answers)",
-          "step": "A12"
+          "step": "A12",
+          "spec": {
+            "stages": [
+              { "id": "bingo", "name": "Bingo", "game": { "preset": "weekly-bingo", "span": { "from": 1 } } },
+              { "id": "answers", "name": "Who goes home", "alongside": true, "game": { "get": { "by": "none" }, "score": { "by": "answers" }, "rank": { "by": "total" }, "ask": [ { "id": "out", "ask": "Who goes home?", "answer": "person", "points": 1, "asked": "each", "settle": { "by": "results", "take": "out" } } ] } }
+            ],
+            "overall": { "by": "points" }
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" }
         },
         {
           "id": "shape.twoShows",
@@ -2172,13 +2189,13 @@
         "rulebook": "survivor"
       },
       "words": "bingo cards and trivia every episode, bingo lines are worth 5 points, correct trivia questions earn one point",
-      "step": "A12",
+      "step": "A13",
       "dials": [
         "shape",
         "score",
         "what"
       ],
-      "note": "A13 trivia questions, A9 points per line, A12 a game that scores two ways"
+      "note": "A13 trivia questions; its bingo half plays since A12 part 4a (a stage of bingo at 5 points a line, A9's, with a stage of trivia alongside it, the game's two ways of scoring added up in the overall: shape.twoWays), its trivia half A13's"
     },
     {
       "id": "p2",
@@ -3598,7 +3615,7 @@
         "rulebook": "survivor"
       },
       "words": "A season of mini-games: bingo one week, a draft the next.",
-      "step": "A12",
+      "decide": "stages that take turns all season (bingo one episode, a draft the next, again and again: a new piece, a fresh copy of each stage every other episode on part 2's copies, for any season's length), or the season written out as stages (MAX_STAGES 6 can't hold a season of one-episode stages; raising it to a season's length is a league per episode, each read by every overall); a season of mini-games one after another plays since A12 part 4a (shape.minis); the user's (A12 part 4a's Noticed)",
       "dials": [
         "shape"
       ]

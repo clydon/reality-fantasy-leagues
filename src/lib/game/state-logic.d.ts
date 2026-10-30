@@ -909,7 +909,7 @@ declare const StateLogic: {
     withWalk(state: LeagueState, walk: StageWalk | null): LeagueState;
     cutWalk(walk: StageWalk, n: number): StageWalk;
     /** A12 part 2: `stage` the spec's stage, `copy` 1, 2, ... for a copy a format change started (null for a stage's own). */
-    standings(state: LeagueState): { key: string; stage: string; copy: number | null; side: boolean; name: string | null; leagueId: string | null; from: number | null; to: number | null; started: boolean; over: boolean; rows: StageRow[] }[];
+    standings(state: LeagueState): { key: string; stage: string; copy: number | null; side: boolean; alongside: boolean; name: string | null; leagueId: string | null; from: number | null; to: number | null; started: boolean; over: boolean; rows: StageRow[] }[];
     overall(state: LeagueState): { playerId: string; overall: number; points: number; placePoints: number; wins: number; stages: { key: string; points: number | null; place: number | null; over: boolean }[] }[];
     over(state: LeagueState): boolean;
     endsAt(state: LeagueState): number | null;
@@ -1092,7 +1092,8 @@ export interface StageRow {
   place: number;
 }
 export interface StageWalk {
-  stages: { key: string; leagueId: string; from: number | null; to: number | null; entries: { episode: number; over: boolean; rows: StageRow[] }[] }[];
+  /** A12 part 4a: `outside`, a stage scored outside the game (bingo, Weekly Calls): an entry for each episode as it airs. */
+  stages: { key: string; leagueId: string; from: number | null; to: number | null; outside?: boolean; entries: { episode: number; over: boolean; rows: StageRow[] }[] }[];
 }
 /** A12 part 2: a format change as a stage's trigger (format-timeline.js stageTriggers). */
 export interface StageTrigger {

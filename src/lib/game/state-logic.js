@@ -4391,18 +4391,30 @@ class StageLogic {
   static standings(state){
     const walk = StageLogic.walkOf(state);
     const latest = SpoilerLogic.latestWithResults(state);
-    const row = (st, w, copy) => {
-      const entries = w ? (w.entries || []).filter(e => e.episode <= latest) : [];
+    // A12 part 4a: a stage scored outside the game (its walk says `outside`: bingo, Weekly Calls) counts each episode as it airs,
+    // results or not (a talk show's lines and calls are the couch's say).
+    const aired = Math.max(latest, ...(state.episodes || []).filter(e => hasAired(e)).map(e => e.number));
+    const row = (st, w, copy, cap) => {
+      const upTo = Math.min(w && w.outside ? aired : latest, cap);
+      const entries = w ? (w.entries || []).filter(e => e.episode <= upTo) : [];
       const last = entries.length ? entries[entries.length - 1] : null;
-      return { key: w ? w.key : st.id, stage: st.id, copy, side: !!Spec.stageSide(st), name: st.name || null, leagueId: w ? w.leagueId : null, from: w ? w.from : null, to: w ? w.to : null, started: !!last, over: !!(last && last.over), rows: last ? last.rows : [] };
+      return { key: w ? w.key : st.id, stage: st.id, copy, side: !!Spec.stageSide(st), alongside: !!Spec.stageAlongside(st), name: st.name || null, leagueId: w ? w.leagueId : null, from: w ? w.from : null, to: w ? w.to : null, started: !!last, over: !!(last && last.over), rows: last ? last.rows : [] };
     };
     // A12 part 2: a stage a format change starts is its copies, in the order they start (none until its change comes); A12 part 3: a
     // side stage too (none until a grouping lasts).
-    return StageLogic.stages(state).flatMap(st => {
-      if(!Spec.stageOn(st) && !Spec.stageSide(st)) return [row(st, walk ? walk.stages.find(x => x.key === st.id) : null, null)];
+    const rowsOf = (st, cap) => {
+      if(!Spec.stageOn(st) && !Spec.stageSide(st)) return [row(st, walk ? walk.stages.find(x => x.key === st.id) : null, null, cap)];
       const mine = (walk ? walk.stages : []).filter(x => StageLogic.copyOf(x.key) === st.id).sort((a, b) => (a.from ?? Infinity) - (b.from ?? Infinity));
-      return mine.map((w, i) => row(st, w, i + 1));
-    });
+      return mine.map((w, i) => row(st, w, i + 1, cap));
+    };
+    const stages = StageLogic.stages(state);
+    const own = stages.filter(st => !Spec.isBeside(st)).flatMap(st => rowsOf(st, Infinity));
+    // A12 part 4a: once the game's own last stage is over, each stage beside it (side or alongside) counts as it stood there and is
+    // over too (a game that ended early, its race won or one left standing: by places or wins it still counts).
+    const last = own[own.length - 1];
+    const end = last && last.over && Number.isInteger(last.to) ? last.to : null;
+    const beside = stages.filter(st => Spec.isBeside(st)).flatMap(st => rowsOf(st, end ?? Infinity)).map(x => (end !== null ? { ...x, over: true } : x));
+    return [...own, ...beside];
   }
   // A12 part 2: the stage a copy's key is of (`<stage id>@<change id>`), or null for a stage's own key.
   static copyOf(key){ const at = String(key || '').indexOf('@'); return at > 0 ? String(key).slice(0, at) : null; }
@@ -4544,7 +4556,8 @@ class StageLogic {
       }
       return mine;
     };
-    const on = stages.slice(first).filter(st => !Spec.stageSide(st));
+    // A12 part 4a: only the stages a change starts (a stage beside the game's own, side or alongside, is never one).
+    const on = stages.slice(first).filter(st => !!Spec.stageOn(st));
     const copies = [];
     for(let j = 0; j < on.length && after !== null; j++){
       let mine = copiesOf(on[j], after, true);
@@ -4631,8 +4644,8 @@ class StageLogic {
   // The episode the game ends with once its last stage is over (where that stage ended: early, if it did), else null.
   static endsAt(state){
     if(!StageLogic.on(state)) return null;
-    // A12 part 3: the game's own last stage (a side stage plays inside it).
-    const st = StageLogic.standings(state).filter(x => !x.side);
+    // A12 part 3: the game's own last stage (a side stage plays inside it; part 4a: a stage alongside it too).
+    const st = StageLogic.standings(state).filter(x => !x.side && !x.alongside);
     const last = st[st.length - 1];
     return last && last.over && Number.isInteger(last.to) ? last.to : null;
   }
