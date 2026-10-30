@@ -46,9 +46,14 @@ production's database).
   snapshot branch, `pre-s2-2026-10-28`, was made first. Then the **test couch was made in production** (Settings › Test couch:
   "Test · Survivor 51", copied from the couch's three Survivor 51 games, on Today's rules as a rulebook). Tonight's episode is
   the first of the two S3 needs, with every table matching the real games at today's points.
+- **The PC's bot asks Codex** since 2026-10-30 (the Codex CLI on the user's ChatGPT plan: it stays signed in, where the
+  web page signed itself out three times on 2026-10-29; locked to web search; HOSTING.md has the limits). The season tapes
+  record on it from `rfl-playtest` through a second copy of the bot at `127.0.0.1:8766`, pausing at 90% of a 5-hour window
+  and 80% of the week; `tapes.js requeue` put the 98 files that gave up while ChatGPT was signed out back in the queue.
+  **Waiting on the user:** restart the main bot (8765) on the new code, then the tapes move back to it and 8766 goes. The
+  playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** the engine's A1–A9, F1–F4 and A10 so far (`engine`; A1–A4 merge first), the playtests
-  (`playtest`), the sports plan's pointer (`sports`). Waiting on the user: S3 after two matching episodes, A2's game-specs flag on a Neon branch, the
+- **On branches, not merged:** the engine's A1–A9, F1–F4 and A10 so far (`engine`; A1–A4 merge first), the sports plan's pointer (`sports`). Waiting on the user: S3 after two matching episodes, A2's game-specs flag on a Neon branch, the
   rule questions in the plan's "Where the engine is headed", and an engine lab (yes or no).
 
 ## Next: moving the app onto the new design (plan written 2026-10-23)

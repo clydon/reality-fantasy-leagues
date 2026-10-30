@@ -3736,7 +3736,7 @@
     }
   ],
   "corpus": {
-    "about": "Start a game's eval set (docs/PLAN-playtests.md P2; docs/PLAN-start-a-game-gpt.md G1): requests as people would type them, each with its expected reading. 'expect.about' is what it's about (show and season, or sport and teams), the season only as a number the words say; 'expect.resolves' the season a request only implies ('tonight's', 'this season', 'the finale'), which the resolver picks, not the bot (it has no web search); 'expect.when' the span's kind (season | rest | next | one | series | from | through | null: not said), or a list of the kinds that read right where the words leave it open ('this season': rest or season, since a request can't tell whether it has begun; 'tonight's': next or one; two spans at once: either, or none) and only the one where they name it ('the rest of the way', 'the next season', 'the finale'); 'expect.game' the sensible game (a preset: weekly-lineup, outlast, survival-pool, weekly-calls, weekly-bingo, or 'draft' / 'ask' / 'card' for a spec of its own; null: the wizard asks); 'expect.said' what the request must carry over (numbers only as said); 'expect.wizard' what the wizard should ask; 'expect.flag' null, 'question' (ask before going on) or 'refuse' (can't be made from data), with 'why'. 'expect.flagBy' 'resolver' when only the resolver can raise it (it needs the listing, the schedule, the cast or what the app can do, which a request with no web search can't know: whether a season or an event is over, airing or months away, a cast's size, a rule the app can express); otherwise the request should, as its prompt asks (it doesn't fit the shape, contradicts itself, or isn't a show, a season or a sport: a season that never was, like Survivor 63, is general knowledge). Written 2026-10-28, when Survivor 51, The Traitors (US) 5, Dancing with the Stars 35 and Below Deck 13 are airing, The Challenge 42 ends today, the World Series is on and the NBA and NFL seasons are under way. The inputs and expected readings are what last; the request shape is a draft.",
+    "about": "Start a game's eval set (docs/PLAN-playtests.md P2; docs/PLAN-start-a-game-gpt.md G1): requests as people would type them, each with its expected reading. 'expect.about' is what it's about (show and season, or sport and teams), the season only as a number the words say; 'expect.resolves' the season a request only implies ('tonight's', 'this season', 'the finale'), which the resolver picks, not the bot (it has no web search); 'expect.when' the span's kind (season | rest | next | one | series | from | through | null: not said), or a list of the kinds the words support where they leave it open ('this season': rest or season, since a request can't tell whether it has begun; 'tonight's': next or one; two spans at once: either, or none), null in a list meaning none only (a plain null alone also takes a show's whole season as the bot's default), and only the one where they name it ('the rest of the way', 'the next season', 'the finale'); 'expect.game' the sensible game (a preset: weekly-lineup, outlast, survival-pool, weekly-calls, weekly-bingo, or 'draft' / 'ask' / 'card' for a spec of its own; null: the wizard asks); 'expect.said' what the request must carry over (numbers only as said); 'expect.wizard' what the wizard should ask; 'expect.flag' null, 'question' (ask before going on) or 'refuse' (can't be made from data), with 'why'. 'expect.flagBy' 'resolver' when only the resolver can raise it (it needs the listing, the schedule, the cast or what the app can do, which a request with no web search can't know: whether a season is over, airing or months away, a cast's size, a rule the app can express); otherwise the request should, as its prompt asks (it doesn't fit the shape, contradicts itself, or isn't a show, a season or a sport, a season that doesn't exist among them, though without the listing it can only guess). Written 2026-10-28, when Survivor 51, The Traitors (US) 5, Dancing with the Stars 35 and Below Deck 13 are airing, The Challenge 42 ends today, the World Series is on and the NBA and NFL seasons are under way. The inputs and expected readings are what last; the request shape is a draft.",
     "today": "2026-10-28",
     "requests": [
       {
@@ -4620,10 +4620,7 @@
             "show": "Dancing with the Stars",
             "season": null
           },
-          "when": [
-            "rest",
-            "season"
-          ],
+          "when": null,
           "game": "weekly-calls",
           "said": {
             "players": 40,
@@ -5931,10 +5928,7 @@
             "show": "The White Lotus",
             "season": null
           },
-          "when": [
-            "season",
-            "rest"
-          ],
+          "when": null,
           "game": "ask",
           "said": {
             "ask": [
@@ -6315,10 +6309,7 @@
             "show": "Survivor",
             "season": "51"
           },
-          "when": [
-            "season",
-            "rest"
-          ],
+          "when": null,
           "game": "ask",
           "said": {
             "ask": [
@@ -6349,10 +6340,7 @@
             "season": "5",
             "why": "the season on now"
           },
-          "when": [
-            "season",
-            "rest"
-          ],
+          "when": null,
           "game": "ask",
           "said": {
             "ask": [
@@ -6532,10 +6520,7 @@
             "season": "35",
             "why": "the season on now"
           },
-          "when": [
-            "rest",
-            "season"
-          ],
+          "when": null,
           "game": "ask",
           "said": {
             "ask": [
@@ -6667,8 +6652,7 @@
           "when": null,
           "game": "draft",
           "wizard": [],
-          "flag": "question",
-          "why": "'5I' is probably 51"
+          "flag": null
         }
       },
       {
@@ -6866,7 +6850,10 @@
         "gpt": true,
         "expect": {
           "about": {},
-          "when": null,
+          "when": [
+            "season",
+            null
+          ],
           "game": "survival-pool",
           "said": {
             "unsure": [
@@ -7298,7 +7285,10 @@
             "season": "5",
             "why": "\"before episode 2\": the season on now"
           },
-          "when": "one",
+          "when": [
+            "one",
+            "through"
+          ],
           "game": "ask",
           "said": {
             "players": 7,

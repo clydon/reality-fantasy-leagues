@@ -59,6 +59,9 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 - **No built-in game rules** (said before, restated): the app, its data and its engine all come from structure. Survivor 51
   breaks that today. A data-driven engine is sturdier and more customisable, and it's what makes "GPT to league" work.
 - **Impeccable** for every screen.
+- **Randomize** (the user, 2026-10-29, for later): Create a game offers two doors, **GPT it** or **Randomize**. Roll again as
+  often as you like, and lock a few things before rolling: the length (one episode, say) and one or two main rules. A rolled
+  game is "easy to read at a glance": a very short description.
 
 ## Decisions (the user's answers, 2026-10-27)
 
@@ -78,6 +81,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Numbers from outside research (2026-10-28) | **Allowed from vetted sources** (the user's hunch, Claude's call): free, with terms that allow it (TVmaze's episode ratings, ESPN's stats), settled once at a fixed moment (a rating seven days after airing) and stored, because outside numbers drift. A new source goes into HOSTING.md first. |
 | The engine lab (2026-10-28) | **Yes**, in A5: an admin-only, plain page on the desk for trying the engine's pieces before the UI exists. |
 | Exclusive or shared (2026-10-28) | **Shared whenever the math says so** (the user: "many things will just mathematically have to be shared, no way around it", as in a 12-person Survivor game where everyone drafts several castaways). An exclusive draft only when the pool covers every pick, counted where the game drafts and as the pool shrinks (a later stage, a side draft, group slots among fourteen pairs); otherwise our check makes it shared and the wizard says why ("12 players × 3 picks is more than 18 castaways: two of you can have the same one"). Group slots are shared by default. |
+| Randomize (2026-10-29) | **Planned** (the user's idea): the wizard's other door, designed in U0 with the rest of it, its engine piece G4 built before U1. No bot: a roll is instant, free and works when the bot is away. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -1005,6 +1009,15 @@ session or bout.
   Episode 7 to the finale. Scored by Survivor 51's rules." What they said reads as theirs and what we chose reads as ours, so
   nothing is assumed silently.
 - **Questions only for the unknowns**, the recommended answer first. A basic game is one tap to start.
+- **Randomize, the other door** (the user, 2026-10-29). Roll a game, roll again, lock what you want kept. A roll is a random
+  spec from what the show's data can settle (its rulebook's moments, its format's groups and phases, the episodes left); a lock
+  fixes one part before the roll (how long; how you play: a draft, a pick each episode, questions or a card; how you win; a
+  twist) and the roll fills the rest. Our check vets every roll as it vets the GPT's drafts, so a roll that can't be played is
+  rolled again, never shown. Rolls are seeded (as the draw's names out of a hat), so Back returns to the last one and a roll
+  can be shared. **Easy to read at a glance:** a roll stacks one or two twists at most and shows the game's short form, a title
+  and one line ("Episode 7 · draft 2 · your captain scores double"), the sentence and How it works a tap away. The doors mix:
+  what someone typed is locked and the rest rolls, and a question left can be answered with a roll. No bot: instant, free, and
+  it works when the bot is away.
 - **The details nobody asked about** (draft order, timer, who can join, waivers, ties) are recommended and out of sight, in
   Backstage › Game settings later, as today.
 - **Start** works as today's does (on the couch, linked to its other games, Tell the couch), from the spec.
@@ -3381,12 +3394,22 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   - A daily cap per person (Make it a game's is 5).
 - **G3. The GPT learns sports** (after the sports branch merges): teams and games from ESPN's schedule, stat words to the
   Sport's keys, sports settles, and the over/under line from ESPN's odds. The Red Sox and 76ers sentences pass end to end.
+- **G4. Randomize, no UI** (the user, 2026-10-29; the wizard's other door, above). `rollSpec(ctx, locks, seed)` in
+  `src/lib/game/game-spec/`, pure like the rest: a seeded roll over the spec's vocabulary within the context pack, the locks
+  held, our check the gate (a roll that fails is rolled again from the next seed, a bounded number of times, then the nearest
+  it found with why). Taste: a twist budget (each piece weighed; one or two twists a roll), weights toward what the tracker says
+  plays, a length that fits what's left of the season. The short form in `describeSpec`, beside the sentence: a title and one
+  line, with a cap on its length. Proof: thousands of seeds on every taped season, each roll passing the check and playing to
+  the end in the blind replays (F4's `blind.js`); the same seed and locks make the same game; every lock holds; every short
+  form fits its cap. After A14 (the pieces it rolls) and before U0, so the mocks show real rolls. No migration: a rolled game
+  is an ordinary spec.
 
 **U. The UI, last** ("it can get complicated": the user, 2026-10-28). Simple on top, powerful underneath (The wizard, above).
 - **U0. Design.** Impeccable `shape`, then mocks in `.impeccable/mocks/start-a-game/` at 390: the wizard and everything listed
   under it above (was G0), answering questions and their results (was A4's), the live pieces with the watch along (A15), the
   sports screens (track L's: the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync,
   each format's own; was the sports plan's step 0), and the few controls the pieces need. Everything else is reached by words.
+  Randomize is designed with the wizard (its door, the lock chips, Roll again and Back, the short form), on G4's real rolls.
   The user confirms before anything is built.
   **The sports screens' brief** (the sports plan's step 0 prompt, kept here 2026-10-28 so it isn't lost): phone first at 390 in
   the Lower Third flavour, bold choices that make organising and a fast workflow a pleasure. The live game on the show space
@@ -3400,7 +3423,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 
 **Suggested order** (revised 2026-10-28): S1 → S2 → A1 → A2 → A3 → A4 (all built or building), S3 once proven, then A5 (the
-tracker) → A6 → … → A13 (A14 if allowed) → A15 → R1 → R2 → R3 → U0 → U1. Alongside: G1 from A5; track L in the Sports lane
+tracker) → A6 → … → A13 (A14 if allowed) → A15 → R1 → R2 → R3 → U0 → U1. Alongside: G1 from A5, G4 between A14 and U0; track L in the Sports lane
 (L1 and L2 any time; L3 and L4 as master gets A2 and each format's engine piece; L6 releases it), then G3. Run in lanes (next
 section), it takes about half the calendar time.
 
