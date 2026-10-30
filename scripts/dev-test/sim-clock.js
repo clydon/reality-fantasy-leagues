@@ -28,6 +28,9 @@ class SimDate extends Real {
     return Real.now() + offset;
   }
 }
+// Date's other statics as its own (a server's sandbox copies a global's own properties: inherited ones go missing there).
+SimDate.UTC = Real.UTC;
+SimDate.parse = Real.parse;
 
 function install() {
   if (installed) return;

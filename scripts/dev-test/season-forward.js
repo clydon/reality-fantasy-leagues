@@ -827,6 +827,10 @@ async function play(scenarioName, o = {}) {
     ep.results.fullDesk = await deskAccept(desk, season.id, n);
     Clock.set(Date.parse(Final.finalResultsAt(airAt, season.air_tz)) + HOUR);
     await waiverClock(games);
+    if ((o.look || []).includes(n)) {
+      ep.look = await lookAt(n, games[0], { shots: o.shots || path.join(ROOT, ".session-loop", "screens", "season-forward", path.basename(out)), width: o.width });
+      console.log(`  look at Episode ${n}: ${ep.look.pages.map((x) => `${x.name}${x.missing ? ` MISSING (${x.missing})` : ""}${x.wide ? ` (${x.wide}px too wide)` : ""}`).join(", ")}${ep.look.errors.length ? ` | page errors: ${ep.look.errors.join(" | ")}` : ""}`);
+    }
     ep.revealed = await reveals(games, n);
     for (const step of sc.after[n] || []) ep.notes.push(await afterStep(step, { n, season, desk, games, sc }));
     await keep(rec, n, "final");
@@ -915,6 +919,111 @@ async function afterStep(step, { n, season, desk, games }) {
     return `own: ${r.kind} given ${what ?? "nothing"} of its own; ${apart.length} game(s) apart, Make every game match: ${matched?.text ?? "not offered"}; ${still.length} apart after`;
   }
   return `unknown step ${JSON.stringify(step)}`;
+}
+
+// ---------- look: the screens at an episode ----------
+
+// The dev server for `--look` carries the run's clock: start it from this folder with
+//   NODE_OPTIONS="--require <this folder>/scripts/dev-test/sim-clock.js" SIM_CLOCK_FILE=<this folder>/.session-loop/season-forward/clock.txt npm run dev -- -p <the lane's port>
+// and play writes the scenario's moment to that file before each look (the browser's clock is set to it too).
+const CLOCK_FILE = path.join(ROOT, ".session-loop", "season-forward", "clock.txt");
+const LOOK_PAGES = (sid, n) => [
+  ["tonight", `/show/${sid}/tonight`, `[data-results-in='${n}']`],
+  ["reveal", null, null],
+  ["tonight-after", `/show/${sid}/tonight`, "[data-tab=tonight]"],
+  ["games", `/show/${sid}/games`, "[data-table]"],
+  ["moves", null, null],
+  ["episode", `/show/${sid}/episodes?page=ep${n}`, "[data-episode-page]"],
+  ["backstage", `/show/${sid}/backstage`, "body"],
+  ["how-it-works", `/show/${sid}/games?page=how-it-works`, "[data-how]"],
+];
+
+/**
+ * Episode n's screens as `seat` sees them (the Tinkerer: they run the games, so Backstage too), after its final results and
+ * before they reveal it: Tonight with the results in, the reveal, Tonight after it, Your moves for the next episode, the Games
+ * tab, the episode's page, Backstage, How it works. Each a screenshot and its text (`<name>.txt`, for flag off against on), with
+ * page errors and anything too wide. Needs the dev server on the run's clock (above).
+ */
+async function lookAt(n, r, o) {
+  const { open, BASE } = require("./browser");
+  const width = Number(o.width || 390);
+  const dir = path.join(o.shots, `ep${n}`);
+  fs.mkdirSync(dir, { recursive: true });
+  Clock.share(CLOCK_FILE, Date.now());
+  await new Promise((done) => setTimeout(done, 1500));
+  const seat = r.seats[0];
+  const b = await open({ user: seat.username, pass: P.PASSWORD, width });
+  await b.page.clock.install({ time: new Date(Date.now()) });
+  const found = [];
+  const page = b.page;
+  const save = async (name, fullPage) => {
+    // Settled: its data in (no request for a moment), fonts loaded.
+    await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
+    await page.evaluate(() => document.fonts.ready).catch(() => {});
+    await page.waitForTimeout(1200);
+    const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    await page.screenshot({ path: path.join(dir, `${name}-${width}.png`), fullPage });
+    const text = await page.evaluate(() => (document.querySelector("main") || document.body).innerText);
+    fs.writeFileSync(path.join(dir, `${name}.txt`), text);
+    found.push({ name, wide: wide > 1 ? wide : 0 });
+  };
+  try {
+    for (const [name, url, sel] of LOOK_PAGES(r.seasonId, n)) {
+      try {
+        if (name === "reveal") {
+          const btn = page.locator(`[data-results-in='${n}']`).getByRole("button", { name: new RegExp(`Reveal Episode ${n}`) });
+          if (!(await btn.first().waitFor({ timeout: 20000 }).then(() => true, () => false))) {
+            found.push({ name, missing: "no Reveal button" });
+            continue;
+          }
+          await btn.first().click();
+          await page.waitForURL(/\?page=reveal/, { timeout: 15000 });
+          // Its beats, tapped through as check-new-reveal.js plays them, each shot; the last is the table.
+          const reveal = page.locator("[role=dialog][aria-label='The reveal']");
+          await reveal.locator("[data-beat]").first().waitFor({ timeout: 20000 });
+          const beats = [];
+          for (let k = 0; k < 12; k++) {
+            await page.waitForTimeout(1100);
+            const beat = await reveal.locator("[data-beat]").getAttribute("data-beat").catch(() => null);
+            beats.push(beat);
+            await save(`reveal-${k}-${beat}`, false);
+            const back = reveal.getByRole("button", { name: /^Back to / });
+            if ((await back.count()) && (await back.isVisible())) break;
+            await reveal.locator("[data-stage]").click();
+          }
+          found.push({ name, beats: beats.join(" > ") });
+          continue;
+        }
+        if (name === "moves") {
+          // The dock's button (on every tab but Tonight): "All set for Episode N", or what's still to do with "Locks ...".
+          await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
+          const dock = page.locator("button", { hasText: /All set for Episode|Locks |Due |Change until/ }).last();
+          if (!(await dock.waitFor({ timeout: 20000 }).then(() => true, () => false))) {
+            found.push({ name, missing: "no dock button" });
+            continue;
+          }
+          await dock.click();
+          await page.locator("[data-sheet-handle]").first().waitFor({ timeout: 15000 });
+          await save(name, false);
+          await page.keyboard.press("Escape").catch(() => {});
+          continue;
+        }
+        await page.goto(`${BASE}${url}`, { waitUntil: "load" });
+        const ok = await page.locator(sel).first().waitFor({ timeout: 30000 }).then(() => true, () => false);
+        if (!ok) {
+          found.push({ name, missing: sel });
+          continue;
+        }
+        await save(name, !url.includes("?page="));
+      } catch (e) {
+        found.push({ name, missing: e.message.split("\n")[0] });
+      }
+    }
+  } finally {
+    await b.close();
+    Clock.share(CLOCK_FILE, null);
+  }
+  return { dir, pages: found, errors: [...new Set(b.errors)].slice(0, 10) };
 }
 
 // ---------- the invariants (pure, on a run's kept states) ----------
@@ -1080,6 +1189,24 @@ function compare(dirA, dirB, { before = null } = {}) {
     const rb = readsOfRun(S, B, { at });
     const diffs = diffReads(ra, rb, [A.flag ? `flag ${A.flag}` : "a", B.flag ? `flag ${B.flag}` : "b"]);
     results.push({ what: `${path.basename(dirA)} against ${path.basename(dirB)}`, reads: ra.size, diffs });
+    // The screens both runs looked at: each page's text, line by line.
+    const screens = [];
+    let pages = 0;
+    for (const [n, ep] of Object.entries(A.episodes)) {
+      const other = B.episodes[n]?.look;
+      if (!ep.look || !other) continue;
+      for (const f of fs.readdirSync(ep.look.dir).filter((x) => x.endsWith(".txt"))) {
+        pages++;
+        const a = fs.readFileSync(path.join(ep.look.dir, f), "utf8").split("\n");
+        const b = fs.existsSync(path.join(other.dir, f)) ? fs.readFileSync(path.join(other.dir, f), "utf8").split("\n") : null;
+        if (!b) screens.push(`Episode ${n} ${f}: only with ${A.flag ? `the flag ${A.flag}` : "the first"}`);
+        else {
+          const lines = a.map((l, i) => (l !== b[i] ? `"${l.slice(0, 60)}" → "${(b[i] ?? "").slice(0, 60)}"` : null)).filter(Boolean);
+          if (lines.length || a.length !== b.length) screens.push(`Episode ${n} ${f.replace(/\.txt$/, "")}: ${lines.slice(0, 3).join("; ")}${a.length !== b.length ? ` (${a.length} lines → ${b.length})` : ""}`);
+        }
+      }
+    }
+    if (pages) results.push({ what: `the screens' words, ${path.basename(dirA)} against ${path.basename(dirB)}`, reads: pages, diffs: screens });
   }
   if (before) {
     const work = path.join(os.tmpdir(), `rfl-season-forward-${Date.now()}`);
@@ -1121,7 +1248,7 @@ async function rehearse(from, names, o = {}) {
         await up(from, o);
         console.log(flag(on));
         const label = on ? "flag-on" : "flag-off";
-        const { out, rec } = await play(name, { out: path.join(o.out || path.join(ROOT, ".session-loop", "season-forward"), `${name}-${label}`), flag: on ? "on" : "off" });
+        const { out, rec } = await play(name, { out: path.join(o.out || path.join(ROOT, ".session-loop", "season-forward"), `${name}-${label}`), flag: on ? "on" : "off", look: o.look, width: o.width });
         dirs[label] = out;
         summary.push({ scenario: name, flag: label, invariants: rec.invariants });
       }
@@ -1148,13 +1275,13 @@ if (require.main === module) {
     const cmd = args[0];
     try {
       if (cmd === "up") await up(opt("from"), { resultsBy: opt("results-by") });
-      else if (cmd === "play") await play(opt("scenario", "realistic"), { through: opt("through"), out: opt("out"), label: opt("label") });
+      else if (cmd === "play") await play(opt("scenario", "realistic"), { through: opt("through"), out: opt("out"), label: opt("label"), look: (opt("look") || "").split(",").filter(Boolean).map(Number), shots: opt("shots"), width: opt("width") });
       else if (cmd === "compare") {
         const dirs = args.slice(1).filter((a) => !a.startsWith("--"));
         const res = compare(dirs[0], dirs[1] || null, { before: opt("before") });
         if (res.some((r) => r.diffs.length)) process.exitCode = 1;
       } else if (cmd === "rehearse") {
-        const res = await rehearse(opt("from"), (opt("scenario") || "realistic").split(","), { before: opt("before"), resultsBy: opt("results-by"), out: opt("out") });
+        const res = await rehearse(opt("from"), (opt("scenario") || "realistic").split(","), { before: opt("before"), resultsBy: opt("results-by"), out: opt("out"), look: (opt("look") || "").split(",").filter(Boolean).map(Number), width: opt("width") });
         if (res.some((s) => s.invariants?.some((i) => !i.ok) || s.compare?.some((c) => c.differ))) process.exitCode = 1;
       } else if (cmd === "down") console.log(`removed ${await down()}`);
       else console.log("usage: season-forward.js up|play|compare|rehearse|look|down (see the header)");
