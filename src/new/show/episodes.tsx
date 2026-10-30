@@ -7,6 +7,8 @@ import { airTime, dayOf } from "../clock";
 import { useEpisodeResults, useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverWeek } from "../data";
 import { midLine, useFinalLine } from "../final-words";
 import { gameInk, ordinal } from "../games";
+import { NavLink } from "../nav";
+import { paths } from "../routes";
 import { episodesOf, type ShowData } from "../screens/show-space";
 import { PushedPage, usePushedPage } from "../ui/page";
 import { ShowArt } from "../ui/show-bar";
@@ -312,9 +314,10 @@ function EpisodePage({ seasonId, show }: { seasonId: string; show: ShowData }) {
   );
 }
 
-function GameLine({ l }: { l: GameNight }) {
+/** A game's line on the episode page: it opens that game's table on the Games tab, on this episode (as Tonight's do). */
+function GameLine({ l, href }: { l: GameNight; href: string }) {
   return (
-    <div className="grid grid-cols-[118px_1fr] gap-x-2.5 gap-y-0.5 border-t border-border py-3">
+    <NavLink href={href} replace data-game-line={l.leagueId} className="nd-press grid grid-cols-[118px_1fr_auto] gap-x-2.5 gap-y-0.5 border-t border-border py-3">
       <span
         className="type-caption row-span-2 self-center text-[13px] tracking-[0.04em]"
         style={{ color: l.gameType === "predictions" ? "var(--muted-foreground)" : gameInk(l.gameName) }}
@@ -322,8 +325,9 @@ function GameLine({ l }: { l: GameNight }) {
         {l.gameName}
       </span>
       <b className="text-lg">{l.big}</b>
+      <ChevronRight className="row-span-2 size-5 self-center text-muted-foreground" aria-hidden />
       <small className="block text-[13px] text-muted-foreground">{l.line}</small>
-    </div>
+    </NavLink>
   );
 }
 
@@ -369,7 +373,7 @@ function EpisodeBody({
         <section className="mt-[26px]">
           <h2 className="type-caption mb-3 text-[24px]">Your games</h2>
           {e.lines!.map((l) => (
-            <GameLine key={`${l.leagueId}-${l.gameType}`} l={l} />
+            <GameLine key={`${l.leagueId}-${l.gameType}`} l={l} href={paths.game(seasonId, l.leagueId, e.number)} />
           ))}
         </section>
       )}

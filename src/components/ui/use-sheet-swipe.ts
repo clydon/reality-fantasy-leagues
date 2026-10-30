@@ -5,7 +5,8 @@ import { useRef, type RefObject, type TouchEvent } from "react";
 // Swipe down to close a bottom sheet (docs/PLAN-league-tabs.md, "Bottom sheets close with a swipe
 // down"). From the grab handle, or anywhere once everything under the finger is scrolled to its top:
 // the sheet follows the finger and the scrim fades with it. Past CLOSE_DISTANCE, or a quick flick,
-// it closes; otherwise it springs back. A drag that turns upward hands back to normal scrolling.
+// it closes; otherwise it springs back. A drag that turns upward hands back to normal scrolling, and
+// one that goes sideways first is someone else's (a sheet's own swipe, like the weeks in a player's sheet).
 // Shared by BottomSheet and the More sheet in mobile-nav, which render their own panels.
 
 const CLOSE_DISTANCE = 90;
@@ -23,6 +24,9 @@ export function useSheetSwipe({
   onClose: () => void;
 }) {
   const startY = useRef<number | null>(null);
+  const startX = useRef(0);
+  // Down or sideways: decided over the first few pixels, then held for the rest of the drag.
+  const along = useRef(false);
   const last = useRef({ y: 0, t: 0, speed: 0 });
 
   function reset() {
@@ -52,6 +56,8 @@ export function useSheetSwipe({
       }
     }
     startY.current = e.touches[0].clientY;
+    startX.current = e.touches[0].clientX;
+    along.current = false;
     last.current = { y: startY.current, t: e.timeStamp, speed: 0 };
     sheet.style.transition = "none";
     if (scrimRef?.current) scrimRef.current.style.transition = "none";
@@ -62,6 +68,15 @@ export function useSheetSwipe({
     if (startY.current == null || !sheet) return;
     const y = e.touches[0].clientY;
     const delta = y - startY.current;
+    if (!along.current) {
+      const sideways = Math.abs(e.touches[0].clientX - startX.current);
+      if (sideways > 6 && sideways > Math.abs(delta)) {
+        startY.current = null;
+        reset();
+        return;
+      }
+      if (Math.abs(delta) > 6) along.current = true;
+    }
     if (delta <= 0) {
       startY.current = null;
       reset();

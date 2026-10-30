@@ -66,6 +66,8 @@ export const paths = {
   signin: (next?: string) => (next ? `/signin?next=${encodeURIComponent(next)}` : "/signin"),
   settings: "/settings",
   show: (seasonId: string, tab: ShowTab = "tonight") => `/show/${seasonId}/${tab}`,
+  /** The Games tab at one game's table, on an episode (Weekly Lineup's view of it): a game's line on Tonight or an episode page. */
+  game: (seasonId: string, leagueId: string, ep?: number | null) => `/show/${seasonId}/games?game=${encodeURIComponent(leagueId)}${ep ? `&ep=${ep}` : ""}`,
   /** The show's Tonight with its watch along open (step 13): your next episode, or `ep`; a planned night's, together (`plan`). */
   watch: (seasonId: string, ep?: number | null, plan?: string | null) => `/show/${seasonId}/tonight?page=watch${ep ? `&ep=${ep}` : ""}${plan ? `&plan=${plan}` : ""}`,
   backstage: (seasonId: string, page?: string) => `/show/${seasonId}/backstage${page ? `/${page}` : ""}`,

@@ -289,6 +289,16 @@ Last updated 2026-10-27.
     real mouse on the desk first. **When:** the next desk or nd-press change; until then a Chrome session opens a row with
     `document.querySelector('[data-desk-row="<name>"]').click()`.
 
+33. **Things the Games tab's "what everyone's doing" left (noticed 2026-10-30, building it on games-insight; the 2026-10-30
+    mock).** (a) A game with group slots (A10) or best ball gets weeks too, but its sheet and episode view show castaways where
+    a slot holds a group: the generated game pages (track V) should draw a slot's group. (b) Survival Pool's sheet could step
+    through episodes the way Weekly Lineup's does (picks are decided per episode; who's still pickable is public), and
+    Outlast's could say what each castaway's points would be if they won. (c) `use-sheet-swipe.ts` has a lint error on master
+    (`react-hooks/immutability`, writing the scrim ref's style in `reset`); the sideways-drag guard added here didn't cause it.
+    (d) Arriving on Games from a game's line waits for the tab's slide and the tables to settle (about a second and a half),
+    since a glide started earlier is cut short; a page that renders its tables at once would land sooner. **When:** (a, b)
+    track V's blocks; (c) the next change to that hook; (d) if anyone finds the wait long.
+
 
 
 ## Decided against (don't re-propose without new information)

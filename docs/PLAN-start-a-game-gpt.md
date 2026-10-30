@@ -1076,6 +1076,12 @@ session or bout.
   engine's words (the short form on top, the sentence and How it works a tap away), and the maker's controls. It opens over
   the show as Draft and Scoring do, so the show's tabs stay the show's (the 2026-10-22 mock: no per-game tab sets, no game
   switcher).
+- **The first blocks, built for the live couch (2026-10-30, the user's ask; branch games-insight):** the Games tab's Weekly Lineup
+  shows what everyone's doing: each row's starters last episode, chips for each episode (the couch ranked by that week, starters'
+  points, the bench faded) and the one being set (who's set), and a player's sheet with week by week bars, a swipeable week
+  (starters with what scored, the bench), the team's points for them, and ‹ › through the table; a game's line on Tonight or an
+  episode page opens its table on that episode. Data: `TableRow.weeks` (game-view.ts `weeksOf`). V1's block catalog should
+  start from these (`games.tsx` LineupTable, `lineup-sheet.tsx`), not redraw them; BACKLOG 33 has what they leave.
 - **Generated, never designed one by one:** the dials multiply to thousands of games, so a page is composed in code from
   blocks that the spec, the game's state and the seat call for. The design goes into the blocks and the rules that pick and
   order them, reviewed on generated screens (V2, V3). Deterministic at run time: nothing composes a page with AI when someone

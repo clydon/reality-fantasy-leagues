@@ -82,6 +82,35 @@ test("open predictions: unsettled, on an episode with no results, with your own 
   assert.ok(g.predictions.every((p) => p.episode > CURSOR), "none on an episode with results");
 });
 
+test("Weekly Lineup's weeks: every player's lineup, bench and points an episode, through your mark only", () => {
+  const state = league("active-roster");
+  const g = gameView(ref("active-roster"), state, ann(state), CURSOR, userOf);
+  for (const r of g.table) {
+    assert.deepEqual(r.weeks.map((w) => w.episode), [1, 2, 3, 4, 5], `${r.name}: one week per episode with results, oldest first`);
+    // The latest week is the table's own "week", and the season is the weeks added up.
+    assert.equal(r.weeks.at(-1).total, r.week, r.name);
+    assert.equal(Math.round(r.weeks.reduce((t, w) => t + w.total, 0) * 10) / 10, r.total, `${r.name}: the weeks add up to the season`);
+    assert.deepEqual(r.weeks.at(-1).started.map((s) => s.id).sort(), [...r.last].sort(), `${r.name}: the latest week's starters are the last lineup`);
+    for (const w of r.weeks) {
+      const ep = state.episodes.find((e) => e.number === w.episode);
+      const lineup = S.activeRosterLineupFor(state, ep.id, r.playerId);
+      assert.deepEqual(w.started.map((s) => s.id).sort(), [...lineup].sort(), `${r.name} ep ${w.episode}: who started`);
+      assert.ok(w.bench.every((b) => !lineup.includes(b.id)), `${r.name} ep ${w.episode}: the bench didn't start`);
+      for (let i = 1; i < w.started.length; i++) assert.ok(w.started[i].points <= w.started[i - 1].points, "starters biggest first");
+      assert.ok(w.started.every((s) => s.points === 0 || s.why.length > 0), "a starter who scored says what scored");
+      assert.equal(Math.round((w.started.reduce((t, s) => t + s.points, 0) + w.predictions) * 10) / 10, w.total, "the week is its starters plus predictions");
+    }
+  }
+  // Behind: nobody's weeks past your mark (nor anything about the episodes you haven't revealed).
+  const behind = gameView(ref("active-roster"), state, ann(state), 3, userOf);
+  assert.ok(behind.table.every((r) => r.weeks.length === 3 && r.weeks.at(-1).episode === 3));
+  // Other games have no weeks.
+  for (const type of ["classic-draft", "pickem"]) {
+    const s = league(type);
+    assert.ok(gameView(ref(type), s, ann(s), CURSOR, userOf).table.every((r) => r.weeks.length === 0), type);
+  }
+});
+
 test("who's set: lineups set over the league's own players", () => {
   const state = league("active-roster");
   const p = weekProgress(state, ann(state), userOf);

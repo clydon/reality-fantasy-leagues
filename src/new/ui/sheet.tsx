@@ -10,7 +10,8 @@ import { useSheetHistory } from "./sheet-history";
 // handle, a condensed caps title with one line under it, and a close button. Base UI's Dialog traps focus and
 // closes on Escape or a scrim tap; a swipe down closes it too (classic's use-sheet-swipe.ts), and so does the phone's
 // back (./sheet-history.ts). Reduced motion: no slide, the scrim still fades. `back`: a sheet reached from another one (the show's
-// ⋯ menu › Everything else) puts a back arrow before its title, for the sheet it came from.
+// ⋯ menu › Everything else) puts a back arrow before its title, for the sheet it came from. `actions`: quiet buttons beside Close
+// (a player's sheet steps through the table with them).
 
 export function Sheet({
   open,
@@ -18,6 +19,7 @@ export function Sheet({
   title,
   subtitle,
   back,
+  actions,
   children,
 }: {
   open: boolean;
@@ -25,6 +27,7 @@ export function Sheet({
   title: ReactNode;
   subtitle?: ReactNode;
   back?: { label: string; onClick: () => void };
+  actions?: ReactNode;
   children: ReactNode;
 }) {
   const popupRef = useRef<HTMLDivElement>(null);
@@ -64,9 +67,12 @@ export function Sheet({
                 {subtitle && <Dialog.Description className="mt-[5px] text-[13px] font-medium text-muted-foreground">{subtitle}</Dialog.Description>}
               </div>
             )}
-            <Dialog.Close aria-label="Close" className="grid size-10 flex-none place-items-center rounded-[3px] hover:bg-secondary">
-              <X className="size-5" aria-hidden />
-            </Dialog.Close>
+            <div className="flex flex-none items-center">
+              {actions}
+              <Dialog.Close aria-label="Close" className="grid size-10 flex-none place-items-center rounded-[3px] hover:bg-secondary">
+                <X className="size-5" aria-hidden />
+              </Dialog.Close>
+            </div>
           </div>
           <div className="min-h-0 overflow-y-auto overscroll-contain px-4 pb-[22px]">{children}</div>
         </Dialog.Popup>
