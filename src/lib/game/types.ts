@@ -25,6 +25,9 @@ export interface Player {
   ghost?: boolean;
   /** A late joiner's own season (StateLogic.GhostLogic). Kept after they're added to the league. */
   lateJoin?: LateJoin;
+  /** Step A11 part 5c of docs/PLAN-start-a-game-gpt.md: what a team given after the draft cost under a price (a late joiner's own
+   *  draft, or castaways whoever runs the game gave them): a stock market's cash counts it as it counts the draft's log. */
+  joinPaid?: number;
 }
 
 export interface LateJoin {

@@ -45,8 +45,11 @@ of questions (2026-10-30: each episode's points what its answers settled by then
 `MatchupLogic.series`), and part 5, teams of players (2026-10-30: the couch split into teams that score together, drawn or chosen,
 summed or their mean, by their points or head to head between the teams, `rank.teams`, `TeamLogic`), and part 5b, handicaps
 (2026-10-30: points each episode the game plays for newcomers, by the couch's history the server works out and the engine keeps once
-the game starts, `rank.handicap`, `HandicapLogic`, `handicaps.ts`), are built; part 5c (teams that follow the show's own groups, the
-late joiners' leftovers) is next, then A12 to A14
+the game starts, `rank.handicap`, `HandicapLogic`, `handicaps.ts`), and part 5c (2026-10-30: teams that follow the show's own groups
+refused, with why and what rides the show's groups instead; the late joiners' leftovers: nobody new once someone's out in every game
+that knocks people out, someone catching up in a pool with lives, a late joiner dealt after a draw and paying under a price, a late
+joiner's captain and second pick played through the routes, computer players' group slots), are built, so A11 is done; A12 (stages)
+is next, then A13 and A14
 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -3215,7 +3218,9 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     going home whole, an unsure report, a corrected one; or refused, with a recommendation, and left to A12's stages) **and the late
     joiners' leftovers** (computer players and group slots; a late joiner's captain and second pick through `GhostLogic.applyAs`, a
     check that plays them; a late joiner after a draw; `GhostLogic.allowed` for a pool with lives and a game of questions with
-    knockouts; the join route reading a game of questions as it stands; a late joiner's team when a game in teams is drawn).
+    knockouts; the join route reading a game of questions as it stands; a late joiner's team when a game in teams is drawn). **Part
+    5c built (2026-10-30), in one session, no 5d:** teams that follow the show's own groups refused (they don't fit as a team of
+    players: below, with the recommendation for A12), and the late joiners' leftovers, every one. A11 is done.
 
   **As built (A11 part 1, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
   desk fixes: a season matched, a group corrected; 1064 tests). A race and players knocked out, in a draft. Each piece rides on data
@@ -4009,6 +4014,97 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     65 over 13 episodes, The Challenge 95 over 19, The Traitors 4 55 over 11), the newcomers first on four seasons of five (Survivor
     49's tinkerer, 106 on their own, still first). On The Challenge, where a lineup's season is -9 to 27 points, the handicap decides
     the game (Noticed item 8). The study doc's "A11 part 5b: handicaps, replayed blind".
+
+  **As built (A11 part 5c, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  up to date; 1130 tests). Teams that follow the show's own groups, refused; and the late joiners' leftovers. Not split (the seed's
+  5d wasn't needed: the refusal is small). Every default and everything a person sees is the user's (Noticed, below).
+  - **Teams that follow the show's own groups: refused** (`schema.js`: `rank.teams.made` 'group' is out of VOCAB, so the manual never
+    offers it; `teamProblems` says why, naming what does ride the show's groups: "Teams of players are the couch's own and last the
+    game, while the show's groups end at a swap, a merge or a re-pairing: to ride the show's groups, give each of you a group slot (a
+    pair or team you ride while it lasts), or ask which group wins each episode"; `teamParts` plays no teams for a `made` that isn't one,
+    never the default's draw; `specWaitsFor` no longer names it). Why it doesn't fit as a team of players: a team of players is a side of
+    the couch ranked over the whole game, and the show's groups don't last (F1's lifetimes and F3's: The Challenge 41's rotating pairs
+    and all of 39 one episode each, Survivor's tribes ended by its swaps and the merge, every Challenge season individual by its
+    end), so a team tied to one ends mid-game, or the game makes its teams again at every change, which is a stage, not a team. What a
+    couch means by it is already the engine's or A12's: a group slot (A10: you ride a group while it lasts), a group question each
+    episode (A6: "which tribe wins immunity"), and A12's stages (a stage per grouping, a side stage once one lasts, a stage started by a
+    format change that can draw the couch's teams for it: "when the show forms teams, we draw teams too"). The other shape, a fixed
+    team that backs one of the show's groups, is the user's question (Noticed item 1), with A12.
+  - **Nobody new once someone's out, in every game that knocks people out** (part 1's rule, as recommended there, now one rule):
+    `GhostLogic.someoneOut` (a draft's cuts and a game of questions' walk through `KnockoutLogic.outs`, a pool's lives run out with no
+    buyback left through `PickEmLogic`'s walk or each seat's own season; a ghost's private season and a seat that left don't count),
+    read by `GhostLogic.allowed`, so `joinMode` is locked and the couch's join refuses. **The join route reads a game of questions as it
+    stands:** `couch-joins.ts couchGameList` walks each game of questions that knocks players out or ends early over its answers
+    (`answer-points.ts asItStands`, side by side), so who may join and whether it's over read the walk (the join route and the couch's
+    game list both: the list's `ended` was part 2b's item too). **A seat joining by a code or an invite once someone's out**
+    (`join-league.ts`, which has no join-mode gate) waits, inactive, as one joining after a finished draft does (`addPlayer`'s
+    `someoneOut`, the server's verdict read as it stands), never playing from the start, where a pool's or a game of questions' missed
+    episodes would knock it out at once (the code review's; a computer player still plays).
+  - **Someone catching up in a pool with lives** (part 2's item): their season is played only as far as their own week (the episode
+    after their mark, kept on their `lateJoin.seenThrough` by every route that moves it; or the latest episode they've picked in, should
+    that lag), in every copy: an episode past it isn't theirs yet and their week with no pick is still open, so neither is a missed pick
+    or a life lost, whatever results everyone else has (`PickEmLogic.stepper`'s reach). Caught up, a missed episode is a miss again.
+  - **A late joiner after a draw is dealt** (A10 part 3's item 7, as recommended): `DrawLogic.dealsLate` (a draw that has dealt) and
+    `lateDeal` (as many as the draw deals each, from who was still in before their start: owned or not for a late joiner playing their
+    own season, nobody's for someone let in to play in the open; a shared draw's own hat; shuffled by the draw's seed and their seat, so
+    the same join deals the same team; a spread and a salary cap, at the prices as of their start, take the first that keeps the team
+    within them; short when fewer are left). `GhostLogic.begin` deals it and reads no `castawayIds`; the couch's join options say
+    `dealt` (nothing to pick), and the join sheet (`src/new/couch/join-game.tsx`) joins straight from the start choice instead of opening
+    an empty picker (the code review's: the one change to a screen, so an existing sheet keeps working; its words are U1's).
+  - **A late joiner under a price** (A10 part 3b's and 3c's items): `GhostLogic.begin` prices their team as of the episode before their
+    start (as the draft paid then): a salary cap holds it (`BudgetLogic.teamProblem`, its cheapest team counted from who they could have,
+    `pool`: never refused when no team they could have fits, the code review's), and what it cost is `player.joinPaid`, which a stock
+    market's cash counts (`MarketLogic.draftPaid`, and `cashAll` from it now, so the draft's cost has one sum). Castaways whoever runs the
+    game gives a seat (`RosterLogic.activatePlayer`) are paid at today's prices too, never refused (the runner's call: Noticed).
+  - **A late joiner's captain and second pick** (A9 part 2's and A10 part 2's items): they always went through `GhostLogic.applyAs`;
+    now a check plays them through the lineup and pick routes (below).
+  - **A late joiner's team in a drawn game in teams** (part 5's): placed on the smallest from the first episode still to play, as
+    built; the check joins one through the route.
+  - **Computer players fill group slots** (A10 part 1's item; `bot-logic.js groupSlotPicks`, in `run`): before the episode locks, a slot
+    with nothing in it (never picked, or its group ended) takes the group on offer whose people it rates best (their likely points on
+    average, as its lineup reads them, plus its own taste); a slot riding with its group is left (never a swap), a group someone else
+    holds in an exclusive opening is passed over for the next, nothing on offer leaves it empty; not for a bot knocked out or with no
+    castaways. Idempotent, as every bot move is (`hasWork` finds nothing more).
+  - **The tracker:** unchanged (`--check`): no row is a late joiner's or a teams-follow-groups row (the dial's who.teams row is drawn
+    teams). 178 ✅ · 67 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
+  - **Tests:** `tests/late-joins.test.js` (new, 6): nobody new once someone's out (a pool's lives, a buyback, a plain pool, a seat that
+    left and a ghost not counting, the waiting seat and a computer player's, a game of questions raw and walked, by its code); someone
+    catching up in a pool with lives (their week, a pick for it through `applyAs`, a lagging mark, caught up); a late joiner after a draw
+    (from what's left, a ghost's from everyone still in, a shared draw's hat, the same deal twice, a snake's still picked); under a price
+    (a cap, a market's cash at their start's prices and at the premiere's, the cheapest team from their pool, castaways given); a late
+    joiner's captain and second pick (as they see the league, counted); computer players' group slots (nothing on offer, the best pair, a
+    person's slot left, riding, re-paired and picked again). `teams.test.js`: 'group' refused. `npm test` 1136.
+  - **API check:** `scripts/dev-test/check-late-joins.js` (new, on new-fixture.js's couch and `check-kit.js`), 30 PASS: Lineup League with
+    a captain; casey joins it by its code (a late joiner, unseen), starts from Episode 4 through the late-join route, sets their week's
+    lineup and captain through the lineup route (on the real Episode 4; Episode 5 refused, ahead of them; their own copy counts the
+    captain twice); the Survival Pool from Episode 4 with a life each and a second pick, casey on the couch catching up from 4, their
+    pick and second pick through the pick route (on the real Episode 4), Episodes 5 and 6 no missed picks in everyone's copy; jordan's
+    Survival Pool made a game of questions with a life each, open to casey; Episode 6 through the season sync (sam's pick and answer the
+    one who went home): sam out of both, casey still in on their week, both games locked on the couch's list (the game of questions
+    read as it stands) and casey's join refused (403); ZT Extra's game made a shared draw in two drawn teams, drawn, riley told the team
+    is dealt, joining live and dealt two from their own hat, onto the smallest team from then, the draw kept. Also ALL PASS:
+    `check-pool-knockouts.js`, `check-answer-knockouts.js`, `check-group-slots.js`, `check-new-couches.js --api`,
+    `check-new-computer-players.js --api`, `check-new-solo.js --api`, `check-handicaps.js`, `check-teams.js`, `check-knockouts.js`,
+    `check-h2h.js`, `check-draft-spread.js`, `check-market.js`. `npx tsc --noEmit -p .` clean.
+  - **Code review** (`/code-review` at high, before the long runs; ten findings, eight taken, two declined). Taken: the cap's cheapest
+    team counted every castaway still in, so someone let into an exclusive game could be refused a team no team they could have
+    beats (counted from their pool now); the join sheet opened an empty picker for a drawn game (`dealt` on every options read, the
+    sheet joins straight); a code or invite join once someone was out made a seat that played from the start, out at once in a pool
+    with lives (it waits now, a game of questions read as it stands); the couch's list walked its games of questions one after another
+    (side by side); `someoneOut` walked every seat's season on every call (the pool's walk once, or each seat until one's out); the bot
+    rated each group again on every comparison (once), and filled slots for a bot with no castaways (skipped); `cashAll` summed the
+    draft's costs beside `draftPaid` (from it now). Declined: that `teamParts` no longer draws for an unknown `made` (`specProblems`
+    refuses one at `setGame`, and a spec stored with 'group' had no teams before either: VOCAB 'later'); that `begin` and `lateDeal`
+    each work out the view and its prices (once a join). Taken to Noticed: the walk read where joining is read elsewhere (`shareCheck`,
+    classic's late-join toggle), and `gameOnCouch` building the whole couch list to find one game.
+  - **Golden replays** (`golden.js`, HEAD against the working tree): 7 seasons, 160 games, **19,361 reads, every one the same** (after the code review's fixes; no
+    game they play has a late joiner, someone out with a newcomer joining, or a drawn game's late deal).
+  - **Blind replays** (`blind.js run`, the five seasons, on the final code): **every game ended on all five seasons** (Survivor 49 97 of 97,
+    The Challenge 41, 40 and 39 78 of 78, The Traitors 4 76 of 76: part 5b's counts, no row added or lost), no problem in the moves,
+    nothing refused; the questions waiting on early results as before (finding 20's: 2, 2 and 3 on The Challenge). The replays' four
+    seats join before the premiere and stay, so none of part 5c's late-joiner paths runs there (the unit tests and
+    `check-late-joins.js` play them), and no tracker row is played in teams that follow the show's groups (refused). The study doc's
+    "A11 part 5c: the late joiners' leftovers, replayed blind".
 - **A12. Stages.** A game made of phases or mini-games, each with its own rules and an overall: a second draft at the merge, a
   season of mini-games, a game that scores two ways (bingo lines plus answers), one game across two shows.
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
@@ -4758,6 +4854,58 @@ From A10 part 1 (2026-10-29):
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
 
+Taken by A11 part 5c (2026-10-30): part 5's teams that follow the show's groups (refused, below); A10 part 1's computer players and
+group slots; A9 part 2's and A10 part 2's late joiner's captain and second pick (a check plays them); A10 part 3's someone who joins after
+a draw (dealt, as recommended); A10 part 3b's and 3c's late joiner given castaways under a price (they pay); part 1's and part 2's nobody
+new once someone's out (every game that knocks people out); part 2's someone catching up in a pool with lives; part 2b's and part 3's
+join route reading a game of questions without its walk (the couch's join and its game list read it as it stands); part 5's late
+joiner's team in a drawn game (checked through the route).
+
+From A11 part 5c (2026-10-30):
+- **For the user, in a design session (with part 5b's twelve questions and parts 1 to 5's), each with a recommendation:**
+  1. Teams that follow the show's own groups. Built: refused, with what rides the show's groups instead (a group slot, a group question
+     each episode, A12's stages). Option: a fixed team of players that backs one of the show's groups: drawn or chosen at the start, each
+     team tied to one of the groups going in, its points its members' own plus the group's (a group slot the whole team holds, on
+     GroupSlotLogic's records), re-tied at a change by following the people (the group holding most of its old members) or left untied
+     (carry on), untied at the merge or when the show goes each for themselves. Recommended: refused now; the backing team only if a
+     request asks ("each team roots for a tribe"), built as part of A12's stages, since it lasts only as long as the show's groups do
+     and the stages already start and end on their changes.
+  2. Nobody new once someone's out, now in every game that knocks people out (a pool's lives, a game of questions' walk, a draft's
+     cuts). Built: one rule (part 1's item 5, recommended as built). Options: a pool with lives lets a newcomer in with one life, or
+     the fewest anyone left has; join out, watching only. Recommended: keep one rule.
+  3. A seat joining by a code or an invite once someone's out (the couch's join refuses it). Built: it waits, inactive, as one joining
+     after a finished draft does, until whoever runs the game brings it in; brought in (`activatePlayer`), it plays from the game's first
+     episode, so a pool's or a game of questions' missed episodes knock it out at once. Options: refuse the code join too (the couch's
+     words: "Nobody new can join this game"); bring a seat in from the next episode. Recommended: refuse it at the code join too, one
+     rule everywhere (small: join-league.ts), and Backstage's bring-in offers only a start from the next episode (U1).
+  4. A late joiner after a draw. Built: dealt (A10 part 3's recommendation), from who was still in at their start (owned or not for a
+     late joiner playing their own season, nobody's for someone let in to play in the open, their own hat in a shared draw). Options:
+     what's left for everyone. Recommended: keep. What they're told is U1's: the join sheet still says "Pick your team from who's still
+     in" on a drawn game's start choice; "Your team is dealt from the hat as you join" would say it.
+  5. A late joiner's team under a price. Built: at the prices as of the episode before their start (what the draft paid then), held to
+     a salary cap (never when no team they could have fits), paid from a stock market's budget. Options: today's prices (a late joiner
+     catching up from an early start pays what everyone did then, which is the fair one; today's would charge them for results they
+     haven't seen). Recommended: keep.
+  6. Castaways whoever runs the game gives a seat (`activatePlayer`) under a price. Built: paid at today's prices, never refused by the
+     cap (the runner's call, as their roster tools always were). Options: hold it to the cap, with the reason. Recommended: keep, the
+     screen saying what the team costs and whether it's over (U1).
+  7. Computer players' group slots. Built: the group whose people they rate best, never a swap while it lasts, an exclusive opening's
+     taken group passed over. Recommended: keep; a swap to a better group only if a couch finds them easy.
+  8. What players and the maker are told (U1): a seat that waits once someone's out, a dealt team, a late team's cost and the cash it
+     leaves, someone catching up still in (not out) on everyone's table.
+- **Where joining is read without the walk:** `shared-seats.ts shareCheck` (sharing a seat) and classic's "Let people join late" toggle
+  (`players-section.tsx`) read `GhostLogic.allowed` on the state as it is, so a game of questions with someone out still lets someone share
+  a seat, and the toggle reads on; the toggle also reads off for a pool with lives once someone's out (as it has for a draft's cuts since
+  part 1). Game settings (`backstage-games.ts`) and the desk's games list read a game of questions without its walk (part 2b's items). (Whoever
+  next touches shared-seats.ts: `asItStands` there; U1 for the screens.)
+- **`gameOnCouch` builds the whole couch's game list to find one game** (`couch-joins.ts`), so join options and a join pay for walking
+  every game of questions on the couch (one answers read each, side by side). (Whoever next touches couch-joins.ts: walk only the one.)
+- **A game of questions' someone catching up** reads, in everyone else's copy, as missing the answers they haven't given yet: a late lock
+  with lives (part 2b's item 7) isn't built, so a pool's reach has no game of questions' twin. (Whoever next touches AnswerLogic.walk.)
+- Computer players still don't answer a game of questions (A4's item). (Whoever next touches computer players.)
+- One answers read more per game of questions that knocks people out, each time a couch's games are listed or joined, and one on a code
+  join. (The merge: a line in HOSTING.md.)
+
 From A11 part 5b (2026-10-30):
 - **For the user, in a design session (with part 5's twelve questions and parts 1 to 4b's), each with a recommendation (built as spec
   settings or engine rules, the defaults `HANDICAP`, read by `handicapParts`, never filled into a spec):**
@@ -4868,8 +5016,8 @@ From A11 part 5 (2026-10-30):
 - **Readers not taught teams:** the couch's game list (`couch-joins.ts`), Game settings (`backstage-games.ts`), the desk's games list
   and Start a game show nothing of them; a game of questions read without its walk counts every team level. (U1.)
 - **Teams of players don't read the show's format:** a change nobody announced reaches a team through each member's own game (its
-  pieces' fallbacks). Teams that follow one of the show's groups (`made` 'group', VOCAB 'later') are part 5c's (split from 5b), on F3's
-  grouping lifetimes, with their fallbacks (a swap, a merge, each for themselves). (Part 5c.)
+  pieces' fallbacks). Teams that follow one of the show's groups (`made` 'group') were refused in part 5c (its As built and Noticed
+  item 1: they don't fit as a team of players; A12's stages, a group slot or a group question each episode ride the show's groups).
 - **No request in the corpus asks for teams of players** (who.teams is the dial's row): G1's corpus could add "split us into two
   teams" and "boys against girls". (G1.)
 - Start a game, Game settings and the engine lab offer none of it (the lab starts the tracker's rows). (U1.)

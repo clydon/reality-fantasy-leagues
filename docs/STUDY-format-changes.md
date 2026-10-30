@@ -1075,6 +1075,25 @@ newcomers.
   questions with a handicap (the four seats stay all season, and the tracker's row is a lineup); `tests/handicaps.test.js` and
   `check-handicaps.js` cover them.
 
+## A11 part 5c: the late joiners' leftovers, replayed blind (2026-10-30)
+
+A11's part 5c refused teams of players that follow the show's own groups (`rank.teams.made` 'group') and finished the late joiners'
+leftovers (nobody new once someone's out in every game that knocks people out, someone catching up in a pool with lives, a late joiner
+dealt after a draw and paying under a price, a late joiner's captain and second pick, computer players' group slots).
+
+- **Every game ended on all five seasons**, as after part 5b: Survivor 49 97 of 97, The Challenge 41, 40 and 39 78 of 78, The Traitors 4
+  76 of 76, no problem in the moves, nothing refused; the questions waiting on early results are finding 20's as before (2, 2 and 3 on
+  The Challenge).
+- **Why teams that follow the show's groups are refused, from these seasons:** a team of players lasts the whole game, and the groups
+  here don't. The Challenge 41's pairs were re-drawn at almost every episode (one-episode lifetimes, 2 to 8), all of The Challenge 39's
+  teams lasted one episode, The Challenge 40's eras were teams only in Episodes 3 to 9, Survivor 49's tribes ended at its two swaps and
+  the merge, and every Challenge season ends each for themselves. A team tied to one of them would end mid-game, or be made again at
+  every change, which is what A12's stages are for (a stage per grouping, a side stage once a grouping lasts, a stage a format change
+  starts). Riding the show's groups is a group slot (A10 part 1's section above), a group question each episode (A6), or a stage.
+- **Not on these replays:** the four seats join before the premiere and stay all season, so a late joiner, a joiner after someone's out,
+  a drawn game's late deal and a late team's price never run here; `tests/late-joins.test.js` and `scripts/dev-test/check-late-joins.js`
+  play them. Computer players don't sit in the replays.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

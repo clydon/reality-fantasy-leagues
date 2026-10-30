@@ -365,8 +365,11 @@ declare const StateLogic: {
     /** Where their own season starts; null while the league waits for its phase (step A3). */
     startFor(state: LeagueState, playerId: string): number | null;
     isUnderway(state: LeagueState): boolean;
-    /** Late joining is on unless the commissioner switched it off. */
+    /** Late joining is on unless the commissioner switched it off, the game is locked down, or someone is out of it (someoneOut). */
     allowed(state: LeagueState): boolean;
+    /** Step A11 part 5c: someone playing the league's own season is out for good (a draft's cuts, a game of questions' walk where the
+     *  state carries it, a pool's lives). */
+    someoneOut(state: LeagueState): boolean;
     /** Lock it down (step 15 part 4): competitive mode, nobody new joins, the rules frozen for the season. */
     lockedDown(state: LeagueState): boolean;
     /** Castaways can be on several teams (or there are no teams): a new player takes nothing and may catch up. */
@@ -530,7 +533,8 @@ declare const StateLogic: {
   freeAgents(state: LeagueState): Castaway[];
   activeOwnedCount(state: LeagueState, playerId: string): number;
   totalCastCount(state: LeagueState): number;
-  addPlayer(state: LeagueState, name: string, opts?: { automated?: boolean }): Player;
+  /** `someoneOut`: whether anyone is out of the game, as the caller read it (a game of questions' walk isn't in its state). */
+  addPlayer(state: LeagueState, name: string, opts?: { automated?: boolean; someoneOut?: boolean }): Player;
   updatePlayer(state: LeagueState, id: string, field: string, value: unknown): void;
   removePlayer(state: LeagueState, id: string): void;
   disablePlayer(state: LeagueState, playerId: string, disabledFromUserId?: string): Player | null;
@@ -750,6 +754,10 @@ declare const StateLogic: {
     ready(state: LeagueState): boolean;
     due(state: LeagueState): boolean;
     settle(state: LeagueState): boolean;
+    /** Step A11 part 5c: a late joiner is dealt their team (the draw has dealt). */
+    dealsLate(state: LeagueState): boolean;
+    /** Step A11 part 5c: a late joiner's team out of the hat, from who was still in before `start`. */
+    lateDeal(state: LeagueState, playerId: string, start: number, freeAgents?: boolean): string[];
   };
   /** Step A10 part 3b: a salary cap's prices from the data (each castaway's points so far by the game's rules, by standing). */
   PriceLogic: {
@@ -768,7 +776,7 @@ declare const StateLogic: {
     reason(state: LeagueState, cost: number, more?: number): string;
     pickProblem(state: LeagueState, playerId: string, castawayId: string, prices?: Map<string, number>): string | null;
     /** Part 4: `keep`, the seat's keepers, already on the team. */
-    teamProblem(state: LeagueState, castawayIds: string[], keep?: string[]): string | null;
+    teamProblem(state: LeagueState, castawayIds: string[], keep?: string[], pool?: string[]): string | null;
     moveProblem(state: LeagueState, playerId: string, dropId: string | null, addId: string, prices?: Map<string, number>): string | null;
     /** Part 3c: whether a change to a team is checked against prices (a salary cap's, or a stock market's cash). */
     priced(state: LeagueState): boolean;

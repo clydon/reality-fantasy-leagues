@@ -192,10 +192,11 @@ const VOCAB = {
   'rank.odd': { median: 'now', bye: 'now' },
   'rank.quiet': { skip: 'now', tie: 'now' },
   // A11 part 5: teams of players (rank.teams), the couch split into teams that score together. How they're made (drawn at the
-  // game's start, seeded and recorded; each of you choosing before it; following the show's own groups: part 5c), what a team's
-  // points are (its members' summed, or their mean: fair however big each team is), and where someone on no team goes once they
-  // count (a late joiner, someone who didn't choose by the start): onto the smallest team, or onto none (playing for nobody).
-  'rank.teams.made': { draw: 'now', choose: 'now', group: 'later' },
+  // game's start, seeded and recorded; each of you choosing before it), what a team's points are (its members' summed, or their
+  // mean: fair however big each team is), and where someone on no team goes once they count (a late joiner, someone who didn't
+  // choose by the start): onto the smallest team, or onto none (playing for nobody). Part 5c: teams that follow the show's own
+  // groups are refused (teamProblems says why: a team of players lasts the game, the show's groups don't), so 'group' isn't one.
+  'rank.teams.made': { draw: 'now', choose: 'now' },
   'rank.teams.score': { sum: 'now', mean: 'now' },
   'rank.teams.unplaced': { smallest: 'now', none: 'now' },
   // A11 part 5b: a handicap (rank.handicap), points each episode the game plays for whoever it names: newcomers, by the couch's
@@ -639,8 +640,9 @@ function teamParts(s) {
   const t = s.rank.teams;
   if (!(isInt(t.of, 2) && t.of <= MAX_PLAYER_TEAMS)) return null;
   if (!(s.get.by === 'draft' || questionsGame(s)) || !(s.rank.by === 'total' || s.rank.by === 'matchups') || s.rank.race !== undefined) return null;
-  const made = own(VOCAB['rank.teams.made'], t.made) ? t.made : TEAMS.made;
-  if (VOCAB['rank.teams.made'][made] !== 'now') return null;
+  // Made a way that isn't one (part 5c: the show's own groups, refused) plays no teams, never the default's draw.
+  if (t.made !== undefined && own(VOCAB['rank.teams.made'], t.made) !== 'now') return null;
+  const made = t.made === undefined ? TEAMS.made : t.made;
   const names = Array.from({ length: t.of }, (_, i) => (Array.isArray(t.names) && typeof t.names[i] === 'string' && t.names[i].trim() ? t.names[i].trim() : null));
   return {
     of: t.of,
@@ -1919,8 +1921,12 @@ function matchupProblems(rank, s, league) {
 }
 
 /**
- * Teams of players (A11 part 5: rank.teams), as [[at, problem]]: { of: 2 to MAX_PLAYER_TEAMS, made: draw | choose (group: part
- * 5c), score: sum | mean, unplaced: smallest | none, names?: one a team at most, each 1 to MAX_TEAM_NAME characters, none twice }.
+ * Teams of players (A11 part 5: rank.teams), as [[at, problem]]: { of: 2 to MAX_PLAYER_TEAMS, made: draw | choose, score: sum |
+ * mean, unplaced: smallest | none, names?: one a team at most, each 1 to MAX_TEAM_NAME characters, none twice }. Part 5c: teams that
+ * follow the show's own groups (made 'group') are refused: a team of players is the couch's own and lasts the game, while the show's
+ * groups end at a swap, a merge or a re-pairing (F1: on The Challenge 41's rotating pairs and all of 39, every episode), so a team
+ * tied to one would end with it; what rides the show's groups is a group slot (A10), a group question each episode (A6) and A12's
+ * stages.
  * Each of you still plays your own game (your own draft, your own answers) and your points go to your team: a draft's (Outlast, a
  * lineup, best ball) or a game of questions', ranked by the teams' points or head to head between the teams (its playoffs take
  * teams). A pool's longest streak is one person's; Weekly Calls' and Weekly Bingo's points are counted outside the game; last one
@@ -1933,7 +1939,8 @@ function teamProblems(rank, s) {
   const out = [];
   const one = (key, v) => own(VOCAB[key], v) !== undefined;
   if (!(isInt(t.of, 2) && t.of <= MAX_PLAYER_TEAMS)) out.push(['rank.teams.of', `The couch splits into 2 to ${MAX_PLAYER_TEAMS} teams`]);
-  if (t.made !== undefined && !one('rank.teams.made', t.made)) out.push(['rank.teams.made', "How the teams are made: draw (at random at the game's start) or choose (each of you picks one before it)"]);
+  if (t.made === 'group') out.push(['rank.teams.made', "Teams of players are the couch's own and last the game, while the show's groups end at a swap, a merge or a re-pairing: to ride the show's groups, give each of you a group slot (a pair or team you ride while it lasts), or ask which group wins each episode"]);
+  else if (t.made !== undefined && !one('rank.teams.made', t.made)) out.push(['rank.teams.made', "How the teams are made: draw (at random at the game's start) or choose (each of you picks one before it)"]);
   if (t.score !== undefined && !one('rank.teams.score', t.score)) out.push(['rank.teams.score', "A team's points are its members': their sum, or their mean (fair however big each team is)"]);
   if (t.unplaced !== undefined && !one('rank.teams.unplaced', t.unplaced)) out.push(['rank.teams.unplaced', 'Someone on no team when they start counting (a late joiner, someone who didn\'t choose): onto the smallest team, or onto none']);
   if (t.names !== undefined) {
@@ -2294,8 +2301,6 @@ function specWaitsFor(spec) {
   if (isObj(s.get) && isObj(s.get.groups)) val('get.groups.fallback', 'get.groups.fallback', s.get.groups.fallback, "Starting the game's next stage when a slot's groups aren't sure");
   if (isObj(s.get) && isObj(s.get.across)) val('get.across.of', 'get.across.of', s.get.across.of, 'A draft of a guy and a girl each');
   if (isObj(s.get) && isObj(s.get.budget)) val('get.budget.left', 'get.budget.left', s.get.budget.left, "Bidding on waivers with the draft's money left over");
-  // A11 part 5: teams that follow the show's own groups (part 5c).
-  if (isObj(s.rank) && isObj(s.rank.teams)) val('rank.teams.made', 'rank.teams.made', s.rank.teams.made, "Teams that follow the show's own groups");
   const count = countKind(s.count);
   if (count) val('count', 'count', count, 'Best ball');
   if (isObj(s.score)) val('score.by', 'score.by', s.score.by, 'Scoring by stats');

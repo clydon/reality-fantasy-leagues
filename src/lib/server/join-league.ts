@@ -3,6 +3,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { pool, HttpError } from "./db";
+import { asItStands } from "./answer-points";
 import { leagueSeason, notifyMemberJoined } from "./push-events";
 import { joinedLeague } from "./couches";
 import { followLeagueProgress } from "./follows";
@@ -89,7 +90,10 @@ export async function joinLeague(
       StateLogic.reclaimPlayer(state, disabledOwn.id);
       playerId = disabledOwn.id;
     } else {
-      playerId = StateLogic.addPlayer(state, (user as { username?: string | null }).username || user.name).id;
+      // Step A11 part 5c of docs/PLAN-start-a-game-gpt.md: nobody new plays once someone's out, a game of questions read as it stands
+      // (its walk isn't in its state): the seat waits, inactive, as one joining after a finished draft does.
+      const someoneOut = StateLogic.GhostLogic.someoneOut((await asItStands(league.id, state)).state);
+      playerId = StateLogic.addPlayer(state, (user as { username?: string | null }).username || user.name, { someoneOut }).id;
     }
 
     await client.query("UPDATE leagues SET state=$1, updated_at=now() WHERE id=$2", [JSON.stringify(state), league.id]);
