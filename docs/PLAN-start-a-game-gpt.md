@@ -3,8 +3,11 @@
 Status: **planned 2026-10-27; hardened 2026-10-28** with the user: the engine first, built to everything in "Where the engine
 is headed", then today's games recreated on it, then the UI last; the GPT's words grow alongside the engine. **S1 (2026-10-27)
 and S2 (both parts, 2026-10-28) are built and merged into master** (their As built is under track S); the test couch plays
-them next (the user's, in production). A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
-the screens moved to U1), not yet merged: the main folder merges them (review, checks, the Neon rehearsal, the user's OK).
+them next (the user's, in production). **Merged and live in production (2026-10-30):** A1–A11 part 5b with F1–F4 (9:29 AM,
+`df527fe6`, migrations 0200–0202), then A11 part 5c, A12 part 1 and R1 parts 1–2 (2:59 PM, `46b77bba`, migration 0203), and
+**the game-specs flag is on** (R2, 2:39 PM: every league carries its spec); later parts stay on `engine` until the main folder
+merges them, after each lettered step. A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
+the screens moved to U1), merged and live since 2026-10-30 (above).
 A5 to A9 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time; more
 answers; scoring that combines, per question and points per bingo line, then per lineup: a captain, best ball, Outlast in
 reverse, points that multiply by when). The format foundation (F1 to F4, one part a session: "Formats nobody
@@ -1805,7 +1808,7 @@ Nothing scores differently on any league today, and the computer players choose 
     - Declined: a finale result typed in by hand still counts for nothing when the results never record a winner. Only data
       settles it (the user's rule), and the season sync records the winner's exit.
   - **For the merge:** 0200 is rehearsed with the other migrations, and goes in HOSTING.md (`game_answers`: a row per
-    answer, tiny; nothing polls or runs on a schedule). Production's flag is off, so no carried spec there has A2's shape;
+    answer, tiny; nothing polls or runs on a schedule). Production's flag was off then (on since 2026-10-30), so no carried spec there has A2's shape;
     if it were turned on before this merges, `game-specs-flag.js on` would carry them again.
   - **For part 2** (impeccable `shape` first, at 390, then build):
     - Answering a game's questions: where they live (Tonight's card, Your moves' tab, the dock), the lock's countdown,
@@ -2144,7 +2147,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     with the late lock; `phase-starts.ts` settles phases for games that ask by phase (the desk's pass and the season sync);
     the sheet and its night lines treat a windowed question as the week's.
   - **The shape changed** (a new extra): this lane's nine carried specs drifted and were carried again (`game-specs-flag.js
-    on`), as A4's were. Production's flag is off, so nothing there carries a spec.
+    on`), as A4's were. Production's flag was off then (on since 2026-10-30), so nothing there carries a spec.
   - **Words:** "Every two episodes, before the first:", "Before each episode, about it and the next two:", "Once a phase, as it
     begins:"; the sentence says "before every two episodes" or "each phase"; the late lock in How it works ("Watching late?
     Answer before you watch...") and in the details.
@@ -4289,7 +4292,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   screens' readers). Its proof beyond the golden replays: the Survivor lane's Survivor 51 season-forward rehearsal
   (`scripts/dev-test/season-forward.js`), which has to pass before R1 merges (never on a Wednesday; the main folder merges).
 
-  **As built (R1 part 1, 2026-10-30, on `engine`, not merged; no migration).** One session.
+  **As built (R1 part 1, 2026-10-30; merged and live the same day, `46b77bba`; no migration).** One session.
   - **The pieces** (`state-logic.js` `piecesOf(state)`): a game plays the composition its spec names, never a league type. Its
     draft mechanic from how it gets its castaways (`DRAFT_PIECES` by `get.order`: a snake, a blind draft, a draw, an auction;
     `NoDraftStrategy` with nothing to draft: `draftPiece`), its scorer from how it scores (`SCORE_PIECES` by `score.by`: the boot
@@ -4341,7 +4344,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     scoring-event route's wider gate (above); How it works and the stats loading every one of the viewer's games on the season to find
     the one scored by moments (cached by hash, a handful of games).
 
-  **As built (R1 part 2, 2026-10-30, on `engine`, not merged; no migration).** One session.
+  **As built (R1 part 2, 2026-10-30; merged and live the same day, `46b77bba`; no migration).** One session.
   - **The games scored outside the state read their pieces:** Weekly Calls, Weekly Bingo and a game of questions are chosen by
     `StateLogic.piecesOf` (`hasCalls`, `hasBingo`, `hasQuestions`: game-spec `flagsOf`, from how the spec scores and what it asks), never
     a league type or a type id compared by name. A game of questions' answers, its walk, its standing and its stages' walk
@@ -4388,7 +4391,9 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     off the league type (the label stays the league type's, R3's); the guard's SQL check missing a filter split across lines (it reads
     the query whole). Kept, said here: the two moves each taking the states map (each chooses its own games, as before; the map covers
     every game with a season, the only ones either ever made a move for); a desk search by the stored type's ids (R3's, above).
-- **R2.** The game-specs flag on in production (the user's OK), then a week of watching every table.
+- **R2.** The game-specs flag on in production (the user's OK), then a week of watching every table. **Done 2026-10-30, 2:39 PM**
+  (the main folder's `.session-loop/flag-on-prod.ps1`, the user's Copy and Enter: the read-only check passed on all 10 leagues,
+  then 10 of 10 carry their spec); the week of watching runs to 2026-11-06.
 - **R3.** The old type code goes: `LEAGUE_TYPES`, the literal comparisons (45 files), and the UI's flags, read from the spec.
 
 **G. The Start-a-game GPT** (alongside the engine track; its screens are the UI track's).
