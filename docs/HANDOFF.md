@@ -21,6 +21,62 @@ and the Neon password rotation (deferred; steps there). Fixed 2026-10-24: the ch
 end); GitHub Actions, stopped since 2026-10-19, runs again. Vercel builds production only (Preview shared
 production's database).
 
+## The show's ⋯ menu, rebuilt for the casual player (2026-10-30; merged to master and pushed the same day, no migration)
+The user found the menu "way too cluttered and hard to read/navigate" (11 rows for a player, scrolling, every row the same weight).
+Mockups (a private design canvas, https://claude.ai/artifact/Snuugqw4eb5E2Ut4gVKxT4, options A–D) and the pick (D) are in that
+canvas; this is what was built. **The rule it follows, and the rule for the next row: if a tab already carries it prominently,
+it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per old row:
+- **Left the menu, a tab carries it:** Start a game (Tonight's tile when not solo; the Games tab's Start a game / Run it back /
+  Play it plate), Make it a game (that plate, on Tonight and Games), Add to my shows (Tonight's card for a show you don't follow),
+  Where you are as a row (the spoiler chip with Change on every tab, but **not on a player's Tonight**, hence the card below).
+- **Stays, nothing else has it:** Backstage (Tonight carries no commissioner job on purpose; tonight.tsx's header says so), Invite
+  (a show's players have it only here; the couch pages and Backstage › Members are elsewhere), Notifications (the per-show
+  moments), How it works (the Games tab has a row, Tonight and the rest don't), Recent changes (players: only here; runners also
+  have Backstage's index), the drafts once done (a live draft is the dock's Draft button), Watch privately (Tonight only shows a
+  line while it's on), Remove from my shows, Leave.
+- **Stays as a fallback:** Plan a watch along. Tonight offers it only until the next episode has a plan; the menu is how a second
+  night is planned from the show (check-new-plans.js plans Episode 7 that way). The hub's guide can too.
+**What it is now** (`ShowMenu` in `src/new/screens/show-space.tsx`; the rule and rows are in DESIGN.md › The new design):
+- First sheet: Backstage for whoever runs a game (a caption plate naming the first job while something needs them, with the dot on
+  ⋯; else a quiet row), This season in Admin for a site admin (`paths.deskItem("season", …)`), the **spoiler card** for a player
+  (`GuardChip card`), **Notifications** saying what *this phone* does (`reminderLine`, from `usePhone`/`useReach` in
+  `show/remind.tsx`: never a flat "On"; the needs-you dot while no phone of yours gets them and you play), **Invite a friend**,
+  **How it works**, then **Everything else** (second sheet with a back arrow: `Sheet`'s new `back` prop): Plan a watch along, Draft
+  room, Blind draft (a dot when it's your turn), Recent changes, Watch privately, Remove from my shows, Leave (red). One or two such
+  rows sit in the first sheet instead (counted from what's known when it opens, so rows never jump when the drafts load).
+- The Notifications sheet (`show/notify-sheet.tsx`) leads with **Turn on** while no phone of yours gets them (blocked and
+  Add-to-Home-Screen say so too), so the menu's dot has somewhere to go.
+- **Checks:** new `scripts/dev-test/check-new-show-menu.js` (player, commissioner with a real job, admin, a show he doesn't play).
+  Updated for the moved rows: check-new-watching (Where you are is the chip's Change; Watch privately and Remove are under
+  Everything else), -draft, -backstage, -backstage-ii, -couches ("Invite a friend"), -make-it (Tonight's plate), -plans,
+  -start-game (the Games tab). tsc and eslint are clean.
+- **Running the dev-test checks from a Linux cloud session** (the helper `browser.js` is Windows-only; nothing in the repo changed
+  for this): install `postgresql-16-pgvector` (`apt-get update` first); `initdb` as the `postgres` user under
+  `/var/lib/postgresql/…` (it can't reach `/tmp/claude-*`; not as root); a `.env.local` with `AUTH_DATABASE_URL`,
+  `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`; **Better Auth's CLI first** (`npx @better-auth/cli migrate --yes`), then
+  `alter table "user" drop column approved` (the CLI makes it and migration 0058 adds it), then `node db/migrate.js`; `npm run dev`;
+  `npx next typegen` before `tsc`. For `browser.js`, point `LOCALAPPDATA` at a folder holding `npm-cache/_npx/x/node_modules/playwright`
+  (a symlink to Playwright) and `ms-playwright/chromium-NNNN/chrome-win64/chrome.exe` (a shell script that `exec`s the Linux
+  Chromium with `--no-sandbox`).
+- **Checked on the user's PC before the merge (2026-10-30),** with master (the engine merge, df527fe6 and after) merged in first, in
+  a review worktree on a copy of the local database: the 13 checks that open the menu pass (show-menu, watching, draft, backstage,
+  backstage-ii, couches, make-it, plans, start-game, shell, show, notify, sheet-back). check-new-shell's show wall passes here: the
+  cloud run's failure was its database's missing catalog. check-sheet-back hangs about one run in four, on master's code as well
+  (BACKLOG 30); it passes when it doesn't.
+- **No What's New entry:** What's New is paused (2026-10-27) and the new design has no popup.
+- **Waiting on the user:** whether planning a *second* night should stay only in Everything else; phone-back from Everything else
+  closes the whole menu (it's one history entry, like every sheet) rather than stepping back to the first sheet; and the review's
+  suggestions (2026-10-30), none made yet:
+  - The Notifications row's yellow dot never goes away for a player who chooses not to turn them on (the reminder ask respects
+    Not now; the dot doesn't), yellow is for what you must do, and a commissioner's menu then carries three yellows. Drop the dot;
+    "Off on this phone · turn on" already says it.
+  - The spoiler card leads a player's menu, though the chip with Change is on every tab past Tonight and a player's place moves
+    on its own as they reveal; under a Backstage plate it makes two heavy blocks. A plain Where you are row lower down.
+  - Wording: "On for your other phone" is wrong on an iPhone whose Home Screen app gets them (Safari reads as "install" there):
+    "On for another device or the Home Screen app"; "Add it to your Home Screen first" reads oddly as a row's line: "Add to Home
+    Screen to get them". check-new-show-menu.js's PHONE_LINES lists the lines.
+  - A draft row's dot sits under Everything else with no dot on that row (the dock's Draft button carries a live turn already).
+
 ## Now (2026-10-28): the Start-a-game GPT plan, run in lanes
 - **Read [PLAN-start-a-game-gpt.md](PLAN-start-a-game-gpt.md) first.** Hardened with the user on 2026-10-28: the engine to its
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the

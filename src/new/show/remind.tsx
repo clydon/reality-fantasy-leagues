@@ -90,10 +90,11 @@ const closeSheet = () => {
 };
 
 /** Whether this phone could start getting them from here: off (Turn on), or an iPhone outside the installed app (the pictures). */
-const askable = (p: PhoneState): p is "off" | "install" => p === "off" || p === "install";
+export const askable = (p: PhoneState): p is "off" | "install" => p === "off" || p === "install";
 
-/** The phone's state as the ask sees it, and whether any phone of yours gets notifications (null until the profile's read). */
-function useReach(wanted: boolean) {
+/** The phone's state as the ask sees it, and whether any phone of yours gets notifications (null until the profile's read).
+ *  The show's ⋯ menu and its Notifications sheet read it too, so what they say about this phone is what the ask says. */
+export function useReach(wanted: boolean) {
   useVersion();
   const [browser] = usePhone();
   const phone = phoneNow ?? browser;
@@ -103,7 +104,7 @@ function useReach(wanted: boolean) {
 }
 
 /** Turns this phone on from a tap (the permission prompt needs one), then says so. */
-async function turnOn(after: () => void) {
+export async function turnOn(after: () => void) {
   try {
     await enablePushOnThisDevice();
     phoneNow = "on";

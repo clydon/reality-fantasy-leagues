@@ -184,8 +184,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
     await page.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "networkidle" });
     await page.locator('button[aria-label^="Show menu"]').click();
-    const menu = page.locator("[role=dialog][data-open]");
-    check(await menu.getByText("Draft room").waitFor({ timeout: 8000 }).then(() => true, () => false), "the ⋯ menu: Draft room");
+    // The drafts are rarely wanted once they're done, so they're under Everything else (a live draft is the dock's Draft button).
+    await page.locator("[data-menu-main]").getByRole("button", { name: /^Everything else/ }).click();
+    const menu = page.locator("[data-menu-else]");
+    check(await menu.getByText("Draft room").waitFor({ timeout: 8000 }).then(() => true, () => false), "the ⋯ menu's Everything else: Draft room");
     check(/jordan is picking/i.test(await menu.innerText()) && /Blind draft/.test(await menu.innerText()) && /not started yet/.test(await menu.innerText()), "with where each draft stands (jordan's picking; the blind draft hasn't started)");
     await shot(page, "05-show-menu");
     await page.keyboard.press("Escape");

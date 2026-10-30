@@ -76,7 +76,7 @@ export function SharingSection({ p, save, viewer }: { p: Profile | undefined; sa
           />
         ))}
         <p className="mb-1 mt-2 text-[13px] leading-snug text-muted-foreground">
-          Your picks always show once they lock: the games need that. To keep one show to yourself, use &ldquo;Watch privately&rdquo; in its ⋯ menu.
+          Your picks always show once they lock: the games need that. To keep one show to yourself, use &ldquo;Watch privately&rdquo; in its ⋯ menu, under Everything else.
         </p>
       </details>
     </div>
