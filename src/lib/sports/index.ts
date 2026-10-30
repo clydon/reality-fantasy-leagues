@@ -7,7 +7,8 @@
 // "soccer/uefa.champions"); and the field sports (FieldSport: a field and its standings): "golf" of its stroke-play tours, "golf/pga",
 // "golf/lpga", "golf/eur", "golf/liv", "golf/champions-tour", "golf/ntw" and the Olympics' (golf.ts; not TGL's match play); "racing" of
 // its five series, an instance a series ("racing/f1", "racing/nascar-premier", "racing/nascar-secondary", "racing/nascar-truck",
-// "racing/irl": racing.ts). MMA and tennis come next in L5.
+// "racing/irl": racing.ts); and the bout sports (BoutSport: a card of bouts): "mma" of every promotion ESPN carries, which it writes
+// alike ("mma/ufc", "mma/pfl", "mma/lfa": mma.ts; only the UFC's have statistics and timed plays). Tennis comes next in L5.
 // A game's clock for someone (clock.ts) and a game live on the phone (live.ts) are L2's.
 import { Baseball } from "./baseball";
 import { CollegeBaseball } from "./college-baseball";
@@ -18,6 +19,7 @@ import { Hockey } from "./hockey";
 import { Soccer } from "./soccer";
 import { Golf } from "./golf";
 import { RACING_SERIES, Racing } from "./racing";
+import { MMA } from "./mma";
 import baseballDefaults from "./defaults/baseball.json";
 import basketballDefaults from "./defaults/basketball.json";
 import footballDefaults from "./defaults/football.json";
@@ -25,7 +27,8 @@ import hockeyDefaults from "./defaults/hockey.json";
 import soccerDefaults from "./defaults/soccer.json";
 import golfDefaults from "./defaults/golf.json";
 import racingDefaults from "./defaults/racing.json";
-import type { FieldSport, LockCadence, TeamSport } from "./sport";
+import mmaDefaults from "./defaults/mma.json";
+import type { BoutSport, FieldSport, LockCadence, TeamSport } from "./sport";
 
 export * from "./sport";
 export * from "./clock";
@@ -39,13 +42,14 @@ export { Hockey } from "./hockey";
 export { Soccer, plainName } from "./soccer";
 export { Golf, GOLF_LEAGUES, boardCounts, holeKind, roundStats, toParOf } from "./golf";
 export { Racing, RACING_SERIES, coreStats, type Series } from "./racing";
+export { MMA, methodOf, coreFighterStats, mmaCoreStats, mmaCenterStats } from "./mma";
 
-/** A sport of either shape: a team sport's box score and plays, or a field's standings. */
-export type AnySport = TeamSport | FieldSport;
+/** A sport of any shape: a team sport's box score and plays, a field's standings, or a card's bouts. */
+export type AnySport = TeamSport | FieldSport | BoutSport;
 
 // A sport's own leagues first: a sport slug can have more than one (basketball's NBA and WNBA, and college's two), each naming
 // the leagues it reads; sportById gives the first, the sport's own.
-const SPORTS: AnySport[] = [new Baseball(), new CollegeBaseball(), new Basketball(), new CollegeBasketball("mens-college-basketball", "Men's college basketball", HALVES), new CollegeBasketball("womens-college-basketball", "Women's college basketball"), new Football(), new CollegeFootball(), new Hockey(), new Soccer(), new Golf(), ...RACING_SERIES.map((s) => new Racing(s))];
+const SPORTS: AnySport[] = [new Baseball(), new CollegeBaseball(), new Basketball(), new CollegeBasketball("mens-college-basketball", "Men's college basketball", HALVES), new CollegeBasketball("womens-college-basketball", "Women's college basketball"), new Football(), new CollegeFootball(), new Hockey(), new Soccer(), new Golf(), ...RACING_SERIES.map((s) => new Racing(s)), new MMA()];
 
 /** The sport by its id ("baseball"): its first, the one for its pro leagues ("basketball": the NBA's and WNBA's), or null for
  *  one not built yet. */
@@ -103,6 +107,7 @@ const DEFAULTS: Record<string, SportDefaults> = {
   soccer: soccerDefaults as SportDefaults,
   golf: golfDefaults as SportDefaults,
   racing: racingDefaults as SportDefaults,
+  mma: mmaDefaults as SportDefaults,
 };
 
 /** A sport's defaults, or null for one that has none yet; with a league ("f1", or "racing/f1"), that league's own parts in

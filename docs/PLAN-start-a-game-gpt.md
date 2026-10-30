@@ -431,6 +431,8 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   WNBA; then golf and racing (FieldSport); then MMA and tennis (BoutSport).
   - **Part 3 split in two (2026-10-30):** 3a, golf (FieldSport and Golf: built 2026-10-30, As built below); 3b, racing (F1,
     NASCAR's three series, IndyCar on FieldSport: built 2026-10-30, As built below).
+  - **Part 4 split in two (2026-10-30):** 4a, MMA (BoutSport and MMA: built 2026-10-30, As built below); 4b, tennis (next: on
+    BoutSport, a draw of matches over days).
   - **Part 2 split in three (2026-10-28):** 2a, college basketball and the WNBA (built: As built below); 2b, college football
     (its own grammar of plays, on Football's vocabulary and box reader: built 2026-10-30, As built below); 2c, college baseball
     (its own box and two feeds: built 2026-10-30, As built below). **College hockey isn't readable from ESPN** (looked at in
@@ -1017,6 +1019,11 @@ UI.
   so golf's, F1's and NASCAR's compare once final (golf's against the event's final, Sunday; before it, against the round's last
   answer, which the compare says). No NFL game was on: Sunday's Ravens at Bills (`football/nfl` 401873026, 11-01 18:00 UTC) is
   being recorded for its `drives.current` (a detached recorder started 10-30, waiting for the kickoff).
+  **L5 part 4a (2026-10-30, from 06:30 ET):** still none final (Baylor at UCF and Tulane at Charlotte that evening, the WNBA's Game
+  7 on 10-31, the Ravens at Bills on 11-01; golf's round 2 from 13:05 UTC, F1's FP1 from 18:30 UTC, Martinsville on 11-01):
+  handed on. One more being recorded, a detached process that stops itself at the final: the UFC's Fight Night, Moicano vs. Nolan
+  (`mma/ufc` 600061420, 10-31 from 21:00 UTC, its main card from 11-01 00:00 UTC; `record-espn-live.js`'s card recorder: L5 part
+  4a's As built; its log `mma-ufc-600061420.out2.txt`, restarted at 11:22 UTC on the reviewed recorder), MMA's first live card.
 - **A phone's data**: an estimated 15-30 MB a game at 15 s, since every answer is the whole summary (no ETag, so no 304s).
   ESPN's core API pages a game's plays (`sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}/events/{id}/competitions/
   {id}/plays?limit=&page=`, CORS `*`, cached 15 minutes once final), so a poll could fetch only the newest page and a small
@@ -1827,6 +1834,166 @@ Master still hadn't A1-A4 (the main session's order).
 - **DraftKings' NASCAR finish table is from guides** (its own rules page wasn't readable; three agree on 45, 42, 41 and the
   steps); F1 Fantasy's from a page listing it (fantasy.formula1.com needs a browser).
 - **No racing season was held out**: the next races (Mexico City, Martinsville) are the first the reader wasn't written against.
+
+**L5 part 4a as built: MMA (2026-10-30, `sports`, not merged; no migration, no ESPN calls from the app, nothing stored).** Master
+still hadn't A1-A4 (the main session's order). Part 4 is split in two: 4a MMA (this), 4b tennis (next).
+- **What ESPN gives for MMA** (checked 2026-10-30 on every finished card of 2025 and 2026 of the UFC (99 cards, 1,088 bouts), the
+  PFL (28, 281), LFA (36, 121), Cage Warriors (11) and ACA (3), 65 of the "other" league's (Road to UFC, PFL MENA and Africa, a
+  hundred regional promotions), and 2024's Bellator, KSW, Rizin and Cage Warriors, the last cards ESPN has of them; ~7,500 calls,
+  cached):
+  - **No summary** (`mma/<league>/summary?event=` is a 404). A card is three answers: its **board**
+    (`site.api.espn.com/apis/site/v2/sports/mma/<league>/scoreboard/<event>`, one call, ~3 KB over the wire, `max-age` 1-2 s): the
+    bouts in the order fought (the main event last), each one's weight class, its scheduled start (its segment's: every main-card
+    bout has the main card's), its status (the round it ended in and the time into it), its two fighters (`order` 1 and 2,
+    `winner`), each judge's score under each fighter (the UFC's), and the last ten of its plays untimed; not how it ended. Its
+    **FightCenter** (`site.web.api.espn.com/apis/common/v3/sports/mma/<league>/fightcenter/<event>`, one call, ~17 KB over the wire
+    of which most is videos and news, `max-age` 298 s once final): the card's segments (main, prelims1, prelims2), each bout's
+    number counted back from the main event, its note ("Main Event - Title Fight"), a title (`types`), its result (`kotko` with
+    what did it, "Punches", and where, "head"; `submission`, "Rear Naked Choke"; `decision---unanimous`, `---split`, `---majority`;
+    `tko---doctors-stoppage`; `dq`; `draw`; `no-contest`), the judges' scores as text (the winner's first in only 263 of 474) and,
+    on the UFC's cards, each fighter's totals (knockdowns, total and significant strikes landed of attempted, significant strikes
+    to the head, body and legs, control time, takedowns, submission attempts). And the **core API**: the event (one call: each
+    bout's rounds as ESPN describes them, "3 Rnd (5-5-5)", "5 Rnd (5-5-5-5-5)", "3 Rnd + OT (5-5-5-5)" a tournament's overtime round
+    the board's `format` counts as 4, "3 Rnd (10-5-5)" once), each bout's status (the same result), its **plays**
+    (`.../competitions/<id>/plays`, a call a bout, ~1.3 KB: the fight's opening, the walkouts, the tale of the tape and the staredown,
+    each round's start and end, every knockdown, takedown, takedown attempt, submission attempt and reversal, pauses and their
+    reason, the fight over, the unofficial winner and the results, each with its round, the clock left in it and its **wallclock**:
+    the only times in an MMA answer; the UFC's since April 2025) and each fighter's **statistics** (`.../competitors/<id>/statistics`,
+    a call a fighter, ~1.5 KB: the FightCenter's totals and more, significant strikes by target and position, slams, reversals,
+    advances to half guard, side control, mount and the back; a 404 for every other promotion), `max-age` up to 900 s once final; and
+    each bout's odds (ESPN BET's moneyline, "P. Pimblett -210"), not read. CORS `*` on all three.
+  - **A card's answer**: for a phone, **the board and the FightCenter** (two calls, ~20 KB over the wire: every bout, who won and
+    how, every fighter's totals; 2.3 MB an hour at 30 s), and the core's plays of the bout on (a call, 1-2 KB) for its times; the
+    whole card from the core is 1 + 4 a bout calls (~55 for a UFC card, ~75 KB over the wire, ~660 KB unpacked): the server's, once,
+    at the final (L3).
+  - **What isn't there**: **no play names a fighter** (none of the UFC's ~20,000 has a fighter or a team), and **no statistics by round**
+    anywhere (the core's `statistics/1` is the totals again): a fighter's numbers are their bout's totals, known when it ends; a
+    bout's rounds are its own counts, timed. No Fight or Performance of the Night bonuses. The PFL, LFA and the rest have results
+    only (no statistics, no plays, so no times); LFA's and the regional promotions' boards list a few of a night's bouts. Every bout
+    listed in 2025-26 is final: **a bout called off is taken off the card**, never shown canceled.
+  - **Where ESPN's data is its own** (each read in its data): the plays don't always come to the totals (the knockdowns in 858 of
+    930 UFC bouts with plays, takedowns in 851, their attempts in 811, submission attempts 896, reversals 906: a play filed twice
+    or missing; some cards' plays have the rounds and none of the moments); a bout's Fight Over to its announcement takes a median
+    103 s (90th 173 s, most 906 s); ESPN's smaller promotions put the how in the result's name ("tko-punches", "submission-armbar",
+    "technical-submission", "ko-head-kick", "dq-illegal-kick"); "decision---split-draw" is a draw (Road to UFC's), and once a win
+    (a 2024 Rizin bout named so and flagged a win on the board, the FightCenter and the core: the flags win); "technical-decision"
+    (Cage Warriors'); the PFL's five-round bouts decided in round 3 on five cards of 2026 (a technical decision, or ESPN's rounds
+    wrong: its core describes none); a 2026 Rizin card ESPN calls final with its one bout still "scheduled"; a one-night
+    tournament's fighters on the card twice (Cage Warriors 174 and 176, KSW); the statistics' own `wallclock` hours after the bout.
+    ESPN's totals agree with themselves: the FightCenter's are the core's on 10,880 of 10,880 numbers, the winner is the same on
+    the board, the FightCenter and the core for 2,176 of 2,176 fighters, the board's judges are the FightCenter's text on 483 of 483
+    bouts, a strike cell's parts add up (4,352 of 4,352), and control time never exceeds the fight.
+- **`BoutSport`** (in `sport.ts`): a card of one-on-one bouts. `BoutAnswer` (`{ _asked, board, fightcenter, event, core }`),
+  `Bout` (its order on the card, its two sides, its rounds and their lengths, an overtime round, its segment, the main event, a
+  title, its scheduled start, its class), `BoutCard` (the bouts and the field), `BoutResult` (`{ outcome: win, draw or nc; winner;
+  loser; method, the sport's key; how, ESPN's words; round; time; cards }`), `BoutBox` (each fighter's totals over every bout of
+  theirs on the card, and the results), `BoutPlay` (a `Play` of a bout, its `unit` the bout, `who` only on a result; `tally`: what
+  it adds to the bout's own count for its round), `BoutState` (lines; each bout's stage, pre, in, over or done, its round, its
+  rounds' tallies and its result; the results in the card's order). `reduce`, `correction`, `timeline` and `stateAt` as the
+  field's: a bout's numbers at its "bout-end" play, its result at its "result" play, ESPN's results after the final's correction.
+  `sportOf` returns `AnySport`, now TeamSport, FieldSport or BoutSport; `LiveGame` stays TeamSport's (Noticed).
+- **`MMA`** (`src/lib/sports/mma.ts`; `sportOf` for every `mma/<league>`, which ESPN writes alike): one group of fighters, the
+  weight classes as positions (HW to FLW, SW, CW, the women's WFW to WSW and WCW, from ESPN's "Lightweight", "W Flyweight", "Catch
+  Weight"), rounds as its periods (3 by default; each bout says its own), locks per event. **Its vocabulary**: the result (BOUT, W,
+  L, D, NC; how a win came: KO for KO/TKO with a doctor's or a corner's stoppage and a retirement, SUB with a technical one, DEC
+  and its kinds UD, SD, MD, DQ; WR1-WR5 a win before the final bell in its round; FIN, derived, their sum; QW a win in the fight's
+  first 60 seconds; TIME the fight's seconds), striking (KD, SSL, SSA, TSL, TSA; significant strikes by target, SHL to SLA, and by
+  position, SDL to SGA; SSACC a rate) and grappling (TDL, TDA, SLAM, TDACC a rate, SUBA, REV, ADV and its four kinds, CTRL in
+  seconds). `methodOf` reads every result name seen (the prefix, a draw anywhere in it, a technical decision). **Its plays**: for
+  each bout in the order fought, each of ESPN's timed moments (a knockdown, a takedown or its attempt, a submission attempt or a
+  reversal counted in its round's tally), the bout's end at its Fight Over (or its last round's end) with each fighter's totals
+  (the core's statistics, else the FightCenter's) and its time, and its result at its announcement (the first "Unofficial Winner"
+  or "Results" after the end). A bout ESPN times nothing of ends, with its result, when the answers were had (`_asked`), else at
+  the next bout's first moment, else for a finished card 12 hours after its last segment's start (a live answer's with none only
+  at the end). A bout on, live, has each fighter's totals so far at `_asked` (a "so-far" play). The judges' scores are the board's
+  (only side by side there).
+- **Defaults** (`src/lib/sports/defaults/mma.json`): **DraftKings' MMA** (from stokastic.com's guide of 2026-07-12 and rotowire's
+  of its 2021 change; DraftKings' rules page answers a 403): a strike landed 0.2 and a significant one 0.2 more, a second of
+  control 0.03, a takedown 5, a reversal or sweep 5 (ESPN counts reversals), a knockdown 10; a win in the 1st round 90, the 2nd
+  70, the 3rd 45, the 4th or 5th 40, by decision 30, a quick win (60 seconds or less) 25 more; nothing left out but the bonuses
+  ESPN hasn't, which no standard table scores. Six fighters, no positions (its salary cap isn't a slot); no categories (Yahoo,
+  ESPN and FanDuel run no MMA game); locks per event; specs `season` (draft six, each scores on the nights they fight, total) and
+  `short` (one card, draft three each, all count). On the PFL's and the rest, only the result's parts score (the wizard should
+  say so: Noticed).
+- **Fixtures** (`record-espn.js` records a card: its board, its FightCenter, the core's rounds and each bout's status, plays and
+  the statistics the reader reads, each bout on a line): UFC 324 (`ufc-600057024.json`, 95 KB: Gaethje over Pimblett for the
+  interim title over five rounds, every bout timed), UFC Fight Night: Usman vs. Buckley (`ufc-600053732.json`, 119 KB: a no
+  contest and a technical draw), UFC Fight Night: Rosas Jr. vs. Barcelos (`ufc-600061266.json`, 111 KB: a disqualification, two
+  bouts of three rounds and an overtime, a 57-second submission), UFC 312 (`ufc-600050481.json`, 66 KB: statistics, no plays, a
+  draw, two titles), PFL Dubai (`pfl-600056964.json`, 24 KB: results only) and Cage Warriors 176 (`cage-warriors-600049962.json`,
+  13 KB: a one-night tournament, its winner on the card twice).
+- **Checks.**
+  - `tests/sports-mma.test.js` (10): the vocabulary, the weight classes and the leagues; every result name seen; **the proof** on
+    all six (the plays alone come to ESPN's own numbers and results for every fighter, the final's correction nothing, the winner
+    every answer flags, the method, round and time ESPN gives, the judges' scores the FightCenter's text, the core's statistics the
+    FightCenter's); UFC 324 read (the order fought, the segments, the main event's totals, its rounds' tallies from the plays
+    adding up to the totals); **the moments** (nothing before the card; a bout on in its round with its tallies and no numbers yet;
+    over at its Fight Over with the totals and no result; done at its announcement; as of each result, that bout and every one
+    before done and none after); draws, no contests, a disqualification, the overtime round, quick wins; ESPN's draw with a winner
+    flagged; no times (a card read later: 12 hours after; when asked: then) and results only; a one-night tournament; live (a bout
+    on with its totals so far at `_asked`, the bouts before done, a later watch seeing none of it, a bout not started with nothing,
+    no final's correction); the defaults (Gaethje's DraftKings points, a quick submission's, the PFL's result alone).
+  - `scripts/dev-test/check-bout-reduce.js` (new, reusable, check-field-reduce.js's sibling for a card: `--league --season --max`
+    or `--events`, `--verbose`; caches finished cards through `espn-mma-card.js`): each card's plays against ESPN's numbers and
+    results, ESPN's two sets of totals against each other, each result against every winner flag, its name, its round and the
+    judges, the moments (each end before the next bout's first moment, each result after its end, the card as of each result),
+    ESPN's own apart. **The UFC: 99 of 99 cards every number and result but for ESPN's own** (2025's 52 and 2026's 47; 44 with
+    nothing apart; 87,833 of 88,163 numbers, the 330 apart the plays' moments against the totals and a bout's plays with no rounds;
+    1,088 bouts, 930 timed). The PFL 28 of 28 (22 with nothing apart, the rest a decision before the last scheduled round), LFA 36 of
+    36, Cage Warriors 28 of 28, ACA 3 of 3, the "other" league's 65 of 65, Bellator, KSW and Rizin's 2024 23 of 23 (the Rizin draw
+    flagged a win, apart). The reader was written against 2025 and 2026: none was held out (Noticed).
+  - `espn-mma-card.js` (new, reusable): a card's answers for the three scripts (the board and the FightCenter alone, `core: false`;
+    some bouts' core, `bouts`; what's had already, `have`), a few calls at a time; a 404 is ESPN's "none", not a failure; cached only
+    complete and final.
+  - `record-espn-live.js` records a card (its board and FightCenter every 30 s while it's on; the core's bouts on, each one in and
+    the next to start, their status and plays every ask and statistics every `--stats-every`; a bout just over in full once and
+    then until its announcement shows; the whole card once final; every 30 s from 15 minutes before the first segment's start) and
+    **compares** one (ESPN's lag from a play's wallclock to the first answer with it, by kind; plays shown otherwise or dropped; each
+    bout as it went, on, over and its result against its first round, its Fight Over and its announcement, a result shown otherwise,
+    its totals moving while on; bouts called off or added; a phone's data). Exercised on a recording made up from UFC 324's cache (a
+    one-off, not kept); Saturday's card is being recorded (L2's Noticed).
+  - `check-sport-reduce.js` points a card at its sibling. 995 unit tests; `tsc` clean; eslint clean on `src/lib/sports`;
+    `check-live-clock.js` at 30x, 22 of 22; golf's 2026 PGA Tour 41 of 41 and F1's 18 of 18 still.
+  - `/code-review` on the diff (its fixes: the card recorder asked every finished bout in full again on every ask, now only the
+    bouts still to finish (the detached recorder restarted on it); a live bout with no plays stayed "pre", now it's on from any
+    play in a round or its totals so far; a win ESPN doesn't say how of scored a round's finish, now the win alone; the winner was
+    read from the board only, now the FightCenter's or the core's flag where the board hasn't one yet; an ESPN play with no
+    wallclock went to the end, now it takes the play before it's time; a one-night tournament's fighter was twice in the field;
+    the card read once a reader, not twice; the board's round length as a fallback; `isoOf` and `nonzero` shared from `sport.ts`,
+    golf's and racing's copies gone. Checked and kept: the three corrections, a team's, a field's and a card's, differ by design (a
+    team's box lacks counts its plays have, which stay; a field's places are the standings'; a card's totals are all ESPN's), so
+    one shared helper isn't taken).
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data (the dev checks asked ESPN ~7,500 times,
+    every finished answer cached).
+
+**L5 part 4a (MMA) noticed, not fixed:**
+- **What a live card's answers have is still to see**: no card was on during the session (UFC cards are Saturdays). Saturday's
+  Fight Night, Moicano vs. Nolan (`mma/ufc` 600061420, 10-31 21:00 UTC), is being recorded (L2's Noticed): whether the FightCenter's
+  and the core's totals move during a bout (if they do, a phone's live points are the FightCenter's every 30 s; if not, a bout
+  scores only at its end), ESPN's lag from a play's wallclock to its first answer (MMA's plays are timed, unlike golf's holes and
+  racing's laps), how soon a result shows after the announcement, whether a bout called off on the night is taken off the card
+  live. `--compare` it once final.
+- **A card has no live poller yet** (as a field hasn't): the board and the FightCenter every 30 s while a bout's on, the core's
+  plays of the bout on for its times, nothing between cards. With the recording's numbers. (L3 or U1.)
+- **No play says whose it is, and nothing is by round per fighter**: a game can't score "a knockdown in round 1" for a fighter, nor
+  live points round by round; a bout's own rounds (its knockdowns and takedowns, timed) can settle a live call about the bout ("a
+  takedown this round"). (A15, L4.)
+- **The PFL's, LFA's and the rest's results only**: no strikes, takedowns or control, no times (a later watch sees the card's
+  results all at once, 12 hours after its start when read with no `_asked`), no judges' scores; a game on them scores the result's
+  parts. The wizard should say what a promotion can't score. (G3, U0.)
+- **ESPN's regional promotions** (the "other" league: hundreds of cards a year, a bout or a few each): readable, but a game on them
+  would have one bout a card; the wizard could leave them out of its list. (U0.)
+- **The judges' scores are side by side only on the UFC's boards**; the FightCenter's text doesn't say whose is first. A game
+  scoring rounds won on the cards can't (ESPN gives each judge's total, not rounds).
+- **Odds per bout are in the core** (`competitions/<id>/odds`: ESPN BET's moneyline): a pick'em's favourite and an upset bonus could
+  read them as L1 part 3 reads a game's line. (L4, A4.)
+- **A one-night tournament's fighter is on a card twice**: the box adds both bouts (`people[id].bouts`); a game scoring a fighter
+  per bout (tennis's per match, 4b) would want lines per bout as well.
+- **A decision before the last scheduled round** (the PFL's, five cards of 2026): a technical decision or ESPN's rounds wrong; the
+  reader keeps ESPN's rounds, and the result's round is the status's either way.
+- **DraftKings' MMA table is from guides** (its rules page answers a 403; a 2026 guide agrees with the 2021 change). Fight and
+  Performance of the Night bonuses would need a source ESPN isn't (HOSTING.md first, the decision's "vetted sources").
+- **No season was held out**: the reader was written against 2025 and 2026; Saturday's card is the first it wasn't.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

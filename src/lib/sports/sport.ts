@@ -320,6 +320,13 @@ export function addStats(into: Stats, d: Stats): Stats {
   return into;
 }
 
+/** A moment (ms) as ISO 8601 without its zero milliseconds ("2026-01-25T05:29:42Z"), the way ESPN writes a wallclock; null for
+ *  none. */
+export const isoOf = (t: number | null) => (t == null ? null : new Date(t).toISOString().replace(".000Z", "Z"));
+
+/** Someone's counts without the zeros (and anything that isn't a number). */
+export const nonzero = (s: Stats): Stats => Object.fromEntries(Object.entries(s).filter(([, v]) => v !== 0 && Number.isFinite(v)));
+
 /** A wallclock as milliseconds, or null. */
 export const msOf = (t: string | number | Date | null | undefined): number | null => {
   if (t == null) return null;
@@ -330,7 +337,7 @@ export const msOf = (t: string | number | Date | null | undefined): number | nul
 /**
  * A sport: its vocabulary (groups, positions, stats, periods, locks) and its readers. One subclass per sport (Baseball,
  * Basketball, Football, Hockey), grouped by shape: TeamSport for a box score and timestamped plays; FieldSport for a field of
- * competitors and its standings (golf, racing); BoutSport (MMA, tennis) when L5 brings it.
+ * competitors and its standings (golf, racing); BoutSport for a card of one-on-one bouts (MMA; tennis's draw next).
  */
 export abstract class Sport {
   /** ESPN's sport slug, the first half of its league paths ("baseball" of "baseball/mlb"): its defaults' key. A slug's sports
@@ -404,7 +411,7 @@ export function inOrder(plays: Play[]): Play[] {
   let last: number | null = null;
   for (const p of plays) {
     const t = msOf(p.at);
-    if (last != null && (t == null || t < last)) p.at = new Date(last).toISOString().replace(".000Z", "Z");
+    if (last != null && (t == null || t < last)) p.at = isoOf(last);
     else if (t != null) last = t;
   }
   return plays;
@@ -789,4 +796,286 @@ export function fieldEventOf(answer: FieldAnswer, which: "board" | "leaderboard"
   if (!a.events) return a;
   const id = which === "board" ? answer.leaderboard?.events?.[0]?.id : null;
   return (id != null ? a.events.find((e) => String(e.id) === String(id)) : null) ?? a.events[0] ?? null;
+}
+
+/* ---- A card of bouts: MMA's fight night (L5 part 4a; tennis's draw is 4b's). ---- */
+
+/** ESPN's answers for a fight card, asked together: a card has no summary (`mma/<league>/summary?event=` is a 404). Its board
+ *  (`mma/<league>/scoreboard/<event>`: the bouts in the order fought, each fighter, who won, the round and time it ended, the
+ *  judges' scores), its FightCenter (`site.web.api.espn.com/apis/common/v3/sports/mma/<league>/fightcenter/<event>`: each bout's
+ *  result and how, each fighter's totals, the card's segments), and from ESPN's core API each bout's rounds as ESPN describes
+ *  them (`event`: its event's competitions) and its status, timed plays and each fighter's statistics (`core`, by the bout's
+ *  id): mma.ts says what's in them. `_asked`: when they were had (a live answer's poll, a recording's). */
+export interface BoutAnswer {
+  _asked?: string;
+  board?: EspnBoutCard;
+  fightcenter?: { cards?: Record<string, { name?: string; competitions?: EspnBoutCompetition[] }> } | null;
+  event?: { competitions?: { id?: string | number; description?: string | null; format?: { regulation?: { periods?: number; clock?: number } } }[] } | null;
+  core?: Record<string, EspnBoutCore>;
+}
+
+/** A card on ESPN's board, only the parts the readers read. */
+export interface EspnBoutCard {
+  id?: string | number;
+  name?: string;
+  date?: string;
+  status?: { type?: { state?: string; completed?: boolean; name?: string; detail?: string } };
+  competitions?: EspnBoutCompetition[];
+}
+
+/** How a bout ended, as ESPN names it (`kotko`, `decision---split`, `submission-armbar`) and says it ("Punches"). */
+export interface EspnBoutResult {
+  name?: string;
+  displayName?: string;
+  shortDisplayName?: string;
+  description?: string;
+  target?: { name?: string };
+}
+
+export interface EspnBoutStatus {
+  /** Seconds into the round it's in or ended in (the FightCenter's as text: "300.0"). */
+  clock?: number | string;
+  /** The same as a time into the round ("4:59"). */
+  displayClock?: string;
+  period?: number;
+  type?: { state?: string; completed?: boolean; name?: string; detail?: string };
+  result?: EspnBoutResult;
+}
+
+/** A bout on the board or the FightCenter. */
+export interface EspnBoutCompetition {
+  id?: string | number;
+  date?: string;
+  type?: { abbreviation?: string; text?: string };
+  /** A title on the line ("UFC Interim Lightweight Title"): the FightCenter's. */
+  types?: { id?: string | number; text?: string }[];
+  status?: EspnBoutStatus;
+  format?: { regulation?: { periods?: number; clock?: number } };
+  /** The FightCenter's: the card's segment ("main", "prelims1"), the bout's number counted from the main event (1), its note
+   *  ("Lightweight - Main Event - Title Fight") and the judges' scores as text ("48-47 | 49-46 | 49-46"). */
+  cardSegment?: { name?: string; description?: string };
+  matchNumber?: number;
+  note?: string;
+  judgesScores?: string;
+  competitors?: EspnBoutCompetitor[];
+}
+
+export interface EspnBoutCompetitor {
+  id?: string | number;
+  order?: number;
+  winner?: boolean;
+  athlete?: { displayName?: string; flag?: { alt?: string } };
+  /** The board's: the judges' scores, each judge's under its one line (`linescores[0].linescores`). */
+  linescores?: EspnLinescore[];
+  /** The FightCenter's: the fighter's totals ("144/254"). */
+  stats?: { name?: string; value?: number | string; displayValue?: string }[];
+}
+
+/** A bout from ESPN's core API: its status (with its result), its plays (`.../competitions/<id>/plays`: each with its round,
+ *  clock and wallclock, never whose it is) and each fighter's statistics (`.../competitors/<id>/statistics`: their totals). */
+export interface EspnBoutCore {
+  status?: EspnBoutStatus | null;
+  plays?: EspnBoutPlay[];
+  competitors?: { id?: string | number; order?: number; winner?: boolean; statistics?: { splits?: { categories?: { stats?: { name?: string; value?: number }[] }[] } } }[];
+}
+
+export interface EspnBoutPlay {
+  id?: string | number;
+  sequenceNumber?: string | number;
+  type?: { id?: string | number; text?: string };
+  period?: { number?: number };
+  clock?: { value?: number; displayValue?: string };
+  wallclock?: string;
+}
+
+/** One bout on a card. */
+export interface Bout {
+  /** ESPN's competition id. */
+  id: string;
+  /** Its place on the card, 1 the first fought (ESPN's board lists them so); the main event is the last. */
+  order: number;
+  /** Its two sides, by ESPN's athlete ids, in ESPN's order (`order` 1 first). */
+  sides: string[];
+  /** The rounds it's scheduled for (3, or 5 for a main event or a title) and each one's length in seconds; `overtime`: a
+   *  tournament's extra round if it's level after them (its length the last of `lengths`). */
+  rounds: number;
+  lengths: number[];
+  overtime: boolean;
+  /** The card's segment as ESPN names it ("main", "prelims1", "prelims2"), or null. */
+  segment: string | null;
+  main: boolean;
+  /** A title on the line. */
+  title: boolean;
+  /** ESPN's scheduled start: its segment's, not its own. */
+  start: string | null;
+  /** The sport's position key for it (MMA's weight class), or null. */
+  class: string | null;
+}
+
+/** A card's bouts in the order fought, and everyone on it: a card's field. */
+export interface BoutCard {
+  event: string;
+  bouts: Bout[];
+  field: string[];
+}
+
+export type BoutOutcome = "win" | "draw" | "nc";
+
+/** How a bout ended. */
+export interface BoutResult {
+  bout: string;
+  outcome: BoutOutcome;
+  /** The winner and the loser, by ESPN's athlete ids; null for a draw or a no contest. */
+  winner: string | null;
+  loser: string | null;
+  /** How it was won, as the sport's stat key (MMA's KO, SUB, UD, SD, MD, DEC, DQ); null for a draw, a no contest or a win ESPN
+   *  doesn't say how of. */
+  method: string | null;
+  /** ESPN's words for it ("Punches", "Rear Naked Choke"), or null. */
+  how: string | null;
+  /** Where it ended: the round and the time into it ("4:59"). */
+  round: number | null;
+  time: string | null;
+  /** The judges' scores, each [the first side's, the second's] (Bout.sides); empty when it didn't go to them. */
+  cards: number[][];
+}
+
+/** A card in ESPN's own numbers (BoutSport.readBox): each fighter's totals with their result's counts (over every bout they fought
+ *  on it: a one-night tournament's semifinal and final), and the results. */
+export interface BoutBox extends BoutCard {
+  final: boolean;
+  people: Record<string, FieldEntry & { bouts: string[]; stats: Stats }>;
+  results: BoutResult[];
+}
+
+/**
+ * A bout's play: one of its moments (a round's start, a knockdown, the end, the result), in its round (`period`: 0 before the
+ * first or after the last), for one fighter when it's theirs (`who`), its `unit` the bout. `tally`: what it adds to the bout's
+ * own count for its round (a knockdown ESPN doesn't say whose). What the reduce reads: any play in a round, or "so-far" (each
+ * fighter's totals so far, live), puts the bout on; "bout-end" (each fighter's totals in its deltas) has it over; "result" (how
+ * it ended: `result`) done; the final's correction carries ESPN's `results`, which then stand.
+ */
+export interface BoutPlay extends Play {
+  bout: string;
+  who: string | null;
+  tally?: Stats;
+  result?: BoutResult;
+  results?: BoutResult[];
+}
+
+/** Where a bout is: not started, on, over (its result still to be said: a decision's cards being read), done. */
+export type BoutStage = "pre" | "in" | "over" | "done";
+
+export interface BoutLine {
+  stage: BoutStage;
+  /** The round it's in or ended in. */
+  round: number | null;
+  /** Its own counts round by round (the plays' tallies: its knockdowns, takedowns). */
+  rounds: Record<number, Stats>;
+  result: BoutResult | null;
+}
+
+/** A card as of a moment (BoutSport.reduce): each fighter's counts, each bout's stage, rounds and result, and the results known
+ *  in the card's order. */
+export interface BoutState {
+  plays: number;
+  last: BoutPlay | null;
+  lines: Record<string, Stats>;
+  bouts: Record<string, BoutLine>;
+  results: BoutResult[];
+}
+
+/**
+ * A bout sport: a card of one-on-one bouts (MMA). ESPN times a bout's moments (its rounds' starts and ends, its knockdowns) but
+ * never says whose they are, and gives each fighter's numbers as totals: so a fighter's numbers are known when the bout ends
+ * (live, as far as the answers have them, at their `_asked`), its result when it's announced, and a bout ESPN times nothing of
+ * when the answers were had (or the next bout's first moment, or for a finished card read with none, hours after it started).
+ * A later watch moves bout by bout, and round by round where ESPN times the rounds. A subclass reads ESPN's answers into a
+ * BoutBox and plays; reducing, the final's correction and the timeline are the same for all of them.
+ */
+export abstract class BoutSport extends Sport {
+  /** ESPN's own numbers for the card; null when the answers have no bouts. */
+  abstract readBox(answer: BoutAnswer): BoutBox | null;
+  /** The card's plays in order (times that never go back: inOrder). `issues` collects what the reader couldn't read as it
+   *  should, for checks. */
+  abstract readPlays(answer: BoutAnswer, issues?: string[]): BoutPlay[];
+  /** The card's bouts and field from the answers; null when they have none. */
+  abstract card(answer: BoutAnswer): BoutCard | null;
+
+  /** The card as of `at` (as TeamSport.reduce: no `at` or Infinity the end, a moment that isn't one nothing): the plays up to it
+   *  added up, and each bout's stage, rounds and result; after the final's correction, ESPN's own results. */
+  reduce(plays: BoutPlay[], at: string | number | Date | null | undefined, card: BoutCard): BoutState {
+    const end = at == null || at === Infinity;
+    const until = end ? null : msOf(at);
+    const bouts: Record<string, BoutLine> = Object.fromEntries(card.bouts.map((b) => [b.id, { stage: "pre", round: null, rounds: {}, result: null }]));
+    const state: BoutState = { plays: 0, last: null, lines: {}, bouts, results: [] };
+    let espn: BoutResult[] | null = null;
+    if (end || until != null) {
+      for (const p of plays) {
+        const t = msOf(p.at);
+        if (until != null && (t == null || t > until)) break;
+        state.plays++;
+        state.last = p;
+        for (const [who, d] of Object.entries(p.deltas)) state.lines[who] = addStats(state.lines[who] ?? {}, d);
+        if (p.results) espn = p.results;
+        const b = bouts[p.bout];
+        if (!b) continue;
+        if (p.period > 0) b.round = p.period;
+        if (b.stage === "pre" && (p.period > 0 || p.kind === "so-far")) b.stage = "in";
+        if (p.kind === "bout-end" && b.stage !== "done") b.stage = "over";
+        if (p.tally && p.period > 0) b.rounds[p.period] = addStats(b.rounds[p.period] ?? {}, p.tally);
+        if (p.result) {
+          b.stage = "done";
+          b.result = p.result;
+        }
+      }
+    }
+    // ESPN's final results, as copies (a consumer changing them mustn't change the timeline's); else the plays'.
+    for (const r of espn ?? []) {
+      if (!bouts[r.bout]) continue;
+      bouts[r.bout].result = { ...r, cards: r.cards.map((c) => [...c]) };
+      bouts[r.bout].stage = "done";
+    }
+    state.results = card.bouts.map((b) => bouts[b.id].result).filter((r): r is BoutResult => r != null);
+    for (const [who, s] of Object.entries(state.lines)) if (!Object.keys(s).length) delete state.lines[who];
+    return state;
+  }
+
+  /** What ESPN's numbers say that the plays don't: for each fighter, every count ESPN gives less what the plays added up to; and
+   *  someone the plays credited who isn't on ESPN's card, taken back. */
+  correction(state: BoutState, box: BoutBox): Record<string, Stats> {
+    const out: Record<string, Stats> = {};
+    for (const [who, have] of Object.entries(state.lines)) {
+      if (box.people[who]) continue;
+      const d = Object.fromEntries(Object.entries(have).map(([k, v]) => [k, -v]));
+      if (Object.keys(d).length) out[who] = d;
+    }
+    for (const [who, person] of Object.entries(box.people)) {
+      const have = state.lines[who] ?? {};
+      const d: Stats = {};
+      for (const k of new Set([...Object.keys(person.stats), ...Object.keys(have)])) {
+        const diff = (person.stats[k] ?? 0) - (have[k] ?? 0);
+        if (Math.abs(diff) > 1e-9) d[k] = diff;
+      }
+      if (Object.keys(d).length) out[who] = d;
+    }
+    return out;
+  }
+
+  /** The card's plays and, once it's final, the final's correction after them (at the last play's time, with ESPN's results),
+   *  so a finished card reduces to ESPN's own numbers and results. Live, the plays: provisional until the final. */
+  timeline(answer: BoutAnswer): BoutPlay[] {
+    const plays = this.readPlays(answer);
+    const box = this.readBox(answer);
+    if (!box?.final) return plays;
+    const deltas = this.correction(this.reduce(plays, null, box), box);
+    const last = plays[plays.length - 1] ?? null;
+    plays.push({ id: `${box.event}:final`, bout: "", who: null, at: last?.at ?? null, period: 0, half: null, clock: null, text: "Final", kind: "final", team: null, unit: null, people: Object.keys(deltas), score: {}, deltas, final: true, results: box.results });
+    return plays;
+  }
+
+  /** The card as of a moment, from ESPN's answers. */
+  stateAt(answer: BoutAnswer, at?: string | number | Date | null): BoutState {
+    return this.reduce(this.timeline(answer), at, this.card(answer) ?? { event: "", bouts: [], field: [] });
+  }
 }

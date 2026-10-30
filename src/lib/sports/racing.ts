@@ -1,4 +1,4 @@
-import { FieldSport, count, fieldEventOf, idOf, inOrder, msOf, num, ordinal, position as pos, str, type EspnCoreCompetitor, type EspnFieldCompetitor, type FieldAnswer, type FieldBox, type FieldEntry, type FieldEvent, type FieldPlay, type FieldState, type FieldStatus, type Play, type Position, type PositionGroup, type Standing, type StatDef, type Stats } from "./sport";
+import { FieldSport, count, fieldEventOf, idOf, inOrder, isoOf as iso, nonzero, msOf, num, ordinal, position as pos, str, type EspnCoreCompetitor, type EspnFieldCompetitor, type FieldAnswer, type FieldBox, type FieldEntry, type FieldEvent, type FieldPlay, type FieldState, type FieldStatus, type Play, type Position, type PositionGroup, type Standing, type StatDef, type Stats } from "./sport";
 
 // Racing (Formula 1; NASCAR's Cup, O'Reilly Auto Parts and Truck series; IndyCar): its vocabulary and ESPN's readers
 // (docs/PLAN-start-a-game-gpt.md track L, L5 part 3b).
@@ -179,8 +179,6 @@ interface Session {
   placed: boolean;
 }
 
-const iso = (t: number | null) => (t == null ? null : new Date(t).toISOString().replace(".000Z", "Z"));
-const nonzero = (s: Stats): Stats => Object.fromEntries(Object.entries(s).filter(([, v]) => v !== 0 && Number.isFinite(v)));
 
 export class Racing extends FieldSport {
   readonly id = "racing";

@@ -31,13 +31,17 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } });
-const { sportOf, FieldSport } = jiti("../../src/lib/sports/index.ts");
+const { sportOf, FieldSport, BoutSport } = jiti("../../src/lib/sports/index.ts");
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, "").split("=")).map(([k, ...v]) => [k, v.length ? v.join("=") : true]));
 const league = args.league || "baseball/mlb";
 const sport = sportOf(league);
 if (!sport) {
   console.error(`No sport built for ${league} yet.`);
+  process.exit(2);
+}
+if (sport instanceof BoutSport) {
+  console.error(`${league} is a card of bouts (its results, not a box score): check-bout-reduce.js checks it.`);
   process.exit(2);
 }
 if (sport instanceof FieldSport) {

@@ -19,10 +19,15 @@
 // asked, a call a driver); each competitor on a line of its own.
 //   node scripts/dev-test/record-espn.js --league=golf/pga --event=401850917 [--note=...]
 //   node scripts/dev-test/record-espn.js --league=racing/f1 --event=600052046 [--note=...]
+// A fight card (MMA: L5 part 4a) has no summary either: its fixture is its board, its FightCenter, the core's rounds and each
+// bout's status, plays and fighters' statistics (espn-mma-card.js: check-bout-reduce.js's cache, else asked), trimmed by
+// CARD_KEEP below to what mma.ts reads, each bout on a line.
+//   node scripts/dev-test/record-espn.js --league=mma/ufc --event=600057024 [--note=...]
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { cachedRaceCore } = require("./espn-race-core");
+const { cachedMmaCard } = require("./espn-mma-card");
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, "").split("=")).map(([k, ...v]) => [k, v.length ? v.join("=") : true]));
 const league = args.league;
@@ -250,6 +255,49 @@ async function recordRace() {
   console.log(`${path.relative(process.cwd(), out)}: ${competitions.length} sessions, ${n} results, ${Object.keys(core).length} sessions' core, ${(body.length / 1024).toFixed(0)} KB (from ${(raw / 1024).toFixed(0)} KB)`);
 }
 
+// A fight card's (src/lib/sports/mma.ts): the board's bouts in the order fought (their class, status, fighters and the judges'
+// scores), the FightCenter's segments, results and totals, the core's rounds, and each bout's status, plays and the
+// statistics the reader reads.
+const BOUT_STATUS = { clock: true, displayClock: true, period: true, type: { state: true, completed: true, name: true }, result: { name: true, displayName: true, description: true } };
+const CARD_KEEP = {
+  board: { id: true, name: true, date: true, status: STATUS, competitions: [{ id: true, date: true, type: { abbreviation: true }, status: BOUT_STATUS, format: { regulation: { periods: true } }, competitors: [{ id: true, order: true, winner: true, athlete: { displayName: true, flag: { alt: true } }, linescores: [{ value: true, linescores: [{ value: true }] }] }] }] },
+  center: { id: true, types: [{ text: true }], status: BOUT_STATUS, cardSegment: { name: true }, matchNumber: true, note: true, judgesScores: true, competitors: [{ id: true, order: true, winner: true, stats: [{ name: true, value: true, displayValue: true }] }] },
+  event: { competitions: [{ id: true, description: true, format: { regulation: { periods: true, clock: true } } }] },
+  core: { status: BOUT_STATUS, plays: [{ id: true, sequenceNumber: true, type: { text: true }, period: { number: true }, clock: { displayValue: true }, wallclock: true }], competitors: [{ id: true, order: true, winner: true, statistics: { splits: { categories: [{ stats: [{ name: true, value: true }] }] } } }] },
+};
+/** The core statistics mma.ts reads (the rest of ESPN's ~40 aren't kept). */
+const BOUT_STATS = ["knockDowns", "sigStrikesLanded", "sigStrikesAttempted", "totalStrikesLanded", "totalStrikesAttempted", "takedownsLanded", "takedownsAttempted", "takedownsSlams", "submissions", "reversals", "advances", "advanceToHalfGuard", "advanceToSide", "advanceToMount", "advanceToBack", "timeInControl", ...["Distance", "Clinch", "Ground"].flatMap((p) => ["Head", "Body", "Leg"].flatMap((t) => [`sig${p}${t}StrikesLanded`, `sig${p}${t}StrikesAttempted`]))];
+
+/** A fight card's fixture: its answers (check-bout-reduce.js's cache, else asked), trimmed, each bout on a line. */
+async function recordCard() {
+  const [, promotion] = league.split("/");
+  const card = await cachedMmaCard(cacheDir, { league: promotion, event });
+  if (!(card?.board?.status?.type?.state === "post" && card.board.status.type.completed)) {
+    console.error(`${event} isn't final (${card?.board?.status?.type?.name}): a fixture is a whole card.`);
+    process.exit(1);
+  }
+  const lines = (xs, pad) => `[\n${xs.map((x) => `${pad}${JSON.stringify(x)}`).join(",\n")}\n${pad.slice(1)}]`;
+  const board = trim(card.board, CARD_KEEP.board);
+  const { competitions, ...head } = board;
+  const boardText = `${JSON.stringify(head).slice(0, -1)},"competitions":${lines(competitions ?? [], "    ")}}`;
+  const segments = Object.entries(card.fightcenter?.cards ?? {}).map(([k, seg]) => `   ${JSON.stringify(k)}: { "name": ${JSON.stringify(seg.name ?? null)}, "competitions": ${lines((seg.competitions ?? []).map((c) => trim(c, CARD_KEEP.center)), "     ")} }`);
+  const centerText = `{ "cards": {\n${segments.join(",\n")}\n  } }`;
+  const eventText = `{ "competitions": ${lines((card.event?.competitions ?? []).map((c) => trim(c, CARD_KEEP.event.competitions[0])), "    ")} }`;
+  const core = Object.entries(card.core ?? {}).map(([id, b]) => {
+    const t = trim(b, CARD_KEEP.core);
+    for (const c of t.competitors ?? []) for (const cat of c.statistics?.splits?.categories ?? []) cat.stats = (cat.stats ?? []).filter((st) => BOUT_STATS.includes(st.name));
+    return `  ${JSON.stringify(id)}: ${JSON.stringify(t)}`;
+  });
+  const coreText = `{\n${core.join(",\n")}\n }`;
+  const rec = { league, event, from: [`site.api.espn.com/apis/site/v2/sports/${league}/scoreboard/${event}`, `site.web.api.espn.com/apis/common/v3/sports/${league}/fightcenter/${event}`, `sports.core.api.espn.com/v2/sports/mma/leagues/${promotion}/events/${event} (+ /competitions/<bout>/status, /plays, /competitors/<id>/statistics)`], at: new Date().toISOString().slice(0, 10), ...(args.note ? { note: args.note } : {}), by: "scripts/dev-test/record-espn.js" };
+  const body = `{\n "_recorded": ${JSON.stringify(rec)},\n "board": ${boardText},\n "fightcenter": ${centerText},\n "event": ${eventText},\n "core": ${coreText}\n}\n`;
+  JSON.parse(body);
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, body);
+  const plays = Object.values(card.core ?? {}).reduce((n, b) => n + (b.plays ?? []).length, 0);
+  console.log(`${path.relative(process.cwd(), out)}: ${(competitions ?? []).length} bouts, ${plays} plays, ${(body.length / 1024).toFixed(0)} KB (from ${(JSON.stringify(card).length / 1024).toFixed(0)} KB)`);
+}
+
 /** A field's fixture: its answers (cached by check-field-reduce.js's names, else asked), trimmed, each competitor on a line. */
 async function recordField() {
   const [slug, tour] = league.split("/");
@@ -297,6 +345,7 @@ async function recordField() {
 (async () => {
   fs.mkdirSync(cacheDir, { recursive: true });
   if (/^(golf|racing)\//.test(league)) return recordField();
+  if (/^mma\//.test(league)) return recordCard();
   const cached = path.join(cacheDir, `${league.replace("/", "-")}-summary-${event}.json`);
   const final = (s) => s?.header?.competitions?.[0]?.status?.type?.completed === true;
   let summary = fs.existsSync(cached) ? JSON.parse(fs.readFileSync(cached, "utf8")) : null;

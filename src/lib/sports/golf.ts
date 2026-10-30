@@ -1,4 +1,4 @@
-import { FieldSport, addStats, count, fieldEventOf, idOf, inOrder, msOf, num, ordinal, position as pos, str, val as n, type EspnFieldCompetitor, type EspnFieldEvent, type EspnLinescore, type FieldAnswer, type FieldBox, type FieldEntry, type FieldEvent, type FieldPlay, type FieldState, type FieldStatus, type Play, type Position, type PositionGroup, type Standing, type StatDef, type Stats } from "./sport";
+import { FieldSport, addStats, count, fieldEventOf, idOf, inOrder, isoOf as iso, msOf, num, ordinal, position as pos, str, val as n, type EspnFieldCompetitor, type EspnFieldEvent, type EspnLinescore, type FieldAnswer, type FieldBox, type FieldEntry, type FieldEvent, type FieldPlay, type FieldState, type FieldStatus, type Play, type Position, type PositionGroup, type Standing, type StatDef, type Stats } from "./sport";
 
 // Golf (stroke play: the PGA Tour, the LPGA, the DP World Tour, LIV, PGA Tour Champions, the Korn Ferry Tour, the Olympics): its
 // vocabulary and ESPN's readers (docs/PLAN-start-a-game-gpt.md track L, L5 part 3).
@@ -190,7 +190,6 @@ const competitorsOf = (ev: EspnFieldEvent | null) => ev?.competitions?.[0]?.comp
 const played = (r: EspnLinescore) => (num(r.value) ?? 0) > 0 || (r.linescores ?? []).length > 0;
 /** Whether a competitor was in a playoff: ESPN's flag, or a playoff round of theirs. */
 const inPlayoff = (c: EspnFieldCompetitor | undefined) => !!c && (c.status?.playoff === true || (c.linescores ?? []).some((r) => r.isPlayoff));
-const iso = (t: number | null) => (t == null ? null : new Date(t).toISOString().replace(".000Z", "Z"));
 
 /** ESPN's board's own counts of a round's kinds of holes (unnamed, in order: birdies, bogeys, bunkers, double bogeys, eagles or
  *  better, pars, the tee time), as BIR, BOG, DBL, EAG (eagles or better) and PAR; null where they're all 0 (not filled in). */

@@ -54,6 +54,20 @@
 //  - ESPN's lag: no hole or lap has a time in a field's answers, so only how long after a session's or round's start its first
 //    result showed;
 //  - a phone's data: the bytes per answer (the board's and the leaderboard's, or racing's board and, apart, its core) and per hour.
+// A fight card (MMA: L5 part 4a) has no summary either: each ask is its board and its FightCenter (a phone's two calls) and,
+// while the card's on, the core's bouts on (each one in and the next to start: their status and plays every ask, their
+// fighters' statistics every --stats-every seconds; a bout just over in full once, then its status and plays until its result's
+// announcement shows, at most 10 minutes), then the whole card once it's final (at
+// most --hours, 14). Between bouts it asks every --every seconds too; before the card, every 5 minutes (every --every from 15
+// minutes before its first segment's start), keeping nothing.
+//   node scripts/dev-test/record-espn-live.js --league=mma/ufc --event=600061420 [--every=30] [--stats-every=60] [--hours=14]
+//   node scripts/dev-test/record-espn-live.js --league=mma/ufc --event=600061420 --compare
+// A card's --compare reads each answer recorded while it was on with MMA against the card's final (check-bout-reduce.js's cache,
+// asked once final; before then, the recording's last answer, said so): ESPN's lag from a play's wallclock to the first answer
+// with it (the only times an MMA answer has), by kind; plays shown otherwise or dropped; each bout as it went (when an answer
+// first had it on, over and its result, against its first round's start, its Fight Over and its announcement; a result shown
+// otherwise; whether its fighters' totals moved while it was on, the FightCenter's and the core's); bouts called off or added
+// on the night; a phone's data (the board and the FightCenter per answer and per hour; the core apart).
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -551,7 +565,201 @@ async function compareField() {
   if (core.length) console.log(`  racing's core: ${Math.round(per(core.map((l) => l.core.calls)))} calls and ${Math.round(per(core.map((l) => l.core.raw)) / 1024)} KB unpacked an ask on average (the list every ask, statistics every ${STATS_EVERY / 1000} s)`);
 }
 
-(args.compare ? Promise.resolve().then(() => (FIELD ? compareField() : compare())) : FIELD ? recordField() : record()).catch((e) => {
+// A fight card (MMA: L5 part 4a): its board and FightCenter every ask (a phone's two calls: the bouts, who won and how, each
+// fighter's totals), and from the core API the bouts on (each one in, the next to start: its walkouts are filed while it's
+// still "pre") with their status and plays every ask and their fighters' statistics every --stats-every seconds, a bout just
+// over in full once and then until its result's announcement shows, and the card's every bout in full once it's final
+// (espn-mma-card.js).
+const CARD = String(league).startsWith("mma/");
+const { mmaCard, cachedMmaCard } = require("./espn-mma-card");
+
+/** Where a card is: on (a bout in, or some fought and some to come), final, and which bouts are in. */
+function cardState(answer) {
+  const comps = answer.board?.competitions ?? [];
+  const st = (c) => c.status?.type?.state;
+  const final = answer.board?.status?.type?.state === "post";
+  const on = !final && (answer.board?.status?.type?.state === "in" || comps.some((c) => st(c) === "in") || (comps.some((c) => st(c) === "post") && comps.some((c) => st(c) === "pre")));
+  return { final, on, state: answer.board?.status?.type?.state, inBouts: comps.filter((c) => st(c) === "in").map((c) => String(c.id)), done: comps.filter((c) => st(c) === "post").length, bouts: comps.length };
+}
+
+async function recordCard() {
+  if (args.base) throw new Error("a card's recording asks the real ESPN only (espn-mma-card.js)");
+  fs.mkdirSync(dir, { recursive: true });
+  const promotion = league.split("/")[1];
+  const hours = Number(args.hours || 14);
+  const until = Date.now() + hours * 3600_000;
+  let rounds = null;
+  let statsAt = 0;
+  let askedBefore = [];
+  // A bout just over: asked on (its status and plays) until its result's announcement shows, at most 10 minutes; in full once.
+  const recent = new Map();
+  console.log(`Recording ${league} ${event}: its board and FightCenter every ${EVERY / 1000} s while the card's on, the core's bouts on (status and plays every ask, statistics every ${STATS_EVERY / 1000} s), into ${dir} (at most ${hours} h, until the card's final)...`);
+  while (Date.now() < until) {
+    const at = Date.now();
+    const head = { calls: 0, bytes: 0, raw: 0 };
+    const core = { calls: 0, bytes: 0, raw: 0 };
+    let answer;
+    let st;
+    try {
+      const got = await mmaCard({ league: promotion, event, core: false, wire: head });
+      if (!got) throw new Error("ESPN didn't answer the board");
+      answer = { _asked: new Date(at).toISOString(), board: got.board, fightcenter: got.fightcenter, core: {} };
+      st = cardState(answer);
+      if (st.on || st.final) {
+        const have = { board: got.board, fightcenter: got.fightcenter, event: rounds };
+        if (!rounds) rounds = (await mmaCard({ league: promotion, event, have, bouts: [], wire: core }))?.event ?? null;
+        answer.event = rounds;
+        have.event = rounds;
+        const comps = got.board.competitions ?? [];
+        const stateOf = (id) => comps.find((c) => String(c.id) === id)?.status?.type?.state;
+        const next = comps.find((c) => c.status?.type?.state === "pre");
+        const all = comps.map((c) => String(c.id));
+        // Asked before and over now (its status post, or gone from the card): just over.
+        const fresh = askedBefore.filter((id) => stateOf(id) !== "in" && stateOf(id) !== "pre" && !recent.has(id));
+        for (const id of fresh) recent.set(id, at);
+        for (const [id, since] of recent) if (at - since > 10 * 60_000) recent.delete(id);
+        const ask = st.final ? all : [...new Set([...st.inBouts, ...(next ? [String(next.id)] : []), ...[...recent.keys()].filter((id) => !fresh.includes(id))])];
+        const full = st.final || at - statsAt >= STATS_EVERY;
+        let now = await mmaCard({ league: promotion, event, have, bouts: ask, full, wire: core });
+        // The final is the truth: asked again (twice at most) if a call of it failed.
+        for (let i = 0; st.final && now && !now.complete && i < 2; i++) now = await mmaCard({ league: promotion, event, have, bouts: ask, full, wire: core });
+        if (full) statsAt = at;
+        Object.assign(answer.core, now?.core ?? {});
+        if (fresh.length && !st.final) Object.assign(answer.core, (await mmaCard({ league: promotion, event, have, bouts: fresh, full: true, wire: core }))?.core ?? {});
+        for (const id of recent.keys()) if ((answer.core[id]?.plays ?? []).some((p) => p.type?.text === "Results" || String(p.type?.text ?? "").startsWith("Unofficial Winner"))) recent.delete(id);
+        answer._full = st.final ? "card" : full ? "on" : null;
+        // Only the bouts still to finish: one over is `recent`'s (asked on) or done with.
+        askedBefore = st.final ? [] : [...new Set([...st.inBouts, ...(next ? [String(next.id)] : [])])];
+      }
+    } catch (e) {
+      fs.appendFileSync(path.join(dir, "log.jsonl"), JSON.stringify({ at: new Date(at).toISOString(), error: e.message }) + "\n");
+      console.log(`${new Date(at).toISOString()}  ${e.message}`);
+      await sleep(EVERY);
+      continue;
+    }
+    if (st.on || st.final) fs.writeFileSync(path.join(dir, `${at}.json.gz`), zlib.gzipSync(JSON.stringify(answer)));
+    const line = { at: answer._asked, state: st.state, on: st.on, final: st.final, inBouts: st.inBouts, done: st.done, bouts: st.bouts, bytes: head.bytes || null, raw: head.raw, core };
+    fs.appendFileSync(path.join(dir, "log.jsonl"), JSON.stringify(line) + "\n");
+    console.log(`${line.at}  ${st.state}${st.on ? " (on)" : ""}  ${st.done} of ${st.bouts} bouts over${st.inBouts.length ? `, ${st.inBouts.join(" ")} in` : ""}  ${Math.round(head.bytes / 1024)} KB over the wire (${Math.round(head.raw / 1024)} KB)${core.calls ? `; the core ${core.calls} calls, ${Math.round(core.bytes / 1024)} KB` : ""}`);
+    if (st.final) {
+      console.log("Final: done. Compare with --compare.");
+      return;
+    }
+    // From 15 minutes before the card's first start (its first segment's), every --every: its first walkouts.
+    const first = Math.min(...(answer.board?.competitions ?? []).map((c) => Date.parse(c.date)).filter(Number.isFinite));
+    await sleep(st.on || Date.now() > first - 15 * 60_000 ? EVERY : Math.min(5 * 60_000, EVERY * 10));
+  }
+  console.log("Stopped at --hours before the card's final.");
+}
+
+/** A card's --compare: each answer recorded while the card was on, read by MMA, against the card's final (check-bout-reduce.js's
+ *  cache, asked once final; before then the recording's last answer, which it says). */
+async function compareCard() {
+  const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "..", "src") } });
+  const { sportOf, mmaCoreStats, mmaCenterStats } = jiti("../../src/lib/sports/index.ts");
+  const sport = sportOf(league);
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith(".json.gz")).sort();
+  // Each answer as a phone (or the server) would have it: each bout's core as last asked, its statistics from the last ask that
+  // had them.
+  const carried = {};
+  const answers = files.map((f) => {
+    const a = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(dir, f))).toString("utf8"));
+    for (const [id, b] of Object.entries(a.core ?? {})) {
+      const prev = carried[id];
+      carried[id] = { ...b, competitors: (b.competitors ?? []).map((c) => (c.statistics || !prev ? c : { ...c, statistics: prev.competitors?.find((x) => String(x.id) === String(c.id))?.statistics })) };
+    }
+    return { ...a, core: { ...carried } };
+  });
+  const live = answers.filter((a) => cardState(a).on);
+  if (!live.length) {
+    console.error(`No answer recorded while the card was on in ${dir}.`);
+    process.exit(1);
+  }
+  const promotion = league.split("/")[1];
+  const cached = await cachedMmaCard(path.join(os.tmpdir(), "rfl-espn-cache"), { league: promotion, event });
+  const final = cached?.board?.status?.type?.completed ? cached : null;
+  const truth = final ?? answers[answers.length - 1];
+  const from = final ? "the card's final" : `the recording's last answer (${truth._asked}: the card isn't final yet)`;
+  const finalPlays = sport.readPlays(truth);
+  const byId = new Map(finalPlays.map((p) => [p.id, p]));
+  const card = sport.card(truth);
+  console.log(`${league} ${event}: ${live.length} answers while the card was on (${live[0]._asked} to ${live[live.length - 1]._asked}), against ${from}: ${card.bouts.length} bouts, ${finalPlays.length} plays.`);
+
+  // ESPN's plays (each with its wallclock): ESPN's lag from it to the first answer that had it, plays shown otherwise, dropped.
+  const firstSeen = new Map();
+  const already = new Set(sport.readPlays(live[0]).map((p) => p.id));
+  const otherwise = new Map();
+  const dropped = new Map();
+  const ours = (id) => /:(end|result|so-far)$/.test(id);
+  const key = (p) => JSON.stringify([p.kind, p.period, p.clock, p.tally ?? null]);
+  for (const a of live) {
+    const asked = Date.parse(a._asked);
+    for (const p of sport.readPlays(a)) {
+      if (ours(p.id)) continue;
+      if (!firstSeen.has(p.id)) firstSeen.set(p.id, { asked, at: Date.parse(p.at), kind: p.kind });
+      const f = byId.get(p.id);
+      if (!f) dropped.set(p.id, p.text);
+      else if (key(p) !== key(f) || p.at !== f.at) otherwise.set(p.id, `${p.text}: ${key(p)} at ${p.at}, then ${key(f)} at ${f.at}`);
+      else dropped.delete(p.id);
+    }
+  }
+  const lags = [...firstSeen].filter(([id, x]) => !already.has(id) && Number.isFinite(x.at)).map(([, x]) => (x.asked - x.at) / 1000);
+  const every = quantile(live.slice(1).map((a, i) => (Date.parse(a._asked) - Date.parse(live[i]._asked)) / 1000), 0.5);
+  console.log(`\nESPN's plays: ${firstSeen.size} seen live; ESPN's lag from a play's wallclock to the first answer with it (answers every ${every} s): median ${quantile(lags, 0.5)} s, 90th ${quantile(lags, 0.9)} s, most ${lags.length ? Math.max(...lags) : NaN} s`);
+  for (const k of ["round-start", "knockdown", "takedown", "fight-over", "results"]) {
+    const xs = [...firstSeen].filter(([id, x]) => x.kind === k && !already.has(id) && Number.isFinite(x.at)).map(([, x]) => (x.asked - x.at) / 1000);
+    if (xs.length) console.log(`  ${k}: ${xs.length}, median ${quantile(xs, 0.5)} s, most ${Math.max(...xs)} s`);
+  }
+  console.log(`Plays the final reads otherwise: ${otherwise.size}`);
+  for (const [id, why] of [...otherwise].slice(0, 10)) console.log(`  ${id}  ${why.slice(0, 200)}`);
+  console.log(`Plays read live and gone from ${final ? "the final" : "the last answer"}: ${dropped.size}`);
+  for (const [id, text] of [...dropped].slice(0, 10)) console.log(`  ${id}  ${String(text).slice(0, 110)}`);
+
+  // Each bout as it went: when an answer first had it on, over and its result, against ESPN's own times (its first round's
+  // start, its Fight Over); whether its result changed once shown; whether its fighters' totals moved while it was on.
+  console.log("\nThe bouts:");
+  const truthBox = sport.readBox(truth);
+  const states = live.map((a) => sport.stateAt(a));
+  for (const b of card.bouts) {
+    const playOf = (kind) => finalPlays.find((p) => p.bout === b.id && p.kind === kind);
+    const firstWhen = (test) => live[states.findIndex((x) => test(x.bouts[b.id]))]?._asked ?? null;
+    const startAt = playOf("round-start")?.at ?? null;
+    const endAt = playOf("bout-end")?.at ?? null;
+    const resAt = playOf("result")?.at ?? null;
+    const sawIn = live.find((a) => (a.board.competitions ?? []).find((c) => String(c.id) === b.id)?.status?.type?.state === "in")?._asked ?? null;
+    const sawOver = firstWhen((x) => x && (x.stage === "over" || x.stage === "done"));
+    const sawResult = firstWhen((x) => x?.result);
+    const shown = states.map((x) => x.bouts[b.id]?.result).filter(Boolean).map((r) => `${r.winner}:${r.method ?? r.outcome}`);
+    const want = truthBox.results.find((r) => r.bout === b.id);
+    const changed = new Set(shown).size > 1 || (shown.length && shown[shown.length - 1] !== `${want?.winner}:${want?.method ?? want?.outcome}`);
+    const secs = (x, y) => (x && y ? `${Math.round((Date.parse(x) - Date.parse(y)) / 1000)} s` : "-");
+    // The totals while it was on: how many different sums of significant strikes landed the answers showed (the FightCenter's,
+    // the core's), against the final's.
+    const onAnswers = live.filter((a) => (a.board.competitions ?? []).find((c) => String(c.id) === b.id)?.status?.type?.state === "in");
+    const sums = (pick) => new Set(onAnswers.map((a) => b.sides.reduce((n, id) => n + (pick(a, id)?.SSL ?? 0), 0)));
+    const center = sums((a, id) => mmaCenterStats(Object.values(a.fightcenter?.cards ?? {}).flatMap((s) => s.competitions ?? []).find((c) => String(c.id) === b.id)?.competitors?.find((c) => String(c.id) === id)));
+    const coreSums = sums((a, id) => mmaCoreStats(a.core?.[b.id]?.competitors?.find((c) => String(c.id) === id)));
+    const finalSSL = b.sides.reduce((n, id) => n + (truthBox.people[id]?.stats.SSL ?? 0), 0);
+    console.log(`  ${b.order}. ${b.sides.map((id) => truthBox.people[id]?.name ?? id).join(" vs. ")}: on in an answer ${sawIn ?? "never"} (round 1 began ${startAt ?? "?"}, ${secs(sawIn, startAt)}); over ${sawOver ?? "never"} (${secs(sawOver, endAt)} after its Fight Over); its result ${sawResult ?? "never"} (${secs(sawResult, resAt)} after its announcement)${changed ? `; shown otherwise: ${[...new Set(shown)].join(" then ")}` : ""}; significant strikes landed while on: the FightCenter's ${[...center].join(", ") || "-"}, the core's ${[...coreSums].join(", ") || "-"} (final ${finalSSL})`);
+  }
+  // Bouts called off or added on the night: on the card in one answer and not in another.
+  const ids = (a) => new Set((a.board.competitions ?? []).map((c) => String(c.id)));
+  const seen = new Set(live.flatMap((a) => [...ids(a)]));
+  const gone = [...seen].filter((id) => !ids(truth).has(id));
+  const added = [...ids(truth)].filter((id) => !ids(live[0]).has(id));
+  console.log(`\nBouts on the card in a live answer and gone from ${final ? "the final" : "the last answer"}: ${gone.length ? gone.join(", ") : "none"}; on it later and not in the first live answer: ${added.length ? added.join(", ") : "none"}`);
+
+  const lines = fs.existsSync(path.join(dir, "log.jsonl")) ? fs.readFileSync(path.join(dir, "log.jsonl"), "utf8").trim().split("\n").map((l) => JSON.parse(l)) : [];
+  const on = lines.filter((l) => l.on);
+  const per = (xs) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : null);
+  const wire = per(on.filter((l) => l.bytes).map((l) => l.bytes));
+  const raw = per(on.map((l) => l.raw));
+  if (on.length) console.log(`\nA phone's data (the board and the FightCenter): ${wire ? `${Math.round(wire / 1024)} KB an answer over the wire` : "no sizes over the wire"} (${Math.round(raw / 1024)} KB unpacked), so ${wire ? ((wire * 120) / 1024 / 1024).toFixed(1) : "?"} MB an hour at 30 s, ${wire ? ((wire * 240) / 1024 / 1024).toFixed(1) : "?"} MB at 15 s, over ${((Date.parse(on[on.length - 1].at) - Date.parse(on[0].at)) / 3600_000).toFixed(1)} hours on`);
+  const withCore = on.filter((l) => l.core?.calls);
+  if (withCore.length) console.log(`  the core (the bouts on): ${Math.round(per(withCore.map((l) => l.core.calls)))} calls and ${Math.round(per(withCore.map((l) => l.core.raw)) / 1024)} KB unpacked an ask on average (its answers say no size over the wire; status and plays every ask, statistics every ${STATS_EVERY / 1000} s)`);
+}
+
+(args.compare ? Promise.resolve().then(() => (CARD ? compareCard() : FIELD ? compareField() : compare())) : CARD ? recordCard() : FIELD ? recordField() : record()).catch((e) => {
   console.error(e.message);
   process.exit(1);
 });

@@ -1,0 +1,132 @@
+{
+  "sport": "mma",
+  "about": "MMA's defaults, as data (docs/PLAN-start-a-game-gpt.md track L, L5 part 4a): a sport's standard scoring, lineup slots and locks, and the game specs a sport's Make it a game starts from instead of asking the bot. Stat keys are MMA's (src/lib/sports/mma.ts), one vocabulary for every promotion ESPN carries. Only the UFC's cards have ESPN's statistics (strikes, takedowns, control time, reversals): on the PFL's, LFA's and the rest, ESPN gives the result alone, so only a result's parts score there (the win's round, a decision, a quick win). The specs are in the game spec's shape; slots aren't in that schema yet (L4 adds them), so they're kept beside it for the spec to read.",
+  "scoring": {
+    "source": "DraftKings' MMA (its classic contests, as stokastic.com/articles/mma-dfs/ufc-dfs-strategy gives it on 2026-07-12 and rotowire.com/mma/article.php?id=54707 since its 2021 change; DraftKings' own rules page wasn't readable): a strike landed 0.2 and a significant one 0.2 more (0.4 in all), a second of control 0.03, a takedown 5, a reversal or sweep 5 (ESPN counts reversals; its sweeps aren't apart), a knockdown 10; a win in the 1st round 90, the 2nd 70, the 3rd 45, the 4th or 5th 40, by decision 30, and a quick win (in 60 seconds or less) 25 more. Nothing for a loss, a draw or a no contest. Left out: nothing of DraftKings' table; ESPN has no Fight or Performance of the Night bonuses, which no standard table scores",
+    "points": {
+      "TSL": 0.2,
+      "SSL": 0.2,
+      "CTRL": 0.03,
+      "TDL": 5,
+      "REV": 5,
+      "KD": 10,
+      "WR1": 90,
+      "WR2": 70,
+      "WR3": 45,
+      "WR4": 40,
+      "WR5": 40,
+      "DEC": 30,
+      "QW": 25
+    }
+  },
+  "categories": {
+    "source": "DraftKings' MMA scores points, not categories (Yahoo, ESPN and FanDuel run no MMA game): none by default",
+    "stats": []
+  },
+  "slots": {
+    "source": "DraftKings' MMA: six fighters (any six: a card has no positions; its $50,000 salary cap isn't a slot)",
+    "lineup": [
+      {
+        "slot": "F",
+        "n": 6,
+        "takes": [
+          "fighters"
+        ]
+      }
+    ],
+    "bench": 0
+  },
+  "closes": "event",
+  "specs": {
+    "season": {
+      "about": "A season of cards: draft 6 fighters, each scores on the nights they fight, most points over the season wins.",
+      "spec": {
+        "spec": 1,
+        "span": {
+          "from": 1,
+          "to": null
+        },
+        "pool": {
+          "of": "cast",
+          "where": null
+        },
+        "get": {
+          "by": "draft",
+          "each": 6,
+          "order": "snake",
+          "own": "exclusive"
+        },
+        "count": {
+          "start": 6
+        },
+        "score": {
+          "by": "stats",
+          "points": {
+            "TSL": 0.2,
+            "SSL": 0.2,
+            "CTRL": 0.03,
+            "TDL": 5,
+            "REV": 5,
+            "KD": 10,
+            "WR1": 90,
+            "WR2": 70,
+            "WR3": 45,
+            "WR4": 40,
+            "WR5": 40,
+            "DEC": 30,
+            "QW": 25
+          }
+        },
+        "rank": {
+          "by": "total"
+        },
+        "closes": "event"
+      }
+    },
+    "short": {
+      "about": "One card: everyone drafts a few fighters, every one of them scores, most points wins.",
+      "spec": {
+        "spec": 1,
+        "span": {
+          "from": 1,
+          "to": null
+        },
+        "pool": {
+          "of": "cast",
+          "where": null
+        },
+        "get": {
+          "by": "draft",
+          "each": 3,
+          "order": "snake",
+          "own": "exclusive"
+        },
+        "count": {
+          "all": true
+        },
+        "score": {
+          "by": "stats",
+          "points": {
+            "TSL": 0.2,
+            "SSL": 0.2,
+            "CTRL": 0.03,
+            "TDL": 5,
+            "REV": 5,
+            "KD": 10,
+            "WR1": 90,
+            "WR2": 70,
+            "WR3": 45,
+            "WR4": 40,
+            "WR5": 40,
+            "DEC": 30,
+            "QW": 25
+          }
+        },
+        "rank": {
+          "by": "total"
+        },
+        "closes": "start"
+      }
+    }
+  }
+}

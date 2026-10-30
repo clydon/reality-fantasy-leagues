@@ -47,7 +47,7 @@ const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/
 const league = args.league || "golf/pga";
 const sport = sportOf(league);
 if (!(sport instanceof FieldSport)) {
-  console.error(`${league} isn't a field sport built yet (team sports: check-sport-reduce.js).`);
+  console.error(`${league} isn't a field sport built yet (team sports: check-sport-reduce.js; a card of bouts: check-bout-reduce.js).`);
   process.exit(2);
 }
 const [slug, tour] = league.split("/");
