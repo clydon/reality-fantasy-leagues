@@ -939,7 +939,7 @@ never handles it: the user does the reset and the pasting.
   per season (a primary-key lookup, for the job, waivers and the bot's plan), and the plan reads 'bot_usual' once. Our
   usual runs: who went home at the episode's end, full results 1 h and 12 h after, trivia, bingo. Nothing else new polls
   or runs on a schedule.
-- **2026-10-30, merged to master (deploys with migrations 0200-0202).** The engine's track A to A11 part 5b and track F
+- **2026-10-30, pushed to master (`df527fe6`, deployed 9:29 AM ET with migrations 0200-0202).** The engine's track A to A11 part 5b and track F
   (docs/PLAN-start-a-game-gpt.md; docs/STUDY-format-changes.md). **Nothing polls, nothing scheduled, no new pushes, no new
   service.** Two new tables: `game_answers` (0200, with 0201's two small counters: a player's answer to a question in a game
   of questions, one row per league, player, question and episode, the answer at most 2,000 bytes, graded on each read and never
