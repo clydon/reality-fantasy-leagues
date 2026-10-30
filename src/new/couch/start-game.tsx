@@ -2,8 +2,8 @@
 
 import { useState, useSyncExternalStore } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, Bot, ChevronRight, Plus, Radio, RotateCcw, Trophy, Users } from "lucide-react";
-import { airTime } from "../clock";
+import { Bell, Bot, Check, ChevronRight, Plus, Radio, RotateCcw, Trophy, Users } from "lucide-react";
+import { airTime, calmWhen } from "../clock";
 import { LEVEL_WORDS, type BotLevel } from "@/lib/game/computer-players";
 import { spanName } from "@/lib/game/spans";
 import { gamesApi, useAfterReveal, useCurrentCouch, useHome, useStartOptions, type HomeShow, type StartChoice, type StartOptions } from "../data";
@@ -22,7 +22,8 @@ import { openCouchSheet } from "./couch-sheets";
 //     each in a line in the show's own words ("Draft five drivers, start three each race"); what doesn't fit, in a line; a
 //     talk show's Weekly Bingo (step 12 part 3: a card a show, bingo.tsx) and Weekly Calls (part 2: two calls a show); How long
 //     (docs/PLAN-sports-data.md step 6, spans.ts: the rest of the season, just the next one, this series for a sport, or
-//     through any later episode the listing has); Computer players (none to three, at one level, in the drafts and Survival
+//     through any later episode the listing has); Starts (step A3 of docs/PLAN-start-a-game-gpt.md: with the next episode, or any
+//     later listed one: it waits until then); Computer players (none to three, at one level, in the drafts and Survival
 //     Pool: computer-players.ts; Backstage › Members adds more or takes them out); Include it (an episode on now: the game
 //     starts there, its lineups and picks open past its start, Backstage › Settings' lock on Override); Tell the couch (one
 //     alert, on by default); Start it.
@@ -152,9 +153,13 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   if (asked && asked !== shown) setShown(asked);
   const target = asked ?? shown;
   const couchId = target?.couchId ?? current?.id ?? null;
-  // Include it: the options again from the episode on now (its spans, How long), when there is one.
+  // Include it: the options again from the episode on now (its spans, How long), when there is one. Starts: from a later
+  // listed episode instead (null: the next to air), the options again from there.
   const [late, setLate] = useState(false);
-  const opts = useStartOptions(target?.seasonId ?? null, couchId, target?.again ?? null, !!target, late);
+  const [startAt, setStartAt] = useState<number | null>(null);
+  // Or when a phase of the season starts (step A3): its id; undefined until chosen (Run it back starts where it did).
+  const [phaseChosen, setPhase] = useState<string | null | undefined>(undefined);
+  const opts = useStartOptions(target?.seasonId ?? null, couchId, target?.again ?? null, !!target, late, startAt);
   const o = opts.data;
   const nav = useNav();
   const pathname = usePathname();
@@ -168,11 +173,22 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   const [tell, setTell] = useState(true);
   const [bots, setBots] = useState(0);
   const [level, setLevel] = useState<BotLevel>("normal");
+  // A Prediction Sheet's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md): the ones switched on (null: the defaults).
+  const [asks, setAsks] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
   const pick = picked ?? o?.again?.key ?? startable[0]?.key ?? null;
+  const phaseId = late ? null : phaseChosen !== undefined ? phaseChosen : (o?.again?.phase ?? null);
+  const phase = (phaseId && o?.phases.find((p) => p.id === phaseId)) || null;
   const me = home?.user.name ?? "you";
   const botsHere = !!fits.find((g) => g.key === pick)?.bots;
   const again = o?.again;
+  const sheet = pick === "questions";
+  // The season's questions (who wins) only in a game to the season's end: a phase start runs to it, How long may not.
+  const toEnd = !!phase || to === null;
+  // Run it back asks what it asked; else the ones on by default.
+  const askOn = (asks ?? (again?.key === "questions" && again.questions?.length ? again.questions : (o?.questions ?? []).filter((q) => q.on).map((q) => q.id))).filter(
+    (id) => toEnd || !o?.questions.find((q) => q.id === id)?.season
+  );
 
   const start = async () => {
     if (!o || !couchId || !pick) return;
@@ -182,8 +198,12 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
         game: pick,
         tell,
         again: target?.again ?? null,
-        to,
+        // The start you chose, not the options on screen (they may still be the last start's while they reload); a phase runs to
+        // the season's end.
+        ...(phase ? { phase: phase.id } : !late && startAt !== null ? { from: startAt } : {}),
+        ...(phase ? {} : { to }),
         ...(botsHere && bots ? { bots, level } : {}),
+        ...(sheet ? { questions: askOn } : {}),
         ...(late && o.late ? { late: true } : {}),
       });
       await refresh();
@@ -207,7 +227,7 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
         o
           ? again
             ? `${o.label}${to === null ? "" : ` · ${spanName(o.from, to, o.part)}`} · the same ${again.gameName} as ${again.label}`
-            : `${o.show} · ${to === null ? `from ${partAt(o)}` : spanName(o.from, to, o.part)}`
+            : `${o.show} · ${phase ? `when ${phase.name} starts` : to === null ? `from ${partAt(o)}` : spanName(o.from, to, o.part)}`
           : undefined
       }
     >
@@ -283,6 +303,8 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 data-start-late={late ? "on" : "off"}
                 onClick={() => {
                   setLate(!late);
+                  setStartAt(null);
+                  setPhase(null);
                   setTo(undefined);
                 }}
                 className="flex min-h-[64px] w-full items-center gap-3 border-t border-border pt-2 text-left"
@@ -303,8 +325,25 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 </span>
               </button>
             )}
-            {startable.length > 0 && (o.spans.length > 1 || o.ends.length > 0) && <HowLong o={o} to={to} setTo={setTo} />}
+            {startable.length > 0 && !o.late && (o.starts.length > 1 || o.phases.length > 0) && (
+              <Starts
+                o={o}
+                phase={phase?.id ?? null}
+                setAt={(n) => {
+                  setStartAt(n);
+                  setPhase(null);
+                  setTo(undefined);
+                }}
+                setPhase={(id) => {
+                  setPhase(id);
+                  setStartAt(null);
+                  setTo(undefined);
+                }}
+              />
+            )}
+            {startable.length > 0 && !phase && (o.spans.length > 1 || o.ends.length > 0) && <HowLong o={o} to={to} setTo={setTo} />}
             {botsHere && <Computers n={bots} setN={setBots} level={level} setLevel={setLevel} />}
+            {sheet && <SheetQuestions o={o} on={askOn} toEnd={toEnd} setOn={setAsks} />}
             {startable.length > 0 && (
               <button
                 type="button"
@@ -329,7 +368,15 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
                 </span>
               </button>
             )}
-            <Btn tone="must" wide data-start-go disabled={busy || !pick || !startable.some((g) => g.key === pick)} onClick={start} className="mt-2">
+            <Btn
+              tone="must"
+              wide
+              data-start-go
+              // Not while the options reload for a new start (Include it, Starts): what's on screen is still the last one's.
+              disabled={busy || opts.isPlaceholderData || !pick || !startable.some((g) => g.key === pick) || (sheet && !askOn.length)}
+              onClick={start}
+              className="mt-2"
+            >
               {again ? <RotateCcw className="size-5" aria-hidden /> : <Plus className="size-5" aria-hidden />}
               {busy ? "Starting…" : startable.length ? "Start it" : "Coming soon"}
             </Btn>
@@ -340,13 +387,104 @@ function StartSheet({ target: asked, onOpenChange }: { target: StartTarget | nul
   );
 }
 
+/** "Sat, Nov 22": a later episode's day, weeks out, where a weekday alone wouldn't say which. */
+const dateOf = (t: number) => new Date(t).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+
+/** "Game 6: Rays at Brewers" when its title says which, else "Episode 6 · its title" (or nothing more). */
+const episodeLine = (o: StartOptions, e: { number: number; title: string | null }) => {
+  const P = o.part.singular.replace(/^./, (c) => c.toUpperCase());
+  return e.title?.toLowerCase().startsWith(`${o.part.singular} ${e.number}`) ? e.title : `${P} ${e.number}${e.title ? ` · ${e.title}` : ""}`;
+};
+
+/**
+ * Where the game starts (docs/PLAN-start-a-game-gpt.md step A3): with the next episode to air, when a phase of the season still to
+ * come starts (each with its summary, and the episode once that's known), or any later episode the listing has, from a list. It
+ * waits until then (nothing before it counts), and its draft can happen first. A phase start runs to the season's end.
+ */
+function Starts({ o, phase, setAt, setPhase }: { o: StartOptions; phase: string | null; setAt: (n: number | null) => void; setPhase: (id: string) => void }) {
+  const P = o.part.singular.replace(/^./, (c) => c.toUpperCase());
+  const later = !phase && o.from !== o.nextEpisode;
+  const first = o.starts[0];
+  const chosen = o.phases.find((p) => p.id === phase) ?? null;
+  return (
+    <section data-start-from className="mt-1 flex flex-col gap-1.5 border-t border-border pt-3" role="radiogroup" aria-label="Starts">
+      <b className="text-[15px] font-semibold">Starts</b>
+      <button
+        type="button"
+        role="radio"
+        aria-checked={!later && !chosen}
+        data-start-from-choice="next"
+        onClick={() => setAt(null)}
+        className={`flex min-h-[52px] w-full flex-col justify-center rounded-[4px] px-3 py-2 text-left ${!later && !chosen ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron-line" : "bg-secondary/60"}`}
+      >
+        <b className="block text-[15px]">
+          With the next one · {P} {o.nextEpisode}
+        </b>
+        <small className={`block truncate text-[13px] leading-snug ${!later && !chosen ? "text-plate-muted" : "text-muted-foreground"}`}>
+          {first?.airAt ? calmWhen(Date.parse(first.airAt)) : `The next ${o.part.singular} to air`}
+        </small>
+      </button>
+      {o.phases.map((p) => {
+        const on = p.id === phase;
+        return (
+          <button
+            key={p.id}
+            type="button"
+            role="radio"
+            aria-checked={on}
+            data-start-from-choice={`phase:${p.id}`}
+            onClick={() => setPhase(p.id)}
+            className={`flex min-h-[52px] w-full flex-col justify-center rounded-[4px] px-3 py-2 text-left ${on ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron-line" : "bg-secondary/60"}`}
+          >
+            <b className="block text-[15px]">
+              When {p.name} starts{p.at !== null ? ` · ${P} ${p.at}` : ""}
+            </b>
+            {p.summary && <small className={`block text-[13px] leading-snug ${on ? "text-plate-muted" : "text-muted-foreground"}`}>{p.summary}</small>}
+          </button>
+        );
+      })}
+      <label
+        data-start-from-choice="later"
+        className={`flex min-h-[52px] w-full items-center gap-2 rounded-[4px] px-3 py-2 ${later ? "bg-plate text-plate-foreground outline-[3px] -outline-offset-[3px] outline-chyron-line" : "bg-secondary/60"}`}
+      >
+        <b className="flex-none text-[15px]">Later</b>
+        <select
+          data-start-from-later
+          value={later ? String(o.from) : ""}
+          onChange={(e) => setAt(e.target.value ? Number(e.target.value) : null)}
+          className="min-w-0 flex-1 truncate rounded-[3px] bg-transparent py-1.5 text-[15px] font-semibold outline-none"
+        >
+          <option value="">A later {o.part.singular}…</option>
+          {o.starts.slice(1).map((e) => (
+            <option key={e.number} value={e.number}>
+              {episodeLine(o, e)}
+              {e.airAt ? ` · ${dateOf(Date.parse(e.airAt))}` : ""}
+            </option>
+          ))}
+        </select>
+      </label>
+      {later && (
+        <small data-start-from-note className="text-[13px] leading-snug text-muted-foreground">
+          It waits for {P} {o.from}: nothing before it counts, and the draft can happen any time before then.
+        </small>
+      )}
+      {chosen && (
+        <small data-start-from-note className="text-[13px] leading-snug text-muted-foreground">
+          {chosen.at !== null
+            ? `It waits for ${chosen.name}, from ${P} ${chosen.at}: nothing before it counts, and the draft can happen any time before then. It runs to the season's end.`
+            : `It waits for ${chosen.name} to start, then plays from the first ${o.part.singular} it can: nothing before then counts, and the draft can happen any time before. It runs to the season's end.`}
+        </small>
+      )}
+    </section>
+  );
+}
+
 /**
  * How long the game runs (spans.ts): the rest of the season, just the next one, this series (a sport's games between the same
  * teams), or through any later episode the listing has, from a list. Nothing after its last one scores.
  */
 function HowLong({ o, to, setTo }: { o: StartOptions; to: number | null; setTo: (to: number | null) => void }) {
   const preset = o.spans.some((sp) => sp.to === to);
-  const P = o.part.singular.replace(/^./, (c) => c.toUpperCase());
   return (
     <section data-start-span className="mt-1 flex flex-col gap-1.5 border-t border-border pt-3" role="radiogroup" aria-label="How long">
       <b className="text-[15px] font-semibold">How long</b>
@@ -382,13 +520,61 @@ function HowLong({ o, to, setTo }: { o: StartOptions; to: number | null; setTo: 
             <option value="">A later {o.part.singular}…</option>
             {o.ends.map((e) => (
               <option key={e.number} value={e.number}>
-                {/* Its title when that says which ("Game 6: Rays at Brewers"), else "Game 6 · its title". */}
-                {e.title?.toLowerCase().startsWith(`${o.part.singular} ${e.number}`) ? e.title : `${P} ${e.number}${e.title ? ` · ${e.title}` : ""}`}
+                {episodeLine(o, e)}
               </option>
             ))}
           </select>
         </label>
       )}
+    </section>
+  );
+}
+
+/**
+ * A Prediction Sheet's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md): what the show's moments can ask, each settled by
+ * its results, the recommended ones on. A tap switches one; at least one stays. The season's (who wins) need a game that runs to
+ * the season's end. Backstage › Game settings changes them until the game starts.
+ */
+function SheetQuestions({ o, on, toEnd, setOn }: { o: StartOptions; on: string[]; toEnd: boolean; setOn: (ids: string[]) => void }) {
+  return (
+    <section data-start-questions className="mt-1 flex flex-col border-t border-border pt-3" aria-label="The questions">
+      <div className="flex items-baseline justify-between gap-3">
+        <b className="text-[15px] font-semibold">The questions</b>
+        <span className="text-[13px] text-muted-foreground">{on.length} on</span>
+      </div>
+      <small className="mb-1 mt-0.5 text-[13px] leading-snug text-muted-foreground">
+        The results settle every one. Each {o.part.singular}&rsquo;s questions lock as it starts, the season&rsquo;s as the game does.
+      </small>
+      {o.questions.map((q) => {
+        const can = toEnd || !q.season;
+        const ticked = can && on.includes(q.id);
+        return (
+          <button
+            key={q.id}
+            type="button"
+            role="checkbox"
+            aria-checked={ticked}
+            disabled={!can}
+            data-start-question={q.id}
+            onClick={() => {
+              if (ticked && on.length === 1) return toast.quiet("A Prediction Sheet asks at least one question");
+              setOn(ticked ? on.filter((x) => x !== q.id) : [...on, q.id]);
+            }}
+            className="flex min-h-[56px] w-full items-center gap-3 border-t border-border py-2 text-left first-of-type:border-t-0 disabled:opacity-50"
+          >
+            <span
+              aria-hidden
+              className={`grid size-6 flex-none place-items-center rounded-[3px] ${ticked ? "bg-foreground text-background" : "outline-[1.5px] -outline-offset-[1.5px] outline-input"}`}
+            >
+              {ticked && <Check className="size-4" strokeWidth={3} />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <b className="block text-[15px] font-semibold leading-snug">{q.ask}</b>
+              <small className="block text-[13px] text-muted-foreground">{can ? q.line : "Only in a game that runs to the season's end"}</small>
+            </span>
+          </button>
+        );
+      })}
     </section>
   );
 }

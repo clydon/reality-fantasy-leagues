@@ -148,3 +148,118 @@ test("game over once the last episode has results; nothing to pick or field past
   assert.equal(S.gameOver(league("active-roster")), false, "a season game runs on until its season ends");
   assert.equal(S.ActiveRosterLogic.validateLineup(done, done.episodes.find((e) => e.number === 9).id, done.players[0].id, []), "This game ended with episode 6");
 });
+
+// Step A3 of docs/PLAN-start-a-game-gpt.md: a game that starts later, and the rest of docs/BACKLOG.md item 10.
+const { updatesFor } = require("../src/lib/game/formats/rulebook-describe.js");
+
+test("a game that starts later: nothing before it scores, its moves and side bets are for its first episode, and the writer makes it", () => {
+  // Results are in through Episode 8; this one starts with 11.
+  const s = league("active-roster", [11, null]);
+  assert.deepEqual([S.startEpisode(s), S.endEpisode(s)], [11, null]);
+  assert.ok(s.episodes.some((e) => e.number === 11), "moving the start (through setGame) makes its first episode, so its moves have somewhere to go");
+  assert.equal(S.currentEpisode(s)?.number, 11, "this week is its first episode, not the next to air");
+  assert.ok(S.computeScores(s).every((r) => r.locked === 0), "nothing before its start scores");
+  assert.equal(S.betTarget(s), 11, "a side bet proposed now goes on its first episode");
+  const bet = S.addBetToUpcoming(s, "Who goes home?", 1, s.players[0].id);
+  assert.ok(s.episodes.find((e) => e.number === 11).bets.some((b) => b.id === bet.id));
+  const before = s.episodes.find((e) => e.number === 5);
+  assert.equal(S.addBet(s, before.id, "Earlier?", 1, null), undefined, "never on an episode before it: it would pay");
+});
+
+test("side bets after a span's end: none proposed, none added to an episode past it; inside it, as before", () => {
+  const done = league("active-roster", [3, 6]);
+  assert.equal(S.betTarget(done), null);
+  assert.equal(S.addBetToUpcoming(done, "Too late", 1, null), undefined);
+  const past = done.episodes.find((e) => e.number === 7);
+  assert.equal(S.addBet(done, past.id, "Too late", 1, null), undefined);
+  assert.ok(!done.episodes.some((e) => (e.bets || []).some((b) => b.label === "Too late")), "nothing was written");
+  // Its last episode is the league's latest, with results in, before the next one is made: over, so nothing either.
+  const last = league("active-roster", [3, 8]);
+  last.episodes = last.episodes.filter((e) => e.number <= 8);
+  assert.equal(S.BetLogic.upcomingEpisodeNumber(last), 8);
+  assert.equal(S.betTarget(last), null, "not on its last episode once that's in");
+  const running = league("active-roster", [7, 10]);
+  assert.equal(S.betTarget(running), 9, "still running: the episode about to be played");
+  assert.ok(S.addBetToUpcoming(running, "Who wins immunity?", 1, null));
+});
+
+test("classic's catch-up reveal stops at a span's last episode", () => {
+  const s = league("active-roster", [3, 10]);
+  s.settings.revealedThroughEpisode = 9;
+  assert.equal(S.RevealLogic.isComplete(s), false);
+  assert.equal(S.RevealLogic.revealNext(s), 10, "its last episode is still to reveal");
+  assert.equal(S.RevealLogic.isComplete(s), true, "revealed through its end: nothing left");
+  assert.equal(S.RevealLogic.revealNext(s), null, "never past it");
+  const season = league("active-roster");
+  season.settings.revealedThroughEpisode = 10;
+  assert.equal(S.RevealLogic.revealNext(season), 11, "a season game reveals on, as before");
+});
+
+test("How it works' updates say where a game ends as well as where it starts, whatever you've seen", () => {
+  const u = updatesFor({}, [
+    { episode: 3, kind: "start", detail: "Plays by the Survivor rulebook." },
+    { episode: 5, kind: "showChanged", detail: "A new twist" },
+    { episode: 6, kind: "end", detail: "Nothing after it scores." },
+  ], 2);
+  assert.deepEqual(u.shown.map((x) => [x.episode, x.title]), [[3, "In force from Episode 3"], [6, "Ends with Episode 6"]]);
+  assert.deepEqual([u.hidden.count, u.hidden.from], [1, 5], "the show's change waits until you've seen it; the end doesn't");
+});
+
+test("a start moved later and back: this week is its start again, not the episodes made for the later one", () => {
+  const s = league("pickem", [10, null]);
+  S.updateSettings(s, "startEpisode", 12);
+  assert.ok(s.episodes.some((e) => e.number === 12), "Episodes up to 12 are made");
+  S.updateSettings(s, "startEpisode", 10);
+  assert.deepEqual([S.startEpisode(s), S.currentEpisode(s)?.number, S.betTarget(s)], [10, 10, 10], "picks and bets for Episode 10, its first");
+  const season = league("pickem");
+  assert.equal(S.currentEpisode(season)?.number, 9, "a season game: the one after the latest results, as before");
+});
+
+test("a side bet on an episode the start has moved past neither pays nor takes guesses", () => {
+  const s = league("classic-draft", [9, null]);
+  S.updateSettings(s, "bonusEnabled", true);
+  const bet = S.addBetToUpcoming(s, "Who goes home?", 3, null);
+  const nine = s.episodes.find((e) => e.number === 9);
+  const [a, b] = s.players;
+  for (const p of [a, b]) S.addBetPrediction(s, nine.id, bet.id, p.id, "Castaway 9");
+  S.setBetPredictionCorrect(s, nine.id, bet.id, bet.predictions[0].id, true);
+  const bonus = (st) => S.computeScores(st).find((r) => r.playerId === a.id).bonus;
+  assert.equal(bonus(s), 3, "in its span: it pays");
+  S.updateSettings(s, "startEpisode", 11);
+  assert.equal(bonus(s), 0, "the start moved past it: it doesn't");
+  S.addBetPrediction(s, nine.id, bet.id, s.players[2].id, "Castaway 9");
+  assert.equal(bet.predictions.length, 2, "and nobody else guesses on it");
+});
+
+// Step A3 part 2: a game that starts when a phase of the season does (span.from { phase }, settings.startPhase).
+test("a game waiting for its phase plays nothing: no episode in play, nothing asked, scored or opened, not over; settled, it plays from there", () => {
+  for (const type of ["classic-draft", "active-roster", "pickem"]) {
+    const s = league(type);
+    assert.deepEqual(S.updateSettings(s, "startPhase", "merged"), [], type);
+    assert.deepEqual([S.startEpisode(s), S.waitsForPhase(s), S.currentEpisode(s), S.betTarget(s), S.gameOver(s)], [null, true, null, null, false], type);
+    assert.ok(s.episodes.every((e) => !S.inPlay(s, e.number)), `${type}: no episode in play`);
+    // Outlast scores by place, the boot order, as a game that starts at a later episode does: no episode's moments count.
+    if (type !== "classic-draft") assert.ok(S.computeScores(s).every((r) => r.total === 0), `${type}: nothing scores while it waits`);
+    assert.equal(S.WaiverLogic.due(s, Date.now()), null, `${type}: no waiver week`);
+    assert.ok([1, 4, 8, 9].every((n) => !S.WaiverLogic.isWindowEpisode(s, n)), `${type}: no windows`);
+    assert.equal(S.GhostLogic.isUnderway(s), !!S.DraftLogic.currentTurn(s)?.isComplete, `${type}: underway only by its draft, never by results before it starts`);
+    assert.deepEqual(S.GhostLogic.startChoices(s), [THROUGH + 1], `${type}: a newcomer joins live`);
+    if (type === "pickem") assert.deepEqual(S.PickEmLogic.history(s, s.players[0].id).rows, [], "no pick rows before it starts");
+    // Settled at 10: it plays from 10, its moves are for 10, and episodes before it stay history.
+    assert.deepEqual(S.settleStart(s, { from: 10, open: THROUGH + 1 }), [], type);
+    assert.deepEqual([S.startEpisode(s), S.currentEpisode(s)?.number, S.betTarget(s)], [10, 10, 10], type);
+    if (type !== "classic-draft") assert.ok(S.computeScores(s).every((r) => r.total === 0), `${type}: nothing before 10 scores`);
+  }
+  const lineup = league("active-roster");
+  S.updateSettings(lineup, "startPhase", "merged");
+  const nine = S.ensureEpisodeNumber(lineup, 9, false);
+  assert.equal(S.ActiveRosterLogic.validateLineup(lineup, nine.id, lineup.players[0].id, []), "This game hasn't started: it waits for its phase of the season");
+  // The season ends before the phase starts: over, never started.
+  const ended = league("classic-draft");
+  S.updateSettings(ended, "startPhase", "merged");
+  const last = S.SpoilerLogic.viewThrough(league("classic-draft"), THROUGH);
+  assert.equal(S.gameOver(last), false);
+  const whole = S.migrateLeagueState(JSON.parse(JSON.stringify(buildDemoState(data, "classic-draft", EPISODES))));
+  S.updateSettings(whole, "startPhase", "merged");
+  assert.deepEqual([S.gameOver(whole), S.startEpisode(whole)], [true, null], "over, never started");
+});

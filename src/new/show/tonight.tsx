@@ -29,6 +29,7 @@ import { useOpenMorning, useOpenReveal } from "./reveal";
 import { StatsCard } from "./stats";
 import { rateLabel, RateRow } from "./rate";
 import { CallResultRow, CallRow, openCall } from "./calls";
+import { openSheet, SheetResultRow, SheetRow } from "./questions";
 import { PollRow } from "./polls";
 import { bingoEpisode as toBingo, BingoRow, openBingo, type BingoTarget } from "./bingo";
 import { WatchAlongCard } from "./watch-along";
@@ -326,8 +327,8 @@ function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
       ...(cards.length || !up
         ? []
         : [{ key: "set", node: <SetCard title={`You're set for Episode ${up.number}`} line={t != null ? `Change anything until ${airTime(t)}` : "Change anything until it airs"} /> }]),
-      ...cards.map((c, i) => ({ key: c.key, node: <OpenCard card={c} n={i + 1} must={i === 0 && !quiet} onCall={onCall} /> })),
-      ...done.map((c) => ({ key: c.key, node: <DoneMove card={c} onCall={onCall} onBingo={onBingo} /> })),
+      ...cards.map((c, i) => ({ key: c.key, node: <OpenCard card={c} n={i + 1} must={i === 0 && !quiet} onCall={onCall} seasonId={seasonId} /> })),
+      ...done.map((c) => ({ key: c.key, node: <DoneMove card={c} onCall={onCall} onBingo={onBingo} seasonId={seasonId} /> })),
     ];
     // A new set of cards (a save made one done) starts back at the first, so what's still due is in view.
     body = <MoveCards key={items.map((it) => it.key).join()} items={items} />;
@@ -370,7 +371,7 @@ function MoveCards({ items }: { items: { key: string; node: ReactNode }[] }) {
 }
 
 /** A move still to make: its number, what it is, and its button (yellow only on the first). */
-function OpenCard({ card: c, n, must, onCall }: { card: MoveCard & { reveal?: number }; n: number; must: boolean; onCall: (episode: number) => void }) {
+function OpenCard({ card: c, n, must, onCall, seasonId }: { card: MoveCard & { reveal?: number }; n: number; must: boolean; onCall: (episode: number) => void; seasonId: string }) {
   const openReveal = useOpenReveal();
   return (
     <div data-move={c.key} className="flex w-full flex-col gap-1.5 rounded-[4px] bg-card p-4">
@@ -389,6 +390,10 @@ function OpenCard({ card: c, n, must, onCall }: { card: MoveCard & { reveal?: nu
         <Btn tone={must ? "must" : "optional"} wide className="mt-auto" onClick={() => onCall(c.call!)}>
           {c.action}
         </Btn>
+      ) : c.sheet && seasonId ? (
+        <Btn tone={must ? "must" : "optional"} wide className="mt-auto" onClick={() => openSheet({ seasonId, leagueId: c.sheet!.leagueId, episode: null, game: c.sheet!.game })}>
+          {c.action}
+        </Btn>
       ) : (
         <Btn tone={must ? "must" : "optional"} wide className="mt-auto" onClick={() => openMoves(c.tab ?? "lineup", c.leagueId ?? null)}>
           {c.action}
@@ -399,7 +404,7 @@ function OpenCard({ card: c, n, must, onCall }: { card: MoveCard & { reveal?: nu
 }
 
 /** A move you've made that can still change; or Weekly Bingo's card, ready for the show (a card's icon, not a tick). */
-function DoneMove({ card: c, onCall, onBingo }: { card: MoveCard; onCall: (episode: number) => void; onBingo: (episode: number) => void }) {
+function DoneMove({ card: c, onCall, onBingo, seasonId }: { card: MoveCard; onCall: (episode: number) => void; onBingo: (episode: number) => void; seasonId: string }) {
   return (
     <div data-done={c.key} className="flex w-full flex-col gap-1.5 rounded-[4px] bg-background p-4 outline-1 -outline-offset-1 outline-border">
       {c.bingo ? (
@@ -413,7 +418,19 @@ function DoneMove({ card: c, onCall, onBingo }: { card: MoveCard; onCall: (episo
       )}
       <b className="type-caption text-[26px] leading-none">{c.title}</b>
       <small className="mb-2.5 block text-sm leading-snug text-muted-foreground">{c.line}</small>
-      <Btn wide className="mt-auto" onClick={() => (c.bingo ? onBingo(c.bingo) : c.call ? onCall(c.call) : openMoves(c.tab ?? "lineup", c.leagueId ?? null))}>
+      <Btn
+        wide
+        className="mt-auto"
+        onClick={() =>
+          c.bingo
+            ? onBingo(c.bingo)
+            : c.call
+              ? onCall(c.call)
+              : c.sheet
+                ? openSheet({ seasonId, leagueId: c.sheet.leagueId, episode: null, game: c.sheet.game })
+                : openMoves(c.tab ?? "lineup", c.leagueId ?? null)
+        }
+      >
         {c.action}
       </Btn>
     </div>
@@ -681,8 +698,13 @@ function toCall(show: ShowData): number | null {
   const playing = show.games.some((g) => g.yourRole);
   if (!show.header || !show.ready || !up || up.live || (!show.following && !playing)) return null;
   if (show.games.some((g) => g.yourRole && g.gameType === "weekly-calls" && asksFor(g, up.number))) return null;
+  // A Prediction Sheet here asks about it already (step A4 part 2): the couch answers its sheet, not Call it as well.
+  if (sheetAsks(show, up.number)) return null;
   return up.number;
 }
+
+/** A Prediction Sheet of yours here asks about episode `n` this week (its questions for it, as the Games read says). */
+export const sheetAsks = (show: ShowData, n: number) => (show.play ?? []).some((g) => g.gameType === "questions" && !g.archived && g.sheet?.episode === n);
 
 /** Your game here still asks for episode `n` (a game over a span asks for nothing past its last: step 6 of PLAN-sports-data.md). */
 const asksFor = (g: ShowData["games"][number], n: number) => !g.span || n <= g.span.to;
@@ -698,13 +720,18 @@ function Extras({ show }: { show: ShowData }) {
   // The couch's polls still open on this show (step 12 part 2): yours to vote in until it airs.
   const polls = useSeasonPolls(show.header?.seasonId ?? null, couchId, !show.solo && !!couchId);
   const open = (polls.data?.polls ?? []).some((p) => p.open);
-  if (up?.live || (!predictions.length && !call && !rate && !bingo && !open)) return null;
+  // A draft's finale predictions while they're open (step A4 part 2), and how your Prediction Sheet went on the latest you've seen.
+  const finales = (show.play ?? []).filter((g) => g.sheet?.finale && !g.revealFirst);
+  const sheets = rate && show.header ? show.games.filter((g) => g.yourRole && g.gameType === "questions" && !g.archived) : [];
+  if (up?.live || (!predictions.length && !call && !rate && !bingo && !open && !finales.length)) return null;
   return (
     <Block title="Extras this week" aside="Optional">
       {predictions.map((m) => (
         <ExtraRow key={m.leagueId} title={m.text} line={`Closes at airtime · ${m.leagueName}`} state="Open" onClick={() => openMoves("predict")} />
       ))}
       {call && show.header && <CallRow target={{ seasonId: show.header.seasonId, couchId, episode: call, label: rateLabel(show), solo: show.solo }} />}
+      {show.header &&
+        finales.map((g) => <SheetRow key={g.leagueId} move={g.sheet!} target={{ seasonId: show.header!.seasonId, leagueId: g.leagueId, episode: null, game: g.name, finale: true }} />)}
       {couchId && (polls.data?.polls ?? []).filter((p) => p.open).map((p) => <PollRow key={p.id} p={p} couchId={couchId} />)}
       {rate && show.header && (
         <RateRow
@@ -720,6 +747,7 @@ function Extras({ show }: { show: ShowData }) {
         <BingoRow target={bingoTarget(show, bingo)} title={up && bingo === up.number ? "Your bingo card" : undefined} />
       )}
       {rate && show.header && show.ready && rate !== bingo && <BingoRow target={bingoTarget(show, rate)} need="mine" />}
+      {rate && show.header && sheets.map((g) => <SheetResultRow key={g.leagueId} target={{ seasonId: show.header!.seasonId, leagueId: g.leagueId, episode: rate, game: g.name }} />)}
     </Block>
   );
 }
@@ -800,7 +828,9 @@ export function yourLine(g: GameView): string {
   if (!me) return "Not on the table yet";
   if (g.gameType === "pickem") return `streak ${me.week ?? 0}`;
   if (g.gameType === "weekly-calls") return `${me.total} ${me.total === 1 ? "call" : "calls"} right`;
-  if (g.gameType === "weekly-bingo") return `${me.total} ${me.total === 1 ? "line" : "lines"}`;
+  // A line worth more than a point (step A9): its total is points.
+  if (g.gameType === "weekly-bingo") return g.linePoints && g.linePoints !== 1 ? `${me.total} pts` : `${me.total} ${me.total === 1 ? "line" : "lines"}`;
+  if (g.gameType === "questions") return `${me.total} ${me.total === 1 ? "pt" : "pts"}`;
   if (g.gameType === "active-roster") return `${me.total} pts`;
   const team = me.team.map((id) => g.cast.find((c) => c.id === id)).filter((c) => !!c);
   return `${team.filter((c) => !c.knocked).length} of ${team.length} still in`;

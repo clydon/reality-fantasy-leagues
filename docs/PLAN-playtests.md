@@ -72,7 +72,8 @@ And, while that was being set up: "Locally, for debugging, we'd want both the in
   finale, after the merge), predictions only, typos and slang, two games in one message, ones that contradict themselves, ones
   that make no sense, a season that doesn't exist.
 - Each with its expected reading: the sensible game, what the wizard should ask, what should be questioned or refused. Kept in
-  the repo as Start a game's eval set (`scripts/dev-test/start-a-game-words.json`), G1's in docs/PLAN-start-a-game-gpt.md.
+  the repo as Start a game's eval set (`scripts/dev-test/start-a-game-words.json`, since step A5 of docs/PLAN-start-a-game-gpt.md
+  the capability tracker's corpus: `tests/fixtures/engine-capabilities.json`), G1's in docs/PLAN-start-a-game-gpt.md.
 - The bot asked each one with that plan's draft request shape; inputs and outputs on tape (`rfl-tapes\words\`), and a table
   here of how well it understood. The request shape is a draft: the inputs and expected readings are what last.
 
@@ -109,7 +110,7 @@ request, and the replays through A2's spec engine once A2 is on master.
   `reality-fantasy-leagues-sports`), database or server, and never real accounts or leagues.
 - **The local bot is this lane's while it records.** The other lanes' checks use the stand-in (`fake-bot.js`), as the GPT
   plan's rule 7 says.
-- **It writes only its own files:** `scripts/dev-test/tapes*`, `playtest*`, `start-a-game-words.json`, this plan and
+- **It writes only its own files:** `scripts/dev-test/tapes*`, `playtest*`, the tracker's `corpus` (once `start-a-game-words.json`), this plan and
   `docs/PLAYTEST-REPORT.md`. A bug in a file another lane owns (`state-logic.js` and the game spec are the engine lane's; the
   rulebook compiler, `db/episode-research.js` and the formats are the survivor lane's) goes in the report with its failing
   test or repro, for that lane. HANDOFF.md, BACKLOG.md and the GPT plan change at merge time.
@@ -174,7 +175,7 @@ tape).
 
 **The queue** goes breadth first, as decided:
 1. Each show's first season, its core.
-2. The words corpus, once `start-a-game-words.json` exists. Its runner is P2's.
+2. The words corpus (the capability tracker's since A5, once `start-a-game-words.json`). Its runner is P2's.
 3. Those seasons' content: trivia and bingo per episode, then the season's bank and recaps.
 4. Second seasons, core then content.
 5. Third seasons.
@@ -233,7 +234,8 @@ Not prompts to the bot: `ai-brief.ts briefLine` (the Open in ChatGPT link's wrap
 
 ### P2. The words corpus, started (2026-10-28, the same session as P1)
 
-**The corpus:** `scripts/dev-test/start-a-game-words.json`, 104 requests, each with its expected reading:
+**The corpus:** `scripts/dev-test/start-a-game-words.json` (moved whole into `tests/fixtures/engine-capabilities.json`'s `corpus` by
+step A5 of the GPT plan, each request now typed on a page), 104 requests, each with its expected reading:
 - `about`: the show and season, or the sport and teams;
 - `when`: the span's kind;
 - `game`: the sensible game;

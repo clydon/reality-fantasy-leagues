@@ -24,9 +24,9 @@ const Formats = require("./formats/index.js");
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const {
-  Core, DraftLogic, BlindDraftLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
-  EpisodeLogic, FinaleLogic, getLeagueType, rosterSize, inPlay, closedForPlay,
-  currentEpisode, finalePredictionsAvailable,
+  Core, DraftLogic, BlindDraftLogic, AuctionLogic, BudgetLogic, PriceLogic, MarketLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
+  KeeperLogic, EpisodeLogic, FinaleLogic, getLeagueType, inPlay, closedForPlay,
+  currentEpisode, finalePredictionsAvailable, seasonWinner,
 } = StateLogic;
 
 // A seat the bot plays: flagged automated, and still in the game (a disabled or not-yet-activated
@@ -204,14 +204,19 @@ function draftOrderFor(state, playerId, candidateIds, alreadyMine) {
 // ---- moves ----
 
 function snakeDraft(state) {
-  if (state.settings.ownershipMode === "shared" || !getLeagueType(state).hasRoster) return 0;
+  // A blind draft's bots lock in (blindSubmissions), an auction's bid (auctionBids); a draw's deals itself (no turn comes up).
+  if (BlindDraftLogic.on(state) || !getLeagueType(state).hasRoster) return 0;
   if (!DraftLogic.isStarted(state)) return 0;
   let made = 0;
   for (let guard = 0; guard < 500; guard++) {
     const turn = DraftLogic.currentTurn(state);
     if (!turn || turn.isComplete || !isBot(Core.getPlayer(state, turn.playerId))) break;
     const free = state.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
-    const best = draftOrderFor(state, turn.playerId, free, Core.ownedCastawayIds(state, turn.playerId))[0];
+    // A draft spread across the cast's groups (step A10 part 3) or under a salary cap (part 3b): only who keeps the team spread
+    // and within it, read over every free agent as the pick's own checks read it (else whoever keeps it that this list lacks).
+    const fits = StateLogic.draftFitsFor(state, turn.playerId);
+    const mine = free.filter((id) => fits.includes(id));
+    const best = draftOrderFor(state, turn.playerId, mine.length ? mine : fits, Core.ownedCastawayIds(state, turn.playerId))[0];
     if (!best) break;
     const before = state.draftPicksMade;
     DraftLogic.pick(state, best);
@@ -225,23 +230,39 @@ function snakeDraft(state) {
 // locking (src/lib/server/bots.ts) since submissions are kept out of `state`.
 function blindSubmissions(state) {
   if (!botIds(state).length) return [];
-  if (state.settings.ownershipMode !== "shared" || !getLeagueType(state).hasRoster) return [];
+  if (!BlindDraftLogic.on(state) || !getLeagueType(state).hasRoster) return [];
   if (!DraftLogic.isStarted(state) || BlindDraftLogic.isRevealed(state)) return [];
-  const size = rosterSize(state);
   const active = state.castaways.filter((c) => c.status === "active").map((c) => c.id);
   return botIds(state)
-    .filter((pid) => !BlindDraftLogic.hasLocked(state, pid))
+    .filter((pid) => !BlindDraftLogic.hasLocked(state, pid) && BlindDraftLogic.eligiblePlayers(state).some((p) => p.id === pid))
     .map((pid) => {
-      // Greedy, so the tribe spread sees each earlier pick.
+      // Greedy, so the tribe spread and a salary cap (step A10 part 3b) see each earlier pick; the places its keepers leave
+      // (part 4), beside them.
+      const keep = KeeperLogic.keptIds(state, pid);
+      const size = KeeperLogic.places(state, pid);
       const picks = [];
       for (let i = 0; i < size; i++) {
-        const next = draftOrderFor(state, pid, active.filter((id) => !picks.includes(id)), picks)[0];
+        const next = draftOrderFor(state, pid, StateLogic.draftFits(state, [...keep, ...picks], active.filter((id) => !picks.includes(id) && !keep.includes(id))), picks)[0];
         if (!next) break;
         picks.push(next);
       }
       return { playerId: pid, castawayIds: picks };
     })
     .filter((s) => !BlindDraftLogic.validateSubmission(state, s.playerId, s.castawayIds));
+}
+
+// What each bot would bid in an auction that's open and waiting on it (step A10 part 3b): its favourites by its own ratings, a
+// team's worth and as many again as backups, as a sheet (AuctionLogic.sheetFor: the budget over the team it wants by rank, the
+// backups at the lowest price). The server locks them in (src/lib/server/bots.ts), since bids are kept out of `state`.
+function auctionBids(state) {
+  if (!botIds(state).length || !AuctionLogic.on(state) || !getLeagueType(state).hasRoster) return [];
+  if (!DraftLogic.isStarted(state) || !AuctionLogic.ready(state)) return [];
+  const free = state.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
+  return botIds(state)
+    .filter((pid) => !AuctionLogic.hasLocked(state, pid))
+    // Step A10 part 4: a sheet for the places its keepers leave.
+    .map((pid) => ({ playerId: pid, bids: AuctionLogic.sheetFor(state, draftOrderFor(state, pid, free, []).slice(0, KeeperLogic.places(state, pid) * 2), pid) }))
+    .filter((x) => !AuctionLogic.validateBids(state, x.playerId, x.bids));
 }
 
 function sameSet(a, b) {
@@ -258,32 +279,49 @@ function lineups(state) {
   const slots = ActiveRosterLogic.activeSlots(state);
   if (!slots) return 0;
   let made = 0;
+  // Step A11 part 1: nobody knocked out of the game sets one (validateLineup would refuse it).
+  const outs = StateLogic.KnockoutLogic.outs(state);
   botIds(state).forEach((pid) => {
+    if (outs.has(pid)) return;
     const mine = state.castaways.filter((c) => c.status === "active" && (c.ownerIds || []).includes(pid)).map((c) => c.id);
     if (!mine.length) return;
     const best = ranked(state, pid, mine, "points").slice(0, slots);
     const current = ActiveRosterLogic.lineupFor(state, ep.id, pid);
-    if (!ActiveRosterLogic.lineupIsCarried(state, ep.id, pid) && sameSet(best, current)) return;
-    if (ActiveRosterLogic.setLineup(state, ep.id, pid, best)) made++;
+    // A game with a captain (A9 part 2): the best of them wears it.
+    const captainOk = !ActiveRosterLogic.captainTimes(state) || ActiveRosterLogic.captainFor(state, ep.id, pid) === best[0];
+    if (!ActiveRosterLogic.lineupIsCarried(state, ep.id, pid) && sameSet(best, current) && captainOk) return;
+    let set = ActiveRosterLogic.setLineup(state, ep.id, pid, best);
+    if (ActiveRosterLogic.captainTimes(state) && ActiveRosterLogic.setCaptain(state, ep.id, pid, best[0])) set = true;
+    if (set) made++;
   });
   return made;
 }
 
-// Eliminator Pool: whoever looks safest of the people the cycle rule still allows.
+// Eliminator Pool: whoever looks safest of the people the cycle rule still allows. A pool's second pick (step A10 part 2): the
+// next safest beside it. Someone out of a pool with lives has nobody to pick (eligibility).
 function eliminatorPicks(state) {
   if (!getLeagueType(state).hasWeeklyPicks) return 0;
   const ep = currentEpisode(state);
   if (!ep || !inPlay(state, ep.number) || closedForPlay(ep) || PickEmLogic.decided(ep, state)) return 0;
+  const parts = PickEmLogic.parts(state);
   let made = 0;
   botIds(state).forEach((pid) => {
     const { available } = PickEmLogic.eligibility(state, ep.id, pid);
-    const best = ranked(state, pid, available, "safety")[0];
+    const order = ranked(state, pid, available, "safety");
+    const best = order[0];
     if (!best) return;
     const existing = PickEmLogic.pickFor(state, ep.id, pid);
-    if (existing && existing.castawayId === best) return;
-    PickEmLogic.setPick(state, ep.id, pid, best);
+    if (!existing || existing.castawayId !== best) {
+      PickEmLogic.setPick(state, ep.id, pid, best);
+      const now = PickEmLogic.pickFor(state, ep.id, pid);
+      if (now && now.castawayId === best) made++;
+    }
+    const next = order[1];
     const now = PickEmLogic.pickFor(state, ep.id, pid);
-    if (now && now.castawayId === best) made++;
+    if (parts && parts.second && next && now && now.castawayId === best && now.second !== next) {
+      PickEmLogic.setPick(state, ep.id, pid, next, { second: true });
+      if (PickEmLogic.pickFor(state, ep.id, pid).second === next) made++;
+    }
   });
   return made;
 }
@@ -302,12 +340,24 @@ function waiverClaim(state, playerId, period) {
   const cap = owed.count + swapsLeft + 2;
   const pairs = [];
   const adds = new Set();
+  // A salary cap (step A10 part 3b): only pairs that keep the team within it (or no further over), at today's prices. A stock
+  // market (part 3c): only pairs their cash covers, so a swap buys whom they rate above what their sale brings in.
+  const prices = BudgetLogic.priced(state) ? PriceLogic.prices(state) : null;
   const push = (addId, dropId) => {
+    if (prices && BudgetLogic.moveProblem(state, playerId, dropId, addId, prices)) return;
     if (!adds.has(addId) && adds.size >= cap) return;
     adds.add(addId);
     pairs.push({ addId, dropId });
   };
-  if (owed.count) ranked(state, playerId, offered, "value").slice(0, owed.count + 2).forEach((a) => owed.outIds.forEach((d) => push(a, d)));
+  // A stock market (part 3c): of those they rate, only the ones the sale pays for, the best of them (the best overall would be
+  // the dearest, refused for want of cash), so a castaway whose price has run ahead of how they rate them pays for one who hasn't.
+  const market = MarketLogic.on(state);
+  const affords = (a, d) => !market || !MarketLogic.moveProblem(state, playerId, d, a, prices);
+  if (owed.count) {
+    const reps = ranked(state, playerId, offered, "value");
+    if (market) owed.outIds.forEach((d) => reps.filter((a) => affords(a, d)).slice(0, owed.count + 2).forEach((a) => push(a, d)));
+    else reps.slice(0, owed.count + 2).forEach((a) => owed.outIds.forEach((d) => push(a, d)));
+  }
   if (swapsLeft > 0) {
     const level = levelOf(state, playerId);
     const r = ratings(state, level);
@@ -316,17 +366,20 @@ function waiverClaim(state, playerId, period) {
     ranked(state, playerId, mine, "value")
       .reverse()
       .slice(0, swapsLeft)
-      .forEach((drop) => best.filter((id) => r[id].value - r[drop].value > level.swap).slice(0, 3).forEach((a) => push(a, drop)));
+      .forEach((drop) => best.filter((id) => r[id].value - r[drop].value > level.swap && affords(id, drop)).slice(0, 3).forEach((a) => push(a, drop)));
   }
   return { pairs };
 }
 
 // Finale picks, once there's something to go on: after the merge, or with ten or fewer left. Set once
-// and left alone -- nothing locks finale picks, so a bot that kept "improving" them would end up
-// picking the winner after the fact.
+// and left alone -- a bot that kept "improving" them would end up picking the winner after the fact.
+// Never once the results have a winner (they settle the finale, step A4), nor while this week's episode is on: picks lock
+// when the season's last episode starts (the routes' finale lock), and this week's could be it.
 function finalePicks(state) {
   if (!finalePredictionsAvailable(state)) return 0;
-  if (state.finaleActual && state.finaleActual.winner) return 0;
+  if (seasonWinner(state)) return 0;
+  const week = currentEpisode(state);
+  if (week && closedForPlay(week)) return 0;
   const active = state.castaways.filter((c) => c.status === "active").map((c) => c.id);
   if (active.length < 3) return 0;
   if (!isMerged(state) && active.length > 10) return 0;
@@ -359,7 +412,7 @@ function run(state) {
 // Whether any bot has a move waiting, without touching `state`.
 function hasWork(state) {
   if (!botIds(state).length) return false;
-  return blindSubmissions(state).length > 0 || run(structuredClone(state)) > 0;
+  return blindSubmissions(state).length > 0 || auctionBids(state).length > 0 || run(structuredClone(state)) > 0;
 }
 
-module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, blindSubmissions, waiverClaim };
+module.exports = { LEVELS, DEFAULT_LEVEL, isBot, botIds, ratings, run, hasWork, blindSubmissions, auctionBids, waiverClaim };

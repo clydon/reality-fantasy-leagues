@@ -30,7 +30,7 @@ const QUESTION_TYPES = ['answer', 'integer', 'string', 'stringList', 'enum'];
 // A change can add a way of leaving, or of reaching the end -- not a second winner.
 const EXIT_KINDS = ['out', 'finalist'];
 const ID = /^[a-z][A-Za-z0-9]*$/;
-const EPISODE_KEYS = ['episodeTitle', 'airDate', 'summary', 'castaways', 'betAnswers', 'rulesNote', 'merged', 'sourcesRead'];
+const EPISODE_KEYS = ['episodeTitle', 'airDate', 'summary', 'castaways', 'betAnswers', 'rulesNote', 'merged', 'sourcesRead', 'formatState'];
 
 const isObj = (v) => !!v && typeof v === 'object' && !Array.isArray(v);
 const text = (v) => (typeof v === 'string' ? v.trim() : '');

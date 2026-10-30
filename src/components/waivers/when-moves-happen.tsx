@@ -24,7 +24,8 @@ export function WhenMovesHappen({ state, compact = false }: { state: LeagueState
   const w = W.windows(state);
   const R = StateLogic.rosterSize(state);
   const latest = latestEpisode(state);
-  const start = StateLogic.startEpisode(state);
+  // A game waiting for its phase (step A3) starts after the latest results at the earliest.
+  const start = StateLogic.startEpisode(state) ?? latest + 1;
   const first = Math.max(start, latest - 2);
   const cols = Array.from({ length: COLUMNS }, (_, i) => first + i);
   const manual = w.schedule === "manual";

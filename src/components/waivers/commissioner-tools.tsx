@@ -33,7 +33,9 @@ function canOpenWindow(state: LeagueState, period: WaiverPeriod | null): boolean
   if (!W.supported(state)) return false;
   if (period) return period.phase === "open" && !W.isWindow(period);
   const latest = latestEpisode(state);
-  if (latest < StateLogic.startEpisode(state) || StateLogic.MidSeasonLogic.seasonOver(state)) return false;
+  // Not before the game starts (nor while it waits for its phase: step A3).
+  const start = StateLogic.startEpisode(state);
+  if (start === null || latest < start || StateLogic.MidSeasonLogic.seasonOver(state)) return false;
   const ps = W.periods(state);
   const prev = ps[ps.length - 1];
   return !prev || prev.episode < latest;

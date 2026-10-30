@@ -104,6 +104,12 @@ async function load(scope: BackstageScope): Promise<Loaded[]> {
 }
 
 const takes = (l: Loaded, episode: number) => l.through === null || episode <= l.through;
+/** Whether a game waits on an episode's results at all: any up to its span's last episode (docs/PLAN-sports-data.md step 6).
+ *  Results past its end still reach it (every game on the season gets them), but it's over by then, so it holds nothing open. */
+const needs = (l: Loaded, episode: number) => {
+  const end = StateLogic.endEpisode(l.state);
+  return end === null || episode <= end;
+};
 type Stage = "none" | "early" | "final";
 const stageIn = (state: LeagueState, n: number): Stage => {
   const ep = state.episodes.find((e) => e.number === n);
@@ -361,10 +367,10 @@ export async function backstageRead(scope: BackstageScope, opts: { episode?: num
     return { episode: e, by: here ? (f?.by ?? null) : null, here, bot: !!f?.bot, sources: f?.sources ?? 0 };
   });
 
-  // Where each aired episode stands: the least far along of the games that can take it. Open: from the first that
-  // isn't final after the last that is.
+  // Where each aired episode stands: the least far along of the games that can take it and still wait on it (not past their
+  // span's end). Open: from the first that isn't final after the last that is.
   const stageOf = (n: number): Stage => {
-    const can = loaded.filter((l) => takes(l, n));
+    const can = loaded.filter((l) => takes(l, n) && needs(l, n));
     return can.length ? can.map((l) => stageIn(l.state, n)).reduce((a, b) => (RANK[b] < RANK[a] ? b : a)) : "final";
   };
   let lastFinal = 0;
@@ -390,7 +396,7 @@ export async function backstageRead(scope: BackstageScope, opts: { episode?: num
     number: n,
     airAt,
     stage: stageOf(n),
-    later: loaded.filter((l) => !takes(l, n)).map((l) => l.game.name),
+    later: loaded.filter((l) => !takes(l, n) && needs(l, n)).map((l) => l.game.name),
     quick: await latestBatch(ids, n, "results.quick", runs, scope.user.id),
     full: await latestBatch(ids, n, "results.full", runs, scope.user.id),
     waiting: waiting.length,

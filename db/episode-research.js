@@ -62,6 +62,12 @@ const SeasonRuleChanges = require("./season-rule-changes.js");
 const Rulebooks = require("./rulebooks.js");
 const embeddings = require("./embeddings.js");
 const Air = require("../src/lib/game/air-schedule.js");
+// The format section (F2): how the game is organised at each episode's end, its vocabulary and our reading of it.
+const FormatStates = require("../src/lib/game/formats/format-state.js");
+// The format's state over time (F3): what the context reads of it (the groups going in, the newcomers still in, the season's
+// word for its groups), built on read from the season's stored research.
+const Timeline = require("../src/lib/game/formats/format-timeline.js");
+const FormatTimelines = require("./format-timeline.js");
 
 // ---------- the checklist ----------
 // Deliberately three-valued. `unknown` is not a failure state, it is the honest answer when the
@@ -83,10 +89,23 @@ const Answer = z.enum(["yes", "no", "unknown"]);
 // Group changes and the merge are every grouped format's too, asked here rather than in each format's
 // checklist. They used to come only from the wiki's tables; since that read was retired (cast only),
 // research is their one source, so one paste covers a swap episode without a second prompt.
-function researchSchemaFor(format, withBets = false) {
-  const group = ((format.terms && format.terms.tribe) || "tribe").toLowerCase();
+//
+// `formatState` (F2, docs/STUDY-format-changes.md) is every show's: how the game is organised at the END of
+// the episode (who is grouped with whom, how it was played, its phase) and what changed in it, as data. Since
+// F3 each person's group move is worked out from it (FormatStates.movesFromState, in validateResearch), so
+// beside it `newGroup` asks only for someone who moved and then went home in the same episode, whom the
+// groups at the end can't hold; a pass about some of the cast, which leaves the section out (a
+// commissioner's paste, formatForAsking), asks it of everyone as before. F2's proof: newGroup named a new
+// tribe for 7 of the 27 people who changed one, and partners' names as groups on The Challenge; the section
+// had every tribe right. `merged` stays asked beside it (it was right, the phase cues read it, and the
+// timeline crosses it with the state's merge). A cut-down ask (onlyFormat) leaves the section out, as it
+// does the groups and the merge.
+// `word`: the season's word for its groups when the timeline says it (F3 part 2, the context's groupWord: tribe or team);
+// the format's own without it.
+function researchSchemaFor(format, withBets = false, word = null) {
+  const group = (word || (format.terms && format.terms.tribe) || "tribe").toLowerCase();
   let entry = format.research.checklistSchema(z, Answer);
-  if (format.hasGroups) entry = entry.extend({ newGroup: z.string().nullable().describe(newGroupText(group)) });
+  if (format.hasGroups) entry = entry.extend({ newGroup: z.string().nullable().describe(asksFormat(format) ? leftFromText(group) : newGroupText(group)) });
   return z.object({
     episodeTitle: z.string().nullable(),
     airDate: z.string().nullable().describe("As printed on the source, e.g. 'March 5, 2026'."),
@@ -95,6 +114,7 @@ function researchSchemaFor(format, withBets = false) {
     ...format.research.episodeFields(z, Answer),
     ...(format.hasMerge ? { merged: Answer.describe(mergedText(group)) } : {}),
     rulesNote: z.string().nullable().describe(RULES_NOTE),
+    ...(asksFormat(format) ? { formatState: FormatState } : {}),
     sourcesRead: SourcesRead,
     castaways: z
       .array(entry)
@@ -131,19 +151,128 @@ function onlyFormat(format, keys) {
     const entry = format.research.checklistSchema(zz, A);
     return entry.pick(Object.fromEntries(Object.keys(entry.shape).filter((k) => want.has(k)).map((k) => [k, true])));
   };
-  return { ...format, hasGroups: false, hasMerge: false, research: { ...format.research, checklistSchema, episodeFields: () => ({}) } };
+  return { ...format, hasGroups: false, hasMerge: false, asksFormat: false, research: { ...format.research, checklistSchema, episodeFields: () => ({}) } };
+}
+
+/** Whether research asks a format the format section (every format does, but a cut-down ask: onlyFormat). */
+const asksFormat = (format) => !!format && format.asksFormat !== false;
+
+/**
+ * The format to ask some of the cast with: the format section is about the whole cast (who is with whom), so a pass asked
+ * about only some of them (a commissioner's paste for whoever the stored answers don't settle) leaves it out, and the stored
+ * section stays as the whole-cast pass said it.
+ */
+function formatForAsking(ctx, asking) {
+  return asking.length < ctx.castNames.length ? { ...ctx.format, asksFormat: false } : ctx.format;
+}
+
+/** A group's word in the plural: tribes, teams, agencies (not "agencys"), matches. */
+function plural(word) {
+  const w = String(word);
+  if (/[^aeiou]y$/i.test(w)) return w.slice(0, -1) + "ies";
+  if (/(s|x|z|ch|sh)$/i.test(w)) return w + "es";
+  return w + "s";
 }
 
 const newGroupText = (group) =>
-  `Only if their ${group} CHANGED in this episode -- a swap, a re-division into new ${group}s, a ${group} ` +
+  `Only if their ${group} CHANGED in this episode -- a swap, a re-division into new ${plural(group)}, a ${group} ` +
   `dissolved, or the merge: the ${group} they are on at the END of this episode, exactly as the show names ` +
   `it (the merged ${group}'s name at the merge). Compare against the ${group} shown next to their name in ` +
   `the list you were sent. Null if they are still on that ${group}. Someone who moved and then left the ` +
   `game in this same episode (swapped, then voted out) still moved: give the ${group} they left from.`;
 
+// Beside the format section (F3): its groups at the end say everyone else's group, so newGroup is only for whoever they
+// can't hold.
+const leftFromText = (group) =>
+  `Only for someone who moved to another ${group} in this episode AND went home in it (swapped, then voted out): the ` +
+  `${group} they went home from, exactly as the show names it. Null for everyone else: who is with whom at the end ` +
+  `goes in formatState.`;
+
 const mergedText = (group) =>
-  `Is the game merged by the end of this episode -- the ${group}s have become one group, in this episode ` +
+  `Is the game merged by the end of this episode -- the ${plural(group)} have become one group, in this episode ` +
   `or an earlier one? 'yes' from the merge episode on.`;
+
+// The format section's words (F2). Every show's, in the same words: the groups are "tribes, teams or pairs" and
+// the season's own names for them, never a format's built-in term for its groups (The Challenge's "agency",
+// which F1 found the prompt asking about on seasons played in pairs). The study's proposals, for the user to
+// approve when F2 merges: docs/STUDY-format-changes.md.
+const KIND_WORDS =
+  "'teams-formed' (people now play as teams or tribes, after playing some other way), 'pairs-formed' (people now " +
+  "play in pairs, after playing some other way), 'split-into-individuals' (the groups ended: everyone for " +
+  "themselves), 'merge' (the groups became one), 'swap' (people moved between groups of the same kind: a few of " +
+  "them, or every group drawn again, as when the pairs are re-drawn), 'newcomer' (someone new " +
+  "joined the game), 'new-phase' (the season moved into a stage of its own: a final, a new part of the game), " +
+  "'twist' (a rule changed how the game is played, not who is with whom), 'role' (someone's secret role changed)";
+
+const FormatState = z
+  .object({
+    playedAs: z
+      .enum(FormatStates.PLAYED_AS)
+      .describe(
+        "How THIS episode's main challenge or vote treated people: 'everyone' (all together, as one), 'tribes', 'teams', " +
+          "'pairs', 'individuals' (each for themselves), 'mixed' (more than one of these), 'none' (no game was played: a " +
+          "reunion, a recap), or 'unknown'."
+      ),
+    phase: z
+      .string()
+      .nullable()
+      .describe("The show's own name for the stage the game is in at the end of this episode ('pre-merge', 'the final'), or null if it has none."),
+    groups: z
+      .array(
+        z.object({
+          name: z.string().nullable().describe("The group's name as the show gives it (a tribe's or a team's), or null (pairs usually have none)."),
+          members: z.array(z.string()).describe("Everyone in it, by the names in the list (a newcomer by their full name)."),
+        })
+      )
+      .nullable()
+      .describe(
+        "Who is grouped with whom at the END of this episode, going INTO the next one: every tribe, team or pair the show " +
+          "has now. A re-pairing or a swap at the episode's end counts; one the show only announced for later doesn't yet. " +
+          "An empty list if everyone now plays for themselves (or as one group); null only if your sources don't say who " +
+          "is with whom."
+      ),
+    alone: z
+      .array(z.string())
+      .describe("Anyone still in the game who is in none of those groups at the end of this episode (unpaired, sitting out). Empty if there's nobody, or no groups."),
+    newcomers: z
+      .array(
+        z.object({
+          name: z.string().describe("Their full name."),
+          replaces: z.string().nullable().describe("Who they came in for, by the name in the list, or null."),
+          group: z.string().nullable().describe("The group they joined (its name, or a member's name), or null."),
+        })
+      )
+      .describe("Anyone who joined the game in this episode and isn't in the list (an alternate, a returning player). Empty if nobody did."),
+    wentHomeAs: z
+      .enum(FormatStates.WENT_HOME_AS)
+      .describe("How people left the game this episode: 'individuals' (each on their own), 'groups' (a whole pair or team went home together), 'nobody', or 'unknown'."),
+    changes: z
+      .array(
+        z.object({
+          kind: z.enum(FormatStates.KINDS).describe(`What kind of change: ${KIND_WORDS}.`),
+          when: z
+            .enum(FormatStates.WHEN)
+            .nullable()
+            .describe("When in this episode it came in: 'start', 'mid' (partway through), or 'end' (after the elimination, going into the next one)."),
+          from: z
+            .number()
+            .int()
+            .nullable()
+            .describe("The episode it takes effect from: this episode's number for a change at its start or partway through, the next one's for a change at its end, a later one's if the show announced it ahead."),
+          what: z.string().describe("One sentence on what changed."),
+          sure: z
+            .enum(FormatStates.SURE)
+            .describe("'high' if a source says it plainly (for a grouping change, who is now with whom); 'low' if it's pieced together or the sources don't say who is with whom."),
+        })
+      )
+      .describe(
+        "Every change this episode made to who is grouped with whom or to how the game is played, each once (a change " +
+          "announced here for a later episode too). Empty if nothing changed, as in most episodes. Not someone going home " +
+          "(that's in their entry), unless it changed the groups."
+      ),
+  })
+  .nullable()
+  .describe("How the game is organised at the end of this episode, and what changed in it: see HOW THE GAME IS ORGANISED above. Fill in every field.");
 
 // The NEXT episode's schedule, from this one's "next time" preview or the network's listings: a week off for
 // a holiday, a double or extra-long episode, a new night. recordNextEpisode files it in season_episodes
@@ -235,8 +364,9 @@ const BetAnswers = z
 // Provider-neutral on purpose: it says "search" and never names a tool, because the three providers
 // expose search as three different mechanisms (a server tool, a grounding flag, a search parameter)
 // and none of them needs to be told what its own search is called.
-function buildPrompt({ showName, season, episodeNumber, castNames, castGroups = {}, terms, domains = [], format, bets = [] }) {
-  const group = String(terms.tribe || "tribe").toLowerCase();
+function buildPrompt({ showName, season, episodeNumber, castNames, castGroups = {}, formatGoingIn = null, groupWord = null, terms, domains = [], format, bets = [] }) {
+  // The season's word for its groups when the timeline says it (F3 part 2: the context's), else the show's own.
+  const group = String(groupWord || terms.tribe || "tribe").toLowerCase();
   const groupOf = (n) => (format.hasGroups && castGroups[n] ? castGroups[n] : null);
   const anyGroups = castNames.some(groupOf);
   // Where a chat puts what it couldn't settle: the anything-else question (notableTwist), when this ask has one (a
@@ -268,17 +398,37 @@ function buildPrompt({ showName, season, episodeNumber, castNames, castGroups = 
     "",
     ...castNames.map((n, i) => `${i + 1}. ${n}` + (groupOf(n) ? ` -- ${groupOf(n)}` : "")),
     "",
-    ...(anyGroups
+    // Who is with whom, and any change to it, is the format section's (below) wherever it's asked: each person's new group
+    // is worked out from it (F3), and newGroup is only for whoever moved and went home the same night.
+    ...(anyGroups && labelsOnly(castNames, groupOf, format, formatGoingIn)
       ? [
-          `The ${group} after each name is the one they were on going INTO this episode, as far as we know.`,
-          `If ${group}s were swapped, re-divided, dissolved or merged in this episode, give each person's new`,
-          `${group} in newGroup -- that is the only place a ${group} change is recorded${anythingElse ? ", so don't leave it in" : "."}`,
-          ...(anythingElse ? ["notableTwist alone."] : []),
+          // F3 part 2: the groups after the names are our records' (the cast list's, staged moves'), and none of them is one
+          // the timeline has going in (The Challenge's Vets and New Threats beside its pairs): only a label.
+          "The group after each name is the one our records give them going INTO this episode, which may be only a label the",
+          "show gives them (like Vets and New Threats); who plays with whom going in is below. If people moved between tribes or",
+          "teams in this episode, say so in formatState below; someone who moved and then went home in this same episode: the tribe",
+          "or team they went home from, in newGroup.",
           "",
         ]
-      : format.hasGroups
-        ? [`If ${group}s were swapped, re-divided, dissolved or merged in this episode, give each person's new ${group} in newGroup.`, ""]
+      : anyGroups
+      ? [
+          `The ${group} after each name is the one they were on going INTO this episode, as far as we know.`,
+          ...(asksFormat(format)
+            ? [
+                `If ${plural(group)} were swapped, re-divided, dissolved or merged in this episode, say so in formatState below;`,
+                `someone who moved and then went home in this same episode: the ${group} they went home from, in newGroup.`,
+              ]
+            : [
+                `If ${plural(group)} were swapped, re-divided, dissolved or merged in this episode, give each person's new`,
+                `${group} in newGroup -- that is the only place a ${group} change is recorded${anythingElse ? ", so don't leave it in" : "."}`,
+                ...(anythingElse ? ["notableTwist alone."] : []),
+              ]),
+          "",
+        ]
+      : format.hasGroups && !asksFormat(format)
+        ? [`If ${plural(group)} were swapped, re-divided, dissolved or merged in this episode, give each person's new ${group} in newGroup.`, ""]
         : []),
+    ...(asksFormat(format) ? formatLines({ episodeNumber, castNames, formatGoingIn, labelled: anyGroups, anythingElse }) : []),
     ...format.research.searchHint,
     // Where to look FIRST, not a fence: the search tool isn't restricted to these (see searchToolFor).
     ...(domains.length
@@ -289,6 +439,64 @@ function buildPrompt({ showName, season, episodeNumber, castNames, castGroups = 
   ].join("\n");
 
   return { system, user };
+}
+
+// Whether the groups after the names are only a label (F3 part 2): the format section is asked, the timeline knows the groups
+// going in are pairs (The Challenge's, beside its Vets and New Threats), and none of the names' groups is one of them by name
+// (said any way: FormatStates.tribeKey). Tribes going in, named or not, are the names' own (Survivor's words stay). Pure.
+function labelsOnly(castNames, groupOf, format, formatGoingIn) {
+  const groups = formatGoingIn && formatGoingIn.state && formatGoingIn.state.groups;
+  if (!asksFormat(format) || !Array.isArray(groups) || !FormatStates.isPairs(groups.filter((g) => g && g.members && g.members.length > 1))) return false;
+  const named = new Set(groups.filter((g) => g && g.name).map((g) => FormatStates.tribeKey(g.name)));
+  return !castNames.some((n) => groupOf(n) && named.has(FormatStates.tribeKey(groupOf(n))));
+}
+
+// The format section's own part of the prompt (F2): the groups going in, as far as we know (the timeline's state going
+// into the episode since F3 part 2, `formatGoingIn`: { episode, state, newcomers, sure }; only who's still on the list,
+// plus anyone who came in since), so the answer is a comparison and not a guess, then what to say. Without one, it says what the
+// names' groups above are (the cast list's, which may be how people play or only a label: Vets and New
+// Threats) or that there are none. Pure.
+function formatLines({ episodeNumber, castNames, formatGoingIn = null, labelled = false, anythingElse = true }) {
+  const lines = ["HOW THE GAME IS ORGANISED (formatState): answer it once, for the whole cast."];
+  const state = formatGoingIn && formatGoingIn.state;
+  if (state && Array.isArray(state.groups)) {
+    const asked = new Set(castNames.map((n) => n.toLowerCase()));
+    // Someone not on the list is gone, unless they came in after the cast was made (a newcomer is never on it).
+    const newSince = new Set((formatGoingIn.newcomers || []).map((n) => n.toLowerCase()));
+    const still = (m) => asked.has(m.toLowerCase()) || newSince.has(m.toLowerCase());
+    const groups = state.groups.map((g) => ({ name: g.name, members: g.members.filter(still) })).filter((g) => g.members.length);
+    const alone = [...(state.alone || []).filter(still), ...groups.filter((g) => g.members.length === 1).map((g) => g.members[0])];
+    const shown = groups.filter((g) => g.members.length > 1);
+    const asOf = formatGoingIn.episode === episodeNumber - 1 ? "the end of the last episode" : `the end of episode ${formatGoingIn.episode}`;
+    const how = state.playedAs && !["unknown", "none", "mixed"].includes(state.playedAs) ? `, playing as ${state.playedAs}` : "";
+    lines.push(
+      shown.length
+        ? `Going into this episode, as far as we know (as of ${asOf}${how}${state.phase ? `, in "${state.phase}"` : ""}), people were grouped like this:`
+        : `Going into this episode, as far as we know (as of ${asOf}${state.phase ? `, in "${state.phase}"` : ""}), nobody was in a group: everyone played for themselves.`
+    );
+    for (const g of shown) lines.push(`  - ${g.name ? `${g.name}: ` : ""}${g.members.join(g.members.length === 2 && !g.name ? " & " : ", ")}`);
+    if (shown.length && alone.length) lines.push(`  On their own: ${alone.join(", ")}.`);
+    // F3 part 2: the timeline says when what's known going in isn't sure (an answer that contradicted itself, a change one side
+    // alone saw, nothing known since an earlier episode).
+    if (formatGoingIn.sure === false) lines.push("We aren't sure of these: an earlier answer may have them wrong, so check them against what you find.");
+    lines.push("Compare with what you find, and say how it stands at the END of this episode, going into the next one.");
+  } else if (labelled) {
+    lines.push(
+      "We don't have how people were grouped going into this episode. The group after each name above is the cast list's:",
+      "it may be how people play (a tribe, a team) or only a label the show gives them (like Vets and New Threats). Here,",
+      "say how people actually play: who is grouped with whom at the END of this episode, going into the next one."
+    );
+  } else {
+    lines.push("We have no groups on record for this season. If people play in tribes, teams or pairs, say who is with whom at the END of this episode, going into the next one; if everyone plays for themselves, say so.");
+  }
+  lines.push(
+    "Each change this episode made to who is grouped with whom (teams formed, a swap or the pairs drawn again, a merge, everyone",
+    "for themselves) or to how the game is played (a new phase, a twist, someone's role) goes in formatState.changes, with",
+    `when it came in and the episode it takes effect from (episode ${episodeNumber} for a change at its start or partway through,`,
+    `episode ${episodeNumber + 1} for one at its end). That is where a change of format is recorded${anythingElse ? " (as well as anything above that asks about it), so don't leave it in notableTwist alone" : ""}.`,
+    ""
+  );
+  return lines;
 }
 
 // The side bets league members made about this episode, for the model to settle from the same
@@ -439,6 +647,16 @@ function validateLeniently(raw, schema, label) {
   // The next episode's schedule (NextEpisode) is a bonus the same way: an answer from an older prompt has no
   // such field, and a chat may fill it oddly. Missing or malformed, it's "not announced", never a failed run.
   if (raw && typeof raw === "object" && !Array.isArray(raw)) raw.nextEpisode = looseNextEpisode(raw.nextEpisode);
+  // The format section (F2) too: an answer from before it was asked has none (null), and a value outside one of its
+  // lists is repaired and reported (formats/format-state.js), so it never fails a run whose checklist is fine.
+  if (raw && typeof raw === "object" && !Array.isArray(raw) && schema.shape && schema.shape.formatState) {
+    raw.formatState = FormatStates.looseFormatState(raw.formatState, repairs);
+  }
+  // A person's group move, from an answer to a prompt that didn't ask it (a paste of an older skeleton): none said, null.
+  const person = schema.shape && schema.shape.castaways && schema.shape.castaways.element;
+  if (person && person.shape && person.shape.newGroup && raw && Array.isArray(raw.castaways)) {
+    for (const c of raw.castaways) if (c && typeof c === "object" && !("newGroup" in c)) c.newGroup = null;
+  }
   for (let attempt = 0; attempt < 5; attempt++) {
     const result = schema.safeParse(raw);
     if (result.success) {
@@ -1119,7 +1337,38 @@ function validateResearch(parsed, castNames, terms, format, opts = {}) {
 
   // Checks across the whole cast (formats/define.js episodeProblems), after the per-person ones.
   if (format.research.episodeProblems) problems.push(...format.research.episodeProblems(parsed));
-  problems.push(...tribalGroupProblems(parsed, castNames, format, opts.groups));
+  // The format section (F2): its names made the list's own, and what doesn't add up, for the reviewer. Never fatal. Then each
+  // person's group move worked out from it (F3), before the Tribal check reads the moves.
+  let fromState = null;
+  if (parsed && parsed.formatState) {
+    const asked = (name) => castNames.find((n) => n.toLowerCase() === String(name || "").trim().toLowerCase()) || null;
+    const roster = { castaways: castNames.map((name, i) => ({ id: String(i), name })) };
+    const resolve = (name) => {
+      const exact = asked(name);
+      if (exact) return exact;
+      const { castaway } = StateLogic.Core.findCastawayByName(roster, name);
+      return castaway ? castNames[Number(castaway.id)] : null;
+    };
+    const goingIn = opts.formatGoingIn && opts.formatGoingIn.state;
+    // Anyone an earlier answer said came in isn't on the cast list (F3 adds them), but is still in the game.
+    const newcomers = (opts.formatGoingIn && opts.formatGoingIn.newcomers) || [];
+    problems.push(...FormatStates.formatStateProblems(parsed.formatState, { resolve, entries: [...byName.values()], goingIn, newcomers, episode: opts.episode || null }));
+    problems.push(...newGroupDisagreements(parsed.formatState, [...byName.values()]));
+    if (format.hasGroups) fromState = applyStateMoves([...byName.values()], parsed.formatState, opts.groups);
+    // F3 part 2: someone new isn't on the list until the next episode's research asks about them (the timeline has them), and
+    // reaches a game only once a person adds them to its cast: the cue, for whoever reviews this.
+    for (const x of parsed.formatState.newcomers || []) {
+      if (!x || !x.name || asked(x.name)) continue;
+      problems.push(
+        `formatState: ${x.name} came in this episode${x.replaces ? ` (for ${x.replaces})` : ""} and isn't in the cast: research asks about them from the next episode, and their results reach a game once they're added to its cast`
+      );
+    }
+  } else if (format.hasGroups && opts.storedState && Array.isArray(opts.storedState.groups)) {
+    // A pass about some of the cast leaves the section out (formatForAsking): the stored one is the whole cast's, so its moves
+    // speak for whoever it places among those asked again, as a full pass's would (F3 part 1's Noticed).
+    fromState = applyStateMoves([...byName.values()], opts.storedState, opts.groups);
+  }
+  problems.push(...tribalGroupProblems(parsed, castNames, format, opts.groups, fromState));
 
   const answered = [...byName.values()];
   const counts = {
@@ -1131,23 +1380,54 @@ function validateResearch(parsed, castNames, terms, format, opts = {}) {
   return { entries: answered, problems, fatal, counts };
 }
 
+// Each person's group move from the format section (F3; FormatStates.movesFromState), worked out once, here, with the same
+// groups going in the review shows (a league's own cast too), and stored as newGroup, which staging reads. The section speaks
+// for everyone it places on a named tribe or team, moved or not, over any newGroup the answer has; anyone else (someone who
+// moved and went home the same night, whom the groups at the end can't hold; a section that doesn't say) keeps what the
+// answer said. Returns { placed: who it spoke for (lower case), atEnd: whether its grouping change came at the episode's
+// end, so the groups at a vote before it were the ones going in }, for the Tribal check. In place.
+function applyStateMoves(entries, state, goingIn) {
+  const moves = FormatStates.movesFromState(state, goingIn || {});
+  const low = (s) => String(s || "").trim().toLowerCase();
+  const byName = new Map([...moves].map(([name, group]) => [low(name), group]));
+  for (const e of entries) if (e && byName.has(low(e.name))) e.newGroup = byName.get(low(e.name));
+  const grouping = ((state && state.changes) || []).filter((c) => c && FormatStates.GROUPING_KINDS.includes(c.kind) && c.kind !== "newcomer");
+  return { placed: new Set(byName.keys()), atEnd: grouping.length > 0 && grouping.every((c) => c.when === "end") };
+}
+
+// A person's newGroup (an older prompt's, a paste's) against the format section's group for them, when that group has a
+// name: the same answer said twice, so a difference is worth a reviewer's look (the section's wins). Pure.
+function newGroupDisagreements(state, entries) {
+  if (!state || !Array.isArray(state.groups)) return [];
+  const named = new Map(state.groups.filter((g) => g.name).flatMap((g) => g.members.map((m) => [m.toLowerCase(), g.name])));
+  return entries
+    .filter((e) => typeof e.newGroup === "string" && e.newGroup.trim() && named.has(String(e.name).trim().toLowerCase()))
+    .filter((e) => FormatStates.tribeKey(named.get(String(e.name).trim().toLowerCase())) !== FormatStates.tribeKey(e.newGroup))
+    .map((e) => `${e.name}: newGroup says ${e.newGroup.trim()}, but formatState has them on ${named.get(String(e.name).trim().toLowerCase())}`);
+}
+
 // Before the groups end, a vote one group goes to at a time (the format's research.groupVotes: Survivor's
 // Tribal, which the tribe that wins immunity skips) is one group's: someone there whose group (after this
 // episode's moves) isn't the others' is most likely a missed move -- a swapped castaway voted out the same
 // night, whose move a chat leaves out because they're gone. The move is filled in, so it stages as a group
 // change the reviewer can reject, and reported in the vote's own words. Only where the format has groups
 // and the answers say who attended.
-function tribalGroupProblems(parsed, castNames, format, groups) {
+// `fromState` (applyStateMoves, F3): whoever the format section placed is never moved by this check (their group at the end
+// is the section's), and when its change came at the episode's end, everyone was still on the group they went in on at the
+// vote.
+function tribalGroupProblems(parsed, castNames, format, groups, fromState = null) {
   const votes = (format.data && format.data.research && format.data.research.groupVotes) || [];
   if (!format.hasGroups || !groups || !votes.length || (parsed && parsed.merged === "yes")) return [];
-  return votes.flatMap((vote) => groupMoves(parsed, castNames, vote, groups));
+  return votes.flatMap((vote) => missedMoves(parsed, castNames, vote, groups, fromState));
 }
 
-function groupMoves(parsed, castNames, vote, groups) {
+function missedMoves(parsed, castNames, vote, groups, fromState) {
   const asked = (name) => castNames.find((n) => n.toLowerCase() === String(name || "").trim().toLowerCase());
+  const placed = (fromState && fromState.placed) || new Set();
+  const atVote = (c) => (fromState && fromState.atEnd ? null : typeof c.newGroup === "string" && c.newGroup.trim()) || groups[asked(c.name)] || null;
   const at = ((parsed && parsed.castaways) || [])
     .filter((c) => c[vote.attended] === "yes")
-    .map((c) => ({ entry: c, name: c.name, group: (typeof c.newGroup === "string" && c.newGroup.trim()) || groups[asked(c.name)] || null }))
+    .map((c) => ({ entry: c, name: c.name, group: atVote(c), placed: placed.has(String(c.name || "").trim().toLowerCase()) }))
     .filter((c) => c.group);
   if (at.length < 3) return [];
   const counts = new Map();
@@ -1158,7 +1438,7 @@ function groupMoves(parsed, castNames, vote, groups) {
   if (n < at.length * 0.75) return [];
   const tribe = at.find((c) => c.group.toLowerCase() === top).group;
   return at
-    .filter((c) => c.group.toLowerCase() !== top)
+    .filter((c) => c.group.toLowerCase() !== top && !c.placed)
     .map((c) => {
       c.entry.newGroup = tribe;
       return Review.fill(vote.say, (key) => ({ name: c.name, group: tribe, was: c.group })[key]);
@@ -1339,8 +1619,55 @@ async function resolveSeasonResearchContext(pool, showSlug, season, episodeNumbe
     );
   }
   const { active, skipped } = await stillInGame(pool, entry.show_id, season, episodeNumber, castNames);
-  const castGroups = await groupsGoingInto(pool, entry.season_id, episodeNumber);
-  return { ...contextFrom(entry, showSlug, season, episodeNumber, active, "season", skipped), castGroups };
+  const [castGroups, timeline] = await Promise.all([
+    groupsGoingInto(pool, entry.season_id, episodeNumber),
+    FormatTimelines.seasonFormatTimeline(pool, { showId: entry.show_id, season, cast: castNames, before: episodeNumber }),
+  ]);
+  return fromTimeline(contextFrom(entry, showSlug, season, episodeNumber, active, "season", skipped), castNames, castGroups, timeline);
+}
+
+// What the context reads of the format's state over time (F3 part 2; the timeline of the episodes before this one, from the
+// season's stored research): the groups going in (formatGoingIntoFrom), the season's word for its groups when the timeline
+// says it (Timeline.groupWord: tribe or team, else null and the show's own word stands; the prompt's lines beside the section
+// and newGroup's), and the newcomers still in, asked about like anyone after the cast
+// (Timeline.newcomersIn: not on the season's cast, which a person adds them to; `cast` is everyone research could ask about,
+// so someone already on it is never asked twice).
+function fromTimeline(ctx, cast, castGroups, timeline) {
+  const newcomers = Timeline.newcomersIn(timeline, ctx.episodeNumber, cast);
+  return {
+    ...ctx,
+    castNames: [...ctx.castNames, ...newcomers],
+    newcomers,
+    castGroups,
+    formatGoingIn: formatGoingIntoFrom(timeline, ctx.episodeNumber),
+    groupWord: Timeline.groupWord(timeline, ctx.episodeNumber),
+  };
+}
+
+// How the game was organised going INTO this episode, as far as research knows (F2; since F3 part 2 the timeline's
+// goingInto): who is with whom at the end of the latest earlier episode that said it, less anyone who went home since, as
+// { episode (the answer that said it), state: { playedAs, phase, groups, alone } (that answer's), newcomers (everyone an earlier
+// answer said came in), sure, why }, or null when no earlier answer says. The prompt shows it so the answer compares rather
+// than guesses (formatLines, which says when it isn't sure), and the checks read it (a whole pair went home). Pure.
+function formatGoingIntoFrom(timeline, episodeNumber) {
+  const g = Timeline.goingInto(timeline, episodeNumber);
+  if (!g.known) return null;
+  const e = Timeline.at(timeline, g.asOf);
+  const said = e && e.carried ? Timeline.at(timeline, e.carried) || e : e;
+  const newcomers = [...new Set(((timeline && timeline.newcomers) || []).filter((x) => x.episode < episodeNumber).map((x) => x.name))];
+  return {
+    episode: said ? said.episode : g.asOf,
+    state: { playedAs: said ? said.playedAs : null, phase: said ? said.phase : null, groups: g.groups.map((x) => ({ name: x.name, members: x.members.slice() })), alone: g.alone.slice() },
+    newcomers,
+    sure: g.sure,
+    why: g.why,
+  };
+}
+
+/** The same from the database: the timeline of the episodes before `episodeNumber`. `cast`: the names research asks about. */
+async function formatGoingInto(pool, showId, season, episodeNumber, cast = []) {
+  if (!showId) return null;
+  return formatGoingIntoFrom(await FormatTimelines.seasonFormatTimeline(pool, { showId, season, cast, before: episodeNumber }), episodeNumber);
 }
 
 async function resolveResearchContext(pool, leagueId, episodeNumber) {
@@ -1371,8 +1698,11 @@ async function resolveResearchContext(pool, leagueId, episodeNumber) {
     );
   }
   const { active, skipped } = await stillInGame(pool, entry.show_id, season, episodeNumber, castNames);
-  const castGroups = await groupsGoingInto(pool, entry.season_id, episodeNumber, castFrom === "league" ? league : null);
-  return { league, ...contextFrom(entry, showSlug, season, episodeNumber, active, castFrom, skipped), castGroups };
+  const [castGroups, timeline] = await Promise.all([
+    groupsGoingInto(pool, entry.season_id, episodeNumber, castFrom === "league" ? league : null),
+    FormatTimelines.seasonFormatTimeline(pool, { showId: entry.show_id, season, cast: castNames, before: episodeNumber }),
+  ]);
+  return { league, ...fromTimeline(contextFrom(entry, showSlug, season, episodeNumber, active, castFrom, skipped), castNames, castGroups, timeline) };
 }
 
 // ---------- side bets ----------
@@ -1545,6 +1875,11 @@ function mergeResearchPayload(stored, incoming, { fill = false } = {}) {
       payload.sourcesRead = [...byUrl.values()];
       continue;
     }
+    // The format section, a second pass filling in what the first couldn't tell, field by field (fillFormatState).
+    if (key === "formatState" && fill && value && stored.formatState) {
+      payload.formatState = fillFormatState(stored.formatState, value);
+      continue;
+    }
     const empty = value == null || value === "unknown";
     if (!empty || stored[key] == null) payload[key] = value;
   }
@@ -1587,6 +1922,24 @@ function fillEntry(was, now) {
     out[key] = value;
   }
   return { entry: out, disagreements };
+}
+
+// The format section's two passes (F2), as fillEntry does a person's: the later pass wins where it could tell, and one
+// that couldn't (unknown, null, nothing listed) never erases one that could. An empty list of groups is an answer
+// (everyone for themselves), so it replaces; null (not known) doesn't. Pure.
+function fillFormatState(was, now) {
+  const out = { ...was };
+  for (const [key, value] of Object.entries(now)) {
+    if (key === "groups" || key === "alone") continue;
+    if (value == null || value === "unknown" || (Array.isArray(value) && !value.length)) continue;
+    out[key] = value;
+  }
+  // Who is with whom and who's on their own are one answer: a pass that knows the groups says both.
+  if (Array.isArray(now.groups)) {
+    out.groups = now.groups;
+    out.alone = Array.isArray(now.alone) ? now.alone : [];
+  }
+  return out;
 }
 
 const CONFIDENCE_RANK = { low: 1, medium: 2, high: 3 };
@@ -1825,11 +2178,18 @@ async function researchItems(pool, seasonId, run, payload) {
   );
   // Research answers it itself now (`merged`); a wiki-staged flag from before that is still honoured.
   const postMerge = (payload && payload.merged === "yes") || !!(merge[0] && merge[0].post_merge);
+  // Someone answered for under their own name whom the cast's forgiving match would make someone else who has an entry of their
+  // own (a newcomer "Joy" beside "Joy Jones", F3 part 2) keeps their own name: two people, two rows.
+  const own = new Set(((payload && payload.castaways) || []).map((c) => String((c && c.name) || "").trim().toLowerCase()));
+  const nameOf = (name) => {
+    const canon = decisions.canonicalName(castState, name);
+    return canon.toLowerCase() !== String(name).trim().toLowerCase() && own.has(canon.toLowerCase()) ? name : canon;
+  };
   return candidatesFor(payload, run.format, run.episodeNumber).map((c) => ({
     episode: run.episodeNumber,
     postMerge,
     kind: c.kind,
-    name: decisions.canonicalName(castState, c.castawayName),
+    name: nameOf(c.castawayName),
     method: c.method || "",
     eventType: c.eventType,
     juryVotes: Number.isInteger(c.juryVotes) ? c.juryVotes : null,
@@ -1945,7 +2305,7 @@ function buildPastePrompt(ctx, bets, { structured = false, pasteBack = null } = 
         "Answer with ONE JSON object and nothing else -- no commentary before or after it. It must match",
         "this JSON Schema exactly:",
         "",
-        JSON.stringify(jsonSchemaFor(researchSchemaFor(ctx.format, bets.length > 0), "strict"), null, 1),
+        JSON.stringify(jsonSchemaFor(researchSchemaFor(ctx.format, bets.length > 0, ctx.groupWord), "strict"), null, 1),
         "",
         "Start from this skeleton: it already has one entry per person, in the right order, with every",
         "answer set to its 'don't know' value. Change only what your sources establish, keep every name",
@@ -1965,8 +2325,9 @@ function buildPastePrompt(ctx, bets, { structured = false, pasteBack = null } = 
         "read with the date it says it was published (and last updated, if it says), with the time if shown.",
         "Then one line,",
         `"Rules note:", answering this: ${RULES_NOTE.replace(/\bNull\b/g, "None")}`,
+        ...(asksFormat(ctx.format) ? proseFormat() : []),
         "Then, for EACH person, cover every one of these (say \"no\" or \"not reported\" rather than skipping one):",
-        ...proseChecklist(ctx.format),
+        ...proseChecklist(ctx.format, ctx.groupWord),
         "",
         "Paste your whole answer back into Game Your Show's \"Paste research notes\" box for this episode.",
       ];
@@ -1976,8 +2337,8 @@ function buildPastePrompt(ctx, bets, { structured = false, pasteBack = null } = 
 // The per-person checklist as plain questions, for the prose prompt. Read off the same schema the
 // answer is structured into, so a question added to a show's checklist is asked here too -- a
 // structuring pass can't score what the chat never mentioned.
-function proseChecklist(format) {
-  const person = jsonSchemaFor(researchSchemaFor(format, false), "strict").properties.castaways.items.properties;
+function proseChecklist(format, word = null) {
+  const person = jsonSchemaFor(researchSchemaFor(format, false, word), "strict").properties.castaways.items.properties;
   return Object.entries(person)
     .filter(([key]) => !["name", "sources", "confidence"].includes(key))
     .map(([key, node]) => {
@@ -1988,13 +2349,30 @@ function proseChecklist(format) {
     .concat(["  - The URLs you read for this person."]);
 }
 
+// The format section as plain questions, for the prose prompt: read off the same schema, as proseChecklist is.
+function proseFormat() {
+  const node = FormatState.unwrap ? FormatState.unwrap() : FormatState;
+  const each =
+    ` Each one with its kind (${KIND_WORDS}), when it came in (start, mid or end), the episode it takes effect from, ` +
+    "one sentence on what it is, and how sure you are (high or low).";
+  return ["Then a section \"How the game is organised:\", answering each of these:"].concat(
+    Object.entries(node.shape).map(([key, field]) => `  - ${key}: ${String(field.description || key).replace(/\bnull\b/g, "none")}${key === "changes" ? each : ""}`)
+  );
+}
+
 // A filled-in example of the answer, built from the same schema the answer is validated against, so it
 // can't drift from it: every person still in the game, every open bet, every answer at its most
 // non-committal value ("unknown", then "low" confidence, then null). A chat edits a skeleton far more
 // reliably than it writes a schema out from scratch.
 function pasteSkeleton(ctx, bets) {
-  const json = jsonSchemaFor(researchSchemaFor(ctx.format, bets.length > 0), "strict");
+  const json = jsonSchemaFor(researchSchemaFor(ctx.format, bets.length > 0, ctx.groupWord), "strict");
   const out = skeletonValue(json);
+  // The format section is null only for an answer from before it was asked: the skeleton shows its fields, each at its
+  // don't-know value (who is with whom: null, not known).
+  if (json.properties.formatState) {
+    const node = json.properties.formatState;
+    out.formatState = skeletonValue((node.anyOf || node.oneOf || []).find((v) => v && v.type !== "null") || node);
+  }
   const entry = json.properties.castaways.items;
   out.castaways = ctx.castNames.map((name) => ({ ...skeletonValue(entry), name }));
   if (json.properties.betAnswers) {
@@ -2172,7 +2550,7 @@ async function leagueResearchStatus(pool, leagueId, episodeNumber, opts = {}) {
   const bets = await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
   // The league path is JSON-only: a prose paste is structured by a model call on the site's own key,
   // which is an admin's call to make, not every commissioner's.
-  const prompt = buildPastePrompt({ ...ctx, castNames: asking }, bets, {
+  const prompt = buildPastePrompt({ ...ctx, castNames: asking, format: formatForAsking(ctx, asking) }, bets, {
     structured: true,
     // The commissioner's panel (episode-research-panel.tsx), not the admin one: no "Structured" tick box there.
     pasteBack: "Paste the JSON back into Game Your Show's \"Research this episode\" box for this episode.",
@@ -2190,14 +2568,16 @@ async function researchFromPasteForLeague(pool, leagueId, episodeNumber, notes, 
   requireEpisodeNumber(episodeNumber);
   const trimmed = requireNotes(notes);
   const ctx = await resolveResearchContext(pool, leagueId, episodeNumber);
-  const coverage = researchCoverage(await storedResearchFor(pool, ctx), ctx.castNames, ctx);
+  const stored = await storedResearchFor(pool, ctx);
+  const coverage = researchCoverage(stored, ctx.castNames, ctx);
   // `opts.again`: the answer to leagueResearchStatus's everyone-again prompt, filled in field by field.
   const again = !!opts.again && coverage.researched;
   if (!again && !coverage.needsAsking.length) {
     throw new Error(`Episode ${episodeNumber} is already researched for everyone in this league — there's nothing to paste, just review it.`);
   }
   const seasonId = await ensureSeasonRow(pool, ctx);
-  const asked = { ...ctx, seasonId, castNames: again ? ctx.castNames : coverage.needsAsking };
+  const asking = again ? ctx.castNames : coverage.needsAsking;
+  const asked = { ...ctx, seasonId, castNames: asking, format: formatForAsking(ctx, asking) };
   const run = await pastedRun(pool, asked, episodeNumber, trimmed, {
     ...opts,
     structured: true,
@@ -2207,6 +2587,8 @@ async function researchFromPasteForLeague(pool, leagueId, episodeNumber, notes, 
     // commissioner has already been asked and said yes (`opts.confirmed`).
     checkEpisode: !opts.confirmed,
     leagueEpisodes: (ctx.league && ctx.league.state && ctx.league.state.episodes) || [],
+    // A pass about some of the cast asks no format section: the stored one (the whole cast's) says their moves (F3 part 2).
+    storedState: stored && stored.payload && askedAlike(stored.provenance, ctx) ? stored.payload.formatState || null : null,
   });
   return { ...run, coverage };
 }
@@ -2359,7 +2741,7 @@ async function clearLeagueResearch(pool, leagueId, episodeNumber) {
 async function pastedRun(pool, ctx, episodeNumber, trimmed, opts) {
   const only = Array.isArray(opts.only) ? opts.only : null;
   const bets = only ? [] : await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
-  const schema = researchSchemaFor(only ? onlyFormat(ctx.format, only) : ctx.format, bets.length > 0);
+  const schema = researchSchemaFor(only ? onlyFormat(ctx.format, only) : ctx.format, bets.length > 0, ctx.groupWord);
 
   // Always the pasted JSON, parsed directly: no model, no credentials, no cost. Every paste prompt asks for JSON, and a
   // paste that isn't is refused and pasted again, never handed to a paid model to tidy (decision 9: no paid research;
@@ -2384,7 +2766,13 @@ async function pastedRun(pool, ctx, episodeNumber, trimmed, opts) {
     if (mismatch) throw Object.assign(new Error(mismatch.message), { code: "EPISODE_MISMATCH", episode: mismatch.episode });
   }
 
-  const review = validateResearch(parsed, ctx.castNames, ctx.terms, ctx.format, { partial: !!opts.merge, groups: ctx.castGroups });
+  const review = validateResearch(parsed, ctx.castNames, ctx.terms, ctx.format, {
+    partial: !!opts.merge,
+    groups: ctx.castGroups,
+    formatGoingIn: ctx.formatGoingIn,
+    episode: episodeNumber,
+    storedState: asksFormat(ctx.format) ? null : opts.storedState || null,
+  });
   review.problems.unshift(...(parsed.repairs || []));
   for (const problem of review.problems) console.log(`[research] ! ${problem}`);
   if (review.fatal.length) {
@@ -2456,7 +2844,7 @@ async function runFor(pool, ctx, opts) {
 
   const cached = await cachedResearch(pool, ctx, episodeNumber, opts);
   if (cached) {
-    const review = validateResearch(cached.payload, ctx.castNames, ctx.terms, ctx.format, { groups: ctx.castGroups });
+    const review = validateResearch(cached.payload, ctx.castNames, ctx.terms, ctx.format, { groups: ctx.castGroups, formatGoingIn: ctx.formatGoingIn, episode: episodeNumber });
     // `id` matters even on a cache hit: staging needs a research_id to file decisions against, and
     // re-staging a cached episode must not require paying for the search again.
     return { ...ctx, ...review, payload: cached.payload, provenance: cached.provenance, cached: true, id: cached.id };
@@ -2472,7 +2860,7 @@ async function runFor(pool, ctx, opts) {
   const bets = await openBetsFor(pool, ctx.showSlug, ctx.season, episodeNumber);
   if (bets.length) console.log(`[research] also settling ${bets.length} open side bet(s) from the season's leagues`);
   const { system, user } = buildPrompt({ ...ctx, bets });
-  const out = await runResearch({ system, user, schema: researchSchemaFor(ctx.format, bets.length > 0), provider, model, domains: ctx.domains });
+  const out = await runResearch({ system, user, schema: researchSchemaFor(ctx.format, bets.length > 0, ctx.groupWord), provider, model, domains: ctx.domains });
   console.log(
     `[research] tokens: ${out.usage.input_tokens} in / ${out.usage.output_tokens} out` +
       ` (${out.passes} call${out.passes === 1 ? "" : "s"}), ${out.pagesRead.length} page(s) read`
@@ -2480,7 +2868,7 @@ async function runFor(pool, ctx, opts) {
   // Stored with the bets' own wording (the model answered by number), for the suggested-answer route.
   if (bets.length) out.parsed.betAnswers = betAnswersFrom(out.parsed, bets);
 
-  const review = validateResearch(out.parsed, ctx.castNames, ctx.terms, ctx.format, { groups: ctx.castGroups });
+  const review = validateResearch(out.parsed, ctx.castNames, ctx.terms, ctx.format, { groups: ctx.castGroups, formatGoingIn: ctx.formatGoingIn, episode: episodeNumber });
   // Answers that strayed outside a fixed list and were set to its catch-all (validateLeniently).
   review.problems.unshift(...(out.parsed.repairs || []));
   for (const problem of review.problems) console.log(`[research] ! ${problem}`);
@@ -2602,6 +2990,12 @@ if (require.main === module) {
 
 module.exports = {
   researchSchemaFor,
+  formatLines,
+  formatGoingInto,
+  formatGoingIntoFrom,
+  fromTimeline,
+  formatForAsking,
+  plural,
   checklistKeys,
   unaskedKeys,
   onlyFormat,

@@ -1,5 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
-import { episodesSeen, revealIn, seasonEpisodesSeen, type EpisodeSeen, type Happened, type OutFace, type RevealGame, type RevealPart, type RevealTable } from "@/lib/game/episode-view";
+import { episodesSeen, revealIn, seasonEpisodesSeen, type EpisodeSeen, type Happened, type OutFace, type RevealGame, type RevealPart, type RevealSheet, type RevealTable } from "@/lib/game/episode-view";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import { latestIn, resultsDue, stageAcross } from "@/lib/game/results-due";
 import type { SessionUser } from "./auth-helpers";
@@ -12,6 +12,7 @@ import { DEFAULT_RUNTIME_MIN, finalAtOf, seasonSchedules } from "./schedule";
 import type { ReadOnly } from "./read-only";
 import { gamesHere, type GameHere } from "./season-games";
 import { seasonFactsFor } from "./season-stats";
+import { leagueAnswers, sheetNights, storedAnswers } from "./answer-points";
 
 // A season's episodes and its one reveal, for the new design's show space (docs/PLAN-new-design.md step 2):
 //   GET  /api/seasons/[id]/episodes   every episode as far as you've seen (who went home, what happened, the top
@@ -70,6 +71,20 @@ export interface SeasonEpisodes {
 /** A game you joined late and are still catching up in (StateLogic.GhostLogic). */
 const catchingUpIn = (h: GameHere) => StateLogic.GhostLogic.isCatchingUp(h.state, h.playerId);
 
+/** A Prediction Sheet's points around episode n and its nights, for the reveal (step A4 part 2); undefined for any other game. */
+async function revealSheet(h: GameHere, n: number): Promise<RevealSheet | undefined> {
+  if (!StateLogic.getLeagueType(h.state).hasQuestions) return undefined;
+  try {
+    const o = { leagueId: h.game.leagueId, state: h.state, playerId: h.playerId, rows: h.answers ?? (await storedAnswers(h.game.leagueId)) };
+    const [was, now, nights] = await Promise.all([leagueAnswers({ ...o, mark: n - 1 }), leagueAnswers({ ...o, mark: n }), sheetNights({ ...o, mark: n })]);
+    return { was, now, nights };
+  } catch (e) {
+    // The mark has moved already: the reveal goes on without the sheet's points rather than failing.
+    console.error(`[season-episodes] reveal sheet ${h.game.leagueId}:`, e);
+    return undefined;
+  }
+}
+
 /** The episodes you may be told about, merged across your games here (or, playing none, the season's own results). `ro`:
  *  told from the game open read-only (read-only.ts), as its couch has it: nobody's own line, and no Fill it in. */
 export async function seasonEpisodes(user: SessionUser, seasonId: string, couchId: string | null, ro: ReadOnly | null = null): Promise<SeasonEpisodes> {
@@ -101,7 +116,14 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   const seenRows = new Map<number, EpisodeSeen>();
   const order = [...here].sort((a, b) => Number(b.game.gameType === "active-roster") - Number(a.game.gameType === "active-roster"));
   for (const h of order) {
-    for (const ep of episodesSeen(h.ref, h.state, h.readOnly ? null : h.playerId, h.mark)) {
+    // A Prediction Sheet's nights come from its answers (step A4 part 2: answer-points.ts sheetNights); read-only, nobody's.
+    const sheet = !h.readOnly && StateLogic.getLeagueType(h.state).hasQuestions
+      ? await sheetNights({ leagueId: h.game.leagueId, state: h.state, playerId: h.playerId, mark: h.mark, rows: h.answers }).catch((e) => {
+          console.error(`[season-episodes] sheet nights ${h.game.leagueId}:`, e);
+          return undefined;
+        })
+      : undefined;
+    for (const ep of episodesSeen(h.ref, h.state, h.readOnly ? null : h.playerId, h.mark, sheet)) {
       const had = seenRows.get(ep.number);
       if (!had) seenRows.set(ep.number, ep);
       else {
@@ -267,7 +289,7 @@ export async function revealSeason(user: SessionUser, seasonId: string, couchId:
 
   // The beats, from each game as it stands now (at the new mark): only games that have reached episode n.
   const { here } = await gamesHere(user, seasonId, couchId);
-  const parts = here.filter((h) => h.mark === null || h.mark >= n).map((h: GameHere) => revealIn(h.ref, h.state, h.playerId, n, h.userOf)).filter((p) => !!p);
+  const parts = (await Promise.all(here.filter((h) => h.mark === null || h.mark >= n).map(async (h: GameHere) => revealIn(h.ref, h.state, h.playerId, n, h.userOf, await revealSheet(h, n))))).filter((p) => !!p);
   if (!parts.length) throw new HttpError(400, "Nothing to reveal for that episode yet");
   const stage = parts.some((p) => p.stage === "early") ? "early" : "final";
   const states = here.map((h) => h.state);
@@ -337,7 +359,7 @@ export async function catchUpReveal(user: SessionUser, seasonId: string, couchId
   await markRevealed(user, h.game.leagueId, h.playerId, n);
   const after = (await gamesHere(user, seasonId, couchId)).here.find((x) => x.game.leagueId === h.game.leagueId);
   if (!after) throw new HttpError(404, "You don't play that game here");
-  const part = revealIn(after.ref, after.state, after.playerId, n, after.userOf);
+  const part = revealIn(after.ref, after.state, after.playerId, n, after.userOf, await revealSheet(after, n));
   const still = StateLogic.GhostLogic.isCatchingUp(after.state, after.playerId);
   return { episode: n, leagueId: h.game.leagueId, out: part?.out ?? [], game: part?.game ?? null, lineup: part?.lineup ?? null, next: still ? n + 1 : null };
 }

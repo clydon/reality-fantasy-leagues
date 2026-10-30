@@ -1,8 +1,80 @@
 // Ambient typing for state-logic.js (forked from the live app -- see the provenance comment at
 // that file's top), covering what this repo's components actually call. Not exhaustive — extend
 // as more of the file gets used.
-import type { LeagueState, ScoreRow, DraftTurn, Player, LateJoin, Castaway, Tribe, Bet, Episode, PickEmPick, ScoringEvent, EpisodeProposalPayload, MidSeasonLogEntry, WaiverPeriod, WaiverRun, WaiverClaim, WaiverPair, WaiverWindows, ReplaceRule, WaiverFeel, WaiverRecommendation } from "./types";
+import type { LeagueState, ScoreRow, DraftTurn, Player, LateJoin, Castaway, Tribe, Bet, Episode, PickEmPick, ScoringEvent, EpisodeProposalPayload, MidSeasonLogEntry, WaiverPeriod, WaiverRun, WaiverClaim, WaiverPair, WaiverWindows, ReplaceRule, WaiverFeel, WaiverRecommendation, GroupSlotPick, FormatGroup, EpisodeFormatGroups } from "./types";
 import type { GameFormat, SeasonChange, SeasonChangeSkip } from "./formats/index.js";
+import type { GameSpec, SpecContext, SpecInput, SpecProblem, Question, AnswerFacts, Verdict, GroupSlots, PoolParts } from "./game-spec/index.js";
+
+/** Step A10 part 1: what a player's group slot holds in an episode (GroupSlotLogic.standing). */
+export interface GroupSlotStanding {
+  pick: GroupSlotPick | null;
+  /** The episode its latest pick was made for. */
+  from: number | null;
+  status: "held" | "void" | "dropped" | "waiting" | "empty";
+  /** A held slot's people, the league's castaway ids, and how many the group has as research says (its mean's). */
+  members: string[];
+  size: number;
+  /** Held though its lock or play wasn't sure (a game that follows the people). */
+  unsure: boolean;
+  why: string[];
+  /** A dropped slot's: the episode its group ended at. */
+  endedAt?: number;
+}
+export interface GroupSlotIndex {
+  eps: Map<number, Episode>;
+  exits: Map<string, number>;
+}
+export interface GroupSlotLine extends GroupSlotStanding {
+  slot: number;
+  points: number;
+}
+
+/** One pick's outcome on a decided episode (A10 part 2's flags only on a pool with them). */
+/** Step A11 part 1: one scored episode of a draft's knockout walk: every player's total through it, and its parts as a score row
+ *  has them. */
+interface KnockoutEpisode {
+  number: number;
+  quiet: boolean;
+  totals: Map<string, number>;
+  rows: Map<string, { locked: number; banked: number; bonus: number; finale: number }>;
+}
+
+interface PickEmOutcome {
+  correct: boolean | null;
+  points: number;
+  forgiven?: boolean;
+  lifeLost?: boolean;
+}
+/** A row of a pool's season (PickEmLogic.history): one episode, its pick (and a second pick), the streak after it; with lives,
+ *  the lives left, `boughtBack` (its cost) or `out` (for good) when it emptied them. Step A11 part 2: `skipped`, a night a pick
+ *  that never repeats had nobody left to pick, skipped by its fallback (nothing counts); `spared`, the night everyone left went
+ *  out, taken back (allOut 'back'). */
+export interface PickEmHistoryRow extends PickEmOutcome {
+  episode: number;
+  postMerge: boolean;
+  castawayId: string | null;
+  streak: number;
+  second?: PickEmOutcome & { castawayId: string; void?: boolean };
+  lives?: number;
+  boughtBack?: number;
+  out?: boolean;
+  skipped?: boolean;
+  spared?: boolean;
+}
+/** A player's pool season (PickEmLogic.history, pickEmHistory): its rows and streaks; a pool's parts (A10 part 2) add their
+ *  fields only when it has them; A11 part 2's `shared`, out the night everyone left went out, sharing the win. */
+export interface PickEmHistory {
+  rows: PickEmHistoryRow[];
+  total: number;
+  longestStreak: number;
+  currentStreak: number;
+  lives?: number | null;
+  out?: number | null;
+  mulligans?: number;
+  buybacks?: number;
+  cost?: number;
+  shared?: boolean;
+}
 
 /** One question in guided first-time setup, in the order it should be asked. */
 /** A season_cast row as the cast-linking functions read it. */
@@ -50,8 +122,12 @@ export interface LeagueType {
   hasWeeklyPicks: boolean;
   /** Active Roster: per-episode lineups + a scoring-event log (state-logic.js's ActiveRosterLogic). */
   hasActiveRoster: boolean;
+  /** Best ball (step A9 part 2): Weekly Lineup's type with no lineups, each episode a team's best n counting. */
+  hasBestBall?: boolean;
   /** Weekly Calls: scored from each person's calls (Call it, src/lib/server/calls.ts), which aren't in the state. */
   hasCalls?: boolean;
+  /** A game of questions (step A4): scored by its own answers (game_answers, answers.ts), not the state. */
+  hasQuestions?: boolean;
   /** Weekly Bingo: scored from each person's bingo lines (src/lib/server/bingo.ts), which aren't in the state either. */
   hasBingo?: boolean;
 }
@@ -96,6 +172,31 @@ declare const StateLogic: {
   ScoringLogic: {
     compute(state: LeagueState): ScoreRow[];
   };
+  /** A Survival Pool's scoring; a pool with lives ranked by last one standing (step A10 part 2) by standingKey, compared from
+   *  its first number on (compareKeys: a's minus b's at the first that differs). */
+  PickEmScoringStrategy: {
+    compute(state: LeagueState): ScoreRow[];
+    standingKey(row: ScoreRow): number[];
+    compareKeys(a: number[], b: number[]): number;
+  };
+  /** The order a game's table ranks a score row in (compareKeys, higher first): a pool's standing or streak, a stock market's
+   *  worth (step A10 part 3c), a draft that knocks players out by standing (A11 part 1), else the points. */
+  rankKey(state: LeagueState, row: Pick<ScoreRow, "total"> & Partial<ScoreRow>): number[];
+  /** Step A10 part 2: a pool's lives, buyback, mulligans and second pick. A11 part 2: a pick that never repeats, and last one
+   *  standing's end (one left ending it, the night everyone left goes out), walked everyone together (walk: each one's history,
+   *  and the episode it ended at). */
+  PickEmLogic: {
+    parts(state: LeagueState): PoolParts | null;
+    together(parts: PoolParts | null): boolean;
+    walk(state: LeagueState, parts: PoolParts): { of: Map<string, PickEmHistory>; ends: number | null };
+    /** Every player's history at once, one walk where the pool walks everyone together (the table's). */
+    histories(state: LeagueState): Map<string, PickEmHistory>;
+    endsAt(state: LeagueState): number | null;
+    /** Whether two or more went home in an episode (a winner's exit isn't one): a night a second pick counts. */
+    double(state: LeagueState, ep: Episode): boolean;
+    secondCounted(state: LeagueState, ep: Episode, parts?: PoolParts | null): boolean;
+    canBuyBack(state: LeagueState, buyback: PoolParts["buyback"], number: number): boolean;
+  };
   DraftLogic: {
     currentTurn(state: LeagueState): DraftTurn | null;
     isStarted(state: LeagueState): boolean;
@@ -135,6 +236,8 @@ declare const StateLogic: {
   };
   /** Classic scoring: 1 point per castaway, plus 1 for every elimination they outlast. */
   EliminationOrderScoringStrategy: {
+    /** In reverse (step A9 part 2): the earlier they go home, the more. */
+    reversed(state: LeagueState): boolean;
     castawayPoints(state: LeagueState, c: Castaway): number;
     stillInPoints(state: LeagueState): number;
     compute(state: LeagueState): ScoreRow[];
@@ -147,7 +250,6 @@ declare const StateLogic: {
   WaiverLogic: {
     /** The league type has mid-season moves at all (not Eliminator Pool or shared Classic). */
     supported(state: LeagueState): boolean;
-    legacyConfig(state: LeagueState): { replaceRule: ReplaceRule; waiverWindows: WaiverWindows };
     normalizeWindows(state: LeagueState, w: Partial<WaiverWindows> | null | undefined): WaiverWindows;
     /** The league's waiver settings, read from the v2 keys or (not yet backfilled) the pre-v2 switches. */
     config(state: LeagueState): { replaceRule: ReplaceRule; waiverWindows: WaiverWindows; waiverFeel: WaiverFeel; autoFill: boolean };
@@ -182,6 +284,8 @@ declare const StateLogic: {
     teamsFor(state: LeagueState, opts?: { teams?: number }): number;
     recommendFor(state: LeagueState, feel?: WaiverFeel | null, opts?: { episodes?: number; castSize?: number; teams?: number }): WaiverRecommendation | null;
     applyRecommendation(state: LeagueState, feel?: WaiverFeel | null, opts?: { episodes?: number; castSize?: number; teams?: number }): boolean;
+    /** applyRecommendation, with why it was refused ([] when it's written). */
+    writeRecommendation(state: LeagueState, feel?: WaiverFeel | null, opts?: { episodes?: number; castSize?: number; teams?: number }): SpecProblem[];
     /** After the draft starts: re-fits a league still on its creation-time suggestion. */
     refit(state: LeagueState): boolean;
     isRecommended(state: LeagueState, opts?: { episodes?: number; castSize?: number; teams?: number }): boolean;
@@ -258,7 +362,8 @@ declare const StateLogic: {
     isCatchingUp(state: LeagueState, playerId: string | null | undefined): boolean;
     /** Still has to choose a start episode (and draft) before playing. */
     needsStart(state: LeagueState, playerId: string | null | undefined): boolean;
-    startFor(state: LeagueState, playerId: string): number;
+    /** Where their own season starts; null while the league waits for its phase (step A3). */
+    startFor(state: LeagueState, playerId: string): number | null;
     isUnderway(state: LeagueState): boolean;
     /** Late joining is on unless the commissioner switched it off. */
     allowed(state: LeagueState): boolean;
@@ -295,11 +400,17 @@ declare const StateLogic: {
     normalize(value: unknown): number | null;
   };
   getLeagueType(state: LeagueState): LeagueType;
+  /** The game the league plays, as data (its game spec: settings.game when it carries one, else read from its settings). Read only. */
+  gameOf(state: LeagueState): Readonly<GameSpec>;
   // Capability AND commissioner choice, together -- see their comment in state-logic.js. Anything
   // that shows or starts a mid-season round should ask through these, not read either half alone.
   replenishAvailable(state: LeagueState): boolean;
   tradeAvailable(state: LeagueState): boolean;
   finalePredictionsAvailable(state: LeagueState): boolean;
+  /** A draft's finale predictions, as its spec's two questions say them (their points), or null. */
+  finaleOfGame(state: LeagueState): { top3: number; winner: number; from: "any" | "own" } | null;
+  /** Side bets where they count (only beside a draft: A4), or null. What everything that shows or takes a bet asks. */
+  betsOn(state: LeagueState): { points: number } | null;
   /** Castaways per player in the draft. Derived from activeSlots+benchSlots for Active Roster. */
   rosterSize(state: LeagueState): number;
   /** The most a prediction can be worth (1 to this, whole points). */
@@ -308,10 +419,18 @@ declare const StateLogic: {
   originalDraftPicks(state: LeagueState, playerId: string): Castaway[];
   /** The league's show format (exit methods, scoring events, merge, winner). See formats/index.js. */
   formatOf(state: LeagueState): GameFormat;
-  /** The episode this league starts playing at (settings.startEpisode, default 1). */
-  startEpisode(state: LeagueState): number;
+  /** The episode this league starts playing at (the spec's span.from: settings.startEpisode, default 1); null while a game
+   *  that starts at a phase of the season (step A3) waits for it. */
+  startEpisode(state: LeagueState): number | null;
+  /** The phase of the season's rulebook it starts at (its id), or null: it starts at an episode. */
+  startPhase(state: LeagueState): string | null;
+  /** Waiting for its phase to start: nothing is in play, asked or scored yet. */
+  waitsForPhase(state: LeagueState): boolean;
   /** The last episode a game over a span plays (settings.endEpisode), or null: to the season's end. */
   endEpisode(state: LeagueState): number | null;
+  /** Step A11 part 1: the episode the game plays through as the data has it: its span's end, or earlier where a draft's race was
+   *  won or its cuts left one (KnockoutLogic.endsAt). gameOver and spanView read it; endEpisode stays the span it was made with. */
+  lastEpisode(state: LeagueState): number | null;
   /** Whether an episode counts for this league -- from its start episode through its end, if it has one. */
   inPlay(state: LeagueState, episodeNumber: number): boolean;
   /** The league as its span saw it: results after its last episode taken out (the state itself when there are none). */
@@ -341,6 +460,25 @@ declare const StateLogic: {
     isLineupLocked(state: LeagueState, epId: string): boolean;
     validateLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): string | null;
     setLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): boolean;
+    /** Step A9 part 2: best ball's n (0: none); a captain's multiplier (0: no captain); whether the lineups score any way but
+     *  plainly; what an episode's points multiply by (1: plainly). */
+    bestOf(state: LeagueState): number;
+    captainTimes(state: LeagueState): number;
+    combines(state: LeagueState): boolean;
+    timesFor(state: LeagueState, number: number): number;
+    /** The captain who counts for a player in an episode (named for it, else carried from the last they named), or null. */
+    captainFor(state: LeagueState, epId: string, playerId: string): string | null;
+    validateCaptain(state: LeagueState, epId: string, playerId: string, castawayId: string | null, lineup?: string[]): string | null;
+    setCaptain(state: LeagueState, epId: string, playerId: string, castawayId: string | null): boolean;
+    /** Best ball: the team a player held for an episode (the mid-season log's moves from it on taken back). */
+    teamFor(state: LeagueState, ep: Episode, playerId: string): string[];
+    /** One player's points for one episode, as the game counts them (a captain, best ball, the episode's multiplier). */
+    episodeScore(
+      state: LeagueState,
+      ep: Episode,
+      playerId: string,
+      pre?: { events?: ScoringEvent[]; times?: number }
+    ): { total: number; lines: { castawayId: string; points: number; counted: boolean; captain: boolean }[]; captain: string | null; times: number; slots: GroupSlotLine[] };
     lockLineups(state: LeagueState, epId: string): boolean;
     unlockLineups(state: LeagueState, epId: string): boolean;
     carryForwardLineups(state: LeagueState, epId: string): boolean;
@@ -349,6 +487,22 @@ declare const StateLogic: {
     setEventUnits(state: LeagueState, epId: string, eventId: string, units: number | null): boolean;
     /** Recorded events plus the ones the format implies from exits and roles (`implied: true`). */
     episodeEvents(state: LeagueState, ep: Episode): ScoringEvent[];
+  };
+  /** Step A10 part 1: group slots (the spec's get.groups), on the season's format groups the sync writes into each episode. */
+  GroupSlotLogic: {
+    config(state: LeagueState): GroupSlots | null;
+    /** The episodes by number, and each castaway out by the episode they went home in: once a pass. */
+    index(state: LeagueState): GroupSlotIndex;
+    record(state: LeagueState, n: number, ix?: GroupSlotIndex): EpisodeFormatGroups | null;
+    find(groups: FormatGroup[], pick: GroupSlotPick | null, exits: Map<string, number>, k: number): FormatGroup | null;
+    /** What a slot can pick going into episode n. */
+    offered(state: LeagueState, n: number, ix?: GroupSlotIndex): { groups: FormatGroup[]; sure: boolean; why: string[]; shared: boolean };
+    latestPick(state: LeagueState, playerId: string, slot: number, n: number): { pick: GroupSlotPick | null; from: number } | null;
+    standing(state: LeagueState, playerId: string, slot: number, n: number, ix?: GroupSlotIndex): GroupSlotStanding;
+    episodeLines(state: LeagueState, ep: Episode, playerId: string, events?: ScoringEvent[], times?: number, ix?: GroupSlotIndex): GroupSlotLine[];
+    validatePick(state: LeagueState, epId: string, playerId: string, slot: number, groupId: string | null): string | null;
+    setPick(state: LeagueState, epId: string, playerId: string, slot: number, groupId: string | null): boolean;
+    settle(state: LeagueState, records: Map<number, EpisodeFormatGroups> | Record<number, EpisodeFormatGroups>): boolean;
   };
   /** The role someone holds as of an episode (or now); null for a format without roles. */
   roleOf(state: LeagueState, castawayId: string, throughEpisode?: number): string | null;
@@ -481,9 +635,26 @@ declare const StateLogic: {
     skipped: string[];
     unresolved: string[];
   };
-  updateSettings(state: LeagueState, field: string, value: unknown): void;
-  addBet(state: LeagueState, epId: string, label: string, points: number, createdByPlayerId: string | null): Bet;
-  addBetToUpcoming(state: LeagueState, label: string, points: number, createdByPlayerId: string | null): Bet;
+  /** A settings write; a game field goes through setGame. The problems it was refused for ([] when it's written). */
+  updateSettings(state: LeagueState, field: string, value: unknown): SpecProblem[];
+  /** A league's game written from a whole spec: checked as the league's own, today's fields written, its side effects. */
+  setGame(state: LeagueState, spec: SpecInput | GameSpec, opts?: { ctx?: SpecContext | null }): SpecProblem[];
+  /** A league carrying its spec (settings.game) carries what its fields play. */
+  syncGame(state: LeagueState): void;
+  /** Where a game that starts at a phase plays from (step A3): the later of the phase's first episode (`from`, null while
+   *  unknown: it waits again) and the first episode still open for moves (`open`); never once that's aired. Through
+   *  setGame: its problems, [] when written or nothing changed. */
+  settleStart(state: LeagueState, where: { from: number | null; open: number }): SpecProblem[];
+  /** A7: a game that asks by phase records the season's phase starts and its phase windows; whether anything changed. */
+  settlePhases(state: LeagueState, where: { phases: { id: string; from: number | null }[]; open: number }): boolean;
+  /** A game that reads the season's phase starts: it asks by phase (A7), or its points multiply in a phase (A9 part 2). */
+  readsPhases(state: LeagueState): boolean;
+  /** A new bet on an episode this game plays; undefined for one outside its span (before its start, after its end). */
+  addBet(state: LeagueState, epId: string, label: string, points: number, createdByPlayerId: string | null): Bet | undefined;
+  /** A new bet on the episode about to be played (betTarget); undefined once the game is over. */
+  addBetToUpcoming(state: LeagueState, label: string, points: number, createdByPlayerId: string | null): Bet | undefined;
+  /** The episode a bet proposed now goes on (never before the game's start), or null once a span's last episode is past. */
+  betTarget(state: LeagueState): number | null;
   removeBet(state: LeagueState, epId: string, betId: string): void;
   addBetPrediction(state: LeagueState, epId: string, betId: string, playerId: string, guess: string): void;
   setBetPredictionCorrect(state: LeagueState, epId: string, betId: string, predId: string, value: boolean | null): void;
@@ -543,12 +714,12 @@ declare const StateLogic: {
   };
   setFinalePick(state: LeagueState, playerId: string, idx: number, value: string | null): void;
   setFinaleWinnerPick(state: LeagueState, playerId: string, value: string | null): void;
-  setActualTop3(state: LeagueState, idx: number, value: string | null): void;
-  setActualWinner(state: LeagueState, value: string | null): void;
   // Blind draft (shared-ownership classic-draft). Note there is nothing here for reading the
   // submitted picks: those never enter league state -- the server reads them straight out of
   // blind_draft_picks (src/lib/server/blind-draft.ts). These are the state-side pieces only.
   BlindDraftLogic: {
+    /** A blind draft: shared, picked in private (not A10 part 3's shared draw). */
+    on(state: LeagueState): boolean;
     eligiblePlayers(state: LeagueState): Player[];
     isRevealed(state: LeagueState): boolean;
     lockedPlayerIds(state: LeagueState): string[];
@@ -559,8 +730,202 @@ declare const StateLogic: {
     validateSubmission(state: LeagueState, playerId: string, castawayIds: string[]): string | null;
     reveal(state: LeagueState, picksByPlayer: Record<string, string[]>, revealedAt?: string): boolean;
   };
+  /** Step A10 part 3: a draft spread across the cast's groups (the spec's get.across), on the groups the data has them on now. */
+  SpreadLogic: {
+    config(state: LeagueState): import("./game-spec/index.js").DraftAcross | null;
+    groupsNow(state: LeagueState): { of: Map<string, string | null>; groups: string[]; each: number; least: number; most: number } | null;
+    /** The candidates that keep a team with `picked` spread (all of them when none does, or nothing is spread). */
+    allowed(state: LeagueState, picked: string[], candidates: string[], g?: unknown): string[];
+    /** Who a turn-based draft's player could take next and keep their team spread (of the free agents when left out). */
+    allowedFor(state: LeagueState, playerId: string, candidates?: string[]): string[];
+    pickProblem(state: LeagueState, playerId: string, castawayId: string): string | null;
+    teamProblem(state: LeagueState, castawayIds: string[]): string | null;
+  };
+  /** Step A10 part 3: names out of a hat (the spec's get.order 'draw'), seeded and recorded in state.draw. */
+  DrawLogic: {
+    on(state: LeagueState): boolean;
+    drawn(state: LeagueState): boolean;
+    outcome(state: LeagueState, seed: string): { order: string[]; teams: Record<string, string[]>; short: string[] };
+    draw(state: LeagueState, seed?: string): boolean;
+    ready(state: LeagueState): boolean;
+    due(state: LeagueState): boolean;
+    settle(state: LeagueState): boolean;
+  };
+  /** Step A10 part 3b: a salary cap's prices from the data (each castaway's points so far by the game's rules, by standing). */
+  PriceLogic: {
+    config(state: LeagueState): import("./game-spec/index.js").BudgetParts | null;
+    capOn(state: LeagueState): boolean;
+    points(state: LeagueState, through?: number | null): Map<string, number>;
+    latest(state: LeagueState): number;
+    prices(state: LeagueState, through?: number | null): Map<string, number>;
+  };
+  /** Step A10 part 3b: a salary cap, at the draft and on every change after it. */
+  BudgetLogic: {
+    cap(state: LeagueState): number | null;
+    cost(ids: string[], prices: Map<string, number>): number;
+    allowed(state: LeagueState, picked: string[], candidates: string[], prices?: Map<string, number>, pool?: string[]): string[];
+    least(state: LeagueState, picked: string[], id: string, pool: string[], prices: Map<string, number>): number;
+    reason(state: LeagueState, cost: number, more?: number): string;
+    pickProblem(state: LeagueState, playerId: string, castawayId: string, prices?: Map<string, number>): string | null;
+    /** Part 4: `keep`, the seat's keepers, already on the team. */
+    teamProblem(state: LeagueState, castawayIds: string[], keep?: string[]): string | null;
+    moveProblem(state: LeagueState, playerId: string, dropId: string | null, addId: string, prices?: Map<string, number>): string | null;
+    /** Part 3c: whether a change to a team is checked against prices (a salary cap's, or a stock market's cash). */
+    priced(state: LeagueState): boolean;
+  };
+  /** Step A10 part 3c: a stock market, buying and selling each week at the data's prices; cash a ledger from the logs. */
+  MarketLogic: {
+    config(state: LeagueState): import("./game-spec/index.js").BudgetParts | null;
+    on(state: LeagueState): boolean;
+    draftPaid(state: LeagueState, playerId: string): number;
+    cash(state: LeagueState, playerId: string): number | null;
+    terms(state: LeagueState, dropId: string | null, addId: string, prices?: Map<string, number>): { sold: number; paid: number; fee?: number };
+    moveProblem(state: LeagueState, playerId: string, dropId: string | null, addId: string, prices?: Map<string, number>): string | null;
+    worth(state: LeagueState, playerId: string, prices?: Map<string, number>): number;
+    view(state: LeagueState): { prices: Record<string, number>; cash: Record<string, number>; worth: Record<string, number> } | null;
+  };
+  /** Step A11 part 1: a draft's race (rank.race: the first to N points wins, and the game ends there) and players knocked out
+   *  (rank.cut), worked out from the data on every read. `out`: the last episode that counts for someone knocked out. */
+  KnockoutLogic: {
+    parts(state: LeagueState): { race: { to: number } | null; cuts: { at: { every?: number; episode?: number; phase?: string }; out: number | "half"; tie: "keep" | "all"; quiet: "cut" | "skip" }[]; oneLeft: "ends" | "plays" } | null;
+    on(state: LeagueState): boolean;
+    series(state: LeagueState): KnockoutEpisode[];
+    run(state: LeagueState): { out: Map<string, number>; ends: number | null; series: KnockoutEpisode[] };
+    endsAt(state: LeagueState): number | null;
+    outs(state: LeagueState): Map<string, number>;
+    outOf(state: LeagueState, playerId: string): number | null;
+    isOut(state: LeagueState, playerId: string): boolean;
+    moveProblem(state: LeagueState, playerId: string, number: number): string | null;
+    endedBefore(state: LeagueState, number: number): boolean;
+    frees(state: LeagueState): boolean;
+    apply(state: LeagueState, rows: ScoreRow[]): ScoreRow[];
+  };
+  /** Step A11 part 4: head to head (rank.by 'matchups'): a round robin of the seats each episode on that episode's points, the
+   *  standings by wins, and the playoffs over the game's last episodes; worked out from the data on every read, all but where the
+   *  playoffs began once they have (settle, on every write). */
+  MatchupLogic: {
+    parts(state: LeagueState): import("./game-spec/index.js").MatchupParts | null;
+    on(state: LeagueState): boolean;
+    readsSeasonLength(state: LeagueState): boolean;
+    lastOf(state: LeagueState): number | null;
+    playoffsFrom(state: LeagueState, parts?: import("./game-spec/index.js").MatchupParts | null): number | null;
+    endsAt(state: LeagueState): number | null;
+    /** A11 part 4b: where it ended, once it has: its final played, or the season's finale if the season ended first. */
+    endedAt(state: LeagueState): number | null;
+    moveProblem(state: LeagueState, number: number): string | null;
+    seatsAt(state: LeagueState, k: number): string[];
+    kept(state: LeagueState): Record<string, number> | null;
+    round(ids: string[], r: number): [string, string | null][];
+    median(values: number[]): number;
+    bracket(size: number): number[];
+    /** Each episode the game has played with every side's points through it: a draft's from its scoring, a game of questions' from
+     *  its answers' walk (A11 part 4b; none without it); between teams of players (A11 part 5), each team's. */
+    series(state: LeagueState): { number: number; totals: Map<string, number> }[];
+    /** Each seat's points through each episode played, whatever the sides. */
+    seatSeries(state: LeagueState): { number: number; totals: Map<string, number> }[];
+    /** Whose side a seat is on: itself, or (A11 part 5) the team of players it plays for (null: none). */
+    sideOf(state: LeagueState): (playerId: string) => string | null;
+    run(state: LeagueState): MatchupWalk | null;
+    apply(state: LeagueState, rows: ScoreRow[]): ScoreRow[];
+    view(state: LeagueState, playerId: string): MatchupView | null;
+    settle(state: LeagueState): boolean;
+    settleSeats(state: LeagueState): boolean;
+    settlePlayoffs(state: LeagueState): boolean;
+  };
+  /** Step A11 part 5: teams of players (rank.teams): the couch split into teams that score together, each of you playing your own
+   *  game; who's on which kept on every write once the game has started (settle), the rest worked out from the data on every read. */
+  TeamLogic: {
+    parts(state: LeagueState): import("./game-spec/index.js").TeamParts | null;
+    on(state: LeagueState): boolean;
+    ids(state: LeagueState): string[];
+    nameOf(state: LeagueState, id: string): string | null;
+    kept(state: LeagueState): Record<string, { team: string | null; from: number; left?: string }[]> | null;
+    fixed(state: LeagueState): boolean;
+    started(state: LeagueState, now?: number): boolean;
+    drawn(state: LeagueState): Map<string, string>;
+    teamAt(state: LeagueState, playerId: string, n: number): string | null;
+    sideOf(state: LeagueState, playerId: string): string | null;
+    membersAt(state: LeagueState, n: number): Map<string, string[]>;
+    teamsAt(state: LeagueState, n: number): string[];
+    series(state: LeagueState): { number: number; totals: Map<string, number> }[];
+    standings(state: LeagueState, rows: { playerId: string; total: number }[]): TeamStanding[] | null;
+    label(state: LeagueState, rows: ScoreRow[], standings?: TeamStanding[] | null): ScoreRow[];
+    apply(state: LeagueState, rows: ScoreRow[]): ScoreRow[];
+    view(state: LeagueState, playerId: string | null, rows?: { playerId: string; total: number }[]): TeamView | null;
+    openFor(state: LeagueState, playerId: string, now?: number): number | null;
+    chooseProblem(state: LeagueState, playerId: string, team: string, opts?: { by?: "self" | "runs"; now?: number }): string | null;
+    choose(state: LeagueState, playerId: string, team: string, opts?: { by?: "self" | "runs"; now?: number }): boolean;
+    settle(state: LeagueState, now?: number): boolean;
+  };
+  /** Step A11 part 5b: a handicap (rank.handicap): points each episode the game plays for newcomers, by the couch's history (the
+   *  server's stamp, state.seatHistory), kept once the game has started (settle); the points worked out on every read. */
+  HandicapLogic: {
+    parts(state: LeagueState): import("./game-spec/index.js").HandicapParts | null;
+    on(state: LeagueState): boolean;
+    history(state: LeagueState): Record<string, { couch: number; show: number }> | null;
+    kept(state: LeagueState): { newTo: "couch" | "show"; seats: Record<string, boolean>; from?: Record<string, number> } | null;
+    fromHistory(state: LeagueState, playerId: string, parts: import("./game-spec/index.js").HandicapParts): boolean | null;
+    isNew(state: LeagueState, playerId: string, parts?: import("./game-spec/index.js").HandicapParts | null): boolean;
+    named(state: LeagueState, parts?: import("./game-spec/index.js").HandicapParts | null): { id: string; from: number }[];
+    played(state: LeagueState): number[];
+    tally(state: LeagueState, numbers: number[]): ((k: number) => Map<string, number>) | null;
+    apply(state: LeagueState, rows: ScoreRow[]): ScoreRow[];
+    view(state: LeagueState, playerId: string | null): HandicapView | null;
+    needsHistory(state: LeagueState, now?: number): boolean;
+    settle(state: LeagueState, now?: number): boolean;
+  };
+  /** Step A10 part 4: keepers across seasons (the spec's get.keep): options from last season's game (the server's: keepers.ts),
+   *  named before the draft, locked as it starts; the draft fills the places they leave. */
+  KeeperLogic: {
+    config(state: LeagueState): { each: number; from: string | null; cost: "place" | "round" | "price"; fallback: "best" | "none" } | null;
+    locked(state: LeagueState): boolean;
+    options(state: LeagueState, playerId: string): string[];
+    chosen(state: LeagueState, playerId: string): string[] | null;
+    named(state: LeagueState, playerId: string): string[] | null;
+    kept(state: LeagueState, playerId: string): { castawayId: string; price?: number }[];
+    keptIds(state: LeagueState, playerId: string): string[];
+    anyKept(state: LeagueState): boolean;
+    places(state: LeagueState, playerId: string): number;
+    paid(state: LeagueState, playerId: string): number;
+    draftedAny(state: LeagueState): boolean;
+    setOptions(state: LeagueState, options: Record<string, string[]>): boolean;
+    choose(state: LeagueState, playerId: string, castawayIds: string[], by?: string): string | null;
+    due(state: LeagueState): boolean;
+    lock(state: LeagueState): boolean;
+    settle(state: LeagueState): boolean;
+    turns(state: LeagueState, order: string[]): { playerId: string; round: number }[];
+    nameKey(name: string): string;
+    rankFrom(old: LeagueState): string[];
+    optionsFrom(old: LeagueState, oldPlayerIds: string[], state: LeagueState): string[];
+  };
+  /** Step A10 part 3b: an auction, by sealed bids settled at once (the bids kept out of the state: src/lib/server/auction.ts). */
+  AuctionLogic: {
+    on(state: LeagueState): boolean;
+    settled(state: LeagueState): boolean;
+    lockedPlayerIds(state: LeagueState): string[];
+    hasLocked(state: LeagueState, playerId: string): boolean;
+    setLockedPlayerIds(state: LeagueState, playerIds: string[]): void;
+    eligiblePlayers(state: LeagueState): Player[];
+    waitingOn(state: LeagueState): Player[];
+    allLockedIn(state: LeagueState, lockedPlayerIds: string[]): boolean;
+    /** Part 4: for a seat (`playerId`), the places its keepers leave and what they cost. */
+    maxBid(state: LeagueState, playerId?: string): number;
+    maxBids(state: LeagueState): number;
+    ready(state: LeagueState): boolean;
+    sheetFor(state: LeagueState, order: string[], playerId?: string): { castawayId: string; bid: number }[];
+    validateBids(state: LeagueState, playerId: string, bids: { castawayId: string; bid: number }[]): string | null;
+    outcome(state: LeagueState, bidsByPlayer: Record<string, { castawayId: string; bid: number }[]>, seed: string): {
+      order: string[]; won: { playerId: string; castawayId: string; price: number; filled?: true }[]; spent: Record<string, number>; short: string[];
+    };
+    settle(state: LeagueState, bidsByPlayer: Record<string, { castawayId: string; bid: number }[]>, seed?: string): boolean;
+    due(state: LeagueState, now?: number): boolean;
+  };
+  /** Step A10 part 3b: what a team could take next, kept spread (part 3) and within a salary cap (every candidate when neither). */
+  draftFits(state: LeagueState, picked: string[], candidates: string[], g?: unknown, prices?: Map<string, number>): string[];
+  draftFitsFor(state: LeagueState, playerId: string, candidates?: string[]): string[];
   activeRosterLineupFor(state: LeagueState, epId: string, playerId: string): string[];
   setActiveRosterLineup(state: LeagueState, epId: string, playerId: string, castawayIds: string[]): boolean;
+  setActiveRosterCaptain(state: LeagueState, epId: string, playerId: string, castawayId: string | null): boolean;
   lockActiveRosterLineups(state: LeagueState, epId: string): boolean;
   unlockActiveRosterLineups(state: LeagueState, epId: string): boolean;
   addScoringEvent(state: LeagueState, epId: string, type: string, castawayId: string, units?: number | null): ScoringEvent | null;
@@ -576,17 +941,13 @@ declare const StateLogic: {
     state: LeagueState,
     epId: string,
     playerId: string
-  ): { available: string[]; blocked: Record<string, { episode: number; reason: "cycle" | "backToBack" }> };
-  /** A player's Pick'em season with streaks: a row per episode that happened, plus any pending pick. */
+  ): { available: string[]; blocked: Record<string, { episode: number; reason: "cycle" | "backToBack" | "used" }>; out?: number; ended?: number };
+  /** A player's Pick'em season with streaks: a row per episode that happened, plus any pending pick. A pool's parts (step A10
+   *  part 2: lives, a buyback, mulligans, a second pick) add their fields to the rows and the history, only when it has them. */
   pickEmHistory(
     state: LeagueState,
     playerId: string
-  ): {
-    rows: { episode: number; postMerge: boolean; castawayId: string | null; correct: boolean | null; points: number; streak: number }[];
-    total: number;
-    longestStreak: number;
-    currentStreak: number;
-  };
+  ): PickEmHistory;
   /** The episode picks are being made for (the next to reveal when catching up, else the latest). */
   pickEmUpcomingEpisode(state: LeagueState): Episode | null;
   /** A Pool episode is decided once someone went home in it, or it's known nobody did (step 6c); a pool that survives by
@@ -598,10 +959,150 @@ declare const StateLogic: {
    * before the league's start episode).
    */
   currentEpisode(state: LeagueState): Episode | null;
-  setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string): void;
-  removePickEmPick(state: LeagueState, epId: string, playerId: string): void;
+  /** opts.second: a pool's second pick, beside a first already made (step A10 part 2). */
+  setPickEmPick(state: LeagueState, epId: string, playerId: string, castawayId: string, opts?: { second?: boolean }): void;
+  /** opts.second: only the second pick; else the whole pick. */
+  removePickEmPick(state: LeagueState, epId: string, playerId: string, opts?: { second?: boolean }): void;
   /** Whether this Survival Pool takes a weekly Who goes home? call (settings.calls): the person's Call it (calls.ts). */
   pickEmCallsOn(state: LeagueState): boolean;
+  BetLogic: {
+    /** A side bet's lock: its episode's start (closedForPlay), and for good once it has results. */
+    closed(ep: Episode | null | undefined): boolean;
+  };
+  /** A game's questions (step A4 of docs/PLAN-start-a-game-gpt.md): graded from the league's own results, never stored. */
+  AnswerLogic: {
+    facts(state: LeagueState): AnswerFacts;
+    finishOrder(state: LeagueState): string[];
+    questions(state: LeagueState): Question[];
+    /** A8: who was in at the game's first episode (a pairs question's pairs are drawn from them). */
+    startIn(state: LeagueState): string[];
+    /** A7: whether the game asks anything by phase (asked once a phase, or settled by where a phase starts). */
+    byPhase(state: LeagueState): boolean;
+    /** A7: where a question's windows open, in order (none asked once). */
+    windowStarts(state: LeagueState, q: Question, seen?: number | null): number[];
+    /** A7: whether a question's window opens at `episode` (its answers' key; 0 asked once). */
+    opensAt(state: LeagueState, q: Question, episode: number): boolean;
+    /** A7: the window an episode is in (where it opens), or null. */
+    windowAt(state: LeagueState, q: Question, episode: number | null, seen?: number | null): number | null;
+    closesAt(state: LeagueState, q: Question, episode: number, finale?: number | null): number | null;
+    closed(state: LeagueState, q: Question, episode: number, o?: { now?: number; finale?: number | null; airAt?: string | null; mark?: number | null }): boolean;
+    episodeNow(state: LeagueState): number | null;
+    /** A7: the episode someone answers for now with a late lock (the one after their mark while it's open for them). */
+    lateEpisode(state: LeagueState, mark: number | null, o?: { now?: number; airAtOf?: (episode: number) => string | null }): number | null;
+    /** earned: each window's ("question|episode") points by player, A9's ways of combining in; worth: a rollover's window's
+     *  points with its jackpot. */
+    grade(
+      state: LeagueState,
+      answers: { playerId: string; question: string; episode: number; answer: unknown; late?: number; changes?: number }[],
+      facts?: AnswerFacts
+    ): { points: Map<string, number>; verdicts: Map<string, Verdict>; earned: Map<string, Map<string, number>>; worth: Map<string, number> };
+    /** A9: how many of the game's episodes had started at `o.now` (when an answer was made). */
+    started(state: LeagueState, o?: { now?: number; airAtOf?: (episode: number) => string | null }): number;
+    finaleAnswers(state: LeagueState): { playerId: string; question: string; episode: number; answer: string | string[] }[];
+    finalePoints(state: LeagueState): Map<string, number>;
+    finaleActual(state: LeagueState): { top3: (string | null)[]; winner: string | null };
+    /** A11 part 2b: a game of questions' race, cuts and lives, walked over its graded answers (null: a game with none of them). */
+    walk(state: LeagueState, answers: { playerId: string; question: string; episode: number; answer: unknown; late?: number; changes?: number }[], facts: AnswerFacts): AnswerWalk | null;
+    /** A copy of the state carrying its walk (never the state itself); the walk a state carries, or null. */
+    withWalk(state: LeagueState, walk: AnswerWalk | null): LeagueState;
+    walkOf(state: LeagueState): AnswerWalk | null;
+    /** The answers that count: someone out keeps only their answers to windows settled by their last episode in. */
+    liveRows<T extends { playerId: string; question: string; episode: number }>(state: LeagueState, rows: T[], out: Map<string, number> | Record<string, number>): T[];
+    liveAnswers<T extends { playerId: string; question: string; episode: number }>(state: LeagueState, rows: T[]): T[];
+    applyWalk(state: LeagueState, rows: ScoreRow[], walk: AnswerWalk): ScoreRow[];
+    walkRows(rows: ScoreRow[], walk: AnswerWalk): ScoreRow[];
+  };
 };
+/** A11 part 5b: a handicap as a game's screens read it (HandicapLogic.view): its points an episode, what newcomers are new to, the
+ *  seats it names, whether you're one, and whether who's new is kept yet (once the game has started). */
+export interface HandicapView {
+  points: number;
+  newTo: "couch" | "show";
+  newcomers: string[];
+  yours: boolean;
+  kept: boolean;
+}
+/** A11 part 2b: a game of questions' walk (AnswerLogic.walk): where it ends early, who's out after which episode, lives left (with
+ *  lives), who went out together sharing it, and each one's points as the table shows them (frozen once out). Plain data. */
+export interface AnswerWalk {
+  ends: number | null;
+  out: Record<string, number>;
+  lives: Record<string, number>;
+  shared: string[];
+  totals: Record<string, number>;
+  /** A11 part 3: a co-op game's (its lives the couch's together): the lives left and at the start, the nights one went (each
+   *  question's), and the result, won or lost by all (null while it plays). Everyone is in `shared`, each with the couch's lives. */
+  coop?: CoopWalk;
+  /** A11 part 4b: head to head on a game of questions, each episode walked with everyone's points through it (MatchupLogic.series:
+   *  an episode's points are their growth). */
+  series?: { number: number; totals: Record<string, number> }[];
+  /** A11 part 5b: each one's handicap (in `totals` already), as their points have it. */
+  handicap?: Record<string, number>;
+}
+export interface CoopWalk {
+  lives: number;
+  of: number;
+  lost: { episode: number; question: string }[];
+  result: "won" | "lost" | null;
+}
+/** A11 part 4: head to head's walk (MatchupLogic.walk), plain data: each regular-season episode's matchups (b null: nobody to
+ *  play, the median's points or a bye's null; result null: it counts for nobody), the records, the playoffs' first round, the
+ *  seeds once known, the bracket's rounds up to the first still to play, who's still in, the champion, and how far each went. */
+export interface MatchupWalk {
+  weeks: { number: number; quiet: boolean; games: { a: string; b: string | null; aPoints: number; bPoints: number | null; result: "a" | "b" | "tie" | null }[] }[];
+  records: Map<string, import("./types").MatchupRecord>;
+  from: number | null;
+  seeds: string[] | null;
+  rounds: MatchupRound[];
+  alive: Set<string>;
+  champion: string | null;
+  tiers: Map<string, number>;
+}
+export interface MatchupRound {
+  number: number;
+  played: boolean;
+  games: { a: string | null; b: string | null; aSeed: number | null; bSeed: number | null; aPoints: number | null; bPoints: number | null; winner: string | null }[];
+}
+/** A11 part 4: a seat's matchup (MatchupLogic.view): the episode, the playoffs' round (null: the regular season), the opponent, or
+ *  who stands in for none (the median, a bye). */
+export interface MatchupGame {
+  episode: number;
+  round: number | null;
+  opponent: string | null;
+  stand: "median" | "bye" | null;
+}
+/** A11 part 4: what a seat sees of head to head (the Games tab's): their record, their next matchup and the latest played (its
+ *  points, the other side's, the result), and the playoffs (where they are, the seeds once known, the bracket so far, the
+ *  champion). What it shows is U1's. */
+export interface MatchupView {
+  /** A11 part 5: between teams of players, the seat's team (what plays); null otherwise. */
+  side: string | null;
+  record: import("./types").MatchupRecord;
+  next: MatchupGame | null;
+  last: (MatchupGame & { points: number | null; against: number | null; result: "win" | "loss" | "tie" | null }) | null;
+  playoffs: { from: number; rounds: number; teams: number; seeds: string[] | null; bracket: { episode: number; played: boolean; games: MatchupRound["games"] }[]; champion: string | null } | null;
+}
+
+/** A11 part 5: a team of players as it stands (TeamLogic.standings): its points (summed or the mean, episode by episode, of its
+ *  members on it then), its place (a tie shares it), who's on it now and whose team it is (every seat that plays for it). */
+export interface TeamStanding {
+  id: string;
+  name: string | null;
+  points: number;
+  place: number;
+  rank: string;
+  members: string[];
+  played: string[];
+}
+/** A11 part 5: what a seat sees of teams of players (the Games tab's): how they're made and scored, whether they're set (kept, once
+ *  the game has started), the seat's own (null: none, or no seat), and each team as it stands. What it shows is U1's. */
+export interface TeamView {
+  made: "draw" | "choose";
+  score: "sum" | "mean";
+  of: number;
+  set: boolean;
+  yours: string | null;
+  teams: { id: string; name: string | null; members: string[]; points: number; place: number; rank: string }[];
+}
 
 export default StateLogic;

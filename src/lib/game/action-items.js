@@ -146,9 +146,9 @@ function liveItems(state, playerId) {
   const type = StateLogic.getLeagueType(state);
   const items = [];
 
-  // Draft: a snake-draft turn, or a blind draft still open to your picks.
+  // Draft: a snake-draft turn, or a blind draft still open to your picks (a draw, A10 part 3: nothing to do, the draw deals).
   if (type.hasRoster && StateLogic.isDraftStarted(state)) {
-    if (state.settings.ownershipMode === "shared") {
+    if (StateLogic.BlindDraftLogic.on(state)) {
       const B = StateLogic.BlindDraftLogic;
       if (!B.isRevealed(state) && B.eligiblePlayers(state).some((p) => p.id === playerId) && !B.hasLocked(state, playerId)) {
         items.push({ kind: "blindDraft", text: "Lock in your draft picks", href: "/draft" });
@@ -196,10 +196,11 @@ function liveItems(state, playerId) {
     }
   }
 
-  // Predictions: open on an episode that hasn't happened yet, and you haven't guessed.
-  if (state.settings.bonusEnabled) {
+  // Predictions: open on an episode that hasn't locked (BetLogic.closed: its start, as a lineup), and you haven't guessed.
+  // Only where side bets count (betsOn: beside a draft).
+  if (StateLogic.betsOn(state)) {
     // Only this game's episodes: a game over a span asks nothing of you past its last one.
-    const open = state.episodes.filter((ep) => !StateLogic.episodeHasResults(ep) && StateLogic.inPlay(state, ep.number));
+    const open = state.episodes.filter((ep) => !StateLogic.BetLogic.closed(ep) && StateLogic.inPlay(state, ep.number));
     const pending = open
       .flatMap((ep) => (ep.bets || []).map((bet) => ({ ep, bet })))
       .filter(({ bet }) => !isBetSettled(bet) && !(bet.predictions || []).some((p) => p.playerId === playerId));
@@ -210,7 +211,7 @@ function liveItems(state, playerId) {
         text: pending.length === 1 ? `Guess "${pending[0].bet.label}"` : `${pending.length} predictions need your guess`,
         href: "/#predictions",
         episode,
-        // Nothing locks a guess, but it's about the episode: before it airs.
+        // A guess locks when the episode starts (A4).
         deadline: pending.find(({ ep }) => ep.number === episode).ep.airsAt || null,
       });
     }

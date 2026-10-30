@@ -206,6 +206,8 @@ export function upFrom(href: string, { signedIn = true }: { signedIn?: boolean }
       if (p[1] === "show" && p[2] && p[3]) return paths.deskItem("show", p[2]);
       if (p[1] === "show") return paths.deskShows();
       if (p[1] === "new") return paths.desk("library");
+      // The engine lab (step A5 of docs/PLAN-start-a-game-gpt.md): a page of its own under the desk.
+      if (p[1] === "lab") return paths.desk();
       if (p[1] === "fact") return paths.desk();
       if (p[1] === "season" && p[2] && p[3] === "c") return paths.deskSeasonPage(p[2], "cast");
       if (p[1] === "season" && p[2] && p[3]) return paths.deskItem("season", p[2]);

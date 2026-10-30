@@ -15,6 +15,8 @@ import { pool, withLeagueLock, HttpError } from "./db";
 import { byNewest, deskLines, logDesk, type DeskLine } from "./desk";
 import { madeLine, saveTemplate } from "./desk-library";
 import { reachCopies } from "./ours";
+import { settleSeasonStarts } from "./phase-starts";
+import { leagueSeason } from "./push-events";
 import { deskNotices } from "./show-changes";
 import { latestAired, seasonSchedules } from "./schedule";
 
@@ -362,6 +364,10 @@ export async function writePhase(userId: string, r: Rulebook, phaseId: string, e
   }
   await pushRulebook(r.id);
   if (r.seasonId && episode != null) await restageSeason(r.seasonId, episode, userId);
+  // Every game on the season that starts when a phase does (step A3 of docs/PLAN-start-a-game-gpt.md) plays from where it
+  // starts now, or waits for it again once it's cleared (phase-starts.ts); never one whose first episode has aired.
+  const season = r.seasonId ?? (r.leagueId ? (await leagueSeason(r.leagueId)).seasonId : null);
+  if (season) await settleSeasonStarts(season);
 }
 
 /** Locked: only the desk changes it; couches' suggestions still reach the Inbox. */

@@ -15,7 +15,10 @@
 //      one batch with Undo, nobody new, the settings and the rules frozen and refused while it's on, Recent changes' Undo of a
 //      settings or points line from before refused too and said in the quiet toast, a Game admin refused),
 //      Scoring rules' read side (the rulebook, How it works, the points, Make it ours opens its sheet: check-new-ours.js
-//      covers it, since step 6b part 3).
+//      covers it, since step 6b part 3). Games as data (docs/PLAN-start-a-game-gpt.md step A2): the starters stop at the
+//      team once it's drafted, and a change past the one set of limits is refused here and through classic's settings
+//      route, by the game spec's validator. With the game-specs flag on (scripts/game-specs-flag.js), the fixture's games
+//      carry their spec, and after every write the check makes, none has drifted from what its fields play.
 //   6. Members & roles: named as the games name them, a game's sheet (share it), a role for all three games with Undo,
 //      the last Commissioner refused (stepping down, leaving here and in classic), tier 3's hold (a tap does nothing, a
 //      hold removes, Recent changes restores for 30 days), and leaving from the show's ⋯ menu.
@@ -32,6 +35,8 @@ const path = require("path");
 const { Pool } = require("pg");
 const { open, api } = require("./browser");
 const fixture = require("./new-fixture");
+const G = require("../../src/lib/game/game-spec/index.js");
+const GameSpecs = require("../../db/game-specs.js");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("check-new-backstage-ii runs against a local database only");
@@ -66,6 +71,10 @@ const first = (name) => name.split(" ")[0];
     const claimRow = async (key, playerId) =>
       (await pool.query("SELECT pairs FROM waiver_claims WHERE league_id = $1 AND player_id = $2", [L[key], playerId])).rows[0]?.pairs ?? null;
     const memberships = async (who) => (await pool.query("SELECT league_id, role, results_seen_through FROM league_memberships WHERE user_id = $1 AND league_id = ANY($2::uuid[])", [fx.users[who], [L.outlast, L.lineup, L.pool]])).rows;
+
+    // The game-specs flag on: the fixture's games carry their spec, as every league does then (db/game-specs.js).
+    const carrying = await GameSpecs.gameSpecsOn(pool);
+    if (carrying) for (const id of Object.values(L)) await GameSpecs.syncLeagueRow(pool, id, true);
 
     const as = {};
     for (const who of ["alex", "riley", "jordan", "sam", "casey"]) as[who] = await api({ user: fixture.username(who), pass: fixture.PASSWORD });
@@ -337,6 +346,21 @@ const first = (name) => name.split(" ")[0];
     check(/4 score each week from Episode 6/.test(await toasted(/score each week/)), "Who scores each week: more starters, from the next episode");
     s = await state("lineup");
     check(s.settings.activeSlots === 4 && s.settings.benchSlots === 1, "after the draft the bench gives one up (the team stays 5)", `${s.settings.activeSlots}/${s.settings.benchSlots}`);
+    // Games as data (A2): the most is the drafted team, and the spec's validator holds the one set of limits everywhere.
+    const lineupMax = (await bs("alex", "settings")).body.games.find((g) => g.leagueId === L.lineup)?.lineup?.max;
+    check(lineupMax?.starters === 5 && lineupMax?.bench === 1, "drafted, the starters go up to the team (5)", JSON.stringify(lineupMax));
+    check((await bs("alex", "settings", "PATCH", { leagueId: L.lineup, set: { activeSlots: 6 } })).status === 400, "more starters than the team: refused (400)");
+    const classic = (key, field, value) => as.alex.call("PATCH", `/api/leagues/${L[key]}/settings`, { field, value });
+    const tooBig = await classic("outlast", "teamSize", 11);
+    check(tooBig.status === 400 && /1 to 10/.test(tooBig.body.error), "classic's settings route: an Outlast team past 10 is refused, with why", `${tooBig.status} ${JSON.stringify(tooBig.body)}`);
+    check((await classic("lineup", "activeSlots", 9)).status === 400, "and a lineup past 8 starters");
+    check((await state("outlast")).settings.teamSize !== 11 && (await state("lineup")).settings.activeSlots === 4, "nothing written");
+    const more = page.locator("[data-settings=lineup]").getByRole("button", { name: "More" }).first();
+    await more.click();
+    await toasted(/5 score each week/);
+    await page.waitForFunction(() => document.querySelector("[data-settings=lineup] button[aria-label=More]")?.disabled === true, null, { timeout: 15000 }).catch(() => {});
+    check((await state("lineup")).settings.activeSlots === 5 && (await more.isDisabled()), "all five start: More stops at the team");
+    await shot("settings-most");
     await page.locator("[data-reset=lineup]").waitFor();
     check((await page.locator("[data-settings=lineup] [data-changed]").count()) >= 1, "changed from recommended: a dot, and Reset to recommended");
     await shot("settings-changed");
@@ -532,6 +556,16 @@ const first = (name) => name.split(" ")[0];
 
     const lines = (await as.alex.call("GET", `/api/seasons/${sid}/changes${q}`)).body.lines;
     check(lines.every((l) => !/Carter/.test(l.text)), "no line names who went home");
+    if (carrying) {
+      // Every write above (waivers' feel and Undo, Fine-tune, Game settings, Reset, Lock it down and Recent changes' Undo,
+      // the runs) kept each game's carried spec in step with its fields.
+      const drifted = [];
+      for (const [key, id] of Object.entries(L)) {
+        const st = (await pool.query("SELECT state FROM leagues WHERE id = $1", [id])).rows[0]?.state;
+        if (st && !G.sameValue(st.settings.game, G.specOf(st.settings))) drifted.push(key);
+      }
+      check(!drifted.length, "the game-specs flag is on: every game still carries the spec its fields play", drifted.join());
+    } else console.log("NOTE  the game-specs flag is off: the carried-spec checks were skipped");
     const alexErrors = errors.filter((e) => !/Failed to load resource/.test(e)).concat(errors.filter((e) => /Failed to load resource/.test(e)).slice(favicon));
     const expected = (f) => /\/backstage\/members\/[^ ]*\/remove|\/leave|\b(403|409)\b/.test(f);
     check(!alexErrors.length || alexErrors.every((e) => /Failed to load resource/.test(e)), "no page errors (alex)", alexErrors.join(" | "));

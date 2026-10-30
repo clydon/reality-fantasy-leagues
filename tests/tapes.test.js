@@ -163,7 +163,8 @@ test("answerer reads a tape from disk", () => {
 const W = require("../scripts/dev-test/tapes-words.js");
 
 test("the words corpus: unique ids, every request with its expected reading", () => {
-  const corpus = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "scripts", "dev-test", "start-a-game-words.json"), "utf8"));
+  // The capability tracker's (step A5 of the GPT plan): one list for the engine, G1's bank and the recorder.
+  const corpus = W.wordsCorpus();
   const ids = corpus.requests.map((r) => r.id);
   assert.equal(new Set(ids).size, ids.length);
   assert.ok(corpus.requests.length >= 100);

@@ -2,7 +2,7 @@ import type { Castaway, Episode, LeagueState } from "./types";
 import StateLogic from "./state-logic.js";
 import { castawayEpisodeStats } from "./active-roster-rows";
 import { episodeRecapWins } from "./episode-recap";
-import { gameView, type GameRefIn, type TableRow, type UserOf } from "./game-view";
+import { gameView, type GameCalls, type GameRefIn, type TableRow, type UserOf } from "./game-view";
 import { signed } from "./lineup-view";
 import { isBetSettled, isKnockedOut, publicMediaSrc } from "./selectors";
 import { teamEpisodeBreakdown } from "./team-episode-breakdown";
@@ -99,11 +99,32 @@ function scorersIn(view: LeagueState, ep: Episode): Scorer[] {
 const teamOf = (view: LeagueState, me: string) => view.castaways.filter((c) => c.ownerIds.includes(me));
 const exitNumber = (view: LeagueState, c: Castaway) => view.episodes.find((e) => e.id === c.exitEpisodeId)?.number ?? null;
 
-/** Your line in one game for an episode you've seen (a copy at or past it). */
-export function nightIn(game: GameRefIn, view: LeagueState, me: string, ep: Episode): GameNight {
+/** How a Prediction Sheet's night went for you, by episode (answer-points.ts sheetNights): what you answered, how many of those are
+ *  settled, how many of those didn't count (off: nobody went home), right, and what they earned. */
+export type SheetNights = Map<number, { answered: number; settled: number; off: number; right: number; earned: number }>;
+
+/** Your line in one game for an episode you've seen (a copy at or past it). `sheet`: a Prediction Sheet's nights. */
+export function nightIn(game: GameRefIn, view: LeagueState, me: string, ep: Episode, sheet?: SheetNights): GameNight {
   const base = { leagueId: game.leagueId, gameName: game.gameName, gameType: game.gameType };
-  if (!StateLogic.inPlay(view, ep.number)) return { ...base, big: "—", line: ep.number < StateLogic.startEpisode(view) ? "Before the game started" : "After the game ended" };
+  if (!StateLogic.inPlay(view, ep.number)) {
+    // A game waiting for its phase (step A3) hasn't started either.
+    const start = StateLogic.startEpisode(view);
+    return { ...base, big: "—", line: start === null || ep.number < start ? "Before the game started" : "After the game ended" };
+  }
   const type = StateLogic.getLeagueType(view);
+  if (type.hasQuestions) {
+    // A Prediction Sheet (step A4 part 2): its answers aren't in the state, so the server says how the night went (sheet).
+    // A sheet that asks only for the season (who wins) has nothing for an episode: that isn't a miss.
+    if (!StateLogic.AnswerLogic.questions(view).some((q: { asked: string }) => q.asked !== "once")) return { ...base, big: "—", line: "Its questions are for the season" };
+    // Its answers couldn't be read: say nothing rather than call it a miss.
+    if (!sheet) return { ...base, big: "—", line: "See how your sheet went" };
+    const n = sheet.get(ep.number);
+    if (!n || !n.answered) return { ...base, big: "No sheet", line: "You didn't answer this one", missed: true };
+    if (!n.settled) return { ...base, big: "Waiting", line: `${n.answered} ${n.answered === 1 ? "answer" : "answers"} still to settle` };
+    const counted = n.settled - n.off;
+    const off = n.off ? `${n.off} didn't count` : "";
+    return { ...base, big: `${signed(n.earned)} ${Math.abs(n.earned) === 1 ? "pt" : "pts"}`, line: counted ? `${n.right} of ${counted} right${off ? ` · ${off}` : ""}` : `It didn't count${n.off > 1 ? ` (${n.off})` : ""}` };
+  }
   if (type.hasActiveRoster) {
     const b = teamEpisodeBreakdown(view, ep.id, me);
     const soFar = StateLogic.resultsStage(ep) === "early";
@@ -127,7 +148,7 @@ export function nightIn(game: GameRefIn, view: LeagueState, me: string, ep: Epis
 
 /** Your predictions on an episode, once graded: "1 of 2 · +2". Null when you made none that are graded. */
 function predictionsIn(game: GameRefIn, view: LeagueState, me: string, ep: Episode): GameNight | null {
-  if (!view.settings.bonusEnabled) return null;
+  if (!StateLogic.betsOn(view)) return null;
   const mine = (ep.bets || [])
     .filter((b) => isBetSettled(b))
     .map((b) => ({ bet: b, guess: (b.predictions || []).find((p) => p.playerId === me) }))
@@ -146,7 +167,7 @@ function predictionsIn(game: GameRefIn, view: LeagueState, me: string, ep: Episo
 }
 
 /** Every episode with results in your copy at `seen`, newest first. */
-export function episodesSeen(game: GameRefIn, full: LeagueState, me: string | null, seen: number | null): EpisodeSeen[] {
+export function episodesSeen(game: GameRefIn, full: LeagueState, me: string | null, seen: number | null, sheet?: SheetNights): EpisodeSeen[] {
   const view = StateLogic.GhostLogic.viewFor(full, me, seen);
   return [...view.episodes]
     .filter((ep) => !ep.resultsHidden && StateLogic.episodeHasResults(ep))
@@ -160,7 +181,7 @@ export function episodesSeen(game: GameRefIn, full: LeagueState, me: string | nu
         out: outsOf(view, ep),
         happened: happenedIn(view, ep),
         scorers: scorersIn(view, ep),
-        lines: me === null ? [] : [nightIn(game, view, me, ep), ...(calls ? [calls] : [])],
+        lines: me === null ? [] : [nightIn(game, view, me, ep, sheet), ...(calls ? [calls] : [])],
       };
     });
 }
@@ -217,7 +238,15 @@ export interface RevealPart {
  * One game's part of the reveal of episode `n`: the copy at n against the copy at n - 1. Null when the game has
  * nothing for that episode (no results in it yet, or it's past what the game shows this viewer).
  */
-export function revealIn(game: GameRefIn, full: LeagueState, me: string, n: number, userOf: UserOf): RevealPart | null {
+/** A Prediction Sheet's reveal (step A4 part 2): its points at the marks before and after (answer-points.ts leagueAnswers), and the
+ *  night's answers (sheetNights), which its state doesn't hold. */
+export interface RevealSheet {
+  was: GameCalls | null;
+  now: GameCalls | null;
+  nights: SheetNights;
+}
+
+export function revealIn(game: GameRefIn, full: LeagueState, me: string, n: number, userOf: UserOf, sheet?: RevealSheet): RevealPart | null {
   const after = StateLogic.GhostLogic.viewFor(full, me, n);
   const ep = after.episodes.find((e) => e.number === n && !e.resultsHidden);
   if (!ep || !StateLogic.episodeHasResults(ep)) return null;
@@ -237,6 +266,10 @@ export function revealIn(game: GameRefIn, full: LeagueState, me: string, n: numb
 
   let part: RevealGame | null = null;
   const base = { leagueId: game.leagueId, gameName: game.gameName, gameType: game.gameType };
+  if (type.hasQuestions && sheet && StateLogic.inPlay(after, n)) {
+    const night = nightIn(game, after, me, ep, sheet?.nights);
+    part = { ...base, title: night.big === "No sheet" ? "No sheet from you" : night.big === "Waiting" ? "Your sheet waits" : `${night.big} on your sheet`, line: night.line };
+  }
   if (type.hasWeeklyPicks && StateLogic.inPlay(after, n)) {
     const rows = StateLogic.pickEmHistory(after, me).rows;
     const row = rows.find((r) => r.episode === n);
@@ -268,8 +301,8 @@ export function revealIn(game: GameRefIn, full: LeagueState, me: string, n: numb
   const calls = predictionsIn(game, after, me, ep);
   const predictions: RevealGame | null = calls ? { ...base, gameName: "Predictions", gameType: "predictions", title: calls.big.replace(/^(\d+) of (\d+)/, "$1 of $2 right"), line: calls.line } : null;
 
-  const was = gameView(game, full, me, n - 1, userOf).table;
-  const now = gameView(game, full, me, n, userOf).table;
+  const was = gameView(game, full, me, n - 1, userOf, sheet?.was ?? undefined).table;
+  const now = gameView(game, full, me, n, userOf, sheet?.now ?? undefined).table;
   const at = (rows: TableRow[], id: string) => rows.find((r) => r.playerId === id);
   const table: RevealTable = {
     leagueId: game.leagueId,

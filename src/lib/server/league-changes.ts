@@ -9,8 +9,10 @@ import { joinedLeague, requireCouch } from "./couches";
 import { anyLockedDown, FROZEN, FROZEN_FIELDS } from "./backstage-games";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { deletedHere, restoreGame } from "./end-game";
+import { refused } from "./game-writes";
 import { undoRulebookChange } from "./ours";
 import { setLeagueRole } from "./roles";
+import { shareCheck } from "./shared-seats";
 import { syncLeagueDecisions } from "./season-decisions";
 import { games } from "./show-space";
 
@@ -237,13 +239,16 @@ export async function undoBatch(user: SessionUser, seasonId: string, couchId: st
       if (undo.type === "results") undoResults(s, undo);
       else if (undo.type === "settings") {
         if (JSON.stringify(settings[undo.field] ?? null) !== JSON.stringify(undo.after)) throw new HttpError(409, "That setting has changed since");
-        StateLogic.updateSettings(s, undo.field, undo.before);
+        refused(StateLogic.updateSettings(s, undo.field, undo.before), 409);
       } else if (undo.type === "settingsSet") {
         if (Object.keys(undo.after).some((k) => JSON.stringify(settings[k] ?? null) !== JSON.stringify(undo.after[k]))) throw new HttpError(409, "Those settings have changed since");
         for (const [k, v] of Object.entries(undo.before)) {
           if (v === null) delete settings[k];
           else settings[k] = v;
         }
+        // The fields are back as they were: a league carrying its spec carries theirs (the game-specs flag), before the
+        // waiver switches below are read from it.
+        StateLogic.syncGame(s);
         StateLogic.WaiverLogic.mirrorLegacy(s);
         // An archive taken back (step 10 part 2b): what came in while it stood still reaches it now.
         if ("archivedAt" in undo.before && !settings.archivedAt) await syncLeagueDecisions(client, r.league_id, s);
@@ -289,14 +294,21 @@ export async function restoreMember(s: LeagueState, client: PoolClient, leagueId
   if (!who.length) throw new HttpError(409, "Their account was deleted");
   let playerId = undo.playerId;
   const seat = s.players.find((p) => p.id === playerId);
-  if (seat?.disabled && (!seat.disabledFromUserId || seat.disabledFromUserId === undo.userId)) StateLogic.reclaimPlayer(s, playerId);
+  let slot = 0;
+  if (undo.shared && seat && !seat.disabled) {
+    // A team they shared (step A10 part 4b), still held by the others on it: back on it while it has room.
+    const share = await shareCheck(client, leagueId, s, playerId, { back: true });
+    if ("problem" in share) throw new HttpError(409, `Their team has changed since: ${share.problem.charAt(0).toLowerCase()}${share.problem.slice(1)}`);
+    slot = share.slot;
+  } else if (seat?.disabled && (!seat.disabledFromUserId || seat.disabledFromUserId === undo.userId)) StateLogic.reclaimPlayer(s, playerId);
   else if (undo.removed || !seat) playerId = StateLogic.addPlayer(s, undo.name).id;
   else throw new HttpError(409, "Their seat has changed since");
-  await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through, explainer_seen_at) VALUES ($1, $2, $3, $4, $5, now())", [
+  await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through, explainer_seen_at, seat_slot) VALUES ($1, $2, $3, $4, $5, now(), $6)", [
     leagueId,
     undo.userId,
     playerId,
     undo.role,
     undo.seen,
+    slot,
   ]);
 }

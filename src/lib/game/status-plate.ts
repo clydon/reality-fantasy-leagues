@@ -36,7 +36,9 @@ export function statusPlate(
   if (type.hasRoster && !StateLogic.isDraftStarted(state)) {
     const at = state.settings.draftScheduledAt ? Date.parse(state.settings.draftScheduledAt) : NaN;
     const pos = me ? state.draftOrder.indexOf(me) : -1;
-    const shared = state.settings.ownershipMode === "shared";
+    // No turns to wait for in a blind draft or a draw (step A10 part 3): no place in the order to say.
+    const get = StateLogic.gameOf(state).get;
+    const shared = !(get.by === "draft" && get.order === "snake");
     return {
       tag: "Draft",
       title: Number.isFinite(at) ? draftWhen(at) : "Not scheduled yet",
@@ -51,7 +53,7 @@ export function statusPlate(
 
   const turn = StateLogic.currentDraftTurn(state);
   if (type.hasRoster && !(turn && turn.isComplete)) {
-    if (state.settings.ownershipMode === "shared") {
+    if (StateLogic.BlindDraftLogic.on(state)) {
       const B = StateLogic.BlindDraftLogic;
       const locked = B.lockedPlayerIds(state).length;
       const total = locked + B.waitingOn(state).length;

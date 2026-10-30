@@ -1,0 +1,510 @@
+{
+ "show": "the-challenge",
+ "season": 40,
+ "title": "Battle of the Eras",
+ "source": {
+  "page": "The Challenge 40: Battle of the Eras",
+  "site": "en.wikipedia.org",
+  "revision": 1382039262,
+  "sections": [
+   "Format",
+   "Teams",
+   "Game summary"
+  ],
+  "read": "2026-10-28"
+ },
+ "names": "tapes",
+ "episodes": [
+  {
+   "n": 1,
+   "phase": "Era Invitational",
+   "play": "individuals",
+   "out": [],
+   "note": "Each era competes within itself; the last man and woman of each era face someone their era's winners pick (eight Arenas, all in Episode 2)."
+  },
+  {
+   "n": 2,
+   "phase": "Era Invitational",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Amanda Garcia",
+     "how": "eliminated"
+    },
+    {
+     "name": "Leroy Garrett",
+     "how": "eliminated"
+    },
+    {
+     "name": "Mark Long",
+     "how": "eliminated"
+    },
+    {
+     "name": "Katie Cooley",
+     "how": "eliminated"
+    },
+    {
+     "name": "Paulie Calafiore",
+     "how": "eliminated"
+    },
+    {
+     "name": "Nurys Mateo",
+     "how": "eliminated"
+    },
+    {
+     "name": "KellyAnne Judd",
+     "how": "eliminated"
+    },
+    {
+     "name": "Brandon Nelson",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 3,
+   "phase": "Eras as teams",
+   "play": "teams",
+   "out": [
+    {
+     "name": "Tony Raines",
+     "how": "eliminated"
+    },
+    {
+     "name": "Jodi Weatherton",
+     "how": "eliminated"
+    }
+   ],
+   "playShown": [
+    3,
+    "start"
+   ],
+   "note": "The eras compete as teams; each era has a male and a female target, chosen by the last Arena's winners (representatives in Episode 3)."
+  },
+  {
+   "n": 4,
+   "phase": "Eras as teams",
+   "play": "teams",
+   "out": [
+    {
+     "name": "Aneesa Ferreira",
+     "how": "eliminated"
+    },
+    {
+     "name": "Horacio Gutiérrez Jr.",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 5,
+   "phase": "Eras as teams",
+   "play": "teams",
+   "out": [
+    {
+     "name": "Emily Schromm",
+     "how": "eliminated"
+    },
+    {
+     "name": "CT Tamburello",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 6,
+   "phase": "Eras as teams",
+   "play": "teams",
+   "out": [
+    {
+     "name": "Brad Fiorenza",
+     "how": "eliminated"
+    },
+    {
+     "name": "Jonna Mannion",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 7,
+   "phase": "Eras as teams",
+   "play": "teams",
+   "out": [
+    {
+     "name": "Tina Barta",
+     "how": "eliminated"
+    },
+    {
+     "name": "Darrell Taylor",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 8,
+   "phase": "Eras as teams",
+   "play": "teams",
+   "out": [
+    {
+     "name": "Averey Tressler",
+     "how": "eliminated"
+    },
+    {
+     "name": "Derrick Kosinski",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 9,
+   "phase": "Eras as teams",
+   "play": "teams",
+   "out": [
+    {
+     "name": "Devin Walker",
+     "how": "eliminated"
+    },
+    {
+     "name": "Kaycee Clark",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Rachel was Era I's last member and still a team of one. After the Arena TJ announced the team phase was over."
+  },
+  {
+   "n": 10,
+   "phase": "Individual",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Ryan Kehoe",
+     "how": "eliminated"
+    }
+   ],
+   "playShown": [
+    9,
+    "end"
+   ],
+   "note": "Individual: eliminations alternate men and women; still representing their eras."
+  },
+  {
+   "n": 11,
+   "phase": "Individual",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Nia Moore",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 12,
+   "phase": "Individual",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Nehemiah Clark",
+     "how": "purged"
+    },
+    {
+     "name": "Laurel Stucky",
+     "how": "purged"
+    },
+    {
+     "name": "Theo Campbell",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Duned doubled as a Purge: the last man and woman were out on the spot."
+  },
+  {
+   "n": 13,
+   "phase": "Individual",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Olivia Kaiser",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 14,
+   "phase": "Individual",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Josh Martinez",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 15,
+   "phase": "Individual",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Aviv Melmed",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 16,
+   "phase": "Individual",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Cory Wharton",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 17,
+   "phase": "Individual",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Cara Maria Sorbello",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 18,
+   "phase": "Final",
+   "play": "individuals",
+   "out": [],
+   "note": "The final: checkpoint points plus the Karma Vote's, men and women ranked apart."
+  },
+  {
+   "n": 19,
+   "phase": "Final",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Jordan Wiseley",
+     "how": "won"
+    },
+    {
+     "name": "Jenny West",
+     "how": "won"
+    },
+    {
+     "name": "Rachel Robinson",
+     "how": "won"
+    },
+    {
+     "name": "Derek Chavez",
+     "how": "placed"
+    },
+    {
+     "name": "Johnny \"Bananas\" Devenanzio",
+     "how": "placed"
+    },
+    {
+     "name": "Michele Fitzgerald",
+     "how": "placed"
+    },
+    {
+     "name": "Kyland Young",
+     "how": "placed"
+    },
+    {
+     "name": "Tori Deal",
+     "how": "placed"
+    }
+   ]
+  },
+  {
+   "n": 20,
+   "phase": "Reunion",
+   "play": "none",
+   "out": []
+  },
+  {
+   "n": 21,
+   "phase": "Reunion",
+   "play": "none",
+   "out": []
+  }
+ ],
+ "groupings": {
+  "era": {
+   "what": "Four eras by debut season, the teams of episodes 3-9 and a label after.",
+   "spells": [
+    {
+     "from": [
+      1,
+      "start"
+     ],
+     "shown": [
+      1,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Era 1",
+       "members": [
+        "Aneesa Ferreira",
+        "Brad Fiorenza",
+        "CT Tamburello",
+        "Darrell Taylor",
+        "Derrick Kosinski",
+        "Jodi Weatherton",
+        "Katie Cooley",
+        "Mark Long",
+        "Rachel Robinson",
+        "Tina Barta"
+       ]
+      },
+      {
+       "name": "Era 2",
+       "members": [
+        "Aviv Melmed",
+        "Brandon Nelson",
+        "Cara Maria Sorbello",
+        "Derek Chavez",
+        "Emily Schromm",
+        "Johnny \"Bananas\" Devenanzio",
+        "KellyAnne Judd",
+        "Laurel Stucky",
+        "Nehemiah Clark",
+        "Ryan Kehoe"
+       ]
+      },
+      {
+       "name": "Era 3",
+       "members": [
+        "Amanda Garcia",
+        "Averey Tressler",
+        "Cory Wharton",
+        "Devin Walker",
+        "Jonna Mannion",
+        "Jordan Wiseley",
+        "Leroy Garrett",
+        "Nia Moore",
+        "Tony Raines",
+        "Tori Deal"
+       ]
+      },
+      {
+       "name": "Era 4",
+       "members": [
+        "Horacio Gutiérrez Jr.",
+        "Jenny West",
+        "Josh Martinez",
+        "Kaycee Clark",
+        "Kyland Young",
+        "Michele Fitzgerald",
+        "Nurys Mateo",
+        "Olivia Kaiser",
+        "Paulie Calafiore",
+        "Theo Campbell"
+       ]
+      }
+     ],
+     "how": "Announced with the cast."
+    }
+   ]
+  }
+ },
+ "twists": [
+  {
+   "kind": "twist",
+   "from": [
+    1,
+    "start"
+   ],
+   "shown": [
+    1,
+    "start"
+   ],
+   "what": "The Era Invitational: each era competes against itself; eight eliminations.",
+   "words": [
+    "era invitational",
+    "invitational"
+   ]
+  },
+  {
+   "kind": "twist",
+   "from": [
+    2,
+    "end"
+   ],
+   "shown": [
+    2,
+    "mid"
+   ],
+   "what": "The Karma Vote: each eliminated player rates those left from 1 to 5 (its use revealed in the final).",
+   "words": [
+    "karma"
+   ]
+  },
+  {
+   "kind": "twist",
+   "from": [
+    4,
+    "start"
+   ],
+   "shown": [
+    3,
+    "end"
+   ],
+   "what": "Targets: the Arena's winners pick a man and a woman from each era to be at risk next.",
+   "words": [
+    "target"
+   ]
+  },
+  {
+   "kind": "twist",
+   "from": [
+    11,
+    "start"
+   ],
+   "shown": [
+    10,
+    "end"
+   ],
+   "what": "Targets, individual phase: the Arena's winner names three of the other gender.",
+   "words": [
+    "target"
+   ]
+  },
+  {
+   "kind": "twist",
+   "from": [
+    12,
+    "start"
+   ],
+   "shown": [
+    12,
+    "start"
+   ],
+   "what": "The Purge: Duned's last man and woman out on the spot; last place's penalty moves to second-to-last.",
+   "words": [
+    "purge"
+   ]
+  },
+  {
+   "kind": "new-phase",
+   "from": [
+    18,
+    "start"
+   ],
+   "shown": [
+    18,
+    "start"
+   ],
+   "what": "The final, scored by checkpoint points plus the Karma Vote.",
+   "words": [
+    "karma",
+    "final"
+   ]
+  }
+ ]
+}

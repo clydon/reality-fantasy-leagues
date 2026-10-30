@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Archive, CalendarDays, ChevronRight, KeyRound, Lock, LockOpen, RotateCcw, SlidersHorizontal, Trash2 } from "lucide-react";
+import { Archive, CalendarDays, Check, ChevronRight, KeyRound, Lock, LockOpen, RotateCcw, SlidersHorizontal, Trash2 } from "lucide-react";
 import { airTime } from "../clock";
 import { backstage, gameAdmin, gamesApi, useEndGames, useGameSettings, type DeletePreview, type EndGame, type GameSettings } from "../data";
 import { spanName } from "@/lib/game/spans";
@@ -78,6 +78,68 @@ export function SettingsPage({ seasonId, show }: { seasonId: string; show: ShowD
   );
 }
 
+/**
+ * A Prediction Sheet's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md): its own, then what else the show's moments can
+ * ask, each with when it's asked and what it earns. A Commissioner switches them until the game starts (its first lock, when
+ * answers are in), never while it's locked down; at least one stays on. Saved at once, with Undo on the toast (the list as it was,
+ * sent back: a set of questions is only written with the show's ctx, so Recent changes keeps the line without an Undo of its own).
+ */
+function SheetQuestions({ seasonId, couchId, g, q }: { seasonId: string; couchId: string; g: GameSettings; q: NonNullable<GameSettings["questions"]> }) {
+  const after = useAfter();
+  const [busy, setBusy] = useState(false);
+  const on = q.list.filter((x) => x.on).map((x) => x.id);
+  const send = async (ids: string[], said: string, undo?: string[]) => {
+    setBusy(true);
+    try {
+      await gameAdmin.questions(seasonId, couchId, g.leagueId, ids);
+      await after();
+      toast(said, undo ? { undo: () => void send(undo, "Undone") } : undefined);
+    } catch (e) {
+      toast.quiet((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div data-settings="questions" className="mb-5">
+      <div className="mb-1 flex items-baseline justify-between">
+        <h3 className="type-caption text-[15px] tracking-[0.04em] text-muted-foreground">The questions</h3>
+        <span className="text-[13px] text-muted-foreground">{on.length} on</span>
+      </div>
+      <small className="mb-1.5 block text-[13px] leading-snug text-muted-foreground">
+        {q.why ?? "The results settle every one. Switch them until the game starts: after that, answers are in."}
+      </small>
+      {q.list.map((x) => (
+        <button
+          key={x.id}
+          type="button"
+          role="checkbox"
+          aria-checked={x.on}
+          disabled={!q.editable || busy}
+          data-settings-question={x.id}
+          onClick={() => {
+            if (x.on && on.length === 1) return toast.quiet("A Prediction Sheet asks at least one question");
+            const ids = x.on ? on.filter((id) => id !== x.id) : [...on, x.id];
+            void send(ids, x.on ? `Took off "${x.ask}"` : `Added "${x.ask}"`, on);
+          }}
+          className="mb-1.5 flex w-full items-center gap-3 rounded-[3px] bg-background p-2.5 text-left disabled:cursor-default"
+        >
+          <span
+            aria-hidden
+            className={`grid size-6 flex-none place-items-center rounded-[3px] ${x.on ? (q.editable ? "bg-foreground text-background" : "bg-muted-foreground text-background") : "outline-[1.5px] -outline-offset-[1.5px] outline-input"}`}
+          >
+            {x.on && <Check className="size-4" strokeWidth={3} />}
+          </span>
+          <span className="min-w-0 flex-1">
+            <b className="block text-[15px] leading-snug">{x.ask}</b>
+            <small className="text-[13px] text-muted-foreground">{x.line}</small>
+          </span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function GameBlock({
   seasonId,
   couchId,
@@ -97,13 +159,20 @@ function GameBlock({
   // Locked down: frozen for the season, shown as it stands.
   const can = g.commissioner && !g.lockedDown;
   return (
-    <section data-settings-game={g.gameName} className="mt-7 px-4">
+    <section data-settings-game={g.gameName} data-settings-league={g.leagueId} className="mt-7 px-4">
       <div className="mb-3 flex items-center gap-3">
         <i className="h-9 w-1.5 flex-none rounded-[2px]" style={{ background: gameColour(g.gameName) }} aria-hidden />
         <div className="min-w-0 flex-1">
           <h2 className="type-caption text-[24px] leading-none">{g.gameName}</h2>
           <small className="text-[13px] text-muted-foreground">
-            {g.name} · {g.gameType === "pickem" ? "everyone picks from the whole cast" : g.shared ? "castaways can be on several teams" : "each castaway on one team"}
+            {g.name} ·{" "}
+            {g.gameType === "pickem"
+              ? "everyone picks from the whole cast"
+              : g.questions
+                ? "no draft, no team: a few questions each episode"
+                : g.shared
+                  ? "castaways can be on several teams"
+                  : "each castaway on one team"}
           </small>
         </div>
       </div>
@@ -134,6 +203,8 @@ function GameBlock({
               line={g.lockedDown ? "Frozen for the season" : L.starters === L.rec.starters ? "Recommended" : `Recommended: ${L.rec.starters}`}
               value={String(L.starters)}
               disabled={!can}
+              atMin={L.starters <= 1}
+              atMax={L.starters >= L.max.starters}
               onStep={(d) => write(g, { set: { activeSlots: L.starters + d }, text: `Changed who scores each week to ${L.starters + d}` }, `${L.starters + d} score each week from Episode ${g.from ?? "next"}`)}
             />
             {g.draftStarted ? (
@@ -155,6 +226,8 @@ function GameBlock({
                 line={g.lockedDown ? "Frozen for the season" : "Backups who don't score until you start them"}
                 value={String(L.bench)}
                 disabled={!can}
+                atMin={L.bench <= 0}
+                atMax={L.bench >= L.max.bench}
                 onStep={(d) => write(g, { set: { benchSlots: L.bench + d }, text: `Changed the bench to ${L.bench + d}` }, `${L.bench + d} on the bench`)}
               />
             )}
@@ -176,6 +249,8 @@ function GameBlock({
         </div>
       )}
 
+      {g.questions && <SheetQuestions seasonId={seasonId} couchId={couchId} g={g} q={g.questions} />}
+
       <div data-settings="joining" className="mb-5">
         <div className="mb-2 flex items-baseline justify-between">
           <h3 className="type-caption text-[15px] tracking-[0.04em] text-muted-foreground">
@@ -196,7 +271,7 @@ function GameBlock({
         <small className="mb-2 block text-[13px] text-muted-foreground">
           {g.lockedDown
             ? "Locked down for the season: nobody new joins or catches up."
-            : g.gameType === "pickem"
+            : g.gameType === "pickem" || g.questions
               ? "There are no teams, so new players can jump in."
               : g.joining.rec === "open"
                 ? "Castaways can be on several teams, so new players can jump in."
@@ -318,7 +393,10 @@ function LockRow({ seasonId, couchId, g, lock, word }: { seasonId: string; couch
 
 /**
  * How long it runs (step 6 of docs/PLAN-sports-data.md): to the season's end or through an episode, changed before its end is
- * reached, to one still to come; frozen once it's over, or while it's locked down.
+ * reached, to one still to come; frozen once it's over, or while it's locked down. Where it starts (step A3 of
+ * docs/PLAN-start-a-game-gpt.md): any episode still to come, up to its end, or when a phase of the season still to come starts,
+ * until its first one airs. A game waiting for its phase says so ("Starts when Merged starts") and has no end to choose until
+ * its start is settled; once it is, "Starts with Merged, at Episode 9".
  */
 function HowLong({
   g,
@@ -333,9 +411,21 @@ function HowLong({
 }) {
   const part = { singular: words.episode.toLowerCase(), plural: words.episodes.toLowerCase() };
   const sp = g.span;
-  const now = sp.to === null ? `${words.episode} ${sp.from} to the season's end` : spanName(sp.from, sp.to, part);
   const say = (to: number | null) => (to === null ? "to the season's end" : `through ${words.episode} ${to}`);
+  const now =
+    sp.from === null
+      ? `When ${sp.phase?.name ?? "its phase"} starts, ${say(sp.to)}`
+      : sp.to === null
+        ? `${words.episode} ${sp.from} to the season's end`
+        : spanName(sp.from, sp.to, part);
+  // A phase start (step A3), waiting or settled (its first episode still to come, or aired).
+  const phaseLine = sp.phase ? (sp.from === null ? `Starts when ${sp.phase.name} starts` : `${sp.started ? "Started" : "Starts"} with ${sp.phase.name}, at ${words.episode} ${sp.from}`) : null;
   const open = can && !sp.over;
+  // The phases it can start with: those still to come, and the one it starts with now.
+  const phases = sp.phase && !sp.phases.some((p) => p.id === sp.phase?.id) ? [{ ...sp.phase, at: sp.from }, ...sp.phases] : sp.phases;
+  // Its start moves until its first episode airs, to another still to come, or to a phase.
+  const moveStart = open && !sp.started && (sp.starts.some((e) => e.number !== sp.from || !!sp.phase) || phases.some((p) => p.id !== sp.phase?.id));
+  const startValue = sp.phase ? `phase:${sp.phase.id}` : String(sp.from);
   return (
     <div data-settings="span" className="mb-5">
       <h3 className="type-caption mb-2 text-[15px] tracking-[0.04em] text-muted-foreground">How long</h3>
@@ -343,14 +433,56 @@ function HowLong({
         <b data-span-now className="block text-[15px]">
           {sp.over ? `Final · ${now}` : now}
         </b>
+        {phaseLine && sp.from !== null && (
+          <small data-span-phase className="block text-[13px] leading-snug">
+            {phaseLine}
+          </small>
+        )}
         <small className="block text-[13px] leading-snug text-muted-foreground">
           {sp.over
-            ? "It's over: its last one is in, so its end stays."
+            ? sp.from === null
+              ? "The season ended before its phase started."
+              : "It's over: its last one is in, so its end stays."
             : g.lockedDown
               ? "Frozen for the season"
-              : `Change its end before it's reached. Nothing after its last ${part.singular} scores.`}
+              : sp.from === null
+                ? `It waits for ${sp.phase?.name ?? "its phase"} to start, then plays from the first ${part.singular} it can. Nothing before then counts; the draft can happen first.`
+                : moveStart
+                  ? `Move its start before ${words.episode} ${sp.from} airs, its end before it's reached. Only what's between them scores.`
+                  : `Change its end before it's reached. Nothing after its last ${part.singular} scores.`}
         </small>
-        {open && (
+        {moveStart && (
+          <label className="mt-2 flex min-h-11 items-center gap-2.5 border-t border-border pt-2">
+            <span className="flex-none text-[14px] text-muted-foreground">Starts</span>
+            <select
+              data-span-start
+              value={startValue}
+              onChange={(e) => {
+                const v = e.target.value;
+                const p = v.startsWith("phase:") ? phases.find((x) => x.id === v.slice(6)) : undefined;
+                if (p) {
+                  void write(g, { set: { startPhase: p.id }, text: `Changed where ${g.gameName} starts: when ${p.name} starts` }, `${g.gameName} starts when ${p.name} starts`);
+                  return;
+                }
+                const from = Number(v);
+                void write(g, { set: { startEpisode: from }, text: `Changed where ${g.gameName} starts: ${words.episode} ${from}` }, `${g.gameName} starts with ${words.episode} ${from}`);
+              }}
+              className="min-w-0 flex-1 truncate rounded-[3px] bg-card px-2.5 py-2 text-[15px] font-semibold"
+            >
+              {phases.map((p) => (
+                <option key={`phase:${p.id}`} value={`phase:${p.id}`}>
+                  When {p.name} starts{p.at !== null ? ` · ${words.episode} ${p.at}` : ""}
+                </option>
+              ))}
+              {sp.starts.map((e) => (
+                <option key={e.number} value={e.number}>
+                  With {words.episode} {e.number}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+        {open && sp.from !== null && (
           <label className="mt-2 flex min-h-11 items-center gap-2.5 border-t border-border pt-2">
             <span className="flex-none text-[14px] text-muted-foreground">Ends</span>
             <select

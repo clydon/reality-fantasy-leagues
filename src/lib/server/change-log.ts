@@ -2,6 +2,7 @@ import crypto from "crypto";
 import type { Pool, PoolClient } from "pg";
 import { resultsDiff, type ResultsUndo } from "@/lib/game/results-changes";
 import type { LeagueState } from "@/lib/game/types";
+import type { SeatMoveKind } from "./shared-seats";
 
 // Writing Recent changes (docs/PLAN-new-design.md step 5; db/migrations/0111): every change someone makes to a game for
 // others appends a line in the same transaction as the change: withLeagueLock's `change` (db.ts), or recordChange with
@@ -51,6 +52,8 @@ export interface MemberUndo {
   seen: number | null;
   /** Before the draft the seat went entirely (a new one comes back); after it, it was disabled and is reclaimed. */
   removed: boolean;
+  /** A10 part 4b: a team they shared stayed with the others on it (neither removed nor disabled): they come back to it. */
+  shared?: boolean;
 }
 
 /** An answer someone sent taken back (step 6b): it stops counting as a source, and every league follows. */
@@ -123,7 +126,18 @@ export interface ChangeSpec {
 }
 
 /** A change worked out once the write has run, from the league before and after it; null when there's nothing to log. */
-export type ChangeOf = ChangeSpec | ((before: LeagueState, after: LeagueState) => ChangeSpec | null);
+export type ChangeOf = ChangeSpec | (((before: LeagueState, after: LeagueState) => ChangeSpec | null) & { seatMove?: SeatMove });
+
+/** A10 part 4b: a move someone made for their own seat, recorded where the seat is shared (shared-seats.ts recordSeatMove: a team
+ *  two people share, who made each of its moves). Carried by a ChangeOf to withLeagueLock, which writes it in the move's own
+ *  transaction. */
+export interface SeatMove {
+  userId: string;
+  playerId: string;
+  kind: SeatMoveKind;
+  /** The episode it was for ('' or left out: a move that isn't an episode's). */
+  episodeId?: string;
+}
 
 const WEEK_MS = 7 * 24 * 3600 * 1000;
 
@@ -207,8 +221,9 @@ export function settingsChange(userId: string, field: string): ChangeOf {
   };
 }
 
-// Settings Backstage never changes as a set, and the big ones a settings diff shouldn't carry.
-const NOT_A_SETTING = new Set(["showFormat", "showFormatData", "leagueRulesetData", "seasonRuleChanges", "adoptedRuleChanges", "declinedRuleChanges", "rulebook", "eventPoints"]);
+// Settings Backstage never changes as a set, and the big ones a settings diff shouldn't carry. The game's spec (settings.game,
+// the game-specs flag) follows its fields: an Undo puts the fields back and the spec with them (StateLogic.syncGame).
+const NOT_A_SETTING = new Set(["showFormat", "showFormatData", "leagueRulesetData", "seasonRuleChanges", "adoptedRuleChanges", "declinedRuleChanges", "rulebook", "eventPoints", "game"]);
 
 /** Several settings changed at once (tier 1): the line, and an Undo that puts every changed field back as it was. */
 export function settingsSetChange(userId: string, text: string, opts: { kind?: string; batch?: string } = {}): ChangeOf {
@@ -236,12 +251,29 @@ export function episodeChange(userId: string, epId: string, kind: string, text: 
 }
 
 /** Something done for one player (their lineup, their pick, their draft pick): a change only when it's someone else's seat. */
-export function forPlayerChange(userId: string, actorPlayerId: string | null, playerId: string, kind: string, text: (name: string) => string): ChangeOf {
-  return (_before, after) => {
-    if (actorPlayerId && actorPlayerId === playerId) return null;
+export function forPlayerChange(
+  userId: string,
+  actorPlayerId: string | null,
+  playerId: string,
+  kind: string,
+  text: (name: string) => string,
+  move?: { kind: SeatMoveKind; episodeId?: string }
+): ChangeOf {
+  const own = !!actorPlayerId && actorPlayerId === playerId;
+  const fn = (_before: LeagueState, after: LeagueState): ChangeSpec | null => {
+    if (own) return null;
     const name = after.players.find((p) => p.id === playerId)?.name ?? "someone";
     return { userId, kind, tier: 1, text: text(name) };
   };
+  // Their own seat's move isn't logged; on a team they share, who made it is recorded (seatMoveOf).
+  return own && move ? Object.assign(fn, { seatMove: { userId, playerId, ...move } }) : fn;
+}
+
+/** A10 part 4b: a move with no change line of its own (finale picks, a blind sheet, a draft pick), recording who made it when it's
+ *  for the actor's own seat and the seat is shared (withLeagueLock: shared-seats.ts recordSeatMove). Undefined otherwise. */
+export function seatMoveOf(userId: string, actorPlayerId: string | null, playerId: string | null | undefined, move: { kind: SeatMoveKind; episodeId?: string }): ChangeOf | undefined {
+  if (!actorPlayerId || !playerId || actorPlayerId !== playerId) return undefined;
+  return Object.assign(() => null, { seatMove: { userId, playerId, ...move } });
 }
 
 const ROLE_WORDS: Record<string, string> = { commissioner: "a Commissioner", admin: "a Game admin", member: "a player" };

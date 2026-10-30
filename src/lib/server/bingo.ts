@@ -1,5 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
-import { countLines, dealCard, firstLineAt, fullLines, seedOf, truthOf, FREE_KEY, LINES, MIN_MOMENTS, SQUARES, type BankSquare, type BingoSquare, type CalledLine, type Likelihood, type LineCount, type Truth } from "@/lib/game/bingo";
+import { countLines, dealCard, firstLineAt, fullLines, pointsPerLine, seedOf, truthOf, FREE_KEY, LINES, MIN_MOMENTS, SQUARES, type BankSquare, type BingoSquare, type CalledLine, type Likelihood, type LineCount, type Truth } from "@/lib/game/bingo";
 import { settleSays, type CallBook, type EpisodeFacts } from "@/lib/game/calls";
 import { PRESENT_MS } from "@/lib/game/watch-along";
 import { kindOf } from "@/lib/game/formats/rulebook-schema.js";
@@ -767,14 +767,17 @@ export async function leagueBingo(o: {
   // A game over a span counts its own episodes only (settings.endEpisode), and hands no card past its last.
   const end = StateLogic.endEpisode(o.state);
   const through = Math.min(mark, latestAired(schedule, now), end ?? Number.POSITIVE_INFINITY);
+  // A game waiting for its phase (step A3 of docs/PLAN-start-a-game-gpt.md) counts no lines yet, and hands no card.
   const from = StateLogic.startEpisode(o.state);
   const userIds = o.state.players.map((p) => o.userOf(p.id)).filter((id): id is string => !!id);
   const [lines, move] = await Promise.all([
-    bingoLines(o.seasonId, userIds, { from, through, couchId: o.couchId, book: o.book }),
-    o.playerId ? bingoMove(o.userId, o.seasonId, mark, from, schedule, now) : Promise.resolve(null),
+    from === null ? new Map<string, number>() : bingoLines(o.seasonId, userIds, { from, through, couchId: o.couchId, book: o.book }),
+    o.playerId && from !== null ? bingoMove(o.userId, o.seasonId, mark, from, schedule, now) : Promise.resolve(null),
   ]);
+  // Points per line (step A9 of docs/PLAN-start-a-game-gpt.md), 1 when the game says none.
+  const each = pointsPerLine(o.state);
   return {
-    right: (p) => lines.get(o.userOf(p) ?? "") ?? 0,
+    right: (p) => (lines.get(o.userOf(p) ?? "") ?? 0) * each,
     move: null,
     bingo: move && (end === null || move.episode <= end) ? move : null,
     through,

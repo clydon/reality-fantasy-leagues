@@ -27,7 +27,7 @@ export const GET = apiRoute(async (req) => {
        LEFT JOIN league_groups g ON g.id = l.group_id
        LEFT JOIN shows s ON s.slug = l.state->'settings'->>'showId'
       WHERE m.user_id=$1 AND l.solo IS DISTINCT FROM 'public'
-        AND COALESCE(l.state->'settings'->>'leagueTypeId', '') NOT IN ('weekly-calls', 'weekly-bingo')
+        AND COALESCE(l.state->'settings'->>'leagueTypeId', '') NOT IN ('weekly-calls', 'weekly-bingo', 'questions')
       ORDER BY l.name`,
     [user.id]
   );

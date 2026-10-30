@@ -113,7 +113,8 @@ export async function seasonFactsFor(user: SessionUser, seasonId: string, couchI
     const { rows } = await pool.query("SELECT player_id FROM league_memberships WHERE league_id = $1 AND user_id = $2", [game.leagueId, user.id]);
     view = StateLogic.GhostLogic.viewFor(state, rows[0]?.player_id ?? null, Number.isFinite(mark) ? mark : null);
     settings = Object.fromEntries(SCORING.filter((k) => state.settings[k] != null).map((k) => [k, state.settings[k]]));
-    if (game.gameType === "active-roster") settings.eventPoints = state.settings.eventPoints;
+    // A game that scores by moments: its own points, read as it reads them (game spec: a Weekly Lineup's points).
+    if (game.gameType === "active-roster") Object.assign(settings, { leagueTypeId: "active-roster", eventPoints: state.settings.eventPoints });
     const row = await rulebookForLeague(pool, { leagueId: game.leagueId, settings: state.settings });
     const format = StateLogic.formatOf(view);
     book = row?.blocks ? await bookOf(row, mark) : rulebookFor(format.id, format.data);

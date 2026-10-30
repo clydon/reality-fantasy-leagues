@@ -1,5 +1,6 @@
 // Dev-only: Start a game's words corpus on tape (docs/PLAN-playtests.md P2; docs/PLAN-start-a-game-gpt.md's request and
-// G1). The requests and their expected readings are scripts/dev-test/start-a-game-words.json; tapes.js asks each one of the
+// G1). The requests and their expected readings are the capability tracker's corpus (tests/fixtures/engine-capabilities.json,
+// step A5 of the GPT plan: one list for the engine, G1's bank and this recorder; `wordsCorpus()` here); tapes.js asks each one of the
 // local bot (its queue's round 2, or `tapes.js one words <id>`) and keeps it in ~\rfl-tapes\words\<id>.json.
 //
 // THE PROMPT HERE IS A DRAFT, not the app's: the app has no request prompt until G1 builds it from the game spec's
@@ -21,6 +22,11 @@ const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, ".
 const { sameShow } = jiti("../../src/lib/game/listing.ts");
 
 const DAY = new Intl.DateTimeFormat("en-US", { weekday: "long", year: "numeric", month: "long", day: "numeric", timeZone: "UTC" });
+
+/** The words corpus, { about, today, requests }: the capability tracker's (step A5), each request with its page and expected reading. */
+function wordsCorpus() {
+  return JSON.parse(require("fs").readFileSync(path.join(__dirname, "..", "..", "tests", "fixtures", "engine-capabilities.json"), "utf8")).corpus;
+}
 
 /** The draft request prompt for what someone typed (see the header). `today`: YYYY-MM-DD (else today). Pure. */
 function wordsPrompt(words, today) {
@@ -303,7 +309,7 @@ function report() {
   const fs = require("fs");
   // The recorder's own folder (tapes.js loads .env.local first, so a TAPES_DIR there counts too).
   const dir = path.join(require("./tapes").TAPES, "words");
-  const corpus = JSON.parse(fs.readFileSync(path.join(__dirname, "start-a-game-words.json"), "utf8"));
+  const corpus = wordsCorpus();
   const tapes = fs.existsSync(dir) ? fs.readdirSync(dir).filter((f) => /^[^.]+\.json$/.test(f)).map((f) => JSON.parse(fs.readFileSync(path.join(dir, f), "utf8"))) : [];
   const text = reportMarkdown(reportOf(corpus.requests, tapes));
   fs.mkdirSync(dir, { recursive: true });
@@ -311,7 +317,7 @@ function report() {
   console.log(text);
 }
 
-module.exports = { wordsPrompt, parseRequest, judge, carriedOf, assumedOf, reportOf, reportMarkdown, statusLine, sameName };
+module.exports = { wordsCorpus, wordsPrompt, parseRequest, judge, carriedOf, assumedOf, reportOf, reportMarkdown, statusLine, sameName };
 
 if (require.main === module) {
   if (process.argv[2] === "report") report();

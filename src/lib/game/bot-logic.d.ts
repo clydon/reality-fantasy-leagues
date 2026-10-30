@@ -28,5 +28,7 @@ export function run(state: LeagueState): number;
 export function hasWork(state: LeagueState): boolean;
 /** What each bot would lock in for an open blind draft that's waiting on it. */
 export function blindSubmissions(state: LeagueState): { playerId: string; castawayIds: string[] }[];
+/** What each bot would bid in an open auction that's waiting on it (step A10 part 3b). */
+export function auctionBids(state: LeagueState): { playerId: string; bids: { castawayId: string; bid: number }[] }[];
 /** What a bot claims for a waiver week, asked for when the week processes (claims live outside state). */
 export function waiverClaim(state: LeagueState, playerId: string, period: WaiverPeriod | null): WaiverClaim;

@@ -226,12 +226,18 @@ function updatesFor(blocks, updates, seen) {
   const view = (u) => ({
     episode: u.episode,
     kind: u.kind,
-    title: u.title || (u.kind === 'start' ? (u.episode <= 1 ? 'In force from the premiere' : `In force from ${unit} ${u.episode}`) : UPDATE_TITLES[u.kind] || 'Updated'),
+    title:
+      u.title ||
+      (u.kind === 'start'
+        ? u.episode <= 1 ? 'In force from the premiere' : `In force from ${unit} ${u.episode}`
+        : u.kind === 'end' ? `Ends with ${unit} ${u.episode}` : UPDATE_TITLES[u.kind] || 'Updated'),
     detail: u.detail || '',
     tag: UPDATE_TAGS[u.kind] || null,
   });
-  const shown = all.filter((u) => u.kind === 'start' || u.episode <= s).map(view);
-  const later = all.filter((u) => !(u.kind === 'start' || u.episode <= s));
+  // Where a game starts and ends are its own settings, not news from the show: always shown.
+  const always = (u) => u.kind === 'start' || u.kind === 'end';
+  const shown = all.filter((u) => always(u) || u.episode <= s).map(view);
+  const later = all.filter((u) => !(always(u) || u.episode <= s));
   const hidden = later.length
     ? { count: later.length, from: later[0].episode, title: `${later.length} update${later.length > 1 ? 's' : ''} from ${unit} ${later[0].episode}`, detail: "It shows once you've seen it" }
     : null;

@@ -1,0 +1,904 @@
+{
+ "show": "the-challenge",
+ "season": 39,
+ "title": "Battle for a New Champion",
+ "source": {
+  "page": "The Challenge: Battle for a New Champion",
+  "site": "en.wikipedia.org",
+  "revision": 1382039007,
+  "sections": [
+   "Format",
+   "Game summary",
+   "Team progress"
+  ],
+  "read": "2026-10-28"
+ },
+ "names": "tapes",
+ "episodes": [
+  {
+   "n": 1,
+   "phase": "Control",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Jessica Brody",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 2,
+   "phase": "Control",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Chauncey Palmer",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 3,
+   "phase": "Control",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Jujuy Jiménez",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 4,
+   "phase": "Control",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Hughie Maughan",
+     "how": "eliminated"
+    }
+   ]
+  },
+  {
+   "n": 5,
+   "phase": "Chaos",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Ciarran Stott",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Male/female pairs."
+  },
+  {
+   "n": 6,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": [],
+   "note": "Two teams of 6 and one of 7."
+  },
+  {
+   "n": 7,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": [
+    {
+     "name": "Callum Izzard",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Five teams of 3 and one of 4."
+  },
+  {
+   "n": 8,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": [
+    {
+     "name": "Big T Fazakerley",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Two teams of 9."
+  },
+  {
+   "n": 9,
+   "phase": "Chaos",
+   "play": "pairs",
+   "out": [
+    {
+     "name": "Melissa Reeves",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Male/female pairs and one team of three (two arrangements in the episode)."
+  },
+  {
+   "n": 10,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": [],
+   "note": "Two teams of 8."
+  },
+  {
+   "n": 11,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": [],
+   "note": "Four teams of 4."
+  },
+  {
+   "n": 12,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": []
+  },
+  {
+   "n": 13,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": []
+  },
+  {
+   "n": 14,
+   "phase": "Chaos",
+   "play": "teams",
+   "out": [
+    {
+     "name": "Asaf Goren",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Four teams of 4."
+  },
+  {
+   "n": 15,
+   "phase": "Conquest",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Ravyn Rochelle",
+     "how": "purged"
+    },
+    {
+     "name": "Zara Zoffany",
+     "how": "eliminated"
+    }
+   ],
+   "note": "Purge: last place out; the three not saved face a Conquest Elimination."
+  },
+  {
+   "n": 16,
+   "phase": "Conquest",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Ed Eason",
+     "how": "purged"
+    },
+    {
+     "name": "Horacio Gutiérrez Jr.",
+     "how": "eliminated"
+    },
+    {
+     "name": "Kyland Young",
+     "how": "eliminated"
+    }
+   ],
+   "note": "A double elimination."
+  },
+  {
+   "n": 17,
+   "phase": "Conquest",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Michele Fitzgerald",
+     "how": "purged"
+    },
+    {
+     "name": "James Lock",
+     "how": "eliminated"
+    },
+    {
+     "name": "Olivia Kaiser",
+     "how": "eliminated"
+    }
+   ],
+   "note": "A double elimination."
+  },
+  {
+   "n": 18,
+   "phase": "Final",
+   "play": "mixed",
+   "out": [
+    {
+     "name": "Jay Starrett",
+     "how": "eliminated"
+    }
+   ],
+   "note": "The final: as a group, then random pairs per checkpoint, then individually."
+  },
+  {
+   "n": 19,
+   "phase": "Final",
+   "play": "mixed",
+   "out": [
+    {
+     "name": "Moriah Jadea",
+     "how": "eliminated"
+    },
+    {
+     "name": "Berna Canbeldek",
+     "how": "placed"
+    },
+    {
+     "name": "Corey Lay",
+     "how": "placed"
+    },
+    {
+     "name": "Colleen Schneider",
+     "how": "placed"
+    },
+    {
+     "name": "Nurys Mateo",
+     "how": "placed"
+    },
+    {
+     "name": "Emanuel Neagu",
+     "how": "won"
+    }
+   ],
+   "note": "The final's results, added in F4 from the same revision's Final section: Jay 7th and Moriah 6th (eliminated), Berna 5th, Corey 4th, Colleen 3rd, Nurys 2nd, Emanuel the winner. Wikipedia gives the final as Episodes 18/19; which of the two Jay and Moriah went home in is the tapes' recaps' (Jay in 18, Moriah in 19)."
+  },
+  {
+   "n": 20,
+   "phase": "Reunion",
+   "play": "none",
+   "out": []
+  }
+ ],
+ "groupings": {
+  "team": {
+   "what": "Pairs or teams drawn for each Chaos challenge.",
+   "spells": [
+    {
+     "from": [
+      1,
+      "start"
+     ],
+     "shown": [
+      1,
+      "start"
+     ],
+     "groups": [],
+     "alone": [],
+     "how": "Control: everyone as one group."
+    },
+    {
+     "from": [
+      5,
+      "start"
+     ],
+     "shown": [
+      5,
+      "start"
+     ],
+     "groups": [
+      {
+       "members": [
+        "Asaf Goren",
+        "Michele Fitzgerald"
+       ]
+      },
+      {
+       "members": [
+        "Berna Canbeldek",
+        "Emanuel Neagu"
+       ]
+      },
+      {
+       "members": [
+        "Big T Fazakerley",
+        "Horacio Gutiérrez Jr."
+       ]
+      },
+      {
+       "members": [
+        "Callum Izzard",
+        "Colleen Schneider"
+       ]
+      },
+      {
+       "members": [
+        "Ciarran Stott",
+        "Zara Zoffany"
+       ]
+      },
+      {
+       "members": [
+        "Corey Lay",
+        "Ravyn Rochelle"
+       ]
+      },
+      {
+       "members": [
+        "Ed Eason",
+        "Olivia Kaiser"
+       ]
+      },
+      {
+       "members": [
+        "James Lock",
+        "Nurys Mateo"
+       ]
+      },
+      {
+       "members": [
+        "Jay Starrett",
+        "Melissa Reeves"
+       ]
+      },
+      {
+       "members": [
+        "Kyland Young",
+        "Moriah Jadea"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      6,
+      "start"
+     ],
+     "shown": [
+      6,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Blue",
+       "members": [
+        "Asaf Goren",
+        "Callum Izzard",
+        "Ed Eason",
+        "Michele Fitzgerald",
+        "Nurys Mateo",
+        "Ravyn Rochelle"
+       ]
+      },
+      {
+       "name": "Red",
+       "members": [
+        "Berna Canbeldek",
+        "Colleen Schneider",
+        "Emanuel Neagu",
+        "Horacio Gutiérrez Jr.",
+        "Kyland Young",
+        "Zara Zoffany"
+       ]
+      },
+      {
+       "name": "Turquoise",
+       "members": [
+        "Big T Fazakerley",
+        "Corey Lay",
+        "James Lock",
+        "Jay Starrett",
+        "Melissa Reeves",
+        "Moriah Jadea",
+        "Olivia Kaiser"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      7,
+      "start"
+     ],
+     "shown": [
+      7,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Team 4",
+       "members": [
+        "Asaf Goren",
+        "Ed Eason",
+        "Moriah Jadea",
+        "Nurys Mateo"
+       ]
+      },
+      {
+       "name": "Team 6",
+       "members": [
+        "Berna Canbeldek",
+        "Corey Lay",
+        "Ravyn Rochelle"
+       ]
+      },
+      {
+       "name": "Team 5",
+       "members": [
+        "Big T Fazakerley",
+        "Horacio Gutiérrez Jr.",
+        "Kyland Young"
+       ]
+      },
+      {
+       "name": "Team 3",
+       "members": [
+        "Callum Izzard",
+        "Michele Fitzgerald",
+        "Zara Zoffany"
+       ]
+      },
+      {
+       "name": "Team 1",
+       "members": [
+        "Colleen Schneider",
+        "Jay Starrett",
+        "Olivia Kaiser"
+       ]
+      },
+      {
+       "name": "Team 2",
+       "members": [
+        "Emanuel Neagu",
+        "James Lock",
+        "Melissa Reeves"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      8,
+      "start"
+     ],
+     "shown": [
+      8,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Blue",
+       "members": [
+        "Asaf Goren",
+        "Big T Fazakerley",
+        "Colleen Schneider",
+        "Ed Eason",
+        "Horacio Gutiérrez Jr.",
+        "Kyland Young",
+        "Melissa Reeves",
+        "Michele Fitzgerald",
+        "Olivia Kaiser"
+       ]
+      },
+      {
+       "name": "Orange",
+       "members": [
+        "Berna Canbeldek",
+        "Corey Lay",
+        "Emanuel Neagu",
+        "James Lock",
+        "Jay Starrett",
+        "Moriah Jadea",
+        "Nurys Mateo",
+        "Ravyn Rochelle",
+        "Zara Zoffany"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      9,
+      "start"
+     ],
+     "shown": [
+      9,
+      "start"
+     ],
+     "groups": [
+      {
+       "members": [
+        "Asaf Goren",
+        "Ravyn Rochelle",
+        "Zara Zoffany"
+       ]
+      },
+      {
+       "members": [
+        "Berna Canbeldek",
+        "Emanuel Neagu"
+       ]
+      },
+      {
+       "members": [
+        "Colleen Schneider",
+        "Ed Eason"
+       ]
+      },
+      {
+       "members": [
+        "Corey Lay",
+        "Olivia Kaiser"
+       ]
+      },
+      {
+       "members": [
+        "Horacio Gutiérrez Jr.",
+        "Nurys Mateo"
+       ]
+      },
+      {
+       "members": [
+        "James Lock",
+        "Melissa Reeves"
+       ]
+      },
+      {
+       "members": [
+        "Jay Starrett",
+        "Moriah Jadea"
+       ]
+      },
+      {
+       "members": [
+        "Kyland Young",
+        "Michele Fitzgerald"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      10,
+      "start"
+     ],
+     "shown": [
+      10,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Orange",
+       "members": [
+        "Asaf Goren",
+        "Colleen Schneider",
+        "Emanuel Neagu",
+        "Horacio Gutiérrez Jr.",
+        "Jay Starrett",
+        "Moriah Jadea",
+        "Ravyn Rochelle",
+        "Zara Zoffany"
+       ]
+      },
+      {
+       "name": "Blue",
+       "members": [
+        "Berna Canbeldek",
+        "Corey Lay",
+        "Ed Eason",
+        "James Lock",
+        "Kyland Young",
+        "Michele Fitzgerald",
+        "Nurys Mateo",
+        "Olivia Kaiser"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      11,
+      "start"
+     ],
+     "shown": [
+      11,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Team 3",
+       "members": [
+        "Asaf Goren",
+        "Jay Starrett",
+        "Olivia Kaiser",
+        "Ravyn Rochelle"
+       ]
+      },
+      {
+       "name": "Team 2",
+       "members": [
+        "Berna Canbeldek",
+        "Emanuel Neagu",
+        "Horacio Gutiérrez Jr.",
+        "Zara Zoffany"
+       ]
+      },
+      {
+       "name": "Team 1",
+       "members": [
+        "Colleen Schneider",
+        "Corey Lay",
+        "James Lock",
+        "Moriah Jadea"
+       ]
+      },
+      {
+       "name": "Team 4",
+       "members": [
+        "Ed Eason",
+        "Kyland Young",
+        "Michele Fitzgerald",
+        "Nurys Mateo"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      12,
+      "start"
+     ],
+     "shown": [
+      12,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Team 1",
+       "members": [
+        "Asaf Goren",
+        "Colleen Schneider",
+        "Jay Starrett",
+        "Ravyn Rochelle"
+       ]
+      },
+      {
+       "name": "Team 4",
+       "members": [
+        "Berna Canbeldek",
+        "Ed Eason",
+        "Horacio Gutiérrez Jr.",
+        "Zara Zoffany"
+       ]
+      },
+      {
+       "name": "Team 3",
+       "members": [
+        "Corey Lay",
+        "Emanuel Neagu",
+        "Nurys Mateo",
+        "Olivia Kaiser"
+       ]
+      },
+      {
+       "name": "Team 2",
+       "members": [
+        "James Lock",
+        "Kyland Young",
+        "Michele Fitzgerald",
+        "Moriah Jadea"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      13,
+      "start"
+     ],
+     "shown": [
+      13,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Team 2",
+       "members": [
+        "Asaf Goren",
+        "Colleen Schneider",
+        "Horacio Gutiérrez Jr.",
+        "Michele Fitzgerald"
+       ]
+      },
+      {
+       "name": "Team 4",
+       "members": [
+        "Berna Canbeldek",
+        "Corey Lay",
+        "Ed Eason",
+        "Olivia Kaiser"
+       ]
+      },
+      {
+       "name": "Team 1",
+       "members": [
+        "Emanuel Neagu",
+        "Kyland Young",
+        "Moriah Jadea",
+        "Zara Zoffany"
+       ]
+      },
+      {
+       "name": "Team 3",
+       "members": [
+        "James Lock",
+        "Jay Starrett",
+        "Nurys Mateo",
+        "Ravyn Rochelle"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      14,
+      "start"
+     ],
+     "shown": [
+      14,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Blue",
+       "members": [
+        "Asaf Goren",
+        "Horacio Gutiérrez Jr.",
+        "Olivia Kaiser",
+        "Zara Zoffany"
+       ]
+      },
+      {
+       "name": "Turquoise",
+       "members": [
+        "Berna Canbeldek",
+        "Corey Lay",
+        "Emanuel Neagu",
+        "Ravyn Rochelle"
+       ]
+      },
+      {
+       "name": "Yellow",
+       "members": [
+        "Colleen Schneider",
+        "Ed Eason",
+        "Jay Starrett",
+        "Nurys Mateo"
+       ]
+      },
+      {
+       "name": "Orange",
+       "members": [
+        "James Lock",
+        "Kyland Young",
+        "Michele Fitzgerald",
+        "Moriah Jadea"
+       ]
+      }
+     ],
+     "alone": [],
+     "how": "Drawn for the episode's challenge (at random, or by where people stood)."
+    },
+    {
+     "from": [
+      15,
+      "start"
+     ],
+     "shown": [
+      15,
+      "start"
+     ],
+     "groups": [],
+     "alone": [],
+     "how": "Conquest: everyone for themselves."
+    }
+   ]
+  }
+ },
+ "twists": [
+  {
+   "kind": "twist",
+   "from": [
+    1,
+    "start"
+   ],
+   "shown": [
+    1,
+    "start"
+   ],
+   "what": "The prize pot moves with challenges and eliminations.",
+   "words": [
+    "pot"
+   ]
+  },
+  {
+   "kind": "new-phase",
+   "from": [
+    5,
+    "start"
+   ],
+   "shown": [
+    5,
+    "start"
+   ],
+   "what": "Chaos: pairs or teams, and a former champion in every Arena (the Draw).",
+   "words": [
+    "chaos",
+    "champion"
+   ]
+  },
+  {
+   "kind": "new-phase",
+   "from": [
+    15,
+    "start"
+   ],
+   "shown": [
+    15,
+    "start"
+   ],
+   "what": "Conquest: individual, last place purged, a chain of safety.",
+   "words": [
+    "conquest",
+    "purge"
+   ]
+  },
+  {
+   "kind": "twist",
+   "from": [
+    16,
+    "start"
+   ],
+   "shown": [
+    16,
+    "mid"
+   ],
+   "what": "Double eliminations in 16 and 17.",
+   "words": [
+    "double"
+   ]
+  },
+  {
+   "kind": "new-phase",
+   "from": [
+    18,
+    "start"
+   ],
+   "shown": [
+    17,
+    "end"
+   ],
+   "what": "The final.",
+   "words": [
+    "final"
+   ]
+  }
+ ]
+}

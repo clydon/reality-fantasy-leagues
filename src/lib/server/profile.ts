@@ -243,10 +243,16 @@ export async function renameEverywhere(userId: string, name: string): Promise<vo
 /**
  * Your seat in each league you play takes your name: only where it differs, and not where someone else in that league already
  * goes by it (a seat whoever runs the game named, a computer player). Each is a league write like any (withLeagueLock); a
- * league that can't be written keeps the old name, said in the log.
+ * league that can't be written keeps the old name, said in the log. A team you share with someone (step A10 part 4b) keeps its
+ * name: it's theirs too.
  */
 export async function renameSeats(userId: string, name: string): Promise<number> {
-  const { rows } = await pool.query("SELECT league_id, player_id FROM league_memberships WHERE user_id = $1 AND player_id IS NOT NULL", [userId]);
+  const { rows } = await pool.query(
+    `SELECT m.league_id, m.player_id FROM league_memberships m
+      WHERE m.user_id = $1 AND m.player_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM league_memberships o WHERE o.league_id = m.league_id AND o.player_id = m.player_id AND o.user_id <> m.user_id)`,
+    [userId]
+  );
   const states = await leagueStates(rows.map((r) => r.league_id as string));
   const same = (a: string | undefined) => (a ?? "").trim().toLowerCase() === name;
   let renamed = 0;
