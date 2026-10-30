@@ -32,7 +32,7 @@ export function lineupStatus(state: LeagueState, ep: Episode, playerId: string) 
 
 /** Whether your own lineup for this week still has a slot you could fill (the Lineup tab's badge). */
 export function myLineupDue(state: LeagueState, playerId: string | null): boolean {
-  if (!playerId || !StateLogic.getLeagueType(state).hasActiveRoster) return false;
+  if (!playerId || !StateLogic.piecesOf(state).hasActiveRoster) return false;
   const ep = StateLogic.currentEpisode(state);
   if (!ep || StateLogic.ActiveRosterLogic.isLineupLocked(state, ep.id)) return false;
   return !lineupStatus(state, ep, playerId).set;

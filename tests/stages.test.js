@@ -183,7 +183,7 @@ test("a draft that opens at its game's start drafts from who's still in, shared 
   assert.equal(g.get.own, "shared");
   assert.equal(g.get.order, "blind");
   assert.equal(g.extras.waivers, null);
-  assert.equal(S.getLeagueType(s).draftStrategy.name, "BlindDraftStrategy");
+  assert.equal(S.piecesOf(s).draft.name, "BlindDraftStrategy");
   assert.equal(S.settleDraftShare(s), null, "once");
   // One that still covers stays exclusive, and drafts from who's left.
   const fits = league({ ...spec, get: { ...spec.get, each: 2 } }, { type: "classic-draft" });

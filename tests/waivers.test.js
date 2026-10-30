@@ -137,42 +137,42 @@ test("recommend(): the plan's worked examples (C = 18, E = 13)", () => {
   const brief = (r) => r.feasible ? [r.settings.replaceRule, r.settings.replenishAt, r.settings.waiverWindows, r.settings.waiverProcessHours] : r;
 
   // Last Survivor Standing: s = 0.5 -> whenShort -> one stricter for Classic: windows; manual, Whole team.
-  assert.deepEqual(brief(rec({ type: "classic-draft", T: 4, R: 3 })), ["windows", 2, { schedule: "manual", every: 3, swaps: 3 }, 24]);
+  assert.deepEqual(brief(rec({ scores: "place", T: 4, R: 3 })), ["windows", 2, { schedule: "manual", every: 3, swaps: 3 }, 24]);
   // Weekly Start/Bench: shared -> whenShort (2); X = 3.
-  assert.deepEqual(brief(rec({ type: "active-roster", shared: true, T: 3, R: 5, S: 3 })), ["whenShort", 2, { schedule: "every", every: 3, swaps: 1 }, 24]);
+  assert.deepEqual(brief(rec({ scores: "moments", shared: true, T: 3, R: 5, S: 3 })), ["whenShort", 2, { schedule: "every", every: 3, swaps: 1 }, 24]);
   // s = 0.2 -> windows; X = 3.
-  assert.deepEqual(brief(rec({ type: "active-roster", T: 3, R: 5, S: 3 })), ["windows", 2, { schedule: "every", every: 3, swaps: 1 }, 24]);
+  assert.deepEqual(brief(rec({ scores: "moments", T: 3, R: 5, S: 3 })), ["windows", 2, { schedule: "every", every: 3, swaps: 1 }, 24]);
   // 4 × (3+1): s = 0.125 -> windows; X = 4.
-  assert.deepEqual(brief(rec({ type: "active-roster", T: 4, R: 4, S: 3 })), ["windows", 2, { schedule: "every", every: 4, swaps: 1 }, 24]);
+  assert.deepEqual(brief(rec({ scores: "moments", T: 4, R: 4, S: 3 })), ["windows", 2, { schedule: "every", every: 4, swaps: 1 }, 24]);
   // 3 × 4 out of 24: s = 1 -> always. The plan's table says X = 4, but its formula gives 3 for E = 13
   // (r = 21/12, 24 / (4 · 1.75) = 3.4): flagged for the user; this asserts the formula.
-  assert.deepEqual(brief(rec({ type: "active-roster", C: 24, T: 3, R: 4, S: 4 })), ["always", 3, { schedule: "every", every: 3, swaps: 1 }, 24]);
+  assert.deepEqual(brief(rec({ scores: "moments", C: 24, T: 3, R: 4, S: 4 })), ["always", 3, { schedule: "every", every: 3, swaps: 1 }, 24]);
   // 12 × (3+2), shared: whenShort (2); X = 3; 48h with more than 6 teams.
-  assert.deepEqual(brief(rec({ type: "active-roster", shared: true, T: 12, R: 5, S: 3 })), ["whenShort", 2, { schedule: "every", every: 3, swaps: 1 }, 48]);
+  assert.deepEqual(brief(rec({ scores: "moments", shared: true, T: 12, R: 5, S: 3 })), ["whenShort", 2, { schedule: "every", every: 3, swaps: 1 }, 48]);
   // 12 × anything, exclusive: not feasible.
-  assert.deepEqual(rec({ type: "active-roster", T: 12, R: 4, S: 3 }), { feasible: false, need: 48, have: 18 });
-  assert.equal(rec({ type: "active-roster", T: 4, R: 4, S: 4 }).feasible, false, "4 × 4 fills the cast, but no free agent per team");
+  assert.deepEqual(rec({ scores: "moments", T: 12, R: 4, S: 3 }), { feasible: false, need: 48, have: 18 });
+  assert.equal(rec({ scores: "moments", T: 4, R: 4, S: 4 }).feasible, false, "4 × 4 fills the cast, but no free agent per team");
   // No waivers at all.
-  assert.equal(rec({ type: "pickem", T: 4, R: 1 }), null);
-  assert.equal(rec({ type: "classic-draft", shared: true, T: 4, R: 3 }), null);
+  assert.equal(rec({ scores: "survive", T: 4, R: 1 }), null);
+  assert.equal(rec({ scores: "place", shared: true, T: 4, R: 3 }), null);
   // Nothing left over: never, manual, no swaps.
-  assert.deepEqual(brief(rec({ type: "classic-draft", T: 6, R: 3 })), ["never", 2, { schedule: "manual", every: 3, swaps: 0 }, 24]);
+  assert.deepEqual(brief(rec({ scores: "place", T: 6, R: 3 })), ["never", 2, { schedule: "manual", every: 3, swaps: 0 }, 24]);
   // Classic never lands on "only when short" (for it, the same as replace right away): plenty of free
   // agents (4 × 2 of 18) is one stricter than always, which for Classic is still always.
-  assert.equal(rec({ type: "classic-draft", T: 4, R: 2 }).settings.replaceRule, "always");
+  assert.equal(rec({ scores: "place", T: 4, R: 2 }).settings.replaceRule, "always");
 });
 
 test("recommend(): Classic's ladder skips only-when-short; the fallback pick is off only in Competitive", () => {
   // Last Survivor Standing (4 × 3 of 18): Casual replaces right away, Balanced waits for a window,
   // Competitive has none.
-  const lss = (feel) => W.recommend({ C: 18, E: 13, type: "classic-draft", T: 4, R: 3, feel }).settings;
+  const lss = (feel) => W.recommend({ C: 18, E: 13, scores: "place", T: 4, R: 3, feel }).settings;
   assert.deepEqual(["casual", "balanced", "competitive"].map((f) => lss(f).replaceRule), ["always", "windows", "never"]);
   assert.deepEqual(["casual", "balanced", "competitive"].map((f) => lss(f).autoFill), [true, true, false]);
   assert.deepEqual(["casual", "balanced", "competitive"].map((f) => lss(f).replenishOrderBy), ["leastPoints", "leastPoints", "leastPoints"], "lowest score picks first");
 });
 
 test("recommend(): Casual and Competitive move it a step", () => {
-  const base = { C: 18, E: 13, type: "active-roster", T: 3, R: 5, S: 3 };
+  const base = { C: 18, E: 13, scores: "moments", T: 3, R: 5, S: 3 };
   const casual = W.recommend({ ...base, feel: "casual" }).settings;
   assert.equal(casual.replaceRule, "whenShort", "one more generous than windows");
   assert.deepEqual(casual.waiverWindows, { schedule: "every", every: 4, swaps: 1 });
@@ -187,10 +187,10 @@ test("recommend(): Casual and Competitive move it a step", () => {
   assert.equal(comp.replenishOrderBy, "leastPoints");
   assert.equal(comp.autoFill, false, "miss the deadline, play short");
   // Every episode is as often as it gets.
-  const fast = W.recommend({ C: 18, E: 13, type: "active-roster", shared: true, T: 5, R: 5, S: 3, feel: "competitive" }).settings;
+  const fast = W.recommend({ C: 18, E: 13, scores: "moments", shared: true, T: 5, R: 5, S: 3, feel: "competitive" }).settings;
   assert.deepEqual(fast.waiverWindows, { schedule: "every", every: 2, swaps: 1 });
-  assert.deepEqual(W.recommend({ C: 18, E: 13, type: "active-roster", shared: true, T: 5, R: 6, S: 3, feel: "competitive" }).settings.waiverWindows.schedule, "everyEpisode");
-  assert.equal(W.recommend({ C: 18, E: 13, type: "active-roster", shared: true, T: 5, R: 5, S: 3, feel: "competitive" }).settings.waiverProcessHours, 24);
+  assert.deepEqual(W.recommend({ C: 18, E: 13, scores: "moments", shared: true, T: 5, R: 6, S: 3, feel: "competitive" }).settings.waiverWindows.schedule, "everyEpisode");
+  assert.equal(W.recommend({ C: 18, E: 13, scores: "moments", shared: true, T: 5, R: 5, S: 3, feel: "competitive" }).settings.waiverProcessHours, 24);
 });
 
 // ---- The clock, and when weeks open ----

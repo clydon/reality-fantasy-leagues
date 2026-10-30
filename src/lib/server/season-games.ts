@@ -185,10 +185,16 @@ function refOf(g: Game): GameRefIn {
  */
 export async function progressOf(user: SessionUser, these: Game[]): Promise<Map<string, WeekProgress>> {
   const out = new Map<string, WeekProgress>();
-  const weekly = these.filter((g) => g.gameType === "active-roster" || g.gameType === "pickem");
+  if (!these.length) return out;
+  const states = await leagueStates(these.map((g) => g.leagueId));
+  // Step R1: a lineup's or a pool's (a game scored by moments, or by who survives: its spec's score.by), never a type compared by name.
+  const weekly = these.filter((g) => {
+    const s = states.get(g.leagueId);
+    const scores = s ? StateLogic.piecesOf(s).scores : null;
+    return scores === "moments" || scores === "survive";
+  });
   if (!weekly.length) return out;
-  const ids = weekly.map((g) => g.leagueId);
-  const [{ mine: seats, users }, states] = await Promise.all([seatsIn(user.id, ids), leagueStates(ids)]);
+  const { mine: seats, users } = await seatsIn(user.id, weekly.map((g) => g.leagueId));
   for (const g of weekly) {
     const state = states.get(g.leagueId);
     if (!state) continue;

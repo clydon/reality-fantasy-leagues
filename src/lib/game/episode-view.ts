@@ -1,5 +1,6 @@
 import type { Castaway, Episode, LeagueState } from "./types";
 import StateLogic from "./state-logic.js";
+import type { GamePieces } from "./state-logic.js";
 import { castawayEpisodeStats } from "./active-roster-rows";
 import { episodeRecapWins } from "./episode-recap";
 import { gameView, type GameCalls, type GameRefIn, type TableRow, type UserOf } from "./game-view";
@@ -87,7 +88,7 @@ function happenedIn(view: LeagueState, ep: Episode): Happened[] {
 }
 
 function scorersIn(view: LeagueState, ep: Episode): Scorer[] {
-  if (!StateLogic.getLeagueType(view).hasActiveRoster) return [];
+  if (!StateLogic.piecesOf(view).hasActiveRoster) return [];
   return view.castaways
     .map((c) => ({ name: c.name, photo: publicMediaSrc(c.photoUrl), points: castawayEpisodeStats(view, ep.id, c.id).total }))
     .filter((s) => s.points > 0)
@@ -111,8 +112,8 @@ export function nightIn(game: GameRefIn, view: LeagueState, me: string, ep: Epis
     const start = StateLogic.startEpisode(view);
     return { ...base, big: "—", line: start === null || ep.number < start ? "Before the game started" : "After the game ended" };
   }
-  const type = StateLogic.getLeagueType(view);
-  if (type.hasQuestions) {
+  const pieces = StateLogic.piecesOf(view);
+  if (pieces.hasQuestions) {
     // A Prediction Sheet (step A4 part 2): its answers aren't in the state, so the server says how the night went (sheet).
     // A sheet that asks only for the season (who wins) has nothing for an episode: that isn't a miss.
     if (!StateLogic.AnswerLogic.questions(view).some((q: { asked: string }) => q.asked !== "once")) return { ...base, big: "—", line: "Its questions are for the season" };
@@ -125,13 +126,13 @@ export function nightIn(game: GameRefIn, view: LeagueState, me: string, ep: Epis
     const off = n.off ? `${n.off} didn't count` : "";
     return { ...base, big: `${signed(n.earned)} ${Math.abs(n.earned) === 1 ? "pt" : "pts"}`, line: counted ? `${n.right} of ${counted} right${off ? ` · ${off}` : ""}` : `It didn't count${n.off > 1 ? ` (${n.off})` : ""}` };
   }
-  if (type.hasActiveRoster) {
+  if (pieces.hasActiveRoster) {
     const b = teamEpisodeBreakdown(view, ep.id, me);
     const soFar = StateLogic.resultsStage(ep) === "early";
     const who = b.started.map((s) => `${first(s.c.name)} ${signed(s.points)}`).join(" · ");
     return { ...base, big: `${signed(b.total)}${soFar ? " so far" : ""}`, line: who || "Nobody started", soFar, ...(who ? {} : { missed: true }) };
   }
-  if (type.hasWeeklyPicks) {
+  if (pieces.hasWeeklyPicks) {
     const row = StateLogic.pickEmHistory(view, me).rows.find((r) => r.episode === ep.number);
     const c = row?.castawayId ? StateLogic.getCastaway(view, row.castawayId) : null;
     if (!row || row.correct === null) return { ...base, big: "Waiting", line: c ? `You picked ${first(c.name)}` : "No pick yet" };
@@ -224,6 +225,8 @@ export interface RevealTable {
 export interface RevealPart {
   leagueId: string;
   gameType: string;
+  /** Step R1: how the game scores (its spec's score.by), which picks the reveal's main table (season-episodes.ts mainTable). */
+  scores: GamePieces["scores"];
   stage: "early" | "final";
   out: OutFace[];
   happened: Happened[];
@@ -250,11 +253,11 @@ export function revealIn(game: GameRefIn, full: LeagueState, me: string, n: numb
   const after = StateLogic.GhostLogic.viewFor(full, me, n);
   const ep = after.episodes.find((e) => e.number === n && !e.resultsHidden);
   if (!ep || !StateLogic.episodeHasResults(ep)) return null;
-  const type = StateLogic.getLeagueType(after);
+  const pieces = StateLogic.piecesOf(after);
   const stage = StateLogic.resultsStage(ep) ?? "final";
 
   let lineup: RevealPart["lineup"] = null;
-  if (type.hasActiveRoster && StateLogic.inPlay(after, n)) {
+  if (pieces.hasActiveRoster && StateLogic.inPlay(after, n)) {
     const b = teamEpisodeBreakdown(after, ep.id, me);
     lineup = {
       gameName: game.gameName,
@@ -266,11 +269,11 @@ export function revealIn(game: GameRefIn, full: LeagueState, me: string, n: numb
 
   let part: RevealGame | null = null;
   const base = { leagueId: game.leagueId, gameName: game.gameName, gameType: game.gameType };
-  if (type.hasQuestions && sheet && StateLogic.inPlay(after, n)) {
+  if (pieces.hasQuestions && sheet && StateLogic.inPlay(after, n)) {
     const night = nightIn(game, after, me, ep, sheet?.nights);
     part = { ...base, title: night.big === "No sheet" ? "No sheet from you" : night.big === "Waiting" ? "Your sheet waits" : `${night.big} on your sheet`, line: night.line };
   }
-  if (type.hasWeeklyPicks && StateLogic.inPlay(after, n)) {
+  if (pieces.hasWeeklyPicks && StateLogic.inPlay(after, n)) {
     const rows = StateLogic.pickEmHistory(after, me).rows;
     const row = rows.find((r) => r.episode === n);
     const before = rows.filter((r) => r.episode < n && r.correct !== null).slice(-1)[0]?.streak ?? 0;
@@ -283,7 +286,7 @@ export function revealIn(game: GameRefIn, full: LeagueState, me: string, n: numb
         streak: { from: before, to: row.streak },
       };
     }
-  } else if (type.hasRoster && !type.hasActiveRoster) {
+  } else if (pieces.hasRoster && !pieces.hasActiveRoster) {
     const team = teamOf(after, me);
     const lost = team.filter((c) => exitNumber(after, c) === n && isKnockedOut(after, c));
     const others = after.players
@@ -313,5 +316,5 @@ export function revealIn(game: GameRefIn, full: LeagueState, me: string, n: numb
     }),
   };
 
-  return { leagueId: game.leagueId, gameType: game.gameType, stage, out: outsOf(after, ep), happened: happenedIn(after, ep), lineup, game: part, predictions, table };
+  return { leagueId: game.leagueId, gameType: game.gameType, scores: pieces.scores, stage, out: outsOf(after, ep), happened: happenedIn(after, ep), lineup, game: part, predictions, table };
 }

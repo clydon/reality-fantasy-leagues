@@ -73,7 +73,7 @@ const catchingUpIn = (h: GameHere) => StateLogic.GhostLogic.isCatchingUp(h.state
 
 /** A Prediction Sheet's points around episode n and its nights, for the reveal (step A4 part 2); undefined for any other game. */
 async function revealSheet(h: GameHere, n: number): Promise<RevealSheet | undefined> {
-  if (!StateLogic.getLeagueType(h.state).hasQuestions) return undefined;
+  if (!StateLogic.piecesOf(h.state).hasQuestions) return undefined;
   try {
     const o = { leagueId: h.game.leagueId, state: h.state, playerId: h.playerId, rows: h.answers ?? (await storedAnswers(h.game.leagueId)) };
     const [was, now, nights] = await Promise.all([leagueAnswers({ ...o, mark: n - 1 }), leagueAnswers({ ...o, mark: n }), sheetNights({ ...o, mark: n })]);
@@ -97,7 +97,10 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   const recaps = new Map(recapRows.rows.map((r) => [r.number as number, r.summary as string]));
   // A game scored from calls or bingo cards (Weekly Calls, Weekly Bingo: step 12) has no results of its own: its show's episodes
   // list as a show you only watch does, every one that's aired.
-  const here = all.filter((h) => !StateLogic.getLeagueType(h.state).hasCalls && !StateLogic.getLeagueType(h.state).hasBingo);
+  // Step R1: each game's pieces (what its spec is made of), read once.
+  const read = new Map(all.map((h) => [h, StateLogic.piecesOf(h.state)] as const));
+  const pieces = (h: (typeof all)[number]) => read.get(h) ?? StateLogic.piecesOf(h.state);
+  const here = all.filter((h) => !pieces(h).hasCalls && !pieces(h).hasBingo);
   const schedule = schedules.get(seasonId);
   const airAt = (n: number) => schedule?.episodes.find((e) => e.number === n)?.airAt ?? null;
   const finalAt = finalAtOf(schedule);
@@ -114,10 +117,12 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   // What you've seen: each episode once, its people and recap from the first game that has them (a Weekly Lineup's
   // for the scorers), every game's line.
   const seenRows = new Map<number, EpisodeSeen>();
-  const order = [...here].sort((a, b) => Number(b.game.gameType === "active-roster") - Number(a.game.gameType === "active-roster"));
+  // Step R1: a game that scores by moments first (its spec's score.by), never a type compared by name.
+  const moments = (h: (typeof here)[number]) => Number(pieces(h).scores === "moments");
+  const order = [...here].sort((a, b) => moments(b) - moments(a));
   for (const h of order) {
     // A Prediction Sheet's nights come from its answers (step A4 part 2: answer-points.ts sheetNights); read-only, nobody's.
-    const sheet = !h.readOnly && StateLogic.getLeagueType(h.state).hasQuestions
+    const sheet = !h.readOnly && pieces(h).hasQuestions
       ? await sheetNights({ leagueId: h.game.leagueId, state: h.state, playerId: h.playerId, mark: h.mark, rows: h.answers }).catch((e) => {
           console.error(`[season-episodes] sheet nights ${h.game.leagueId}:`, e);
           return undefined;
@@ -256,11 +261,12 @@ function earlyNight(parts: RevealPart[]): EarlyNight | null {
   };
 }
 
-/** The game whose table moves: Weekly Lineup once its scores are final; else the pool; else Outlast; else whatever. */
+/** The game whose table moves: a lineup's (scored by moments) once its scores are final; else the pool's (who survives); else
+ *  Outlast's (the boot order); else whatever. Step R1: by how each game scores, never a type compared by name. */
 function mainTable(parts: RevealPart[]): RevealTable | null {
-  const by = (type: string) => parts.find((p) => p.gameType === type);
-  const lineup = by("active-roster");
-  return (lineup?.stage === "final" ? lineup.table : null) ?? by("pickem")?.table ?? by("classic-draft")?.table ?? lineup?.table ?? null;
+  const by = (scores: RevealPart["scores"]) => parts.find((p) => p.scores === scores);
+  const lineup = by("moments");
+  return (lineup?.stage === "final" ? lineup.table : null) ?? by("survive")?.table ?? by("place")?.table ?? lineup?.table ?? null;
 }
 
 /**

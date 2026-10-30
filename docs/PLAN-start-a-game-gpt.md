@@ -53,7 +53,11 @@ under way, in parts (2026-10-30): part 1, the stage spec and its overall (a game
 to it, on an episode or a phase; a second draft at the merge, drafting from who's left and counted as it opens; the overall by points,
 places or stages won, at each viewer's mark; a game that ends before a phase; `StageLogic`, `stages.ts`, migration 0203), is built; parts 2
 to 4 next (a stage a format change starts, when a grouping lasts, mini-games and two shows), then A13 and A14
-overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+overnight (the user's word, 2026-10-28), stopping before A15. **R pulled ahead of A12's other parts** (the user, 2026-10-30): R1 is under
+way, in parts: part 1, Survivor 51's three kinds as compositions of the pieces (2026-10-30: Outlast with its finale predictions, side bets
+and waivers, Weekly Lineup and Survival Pool drafted and scored by the pieces their spec names, never a league type: `piecesOf`; the
+league type only names a game for the screens now), is built; part 2 (Weekly Calls, Weekly Bingo and the game of questions) next, then
+A12's other parts. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -4272,7 +4276,65 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
 **R. Today's games on the new engine** (after the engine track, before the UI).
 - **R1.** Today's five games and their extras (waivers, side bets, finale predictions, calls) rebuilt as compositions of the
   pieces: no `getLeagueType` branch left in scoring, no game type compared as a literal. Every league scores the same: the local
-  copy, a replay of every taped season, and a Neon branch of production (from the user's terminal).
+  copy, a replay of every taped season, and a Neon branch of production (from the user's terminal). In parts (2026-10-30): **part 1**,
+  the three kinds Survivor 51's couch plays (Outlast with finale predictions, side bets and waivers; Weekly Lineup; Survival Pool), in
+  the engine and everything that scores them or reads what they hold; **part 2**, Weekly Calls, Weekly Bingo and the game of questions
+  (the games scored outside the state: `answer-points.ts`, `answers.ts`, `calls.ts`, `bingo.ts`, `season-games.ts`'s calls, the me
+  route), which empties tests/pieces.test.js's list of part 2's files. R3 takes the rest of that list (the type field's writers and the
+  screens' readers). Its proof beyond the golden replays: the Survivor lane's Survivor 51 season-forward rehearsal
+  (`scripts/dev-test/season-forward.js`), which has to pass before R1 merges (never on a Wednesday; the main folder merges).
+
+  **As built (R1 part 1, 2026-10-30, on `engine`, not merged; no migration).** One session.
+  - **The pieces** (`state-logic.js` `piecesOf(state)`): a game plays the composition its spec names, never a league type. Its
+    draft mechanic from how it gets its castaways (`DRAFT_PIECES` by `get.order`: a snake, a blind draft, a draw, an auction;
+    `NoDraftStrategy` with nothing to draft: `draftPiece`), its scorer from how it scores (`SCORE_PIECES` by `score.by`: the boot
+    order, moments, who survives, answers and bingo lines counted outside the state, stages: `scorePiece`), the spec's parts that
+    picked them (`holds`, `counts`, `scores`, `ranks`) and what it has (game-spec `flagsOf`, the game's own: a lineup is a draft
+    whose starters count, best ball one whose best n do, a pool a pick each episode, waivers, side bets and finale predictions beside
+    a draft). Frozen and kept per carried spec (a carried spec is replaced, never changed in place); a game read from its fields is
+    read fresh each call, as `gameOf` is: 2 to 3.5 µs a call there (the league type's lookup was 0.4 to 1.1 µs; a whole scoring pass
+    is 26 to 102 µs). A spec no game plays falls back to an Outlast drafted the way the spec says (a shared draft blind, a draw or an
+    auction as such), exactly as the league types' fallback played it.
+  - **Drafting and scoring dispatch through them:** `ScoringLogic.compute`, every `DraftLogic` method, `StageLogic.on`,
+    `GhostLogic.sharedJoin` and `teamSize`, a lineup's validation, the waivers (`supported`, `waivers`, `shortAt`, the replace rule's
+    writes, `recommendFor`) and classic setup's ownership step. `WaiverLogic.recommend` takes how a game scores (`scores: 'place'`
+    for Outlast, `'moments'` for a lineup) instead of a league type's id.
+  - **The league type only names a game for the screens now** (until R3): `LEAGUE_TYPES`' entries are a name, words and flags, with
+    no strategies; the draw's and the auction's variants went (they only swapped the strategy); `getLeagueType` gives the type its
+    ownership and count make. Its flags are the pieces' on every kind of league and every game the tracker plays (tests).
+  - **Outside the engine, everything that scores these games or reads what they hold reads the pieces:** the Games tab's view and
+    table (`game-view.ts`); an episode's lines and the reveal (`episode-view.ts`; `season-episodes.ts`'s main table by how each game
+    scores, `RevealPart.scores`, and its order, a game scored by moments first); Recent changes' results (`results-changes.ts`); the
+    pool's and the lineup's moves (`pool-view.ts`, `lineup-view.ts`); the couch's standings (`couch-hub.ts`, with `GameStanding.pool`
+    for a pool's plaque giving no margin in `couch-standings.ts`, where it compared `gameType !== "pickem"`); the season's stats and
+    How it works (the game scored by moments first: `season-stats.ts`, `how-it-works.ts`, each game's pieces read once); Backstage's
+    points (`pointsWrite`, `scoringRules`); Up next's lineups and picks (`season-games.ts` `progressOf`, by how the game scores); the
+    computer players (`bot-logic.js`, `computer-players.ts`); classic's lineup lock and scoring-event routes.
+  - **What reads differently:** nothing on today's games (the golden replays, the flag check, the fixture's checks). One gate follows
+    its piece: classic's scoring-event route takes a moment for any game scored by moments (best ball and a stock market too, which it
+    refused for having no lineups); its DELETE had no gate before and has none now.
+  - **The flag's check** (`scripts/game-specs-flag.js check`, R2's) snapshots the pieces as well (the draft, the scorer, the spec's
+    parts, every flag) beside the league type's name and flags.
+  - **The guard** (tests/pieces.test.js): every file under `src/lib` and `src/app/api` that still reads a league type or compares one
+    by name is listed with the step that takes it (part 2's six; R3's seventeen: the type field's writers, the tours, the screens' readers);
+    a new reader fails it, and so does a listed file once it's clean, so the list only shrinks. In `state-logic.js`, only the setup
+    checklist's name and the league type's own machinery.
+  - **Proof:** `tests/pieces.test.js` (5: each kind's pieces and the screens' flags; every game the tracker plays, 183; a draw, an
+    auction and best ball; the waivers' recommendation; the guard), the strategy reads in the game-spec, draft prices, the draw, best
+    ball and stages tests moved to the pieces, the waivers' and the couch standings' fixtures to `scores` and `pool`; `npm test` 1154;
+    `tsc` and `eslint` clean. `game-specs-flag.js check`: PASS, 9 of 9 (this lane's database, the flag on). The golden replays
+    against the code before the step (`golden.js`, `--before=HEAD`): 7 seasons, 160 games, 19,361 reads, every one the same, before
+    the review's fixes and again after them; against master's (production's engine, `--before=master`): the same, 7 seasons, 160 games, 19,361 reads. The blind
+    replays (`blind.js run`): every game played through and over on all five seasons, as after A12 part 1 (Survivor 49 110 of 110, The Challenge 41, 40 and 39 81 of 81 each, The Traitors 4 79 of 79; the questions waiting on early results finding 20's 2, 2 and 3). On the zt_nd_ fixture through the app (this lane's server): the reveal (49), the hub's standings
+    (77), the season's stats (57), the draft room (91), Backstage II (149: Game settings, waivers, the points' limits), Make it ours (95:
+    the points page), the computer players (26, `--api`) and the show page with How it works (81), all passed.
+  - **The code review** (`/code-review` at high, on the diff before the long runs). Fixed: the fallback (it dropped the spec's
+    ownership; it mirrors the old one now); the strategies left on the league types as a second table (gone); the flag's check
+    snapshotting the league type's strategies (the pieces now); `recommend`'s declared input (`scores`); `piecesOf` worked out on every
+    call (kept per carried spec, frozen); each game's pieces read several times a request (once); Up next still filtering by type id
+    (by how the game scores); the guard's hand-picked list (a scan of every file, with what's left named). Kept, said here: the
+    scoring-event route's wider gate (above); How it works and the stats loading every one of the viewer's games on the season to find
+    the one scored by moments (cached by hash, a handful of games).
 - **R2.** The game-specs flag on in production (the user's OK), then a week of watching every table.
 - **R3.** The old type code goes: `LEAGUE_TYPES`, the literal comparisons (45 files), and the UI's flags, read from the spec.
 
@@ -4992,6 +5054,28 @@ From A10 part 1 (2026-10-29):
 Taken by A12 part 1 (2026-10-30): A11 part 4's item 12 in part (a stage that starts at a phase and a game that ends before one are
 built; the playoffs starting when research names the final stays with the desk's finale episode); A11 part 4's early ends' dispatcher
 in part (`StageLogic.endsAt` sits beside `KnockoutLogic.endsAt` in `lastEpisode`, not inside its dispatch).
+
+From R1 part 1 (2026-10-30):
+- **The Survivor 51 season-forward rehearsal still has to pass before R1 merges** (the 11:15 AM note): `scripts/dev-test/season-forward.js`
+  isn't on master yet (the Survivor lane builds it). R1 changes scoring for live games, so the main folder merges it only after the
+  rehearsal passes (the couch's real games from a production backup, flag off against on, old code against new, every read the same),
+  never on a Wednesday. Until then the golden replays (`--before=master` included) are the proof. (The main folder, at R1's merge.)
+- **For the user: which rule a preset meets** (A5's item, R1's): Start a game writes its Weekly Lineup without the show's ctx, so on
+  rules with moments the couch answers (Below Deck's sample) it makes a game the GPT's check would refuse until those moments score 0.
+  Options: (a) presets meet the same data-can-settle rule as any spec (Start a game passes the show's ctx; a couch-answered moment scores
+  0 in a new game, said as an assumption); (b) presets keep today's rule (the rulebook's own points, couch-answered moments included);
+  (c) (a) for new games, today's kept for Run it back. Recommended: (a), since the taps and the GPT must make the same game from the
+  same words (product principle 2); no couch plays a show with couch-answered moments today, so nothing running changes. (R1 part 2, or
+  whoever next touches Start a game's spec.)
+- **Still the user's: a pick of the season's winner is wrong at the finale** (F's item, "R1, or whoever next touches pool grading"):
+  not changed here, since R1 keeps every score as it was; the recommendation stands (the winner and finalists survive the finale). It
+  changes today's pools' finales (Survivor 51's Survival Pool among them), so it goes in with the user's word, ideally before Survivor
+  51's finale. (R1 part 2 or whoever next touches pool grading.)
+- **The stats' facts league still writes the type field** (`season-stats.ts`: `leagueTypeId: "active-roster"` with the game's points, so
+  the facts read the moments as the lineup reads them): it now chooses that game by its spec, but the league it builds is made of fields.
+  (R3, when the fields go: build it from the game's spec.)
+- **`LEAGUE_TYPES`' names are classic's** ("Classic", "Active Roster", "Eliminator Pool"): the me route and classic's setup show them.
+  (R3: the preset's name, `PRESET_LABELS`.)
 
 From A12 part 1 (2026-10-30):
 - **For the user, in the format-change design session (after A12), each with a recommendation (built as spec settings or engine rules):**

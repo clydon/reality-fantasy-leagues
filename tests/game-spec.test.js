@@ -88,7 +88,7 @@ function readings(state) {
   const ids = [...new Set([...Object.keys(st.eventPoints || {}), ...S.formatOf(state).events.map((e) => e.id)])].sort();
   const finale = S.finalePredictionsAvailable(state);
   return {
-    type: [t.id, t.draftStrategy.name, t.scoringStrategy.name],
+    type: [t.id, S.piecesOf(state).draft.name, S.piecesOf(state).scorer.name],
     flags: ["hasRoster", "hasWeeklyPicks", "hasActiveRoster", "hasCalls", "hasQuestions", "hasBingo", "supportsReplenish", "supportsTrade", "supportsFinalePredictions"].map((f) => !!t[f]),
     roster: [S.rosterSize(state), A.activeSlots(state), A.benchSlots(state), st.ownershipMode === "shared"],
     span: [S.startEpisode(state), S.startPhase(state), S.endEpisode(state), S.gameOver(state), state.episodes.map((e) => S.inPlay(state, e.number))],

@@ -18,7 +18,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   const { user } = await requireLeagueRole(req, leagueId, "commissioner");
 
   const state = await withLeagueLock(leagueId, (s) => {
-    if (!StateLogic.getLeagueType(s).hasActiveRoster) throw new HttpError(400, "This league type has no active roster");
+    if (!StateLogic.piecesOf(s).hasActiveRoster) throw new HttpError(400, "This league type has no active roster");
     if (!StateLogic.lockActiveRosterLineups(s, epId)) throw new HttpError(400, "Lineups are already locked");
   }, episodeChange(user.id, epId, "lineups", (n) => `Locked lineups for Episode ${n}`, 1));
   return NextResponse.json(state);
@@ -29,7 +29,7 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<{ leagu
   const { user } = await requireLeagueRole(req, leagueId, "commissioner");
 
   const state = await withLeagueLock(leagueId, (s) => {
-    if (!StateLogic.getLeagueType(s).hasActiveRoster) throw new HttpError(400, "This league type has no active roster");
+    if (!StateLogic.piecesOf(s).hasActiveRoster) throw new HttpError(400, "This league type has no active roster");
     if (!StateLogic.unlockActiveRosterLineups(s, epId)) throw new HttpError(400, "Lineups aren't locked");
   }, episodeChange(user.id, epId, "lineups", (n) => `Unlocked lineups for Episode ${n}`, 1));
   return NextResponse.json(state);

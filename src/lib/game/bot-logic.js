@@ -25,7 +25,7 @@ const Formats = require("./formats/index.js");
 
 const {
   Core, DraftLogic, BlindDraftLogic, AuctionLogic, BudgetLogic, PriceLogic, MarketLogic, ActiveRosterLogic, PickEmLogic, MidSeasonLogic,
-  KeeperLogic, EpisodeLogic, FinaleLogic, GroupSlotLogic, KnockoutLogic, getLeagueType, inPlay, closedForPlay,
+  KeeperLogic, EpisodeLogic, FinaleLogic, GroupSlotLogic, KnockoutLogic, piecesOf, inPlay, closedForPlay,
   currentEpisode, finalePredictionsAvailable, seasonWinner,
 } = StateLogic;
 
@@ -154,7 +154,7 @@ function ratings(state, level) {
   const prof = profiles(state);
   const edges = tribeEdges(state);
   const merged = isMerged(state);
-  const activeRoster = !!getLeagueType(state).hasActiveRoster;
+  const activeRoster = !!piecesOf(state).hasActiveRoster;
   const out = {};
   state.castaways.forEach((c) => {
     if (c.status !== "active") return;
@@ -205,7 +205,7 @@ function draftOrderFor(state, playerId, candidateIds, alreadyMine) {
 
 function snakeDraft(state) {
   // A blind draft's bots lock in (blindSubmissions), an auction's bid (auctionBids); a draw's deals itself (no turn comes up).
-  if (BlindDraftLogic.on(state) || !getLeagueType(state).hasRoster) return 0;
+  if (BlindDraftLogic.on(state) || !piecesOf(state).hasRoster) return 0;
   if (!DraftLogic.isStarted(state)) return 0;
   let made = 0;
   for (let guard = 0; guard < 500; guard++) {
@@ -230,7 +230,7 @@ function snakeDraft(state) {
 // locking (src/lib/server/bots.ts) since submissions are kept out of `state`.
 function blindSubmissions(state) {
   if (!botIds(state).length) return [];
-  if (!BlindDraftLogic.on(state) || !getLeagueType(state).hasRoster) return [];
+  if (!BlindDraftLogic.on(state) || !piecesOf(state).hasRoster) return [];
   if (!DraftLogic.isStarted(state) || BlindDraftLogic.isRevealed(state)) return [];
   const active = state.castaways.filter((c) => c.status === "active").map((c) => c.id);
   return botIds(state)
@@ -255,7 +255,7 @@ function blindSubmissions(state) {
 // team's worth and as many again as backups, as a sheet (AuctionLogic.sheetFor: the budget over the team it wants by rank, the
 // backups at the lowest price). The server locks them in (src/lib/server/bots.ts), since bids are kept out of `state`.
 function auctionBids(state) {
-  if (!botIds(state).length || !AuctionLogic.on(state) || !getLeagueType(state).hasRoster) return [];
+  if (!botIds(state).length || !AuctionLogic.on(state) || !piecesOf(state).hasRoster) return [];
   if (!DraftLogic.isStarted(state) || !AuctionLogic.ready(state)) return [];
   const free = state.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
   return botIds(state)
@@ -273,7 +273,7 @@ function sameSet(a, b) {
 // differs from what the bot would field now -- so an eliminated starter is replaced the moment the
 // results land, not left as an empty slot.
 function lineups(state) {
-  if (!getLeagueType(state).hasActiveRoster) return 0;
+  if (!piecesOf(state).hasActiveRoster) return 0;
   const ep = currentEpisode(state);
   if (!ep || !inPlay(state, ep.number) || ActiveRosterLogic.isLineupLocked(state, ep.id)) return 0;
   const slots = ActiveRosterLogic.activeSlots(state);
@@ -337,7 +337,7 @@ function groupSlotPicks(state) {
 // Eliminator Pool: whoever looks safest of the people the cycle rule still allows. A pool's second pick (step A10 part 2): the
 // next safest beside it. Someone out of a pool with lives has nobody to pick (eligibility).
 function eliminatorPicks(state) {
-  if (!getLeagueType(state).hasWeeklyPicks) return 0;
+  if (!piecesOf(state).hasWeeklyPicks) return 0;
   const ep = currentEpisode(state);
   if (!ep || !inPlay(state, ep.number) || closedForPlay(ep) || PickEmLogic.decided(ep, state)) return 0;
   const parts = PickEmLogic.parts(state);

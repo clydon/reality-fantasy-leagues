@@ -864,9 +864,10 @@ export async function pointsWrite(
   body: { points?: unknown; preview?: boolean }
 ): Promise<{ lines: PreviewLine[] } | { batch: string | null }> {
   const game = gameIn(scope, leagueId, { commissioner: true });
-  if (game.gameType !== "active-roster") throw new HttpError(400, "Only Weekly Lineup scores by moment");
   const s0 = (await leagueStates([game.leagueId])).get(game.leagueId) as LeagueState | undefined;
   if (!s0) throw new HttpError(404, "League not found");
+  // Step R1: a game that scores by moments (the spec's score.by), never a type compared by name.
+  if (StateLogic.piecesOf(s0).scores !== "moments") throw new HttpError(400, "Only Weekly Lineup scores by moment");
   if (StateLogic.GhostLogic.lockedDown(s0)) throw new HttpError(409, FROZEN);
   const known = new Set(StateLogic.formatOf(s0).events.map((e: { id: string }) => e.id));
   const given = body.points && typeof body.points === "object" ? Object.entries(body.points as Record<string, unknown>) : [];
@@ -950,7 +951,7 @@ export async function scoringRules(scope: BackstageScope): Promise<ScoringRules>
     }
     // The rulebook as it stood at your episode: a show change from a later one isn't on the page yet.
     const book = row?.blocks ? { blocks: blocksAt(row.blocks, await inForceEdits(pool, row.id), mark ?? Infinity), aliases: row.aliases } : rulebookFor(format.id, format.data);
-    const weekly = l.game.gameType === "active-roster";
+    const weekly = StateLogic.piecesOf(l.state).scores === "moments";
     games.push({
       leagueId: l.game.leagueId,
       name: l.game.name,

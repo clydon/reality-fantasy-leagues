@@ -1125,6 +1125,15 @@ it stands. Nothing here reads the show's format changes: a stage a format change
   ride the show's results only: The Challenge's re-pairings and Survivor 49's swaps reach each stage through its own game (its group
   questions' and slots' fallbacks), never its structure; that's part 2's.
 
+## R1 part 1: today's games on the pieces, replayed blind (2026-10-30)
+
+R1's part 1 drafts and scores every game by the pieces its spec names (state-logic.js `piecesOf`: the draft mechanic by `get.order`,
+the scorer by `score.by`), never a league type; nothing reads a format change differently. Replayed blind again as a check that
+nothing moved: **every game ended on all five seasons**, as after A12 part 1 (Survivor 49 110 of 110, The Challenge 41, 40 and 39 81 of
+81 each, The Traitors 4 79 of 79; nothing refused; the questions waiting on early results are finding 20's 2, 2 and 3 as before). The
+golden replays, which compare every read of every game before and after, found every one the same against this branch's code before
+the part and against master's.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

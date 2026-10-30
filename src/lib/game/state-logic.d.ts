@@ -3,7 +3,21 @@
 // as more of the file gets used.
 import type { LeagueState, ScoreRow, DraftTurn, Player, LateJoin, Castaway, Tribe, Bet, Episode, PickEmPick, ScoringEvent, EpisodeProposalPayload, MidSeasonLogEntry, WaiverPeriod, WaiverRun, WaiverClaim, WaiverPair, WaiverWindows, ReplaceRule, WaiverFeel, WaiverRecommendation, GroupSlotPick, FormatGroup, EpisodeFormatGroups } from "./types";
 import type { GameFormat, SeasonChange, SeasonChangeSkip } from "./formats/index.js";
-import type { GameSpec, SpecContext, SpecInput, SpecProblem, Question, AnswerFacts, Verdict, GroupSlots, PoolParts } from "./game-spec/index.js";
+import type { GameSpec, SpecContext, SpecInput, SpecProblem, Question, AnswerFacts, Verdict, GroupSlots, PoolParts, flagsOf } from "./game-spec/index.js";
+
+/** Step R1: what a game is made of, read from its spec (state-logic.js piecesOf): its draft mechanic and its scorer (the two
+ *  strategies), the parts of the spec that pick them, and what it has (game-spec flagsOf). */
+export type GamePieces = ReturnType<typeof flagsOf> & {
+  draft: unknown;
+  scorer: unknown;
+  /** get.by: a draft, a pick each episode, a bingo card, nothing. */
+  holds: GameSpec["get"]["by"];
+  /** count's kind: all, start (a lineup), best (best ball), pick; null when nothing is held. */
+  counts: "all" | "start" | "best" | "pick" | null;
+  /** score.by: place (Outlast), moments, survive (a pool), answers, lines (bingo), stages. */
+  scores: GameSpec["score"]["by"];
+  ranks: GameSpec["rank"]["by"];
+};
 
 /** Step A10 part 1: what a player's group slot holds in an episode (GroupSlotLogic.standing). */
 export interface GroupSlotStanding {
@@ -281,8 +295,10 @@ declare const StateLogic: {
       E?: number;
       start?: number;
       shared?: boolean;
-      type: string;
+      /** Step R1: how the game scores (its spec's score.by): "place" (Outlast) or "moments" (a lineup) have waivers. */
+      scores: GamePieces["scores"];
       feel?: WaiverFeel;
+      market?: boolean;
     }): WaiverRecommendation | null;
     /** Teams the suggestion is for: the rotation, or before the draft the count given at creation. */
     teamsFor(state: LeagueState, opts?: { teams?: number }): number;
@@ -407,6 +423,8 @@ declare const StateLogic: {
     normalize(value: unknown): number | null;
   };
   getLeagueType(state: LeagueState): LeagueType;
+  /** Step R1: the pieces the game's spec is made of; what scoring, the draft and every reader of what a game holds ask. */
+  piecesOf(state: LeagueState): GamePieces;
   /** The game the league plays, as data (its game spec: settings.game when it carries one, else read from its settings). Read only. */
   gameOf(state: LeagueState): Readonly<GameSpec>;
   // Capability AND commissioner choice, together -- see their comment in state-logic.js. Anything

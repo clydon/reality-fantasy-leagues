@@ -240,7 +240,7 @@ test("names out of a hat: the draw deals everyone at random, seeded and recorded
   const s = league(spec);
   const type = S.getLeagueType(s);
   assert.equal(type.id, "classic-draft");
-  assert.equal(type.draftStrategy, S.DrawDraftStrategy);
+  assert.equal(S.piecesOf(s).draft, S.DrawDraftStrategy);
   assert.equal(type.hasRoster, true);
   assert.equal(S.getLeagueType(s), type, "built once");
   assert.equal(draftKind(s), "draw");
