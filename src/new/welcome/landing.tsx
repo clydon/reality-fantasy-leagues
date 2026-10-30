@@ -481,7 +481,7 @@ function WaysToPlay() {
           <article className="lp-game" style={{ "--g": GAME_STYLE["Survival Pool"].colour } as React.CSSProperties}>
             <span className="kind cap">Season game · no draft</span>
             <h3 className="cap">Survival Pool</h3>
-            <p>Each episode, pick one person you think survives. Never the same one twice. Longest streak wins.</p>
+            <p>Each episode, pick one person you think survives. No repeats until you&apos;ve picked everyone still in. Longest streak wins.</p>
             <div className="vis">
               <div className="lp-streak">
                 <span className="num">4</span>

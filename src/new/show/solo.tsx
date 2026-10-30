@@ -225,7 +225,7 @@ function PoolOut({ show, info }: { show: ShowData; info: PoolInfo }) {
       <section className="px-4 pt-5">
         <ul className="flex flex-col gap-3">
           {[
-            [Shield, "Survival Pool", "Pick one person a week who survives. Never the same twice."],
+            [Shield, "Survival Pool", "Pick one person a week who survives. No repeats until you've picked everyone still in."],
             [CircleQuestionMark, "Predictions", "One tap a week on who goes home."],
             [Users, "Just usernames", "No chat and no reactions: those stay on couches."],
           ].map(([Icon, title, line]) => {
@@ -299,7 +299,7 @@ function PoolIn({ info, game: g }: { info: PoolInfo; game: GameView }) {
             {g.revealFirst
               ? "Results are in that you haven't seen: reveal them, then make this week's pick."
               : pick?.open
-                ? `Pick who survives Episode ${pick.episode}${when ? ` by ${when}` : ""}. Never the same person twice.`
+                ? `Pick who survives Episode ${pick.episode}${when ? ` by ${when}` : ""}. No repeats until you've picked everyone still in.`
                 : pick
                   ? `Picks for Episode ${pick.episode} closed when it started.`
                   : "Picks open with the next episode."}

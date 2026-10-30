@@ -22,8 +22,9 @@
 //                                                 from the episode after the backup's last to the scenario's finale (or N;
 //                                                 play again to carry on); kept in .session-loop/season-forward/<scenario>-<label>
 //   node scripts/dev-test/season-forward.js compare <run dir> [<run dir>] [--before=<ref>]
-//                                                 two runs' reads (and the screens' words) side by side, and/or every kept
-//                                                 state read by <ref>'s engine against this tree's; exit 1 on any difference
+//                                                 two runs' reads (and the screens' words: a page with none read is a
+//                                                 difference) side by side, and/or every kept state read by <ref>'s engine
+//                                                 against this tree's; exit 1 on any difference
 //   node scripts/dev-test/season-forward.js rehearse --from=backups/<dir> [--scenario=realistic,rough,dst] [--before=master]
 //                                                 [--look=7,9,12,13]: each scenario up, played with the flag off, up again,
 //                                                 played with it on, compared (and through --before's engine); the flag
@@ -986,8 +987,12 @@ async function lookAt(n, r, o) {
     await page.waitForTimeout(1200);
     const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     await page.screenshot({ path: path.join(dir, `${o.prefix || ""}${name}-${width}.png`), fullPage });
-    // The words on screen: an open dialog's (the reveal, a sheet), else the page's.
-    const text = await page.evaluate(() => (document.querySelector("[role=dialog]") || document.querySelector("main") || document.body).innerText);
+    // The words on screen: an open dialog's (the reveal, a sheet), else the page's. Never a closed one: the reveal, a pushed
+    // page and "Waivers ran" stay mounted, hidden (aria-hidden, invisible), and read as nothing.
+    const text = await page.evaluate(() => {
+      const open = [...document.querySelectorAll("[role=dialog]")].find((d) => d.getAttribute("aria-hidden") !== "true" && getComputedStyle(d).visibility !== "hidden");
+      return (open || document.querySelector("main") || document.body).innerText;
+    });
     fs.writeFileSync(path.join(dir, `${o.prefix || ""}${name}.txt`), text);
     found.push({ name, wide: wide > 1 ? wide : 0 });
   };
@@ -1237,7 +1242,9 @@ function compare(dirA, dirB, { before = null } = {}) {
         pages++;
         const a = fs.readFileSync(path.join(ep.look.dir, f), "utf8").split("\n");
         const b = fs.existsSync(path.join(other.dir, f)) ? fs.readFileSync(path.join(other.dir, f), "utf8").split("\n") : null;
-        if (!b) screens.push(`Episode ${n} ${f}: only with ${A.flag ? `the flag ${A.flag}` : "the first"}`);
+        // A page with no words read compares as the same on both sides and proves nothing: a difference of its own.
+        if (!a.join("").trim() || (b && !b.join("").trim())) screens.push(`Episode ${n} ${f.replace(/\.txt$/, "")}: no words read`);
+        else if (!b) screens.push(`Episode ${n} ${f}: only with ${A.flag ? `the flag ${A.flag}` : "the first"}`);
         else {
           const lines = a.map((l, i) => (l !== b[i] ? `"${l.slice(0, 60)}" → "${(b[i] ?? "").slice(0, 60)}"` : null)).filter(Boolean);
           if (lines.length || a.length !== b.length) screens.push(`Episode ${n} ${f.replace(/\.txt$/, "")}: ${lines.slice(0, 3).join("; ")}${a.length !== b.length ? ` (${a.length} lines → ${b.length})` : ""}`);
