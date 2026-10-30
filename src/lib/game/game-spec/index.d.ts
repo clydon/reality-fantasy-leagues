@@ -16,8 +16,9 @@ export interface PhaseFrom {
 }
 
 export interface SpecSpan {
-  /** The episode it starts at, or a phase start. */
-  from: number | PhaseFrom;
+  /** The episode it starts at, or a phase start. A12 part 2: null in a stage a format change starts (each copy's start is where its
+   *  change takes effect: the server writes it). */
+  from: number | PhaseFrom | null;
   /** Its last episode, or null: the season's end. A12 part 1: before a phase starts ({ phase }; { phase, at } once settled, at its
    *  last episode). */
   to: number | null | PhaseFrom;
@@ -28,6 +29,19 @@ export interface SpecStage {
   id: string;
   name: string | null;
   game: GameSpec;
+  /** A12 part 2: a later stage a format change starts: the kinds that count (left out: MAJOR), and a copy at every such change. */
+  on?: SpecOn;
+}
+/** A12 part 2: a stage a format change starts. */
+export interface SpecOn {
+  change: string[];
+  again: boolean;
+}
+/** A12 part 2: how a game a format change moves takes the change (extras.changes): by itself with an undo, or once the maker says so
+ *  (the players' vote: A14), and with the maker's OK, what happens when nobody answers by the stage's first lock. */
+export interface SpecChanges {
+  ok: "auto" | "maker" | "vote";
+  unanswered: "start" | "carry-on";
 }
 /** A12 part 1: how a game in stages' stages add up: their totals, points for places (`places` [1st, 2nd, ...]), or stages won. */
 export interface SpecOverall {
@@ -320,6 +334,8 @@ export interface SpecExtras {
   lateLock: { hours: 12 | 24 | 48 | 72 } | null;
   /** A10 part 4b: a team two people share: how many accounts can hold one seat (2 to MAX_SEAT_PEOPLE). Left out: one a seat. */
   seats?: { people: number };
+  /** A12 part 2: a game in stages a format change moves: how it takes the change (CHANGES where it leaves a part out). */
+  changes?: SpecChanges;
 }
 
 export interface GameSpec {
@@ -341,7 +357,7 @@ export interface GameSpec {
 }
 
 /** A spec as written: anything left out is the preset's, or the defaults (fullSpec). */
-export type SpecInput = Partial<Omit<GameSpec, "extras" | "ask" | "stages">> & { extras?: Partial<SpecExtras>; ask?: SpecQuestion[]; stages?: { id: string; name?: string | null; game: SpecInput }[] };
+export type SpecInput = Partial<Omit<GameSpec, "extras" | "ask" | "stages">> & { extras?: Partial<SpecExtras>; ask?: SpecQuestion[]; stages?: { id: string; name?: string | null; game: SpecInput; on?: Partial<SpecOn> }[] };
 
 /** A10 part 1: a draft's group slots (get.groups): a slot holds a pair or a team the show forms, picked after the episode that
  *  showed it, riding with it while it lasts and dropping when it changes (state-logic.js GroupSlotLogic). */
@@ -560,6 +576,15 @@ export const MAX_STAGE_NAME: number;
 export const MAX_PLACES: number;
 export const OVERALL: SpecOverall;
 export const STAGE_KINDS: LeagueTypeId[];
+/** A12 part 2: a stage a format change starts: its `on` defaults (MAJOR, once), how a change is taken by default, the most copies of
+ *  a stage that starts again, a stage's `on` whole, and the game a copy plays (its start at `from`). */
+export const ON_CHANGE: SpecOn;
+export const CHANGES: SpecChanges;
+export const MAX_COPIES: number;
+export function stageOn(stage: unknown): SpecOn | null;
+export function stageGame(stage: SpecStage, from?: number): GameSpec;
+/** The league type a game is made as before its spec is written: a game of questions as a pool, any other as itself. */
+export function madeAs(kind: LeagueTypeId): LeagueTypeId;
 
 /** A10 part 1: a draft's most group slots, and a slot's defaults when the spec leaves them out. */
 export const MAX_GROUP_SLOTS: number;

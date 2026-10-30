@@ -118,12 +118,24 @@
 // (src/lib/server/stages.ts), and this one's table is the overall: { by: points (each stage's total added up) | places (points
 // for where you finish each stage that's over: `places` [1st, 2nd, ...], else one for each of you below you, plus one) | wins
 // (stages won, ties all win; then places, then points) }. OVERALL's default: points. StageLogic in state-logic.js.
+// A12 part 2, a stage a format change starts: a later stage's `on` { change: the kinds of change that count (format-timeline.js
+// TRIGGER_KINDS; MAJOR, F3's, when it's left out), again: true for a copy of it at every such change ("whenever"), else only the
+// first }; its game says no start (`span.from` null in the whole form: each copy plays from where its change takes effect, the
+// server writes the episode), and the stage before it no end (it ends where the change's stage starts). Only a change research is
+// sure of moves the game (format-timeline.js stageTriggers' act; the unsure ones are held and flagged), from the episode it takes
+// effect or the first still open, whichever is later. Every stage after one a change starts is one too (a stage at an episode or a
+// phase after it comes with A12's later parts). The game's extras.changes { ok: 'auto' (the stage starts by itself, with an undo)
+// | 'maker' (it waits for the maker's OK), unanswered: 'start' | 'carry-on' (what happens with 'maker' when nobody answers by the
+// lock the stage would start with) }, CHANGES its defaults (the user's: Noticed). StageLogic.changePlan, change-stages.ts.
 //
 // Who builds each value is in VOCAB: 'now' the engine plays it today (after A2, through the spec; a phase start since A3;
 // questions since A4), 'sports' the sports branch, 'later' no step yet. specProblems says what's wrong with a spec, specWaitsFor what
 // it needs that isn't built. Pure, plain CommonJS like formats/, so state-logic.js can read it (A2).
 
 const SPEC_VERSION = 1;
+// A12 part 2: the kinds of format change a stage can start on (a twist or a role never), and "major" by default.
+// eslint-disable-next-line @typescript-eslint/no-require-imports -- CommonJS on purpose, as index.js
+const { TRIGGER_KINDS, MAJOR } = require('../formats/format-timeline.js');
 
 /** Who builds each value. A value not listed isn't one. */
 const VOCAB = {
@@ -225,6 +237,12 @@ const VOCAB = {
   // A12 part 1: when a draft room opens: any time before its game starts (today's), or once the game's start is known and the
   // episode before it has results, so it drafts from who's still in (a second draft at the merge).
   'extras.draft.opens': { any: 'now', start: 'now' },
+  // A12 part 2: a stage a format change starts (a stage's `on`): which kinds of change count (format-timeline.js TRIGGER_KINDS:
+  // 'swap-all' a swap that left no group as it was), and how the game takes it: by itself with an undo, or once the maker says
+  // so (the players' vote is A14's), and with the maker's OK, what happens when nobody answers by the stage's first lock.
+  'on.change': Object.fromEntries(TRIGGER_KINDS.map((k) => [k, 'now'])),
+  'extras.changes.ok': { auto: 'now', maker: 'now', vote: 'later' },
+  'extras.changes.unanswered': { start: 'now', 'carry-on': 'now' },
 };
 
 // A question in `ask` (A4; A6 added who a moment happened to, groups, roles and questions about each person):
@@ -685,6 +703,30 @@ const MAX_STAGE_NAME = 40;
 const MAX_PLACES = 12;
 const OVERALL = { by: 'points' };
 const STAGE_KINDS = ['classic-draft', 'active-roster', 'pickem', 'questions'];
+// A12 part 2: a stage a format change starts: its `on` when it leaves parts out (the kinds that count "major", F3's MAJOR: F1's
+// question 5, the user's to decide; once, not again), how the game takes a change by default (by itself, with an undo; with the
+// maker's OK, the stage starting if nobody answers by its lock), and the most copies a stage that starts again makes (a change past
+// them is held: the last copy plays on). The defaults are the user's (Noticed).
+const ON_CHANGE = { change: MAJOR, again: false };
+const CHANGES = { ok: 'auto', unanswered: 'start' };
+const MAX_COPIES = 12;
+/** A stage's `on` whole ({ change, again }), or null for a stage that starts at an episode or a phase. */
+function stageOn(st) {
+  if (!isObj(st) || !isObj(st.on)) return null;
+  const o = st.on;
+  return { change: Array.isArray(o.change) ? o.change.slice() : ON_CHANGE.change.slice(), again: o.again === true };
+}
+/** The league type a game is made as before its spec is written (makeLeague's type): a game of questions starts as a pool (nothing
+ *  held, its results in its state), as Start a game's and the engine lab's do; any other as itself. */
+const madeAs = (kind) => (kind === 'questions' ? 'pickem' : kind);
+/** The game a copy of a stage plays, as its league does once it's made: a stage a change starts with its start at `from`
+ *  (1 for checking its rules and for what it plays as: each copy's start is where its change takes effect). */
+function stageGame(st, from = 1) {
+  if (!isObj(st) || !isObj(st.game)) return isObj(st) ? st.game : undefined;
+  if (!isObj(st.on)) return st.game;
+  const span = isObj(st.game.span) ? st.game.span : {};
+  return { ...st.game, span: { ...span, from } };
+}
 /**
  * A handicap (A11 part 5b: rank.handicap), read the one way from a whole spec: { points, who, newTo }, the defaults HANDICAP; null for
  * a game without one, or one the engine doesn't play it on: a draft (Outlast, a lineup, best ball, an auction) or a game of
@@ -1028,6 +1070,9 @@ function fullStaged(s) {
   const e = isObj(s.extras) ? s.extras : {};
   s.extras = extrasOf({});
   for (const k of Object.keys(e)) s.extras[k] = e[k];
+  // A12 part 2: how a game a format change moves takes the change (CHANGES where it leaves a part out), only on such a game.
+  const moved = Array.isArray(s.stages) && s.stages.some((x) => isObj(x) && isObj(x.on));
+  if (moved && (s.extras.changes === undefined || isObj(s.extras.changes))) s.extras.changes = { ...CHANGES, ...(isObj(s.extras.changes) ? s.extras.changes : {}) };
   return s;
 }
 /**
@@ -1045,10 +1090,14 @@ function stageGames(list) {
     const next = list[i + 1];
     const nextFrom = isObj(next) && isObj(next.game) && isObj(next.game.span) ? next.game.span.from : undefined;
     if (g.span === undefined) g.span = {};
-    if (isObj(g.span) && g.span.to === undefined) {
+    // A12 part 2: a stage a change starts plays from where each change takes effect (null: the server writes it in each copy);
+    // the stage before it runs on until then (no end of its own).
+    if (isObj(st.on) && isObj(g.span) && g.span.from === undefined) g.span.from = null;
+    if (isObj(g.span) && g.span.to === undefined && !(isObj(next) && isObj(next.on))) {
       if (isInt(nextFrom, 2)) g.span.to = nextFrom - 1;
       else if (phaseFrom(nextFrom)) g.span.to = { phase: nextFrom.phase };
     }
+    if (isObj(st.on)) out.on = { ...ON_CHANGE, ...st.on, change: Array.isArray(st.on.change) ? st.on.change.slice() : ON_CHANGE.change.slice() };
     const said = isObj(st.game.extras) && isObj(st.game.extras.draft) && st.game.extras.draft.opens !== undefined;
     const full = fullSpec(g);
     if (i > 0 && !said && isObj(full.get) && full.get.by === 'draft' && isObj(full.extras) && isObj(full.extras.draft)) full.extras.draft = { ...full.extras.draft, opens: 'start' };
@@ -1076,7 +1125,7 @@ function playsAs(s) {
   if (s.stages !== undefined) {
     const list = s.stages;
     const ok = Array.isArray(list) && list.length >= 2 && list.length <= MAX_STAGES && isObj(s.get) && s.get.by === 'none' && isObj(s.score) && s.score.by === 'stages'
-      && list.every((st) => isObj(st) && isObj(st.game) && STAGE_KINDS.includes(playsAs(st.game)))
+      && list.every((st) => isObj(st) && isObj(st.game) && STAGE_KINDS.includes(playsAs(stageGame(st))))
       && list.every((st, i) => i === 0 || !stagesOverlap(list[i - 1], st));
     return ok ? 'stages' : null;
   }
@@ -1647,8 +1696,11 @@ const isInstant = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2
 const KEYS = {
   top: ['spec', 'preset', 'span', 'pool', 'get', 'count', 'score', 'rank', 'ask', 'closes', 'extras', 'stages', 'overall'],
   // A12 part 1: a stage of a game in stages, and its overall.
-  stage: ['id', 'name', 'game'],
+  stage: ['id', 'name', 'game', 'on'],
   overall: ['by', 'places'],
+  // A12 part 2: a stage a format change starts, and how the game takes a change.
+  on: ['change', 'again'],
+  changes: ['ok', 'unanswered'],
   span: ['from', 'to'],
   from: ['phase', 'at'],
   pool: ['of', 'where'],
@@ -2489,6 +2541,16 @@ function stagedProblems(spec, s, ctx, opts, add) {
       if (e.join !== null && !JOINS.includes(e.join)) add('extras.join', 'Who can join: open, ask, locked or null');
     } else if (k === 'lockedDown') {
       if (typeof e.lockedDown !== 'boolean') add('extras.lockedDown', 'lockedDown is true or false');
+    } else if (k === 'changes') {
+      // A12 part 2: how the game takes a format change, only where one starts a stage.
+      const c = e.changes;
+      if (!list.some((x) => isObj(x) && isObj(x.on))) add('extras.changes', 'How a format change is taken is a game whose stage a change starts');
+      else if (!isObj(c)) add('extras.changes', "How a format change is taken: { ok: 'auto' | 'maker', unanswered: 'start' | 'carry-on' }");
+      else {
+        for (const x of Object.keys(c)) if (!KEYS.changes.includes(x)) add(`extras.changes.${x}`, `"${x}" isn't part of how a format change is taken`);
+        if (own(VOCAB['extras.changes.ok'], c.ok) === undefined) add('extras.changes.ok', "Who starts a stage on a format change: 'auto' (it starts by itself, with an undo) or 'maker' (once the maker says so)");
+        if (own(VOCAB['extras.changes.unanswered'], c.unanswered) === undefined) add('extras.changes.unanswered', "What happens when the maker hasn't answered by the stage's first lock: 'start' or 'carry-on'");
+      }
     } else if (!(k in plain) || !sameValue(e[k], plain[k])) add(`extras.${k}`, `A game in stages' ${k} is each stage's`);
   }
   const ids = new Set();
@@ -2504,16 +2566,34 @@ function stagedProblems(spec, s, ctx, opts, add) {
     const raw = Array.isArray(spec.stages) && isObj(spec.stages[i]) ? spec.stages[i].game : undefined;
     if (!isObj(raw)) return add(`${at}.game`, 'Each stage is a game: its own spec');
     if (raw.stages !== undefined) return add(`${at}.game.stages`, "A stage is one game: stages don't nest");
-    if (i > 0 && !(isObj(raw.span) && raw.span.from !== undefined)) add(`${at}.game.span.from`, 'A stage after the first says where it starts: an episode, or a phase of the season');
+    // A12 part 2: a stage a format change starts.
+    const rawOn = Array.isArray(spec.stages) && isObj(spec.stages[i]) ? spec.stages[i].on : undefined;
+    if (rawOn !== undefined) {
+      if (i === 0) add(`${at}.on`, 'The first stage starts where the game does: a later stage can start on a format change');
+      if (!isObj(rawOn)) add(`${at}.on`, 'A stage a format change starts: { change: [the kinds that count], again: true for every such change }');
+      else {
+        for (const k of Object.keys(rawOn)) if (!KEYS.on.includes(k)) add(`${at}.on.${k}`, `"${k}" isn't part of a stage a format change starts`);
+        const kinds = rawOn.change;
+        if (kinds !== undefined && !(Array.isArray(kinds) && kinds.length && kinds.every((x) => own(VOCAB['on.change'], x) !== undefined) && new Set(kinds).size === kinds.length)) {
+          add(`${at}.on.change`, `The kinds of change that start it, each once: ${TRIGGER_KINDS.join(', ')} (left out: a major one, ${MAJOR.join(', ')})`);
+        }
+        if (rawOn.again !== undefined && typeof rawOn.again !== 'boolean') add(`${at}.on.again`, 'again is true (a new copy at every such change) or false (the first only)');
+      }
+      if (isObj(raw.span) && raw.span.from !== undefined && raw.span.from !== null) add(`${at}.game.span.from`, 'It starts where its format change takes effect: leave its start out');
+    } else if (i > 0 && !(isObj(raw.span) && raw.span.from !== undefined)) add(`${at}.game.span.from`, 'A stage after the first says where it starts: an episode, a phase of the season, or a format change (on)');
+    const nextRaw = Array.isArray(spec.stages) ? spec.stages[i + 1] : undefined;
+    if (isObj(nextRaw) && nextRaw.on !== undefined && isObj(raw.span) && raw.span.to !== undefined && raw.span.to !== null) add(`${at}.game.span.to`, 'It ends where the next stage starts, on its format change: leave its end out');
     // A later stage drafts where it starts, from who's still in then: its exclusive count waits for its draft to open.
     const c = ctx && i > 0 ? { ...ctx, pool: undefined } : ctx;
-    specProblems(st.game, c, stageOpts).forEach((p) => add(`${at}.game${p.at ? `.${p.at}` : ''}`, p.problem));
+    specProblems(stageGame(st), c, stageOpts).forEach((p) => add(`${at}.game${p.at ? `.${p.at}` : ''}`, p.problem));
   });
   // One after another: each starts where the one before ends.
   for (let i = 0; i + 1 < list.length; i++) {
     const a = list[i];
     const b = list[i + 1];
     if (!isObj(a) || !isObj(b) || !isObj(a.game) || !isObj(b.game) || !isObj(a.game.span) || !isObj(b.game.span)) continue;
+    // A12 part 2: a stage a format change starts begins where it takes effect, and the one before runs on until then.
+    if (isObj(b.on) || isObj(a.on)) continue;
     const end = a.game.span.to;
     const from = b.game.span.from;
     const at = `stages[${i + 1}].game.span.from`;
@@ -2542,11 +2622,15 @@ function stagedWaits(s) {
   const list = Array.isArray(s.stages) ? s.stages : [];
   list.forEach((st, i) => {
     if (!isObj(st) || !isObj(st.game)) return;
-    specWaitsFor(st.game).forEach((x) => out.push({ ...x, at: `stages[${i}].game${x.at ? `.${x.at}` : ''}` }));
-    const kind = playsAs(st.game);
+    specWaitsFor(stageGame(st)).forEach((x) => out.push({ ...x, at: `stages[${i}].game${x.at ? `.${x.at}` : ''}` }));
+    // A12 part 2: after a stage a format change starts, every stage starts on one too (one at an episode or a phase: later parts).
+    if (!isObj(st.on) && list.slice(0, i).some((x) => isObj(x) && isObj(x.on))) out.push({ at: `stages[${i}].game.span.from`, step: 'later', problem: "A stage at an episode or a phase after one a format change starts comes with A12's later parts" });
+    const kind = playsAs(stageGame(st));
     if (kind === 'weekly-bingo' || kind === 'weekly-calls') out.push({ at: `stages[${i}].game`, step: 'later', problem: `A stage of ${kind === 'weekly-bingo' ? 'bingo' : 'Weekly Calls'} (scored outside the game) comes with A12's later parts` });
     if (i > 0 && stagesOverlap(list[i - 1], st)) out.push({ at: `stages[${i}].game.span.from`, step: 'later', problem: "Stages that play at the same time come with A12's later parts" });
   });
+  const ch = isObj(s.extras) && isObj(s.extras.changes) ? s.extras.changes : null;
+  if (ch && own(VOCAB['extras.changes.ok'], ch.ok) === 'later') out.push({ at: 'extras.changes.ok', step: 'later', problem: "The players' vote on a format change comes with A14" });
   if (!out.length && !playsAs(s)) out.push({ at: '', step: null, problem: 'No game plays this way yet' });
   return out;
 }
@@ -2566,4 +2650,5 @@ module.exports = {
   fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, specWaitsFor, waiversFit, finaleFits, betsFit, countKind, presetOf, sameValue, own,
   spanStart, spanPhase, spanEnd, spanEndPhase, phaseTo,
   MAX_STAGES, MAX_STAGE_NAME, MAX_PLACES, OVERALL, STAGE_KINDS, stageGames, stagesOverlap,
+  ON_CHANGE, CHANGES, MAX_COPIES, stageOn, stageGame, madeAs,
 };

@@ -4345,6 +4345,16 @@ class DraftLogic {
 // each stage that's over, points for your place there: `places` [1st, 2nd, ...], else one for each of you below you plus one; ties
 // share the higher place) or wins (stages won, ties all win; level on that, places, then points). A stage not started for the viewer
 // counts nothing, and someone not in a stage's table scores nothing from it. Nothing is stored: the walk is worked out on each read.
+//
+// A12 part 2, a stage a format change starts (a stage's `on`): its copies are leagues the server makes when the change comes
+// (change-stages.ts), each keyed `<stage id>@<the change's id>` (format-timeline.js stageTriggers: `<episode>:<kind>`), one for the
+// first such change after the stage before it started, or one at every such change ("again"); the walk carries each copy, and the
+// standings each in order. Where each starts and ends is the plan (changePlan), worked out from the season's format state over time
+// each time the server settles: only a change research is sure of, from the episode it takes effect or the first still open; the
+// stage before ends where the copy starts; a change no longer in the data (a corrected report) takes its copy away. What the game
+// remembers of it (the server writes it; the plan reads it):
+//   state.changeStages { seen: { key: the first episode still open when the change was first seen }, decided: { key: { do: 'start' |
+//                        'skip', by, at } } (the maker's), told: [what Recent changes has said], undone: [copies taken away] }
 class StageLogic {
   static on(state){ return !!state && scorePiece(state) === StagesScoringStrategy; }
   static stages(state){ return StageLogic.on(state) ? gameOf(state).stages : []; }
@@ -4361,12 +4371,150 @@ class StageLogic {
   static standings(state){
     const walk = StageLogic.walkOf(state);
     const latest = SpoilerLogic.latestWithResults(state);
-    return StageLogic.stages(state).map(st => {
-      const w = walk ? walk.stages.find(x => x.key === st.id) : null;
+    const row = (st, w, copy) => {
       const entries = w ? (w.entries || []).filter(e => e.episode <= latest) : [];
       const last = entries.length ? entries[entries.length - 1] : null;
-      return { key: st.id, name: st.name || null, leagueId: w ? w.leagueId : null, from: w ? w.from : null, to: w ? w.to : null, started: !!last, over: !!(last && last.over), rows: last ? last.rows : [] };
+      return { key: w ? w.key : st.id, stage: st.id, copy, name: st.name || null, leagueId: w ? w.leagueId : null, from: w ? w.from : null, to: w ? w.to : null, started: !!last, over: !!(last && last.over), rows: last ? last.rows : [] };
+    };
+    // A12 part 2: a stage a format change starts is its copies, in the order they start (none until its change comes).
+    return StageLogic.stages(state).flatMap(st => {
+      if(!Spec.stageOn(st)) return [row(st, walk ? walk.stages.find(x => x.key === st.id) : null, null)];
+      const mine = (walk ? walk.stages : []).filter(x => StageLogic.copyOf(x.key) === st.id).sort((a, b) => (a.from ?? Infinity) - (b.from ?? Infinity));
+      return mine.map((w, i) => row(st, w, i + 1));
     });
+  }
+  // A12 part 2: the stage a copy's key is of (`<stage id>@<change id>`), or null for a stage's own key.
+  static copyOf(key){ const at = String(key || '').indexOf('@'); return at > 0 ? String(key).slice(0, at) : null; }
+  static copyKey(stageId, changeId){ return `${stageId}@${changeId}`; }
+  // The stages a format change starts (their `on` whole).
+  static onStages(state){ return StageLogic.stages(state).filter(st => !!Spec.stageOn(st)); }
+  // How the game takes a format change (extras.changes, its defaults Spec.CHANGES), or null for a game no change moves.
+  static changesOf(state){
+    if(!StageLogic.onStages(state).length) return null;
+    const c = gameOf(state).extras.changes;
+    return { ...Spec.CHANGES, ...(c && typeof c === 'object' ? c : {}) };
+  }
+  // What the game remembers of its format changes (state.changeStages), whole.
+  static changeRecord(state){
+    const r = state && state.changeStages && typeof state.changeStages === 'object' ? state.changeStages : {};
+    const obj = (v) => (v && typeof v === 'object' && !Array.isArray(v) ? v : {});
+    return { seen: obj(r.seen), decided: obj(r.decided), told: Array.isArray(r.told) ? r.told : [], undone: Array.isArray(r.undone) ? r.undone : [] };
+  }
+  // The maker's answer on a change that starts a stage (`key`, a copy's): 'start' or 'skip' (an undo, once it's started), by whom
+  // and when. A problem (in words), or null once it's recorded.
+  static decide(state, key, what, by, at){
+    if(what !== 'start' && what !== 'skip') return "Say 'start' or 'skip'";
+    const stage = StageLogic.copyOf(key);
+    if(!stage || !StageLogic.onStages(state).some(st => st.id === stage)) return "That isn't one of this game's format changes";
+    const rec = StageLogic.changeRecord(state);
+    rec.decided = { ...rec.decided, [key]: { do: what, by: by || null, at: at || null } };
+    state.changeStages = rec;
+    return null;
+  }
+  /**
+   * Where the stages a format change starts play (A12 part 2), worked out from the season's format state over time each time the
+   * server settles (change-stages.ts), never stored: pure. `input`:
+   *   triggers  { stageId: format-timeline.js stageTriggers(timeline, its on.change) }: `act` the changes research is sure of,
+   *             `held` the ones it isn't (flagged, never acted on)
+   *   starts    { stageId: the episode it plays from (its league's), or null while it waits } for the stages before
+   *   copies    { key: { from } } the copies made and still live (their leagues' starts)
+   *   open      the first episode still open for moves (the one after the latest that's aired or has results)
+   *   last      the season's last episode, when it's known
+   * A stage a change starts begins at the first change of its kinds research is sure of after the stage before it started (one per
+   * episode: two in one episode start one copy); with `again`, a copy at every such change after it, until the next stage a change
+   * starts begins (at most Spec.MAX_COPIES). Each plays from the episode its change takes effect or the first still open, whichever
+   * is later, and never moves once that's aired; the stage before (or the copy before) ends with the episode before it. With the
+   * maker's OK (extras.changes.ok 'maker'), a change nobody has answered waits until the lock of the episode it would start with
+   * (`until`: from when it was first seen), then the game's default (unanswered: 'start' from the first episode still open, or
+   * 'carry-on'); a skip is never started (and takes a started copy away). Two still to come that both start at the first episode
+   * still open: the later change is the format now, so it alone starts. Returns { entries: [{ key, stage, copy (1, 2, ... for a
+   * copy; null for a stage before them), trigger, from, to (the plan's end: an episode, the stage's own end for the last copy;
+   * undefined where the plan says nothing) }], pending, lapsed, skipped, held, late (past the season's end), capped, superseded,
+   * seen: { key: open } first seen now }.
+   */
+  static changePlan(state, input){
+    const inp = input || {};
+    const open = Number(inp.open);
+    const last = Number.isInteger(inp.last) ? inp.last : null;
+    const out = { entries: [], pending: [], lapsed: [], skipped: [], held: [], late: [], capped: [], superseded: [], seen: {} };
+    const stages = StageLogic.stages(state);
+    const first = stages.findIndex(st => !!Spec.stageOn(st));
+    if(first < 1 || !Number.isInteger(open)) return out;
+    const conf = StageLogic.changesOf(state);
+    const rec = StageLogic.changeRecord(state);
+    const starts = inp.starts || {};
+    const made = inp.copies || {};
+    stages.slice(0, first).forEach(st => {
+      const from = Number.isInteger(starts[st.id]) ? starts[st.id] : null;
+      out.entries.push({ key: st.id, stage: st.id, copy: null, trigger: null, from, to: undefined });
+    });
+    // The stage right before: nothing starts on a change until it has (a phase start not known yet holds everything back).
+    const base = out.entries[out.entries.length - 1];
+    let after = base ? base.from : null;
+    // A stage's copies after episode `after` (its outcomes recorded in `out` only when `record`: the look ahead doesn't).
+    const copiesOf = (st, from0, record) => {
+      const o = Spec.stageOn(st);
+      const t = (inp.triggers && inp.triggers[st.id]) || { act: [], held: [] };
+      const byFrom = new Map();
+      (t.act || []).filter(c => Number.isInteger(c.from) && c.from > from0).sort((a, b) => a.from - b.from).forEach(c => { if(!byFrom.has(c.from)) byFrom.set(c.from, c); });
+      let cands = [...byFrom.values()];
+      if(record) (t.held || []).filter(c => Number.isInteger(c.from) && c.from > from0).forEach(c => out.held.push({ stage: st.id, trigger: c }));
+      // Once: a copy already made stays the stage's (a change that turns sure later doesn't take its place).
+      if(!o.again){
+        const had = cands.find(c => made[StageLogic.copyKey(st.id, c.id)]);
+        if(had) cands = [had];
+      }
+      const mine = [];
+      for(const c of cands){
+        const key = StageLogic.copyKey(st.id, c.id);
+        const d = rec.decided[key];
+        const had = made[key];
+        if(d && d.do === 'skip'){ if(record) out.skipped.push({ key, stage: st.id, trigger: c }); continue; }
+        let from;
+        if(had && Number.isInteger(had.from) && had.from < open) from = had.from;
+        else {
+          if(conf.ok !== 'auto' && !(d && d.do === 'start') && !had){
+            const seen = Number.isInteger(rec.seen[key]) ? rec.seen[key] : open;
+            if(record && !Number.isInteger(rec.seen[key])) out.seen[key] = open;
+            const until = Math.max(c.from, seen);
+            if(open <= until){ if(record) out.pending.push({ key, stage: st.id, trigger: c, until }); continue; }
+            if(conf.unanswered !== 'start'){ if(record) out.lapsed.push({ key, stage: st.id, trigger: c, until }); continue; }
+          }
+          from = Math.max(c.from, open);
+        }
+        if(last !== null && from > last){ if(record) out.late.push({ key, stage: st.id, trigger: c }); continue; }
+        const prev = mine[mine.length - 1];
+        if(prev && prev.from >= from){
+          mine.pop();
+          if(record) out.superseded.push({ key: prev.key, stage: st.id, trigger: prev.trigger, by: key });
+        }
+        if(mine.length >= Spec.MAX_COPIES){ if(record) out.capped.push({ key, stage: st.id, trigger: c }); continue; }
+        mine.push({ key, stage: st.id, copy: 0, trigger: c, from, to: undefined });
+        if(!o.again) break;
+      }
+      return mine;
+    };
+    const on = stages.slice(first);
+    const copies = [];
+    for(let j = 0; j < on.length && after !== null; j++){
+      let mine = copiesOf(on[j], after, true);
+      if(!mine.length) break;
+      // Until the next stage a change starts begins: a change of this stage's kinds after that is no longer this stage's.
+      const next = on[j + 1] ? copiesOf(on[j + 1], mine[0].from, false)[0] : null;
+      if(next) mine = mine.filter(x => x.from < next.from);
+      mine.forEach((x, i) => { x.copy = i + 1; });
+      copies.push(...mine);
+      after = mine[0].from;
+    }
+    copies.forEach((x, i) => {
+      const nx = copies[i + 1];
+      const st = stages.find(s => s.id === x.stage);
+      const own = st.game.span ? st.game.span.to : null;
+      x.to = nx ? nx.from - 1 : own && typeof own === 'object' ? { ...own } : own;
+    });
+    if(base) base.to = copies.length ? copies[0].from - 1 : null;
+    out.entries.push(...copies);
+    return out;
   }
   // Points for a place in a stage that's over: the overall's `places`, else one for each of `count` below it, plus one.
   static placePoints(o, place, count){

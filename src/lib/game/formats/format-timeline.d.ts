@@ -36,3 +36,10 @@ export function newcomerCues(tl: Timeline, names?: string[]): { name: string; ep
 /** A10 part 1: each episode's groups as a league with group slots reads them (its episode.formatGroups), members resolved to
  *  the league's castaway ids. */
 export function slotRecords(tl: Timeline, o?: { resolve?: (name: string) => string | null }): Map<number, EpisodeFormatGroups>;
+/** One episode of the timeline, or null. */
+export function at(tl: Timeline, n: number): TimelineEpisode | null;
+/** A12: "major" by default for a stage a change starts, and every kind a stage can start on. */
+export const MAJOR: string[];
+export const TRIGGER_KINDS: string[];
+/** A12: the changes of `kinds` (MAJOR by default) a stage starts on: `act` the ones research is sure of, `held` the rest (flagged). */
+export function stageTriggers(tl: Timeline, kinds?: string[]): { act: import("../state-logic.js").StageTrigger[]; held: import("../state-logic.js").StageTrigger[] };

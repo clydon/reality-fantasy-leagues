@@ -2380,7 +2380,13 @@
       "dials": [
         "shape"
       ],
-      "note": "a stage that starts on a format change of the kinds named (format-timeline.js stageTriggers, F3); what players see and whether it waits for the maker's OK are the format-change design session's"
+      "spec": {
+        "stages": [
+          { "id": "draft", "name": "Draft", "game": { "preset": "outlast", "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" }, "span": { "from": 1 } } },
+          { "id": "redraft", "name": "New draft", "on": { "again": true }, "game": { "preset": "outlast", "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" } } }
+        ]
+      },
+      "note": "a stage a format change starts (A12 part 2): a copy of the new draft at each major change research is sure of (F3's MAJOR: teams or pairs formed, split into individuals, the merge, a swap that leaves no group as it was), each its own league from where the change takes effect, its draft opening then and counted then; by itself with an undo (the default; the maker's OK is a setting); what players see is the format-change design session's"
     },
     {
       "id": "p8",

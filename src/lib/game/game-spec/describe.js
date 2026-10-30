@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts, stageOn, ON_CHANGE } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -51,7 +51,32 @@ function wordsOf(ctx) {
     moments: Array.isArray(c.moments) ? c.moments : null,
     stats: new Map((Array.isArray(c.stats) ? c.stats : []).map((x) => (isObj(x) ? [x.key, x.label || x.key] : [x, x]))),
     phases: new Map((Array.isArray(c.phases) ? c.phases : []).filter(isObj).map((p) => [p.id, p.name || p.id])),
+    // A12 part 2, inside a game in stages: a stage a format change starts says where it starts in these words, and the stage
+    // before it runs until then.
+    fromChange: typeof c.fromChange === 'string' ? c.fromChange : null,
+    untilChange: c.untilChange === true,
   };
+}
+// A12 part 2: the kinds of format change in words ("teams form", "everyone goes on alone"); a list that's F3's MAJOR is "a major
+// change of format". The words are the user's (U0).
+const CHANGE_WORDS = {
+  'teams-formed': 'teams form',
+  'pairs-formed': 'pairs form',
+  'split-into-individuals': 'everyone goes on alone',
+  merge: 'the merge',
+  swap: 'a swap',
+  'swap-all': 'a swap that leaves no group as it was',
+  newcomer: 'someone new comes in',
+  'new-phase': 'a new phase begins',
+};
+/** Where a stage a format change starts plays from, in words: "from the first major change of format", "from each time teams form
+ *  or everyone goes on alone". */
+function onWords(on) {
+  const major = sameValue([...on.change].sort(), [...ON_CHANGE.change].sort());
+  const ks = on.change.map((k) => CHANGE_WORDS[k] || k);
+  const or = ks.length <= 1 ? ks.join('') : `${ks.slice(0, -1).join(', ')} or ${ks[ks.length - 1]}`;
+  if (major) return on.again ? 'from each major change of format' : 'from the first major change of format';
+  return on.again ? `from each time ${or}` : `from the first time ${or}`;
 }
 /** A phase by its name ("Merged"), else its id. */
 const phaseWord = (id, w) => w.phases.get(id) || id;
@@ -60,6 +85,18 @@ const phaseWord = (id, w) => w.phases.get(id) || id;
  *  and once that's settled "Episode 9 to the finale, starting with Merged" (aired or still to come). An end at a phase (A12 part
  *  1): "until Merged starts", "Episode 2 until Merged starts", and once that's settled "Episodes 1–8, until Merged". */
 function spanWords(span, w) {
+  // A12 part 2: a stage a format change starts (until its own end, when it has one), and the stage before it.
+  if (span.from === null) {
+    const start = w.fromChange || 'from a change of format';
+    const endPhase0 = spanEndPhase(span);
+    if (endPhase0) return `${start} until ${phaseWord(endPhase0, w)} starts`;
+    return span.to === null ? start : `${start} to ${w.Part} ${spanEnd(span)}`;
+  }
+  if (w.untilChange && span.to === null) {
+    const first = spanStart(span);
+    const start = isObj(span.from) ? (first === null ? `from when ${phaseWord(span.from.phase, w)} starts ` : `${w.Part} ${first} `) : span.from === 1 ? '' : `${w.Part} ${span.from} `;
+    return `${start}until the format changes`;
+  }
   const endPhase = spanEndPhase(span);
   if (endPhase) {
     const name = phaseWord(endPhase, w);
@@ -901,7 +938,8 @@ function describeStages(s, ctx) {
   const w = wordsOf(ctx);
   const stages = s.stages.filter((x) => isObj(x) && isObj(x.game));
   const each = stages.map((st, i) => {
-    const d = describeSpec(st.game, { ...(isObj(ctx) ? ctx : {}), show: null });
+    const next = stages[i + 1];
+    const d = describeSpec(st.game, { ...(isObj(ctx) ? ctx : {}), show: null, fromChange: stageOn(st) ? onWords(stageOn(st)) : null, untilChange: !!(next && stageOn(next)) });
     return { label: st.name || `Stage ${i + 1}`, d, sentence: d.sentence.replace(/^An? /, (m) => m.toLowerCase()).replace(/\.$/, '') };
   });
   const parts = [{ text: `A game in ${say(stages.length)} stages`, at: 'preset' }];
@@ -913,6 +951,13 @@ function describeStages(s, ctx) {
   parts.push({ text: `. ${overall}`, at: 'rank' });
   const rules = [overall];
   if (o.by === 'places' || o.by === 'wins') rules.push("A stage counts once it's over.");
+  // A12 part 2: a format change, and how the game takes it.
+  const moved = stages.find((st) => stageOn(st));
+  if (moved) {
+    const ch = isObj(s.extras) && isObj(s.extras.changes) ? s.extras.changes : { ok: 'auto', unanswered: 'start' };
+    rules.push("A change of format counts once research is sure of it: from the episode it takes effect, or the next still to play.");
+    rules.push(ch.ok === 'maker' ? `Whoever runs the game says whether a new stage starts; if nobody does by its first episode, ${ch.unanswered === 'start' ? 'it starts anyway' : 'the game carries on as it is'}.` : 'The new stage starts by itself; whoever runs the game can call it off.');
+  }
   each.forEach((x) => rules.push(`${x.label}: ${x.d.sentence}`, ...x.d.rules.map((r) => `${x.label}: ${r}`)));
   const e = isObj(s.extras) ? s.extras : {};
   const details = [

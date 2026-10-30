@@ -129,6 +129,11 @@ async function rulesOn(season: LabSeasonRow, couchId: string | null): Promise<{ 
   return { ctx: { ...contextOf(await questionBook(season.id, copy)), show: season.label }, copyId: copy?.id ?? null };
 }
 
+/** The rules a copy of a stage a format change starts plays by on its couch, as its ctx (change-stages.ts makeCopy, A12 part 2). */
+export async function stageContext(seasonId: string, couchId: string | null): Promise<SpecContext> {
+  return (await rulesOn(await seasonOf(seasonId), couchId)).ctx;
+}
+
 /**
  * The couches the admin may start a test game on: their test couch (Settings › Test couch: test_couches.owner_id, though
  * they're not on it themselves), and a zt- fixture's couch they're on (made by a zt_ account: local checks).
@@ -280,6 +285,8 @@ async function makeStages(user: SessionUser, parentId: string, name: string, spe
   const { rows } = await pool.query("SELECT state FROM leagues WHERE id = $1", [parentId]);
   const parent = rows[0].state as LeagueState;
   for (const [i, stage] of (full.stages ?? []).entries()) {
+    // A12 part 2: a stage a format change starts is made when its change comes (change-stages.ts), a copy each time.
+    if (Spec.stageOn(stage)) continue;
     const kind = Spec.playsAs(stage.game);
     const stageCtx: SpecContext = i > 0 ? { ...ctx, pool: undefined } : ctx;
     await makeLeague(
@@ -287,7 +294,7 @@ async function makeStages(user: SessionUser, parentId: string, name: string, spe
       {
         name: `${name} · ${stage.name || `Stage ${i + 1}`}`,
         createdBy: user.id,
-        type: kind === "questions" ? "pickem" : (kind as string),
+        type: Spec.madeAs(kind as never),
         couchId,
         rulebookId: copyId,
         // The game's seats before the results arrive (so nobody's a late joiner), as the game's were; their memberships, and anyone

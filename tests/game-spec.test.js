@@ -72,7 +72,8 @@ const GAME_FIELDS = {
   // part 4b, head to head's playoffs and fallbacks (a draft's too: DRAFT_FIELDS); part 5, teams of players (a draft's too).
   questions: ["questions", "lateLockHours", "parlays", "seatPeople", "questionsLives", "questionsLivesOn", "questionsRace", "questionsCut", "rankOneLeft", "rankAllOut", "questionsRank", "questionsSaves", "rankMatchups", "rankTeams", "rankHandicap"],
   // A12 part 1: a game in stages' stages and overall.
-  stages: ["stages", "stageOverall"],
+  // A12 part 2: how a game a format change moves takes the change.
+  stages: ["stages", "stageOverall", "formatChanges"],
 };
 // A10 part 4b: a team two people share, wherever a seat has something to share (not a call or a bingo card).
 GAME_FIELDS["classic-draft"].push("seatPeople");

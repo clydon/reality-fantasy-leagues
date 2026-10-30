@@ -1121,6 +1121,9 @@ export interface LeagueState {
   /** Step A12 part 1: a game in stages' stages' tables as the server read them (stages.ts stageWalk, StateLogic.StageLogic.withWalk):
    *  never stored; a copy cut at a mark cuts it too. */
   stageWalk?: import("./state-logic.js").StageWalk;
+  /** Step A12 part 2: what a game in stages remembers of its format changes (StateLogic.StageLogic.changeRecord): when each was
+   *  first seen, the maker's answers, what Recent changes has said, the copies taken away. */
+  changeStages?: import("./state-logic.js").ChangeRecord;
   /** A11 part 4: head to head's playoffs, placed at the season's end: its length as its schedule says (show_seasons.episode_count,
    *  stamped by the server on every read and write: air-times.ts), and where they began once their first round had results
    *  (StateLogic.MatchupLogic.settle), so the schedule changing after that moves nothing. */

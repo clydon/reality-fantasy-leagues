@@ -904,11 +904,21 @@ declare const StateLogic: {
     walkOf(state: LeagueState): StageWalk | null;
     withWalk(state: LeagueState, walk: StageWalk | null): LeagueState;
     cutWalk(walk: StageWalk, n: number): StageWalk;
-    standings(state: LeagueState): { key: string; name: string | null; leagueId: string | null; from: number | null; to: number | null; started: boolean; over: boolean; rows: StageRow[] }[];
+    /** A12 part 2: `stage` the spec's stage, `copy` 1, 2, ... for a copy a format change started (null for a stage's own). */
+    standings(state: LeagueState): { key: string; stage: string; copy: number | null; name: string | null; leagueId: string | null; from: number | null; to: number | null; started: boolean; over: boolean; rows: StageRow[] }[];
     overall(state: LeagueState): { playerId: string; overall: number; points: number; placePoints: number; wins: number; stages: { key: string; points: number | null; place: number | null; over: boolean }[] }[];
     over(state: LeagueState): boolean;
     endsAt(state: LeagueState): number | null;
     started(state: LeagueState): boolean;
+    /** A12 part 2: a stage a format change starts (its copies keyed `<stage id>@<change id>`), how the game takes a change, what it
+     *  remembers of them, the maker's answer, and where each copy plays (changePlan, from the format's state over time). */
+    copyOf(key: string): string | null;
+    copyKey(stageId: string, changeId: string): string;
+    onStages(state: LeagueState): { id: string; name: string | null; game: import("./game-spec/index.js").GameSpec; on?: { change: string[]; again: boolean } }[];
+    changesOf(state: LeagueState): { ok: "auto" | "maker" | "vote"; unanswered: "start" | "carry-on" } | null;
+    changeRecord(state: LeagueState): ChangeRecord;
+    decide(state: LeagueState, key: string, what: string, by?: string | null, at?: string | null): string | null;
+    changePlan(state: LeagueState, input: ChangePlanInput): ChangePlan;
   };
   HandicapLogic: {
     parts(state: LeagueState): import("./game-spec/index.js").HandicapParts | null;
@@ -1075,6 +1085,57 @@ export interface StageRow {
 }
 export interface StageWalk {
   stages: { key: string; leagueId: string; from: number | null; to: number | null; entries: { episode: number; over: boolean; rows: StageRow[] }[] }[];
+}
+/** A12 part 2: a format change as a stage's trigger (format-timeline.js stageTriggers). */
+export interface StageTrigger {
+  id: string;
+  kind: string;
+  allNew: boolean;
+  from: number;
+  when: string | null;
+  episode: number;
+  what: string;
+}
+/** A12 part 2: what a game in stages remembers of its format changes (state.changeStages). */
+export interface ChangeRecord {
+  seen: Record<string, number>;
+  decided: Record<string, { do: "start" | "skip"; by: string | null; at: string | null }>;
+  told: string[];
+  undone: string[];
+}
+export interface ChangePlanInput {
+  triggers: Record<string, { act: StageTrigger[]; held: StageTrigger[] }>;
+  starts: Record<string, number | null>;
+  copies: Record<string, { from: number | null }>;
+  open: number;
+  last?: number | null;
+}
+export interface ChangePlanEntry {
+  key: string;
+  stage: string;
+  copy: number | null;
+  trigger: StageTrigger | null;
+  from: number | null;
+  /** The plan's end: an episode, the stage's own end for the last copy (null, an episode or { phase }); undefined: the plan says nothing. */
+  to?: number | null | { phase: string; at?: number };
+}
+export interface ChangePlanItem {
+  key?: string;
+  stage: string;
+  trigger: StageTrigger;
+  until?: number;
+  by?: string;
+}
+export interface ChangePlan {
+  entries: ChangePlanEntry[];
+  pending: ChangePlanItem[];
+  lapsed: ChangePlanItem[];
+  skipped: ChangePlanItem[];
+  held: ChangePlanItem[];
+  late: ChangePlanItem[];
+  capped: ChangePlanItem[];
+  superseded: ChangePlanItem[];
+  seen: Record<string, number>;
 }
 export interface HandicapView {
   points: number;

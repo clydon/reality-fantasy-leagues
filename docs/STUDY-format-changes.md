@@ -1134,6 +1134,43 @@ nothing moved: **every game ended on all five seasons**, as after A12 part 1 (Su
 golden replays, which compare every read of every game before and after, found every one the same against this branch's code before
 the part and against master's.
 
+## A12 part 2: stages a format change starts, replayed blind (2026-10-30)
+
+A12's part 2 is the first piece of the engine whose structure follows the show's format changes: a game in stages whose later stage
+says `on` { change: the kinds that count, again } gets a copy of that stage, a league of its own, each time research is sure the format
+changed that way (format-timeline.js `stageTriggers`' `act`; an unsure change is held and never acted on), from the episode the change
+takes effect or the first still open, the stage before it ending there (state-logic.js `StageLogic.changePlan`; src/lib/server/
+change-stages.ts, from the season sync). The tracker's p7 ("automatically start a new draft stage whenever there is a major format
+change such as split into teams or split into individuals") plays: a Draft (an Outlast of 3 each) from Episode 1, then a New draft
+(the same) at each major change (F3's `MAJOR`, by default). `blind.js` finds each copy after the episode whose research made it and
+plays it from there as a game of its own, its draft at its start, from who's left.
+
+- **Every game ended on all five seasons**, the copies among them: Survivor 49 115 of 115, The Challenge 41 90 of 90, 40 85 of 85, 39 94
+  of 94, The Traitors 4 81 of 81; nothing refused; no copy taken away (F2's answers and the stand-ins are never corrected: the unit tests
+  and check-change-stages.js cover a corrected report); the questions waiting on early results are finding 20's as before.
+- **When a copy starts.** A change research says at an episode's end (from the next) starts its copy with that next episode: The
+  Challenge's re-pairings. A change at an episode's start is only known from its research, after it airs, so its copy starts with the
+  episode after: Survivor 49's swaps at 4 and 6 start copies at 5 and 7, its merge at 7 one at 8. A change held unsure at one episode
+  and sure at the next starts from the first episode still open then: The Challenge 40's split (said for 10 at 9, unsure; sure at 10)
+  starts its copy at 11.
+
+| p7 on | Copies (each from) | What started them |
+|---|---|---|
+| The Challenge 41 | 7: 3, 4, 5, 6 and 7 (one episode each), 8-9, 10 on | every pair re-drawn at the ends of 2 to 7 (a swap that left no group as it was), then pairs formed at 9's end |
+| The Challenge 40 | 2: 3-10, 11 on | teams formed (the eras) at 2's end; everyone on their own, sure at 10 |
+| The Challenge 39 | 11: 6 to 15 one episode each, 16 on | pairs, teams and a re-draw of every team at nearly every episode's end; the split at 15's end |
+| Survivor 49 | 3: 5-6, 7, 8 on | the two swaps (at 4's and 6's start) and the merge (at 7's start) |
+| The Traitors 4 | none: its first stage plays the season | no major change (a recruit is a role, a twist never counts) |
+
+- **What "major" by default does here:** The Challenge 39's and 41's re-draws make a new draft nearly every week (ten and five copies of
+  one episode), each scoring about the same for everyone (an Outlast over one episode: everyone outlasts the same few). With the kinds
+  of play only (no all-new swap), it would be five copies on 39, one on 41, one on Survivor 49 (the merge), two on 40 and none on The
+  Traitors: the plan's Noticed asks the user which, with that as the recommendation.
+- **The drafts as they open** are counted then, as part 1's: four of you × 3 fits The Challenge's casts at every copy; Survivor 49's
+  copies from 7 were shared (a private draft revealed at once) once 4 × 3 no longer fit who was left.
+- **Not on these replays:** the maker's OK, a corrected report taking a copy away and bringing it back, research missing for a while, the
+  game deleted and restored: `tests/change-stages.test.js` and `scripts/dev-test/check-change-stages.js` cover them.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

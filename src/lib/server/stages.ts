@@ -28,7 +28,7 @@ type Fields = Record<string, unknown>;
 
 /** The game's seats a stage seats: everyone on it but a late joiner's private season or a seat waiting to be brought in (one that
  *  joined once the game had started: StateLogic.addPlayer). Someone who left is mirrored as left. */
-const seatsToMirror = (parent: LeagueState) => parent.players.filter((p) => !p.ghost && !(p.active === false && !p.disabled));
+export const seatsToMirror = (parent: LeagueState) => parent.players.filter((p) => !p.ghost && !(p.active === false && !p.disabled));
 
 /**
  * One of the game's seats added to a stage (StateLogic.addPlayer, so the stage's own rule for someone joining holds: in its draft
@@ -153,10 +153,18 @@ export async function deleteStages(client: Queryable, parentId: string, userId: 
   await client.query("DELETE FROM league_memberships WHERE league_id IN (SELECT id FROM leagues WHERE stage_of = $1)", [parentId]);
   await client.query("UPDATE leagues SET deleted_at = now(), deleted_by = $2, updated_at = now() WHERE stage_of = $1 AND deleted_at IS NULL", [parentId, userId]);
 }
+/** A12 part 2: one stage taken away (a copy a format change started whose change the data no longer says, or the maker called off:
+ *  change-stages.ts), inside the caller's transaction: its memberships go and it's soft-deleted, as deleteStages does a game's. */
+export async function takeStageAway(client: Queryable, stageId: string): Promise<void> {
+  await client.query("DELETE FROM league_memberships WHERE league_id = $1", [stageId]);
+  await client.query("UPDATE leagues SET deleted_at = now(), deleted_by = NULL, updated_at = now() WHERE id = $1 AND deleted_at IS NULL", [stageId]);
+}
 /** A game in stages restored (end-game.ts restoreGame, inside its transaction, once its own memberships are back): its stages too,
  *  their memberships mirrored from the game's. */
 export async function restoreStages(client: Queryable, parentId: string, parent: LeagueState): Promise<void> {
-  await client.query("UPDATE leagues SET deleted_at = NULL, deleted_by = NULL, updated_at = now() WHERE stage_of = $1", [parentId]);
+  // A12 part 2: a copy a format change started and the data later took away (change-stages.ts) stays away.
+  const undone = StateLogic.StageLogic.changeRecord(parent).undone;
+  await client.query("UPDATE leagues SET deleted_at = NULL, deleted_by = NULL, updated_at = now() WHERE stage_of = $1 AND NOT (stage_key = ANY($2::text[]))", [parentId, undone]);
   for (const st of await stagesOf(client, parentId)) await mirrorMemberships(client, parentId, st.id, seatedIds(parent, st.state));
 }
 
