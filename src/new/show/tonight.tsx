@@ -10,7 +10,7 @@ import { backstage, chatCouch, useAfterResults, useChatBadge, useWatchCard, type
 import { gameColour, gameInk, ordinal } from "../games";
 import { NavLink } from "../nav";
 import { paths } from "../routes";
-import { episodesOf, openWhere, type ShowData } from "../screens/show-space";
+import { episodesOf, openWhere, seasonOver, type ShowData } from "../screens/show-space";
 import { useMe } from "../session";
 import { namesOf } from "../hub/sections";
 import { PlayIt } from "./games";
@@ -120,7 +120,7 @@ function PhaseHead({ show }: { show: ShowData }) {
   } else if (up) {
     title = `${w.episode} ${up.number}`;
     aside = t != null ? calmWhen(t, now) : null;
-  } else if (show.header?.episodeCount && show.latestAired >= show.header.episodeCount) {
+  } else if (seasonOver(show)) {
     title = "Season over";
   } else {
     title = show.latestAired ? `${w.episode} ${show.latestAired}` : "Coming up";
@@ -308,6 +308,10 @@ function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const onBingo = (episode: number) => openBingo({ seasonId, couchId: show.couch?.id ?? null, episode, label: rateLabel(show), solo: show.solo });
   const due = open[0]?.deadline ? Date.parse(open[0].deadline) : t;
 
+  // With no episode to come, say why: the season's last episode has aired (the show bar's "Season over"), or every game you
+  // play here is over (GameView.over: its winner crowned or its span done, as far as you've seen), not "until the next episode".
+  const ended = up ? null : seasonOver(show) ? "The season's over: nothing more to set" : show.play?.length && show.play.every((g) => g.over) ? "Your games here are over: nothing more to set" : null;
+
   let body: ReactNode;
   if (up?.live) {
     body = <DoneCard icon={Lock} title="Your moves are locked" line="Scores stay hidden until you reveal" />;
@@ -316,7 +320,7 @@ function YourMoves({ seasonId, show }: { seasonId: string; show: ShowData }) {
       <DoneCard
         icon={Check}
         title={up ? `You're set for Episode ${up.number}` : "Nothing due"}
-        line={t != null ? `Change anything until ${airTime(t)}` : "Nothing to set until the next episode"}
+        line={t != null ? `Change anything until ${airTime(t)}` : (ended ?? "Nothing to set until the next episode")}
         action={up && show.play?.length ? <Btn onClick={() => openMoves("lineup")} wide className="mt-1">Change</Btn> : undefined}
       />
     );

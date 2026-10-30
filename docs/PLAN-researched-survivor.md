@@ -1,6 +1,18 @@
 # Plan: Survivor on researched rules, tested on shadow leagues during Season 51
 
-Status: **shadow leagues built 2026-10-27** (`scripts/dev-test/shadow-leagues.js`), and **the test couch** the same day (the same
+Status: **the season-forward rehearsal is done (2026-10-30, below): the couch's three Survivor 51 games played from
+production's 2026-10-30 backup to a finale three ways (realistic, the rough weeks, the daylight-saving week), every read the
+same with the game-specs flag off and on and through master's engine, every invariant holding, the screens' words the same.**
+**Every item of its "What's wrong" but 4 is dealt with (the same day, the user's "fix all")**: 1, a correction keeps a night's
+order (tests/night-order.test.js); 2, a lock weeks away says its date; 3, not a fault in the couch's (shared) game, and its gap
+fixed for exclusive games (nothing owed while nobody's free to come in); 5, a double boot's vote checks are quiet; 6, the
+pool's words ("No repeats until you've picked everyone still in") and Tonight after the finale ("The season's over: nothing
+more to set"); and Recent changes' Undo keeps a night's order. Run again with all of it, the rehearsal passes every way, its
+screens now read for real (the look had read hidden panels: below).
+Next, for the main folder: merge `survivor-data`; then R2, the flag on in production, with the user (`scripts/game-specs-flag.js
+on`); R1 runs `season-forward.js rehearse --before=master` from its tree as its proof; set Survivor 51's episode count on the
+desk before the finale (item 4, the main session's).
+Before that: **shadow leagues built 2026-10-27** (`scripts/dev-test/shadow-leagues.js`), and **the test couch** the same day (the same
 idea in production, in the app: below; pushed 2026-10-27); the switch itself is not started, and is now planned mid-season
 (item 4 below; track S of `docs/PLAN-start-a-game-gpt.md`). The goal
 (the user, 2026-10-27): every show plays by researched rules, nothing baked into the app. Survivor is the last big built-in
@@ -100,7 +112,163 @@ owns the couch; the real you isn't on it, so your own home doesn't change.
    51 itself the ids stay as they are (the template's aliases, plus a question map), so items 1 and 2 above matter for a freshly
    researched rulebook, not for this switch.
 
+## The season-forward rehearsal (2026-10-30)
+
+The proof both switches need before today's games go onto the game-as-data structure (R2, the game-specs flag on in
+production; R1, today's games rebuilt from the engine's pieces: docs/PLAN-start-a-game-gpt.md): the couch's three real
+Survivor 51 games played forward past Episode 6, locally, through everything the rest of the season can throw at them, every
+read and every screen checked. Tool: `scripts/dev-test/season-forward.js` (its header has everything); scenarios as data in
+`scripts/dev-test/season-forward/`.
+
+**How it works.** `up --from=backups/<dir>` clones the three games (shadow-leagues.js `--rules=same`: mock players copying
+every real move) onto a zt- copy of the backup's Survivor 51 (show `zt-sf-survivor`: its cast, schedule, results with their
+sources, research, rulebook, and each game's ledger of which results it has), so results filed on it reach only the shadow
+games; it's checked faithful by running the season sync on it, which must change nothing. `play` then plays each episode from
+the scenario, in-process on a clock of its own (`sim-clock.js`: the weeks ahead air; nothing outside the process sees it):
+two days before, waiver claims and every mock player's move through the app's own writes by the archetypes' habits
+(playtest.js: the Tinkerer sets the best every week, the Fan Who Forgets moves one week in three, the Drive-By once; finale
+predictions the week before the finale and on its night through the question sheet's write); a move five minutes either
+side of the lock where the scenario says (taken before, refused after); the hourly job's waiver clock; then the episode as
+research would answer it (generated coherently from whoever's still in by the copy's own research context: only the
+losing tribes at Tribal, everyone votes, an idol's votes cancelled), filed by the bot's own quick run at the episode's end
+(early) and full run 12 hours on (final), the desk's Accept all for anything waiting, a held quick check confirmed in
+Backstage, the desk's "When did Merged start?", each player's reveal, and the scenario's corrections. Every game's state is
+kept after each episode's early and final results. `rehearse` plays each scenario twice, with the game-specs flag off and on
+(this database only), and compares: every read the same (golden.js's read: as nobody and as each seat, at every mark: the
+table, the span, this week's episode, finale predictions' points and the answer, the game's questions), the same states read
+by `--before=<ref>`'s engine against this tree's (R1's proof: `compare <run> --before=master` from its working tree), the
+invariants, and with `--look` the screens at 390 on the run's clock (a dev server carrying sim-clock.js) and their words
+flag off against on.
+
+**The scenarios** (from prod-2026-10-30: through Episode 6, 13 still in, results by sources that agree; a 13-episode season):
+
+| Scenario | What it covers |
+| --- | --- |
+| `realistic` | the swap at 7 (also the first episode after the clocks go back), an idol found at 8 and played at 10 cancelling the votes on its holder, the merge at 9 with the desk's "When did Merged start?", individual immunity from then, a double boot at 11, a medical evacuation (out with no vote) beside a vote at 12, the finale (votes to four, fire-making, the jury's Sole Survivor, every finishing place), finale predictions made and graded, waivers on the hourly job's clock, the Drive-By at Episode 8's lock |
+| `rough` | a quit beside a vote at the swap (7); a night nobody goes home (8: the bot's quick check holds it, the Tinkerer's It's right in Backstage); a week off the air before 9 (research says two weeks on); the merge at 9, then a player flags its immunity win and the desk decides it didn't happen; a double boot with an idol at 10, then the desk corrects the first boot's exit; at 11 one game is given a result of its own and the desk's Make every game match takes it out; another double boot at 12; the Drive-By at 9's lock |
+| `dst` | Episode 7 locks at 8 PM EST (the Drive-By at 7:55, taken: a lock at October's offset would have shut at 7, and at 8:05, refused); Episode 7's research writes Episode 8's start with October's offset (`-04:00`, as research once did) and the app must still file 8 PM EST (the Drive-By at 8's lock shows it) |
+
+**Results (2026-10-30, prod-2026-10-30): every read is the same with the flag off and on, and through master's engine, in
+every scenario: nothing stands in the way of R2, or of R1 using this as its proof. One fault of the app's own, the same
+either way (item 1 below), fixed the same day: run again with the fix, every invariant holds in all three scenarios, flag off
+and on, and every read is still the same off against on and through master's engine (2,856 a run).**
+
+| Scenario | Invariants, flag off / on | Reads, flag off against on | master's engine against this tree's (off, on) | Screens' words, off against on |
+| --- | --- | --- | --- | --- |
+| realistic | hold / hold | 2,856, every one the same | 2,856 / 2,856, the same | 50 pages, the same (looks at 7, 9, 12, 13) |
+| rough | hold / hold (first run: a correction moved two finishing places, item 1 below, the same with the flag off or on; with its fix, "a correction moves nobody's finishing place" holds both ways) | 2,856, every one the same | 2,856 / 2,856, the same | 60 pages, the same (looks at 8, 9, 10, 11, each again after its corrections) |
+| dst | hold / hold | 2,856, every one the same | 2,856 / 2,856, the same | 26 pages, the same (looks at 7, 8) |
+
+The invariants: a pool pick never repeats (every pick was one the pool offered then: it opens everyone again once you've
+picked everyone still in, its own rule); every game ends at the finale and not before; Outlast ends with the show's winner
+the last one standing; every score finite as nobody and as each seat; nothing scored past a game's span; no move refused that
+the app offered, none taken after the lock; every episode's results filed and accepted. The flag-on runs carried their specs
+(Survival Pool, Weekly Lineup, Outlast). Seen working on the way: Episode 7 airs and locks at 8 PM EST (01:00 UTC), and the
+`-04:00` research filed Episode 8 at 8 PM EST all the same; the week off ("Episode 9 · Wed 8:00 PM · in 13 days", Episode 10
+a week after it); "Nobody went home" in the reveal and "No one out" on the Episodes list; the merge confirmed on the desk; the
+idol's cancelled votes; the finale's places (5th voted out, 4th lost fire-making, 3rd and 2nd by the jury, the Sole
+Survivor) and "Season over" on every game; finale predictions graded (6, 2 and 1 points); the flag and the desk's "no"
+taking the result out of every game; the correction; Make every game match leaving no game apart; Weekly Lineup's waivers
+run by the clock (13 moves in the rough season). Also run on prod-2026-10-26-pre-merge (an older schema, through Episode 5,
+results decided by the desk): the same.
+
+**Run again with every fix below (2026-10-30, this lane), screens read for real:** every invariant holds in all three
+scenarios, flag off and on; every read the same off against on and through master's engine (2,856 a run); no research vote
+warning on any double boot (the earlier run logged 12); and the screens' words the same off against on, now with words on every
+page (realistic 51 at 7, 9, 12, 13; rough 60 at 8–11; dst 26 at 7, 8). **The earlier words comparison was weaker than the
+table says:** the look read the first `[role=dialog]`, and the show's pages keep hidden, pre-mounted panels (the reveal, a
+pushed page, "Waivers ran"), so in the rough runs 30 of 60 pages read as nothing (compared equal, proving nothing), and in
+realistic and dst the reveal's beats, the Your moves sheet and the episode's and How it works' pushed pages were read as the
+page beneath them. season-forward.js now reads only an open dialog, and `compare` calls a page with no words read a
+difference. Against the earlier run's words, the pages read the same way both times (Tonight, Games, Backstage) differ only by
+this step's words: the pool's line on the Games tab, and "The season's over: nothing more to set" on Tonight at the finale.
+
+**What's wrong** (none of it in the reads: flag on and the engine change nothing):
+1. **Fixed (2026-10-30, this lane): a correction of how someone left reordered a night with two exits** (rough, Episode 10:
+   Brady was voted out first, then Maggie; the desk corrected Brady's exit to Medically Evacuated, and in every game he then
+   finished 9th and Maggie 10th: placementOrder 12 → 13 and 13 → 12). The season sync (season-decisions.ts
+   syncLeagueDecisions) undid the re-decided elimination and applied it again after the episode's others, and
+   orderPlacementsByEpisode ordered only across episodes. Outlast scores by finishing order (EliminationOrderScoringStrategy),
+   so its points moved by one for whoever had either, and the pages said the swapped places. **The fix:** the sync notes
+   every night whose exits it takes off or puts on (a correction, a decision rejected and accepted again, a house ruling going
+   on or coming off) and hands orderPlacementsByEpisode that night's exits in the season's order (`within`: the decisions'
+   own, as the sync's query sorts them, by `created_at`; a ruling takes its decision's place, so the rulings query reads it).
+   Those castaways take the places they hold that night, and the episode's list of exits, in that order; a league's own exit
+   that night keeps its place, and a night the sync didn't touch is left exactly as it is. The engine's ordering
+   (state-logic.js) is unchanged. tests/night-order.test.js: a double boot with the first corrected (Outlast's points too);
+   the second corrected, then the first; a triple with the middle one corrected, then corrected to someone else; rejected and
+   accepted again; a house ruling going on and coming off; a league's own exit that night, and a night nobody corrected left
+   alone (all six fail on the old code). season-forward.js's "a correction moves nobody's finishing place" now holds.
+2. **Fixed here: a lock weeks away read as this week.** Finale predictions close when the finale starts, and Tonight's
+   Extras said "until Wed 8:00 PM" six weeks out. `lockTime` (src/new/clock.ts) adds the date once a lock is a week or more
+   away ("Wed, Dec 16, 8:00 PM"); the question sheet's rows use it; tests/new-nav.test.js has it.
+3. **Not a fault in the couch's game; the gap it pointed at fixed for exclusive games (2026-10-30, this lane, the user's "fix
+   all")**. Read as: Weekly Lineup asked for a replacement nobody could make (realistic, Episode 12: with all five still in on
+   teams, Tonight's first move "Replace Jelly · Due Tue 8:00 PM · you pick who comes in" and the waivers page's yellow "Replace
+   Jelly"). Checked fixing it: the couch's Weekly Lineup is **shared** (ownershipMode), where anyone still in who isn't yours
+   can come in, so with Eric and Kristin left the Tinkerer could bring in Carter, Lewis or Cristian: the ask was right, and
+   still shows (the rerun's Episode 12). The gap is real in an **exclusive** game, where every castaway still in can be
+   someone's: **the fix:** StateLogic.WaiverLogic `replacementsOwed` owes nothing while nobody's free to come in
+   (MidSeasonLogic.availableFor empty), and says so (`nobodyFree: true`); every reader (Tonight's moves through
+   action-items.js, the waivers page, the reveal, the claim pickers, the commissioner's tools, selectors.ts, the computer
+   players, the waiver pushes) goes by its count, so none asks; once someone's free (a returnee, a drop into free agency) it's
+   owed again. The waivers page's quiet week says "Nobody's free to pick up: your team plays as it is." (waiver-view.ts
+   `nobodyFree`). Checked against `engine` first: R1 part 1's WaiverLogic hunks (getLeagueType to piecesOf) don't reach
+   replacementsOwed, so it merges cleanly. tests/nobody-free.test.js (Weekly Lineup and Outlast, "always" and "only when
+   short", someone free and then not, a shared game; three of four fail on the old code).
+4. **Production's Survivor 51 has no episode count** (null in the backup). Finale predictions close when the season's last
+   episode starts; with no count the finale isn't known, and by the code (AnswerLogic.closesAt: "A finale nobody's listed
+   yet: at the game's end") they stay open through the finale's broadcast until its results land. The rehearsal sets 13, as
+   the desk would. Before the finale (mid-December): set Survivor 51's episode count on the desk, from the listings.
+5. **Fixed (2026-10-30, this lane): research's vote checks on a double Tribal** (log lines only; nothing held): "19 votes
+   counted against people, but 10 people at Tribal are recorded voting" and "voted out despite winning individual immunity" on
+   every double boot: the checklist has one vote and one immunity a person an episode, and two Tribals the same night don't
+   fit it. **The fix:** two sent home by the vote the same night is two votes, and neither check is made then; one vote, as
+   before. survivor.js (the built-in): the immunity check moves from a person's checks to the episode's, both gated.
+   rulebook-compile.js (the checks as data, S2), in the language as it is: `{segment}WonVotedOut` is an episode check now
+   (`values.votedOut`, `when` one vote at most, `who` and `each` for the person; a rulebook's own condition for it says `who`),
+   and `{vote}VoteCount` counts its own vote's exits the same way. The line about the safe winner now comes after everyone's
+   own. tests/research-review.test.js (a double boot says neither, one vote says both, a rulebook's own condition) and
+   rulebook-golden.test.js (a double boot, survivor.js and its blocks alike, saying neither) fail on the old code.
+6. **Fixed (2026-10-30, this lane): words.** Survival Pool said "Pick one survivor each episode. Never the same twice." (the
+   Games tab, How it works) while its rule picks everyone again once you've had them all (seen at the finale on the 10-26
+   backup); Tonight after the finale said "Nothing to set until the next episode" when there is none. **Now** (the words are
+   the user's to change): the pool says **"No repeats until you've picked everyone still in"** wherever it said never the same
+   (games.ts's line, the public pool's card and its pick line in solo.tsx, the landing page, the solo hub; a sport's game line
+   in rulebook-fits.js: "No repeats until you've picked them all"), which is PickEmLogic.eligibility's cycle rule; describe.js
+   and how-it-works.ts already said it truly ("never the same one twice" only for a spec whose repeat is `never`). Tonight's
+   Your moves with no episode to come: **"The season's over: nothing more to set"** once the season's last episode has aired
+   (`seasonOver`, show-space.tsx: the show bar's and the heading's "Season over" read the same), else **"Your games here are
+   over: nothing more to set"** once every game you play is (GameView.over); "Nothing to set until the next episode" otherwise.
+
+**Run it** (this lane, or R1's from its own tree): `node scripts/dev-test/season-forward.js rehearse
+--from=backups/prod-2026-10-30 --scenario=realistic,rough,dst --before=master` (about 4 minutes; add `--look=...` with the
+dev server above for the screens). A newer backup works the same; a scenario plays from whatever week its backup reached.
+
 ## Noticed, not fixed
+
+- Season-forward rehearsal: on sources that agree, the bot's answers reached every game on their own (one source, trusted):
+  nothing waited for the desk's Accept all all season but the held "nobody went home". The tool accepts whatever waits.
+- Season-forward rehearsal: Outlast starts at Episode 2 and reads 3 each at mark 0, 6 after Episode 1 (its points are who's
+  still standing, counted from the draft): the real game reads the same. Not a span fault; worth a line in How it works.
+- Season-forward rehearsal: the answers it writes have one entry a person an episode, as research's do, so a double boot's
+  two votes are added together and its last vote is the one recorded; the castaways are drawn by a hash of the scenario's
+  seed, so a backup a week on draws different people (and the realistic finale's winner changes).
+- Season-forward rehearsal: golden.js is a module now (its trees and read; its run only as a script), and requiring it no
+  longer replays the tapes.
+- Fixed (2026-10-30, this lane): a night's order through Recent changes' Undo. Undo of a game's own results change that took
+  one of a night's exits out (results-changes.ts undoResults, a commissioner's hand edit) put it back after the night's
+  others, as the sync did. resultsDiff now records each removed exit's place in the night (`at`, in `removed`), and
+  undoResults puts it back there (the night handed to orderPlacementsByEpisode's `within`); a change recorded before has no
+  `at` and undoes as it did. tests/undo-night-order.test.js (a double boot, a method changed in one write, a triple, two in
+  one write, an exit added since; four fail on the old code, the older change passes both ways).
+- A night's order, by hand: a commissioner entering an exit in an earlier episode (the eliminations route, addElimination)
+  gives it the next place, after any later episode's exits, until something orders the season again (a sync that applied or
+  undid something, an Undo). Rare (results come by the sync); what it'd take: orderPlacementsByEpisode after the route's write.
+  Any step that touches the commissioner's results editing.
+- Waivers with nobody free (seen fixing item 3): a week with swaps allowed and nobody free still opens the claim page ("Any
+  swaps this week?") with nobody to add; replacements no longer ask. Rare (a window late in a season). What it'd take: the
+  page's open week only while someone's free (waivers.tsx). Any step on the waivers page.
 
 - The diff compares totals; a per-castaway breakdown would point at a single wrong result faster.
 - The shadow games share the local Survivor 51 season's results: if an admin accepts results locally, they reach the shadows too.

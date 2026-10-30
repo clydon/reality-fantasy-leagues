@@ -5794,7 +5794,9 @@ class WaiverLogic {
   //   windows   -- every loss, but only in a window
   //   never     -- none
   // A window the commissioner opened may say otherwise (period.replace, windowReplaces): on, every loss
-  // can be replaced in it whatever the rule; off, none can.
+  // can be replaced in it whatever the rule; off, none can. And nothing's owed while nobody is free to
+  // come in (every castaway still in on a team: late in a season, the five left all drafted), so no
+  // screen asks for a replacement nobody can make; { ..., nobodyFree: true } says that's why.
   static replacementsOwed(state, playerId, period){
     const none = { count: 0, lossIds: [], outIds: [] };
     let rule = WaiverLogic.replaceRule(state);
@@ -5816,6 +5818,7 @@ class WaiverLogic {
       const at = WaiverLogic.shortAt(state);
       count = Math.min(losses.length, inGame <= at ? at + 1 - inGame : 0);
     }
+    if(count && !MidSeasonLogic.availableFor(state, playerId).length) return { ...none, nobodyFree: true };
     return { count, lossIds: losses.slice(0, count), outIds: count ? losses : [] };
   }
   /** replacementsOwed in the week running now (pre-v2's "pickups owed"). */

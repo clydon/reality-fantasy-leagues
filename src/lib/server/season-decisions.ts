@@ -148,7 +148,7 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
   const gate = StateLogic.RevealLogic.revealedThrough(state);
   const { rows: accepted } = seasonId
     ? await client.query<DecisionRow & { fact_status: string | null; sourced: boolean }>(
-        `SELECT id, episode_number, post_merge, kind, castaway_name, method, event_type, jury_votes, units, applied, decided_at, fact_status,
+        `SELECT id, episode_number, post_merge, kind, castaway_name, method, event_type, jury_votes, units, applied, decided_at, created_at, fact_status,
                 EXISTS (SELECT 1 FROM fact_sources f WHERE f.decision_id = season_decisions.id) AS sourced
            FROM season_decisions WHERE season_id=$1 AND status='accepted' AND ($2::int IS NULL OR episode_number <= $2)
             AND ($3::timestamptz IS NULL OR decided_at >= $3)
@@ -158,17 +158,24 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
         [seasonId, gate, since, season!.resultsBy === "admin"]
       )
     : { rows: [] as (DecisionRow & { fact_status: string | null; sourced: boolean })[] };
-  // House rulings: this league keeps the result as it was, in place of the shared one (accepted or not).
-  const { rows: rulings } = await client.query<{ decision_id: string; keeps: KeptFact; created_at: Date }>(
-    "SELECT decision_id, keeps, created_at FROM league_rulings WHERE league_id=$1",
+  // House rulings: this league keeps the result as it was, in place of the shared one (accepted or not), in the shared one's
+  // place in the season's order (`placed`: when the season first had it).
+  const { rows: rulings } = await client.query<{ decision_id: string; keeps: KeptFact; created_at: Date; placed: Date }>(
+    `SELECT r.decision_id, r.keeps, r.created_at, d.created_at AS placed
+       FROM league_rulings r JOIN season_decisions d ON d.id = r.decision_id WHERE r.league_id=$1`,
     [leagueId]
   );
   const ruled = new Set(rulings.map((r) => r.decision_id));
   const shared = accepted.filter((d) => !ruled.has(d.id));
+  // The season's order, as the query sorts it: episode, who went home first, then as the season had them (a night's exits in
+  // the order they came).
+  const at = (d: DecisionRow) => (d.created_at ? new Date(d.created_at).getTime() : 0);
   const decisions: DecisionRow[] = [
     ...shared,
-    ...rulings.filter((r) => !r.keeps.absent && (gate === null || r.keeps.episode_number <= gate)).map((r) => ({ ...r.keeps, id: r.decision_id, decided_at: r.created_at })),
-  ].sort((a, b) => a.episode_number - b.episode_number || Number(b.kind === "elimination") - Number(a.kind === "elimination"));
+    ...rulings
+      .filter((r) => !r.keeps.absent && (gate === null || r.keeps.episode_number <= gate))
+      .map((r) => ({ ...r.keeps, id: r.decision_id, decided_at: r.created_at, created_at: r.placed })),
+  ].sort((a, b) => a.episode_number - b.episode_number || Number(b.kind === "elimination") - Number(a.kind === "elimination") || at(a) - at(b));
   const byId = new Map(decisions.map((d) => [d.id, d]));
 
   const { rows: ledger } = await client.query<{ decision_id: string; decided_at: Date | null; detail: LedgerDetail }>(
@@ -210,9 +217,16 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
     : { rows: [] as DecisionRow[] };
   const was = new Map(wasRows.map((d) => [d.id, d]));
   const corrected = new Map<number, CorrectedFact[]>();
+  // The nights whose exits this sync takes off or puts on: put back in the season's order there (orderPlacementsByEpisode's
+  // `within`), so a correction never swaps a night's finishing places. Who each decision put out, for that order.
+  const nights = new Set<number>();
+  const outBy = new Map<string, string>();
   for (const row of stale) {
     undoDetail(state, row.detail);
-    if (row.detail.kind === "elimination" && !row.detail.preexisting) eliminationsChanged = true;
+    if (row.detail.kind === "elimination" && !row.detail.preexisting) {
+      eliminationsChanged = true;
+      nights.add(row.detail.episodeNumber);
+    }
     await client.query("DELETE FROM league_applied_decisions WHERE league_id=$1 AND decision_id=$2", [leagueId, row.decision_id]);
     result.undone++;
     if (!row.detail.preexisting) touched.add(row.detail.episodeNumber);
@@ -232,7 +246,11 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
       corrected.set(row.detail.episodeNumber, list);
     }
   }
-  for (const row of ledger) if (!stale.includes(row)) current.add(row.decision_id);
+  for (const row of ledger) {
+    if (stale.includes(row)) continue;
+    current.add(row.decision_id);
+    if (row.detail.kind === "elimination") outBy.set(row.decision_id, row.detail.castawayId);
+  }
 
   // An episode whose results the game already had in full: a result someone sent arriving there now is a correction too
   // (it adds). One an admin entered by hand (classic's Accept, a fact at a time) is still results coming in, not a correction.
@@ -257,8 +275,10 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
       list.push({ id: d.id, name: d.applied?.castawayName || d.castaway_name, label: labelOf(state, d), change: "added", to: null, was: { ...keptOf(d), absent: true } });
       corrected.set(d.episode_number, list);
     }
+    if (d.kind === "elimination") outBy.set(d.id, detail.castawayId);
     if (d.kind === "elimination" && !detail.preexisting) {
       eliminationsChanged = true;
+      nights.add(d.episode_number);
       const ep = state.episodes.find((e) => e.number === d.episode_number);
       if (ep && !result.eliminatedEpisodeIds.includes(ep.id)) result.eliminatedEpisodeIds.push(ep.id);
     }
@@ -305,7 +325,14 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
     }
   }
 
-  if (eliminationsChanged) orderPlacementsByEpisode(state);
+  if (eliminationsChanged) {
+    const within = new Map<number, string[]>();
+    for (const n of nights) {
+      const ids = decisions.filter((d) => d.episode_number === n && d.kind === "elimination" && outBy.has(d.id)).map((d) => outBy.get(d.id)!);
+      if (ids.length > 1) within.set(n, ids);
+    }
+    orderPlacementsByEpisode(state, within);
+  }
   // Where each episode this changed stands: final once any scoring moment is in, or once someone sent the full results
   // (an episode where nothing scored is still finished); early while only who went home is.
   if (touched.size) {

@@ -1,0 +1,17 @@
+{
+  "about": "The rest of Survivor 51 as a season usually goes, from the week after the backup to a 13-episode finale: one voted out most weeks; a tribe swap at Episode 7 (also the week the clocks go back: it airs at 8 PM EST, the first episode after daylight time ends); an idol found at 8 and played at 10, cancelling the votes on its holder; the merge at 9 (the desk answers \"When did Merged start?\"), individual immunity from then on; a double boot at 11; a medical evacuation (out with no vote) beside a vote at 12; the finale votes down to four, fire-making to three, then the jury's Sole Survivor. The Drive-By changes a move five minutes before Episode 8 starts (taken) and five minutes after (refused). Any episode the backup hasn't reached and the scenario doesn't name is one voted out, tribe against tribe.",
+  "seed": "realistic",
+  "finale": 13,
+  "default": { "out": ["Voted Out"] },
+  "episodes": {
+    "7": { "swap": { "tribes": 2 }, "out": ["Voted Out"] },
+    "8": { "idol": { "found": 1 }, "out": ["Voted Out"] },
+    "9": { "merge": "Tavu", "out": ["Voted Out"] },
+    "10": { "idol": { "played": true }, "out": ["Voted Out"] },
+    "11": { "out": ["Voted Out", "Voted Out"] },
+    "12": { "out": ["Medically Evacuated", "Voted Out"] },
+    "13": { "finale": true }
+  },
+  "late": { "8": "driveby" },
+  "after": {}
+}

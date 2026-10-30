@@ -170,6 +170,9 @@ export const isTabOf = (seasonId: string) => (prev: string) => prev.startsWith(`
 /** How many episodes a season has, as far as anyone knows: its count, else what's out. */
 export const episodesOf = (show: ShowData) => show.header?.episodeCount ?? show.latestAired;
 
+/** The season's last episode has aired ("Season over"): known once its episode count is. */
+export const seasonOver = (show: Pick<ShowData, "header" | "latestAired">) => !!show.header?.episodeCount && show.latestAired >= show.header.episodeCount;
+
 /** "All 8 episodes · Netflix" (the mock's streaming wBar): a season watched at your own pace, once it's out. */
 export function allOut(show: ShowData): string {
   const n = episodesOf(show);
@@ -183,7 +186,6 @@ export function allOut(show: ShowData): string {
 function useAirStatus(show: ShowData): ReactNode {
   const { upNext, latestAired, episodes } = show;
   const ep = show.words.ep;
-  const episodeCount = show.header?.episodeCount ?? null;
   const t = upNext?.airAt ? Date.parse(upNext.airAt) : null;
   const now = useNow(t != null && ticks(t));
   if (show.streaming && !episodes?.reveal) {
@@ -202,7 +204,7 @@ function useAirStatus(show: ShowData): ReactNode {
   if (episodes?.reveal) return `${ep} ${episodes.reveal.episode} ${episodes.reveal.stage === "early" ? "early results" : "results are in"}`;
   if (episodes?.waiting) return `${ep} ${episodes.waiting.episode} ${justAired(episodes.waiting.airAt) ? "just aired" : "aired"}`;
   if (upNext && t != null) return `${ep} ${upNext.number} · ${calm(t, now)}`;
-  if (episodeCount && latestAired >= episodeCount) return "Season over";
+  if (seasonOver(show)) return "Season over";
   if (latestAired) return `${ep} ${latestAired} aired`;
   return null;
 }

@@ -204,7 +204,7 @@ function BetterWithFriends() {
 const FRIENDS: Record<GameName, string> = {
   Outlast: "Everyone drafts a team from the cast. Each time someone goes home, the teams still holding people move up; the last one standing carries you. Start a couch, send the code, draft together.",
   "Weekly Lineup": "Draft a team, then start your best three before each episode. Points come from what they do on the night. Play against your couch, or practise against computer players first.",
-  "Survival Pool": "No draft: each episode, pick someone you think survives, never the same person twice. Play with your couch, or against everyone in a season's public pool.",
+  "Survival Pool": "No draft: each episode, pick someone you think survives, with no repeats until you've picked everyone still in. Play with your couch, or against everyone in a season's public pool.",
   "Weekly Calls": "A talk show's game: before each show, two calls about what will happen in it (a surprise cameo? someone breaks?). The couch says what happened as it watches; most right by the finale wins.",
   "Weekly Bingo": "A talk show's other game: a new bingo card every show, nine of its moments. Tick them as they happen; three in a row is a line, and the couch agreeing it happened makes it count. Most lines by the finale wins.",
   "Prediction Sheet": "No draft: before each episode, a few questions about it (who goes home? will an idol be played?), and a few for the season, like who wins. Nobody sees your answers until they lock, the results settle every one, and most points by the finale wins.",

@@ -20,6 +20,8 @@ export interface DecisionRow {
   units: string | null;
   applied: { castawayName?: string; method?: string; eventType?: string } | null;
   decided_at: Date;
+  /** When the season first had it: its place in the season's order (a night's exits in the order they came). */
+  created_at?: Date;
 }
 
 export interface LedgerDetail {
@@ -33,7 +35,7 @@ export interface LedgerDetail {
 }
 
 /** What applying a decision reads of it (the ledger's id and when it was decided aside). */
-export type DecisionFact = Omit<DecisionRow, "id" | "decided_at">;
+export type DecisionFact = Omit<DecisionRow, "id" | "decided_at" | "created_at">;
 
 /** The season's cast rows, for resolving staged names through each league's link (findSeasonCastaway). */
 export type CastRef = { id: string; name: string }[];
@@ -173,10 +175,28 @@ export function removeOwn(state: LeagueState, n: number, own: OwnResult) {
 // the episode-2 one. Re-deriving it from episode order after a sync keeps it right whatever order
 // the admin worked in. Only when every eliminated castaway has a known exit episode, so a league with
 // hand-entered history from before exit episodes were recorded is left exactly as it is.
-export function orderPlacementsByEpisode(state: LeagueState) {
+//
+// `within`: a night's exits in the season's order (episode number → castaway ids, the first out first), for a night whose
+// exits a sync took off and put back (a correction, a decision rejected and accepted again, a house ruling): put back, one
+// would otherwise come after the night's others. Those castaways take the night's places they hold, and its list of exits,
+// in that order; anyone else out that night (a league's own result) keeps theirs.
+export function orderPlacementsByEpisode(state: LeagueState, within?: Map<number, string[]>) {
   const epNumber = new Map(state.episodes.map((e) => [e.id, e.number]));
   const out = state.castaways.filter((c) => c.status === "eliminated" && typeof c.placementOrder === "number");
-  if (out.some((c) => !c.exitEpisodeId || !epNumber.has(c.exitEpisodeId))) return;
-  out.sort((a, b) => epNumber.get(a.exitEpisodeId!)! - epNumber.get(b.exitEpisodeId!)! || a.placementOrder! - b.placementOrder!);
-  out.forEach((c, i) => (c.placementOrder = i + 1));
+  if (!out.some((c) => !c.exitEpisodeId || !epNumber.has(c.exitEpisodeId))) {
+    out.sort((a, b) => epNumber.get(a.exitEpisodeId!)! - epNumber.get(b.exitEpisodeId!)! || a.placementOrder! - b.placementOrder!);
+    out.forEach((c, i) => (c.placementOrder = i + 1));
+  }
+  for (const [n, ids] of within ?? []) {
+    const rank = new Map(ids.map((id, i) => [id, i]));
+    const byRank = (a: string, b: string) => rank.get(a)! - rank.get(b)!;
+    const night = out.filter((c) => rank.has(c.id) && c.exitEpisodeId && epNumber.get(c.exitEpisodeId) === n);
+    const places = night.map((c) => c.placementOrder!).sort((a, b) => a - b);
+    night.sort((a, b) => byRank(a.id, b.id)).forEach((c, i) => (c.placementOrder = places[i]));
+    const ep = state.episodes.find((e) => e.number === n);
+    if (!ep) continue;
+    const slots = ep.events.flatMap((e, i) => (rank.has(e.castawayId) ? [i] : []));
+    const ordered = slots.map((i) => ep.events[i]).sort((a, b) => byRank(a.castawayId, b.castawayId));
+    slots.forEach((slot, i) => (ep.events[slot] = ordered[i]));
+  }
 }

@@ -126,7 +126,8 @@ function gameLine(key, blocks, slots) {
   const team = start + ((slots && slots.bench) || 2);
   if (kind === 'sport') {
     if (key === 'weeklyLineup') return `Draft ${say(team)} ${many}, start ${say(start)} each ${part}`;
-    if (key === 'survivalPool') return `Pick one ${one} to score each ${part}. Never the same twice`;
+    // The pool's cycle rule (StateLogic.PickEmLogic.eligibility): nobody again until you've picked everyone.
+    if (key === 'survivalPool') return `Pick one ${one} to score each ${part}. No repeats until you've picked them all`;
   }
   if (kind === 'series' && key === 'weeklyLineup') {
     return b.start === 'scripted'

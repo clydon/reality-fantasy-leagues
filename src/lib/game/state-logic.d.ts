@@ -326,9 +326,10 @@ declare const StateLogic: {
     swapsLeft(state: LeagueState, period: WaiverPeriod | null | undefined, playerId: string): number;
     addDropUsed(state: LeagueState, period: WaiverPeriod, playerId: string): boolean;
     /** How many this player may replace in `period`; lossIds: the oldest that many; outIds: every loss a claim may name. */
-    replacementsOwed(state: LeagueState, playerId: string, period: WaiverPeriod | null | undefined): { count: number; lossIds: string[]; outIds: string[] };
+    /** Nothing owed while nobody's free to come in (`nobodyFree`: a loss that would be, if someone were). */
+    replacementsOwed(state: LeagueState, playerId: string, period: WaiverPeriod | null | undefined): { count: number; lossIds: string[]; outIds: string[]; nobodyFree?: true };
     /** replacementsOwed in the week running now (pre-v2 name). */
-    pickupsOwed(state: LeagueState, playerId: string): { count: number; lossIds: string[]; outIds: string[] };
+    pickupsOwed(state: LeagueState, playerId: string): { count: number; lossIds: string[]; outIds: string[]; nobodyFree?: true };
     maxPickupClaims(owed: number): number;
     schedule(state: LeagueState, period: WaiverPeriod): { processAt: string; closesAt: string | null };
     refresh(state: LeagueState): void;
