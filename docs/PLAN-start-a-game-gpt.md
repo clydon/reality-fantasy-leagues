@@ -27,6 +27,11 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 - **Randomize** (the user, 2026-10-29, for later): Create a game offers two doors, **GPT it** or **Randomize**. Roll again as
   often as you like, and lock a few things before rolling: the length (one episode, say) and one or two main rules. A rolled
   game is "easy to read at a glance": a very short description.
+- **Game pages, generated** (the user, 2026-10-30): the Games tab keeps today's overview, with the moves to make and each
+  game's brief up front the moment it opens, and becomes a **game launcher** when there's more than one game: each game gets
+  **its own page**, with more control and insight into it. The combinations run to thousands, so no page is designed per game:
+  "a heavy research spike of a programmatic way to generate the UIs", then a handful of generated screenshots to review the
+  UX, then a few hundred unique combinations. Better, more efficient ways to review and test the generated screens are welcome.
 
 ## Decisions (the user's answers, 2026-10-27)
 
@@ -47,6 +52,7 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | The engine lab (2026-10-28) | **Yes**, in A5: an admin-only, plain page on the desk for trying the engine's pieces before the UI exists. |
 | Exclusive or shared (2026-10-28) | **Shared whenever the math says so** (the user: "many things will just mathematically have to be shared, no way around it", as in a 12-person Survivor game where everyone drafts several castaways). An exclusive draft only when the pool covers every pick, counted where the game drafts and as the pool shrinks (a later stage, a side draft, group slots among fourteen pairs); otherwise our check makes it shared and the wizard says why ("12 players × 3 picks is more than 18 castaways: two of you can have the same one"). Group slots are shared by default. |
 | Randomize (2026-10-29) | **Planned** (the user's idea): the wizard's other door, designed in U0 with the rest of it, its engine piece G4 built before U1. No bot: a roll is instant, free and works when the bot is away. |
+| Game pages (2026-10-30) | **Planned** (the user's idea): the Games tab stays the overview (the moves and each game's brief first) and launches each game's own page, opened over the show (no per-game tabs). Pages are generated from the spec, the game's state and the seat, never designed one by one: track V (a research spike, a first look, a review set of a few hundred games), then U0 frames them and U1 builds them. |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -449,7 +455,7 @@ rest, settles: how a maker asks for it (the builder's words, the wizard's assump
 (what changed, what the game did, a new draft opening and its deadline); what the maker and the commissioner can confirm,
 change or undo; how a wrong report is put right in front of the players; and the edge cases (a change during a draft, two
 changes in one episode, a change in the finale, a change that comes back). It runs after A12, so it designs on what the
-engine does, before any of its UI is built; then the UI follows it (U0 for the wizard's part, the game pages for the rest).
+engine does, before any of its UI is built; then the UI follows it (U0 for the wizard's part, the game pages (track V) for the rest).
 
 ## Live sports in the same engine (folded in 2026-10-28)
 
@@ -568,6 +574,26 @@ session or bout.
   field from what's on (the guide's shows and games, so "endless" shows before anyone types); the errors (bot away, show not set
   up, a past game, can't count that); How it works for a game someone typed. Walk it through the archetypes
   (`docs/ARCHETYPES.md`): the Tinkerer's custom game, the Drive-By's quick one, the Late Recruit reading a game someone typed.
+
+## The Games tab and game pages (track V, then U0)
+
+- **Today** (master, 2026-10-30): a game is a block on the show's Games tab (`src/new/show/games.tsx`): its standings (a row
+  opens the player sheet), its rules in a sheet, This week. Its move for the night is a card on Tonight, and its tools (Draft,
+  Waivers, Scoring, Blind, Backstage) are pages over the show. That holds one simple game, not what the engine now makes: a
+  matchup and a bracket, teams, lives and who went out when, stages with their own tables, a game's span and its history
+  (most of the Noticed items marked U1).
+- **The Games tab, an overview and a launcher** (the user): it opens on the moves to make and each game's brief, up front as
+  today, and under them every game the couch plays on the show, each opening its own page. With one game, U0 decides whether
+  the tab shows that page in place.
+- **A game's page:** more control and insight into that one game: where you stand and why, this week (your move, your
+  matchup), the whole table, bracket or teams, what's happened episode by episode (corrections included), the rules in the
+  engine's words (the short form on top, the sentence and How it works a tap away), and the maker's controls. It opens over
+  the show as Draft and Scoring do, so the show's tabs stay the show's (the 2026-10-22 mock: no per-game tab sets, no game
+  switcher).
+- **Generated, never designed one by one:** the dials multiply to thousands of games, so a page is composed in code from
+  blocks that the spec, the game's state and the seat call for. The design goes into the blocks and the rules that pick and
+  order them, reviewed on generated screens (V2, V3). Deterministic at run time: nothing composes a page with AI when someone
+  opens it (no paid service, and the bot is never in a page's path).
 
 ## Steps (each its own session, Opus 5.5 at xhigh)
 
@@ -963,11 +989,45 @@ screens. Each step names the research data it needs and checks the tapes have it
   form fits its cap. After A14 (the pieces it rolls) and before U0, so the mocks show real rolls. No migration: a rolled game
   is an ordinary spec.
 
+**V. Game pages, generated** (the user, 2026-10-30; "The Games tab and game pages", above).
+- **V1. The page generator: a research spike, then a prototype** (heavy; likely two sessions). First how others turn data
+  into screens: server-driven UI (screens described as a tree of known components), schema-driven forms, generative UI over a
+  component catalog, design systems' composition rules; what holds at thousands of shapes and what breaks. Then ours: a
+  catalog of blocks (the brief, your move, where you stand by how the game ranks: a table, a matchup, a bracket, teams, lives,
+  stages; this week; what's happened; the rules; the maker's controls), each reading `game-view.ts` and saying what it needs;
+  the rules that pick and order them by the spec, the game's state (not started, early results, mid-season, behind on
+  watching, out, ended, archived) and the seat (a player, the maker, someone behind); how each block reads empty, early or
+  corrected; the Games tab's overview and launcher from the same blocks. Out: a written recommendation, a prototype that
+  renders any spec's page on a real season (plain styling is fine), and a playground in the engine lab: turn the dials, or
+  roll once G4 is in, and the page changes at once. It decides nothing a person sees; V2's review and U0 do. The research can
+  start any time; the prototype after A12, when the view's shapes have settled.
+- **V2. The first look.** About ten pages picked to differ (a draft by points, head to head with playoffs, a pool with lives,
+  co-op, teams, a game of questions, stages), on taped seasons at 390, Night and Studio, through `scripts/dev-test/`'s
+  headless browser. The user reviews the UX; the blocks and rules change; again until the shape holds.
+- **V3. The review set: a few hundred unique games.**
+  - **Chosen, not random:** a covering array over the dials (every pair of choices in some game), the tracker's rows and G4's
+    rolls; each passed by our check and deduped by its canonical spec.
+  - **In states and seats:** each game at a few moments of a taped season through the blind replays (before it starts,
+    Episode 1, mid-season, the finale, ended), as a player, the maker and someone behind; zt- seats only, and the screens
+    kept outside the repo (it's public).
+  - **Machine checks first, on every screen:** no sideways scroll at 390, nothing clipped or overlapping, tap targets,
+    contrast and an axe pass, no empty labels, "undefined" or NaN, and no spoilers for someone behind (the blind replays know
+    what each seat may see).
+  - **Looks, not screens:** screens with the same blocks in the same order are one look; a person reviews one of each, plus
+    what the checks flagged.
+  - **Claude's first pass** (the Claude Code CLI on this PC, never the site's keys) against a rubric: the next move clear at a
+    glance, the brief readable, each archetype (`docs/ARCHETYPES.md`); the looks ranked worst first.
+  - **The user's review in a gallery:** each look with keep or fix and a note, stored where the lane fixing them reads the
+    verdicts back (an Artifact with a database, or a desk page).
+  - **Then golden screens:** the set renders again after every change and is diffed, so a fix in one block can't quietly
+    break two hundred games.
+
 **U. The UI, last** ("it can get complicated": the user, 2026-10-28). Simple on top, powerful underneath (The wizard, above).
 - **U0. Design.** Impeccable `shape`, then mocks in `.impeccable/mocks/start-a-game/` at 390: the wizard and everything listed
   under it above (was G0), answering questions and their results (was A4's), the live pieces with the watch along (A15), the
   sports screens (track L's: the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync,
-  each format's own; was the sports plan's step 0), and the few controls the pieces need. Everything else is reached by words.
+  each format's own; was the sports plan's step 0), the Games tab (its overview and launcher) and the frame of a game's page
+  (on track V's blocks and the looks V3's review kept), and the few controls the pieces need. Everything else is reached by words.
   Randomize is designed with the wizard (its door, the lock chips, Roll again and Back, the short form), on G4's real rolls.
   The user confirms before anything is built.
   **The sports screens' brief** (the sports plan's step 0 prompt, kept here 2026-10-28 so it isn't lost): phone first at 390 in
@@ -977,12 +1037,13 @@ screens. Each step names the research data it needs and checks the tapes have it
   with a player sheet; one format first, head-to-head. Light inspiration from the MLB app, Yahoo Fantasy and Yahoo Sports. Ask
   the user before deciding anything the plan leaves open.
 - **U1. Build.** The field and the wizard in Start a game, Start from a spec, Make it a game chained for a show that isn't set
-  up (was G2); answering and results; the live and sports screens; checked at 390 on Night and Studio with a zt- fixture.
+  up (was G2); answering and results; the live and sports screens; the Games tab's launcher and the game pages from track V's
+  generator (V3's golden screens their check); checked at 390 on Night and Studio with a zt- fixture.
 
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 
 **Suggested order** (revised 2026-10-28): S1 → S2 → A1 → A2 → A3 → A4 (all built or building), S3 once proven, then A5 (the
-tracker) → A6 → … → A13 (A14 if allowed) → A15 → R1 → R2 → R3 → U0 → U1. Alongside: G1 from A5, G4 between A14 and U0; track L in the Sports lane
+tracker) → A6 → … → A13 (A14 if allowed) → A15 → R1 → R2 → R3 → U0 → U1. Alongside: G1 from A5, G4 between A14 and U0, track V from A12 (V1's research any time; V3 adds G4's rolls once built); track L in the Sports lane
 (L1 and L2 any time; L3 and L4 as master gets A2 and each format's engine piece; L6 releases it), then G3. Run in lanes (next
 section), it takes about half the calendar time.
 
