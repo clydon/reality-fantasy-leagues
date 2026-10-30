@@ -1,0 +1,22 @@
+{
+  "about": "The weeks that go wrong, from the week after the backup to a 13-episode finale: a tribe swap at Episode 7 with a quit (out with no vote) as well as a vote; a night nobody goes home at 8 (no Tribal); a week off the air before 9 (research says the next episode is two weeks on, and the app's schedule takes it from there); the merge at 9, then a player flags the night's immunity win as wrong and the desk decides it didn't happen (out of every game); a double boot at 10 with an idol played at the first vote, then the desk corrects how the first one left (Voted Out to Medically Evacuated); at 11 one game is given a result of its own the season hasn't (a reward, as a commissioner once entered one) and the desk's Make every game match takes it out; another double boot at 12; the finale as usual. The Drive-By changes a move at Episode 9's lock (five minutes either side).",
+  "seed": "rough",
+  "finale": 13,
+  "default": { "out": ["Voted Out"] },
+  "schedule": { "off": [9] },
+  "episodes": {
+    "7": { "swap": { "tribes": 2 }, "out": ["Quit", "Voted Out"] },
+    "8": { "idol": { "found": 1 }, "out": [], "tribal": false },
+    "9": { "merge": "Tavu", "out": ["Voted Out"] },
+    "10": { "idol": { "played": true }, "out": ["Voted Out", "Voted Out"] },
+    "11": { "out": ["Voted Out"] },
+    "12": { "out": ["Voted Out", "Voted Out"] },
+    "13": { "finale": true }
+  },
+  "late": { "9": "driveby" },
+  "after": {
+    "9": [{ "do": "flag", "event": "immunity", "desk": "no" }],
+    "10": [{ "do": "correct", "exit": "Medically Evacuated" }],
+    "11": [{ "do": "own", "event": "reward" }]
+  }
+}

@@ -508,7 +508,9 @@ function Quiet({ week }: { week: WaiverWeek }) {
         <span className="type-caption tag-cut grid place-items-center bg-secondary pl-3 pr-5 text-[13px] text-foreground [--tag-slant:12px]">This week</span>
         <span className="flex-1 py-2.5 pl-2 pr-3">
           <b className="type-caption block text-[20px]">Nothing to do this week</b>
-          <small className="block text-[13px] text-plate-muted">{next ? `Next chance to move: after Episode ${next}` : "Your team plays as it is."}</small>
+          <small className="block text-[13px] text-plate-muted">
+            {week.nobodyFree ? "Nobody's free to pick up: your team plays as it is." : next ? `Next chance to move: after Episode ${next}` : "Your team plays as it is."}
+          </small>
         </span>
       </div>
       {week.order.length > 0 && <Order week={week} due={null} />}

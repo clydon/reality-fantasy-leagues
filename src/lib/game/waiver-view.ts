@@ -63,6 +63,8 @@ export interface WaiverWeek extends GameRefIn {
   /** Who of yours to replace this week (the oldest first), and anyone else out a pick may name. */
   replace: string[];
   outIds: string[];
+  /** Someone of yours is out but nobody's free to come in (everyone still in is on a team), so there's nothing to replace. */
+  nobodyFree: boolean;
   swapsAllowed: number;
   swapsLeft: number;
   /** Your team: still in first, then who's out. */
@@ -275,6 +277,7 @@ export function waiverWeek(game: GameRefIn, full: LeagueState, playerId: string,
         : null,
     replace: owed.lossIds,
     outIds: owed.outIds,
+    nobodyFree: "nobodyFree" in owed && !!owed.nobodyFree,
     swapsAllowed: live ? W.swapsAllowed(current) : 0,
     swapsLeft: live ? W.swapsLeft(view, current, playerId) : 0,
     team,
