@@ -3,8 +3,11 @@
 Status: **planned 2026-10-27; hardened 2026-10-28** with the user: the engine first, built to everything in "Where the engine
 is headed", then today's games recreated on it, then the UI last; the GPT's words grow alongside the engine. **S1 (2026-10-27)
 and S2 (both parts, 2026-10-28) are built and merged into master** (their As built is under track S); the test couch plays
-them next (the user's, in production). A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
-the screens moved to U1), not yet merged: the main folder merges them (review, checks, the Neon rehearsal, the user's OK).
+them next (the user's, in production). **Merged and live in production (2026-10-30):** A1–A11 part 5b with F1–F4 (9:29 AM,
+`df527fe6`, migrations 0200–0202), then A11 part 5c, A12 part 1 and R1 parts 1–2 (2:59 PM, `46b77bba`, migration 0203), and
+**the game-specs flag is on** (R2, 2:39 PM: every league carries its spec); later parts stay on `engine` until the main folder
+merges them, after each lettered step. A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
+the screens moved to U1), merged and live since 2026-10-30 (above).
 A5 to A9 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time; more
 answers; scoring that combines, per question and points per bingo line, then per lineup: a captain, best ball, Outlast in
 reverse, points that multiply by when). The format foundation (F1 to F4, one part a session: "Formats nobody
@@ -116,6 +119,8 @@ and `docs/PLAN-researched-survivor.md` (Survivor's switch, now mid-season: track
 | Randomize (2026-10-29) | **Planned** (the user's idea): the wizard's other door, designed in U0 with the rest of it, its engine piece G4 built before U1. No bot: a roll is instant, free and works when the bot is away. |
 | Game pages (2026-10-30) | **Planned** (the user's idea): the Games tab stays the overview (the moves and each game's brief first) and launches each game's own page, opened over the show (no per-game tabs). Pages are generated from the spec, the game's state and the seat, never designed one by one: track V (a research spike, a first look, a review set of a few hundred games), then U0 frames them and U1 builds them. |
 | A pool's finale (2026-10-30) | **Only the winner survives the finale** (the user: "it keeps the game rules consistent: pick the player that survives the episode"; chosen over the finalists surviving it, high stakes accepted). A finale pick is right only when its person is who the results record as winning (each winner, on a show with several); a finalist who loses is out like any exit; on a show with no winner, whoever isn't among the episode's exits survives, as on any night. Data settles it. It changes today's pools' finales (Survivor 51's Survival Pool on Dec 16): built and merged before then. |
+| A preset's rule (2026-10-30) | **Open until the engine is complete** (the user). Whether a tapped preset meets the same data-can-settle rule as the GPT's games: R1 part 1's question, options (a) to (c) in its Noticed (Claude recommends (a)). The user's reason: what the moments say research can answer may differ from what research reliably returns at the end of each episode. So decide it on what research actually returns: the season tapes hold every research answer, episode by episode, so each moment's real rate can be measured then. Nothing running is affected meanwhile (no couch plays a show with couch-answered moments). A fourth option, from "Custom moments" below: (d) a preset's couch-answered moment goes through the same feasibility ask, becoming a question research answers each episode if it's feasible, else scoring 0. |
+| Custom moments (2026-10-30) | **Allowed, sometimes encouraged** (the user: "a fun league of Below Deck that just every week players guess 'did someone cry'"). A moment the show's research doesn't cover, typed to the GPT or added by hand (Make it ours included), takes the new-moment path in "Our check": a short feasibility ask at the start (how reliably research can answer it each episode, from recaps), and, if it's feasible, a question research asks after every episode (it won't come up unless it's asked explicitly). The user leans toward allowing somewhat-reliable moments (crying "will likely be mentioned in post episode recaps"); the bar (high only, or medium too) is still open. Claude's recommendation: medium too, with three nets: the feasibility answer shown to the maker, an episode research can't settle voided (no points either way), and the game's real answer rate shown as the season goes. Before the bar is set, measure on the season tapes whether the feasibility ask predicts what research actually returns (the user's concern in "A preset's rule"). |
 
 ## What's there today (mapped 2026-10-27)
 
@@ -1808,7 +1813,7 @@ Nothing scores differently on any league today, and the computer players choose 
     - Declined: a finale result typed in by hand still counts for nothing when the results never record a winner. Only data
       settles it (the user's rule), and the season sync records the winner's exit.
   - **For the merge:** 0200 is rehearsed with the other migrations, and goes in HOSTING.md (`game_answers`: a row per
-    answer, tiny; nothing polls or runs on a schedule). Production's flag is off, so no carried spec there has A2's shape;
+    answer, tiny; nothing polls or runs on a schedule). Production's flag was off then (on since 2026-10-30), so no carried spec there has A2's shape;
     if it were turned on before this merges, `game-specs-flag.js on` would carry them again.
   - **For part 2** (impeccable `shape` first, at 390, then build):
     - Answering a game's questions: where they live (Tonight's card, Your moves' tab, the dock), the lock's countdown,
@@ -2147,7 +2152,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     with the late lock; `phase-starts.ts` settles phases for games that ask by phase (the desk's pass and the season sync);
     the sheet and its night lines treat a windowed question as the week's.
   - **The shape changed** (a new extra): this lane's nine carried specs drifted and were carried again (`game-specs-flag.js
-    on`), as A4's were. Production's flag is off, so nothing there carries a spec.
+    on`), as A4's were. Production's flag was off then (on since 2026-10-30), so nothing there carries a spec.
   - **Words:** "Every two episodes, before the first:", "Before each episode, about it and the next two:", "Once a phase, as it
     begins:"; the sentence says "before every two episodes" or "each phase"; the late lock in How it works ("Watching late?
     Answer before you watch...") and in the details.
@@ -4460,7 +4465,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   screens' readers). Its proof beyond the golden replays: the Survivor lane's Survivor 51 season-forward rehearsal
   (`scripts/dev-test/season-forward.js`), which has to pass before R1 merges (never on a Wednesday; the main folder merges).
 
-  **As built (R1 part 1, 2026-10-30, on `engine`, not merged; no migration).** One session.
+  **As built (R1 part 1, 2026-10-30; merged and live the same day, `46b77bba`; no migration).** One session.
   - **The pieces** (`state-logic.js` `piecesOf(state)`): a game plays the composition its spec names, never a league type. Its
     draft mechanic from how it gets its castaways (`DRAFT_PIECES` by `get.order`: a snake, a blind draft, a draw, an auction;
     `NoDraftStrategy` with nothing to draft: `draftPiece`), its scorer from how it scores (`SCORE_PIECES` by `score.by`: the boot
@@ -4512,7 +4517,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     scoring-event route's wider gate (above); How it works and the stats loading every one of the viewer's games on the season to find
     the one scored by moments (cached by hash, a handful of games).
 
-  **As built (R1 part 2, 2026-10-30, on `engine`, not merged; no migration).** One session.
+  **As built (R1 part 2, 2026-10-30; merged and live the same day, `46b77bba`; no migration).** One session.
   - **The games scored outside the state read their pieces:** Weekly Calls, Weekly Bingo and a game of questions are chosen by
     `StateLogic.piecesOf` (`hasCalls`, `hasBingo`, `hasQuestions`: game-spec `flagsOf`, from how the spec scores and what it asks), never
     a league type or a type id compared by name. A game of questions' answers, its walk, its standing and its stages' walk
@@ -4595,6 +4600,8 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     that finalist's pick right; the night's rule written out three times (a pool's grade, `double`, the answers' facts: one `nightOf` now)
     and `formatOf` read for every exit of every pick (once a night now); a test that didn't touch a game of questions (it grades one now).
 - **R2.** The game-specs flag on in production (the user's OK), then a week of watching every table.
+  **Done 2026-10-30, 2:39 PM** (the main folder's `.session-loop/flag-on-prod.ps1`, the user's Copy and Enter: the read-only
+  check passed on all 10 leagues, then 10 of 10 carry their spec); the week of watching runs to 2026-11-06.
 - **R3.** The old type code goes: `LEAGUE_TYPES`, the literal comparisons (45 files), and the UI's flags, read from the spec.
 
 **G. The Start-a-game GPT** (alongside the engine track; its screens are the UI track's).
@@ -4817,7 +4824,7 @@ The main session records each switch here.
 - **Spoilers.** The wizard never lists the cast (who's still in would spoil someone behind); the draft room shows it, as today.
 - **Keeping the words.** Each ask (words, request, spec, started or not) is worth keeping for 30 days to grow the sentence bank.
   It's people's own text, so it never goes in the repo (it's public), and it goes in HOSTING.md.
-- **Open, for their steps:** the reliability bar for a new research question (high only, or medium too); points per question by
+- **Open, for their steps:** the reliability bar for a new research question (high only, or medium too: the user leans medium, 2026-10-30, in the Decisions table's "Custom moments"); points per question by
   default; whether a game can be made with no couch (today: Start a couch first); what the GPT says for a sports format the
   branch hasn't built yet.
 
