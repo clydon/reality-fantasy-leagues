@@ -51,6 +51,7 @@ type SheetState =
   | { k: "added"; answer: string; confirmed: boolean; lines: MoveLine[] }
   | { k: "trivia"; id: string }
   | { k: "clear" }
+  | { k: "match" }
   | { k: "now"; kind: "full" | "trivia" }
   | null;
 
@@ -216,6 +217,22 @@ export function EpisodePage({ id, n }: { id: string; n: number }) {
               {plural(gone.length, "result")} rejected or taken out
             </button>
           )}
+          {e.apart.length > 0 && (
+            <div data-apart className="mt-4 rounded-[4px] bg-card p-3.5">
+              <b className="block text-[16px]">{e.apart.length === 1 ? "A game doesn't match" : `${e.apart.length} games don't match`}</b>
+              <ul className="mt-1 flex flex-col gap-0.5 text-[14px] leading-snug text-muted-foreground">
+                {e.apart.map((g) => (
+                  <li key={g.leagueId} data-apart-game={g.name}>
+                    {g.name}
+                    {g.couch ? ` (${g.couch})` : ""}: {apartLine(g, false)}
+                  </li>
+                ))}
+              </ul>
+              <Btn data-match className="mt-3 w-full" onClick={() => setSheet({ k: "match" })}>
+                Make every game match
+              </Btn>
+            </div>
+          )}
         </Section>
       )}
 
@@ -374,9 +391,46 @@ export function EpisodePage({ id, n }: { id: string; n: number }) {
           toast(out.text);
         }}
       />
+      <HoldSheet
+        open={sheet?.k === "match"}
+        onOpenChange={(o) => !o && close()}
+        title="Make every game match?"
+        subtitle="This can't be undone"
+        consequence=""
+        body={
+          <ul data-match-sheet className="flex list-disc flex-col gap-2 rounded-[3px] bg-background p-3 pl-7 text-[16px] leading-normal">
+            {e.apart.map((g) => (
+              <li key={g.leagueId}>
+                <b>{g.name}</b>
+                {g.couch ? ` (${g.couch})` : ""}: {apartLine(g, !hide)}
+              </li>
+            ))}
+            <li>Every game on {e.season.name} then has the season&apos;s {plural(e.facts.filter((f) => f.state === "live" || f.state === "canon").length, "result")} for Episode {n}, no more, no fewer. Each one changed says so in its Recent changes.</li>
+          </ul>
+        }
+        cta="make them match"
+        restore="Can't be undone: a game's own results aren't kept"
+        onConfirm={async () => {
+          const out = await deskSend<{ changeId: string; text: string }>(path, { match: true });
+          close();
+          await done(out);
+        }}
+      />
       {research.data && sheet?.k === "now" && <NowSheet open onClose={close} r={research.data} kind={sheet.kind} episode={n} />}
     </div>
   );
+}
+
+/** What making one game match does: its own results out (named, with names shown), the season's it's missing in. */
+function apartLine(g: DeskEpisode["apart"][number], named: boolean): string {
+  const goes = (k: number) => (k === 1 ? "comes" : "come");
+  const own = !g.own.length
+    ? null
+    : named
+      ? `${g.own.map((o) => `${o.name.split(" ")[0]} · ${o.label}`).join(", ")} ${goes(g.own.length)} out`
+      : `${plural(g.own.length, "result")} of its own ${goes(g.own.length)} out`;
+  const missing = g.missing ? `${plural(g.missing, "result")} it's missing ${goes(g.missing)} in` : null;
+  return [own, missing].filter(Boolean).join("; ");
 }
 
 function Pill({ on }: { on: boolean }) {
@@ -647,7 +701,14 @@ function CorrectSheet({ e, f, onClose, decide }: { e: DeskEpisode; f: EpisodeFac
   };
   if (!f) return null;
   const name = who ?? (f.unknown ? f.guess : f.name);
-  const options = f.kind === "elimination" ? e.choices.methods.map((m) => [m, m] as const) : f.kind === "event" ? e.choices.events.map((x) => [x.id, x.label] as const) : [];
+  const options =
+    f.kind === "elimination"
+      ? e.choices.methods.map((m) => [m, m] as const)
+      : f.kind === "event"
+        ? e.choices.events.map((x) => [x.id, x.label] as const)
+        : f.kind === "group"
+          ? e.choices.groups.map((g) => [g, g] as const)
+          : [];
   const current = f.kind === "event" ? (e.choices.events.find((x) => x.label === f.label)?.id ?? "") : f.label;
   // An exit with no way out given (or a moment not in the list) starts on the list's first, as the select shows it.
   const value = what ?? (options.some(([v]) => v === current) ? current : (options[0]?.[0] ?? current));
@@ -673,7 +734,7 @@ function CorrectSheet({ e, f, onClose, decide }: { e: DeskEpisode; f: EpisodeFac
       </div>
       {options.length > 0 && (
         <label className="mt-4 block">
-          <span className="mb-1.5 block text-[14px] font-bold text-muted-foreground">What happened</span>
+          <span className="mb-1.5 block text-[14px] font-bold text-muted-foreground">{f.kind === "group" ? "Moved to" : "What happened"}</span>
           <select data-what value={value} onChange={(ev) => setWhat(ev.target.value)} className="h-12 w-full rounded-[3px] bg-background px-3 text-[16px] outline-1 -outline-offset-1 outline-input">
             {options.map(([v, l]) => (
               <option key={v} value={v}>
@@ -694,7 +755,7 @@ function CorrectSheet({ e, f, onClose, decide }: { e: DeskEpisode; f: EpisodeFac
           shut();
           void decide(
             f,
-            { edit: { castawayName: name, ...(f.kind === "elimination" ? { method: value } : f.kind === "event" ? { eventType: value } : {}) } },
+            { edit: { castawayName: name, ...(f.kind === "elimination" || f.kind === "group" ? { method: value } : f.kind === "event" ? { eventType: value } : {}) } },
             `Corrected · ${name.split(" ")[0]} · ${label}, in ${allGames(e.games)}`
           );
         }}

@@ -15,7 +15,9 @@ import { reachCopies } from "./ours";
 
 // Something the rulebook doesn't have (docs/PLAN-new-design.md step 6c part 2; rulebooks phase 5, community-confirmed;
 // the mock's rulebook.js rbNewCard). When an answer for an episode says the show changed how it's played (research's
-// `rulesNote`, db/episode-research.js), the episode's page asks everyone on a couch who has seen it: It's new, or Not new.
+// `rulesNote`, db/episode-research.js), the episode's page asks the Commissioners on a couch who have seen it: It's new, or
+// Not new. Rules are a Commissioner's (roles.ts: a Game admin does results and waivers, not rules), so a player or a Game
+// admin never sees the card (the user, 2026-10-29: players would vote for what helps their team).
 // Voices are counted by couch (a couch's newest answer; a couch whose own research said so counts as saying it's new, and
 // so does our bot's research, as one voice of its own):
 //
@@ -111,14 +113,18 @@ async function voices(noticeId: string | null, notes: NoteRow[]): Promise<{ yes:
   return { yes: all.filter(Boolean).length, no: all.filter((v) => !v).length, byCouch };
 }
 
-/** Whoever plays (or runs a game) on this couch's season and has seen the episode; null for someone who hasn't seen it. */
-async function scope(user: SessionUser, seasonId: string, couchId: string | null, episode: number): Promise<boolean> {
+/**
+ * Who's asked: a Commissioner of a game on this couch's season (or a site admin) who has seen the episode. `rules`: they're
+ * a Commissioner here; `seen`: they've seen it. Someone not on the couch's games is refused.
+ */
+async function scope(user: SessionUser, seasonId: string, couchId: string | null, episode: number): Promise<{ rules: boolean; seen: boolean }> {
   if (!isUuid(seasonId)) throw new HttpError(404, "Season not found");
   if (!couchId) throw new HttpError(400, "couch required");
   if (!Number.isInteger(episode) || episode < 1) throw new HttpError(400, "episode required");
   const { here, runs } = await couchGames(user, seasonId, couchId);
   if (!here.some((g) => g.yourRole || runs.has(g.leagueId)) && !isSuperAdminUser(user)) throw new HttpError(403, "This is for whoever plays here");
-  return (await seenThrough(user.id, seasonId)) >= episode;
+  const rules = isSuperAdminUser(user) || here.some((g) => g.yourRole === "commissioner");
+  return { rules, seen: (await seenThrough(user.id, seasonId)) >= episode };
 }
 
 async function read(user: SessionUser, seasonId: string, couchId: string, episode: number): Promise<ShowChange | null> {
@@ -160,9 +166,11 @@ async function read(user: SessionUser, seasonId: string, couchId: string, episod
   };
 }
 
-/** "Something the rulebook doesn't have" for an episode's page: null when there's nothing (or you haven't seen it). */
+/** "Something the rulebook doesn't have" for an episode's page: null when there's nothing, you haven't seen it, or the
+ *  rules aren't yours (only a Commissioner is asked). */
 export async function showChange(user: SessionUser, seasonId: string, couchId: string | null, episode: number): Promise<ShowChange | null> {
-  if (!(await scope(user, seasonId, couchId, episode))) return null;
+  const s = await scope(user, seasonId, couchId, episode);
+  if (!s.rules || !s.seen) return null;
   return read(user, seasonId, couchId!, episode);
 }
 
@@ -171,12 +179,14 @@ async function settle(noticeId: string, status: ShowChangeStatus, line: string |
 }
 
 /**
- * It's new, or Not new, from someone on a couch who has seen the episode. Their couch's voice is its newest answer; once
+ * It's new, or Not new, from a Commissioner on a couch who has seen the episode. Their couch's voice is its newest answer; once
  * enough couches say it's new (and more than say it isn't), our bot works out what to add, after the response.
  */
 export async function answerShowChange(user: SessionUser, seasonId: string, couchId: string | null, episode: number, body: { isNew?: unknown }, bot?: string): Promise<ShowChange | null> {
   if (typeof body.isNew !== "boolean") throw new HttpError(400, "isNew is true or false");
-  if (!(await scope(user, seasonId, couchId, episode))) throw new HttpError(403, `Reveal Episode ${episode} first`);
+  const s = await scope(user, seasonId, couchId, episode);
+  if (!s.rules) throw new HttpError(403, "The rulebook is a Commissioner's call");
+  if (!s.seen) throw new HttpError(403, `Reveal Episode ${episode} first`);
   const notes = await notesFor(seasonId, episode);
   if (!notes.length) throw new HttpError(404, "Nothing new was reported for this episode");
   await pool.query("INSERT INTO rulebook_notices (season_id, episode_number, note) VALUES ($1, $2, $3) ON CONFLICT (season_id, episode_number) DO NOTHING", [seasonId, episode, notes[0].note]);

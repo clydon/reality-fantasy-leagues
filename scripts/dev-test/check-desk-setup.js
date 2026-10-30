@@ -10,8 +10,9 @@
 //      it, an Undo refused once it's been renamed since.
 //   4. Status: set on a linked season it holds over the listing's dates (the daily job's statusesByDate leaves it), Back to
 //      its listing's dates lets them move it, each with Undo; refused when it's that already.
-//   5. Who decides results: You decide (results_admin_since from the switch), the Inbox's Coming up line says so, what only
-//      the desk accepted counted, back to sources saying it leaves, Undo putting the old cutoff back.
+//   5. Who decides results: You decide (results_admin_since from the switch), the Inbox's Coming up line says so; a result the
+//      desk decided (canonical, locked) isn't counted as leaving, as it reaches the games on either setting (since 2026-10-29),
+//      so back to sources says nothing leaves; Undo putting the old cutoff back.
 //   6. The schedule (3b): When it airs previewed (what moves, the listing's times it wins over, aired episodes put in the
 //      future), saved (times_held_at: the listing's rows stop counting, "Set by hand, by zt_ds_desk"), the same again
 //      refused; Episodes previewed (cleared, red, fewer than aired, added, not known) and saved with classic's prune; a read
@@ -295,12 +296,13 @@ function standIn(now = Date.now()) {
     const coming = (await as.desk.call("GET", "/api/desk/inbox")).body.coming.find((c) => c.seasonId === ids.s1);
     check(!coming || (coming.how === "admin" && coming.line === "You decide results · couches' answers count too"), "the Inbox's Coming up says you decide (Noticed al)", JSON.stringify(coming));
     await pool.query(
-      `INSERT INTO season_decisions (season_id, episode_number, kind, castaway_name, method, status, decided_at) VALUES ($1, 1, 'elimination', 'Zt Nobody', 'voted out', 'accepted', now() + interval '1 second')`,
+      `INSERT INTO season_decisions (season_id, episode_number, kind, castaway_name, method, status, fact_status, decided_at, locked_at)
+       VALUES ($1, 1, 'elimination', 'Zt Nobody', 'voted out', 'accepted', 'canonical', now() + interval '1 second', now())`,
       [ids.s1]
     );
-    check((await setup(ids.s1)).onlyYours === 1, "a result only the desk accepted is counted");
+    check((await setup(ids.s1)).onlyYours === 0, "a result the desk decided isn't counted as leaving: it reaches the games on either setting");
     const toSources = await change(ids.s1, { resultsBy: "leagues" });
-    check(toSources.status === 200 && (await col(ids.s1, "results_by")) === "leagues" && (await setup(ids.s1)).history[0].text === "Results from sources that agree (1 result only the desk accepted left its games)", "back to sources: it says what leaves its games", JSON.stringify(toSources.body));
+    check(toSources.status === 200 && (await col(ids.s1, "results_by")) === "leagues" && (await setup(ids.s1)).history[0].text === "Results from sources that agree", "back to sources: nothing leaves its games", JSON.stringify(toSources.body));
     check((await undo(toSources.body.changeId)).status === 200 && (await col(ids.s1, "results_by")) === "admin" && (await col(ids.s1, "results_admin_since")).getTime() === since.getTime(), "Undo: you decide again, from the same moment");
     check((await undo(r.body.changeId)).status === 200 && (await col(ids.s1, "results_by")) === "leagues", "Undo the switch: sources again");
     await pool.query("DELETE FROM season_decisions WHERE season_id = $1", [ids.s1]);
@@ -540,7 +542,7 @@ function standIn(now = Date.now()) {
     // Who decides results
     await pg.locator("[data-desk-row='setup-results']").click();
     await pg.locator("[data-setup-results='admin']").waitFor({ timeout: 10000 });
-    check(/Recommended/i.test(await pg.locator("[data-setup-results='leagues']").innerText()) && /a dispute you settle reaches every game/.test(await pg.locator("[role=dialog]").innerText()), "the sheet: Sources that agree recommended, and either way");
+    check(/Recommended/i.test(await pg.locator("[data-setup-results='leagues']").innerText()) && /a result you decide reaches every game on it, a dispute you settle too/.test(await pg.locator("[role=dialog]").innerText()), "the sheet: Sources that agree recommended, and either way");
     await fits("Who decides results");
     await shot("setup-results");
     await pg.locator("[data-setup-results='admin']").click();

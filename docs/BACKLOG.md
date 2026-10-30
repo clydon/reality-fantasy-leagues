@@ -212,6 +212,35 @@ Last updated 2026-10-27.
     - Seen while checking it: `GET /api/leagues/<id>/ruleset/shared` answers 500 for any commissioner on the local DB,
       lens or not (check-view-as.js only asks that it isn't refused).
     - **When:** if a player's view shows a commissioner tool, route that read through the lens, then fix the 500.
+28. **Survivor 51's games apart (found 2026-10-29; fixed in season-decisions.ts, check-match-season.js).** Switching S51 to
+    "Sources that agree" took all of Episodes 1-3 (122 results, decided by hand on classic's admin, no source) out of the
+    couch's three games; the test couch's copies kept them (no ledger). Episodes 4-5 were never season results: each game took
+    them through classic's per-game "apply research" (src/lib/episode-results.ts, /api/leagues/[id]/episodes/[epId]/research/
+    apply), and Weekly Start/Bench's Episode 5 got four more than the other two. Fixed: a result you decided reaches every
+    game on either setting; only a game's newest episode is news (no push for an old one coming back); the desk's episode
+    page lists games that don't match the season and Make every game match (only kinds the season has settled for the
+    episode come out, so a tribe swap research missed stays). Done in production the same evening: Episode 1's Make every
+    game match put Episodes 1-3 back; full research for Episodes 4 and 5 (Episode 4 twice); decided on the desk, checked
+    against recaps, what the bot missed (Toka's six Episode 4 reward wins as second place, Carter's Episode 4 move to Toka,
+    Maggie's Episode 5 journey); Episode 5 matched (38 of the games' own out: Devin's and Lewis's "zero votes", three
+    "learned of an advantage", Weekly Start/Bench's four contradictions). All six S51 games the same for Episodes 1-6. Left:
+    - "Who decides results" now changes nothing the games get (every desk accept locks, and a locked result reaches them on
+      either setting): fold it into one, or give it a meaning. The episode page's "You decide its results: nothing reaches the
+      games until you accept it" note and Coming up's "you decide too" line still read as if it did. The user's call.
+    - Classic's per-game "apply research" still writes one game only, for a league opened in the classic design: retire it,
+      or send it through the season, or games drift apart again.
+    - The test couch's games have no ledger (copied wholesale), so a season correction never takes anything back out of them.
+    - Make every game match has no Undo (a game's own results aren't kept anywhere): its line in History says what it did.
+    - Done 2026-10-29: S51's Episode 3 said Carter moved to Savu (the tribe he left: he started on Savu and joined Toka in
+      the accidental mutiny). The desk's Correct now changes a move's group ("Moved to", 0765e8d7, check-correct-group.js),
+      and Episode 3 is Carter to Toka in the couch's three games. The test couch's copies still say Savu (no ledger, above).
+    - Make every game match compares a tribe move, a role or who went home by person only, not by its value (applyDecision
+      calls any move a person already has "already there"): a game whose move names another tribe reads as matching. Compare
+      the value too, and take the game's own version out where it differs.
+    - The bot misses a second-place tribe's wins (Episode 4's Toka reward, as Episode 6's Savu immunity before) and a journey
+      (Episode 5's Maggie); two runs count as one source, so a miss the second run fixes still waits for a second source.
+      Worth a line in the full-results prompt about every tribe that won something, first place or not.
+    - **When:** the next session on results or the desk; the first is the user's call.
 
 ## Decided against (don't re-propose without new information)
 

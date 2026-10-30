@@ -275,7 +275,7 @@ function ResultsSheet({ open, onClose, s }: { open: boolean; onClose: () => void
           Back to sources that agree, {plural(s.onlyYours, "result")} only you accepted {s.onlyYours === 1 ? "leaves" : "leave"} its games.
         </p>
       )}
-      <p className={NOTE}>Either way, a dispute you settle reaches every game on it.</p>
+      <p className={NOTE}>Either way, a result you decide reaches every game on it, a dispute you settle too.</p>
     </Sheet>
   );
 }
