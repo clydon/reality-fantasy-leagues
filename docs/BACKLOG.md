@@ -66,6 +66,16 @@ Last updated 2026-10-27.
    - **Places that don't know the end yet:** the classic app's catch-up reveal (`RevealLogic.isComplete`, `revealNext`),
      Backstage's open episodes (`backstage.ts` `takes`), and How it works' updates (they say only where a game starts).
 
+32. **Watch-along sync by microphone (an idea, not planned: the user, 2026-10-30).** Passive sync for watching together:
+    live watchers opt in to the microphone and their audio becomes the baseline; everyone watching later syncs to it
+    automatically, the mic listening until the episode's set length ends. Only a small signature is stored, never audio (a
+    sparse audio fingerprint, roughly 15-60 KB per hour of broadcast, once per episode; nothing per viewer). Anchored to the
+    live broadcast's clock, so a later viewer sees what the couch did up to the same moment, and ads simply don't match.
+    Known limits: a web app's microphone stops when the phone locks or the app is in the background (true background
+    listening needs a native app); headphones leave nothing to hear (fall back to "tap the last moment you saw"); it must be
+    opt-in, show that it's listening, and get a legal check on consent before launch. **When:** if the user picks it up, with
+    the watch along (A15 in docs/PLAN-start-a-game-gpt.md); its first step would be a test with two phones on one clip.
+
 ## Open: small or polish
 
 8. **League swipe tuning.** Everything is a constant at the top of `league-swipe.tsx`: DEAD_ZONE
