@@ -3,9 +3,13 @@
 Status: **the season-forward rehearsal is done (2026-10-30, below): the couch's three Survivor 51 games played from
 production's 2026-10-30 backup to a finale three ways (realistic, the rough weeks, the daylight-saving week), every read the
 same with the game-specs flag off and on and through master's engine, every invariant holding, the screens' words the same.**
+**Item 1 of its "What's wrong" is fixed (the same day): a correction keeps a night's order** (the season sync puts a re-decided
+elimination back in the season's order within its episode; tests/night-order.test.js), and the rehearsal passes every way with
+it, "a correction moves nobody's finishing place" included.
 Next, for the main folder: merge `survivor-data`; then R2, the flag on in production, with the user (`scripts/game-specs-flag.js
 on`); R1 runs `season-forward.js rehearse --before=master` from its tree as its proof; set Survivor 51's episode count on the
-desk before the finale (item 4 of the rehearsal's "What's wrong"); route item 1 (a correction reorders a night with two exits: the season sync; it moves Outlast's points) and item 3 (a replacement nobody can make).
+desk before the finale (item 4 of the rehearsal's "What's wrong"); route item 3 (a replacement nobody can make) to the engine
+lane: it's WaiverLogic's, which R1 part 1 (`engine`, 17b85c21) is rewiring.
 Before that: **shadow leagues built 2026-10-27** (`scripts/dev-test/shadow-leagues.js`), and **the test couch** the same day (the same
 idea in production, in the app: below; pushed 2026-10-27); the switch itself is not started, and is now planned mid-season
 (item 4 below; track S of `docs/PLAN-start-a-game-gpt.md`). The goal
@@ -144,12 +148,13 @@ flag off against on.
 
 **Results (2026-10-30, prod-2026-10-30): every read is the same with the flag off and on, and through master's engine, in
 every scenario: nothing stands in the way of R2, or of R1 using this as its proof. One fault of the app's own, the same
-either way (item 1 below).**
+either way (item 1 below), fixed the same day: run again with the fix, every invariant holds in all three scenarios, flag off
+and on, and every read is still the same off against on and through master's engine (2,856 a run).**
 
 | Scenario | Invariants, flag off / on | Reads, flag off against on | master's engine against this tree's (off, on) | Screens' words, off against on |
 | --- | --- | --- | --- | --- |
 | realistic | hold / hold | 2,856, every one the same | 2,856 / 2,856, the same | 50 pages, the same (looks at 7, 9, 12, 13) |
-| rough | hold / hold, but one: a correction moved two finishing places (item 1 below: the check came after this run, and fails the same with the flag off or on) | 2,856, every one the same | 2,856 / 2,856, the same | 60 pages, the same (looks at 8, 9, 10, 11, each again after its corrections) |
+| rough | hold / hold (first run: a correction moved two finishing places, item 1 below, the same with the flag off or on; with its fix, "a correction moves nobody's finishing place" holds both ways) | 2,856, every one the same | 2,856 / 2,856, the same | 60 pages, the same (looks at 8, 9, 10, 11, each again after its corrections) |
 | dst | hold / hold | 2,856, every one the same | 2,856 / 2,856, the same | 26 pages, the same (looks at 7, 8) |
 
 The invariants: a pool pick never repeats (every pick was one the pool offered then: it opens everyone again once you've
@@ -166,23 +171,31 @@ run by the clock (13 moves in the rough season). Also run on prod-2026-10-26-pre
 results decided by the desk): the same.
 
 **What's wrong** (none of it in the reads: flag on and the engine change nothing):
-1. **A correction of how someone left reorders a night with two exits** (rough, Episode 10: Brady was voted out first, then
-   Maggie; the desk corrected Brady's exit to Medically Evacuated, and in every game he now finished 9th and Maggie 10th:
-   placementOrder 12 → 13 and 13 → 12). The season sync (season-decisions.ts syncLeagueDecisions) undoes the re-decided
-   elimination and applies it again after the episode's others, and orderPlacementsByEpisode orders only across episodes.
-   Outlast scores by finishing order (EliminationOrderScoringStrategy), so its points move by one for whoever had either, and
-   the pages say the swapped places. What it'd take: re-apply an episode's eliminations in the season's order (the decisions'
-   own, as the sync's query sorts them) whenever one of them is re-applied, or order within an episode by it; a unit test of a
-   double boot corrected. The season sync is every game's: the main folder's to route (or this lane's next step).
-   season-forward.js's "a correction moves nobody's finishing place" catches it.
+1. **Fixed (2026-10-30, this lane): a correction of how someone left reordered a night with two exits** (rough, Episode 10:
+   Brady was voted out first, then Maggie; the desk corrected Brady's exit to Medically Evacuated, and in every game he then
+   finished 9th and Maggie 10th: placementOrder 12 → 13 and 13 → 12). The season sync (season-decisions.ts
+   syncLeagueDecisions) undid the re-decided elimination and applied it again after the episode's others, and
+   orderPlacementsByEpisode ordered only across episodes. Outlast scores by finishing order (EliminationOrderScoringStrategy),
+   so its points moved by one for whoever had either, and the pages said the swapped places. **The fix:** the sync notes
+   every night whose exits it takes off or puts on (a correction, a decision rejected and accepted again, a house ruling going
+   on or coming off) and hands orderPlacementsByEpisode that night's exits in the season's order (`within`: the decisions'
+   own, as the sync's query sorts them, by `created_at`; a ruling takes its decision's place, so the rulings query reads it).
+   Those castaways take the places they hold that night, and the episode's list of exits, in that order; a league's own exit
+   that night keeps its place, and a night the sync didn't touch is left exactly as it is. The engine's ordering
+   (state-logic.js) is unchanged. tests/night-order.test.js: a double boot with the first corrected (Outlast's points too);
+   the second corrected, then the first; a triple with the middle one corrected, then corrected to someone else; rejected and
+   accepted again; a house ruling going on and coming off; a league's own exit that night, and a night nobody corrected left
+   alone (all six fail on the old code). season-forward.js's "a correction moves nobody's finishing place" now holds.
 2. **Fixed here: a lock weeks away read as this week.** Finale predictions close when the finale starts, and Tonight's
    Extras said "until Wed 8:00 PM" six weeks out. `lockTime` (src/new/clock.ts) adds the date once a lock is a week or more
    away ("Wed, Dec 16, 8:00 PM"); the question sheet's rows use it; tests/new-nav.test.js has it.
 3. **Weekly Lineup asks for a replacement nobody can make** (realistic, Episode 12): with all five still in on teams, Tonight's
    first move is "Replace Jelly · Due Tue 8:00 PM · you pick who comes in" and the waivers page's yellow "Replace Jelly" (one of
    three "to do"). What it'd take: count a replacement owed only while someone's free to come in (StateLogic.WaiverLogic
-   `replacementsOwed`, read by Tonight's moves and the waivers page), and say "Nobody's free to pick up" there. The engine's
-   (R1 touches waivers) or the main folder's to route.
+   `replacementsOwed`, read by Tonight's moves and the waivers page, the reveal, the claim pickers, the commissioner's tools,
+   action-items.js, the computer players and selectors.ts), and say "Nobody's free to pick up" there. **The engine lane's**
+   (checked 2026-10-30: R1 part 1 on `engine`, 17b85c21, rewires WaiverLogic through the pieces, so a change here would
+   collide with it): left for the main folder to route there.
 4. **Production's Survivor 51 has no episode count** (null in the backup). Finale predictions close when the season's last
    episode starts; with no count the finale isn't known, and by the code (AnswerLogic.closesAt: "A finale nobody's listed
    yet: at the game's end") they stay open through the finale's broadcast until its results land. The rehearsal sets 13, as
@@ -210,6 +223,10 @@ dev server above for the screens). A newer backup works the same; a scenario pla
   seed, so a backup a week on draws different people (and the realistic finale's winner changes).
 - Season-forward rehearsal: golden.js is a module now (its trees and read; its run only as a script), and requiring it no
   longer replays the tapes.
+- A night's order (seen fixing item 1): Recent changes' Undo of a game's own results change that took one of a night's exits
+  out (results-changes.ts undoResults, a commissioner's hand edit) puts it back after the night's others, as the sync did.
+  Rare (a commissioner editing a double boot by hand, then Undo); what it'd take: keep the exit's place in the change's
+  `removed` and hand it to orderPlacementsByEpisode's `within`. Any step that touches Recent changes.
 
 - The diff compares totals; a per-castaway breakdown would point at a single wrong result faster.
 - The shadow games share the local Survivor 51 season's results: if an admin accepts results locally, they reach the shadows too.
