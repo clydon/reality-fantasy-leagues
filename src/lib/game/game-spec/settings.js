@@ -18,7 +18,7 @@
 const {
   SPEC_VERSION, TYPE_PRESETS, REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS,
   MAX_BET_POINTS, ORDER_OF, CALLS, fullSpec, typeOf, playsAs, specProblems, waiversFit, sameValue, spanStart, spanPhase,
-  finaleQuestions, finaleOf, LATE_HOURS, MAX_SEAT_PEOPLE, seatPeople, NEVER, VOCAB,
+  finaleQuestions, finaleOf, LATE_HOURS, MAX_SEAT_PEOPLE, seatPeople, NEVER, VOCAB, MATCHUP_KEYS,
 } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -104,13 +104,16 @@ function waiversOf(st, lineup, R) {
 
 /**
  * A draft's rank, from its settings: by its total, a lineup's stock market by worth (draftRank 'worth', A10 part 3c), or last one
- * standing (draftRank 'standing'), with a race (draftRace) and players knocked out (draftCut, A11 part 1) as the spec says them.
+ * standing (draftRank 'standing'), with a race (draftRace) and players knocked out (draftCut, A11 part 1) as the spec says them;
+ * or head to head (draftRank 'matchups', A11 part 4), its playoffs and fallbacks in rankMatchups.
  * Each only when it's set, so a draft that has none reads as it always did. `lineup`: a lineup or best ball (worth is theirs).
  */
 function draftRankOf(st, lineup, copy) {
   const cut = Array.isArray(st.draftCut) && st.draftCut.length ? (copy ? clone(st.draftCut) : st.draftCut) : null;
-  const by = lineup && st.draftRank === 'worth' ? 'worth' : cut && st.draftRank === 'standing' ? 'standing' : 'total';
+  const by = lineup && st.draftRank === 'worth' ? 'worth' : cut && st.draftRank === 'standing' ? 'standing' : st.draftRank === 'matchups' ? 'matchups' : 'total';
   const rank = { by };
+  // A11 part 4: head to head's playoffs and fallbacks (rankMatchups), as the spec says them.
+  if (by === 'matchups' && isObj(st.rankMatchups)) for (const k of MATCHUP_KEYS) if (st.rankMatchups[k] !== undefined) rank[k] = copy ? clone(st.rankMatchups[k]) : st.rankMatchups[k];
   if (isObj(st.draftRace)) rank.race = copy ? clone(st.draftRace) : st.draftRace;
   if (cut) rank.cut = cut;
   // A11 part 2: whether one left ends it (rankOneLeft), beside last one standing.
@@ -391,7 +394,10 @@ function settingsOf(spec) {
   out.questionsCut = asks && Array.isArray(s.rank.cut) ? clone(s.rank.cut) : undefined;
   // A10 part 3c: a lineup's or best ball's stock market ranked by worth; A11 part 1: a draft's last one standing, its race and its
   // cuts.
-  out.draftRank = type === 'active-roster' && s.rank.by === 'worth' ? 'worth' : draft && s.rank.by === 'standing' ? 'standing' : undefined;
+  // A11 part 4: a draft played head to head, its playoffs and fallbacks as the spec says them.
+  out.draftRank = type === 'active-roster' && s.rank.by === 'worth' ? 'worth' : draft && s.rank.by === 'standing' ? 'standing' : draft && s.rank.by === 'matchups' ? 'matchups' : undefined;
+  const h2h = draft && s.rank.by === 'matchups' ? Object.fromEntries(MATCHUP_KEYS.filter((k) => s.rank[k] !== undefined).map((k) => [k, clone(s.rank[k])])) : null;
+  out.rankMatchups = h2h && Object.keys(h2h).length ? h2h : undefined;
   out.draftRace = draft && isObj(s.rank.race) ? clone(s.rank.race) : undefined;
   out.draftCut = draft && Array.isArray(s.rank.cut) ? clone(s.rank.cut) : undefined;
   if (type === 'questions') out.questions = clone(s.ask);
@@ -466,7 +472,7 @@ const PARTS = [
   { fields: ['startEpisode', 'startPhase', 'endEpisode'], read: (s) => s.span },
   { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
   { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves'], read: (s) => s.score },
-  { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut', 'questionsRank', 'questionsRace', 'questionsCut'], read: (s) => s.rank },
+  { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut', 'questionsRank', 'questionsRace', 'questionsCut', 'rankMatchups'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },
   { fields: ['seatPeople'], read: (s) => seatPeople(s) },

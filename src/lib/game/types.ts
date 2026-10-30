@@ -1107,6 +1107,14 @@ export interface LeagueState {
   /** A11 part 2b: a game of questions' race, cuts and lives as the server walked them over its answers on exactly this copy
    *  (StateLogic.AnswerLogic.withWalk): never stored; a copy that hides anything drops it. */
   answerWalk?: { ends: number | null; out: Record<string, number>; lives: Record<string, number>; shared: string[]; totals: Record<string, number> };
+  /** A11 part 4: head to head's playoffs, placed at the season's end: its length as its schedule says (show_seasons.episode_count,
+   *  stamped by the server on every read and write: air-times.ts), and where they began once their first round had results
+   *  (StateLogic.MatchupLogic.settle), so the schedule changing after that moves nothing. */
+  seasonEpisodes?: number;
+  playoffsFrom?: number;
+  /** A11 part 4: when each seat joined head to head's schedule (playerId -> the first episode it plays), kept on every write
+   *  (MatchupLogic.settle), so a seat coming in later never rewrites the weeks played. */
+  matchupSeats?: Record<string, number>;
   settings: LeagueSettings;
 }
 
@@ -1186,6 +1194,19 @@ export interface ScoreRow {
   /** A stock market (step A10 part 3c): cash, and worth (cash plus the team at today's prices: what it ranks by, rank worth). */
   cash?: number | null;
   worth?: number;
+  /** Head to head (step A11 part 4: MatchupLogic.apply): the record (a tie half a win), the points over the regular season and
+   *  against, the playoff seed (null: not in them, or before they're seeded), how far they went (rankKey's first number), still
+   *  in the playoffs, the champion. */
+  matchups?: MatchupRecord & { seed: number | null; tier: number; alive: boolean; champion: boolean };
+}
+
+/** Head to head's record (step A11 part 4): wins, losses, ties, and the regular season's points for and against. */
+export interface MatchupRecord {
+  wins: number;
+  losses: number;
+  ties: number;
+  for: number;
+  against: number;
 }
 
 export interface DraftTurn {

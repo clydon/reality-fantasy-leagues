@@ -105,7 +105,7 @@ function standingOf(
   userOf: (p: string) => string | null,
   calls?: { right: (p: string) => number; through: number; ended: boolean; walk?: AnswerWalk | null },
   usersOf: (p: string) => string[] = () => []
-): { rows: StandingRow[]; through: number; ended: boolean; coop: GameStanding["coop"] } {
+): { rows: StandingRow[]; through: number; ended: boolean; coop: GameStanding["coop"]; matchups: boolean } {
   // Step A11 part 2b: a game of questions' walk on your copy (answer-points.ts answerStanding): who's out, ranked as it ranks.
   const seenView = StateLogic.GhostLogic.viewFor(state, playerId, mark);
   const view = calls?.walk ? StateLogic.AnswerLogic.withWalk(seenView, calls.walk) : seenView;
@@ -126,12 +126,15 @@ function standingOf(
     const on = usersOf(row.seat);
     return on.length > 1 ? on.map((u) => ({ ...row, userId: u })) : [row];
   });
-  // A game over a span stands at its last episode (StateLogic.spanView), and is over once that's in (gameOver).
-  const end = StateLogic.endEpisode(view);
+  // A game over a span stands at its last episode (StateLogic.spanView), and is over once that's in (gameOver); step A11 part 4, or
+  // where it ended early (a final played, a race won, one left: lastEpisode).
+  const end = StateLogic.lastEpisode(view);
   const seen = StateLogic.SpoilerLogic.latestWithResults(view);
   // Step A11 part 3: a co-op game's result and lives, as far as you've seen (its walk on your copy).
   const coop = calls?.walk?.coop ? { result: calls.walk.coop.result, lives: calls.walk.coop.lives, of: calls.walk.coop.of } : null;
-  return { rows, through: calls ? calls.through : end === null ? seen : Math.min(seen, end), ended: calls ? calls.ended : StateLogic.gameOver(view), coop };
+  // Step A11 part 4: a head-to-head game ranks by its playoffs and record (its table's order), so no margin in points.
+  const matchups = StateLogic.MatchupLogic.on(view);
+  return { rows, through: calls ? calls.through : end === null ? seen : Math.min(seen, end), ended: calls ? calls.ended : StateLogic.gameOver(view), coop, matchups };
 }
 
 /** A game over a span (docs/PLAN-sports-data.md step 6), named in the show's own word ("Games 4–6"); null for a season game. */
@@ -227,6 +230,7 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
         rows: now.rows,
         before,
         coop: now.coop,
+        ...(now.matchups ? { matchups: true } : {}),
       });
     } catch (e) {
       // One unreadable league costs its game, not the hub.

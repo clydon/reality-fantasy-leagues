@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 174 ✅ · 71 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
-**Waiting, by step:** A11 4 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 175 ✅ · 70 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
+**Waiting, by step:** A11 3 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -114,7 +114,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | Last one standing among the players (a pool with lives: a wrong pick costs one, out at none) | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. Three lives: a wrong pick costs one. Last one standing wins. |
 | ✅ | A race (first to 20 ends it) | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. First to 20 points wins: the game ends there. |
 | ✅ | Co-op against the show (shared lives) | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. A point for each right answer. Together you have three lives: each time none of you gets it right, you lose one. Keep one to the end and you all win. |
-| ⏳ | Head to head, with playoffs | A11 |
+| ✅ | Head to head, with playoffs | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. Each episode you play one of the others head to head: more points wins it. The top four by wins make the playoffs, over the last two episodes. |
 | ✅ | Players knocked out each week (guillotine) | An Outlast for Survivor 51: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. Every two episodes the lowest scorer over them is out. Last one standing wins. |
 | ✅ | Players cut at a phase | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. Before Merged starts the bottom half is cut. Last one standing wins. |
 | ⏳ | Beat the bot | A14 |

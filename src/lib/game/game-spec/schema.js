@@ -80,7 +80,15 @@
 //            its oneLeft and allOut as a pool's (their defaults ANSWERS_END). A11 part 3: { by: 'coop' }, a game of questions
 //            the couch plays together against the show, on its lives (score.lives, everyone's): lost by all the episode the
 //            last one goes, won by all at its end with one left; nobody is knocked out, so no race, cut, oneLeft or allOut.
-//            The defaults are the user's (A11 part 2's, 2b's and 3's Noticed)
+//            A11 part 4: { by: 'matchups', playoffs?, odd?, quiet? }, head to head, a draft's (Outlast, a lineup, best ball):
+//            each episode everyone plays someone on that episode's points by the game's own scoring, on a round robin of the
+//            seats; more wins it, the same is a tie (half a win); the standings by wins, then the points. playoffs { teams,
+//            from? }: the top `teams` (2 to MAX_PLAYOFF_TEAMS) seeded by the standings, a bracket of rounds, one an episode,
+//            over the game's last episodes (its span's end, else the season's as its schedule says) or from `from`; the
+//            game ends with its final. odd median (with an odd number of you, whoever the round robin leaves out plays the
+//            median of everyone else's points that episode) | bye (sits it out); quiet skip (a night nobody scores counts
+//            for nobody) | tie (everyone ties). MatchupLogic in state-logic.js; the defaults MATCHUPS.
+//            The defaults are the user's (A11 part 2's, 2b's, 3's and 4's Noticed)
 //   ask      questions answered before their lock, each settled by data (A4: the question below). Beside a draft, its
 //            finale predictions (finaleQuestions); a game scored by answers, its own (Weekly Calls': the show's calls,
 //            CALLS)
@@ -105,7 +113,9 @@ const VOCAB = {
   'score.by': { moments: 'now', place: 'now', survive: 'now', lines: 'now', answers: 'now', stats: 'sports' },
   'score.means': { staysIn: 'now', scores: 'now' },
   // A11 part 3: co-op, the couch against the show (a game of questions whose lives are everyone's together: won or lost by all).
-  'rank.by': { total: 'now', streak: 'now', standing: 'now', worth: 'now', coop: 'now', matchups: 'sports', categories: 'sports', roto: 'sports' },
+  // A11 part 4: head to head (matchups), a draft's on a show (each episode's points against someone's, with playoffs); L4 brings it
+  // to sports (their stats score it).
+  'rank.by': { total: 'now', streak: 'now', standing: 'now', worth: 'now', coop: 'now', matchups: 'now', categories: 'sports', roto: 'sports' },
   closes: { start: 'now', daily: 'sports', weekly: 'sports' },
   'pool.where': { stillIn: 'now', teams: 'sports', group: 'later' },
   'ask.answer': {
@@ -169,6 +179,10 @@ const VOCAB = {
   // A11 part 3: a co-op game's night, on a question its lives ride on, costs the couch nothing when enough of it saw it coming:
   // one of you right, most of those who answered, or all of them.
   'score.saves': { one: 'now', most: 'now', all: 'now' },
+  // A11 part 4: head to head with an odd number of you: whoever the round robin leaves out plays the median of everyone else's
+  // points that episode, or sits it out (a bye); and a night nobody in the game scores: it counts for nobody, or everyone ties.
+  'rank.odd': { median: 'now', bye: 'now' },
+  'rank.quiet': { skip: 'now', tie: 'now' },
 };
 
 // A question in `ask` (A4; A6 added who a moment happened to, groups, roles and questions about each person):
@@ -512,6 +526,32 @@ const ANSWERS_END = { oneLeft: 'ends', allOut: 'points' };
 // A11 part 3: a co-op game's night costs the couch a life unless one of you saw it coming (the user's to set: Noticed). Read by
 // answerParts, never filled in.
 const COOP = { saves: 'one' };
+// A11 part 4: head to head's fallbacks when the spec leaves them out (the user's to set: Noticed): with an odd number of you,
+// whoever the round robin leaves out plays the median of everyone else's points; a night nobody scores counts for nobody. Read by
+// matchupParts, never filled in. The playoffs take 2 to MAX_PLAYOFF_TEAMS, a round an episode (playoffRounds).
+const MATCHUPS = { odd: 'median', quiet: 'skip' };
+const MAX_PLAYOFF_TEAMS = 8;
+/** The rank keys that are head to head's (beside rank.by 'matchups'): a rank that says one is head to head, and the settings carry
+ *  them (rankMatchups). */
+const MATCHUP_KEYS = ['playoffs', 'odd', 'quiet'];
+/** How many rounds the playoffs take, one an episode: 2 teams 1 (the final), 3 or 4 two, 5 to 8 three (a bracket short of
+ *  seeds gives the top seeds byes). */
+const playoffRounds = (teams) => Math.ceil(Math.log2(teams));
+/**
+ * Head to head (A11 part 4: rank.by 'matchups'), read the one way from a whole spec: { odd: median | bye, quiet: skip | tie, playoffs:
+ * { teams, rounds, from (its first round, when the spec says it; else null: the game's last `rounds` episodes) } | null }, the
+ * defaults MATCHUPS; null for a game that isn't head to head, or one the engine doesn't play it on (a draft's only, for now).
+ */
+function matchupParts(s) {
+  if (!isObj(s) || !isObj(s.rank) || s.rank.by !== 'matchups' || !isObj(s.get) || s.get.by !== 'draft') return null;
+  const r = s.rank;
+  const p = isObj(r.playoffs) && isInt(r.playoffs.teams, 2) && r.playoffs.teams <= MAX_PLAYOFF_TEAMS ? r.playoffs : null;
+  return {
+    odd: own(VOCAB['rank.odd'], r.odd) ? r.odd : MATCHUPS.odd,
+    quiet: own(VOCAB['rank.quiet'], r.quiet) ? r.quiet : MATCHUPS.quiet,
+    playoffs: p ? { teams: p.teams, rounds: playoffRounds(p.teams), from: isInt(p.from, 1) ? p.from : null } : null,
+  };
+}
 /** A rank's said end value, else the default. */
 const endOf = (rank, key, dflt) => (isObj(rank) && own(VOCAB[`rank.${key}`], rank[key]) ? rank[key] : dflt[key]);
 /** A draft's race and cuts (A11 part 1), read the one way from a whole spec: { race: { to } | null, cuts: [...], oneLeft (part 2:
@@ -823,7 +863,9 @@ function fullSpec(spec) {
   // game's; each cut says what it leaves out as the defaults (CUT).
   if (isObj(s.rank)) {
     if (s.rank.by === undefined) {
-      s.rank.by = (Array.isArray(s.rank.cut) && s.rank.cut.length) || answerLives ? 'standing' : fits ? p.rank.by : isObj(s.score) && s.score.by === 'survive' ? 'streak' : 'total';
+      // A11 part 4: a rank that says only its playoffs (or head to head's other parts) is head to head.
+      const h2h = MATCHUP_KEYS.some((k) => s.rank[k] !== undefined);
+      s.rank.by = (Array.isArray(s.rank.cut) && s.rank.cut.length) || answerLives ? 'standing' : h2h ? 'matchups' : fits ? p.rank.by : isObj(s.score) && s.score.by === 'survive' ? 'streak' : 'total';
     }
     if (Array.isArray(s.rank.cut)) s.rank.cut.forEach((c) => { if (isObj(c)) for (const [k, v] of Object.entries(CUT)) if (c[k] === undefined) c[k] = v; });
   }
@@ -870,8 +912,10 @@ function playsAs(s) {
   // auction (AuctionLogic) an exclusive draft's.
   const drafted = by('get') === 'draft' && (own(ORDER_OF, s.get.own) === s.get.order || (s.get.order === 'draw' && own(ORDER_OF, s.get.own) !== undefined) || (s.get.order === 'auction' && s.get.own === 'exclusive'));
   if (drafted && (none || finaleOf(s.ask))) {
-    // A11 part 1: a draft that knocks players out ranks last one standing (its race and cuts are KnockoutLogic's).
-    const ranks = by('rank') === 'total' || (by('rank') === 'standing' && Array.isArray(s.rank.cut) && s.rank.cut.length > 0);
+    // A11 part 1: a draft that knocks players out ranks last one standing (its race and cuts are KnockoutLogic's). Part 4: head to
+    // head (MatchupLogic's), with nobody racing or cut beside it.
+    const ranks = by('rank') === 'total' || (by('rank') === 'standing' && Array.isArray(s.rank.cut) && s.rank.cut.length > 0)
+      || (by('rank') === 'matchups' && s.rank.race === undefined && s.rank.cut === undefined);
     if (count === 'all' && by('score') === 'place' && ranks) return 'classic-draft';
     // Best ball (A9 part 2) is Weekly Lineup's game with no lineups: its best n count (state-logic.js's best ball variant).
     // A10 part 3c: a stock market can rank by worth.
@@ -985,6 +1029,8 @@ function flagsOf(s) {
     hasAnswerLives: !!(asks && asks.lives),
     // A11 part 3: co-op, the couch against the show (its lives everyone's together).
     hasCoop: !!(asks && asks.coop),
+    // A11 part 4: head to head, with playoffs.
+    hasMatchups: !!matchupParts(s),
     hasWeeklyPicks: get.by === 'pick',
     hasCalls: score.by === 'answers' && callsAsk(s && s.ask),
     // A game of questions (A4): scored by its answers, not the show's calls.
@@ -1167,6 +1213,8 @@ function specProblems(spec, ctx, opts) {
   if (rank.by === 'coop' || (score.by === 'answers' && score.saves !== undefined)) coopProblems(score, rank, s).forEach(([at, p]) => add(at, p));
   if (rank.race !== undefined || rank.cut !== undefined) knockoutProblems(rank, s, league).forEach(([at, p]) => add(`rank${at}`, p));
   if (rank.oneLeft !== undefined || rank.allOut !== undefined) endProblems(rank, s).forEach(([at, p]) => add(`rank${at}`, p));
+  // A11 part 4: head to head, with playoffs.
+  if (rank.by === 'matchups' || MATCHUP_KEYS.some((k) => rank[k] !== undefined)) matchupProblems(rank, s, league).forEach(([at, p]) => add(at, p));
   // A10 part 3c: worth is a stock market's: cash plus the team at today's prices.
   if (rank.by === 'worth' && !marketOf(s)) add('rank.by', "Ranking by worth is a stock market's (cash plus your team at today's prices): a budget that trades");
   if (!one('closes', s.closes)) add('closes', 'Moves close at the start, daily or weekly');
@@ -1399,8 +1447,9 @@ const KEYS = {
   captain: ['times'],
   when: ['times', 'episode', 'from', 'to', 'phase', 'finale'],
   shrink: ['points', 'per'],
-  rank: ['by', 'race', 'cut', 'oneLeft', 'allOut'],
+  rank: ['by', 'race', 'cut', 'oneLeft', 'allOut', ...MATCHUP_KEYS],
   race: ['to'],
+  playoffs: ['teams', 'from'],
   cut: ['at', 'out', 'tie', 'quiet'],
   cutAt: CUT_AT,
   extras: ['waivers', 'bets', 'calls', 'draft', 'join', 'hideStarters', 'lockedDown', 'lateLock', 'seats'],
@@ -1450,6 +1499,7 @@ function unknownKeys(s) {
   check(s.rank, KEYS.rank, 'rank');
   if (isObj(s.rank)) {
     check(s.rank.race, KEYS.race, 'rank.race');
+    check(s.rank.playoffs, KEYS.playoffs, 'rank.playoffs');
     if (Array.isArray(s.rank.cut)) s.rank.cut.forEach((c, i) => {
       check(c, KEYS.cut, `rank.cut[${i}]`);
       if (isObj(c)) check(c.at, KEYS.cutAt, `rank.cut[${i}].at`);
@@ -1724,6 +1774,55 @@ function coopProblems(score, rank, s) {
   return out;
 }
 
+/**
+ * Head to head (A11 part 4: rank.by 'matchups', rank.playoffs, rank.odd, rank.quiet), as [[at, problem]]. A draft's for now (Outlast,
+ * a lineup, best ball: each episode's points by its own scoring); a pool's picks don't score an episode against someone, and a game
+ * of questions' isn't built (A11 part 4b). Nobody races or is cut beside it (knockoutProblems and endProblems refuse a race, cuts,
+ * oneLeft and allOut, which rank by the total or last one standing). The playoffs: null (none), or { teams: 2 to MAX_PLAYOFF_TEAMS,
+ * from? }, a round an episode over the game's last episodes (or from `from`), leaving at least one episode of matchups before them.
+ * `league`: a league's own keeps what it plays (a span changed under its playoffs moves them, as the engine reads it).
+ */
+function matchupProblems(rank, s, league) {
+  const out = [];
+  const on = rank.by === 'matchups';
+  if (on) {
+    if (questionsGame(s)) out.push(['rank.by', "Head to head on a game of questions isn't built yet (A11 part 4b): it's a draft's for now"]);
+    else if (!(isObj(s.get) && s.get.by === 'draft')) {
+      out.push(['rank.by', isObj(s.get) && s.get.by === 'pick' ? "A pool's picks don't score an episode's points against someone: head to head is a draft's" : "Head to head plays each episode's points against someone's: a draft's (Outlast, a lineup, best ball)"]);
+    }
+  }
+  const p = rank.playoffs;
+  if (p !== undefined && p !== null) {
+    if (!on) out.push(['rank.playoffs', "Playoffs are head to head's: rank.by 'matchups'"]);
+    else if (!isObj(p) || !(isInt(p.teams, 2) && p.teams <= MAX_PLAYOFF_TEAMS)) out.push(['rank.playoffs.teams', `The playoffs take the top 2 to ${MAX_PLAYOFF_TEAMS} of you`]);
+    else {
+      const rounds = playoffRounds(p.teams);
+      const first = isObj(s.span) ? spanStart(s.span) : null;
+      const last = isObj(s.span) ? s.span.to : null;
+      const word = `${rounds} ${rounds === 1 ? 'round' : 'rounds'}`;
+      if (p.from !== undefined) {
+        if (!isInt(p.from, 1)) out.push(['rank.playoffs.from', 'The playoffs start at an episode number, 1 or later (left out: the game\'s last episodes)']);
+        else if (!league && first !== null && p.from <= first) out.push(['rank.playoffs.from', "The playoffs come after at least one episode of matchups: from the one after the game's first"]);
+        else if (!league && last !== null && p.from + rounds - 1 !== last) {
+          // The game ends with its final: a span's end says where that is, so `from` has to agree with it.
+          out.push(['rank.playoffs.from', `The playoffs' ${word}, one an episode, ${p.from + rounds - 1 > last ? 'run past' : 'end before'} the game's last episode (${last}): from ${last - rounds + 1}, or leave it out`]);
+        }
+      } else if (!league && first !== null && last !== null && last - rounds + 1 <= first) {
+        out.push(['rank.playoffs', `The game is too short for ${word} of playoffs, one an episode, after at least one episode of matchups`]);
+      }
+    }
+  }
+  if (rank.odd !== undefined) {
+    if (!on) out.push(['rank.odd', "An odd one out is head to head's: rank.by 'matchups'"]);
+    else if (own(VOCAB['rank.odd'], rank.odd) === undefined) out.push(['rank.odd', 'With an odd number of you, whoever has no opponent plays the median of everyone else (median) or sits it out (bye)']);
+  }
+  if (rank.quiet !== undefined) {
+    if (!on) out.push(['rank.quiet', "A night nobody scores is head to head's: rank.by 'matchups'"]);
+    else if (own(VOCAB['rank.quiet'], rank.quiet) === undefined) out.push(['rank.quiet', 'A night nobody scores counts for nobody (skip) or ties everyone (tie)']);
+  }
+  return out;
+}
+
 /** A pool's second pick (A10 part 2: get.second), as [[at, problem]]: { fallback: void | counts }, beside a pool whose picks
  *  stay in (a night two go home is one where two people leave; nobody goes home in a pool that scores). */
 function secondPickProblems(g, s) {
@@ -1871,6 +1970,10 @@ function settleProblems(s, ctx, opts) {
     // as people go home a replacement waits for someone free, as an exclusive draft's waivers do).
     out.push(['get.own', `${teams.said} × ${get.each} ${get.each === 1 ? 'pick' : 'picks'} takes all ${ctx.pool} who can be drafted, so nobody's left to buy: make it shared, so two of you can hold the same one${get.order === 'auction' ? ' (a salary cap: prices from the data, no bidding)' : ''}`]);
   }
+  // A11 part 4: the playoffs take no more than the couch has teams (a bracket short of seeds gives the top ones byes, so fewer is
+  // fine: the engine's fallback for a couch that shrinks).
+  const po = isObj(s.rank) && s.rank.by === 'matchups' && isObj(s.rank.playoffs) && isInt(s.rank.playoffs.teams, 2) ? s.rank.playoffs.teams : null;
+  if (!opts.league && po !== null && teams && po > teams.n) out.push(['rank.playoffs.teams', `The playoffs take the top ${po}, and there are ${teams.said}`]);
   // A10 part 4: keepers come from one of the couch's games on an earlier season of the show (ctx.games, the context pack's: ids,
   // or { id }), never a game typed in. Left out: not checked. The exclusive count above needs nothing more for keepers: each
   // keeper takes one castaway out of the pool and one pick out of the draft, so a pool that covers every pick still does.
@@ -2039,6 +2142,7 @@ module.exports = {
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
   marketWaivers, marketOf, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
   MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END, ANSWERS_END, COOP, answerParts, livesQuestion,
+  MATCHUPS, MATCHUP_KEYS, MAX_PLAYOFF_TEAMS, playoffRounds, matchupParts,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

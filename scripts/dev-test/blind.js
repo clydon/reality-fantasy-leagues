@@ -531,9 +531,22 @@ async function lookAt(r, n) {
       r.problems.push(`episode ${n}: reading its questions after the results failed: ${e.message}`);
     }
   } else {
-    for (const x of S.computeScores(s)) out.table[label(x.playerId)] = Math.round(x.total * 10) / 10;
+    const rows = S.computeScores(s);
+    for (const x of rows) out.table[label(x.playerId)] = Math.round(x.total * 10) / 10;
     const slots = slotLines(r, s, n);
     if (slots) out.slots = slots;
+    // A11 part 4: head to head's records (wins-losses-ties), where the playoffs are, the seeds once known, the rounds played and
+    // the champion, as the app reads the league (its season length as its last write stamped it).
+    const w = S.MatchupLogic.on(s) ? S.MatchupLogic.run(S.spanView(s)) : null;
+    if (w) {
+      out.matchups = {
+        records: Object.fromEntries(rows.filter((x) => x.matchups).map((x) => [label(x.playerId), `${x.matchups.wins}-${x.matchups.losses}-${x.matchups.ties}`])),
+        from: w.from,
+        seeds: w.seeds ? w.seeds.map(label) : null,
+        played: w.rounds.filter((x) => x.played).map((x) => x.number),
+        champion: w.champion ? label(w.champion) : null,
+      };
+    }
   }
   return out;
 }

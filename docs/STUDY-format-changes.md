@@ -959,6 +959,42 @@ refused, no problem in the moves.
 - **The walk on what each has seen:** the records are the runner's view as each episode came in; the unit tests and `check-coop.js`
   prove a viewer behind still sees both lives, and a corrected result bringing a lost game back.
 
+## A11 part 4: head to head, replayed blind (2026-10-30)
+
+A11's part 4 gave a draft head to head (`rank.by 'matchups'`): each episode everyone plays one of the others on that episode's
+points by the game's own scoring, on a round robin of the seats; the standings by wins (a tie half), then points; and the playoffs
+(`rank.playoffs`), the top seeds over the game's last episodes as the data has them (its span's end, else the season's episode
+count from its schedule, kept once their first round has results), a round an episode, the champion first in the table
+(state-logic.js `MatchupLogic`). The dial row win.h2h (a Weekly Lineup, the top four in the playoffs over the last two episodes)
+plays on all five seasons. The blind replays played it with every other game: every game ended on all five seasons (Survivor 49 95
+of 95, The Challenge 41, 40 and 39 76 of 76, The Traitors 4 74 of 74), no problem in the moves.
+
+| Season | Episodes (count) | Playoffs placed | The season's finale | Seeds (by record) | Champion |
+|---|---|---|---|---|---|
+| Survivor 49 | 13 | 12 and 13 | 13 | tinkerer 10-1, fan 6-5, drive-by 4-5-2, forgetter 0-9-2 | the fan (the second seed: 69 points to the tinkerer's 106) |
+| The Challenge 41 | 21 | 20 and 21 | 19 | drive-by 6-3-7, tinkerer 8-6-2, fan 6-7-3, forgetter 2-6-8 | the drive-by (the season over first: never played) |
+| The Challenge 40 | 21 | 20 and 21 | 19 | fan 11-2-1, forgetter 4-5-5, drive-by 2-5-7, tinkerer 3-8-3 | the fan (the same) |
+| The Challenge 39 | 21 | 20 and 21 | 19 | tinkerer 9-3-4, drive-by 5-4-7, fan 7-8-1, forgetter 2-8-6 | the tinkerer (the same) |
+| The Traitors 4 | 12 | 11 and 12 | 11 | tinkerer 4-4-1, fan 4-4-1, drive-by 3-3-3, forgetter 2-2-5 | the tinkerer (the semifinals at 11; 12 after the finale) |
+
+- **The schedule counts the reunion:** The Challenge's three seasons count 21 episodes, but their final is 18 and 19 (F1's
+  timelines: The Challenge 41's "the final (episodes 18-19)"), and The Traitors 4's 12 includes one after its finale at 11. So the
+  playoffs, placed at the season's end as its schedule says, landed after it. The fallback held: the season over first, nothing
+  after its finale plays, and the best seed still in wins (on The Challenge, before the playoffs began: the regular season's
+  leader). The first run, before that rule, played the rounds on the reunion's results after the game read over at 19 (all ties, so
+  the same champions, but a champion could have changed after the game was over). Where the playoffs should go on such a season (a
+  finale episode in the schedule beside its count; the playoffs starting when research says the final begins, a new phase F2's
+  section reports, as A12's stage on a phase) is the user's: A11 part 4's Noticed item 12.
+- **Head to head isn't the most points:** on Survivor 49 the tinkerer scored 106 to the fan's 69, finished the regular season 10-1,
+  and lost the final; the table puts the champion first. How the table says it (the record beside the points) is U1's: item 10.
+- **It reads points, not the format:** a matchup is each team's points that episode, so The Challenge's pairs, teams and each for
+  themselves reach it only as what its drafted people scored; nothing in the format changes the schedule.
+- **Ties are common on The Challenge:** with shared drafts of five and three starters, two seats often score the same (the
+  forgetter's 2-6-8 on 41), each a half win by default (item 3's standings, item 2's night nobody scores).
+- **The walk on what each has seen:** the records are the runner's view as each episode came in; the unit tests and `check-h2h.js`
+  prove a viewer behind sees the records only through what they've seen, a corrected final changing the champion, and a seat
+  brought in later playing from the next episode with the weeks played unchanged.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

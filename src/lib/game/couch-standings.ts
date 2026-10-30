@@ -54,6 +54,9 @@ export interface GameStanding {
    *  other: power rankings, head to head, titles and finishes leave it out; the trophy shelf keeps it, everyone winning it or
    *  nobody. What it shows is U1's (A11 part 3's Noticed). */
   coop?: { result: "won" | "lost" | null; lives: number; of: number } | null;
+  /** Step A11 part 4: a head-to-head game: its places are its playoffs' and its record's, not its points, so its plaque gives no
+   *  margin in points (`by`); its winner is the playoffs' champion (first in its table). */
+  matchups?: boolean;
 }
 
 export interface Person {
@@ -275,7 +278,7 @@ export function trophiesOf(games: GameStanding[], people: Person[], me: string):
       artUrl: g.artUrl,
       you: mine ? { place: mine.place, rank: mine.rank } : null,
       winners: top.map((r) => ({ userId: r.userId, name: r.userId ? (member.get(r.userId)?.name ?? r.name) : r.name })),
-      by: one && second && pointsGame(g) && !g.coop ? Math.round((top[0].total - second.total) * 10) / 10 : null,
+      by: one && second && pointsGame(g) && !g.coop && !g.matchups ? Math.round((top[0].total - second.total) * 10) / 10 : null,
       ranItBack: one && !g.coop && top.some((r) => !!r.userId && prevWinners.has(r.userId)),
       ...(g.coop ? { coop: { result: g.coop.result } } : {}),
     };

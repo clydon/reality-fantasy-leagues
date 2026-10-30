@@ -2,7 +2,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { Pool, type PoolClient } from "pg";
 import type { LeagueState } from "@/lib/game/types";
 import { HttpError } from "./http-error";
-import { stampAirTimes } from "./air-times";
+import { stampAirTimes, stampSeasonLength } from "./air-times";
 import { runBots } from "./bots";
 import { syncWaivers } from "./waivers";
 import { justProcessed, sendProcessed, snapshot as waiverSnapshot } from "./waiver-pushes";
@@ -92,6 +92,11 @@ export async function withLeagueLock(
     // A mutation that turned keepers on reads their options; one that started the draft locks them.
     if (!keepers && StateLogic.KeeperLogic.config(state)) await settleKeepers(client, leagueId, state, true);
     StateLogic.KeeperLogic.settle(state);
+    // Head to head (step A11 part 4): the season's length for its playoffs, read again in case the mutation turned it on; then when
+    // each seat joined its schedule, and where the playoffs began once their first round has results (or let go when those are
+    // taken back), so neither a seat coming in nor the season's schedule changing rewrites what's been played.
+    await stampSeasonLength(client, state);
+    StateLogic.MatchupLogic.settle(state);
     const spec = change && before ? (typeof change === "function" ? change(before, state) : change) : null;
     // A move on a team two people share (step A10 part 4b): who made it, in this transaction. Only where the game shares its
     // seats, so no other game pays for a query.

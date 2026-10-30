@@ -38,8 +38,10 @@ pick that never repeats; one or none left ending it, and the night everyone left
 `rank.allOut`, `PickEmLogic.walk`), and part 2b, a game of questions' race and knockouts (2026-10-30: lives on its answers, its
 race and cuts on their points, walked over the graded answers by the server on each copy it reads and handed to the engine,
 `AnswerLogic.walk`, `answerWalk`), and part 3, co-op against the show (2026-10-30: a game of questions whose lives are the couch's
-together, a night none of you saw coming costing one, won or lost by all, `rank.by 'coop'`, `score.saves`), are built; parts 4 and 5
-(head to head, teams and handicaps) are next, then A12 to A14
+together, a night none of you saw coming costing one, won or lost by all, `rank.by 'coop'`, `score.saves`), and part 4, head to head
+with playoffs, a draft's (2026-10-30: a round robin of the seats each episode on that episode's points, the standings by wins, the
+playoffs over the game's last episodes, `rank.by 'matchups'`, `rank.playoffs`, `MatchupLogic`), are built; parts 4b and 5 (head to
+head on a game of questions; teams and handicaps) are next, then A12 to A14
 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -3159,7 +3161,12 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   - **Part 3: co-op against the show** (win.coop, s37): the couch's lives together, a night nobody saw coming costing one, the
     game won or lost by all.
   - **Part 4: head to head, with playoffs** (win.h2h): a matchup each episode (`rank.by 'matchups'` for shows; L4 brings it to
-    sports), the schedule, the standings by wins, playoffs at the season's end, a tie and a night nobody scores.
+    sports), the schedule, the standings by wins, playoffs at the season's end, a tie and a night nobody scores. **Split
+    (2026-10-30), as its seed allowed:** part 4 is a draft's (Outlast, a lineup, best ball: the spec, the schedule, the standings,
+    the playoffs, their fallbacks, and the Games tab's, the hub's and the trophies' readers), built; **part 4b is a game of
+    questions'**: its episodes' points from part 2b's walk (each episode's growth, which the walk works out on the server and hands
+    over: `answerWalk` carrying its series), head to head refused there until then (`matchupProblems`), and the couch's head to
+    head counted from the matchups themselves if the user wants it (part 4's Noticed item 9).
   - **Part 5: teams of players and handicaps** (who.teams, who.handicap, s19): the couch split into teams that score together
     (and teams that follow the show's own groups, through a swap), a handicap's points a week for whoever it names (newcomers,
     from the couch's history), and the late joiners' leftovers (Noticed: computer players and group slots; a late joiner's captain
@@ -3531,6 +3538,114 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     and 39, at 9 on 40 (pairs going home together, so naming either saved a night); s37 at 10 of The Traitors 4's 12 (its premiere, 7
     and 8 off: no Faithful banished; 2 and 5 saved). Four seats rarely call a boot, so three shared lives go fast: items 1 and 6 are
     the user's. The study doc's "A11 part 3: co-op against the show, replayed blind".
+
+  **As built (A11 part 4, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
+  lane-watch.js; 1099 tests). Head to head, with playoffs (win.h2h), a draft's. **Split** (above): a game of questions' head to head
+  is part 4b. Every default and everything a person sees is the user's (Noticed, below).
+  - **The spec** (`schema.js`): `rank.by 'matchups'` now plays on a show (VOCAB `now`; categories and roto stay the sports
+    branch's), a draft's: Outlast, a lineup, best ball (a stock market's too). `rank.playoffs` `{ teams, from? }` (2 to
+    `MAX_PLAYOFF_TEAMS`, 8, or null for none): the top `teams` seeded by the standings, a bracket of `playoffRounds(teams)` rounds
+    (2: 1, 3 or 4: 2, 5 to 8: 3), one an episode, over the game's last episodes, or from `from`. `rank.odd` median | bye and
+    `rank.quiet` skip | tie, their defaults `MATCHUPS` (median, skip), read by `matchupParts` and never filled in. A rank that says only
+    head to head's keys (`MATCHUP_KEYS`) is head to head (`fullSpec`). Refused (`matchupProblems`): head to head on a pool ("a pool's
+    picks don't score an episode's points against someone") or a game of questions (part 4b's); playoffs, `odd` or `quiet` without
+    it; teams out of range; `from` at or before the game's first episode, or not ending at a span's end when it has one (the game
+    ends with its final); a span too short for its rounds after one episode of matchups (a league's own keeps what it plays); a race,
+    cuts, `oneLeft` or `allOut` beside it (their own checks: they rank by the total or last one standing); with ctx, more playoff teams
+    than the couch has (`teamsOf`: teams, not people; fewer is fine, the top seeds get byes). `playsAs`: a draft ranked by matchups
+    with no race or cuts. `flagsOf`: `hasMatchups`. KEYS, the types. Settings both ways: `draftRank` 'matchups' and `rankMatchups`
+    (what it says of playoffs, odd and quiet).
+  - **Words** (`describe.js`): the sentence ("Each episode you play one of the others head to head: more points wins it. The top four
+    by wins make the playoffs, over the last two episodes." / "from Episode 12" / "Most wins at the end wins."); How it works (everyone
+    in turn, a tie half a win, the odd one out against the middle score or sitting it out, a night nobody scores, the standings, the
+    playoffs with their byes and a tie to the better seed, the final ending it, the season ending first, waiting for full results).
+    A draft played head to head is still its preset's game by name.
+  - **The engine** (`state-logic.js` `MatchupLogic`), worked out from the data on every read, as the knockouts are, so a corrected
+    result works it all out again and a viewer's copy plays only what they've seen. Each episode's points are each team's growth in
+    part 1's series (`KnockoutLogic.series`: a lineup's or best ball's points that episode, Outlast's boots outlasted, side bets and
+    finale predictions as they settle, each team as it stood then). `round` (the circle method over the seats in the order they
+    joined, a round an episode from the game's first: the same on every read), `seatsAt`, `median`, `bracket` (1 v 8, 4 v 5, 2 v 7,
+    3 v 6: the top two meet only in the final), `walk`/`run` (each regular-season week's games and results, the records `{ wins,
+    losses, ties, for, against }`, the seeds once every episode before the playoffs has been played, the rounds up to the first still
+    to play, who's still in, the champion, each seat's tier), `apply` (each row's `matchups`: the record, seed, tier, alive, champion),
+    `view` (a seat's record, their next matchup and the latest they played, the playoffs' seeds, bracket and champion), `endsAt` (the
+    final's episode: `KnockoutLogic.endsAt`, so `lastEpisode`, `gameOver`, `spanView` and `endedBefore` read it), `moveProblem` (no
+    move after the final: `KnockoutLogic.moveProblem`'s), `settle` (below). `rankKey`: how far you went in the playoffs (tier: 0 out of
+    them or before them, 1 in them, one more a round won, the champion one past the last), then wins (a tie half), then the regular
+    season's points, then the seed (the one tie seeding broke by who joined first).
+  - **Where the playoffs go:** the game's last `rounds` episodes, its last being its span's end, else the season's as its schedule says
+    (`state.seasonEpisodes`, `show_seasons.episode_count`, stamped by the server only for such a game: `air-times.ts`
+    `stampSeasonLength`, on every read and write, and again after a write's mutation so one that turns head to head on saves it),
+    the earlier when both are known; or `from`. They begin only after at least one episode of matchups. Where nothing says the end
+    (no span's end, no count), there are none until something does. Once their first round has results, where they began is kept
+    (`state.playoffsFrom`, `MatchupLogic.settlePlayoffs` on every write, db.ts): a count that changes after that moves nothing; taken
+    back with those results, or when the game no longer places them itself.
+  - **Who plays:** a seat from when it joined the schedule (`state.matchupSeats`, `settleSeats` on every write: the first time
+    everyone there from their own start, so a game made head to head mid-season counts its past; after that a seat new to it, brought
+    in mid-season or a late joiner once caught up, from the first episode still to play, so the weeks played never change; a state
+    never written, from its own start, not while catching up). A disabled seat stays (its team plays on, its points counting, as
+    `disablePlayer` has it). A ghost plays nobody, and their own row on their copy has no record (`matchups` null). A seat still to be
+    brought in isn't in it.
+  - **The fallbacks:** an odd number of seats (whoever the round robin leaves out plays the median of everyone else's points, or sits
+    it out: a bye's points still count toward the standings' points); a tie (half a win; in the playoffs, the better seed); a night
+    nobody in it scores (an Outlast's night nobody goes home: counts for nobody, or ties everyone; in the playoffs the better seed);
+    results still early (the series stops at the newest episode while early, so its matchups and the seeds wait); a corrected result;
+    a bracket short of seeds (byes for the top seeds; two seats in a bracket of four meet in the final); a season longer than its
+    schedule said (the game ends with its final, nothing after it counting); one that ends first (the season over with rounds to play:
+    the best seed still in; before the playoffs: seed 1), and nothing after the season's finale plays (a schedule that counts a
+    reunion: the blind replays found it); one seat alone (nobody to play); a game over a span (its end places them).
+  - **The server:** the Games tab (`game-view.ts`): `TableRow.record` (wins, losses, ties, points for and against, seed, alive,
+    champion; null for any other game) and `GameView.matchups` (`MatchupLogic.view` on your copy; null with no seat); the table ranks as
+    the engine does (the champion first, whatever the points). The hub (`couch-hub.ts`): `standingOf`'s `through` stops at
+    `lastEpisode` (a final played, a race won, one left), and `GameStanding.matchups`, so the plaque (the champion's: first in the
+    table) gives no margin in points (`couch-standings.ts`). Power rankings, head to head and finishes count it by its places, as any
+    game against each other.
+  - **The tracker:** win.h2h ✅ (a Weekly Lineup on Survivor 51, the top four in the playoffs over the last two episodes). **Now: 175
+    ✅** · 70 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271; A11's three left: who.teams, who.handicap, s19 (part 5).
+  - **Tests:** `tests/matchups.test.js` (new, 10): the shape, defaults, words and settings both ways, and what's refused; the round
+    robin (every pair once a cycle, an odd list, one alone), the bracket and the median; matchups, ties and the standings, the table
+    and the view; the median and a bye, a night nobody scores skipped or tied, a 0-0 tie; early results, a corrected result, a viewer
+    behind; the playoffs (seeded, a tie to the better seed, the champion first, over at the final, the couch's plaque); byes, the season's
+    length placing them, kept once begun, a longer season ending at the final, moves refused after it, taken back with its results, a
+    span's end with a shorter count, too short for any; the season over first (the best seed still in), nothing placing them, Outlast
+    head to head; who plays (a late joiner, a ghost, a disabled seat, one to be brought in); seat starts kept (a seat brought in later
+    from the next episode, the weeks played unchanged, a late joiner once caught up, a ghost never, dropped when not head to head, a
+    ghost's own row). `game-spec.test.js`'s fields and specWaitsFor. `npm test` 1109.
+  - **API check:** `scripts/dev-test/check-h2h.js` (new, on new-fixture.js's couch), 16 PASS: Lineup League made head to head through
+    `setGame` with the show's ctx (the top four); the Games tab as jordan reads it (jordan and alex on a win and four ties, riley and
+    sam level, T3), its playoffs at the season's end from its 13 episodes (12 and 13: the season length stamped on the read), jordan's
+    next matchup; as sam reads it (seen 3), the records through 3; made to end with Episode 7 (the playoffs 6 and 7, seeded); Episode 6
+    through the season sync (the semifinals: sam's upset on an immunity, alex through a 0-0 tie on the better seed; where the
+    playoffs began kept on that write); Episode 7, the final (sam the champion, first, over; no Episode 8 past the game's end, and the
+    engine refusing a move for it); the hub's plaque sam's with no margin; Episode 7 corrected (re-decided) to alex's starter: alex the
+    champion. `check-knockouts.js`, `check-coop.js`, `check-answer-knockouts.js`, `check-pool-knockouts.js` and `check-engine-lab.js
+    --api` ALL PASS. `npx tsc --noEmit -p .` clean.
+  - **Cost:** a read of a head-to-head game walks part 1's series about twice (the table, then the view): 3.4 ms against 0.8 ms for the
+    same game ranked by its total (10 players, 13 episodes, a scratch benchmark); nothing is memoised (Noticed).
+  - **Code review** (`/code-review` at high, before the long runs; ten findings). Taken: a seat brought in mid-season (no late join of
+    its own) re-paired every week already played, and a late joiner still catching up was counted from their chosen past start and
+    lost every week until they caught up (now `state.matchupSeats`, kept on every write); the hub's `through` past a game's early end
+    (now `lastEpisode`); a write that turns head to head on saved no season length (stamped again after the mutation, its own
+    `stampSeasonLength`); two seats level on everything shown tied while seeding put one ahead (the seed now breaks it among the
+    playoffs' seats); a ghost's own row ranked last on a zero record (now none); a double delete in the stamp; head to head's keys
+    listed in four places (`MATCHUP_KEYS`). Not taken (Noticed): a memo for the walk, and one early-end dispatcher in place of
+    `KnockoutLogic.endsAt` and `moveProblem` branching to each kind. After the long runs, the blind replays' finding (a final played on the reunion after the
+    season's end) was fixed, the unit tests, the golden and the blind replays and `check-h2h.js` (ALL PASS) run again on
+    it.
+  - **The harness** (`blind.js`): each episode's record of a head-to-head game says the records (wins-losses-ties), where the
+    playoffs are, the seeds once known, the rounds played and the champion (`.matchups`), as the app reads the league.
+  - **Golden replays** (`golden.js`, HEAD against the working tree, on the final code): 7 seasons, 160 games, **19,361 reads, every
+    one the same** (no game they play is head to head), after the code review's fixes and again after the reunion fix.
+  - **Blind replays** (`blind.js run`, the five seasons, on the final code): **every game ended on all five seasons**, win.h2h among
+    them (Survivor 49 95 of 95, The Challenge 41, 40 and 39 76 of 76, The Traitors 4 74 of 74), no problem in the moves. Survivor 49:
+    seeded after 11 (the tinkerer 10-1 first), the semifinals at 12, the final at 13, the fan the champion from the second seed with
+    69 points to the tinkerer's 106 (head to head, not the most points). The Traitors 4: the semifinals at 11, its finale; 12 (an
+    episode after the finale its count includes) didn't play: the tinkerer, the best seed still in, the champion. The Challenge 41, 40 and 39: their
+    schedules count 21 episodes but the final is 18 and 19, so the playoffs sat on 20 and 21, after the season's end; the season
+    over first, the regular season's leader won (the drive-by, the fan, the tinkerer), the playoffs never played. The first run, on the
+    code before it, played those rounds on the reunion's results after the game read over at 19 (all ties, so the same champions):
+    nothing after the finale plays now (a unit test), and Noticed item 12 is the user's. The study doc's "A11 part 4: head to head,
+    replayed blind".
 - **A12. Stages.** A game made of phases or mini-games, each with its own rules and an overall: a second draft at the merge, a
   season of mini-games, a game that scores two ways (bingo lines plus answers), one game across two shows.
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
@@ -4244,6 +4359,78 @@ From A10 part 1 (2026-10-29):
 - A slot's group members are matched to the league's cast the forgiving way (`Core.findCastawayByName`), as F3 part 2's group
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
+
+From A11 part 4 (2026-10-30):
+- **For the user, in a design session (with parts 1, 2, 2b and 3's questions and A10's), each with a recommendation (built as spec
+  settings or engine rules, the defaults in `MATCHUPS` and `MatchupLogic`, never filled into a spec):**
+  1. An odd number of you. Built: `rank.odd`, median (whoever the round robin leaves out plays the median of everyone else's points
+     that episode: the default) | bye (they sit it out, in turn). Recommended: median, as built: nobody has a week off, everyone plays
+     the same number of matchups, so ranking by wins stays fair; a bye for a couch that wants only real opponents (then item 3's
+     win percentage).
+  2. A night nobody scores (everyone in it on 0: an Outlast's night nobody goes home). Built: `rank.quiet`, skip (counts for nobody:
+     the default) | tie (everyone ties). Recommended: skip, as built; in the playoffs either way the better seed goes through (item 4).
+  3. The standings. Built: wins (a tie half a win), then the regular season's points, then who joined first (the seeding's last tie;
+     the table shows T until the playoffs, then the seed orders them). Options: win percentage (fairer with byes, or a seat that joined
+     late), points against, the head to head between the tied. Recommended: as built with the median; win percentage if a couch picks
+     byes.
+  4. The playoffs. Built: `rank.playoffs` `{ teams, from? }`, none when the spec leaves it out; the top 2 to 8, a fixed bracket (1 v 4,
+     2 v 3; never re-seeded), a round an episode over the game's last episodes; a tie, or a night nobody scores, to the better seed.
+     Options: a default for the wizard (none; the top half rounded down to 2, 4 or 8; the top two only); re-seeding after each round;
+     a playoff tie to the season's points, or a shared title. Recommended: the wizard offers playoffs from four of you up, the top
+     half rounded down to a power of two (4 of 6 to 9, 8 of 10 or more), the bracket fixed and a tie to the better seed, as built.
+  5. Where the playoffs sit, when the season's length changes. Built: the game's last episodes as the data has it (its span's end,
+     else the season's episode count from its schedule), moving with it until their first round has results, then kept; a season
+     longer than it said ends the game with its final (later episodes don't count); one that ends first (the finale earlier than
+     scheduled, rounds still to play) is won by the best seed still in, or seed 1 before the playoffs began; nothing saying the end
+     (no span's end, no count): no playoffs, the standings decide. Options: shared titles among those still in; the playoffs placed
+     once at the game's creation and never moved. Recommended: as built, the wizard saying where they are and letting the maker set
+     `from`; the desk's count is the source, so a wrong count (item 11) is the risk.
+  6. Seats out of the playoffs (never in them, or knocked out). Built: no matchup, their moves still open (their points still show;
+     a lineup set changes nothing that counts). Options: their moves refused, as a knocked-out player's are (part 1); a consolation
+     bracket. Recommended: as built (harmless, and Andrew's drive-by lineup isn't refused for nothing); a consolation bracket only if a
+     request asks for one.
+  7. A seat that comes in later (brought in mid-season, a late joiner once caught up). Built: from the first episode still to play,
+     with no record before (behind on wins), the weeks played unchanged (`state.matchupSeats`). Options: a record to start from (the
+     median's, or the average); refusing late joiners once matchups have started. Recommended: as built, with the join screen saying
+     they're behind; refusing a late joiner once the playoffs are seeded (nobody can catch up then: not built, `GhostLogic.allowed`).
+  8. A seat that leaves. Built: a disabled seat stays in the schedule, its team playing on as the engine plays it (best ball and
+     Outlast by themselves, a lineup carried), as `disablePlayer` keeps its points; a seat removed outright (`removePlayer`: the desk's
+     and Backstage's member removal, a computer player) is gone, and every week is paired again without it. Options: a disabled seat's
+     opponents winning by forfeit; dropping it from the next episode (the settle could keep when). Recommended: as built for a
+     disabled seat; a removal once the game has results made a disable (whoever next touches member removal; U1).
+  9. The couch's head to head (the hub's, `couch-standings.ts` `rankingsOf`): a head-to-head game counts there as every game does, by
+     who finished above whom. Options: its own matchups between the two counted instead (won, lost, tied each week). Recommended:
+     count its matchups, since that's literally head to head (part 4b, with `GameStanding` carrying each pair's record).
+  10. What a head-to-head game shows (the user's, U1): the record beside the points (`TableRow.record`), this week's opponent and last
+     week's result (`GameView.matchups`), the bracket during the playoffs, the champion on the plaque (built: no margin in points).
+     Recommended: the record first and the points after it; "This week: you v riley" on the episode night; the bracket on the Games tab
+     once seeded; the champion named on the plaque as the playoffs' winner. What players are told when they're seeded, knocked out of
+     the playoffs, or when a correction changes a result already shown, is U1's.
+  11. The season's length comes from `show_seasons.episode_count` (the desk's, held or from the listing). A wrong count places the
+     playoffs wrong until it's corrected, and once their first round has results it can't be. Recommended: the desk's season page
+     says when a head-to-head game's playoffs read its count (the desk lane), and the wizard shows the episodes they'll be on.
+  12. A schedule that counts more than the competition (the blind replays): The Challenge's seasons count 21 episodes, but their final
+     is 18 and 19 (20 and 21 are the reunion), so the playoffs were placed on the reunion, after the season's end. Built: the fallback
+     holds (the season over first: nothing after its finale plays, the best seed still in wins; there, before the playoffs began,
+     seed 1, the regular season's leader), so the playoffs never play on such a season. Options: the desk's count leaving the reunion
+     out (a finale episode in the schedule, beside its count); the playoffs starting when research says the final begins (F2's
+     format section reports a new phase: "the final", The Challenge 41's from 18), as a stage that starts on a phase (A12); a playoff
+     of one round only. Recommended: the schedule's finale episode on the desk (the desk lane: it already holds the count), and A12's
+     stage on a phase for a show whose final research names; until then, the fallback.
+- **Readers not taught the early end:** the couch's game list (`couch-joins.ts`), Game settings' span (`backstage-games.ts`) and the
+  desk's games list (`desk-games.ts`) read the span (`endEpisode`), so a head-to-head game whose `from` ends it before its season's end
+  runs to the season's end there, as part 1's and 2b's games do. (U1 for the lists.)
+- **The hub reads states without stamping them** (`leagueStates`): a head-to-head game's season length there is as of its last write;
+  a count changed on the desk reaches it at the next write. (Rare; whoever next touches the hub's reads.)
+- **Nothing is memoised:** a read walks part 1's series about twice (3.4 ms against 0.8 ms, 10 players, 13 episodes). A memo by
+  state for the walks (knockouts, pools, matchups) together. (Whenever a read gets slow; A12 has more walks.)
+- **The early ends branch in `KnockoutLogic`:** `endsAt` and `moveProblem` dispatch to each kind (a draft's knockouts, a pool's, a
+  game of questions' walk, head to head's final). One dispatcher each logic registers with would keep the order from mattering.
+  (A12, which adds stages that end.)
+- **A game of questions' head to head** is refused until part 4b (its episodes' points are the walk's, on the server).
+- **Sports:** L4 brings head to head to sports on this engine (a sport's stats score each matchup); categories and roto stay the
+  sports branch's (VOCAB 'sports').
+- Start a game, Game settings and the engine lab offer none of part 4's fields (the lab starts the tracker's rows). (U1.)
 
 From A11 part 3 (2026-10-30):
 - **For the user, in a design session (with parts 1, 2 and 2b's questions and A10's), each with a recommendation (built as spec

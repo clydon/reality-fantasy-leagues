@@ -1833,7 +1833,21 @@
         {
           "id": "win.h2h",
           "what": "Head to head, with playoffs",
-          "step": "A11"
+          "step": "A11",
+          "spec": {
+            "preset": "weekly-lineup",
+            "rank": {
+              "by": "matchups",
+              "playoffs": {
+                "teams": 4
+              }
+            }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "win.guillotine",

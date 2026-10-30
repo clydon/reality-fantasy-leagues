@@ -133,7 +133,7 @@ function waitsForPhase(state){ return startEpisode(state) === null; }
 // lineups are made for it, and the game is over once it has results. Null (the default): to the season's end.
 function endEpisode(state){ return gameOf(state).span.to; }
 // The episode the game plays through, as the data has it: its span's end, or earlier where a draft's race was won or its cuts
-// left one (step A11 part 1: KnockoutLogic.endsAt). It's over there (gameOver) and scores as it stood then (spanView); the
+// left one (step A11 part 1: KnockoutLogic.endsAt), or where head to head's playoffs end (part 4: MatchupLogic.endsAt). It's over there (gameOver) and scores as it stood then (spanView); the
 // span's end (endEpisode) stays what the game was made with, for what it says and for Game settings.
 function lastEpisode(state){
   const to = endEpisode(state);
@@ -550,6 +550,13 @@ function rankKey(state, r){
   if((g.get.by === 'draft' || g.score.by === 'answers') && g.rank.by === 'standing') return PickEmScoringStrategy.standingKey(r);
   // A11 part 3: co-op, won or lost by all: everyone shares one place, whatever their points.
   if(g.rank.by === 'coop') return [0];
+  // A11 part 4: head to head, how far you went in the playoffs, then the standings: wins (a tie half), then the regular season's
+  // points (MatchupLogic.apply puts them on its rows).
+  // The playoffs' seats, level on all of it, by their seed (the one tie the seeding broke by who joined first).
+  if(g.rank.by === 'matchups' && MatchupLogic.on(state)) {
+    const m = r.matchups;
+    return m ? [m.tier, m.wins * 2 + m.ties, m.for, m.seed ? -m.seed : 0] : [0, 0, r.total || 0, 0];
+  }
   return [r.total];
 }
 // Weekly Calls (docs/PLAN-new-design.md step 12 part 2): a talk show's season game, scored from each person's calls
@@ -573,6 +580,8 @@ class ScoringLogic {
     const view = spanView(state);
     const rows = getLeagueType(state).scoringStrategy.compute(view);
     if(KnockoutLogic.on(view)) return KnockoutLogic.apply(view, rows);
+    // A11 part 4: head to head's records and playoffs (MatchupLogic).
+    if(MatchupLogic.on(view)) return MatchupLogic.apply(view, rows);
     // A11 part 2b: a game of questions' walk, its points and who's out, as the server worked them out (AnswerLogic.walk).
     const walk = AnswerLogic.walkOf(view);
     return walk ? AnswerLogic.applyWalk(view, rows, walk) : rows;
@@ -762,6 +771,8 @@ class KnockoutLogic {
   // as the walk its state carries has it (AnswerLogic.walkOf: none, the span's end).
   static endsAt(state){
     if(KnockoutLogic.on(state)) return KnockoutLogic.run(state).ends;
+    // A11 part 4: head to head ends with its playoffs' final.
+    if(MatchupLogic.on(state)) return MatchupLogic.endsAt(state);
     const walk = AnswerLogic.walkOf(state);
     return walk ? walk.ends : PickEmLogic.endsAt(state);
   }
@@ -786,7 +797,8 @@ class KnockoutLogic {
   // Why someone can't make a move for episode `number` (a lineup, a captain, a group slot): the game ended before it (a race won,
   // one left), or they're out. Null when they can, or the game knocks nobody out.
   static moveProblem(state, playerId, number){
-    if(!KnockoutLogic.on(state)) return null;
+    // A11 part 4: nor after head to head's final.
+    if(!KnockoutLogic.on(state)) return MatchupLogic.on(state) ? MatchupLogic.moveProblem(state, number) : null;
     const { out, ends } = KnockoutLogic.run(state);
     if(ends !== null && number > ends) return 'This game ended with episode ' + ends;
     return out.has(playerId) ? 'You’re out of this game' : null;
@@ -817,6 +829,367 @@ class KnockoutLogic {
     });
     if(!KnockoutLogic.parts(state).cuts.length) return rows;
     return rows.sort((a,b) => PickEmScoringStrategy.compareKeys(PickEmScoringStrategy.standingKey(b), PickEmScoringStrategy.standingKey(a)) || b.total - a.total);
+  }
+}
+
+// ---------- MatchupLogic: head to head, with playoffs (docs/PLAN-start-a-game-gpt.md step A11 part 4) ----------
+// The spec's rank.by 'matchups' (Spec.matchupParts), a draft's: each episode the game plays, everyone plays one of the others on
+// that episode's points by the game's own scoring (KnockoutLogic.series: a lineup's or best ball's points that episode, Outlast's
+// growth, side bets and finale predictions as they settle, each team as it stood then), and more points wins it. Worked out from
+// the data on every read, as the knockouts are, so a corrected result works everything after it out again and a viewer's copy
+// plays only what they've seen; the one thing kept is where the playoffs began, once they have (settle, below).
+//   - The schedule: a round robin (the circle method) over the seats in the game at each episode, in the order they joined, a
+//     round an episode from the game's first: the same on every read. In it: everyone playing the league's own season, from when
+//     they joined it (state.matchupSeats, kept on every write: settle), a disabled seat too (its team plays on and its points
+//     keep counting, as disablePlayer has it); not a ghost (a late joiner's private season), a seat still to be brought in, or one
+//     still catching up. A seat that comes in later (brought in mid-season, a late joiner once caught up) plays from the first
+//     episode still to play then: the round robin over the new list from that episode, the ones played as they were. The first
+//     time the seats are kept (a game made head to head, or one before they were), everyone there is in from their own start
+//     (GhostLogic.startFor), as they are on a copy that's never been written (a state without them).
+//   - An odd number of seats: whoever the round robin leaves out plays the median of everyone else's points that episode (odd
+//     'median', the default: a win, a loss or a tie on their record alone) or sits it out (odd 'bye').
+//   - A matchup: more points that episode wins it, the same points is a tie (half a win). A night nobody in it scores (everyone on
+//     0: nobody went home in an Outlast) counts for nobody (quiet 'skip', the default) or ties everyone (quiet 'tie'). Results still
+//     early wait: the series stops at the newest episode while its results are early, as a cut does.
+//   - The standings: wins (a tie half), then the points over the regular season, then the order they joined.
+//   - The playoffs (rank.playoffs): the top `teams` by the standings through the episode before them, seeded, a bracket of
+//     `rounds` rounds (the best seed against the lowest), one an episode, over the game's last episodes: its span's end, else the
+//     season's last episode as its schedule says (state.seasonEpisodes, the server's: air-times.ts), the earlier of the two when
+//     both are known; or from `from` when the spec says it. A bracket short of seeds (fewer of you than it takes) gives the top
+//     seeds byes; a playoff tie, or a night nobody scores, goes to the better seed. Where they begin is kept once their first
+//     round has results (state.playoffsFrom: settle, on every write), so the season's schedule changing after that moves nothing:
+//     a season longer than it said ends the game with its final, and one that ends first (the season over with rounds still to
+//     play, its finale earlier than its schedule said, or a schedule that counts a reunion) is won by the best seed still in:
+//     nothing after the finale plays. Where nothing says the game's end (no span's end, no schedule), there are no
+//     playoffs until something does, and a season that ends first is the standings'.
+//   - The game ends with its final (endsAt, through KnockoutLogic.endsAt and lastEpisode): over there (gameOver), scored as it
+//     stood then (spanView), and no move is made for an episode after it (moveProblem).
+// Its rows (apply) carry `matchups`: { wins, losses, ties, for, against, seed, tier, alive, champion }, ranked by rankKey: how far
+// they went in the playoffs (tier: 0 out of them or before them, 1 in them, one more for each round won, the champion one past the
+// last round), then the standings.
+let matchupsRunning = false;
+class MatchupLogic {
+  static parts(state){ return Spec.matchupParts(gameOf(state)); }
+  static on(state){ return !!MatchupLogic.parts(state); }
+  // Whether the game places its playoffs by the game's end as the data has it (no `from` of its own): what the server stamps the
+  // season's length for (state.seasonEpisodes, air-times.ts).
+  static readsSeasonLength(state){
+    const parts = MatchupLogic.parts(state);
+    return !!(parts && parts.playoffs && parts.playoffs.from === null);
+  }
+  // The game's last episode as the data has it, for its playoffs: its span's end, else the season's from its schedule, the earlier
+  // of the two when both are known; null when neither is.
+  static lastOf(state){
+    const to = endEpisode(state);
+    const n = Number.isInteger(state.seasonEpisodes) && state.seasonEpisodes >= 1 ? state.seasonEpisodes : null;
+    return to === null ? n : n === null ? to : Math.min(to, n);
+  }
+  // The episode the playoffs' first round is, or null (none, or nothing says the game's end yet): the spec's `from`; else where they
+  // began (state.playoffsFrom, once their first round has results); else the game's last `rounds` episodes, as long as at least
+  // one episode of matchups comes before them.
+  static playoffsFrom(state, parts){
+    const p = (parts || MatchupLogic.parts(state) || {}).playoffs;
+    if(!p) return null;
+    if(p.from !== null) return p.from;
+    if(Number.isInteger(state.playoffsFrom)) return state.playoffsFrom;
+    const last = MatchupLogic.lastOf(state);
+    const start = startEpisode(state);
+    if(last === null || start === null) return null;
+    const from = last - p.rounds + 1;
+    return from > start ? from : null;
+  }
+  // Where the game ends: the episode its playoffs' final is played in, or null (no playoffs, or not placed yet: its span's end).
+  static endsAt(state){
+    const parts = MatchupLogic.parts(state);
+    const from = parts ? MatchupLogic.playoffsFrom(state, parts) : null;
+    return from === null ? null : from + parts.playoffs.rounds - 1;
+  }
+  // Why a move for episode `number` can't be made: the game ended with its final before it. Null when it can.
+  static moveProblem(state, number){
+    const end = MatchupLogic.endsAt(state);
+    return end !== null && number > end ? 'This game ended with episode ' + end : null;
+  }
+  // The seats in the game at episode k, in the order they joined: playing the league's own season (not a ghost), brought in, and in
+  // its schedule by k (state.matchupSeats: from when it joined; without them, from its own start, and not while catching up). A
+  // disabled seat stays: its team plays on, its points counting (disablePlayer).
+  static seatsAt(state, k){
+    const start = startEpisode(state);
+    const kept = MatchupLogic.kept(state);
+    return (state.players || []).filter(p => {
+      if(isGhost(p) || p.active === false) return false;
+      if(kept) return Number.isInteger(kept[p.id]) && kept[p.id] <= k;
+      return !GhostLogic.isCatchingUp(state, p.id) && (GhostLogic.startFor(state, p.id) || start) <= k;
+    }).map(p => p.id);
+  }
+  // When each seat joined the schedule (state.matchupSeats, settle's: playerId -> the first episode it plays), or null.
+  static kept(state){ const m = state.matchupSeats; return m && typeof m === 'object' && !Array.isArray(m) ? m : null; }
+  // Round r of a round robin over `ids` (the circle method: the first stays put, the rest turn a place each round), as pairs [a, b],
+  // b null for whoever an odd list leaves out that round. One seat alone plays nobody.
+  static round(ids, r){
+    if(ids.length < 2) return [];
+    const list = ids.length % 2 ? [...ids, null] : ids.slice();
+    const n = list.length;
+    const turn = ((r % (n - 1)) + (n - 1)) % (n - 1);
+    const rest = list.slice(1);
+    const circle = [list[0], ...rest.slice(rest.length - turn), ...rest.slice(0, rest.length - turn)];
+    const pairs = [];
+    for(let i = 0; i < n / 2; i++){
+      const a = circle[i], b = circle[n - 1 - i];
+      pairs.push(a === null ? [b, null] : [a, b]);
+    }
+    return pairs;
+  }
+  // The middle of some points (the mean of the middle two of an even count); 0 for none.
+  static median(values){
+    const v = values.slice().sort((a,b) => a - b);
+    if(!v.length) return 0;
+    const m = Math.floor(v.length / 2);
+    return v.length % 2 ? v[m] : roundPoints((v[m - 1] + v[m]) / 2);
+  }
+  // A bracket's first-round order of seeds for `size` places (a power of two): the best against the lowest, the top two meeting only
+  // in the final ([1, 4, 2, 3]; [1, 8, 4, 5, 2, 7, 3, 6]). Consecutive places play each other.
+  static bracket(size){
+    let order = [1];
+    while(order.length < size){
+      const n = order.length * 2;
+      order = order.flatMap(s => [s, n + 1 - s]);
+    }
+    return order;
+  }
+  // The walk, once a read (nothing while one is already under way: a read inside it sees the game as its span has it), or null for
+  // a game that isn't head to head.
+  static run(state){
+    const parts = MatchupLogic.parts(state);
+    if(!parts || matchupsRunning) return null;
+    matchupsRunning = true;
+    try { return MatchupLogic.walk(state, parts); }
+    finally { matchupsRunning = false; }
+  }
+  // Each regular-season episode's matchups, everyone's record, and the playoffs as far as they've gone, as plain data:
+  //   weeks     [{ number, quiet, games: [{ a, b (a seat, or null: nobody to play), aPoints, bPoints (b's, the median's, or null
+  //             for a bye), result: 'a' | 'b' | 'tie' | null (counts for nobody: a bye, a quiet night skipped) }] }]
+  //   records   Map playerId -> { wins, losses, ties, for (their points over the regular season), against }
+  //   from      the playoffs' first round, or null
+  //   seeds     [playerId], best first, once every episode before the playoffs has been played (or the season ended first); else null
+  //   rounds    [{ number, played, games: [{ a, b (a seed's seat, or null: a bye), aSeed, bSeed, aPoints, bPoints, winner }] }],
+  //             up to the first still to play
+  //   alive     Set of the seeds still in; champion, the final's winner (or the best seed still in, the season over first), or null
+  //   tiers     Map playerId -> how far they went (rankKey's first number)
+  static walk(state, parts){
+    const series = KnockoutLogic.series(state);
+    const start = startEpisode(state);
+    const from = MatchupLogic.playoffsFrom(state, parts);
+    const players = state.players || [];
+    const records = new Map();
+    const rec = id => {
+      if(!records.has(id)) records.set(id, { wins: 0, losses: 0, ties: 0, for: 0, against: 0 });
+      return records.get(id);
+    };
+    const tally = (id, theirs, result) => {
+      const r = rec(id);
+      r.against = roundPoints(r.against + theirs);
+      if(result === 'win') r.wins++;
+      else if(result === 'loss') r.losses++;
+      else r.ties++;
+    };
+    const weeks = [];
+    const playoff = new Map();
+    let before = null;
+    for(const x of series){
+      const k = x.number;
+      const pts = new Map(players.map(p => [p.id, roundPoints((x.totals.get(p.id) || 0) - (before ? before.totals.get(p.id) || 0 : 0))]));
+      before = x;
+      if(from !== null && k >= from){ playoff.set(k, pts); continue; }
+      const seats = MatchupLogic.seatsAt(state, k);
+      seats.forEach(id => { const r = rec(id); r.for = roundPoints(r.for + (pts.get(id) || 0)); });
+      const quiet = seats.length > 0 && seats.every(id => !pts.get(id));
+      const games = MatchupLogic.round(seats, k - start).map(([a, b]) => {
+        const aPoints = pts.get(a) || 0;
+        if(b === null && parts.odd === 'bye') return { a, b: null, aPoints, bPoints: null, result: null };
+        const bPoints = b === null ? MatchupLogic.median(seats.filter(id => id !== a).map(id => pts.get(id) || 0)) : pts.get(b) || 0;
+        const result = quiet ? (parts.quiet === 'tie' ? 'tie' : null) : aPoints > bPoints ? 'a' : bPoints > aPoints ? 'b' : 'tie';
+        if(result !== null){
+          tally(a, bPoints, result === 'a' ? 'win' : result === 'b' ? 'loss' : 'tie');
+          if(b !== null) tally(b, aPoints, result === 'b' ? 'win' : result === 'a' ? 'loss' : 'tie');
+        }
+        return { a, b, aPoints, bPoints, result };
+      });
+      weeks.push({ number: k, quiet, games });
+    }
+    const out = { weeks, records, from, seeds: null, rounds: [], alive: new Set(), champion: null, tiers: new Map() };
+    // Seeded once every episode before the playoffs has been played (the series reached the one before their first), or once the
+    // season ended first: the standings as they are.
+    const ended = seasonEnded(state);
+    const reached = series.length ? series[series.length - 1].number : null;
+    if(from === null || !((reached !== null && reached >= from - 1) || ended)) return out;
+    const key = id => { const r = records.get(id); return r ? [r.wins * 2 + r.ties, r.for] : [0, 0]; };
+    const ranked = MatchupLogic.seatsAt(state, from).map((id, i) => ({ id, i, key: key(id) }))
+      .sort((a,b) => PickEmScoringStrategy.compareKeys(b.key, a.key) || a.i - b.i);
+    const n = Math.min(parts.playoffs.teams, ranked.length);
+    if(n < 2) return out;
+    const seeds = ranked.slice(0, n).map(r => r.id);
+    out.seeds = seeds;
+    seeds.forEach(id => out.tiers.set(id, 1));
+    // A bracket of the spec's size; a seed past the field's is a bye. Nothing after the season's finale plays (a schedule that counts
+    // a reunion, or a finale earlier than it said): the season over first, the best seed still in wins.
+    const finale = ended ? finaleEpisodeOf(state) : null;
+    let alive = MatchupLogic.bracket(2 ** parts.playoffs.rounds).map(s => (s <= n ? s : null));
+    for(let j = 0; j < parts.playoffs.rounds; j++){
+      const number = from + j;
+      const pts = finale && number > finale.number ? null : playoff.get(number) || null;
+      const games = [];
+      const next = [];
+      for(let g = 0; g < alive.length; g += 2){
+        const a = alive[g], b = alive[g + 1];
+        const game = { a: a === null ? null : seeds[a - 1], b: b === null ? null : seeds[b - 1], aSeed: a, bSeed: b, aPoints: null, bPoints: null, winner: null };
+        let w;
+        if(a === null || b === null){
+          // A bye: the seed there goes through.
+          w = a === null ? b : a;
+        } else if(pts){
+          game.aPoints = pts.get(game.a) || 0;
+          game.bPoints = pts.get(game.b) || 0;
+          // A tie, or a night nobody scores, goes to the better seed.
+          w = game.aPoints > game.bPoints ? a : game.bPoints > game.aPoints ? b : Math.min(a, b);
+        }
+        if(Number.isInteger(w) && (pts || a === null || b === null)) game.winner = seeds[w - 1];
+        next.push(pts ? (Number.isInteger(w) ? w : null) : undefined);
+        games.push(game);
+      }
+      out.rounds.push({ number, played: !!pts, games });
+      if(!pts) break;
+      next.forEach(s => { if(Number.isInteger(s)) out.tiers.set(seeds[s - 1], j + 2); });
+      alive = next;
+    }
+    const still = alive.filter(s => Number.isInteger(s));
+    still.forEach(s => out.alive.add(seeds[s - 1]));
+    const last = out.rounds[out.rounds.length - 1];
+    if(out.rounds.length === parts.playoffs.rounds && last.played) out.champion = last.games[0].winner;
+    // The season over with rounds still to play: the best seed still in.
+    else if(ended && still.length) out.champion = seeds[Math.min(...still) - 1];
+    if(out.champion){
+      out.tiers.set(out.champion, parts.playoffs.rounds + 1);
+      out.alive = new Set([out.champion]);
+    }
+    return out;
+  }
+  // The score rows with each one's `matchups` (their record, seed, how far they went), ranked as the game ranks (rankKey), then by
+  // their points.
+  static apply(state, rows){
+    const w = MatchupLogic.run(state);
+    if(!w) return rows;
+    // A row that's no seat (a ghost's own, on their copy) has no record: it's in nobody's schedule.
+    const seats = new Set(MatchupLogic.seatsAt(state, Number.MAX_SAFE_INTEGER));
+    rows.forEach(r => {
+      if(!seats.has(r.playerId) && !w.records.has(r.playerId)){ r.matchups = null; return; }
+      const rec = w.records.get(r.playerId) || { wins: 0, losses: 0, ties: 0, for: 0, against: 0 };
+      const seed = w.seeds ? w.seeds.indexOf(r.playerId) + 1 : 0;
+      r.matchups = { ...rec, seed: seed || null, tier: w.tiers.get(r.playerId) || 0, alive: w.alive.has(r.playerId), champion: w.champion === r.playerId };
+    });
+    return rows.sort((a,b) => PickEmScoringStrategy.compareKeys(rankKey(state, b), rankKey(state, a)) || b.total - a.total);
+  }
+  // Who a seat plays at episode n, from a walk: { episode, round (the playoffs' round, 1 the first; null in the regular season),
+  // opponent (a seat, or null), stand ('median' | 'bye' with no opponent in the regular season; 'bye' in the playoffs) }, or null
+  // (not in it then: out of the playoffs, or never in them, or the game over).
+  static gameAt(state, w, parts, playerId, n){
+    const end = MatchupLogic.endsAt(state);
+    if(end !== null && n > end) return null;
+    if(w.from !== null && n >= w.from){
+      const r = w.rounds[n - w.from];
+      const g = r && r.games.find(x => x.a === playerId || x.b === playerId);
+      if(!g) return null;
+      const opponent = g.a === playerId ? g.b : g.a;
+      return { episode: n, round: n - w.from + 1, opponent, stand: opponent === null ? 'bye' : null };
+    }
+    const start = startEpisode(state);
+    if(start === null || n < start) return null;
+    const seats = MatchupLogic.seatsAt(state, n);
+    const pair = MatchupLogic.round(seats, n - start).find(([a, b]) => a === playerId || b === playerId);
+    if(!pair) return null;
+    const opponent = pair[0] === playerId ? pair[1] : pair[0];
+    return { episode: n, round: null, opponent, stand: opponent === null ? parts.odd : null };
+  }
+  // What a seat sees of it (the Games tab's, game-view.ts), from their own copy: their record; their next matchup (the first of the
+  // game's episodes without its full results) and the latest played, with its points and result; the playoffs (where they are,
+  // the seeds once known, the bracket so far, the champion). Null for a game that isn't head to head.
+  static view(state, playerId){
+    const w = MatchupLogic.run(state);
+    if(!w) return null;
+    const parts = MatchupLogic.parts(state);
+    const record = w.records.get(playerId) || { wins: 0, losses: 0, ties: 0, for: 0, against: 0 };
+    const played = [...w.weeks.map(x => x.number), ...w.rounds.filter(r => r.played).map(r => r.number)];
+    const start = startEpisode(state);
+    const newest = played.length ? Math.max(...played) : null;
+    const n = newest !== null ? newest + 1 : start;
+    const next = n === null || gameOver(state) ? null : MatchupLogic.gameAt(state, w, parts, playerId, n);
+    // Their latest matchup played: the newest episode they were in one (someone out of the playoffs, their last game).
+    let last = null;
+    for(const k of played.slice().sort((a,b) => b - a)){
+      const week = w.weeks.find(x => x.number === k);
+      const round = w.rounds.find(r => r.number === k && r.played);
+      const g = (week || round).games.find(x => x.a === playerId || x.b === playerId);
+      if(!g) continue;
+      const mine = g.a === playerId;
+      const opponent = mine ? g.b : g.a;
+      const points = mine ? g.aPoints : g.bPoints, against = mine ? g.bPoints : g.aPoints;
+      if(week){
+        const result = g.result === null ? null : g.result === 'tie' ? 'tie' : (g.result === 'a') === mine ? 'win' : 'loss';
+        last = { episode: k, round: null, opponent, stand: opponent === null ? parts.odd : null, points, against, result };
+      } else {
+        last = { episode: k, round: k - w.from + 1, opponent, stand: opponent === null ? 'bye' : null, points, against, result: g.winner === playerId ? 'win' : 'loss' };
+      }
+      break;
+    }
+    const playoffs = w.from === null ? null : {
+      from: w.from, rounds: parts.playoffs.rounds, teams: parts.playoffs.teams, seeds: w.seeds,
+      bracket: w.rounds.map(r => ({ episode: r.number, played: r.played, games: r.games.map(g => ({ ...g })) })),
+      champion: w.champion,
+    };
+    return { record, next, last, playoffs };
+  }
+  // On every write (db.ts withLeagueLock): keeps when each seat joined the schedule (state.matchupSeats: the first time, everyone
+  // there from their own start; after that, a seat new to it, or caught up, from the first episode still to play, never one
+  // played), and where the playoffs began once their first round has results (state.playoffsFrom), so the season's schedule
+  // changing after that moves nothing; lets the playoffs' go when those results are taken back, or the game no longer places its
+  // playoffs itself (none, or a `from` of its own), and both go when it's no longer head to head. True when anything changed.
+  static settle(state){
+    const seats = MatchupLogic.settleSeats(state);
+    return MatchupLogic.settlePlayoffs(state) || seats;
+  }
+  static settleSeats(state){
+    const start = MatchupLogic.on(state) ? startEpisode(state) : null;
+    const kept = MatchupLogic.kept(state);
+    if(start === null){
+      if(state.matchupSeats === undefined) return false;
+      delete state.matchupSeats;
+      return true;
+    }
+    const map = kept ? { ...kept } : {};
+    const open = Math.max(start, SpoilerLogic.latestWithResults(state) + 1);
+    let changed = !kept;
+    (state.players || []).forEach(p => {
+      if(isGhost(p) || p.active === false || Number.isInteger(map[p.id]) || GhostLogic.isCatchingUp(state, p.id)) return;
+      const own = GhostLogic.startFor(state, p.id) || start;
+      map[p.id] = kept ? Math.max(own, open) : own;
+      changed = true;
+    });
+    if(changed) state.matchupSeats = map;
+    return changed;
+  }
+  static settlePlayoffs(state){
+    const parts = MatchupLogic.parts(state);
+    const had = state.playoffsFrom;
+    const placed = !!(parts && parts.playoffs && parts.playoffs.from === null);
+    const resultsAt = n => { const ep = (state.episodes || []).find(e => e.number === n); return !!ep && EpisodeLogic.hasResults(ep); };
+    if(had !== undefined){
+      if(placed && Number.isInteger(had) && resultsAt(had)) return false;
+      delete state.playoffsFrom;
+    }
+    if(placed){
+      const from = MatchupLogic.playoffsFrom(state, parts);
+      if(from !== null && resultsAt(from)){ state.playoffsFrom = from; return from !== had; }
+    }
+    return had !== undefined;
   }
 }
 
@@ -6717,7 +7090,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, draftFits, draftFitsFor, rankKey,
+  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

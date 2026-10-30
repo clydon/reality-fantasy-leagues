@@ -89,7 +89,8 @@ export interface SpecParlay {
 export interface SpecRank {
   /** total, streak: today; standing (A10 part 2): last one standing, a pool with lives; worth (A10 part 3c): a stock market's,
    *  cash plus the team at today's prices; coop (A11 part 3): a game of questions the couch plays together against the show, won
-   *  or lost by all. sports: matchups, categories, roto. */
+   *  or lost by all; matchups (A11 part 4): head to head, a draft's (each episode's points against someone's), with playoffs (L4
+   *  brings it to sports). sports: categories, roto. */
   by: "total" | "streak" | "standing" | "worth" | "coop" | "matchups" | "categories" | "roto";
   /** A11 part 1, beside a draft (part 2b, a game of questions too): a race (the first to `to` points wins, the game ending there)
    *  and players knocked out. */
@@ -99,6 +100,14 @@ export interface SpecRank {
    *  pool's plays); a pool's night everyone left goes out (all out by points, the default; all out sharing the win; all back). */
   oneLeft?: "ends" | "plays";
   allOut?: "points" | "share" | "back";
+  /** A11 part 4, head to head: the top `teams` (2 to 8) seeded by the standings, a round an episode over the game's last episodes
+   *  (or from `from`); null or left out: none. */
+  playoffs?: { teams: number; from?: number } | null;
+  /** With an odd number of you, whoever the round robin leaves out plays the median of everyone else's points (MATCHUPS' default)
+   *  or sits it out. */
+  odd?: "median" | "bye";
+  /** A night nobody scores: counts for nobody (MATCHUPS' default) or ties everyone. */
+  quiet?: "skip" | "tie";
 }
 
 /** A10 part 2: a pool's buyback. before: a phase of the season or an episode (someone out before it can buy back), or null (any
@@ -545,6 +554,21 @@ export interface AnswerParts {
   coop: { saves: "one" | "most" | "all" } | null;
 }
 export function answerParts(spec: GameSpec | SpecInput | null | undefined): AnswerParts | null;
+/** A11 part 4: head to head's defaults (the one the round robin leaves out plays the median; a night nobody scores counts for
+ *  nobody), the playoffs' most, and how many rounds the top `teams` take, one an episode. */
+export const MATCHUPS: { odd: "median" | "bye"; quiet: "skip" | "tie" };
+export const MAX_PLAYOFF_TEAMS: number;
+/** The rank keys that are head to head's: playoffs, odd, quiet. */
+export const MATCHUP_KEYS: readonly ("playoffs" | "odd" | "quiet")[];
+export function playoffRounds(teams: number): number;
+export interface MatchupParts {
+  odd: "median" | "bye";
+  quiet: "skip" | "tie";
+  /** `from`: its first round when the spec says it, else null (the game's last `rounds` episodes). */
+  playoffs: { teams: number; rounds: number; from: number | null } | null;
+}
+/** Head to head as the engine plays it, read the one way from a whole spec; null for a game that isn't (a draft's only, for now). */
+export function matchupParts(spec: GameSpec | SpecInput | null | undefined): MatchupParts | null;
 /** A question a life can ride on: asked each episode, about that episode alone. */
 export function livesQuestion(q: unknown): boolean;
 /** A10 part 2: a pool's lives (null: none, nobody's out), mulligans (0: none), buyback (with lives, its defaults filled), second
@@ -612,7 +636,7 @@ export function playsAs(spec: GameSpec): LeagueTypeId | null;
 /** The league type's flags, worked out from a whole spec. */
 export function flagsOf(spec: GameSpec): {
   hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasKeepers: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasBingo: boolean;
-  hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean; hasCoop: boolean;
+  hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean; hasCoop: boolean; hasMatchups: boolean;
   supportsReplenish: boolean; supportsTrade: boolean; supportsFinalePredictions: boolean;
 };
 /**

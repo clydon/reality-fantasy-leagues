@@ -800,6 +800,29 @@ declare const StateLogic: {
     frees(state: LeagueState): boolean;
     apply(state: LeagueState, rows: ScoreRow[]): ScoreRow[];
   };
+  /** Step A11 part 4: head to head (rank.by 'matchups'): a round robin of the seats each episode on that episode's points, the
+   *  standings by wins, and the playoffs over the game's last episodes; worked out from the data on every read, all but where the
+   *  playoffs began once they have (settle, on every write). */
+  MatchupLogic: {
+    parts(state: LeagueState): import("./game-spec/index.js").MatchupParts | null;
+    on(state: LeagueState): boolean;
+    readsSeasonLength(state: LeagueState): boolean;
+    lastOf(state: LeagueState): number | null;
+    playoffsFrom(state: LeagueState, parts?: import("./game-spec/index.js").MatchupParts | null): number | null;
+    endsAt(state: LeagueState): number | null;
+    moveProblem(state: LeagueState, number: number): string | null;
+    seatsAt(state: LeagueState, k: number): string[];
+    kept(state: LeagueState): Record<string, number> | null;
+    round(ids: string[], r: number): [string, string | null][];
+    median(values: number[]): number;
+    bracket(size: number): number[];
+    run(state: LeagueState): MatchupWalk | null;
+    apply(state: LeagueState, rows: ScoreRow[]): ScoreRow[];
+    view(state: LeagueState, playerId: string): MatchupView | null;
+    settle(state: LeagueState): boolean;
+    settleSeats(state: LeagueState): boolean;
+    settlePlayoffs(state: LeagueState): boolean;
+  };
   /** Step A10 part 4: keepers across seasons (the spec's get.keep): options from last season's game (the server's: keepers.ts),
    *  named before the draft, locked as it starts; the draft fills the places they leave. */
   KeeperLogic: {
@@ -955,6 +978,41 @@ export interface CoopWalk {
   of: number;
   lost: { episode: number; question: string }[];
   result: "won" | "lost" | null;
+}
+/** A11 part 4: head to head's walk (MatchupLogic.walk), plain data: each regular-season episode's matchups (b null: nobody to
+ *  play, the median's points or a bye's null; result null: it counts for nobody), the records, the playoffs' first round, the
+ *  seeds once known, the bracket's rounds up to the first still to play, who's still in, the champion, and how far each went. */
+export interface MatchupWalk {
+  weeks: { number: number; quiet: boolean; games: { a: string; b: string | null; aPoints: number; bPoints: number | null; result: "a" | "b" | "tie" | null }[] }[];
+  records: Map<string, import("./types").MatchupRecord>;
+  from: number | null;
+  seeds: string[] | null;
+  rounds: MatchupRound[];
+  alive: Set<string>;
+  champion: string | null;
+  tiers: Map<string, number>;
+}
+export interface MatchupRound {
+  number: number;
+  played: boolean;
+  games: { a: string | null; b: string | null; aSeed: number | null; bSeed: number | null; aPoints: number | null; bPoints: number | null; winner: string | null }[];
+}
+/** A11 part 4: a seat's matchup (MatchupLogic.view): the episode, the playoffs' round (null: the regular season), the opponent, or
+ *  who stands in for none (the median, a bye). */
+export interface MatchupGame {
+  episode: number;
+  round: number | null;
+  opponent: string | null;
+  stand: "median" | "bye" | null;
+}
+/** A11 part 4: what a seat sees of head to head (the Games tab's): their record, their next matchup and the latest played (its
+ *  points, the other side's, the result), and the playoffs (where they are, the seeds once known, the bracket so far, the
+ *  champion). What it shows is U1's. */
+export interface MatchupView {
+  record: import("./types").MatchupRecord;
+  next: MatchupGame | null;
+  last: (MatchupGame & { points: number | null; against: number | null; result: "win" | "loss" | "tie" | null }) | null;
+  playoffs: { from: number; rounds: number; teams: number; seeds: string[] | null; bracket: { episode: number; played: boolean; games: MatchupRound["games"] }[]; champion: string | null } | null;
 }
 
 export default StateLogic;

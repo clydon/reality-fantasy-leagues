@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -101,8 +101,8 @@ function nameOf(s) {
   const p = presetOf(s);
   // A pool with lives ranked by who's still standing (A10 part 2) is still a Survival Pool; a draft's stock market ranked by worth
   // (part 3c) is still its draft's game.
-  // A11 part 1: a draft that knocks players out is still its draft's game.
-  const rank = p && (p.rank.by === s.rank.by || (s.score.by === 'survive' && s.rank.by === 'standing') || (s.get.by === 'draft' && (s.rank.by === 'worth' || s.rank.by === 'standing')));
+  // A11 part 1: a draft that knocks players out is still its draft's game; part 4, one played head to head.
+  const rank = p && (p.rank.by === s.rank.by || (s.score.by === 'survive' && s.rank.by === 'standing') || (s.get.by === 'draft' && (s.rank.by === 'worth' || s.rank.by === 'standing' || s.rank.by === 'matchups')));
   const same = p && p.get.by === s.get.by && countKind(p.count) === countKind(s.count) && p.score.by === s.score.by && rank && !s.score.reverse;
   return same ? PRESET_LABELS[s.preset] : null;
 }
@@ -233,7 +233,9 @@ function sentenceParts(s, w) {
   // A11 part 1: a draft's cuts and race.
   for (const said of knockoutPhrases(s, w)) put(` ${said}`, 'rank');
   // A10 part 3c: a stock market ranked by worth.
-  const rank = { worth: " Most worth wins: cash plus the team at today's prices.", matchups: ' Played head to head.', categories: ' Ranked by category.', roto: ' Ranked roto-style.' }[s.rank.by];
+  // A11 part 4: head to head, with its playoffs (a sports spec's, which the engine doesn't play yet: just its name).
+  const h2h = matchupParts(s);
+  const rank = h2h ? ` ${matchupPhrase(h2h, w)}` : { worth: " Most worth wins: cash plus the team at today's prices.", matchups: ' Played head to head.', categories: ' Ranked by category.', roto: ' Ranked roto-style.' }[s.rank.by];
   if (rank) put(rank, 'rank');
   // A10 part 4b: a team two people share.
   if (seatPeople(s) > 1) put(` Up to ${say(seatPeople(s))} of you can share a team.`, 'extras');
@@ -411,6 +413,35 @@ function knockoutRules(s, w) {
   }
   if (k.race) out.push(`First to ${pointsWord(k.race.to)} wins: the game ends after that ${w.part}, and the most points then win (a tie shares it). If nobody gets there, the most points at the end win.`);
   out.push(`A cut or a finish waits for ${article(w.part)} ${w.part}'s full results.`);
+  return out;
+}
+
+/** Where head to head's playoffs are (A11 part 4), as a phrase: "the last two episodes", "from Episode 11". */
+const playoffWhen = (p, w) => (p.from !== null ? `from ${w.Part} ${p.from}` : p.rounds === 1 ? `the last ${w.part}` : `the last ${say(p.rounds)} ${w.parts}`);
+/** The sentence's words for head to head (A11 part 4): "Each episode you play one of the others head to head: more points wins it.
+ *  The top four by wins make the playoffs, over the last two episodes." */
+function matchupPhrase(h, w) {
+  const play = `Each ${w.part} you play one of the others head to head: more points wins it.`;
+  if (!h.playoffs) return `${play} Most wins at the end wins.`;
+  const p = h.playoffs;
+  return `${play} The top ${say(p.teams)} by wins make the playoffs, ${p.from !== null ? playoffWhen(p, w) : `over ${playoffWhen(p, w)}`}.`;
+}
+/** How it works for head to head (A11 part 4: schema.js matchupParts), as the engine plays it (state-logic.js MatchupLogic). */
+function matchupRules(s, w) {
+  const h = matchupParts(s);
+  if (!h) return [];
+  const out = [`Each ${w.part} you play one of the others head to head, everyone in turn: more points that ${w.part} wins it, and the same points is a tie (half a win).`];
+  out.push(h.odd === 'bye' ? `With an odd number of you, one of you sits each ${w.part} out, in turn.` : `With an odd number of you, whoever has nobody to play that ${w.part} plays the middle score of everyone else's.`);
+  out.push(`${cap(article(w.part))} ${w.part} where nobody scores ${h.quiet === 'tie' ? 'is a tie for everyone' : 'counts for nobody'}.`);
+  out.push('The standings: the most wins (a tie is half), then the most points.');
+  if (h.playoffs) {
+    const p = h.playoffs;
+    out.push(`The playoffs: the top ${say(p.teams)} in the standings, ${p.from !== null ? '' : 'over '}${playoffWhen(p, w)}, a round ${article(w.part)} ${w.part}. The best seed plays the lowest, and whoever wins goes through; a tie goes to the better seed.${2 ** p.rounds - p.teams === 1 ? ' The top seed gets a bye in the first round.' : 2 ** p.rounds > p.teams ? ` The top ${say(2 ** p.rounds - p.teams)} seeds get a bye in the first round.` : ''}`);
+    out.push(`Whoever wins the final wins the game${p.from !== null ? `: it ends there` : ''}. If the season ends before the final, the best seed still in wins.`);
+  } else {
+    out.push('Most wins at the end wins.');
+  }
+  out.push(`${cap(article(w.part))} ${w.part}'s matchups wait for its full results.`);
   return out;
 }
 
@@ -608,6 +639,8 @@ function rulesOf(s, w) {
     }
     // A11 part 1: players knocked out, and a race.
     rules.push(...knockoutRules(s, w));
+    // A11 part 4: head to head, with playoffs.
+    rules.push(...matchupRules(s, w));
   } else if (by === 'pick') {
     rules.push(s.score.means === 'scores'
       ? `No draft. Before each ${w.part}, pick one ${w.castaway} you think scores in it.`
@@ -667,8 +700,9 @@ function rulesOf(s, w) {
     if (answerParts(s)) rules.push(...answerKnockoutRules(s, w));
     else rules.push('Most points wins.');
   }
+  // A11 part 4: a draft's head to head says itself (matchupRules); a sports spec's, which the engine doesn't play yet, its name.
   const rank = {
-    matchups: `You play someone head to head each ${w.part}: the most points wins it.`,
+    matchups: matchupParts(s) ? null : `You play someone head to head each ${w.part}: the most points wins it.`,
     categories: 'Ranked by category: the most in each stat earns the most.',
     roto: 'Ranked roto-style: each stat ranks everyone, and the ranks add up.',
   }[s.rank.by];
