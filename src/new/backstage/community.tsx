@@ -163,7 +163,7 @@ export function Corrections({ seasonId, couchId, corrections }: { seasonId: stri
                     Drop the ruling
                   </Btn>
                 </>
-              ) : (
+              ) : c.keepable === false ? null : (
                 <Btn data-keep-old className="mt-2.5 h-10 px-3 text-[14px]" onClick={() => setKeeping(c)}>
                   {c.change === "added" ? "Don't count it in our games" : "Keep our old result"}
                 </Btn>
