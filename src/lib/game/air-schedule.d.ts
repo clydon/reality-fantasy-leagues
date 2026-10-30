@@ -12,6 +12,8 @@ export function zonedToUtc(date: string, time: string, tz: string): Date;
 export function parseAirDate(text: string | null | undefined): string | null;
 /** An exact start research confirmed (season_episodes, 0067), e.g. "2026-11-06T01:00:00Z"; else null. */
 export function exactAirTime(text: string | null | undefined): Date | null;
+/** An exact start as written, read in `tz` when its offset is the zone's other one (a daylight-saving slip); else as written. */
+export function exactInZone(text: string | null | undefined, tz: string | null | undefined): Date | null;
 export function episodeAirTime(season: AirSeason, n: number, wikiAirDates?: Record<number, string | null>): Date | null;
 export function formatInTz(instant: Date, tz?: string | null): string;
 export function localDate(instant: Date, tz: string): string;

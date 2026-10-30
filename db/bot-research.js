@@ -580,7 +580,7 @@ function buildSchedulePrompt(showName, season, episode, airedAt, tz) {
     "Reply with only this JSON, in a ```json code block:",
     '{"found": true, "airsAt": "2026-11-04T20:00:00-05:00", "minutes": 90, "note": null, "sources": ["https://..."]}',
     "",
-    `- airsAt: when episode ${episode + 1} starts, ISO 8601 with the UTC offset of the time zone it's announced in. If the show takes a week off, the date of the next one that does air.`,
+    `- airsAt: when episode ${episode + 1} starts, ISO 8601 with the UTC offset of the time zone it's announced in, as it is on that date (after a clock change, the new one). If the show takes a week off, the date of the next one that does air.`,
     "- minutes: how long it runs, ads included (60, 90, or 120 for a two-hour episode). Null if not announced.",
     "- note: anything unusual in a few words ('after a week off', 'two-hour finale'), else null.",
     `If you can't find a source for when episode ${episode + 1} airs, set "found" to false. Never guess from earlier seasons or a usual pattern.`,
