@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { pool } from "./db";
 import { HttpError } from "./http-error";
 import { roleAtLeast } from "./roles";
+import { viewAsOf } from "./view-as";
 
 export type Session = NonNullable<Awaited<ReturnType<typeof auth.api.getSession>>>;
 export type SessionUser = Session["user"];
@@ -40,6 +41,8 @@ export async function requireSession(req: Request): Promise<Session> {
   const session = await auth.api.getSession({ headers: req.headers });
   if (!session) throw new HttpError(401, "Not logged in");
   touchLastSeen(session);
+  // A site admin viewing as a player or a commissioner (view-as.ts) is no site admin for this request.
+  if (isSuperAdminUser(session.user) && viewAsOf(req, session.user.id)) return { ...session, user: { ...session.user, role: "user" } };
   return session;
 }
 
@@ -104,13 +107,14 @@ export async function requireLeagueRole(
   const user = await requireAuth(req);
   if (!UUID_RE.test(leagueId)) throw new HttpError(404, "League not found");
   const isSuperAdmin = isSuperAdminUser(user);
+  const asPlayer = viewAsOf(req, user.id) === "player";
 
   const { rows } = await pool.query("SELECT role, player_id FROM league_memberships WHERE league_id=$1 AND user_id=$2", [
     leagueId,
     user.id,
   ]);
   if (rows.length) {
-    const role: LeagueMembership["role"] = isSuperAdmin ? "commissioner" : rows[0].role;
+    const role: LeagueMembership["role"] = isSuperAdmin ? "commissioner" : asPlayer ? "member" : rows[0].role;
     if (!roleAtLeast(role, minRole)) throw new HttpError(403, minRole === "commissioner" ? "Commissioner only" : "Game admins only");
     return { user, membership: { role, playerId: rows[0].player_id } };
   }

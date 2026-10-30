@@ -14,6 +14,7 @@ import { RateSheets } from "@/new/show/rate";
 import { TriviaSheets } from "@/new/show/trivia";
 import { WatchingSheets } from "@/new/watching/sheets";
 import { paths, START_STEPS } from "@/new/routes";
+import { viewAsFor } from "@/lib/server/view-as";
 
 // The new design's signed-in routes: the hub, show spaces, settings. No session: the new design's sign-in (step 9 part
 // 2), which comes back to the hub. Not let in yet (early access): first run's last step, which says you're on the list.
@@ -23,10 +24,13 @@ export default async function SignedInLayout({ children }: { children: React.Rea
   if (!session) redirect(paths.signin());
   const user = session.user as typeof session.user & { username?: string | null; role?: string | null; approved?: boolean };
   if (user.approved === false && user.role !== "admin") redirect(paths.start(START_STEPS));
+  // A site admin viewing as a player or a commissioner (view-as.ts) is drawn as one; the profile menu's Admin row goes back.
+  const viewingAs = user.role === "admin" ? await viewAsFor(user.id) : null;
   const me = {
     id: user.id,
     name: user.username || user.name,
-    isSuperAdmin: user.role === "admin",
+    isSuperAdmin: user.role === "admin" && !viewingAs,
+    viewingAs,
     impersonating: !!(session.session as { impersonatedBy?: unknown }).impersonatedBy,
     impersonatingUntil: (session.session as { impersonatedBy?: unknown }).impersonatedBy ? new Date(session.session.expiresAt).toISOString() : null,
   };

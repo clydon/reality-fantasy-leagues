@@ -101,6 +101,7 @@ export function DeskHeader({
   name,
   kind,
   start,
+  aside,
 }: {
   title: string;
   back: { label: string; href: string };
@@ -108,6 +109,8 @@ export function DeskHeader({
   name?: string | null;
   kind?: string;
   start?: boolean;
+  /** Beside the badge (the desk's own tabs: View as). */
+  aside?: ReactNode;
 }) {
   const nav = useNav();
   const prev = useDeskTrail(name === undefined ? title : name, { start, kind });
@@ -124,7 +127,10 @@ export function DeskHeader({
         <span className="truncate">{to.label}</span>
       </button>
       <h1 className="type-caption max-w-[46vw] truncate text-[20px]">{title}</h1>
-      {badge ? <span className="type-caption justify-self-end rounded-[2px] bg-foreground px-2 py-0.5 text-[12px] tracking-[0.06em] text-background">Admin</span> : <span />}
+      <span className="flex items-center gap-1.5 justify-self-end">
+        {aside}
+        {badge && <span className="type-caption rounded-[2px] bg-foreground px-2 py-0.5 text-[12px] tracking-[0.06em] text-background">Admin</span>}
+      </span>
     </header>
   );
 }

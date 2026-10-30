@@ -25,6 +25,7 @@ import { useDeskStay, useRecentlyOpened } from "./trail";
 import { agoOf, ChoiceCard, DeskHeader, DeskRow, History, IconLead, ItemRow, Section, Tag, useChangeToast } from "./parts";
 import { RulebookPage } from "./rulebook";
 import { RulebooksSheet } from "./settings-flag";
+import { ViewAsButton } from "./view-as";
 import { EpisodePage } from "./episode";
 import { BingoPage } from "./bingo";
 import { CastPage } from "./cast";
@@ -87,7 +88,7 @@ function DeskTabs({ tab }: { tab: Tab }) {
   ];
   return (
     <div className="pb-16">
-      <DeskHeader title="Admin" back={{ label: "Home", href: paths.home }} name={TAB_NAMES[tab]} start />
+      <DeskHeader title="Admin" back={{ label: "Home", href: paths.home }} name={TAB_NAMES[tab]} start aside={<ViewAsButton />} />
       <nav className="mx-4 mt-3 grid grid-cols-3 gap-2" aria-label="The desk">
         {tabs.map(([k, label, href]) => (
           <NavLink

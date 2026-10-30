@@ -202,6 +202,16 @@ Last updated 2026-10-27.
     - A house ruling's count and plate say "in your games" for the couch's games as a whole, so one kept in only some of
       them reads as all (the lookup is per decision, not per game). Pre-existing wording.
     - **When:** whichever session next touches sheets, the desk's Research page, results-ways, the push or corrections.
+27. **View as: what it doesn't cover yet (noticed 2026-10-29, building View as: src/lib/server/view-as.ts).** A site admin
+    viewing as a player or a commissioner loses site admin everywhere (requireSession). As a player, each game reads as a
+    member's through requireLeagueRole and show-space.ts `games()` (the home, show spaces, Backstage), which covers what the
+    screens draw. About 35 other server reads take a league or couch role straight from the database (couch-chat's
+    moderator, a couch owner's rights, couch-joins' "only whoever runs the game answers"), so a few commissioner powers may
+    still answer there. It's not a security gap: the lens only takes power away. As a commissioner it's your own role in
+    each game, not a commissioner everywhere.
+    - Seen while checking it: `GET /api/leagues/<id>/ruleset/shared` answers 500 for any commissioner on the local DB,
+      lens or not (check-view-as.js only asks that it isn't refused).
+    - **When:** if a player's view shows a commissioner tool, route that read through the lens, then fix the 500.
 
 ## Decided against (don't re-propose without new information)
 
