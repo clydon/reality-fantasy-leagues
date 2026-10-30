@@ -16,7 +16,10 @@
 // final read the same way, and printed:
 //  - plays ESPN listed live and dropped by the final, and plays the final reads otherwise (its deltas, its time, its score);
 //  - the game as of each live answer's newest play against the final's at that moment (what a phone showed, against the
-//    truth), as streaks of answers that differ, with how long each took to settle;
+//    truth), as streaks of answers that differ, with how long each took to settle; then count by count (a person's stat, or the
+//    score), from the first answer that showed it otherwise to the first that matched, the stat crew's judged counts apart
+//    (hockey's hits and blocks are revised all game), the longest listed; and how many people the box listed live and at the end
+//    (the NHL's lists a player only once he's played);
 //  - ESPN's lag: how long after a play's wallclock it was first in an answer (median, 90th percentile, most), for the plays
 //    that came after the first answer recorded (a recording started mid-game has the rest in its first answer already);
 //  - the raw fields the readers don't trust live: baseball's outs and score on an at-bat's start and the plays in it (the
@@ -145,7 +148,27 @@ function compare() {
   for (const [id, why] of [...otherwise].slice(0, 15)) console.log(`  ${id}  ${why.slice(0, 220)}`);
   const { streaks } = settles(log, { within: 10 * 60_000 });
   console.log(`\nThe game as a phone showed it, against the final at the same moment: ${log.length - log.filter((x) => x.diffs.length).length} of ${log.length} answers equal`);
-  for (const s of streaks) console.log(`  from ${new Date(s.from).toISOString()} for ${s.ms === Infinity ? "ever" : `${Math.round(s.ms / 1000)} s`}: ${s.diffs.slice(0, 5).join("; ")}`);
+  for (const s of streaks.slice(0, 25)) console.log(`  from ${new Date(s.from).toISOString()} for ${s.ms === Infinity ? "ever" : `${Math.round(s.ms / 1000)} s`}: ${s.diffs.slice(0, 5).join("; ")}`);
+  if (streaks.length > 25) console.log(`  ... and ${streaks.length - 25} more`);
+  // Count by count (a person's stat, or the score): from the first answer that showed it otherwise to the first that showed it
+  // as the final does, judged counts (the stat crew's: settled at the final) apart from the rest.
+  const open = new Map();
+  const spans = [];
+  const keyOf = (d) => d.replace(/ -?[\d.]+\/-?[\d.]+$/, "").replace(/^score .*/, "score");
+  for (const a of log) {
+    const now = new Set(a.diffs.map(keyOf));
+    for (const k of now) if (!open.has(k)) open.set(k, { from: a.at, first: a.diffs.find((d) => keyOf(d) === k) });
+    for (const [k, o] of [...open]) if (!now.has(k)) (spans.push({ k, ...o, ms: a.at - o.from }), open.delete(k));
+  }
+  for (const [k, o] of open) spans.push({ k, ...o, ms: Infinity });
+  const judgedKey = (k) => k !== "score" && !!sport.stat(k.split(" ")[1])?.judged;
+  for (const [label, xs] of [["not judged", spans.filter((s) => !judgedKey(s.k))], ["judged", spans.filter((s) => judgedKey(s.k))]]) {
+    const ms = xs.filter((s) => s.ms !== Infinity).map((s) => s.ms / 1000);
+    console.log(`  ${label}: ${xs.length} counts shown otherwise for a while${ms.length ? `, settled in a median ${Math.round(quantile(ms, 0.5))} s, 90th ${Math.round(quantile(ms, 0.9))} s, most ${Math.round(Math.max(...ms))} s` : ""}${xs.some((s) => s.ms === Infinity) ? `, ${xs.filter((s) => s.ms === Infinity).length} only at the final` : ""}`);
+    for (const s of [...xs].sort((a, b) => b.ms - a.ms).slice(0, label === "judged" ? 3 : 8)) console.log(`    ${new Date(s.from).toISOString()} for ${s.ms === Infinity ? "ever" : `${Math.round(s.ms / 1000)} s`}: ${s.first}`);
+  }
+  const boxPeople = (s) => new Set((s.boxscore?.players ?? []).flatMap((side) => (side.statistics ?? []).flatMap((t) => (t.athletes ?? []).map((r) => String(r.athlete?.id)))));
+  if (live.length) console.log(`\nThe box score's people: ${boxPeople(live[0]).size} in the first live answer, ${boxPeople(final).size} in the final's`);
   const lags = [...firstSeen].filter(([id, x]) => !already.has(id) && Number.isFinite(x.at)).map(([, x]) => (x.asked - x.at) / 1000);
   const every = quantile(live.slice(1).map((a, i) => (Date.parse(a._asked) - Date.parse(live[i]._asked)) / 1000), 0.5);
   console.log(`\nESPN's lag (first in an answer after its wallclock, s; answers every ${every} s): median ${quantile(lags, 0.5)}, 90th ${quantile(lags, 0.9)}, most ${Math.max(...lags)}`);

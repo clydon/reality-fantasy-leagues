@@ -232,7 +232,10 @@ phones mostly share an answer). **A phone's data:** every answer is the whole su
 over the wire for a finished game (measured 2026-10-28: NBA 49, NHL 45, NFL 53, MLB 80 KB; 0.5-1 MB unzipped), growing from a few
 KB at the start, so an estimated **15-30 MB a game** watched live with the screen on (`scripts/dev-test/record-espn-live.js`
 measures a real game). **Measured live** (L5 part 1, 2026-10-28, two cup ties through extra time and their shootouts): a soccer
-answer is 21-29 KB over the wire (260-350 KB unzipped), so 5-7 MB an hour at 15 s, ~17 MB for a match that goes to extra time. ESPN answers browsers (`Access-Control-Allow-Origin: *`) but its CDN refuses a headless browser's user
+answer is 21-29 KB over the wire (260-350 KB unzipped), so 5-7 MB an hour at 15 s, ~17 MB for a match that goes to extra time.
+**And** (L5 part 2b, 2026-10-30, the night of 2026-10-28 recorded every 30 s): an NBA answer 31 KB on average over the wire (7 MB an
+hour at 15 s, ~17 MB a game), an NHL answer 28 KB (6 MB an hour), **an MLB answer 55 KB** (39-71: every pitch; 13 MB an hour, **~40 MB
+for a three-hour game**, past the estimate). ESPN answers browsers (`Access-Control-Allow-Origin: *`) but its CDN refuses a headless browser's user
 agent, so a person's own browser is the real check (`scripts/dev-test/check-espn-browser.js`'s header). **If ESPN ever stops
 answering phones**, the fallback (not built; its shape in the plan's L2 As built) is one Vercel route forwarding the summary with
 `s-maxage=15`, so Vercel's CDN shares one ESPN call per game every 15 s per region: ~240 function invocations an hour a game a
@@ -565,6 +568,9 @@ never handles it: the user does the reset and the pasting.
   for the couch's three Survivor 51 games, three more league rows (~the real ones' state each) and a handful of users, and every
   result accepted for the season syncs three more leagues (a few more writes on an episode night). Researched rules ask our bot
   once (the answer is kept). Remove it when done.
+- **2026-10-30, `sports` branch (not merged).** L5 part 2b (docs/PLAN-start-a-game-gpt.md track L): college football read from
+  ESPN's answers. No new ESPN call from the app, no table, nothing stored. A phone's data measured on three live games (Live games):
+  MLB's answers are the biggest, ~40 MB for a three-hour game watched live at 15 s; the NBA's and NHL's 6-7 MB an hour.
 - **2026-10-28, `sports` branch (not merged).** L5 part 1 (docs/PLAN-start-a-game-gpt.md track L): soccer read from ESPN's
   answers (its match sheets, key events and commentary). No new ESPN call from the app, no table, nothing new stored but a
   league's own name on the read shapes already cached (a few bytes; a league's show is named from it). A live soccer answer

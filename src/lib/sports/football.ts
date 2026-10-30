@@ -1,6 +1,7 @@
 import { TeamSport, addStats, cleanDeltas, count, headerTeams, idOf, inOrder, isFinal, num, pair, position as pos, ratio, rosterOf, str, val as n, type Box, type BoxPerson, type BoxTeam, type EspnPlay, type EspnSummary, type EspnTable, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
 
-// Football (the NFL; college football's plays are written otherwise, so it waits for L5): its vocabulary and ESPN's readers.
+// Football (the NFL; college football's plays are written otherwise: college-football.ts reads them on this vocabulary and box
+// reader, through the same drives frame, readDrives): its vocabulary and ESPN's readers.
 //
 // How ESPN records an NFL game (checked on the 2026 season's weeks 3-7 and the 2025-26 playoffs, 2026-10-28): its plays sit
 // in drives (`drives.previous`, and live `drives.current`), each typed ("Rush", "Pass Reception", "Sack", "Punt") with its
@@ -41,7 +42,7 @@ const allowed = (key: string, from: number, to: number | null) => {
   return derived(key, label, to == null ? `PA ${from}+` : `PA ${from}-${to}`, from === to ? "shutout" : `game allowing ${to == null ? `${from} or more` : `${from} to ${to}`}`, TEAM_DEFENSE, (s) => (n(s, "PA") >= from && (to == null || n(s, "PA") <= to) ? 1 : 0));
 };
 
-const STATS: StatDef[] = [
+export const FOOTBALL_STATS: StatDef[] = [
   count("CMP", "Completions", "CMP", "completion", PASSING),
   count("PATT", "Passing attempts", "ATT", "pass attempt", PASSING),
   // A passer's yards as the league counts them, before sacks (the team's net passing yards are less its sacks' yards).
@@ -182,7 +183,7 @@ export const defenseId = (team: string) => `def:${team}`;
 
 // ESPN's box score tables, by name, their columns to our keys (a pair, "27/40" or "2-11", is two counts; PCT, AVG, LONG,
 // QBR and the like aren't counts).
-const BOX_TABLES: Record<string, Record<string, string | [string, string]>> = {
+export const BOX_TABLES: Record<string, Record<string, string | [string, string]>> = {
   passing: { "C/ATT": ["CMP", "PATT"], YDS: "PYDS", TD: "PTD", INT: "INT", SACKS: ["SACKED", "SACKYDS"] },
   rushing: { CAR: "RATT", YDS: "RYDS", TD: "RTD" },
   receiving: { REC: "REC", YDS: "RECYDS", TD: "RECTD", TGTS: "TGT" },
@@ -195,7 +196,7 @@ const BOX_TABLES: Record<string, Record<string, string | [string, string]>> = {
   punting: { NO: "PUNT", YDS: "PUNTYDS", TB: "PUNTTB", "In 20": "PUNTIN20" },
 };
 // The team's own totals ESPN gives, by its stat names: its players' added up (its passing yards net of sacks).
-const TEAM: Record<string, string | [string, string]> = {
+export const TEAM_TOTALS: Record<string, string | [string, string]> = {
   completionAttempts: ["CMP", "PATT"],
   netPassingYards: "NPYDS",
   sacksYardsLost: ["SACKED", "SACKYDS"],
@@ -207,11 +208,11 @@ const TEAM: Record<string, string | [string, string]> = {
 
 /* ---- The play reader's text helpers. ---- */
 
-const SUFFIX = /^(?:jr|sr|ii|iii|iv|v)$/;
+export const SUFFIX = /^(?:jr|sr|ii|iii|iv|v)$/;
 /** Letters only, lower case, no accents: "St. Brown" is "stbrown", "Smith-Njigba" "smithnjigba". */
-const letters = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z]/g, "");
+export const letters = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z]/g, "");
 /** For a full name in a summary's words: no accents, lower case, one space, no periods ("Kevin Coleman Jr."). */
-const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\./g, "").replace(/\s+/g, " ").trim();
+export const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\./g, "").replace(/\s+/g, " ").trim();
 
 /**
  * The ways the league's play-by-play names someone: their first name's first one to three letters, a period and their last name
@@ -277,7 +278,7 @@ type GainKind = "rush" | "catch" | "lateral-rush" | "lateral-catch" | "sack" | "
 
 export class Football extends TeamSport {
   readonly id = "football";
-  readonly name = "Football";
+  readonly name: string = "Football";
   readonly groups = GROUPS;
   readonly positions = POSITIONS;
   readonly statGroups = [
@@ -293,12 +294,15 @@ export class Football extends TeamSport {
     { key: PUNTING, label: "Punting" },
     { key: TEAM_DEFENSE, label: "Team defense" },
   ];
-  readonly stats = STATS;
+  readonly stats = FOOTBALL_STATS;
   readonly periods: Periods = { word: "quarter", plural: "quarters", regulation: 4, extra: "overtime" };
   readonly lock: LockCadence = "weekly";
   // College football's play-by-play is written otherwise (jersey numbers, "pass complete ... caught at", "QB hurried by") and
-  // its box score has no sacks taken or targets: L5, with college.
-  readonly leagues = ["nfl"];
+  // its box score has no sacks taken or targets: CollegeFootball (college-football.ts).
+  readonly leagues: string[] = ["nfl"];
+  /** ESPN's box score tables, by name, their columns to the sport's keys; the team's own totals ESPN gives, by its stat names. */
+  protected readonly boxTables = BOX_TABLES;
+  protected readonly teamTotals = TEAM_TOTALS;
 
   readBox(summary: EspnSummary): Box | null {
     if (!summary.header) return null;
@@ -312,7 +316,7 @@ export class Football extends TeamSport {
       for (const table of side.statistics ?? []) {
         const name = str(table.name) ?? "";
         tables[name] = table;
-        const map = BOX_TABLES[name];
+        const map = this.boxTables[name];
         if (!map) continue;
         const labels = table.labels ?? [];
         for (const row of table.athletes ?? []) {
@@ -342,7 +346,7 @@ export class Football extends TeamSport {
       const team = teams.find((t) => t.id === idOf(side.team?.id));
       if (!team) continue;
       for (const s of side.statistics ?? []) {
-        const key = s.name ? TEAM[s.name] : undefined;
+        const key = s.name ? this.teamTotals[s.name] : undefined;
         if (!key) continue;
         if (Array.isArray(key)) {
           const p = pair(s.displayValue);
@@ -355,8 +359,9 @@ export class Football extends TeamSport {
     }
     if (!teams.length || !Object.keys(people).length) return null;
     // Each side's defense and special teams, from its tables' totals: its sacks and interceptions, the other side's fumbles
-    // lost (each one it recovered), its touchdowns (ESPN's "Defensive / Special Teams TDs"). Its safeties, blocked kicks and
-    // points allowed only the plays say.
+    // lost (each one it recovered), its touchdowns (ESPN's "Defensive / Special Teams TDs", when the box has them: college's
+    // hasn't). Its safeties, blocked kicks and points allowed only the plays say.
+    const td = (team: string) => (summary.boxscore?.teams?.some((t) => t.statistics?.some((x) => x.name === "defensiveTouchdowns")) ? (teamStat(team, "defensiveTouchdowns") ?? 0) : null);
     for (const team of teams) {
       const other = teams.find((t) => t.id !== team.id);
       const total = (t: BoxTeam | undefined, table: string, label: string) => {
@@ -369,7 +374,7 @@ export class Football extends TeamSport {
         name: `${team.name} D/ST`,
         team: team.id,
         position: "DEF",
-        stats: { DSTG: 1, DSTSACK: total(team, "defensive", "SACKS"), DSTINT: total(team, "interceptions", "INT"), DSTFR: total(other, "fumbles", "LOST"), DSTTD: teamStat(team.id, "defensiveTouchdowns") ?? 0 },
+        stats: { DSTG: 1, DSTSACK: total(team, "defensive", "SACKS"), DSTINT: total(team, "interceptions", "INT"), DSTFR: total(other, "fumbles", "LOST"), ...(td(team.id) != null ? { DSTTD: td(team.id)! } : {}) },
       };
     }
     return { event: idOf(summary.header.id), final: isFinal(summary), teams, people };
@@ -377,9 +382,7 @@ export class Football extends TeamSport {
 
   readPlays(summary: EspnSummary, issues?: string[]): Play[] {
     const teams = headerTeams(summary);
-    const home = teams.find((t) => t.home === true)?.id ?? teams[1]?.id ?? "";
-    const away = teams.find((t) => t.home === false)?.id ?? teams[0]?.id ?? "";
-    const other = (team: string | null | undefined) => (team === home ? away : team === away ? home : null);
+    const { home, away, other } = sidesOf(teams);
 
     // Everyone in the box score, by the play-by-play's keys per side, and by their full names (a summary's).
     const keys = new Map<string, Map<string, string[]>>(); // team -> key -> ids
@@ -426,35 +429,7 @@ export class Football extends TeamSport {
       return null;
     };
 
-    const drives = [...(summary.drives?.previous ?? []), ...(summary.drives?.current ? [summary.drives.current] : [])];
-    const raw: { p: EspnPlay; drive: string; team: string }[] = [];
-    const seen = new Set<string>();
-    for (const d of drives) {
-      for (const p of d.plays ?? []) {
-        const id = idOf(p.id);
-        if (id && seen.has(id)) continue;
-        if (id) seen.add(id);
-        raw.push({ p, drive: idOf(d.id), team: idOf(d.team?.id) });
-      }
-    }
-
-    // A play ESPN recorded and then recorded again otherwise (a quarter's last play, corrected after it): the next play from
-    // scrimmage starts where it did, the same side, down, distance and spot, which a play that happened never leaves. The
-    // first is left out.
-    const replaced = new Set<number>();
-    const startOf = (p: EspnPlay) => (num(p.start?.down) ? `${idOf(p.start?.team?.id)}:${p.start?.down}:${p.start?.distance}:${p.start?.yardLine}` : null);
-    const between = /timeout|two-minute|end (?:period|of)|end quarter/i;
-    for (let i = 0; i < raw.length; i++) {
-      const at = startOf(raw[i].p);
-      if (!at || between.test(str(raw[i].p.type?.text) ?? "")) continue;
-      for (let j = i + 1; j < raw.length; j++) {
-        const t = str(raw[j].p.type?.text) ?? "";
-        if (between.test(t)) continue;
-        if (startOf(raw[j].p) === at) replaced.add(i);
-        break;
-      }
-    }
-
+    const raw = drivePlays(summary);
     // The side codes the text uses (the league's: "HST" for ESPN's HOU): ESPN's own, and each side's from its kickoffs ("kicks
     // 63 yards from ATL 35") and from a name after a code ("RECOVERED by ATL-G.Dexter").
     const codes = new Map<string, string>();
@@ -481,58 +456,8 @@ export class Football extends TeamSport {
       const team = codeOf(m[1]);
       return team === home ? Number(m[2]) : team === away ? 100 - Number(m[2]) : null;
     };
-    /** Yards a side gains going from one spot to another (home goes up the field, away down it). */
-    const gained = (team: string, from: number, to: number) => (team === home ? to - from : from - to);
-
-    const score: Record<string, number> = Object.fromEntries(teams.map((t) => [t.id, 0]));
-    const out: Play[] = [];
-    let first = true;
-    for (let i = 0; i < raw.length; i++) {
-      const { p, drive } = raw[i];
-      const text = (str(p.text) ?? "").replace(/\s+/g, " ");
-      const type = (str(p.type?.text) ?? "").toLowerCase();
-      const offense = idOf(p.start?.team?.id) || raw[i].team || null;
-      const deltas: Record<string, Stats> = {};
-      const add = (person: string | null | undefined, d: Stats) => {
-        if (person) deltas[person] = addStats(deltas[person] ?? {}, d);
-      };
-      const before = { ...score };
-      const after = { ...score };
-      // ESPN's score after the play, which never goes down (it gives a two-minute warning 0-0).
-      if (num(p.awayScore) != null && away) after[away] = Math.max(after[away] ?? 0, num(p.awayScore)!);
-      if (num(p.homeScore) != null && home) after[home] = Math.max(after[home] ?? 0, num(p.homeScore)!);
-      // The points a side scored here that aren't its opponent's defense's to allow (Yahoo's: a safety, a turnover's return
-      // touchdown, a defensive two-point return).
-      const notAllowed: Record<string, number> = {};
-      const people = new Set<string>();
-
-      const read = replaced.has(i) ? { kind: "replaced" } : this.readText(text, { offense, los: num(p.start?.yardLine), home, away, other, who, known, full, teamOf, xOf, gained, codeOf, add, people, notAllowed, issues: issues ? (s: string) => issues.push(`${idOf(p.id)}: ${s}: ${text}`) : undefined });
-      // Every side's defense has its game from the kickoff.
-      if (first && teams.length) {
-        for (const t of teams) add(defenseId(t.id), { DSTG: 1 });
-        first = false;
-      }
-      for (const t of teams) {
-        const scored = (after[t.id] ?? 0) - (before[t.id] ?? 0);
-        if (scored > 0) add(defenseId(other(t.id) ?? ""), { PA: Math.max(0, scored - (notAllowed[t.id] ?? 0)) });
-      }
-      Object.assign(score, after);
-      out.push({
-        id: idOf(p.id) || `${i}`,
-        at: str(p.wallclock),
-        period: num(p.period?.number) ?? 1,
-        half: null,
-        clock: str(p.clock?.displayValue),
-        text,
-        kind: read.kind || type.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "other",
-        team: offense,
-        unit: drive || null,
-        people: [...people],
-        score: { ...score },
-        deltas: cleanDeltas(deltas),
-      });
-    }
-    return inOrder(out);
+    const gained = gainOf(home);
+    return readDrives(summary, raw, (_p, c) => this.readText(c.text, { ...c, who, known, full, teamOf, xOf, gained, codeOf }), issues);
   }
 
   /**
@@ -1150,7 +1075,7 @@ export class Football extends TeamSport {
   /** A scoring play's summary, with full names: "Dallas Goedert 9 Yd pass from Jalen Hurts (Jake Elliott Kick)", "Malik Willis
    *  1 Yd Run (Riley Patterson PAT failed)", "Sheldon Rankins 33 Yd Fumble Return (...)", "Zyon McCollum Defensive PAT
    *  Conversion". What it doesn't say (the tacklers, a sack before a fumble) comes at the final. */
-  private readSummary(text: string, c: ReadContext): { kind: string } {
+  protected readSummary(text: string, c: SummaryContext): { kind: string } {
     const { offense, add } = c;
     const byName = (name: string | undefined) => {
       const id = name ? c.full.get(plain(name)) : undefined;
@@ -1181,12 +1106,12 @@ export class Football extends TeamSport {
     else if (what === "Field Goal") {
       add(id, { FGA: 1, FGM: 1, [bandOf(yards)]: 1 });
       return { kind: "field-goal" };
-    } else if (what === "Interception Return") add(id, { DINTYDS: yards, DINTTD: 1, DTD: 1 });
+    } else if (what === "Interception Return") add(id, { DINT: 1, DINTYDS: yards, DINTTD: 1, DTD: 1 });
     else if (what === "Kickoff Return") add(id, { KR: 1, KRYDS: yards, KRTD: 1 });
     else if (what === "Punt Return") add(id, { PR: 1, PRYDS: yards, PRTD: 1 });
     else add(id, team === offense ? { FRTD: 1 } : { DTD: 1 });
     if (team && team !== offense && !what.startsWith("pass") && what !== "Run") {
-      add(defenseId(team), { DSTTD: 1 });
+      add(defenseId(team), { DSTTD: 1, ...(what === "Interception Return" ? { DSTINT: 1 } : {}) });
       if (what === "Interception Return" || what === "Fumble Return" || what === "Blocked Field Goal Return") c.notAllowed[team] = (c.notAllowed[team] ?? 0) + 6;
     }
     // The try: "(Jake Elliott Kick)", "(Riley Patterson PAT failed)", "(Malik Willis Pass to Greg Dulcich for Two-Point
@@ -1203,10 +1128,141 @@ export class Football extends TeamSport {
   }
 }
 
+/** The two sides by home and away (the header's; else its order), and each one's other. */
+export function sidesOf(teams: BoxTeam[]) {
+  const home = teams.find((t) => t.home === true)?.id ?? teams[1]?.id ?? "";
+  const away = teams.find((t) => t.home === false)?.id ?? teams[0]?.id ?? "";
+  const other = (team: string | null | undefined) => (team === home ? away : team === away ? home : null);
+  return { home, away, other };
+}
+
+/** Yards a side gains going from one spot to another, spots as yards from the home side's goal line (home goes up the field,
+ *  away down it). */
+export const gainOf = (home: string) => (team: string, from: number, to: number) => (team === home ? to - from : from - to);
+
+/** A drive's play, with its drive's id and team. */
+export interface DrivePlay {
+  p: EspnPlay;
+  drive: string;
+  team: string;
+}
+
+/** ESPN's plays from its drives (the finished ones, and live, the one going on), each once and in order. */
+export function drivePlays(summary: EspnSummary): DrivePlay[] {
+  const drives = [...(summary.drives?.previous ?? []), ...(summary.drives?.current ? [summary.drives.current] : [])];
+  const raw: DrivePlay[] = [];
+  const seen = new Set<string>();
+  for (const d of drives) {
+    for (const p of d.plays ?? []) {
+      const id = idOf(p.id);
+      if (id && seen.has(id)) continue;
+      if (id) seen.add(id);
+      raw.push({ p, drive: idOf(d.id), team: idOf(d.team?.id) });
+    }
+  }
+  return raw;
+}
+
+/** What a play's reader is given: its text, whose ball it is and where, and where its counts go. */
+export interface DriveContext {
+  /** The play's text, its runs of spaces one. */
+  text: string;
+  offense: string | null;
+  /** The line of scrimmage, as yards from the home side's goal line (ESPN's start.yardLine). */
+  los: number | null;
+  home: string;
+  away: string;
+  other: (team: string | null | undefined) => string | null;
+  add: (person: string | null | undefined, d: Stats) => void;
+  people: Set<string>;
+  /** The points a side scored on the play that its opponent's defense doesn't allow (Yahoo's: a safety, a turnover's return
+   *  touchdown, a defensive two-point return). */
+  notAllowed: Record<string, number>;
+  issues?: (s: string) => void;
+}
+
+/**
+ * A football game's Plays from ESPN's drives, each one's text read by `read` (the NFL's sentences, college's own): every
+ * league's frame. Each Play's unit is its drive, its team the side with the ball at the snap, its score ESPN's after it (which
+ * never goes down: ESPN gives a two-minute warning 0-0). Each side's defense has its game from the kickoff and the points it
+ * allowed (Yahoo's: the other side's, less what the reader says it doesn't allow). A play ESPN recorded and then recorded again
+ * otherwise is left out (below).
+ */
+export function readDrives(summary: EspnSummary, raw: DrivePlay[], read: (p: EspnPlay, c: DriveContext) => { kind: string }, issues?: string[]): Play[] {
+  const teams = headerTeams(summary);
+  const { home, away, other } = sidesOf(teams);
+
+  // A play ESPN recorded and then recorded again otherwise (a quarter's last play, corrected after it): the next play from
+  // scrimmage starts where it did, the same side, down, distance and spot, which a play that happened never leaves. The
+  // first is left out.
+  const replaced = new Set<number>();
+  const startOf = (p: EspnPlay) => (num(p.start?.down) ? `${idOf(p.start?.team?.id)}:${p.start?.down}:${p.start?.distance}:${p.start?.yardLine}` : null);
+  const between = /timeout|two-minute|end (?:period|of)|end quarter/i;
+  for (let i = 0; i < raw.length; i++) {
+    const at = startOf(raw[i].p);
+    if (!at || between.test(str(raw[i].p.type?.text) ?? "")) continue;
+    for (let j = i + 1; j < raw.length; j++) {
+      const t = str(raw[j].p.type?.text) ?? "";
+      if (between.test(t)) continue;
+      // Within its drive: college's overtime starts every possession at the 25, the next one where a touchdown began.
+      if (startOf(raw[j].p) === at && raw[j].drive === raw[i].drive) replaced.add(i);
+      break;
+    }
+  }
+
+  const score: Record<string, number> = Object.fromEntries(teams.map((t) => [t.id, 0]));
+  const out: Play[] = [];
+  let first = true;
+  for (let i = 0; i < raw.length; i++) {
+    const { p, drive } = raw[i];
+    const text = (str(p.text) ?? "").replace(/\s+/g, " ");
+    const type = (str(p.type?.text) ?? "").toLowerCase();
+    const offense = idOf(p.start?.team?.id) || raw[i].team || null;
+    const deltas: Record<string, Stats> = {};
+    const add = (person: string | null | undefined, d: Stats) => {
+      if (person) deltas[person] = addStats(deltas[person] ?? {}, d);
+    };
+    const before = { ...score };
+    const after = { ...score };
+    // ESPN's score after the play, which never goes down (it gives a two-minute warning 0-0).
+    if (num(p.awayScore) != null && away) after[away] = Math.max(after[away] ?? 0, num(p.awayScore)!);
+    if (num(p.homeScore) != null && home) after[home] = Math.max(after[home] ?? 0, num(p.homeScore)!);
+    const notAllowed: Record<string, number> = {};
+    const people = new Set<string>();
+
+    const res = replaced.has(i) ? { kind: "replaced" } : read(p, { text, offense, los: num(p.start?.yardLine), home, away, other, add, people, notAllowed, issues: issues ? (s: string) => issues.push(`${idOf(p.id)}: ${s}: ${text}`) : undefined });
+    // Every side's defense has its game from the kickoff.
+    if (first && teams.length) {
+      for (const t of teams) add(defenseId(t.id), { DSTG: 1 });
+      first = false;
+    }
+    for (const t of teams) {
+      const scored = (after[t.id] ?? 0) - (before[t.id] ?? 0);
+      if (scored > 0) add(defenseId(other(t.id) ?? ""), { PA: Math.max(0, scored - (notAllowed[t.id] ?? 0)) });
+    }
+    Object.assign(score, after);
+    out.push({
+      id: idOf(p.id) || `${i}`,
+      at: str(p.wallclock),
+      period: num(p.period?.number) ?? 1,
+      half: null,
+      clock: str(p.clock?.displayValue),
+      text,
+      kind: res.kind || type.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "other",
+      team: offense,
+      unit: drive || null,
+      people: [...people],
+      score: { ...score },
+      deltas: cleanDeltas(deltas),
+    });
+  }
+  return inOrder(out);
+}
+
 /** A field goal made, in Yahoo's bands by distance. */
-const bandOf = (yards: number) => (yards < 20 ? "FGM0" : yards < 30 ? "FGM20" : yards < 40 ? "FGM30" : yards < 50 ? "FGM40" : "FGM50");
+export const bandOf = (yards: number) => (yards < 20 ? "FGM0" : yards < 30 ? "FGM20" : yards < 40 ? "FGM30" : yards < 50 ? "FGM40" : "FGM50");
 /** A scoring play's summary with full names, not the play-by-play's ("Malik Willis 1 Yd Run (...)"). */
-const SUMMARY = /^(?![A-Z][a-z]{0,2}\.[A-Z])[A-Z][\w'.-]*(?: [A-Z][\w'.-]*)+ (?:\d+ Yd (?:pass from|Run|Interception Return|Fumble Return|Kickoff Return|Punt Return|Blocked|Field Goal)|Defensive PAT Conversion)/;
+export const SUMMARY = /^(?![A-Z][a-z]{0,2}\.[A-Z][a-z])[A-Z][\w'.-]*(?: [A-Z][\w'.-]*)+ (?:\d+ Yd (?:pass from|Run|Interception Return|Fumble Return|Kickoff Return|Punt Return|Blocked|Field Goal)|Defensive PAT Conversion)/;
 /** Who has the ball after a kick, a punt, a turnover or a block: whose gains are returns. */
 const RETURNS_OF = new Set<GainKind>(["kick-return", "punt-return", "int-return", "fumble-return", "blocked-return"]);
 
@@ -1226,13 +1282,10 @@ interface Gain {
   end: number | null;
 }
 
-interface ReadContext {
-  offense: string | null;
-  /** The line of scrimmage, as yards from the home side's goal line (ESPN's start.yardLine). */
-  los: number | null;
-  home: string;
-  away: string;
-  other: (team: string | null | undefined) => string | null;
+/** What a scoring play's summary is read with: full names, and whose side each one's on. */
+export type SummaryContext = Pick<ReadContext, "offense" | "add" | "people" | "notAllowed" | "issues" | "full" | "teamOf">;
+
+interface ReadContext extends DriveContext {
   who: (k: string | undefined, team: string | null) => { id: string; team: string } | null;
   known: (k: string) => boolean;
   full: Map<string, string>;
@@ -1240,8 +1293,4 @@ interface ReadContext {
   xOf: (spot: string | undefined) => number | null;
   gained: (team: string, from: number, to: number) => number;
   codeOf: (code: string | undefined) => string | null;
-  add: (person: string | null | undefined, d: Stats) => void;
-  people: Set<string>;
-  notAllowed: Record<string, number>;
-  issues?: (s: string) => void;
 }

@@ -430,8 +430,8 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   session: part 1, soccer (built 2026-10-28: As built below); part 2, college (basketball, football, baseball, hockey) and the
   WNBA; then golf and racing (FieldSport); then MMA and tennis (BoutSport).
   - **Part 2 split in three (2026-10-28):** 2a, college basketball and the WNBA (built: As built below); 2b, college football
-    (its own grammar of plays, on Football's vocabulary and box reader: a session of its own); 2c, college baseball (its own
-    box and names, below). **College hockey isn't readable from ESPN** (looked at in 2a, below): left out, as boxing is.
+    (its own grammar of plays, on Football's vocabulary and box reader: built 2026-10-30, As built below); 2c, college baseball
+    (its own box and names, below). **College hockey isn't readable from ESPN** (looked at in 2a, below): left out, as boxing is.
 - **L6. Release:** `sports` merges into master at once (migrations checked against a production backup first), then G3
   teaches the GPT these formats.
 - Its screens (the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync, each format's
@@ -763,10 +763,10 @@ stored).** Part 2 is done: L1 part 3 (games from ESPN's schedule) is next, or L2
     every finished answer cached).
 
 **L1 part 2 (football) noticed, not fixed:**
-- **College football isn't read**: its plays are another grammar ("#12 K.Russell pass complete short right to #40 J.Ford caught
-  at ALA40, for 16 yards to the ALA41 (#7 D.Brooks), 1ST DOWN", "QB hurried by"), all 30 games checked, and its box has no sacks
-  taken or targets, "QB HUR" for hits and half tackles for loss. A `CollegeFootball` reader on Football's vocabulary and box
-  reader, its own text grammar. (L5, with college.)
+- ~~**College football isn't read**~~: its plays are another grammar ("#12 K.Russell pass complete short right to #40 J.Ford
+  caught at ALA40, for 16 yards to the ALA41 (#7 D.Brooks), 1ST DOWN", "QB hurried by"), all 30 games checked, and its box has
+  no sacks taken or targets, "QB HUR" for hits and half tackles for loss. A `CollegeFootball` reader on Football's vocabulary
+  and box reader, its own text grammar. (L5, with college.) **Done** in L5 part 2b (below).
 - **A one-yard difference ESPN corrected after the game** (~14 lines in 121 games): its box is right and the play's text isn't,
   so a live point can be a tenth off until the final settles it. (L3, nothing to do but the final.)
 - **A box score ESPN never filled in** (3 of 121 games, tables named "xfl", "nfl", "ufl" with no one in them): no final's
@@ -973,6 +973,33 @@ UI.
   401909884), Flyers at Capitals (NHL 401892596) and World Series Game 5, Brewers at Rays (MLB 401908046), being recorded by
   detached recorders that stop themselves at each final (in the OS temp folder's `rfl-espn-live/`, a log `.out.txt` beside
   each): the next session runs `--compare` on each (`--league --event` as above) and writes what it shows here.
+  **L5 part 2b (2026-10-30): the three compared.** All three were final (the World Series' at 11:14 PM ET); each final reduces
+  exactly to ESPN's box (`check-sport-reduce.js --events`). The compare now also follows each count from the first answer a phone
+  showed it otherwise to the first that matched (the stat crew's judged counts apart) and says how many people the live box listed:
+  - **76ers at Pacers (NBA 401909884):** 243 of 321 answers equal the final at their moment. 50 counts shown otherwise settled in a
+    median 38 s (most 194 s), 29 judged ones in 40 s (most 533 s). All of it ESPN rewriting plays live: a free throw restamped up
+    to a minute later, a turnover rewritten as a blocked layup (for 30 s a "No Shot (Default Shot)" 79-foot attempt), a steal's
+    turnover moved to a teammate and back; 2 plays dropped. The live box listed all 25 people from the first answer.
+  - **Flyers at Capitals (NHL 401892596):** only 11 of 301 answers equal, nearly all the crew's calls: 127 judged counts (hits,
+    blocks, giveaways, takeaways; median 65 s, most 6,625 s, one only at the final). Of 49 others (median 2 s), ESPN **flipped the
+    winner of 6 of 53 faceoffs** after first listing them (up to 21 minutes later) and added a goal's assists a minute or two
+    after it ("assists: none", then one, then two). **The live NHL box lists a player only once he's played** (0 people at the
+    opening faceoff, 38 by the final), so a block by a teammate not yet listed had counted as a block (Tom Wilson, 30 s):
+    `hockey.ts` now learns a side from the plays too (every role but a blocked shot's shooter is on a set side of the play's
+    team: checked on 64 games, every role of each kind). And with the box listing only who's played, a goal on the game's first
+    shot finds its goalie as the side's only one listed: the 5.5-minute wait above was the replay's, which lists the final's
+    people from the start.
+  - **World Series Game 5 (MLB 401908046):** 347 of 361 equal; 30 counts (median 26 s, most 200 s), none judged: ESPN stamps an
+    at-bat's start (and a half-inning's) when it opens it and restamps it to its first pitch up to 3 minutes later (a phone shows
+    a starter's game started early), restamps a pitch a few seconds, and dropped 3 pitches it filed again. **188 of 325 at-bat
+    starts and pitches seen live carried the outs so far, 5 the score so far** (the final's carry the at-bat's end): the reader
+    reads neither, as designed.
+  - **ESPN's lag** from a play's wallclock to its first answer: NBA a median 51 s (90th 91 s), NHL 63 s (90th 201 s, most 20
+    minutes), MLB 59 s (90th 81 s); with soccer's ~48 s, about a minute (A15's live calls).
+  - **A phone's data:** NBA 31 KB an answer over the wire (7 MB an hour at 15 s), NHL 28 KB (6 MB), MLB 55 KB (13 MB, ~40 MB for a
+    three-hour game: more than the 15-30 MB estimated above; HOSTING.md updated).
+  - Still to record live: the NFL's `drives.current` (Sunday's games), college football (two FBS games of 2026-10-30 being
+    recorded, below) and the WNBA's first live game (its Finals' Game 7, 2026-10-31, being recorded).
 - **A phone's data**: an estimated 15-30 MB a game at 15 s, since every answer is the whole summary (no ETag, so no 304s).
   ESPN's core API pages a game's plays (`sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}/events/{id}/competitions/
   {id}/plays?limit=&page=`, CORS `*`, cached 15 minutes once final), so a poll could fetch only the newest page and a small
@@ -1240,6 +1267,114 @@ app, nothing stored).** Master still hadn't A1-A4 (the main session's order). Co
   pitching IP H R ER BB K HR PC-ST ERA PC with **some pitchers named "Hunter - P Elliott"** (a two-way player's position in his
   name), so the reader's outs and strikes go to nobody (Ole Miss–Troy, 2026-06-14: a starter's 14 outs read as 3). 2c: the
   box's own names and columns, then the proof on the 2026 season's days and the College World Series.
+
+**L5 part 2b as built: college football (2026-10-30, `sports`, not merged; no migration, no ESPN calls from the app, nothing
+stored).** Master still hadn't A1-A4 (the main session's order).
+- **What ESPN gives** (checked on 2026's FBS weeks 6-8, 176 games): plays in drives as the NFL's, typed alike ("Rush", "Pass
+  Reception", "Sack"), each with its wallclock, the score after it and who had the ball where (`start.yardLine`), and, unlike the
+  NFL's, where it ended (`end.yardLine`) and ESPN's yards for it (`statYardage`); no people. **The text is the home stat crew's,**
+  one run-on sentence with jersey numbers ("(15:00) #12 K.Russell pass complete short right to #40 J.Ford caught at ALA40, for 16
+  yards to the ALA41 (#7 D.Brooks), 1ST DOWN"); spots a side's code and yard line, run together or not ("ALA40", "IU 34", "U-M00",
+  "Sac St45", "`SMU25"), in the crew's own codes (TAM for ESPN's TA&M, CANES, UTK, Mizzou); a review's call, then "(Original Play:
+  ...)"; the try in the touchdown's play ("#24 D.Olano kick attempt good (H: ..., LS: ...)"), told again after a penalty on it.
+  **Some plays are ESPN's own phrases**, where the crew's text is missing: a scoring summary as the NFL's ("Kenny Minchey 2 Yd Run
+  (Adam Zouagui Kick)"), "T. Owens pass to H. Summers for 20 yds, for a TD (C. Van Andel KICK)", and in 38 of 46 bowl games "Trey
+  Kukuk run for 5 yds to the KU30", "Peyton Woodring kickoff for 65 yds for a touchback". **The box** is the NFL's tables with
+  college's columns: no sacks taken in the passing table, no targets, "QB HUR" (hurries) for hits, halves in sacks and tackles for
+  loss, each line's jersey, a side's own line ("Team", a negative id), and no "defensiveTouchdowns" team stat. The FCS (`groups=81`)
+  is written alike.
+- **What the NCAA counts otherwise, read off ESPN's box** (each rule from a difference it closed): **a sack is the quarterback's
+  rush** for its loss (Reed's 17 carries for 23 yards are 15 runs and two sacks for -17), so passing yards are net already;
+  **intentional grounding is a sack too** (ESPN types it "Sack"; its loss is only in `statYardage`), never an attempt (21 of 21
+  lines); **a kneel-down and a spike are the team's** (11 of 11 spikes); a side rushing by its name ("Auburn rush middle for 4 yards
+  loss") is a fumbled snap, the team's fumble whether the text says so or not; **a fumble recovered counts only on the other side's**
+  (163 of 163; own and teammates' recoveries are 0, 84 of 84); a muffed punt is the muffer's fumble and his return, its yards to
+  where his side got it back; a blocked punt is the team's punt, a punt with no name the side's punter's; return touchdowns count in
+  the defensive TD column too; a pick-six told only as a summary is the returner's interception (the NFL's too, and its defense's)
+  and the side's passer's (the one in its box, else its last to throw); **a sack's "(A, B)" is a split one** (half a sack and half a
+  tackle for loss each, no solo: 182 defenders) and a loss's "(A; B)" half a tackle for loss each; an illegal forward pass isn't
+  a pass; a "NO PLAY" after a touchdown and its try is the try's. As the NFL's: a spot foul by the side with the ball behind where
+  its gain ended counts it to the spot (a run's text says it: "for 17 yards gain (16)", or "(-10)").
+- **`CollegeFootball`** (`src/lib/sports/college-football.ts`, a subclass of `Football`; `sportOf("football/college-football")`,
+  `id` "football", so its defaults are football's): Football's vocabulary but hurries (HUR, judged) for QB hits and no sack yards
+  (they're rushing yards; SACKED, times sacked, from the plays); untimed overtimes ("overtime", "2nd overtime", no clock). Its box:
+  Football's reader with college's tables (`boxTables`, `teamTotals`, now overridable) and a team defense without touchdowns when
+  the box has no "defensiveTouchdowns" (the NFL's unchanged). Its plays: **Football's drive frame, now shared** (`readDrives`: the
+  drives, a play recorded again, the score, each defense's game and points allowed), with college's own reader: names and spots to
+  placeholders, then the events read left to right by patterns compiled once (the play; then a return, a fumble, a muff, a block, a
+  lateral, tacklers, a touchdown, a safety, hurries, a pass broken up, the try, a penalty), anything unread noted. **Each game's team
+  codes** come from ESPN's own yard lines (a play ending "to the ALA43" that ESPN ends at 43 votes ALA the home side's; a lone code is
+  the other side's), and **each name** by jersey and name on the side the sentence says, the box's jersey first (ESPN's box follows
+  the crew's jerseys even where the text's name is another's: "#2 D.Ricks" is Morrow's return in the box), a name and number no box
+  line has learned from the whole game ("#2 M.Williams" where the box has Marcel #9 and Marquese #24, whose "#24 M.Williams" the
+  text has too). **Two-point tries are read from the summary's `scoringPlays`** ("Keyone Jenkins Pass to Tyren Hornes for Two-Point
+  Conversion"): the text names one person and not his role ("#2 T.Hornes pass attempt Successful"); a run's runner is the text's
+  own. ESPN's own phrases (`readPhrases`), by full name or initials, and the summaries (Football's reader) are read for what they say.
+- **Football's frame, one fix:** a play is "recorded again" only by one in its own drive (college's overtime starts every possession
+  at the 25, so the next possession's first play started where UCF's first-overtime touchdown had, which was dropped). The NFL's 121
+  cached games read as before (95 of 121).
+- **Defaults: football's file, unchanged.** A college roster says QB, RB, WR, TE, OL, DL, LB, DB, PK, P, LS (Alabama's), and every
+  default slot takes them; neither Yahoo nor ESPN runs a college fantasy football game to take other defaults from.
+- **Fixtures** (`record-espn.js` now keeps a box line's jersey, a play's end and stat yards, and the scoring plays' summaries; 85-93 KB
+  from ~480 KB): Texas A&M at Alabama, 2026-10-24 (`college-football-401856727.json`: a pick-six, an interception a review gave, sacks
+  and a split sack, kneel-downs) and BYU at UCF in two overtimes the same day (`college-football-401856835.json`: a two-point pass told
+  only in the scoring plays).
+- **Checks.**
+  - `tests/sports-college-football.test.js` (12): the vocabulary (the NFL's still the slug's own; hurries, no sack yards, untimed
+    overtimes); the defaults' slots filled by a college roster's positions; the box (no sacks taken or targets, a side's own line, the
+    team totals, a defense without touchdowns); **the proof** on both fixtures (387 and 443 numbers, the team totals and the score, no
+    notes, at most 4 of the crew's calls otherwise); the plays (the Noticed's own example, hurries, a sack as the quarterback's rush, a
+    split sack, a kneel-down, the pick-six and what its defense allowed, a review's call); overtime (a touchdown kept, "2nd overtime",
+    the two-point pass from the scoring plays); `stateAt` at the half and before the kickoff; the final's correction (only the crew's
+    calls; with it every number; none live; a drive going on read once); and on made-up games the NCAA's counting (spikes, grounding,
+    kneels, fumbled snaps, recoveries, muffs, blocked and nameless punts), yards and tries (a return's spot foul, a run's own count to
+    a foul and one below nothing, a lateral, an illegal pass, a try told again, a try's "NO PLAY", a declined grounding with its fouler
+    named, a touchdown to someone the box hasn't, a fouler who isn't a tackler), scoring (two points, a pick-six only summarized, return
+    touchdowns, a safety) and the text (codes from yard lines, a number learned, ESPN's own phrases, a review). `sports-football.test.js`
+    now says college is CollegeFootball's.
+  - `check-sport-reduce.js` on real games. **The weeks it was tuned on** (2026 FBS weeks 6-8): **68 of 176** games every number, and
+    **98.5-98.9% of ESPN's box numbers** (the crew's judged calls apart); 128 within two numbers. **Then on their first run after the
+    reader's last change** (2026-10-30): weeks 2-4 **60 of 232**, the 2025-26 bowls and playoff **7 of 46**, an FCS week (7) **10 of 59**;
+    after the fixes their data showed (ESPN's own phrases in the bowls, a code typed with a backtick, "ll" for "II", "J.von Grote") and
+    the review's: **69 of 232** (98.0-98.7% of numbers, 145 within two), **8 of 46** (95.8%, 19 within two; most of the bowls' text is
+    ESPN's own phrases and summaries), **12 of 59** (98.2%, 30 within two). **Every cached college game: 157 of 513** every number, 98.4%
+    of ~94,000 numbers (~91,000 plays). What's left is ESPN's own, each kind read in its data: a play the box counts that no play lists
+    (two runs in 176 games no text names at all), or that the box credits to someone else (the crew's jerseys and names disagree: "#6
+    B.Donelson"'s 21-yard catch is Freeman's in the box); a play filed out of order or twice (a "1st & 10 at 66" between a 9-yard run
+    from 56 and the "2nd & 1 at 65" after it: dropping such plays would be right in 9 of 24 and wrong in 15); a team fumble no play
+    shows; a scoring play told only as a summary (its fumble and the sack before it unsaid); a pass interference "NO PLAY" counted as
+    an attempt in some games and not others; intentional grounding counted in some and not others. The final's correction settles
+    them all. The crew's judged calls: tackles ±1 on ~450 lines of 176 games (settled at the final), sacks and tackles for loss far
+    fewer since the split-sack rule.
+  - `check-live-clock.js` replays the two fixtures unchanged (2 of 2, every number of ESPN's box score at the end) and every recorded
+    game at once, 19 of 19.
+  - 951 unit tests; `tsc` clean; eslint clean on `src/lib/sports`.
+  - `/code-review` on the diff (its fixes: a summary's pick-six giving the defense its interception (the NFL's too) and the passer from
+    the side's last throw when the box lists two; a summary's return touchdown a defensive one; a count to a foul's spot below nothing;
+    a side's rush by a name of two words read as the crew's; recoveries by "NC St."; no match by jersey for a name with none; a
+    touchdown pass the passer's whoever caught it; a fouler never a tackler; a summary for "E.J. Williams Jr." (Football's `SUMMARY`,
+    the NFL's too); a declined grounding or illegal pass with its fouler named; a two-point run without the scoring plays; "yards" in
+    ESPN's phrases; the lone code's fallback; a suffix at a text's end; the patterns compiled once and each text cleaned once (a college
+    timeline 9.8 ms, the NFL's 6.1)).
+  - No HOSTING.md change for the reader (nothing calls ESPN from the app, adds a table or stores data; the dev checks asked ESPN ~500
+    times, every finished answer cached); HOSTING.md gets L2's measured phone data (above).
+
+**L5 part 2b noticed, not fixed:**
+- **A college game reads exactly less often than an NFL game** (39% of the tuning weeks' games; the NFL's 79%), though 98-99% of its
+  numbers do: the home crews' data disagrees with itself more (above). Live, a college player's points can be a play off until the
+  final.
+- **The bowls' text is mostly ESPN's own phrases** (38 of 46 games have some), with no tacklers, jerseys or many spots: their tackles,
+  a punt's inside the 20 and a return's spot fouls come only at the final. (L3, if live points need them.)
+- **Two-point passes need the scoring plays** (`scoringPlays`): a live answer has them as the game goes, to check on tonight's
+  recordings; without them a two-point pass waits for the final (a run doesn't).
+- **College's third overtime on** (two-point tries alone, no possession) wasn't in the data read (no game went three): the reader
+  reads a try as a try; check when one comes. (L3.)
+- **A spot foul during a punt's return and "inside the 20"**: the NFL reader ends the return at the foul's spot for it; college's isn't
+  checked against ESPN's data, so the reader doesn't. A punter's In 20 can be one off until the final.
+- **A college roster's ATH (athlete)** wasn't on Alabama's; a team that lists it has players no default slot takes. (L4, with slots.)
+- **Tackles are the crew's calls, ±1 on many lines**: an IDP game on college football would move at the final. (L3.)
+- Live: two FBS games of 2026-10-30 (Baylor at UCF 401856844, Tulane at Charlotte 401862813) are being recorded by detached recorders
+  that stop themselves at each final (`rfl-espn-live/`, a log beside each): the next session runs `--compare` on each.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

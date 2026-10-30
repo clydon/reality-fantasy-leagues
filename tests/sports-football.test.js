@@ -24,7 +24,7 @@ const playOf = (plays, text) => plays.find((p) => p.text.includes(text));
 test("Football's vocabulary: unique stat keys, positions in their groups, four quarters, weekly locks, the NFL only", () => {
   assert.equal(football.id, "football");
   assert.equal(sportById("football"), football);
-  assert.equal(sportOf("football/college-football"), null, "college's plays are written otherwise: L5");
+  assert.notEqual(sportOf("football/college-football"), football, "college's plays are written otherwise: CollegeFootball's");
   assert.ok(allSports().includes(football));
   const keys = football.stats.map((s) => s.key);
   assert.equal(new Set(keys).size, keys.length, "keys are unique: a passer's interceptions INT, a defender's DINT, a team's DSTINT");

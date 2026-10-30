@@ -54,7 +54,8 @@ const KEEP = {
             labels: true,
             keys: true,
             totals: true,
-            athletes: [{ athlete: { id: true, displayName: true, position: { abbreviation: true } }, position: { abbreviation: true }, starter: true, didNotPlay: true, batOrder: true, stats: true, notes: true }],
+            // College football's text names people by jersey too.
+            athletes: [{ athlete: { id: true, displayName: true, jersey: true, position: { abbreviation: true } }, position: { abbreviation: true }, starter: true, didNotPlay: true, batOrder: true, stats: true, notes: true }],
           },
         ],
       },
@@ -77,8 +78,9 @@ const PLAYS = {
   basketball: { ...CLOCKED, type: { id: true, text: true }, participants: [{ athlete: { id: true } }], shootingPlay: true, pointsAttempted: true },
   // Hockey by its type's abbreviation (a penalty's minutes), its people's roles, and a goal's strength and net.
   hockey: { ...CLOCKED, type: { id: true, text: true, abbreviation: true, penaltyMinutes: true, penaltyType: true }, participants: [{ athlete: { id: true }, type: true }], strength: { abbreviation: true }, shotInfo: { abbreviation: true } },
-  // Football reads a play's text (its people are only there), the score after it, and who had the ball on which down where.
-  football: { id: true, type: { text: true }, text: true, awayScore: true, homeScore: true, period: { number: true }, clock: { displayValue: true }, wallclock: true, start: { team: { id: true }, down: true, distance: true, yardLine: true } },
+  // Football reads a play's text (its people are only there), the score after it, and who had the ball on which down where;
+  // college's also where it ended (its text's team codes) and ESPN's yards for it (an intentional grounding's loss).
+  football: { id: true, type: { text: true }, text: true, awayScore: true, homeScore: true, period: { number: true }, clock: { displayValue: true }, wallclock: true, start: { team: { id: true }, down: true, distance: true, yardLine: true }, end: { yardLine: true }, statYardage: true },
   any: { ...PLAY, awayScore: true, homeScore: true, clock: { displayValue: true }, scoringPlay: true, scoreValue: true, team: { id: true } },
 };
 const sportSlug = league.split("/")[0];
@@ -95,6 +97,8 @@ if (sportSlug === "soccer") {
 } else if (sportSlug === "football") {
   const drive = { id: true, team: { id: true }, plays: [PLAYS.football] };
   KEEP.drives = { previous: [drive], current: drive };
+  // College's two-point tries say who passed and who caught only in the scoring plays' summaries.
+  KEEP.scoringPlays = [{ id: true, text: true }];
   delete KEEP.plays;
 } else {
   KEEP.plays = [PLAYS[sportSlug] ?? PLAYS.any];

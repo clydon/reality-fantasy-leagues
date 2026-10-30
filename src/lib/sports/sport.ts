@@ -257,6 +257,10 @@ export interface EspnPlay {
   // Football's: who had the ball when it began, on which down and distance, and where (yardLine: from the home side's goal
   // line).
   start?: { team?: { id?: string | number }; yardLine?: number; down?: number; distance?: number };
+  /** ESPN's yards for it (college: an intentional grounding's loss, which its text doesn't say). */
+  statYardage?: number;
+  /** Where it ended (college: its yard line after "to the ALA43"). */
+  end?: { team?: { id?: string | number }; yardLine?: number };
 }
 
 export const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : typeof v === "number" && Number.isFinite(v) ? String(v) : null);

@@ -190,7 +190,23 @@ export class Hockey extends TeamSport {
     const event = idOf(summary.header?.id);
     const teams = headerTeams(summary);
     const other = (team: string | null) => teams.find((t) => t.id !== team)?.id ?? null;
+    // Who's on which side: the box score's people, and anyone it doesn't list yet from the plays. Live, ESPN's box lists a player
+    // only once he's played (none at the opening faceoff), and every role but a blocked shot's shooter is on a set side of the
+    // play's team (checked on 64 games' ~31,000 roles): its winner, scorer, assister, shooter, blocker, hitter, giver and taker
+    // its own; a saver, a faceoff's loser, a missed shot's goalie and whoever was hit the other's.
     const teamOf = rosterOf(summary);
+    for (const p of summary.plays ?? []) {
+      const team = idOf(p.team?.id);
+      const kind = (str(p.type?.abbreviation) ?? "").toLowerCase();
+      for (const x of p.participants ?? []) {
+        const id = idOf(x.athlete?.id);
+        // A penalty's people are untyped, and either side's (who took it, who drew it).
+        if (!id || !team || teamOf.has(id) || (kind === "shot-blocked" && x.type === "shooter") || (!x.type && kind !== "faceoff" && kind !== "shot-missed")) continue;
+        const theirs = !x.type || x.type === "saver" || x.type === "hitted";
+        const side = theirs ? (teams.find((t) => t.id !== team)?.id ?? null) : team;
+        if (side) teamOf.set(id, side);
+      }
+    }
     const goalies = new Set<string>();
     for (const side of summary.boxscore?.players ?? []) for (const table of side.statistics ?? []) if (table.name === "goalies") for (const row of table.athletes ?? []) if (idOf(row.athlete?.id)) goalies.add(idOf(row.athlete?.id));
     const typeOf = (p: (typeof raw)[number]) => (str(p.type?.abbreviation) ?? str(p.type?.text) ?? "").toLowerCase();
