@@ -23,7 +23,9 @@
 //     pick it offered refused; a stock market (A10 part 3c), each seat trading by habit in its waiver weeks (playtest.js's
 //     claims, within its cash), and nobody's cash below nothing; a game that keeps from last season's (A10 part 4), that game
 //     made first for the same seats on the show's previous season as this database has it loaded (lastSeasonGame), and what each
-//     seat kept recorded (none where no previous season is loaded: the fallback).
+//     seat kept recorded (none where no previous season is loaded: the fallback); a game with a handicap (A11 part 5b), an
+//     earlier game on its couch for the tinkerer and the fan first (earlierGame), so the drive-by and the forgetter are its
+//     newcomers, and each episode's record says who it names and what it has given each so far.
 // Nothing asks a bot. The local bot's answers are F2's, kept beside the tapes; the stand-ins are marked as such in the record.
 //
 //   node scripts/dev-test/blind.js run [<show> <season>] [--only=3,7] [--through=N] [--keep]
@@ -410,6 +412,31 @@ async function lastSeasonGame(g, users, seats, show, season, copy) {
   return { from, why: null, teams, back };
 }
 
+/**
+ * A11 part 5b: a game with a handicap needs a couch with a history, or everyone on it is new and it evens nothing out. Two of the
+ * four seats (the tinkerer and the fan) get an earlier game on the replay's couch: a bare Outlast on the show's season before (only
+ * that they held a seat in it counts), made a year before this season's premiere, a zt-pt- league H.down takes out. The drive-by and
+ * the forgetter are the newcomers. Made before anyone joins the game, so every write the game has reads it (handicaps.ts).
+ * { leagueId, veterans: [labels], newcomers: [labels] }.
+ */
+async function earlierGame(r, season) {
+  const { pool, S } = app();
+  const s = await H.stateOf(r.leagueId);
+  const veterans = r.seats.filter((x) => x.role === "tinkerer" || x.role === "fan");
+  const st = S.defaultState();
+  Object.assign(st.settings, { showId: s.settings.showId, wikiSeason: Number(season) - 1, setupComplete: true });
+  for (const seat of veterans) S.addPlayer(st, seat.label);
+  const { rows: made } = await pool.query(
+    `INSERT INTO leagues (name, slug, join_code, state, created_by, couch_id, created_at)
+     VALUES ($1, $2, $3, $4, $5, $6, COALESCE((SELECT premiere_date FROM show_seasons WHERE id = $7)::timestamptz, now()) - interval '365 days') RETURNING id`,
+    [`Earlier ${r.n}`, `zt-pt-hist-${r.n}-${season}`, `H${String(r.n).padStart(3, "0")}${String(season).slice(-2)}`, JSON.stringify(st), r.users[r.seats[0].username].id, r.couchId, r.seasonId]
+  );
+  for (const [i, seat] of veterans.entries()) {
+    await pool.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, $3, $4)", [made[0].id, r.users[seat.username].id, st.players[i].id, i ? "member" : "commissioner"]);
+  }
+  return { leagueId: made[0].id, veterans: veterans.map((x) => x.label), newcomers: r.seats.filter((x) => !veterans.includes(x)).map((x) => x.label) };
+}
+
 /** One game: made before the premiere on a couch of its own (the engine lab's start, the tinkerer its Commissioner), the
  *  other seats joining through Join, its draft if it has one. A record playtest.js's moves and waivers can play. */
 async function startGame(g, copy, users, seats, show, season) {
@@ -427,6 +454,8 @@ async function startGame(g, copy, users, seats, show, season) {
     const made = await lab.labStart(lead, { seasonId: copy.seasonId, couchId: r.couchId, spec });
     r.leagueId = made.leagueId;
     await pool.query("UPDATE leagues SET slug = $2 WHERE id = $1", [r.leagueId, `zt-pt-${r.n}-${r.leagueId.slice(0, 8)}`]);
+    // A11 part 5b: a handicap's couch history, before anyone joins.
+    if (spec.rank && spec.rank.handicap) r.history = await earlierGame(r, season);
     for (const seat of r.seats.slice(1)) await H.join(r, seat);
     await H.seatIds(r);
     if (S.getLeagueType(await H.stateOf(r.leagueId)).hasRoster) await H.draft(r);
@@ -514,6 +543,8 @@ async function lookAt(r, n) {
       // A11 part 5: teams of players, on the league walked as its table reads it.
       const t = S.TeamLogic.on(s) ? teamLine(S, S.AnswerLogic.withWalk(s, st.walk), label) : null;
       if (t) out.teams = t;
+      // A11 part 5b: a handicap, each one's points as the walk has them.
+      if (st.walk.handicap) out.handicap = handicapLine(S, s, label, Object.entries(st.walk.handicap).map(([playerId, handicap]) => ({ playerId, handicap })));
       if (st.walk.ends !== null && n > st.walk.ends) return out;
     }
     try {
@@ -547,8 +578,17 @@ async function lookAt(r, n) {
     // A11 part 5: teams of players, as the app reads the league.
     const t = S.TeamLogic.on(s) ? teamLine(S, s, label, rows) : null;
     if (t) out.teams = t;
+    // A11 part 5b: a handicap, as the app reads the league.
+    if (S.HandicapLogic.on(s)) out.handicap = handicapLine(S, s, label, rows);
   }
   return out;
+}
+
+/** A11 part 5b: a game with a handicap after an episode: who it names, whether that's kept yet, and each one's points from it so far
+ *  (`rows`: { playerId, handicap }). */
+function handicapLine(S, s, label, rows) {
+  const v = S.HandicapLogic.view(s, null);
+  return { newcomers: v.newcomers.map(label), kept: v.kept, points: Object.fromEntries(rows.map((x) => [label(x.playerId), x.handicap || 0])) };
 }
 
 /** A11 part 5: a game played in teams of players after an episode: each team's points, place and who's on it now, on `v` (a game of
@@ -821,7 +861,7 @@ async function run(show, season, opts = {}) {
   for (const r of replays) {
     const s = r.leagueId ? await H.stateOf(r.leagueId) : null;
     const played = r.episodes.filter((e) => e.played);
-    const g = { n: r.game.n, label: r.game.label, variant: r.game.variant, rows: r.game.rows, sentence: r.game.sentence, playsAs: r.game.playsAs, leagueId: r.leagueId || null, span: s ? [s.settings.startEpisode ?? 1, s.settings.endEpisode ?? null] : null, over: s ? (played.length ? played[played.length - 1].over : S.gameOver(s)) : false, lastEpisode: played.length ? played[played.length - 1].episode : null, draft: r.draft || null, lastSeason: r.lastSeason || null, episodes: r.episodes, problems: r.problems, final: played.length ? played[played.length - 1].table : null };
+    const g = { n: r.game.n, label: r.game.label, variant: r.game.variant, rows: r.game.rows, sentence: r.game.sentence, playsAs: r.game.playsAs, leagueId: r.leagueId || null, span: s ? [s.settings.startEpisode ?? 1, s.settings.endEpisode ?? null] : null, over: s ? (played.length ? played[played.length - 1].over : S.gameOver(s)) : false, lastEpisode: played.length ? played[played.length - 1].episode : null, draft: r.draft || null, lastSeason: r.lastSeason || null, history: r.history || null, episodes: r.episodes, problems: r.problems, final: played.length ? played[played.length - 1].table : null };
     if (through < E) g.over = g.over || null;
     g.unsettled = (r.unsettled && r.unsettled.never) || [];
     g.waitsOnEarly = (r.unsettled && r.unsettled.early) || [];

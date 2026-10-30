@@ -1120,6 +1120,11 @@ export interface LeagueState {
    *  `kept` once the teams are kept for good. */
   teamSeats?: Record<string, { team: string | null; from: number; left?: string }[]>;
   teamDraw?: { seed: string; kept?: boolean };
+  /** A11 part 5b: a handicap. Each seat's history on the couch, as the server last read it (src/lib/server/handicaps.ts: how many
+   *  games its accounts had on this couch, and of this show on it, on a season before this game's; absent: not read), and who's new,
+   *  kept once the game has started (StateLogic.HandicapLogic.settle), with the episode a seat kept later counts from. */
+  seatHistory?: Record<string, { couch: number; show: number }>;
+  handicapSeats?: { newTo: "couch" | "show"; seats: Record<string, boolean>; from?: Record<string, number> };
   settings: LeagueSettings;
 }
 
@@ -1206,6 +1211,9 @@ export interface ScoreRow {
   /** Teams of players (step A11 part 5: TeamLogic.label): the team the seat plays for (its last), the team's points and place (a
    *  tie "T1"), and whether the seat is on it now; null on none. */
   team?: { id: string; name: string | null; points: number; place: number; rank: string; now: boolean } | null;
+  /** A handicap (step A11 part 5b: HandicapLogic): the points it has given the seat so far, in `total` already (0 for someone it
+   *  doesn't name); absent in a game without one. */
+  handicap?: number;
 }
 
 /** Head to head's record (step A11 part 4): wins, losses, ties, and the regular season's points for and against. */

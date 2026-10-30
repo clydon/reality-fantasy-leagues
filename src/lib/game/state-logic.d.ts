@@ -857,6 +857,23 @@ declare const StateLogic: {
     choose(state: LeagueState, playerId: string, team: string, opts?: { by?: "self" | "runs"; now?: number }): boolean;
     settle(state: LeagueState, now?: number): boolean;
   };
+  /** Step A11 part 5b: a handicap (rank.handicap): points each episode the game plays for newcomers, by the couch's history (the
+   *  server's stamp, state.seatHistory), kept once the game has started (settle); the points worked out on every read. */
+  HandicapLogic: {
+    parts(state: LeagueState): import("./game-spec/index.js").HandicapParts | null;
+    on(state: LeagueState): boolean;
+    history(state: LeagueState): Record<string, { couch: number; show: number }> | null;
+    kept(state: LeagueState): { newTo: "couch" | "show"; seats: Record<string, boolean>; from?: Record<string, number> } | null;
+    fromHistory(state: LeagueState, playerId: string, parts: import("./game-spec/index.js").HandicapParts): boolean | null;
+    isNew(state: LeagueState, playerId: string, parts?: import("./game-spec/index.js").HandicapParts | null): boolean;
+    named(state: LeagueState, parts?: import("./game-spec/index.js").HandicapParts | null): { id: string; from: number }[];
+    played(state: LeagueState): number[];
+    tally(state: LeagueState, numbers: number[]): ((k: number) => Map<string, number>) | null;
+    apply(state: LeagueState, rows: ScoreRow[]): ScoreRow[];
+    view(state: LeagueState, playerId: string | null): HandicapView | null;
+    needsHistory(state: LeagueState, now?: number): boolean;
+    settle(state: LeagueState, now?: number): boolean;
+  };
   /** Step A10 part 4: keepers across seasons (the spec's get.keep): options from last season's game (the server's: keepers.ts),
    *  named before the draft, locked as it starts; the draft fills the places they leave. */
   KeeperLogic: {
@@ -996,6 +1013,15 @@ declare const StateLogic: {
     walkRows(rows: ScoreRow[], walk: AnswerWalk): ScoreRow[];
   };
 };
+/** A11 part 5b: a handicap as a game's screens read it (HandicapLogic.view): its points an episode, what newcomers are new to, the
+ *  seats it names, whether you're one, and whether who's new is kept yet (once the game has started). */
+export interface HandicapView {
+  points: number;
+  newTo: "couch" | "show";
+  newcomers: string[];
+  yours: boolean;
+  kept: boolean;
+}
 /** A11 part 2b: a game of questions' walk (AnswerLogic.walk): where it ends early, who's out after which episode, lives left (with
  *  lives), who went out together sharing it, and each one's points as the table shows them (frozen once out). Plain data. */
 export interface AnswerWalk {
@@ -1010,6 +1036,8 @@ export interface AnswerWalk {
   /** A11 part 4b: head to head on a game of questions, each episode walked with everyone's points through it (MatchupLogic.series:
    *  an episode's points are their growth). */
   series?: { number: number; totals: Record<string, number> }[];
+  /** A11 part 5b: each one's handicap (in `totals` already), as their points have it. */
+  handicap?: Record<string, number>;
 }
 export interface CoopWalk {
   lives: number;

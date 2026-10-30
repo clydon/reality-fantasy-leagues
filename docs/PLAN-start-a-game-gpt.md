@@ -43,8 +43,10 @@ with playoffs, a draft's (2026-10-30: a round robin of the seats each episode on
 playoffs over the game's last episodes, `rank.by 'matchups'`, `rank.playoffs`, `MatchupLogic`), and part 4b, head to head on a game
 of questions (2026-10-30: each episode's points what its answers settled by then add, the walk handing them over, `answerWalk.series`,
 `MatchupLogic.series`), and part 5, teams of players (2026-10-30: the couch split into teams that score together, drawn or chosen,
-summed or their mean, by their points or head to head between the teams, `rank.teams`, `TeamLogic`), are built; part 5b (handicaps,
-teams that follow the show's own groups, the late joiners' leftovers) is next, then A12 to A14
+summed or their mean, by their points or head to head between the teams, `rank.teams`, `TeamLogic`), and part 5b, handicaps
+(2026-10-30: points each episode the game plays for newcomers, by the couch's history the server works out and the engine keeps once
+the game starts, `rank.handicap`, `HandicapLogic`, `handicaps.ts`), are built; part 5c (teams that follow the show's own groups, the
+late joiners' leftovers) is next, then A12 to A14
 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -3180,7 +3182,14 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     fallbacks: someone new to the couch, a couch with no seasons, a late joiner), **teams that follow the show's own groups**
     (`rank.teams.made` 'group', VOCAB 'later' now: each team tied to one of the show's groups, on F3's grouping lifetimes, through a
     swap, a merge, each for themselves) **and the late joiners' leftovers** (above, with part 5's: a late joiner's team when the
-    game is drawn, `GhostLogic.allowed` for a game in teams).
+    game is drawn, `GhostLogic.allowed` for a game in teams). **Split again (2026-10-30), as its seed allowed:** part 5b is handicaps
+    (who.handicap, s19: a handicap's points each episode for newcomers, from the couch's history, its fallbacks), built; **part 5c is
+    teams that follow the show's own groups** (`rank.teams.made` 'group': each team of players tied to one of the show's groups, on
+    F3's grouping lifetimes and the records group slots write, through a swap, a merge, each for themselves, a group dissolving or
+    going home whole, an unsure report, a corrected one; or refused, with a recommendation, and left to A12's stages) **and the late
+    joiners' leftovers** (computer players and group slots; a late joiner's captain and second pick through `GhostLogic.applyAs`, a
+    check that plays them; a late joiner after a draw; `GhostLogic.allowed` for a pool with lives and a game of questions with
+    knockouts; the join route reading a game of questions as it stands; a late joiner's team when a game in teams is drawn).
 
   **As built (A11 part 1, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
   desk fixes: a season matched, a group corrected; 1064 tests). A race and players knocked out, in a draft. Each piece rides on data
@@ -3870,6 +3879,110 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     and the fan 31.5 to 17.5, The Traitors 4 the tinkerer and the drive-by 41.5 to 23; level at the premiere on 39 and The Traitors 4
     (both teams T1). Nothing in teams reads the show's format, so The Challenge's re-pairings reach it only through each member's
     lineup. The study doc's "A11 part 5: teams of players, replayed blind".
+  **As built (A11 part 5b, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  up to date; 1124 tests). Handicaps (who.handicap, s19). **Split again** (A11's bullet, as the seed allowed): teams that follow the
+  show's own groups and the late joiners' leftovers are part 5c. Every default and everything a person sees is the user's (Noticed,
+  below).
+  - **The spec** (`schema.js`): `rank.handicap` `{ points, who?, newTo? }`: `points` (1 to `MAX_HANDICAP`, 50) each episode the game
+    plays, added to what the seat scores, for whoever `who` names: `new` (VOCAB `rank.handicap.who`: the only one), newcomers by the
+    couch's history; `newTo` couch (no game on this couch on a season that premiered before this game's: the default) | show (none of
+    this show on it). The defaults `HANDICAP` (new, couch), read by `handicapParts`, never filled in. `handicapParts` (null unless it
+    plays: a draft, Outlast, a lineup, best ball or an auction, or a game of questions, ranked any way but co-op or a stock market's
+    worth). Refused (`handicapProblems`): a pool ("a pool ranks by its streak, or who's still standing, not its points: a handicap
+    would only break ties"), Weekly Calls and Weekly Bingo (counted outside the game), co-op ("nobody's ahead to even out"), a market
+    ranked by worth; `points`, `who` or `newTo` out of range; an unknown key. `answerParts` carries `handicap` and is non-null for it,
+    so a game of questions with one is walked everywhere it's read. `flagsOf` `hasHandicap`. Settings both ways: `rankHandicap` (a
+    draft's and a game of questions', `settings.js handicapOf`).
+  - **Words** (`describe.js`): the sentence ("Newcomers get 5 points an episode: anyone with no game on this couch from an earlier
+    season." / "...no game of this show on this couch..."; the show isn't named, as the words' `show` is the season's label); How it
+    works (the points every episode the game plays, who's new, that it's worked out from the couch's games when the game starts and
+    stays all season, a late joiner's as they join, counting from their first episode; a team two share new only if everyone on it is).
+  - **Who's new is data** (`src/lib/server/handicaps.ts`, new): for each seat, how many games its accounts have had on the game's couch
+    before it (`couch`) and of this show (`show`): a game on the same couch (not this one, not deleted, not a practice or public game)
+    whose season premiered before this game's (the catalog's premiere date, else when that game was made), where the account held a
+    seat; a team two share stamped with the most of its accounts'; a league on no couch with nobody before anyone (everyone new, as the
+    words say). Stamped into the state (`state.seatHistory`) on a write to such a game (`db.ts withLeagueLock`, after the mutation, in
+    a savepoint) while the engine still needs it (`HandicapLogic.needsHistory`: before the start, or with a seat a person holds that
+    isn't kept yet), so one query a write then and none once everyone's kept; a failed read keeps the stamp it had (logged); never a
+    person's word.
+  - **The engine** (`state-logic.js` `HandicapLogic`): `isNew` (kept once the game has started, else the history as it stands; a seat
+    the history doesn't have, an empty one or a history never read, isn't new: it fails closed; a computer player never), `named` (the
+    seats it pays, each from its own start or the episode it was kept from: not one still choosing where to start, nor one not brought
+    in), `played`, `tally` (each newcomer's points through each episode walked, nothing after the season's finale), `apply` (a draft's rows: `handicap`, in `total`,
+    ranked again), `view` (points, newTo, newcomers, yours, kept), `needsHistory`, `settle` (on every write: once the game has started
+    (`TeamLogic.started`), each seat kept as the history has it then, `state.handicapSeats` `{ newTo, seats, from? }`; a seat kept after
+    the first keep, not a late joiner, from the first episode still to play (`from`: a seat brought in, a computer player's taken over,
+    a history read late); a computer player never kept; everything kept again when `newTo` changes, each `from` kept; all of it gone
+    when the game has no handicap). Its points go where the points are made, so every reader has them: a draft's rows
+    (`ScoringLogic.compute`, before anything ranks them) and its series (`KnockoutLogic.series`, which a race, the cuts, head to head
+    and teams of players read; `KnockoutLogic.apply` freezes it with the rest for someone out), a game of questions' walk (each
+    episode's totals, the totals the table shows, `answerWalk.handicap`, frozen for someone out; `walkRows` puts it on the rows).
+  - **The fallbacks:** someone new to the couch (no history: new); a couch with no seasons before (everyone new, so it changes nothing
+    between them: Noticed); a late joiner (kept as they join, from their own start: catching up, their own copy counts what they've
+    played); a shared seat with one newcomer (not new: the most of its accounts'); a team of players with a newcomer (the team's sum or
+    mean carries theirs); the history unreadable (never read: nobody new; a failed read: the last stamp); the history changing
+    mid-season (kept once the game starts: a game deleted, a membership moved or an account added to a seat moves nothing); a seat
+    handed over or brought in later (from the first episode still to play); a seat that leaves (keeps earning it, as its team plays on:
+    Noticed); a viewer behind (their copy counts what they've seen); a corrected result; a span's end, a race won or one left (nothing
+    after); the season's finale (nothing after it: a reunion The Challenge's schedule counts, with results of its own, gives nothing,
+    as head to head's weeks after it don't play); someone knocked out (frozen at their last episode in); results still early (the table counts the episode; the cuts' walk
+    and head to head's weeks wait, as their points do); a game of questions read without its walk (nobody's handicap: the safe
+    fallback a reader not taught yet gets, none known).
+  - **The server:** the Games tab (`game-view.ts`): `TableRow.handicap` (its points so far, null without one) and `GameView.handicap`
+    (`HandicapLogic.view` on your copy). The hub and the couch's numbers read the table's totals, so a newcomer's handicap is in
+    their place.
+  - **The tracker:** who.handicap ✅ and s19 ✅ (a Weekly Lineup on Survivor 51, 5 points an episode for newcomers to the couch).
+    **Now: 178 ✅** · 67 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271; A11's rows all ✅ (part 5c's teams that follow the show's groups is the
+    VOCAB value `rank.teams.made` 'group', no row of its own).
+  - **Tests:** `tests/handicaps.test.js` (new, 6): the shape, defaults, words and settings both ways, what's refused (a pool, Weekly
+    Calls, Weekly Bingo, co-op, a market by worth, each part out of range, an unknown key); who's new (no stamp: nobody; couch or show;
+    a computer player never; before the start the history as it stands; kept at the start; the history changing after it; a seat
+    brought in and a computer player's taken over, each from the first episode still to play; `newTo` changed; turned off;
+    `needsHistory`); its points (each episode with results from the seat's start, a night nobody went home, the table's rows and rank,
+    a viewer behind, a corrected result, a late joiner from their start, one still choosing and one not brought in getting nothing, a
+    span's end, Outlast); a race won on it, the guillotine (it keeps newcomers in; someone out frozen with theirs), head to head's
+    weeks, teams of players' points; a game of questions' walk (its totals, `handicap`, the table, its series in teams, someone out
+    frozen); the couch's standings. The answer parts' shape in `answer-knockouts.test.js`, `coop.test.js` and
+    `answer-matchups.test.js` (`handicap: null`); `game-spec.test.js`'s fields (`rankHandicap`). `npm test` 1130.
+  - **API check:** `scripts/dev-test/check-handicaps.js` (new, on new-fixture.js's couch, its helpers in `check-kit.js`, new: the
+    ones the other checks each copy), 27 PASS: the couch's history made (Survivor 50 with alex and riley, The Traitors 4 with jordan;
+    sam's games deleted or on another couch); Lineup League made a game for Episodes 6 and 7 with 5 points an episode for newcomers to
+    the couch, through `setGame` with the show's ctx; sam's lineup through the route stamps each seat's history (sam new, nothing
+    kept); the Games tab names sam; casey (with a Survivor 50 game) on sam's seat makes it not new, off again new; jordan's Survival
+    Pool made a game of questions with 2 an episode for newcomers to Survivor (jordan and sam); Episode 6 through the season sync: both
+    kept, sam's row 5 in the total (everyone else's own points), the pool's walk 2 each for jordan and sam; the Survivor 50 game
+    deleted: not read again while everyone's kept, nothing moves; casey joins the pool after its start: kept as new at the next write,
+    2 from Episode 7, the history read again for them (alex's now nothing, still kept as not new); Episode 7: sam's 10, jordan's and
+    sam's 4, casey's 2; the hub's plaque the winners with the handicap in. `check-teams.js`, `check-h2h.js`, `check-answer-h2h.js`,
+    `check-coop.js`, `check-answer-knockouts.js`, `check-knockouts.js`, `check-pool-knockouts.js`, `check-questions.js`, `-who`
+    (`--api`) and `check-engine-lab.js --api` ALL PASS. `npx tsc --noEmit -p .` clean.
+  - **Code review** (`/code-review` at high, before the long runs; ten findings, nine taken, one the user's). The words named the season
+    ("no Survivor 51 game ... from an earlier season"): the show isn't named now. A computer player was kept as not new at the start, so
+    a newcomer who took its seat over could never be new: never kept now, and a seat kept after the start counts from the first episode
+    still to play (`from`). The view listed seats the points didn't pay (one still choosing where to start, one not brought in): both
+    read `named` now. A league on no couch had nobody new though its words say everyone is: everyone is now. The stamp ran on every write
+    all season: only while the engine needs it (`needsHistory`). `HandicapLogic.on` read per row in the table, `parts` read per player:
+    once each. `teamsOf` in settings carried the handicap: `handicapOf`. The check copied check-teams.js's helpers: `check-kit.js`. The
+    check hard-coded the fixture's Traitors slug: read from its row. Taken to the user (Noticed item 10): a wager of "any of your points"
+    can stake a handicap's. **The blind replays found one more** (their first run, on the reviewed code): on The Challenge the handicap
+    counted the reunion's two episodes after the final (its schedule counts 21; results recorded on them), 105 where the game is over at
+    19 with 95. It stops at the season's finale now (`tally`, as head to head's weeks do; a unit test), and the replays ran again. Last,
+    by hand: `needsHistory` waited all season for a seat that left before the start (never kept, so the server read the history on
+    every write); a seat that left isn't waited for now (a unit test). It changes only when the server reads, nothing scored, so the
+    replays and the check stand.
+  - **The harness** (`blind.js`): a game with a handicap gets an earlier game on its replay's couch first (`earlierGame`: a bare Outlast
+    on the show's season before, made a year before the premiere, for the tinkerer and the fan), so the drive-by and the forgetter are
+    its newcomers; each episode's record says who it names, whether that's kept, and each one's points from it (`.handicap`,
+    `handicapLine`); each game's record its `history`.
+  - **Golden replays** (`golden.js`, HEAD against the working tree, after the code review's fixes): 7 seasons, 160 games, **19,361
+    reads, every one the same** (no game they play has a handicap).
+  - **Blind replays** (`blind.js run`, the five seasons, on the final code): **every game ended on all five seasons**, who.handicap and s19 among them
+    (Survivor 49 97 of 97, The Challenge 41, 40 and 39 78 of 78, The Traitors 4 76 of 76), no problem in the moves. who.handicap, a
+    Weekly Lineup with 5 points an episode for newcomers, the tinkerer and the fan seated in an earlier game on each replay's couch, so
+    the drive-by and the forgetter were its newcomers, kept from Episode 1: 5 an episode each through the season's finale (Survivor 49
+    65 over 13 episodes, The Challenge 95 over 19, The Traitors 4 55 over 11), the newcomers first on four seasons of five (Survivor
+    49's tinkerer, 106 on their own, still first). On The Challenge, where a lineup's season is -9 to 27 points, the handicap decides
+    the game (Noticed item 8). The study doc's "A11 part 5b: handicaps, replayed blind".
 - **A12. Stages.** A game made of phases or mini-games, each with its own rules and an overall: a second draft at the merge, a
   season of mini-games, a game that scores two ways (bingo lines plus answers), one game across two shows.
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
@@ -4584,6 +4697,64 @@ From A10 part 1 (2026-10-29):
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
 
+From A11 part 5b (2026-10-30):
+- **For the user, in a design session (with part 5's twelve questions and parts 1 to 4b's), each with a recommendation (built as spec
+  settings or engine rules, the defaults `HANDICAP`, read by `handicapParts`, never filled into a spec):**
+  1. Who's a newcomer. Built: no game on this couch (`newTo` couch: the default) or none of this show on it (show), on a season that
+     premiered before this game's; any game counts where the account held a seat (archived ones too; not a deleted, practice or public
+     one, nor one on another couch). Options: none finished (a game played to its end: each earlier game's end isn't a column, so the
+     server would read their states); joined the couch lately (`couch_members.joined_at`); fewer than N games. Recommended: as built,
+     the couch by default, the show when the words say "new to Survivor" (G1).
+  2. What "before" is. Built: a season that premiered before this game's (the catalog's date, else when that game was made), so games on
+     the same season never count each other (a game made mid-season doesn't count the couch's other games of it). Options: a game that
+     started before this one's first episode. Recommended: keep (stable, and a couch's first season has everyone new).
+  3. A couch where everyone's new (its first season, a couch with no games before). Built: everyone gets it, which changes nothing
+     between them (only a race comes sooner and the points run higher). Options: nobody when everyone is (a handicap evens a field);
+     the wizard saying so before the game's made (G1's context pack knows the couch's history). Recommended: keep, with the wizard's
+     warning ("Everyone here is new to the couch: the handicap won't change anything").
+  4. When it's settled. Built: kept at the game's start (its first episode locked or with results); before then it's the history as it
+     stands; a seat that comes in later is kept at the first write that reads it, a late joiner from their own start, a seat brought in
+     or a computer player's taken over from the first episode still to play. Recommended: keep.
+  5. A team two people share. Built: new only if everyone on it is (the most of its accounts' history). Options: new if anyone is; a
+     share of the points for each newcomer on it. Recommended: keep.
+  6. A seat that leaves (disabled). Built: it keeps earning the handicap, as its team plays on in a draft (in a game of questions it
+     answers nothing, but still gets it). Options: stop from the first episode still to play once they leave (small: a `to` beside
+     `from`). Recommended: stop it (a handicap is for a newcomer playing), as a small change.
+  7. Computer players. Built: never new (a bot has no history to be new to), never kept, so a person taking its seat is read then.
+     Recommended: keep.
+  8. How much and how often. Built: `points` every episode the game plays (an episode with results in its span from the seat's start:
+     a night nobody went home counts; one with early results counts in the table at once, while a race's or the cuts' walk and head to
+     head's weeks wait for final results, as their points do). Options: only episodes with final results; a head start instead (a
+     number once: "newcomers start with 20", a `start` beside `points`); a share that shrinks each week. Recommended: keep; a head start
+     as its own small setting if a request asks. The size matters more than the shape (the blind replays): on The Challenge, where a
+     Weekly Lineup's whole season is -9 to 27 points, 5 an episode (95 by the final) decides the game; on Survivor 49 (6.5 to 106) it
+     closes a gap. Recommended too: the wizard offers a handicap scaled to the show's typical episode (G1's context pack can carry a
+     week's points) and says what it amounts to over the season.
+  9. Who else a handicap names (`who` new only now). Options: last season's champion on this couch (minus points), last season's last
+     place, the couch's lowest-ranked in its power rankings (all data the couch's history has). Recommended: the champion and last
+     place as VOCAB 'later' values when a request asks (G1's corpus could add "the defending champ starts 10 behind").
+  10. Wagers (the code review's). Built: a game of questions with a handicap is walked, so "bet any of your points" (A9's wagers) can
+     stake its points too. Options: answers' points only. Recommended: keep (they're on your row as your points).
+  11. A pool. Built: refused (it ranks by its streak, or who's still standing). Options: an extra life (or a mulligan) for newcomers in
+     a pool with lives. Recommended: a life, when a request asks (small, on `PickEmLogic`'s lives).
+  12. What players and the maker are told (U1): who's new and why ("no game on this couch before"), their bonus on their row and in the
+     episode's breakdown, before the start that it's provisional (`GameView.handicap.kept`), a seat that becomes new when someone takes
+     it over.
+- **The breakdowns don't have it:** the Games tab's `week` column (`teamEpisodeBreakdown`), `playerEventRows`, the Scoreboard's per-event
+  rows and the episode lines show what the castaways scored, not the handicap (the rows, the totals, the series, the hub and the couch's
+  numbers have it), as with A9's captains. (U1.)
+- **One query on a write to a game with a handicap** until everyone a person holds is kept (before its start, and when someone new comes
+  in), none after. (The merge: a line in HOSTING.md.)
+- **The history is read only on a write:** a game made straight in the database (the checks' `setGame`) has none until its next write,
+  so nobody is new on reads before it (fails closed). Start a game and the engine lab write through the app. (Noted.)
+- **No caller passes the couch's history to our check:** a handicap on a couch where everyone (or nobody) is new is made without a word.
+  (G1's context pack: the couch's newcomers, for item 3's warning.)
+- **The other API checks copy `check-kit.js`'s helpers** (`check-teams.js`, `check-h2h.js`, `check-answer-h2h.js`, `check-coop.js`, the
+  knockouts' checks): move them onto it when each is next touched. (Whoever next touches one.)
+- **No request in the corpus names a handicap's other shapes** (a head start, the champion's penalty, new to the show): G1's corpus could
+  add them. (G1.)
+- Start a game, Game settings and the engine lab offer none of it (the lab starts the tracker's rows). (U1.)
+
 From A11 part 5 (2026-10-30):
 - **For the user, in a design session (with part 4b's six questions and parts 1 to 4's), each with a recommendation (built as spec
   settings or engine rules, the defaults `TEAMS`, read by `teamParts`, never filled into a spec):**
@@ -4636,8 +4807,8 @@ From A11 part 5 (2026-10-30):
 - **Readers not taught teams:** the couch's game list (`couch-joins.ts`), Game settings (`backstage-games.ts`), the desk's games list
   and Start a game show nothing of them; a game of questions read without its walk counts every team level. (U1.)
 - **Teams of players don't read the show's format:** a change nobody announced reaches a team through each member's own game (its
-  pieces' fallbacks). Teams that follow one of the show's groups (`made` 'group', VOCAB 'later') are part 5b's, on F3's grouping
-  lifetimes, with their fallbacks (a swap, a merge, each for themselves). (Part 5b.)
+  pieces' fallbacks). Teams that follow one of the show's groups (`made` 'group', VOCAB 'later') are part 5c's (split from 5b), on F3's
+  grouping lifetimes, with their fallbacks (a swap, a merge, each for themselves). (Part 5c.)
 - **No request in the corpus asks for teams of players** (who.teams is the dial's row): G1's corpus could add "split us into two
   teams" and "boys against girls". (G1.)
 - Start a game, Game settings and the engine lab offer none of it (the lab starts the tracker's rows). (U1.)
@@ -4807,7 +4978,7 @@ From A11 part 3 (2026-10-30):
   Faithful's. (The format's rule, as above; A12's twists if one comes.)
 - **Not walked yet** (part 2b's item, now co-op's too): the couch's game list (`couch-joins.ts`), Game settings' span
   (`backstage-games.ts`), the desk's games list (`desk-games.ts`) and the join route read a co-op game without its walk: a lost game
-  runs to its span's end there. Recommended: `asItStands` in each, as part 2b's. (Part 5's late joiners for the join; U1 for the lists.)
+  runs to its span's end there. Recommended: `asItStands` in each, as part 2b's. (Part 5c's late joiners for the join; U1 for the lists.)
 - **A plaque for a co-op game that ended undecided** (archived while it played, or its span's last episode in with its night still
   to settle) has no winners and `coop.result` null, which a screen could read as a loss. (U1, with item 7.)
 - **Co-op is a game of questions' only:** a pool's ("together we have five lives; every wrong boot pick costs one") or a draft's
@@ -4845,7 +5016,7 @@ From A11 part 2b (2026-10-30):
 - **Not walked yet:** the couch's game list (`couch-joins.ts` `gameOver`, its `ended`), Game settings' span (`backstage-games.ts`
   `spanState`), the desk's games list (`desk-games.ts`) and the join route (`GhostLogic.allowed`: nobody new once someone's out) read a
   game of questions without its walk: running to its span's end, nobody out. Recommended: `asItStands` in each (one answers read
-  per game of questions with knockouts). (Part 5's late joiners for the join; U1 for the lists.)
+  per game of questions with knockouts). (Part 5c's late joiners for the join; U1 for the lists.)
 - **The refusals name what happened** (part 1's item, the same here): sam, who hasn't seen the episode that put him out, is told
   "You’re out of this game" when he answers; someone behind a game's early end, "This game ended with Episode N". (U1.)
 - **The walk isn't memoised:** a read of a game of questions with knockouts walks it a few times (the league as it stands in
@@ -4889,9 +5060,9 @@ From A11 part 2 (2026-10-29):
   draft's cuts wait for final results (part 1) because its points come with them; a pool's don't. Recommended: keep; if the user
   wants "over" to wait for final results, stop the walk's end checks at the newest early episode. (The user's, with item 2.)
 - A catching-up player in a pool with lives reads, in everyone else's copy, as missing the picks they haven't made yet (A10 part
-  2's walk), while the end counts them as still in. (Part 5's late joiners.)
+  2's walk), while the end counts them as still in. (Part 5c's late joiners.)
 - Nobody new joins once someone's out is a draft's only (`GhostLogic.allowed` reads `KnockoutLogic.outs`): a pool with lives
-  still lets a late joiner in with all their lives after someone's out. (Part 5's late joiners; the user's, with part 1's item 5.)
+  still lets a late joiner in with all their lives after someone's out. (Part 5c's late joiners; the user's, with part 1's item 5.)
 - The pool's walk isn't memoised: a read walks it a few times (lastEpisode, the table's scores and histories, eligibility), each
   every player through every episode. Nothing at a couch's size; a public pool of hundreds with these settings would want a memo
   before it's offered. (Whoever next profiles the engine, with part 1's.)

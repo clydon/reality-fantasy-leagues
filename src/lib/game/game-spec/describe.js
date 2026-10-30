@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -238,6 +238,9 @@ function sentenceParts(s, w) {
   // A11 part 5: teams of players (head to head between them, when it's that).
   const teams = teamParts(s);
   if (teams) put(` ${teamPhrase(teams)}`, 'rank');
+  // A11 part 5b: a handicap.
+  const handicap = handicapParts(s);
+  if (handicap) put(` ${handicapPhrase(handicap, w)}`, 'rank');
   const rank = h2h ? ` ${matchupPhrase(h2h, w, !!teams)}` : { worth: " Most worth wins: cash plus the team at today's prices.", matchups: ' Played head to head.', categories: ' Ranked by category.', roto: ' Ranked roto-style.' }[s.rank.by];
   if (rank) put(rank, 'rank');
   // A10 part 4b: a team two people share.
@@ -436,6 +439,25 @@ function teamPhrase(t) {
   const named = t.names.every(Boolean) ? ` (${listOf(t.names)})` : '';
   const made = t.made === 'choose' ? 'each of you picking yours before it starts' : 'drawn at random at the start';
   return `Played in ${say(t.of)} teams${named}, ${made}: a team's points are its members' ${t.score === 'sum' ? 'added up' : 'average'}.`;
+}
+/** Who a handicap is for (A11 part 5b: schema.js handicapParts), as the words say it: "anyone with no game on this couch from an
+ *  earlier season". The show isn't named: the words' `show` is the season's label ("Survivor 51"). */
+function newcomersWho(h) {
+  return h.newTo === 'show' ? 'anyone with no game of this show on this couch from an earlier season' : 'anyone with no game on this couch from an earlier season';
+}
+/** The sentence's words for a handicap (A11 part 5b): "Newcomers get 5 points an episode: anyone with no game on this couch from an
+ *  earlier season." */
+function handicapPhrase(h, w) {
+  return `Newcomers get ${pointsWord(h.points)} ${article(w.part)} ${w.part}: ${newcomersWho(h)}.`;
+}
+/** How a handicap works (A11 part 5b), a rule a line, as the engine plays it (state-logic.js HandicapLogic). */
+function handicapRules(s, w) {
+  const h = handicapParts(s);
+  if (!h) return [];
+  const out = [`Newcomers get ${pointsWord(h.points)} every ${w.part} the game plays, on top of what they score: ${newcomersWho(h)}.`];
+  out.push(`Who's new is worked out from the couch's games when the game starts, and stays that way all season. Join after the start and it's worked out as you join, counting from your first ${w.part}.`);
+  if (seatPeople(s) > 1) out.push('A team you share counts as new only if everyone on it is.');
+  return out;
 }
 /** How teams of players work (A11 part 5), a rule a line, as the engine plays them (state-logic.js TeamLogic). `h2h`: played head
  *  to head between the teams (matchupRules says who wins). */
@@ -689,6 +711,8 @@ function rulesOf(s, w) {
     }
     // A11 part 1: players knocked out, and a race.
     rules.push(...knockoutRules(s, w));
+    // A11 part 5b: a handicap.
+    rules.push(...handicapRules(s, w));
     // A11 part 5: teams of players.
     rules.push(...teamRules(s, w, !!matchupParts(s)));
     // A11 part 4: head to head, with playoffs.
@@ -750,6 +774,8 @@ function rulesOf(s, w) {
     if (isObj(s.extras.lateLock)) rules.push(`Watching late? Answer before you watch: until you've seen it, up to ${s.extras.lateLock.hours} hours after it airs.`);
     // A11 part 2b: a race, cuts and lives say who wins; part 4b, head to head.
     const asks = answerParts(s);
+    // A11 part 5b: a handicap.
+    rules.push(...handicapRules(s, w));
     // A11 part 5: teams of players say who wins themselves, unless head to head does.
     rules.push(...teamRules(s, w, !!(asks && asks.matchups)));
     if (asks && asks.matchups) rules.push(...matchupRules(s, w));

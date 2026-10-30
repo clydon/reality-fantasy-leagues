@@ -11,6 +11,7 @@ import { recordSeatMove, seatRoom } from "./shared-seats";
 import { settleGroupSlots } from "./group-slots";
 import { settleDueAuction } from "./auction";
 import { settleKeepers } from "./keepers";
+import { stampSeatHistory } from "./handicaps";
 import { after } from "next/server";
 
 // Re-exported so route handlers can import { pool, withLeagueLock, HttpError } from one place,
@@ -102,6 +103,10 @@ export async function withLeagueLock(
     // Teams of players (step A11 part 5): a seed for the draw on the write that turns them on; once the game has started, who's on
     // which kept, a seat new to it placed, a disabled one off its team, from the first episode still to play.
     StateLogic.TeamLogic.settle(state, Date.now());
+    // A handicap (step A11 part 5b): each seat's history on the couch (handicaps.ts), read after the mutation in case it turned one on
+    // or seated someone; then who's new kept once the game has started, so the history changing mid-season moves nothing.
+    await stampSeatHistory(client, leagueId, state, true);
+    StateLogic.HandicapLogic.settle(state, Date.now());
     const spec = change && before ? (typeof change === "function" ? change(before, state) : change) : null;
     // A move on a team two people share (step A10 part 4b): who made it, in this transaction. Only where the game shares its
     // seats, so no other game pays for a query.

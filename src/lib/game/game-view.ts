@@ -1,6 +1,6 @@
 import type { Castaway, LeagueState, ScoreRow } from "./types";
 import StateLogic from "./state-logic.js";
-import type { AnswerWalk, CoopWalk, MatchupView, TeamView } from "./state-logic.js";
+import type { AnswerWalk, CoopWalk, HandicapView, MatchupView, TeamView } from "./state-logic.js";
 import { castawayEventStats } from "./active-roster-rows";
 import { castawayPoints, teamOrder } from "./classic-view";
 import { latestScoredEpisode } from "./episode-team-summary";
@@ -64,6 +64,8 @@ export interface TableRow {
   /** Step A11 part 5: teams of players, the team the seat plays for (its points and place: every member shares it; `now`, whether
    *  the seat is on it now); null for any other game, or a seat on no team. */
   side: { id: string; name: string | null; points: number; place: number; rank: string; now: boolean } | null;
+  /** Step A11 part 5b: a handicap's points so far (in `total` already), 0 for someone it doesn't name; null without one. */
+  handicap: number | null;
 }
 
 export interface LineupMove {
@@ -251,6 +253,9 @@ export interface GameView extends GameRefIn {
   /** Step A11 part 5: teams of players, as far as you've seen: how they're made and scored, whether they're set, yours, and each
    *  team (its members now, its points, its place); null for any other game. What it shows is U1's. */
   teams: TeamView | null;
+  /** Step A11 part 5b: a handicap, as far as you've seen: its points an episode, what newcomers are new to, who it names, whether
+   *  you're one and whether that's kept yet; null for any other game. What it shows is U1's. */
+  handicap: HandicapView | null;
 }
 
 /** Whose user a seat is, for faces. */
@@ -307,6 +312,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     matchups: seat ? StateLogic.MatchupLogic.view(view, me) : null,
     // The teams as the table ranked them (each row's side), not worked out again.
     teams: StateLogic.TeamLogic.view(view, seat ? me : null, everyone.map((r) => ({ playerId: r.playerId, total: r.points, team: r.side }))),
+    handicap: StateLogic.HandicapLogic.view(view, seat ? me : null),
   };
 }
 
@@ -336,6 +342,8 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
   // A pool's seasons, read once (step A11 part 2: a pool that walks everyone together walks once for the table).
   const histories = pool ? StateLogic.PickEmLogic.histories(view) : null;
   const keys = rows.map((r) => key(r).join(","));
+  // Step A11 part 5b: a handicap's points on each row (read once a table).
+  const handicapOn = StateLogic.HandicapLogic.on(view);
   // Best ball (step A9 part 2) has a week as a lineup does; its "last" is who counted, as it has no lineups.
   const lastEp = type.hasActiveRoster || type.hasBestBall ? latestScoredEpisode(view) : null;
   const lastOf = (playerId: string) =>
@@ -370,6 +378,7 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
       calls: calls ? right(r.playerId) : 0,
       record: r.matchups ? { wins: r.matchups.wins, losses: r.matchups.losses, ties: r.matchups.ties, for: r.matchups.for, against: r.matchups.against, seed: r.matchups.seed, alive: r.matchups.alive, champion: r.matchups.champion } : null,
       side: r.team ? { ...r.team } : null,
+      handicap: handicapOn ? (r.handicap ?? 0) : null,
     };
   });
 }

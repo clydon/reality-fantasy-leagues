@@ -119,11 +119,16 @@ function draftRankOf(st, lineup, copy) {
   // A11 part 2: whether one left ends it (rankOneLeft), beside last one standing.
   if (by === 'standing') endsOf(st, rank, false);
   teamsOf(st, rank, copy);
+  handicapOf(st, rank, copy);
   return rank;
 }
 /** A11 part 5: teams of players as their settings say them (rankTeams: a draft's and a game of questions'), only when it's set. */
 function teamsOf(st, rank, copy) {
   if (isObj(st.rankTeams)) rank.teams = copy ? clone(st.rankTeams) : st.rankTeams;
+}
+/** A11 part 5b: a handicap as its settings say it (rankHandicap: a draft's and a game of questions'), only when it's set. */
+function handicapOf(st, rank, copy) {
+  if (isObj(st.rankHandicap)) rank.handicap = copy ? clone(st.rankHandicap) : st.rankHandicap;
 }
 /** A11 part 4: head to head's playoffs and fallbacks as its settings say them (rankMatchups: a draft's and, part 4b, a game of
  *  questions'), each only when it's set. */
@@ -147,6 +152,7 @@ function questionsRankOf(st, lives, copy) {
   if (cut) rank.cut = cut;
   if (rank.by !== 'total') endsOf(st, rank, lives);
   teamsOf(st, rank, copy);
+  handicapOf(st, rank, copy);
   return rank;
 }
 /** A11 part 2: last one standing's end as its settings say it (rankOneLeft; a pool's rankAllOut too), each only when it's set. */
@@ -417,6 +423,8 @@ function settingsOf(spec) {
   out.draftRace = draft && isObj(s.rank.race) ? clone(s.rank.race) : undefined;
   // A11 part 5: teams of players, a draft's or a game of questions', as the spec says them.
   out.rankTeams = (draft || asks) && isObj(s.rank.teams) ? clone(s.rank.teams) : undefined;
+  // A11 part 5b: a handicap, a draft's or a game of questions', as the spec says it.
+  out.rankHandicap = (draft || asks) && isObj(s.rank.handicap) ? clone(s.rank.handicap) : undefined;
   out.draftCut = draft && Array.isArray(s.rank.cut) ? clone(s.rank.cut) : undefined;
   if (type === 'questions') out.questions = clone(s.ask);
   out.lateLockHours = type === 'questions' && e.lateLock ? e.lateLock.hours : undefined;
@@ -490,7 +498,7 @@ const PARTS = [
   { fields: ['startEpisode', 'startPhase', 'endEpisode'], read: (s) => s.span },
   { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
   { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans', 'questionsLives', 'questionsLivesOn', 'questionsSaves'], read: (s) => s.score },
-  { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut', 'questionsRank', 'questionsRace', 'questionsCut', 'rankMatchups', 'rankTeams'], read: (s) => s.rank },
+  { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut', 'questionsRank', 'questionsRace', 'questionsCut', 'rankMatchups', 'rankTeams', 'rankHandicap'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },
   { fields: ['seatPeople'], read: (s) => seatPeople(s) },

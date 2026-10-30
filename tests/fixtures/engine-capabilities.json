@@ -1959,7 +1959,17 @@
         {
           "id": "who.handicap",
           "what": "Handicaps (newcomers get a head start)",
-          "step": "A11"
+          "step": "A11",
+          "spec": {
+            "preset": "weekly-lineup",
+            "rank": { "by": "total", "handicap": { "points": 5 } }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          },
+          "note": "a handicap (A11 part 5b): points each episode the game plays for newcomers, from their own start; who's new is the couch's history (no game on this couch on an earlier season, or none of this show), worked out by the server and kept once the game starts"
         },
         {
           "id": "who.sharedTeam",
@@ -2873,7 +2883,12 @@
       "step": "A11",
       "dials": [
         "who"
-      ]
+      ],
+      "spec": {
+        "preset": "weekly-lineup",
+        "rank": { "by": "total", "handicap": { "points": 5 } }
+      },
+      "note": "a handicap (A11 part 5b): a Weekly Lineup where anyone with no game on this couch from an earlier season gets 5 points every episode it plays"
     },
     {
       "id": "s20",

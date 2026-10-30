@@ -581,7 +581,8 @@ class ScoringLogic {
   // each one's points at their last episode in and ranks last one standing (KnockoutLogic.apply).
   static compute(state){
     const view = spanView(state);
-    const rows = getLeagueType(state).scoringStrategy.compute(view);
+    // A11 part 5b: a draft's handicap on its rows (a game of questions' is on its walk), before anything below ranks them.
+    const rows = HandicapLogic.apply(view, getLeagueType(state).scoringStrategy.compute(view));
     if(KnockoutLogic.on(view)) return KnockoutLogic.apply(view, rows);
     // A11 part 2b: a game of questions' walk, its points and who's out, as the server worked them out (AnswerLogic.walk).
     const walk = AnswerLogic.walkOf(view);
@@ -659,6 +660,8 @@ class KnockoutLogic {
     const finaleEp = finaleEpisodeOf(state);
     const finale = finaleEp ? AnswerLogic.finalePoints(state) : new Map();
     const slots = !outlast && GroupSlotLogic.config(state) ? GroupSlotLogic.index(state) : undefined;
+    // A11 part 5b: a handicap, each newcomer's points through each episode.
+    const tally = HandicapLogic.tally(state, episodes.map(e => e.number));
     const running = new Map(players.map(p => [p.id, 0]));
     const bets = new Map(players.map(p => [p.id, 0]));
     let finaleIn = false;
@@ -681,6 +684,7 @@ class KnockoutLogic {
       const boots = outlast ? (state.castaways || []).filter(outBy).length : 0;
       const stillIn = reverse ? size - boots : boots + 1;
       const pre = outlast ? null : { events: ActiveRosterLogic.episodeEvents(state, ep), times: ActiveRosterLogic.timesFor(state, ep.number), slots };
+      const handicaps = tally ? tally(ep.number) : null;
       players.forEach(p => {
         let locked = 0, banked = 0;
         if(outlast){
@@ -695,8 +699,9 @@ class KnockoutLogic {
         }
         const bonus = game.extras.bets ? bets.get(p.id) : 0;
         const fin = finaleIn ? (finale.get(p.id) || 0) : 0;
-        rows.set(p.id, { locked, banked, bonus, finale: fin });
-        totals.set(p.id, roundPoints(locked + bonus + fin));
+        const handicap = handicaps ? (handicaps.get(p.id) || 0) : 0;
+        rows.set(p.id, tally ? { locked, banked, bonus, finale: fin, handicap } : { locked, banked, bonus, finale: fin });
+        totals.set(p.id, roundPoints(locked + bonus + fin + handicap));
       });
       out.push({ number: ep.number, quiet: !!ep.noExit, totals, rows });
     }
@@ -833,6 +838,8 @@ class KnockoutLogic {
         if('banked' in r) r.banked = was.banked;
         r.bonus = was.bonus;
         r.finale = was.finale;
+        // A11 part 5b: a handicap's, as it stood then.
+        if(r.handicap !== undefined && was.handicap !== undefined) r.handicap = was.handicap;
       }
       r.total = at.get(k).totals.get(r.playerId) || 0;
     });
@@ -1614,6 +1621,164 @@ class TeamLogic {
     });
     if(first){ state.teamDraw = { ...state.teamDraw, kept: true }; changed = true; }
     if(changed) state.teamSeats = kept;
+    return changed;
+  }
+}
+
+// ---------- HandicapLogic: a handicap (docs/PLAN-start-a-game-gpt.md step A11 part 5b) ----------
+// The spec's rank.handicap: `points` each episode the game plays, from a seat's own start, added to what it scores, for whoever it
+// names: newcomers, by the couch's history. Who's new is data the server works out (src/lib/server/handicaps.ts stampSeatHistory:
+// for each seat, how many games its accounts have had on this couch, and of this show on it, on a season that premiered before this
+// game's), stamped into the state on writes (state.seatHistory: { playerId: { couch, show } }), never a person's word; and kept once
+// the game has started (state.handicapSeats: { newTo, seats: { playerId: true | false }, from: { playerId: episode } }), so the
+// history changing mid-season (a game deleted, a membership moved, an account added to a seat) changes nothing that counts. The
+// points are worked out from the data on every read, as the teams' are, so a corrected result works them out again and a viewer's
+// copy counts only what they've seen.
+//   - A seat is new when the history has it with no game before for any account on it (a team two people share is new only if
+//     both are: the server stamps the most of its accounts'). A seat the history doesn't have is not new: an empty seat, or a
+//     history the server couldn't read (the stamp absent: it fails closed, no points from data nobody read). A computer player is
+//     never new and never kept, so a person who takes its seat over is read as they take it.
+//   - Kept for each seat the history has, once the game has started (TeamLogic.started: its first episode locked or with results);
+//     before then it's the history as it stands. A seat kept later (a late joiner, one brought in, a computer player's taken over, a
+//     history read late) is kept at the first write that reads it, counting from its own start for a late joiner (their season),
+//     else from the first episode still to play then (`from`: the episodes before it were someone else's, or nobody's). The spec
+//     changing what newcomers are new to keeps them all again from the history then (their `from` kept).
+//   - Its points: `points` for each episode with results in the game's span from the seat's start (GhostLogic.startFor, or its
+//     `from`; nothing for one still choosing where to start, or not yet brought in), up to where the game ends (spanView: a race
+//     won, one left, a span's end; the season's finale, whatever comes after it); a seat that left keeps earning it, as its team
+//     plays on. Someone knocked out keeps what they had
+//     at their last episode in (KnockoutLogic.apply, the walk's `out`). On each row as `handicap`, and in `total`.
+//   - A draft's: on its rows (ScoringLogic.compute: apply) and its series (KnockoutLogic.series, which head to head and teams of
+//     players read); a game of questions': on its walk's series and totals (AnswerLogic.walk), so the table, the hub and the couch's
+//     numbers read it as they read the points.
+class HandicapLogic {
+  static parts(state){ return Spec.handicapParts(gameOf(state)); }
+  static on(state){ return !!HandicapLogic.parts(state); }
+  // The server's stamp (playerId -> { couch, show }: games before this one), or null when it's absent (not read, or no handicap).
+  static history(state){ const h = state && state.seatHistory; return h && typeof h === 'object' && !Array.isArray(h) ? h : null; }
+  // What's kept ({ newTo, seats: { playerId: true | false }, from? }), or null before the game starts.
+  static kept(state){
+    const k = state && state.handicapSeats;
+    return k && typeof k === 'object' && k.seats && typeof k.seats === 'object' && !Array.isArray(k.seats) ? k : null;
+  }
+  // Whether the history makes a seat new (no game before, to the couch or to the show as the spec says), or null where the history
+  // doesn't have it.
+  static fromHistory(state, playerId, parts){
+    const h = HandicapLogic.history(state);
+    const row = h && Object.prototype.hasOwnProperty.call(h, playerId) ? h[playerId] : null;
+    if(!row || typeof row !== 'object') return null;
+    const n = parts.newTo === 'show' ? row.show : row.couch;
+    return Number.isInteger(n) && n >= 0 ? n === 0 : null;
+  }
+  // Whether a seat is one the handicap names: as kept once the game has started, else as the history has it now.
+  static isNew(state, playerId, parts = HandicapLogic.parts(state)){
+    if(!parts) return false;
+    const k = HandicapLogic.kept(state);
+    if(k && k.newTo === parts.newTo && typeof k.seats[playerId] === 'boolean') return k.seats[playerId];
+    const p = Core.getPlayer(state, playerId);
+    if(!p || p.automated) return false;
+    return HandicapLogic.fromHistory(state, playerId, parts) === true;
+  }
+  // The seats the handicap pays, each with the episode it counts from: new, playing their season (not still choosing where to start,
+  // nor not yet brought in), from their own start or the episode they were kept from, whichever is later.
+  static named(state, parts = HandicapLogic.parts(state)){
+    if(!parts) return [];
+    const k = HandicapLogic.kept(state);
+    const from = k && k.from && typeof k.from === 'object' ? k.from : {};
+    return (state.players || [])
+      .filter(p => p.active !== false && !GhostLogic.needsStart(state, p.id) && HandicapLogic.isNew(state, p.id, parts))
+      .map(p => {
+        const own = GhostLogic.startFor(state, p.id);
+        return { id: p.id, from: own === null ? null : Number.isInteger(from[p.id]) ? Math.max(own, from[p.id]) : own };
+      })
+      .filter(x => x.from !== null);
+  }
+  // The game's episodes with results, in order (its span's: what a handicap counts on).
+  static played(state){
+    const from = startEpisode(state);
+    if(from === null) return [];
+    const to = endEpisode(state);
+    return (state.episodes || []).filter(e => e.number >= from && (to === null || e.number <= to) && EpisodeLogic.hasResults(e)).map(e => e.number).sort((a,b) => a - b);
+  }
+  // Each newcomer's handicap through each of `numbers` (the game's episodes walked): (k) => Map playerId -> points through episode
+  // k (Infinity: all of them); null when nobody gets one. Nothing after the season's finale (a reunion with results of its own, as
+  // The Challenge's schedule counts): the game is over there.
+  static tally(state, numbers){
+    const parts = HandicapLogic.parts(state);
+    const seats = HandicapLogic.named(state, parts);
+    if(!seats.length) return null;
+    const finale = finaleEpisodeOf(state);
+    const list = numbers.filter(e => !finale || e <= finale.number).sort((a,b) => a - b);
+    return k => {
+      const out = new Map();
+      seats.forEach(x => {
+        const n = list.filter(e => e >= x.from && e <= k).length;
+        if(n) out.set(x.id, roundPoints(n * parts.points));
+      });
+      return out;
+    };
+  }
+  // A draft's score rows with each one's handicap on them (`handicap`, in `total`), ranked by their points again; any other game's
+  // as they are (a game of questions' handicap is on its walk).
+  static apply(state, rows){
+    if(!HandicapLogic.on(state) || gameOf(state).get.by !== 'draft') return rows;
+    const tally = HandicapLogic.tally(state, HandicapLogic.played(state));
+    const all = tally ? tally(Infinity) : new Map();
+    rows.forEach(r => {
+      const n = all.get(r.playerId) || 0;
+      r.handicap = n;
+      r.total = roundPoints(r.total + n);
+    });
+    return rows.sort((a,b) => b.total - a.total);
+  }
+  // What a game's handicap is, for its screens (U1's to show): its points an episode, what newcomers are new to, the seats it pays
+  // (as the copy has them: `named`), whether `playerId` is one, and whether who's new is kept yet (once the game has started); null
+  // without one.
+  static view(state, playerId){
+    const parts = HandicapLogic.parts(state);
+    if(!parts) return null;
+    const k = HandicapLogic.kept(state);
+    const newcomers = HandicapLogic.named(state, parts).map(x => x.id);
+    return { points: parts.points, newTo: parts.newTo, newcomers, yours: !!playerId && newcomers.includes(playerId), kept: !!k && k.newTo === parts.newTo };
+  }
+  // Whether a write still needs the couch's history (the server reads it only then: handicaps.ts): a game with a handicap before it
+  // starts (who's new is the history as it stands), or after it with a seat a person holds, still in the game, that isn't kept yet (a
+  // seat that left isn't waited for; reclaimed, it is).
+  static needsHistory(state, now){
+    const parts = HandicapLogic.parts(state);
+    if(!parts) return false;
+    if(!TeamLogic.started(state, now)) return true;
+    const k = HandicapLogic.kept(state);
+    if(!k || k.newTo !== parts.newTo) return true;
+    return (state.players || []).some(p => !p.automated && !p.disabled && typeof k.seats[p.id] !== 'boolean');
+  }
+  // On every write (db.ts, after the server's stamp): once the game has started, each seat's status kept as the history has it then;
+  // a seat kept after the first keep (not a late joiner, whose season is their own) counts from the first episode still to play
+  // (`from`). A computer player is never kept, a seat the history doesn't have yet waits for a write that does. Everything kept goes
+  // when the game has no handicap, and again when what newcomers are new to changes. True when anything changed.
+  static settle(state, now){
+    const parts = HandicapLogic.parts(state);
+    if(!parts){
+      const had = state.handicapSeats !== undefined;
+      delete state.handicapSeats;
+      return had;
+    }
+    if(!TeamLogic.started(state, now)) return false;
+    const was = HandicapLogic.kept(state);
+    const first = !was || was.newTo !== parts.newTo;
+    const seats = first ? {} : { ...was.seats };
+    const from = { ...(was && was.from && typeof was.from === 'object' ? was.from : {}) };
+    let changed = !!was && was.newTo !== parts.newTo;
+    const open = first ? null : TeamLogic.openEpisode(state, now);
+    (state.players || []).forEach(p => {
+      if(p.automated || typeof seats[p.id] === 'boolean') return;
+      const v = HandicapLogic.fromHistory(state, p.id, parts);
+      if(v === null) return;
+      seats[p.id] = v;
+      if(open !== null && !GhostLogic.lateJoinOf(state, p.id) && !Number.isInteger(from[p.id])) from[p.id] = open;
+      changed = true;
+    });
+    if(changed) state.handicapSeats = Object.keys(from).length ? { newTo: parts.newTo, seats, from } : { newTo: parts.newTo, seats };
     return changed;
   }
 }
@@ -6519,6 +6684,8 @@ class AnswerLogic {
     const endAt = parts.matchups ? MatchupLogic.endsAt(state) : null;
     const stop = finale && (endAt === null || finale.number < endAt) ? finale.number : endAt;
     const aboutOne = parts.matchups ? [...qs.values()].filter(Spec.livesQuestion) : [];
+    // A11 part 5b: a handicap, each newcomer's points through each episode walked.
+    const tally = parts.handicap ? HandicapLogic.tally(state, eps.map(e => e.number)) : null;
     for(const ep of eps){
       const k = ep.number;
       if(stop !== null && k > stop) break;
@@ -6558,6 +6725,7 @@ class AnswerLogic {
       if(k === newest && (waiting || ((parts.race || parts.cuts.length || parts.matchups) && EpisodeLogic.resultsStage(ep) === 'early'))){ walkedAll = false; break; }
       // Head to head's final is the game's end: its questions about the game settle there, as the table's totals have them.
       const totals = AnswerLogic.grade(state, live(), k === stop ? { ...fk, over: true } : fk).points;
+      if(tally) tally(k).forEach((n, id) => totals.set(id, roundPoints((totals.get(id) || 0) + n)));
       series.set(k, totals);
       const total = id => totals.get(id) || 0;
       if(coop){
@@ -6588,9 +6756,15 @@ class AnswerLogic {
     const final = at === null ? facts : { ...Spec.factsThrough(facts, at), over: true };
     const points = AnswerLogic.grade(state, live(), final).points;
     const totals = {};
+    // A11 part 5b: the handicap through the game's end, else every episode with results (as the points stand); someone out, through
+    // their last episode in.
+    const handicap = tally ? tally(at === null ? Infinity : at) : null;
+    const handicaps = {};
     (state.players || []).forEach(p => {
       const k = out.get(p.id);
-      totals[p.id] = Number.isInteger(k) && series.has(k) ? series.get(k).get(p.id) || 0 : points.get(p.id) || 0;
+      const frozen = Number.isInteger(k) && series.has(k);
+      totals[p.id] = frozen ? series.get(k).get(p.id) || 0 : roundPoints((points.get(p.id) || 0) + (handicap ? handicap.get(p.id) || 0 : 0));
+      if(tally) handicaps[p.id] = (frozen ? tally(k) : handicap).get(p.id) || 0;
     });
     if(coop){
       // Won by all once the game is over (its span's last episode in, or the season's end) with a life left and nothing still to
@@ -6614,6 +6788,8 @@ class AnswerLogic {
       totals,
       // A11 part 4b: head to head's episodes, for MatchupLogic.series; part 5, teams of players' (TeamLogic, through seatSeries).
       ...(parts.matchups || parts.teams ? { series: [...series].map(([number, t]) => ({ number, totals: Object.fromEntries(t) })) } : {}),
+      // A11 part 5b: each one's handicap, as their points have it.
+      ...(parts.handicap ? { handicap: handicaps } : {}),
     };
   }
   // A copy of `state` carrying a game of questions' walk (AnswerLogic.walk, worked out on exactly this state's data): never the
@@ -6670,6 +6846,8 @@ class AnswerLogic {
       r.total = walk.totals[r.playerId] || 0;
       if(walk.lives && r.playerId in walk.lives) r.lives = walk.lives[r.playerId];
       if(walk.shared.includes(r.playerId)) r.shared = true;
+      // A11 part 5b: a handicap's points, in the total already.
+      if(walk.handicap) r.handicap = walk.handicap[r.playerId] || 0;
     });
     return rows;
   }
@@ -7542,7 +7720,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, TeamLogic, draftFits, draftFitsFor, rankKey,
+  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, TeamLogic, HandicapLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

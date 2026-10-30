@@ -1043,6 +1043,38 @@ start (or chosen before it), kept once it starts, and the game ranks the teams (
 - **Not on these replays:** a seat that leaves, a late joiner, a move between teams and head to head between teams (the four seats stay
   for the whole season, and win.h2h plays the seats); the unit tests (`tests/teams.test.js`) and `check-teams.js` cover them.
 
+## A11 part 5b: handicaps, replayed blind (2026-10-30)
+
+A11's part 5b gave newcomers a handicap (`rank.handicap`, state-logic.js `HandicapLogic`): points each episode the game plays, for
+anyone with no game on the couch from an earlier season. Who's new is data the server works out from the couch's games
+(src/lib/server/handicaps.ts) and the engine keeps once the game starts. Each replay's game sits on a couch of its own, so `blind.js`
+now seats the tinkerer and the fan in an earlier game there first (`earlierGame`), and the drive-by and the forgetter are the
+newcomers.
+
+- **who.handicap and s19 played on all five seasons:** a Weekly Lineup, 5 points an episode for newcomers to the couch. Every game
+  ended on all five (Survivor 49 97 of 97, The Challenge 41, 40 and 39 78 of 78, The Traitors 4 76 of 76), nothing refused, and the
+  newcomers were kept from the premiere on each.
+
+| Season | Episodes it counted | The newcomers (their own + the handicap) | The veterans | First |
+|---|---|---|---|---|
+| Survivor 49 | 13 | the drive-by 22 + 65 = 87, the forgetter 6.5 + 65 = 71.5 | the tinkerer 106, the fan 69 | the tinkerer |
+| The Challenge 41 | 19 | the drive-by -4 + 95 = 91, the forgetter -9 + 95 = 86 | the fan 9, the tinkerer 2 | the drive-by |
+| The Challenge 40 | 19 | the forgetter 1 + 95 = 96, the drive-by -7 + 95 = 88 | the fan 27, the tinkerer 4 | the forgetter |
+| The Challenge 39 | 19 | the drive-by 23 + 95 = 118, the forgetter 12 + 95 = 107 | the tinkerer 40, the fan 23 | the drive-by |
+| The Traitors 4 | 11 | the drive-by 18 + 55 = 73, the forgetter 16 + 55 = 71 | the tinkerer 65, the fan 30 | the drive-by |
+
+- **It stops at the season's finale:** The Challenge's schedule counts 21 episodes and its reunion (20 and 21) has results of its own;
+  the first run, on the reviewed code, counted them (105 each, where the game is over at 19). It stops at the finale now, as head to
+  head's weeks do: 19 there, 11 on The Traitors 4 (its 12th comes after the winner).
+- **The size matters:** a lineup on The Challenge scores little over a season (-9 to 27 here), so 5 an episode decides the game; on
+  Survivor 49 it closes most of a gap (the tinkerer still first). What a handicap is worth belongs to the show's scoring (the plan's A11
+  part 5b Noticed item 8: the wizard scaling it to a typical episode).
+- **A handicap doesn't read the show's format:** it counts episodes played, so The Challenge's re-pairings every episode and Survivor
+  49's swaps reach the game only through each one's lineup (its own fallbacks).
+- **Not on these replays:** a late joiner, a team two people share, a seat taken over, the history changing mid-season and a game of
+  questions with a handicap (the four seats stay all season, and the tracker's row is a lineup); `tests/handicaps.test.js` and
+  `check-handicaps.js` cover them.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it
