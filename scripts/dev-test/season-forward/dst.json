@@ -1,0 +1,16 @@
+{
+  "about": "The week the clocks go back (Sunday 2026-11-01: tests/dst.test.js has the rules), from the backup's week on. Episode 7 is the first one after daylight time ends: it airs at 8 PM EST (01:00 UTC), and the Drive-By changes a move at 7:55 PM EST (taken: a lock read at October's offset would have closed at 7 PM) and at 8:05 PM (refused). Episode 7's research then writes Episode 8's start with October's offset (\"2026-11-11T20:00:00-04:00\", as research once did: 3b42dca0), and the app must still have it at 8 PM EST; the Drive-By's moves at Episode 8's lock show it. Otherwise the realistic season: the swap at 7, the merge at 9, a double boot at 11, the finale at 13.",
+  "seed": "dst",
+  "finale": 13,
+  "default": { "out": ["Voted Out"] },
+  "schedule": { "wrongOffset": [8] },
+  "episodes": {
+    "7": { "swap": { "tribes": 2 }, "out": ["Voted Out"] },
+    "9": { "merge": "Tavu", "out": ["Voted Out"] },
+    "11": { "out": ["Voted Out", "Voted Out"] },
+    "12": { "out": ["Voted Out", "Voted Out"] },
+    "13": { "finale": true }
+  },
+  "late": { "7": "driveby", "8": "driveby" },
+  "after": {}
+}

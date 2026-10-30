@@ -404,7 +404,8 @@ function episodeAnswers(spec, at) {
     const counted = [...votes].filter(([p]) => p !== holder).sort((a, b) => b[1] - a[1]);
     let out = counted[0][0];
     if (safe.includes(out)) out = pool[0];
-    for (const [p, k] of votes) say(p, "votesReceived", k);
+    // A second Tribal the same night (a double boot) adds its votes to the first's.
+    for (const [p, k] of votes) say(p, "votesReceived", (entry.get(p).votesReceived || 0) + k);
     return out;
   };
   let tribalHeld = false;
@@ -664,6 +665,37 @@ async function deskAccept(desk, seasonId, n) {
   return { accepted: r.accepted, error: r.error, unknown, disputed };
 }
 
+/**
+ * A quick check the bot held (it said nobody went home, or named someone it wasn't sure of): whoever runs the first game
+ * confirms it in Backstage › Results, as playtest.js acceptHeld does: It's right, with the names it matched (or nobody).
+ */
+async function confirmHeld(r, n) {
+  const { backstage } = app();
+  const lead = r.seats[0];
+  const scope = await backstage.scope(r.users[lead.username], r.seasonId, r.couchId);
+  const seen = await backstage.read(scope, { episode: n, show: true });
+  const ep = seen.episode;
+  if (!ep || ep.number !== n || !ep.wait || !seen.shown?.wait) return `Backstage offered ${ep ? `Episode ${ep.number}${ep.wait ? "" : " with nothing held"}` : "nothing"}`;
+  const names = seen.shown.wait;
+  const items = names.length ? names.filter((o) => o.matched).map((o) => ({ castawayName: o.name, method: o.method })) : [{ nobody: true }];
+  await backstage.apply(scope, n, items, { quick: true, wait: { id: ep.wait.id, right: true } });
+  return `${lead.label} confirmed it in Backstage (It's right: ${items.map((i) => (i.nobody ? "nobody went home" : `${i.castawayName}, ${i.method}`)).join("; ")})`;
+}
+
+/** Each seat reveals the episode once its final results are in (the new design's reveal); the Forgetter only on a week it moves. */
+async function reveals(games, n) {
+  const { revealSeason } = ts("lib/server/season-episodes");
+  const done = new Set();
+  for (const r of games) {
+    for (const seat of r.seats) {
+      if (done.has(seat.username) || (seat.role === "forgetter" && !PT.movesThisWeek(seat, n + 1))) continue;
+      done.add(seat.username);
+      await revealSeason(r.users[seat.username], r.seasonId, r.couchId, n).catch(() => {});
+    }
+  }
+  return done.size;
+}
+
 /** The bot's own run for one episode (db/bot-research.js runJob, as its schedule runs it), answering from the scenario. */
 async function botRun(seasonId, n, kind, answers) {
   const { BotResearch, botSend, pool } = app();
@@ -780,6 +812,11 @@ async function play(scenarioName, o = {}) {
     Clock.set(end + 10 * 60_000);
     seedRandom(`${sc.seed}|${n}|early`);
     ep.results.quick = await botRun(season.id, n, "quick", answers);
+    // Held for a person (a night nobody went home): the first game's commissioner says It's right in Backstage.
+    if (!ep.results.quick.ok && /Not sure yet/.test(ep.results.quick.message)) {
+      ep.results.held = await confirmHeld(games[0], n).catch((e) => `Backstage refused: ${e.message}`);
+      ep.results.quick.ok = /confirmed/.test(ep.results.held);
+    }
     ep.results.quickDesk = await deskAccept(desk, season.id, n);
     if (spec.merge) ep.results.phase = await confirmMerge(desk, season.id, n);
     await keep(rec, n, "early");
@@ -790,10 +827,11 @@ async function play(scenarioName, o = {}) {
     ep.results.fullDesk = await deskAccept(desk, season.id, n);
     Clock.set(Date.parse(Final.finalResultsAt(airAt, season.air_tz)) + HOUR);
     await waiverClock(games);
+    ep.revealed = await reveals(games, n);
     for (const step of sc.after[n] || []) ep.notes.push(await afterStep(step, { n, season, desk, games, sc }));
     await keep(rec, n, "final");
     for (const r of games) for (const p of r.problems.splice(0)) (ep.problems ||= []).push({ game: r.kind, ...p });
-    const line = `Episode ${n}: ${answers.lines.join(" ")} | early ${ep.results.quick.ok ? "ok" : `FAILED ${ep.results.quick.message}`} (${ep.results.quickDesk.accepted} accepted), final ${ep.results.full.ok ? "ok" : `FAILED ${ep.results.full.message}`} (${ep.results.fullDesk.accepted} accepted)${ep.late.length ? `, late moves ${ep.late.map((l) => (l.right ? "right" : "WRONG")).join("/")}` : ""}${ep.problems?.length ? `, ${ep.problems.length} refused` : ""}`;
+    const line = `Episode ${n}: ${answers.lines.join(" ")}${ep.results.held ? ` | held: ${ep.results.held}` : ""}${ep.notes.length ? ` | after: ${ep.notes.join("; ")}` : ""} | early ${ep.results.quick.ok ? "ok" : `FAILED ${ep.results.quick.message}`} (${ep.results.quickDesk.accepted} accepted), final ${ep.results.full.ok ? "ok" : `FAILED ${ep.results.full.message}`} (${ep.results.fullDesk.accepted} accepted)${ep.late.length ? `, late moves ${ep.late.map((l) => (l.right ? "right" : "WRONG")).join("/")}` : ""}${ep.problems?.length ? `, ${ep.problems.length} refused` : ""}`;
     console.log(line);
     fs.writeFileSync(runFile, JSON.stringify(rec));
   }
@@ -814,14 +852,69 @@ function nextAt(sc, n, sched, tz, Air) {
   const date = Air.localDate(new Date(at), zone);
   const time = new Date(at).toLocaleTimeString("en-GB", { timeZone: zone, hour: "2-digit", minute: "2-digit" });
   const when = Air.zonedToUtc(off ? Air.addDays(date, 7) : date, time, zone);
-  // The offset research writes: the right one for that night, or (the scenario's `wrongOffset`) October's for a November night.
-  const iso = new Date(when).toISOString();
-  return (sc.schedule.wrongOffset || []).includes(n + 1) ? iso.replace(/:00\.000Z$/, "") : iso;
+  // The offset research writes: the right one for that night, or (the scenario's `wrongOffset`) the one two weeks before, as
+  // research once wrote October's for a November night (3b42dca0): "2026-11-11T20:00:00-04:00" for 8 PM EST.
+  if (!(sc.schedule.wrongOffset || []).includes(n + 1)) return new Date(when).toISOString();
+  const was = new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "longOffset" }).formatToParts(new Date(Date.parse(when) - 14 * DAY)).find((x) => x.type === "timeZoneName").value;
+  return `${off ? Air.addDays(date, 7) : date}T${time}:00${was.replace("GMT", "") || "+00:00"}`;
 }
 
-/** What the scenario does after an episode's results (`after`): corrections and the like. Each says what it did. */
-async function afterStep(step) {
-  return `not yet: ${JSON.stringify(step)}`;
+/** The season's accepted results for episode n, as the desk lists them: { id, kind, name, method, eventType }. */
+const resultsOf = async (seasonId, n) =>
+  (await qa("SELECT id, kind, castaway_name AS name, COALESCE(applied->>'method', method) AS method, COALESCE(applied->>'eventType', event_type) AS \"eventType\" FROM season_decisions WHERE season_id = $1 AND episode_number = $2 AND status = 'accepted' ORDER BY kind, created_at, id", [seasonId, n]));
+
+/**
+ * What the scenario does after an episode's results (`after`), each step as the app does it, saying what it did:
+ *   { do: "flag", event: "<id pattern>", desk: "no" | "yes" }  a player flags a result (didn't happen) and the desk
+ *        decides it: "no" takes it out of every game, "yes" keeps it (community-results.ts flagResult, desk-facts.ts decideFact)
+ *   { do: "correct", exit: "<way out>" }  the desk corrects how the episode's first boot left (decideFact's edit)
+ *   { do: "own", event: "<id pattern>" }  one game gets a result of its own the season hasn't (as classic's commissioner
+ *        entered one: the first game, the first castaway still in), then the desk's Make every game match takes it out
+ *        (desk-episode.ts gamesApart, matchGames)
+ */
+async function afterStep(step, { n, season, desk, games }) {
+  const F = ts("lib/server/desk-facts");
+  const facts = await resultsOf(season.id, n);
+  if (step.do === "flag") {
+    const fact = facts.find((f) => f.kind === "event" && new RegExp(step.event || ".", "i").test(f.eventType));
+    if (!fact) return `flag: no ${step.event} result in Episode ${n}`;
+    const r = games[0];
+    const seat = r.seats[0];
+    const { flagResult } = ts("lib/server/community-results");
+    const flagged = await flagResult(r.users[seat.username], season.id, r.couchId, { episode: n, decisionId: fact.id, reason: "didnt-happen" });
+    const page = await ts("lib/server/desk-episode").deskEpisode(desk, season.id, n, new Date());
+    const shown = page.facts.find((f) => f.id === fact.id)?.state ?? "gone";
+    await F.decideFact(desk, fact.id, { decide: step.desk || "no" });
+    const after = (await resultsOf(season.id, n)).some((f) => f.id === fact.id);
+    return `flag: ${seat.label} flagged ${fact.name}'s ${fact.eventType} (${flagged.status ?? "no status"}, the desk showed it ${shown}); the desk decided "${step.desk || "no"}": ${after ? "kept" : "out of every game"}`;
+  }
+  if (step.do === "correct") {
+    const boot = facts.find((f) => f.kind === "elimination");
+    if (!boot) return `correct: nobody went home in Episode ${n}`;
+    await F.decideFact(desk, boot.id, { edit: { method: step.exit } });
+    const now = (await resultsOf(season.id, n)).find((f) => f.id === boot.id);
+    return `correct: ${boot.name} ${boot.method} → ${now?.method} (the desk's correction)`;
+  }
+  if (step.do === "own") {
+    const { S, withLeagueLock } = app();
+    const D = ts("lib/server/desk-episode");
+    const r = games.find((g) => g.kind === "active-roster") || games[0];
+    let what = null;
+    await withLeagueLock(r.leagueId, (st) => {
+      const ep = st.episodes.find((e) => e.number === n);
+      const c = st.castaways.find((x) => x.status === "active");
+      const type = S.formatOf(st).events.find((e) => new RegExp(step.event || "reward", "i").test(e.id))?.id;
+      if (!ep || !c || !type) return;
+      S.ActiveRosterLogic.addEvent(st, ep.id, type, c.id, 1);
+      what = `${c.name} ${type}`;
+    });
+    const { gamesApart } = ts("lib/server/season-decisions");
+    const apart = await gamesApart(season.id, n);
+    const matched = apart.length ? await D.matchGames(desk, season.id, n).catch((e) => ({ text: `refused: ${e.message}` })) : null;
+    const still = await gamesApart(season.id, n);
+    return `own: ${r.kind} given ${what ?? "nothing"} of its own; ${apart.length} game(s) apart, Make every game match: ${matched?.text ?? "not offered"}; ${still.length} apart after`;
+  }
+  return `unknown step ${JSON.stringify(step)}`;
 }
 
 // ---------- the invariants (pure, on a run's kept states) ----------
@@ -871,10 +964,13 @@ function invariants(rec, sc) {
           if (n === sc.finale && stage === "final" && !over) why.push(`${kind(st)} isn't over after the finale's final results`);
         }
       }
+      // Outlast: the show's winner is the last one standing, everyone else gone before them.
       const st = finalOf(last)[src];
       if (kind(st) === "classic-draft") {
-        const standing = st.castaways.filter((c) => c.status === "active");
-        if (standing.length > 1) why.push(`Outlast: ${standing.length} still standing after the finale`);
+        const w = S.seasonWinner(st);
+        const left = st.castaways.filter((c) => !c.exitMethod && c.id !== w?.id);
+        if (!w) why.push("Outlast: no winner after the finale");
+        if (left.length) why.push(`Outlast: ${left.length} still in beside the winner after the finale`);
       }
     }
     add("every game ends at the finale, and not before; Outlast ends with the last one standing", why);
