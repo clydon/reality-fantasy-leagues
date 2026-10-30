@@ -20,6 +20,9 @@ import { leagueStates } from "@/lib/server/league-states";
 // id>`): start it (once it's waiting for the OK, or one the game carried on past), or skip it (a started copy is taken away, what it
 // scored with it). Recorded on the game, then the game settled. Answers the plan as GET does, whatever the maker's mark (answering
 // one needs to know it).
+// A12 part 3: a side stage's copies are among them (`side` true, keys `<stage id>@<the spell's id>`), a copy's end where its grouping
+// changed shown only once you've seen the episode whose research said so (`to` its own end till then); `unplayed` (a grouping that changed
+// before its copy played).
 
 const change = (t: StageTrigger | null) => (t ? { id: t.id, kind: t.kind, from: t.from, what: t.what } : null);
 function view(state: LeagueState, plan: ChangePlan | null, mark: number) {
@@ -31,16 +34,27 @@ function view(state: LeagueState, plan: ChangePlan | null, mark: number) {
       return ok;
     });
   const items = (list: ChangePlanItem[]) => seen(list).map((x) => ({ key: x.key ?? null, stage: x.stage, ...(x.until !== undefined ? { until: x.until } : {}), change: change(x.trigger) }));
-  const p = plan ?? { entries: [], pending: [], held: [], lapsed: [], skipped: [], late: [], capped: [], superseded: [], seen: {} };
+  const p = plan ?? { entries: [], pending: [], held: [], lapsed: [], skipped: [], late: [], capped: [], superseded: [], unplayed: [], seen: {} };
+  // A side copy's end where its grouping changed is as much a spoiler as that episode's result.
+  const own = (stage: string) => StateLogic.StageLogic.stages(state).find((s) => s.id === stage)?.game.span?.to ?? null;
+  const endOf = (e: ChangePlan["entries"][number]) => {
+    const closes = e.side ? e.trigger?.closes : null;
+    if (closes && closes.episode > mark) {
+      later++;
+      return own(e.stage);
+    }
+    return e.to ?? null;
+  };
   return {
     changes: StateLogic.StageLogic.changesOf(state),
-    started: seen(p.entries.filter((e) => e.copy !== null)).map((e) => ({ key: e.key, stage: e.stage, copy: e.copy, from: e.from, to: e.to ?? null, change: change(e.trigger) })),
+    started: seen(p.entries.filter((e) => e.copy !== null)).map((e) => ({ key: e.key, stage: e.stage, copy: e.copy, ...(e.side ? { side: true } : {}), from: e.from, to: endOf(e), change: change(e.trigger) })),
     pending: items(p.pending),
     held: items(p.held),
     lapsed: items(p.lapsed),
     skipped: items(p.skipped),
     late: items(p.late),
     capped: items(p.capped),
+    unplayed: items(p.unplayed),
     later,
   };
 }

@@ -67,7 +67,10 @@ proven on the Survivor 51 rehearsal and the golden replays), is built, to merge 
 of it made mid-season, a league of its own, each time research is sure the format changed that way, by itself or with the maker's OK,
 taken away when the report is corrected; `StageLogic.changePlan`, `change-stages.ts`, from the season sync), is built, and so is part 2b, the 'next-stage' fallbacks (2026-10-30: a stage whose group question or group slots
 can't be played as the groups stand ends there and the next starts, once research is sure nobody is in a group going into an episode;
-unsure, void and held; `format-timeline.js groupsGone`, through part 2's plan); parts 3 and 4 next. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+unsure, void and held; `format-timeline.js groupsGone`, through part 2's plan), and so is part 3, when a grouping lasts (2026-10-30: a side
+stage beside the game's own, a copy of it for each grouping research is sure has held N episodes, from the episode after until research
+is sure it changed, its points kept; `side` { held }, `format-timeline.js sideTriggers`, `StageLogic.sidePlan`, through part 2's
+machinery); part 4 next. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -4145,7 +4148,8 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   - **Part 3: when a grouping lasts** (p8): a side stage that opens once a grouping has held N episodes (F3's `sideStages`), scores from
     then on and closes when it changes (its points kept), follow the people, a pick each episode from the groupings on screen, and a
     decision point for the game's people with the game's default if nobody answers by the next lock (the maker's OK now, A14's vote
-    later); and A11 part 5c's backing team if a request asks.
+    later); and A11 part 5c's backing team if a request asks: built (below; follow the people and a pick each episode needed nothing
+    new, and no request asks for the backing team).
   - **Part 4: mini-games, two ways of scoring, two shows, late joiners** (shape.minis, shape.twoWays, shape.twoShows, s45, s20, p1):
     stages of bingo and Weekly Calls (their tables from the server's own counts), stages that play at the same time, a stage on another
     show's season, and someone joining a game in stages once it has started.
@@ -4417,6 +4421,94 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     Survivor 49 from 8 (the merge, known from 7's research), The Challenge 40 from 11 (the split said ahead at 9, sure at 10), 39 from 16
     (the split at 15's end), 41 not in the season (the split at the final, held unsure at 19, sure at 20's research: from 21), The
     Traitors 4 never (no groups); the re-pairings and re-draws move nothing. The study doc's "A12 part 2b".
+
+  **As built (A12 part 3, when a grouping lasts, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync
+  engine` (master's plan edits only; 1187 tests). A side stage: a copy of it beside the game's own stages for each grouping research is
+  sure has held N episodes and goes on, from the episode after, until research is sure the grouping changed, its points kept. Every
+  default and everything a person sees is the user's (Noticed, below).
+  - **The shape (decided): a stage's `side` { held }**, not an `on` of its own, since a side stage plays beside the game's own stages
+    and never starts or ends one (`schema.js`: `SIDE` { held: 2 }, `MAX_HELD` 6, `stageSide`, `mainCount`, `isSide`). Side stages come
+    after the game's own (`mainCount`: the stages before the first side one; never the first stage; one of the game's own after a side
+    one refused); its game says no start (each copy's is where its grouping opened it: refused with why if it has one), ends where the
+    game's own last stage does unless it says (`stageGames`), and its draft opens at its start (who's still in, counted then, as a
+    later stage's). The game's span is its own stages' (`fullStaged`); nothing chains through a side stage (the stage before it gets no
+    end from it, 'next-stage' never starts one, a side stage can't carry 'next-stage'); never with `on` too. It's taken as a format
+    change is (`extras.changes`: by itself with an undo, or the maker's OK, through the same record), so `extras.changes` is allowed on
+    a game with a side stage alone. Its words (`describe.js`): "Solo draft, an Outlast ..., all season ...; and beside it, Side draft,
+    an Outlast: everyone drafts 2, each time the pairs hold two episodes, until they change", How it works when it opens and closes.
+  - **When a grouping lasts (`format-timeline.js sideTriggers`, on F3's spells):** a spell (the groups as a whole, from one change to
+    the next; a group going home whole doesn't end one) opens at the first episode, once its groups have played `held` of them, whose
+    research is sure the same groups go on into the next (goingInto's sure), from the next; one that held that long without research
+    ever sure it went on is `held` (flagged, never acted on); one gone at the episode it would open after never opens. It closes once
+    research is sure the grouping changed (`closes` { at: its last episode, episode: the one whose research made it sure, ended }); gone
+    but unsure, `closing` (it plays on, flagged). The only reliable-report rule (8:15 PM) for both. Keyed `<stage id>@s<the episode that
+    showed it>`.
+  - **The plan (`StageLogic.changePlan`, `sidePlan`; part 2's `chainPlan` split out unchanged):** once the game's first stage has
+    started, a copy for each, from the spell's next episode or the first still open (never before the game's start; never moving once
+    aired: part 2's `startOf`, the maker's OK with it), to the later of its last episode and the one whose research said it changed
+    (so a change at an episode's start, as a swap, leaves the copy that episode: it had aired), never past the season, its own end or
+    the game's own end once known (`input.end`: a phase end settled); a copy whose grouping changed before it could play is `unplayed`
+    (never made, or taken away), and nobody is asked about it; `MAX_COPIES` each. The game's own stages are never moved by one, and a
+    side stage plays beside a stage a change starts with part 2's plan as it was. `StageLogic.standings` marks each row `side`; the game
+    ends with its own last stage (`endsAt`).
+  - **The server (`change-stages.ts`, through part 2's machinery):** `triggersFor` adds each side stage's `sideTriggers`; a live copy
+    whose grouping research no longer says lasted, where an episode it was counted over has no report now, stands as it is, and one
+    whose close came from an episode with no report now keeps it (missing research moves nothing). The copies are made, moved, taken
+    away and restored as part 2's (`makeCopy`, `respan`, `takeStageAway`); the season sync settles every game with a side stage too
+    (`settleSeasonChanges`' SQL: `stages @> [{"side": {}}]`, the harness note's rule). Recent changes: "The tribes held 2 episodes (to
+    Episode 6): Side draft opens with Episode 7", "The tribes changed (a swap, at Episode 8): Side draft ends with Episode 8, its points
+    kept", "Research no longer says the tribes changed at Episode 8: Side draft plays on", held, asked, called off; a copy taken away and
+    back, or a close withdrawn and said again, said again. GET stage-changes: side copies with `side: true`, a copy's end where its
+    grouping changed only once the viewer has seen that episode, `unplayed`. The lab doesn't make a side stage at the start.
+  - **Follow the people and a pick each episode, the seed's other two:** nothing new. Any draft of people follows them (a pair's result
+    reaches each drafted member as research records it per person), and A6's group question asked each episode, its choices the groups
+    on screen at each lock, is any stage's game, a side stage's included (a test). **The decision point:** the maker's OK with the game's
+    default by the lock (part 2's; A14's vote waits). **A11 part 5c's backing team:** no request asks; not built (Noticed).
+  - **The tracker:** p8 plays (a Solo draft, an Outlast of 3 each, all season; beside it a Side draft, an Outlast of 2 each, no finale
+    predictions, held 2), ✅. **185 ✅** · 62 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 273, and `--check`. Its first stage drafts 4 × 3 = 12
+    exclusively, which every taped season's cast covers; each side draft (4 × 2) is counted as it opens.
+  - **`blind.js`:** each episode's format record has `side` (opened, closed and held at that episode's research, for a side stage of 2);
+    p8's copies are found after the episode whose research made them, as part 2's.
+  - **Tests:** `tests/side-stages.test.js` (new, 5): the spec (whole, its problems, waits, settings both ways, words, the maker's words);
+    when a grouping lasts on made-up research (rotating pairs never, one gone before it would open never, held 1, 3 and 5, opened again
+    for later pairs, an unreported episode moving the opening to the next sure one, an unsure announcement holding it, an unsure split
+    closing, a pair going home together keeping it, a change at an episode's start); the plan (from where it opened, closing with its
+    points kept, seen late, the game's start, unplayed, past the season, its own end and the game's (a phase end settled), again,
+    unsure, never sure, a corrected report taking it away and bringing it back, a split corrected away, the most copies, two side
+    stages, beside a stage a change starts); the maker's OK (waiting, its default, carry-on, start and skip, nobody asked about a copy
+    already dead, a skipped one not said to play on); and a game with a side stage through the engine (the stages' leagues, scored,
+    the copy in the standings and the overall, by wins too, the game ending with its own stage, at a viewer's mark). `npm test` 1192;
+    `tsc` clean. `game-specs-flag.js check`: PASS (this lane's database, the flag on).
+  - **API check:** `scripts/dev-test/check-side-stages.js` (new, on new-fixture.js's couch, its season in pairs from Episode 4 as research
+    stores it), 39 PASS: the desk's admin starts a solo draft with a side draft from the lab (only Solo made); alex, riley, jordan and sam
+    join; Solo drafted; Episode 6's research (the pairs held 5 and 6): the season sync makes the side draft (its own league, tied, the
+    five seats under the same ids) from 7, said on the game and on it, GET keeping it from alex until he's seen 6, its draft open and
+    drafted (exclusive: 5 × 1 fits); Episode 7, the game's table the two stages added up; Episode 6 corrected (re-drawn: it never lasted):
+    taken away, said; corrected back: back from 8, its team kept, said again; Episode 8's research (every pair re-drawn): it ends with 8,
+    its points kept, said, GET hiding its end from alex until he's seen 8; Episode 8 corrected: it plays on, said; corrected back: it ends
+    with 8, said again; the maker's OK: the new pairs hold 9 and 10, the second side draft waits until 11, a player can't answer (403),
+    the maker opens it (from 11) and calls it off. Also ALL PASS: `check-change-stages.js`, `check-next-stage.js`, `check-stages.js`.
+  - **The code review** (`/code-review` at high, before the long runs; nine findings, all taken): a side copy's opening and close lines
+    were never said again once taken away and back, or withdrawn and set again, and nothing said a close withdrawn (each said again now,
+    with a line for the withdrawal); the research-gap stand-in invented a close for a copy ending at a phase, and one missing report
+    anywhere froze a copy for good over later sure research (only the episodes its opening was counted over, and its close's own);
+    copies could open or run past a game ending at a phase (capped at the game's end once known); the maker was asked about a copy whose
+    grouping was already gone, and a skipped one was said to play on (both checked first now); `fallsTo` threw on a list that isn't one;
+    "held 1 episodes"; the close's words and the held sentence written twice; two tests of what a side stage is (one now, `isSide`).
+  - **Golden replays:** `golden.js` (HEAD, A12 part 2b, against the working tree, after the code review's fixes): 7 seasons, 160 games,
+    **19,361 reads, every one the same** (no game they play has a side stage). Against master's (production's engine, `--before=master`):
+    the same, every one the same but R1 part 3's 20 (The Challenge 40's Survival Pool, one seat's pick of a winner at the final), nothing
+    else. A side stage changes no game that doesn't have one, so the Survivor 51 rehearsal isn't run for this part (golden is the proof).
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code; p8's side copies found after the episode whose research made
+    them): **every game ended on all five seasons**: Survivor 49 119 of 119, The Challenge 41 94 of 94, 40 88 of 88, 39 96 of 96, The
+    Traitors 4 83 of 83 (part 2b's numbers plus p8's game, its Solo and its side copies); nothing refused; the questions waiting on early
+    results finding 20's 3, 2 and 2. p8's side drafts, as if live: The Challenge 41 two (the locked pairs shown at 9's end held 10 and
+    11: from 12, the claim at 16 held unsure and sure at 17's research, so 12 to 17; the pairs after the claim held 17 and 18: from 19,
+    the final's split held unsure at 19 and sure at 20, so 19 to 20); The Challenge 40 one (the eras, teams from 3, held 3 and 4: from 5,
+    the split said ahead at 9 and sure at 10, so 5 to 10); The Challenge 39 none (every pair and team lasted one episode); Survivor 49
+    two (the starting tribes held 1 and 2: from 3, the swap at 4's start known from 4's research, so 3 to 4; the first swap's tribes held
+    4 and 5: from 6, the second swap at 6's start, so just 6; the merged tribe is no grouping); The Traitors 4 none (never in groups).
+    Every side draft's 4 × 2 fitted who was left as it opened (exclusive). The study doc's "A12 part 3".
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
   and checked as now); episode facts (who said the title quote) through new research questions rated reliable (Our check).
 - **A14. The players' own mechanics** (allowed 2026-10-28, with the Decisions table's guardrails): votes among the players,
@@ -5380,6 +5472,56 @@ From R1 part 2 (2026-10-30):
   (R3, or whoever next works in Game settings.)
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
+
+From A12 part 3 (2026-10-30):
+- **For the user, in the format-change design session (after A12), with A12 parts 1's, 2's and 2b's items, each with a recommendation
+  (built as spec settings or engine rules):**
+  1. How long a grouping holds before a side stage opens (`side.held`, `SIDE` 2). F1's lifetimes: The Challenge 41's rotating pairs one
+     episode each, then locked pairs from 10; The Challenge 39's every team one episode; The Challenge 40's eras 3 to 9; Survivor 49's
+     tribes 3, 2 and 1. With 2, on the blind replays: The Challenge 41 two side drafts (the locked pairs, 12 to 17; the pairs after the claim, 19 to 20), 40
+     one (the eras, 5 to 10), 39 none, Survivor 49 two (3 to 4 and just 6: Survivor's tribes last two or three episodes), The Traitors 4
+     none. Options: 3 (fewer, longer side stages); 1
+     (every grouping, a side stage most weeks on The Challenge). Recommended: 2 (the user's "lasts for multiple episodes": two is the
+     least that's multiple), the builder saying up front from the show's history how often it would open.
+  2. **What a side draft drafts** (a real question): built as any game a stage can be, and p8's side draft drafts people (an Outlast of
+     2: following the people, a pair's result reaching each drafted member). Options: a draft of the groups themselves (each of you
+     drafts a pair or a team, riding it while it lasts: group slots with no people, `get.each` 0, not built: a new piece, its own part);
+     a lineup with a group slot (built: a side stage's game can carry `get.groups`). Recommended: ask the user what "side draft" meant;
+     if it's the groups, build the draft of groups (it's group slots' records with a draft room) before U0, and make it p8's side game.
+  3. What closes one. Built: any change to the grouping but a group going home whole (a group is its exact members: a pair broken up by
+     a claim, a swap of a few, a re-draw, the merge, a split). Options: only when most groups change, or when the kind of play changes
+     (pairs to teams to solo). Recommended: as built (F1's question 4), its words "until they change".
+  4. A change at an episode's start (a swap): built, the copy keeps that episode (research says it after it aired; its people played
+     it). Option: take that episode back (its grouping didn't play it). Recommended: as built (part 2's "never moves once aired").
+  5. Once or each time. Built: a copy for each grouping that lasts (a new side draft each time), up to `MAX_COPIES`. Option: the first
+     only. Recommended: each time ("if we ever ... start a side draft": a side stage closes with its grouping, so the next is new).
+  6. Its points when it closes. Built: kept, as a stage that's over (by places and wins it counts once over, as any stage). Option: its
+     points only while it plays, nothing for places or wins. Recommended: as built.
+  7. Its draft (part 1's item 4, again): a copy's draft opens at its start, the week between, and nothing makes it finish before its
+     first lock. Recommended: part 1's (a deadline with picks made for whoever isn't done).
+  8. The maker's OK is one setting for both a format change and a side stage (`extras.changes`). Option: a setting of each. Recommended:
+     one setting.
+  9. The edge cases: a grouping lasting into the finale (the copy ends with the game); one seen too late to play (never made: said);
+     two side stages with different N (each its own); a side stage beside a stage a change starts (independent: a side draft carries on
+     across the game's new stage); one that comes back after a corrected report (back from the first episode still open, its team kept,
+     as part 2's item 8). Recommended: as built, each said on the game's page.
+  10. What players and the maker are told: built, the lines in As built, each with the episode whose research said it (a close's line
+     the episode that said it; a withdrawal's carries none). Recommended: the game's page says it in its stages block (track V), behind
+     each viewer's mark; the maker's ask a push.
+- **The backing team** (A11 part 5c's item 1: a team of players tied to one of the show's groups): no request in the corpus asks, so
+  not built. If one does ("each team roots for a tribe"), it's a side stage whose game is a team game tied to a group: on sideTriggers'
+  spells. (G1, when a request words it.)
+- **A side stage opens on any grouping** (Survivor's tribes too; the merged tribe never, one group of everyone isn't a grouping): no
+  `side.of` (pairs only, teams only). (G1, if a request says "only when pairs last".)
+- **`StageLogic.over` counts side copies** (a game whose own last stage is over while a side copy still plays isn't over); a copy never
+  runs past the game's own end once it's known (`input.end`), and while a phase end isn't settled both end at the same phase. (Nothing
+  to do; said for the design session.)
+- **Recent changes' withdrawal line ("Research no longer says ... plays on") carries no episode**, as part 2's called-off lines, and the
+  feed doesn't hide a line by its episode anyway (part 2's item). (U1.)
+- **For the hosting notes, at the merge:** the season sync's settle now also picks games with a side stage (one query, as part 2's); no
+  new service, schedule or table. (The main folder: docs/HOSTING.md.)
+- **format-timeline.js `sideStages`** (F3's reader) stays for its tests and `format-asks.js`; the engine reads `sideTriggers`. (Whoever
+  next touches F3's readers: fold it into sideTriggers.)
 
 From A12 part 2b (2026-10-30):
 - **For the user, in the format-change design session (after A12), with A12 part 2's items, each with a recommendation (built as spec

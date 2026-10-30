@@ -134,6 +134,14 @@
 // groupsGone; unsure, the episode is void and nothing moves), and the next starts then: it's a stage a change starts, its `on` (left
 // out, { change: [] }: nothing else starts it; with kinds, whichever comes first), never at an episode or a phase of its own, and
 // the stage with the fallback has no end of its own (nextStageAts, fallsTo; StageLogic.fallbackStarts, change-stages.ts).
+// A12 part 3, a side stage (the user's "if we ever get teams forming or pairing up that lasts for multiple episode i want us to start a
+// 'side draft' after that episode ends"): a stage's `side` { held: the episodes a grouping must hold, SIDE's when it's left out }
+// plays beside the game's own stages, a copy of it for each spell of a grouping research is sure has held that long and goes on
+// (format-timeline.js sideTriggers), from the episode after, until research is sure the grouping changed (its points kept), or its
+// own end. Side stages come after the game's own (mainCount: never the first, never starting or ending another); its game says no
+// start (each copy's is where its grouping opened it) and ends where the game's last stage does unless it says; its draft opens at
+// its start (who's still in then, counted then). A side stage is taken as a format change is (extras.changes: by itself with an undo,
+// or with the maker's OK). StageLogic.changePlan, change-stages.ts.
 //
 // Who builds each value is in VOCAB: 'now' the engine plays it today (after A2, through the spec; a phase start since A3;
 // questions since A4), 'sports' the sports branch, 'later' no step yet. specProblems says what's wrong with a spec, specWaitsFor what
@@ -719,6 +727,24 @@ const STAGE_KINDS = ['classic-draft', 'active-roster', 'pickem', 'questions'];
 const ON_CHANGE = { change: MAJOR, again: false };
 const CHANGES = { ok: 'auto', unanswered: 'start' };
 const MAX_COPIES = 12;
+// A12 part 3: a side stage's `side` when it leaves `held` out (2 episodes: F1 measured most groupings lasting one, so a side stage
+// opens only for one that held; the user's to decide), and the most a grouping can be asked to hold.
+const SIDE = { held: 2 };
+const MAX_HELD = 6;
+/** A12 part 3: a stage's `side` whole ({ held }), or null for one of the game's own stages. */
+function stageSide(st) {
+  if (!isObj(st) || !isObj(st.side)) return null;
+  return { held: isInt(st.side.held, 1) ? st.side.held : SIDE.held };
+}
+/** A12 part 3: a stage that says it's a side stage (whatever its `side` is: one that isn't { held } is refused, never one of the
+ *  game's own), the one test of where the game's own stages end. */
+const isSide = (st) => isObj(st) && st.side !== undefined && st.side !== null;
+/** A12 part 3: how many of a game's stages are its own: the ones before its first side stage (side stages come after them). */
+function mainCount(list) {
+  if (!Array.isArray(list)) return 0;
+  const i = list.findIndex(isSide);
+  return i < 0 ? list.length : i;
+}
 /** A12 part 2b: where a game says 'next-stage' (its group slots' fallback, a group question's asked each episode), as paths: the
  *  stage it's in ends where it can't be played as the groups stand and the game's next stage starts. As written or whole (it's
  *  never a default, and a question left without `asked` is asked once). */
@@ -734,6 +760,8 @@ function nextStageAts(s) {
 /** Whether stage i of a game's stages (as written or whole) is the one the stage before's 'next-stage' fallback starts. */
 function fallsTo(list, i) {
   const prev = Array.isArray(list) && i > 0 ? list[i - 1] : null;
+  // A12 part 3: a side stage never starts on it, nor carries it to one of the game's own.
+  if (isSide(prev) || (Array.isArray(list) && isSide(list[i]))) return false;
   return isObj(prev) && isObj(prev.game) && prev.game.stages === undefined && nextStageAts(prev.game).length > 0;
 }
 /** A stage given a start of its own (an episode or a phase), as written. */
@@ -764,7 +792,7 @@ const madeAs = (kind) => (kind === 'questions' ? 'pickem' : kind);
  *  (1 for checking its rules and for what it plays as: each copy's start is where its change takes effect). */
 function stageGame(st, from = 1) {
   if (!isObj(st) || !isObj(st.game)) return isObj(st) ? st.game : undefined;
-  if (!isObj(st.on)) return st.game;
+  if (!isObj(st.on) && !isSide(st)) return st.game;
   const span = isObj(st.game.span) ? st.game.span : {};
   return { ...st.game, span: { ...span, from } };
 }
@@ -1094,7 +1122,8 @@ function fullSpec(spec) {
  */
 function fullStaged(s) {
   if (Array.isArray(s.stages)) s.stages = stageGames(s.stages);
-  const games = Array.isArray(s.stages) ? s.stages.filter((x) => isObj(x) && isObj(x.game) && isObj(x.game.span)).map((x) => x.game) : [];
+  // Its span is its own stages' (A12 part 3: a side stage plays inside it).
+  const games = Array.isArray(s.stages) ? s.stages.slice(0, mainCount(s.stages)).filter((x) => isObj(x) && isObj(x.game) && isObj(x.game.span)).map((x) => x.game) : [];
   if (s.span === undefined) s.span = games.length ? { from: clone(games[0].span.from), to: clone(games[games.length - 1].span.to) } : clone(DEFAULTS.span);
   for (const k of ['pool', 'ask', 'closes']) if (s[k] === undefined) s[k] = clone(DEFAULTS[k]);
   if (isObj(s.span)) {
@@ -1112,7 +1141,7 @@ function fullStaged(s) {
   s.extras = extrasOf({});
   for (const k of Object.keys(e)) s.extras[k] = e[k];
   // A12 part 2: how a game a format change moves takes the change (CHANGES where it leaves a part out), only on such a game.
-  const moved = Array.isArray(s.stages) && s.stages.some((x) => isObj(x) && isObj(x.on));
+  const moved = Array.isArray(s.stages) && s.stages.some((x) => isObj(x) && (isObj(x.on) || isObj(x.side)));
   if (moved && (s.extras.changes === undefined || isObj(s.extras.changes))) s.extras.changes = { ...CHANGES, ...(isObj(s.extras.changes) ? s.extras.changes : {}) };
   return s;
 }
@@ -1123,13 +1152,24 @@ function fullStaged(s) {
  */
 function stageGames(list) {
   const falls = list.map((_, i) => fallsTo(list, i));
+  // A12 part 3: the game's own stages run one after another; a side stage plays beside them, ending where the last of them does
+  // unless it says.
+  const mains = mainCount(list);
+  let lastTo;
   return list.map((st, i) => {
     if (!isObj(st)) return st;
     const out = { ...st };
     if (out.name === undefined) out.name = null;
     if (!isObj(st.game) || st.game.stages !== undefined) return out;
     const g = clone(st.game);
-    const next = list[i + 1];
+    const side = isSide(st) && i >= mains;
+    if (side) {
+      if (isObj(st.side)) out.side = { ...SIDE, ...st.side };
+      if (g.span === undefined) g.span = {};
+      if (isObj(g.span) && g.span.from === undefined) g.span.from = null;
+      if (isObj(g.span) && g.span.to === undefined && lastTo !== undefined) g.span.to = clone(lastTo);
+    }
+    const next = i + 1 < mains ? list[i + 1] : undefined;
     const nextFrom = isObj(next) && isObj(next.game) && isObj(next.game.span) ? next.game.span.from : undefined;
     if (g.span === undefined) g.span = {};
     // A12 part 2b: a stage the one before's 'next-stage' fallback starts, with no start of its own, starts on that alone.
@@ -1147,6 +1187,7 @@ function stageGames(list) {
     const full = fullSpec(g);
     if (i > 0 && !said && isObj(full.get) && full.get.by === 'draft' && isObj(full.extras) && isObj(full.extras.draft)) full.extras.draft = { ...full.extras.draft, opens: 'start' };
     out.game = full;
+    if (i === mains - 1 && isObj(full.span)) lastTo = full.span.to;
     return out;
   });
 }
@@ -1744,11 +1785,13 @@ const isInstant = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2
 const KEYS = {
   top: ['spec', 'preset', 'span', 'pool', 'get', 'count', 'score', 'rank', 'ask', 'closes', 'extras', 'stages', 'overall'],
   // A12 part 1: a stage of a game in stages, and its overall.
-  stage: ['id', 'name', 'game', 'on'],
+  stage: ['id', 'name', 'game', 'on', 'side'],
   overall: ['by', 'places'],
   // A12 part 2: a stage a format change starts, and how the game takes a change.
   on: ['change', 'again'],
   changes: ['ok', 'unanswered'],
+  // A12 part 3: a side stage.
+  side: ['held'],
   span: ['from', 'to'],
   from: ['phase', 'at'],
   pool: ['of', 'where'],
@@ -2591,7 +2634,7 @@ function stagedProblems(spec, s, ctx, opts, add) {
     } else if (k === 'changes') {
       // A12 part 2: how the game takes a format change, only where one starts a stage.
       const c = e.changes;
-      if (!list.some((x) => isObj(x) && isObj(x.on))) add('extras.changes', 'How a format change is taken is a game whose stage a change starts');
+      if (!list.some((x) => isObj(x) && (isObj(x.on) || isObj(x.side)))) add('extras.changes', 'How a format change is taken is a game whose stage a change starts (or a side stage)');
       else if (!isObj(c)) add('extras.changes', "How a format change is taken: { ok: 'auto' | 'maker', unanswered: 'start' | 'carry-on' }");
       else {
         for (const x of Object.keys(c)) if (!KEYS.changes.includes(x)) add(`extras.changes.${x}`, `"${x}" isn't part of how a format change is taken`);
@@ -2603,6 +2646,8 @@ function stagedProblems(spec, s, ctx, opts, add) {
   const ids = new Set();
   const stageOpts = { league: !!(opts && opts.league) };
   const raws = Array.isArray(spec.stages) ? spec.stages : [];
+  // A12 part 3: the game's own stages first, its side stages after them.
+  const mains = mainCount(raws);
   list.forEach((st, i) => {
     const at = `stages[${i}]`;
     if (!isObj(st)) return add(at, 'Each stage is { id, name, game }');
@@ -2616,7 +2661,19 @@ function stagedProblems(spec, s, ctx, opts, add) {
     if (raw.stages !== undefined) return add(`${at}.game.stages`, "A stage is one game: stages don't nest");
     // A12 part 2: a stage a format change starts.
     const rawOn = Array.isArray(spec.stages) && isObj(spec.stages[i]) ? spec.stages[i].on : undefined;
-    if (rawOn !== undefined) {
+    // A12 part 3: a side stage, beside the game's own.
+    const rawSide = Array.isArray(spec.stages) && isObj(spec.stages[i]) ? spec.stages[i].side : undefined;
+    if (rawSide === undefined && i >= mains) add(at, "The game's own stages come first, its side stages after them");
+    if (rawSide !== undefined) {
+      if (i === 0) add(`${at}.side`, "The first stage is the game's own: a side stage plays beside the game's own stages");
+      if (!isObj(rawSide)) add(`${at}.side`, 'A side stage: { held: the episodes a grouping holds before it opens }');
+      else {
+        for (const k of Object.keys(rawSide)) if (!KEYS.side.includes(k)) add(`${at}.side.${k}`, `"${k}" isn't part of a side stage`);
+        if (rawSide.held !== undefined && !(isInt(rawSide.held, 1) && rawSide.held <= MAX_HELD)) add(`${at}.side.held`, `A grouping holds 1 to ${MAX_HELD} episodes before a side stage opens (left out: ${SIDE.held})`);
+      }
+      if (rawOn !== undefined) add(`${at}.on`, "A side stage opens when a grouping lasts: it doesn't start on a format change too");
+      if (isObj(raw.span) && raw.span.from !== undefined && raw.span.from !== null) add(`${at}.game.span.from`, 'It opens where a grouping has lasted: leave its start out');
+    } else if (rawOn !== undefined) {
       if (i === 0) add(`${at}.on`, 'The first stage starts where the game does: a later stage can start on a format change');
       if (!isObj(rawOn)) add(`${at}.on`, 'A stage a format change starts: { change: [the kinds that count], again: true for every such change }');
       else {
@@ -2633,17 +2690,17 @@ function stagedProblems(spec, s, ctx, opts, add) {
       // A12 part 2b: the stage before's 'next-stage' fallback starts it.
       if (ownStart(raws[i])) add(`${at}.game.span.from`, "It starts when the stage before can't be played as the groups stand (its 'next-stage' fallback): leave its start out");
     } else if (i > 0 && !(isObj(raw.span) && raw.span.from !== undefined)) add(`${at}.game.span.from`, 'A stage after the first says where it starts: an episode, a phase of the season, or a format change (on)');
-    const nextRaw = raws[i + 1];
+    const nextRaw = i + 1 < mains ? raws[i + 1] : undefined;
     if (isObj(nextRaw) && (nextRaw.on !== undefined || fallsTo(raws, i + 1)) && isObj(raw.span) && raw.span.to !== undefined && raw.span.to !== null) {
       add(`${at}.game.span.to`, nextRaw.on !== undefined ? 'It ends where the next stage starts, on its format change: leave its end out' : "It ends where it can't be played as the groups stand and the next stage starts (its 'next-stage' fallback): leave its end out");
     }
     // A later stage drafts where it starts, from who's still in then: its exclusive count waits for its draft to open. A12 part
     // 2b: 'next-stage' is a stage's with a stage after it.
     const c = ctx && i > 0 ? { ...ctx, pool: undefined } : ctx;
-    specProblems(stageGame(st), c, { ...stageOpts, nextStage: i + 1 < list.length }).forEach((p) => add(`${at}.game${p.at ? `.${p.at}` : ''}`, p.problem));
+    specProblems(stageGame(st), c, { ...stageOpts, nextStage: i + 1 < mains }).forEach((p) => add(`${at}.game${p.at ? `.${p.at}` : ''}`, p.problem));
   });
-  // One after another: each starts where the one before ends.
-  for (let i = 0; i + 1 < list.length; i++) {
+  // One after another: each of the game's own starts where the one before ends (a side stage plays beside them).
+  for (let i = 0; i + 1 < Math.min(mains, list.length); i++) {
     const a = list[i];
     const b = list[i + 1];
     if (!isObj(a) || !isObj(b) || !isObj(a.game) || !isObj(b.game) || !isObj(a.game.span) || !isObj(b.game.span)) continue;
@@ -2679,7 +2736,7 @@ function stagedWaits(s) {
     if (!isObj(st) || !isObj(st.game)) return;
     specWaitsFor(stageGame(st)).forEach((x) => out.push({ ...x, at: `stages[${i}].game${x.at ? `.${x.at}` : ''}` }));
     // A12 part 2: after a stage a format change starts, every stage starts on one too (one at an episode or a phase: later parts).
-    if (!isObj(st.on) && list.slice(0, i).some((x) => isObj(x) && isObj(x.on))) out.push({ at: `stages[${i}].game.span.from`, step: 'later', problem: "A stage at an episode or a phase after one a format change starts comes with A12's later parts" });
+    if (!isObj(st.on) && !isObj(st.side) && list.slice(0, i).some((x) => isObj(x) && isObj(x.on))) out.push({ at: `stages[${i}].game.span.from`, step: 'later', problem: "A stage at an episode or a phase after one a format change starts comes with A12's later parts" });
     const kind = playsAs(stageGame(st));
     if (kind === 'weekly-bingo' || kind === 'weekly-calls') out.push({ at: `stages[${i}].game`, step: 'later', problem: `A stage of ${kind === 'weekly-bingo' ? 'bingo' : 'Weekly Calls'} (scored outside the game) comes with A12's later parts` });
     if (i > 0 && stagesOverlap(list[i - 1], st)) out.push({ at: `stages[${i}].game.span.from`, step: 'later', problem: "Stages that play at the same time come with A12's later parts" });
@@ -2706,4 +2763,5 @@ module.exports = {
   spanStart, spanPhase, spanEnd, spanEndPhase, phaseTo,
   MAX_STAGES, MAX_STAGE_NAME, MAX_PLACES, OVERALL, STAGE_KINDS, stageGames, stagesOverlap,
   ON_CHANGE, CHANGES, MAX_COPIES, stageOn, stageGame, stageLeagueGame, madeAs, nextStageAts, fallsTo,
+  SIDE, MAX_HELD, stageSide, mainCount,
 };

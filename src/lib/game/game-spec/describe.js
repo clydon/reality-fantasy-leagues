@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -941,7 +941,12 @@ function describeStages(s, ctx) {
   // A12 part 2b: a stage the one before's 'next-stage' fallback starts begins once there are no more groups (and on its own kinds'
   // change, when it has any: whichever comes first); the stage with the fallback runs until then.
   const noGroups = `once there are no more ${w.group}s`;
+  // A12 part 3: a side stage opens each time the groups last, beside the game's own stages.
+  const mains = mainCount(stages);
+  const heldWords = (side) => `${say(side.held)} ${side.held === 1 ? w.part : w.parts}`;
   const fromWords = (st, i) => {
+    const side = stageSide(st);
+    if (side) return `each time the ${w.group}s hold ${heldWords(side)}, until they change`;
     const on = stageOn(st);
     if (!on) return null;
     if (!fallsTo(stages, i)) return onWords(on);
@@ -957,7 +962,7 @@ function describeStages(s, ctx) {
   const parts = [{ text: `A game in ${say(stages.length)} stages`, at: 'preset' }];
   if (w.show) parts.push({ text: ` for ${w.show}`, at: 'about' });
   parts.push({ text: ': ', at: null });
-  each.forEach((x, i) => parts.push({ text: `${i ? '; then ' : ''}${x.label}, ${x.sentence}`, at: 'span' }));
+  each.forEach((x, i) => parts.push({ text: `${!i ? '' : i < mains ? '; then ' : i === mains ? `; and beside ${mains > 1 ? 'them' : 'it'}, ` : '; and '}${x.label}, ${x.sentence}`, at: 'span' }));
   const o = isObj(s.overall) ? s.overall : { by: 'points' };
   const overall = o.by === 'places' ? `${OVERALL_WORDS.places}${placesWords(o)}` : OVERALL_WORDS[o.by] || OVERALL_WORDS.points;
   parts.push({ text: `. ${overall}`, at: 'rank' });
@@ -965,11 +970,19 @@ function describeStages(s, ctx) {
   if (o.by === 'places' || o.by === 'wins') rules.push("A stage counts once it's over.");
   // A12 part 2: a format change, and how the game takes it.
   const moved = stages.find((st) => stageOn(st));
+  const ch = isObj(s.extras) && isObj(s.extras.changes) ? s.extras.changes : { ok: 'auto', unanswered: 'start' };
   if (moved) {
-    const ch = isObj(s.extras) && isObj(s.extras.changes) ? s.extras.changes : { ok: 'auto', unanswered: 'start' };
     rules.push("A change of format counts once research is sure of it: from the episode it takes effect, or the next still to play.");
     rules.push(ch.ok === 'maker' ? `Whoever runs the game says whether a new stage starts; if nobody does by its first episode, ${ch.unanswered === 'start' ? 'it starts anyway' : 'the game carries on as it is'}.` : 'The new stage starts by itself; whoever runs the game can call it off.');
   }
+  // A12 part 3: a side stage, when it opens and closes.
+  stages.forEach((st, i) => {
+    const side = stageSide(st);
+    if (!side) return;
+    const label = each[i].label;
+    rules.push(`${label}: once research is sure the ${w.group}s have held ${heldWords(side)} and go on as they are, it opens with the next ${w.part} (a new one each time they last), and plays until research is sure they changed, its points kept; until research is sure, it carries on.`);
+    rules.push(ch.ok === 'maker' ? `${label}: whoever runs the game says whether it opens; if nobody does by its first ${w.part}, ${ch.unanswered === 'start' ? 'it opens anyway' : "it doesn't"}.` : `${label}: it opens by itself; whoever runs the game can call it off.`);
+  });
   // A12 part 2b: where a 'next-stage' fallback ends its stage.
   stages.forEach((st, i) => {
     if (!nextStageAts(st.game).length || !stages[i + 1]) return;

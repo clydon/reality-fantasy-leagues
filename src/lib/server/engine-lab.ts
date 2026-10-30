@@ -285,8 +285,9 @@ async function makeStages(user: SessionUser, parentId: string, name: string, spe
   const { rows } = await pool.query("SELECT state FROM leagues WHERE id = $1", [parentId]);
   const parent = rows[0].state as LeagueState;
   for (const [i, stage] of (full.stages ?? []).entries()) {
-    // A12 part 2: a stage a format change starts is made when its change comes (change-stages.ts), a copy each time.
-    if (Spec.stageOn(stage)) continue;
+    // A12 part 2: a stage a format change starts is made when its change comes (change-stages.ts), a copy each time; A12 part 3: a
+    // side stage when a grouping lasts.
+    if (Spec.stageOn(stage) || Spec.stageSide(stage)) continue;
     const kind = Spec.playsAs(stage.game);
     const stageCtx: SpecContext = i > 0 ? { ...ctx, pool: undefined } : ctx;
     await makeLeague(

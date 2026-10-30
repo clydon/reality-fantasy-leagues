@@ -1207,6 +1207,38 @@ format record's `groupsGone`), as if live.
 - **Not on these replays:** an unsure state turned sure later, a corrected report taking the next stage away and bringing it back, the
   maker's OK: `tests/next-stage.test.js` and `scripts/dev-test/check-next-stage.js` cover them.
 
+## A12 part 3: when a grouping lasts, replayed blind (2026-10-30)
+
+A12's part 3 is the user's second example ("draft solo players in the challenge. if we ever get teams forming or pairing up that lasts
+for multiple episode i want us to start a 'side draft' after that episode ends"): a game in stages whose side stage (`side` { held: 2 })
+plays beside the game's own, a copy of it for each grouping research is sure has held two episodes and goes on (format-timeline.js
+`sideTriggers`, on F3's spells: a group going home whole doesn't end one), from the episode after, until research is sure the grouping
+changed (the later of its last episode and the one whose research said so), its points kept (state-logic.js `StageLogic.sidePlan`;
+src/lib/server/change-stages.ts, from the season sync). The tracker's p8 plays: a Solo draft (an Outlast of 3 each) all season, and a Side
+draft (an Outlast of 2 each) beside it. `blind.js` finds each side copy after the episode whose research made it and plays it from there;
+each episode's format record has `side` (opened, closed and held there).
+
+- **Every game ended on all five seasons**: Survivor 49 119 of 119, The Challenge 41 94 of 94, 40 88 of 88, 39 96 of 96, The Traitors 4
+  83 of 83; nothing refused; the questions waiting on early results are finding 20's 3, 2 and 2, as before.
+
+| Season | p8's side drafts (episodes) | When each opened and closed |
+|---|---|---|
+| The Challenge 41 | 2: 12-17, 19-20 | the locked pairs (shown at 9's end) held 10 and 11; the claim at 16 held unsure, sure at 17; the pairs after it held 17 and 18; the final's split held unsure at 19, sure at 20 |
+| The Challenge 40 | 1: 5-10 | the eras (teams from 3) held 3 and 4; everyone on their own said ahead at 9 (unsure), sure at 10 |
+| The Challenge 39 | none | every pair and team lasted one episode |
+| Survivor 49 | 2: 3-4, 6 | the starting tribes held 1 and 2, the swap at 4's start known from 4's research; the first swap's tribes held 4 and 5, the second swap at 6's start |
+| The Traitors 4 | none | never in groups |
+
+- **F1's lifetimes held up:** "a side draft once a grouping has held 2 episodes ... opens once on The Challenge 41 (the locked pairs),
+  never in episodes 1-8, never on The Challenge 39" (F1's item 9). It opens a second time on 41 for the pairs the claim made, and on
+  Survivor 49 for the starting tribes and the first swap's (the merged tribe is one group of everyone, no grouping).
+- **A side stage carries on while research isn't sure** (the claim, the final's split, the eras' split said ahead): the episode research
+  was unsure of is the side draft's, scored on its people. A change at an episode's start (Survivor's swaps) leaves the side draft that
+  episode too, since research says it after the episode aired: the plan's Noticed (A12 part 3, item 4) asks the user.
+- **Every side draft's 4 × 2 fitted who was left as it opened**, so each stayed exclusive.
+- **Not on these replays:** the maker's OK, a corrected report taking a side draft away and bringing it back, a close withdrawn, research
+  missing for a while: `tests/side-stages.test.js` and `scripts/dev-test/check-side-stages.js` cover them.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

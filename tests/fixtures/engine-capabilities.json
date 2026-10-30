@@ -2400,7 +2400,13 @@
       "dials": [
         "shape"
       ],
-      "note": "the solo draft plays now; the side stage that opens once a grouping has held N episodes (format-timeline.js sideStages, F3) is A12's"
+      "spec": {
+        "stages": [
+          { "id": "solo", "name": "Solo draft", "game": { "preset": "outlast", "get": { "by": "draft", "each": 3, "order": "snake", "own": "exclusive" }, "span": { "from": 1 } } },
+          { "id": "side", "name": "Side draft", "side": { "held": 2 }, "game": { "preset": "outlast", "get": { "by": "draft", "each": 2, "order": "snake", "own": "exclusive" }, "ask": [] } }
+        ]
+      },
+      "note": "a side stage (A12 part 3): the solo draft plays the season, and beside it a side draft (an Outlast of 2 each) for each grouping research is sure has held 2 episodes and goes on (format-timeline.js sideTriggers), from the episode after until research is sure it changed (its points kept), each its own league, its draft opening then and counted then; by itself with an undo (the maker's OK a setting); the side draft drafts people (follow the people: a pair's result flows to both); N's default, what it drafts and what players see are the format-change design session's"
     },
     {
       "id": "p9",

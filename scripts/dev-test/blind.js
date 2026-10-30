@@ -772,7 +772,16 @@ async function formatAfter(copy, n, E) {
     triggers: { act: trig.act.filter((x) => x.episode === n).map((x) => `${x.kind} from ${x.from}`), held: trig.held.filter((x) => x.episode === n).map((x) => `${x.kind} from ${x.from}`) },
     groupsGone: { act: gone.act.filter((x) => x.episode === n).map((x) => `${x.kind} from ${x.from}`), held: gone.held.filter((x) => x.episode === n).map((x) => `${x.kind} from ${x.from}`) },
     slots: tl ? Timeline.groupSlots(tl).filter((x) => x.opensAfter === n).length : 0,
-    sideStages: tl ? Timeline.sideStages(tl).filter((x) => x.opens && x.opensAfter === n).map((x) => ({ groups: x.groups.length, scores: x.scores })) : [],
+    // A12 part 3: where a side stage (held 2, the default) would open and close, as if live: opened with this episode's research (from
+    // the next), closed with it (its last episode), and held (research not sure it lasted, or not sure it changed).
+    side: (() => {
+      const t = tl ? Timeline.sideTriggers(tl) : { act: [], held: [] };
+      return {
+        open: t.act.filter((x) => x.episode === n).map((x) => `${x.id} (${x.groups} groups) from ${x.from}`),
+        close: t.act.filter((x) => x.closes && x.closes.episode === n).map((x) => `${x.id} with ${Math.max(x.closes.at, x.closes.episode)} (${x.closes.ended})`),
+        held: [...t.held.filter((x) => x.episode === n).map((x) => `${x.id} lasted`), ...t.act.filter((x) => x.closing && x.closing.episode === n).map((x) => `${x.id} changed`)],
+      };
+    })(),
     newcomers: tl ? tl.newcomers.filter((x) => x.episode === n).map((x) => x.name) : [],
   };
   if (n < E) {

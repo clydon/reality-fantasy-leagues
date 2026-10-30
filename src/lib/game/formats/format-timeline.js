@@ -455,6 +455,52 @@ function sideStages(tl, { after = 2 } = {}) {
 }
 
 /**
+ * A12 part 3: when a grouping lasts, for a side stage (a copy of it beside the game's own stages, one for each spell of a grouping
+ * that holds `held` episodes; the user's "if we ever get teams forming or pairing up that lasts for multiple episode i want us to start
+ * a side draft after that episode ends"). Only a reliable report opens or closes one (the 8:15 PM rule): a spell opens at the first
+ * episode, once its groups have played `held` of them, whose research is sure the same groups go on into the next (goingInto's sure:
+ * that end sure, nothing announced for the next unsure), from the next; one that held that long but research was never sure of going
+ * on is `held` (flagged, never acted on); one gone at the episode it would open after never opens. It closes once research is sure
+ * the grouping changed (the first sure end at or after the one it was gone from), `closes` { at: the last episode its groups played,
+ * episode: the one whose research made it sure, ended: how (the spell's) }; gone but not sure yet, `closing` (the same, flagged: the
+ * side stage plays on until a sure report). A group going home whole doesn't end a spell (spells'). Each { id: the spell's, kind
+ * 'lasted', groups (how many), from, episode, when 'end', what, allNew false, closes, closing? }, as stageTriggers' are. Pure.
+ */
+function sideTriggers(tl, { held = 2 } = {}) {
+  const act = [];
+  const hold = [];
+  const n0 = Number.isInteger(held) && held >= 1 ? held : 2;
+  for (const s of tl ? tl.spells : []) {
+    if (s.played.length < n0) continue;
+    let at = null;
+    for (const k of s.played.slice(n0 - 1)) {
+      if (s.endedAt != null && s.endedAt <= k) break;
+      if (goingInto(tl, k + 1).sure) {
+        at = k;
+        break;
+      }
+    }
+    const base = { id: s.id, kind: 'lasted', groups: s.groups.length, allNew: false, when: 'end', what: '', held: n0 };
+    if (at === null) {
+      // It held long enough, but research was never sure it went on (or it was gone at the episode it would open after).
+      const k = s.played[n0 - 1];
+      if (!(s.endedAt != null && s.endedAt <= k)) hold.push({ ...base, from: k + 1, episode: k, closes: null });
+      continue;
+    }
+    let closes = null;
+    let closing = null;
+    if (s.endedAt != null) {
+      const last = s.played[s.played.length - 1];
+      const sure = tl.episodes.find((e) => e.episode >= s.endedAt && e.end && goingInto(tl, e.episode + 1).sure);
+      if (sure) closes = { at: last, episode: sure.episode, ended: s.ended };
+      else closing = { at: last, episode: s.endedAt, ended: s.ended };
+    }
+    act.push({ ...base, from: at + 1, episode: at, closes, ...(closing ? { closing } : {}) });
+  }
+  return { act, held: hold };
+}
+
+/**
  * A12: the changes a stage starts on, of the spec's kinds (MAJOR by default; 'swap-all' a swap that left no group as it was,
  * 'swap' any swap; a twist or a role never): `act` the sure ones (both sides saw it, the answer sure), each with the episode it
  * takes effect from; `held` the unsure ones, flagged and never acted on. Pure.
@@ -701,4 +747,4 @@ function timelineDiff(before, after) {
   };
 }
 
-module.exports = { FALLBACKS, MAJOR, TRIGGER_KINDS, effective, reportFrom, crossed, buildTimeline, at, goingInto, playedIn, groupChoices, heldThrough, groupSlots, slotRecords, sideStages, stageTriggers, groupsGone, withGone, castAt, newcomersIn, newcomerCues, groupWord, unstaged, groupLabel, groupFacts, timelineDiff };
+module.exports = { FALLBACKS, MAJOR, TRIGGER_KINDS, effective, reportFrom, crossed, buildTimeline, at, goingInto, playedIn, groupChoices, heldThrough, groupSlots, slotRecords, sideStages, sideTriggers, stageTriggers, groupsGone, withGone, castAt, newcomersIn, newcomerCues, groupWord, unstaged, groupLabel, groupFacts, timelineDiff };

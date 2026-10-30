@@ -46,6 +46,9 @@ export function stageTriggers(tl: Timeline, kinds?: string[]): { act: import("..
 /** A12 part 2b: where the groups are gone going into an episode (a 'next-stage' fallback's start of the next stage): `act` where
  *  research is sure of it, `held` the rest; each the change that ended them (else `<episode>:groups-gone`), `gone` true. */
 export function groupsGone(tl: Timeline): { act: import("../state-logic.js").StageTrigger[]; held: import("../state-logic.js").StageTrigger[] };
+/** A12 part 3: when a grouping lasts, for a side stage: `act` each spell research is sure has held `held` episodes and goes on (from
+ *  the next; `closes` where research is sure it changed, `closing` gone but not sure yet), `held` the ones research never was sure of. */
+export function sideTriggers(tl: Timeline, o?: { held?: number }): { act: import("../state-logic.js").StageTrigger[]; held: import("../state-logic.js").StageTrigger[] };
 /** A12 part 2b: a stage's triggers with where the groups are gone added (one per change, a sure one taking a held one's place). */
 export function withGone(
   t: { act: import("../state-logic.js").StageTrigger[]; held: import("../state-logic.js").StageTrigger[] },

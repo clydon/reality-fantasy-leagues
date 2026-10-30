@@ -909,7 +909,7 @@ declare const StateLogic: {
     withWalk(state: LeagueState, walk: StageWalk | null): LeagueState;
     cutWalk(walk: StageWalk, n: number): StageWalk;
     /** A12 part 2: `stage` the spec's stage, `copy` 1, 2, ... for a copy a format change started (null for a stage's own). */
-    standings(state: LeagueState): { key: string; stage: string; copy: number | null; name: string | null; leagueId: string | null; from: number | null; to: number | null; started: boolean; over: boolean; rows: StageRow[] }[];
+    standings(state: LeagueState): { key: string; stage: string; copy: number | null; side: boolean; name: string | null; leagueId: string | null; from: number | null; to: number | null; started: boolean; over: boolean; rows: StageRow[] }[];
     overall(state: LeagueState): { playerId: string; overall: number; points: number; placePoints: number; wins: number; stages: { key: string; points: number | null; place: number | null; over: boolean }[] }[];
     over(state: LeagueState): boolean;
     endsAt(state: LeagueState): number | null;
@@ -921,6 +921,8 @@ declare const StateLogic: {
     onStages(state: LeagueState): { id: string; name: string | null; game: import("./game-spec/index.js").GameSpec; on?: { change: string[]; again: boolean } }[];
     /** A12 part 2b: the ids of the stages the one before's 'next-stage' fallback starts (groupsGone is one more of their triggers). */
     fallbackStarts(state: LeagueState): Set<string>;
+    /** A12 part 3: the side stages (a copy beside the game's own stages for each grouping that lasts: format-timeline.js sideTriggers). */
+    sideStages(state: LeagueState): { id: string; name: string | null; game: import("./game-spec/index.js").GameSpec; side?: { held: number } }[];
     changesOf(state: LeagueState): { ok: "auto" | "maker" | "vote"; unanswered: "start" | "carry-on" } | null;
     changeRecord(state: LeagueState): ChangeRecord;
     decide(state: LeagueState, key: string, what: string, by?: string | null, at?: string | null): string | null;
@@ -1103,6 +1105,19 @@ export interface StageTrigger {
   what: string;
   /** A12 part 2b: where the groups are gone (format-timeline.js groupsGone), a 'next-stage' fallback's start of the next stage. */
   gone?: boolean;
+  /** A12 part 3: a grouping that lasted (format-timeline.js sideTriggers, kind 'lasted'): how many groups, the episodes it held, and
+   *  where research is sure it changed (`closes`), or not sure yet (`closing`: the side stage plays on). */
+  groups?: number;
+  held?: number;
+  closes?: SideClose | null;
+  closing?: SideClose;
+}
+/** A12 part 3: where a grouping a side stage rides changed: the last episode its groups played, the episode whose research said it,
+ *  and how it ended (the spell's: a swap, the merge, a split, 'changed'). */
+export interface SideClose {
+  at: number;
+  episode: number;
+  ended: string | null;
 }
 /** A12 part 2: what a game in stages remembers of its format changes (state.changeStages). */
 export interface ChangeRecord {
@@ -1117,6 +1132,8 @@ export interface ChangePlanInput {
   copies: Record<string, { from: number | null }>;
   open: number;
   last?: number | null;
+  /** A12 part 3: the game's own last episode once it's known (a side copy never plays past it). */
+  end?: number | null;
 }
 export interface ChangePlanEntry {
   key: string;
@@ -1126,6 +1143,8 @@ export interface ChangePlanEntry {
   from: number | null;
   /** The plan's end: an episode, the stage's own end for the last copy (null, an episode or { phase }); undefined: the plan says nothing. */
   to?: number | null | { phase: string; at?: number };
+  /** A12 part 3: a copy of a side stage (it plays beside the game's own stages, for a grouping that lasted). */
+  side?: boolean;
 }
 export interface ChangePlanItem {
   key?: string;
@@ -1143,6 +1162,8 @@ export interface ChangePlan {
   late: ChangePlanItem[];
   capped: ChangePlanItem[];
   superseded: ChangePlanItem[];
+  /** A12 part 3: side copies whose grouping changed before they played an episode (taken away). */
+  unplayed: ChangePlanItem[];
   seen: Record<string, number>;
 }
 export interface HandicapView {

@@ -31,6 +31,12 @@ export interface SpecStage {
   game: GameSpec;
   /** A12 part 2: a later stage a format change starts: the kinds that count (left out: MAJOR), and a copy at every such change. */
   on?: SpecOn;
+  /** A12 part 3: a side stage, beside the game's own: a copy for each grouping research is sure held `held` episodes. */
+  side?: SpecSide;
+}
+/** A12 part 3: a side stage. */
+export interface SpecSide {
+  held: number;
 }
 /** A12 part 2: a stage a format change starts. */
 export interface SpecOn {
@@ -357,7 +363,7 @@ export interface GameSpec {
 }
 
 /** A spec as written: anything left out is the preset's, or the defaults (fullSpec). */
-export type SpecInput = Partial<Omit<GameSpec, "extras" | "ask" | "stages">> & { extras?: Partial<SpecExtras>; ask?: SpecQuestion[]; stages?: { id: string; name?: string | null; game: SpecInput; on?: Partial<SpecOn> }[] };
+export type SpecInput = Partial<Omit<GameSpec, "extras" | "ask" | "stages">> & { extras?: Partial<SpecExtras>; ask?: SpecQuestion[]; stages?: { id: string; name?: string | null; game: SpecInput; on?: Partial<SpecOn>; side?: Partial<SpecSide> }[] };
 
 /** A10 part 1: a draft's group slots (get.groups): a slot holds a pair or a team the show forms, picked after the episode that
  *  showed it, riding with it while it lasts and dropping when it changes (state-logic.js GroupSlotLogic). */
@@ -588,6 +594,12 @@ export function stageLeagueGame(stage: SpecStage, from?: number): GameSpec;
 /** A12 part 2b: where a game says 'next-stage' (paths); whether stage i is the one the stage before's fallback starts. */
 export function nextStageAts(game: unknown): string[];
 export function fallsTo(stages: unknown[], i: number): boolean;
+/** A12 part 3: a side stage's defaults and its most `held`, a stage's `side` whole (null for one of the game's own), and how many of
+ *  a game's stages are its own (its side stages come after them). */
+export const SIDE: SpecSide;
+export const MAX_HELD: number;
+export function stageSide(stage: unknown): SpecSide | null;
+export function mainCount(stages: unknown[]): number;
 /** The league type a game is made as before its spec is written: a game of questions as a pool, any other as itself. */
 export function madeAs(kind: LeagueTypeId): LeagueTypeId;
 
