@@ -272,7 +272,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
   // of questions' walk on your copy (answer-points.ts), so it ends, and knocks anyone out, only as far as you've seen.
   const seenView = StateLogic.GhostLogic.viewFor(full, playerId, seen);
   const view = StateLogic.spanView(calls?.walk ? StateLogic.AnswerLogic.withWalk(seenView, calls.walk) : seenView);
-  const type = StateLogic.getLeagueType(view);
+  const pieces = StateLogic.piecesOf(view);
   const me = playerId ?? "";
   const seat = playerId !== null;
   const catchingUp = seat && StateLogic.GhostLogic.isCatchingUp(full, me) && Number.isInteger(seen);
@@ -287,21 +287,21 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
   return {
     ...game,
     playerId: me,
-    through: type.hasCalls || type.hasBingo ? (calls?.through ?? 0) : StateLogic.SpoilerLogic.latestWithResults(view),
+    through: pieces.hasCalls || pieces.hasBingo ? (calls?.through ?? 0) : StateLogic.SpoilerLogic.latestWithResults(view),
     from: StateLogic.GhostLogic.startFor(view, me),
     phase: null,
     to: end,
-    over: type.hasCalls || type.hasBingo ? !!calls?.ended : StateLogic.gameOver(view),
+    over: pieces.hasCalls || pieces.hasBingo ? !!calls?.ended : StateLogic.gameOver(view),
     table,
     you: table.find((r) => r.you) ?? null,
     players: everyone.length,
     rules: gameRules(view),
     cast: castOf(view),
-    lineup: seat && type.hasActiveRoster ? lineupOf(view, me) : null,
-    pick: seat && type.hasWeeklyPicks ? pickOf(view, me) : null,
+    lineup: seat && pieces.hasActiveRoster ? lineupOf(view, me) : null,
+    pick: seat && pieces.hasWeeklyPicks ? pickOf(view, me) : null,
     call: calls?.move ?? null,
     bingo: calls?.bingo ?? null,
-    linePoints: type.hasBingo ? pointsPerLine(view) : null,
+    linePoints: pieces.hasBingo ? pointsPerLine(view) : null,
     sheet: null,
     predictions: catchingUp || !seat ? [] : predictionsOf(view, me),
     progress: catchingUp ? null : weekProgress(full, playerId, userOf, { counts: isPublic }),
@@ -325,10 +325,10 @@ export function poolTop(rows: TableRow[]): TableRow[] {
 /** `right`: each player's right calls (Call it), for Weekly Calls' table and a pool's "N called", or their lines (Weekly Bingo's
  *  table); none read, none counted. */
 export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (playerId: string) => number = () => 0): TableRow[] {
-  const type = StateLogic.getLeagueType(view);
-  const pool = type.hasWeeklyPicks;
+  const pieces = StateLogic.piecesOf(view);
+  const pool = pieces.hasWeeklyPicks;
   // Weekly Calls, Weekly Bingo and a game of questions (A4) rank by what `right` counts: calls, lines, points.
-  const callsGame = !!type.hasCalls || !!type.hasBingo || !!type.hasQuestions;
+  const callsGame = !!pieces.hasCalls || !!pieces.hasBingo || !!pieces.hasQuestions;
   const calls = StateLogic.pickEmCallsOn(view) || callsGame;
   const bots = new Set(view.players.filter((p) => p.automated).map((p) => p.id));
   // The engine's own order (StateLogic.rankKey): a pool with lives by who's still standing (step A10 part 2), else its streak; a
@@ -345,11 +345,11 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
   // Step A11 part 5b: a handicap's points on each row (read once a table).
   const handicapOn = StateLogic.HandicapLogic.on(view);
   // Best ball (step A9 part 2) has a week as a lineup does; its "last" is who counted, as it has no lineups.
-  const lastEp = type.hasActiveRoster || type.hasBestBall ? latestScoredEpisode(view) : null;
+  const lastEp = pieces.hasActiveRoster || pieces.hasBestBall ? latestScoredEpisode(view) : null;
   const lastOf = (playerId: string) =>
     !lastEp
       ? []
-      : type.hasBestBall
+      : pieces.hasBestBall
         ? StateLogic.ActiveRosterLogic.episodeScore(view, lastEp, playerId).lines.filter((l) => l.counted).map((l) => l.castawayId)
         : StateLogic.activeRosterLineupFor(view, lastEp.id, playerId);
   return rows.map((r, i) => {
@@ -366,7 +366,7 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
       total: callsGame ? right(r.playerId) : pool ? (r.longestStreak ?? 0) : worth ? (r.worth ?? 0) : r.total,
       week: pool ? (r.currentStreak ?? 0) : lastEp ? teamEpisodeBreakdown(view, lastEp.id, r.playerId).total : null,
       points: r.total,
-      team: type.hasRoster ? teamOrder(r.roster).map((c) => c.id) : [],
+      team: pieces.hasRoster ? teamOrder(r.roster).map((c) => c.id) : [],
       last: lastOf(r.playerId),
       // Someone else's pick stays theirs until it's decided.
       picks: pool
@@ -385,10 +385,10 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
 
 /** Every castaway as this copy of the league shows them (the waivers' faces too, waiver-view.ts). */
 export function castOf(view: LeagueState): CastFace[] {
-  const type = StateLogic.getLeagueType(view);
+  const pieces = StateLogic.piecesOf(view);
   const episode = new Map(view.episodes.map((e) => [e.id, e.number]));
   const tribes = new Map((view.tribes || []).map((t) => [t.id, t]));
-  const outlast = type.hasRoster && !type.hasActiveRoster;
+  const outlast = pieces.hasRoster && !pieces.hasActiveRoster;
   return view.castaways.map((c: Castaway) => {
     const tribe = tribes.get(c.tribeId);
     const left = c.status === "eliminated";
@@ -401,7 +401,7 @@ export function castOf(view: LeagueState): CastFace[] {
       knocked: isKnockedOut(view, c),
       out: left && c.exitEpisodeId ? (episode.get(c.exitEpisodeId) ?? null) : null,
       place: left && c.placementOrder ? view.castaways.length - c.placementOrder + 1 : null,
-      points: outlast ? castawayPoints(view, c) : type.hasActiveRoster ? castawayEventStats(view, c.id).total : null,
+      points: outlast ? castawayPoints(view, c) : pieces.hasActiveRoster ? castawayEventStats(view, c.id).total : null,
     };
   });
 }
@@ -496,19 +496,19 @@ function predictionsOf(view: LeagueState, me: string): PredictionMove[] {
  */
 export function weekProgress(full: LeagueState, viewerId: string | null, userOf: UserOf, opts: { counts?: boolean } = {}): WeekProgress | null {
   const s = StateLogic.GhostLogic.viewFor(full, viewerId, null);
-  const type = StateLogic.getLeagueType(s);
+  const pieces = StateLogic.piecesOf(s);
   const players = s.players.filter((p) => p.active !== false && !p.disabled && !p.ghost);
   const people = (done: (id: string) => boolean) => players.map((p) => ({ playerId: p.id, userId: userOf(p.id), name: p.name, done: done(p.id) }));
   let label: WeekProgress["label"];
   let episode: number;
   let list: WeekProgress["people"];
-  if (type.hasActiveRoster) {
+  if (pieces.hasActiveRoster) {
     const ep = StateLogic.currentEpisode(s);
     if (!ep) return null;
     label = "lineups set";
     episode = ep.number;
     list = people((id) => lineupStatus(s, ep, id).set);
-  } else if (type.hasWeeklyPicks) {
+  } else if (pieces.hasWeeklyPicks) {
     const { ep } = pickWindow(s);
     if (!ep) return null;
     label = "picked";

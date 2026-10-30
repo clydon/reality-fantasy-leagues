@@ -3,6 +3,7 @@ import type { PoolClient } from "pg";
 import StateLogic from "@/lib/game/state-logic.js";
 import { castOf } from "@/lib/game/game-view";
 import type { LeagueState } from "@/lib/game/types";
+import { asItStands } from "./answer-points";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { outPreview, takeOut } from "./backstage-members";
 import { plainChange, recordChange } from "./change-log";
@@ -311,8 +312,9 @@ export interface JoinGame {
 /** It's over: a winner, or nobody left, or its span's last episode is in (StateLogic.gameOver); for a game scored outside its
  *  state, its season's (or span's) last episode has aired. */
 export function gameOver(s: LeagueState, schedule: SeasonSchedule | undefined): boolean {
-  const type = StateLogic.getLeagueType(s);
-  return type.hasCalls || type.hasBingo ? endedThrough(schedule, latestAired(schedule), StateLogic.endEpisode(s)) : StateLogic.gameOver(s);
+  // Step R1 part 2: a game scored outside its state by its pieces (the show's calls, bingo lines), never a league type.
+  const pieces = StateLogic.piecesOf(s);
+  return pieces.hasCalls || pieces.hasBingo ? endedThrough(schedule, latestAired(schedule), StateLogic.endEpisode(s)) : StateLogic.gameOver(s);
 }
 
 /** Every game on a couch with who may join it, in the couch's order. */
@@ -337,9 +339,15 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
       : Promise.resolve({ rows: [] as { league_id: string; decided_at: Date | null; outcome: string | null }[] }),
     seasonSchedules(seasonIds),
   ]);
+  // A game of questions that knocks players out or ends early (step A11 part 2b of docs/PLAN-start-a-game-gpt.md) as it stands: walked
+  // over its answers, so who may join (nobody new once someone's out: part 5c) and whether it's over read the walk. One answers read
+  // per such game, side by side; any other game, its state as it is.
+  const stands = new Map(
+    await Promise.all(list.filter((g) => states.has(g.leagueId)).map(async (g) => [g.leagueId, (await asItStands(g.leagueId, states.get(g.leagueId) as LeagueState)).state] as const))
+  );
   const out: JoinGame[] = [];
   for (const g of list) {
-    const s = states.get(g.leagueId);
+    const s = stands.get(g.leagueId);
     if (!s) continue;
     const G = StateLogic.GhostLogic;
     const ask = asks.find((a) => a.league_id === g.leagueId);
@@ -420,6 +428,8 @@ export interface JoinOptions {
   /** The start these castaways are for, and how many to pick. */
   start: number | null;
   team: number;
+  /** Step A11 part 5c: the game's teams came out of a hat, so yours is dealt when you join (nothing to pick: `pool` is always empty). */
+  dealt?: boolean;
   pool: { id: string; name: string; photo: string | null; tribe: { name: string; colour: string } | null }[];
 }
 
@@ -436,7 +446,9 @@ export async function joinOptions(user: SessionUser, couchId: string, leagueId: 
   const n = Number(startAsked);
   const start = Number.isInteger(n) && (n === live || n === starts.catchUp) ? n : null;
   const team = G.teamSize(state);
-  if (start === null || !team) return { game: join, starts, seen, start, team, pool: [] };
+  // A game whose teams came out of a hat deals yours as you join (StateLogic.DrawLogic.lateDeal): nothing to pick.
+  const dealt = !!team && StateLogic.DrawLogic.dealsLate(state);
+  if (start === null || !team || dealt) return { game: join, starts, seen, start, team, ...(dealt ? { dealt } : {}), pool: [] };
   const ids = new Set(G.draftPool(state, start, !join.shared));
   const view = StateLogic.SpoilerLogic.viewThrough(state, start - 1);
   const pool = castOf(view)
@@ -445,7 +457,8 @@ export async function joinOptions(user: SessionUser, couchId: string, leagueId: 
   return { game: join, starts, seen, start, team, pool };
 }
 
-/** Join a game on the couch: open, or let in. Underway: `start` (live or catch up) and `team` (the castaways picked). */
+/** Join a game on the couch: open, or let in. Underway: `start` (live or catch up) and `team` (the castaways picked; a game whose
+ *  teams came out of a hat deals them instead, and `team` isn't read: GhostLogic.begin). */
 export async function joinGame(user: SessionUser, couchId: string, leagueId: string, body: { start?: unknown; team?: unknown }) {
   const { game, state, join } = await gameOnCouch(user, couchId, leagueId);
   if (join.you?.playing) throw new HttpError(409, "You're already in it");

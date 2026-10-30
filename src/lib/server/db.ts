@@ -12,6 +12,7 @@ import { settleGroupSlots } from "./group-slots";
 import { settleDueAuction } from "./auction";
 import { settleKeepers } from "./keepers";
 import { stampSeatHistory } from "./handicaps";
+import { seatStage, settleStageDraft, stagesToSeat } from "./stages";
 import { after } from "next/server";
 
 // Re-exported so route handlers can import { pool, withLeagueLock, HttpError } from one place,
@@ -87,6 +88,9 @@ export async function withLeagueLock(
     await settleDueAuction(client, leagueId, state);
     // Teams of players (step A11 part 5, StateLogic.TeamLogic): kept once the game has started, so the mutation sees who's on which.
     StateLogic.TeamLogic.settle(state, Date.now());
+    // A draft that opens at its game's start (step A12 part 1: a later stage's), as it opens: an exclusive one the seats no longer fit
+    // among who's still in is shared from then on, so the mutation drafts as it will be played (stages.ts settleStageDraft).
+    const sharedBefore = settleStageDraft(state);
     const before = change ? structuredClone(state) : null;
     await mutatorFn(state, client);
     // A mutation that turned group slots on reads them now; one that turned them off clears them (settle keeps none).
@@ -107,6 +111,10 @@ export async function withLeagueLock(
     // or seated someone; then who's new kept once the game has started, so the history changing mid-season moves nothing.
     await stampSeatHistory(client, leagueId, state, true);
     StateLogic.HandicapLogic.settle(state, Date.now());
+    // Step A12 part 1 (stages.ts): a draft that opens at its start, opened by results the mutation applied. Whoever runs the game
+    // hears when it's shared.
+    const sharedDraft = sharedBefore ?? settleStageDraft(state);
+    if (sharedDraft) await recordChange(client, leagueId, state, { userId: null, kind: "game.settled", tier: 1, text: sharedDraft });
     const spec = change && before ? (typeof change === "function" ? change(before, state) : change) : null;
     // A move on a team two people share (step A10 part 4b): who made it, in this transaction. Only where the game shares its
     // seats, so no other game pays for a query.
@@ -138,12 +146,28 @@ export async function withLeagueLock(
         void send(); // outside a request (never expected): send anyway, it never throws
       }
     }
+    // Step A12 part 1: a game in stages' seats in each of its stages, now this write's committed (syncStages).
+    await syncStages(leagueId, state);
     return state;
   } catch (e) {
     await client.query("ROLLBACK");
     throw e;
   } finally {
     client.release();
+  }
+}
+
+/**
+ * A game in stages' seats and memberships in each of its stages (step A12 part 1: stages.ts seatStage), each stage that differs
+ * written through its own withLeagueLock, so its bots, settles and draft share run as on any write. After the game's write has
+ * committed: one that fails is logged and the next write to the game mirrors it again. Nothing for any other league.
+ */
+export async function syncStages(parentId: string, parent: LeagueState): Promise<void> {
+  if (!StateLogic.StageLogic.on(parent)) return;
+  try {
+    for (const id of await stagesToSeat(pool, parentId, parent)) await withLeagueLock(id, async (s, client) => void (await seatStage(client, parentId, parent, id, s)));
+  } catch (e) {
+    console.error(`[stages] seats of ${parentId}:`, e);
   }
 }
 

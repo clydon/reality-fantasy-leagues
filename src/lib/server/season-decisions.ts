@@ -524,7 +524,8 @@ export async function syncSeasonLeagues(seasonId: string, actorUserId: string | 
         // start settled after every result, should the desk's walk have missed it. And a game that asks by phase (A7): the
         // phases' starts and its windows.
         // Loaded only for such a game: it reads rulebooks (a heavier module graph, as bingo's below).
-        if ((StateLogic.startPhase(s) || StateLogic.readsPhases(s)) && !s.settings.archivedAt) {
+        // Step A12 part 1: a game that ends before a phase too.
+        if ((StateLogic.startPhase(s) || StateLogic.endPhase(s) || StateLogic.readsPhases(s)) && !s.settings.archivedAt) {
           const P = await import("./phase-starts");
           if (schedule === null) {
             await P.freshStarts(seasonId);

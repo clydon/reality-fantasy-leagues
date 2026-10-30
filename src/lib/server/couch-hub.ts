@@ -1,6 +1,6 @@
 import StateLogic from "@/lib/game/state-logic.js";
 import type { AnswerWalk } from "@/lib/game/state-logic.js";
-import { answerStanding, storedAnswers } from "./answer-points";
+import { answerStanding, asItStands, storedAnswers } from "./answer-points";
 import { foldFor, isFolded, revealedThrough } from "@/lib/game/chat-fold";
 import { accoladesOf, fieldOf, rankingsOf, trophiesOf, yourNumbers, type Accolade, type GameStanding, type Person, type Rankings, type StandingRow, type TrophyShelf, type YourNumbers } from "@/lib/game/couch-standings";
 import { tableOf } from "@/lib/game/game-view";
@@ -105,11 +105,11 @@ function standingOf(
   userOf: (p: string) => string | null,
   calls?: { right: (p: string) => number; through: number; ended: boolean; walk?: AnswerWalk | null },
   usersOf: (p: string) => string[] = () => []
-): { rows: StandingRow[]; through: number; ended: boolean; coop: GameStanding["coop"]; matchups: boolean; teams: boolean } {
+): { rows: StandingRow[]; through: number; ended: boolean; coop: GameStanding["coop"]; matchups: boolean; teams: boolean; pool: boolean } {
   // Step A11 part 2b: a game of questions' walk on your copy (answer-points.ts answerStanding): who's out, ranked as it ranks.
   const seenView = StateLogic.GhostLogic.viewFor(state, playerId, mark);
   const view = calls?.walk ? StateLogic.AnswerLogic.withWalk(seenView, calls.walk) : seenView;
-  const pool = StateLogic.getLeagueType(view).hasWeeklyPicks;
+  const pool = StateLogic.piecesOf(view).hasWeeklyPicks;
   const called = new Map<string, number>();
   // Side bets called right, where they count (beside a draft: a pool's or Weekly Calls' never scored).
   if (StateLogic.betsOn(view)) for (const ep of view.episodes) for (const b of ep.bets || []) for (const p of b.predictions || []) if (p.correct === true) called.set(p.playerId, (called.get(p.playerId) ?? 0) + 1);
@@ -143,7 +143,7 @@ function standingOf(
   const matchups = StateLogic.MatchupLogic.on(view);
   // Step A11 part 5: teams of players rank by their teams (its points, or its record), so no margin in anyone's own points.
   const teams = StateLogic.TeamLogic.on(view);
-  return { rows, through: calls ? calls.through : end === null ? seen : Math.min(seen, end), ended: calls ? calls.ended : StateLogic.gameOver(view), coop, matchups, teams };
+  return { rows, through: calls ? calls.through : end === null ? seen : Math.min(seen, end), ended: calls ? calls.ended : StateLogic.gameOver(view), coop, matchups, teams, pool };
 }
 
 /** A game over a span (docs/PLAN-sports-data.md step 6), named in the show's own word ("Games 4–6"); null for a season game. */
@@ -166,7 +166,7 @@ async function callsThrough(state: LeagueState, g: Game & { seasonId: string }, 
   // Nothing counts while it waits for its phase (step A3).
   const from = StateLogic.startEpisode(state);
   const opts = { from: from ?? 0, through: upTo, couchId: g.couchId };
-  const bingo = StateLogic.getLeagueType(state).hasBingo;
+  const bingo = StateLogic.piecesOf(state).hasBingo;
   const rights = from === null ? new Map<string, number>() : bingo ? await bingoLines(g.seasonId, userIds, opts) : await callRights(g.seasonId, userIds, opts);
   // A bingo line's points (step A9), as its table counts them.
   const each = bingo ? pointsPerLine(state) : 1;
@@ -202,7 +202,11 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
   // Each game as you may see it: now, and one episode back (who moved).
   const standings: GameStanding[] = [];
   for (const g of list) {
-    const state = states.get(g.leagueId);
+    // Step A12 part 1: a stage counts inside its game in stages, whose table (the overall, its stages' tables read as they stand) is
+    // the one the couch's standings read.
+    if (g.stageOf) continue;
+    const stored = states.get(g.leagueId);
+    const state = stored && StateLogic.StageLogic.on(stored) ? (await asItStands(g.leagueId, stored)).state : stored;
     const header = headers.get(g.seasonId);
     if (!state || !header) continue;
     const seen = marks.get(g.seasonId) ?? 0;
@@ -211,15 +215,15 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
     const onSeat = (p: string) => usersOf.get(g.leagueId)?.get(p) ?? [];
     try {
       // Weekly Calls and Weekly Bingo are through the latest show that's aired and you've seen, scored from the couch's calls or cards.
-      const type = StateLogic.getLeagueType(state);
+      const pieces = StateLogic.piecesOf(state);
       const schedule = schedules.get(g.seasonId);
       const me = mine.get(g.leagueId) ?? null;
       // A game of questions (step A4) by its answers' points, graded at the mark, as its own table is.
-      const rows = type.hasQuestions ? await storedAnswers(g.leagueId) : [];
+      const rows = pieces.hasQuestions ? await storedAnswers(g.leagueId) : [];
       const answers = (m: number | null) => answerStanding({ leagueId: g.leagueId, state, playerId: me, mark: m, rows });
-      const calls = type.hasQuestions ? await answers(mark) : type.hasCalls || type.hasBingo ? await callsThrough(state, g, who, Math.min(seen, latestAired(schedule)), schedule) : undefined;
+      const calls = pieces.hasQuestions ? await answers(mark) : pieces.hasCalls || pieces.hasBingo ? await callsThrough(state, g, who, Math.min(seen, latestAired(schedule)), schedule) : undefined;
       const now = standingOf(state, me, mark, who, calls, onSeat);
-      const back = calls && now.through >= 2 ? (type.hasQuestions ? await answers(now.through - 1) : await callsThrough(state, g, who, now.through - 1, schedule)) : undefined;
+      const back = calls && now.through >= 2 ? (pieces.hasQuestions ? await answers(now.through - 1) : await callsThrough(state, g, who, now.through - 1, schedule)) : undefined;
       const before = now.through >= 2 ? standingOf(state, mine.get(g.leagueId) ?? null, now.through - 1, who, back, onSeat).rows : null;
       standings.push({
         leagueId: g.leagueId,
@@ -239,6 +243,7 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
         rows: now.rows,
         before,
         coop: now.coop,
+        ...(now.pool ? { pool: true } : {}),
         ...(now.matchups ? { matchups: true } : {}),
         ...(now.teams ? { teams: true } : {}),
       });

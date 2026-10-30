@@ -215,13 +215,13 @@ const and = (names: string[]) => (names.length < 2 ? names.join("") : `${names.s
  * game, after they've chosen to see the results.
  */
 export function previewLines(before: LeagueState, after: LeagueState, gameName: string, userOf: (playerId: string) => string | null): PreviewLine[] {
-  const type = StateLogic.getLeagueType(after);
+  const pieces = StateLogic.piecesOf(after);
   const a = tableOf(before, "", userOf);
   const b = new Map(tableOf(after, "", userOf).map((r) => [r.playerId, r]));
   const lines: PreviewLine[] = [];
   const outBefore = new Set(before.castaways.filter((c) => c.status === "eliminated").map((c) => c.id));
   for (const c of after.castaways.filter((x) => x.status === "eliminated" && !outBefore.has(x.id))) {
-    const owners = type.hasRoster ? a.filter((r) => r.team.includes(c.id)).map((r) => r.name) : [];
+    const owners = pieces.hasRoster ? a.filter((r) => r.team.includes(c.id)).map((r) => r.name) : [];
     lines.push({
       face: { kind: "castaway", name: c.name, photo: publicMediaSrc(c.photoUrl) },
       label: `${c.name} out · ${gameName}`,
@@ -239,7 +239,7 @@ export function previewLines(before: LeagueState, after: LeagueState, gameName: 
     const n: TableRow | undefined = b.get(r.playerId);
     if (!n) continue;
     const place = n.place !== r.place ? `${n.place < r.place ? "▲" : "▼"} ${n.rank.startsWith("T") ? "T" : ""}${ordinal(n.place)}` : "";
-    const pool = type.hasWeeklyPicks;
+    const pool = pieces.hasWeeklyPicks;
     const delta = pool ? (n.week ?? 0) - (r.week ?? 0) : n.total - r.total;
     if (!place && !delta) continue;
     const score = !delta

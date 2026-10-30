@@ -34,7 +34,7 @@ test("games over a span (step 6 of PLAN-sports-data): each plaque names its span
   const games = [
     game({ leagueId: "a", seasonId: "ws", label: "World Series 2026", gameName: "Weekly Lineup", gameType: "active-roster", ended: true, span: span(1, 3), rows: rows(["bo", "ann"]) }),
     game({ leagueId: "b", seasonId: "ws", label: "World Series 2026", gameName: "Weekly Lineup", gameType: "active-roster", ended: true, span: span(4, 6), rows: rows(["bo", "ann"]) }),
-    game({ leagueId: "c", seasonId: "ws", label: "World Series 2026", gameName: "Survival Pool", gameType: "pickem", ended: true, span: span(7, 7), rows: rows(["ann", "bo"]) }),
+    game({ leagueId: "c", seasonId: "ws", label: "World Series 2026", gameName: "Survival Pool", gameType: "pickem", pool: true, ended: true, span: span(7, 7), rows: rows(["ann", "bo"]) }),
   ];
   const t = trophiesOf(games, people, "ann");
   assert.deepEqual(t.plaques.map((p) => [p.leagueId, p.label, p.span, p.ranItBack]), [
@@ -57,7 +57,7 @@ test("a place is worth 10 for first down to 1 for last, whatever the field", () 
 test("power rankings: one table across games, ties share a place, the bar by show, who moved", () => {
   const games = [
     game({ leagueId: "a", seasonId: "s51", label: "Survivor 51", rows: rows(["ann", "bo", "cy", "di"]), before: rows(["bo", "ann", "cy", "di"]) }),
-    game({ leagueId: "b", seasonId: "t5", showId: "trt", showName: "Traitors", label: "Traitors 5", gameType: "pickem", gameName: "Survival Pool", rows: rows(["bo=cy", "ann", "di"]) }),
+    game({ leagueId: "b", seasonId: "t5", showId: "trt", showName: "Traitors", label: "Traitors 5", gameType: "pickem", pool: true, gameName: "Survival Pool", rows: rows(["bo=cy", "ann", "di"]) }),
     game({ leagueId: "c", seasonId: "s50", label: "Survivor 50", year: 2025, ended: true, rows: rows(["di", "cy", "bo", "ann"]) }),
     game({ leagueId: "d", seasonId: "s52", label: "Survivor 52", through: 0, rows: rows(["ann", "bo"]) }),
   ];
@@ -87,7 +87,7 @@ test("the trophy shelf waits for a season to end, then titles, plaques, ran it b
     running,
     game({ leagueId: "a", seasonId: "s49", label: "Survivor 49", year: 2025, ended: true, rows: rows(["bo", "ann", "cy", "di"]) }),
     game({ leagueId: "b", seasonId: "s50", label: "Survivor 50", year: 2026, ended: true, rows: rows(["bo", "cy", "ann", "di"]) }),
-    game({ leagueId: "c", seasonId: "s50", label: "Survivor 50", year: 2026, ended: true, gameType: "pickem", gameName: "Survival Pool", rows: rows(["ann=di", "bo", "cy"], { ann: { best: 6 }, di: { best: 6 }, bo: { best: 3 } }) }),
+    game({ leagueId: "c", seasonId: "s50", label: "Survivor 50", year: 2026, ended: true, gameType: "pickem", pool: true, gameName: "Survival Pool", rows: rows(["ann=di", "bo", "cy"], { ann: { best: 6 }, di: { best: 6 }, bo: { best: 3 } }) }),
   ];
   const t = trophiesOf(games, people, "ann");
   assert.equal(t.titles, 1, "a shared first is a title");
@@ -120,7 +120,7 @@ test("couch accolades: only shared follows, only when they say something", () =>
     { userId: "ann", showId: "surv", showName: "surv" },
     { userId: "cy", showId: "surv", showName: "surv" },
   ];
-  const games = [game({ leagueId: "a", seasonId: "s51", label: "Survivor 51", gameType: "pickem", gameName: "Survival Pool", rows: rows(["cy", "ann", "bo"], { cy: { called: 3, streak: 4 }, ann: { called: 1, streak: 1 } }) })];
+  const games = [game({ leagueId: "a", seasonId: "s51", label: "Survivor 51", gameType: "pickem", pool: true, gameName: "Survival Pool", rows: rows(["cy", "ann", "bo"], { cy: { called: 3, streak: 4 }, ann: { called: 1, streak: 1 } }) })];
   const a = Object.fromEntries(accoladesOf({ people, follows, messages: new Map([["di", 5], ["ann", 2]]), games }).map((x) => [x.key, `${x.who}: ${x.line}`]));
   assert.equal(a.shows, "bo: 3 shows · 2 nobody else watches");
   assert.equal(a.watched, "surv: 3 of 4 watch it");

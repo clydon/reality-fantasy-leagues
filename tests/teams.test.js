@@ -59,11 +59,14 @@ test("teams of players: their shape, defaults, words and settings; what's refuse
   // Its settings: rankTeams, a draft's and a game of questions'.
   assert.deepEqual(G.withSpec(S.defaultState().settings, WHO_TEAMS).rankTeams, { of: 2 });
   assert.equal(G.withSpec(S.defaultState().settings, { preset: "weekly-lineup" }).rankTeams, undefined);
-  // Following the show's own groups is part 5b's: said, it waits for its step, and nothing plays it.
+  // Following the show's own groups (part 5c): refused, with what rides the show's groups instead; nothing plays it (never the
+  // default's draw).
   const group = { preset: "weekly-lineup", rank: { by: "total", teams: { of: 2, made: "group" } } };
-  assert.deepEqual(at(group), []);
-  assert.deepEqual(G.specWaitsFor(group).map((x) => [x.at, x.step]), [["rank.teams.made", "later"]]);
+  assert.deepEqual(at(group), ["rank.teams.made"]);
+  assert.match(G.specProblems(group, CTX)[0].problem, /last the game, while the show's groups end at a swap, a merge or a re-pairing: .*group slot/);
+  assert.deepEqual(G.specWaitsFor(group), []);
   assert.equal(G.teamParts(G.fullSpec(group)), null);
+  assert.equal(G.answerParts(G.fullSpec({ ...questions, rank: { by: "total", teams: { of: 2, made: "group" } } })), null);
   // Beside the wrong game, or out of range.
   assert.deepEqual(at({ preset: "survival-pool", rank: { teams: { of: 2 } } }), ["rank.teams"], "a pool's streak is one person's");
   assert.deepEqual(at({ preset: "weekly-calls", rank: { teams: { of: 2 } } }), ["rank.teams"], "Weekly Calls' calls are counted outside the game");

@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 178 ✅ · 67 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
-**Waiting, by step:** A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 183 ✅ · 64 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 273.
+**Waiting, by step:** A12 8 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -25,6 +25,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | Once, until the finale starts (finale predictions) | An Outlast for Survivor 51: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. |
 | ✅ | From a later episode | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, Episode 9 to the finale. Scored by Survivor 51's rules. |
 | ✅ | When a phase of the season starts (the merge) | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, from when Merged starts. Scored by Survivor 51's rules. |
+| ✅ | Until a phase of the season starts (before the merge) | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, until Merged starts. Scored by Survivor 51's rules. |
 | ✅ | For a stretch (just tonight, episodes 8 to 10) | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, Episodes 8–10. Longest streak wins. |
 | ✅ | Every 2 episodes | A game for Survivor 51: everyone answers one question before every two episodes: name someone who'll be gone in the next two, all season. 2 points for each right answer. |
 | ✅ | Once per phase | A game for Survivor 51: everyone answers one question before each phase: who finds an idol this phase, all season. A point for each right answer. |
@@ -138,8 +139,9 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | | What | Plays as, or needs |
 |---|---|---|
 | ✅ | One game, one set of rules, one span | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. |
-| ⏳ | Stages (a second draft at the merge) | A12 |
-| ⏳ | Rules per phase | A12 |
+| ✅ | Stages (a second draft at the merge) | A game in two stages for Survivor 51: Before the merge, a Weekly Lineup: everyone drafts 5 and starts 3 each episode, until Merged starts. Scored by the show's rules; then After the merge, a Weekly Lineup: everyone drafts 5 and starts 3 each episode, from when Merged starts. Scored by the show's rules. Overall, each stage's points add up. |
+| ✅ | Rules per phase | A game in two stages for Survivor 51: Before the merge, a Weekly Lineup: everyone drafts 5 and starts 3 each episode, until Merged starts. Scored by the show's rules; then After the merge, a Survival Pool: everyone picks one person to stay in each episode, from when Merged starts. Longest streak wins. Overall, each stage you finish scores by your place: one point for each of you below you, plus one. |
+| ✅ | Stages by episode: the season's two halves, each its own game, plus an overall | A game in two stages for Survivor 51: First half, a Weekly Lineup: everyone drafts 5 and starts 3 each episode, Episodes 1–6. Scored by the show's rules; then Second half, a Survival Pool: everyone picks one person to stay in each episode, Episode 7 to the finale. Longest streak wins. Overall, each stage you finish scores by your place: one point for each of you below you, plus one. |
 | ⏳ | A season of mini-games | A12 |
 | ⏳ | A game that scores two ways (bingo lines plus answers) | A12 |
 | ⏳ | One game across two shows | A12 |
@@ -216,7 +218,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ✅ | s36 | Survivor 51 | First to 20 points wins. | win | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. First to 20 points wins: the game ends there. |
 | ✅ | s37 | The Traitors (US) 5 | Co-op: together we have 5 lives; every faithful banished we didn't see coming costs one. | win | A game for The Traitors (US) 5: everyone answers one question before each episode: which Faithful will be banished, all season. A point for each right answer. Together you have five lives: each time none of you gets it right, you lose one. Keep one to the end and you all win. |
 | ✅ | s38 | Survivor 51 | Names out of a hat: everyone gets a random castaway; last one standing wins. | answer | An Outlast for Survivor 51: everyone gets 1 drawn at random, all season. Each scores by how long they last: the last one standing carries you. |
-| ⏳ | s39 | Survivor 51 | Pre-merge and post-merge are separate games with their own drafts, plus an overall winner. | shape | A12 |
+| ✅ | s39 | Survivor 51 | Pre-merge and post-merge are separate games with their own drafts, plus an overall winner. | shape | A game in two stages for Survivor 51: Pre-merge, an Outlast: everyone drafts 3, until Merged starts. Each scores by how long they last: the last one standing carries you; then Post-merge, an Outlast: everyone drafts 3, from when Merged starts. Each scores by how long they last: the last one standing carries you. Overall, the most stages won wins (ties all win a stage); level on that, by your places, then your points. |
 | ⏳ | s40 | Big Brother | Each week's top scorer picks a twist for next week. | who | A14 |
 | ✅ | s41 | Survivor 51 | My brother watches a day late: let him lock later. | when | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. 2 points for each right answer. |
 | ⏳ | s42 | Dancing with the Stars 35 | Predict each episode's IMDb rating. | settle | A14: outside numbers from a vetted source: TVmaze's rating, not IMDb's |

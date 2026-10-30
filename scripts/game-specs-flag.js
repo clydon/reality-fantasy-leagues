@@ -27,14 +27,17 @@ const clone = (v) => JSON.parse(JSON.stringify(v));
 /** Everything the engine reads of a league's game, as it reads it: for comparing a league carrying its spec with not. */
 function playedSnapshot(state) {
   const t = S.getLeagueType(state);
+  // Step R1: what plays it, the pieces its spec names (the league type is only the screens' name and flags now).
+  const p = S.piecesOf(state);
   const W = S.WaiverLogic;
   const A = S.ActiveRosterLogic;
   const ids = [...new Set([...Object.keys(state.settings.eventPoints || {}), ...S.formatOf(state).events.map((e) => e.id)])].sort();
   const waivers = W.supported(state);
   const numbers = [...new Set((state.episodes || []).map((e) => e.number))].sort((a, b) => a - b);
   return {
-    type: [t.id, t.name, t.draftStrategy.name, t.scoringStrategy.name],
+    type: [t.id, t.name, p.draft.name, p.scorer.name, p.holds, p.counts, p.scores, p.ranks],
     flags: ["hasRoster", "hasWeeklyPicks", "hasActiveRoster", "hasCalls", "hasBingo", "supportsReplenish", "supportsTrade", "supportsFinalePredictions"].map((f) => !!t[f]),
+    pieces: Object.keys(p).filter((k) => /^(has|supports)/.test(k)).sort().map((k) => [k, !!p[k]]),
     sizes: [S.rosterSize(state), A.activeSlots(state), A.benchSlots(state), S.GhostLogic.teamSize(state)],
     span: [S.startEpisode(state), S.startPhase(state), S.endEpisode(state), S.gameOver(state), numbers.map((n) => S.inPlay(state, n))],
     waivers: waivers

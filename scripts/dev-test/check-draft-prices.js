@@ -94,7 +94,7 @@ const errorOf = (r) => (r.body && (r.body.error || r.body.message)) || JSON.stri
     const pO = await pidsOf(O);
     let problems = await remake(O, { preset: "outlast", span: { from: 6, to: null }, get: { by: "draft", each: 2, order: "auction", budget: { total: 100 } } });
     let st = await league(O);
-    check(!problems.length && S.getLeagueType(st).draftStrategy === S.AuctionDraftStrategy && st.settings.draftAuction === true, "Couch Cup made an Outlast auction of two each, 100 each, from Episode 6", JSON.stringify(problems));
+    check(!problems.length && S.piecesOf(st).draft === S.AuctionDraftStrategy && st.settings.draftAuction === true, "Couch Cup made an Outlast auction of two each, 100 each, from Episode 6", JSON.stringify(problems));
     let r = await as.alex.call("POST", `/api/leagues/${O}/draft/force-start`, {});
     st = await league(O);
     check(r.status === 200 && S.isDraftStarted(st) && !S.AuctionLogic.settled(st) && !S.AuctionLogic.due(st, Date.now()), "  alex opens the bidding: open, not due (Episode 6 hasn't started)", `${r.status}`);

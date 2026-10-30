@@ -257,7 +257,7 @@ function stakeMost(points: number, held: Map<string, number>, key: string, staki
 }
 /** Your points as they stand for you (at your mark) and your stakes still on the line: what a wager of any of them (A9) can stake. */
 async function stakeRoom(r: Read): Promise<{ points: number; held: Map<string, number> }> {
-  const all = StateLogic.getLeagueType(r.h.state).hasQuestions ? r.rows : [];
+  const all = StateLogic.piecesOf(r.h.state).hasQuestions ? r.rows : [];
   const graded = StateLogic.AnswerLogic.grade(r.view, all, r.facts);
   return { points: yourPoints(r, graded.points), held: heldStakes(questionsOf(r.h.state), all, graded.verdicts, r.h.playerId) };
 }
@@ -320,7 +320,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
   const names = new Map(view.players.map((p) => [p.id, p.name]));
   // A draft's finale predictions are in its state; only a game of questions keeps its answers in game_answers (those that count:
   // step A11 part 2b, none of someone's for an episode after they went out).
-  const stored = StateLogic.getLeagueType(h.state).hasQuestions ? r.rows : [];
+  const stored = StateLogic.piecesOf(h.state).hasQuestions ? r.rows : [];
   const all = [...stored, ...StateLogic.AnswerLogic.finaleAnswers(h.state)].filter((a) => names.has(a.playerId));
   // A late joiner catching up answers nothing until they're on the live episode (answerQuestions refuses it): each open
   // question waits for them, with no episode to see (catchUp null).
@@ -620,13 +620,18 @@ const answered = (v: unknown) => v !== null && v !== undefined && !(Array.isArra
 /**
  * A game of questions' move on the home (/api/me/home), beside actionItems' (whose league states don't hold the answers): this
  * week's sheet while some of it you could answer now is still blank. A draft's finale predictions are an extra, never a move.
+ * Step R1 part 2: a game of questions by its pieces (`states`: each game's, as the home read them), never by its stored type.
  */
 export async function questionMoves(
   user: SessionUser,
-  games: { leagueId: string; name: string; gameType: string; seasonId: string | null; archived?: boolean }[],
+  games: { leagueId: string; name: string; seasonId: string | null; archived?: boolean }[],
+  states: Map<string, LeagueState>,
   now = new Date()
 ): Promise<{ kind: "questions"; text: string; href: string; leagueId: string; leagueName: string; episode?: number; deadline: string | null; who: "you" }[]> {
-  const sheets = games.filter((g) => g.gameType === "questions" && !!g.seasonId && !g.archived);
+  const sheets = games.filter((g) => {
+    const state = states.get(g.leagueId);
+    return !!state && !!StateLogic.piecesOf(state).hasQuestions && !!g.seasonId && !g.archived;
+  });
   // Each read at once: a Prediction Sheet is rare, and these are the home's only per-game reads of answers.
   const reads = await Promise.all(
     sheets.map((g) =>

@@ -107,6 +107,8 @@ export interface Game {
   /** The episode it starts with (settings.startEpisode): a game started after a span ended is its run back. Null while a game
    *  that starts at a phase of the season (settings.startPhase: step A3 of docs/PLAN-start-a-game-gpt.md) waits for it. */
   start: number | null;
+  /** Step A12 part 1: the game in stages this league is a stage of (leagues.stage_of), or null. */
+  stageOf: string | null;
 }
 
 /**
@@ -129,7 +131,7 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
     `SELECT l.id, l.name, l.couch_id, l.group_id, l.solo, l.state->'settings'->>'leagueTypeId' AS type_id, ss.id AS season_id, me.role AS your_role,
             COALESCE(l.state->'settings'->>'archivedAt', '') <> '' AS archived,
             l.state->'settings'->'startEpisode' AS start_episode, l.state->'settings'->'endEpisode' AS end_episode,
-            l.state->'settings'->>'startPhase' AS start_phase
+            l.state->'settings'->>'startPhase' AS start_phase, l.stage_of
        FROM leagues l
        LEFT JOIN shows s ON s.slug = l.state->'settings'->>'showId'
        LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
@@ -155,6 +157,7 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
     archived: !!r.archived,
     span: Number.isInteger(r.end_episode) && startOf(r) !== null ? { from: startOf(r) as number, to: r.end_episode } : null,
     start: startOf(r),
+    stageOf: r.stage_of ?? null,
   }));
 }
 

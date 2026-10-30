@@ -6,7 +6,7 @@ import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { applyHeldTribesIfDue } from "@/lib/server/season-cast";
 import { resultsChange } from "@/lib/server/change-log";
 
-// Active Roster only, commissioner-only: log one point-earning event for this episode (someone won
+// A game that scores by moments only (step R1: the spec's score.by), commissioner-only: log one point-earning event for this episode (someone won
 // immunity, found an idol, ...). Manual entry is the primary path and always will be -- the wiki
 // connector (see docs/PLAN-league-types-and-wiki-connector.md, Feature D) is designed to propose
 // events into this same log for the commissioner to confirm, not to replace this route.
@@ -20,7 +20,7 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   if (!type || !castawayId) throw new HttpError(400, "type and castawayId required");
 
   const state = await withLeagueLock(leagueId, async (s, client) => {
-    if (!StateLogic.getLeagueType(s).hasActiveRoster) throw new HttpError(400, "This league type has no scoring events");
+    if (StateLogic.piecesOf(s).scores !== "moments") throw new HttpError(400, "This league type has no scoring events");
     if (!StateLogic.addScoringEvent(s, epId, type, castawayId)) {
       throw new HttpError(400, "Unknown event type, episode or castaway");
     }

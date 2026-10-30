@@ -89,9 +89,13 @@ export async function seasonFactsFor(user: SessionUser, seasonId: string, couchI
   const mark = seen === EVERYTHING ? Number.POSITIVE_INFINITY : seen;
 
   const here = await games(user.id, couchId ? { couchIds: [couchId], seasonId } : { mine: true, seasonId });
-  const rank = (g: (typeof here)[number]) => (g.yourRole ? 0 : 2) + (g.gameType === "active-roster" ? 0 : 1);
+  // Step R1: a game that scores by moments first (its spec's score.by), never a type compared by name.
+  const states = await leagueStates(here.map((g) => g.leagueId));
+  const byMoments = new Set(here.filter((g) => { const s = states.get(g.leagueId); return !!s && StateLogic.piecesOf(s).scores === "moments"; }).map((g) => g.leagueId));
+  const moments = (g: (typeof here)[number]) => byMoments.has(g.leagueId);
+  const rank = (g: (typeof here)[number]) => (g.yourRole ? 0 : 2) + (moments(g) ? 0 : 1);
   const game = [...here].sort((a, b) => rank(a) - rank(b))[0] ?? null;
-  const state = game ? (await leagueStates([game.leagueId])).get(game.leagueId) : undefined;
+  const state = game ? states.get(game.leagueId) : undefined;
 
   const [{ rows: seasonRows }, { rows: cast }, all] = await Promise.all([
     pool.query(
@@ -114,7 +118,7 @@ export async function seasonFactsFor(user: SessionUser, seasonId: string, couchI
     view = StateLogic.GhostLogic.viewFor(state, rows[0]?.player_id ?? null, Number.isFinite(mark) ? mark : null);
     settings = Object.fromEntries(SCORING.filter((k) => state.settings[k] != null).map((k) => [k, state.settings[k]]));
     // A game that scores by moments: its own points, read as it reads them (game spec: a Weekly Lineup's points).
-    if (game.gameType === "active-roster") Object.assign(settings, { leagueTypeId: "active-roster", eventPoints: state.settings.eventPoints });
+    if (moments(game)) Object.assign(settings, { leagueTypeId: "active-roster", eventPoints: state.settings.eventPoints });
     const row = await rulebookForLeague(pool, { leagueId: game.leagueId, settings: state.settings });
     const format = StateLogic.formatOf(view);
     book = row?.blocks ? await bookOf(row, mark) : rulebookFor(format.id, format.data);
@@ -138,7 +142,7 @@ export async function seasonFactsFor(user: SessionUser, seasonId: string, couchI
     mark,
     book,
     colours: Object.fromEntries((view?.tribes ?? []).map((t) => [t.name.toLowerCase(), t.color])),
-    pointsFrom: game?.gameType === "active-roster" ? game.name : null,
+    pointsFrom: game && moments(game) ? game.name : null,
   };
 }
 

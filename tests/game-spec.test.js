@@ -53,9 +53,11 @@ const WAIVER_FIELDS = ["replaceRule", "replenishAt", "waiverWindows", "waiverFee
 // A10 part 3: a draw and a draft spread across the cast's groups; part 3b: an auction and a draft's prices; part 4: keepers.
 // A11 part 1: a draft's rank (a stock market's worth, or last one standing), its race and its cuts; part 2, whether one left ends it;
 // part 4, head to head's playoffs and fallbacks.
-const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftDraw", "draftAcross", "draftAuction", "draftBudget", "draftKeep", "draftRank", "draftRace", "draftCut", "rankOneLeft", "rankMatchups", "rankTeams", "rankHandicap"];
+// A12 part 1: when the draft room opens.
+const DRAFT_FIELDS = ["ownershipMode", "draftScheduledAt", "draftTimer", "draftAway", "draftOpens", "finalePredictionsEnabled", "finaleTop3Points", "finaleWinnerPoints", "finalePredictionScope", "draftDraw", "draftAcross", "draftAuction", "draftBudget", "draftKeep", "draftRank", "draftRace", "draftCut", "rankOneLeft", "rankMatchups", "rankTeams", "rankHandicap"];
 const GAME_FIELDS = {
-  every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints"],
+  // A12 part 1: an end at a phase.
+  every: ["leagueTypeId", "startEpisode", "startPhase", "endEpisode", "endPhase", "allowLateJoiners", "joinMode", "lockedDown", "bonusEnabled", "defaultBetPoints"],
   // A9 part 2: Outlast in reverse; best ball, a lineup's captain, points that multiply by when. A10 part 3c: a stock market
   // ranked by worth.
   "classic-draft": [...DRAFT_FIELDS, "teamSize", "reverseOrder"],
@@ -69,6 +71,8 @@ const GAME_FIELDS = {
   // A11 part 2b: a game of questions' lives (on which questions), race and cuts, and its end; part 3, co-op and who saves a night;
   // part 4b, head to head's playoffs and fallbacks (a draft's too: DRAFT_FIELDS); part 5, teams of players (a draft's too).
   questions: ["questions", "lateLockHours", "parlays", "seatPeople", "questionsLives", "questionsLivesOn", "questionsRace", "questionsCut", "rankOneLeft", "rankAllOut", "questionsRank", "questionsSaves", "rankMatchups", "rankTeams", "rankHandicap"],
+  // A12 part 1: a game in stages' stages and overall.
+  stages: ["stages", "stageOverall"],
 };
 // A10 part 4b: a team two people share, wherever a seat has something to share (not a call or a bingo card).
 GAME_FIELDS["classic-draft"].push("seatPeople");
@@ -84,7 +88,7 @@ function readings(state) {
   const ids = [...new Set([...Object.keys(st.eventPoints || {}), ...S.formatOf(state).events.map((e) => e.id)])].sort();
   const finale = S.finalePredictionsAvailable(state);
   return {
-    type: [t.id, t.draftStrategy.name, t.scoringStrategy.name],
+    type: [t.id, S.piecesOf(state).draft.name, S.piecesOf(state).scorer.name],
     flags: ["hasRoster", "hasWeeklyPicks", "hasActiveRoster", "hasCalls", "hasQuestions", "hasBingo", "supportsReplenish", "supportsTrade", "supportsFinalePredictions"].map((f) => !!t[f]),
     roster: [S.rosterSize(state), A.activeSlots(state), A.benchSlots(state), st.ownershipMode === "shared"],
     span: [S.startEpisode(state), S.startPhase(state), S.endEpisode(state), S.gameOver(state), state.episodes.map((e) => S.inPlay(state, e.number))],

@@ -25,6 +25,9 @@ export interface Player {
   ghost?: boolean;
   /** A late joiner's own season (StateLogic.GhostLogic). Kept after they're added to the league. */
   lateJoin?: LateJoin;
+  /** Step A11 part 5c of docs/PLAN-start-a-game-gpt.md: what a team given after the draft cost under a price (a late joiner's own
+   *  draft, or castaways whoever runs the game gave them): a stock market's cash counts it as it counts the draft's log. */
+  joinPaid?: number;
 }
 
 export interface LateJoin {
@@ -360,6 +363,12 @@ export interface LeagueSettings {
    * it through StateLogic.endEpisode.
    */
   endEpisode?: number | null;
+  /** Step A12 part 1: the phase of the season's rulebook it ends before (its id), with endEpisode its last episode once that's
+   *  settled. Read it through StateLogic.endPhase. */
+  endPhase?: string;
+  /** Step A12 part 1: a game in stages' stages (each a whole spec, played as a league of its own: stages.ts) and its overall. */
+  stages?: import("./game-spec/index.js").SpecStage[];
+  stageOverall?: import("./game-spec/index.js").SpecOverall;
   defaultBetPoints: number;
   // Same opt-in shape as replenishEnabled/tradeEnabled above, gated together with the league
   // type's own supportsFinalePredictions -- see finalePredictionsAvailable in state-logic.js.
@@ -372,6 +381,8 @@ export interface LeagueSettings {
   draftTimer?: number;
   /** When the pick timer runs out: wait for them (the default), or pick the first still free from their queue. */
   draftAway?: "wait" | "queue";
+  /** Step A12 part 1: when the draft opens: any time (absent) or once its start is known and the episode before it has results. */
+  draftOpens?: "any" | "start";
   leagueTypeId: string;
   /** The catalog show's slug. Null on a new league until the commissioner picks one. */
   showId: string | null;
@@ -1107,6 +1118,9 @@ export interface LeagueState {
   /** A11 part 2b: a game of questions' race, cuts and lives as the server walked them over its answers on exactly this copy
    *  (StateLogic.AnswerLogic.withWalk): never stored; a copy that hides anything drops it. */
   answerWalk?: { ends: number | null; out: Record<string, number>; lives: Record<string, number>; shared: string[]; totals: Record<string, number> };
+  /** Step A12 part 1: a game in stages' stages' tables as the server read them (stages.ts stageWalk, StateLogic.StageLogic.withWalk):
+   *  never stored; a copy cut at a mark cuts it too. */
+  stageWalk?: import("./state-logic.js").StageWalk;
   /** A11 part 4: head to head's playoffs, placed at the season's end: its length as its schedule says (show_seasons.episode_count,
    *  stamped by the server on every read and write: air-times.ts), and where they began once their first round had results
    *  (StateLogic.MatchupLogic.settle), so the schedule changing after that moves nothing. */

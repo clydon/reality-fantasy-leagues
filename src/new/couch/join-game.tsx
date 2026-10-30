@@ -129,7 +129,9 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
   };
   const o = opts.data;
   const need = o && o.start === start ? Math.min(o.team, o.pool.length) : 0;
-  const picking = !!game && start !== null && !!o && o.start === start && o.team > 0;
+  // A game whose teams came out of a hat deals yours as you join (step A11 part 5c of docs/PLAN-start-a-game-gpt.md): nothing to pick.
+  const pick = !!o && o.team > 0 && !o.dealt;
+  const picking = !!game && start !== null && !!o && o.start === start && pick;
 
   const join = async (s: number | null, picks: string[]) => {
     if (!game || busy) return;
@@ -217,7 +219,7 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
             line={game.teamSize ? "Pick your team from who's still in, and play from this week." : "Make your first pick now. Your streak starts this week."}
             warn={behind ? `You're on Episode ${o.seen}: this shows who's still in after Episode ${game.latest}.` : null}
             disabled={busy}
-            onClick={() => (o.team ? setStart(o.starts!.live) : join(o.starts!.live, []))}
+            onClick={() => (pick ? setStart(o.starts!.live) : join(o.starts!.live, []))}
           />
           {o.starts.catchUp !== null && (
             <>
@@ -227,7 +229,7 @@ export function JoinGameSheet({ couchId, game, onOpenChange }: { couchId: string
                 title={`Catch up from Episode ${o.starts.catchUp}`}
                 line="Pick for each episode you've missed, then reveal it, one at a time. Spoiler-free, on your schedule."
                 disabled={busy}
-                onClick={() => (o.team ? setStart(o.starts!.catchUp) : join(o.starts!.catchUp, []))}
+                onClick={() => (pick ? setStart(o.starts!.catchUp) : join(o.starts!.catchUp, []))}
               />
               <p className="mt-2.5 text-[13px] leading-snug text-muted-foreground">Catching up runs on the honor system: pick before you&rsquo;ve seen it. It&rsquo;s for fun; nobody&rsquo;s checking.</p>
             </>

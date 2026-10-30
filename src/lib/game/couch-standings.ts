@@ -48,6 +48,9 @@ export interface GameStanding {
   through: number;
   /** The season has ended, as far as you've seen. */
   ended: boolean;
+  /** Step R1: a pool (a pick each episode, the spec's get.by): its table ranks by streak or who's standing, not by points, so its
+   *  plaque gives no margin. */
+  pool?: boolean;
   /** The table now (at your mark). */
   rows: StandingRow[];
   /** The table one episode earlier, for who moved; null when there wasn't one. */
@@ -250,7 +253,7 @@ export interface TrophyShelf {
   records: CouchRecord[];
 }
 
-const pointsGame = (g: GameStanding) => g.gameType !== "pickem";
+const pointsGame = (g: GameStanding) => !g.pool;
 
 /** `x` came before `g` on the couch: an earlier season of the show, or an earlier span of the same season. */
 const earlier = (x: GameStanding, g: GameStanding) =>

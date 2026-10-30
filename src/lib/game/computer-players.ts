@@ -33,13 +33,13 @@ export const levelOf = (p: Seat): BotLevel => LEVEL_OF[p.botLevel ?? "solid"] ??
 
 /** Whether bot-logic.js plays this kind of game: a draft or Survival Pool, not a calls, bingo or questions game. */
 export function botsPlay(s: LeagueState): boolean {
-  const t = StateLogic.getLeagueType(s) as { hasRoster?: boolean; hasWeeklyPicks?: boolean; hasCalls?: boolean; hasBingo?: boolean; hasQuestions?: boolean };
+  const t = StateLogic.piecesOf(s);
   return !t.hasCalls && !t.hasBingo && !t.hasQuestions && !!(t.hasRoster || t.hasWeeklyPicks);
 }
 
 /** A draft that's open: started, and not yet done (every pick made, or the blind draft revealed). */
 export function draftOpen(s: LeagueState): boolean {
-  if (!StateLogic.getLeagueType(s).hasRoster || !StateLogic.isDraftStarted(s)) return false;
+  if (!StateLogic.piecesOf(s).hasRoster || !StateLogic.isDraftStarted(s)) return false;
   if (StateLogic.BlindDraftLogic.on(s)) return !StateLogic.BlindDraftLogic.isRevealed(s);
   // A draw (step A10 part 3): open until it's dealt.
   if (StateLogic.DrawLogic.on(s)) return !StateLogic.DrawLogic.drawn(s);
@@ -53,7 +53,7 @@ export function draftOpen(s: LeagueState): boolean {
 /** Why a computer player can't join now, or null. */
 export function addProblem(s: LeagueState): string | null {
   if (botsIn(s).length >= MAX_BOTS) return `A game takes up to ${MAX_BOTS} computer players`;
-  if (StateLogic.getLeagueType(s).hasRoster) {
+  if (StateLogic.piecesOf(s).hasRoster) {
     if (StateLogic.isDraftStarted(s)) return "The draft has started: computer players join before it does";
   } else if (StateLogic.GhostLogic.isUnderway(s)) return "It's under way: computer players join before its first results";
   return null;

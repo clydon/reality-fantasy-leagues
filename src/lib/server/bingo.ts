@@ -760,7 +760,7 @@ export async function leagueBingo(o: {
   book?: CallBook;
   now?: Date;
 }): Promise<GameCalls | null> {
-  if (!StateLogic.getLeagueType(o.state).hasBingo) return null;
+  if (!StateLogic.piecesOf(o.state).hasBingo) return null;
   const now = o.now ?? new Date();
   const schedule = (await seasonSchedules([o.seasonId], now)).get(o.seasonId);
   const mark = o.mark ?? Number.POSITIVE_INFINITY;
