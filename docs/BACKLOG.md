@@ -242,6 +242,27 @@ Last updated 2026-10-27.
       Worth a line in the full-results prompt about every tribe that won something, first place or not.
     - **When:** the next session on results or the desk; the first is the user's call.
 
+29. **Things the engine merge noticed and left (2026-10-30, the A1-A11 part 5b merge, df527fe6).**
+    - `tapes.js load below-deck 12` fails on a database where Below Deck 12 is already set up (a production copy: rfl-merge's):
+      the tape's answers are parsed against that season's rulebook, which asks `notableTwist` of every crew member, and the
+      tape's first episode leaves it out. The engine lane's database loaded it before that rulebook. Either load parses
+      against the tape's own rules, or the rulebook's field is optional. **When:** the playtest lane's next session.
+    - `check-questions.js`'s browser half hadn't run since A9 (the engine lane ran its `--api` half): its This week row
+      check didn't wait for the Games read (fixed in the merge, 555e6c1e). The engine's other browser checks may want a run
+      on a cold dev server too. **When:** the engine lane, at R or U1.
+    - **Survivor 51's Episode 7 says Wed 7:00 PM ET** (production, seen at the merge's live check): its exact start is stored
+      as 00:00 UTC, right while daylight time lasted (8 PM EDT) and an hour early once it ends on Sunday 2026-11-01 (7 PM
+      EST); an exact start wins over the season's 8 PM America/New_York (`air-schedule.js episodeAirTime`). The Traitors 5's
+      next episode moved to 01:00 UTC as it should. Wednesday's lineups would lock an hour early. Set Episode 7 on (and any
+      later exact start) to 8 PM on the desk's season schedule, then find what wrote the fixed-offset times. **When:** before
+      Wednesday 2026-11-04's episode; the production edit is the user's OK.
+    - **Backstage and an episode's results answered 500 for Survivor 51's couch from 2026-10-29 to 10-30** (fixed at the merge's
+      live check): Make every game match records a game's own result it took out as `own:<kind>:<id>` (season-decisions.ts),
+      and `couchCorrections` read every correction's id as a season decision's uuid. It reads only decision ids now, and such a
+      correction offers no ruling to keep (`keepable`); `check-match-season.js` reads both after Make every game match.
+
+
+
 ## Decided against (don't re-propose without new information)
 
 - **An AI draft/lineup/pick advisor for players** ("Coach"): rejected. Feels like pay-to-win inside

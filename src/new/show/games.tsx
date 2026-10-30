@@ -14,13 +14,14 @@ import { usePushedPage } from "../ui/page";
 import { Chip, Row } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { faceIn, first } from "./moves";
-import { placeOf } from "./tonight";
+import { placeOf, sheetAsks } from "./tonight";
 import { Block, Face, IconBox } from "./parts";
 import { playsWaivers, WaiversHowBody } from "./waivers";
 import { useOpenReveal } from "./reveal";
 import { CouchPractice, SoloGames } from "./solo";
 import { useOpenMake } from "./make-game";
 import { CallRow } from "./calls";
+import { SheetRow } from "./questions";
 import { PollRow, StartPollRow } from "./polls";
 import { rateLabel } from "./rate";
 import { bingoEpisode, BingoRow } from "./bingo";
@@ -35,10 +36,19 @@ import { TriviaRow } from "./trivia";
 
 /** A game's line under its name: what it is, for a game the new design knows. */
 const lineOf = (g: GameView) => (isGameName(g.gameName) ? GAME_STYLE[g.gameName].line : g.name);
-/** A game over a span (step 6 of docs/PLAN-sports-data.md), in the show's words: "Games 4–6", "Final · Game 4"; null for a
- *  season game. */
-const spanOf = (g: GameView, words: ShowData["words"]) =>
-  g.to === null ? null : `${g.over ? "Final · " : ""}${spanName(g.from, g.to, { singular: words.episode.toLowerCase(), plural: words.episodes.toLowerCase() })}`;
+/** A game over a span (step 6 of docs/PLAN-sports-data.md), in the show's words: "Games 4–6", "Final · Game 4"; a season game
+ *  that starts later than the next episode to air (step A3 of docs/PLAN-start-a-game-gpt.md), by the schedule, not by what
+ *  you've seen: "Starts with Episode 9"; one waiting for a phase of the season: "Starts when Merged starts"; else null. */
+const spanOf = (g: GameView, words: ShowData["words"], aired: number) =>
+  g.from === null
+    ? g.over
+      ? null
+      : `Starts when ${g.phase ?? "its phase"} starts`
+    : g.to === null
+    ? g.from > aired + 1 && !g.over
+      ? `Starts with ${words.episode} ${g.from}`
+      : null
+    : `${g.over ? "Final · " : ""}${spanName(g.from, g.to, { singular: words.episode.toLowerCase(), plural: words.episodes.toLowerCase() })}`;
 const anchor = (g: GameView) => `game-${g.leagueId}`;
 
 export function Games({ show }: { show: ShowData }) {
@@ -61,7 +71,7 @@ function ReadOnlyGames({ show }: { show: ShowData }) {
   const people = `${g.players} ${g.players === 1 ? "player" : "players"}${ro.runBy?.length ? ` · run by ${ro.runBy.join(", ")}` : ""}`;
   return (
     <>
-      <Standings play={[g]} words={show.words} scope={null} onPlayer={(row, game) => setPlayer({ row, game })} onRules={setRules} readOnly />
+      <Standings play={[g]} words={show.words} aired={show.latestAired} scope={null} onPlayer={(row, game) => setPlayer({ row, game })} onRules={setRules} readOnly />
       <p data-read-only-foot className="px-4 pt-4 text-[13px] text-muted-foreground">
         {g.through ? `Through ${show.words.episode} ${g.through}, where you are.` : "Nothing counted yet, as far as you've watched."} {people}.
       </p>
@@ -90,6 +100,7 @@ function YourGamesHere({ show }: { show: ShowData }) {
           <Standings
             play={show.play}
             words={show.words}
+            aired={show.latestAired}
             scope={show.header && show.couch ? { seasonId: show.header.seasonId, couchId: show.couch.id } : null}
             onPlayer={(row, game) => setPlayer({ row, game })}
             onRules={setRules}
@@ -177,6 +188,7 @@ type Scope = { seasonId: string; couchId: string } | null;
 function Standings({
   play,
   words,
+  aired,
   scope,
   onPlayer,
   onRules,
@@ -184,6 +196,8 @@ function Standings({
 }: {
   play: GameView[];
   words: ShowData["words"];
+  /** The latest episode that's aired, by the schedule. */
+  aired: number;
   scope: Scope;
   onPlayer: (row: TableRow, game: GameView) => void;
   onRules: (g: GameView) => void;
@@ -219,9 +233,9 @@ function Standings({
             <div className="min-w-0 flex-1">
               <h2 className="type-caption text-[26px]">{g.gameName}</h2>
               <small className="mt-1 block text-[13px] text-muted-foreground">
-                {spanOf(g, words) && (
+                {spanOf(g, words, aired) && (
                   <b data-span={g.leagueId} className="font-semibold text-foreground">
-                    {spanOf(g, words)}
+                    {spanOf(g, words, aired)}
                     {" · "}
                   </b>
                 )}
@@ -240,7 +254,7 @@ function Standings({
               type="button"
               data-player={r.name}
               // A public pool's strangers, and the talk show's games (a count of right calls or lines, nothing more to open: step 12).
-              disabled={(g.solo === "public" && !r.you) || g.gameType === "weekly-calls" || g.gameType === "weekly-bingo"}
+              disabled={(g.solo === "public" && !r.you) || g.gameType === "weekly-calls" || g.gameType === "weekly-bingo" || g.gameType === "questions"}
               onClick={() => onPlayer(r, g)}
               className={`flex min-h-14 items-center gap-2.5 border-t text-left ${r.you ? "-mx-2 w-[calc(100%+16px)] rounded-[2px] border-transparent bg-secondary px-2" : "w-full border-border"}`}
             >
@@ -482,10 +496,11 @@ export function PlayIt({ show }: { show: ShowData }) {
  * once a game of its kind has started here since it ended (yours or the couch's).
  */
 function spanToRunBack(show: ShowData, others: JoinGame[]): GameView | null {
-  const started = [...show.games.map((x) => ({ id: x.leagueId, type: x.gameType, start: x.start ?? 1 })), ...others.map((x) => ({ id: x.leagueId, type: x.gameType, start: x.start }))];
+  // A game waiting for its phase (start null) starts after anything that's over.
+  const started = [...show.games.map((x) => ({ id: x.leagueId, type: x.gameType, start: x.start === undefined ? 1 : x.start })), ...others.map((x) => ({ id: x.leagueId, type: x.gameType, start: x.start }))];
   return (
     (show.play ?? [])
-      .filter((g) => !g.solo && g.to !== null && g.over && !started.some((x) => x.id !== g.leagueId && x.type === g.gameType && x.start > (g.to as number)))
+      .filter((g) => !g.solo && g.to !== null && g.over && !started.some((x) => x.id !== g.leagueId && x.type === g.gameType && (x.start === null || x.start > (g.to as number))))
       .sort((a, b) => (b.to ?? 0) - (a.to ?? 0))[0] ?? null
   );
 }
@@ -496,7 +511,7 @@ function StartRow({ show, others }: { show: ShowData; others: JoinGame[] }) {
   const done = over ? null : spanToRunBack(show, others);
   const opts = useStartOptions(h?.seasonId ?? null, show.couch?.id ?? null, done?.leagueId ?? null, over || !!done);
   const finished = (show.play ?? []).find((g) => !g.solo);
-  const next = opts.data?.next ?? null;
+  const next = opts.data?.nextSeason ?? null;
   if (over && !next) return null;
   // Run it back on the next span, when there's one listed.
   const back = done && opts.data?.again && opts.data.again.to !== null && !opts.data.blocked ? opts.data : null;
@@ -603,11 +618,15 @@ function ThisWeek({ show }: { show: ShowData }) {
   const polls = useSeasonPolls(seasonId, couchId, onCouch);
   // Your bingo card for the episode (step 12 part 3), and this week's trivia on the show.
   const bingo = bingoEpisode(show);
+  // Each Prediction Sheet you play here with something to answer (step A4 part 2): this week's to fill in. One that asks about the
+  // next episode stands in for Call it.
+  const sheets = (show.play ?? []).filter((g) => g.gameType === "questions" && !g.archived && !!g.sheet);
   return (
     <Block title="This week" aside="One night each">
       <div data-this-week>
         {bingo && seasonId && <BingoRow icon target={{ seasonId, couchId, episode: bingo, label: rateLabel(show), solo: show.solo }} />}
-        {call && seasonId && <CallRow icon target={{ seasonId, couchId, episode: call, label: rateLabel(show), solo: show.solo }} />}
+        {call && seasonId && !sheetAsks(show, call) && <CallRow icon target={{ seasonId, couchId, episode: call, label: rateLabel(show), solo: show.solo }} />}
+        {seasonId && sheets.map((g) => <SheetRow key={g.leagueId} icon move={g.sheet!} target={{ seasonId, leagueId: g.leagueId, episode: null, game: g.name }} />)}
         {onCouch && (polls.data?.polls ?? []).map((p) => <PollRow key={p.id} icon p={p} couchId={couchId!} />)}
         {seasonId && <TriviaRow icon target={{ seasonId, couchId: show.solo ? null : couchId }} />}
         {onCouch && <StartPollRow seasonId={seasonId!} couchId={couchId!} label={rateLabel(show)} />}

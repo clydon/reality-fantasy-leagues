@@ -6,6 +6,7 @@ import { BOT_NAMES, practiceTeams, type PracticeGame } from "@/lib/game/practice
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { pool, withLeagueLock, HttpError } from "./db";
+import { refused } from "./game-writes";
 import { existingSolo as existing, makeLeague } from "./new-game";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import { followLeagueProgress } from "./follows";
@@ -114,9 +115,9 @@ async function poolLeague(row: SeasonRow, schedule: SeasonSchedule | undefined, 
     createdBy: null,
     type: "pickem",
     after: (s) => {
-      s.settings.calls = true;
-      // Nobody new to a league is behind on its picks: it starts where it's made.
-      if (start > 1) StateLogic.updateSettings(s, "startEpisode", start);
+      // Who goes home? beside the pick (the game spec's extras.calls), and nobody new to a league is behind on its picks: it
+      // starts where it's made.
+      refused(StateLogic.setGame(s, { ...StateLogic.gameOf(s), span: { from: start, to: null }, extras: { ...StateLogic.gameOf(s).extras, calls: true } }), 409);
     },
   });
   return made ?? (await existing("public", row.id, null))!;
@@ -179,11 +180,13 @@ export async function joinPool(user: SessionUser, seasonId: string, now = new Da
     if (rows[0].n >= POOL_CAP) throw new HttpError(409, `The ${label(row)} pool is full`);
     // Where a pick is still open: this episode's until it airs, else the next.
     const { ep, open } = poolWindow(s);
-    start = Math.max(StateLogic.startEpisode(s), ep ? (open ? ep.number : ep.number + 1) : 1);
+    // A public pool starts at an episode, never when a phase does (step A3): its start is a number.
+    const first = StateLogic.startEpisode(s) ?? 1;
+    start = Math.max(first, ep ? (open ? ep.number : ep.number + 1) : 1);
     const p = StateLogic.addPlayer(s, name);
     // Its own season starts here: earlier episodes are history, not missed picks (PickEmLogic.history). Seen at once (no
     // ghost: a pool has nobody to let them in), and never catching up.
-    if (start > StateLogic.startEpisode(s)) {
+    if (start > first) {
       p.lateJoin = { startEpisode: start, catchingUp: false };
       StateLogic.ensureEpisodeNumber(s, start, false);
     } else delete p.lateJoin;
@@ -233,7 +236,7 @@ export async function callPool(user: SessionUser, seasonId: string, castawayId: 
   const { ep, open } = poolWindow(state);
   if (!ep || !open) throw new HttpError(409, "Calls for this episode closed when it started");
   const start = StateLogic.GhostLogic.startFor(state, playerId);
-  if (start > ep.number) throw new HttpError(409, `Your pool starts with Episode ${start}`);
+  if (start === null || start > ep.number) throw new HttpError(409, start === null ? "Your pool hasn't started yet" : `Your pool starts with Episode ${start}`);
   if (castawayId === null) {
     await pool.query("DELETE FROM episode_calls WHERE user_id = $1 AND season_id = $2 AND episode = $3 AND question = 'out'", [user.id, seasonId, ep.number]);
     return { call: null };
@@ -308,12 +311,12 @@ export async function startPractice(user: SessionUser, seasonId: string, body: {
       // Your seat's membership in the same transaction as the setup: a game of yours never exists without you in it.
       await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, $3, 'member')", [id, user.id, human]);
       // A turn-based draft (castaways on one team each), its teams fitted to who's still in.
-      StateLogic.updateSettings(s, "ownershipMode", "exclusive");
+      refused(StateLogic.updateSettings(s, "ownershipMode", "exclusive"), 409);
       const teams = practiceTeams(game, s.castaways.filter((c) => c.status === "active").length);
       if (!teams) throw new HttpError(409, `Too few are left in ${label(row)} to draft four teams`);
-      for (const [k, v] of Object.entries(teams)) StateLogic.updateSettings(s, k, v);
-      if (start > 1) StateLogic.updateSettings(s, "startEpisode", start);
-      StateLogic.updateSettings(s, "waiverRecommendation", "balanced");
+      for (const [k, v] of Object.entries(teams)) refused(StateLogic.updateSettings(s, k, v), 409);
+      if (start > 1) refused(StateLogic.updateSettings(s, "startEpisode", start), 409);
+      refused(StateLogic.updateSettings(s, "waiverRecommendation", "balanced"), 409);
       StateLogic.syncDraftOrder(s);
       for (let i = s.draftOrder.length - 1; i > 0; i--) {
         const j = crypto.randomInt(i + 1);

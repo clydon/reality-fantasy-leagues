@@ -10,7 +10,7 @@ import { Field, GroupHead, LockedValue, ReadOnlyNote, RowList, SettingsPage, Ste
 // League Settings > Predictions: the weekly predictions (side bets) and, for league types that have
 // them (supportsFinalePredictions, the same flag the Waivers page checks), finale predictions, each as a
 // toggle row with its points underneath. bonusEnabled is a master on/off for the whole predictions
-// system, both scoring and visibility (ScoringLogic.compute's `if(state.settings.bonusEnabled)`).
+// system, both scoring and visibility (StateLogic.betsOn), beside a draft: nothing else scores them.
 export function PredictionsPage() {
   const state = useLeagueStore((s) => s.state);
   const terms = useShowTerms();
@@ -37,11 +37,11 @@ export function PredictionsPage() {
           <ToggleRow
             label="Predictions"
             hint="Anyone can ask a question about the next episode; everyone who calls it right scores. A question needs at least two answers to pay out."
-            checked={s.bonusEnabled}
+            checked={!!StateLogic.betsOn(state)}
             disabled={!canManage}
             onChange={(v) => update("bonusEnabled", v)}
           />
-          {s.bonusEnabled && (
+          {!!StateLogic.betsOn(state) && (
             <StepperRow
               label="Points if right"
               hint="The starting value for a new question."

@@ -88,6 +88,15 @@ test("backing off: 5, 15, then 60 minutes", () => {
   assert.equal(T.backoffMs(9), 60 * 60_000);
 });
 
+test("a question the bot answered but that didn't pass waits only its own tries; no answer at all counts in a row", () => {
+  const now = Date.parse("2026-10-28T17:22:42Z");
+  const after = (failuresInARow, tries, answered) => T.afterFailure({ failuresInARow }, { tries, answered, now });
+  assert.deepEqual(after(2, 1, true), { failuresInARow: 0, pausedUntil: new Date(now + 5 * 60_000).toISOString(), pauseWhy: `try 1 of ${T.TRIES} didn't pass` });
+  assert.equal(after(0, 2, true).pausedUntil, new Date(now + 15 * 60_000).toISOString());
+  assert.deepEqual(after(0, T.TRIES, true), { failuresInARow: 0, pausedUntil: null, pauseWhy: null }, "gave up: the queue moves straight on");
+  assert.deepEqual(after(2, 1, false), { failuresInARow: 3, pausedUntil: new Date(now + 60 * 60_000).toISOString(), pauseWhy: "3 failure(s) in a row" });
+});
+
 test("a pause holds the queue until it's over", () => {
   const now = Date.parse("2026-10-28T05:00:00Z");
   assert.equal(T.holdFor({ pausedUntil: null }, now), null);
@@ -154,7 +163,8 @@ test("answerer reads a tape from disk", () => {
 const W = require("../scripts/dev-test/tapes-words.js");
 
 test("the words corpus: unique ids, every request with its expected reading", () => {
-  const corpus = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "scripts", "dev-test", "start-a-game-words.json"), "utf8"));
+  // The capability tracker's (step A5 of the GPT plan): one list for the engine, G1's bank and the recorder.
+  const corpus = W.wordsCorpus();
   const ids = corpus.requests.map((r) => r.id);
   assert.equal(new Set(ids).size, ids.length);
   assert.ok(corpus.requests.length >= 100);
@@ -258,6 +268,20 @@ test("judging: the kinds the corpus lists, a show's whole season as a default, n
     assert.deepEqual([x.about, x.flagged], [false, false], JSON.stringify(about));
   }
   assert.deepEqual(W.judge(nothing, W.parseRequest("{}"), "draft the moon landing").flagged, true, "nothing it's about");
+  // Where the corpus expects a contradiction's halves quoted, reading nothing isn't raising it.
+  const solo = { about: {}, when: null, flag: "question", why: "solo and seven people", said: { unsure: ["solo", "6 friends"] } };
+  assert.equal(W.judge(solo, W.parseRequest('{"game": {"named": "solo league"}}'), "solo league for me and 6 friends").flagged, false);
+  assert.equal(W.judge(solo, W.parseRequest('{"unsure": ["solo", "6 friends"]}'), "solo league for me and 6 friends").flagged, true);
+
+  // A sport by its name or its league, either way round, word for word.
+  const f1 = { about: { sport: "racing", league: "F1" }, when: "one", flag: null };
+  for (const [about, ok] of [[{ sport: "Formula 1", league: "F1" }, true], [{ sport: "F1" }, true], [{ sport: "racing" }, true], [{ sport: "Formula 1", league: "F10" }, false]]) {
+    assert.equal(W.judge(f1, W.parseRequest(JSON.stringify({ about })), "F1 season finale pick the podium").about, ok, JSON.stringify(about));
+  }
+  assert.equal(W.judge({ about: { sport: "basketball", league: "NBA" }, when: null, flag: null }, W.parseRequest('{"about": {"sport": "hoops", "league": "WNBA"}}'), "nba").about, false, "NBA isn't WNBA");
+  assert.equal(W.judge({ about: { sport: "soccer", league: "Premier League" }, when: null, flag: null }, W.parseRequest('{"about": {"league": "English Premier League"}}'), "premier league").about, true);
+  // An empty season is none.
+  assert.equal(W.judge({ about: { show: "Survivor", season: null }, when: null, flag: null }, W.parseRequest('{"about": {"show": "Survivor", "season": ""}}'), "survivor").season, true);
 
   // The resolver's question (it needs the listing): not judged; `raised`: whether the bot put anything in unsure anyway.
   const late = { about: { show: "The Challenge", season: null }, when: null, flag: "question", flagBy: "resolver", why: "the finale airs today" };
@@ -356,4 +380,40 @@ test("a series whose cast is its TV listing's (every season's crew) holds its qu
   // No cast yet, or one that failed: the queue's own rules (a season waits for its cast) apply, not this hold.
   assert.equal(T.castHeld(null, "series"), false);
   assert.equal(T.castHeld({ kind: "cast", ok: false, parsed: { fromListing: true } }, "series"), false);
+});
+
+test("an account near its limits waits for its window to reset; under its cap, or once the reset has passed, it doesn't", () => {
+  const now = Date.parse("2026-10-30T05:00:00Z");
+  const caps = { fiveHour: 90, week: 80 };
+  const w = (used, at) => ({ used_percent: used, resets_at: at });
+  assert.equal(T.limitHold(null, now, caps), null);
+  assert.equal(T.limitHold({ five_hour: w(89, "2026-10-30T06:00:00Z"), week: w(79, "2026-11-04T12:25:42Z") }, now, caps), null);
+  assert.equal(T.limitHold({ five_hour: w(90, "2026-10-30T06:00:00Z") }, now, caps).until, Date.parse("2026-10-30T06:00:00Z"));
+  // Both at their caps: the later reset, the week's.
+  const both = T.limitHold({ five_hour: w(95, "2026-10-30T06:00:00Z"), week: w(81, "2026-11-04T12:25:42Z") }, now, caps);
+  assert.equal(both.until, Date.parse("2026-11-04T12:25:42Z"));
+  assert.match(both.why, /week is 81% used \(the cap is 80%\)/);
+  assert.equal(T.limitHold({ five_hour: w(100, "2026-10-30T04:59:00Z") }, now, caps), null);
+});
+
+test("requeue moves aside what gave up and the failed tries of what isn't on tape, and clears their tries", () => {
+  const season = path.join(T.TAPES, "survivor", "50");
+  fs.mkdirSync(season, { recursive: true });
+  const put = (f, v) => fs.writeFileSync(path.join(season, f), typeof v === "string" ? v : JSON.stringify(v));
+  put("e04-full.json", { ok: true });
+  put("e04-full.try1.json", { ok: false });
+  put("e05-full.json", { ok: false, gaveUp: true });
+  put("e05-full.prompt.md", "p");
+  put("e05-full.answer.md", "a");
+  put("e05-full.try1.json", { ok: false });
+  put("e06-quick.try2-limited.json", { ok: false });
+  put("season-recaps.json", { ok: false });
+  fs.writeFileSync(path.join(T.TAPES, "state.json"), JSON.stringify({ failuresInARow: 3, pausedUntil: "2099-01-01T00:00:00Z", pauseWhy: "x", tries: { "survivor/50/e06-quick": 2, "survivor/49/e01-quick": 1 }, lastError: null }));
+  const moved = T.requeue({ show: "survivor", season: 50 }).map((m) => m.replace("survivor/50/", "")).sort();
+  assert.deepEqual(moved, ["e05-full.answer.md", "e05-full.json", "e05-full.prompt.md", "e05-full.try1.json", "e06-quick.try2-limited.json", "season-recaps.json"]);
+  assert.deepEqual(fs.readdirSync(season).filter((f) => f !== "requeued").sort(), ["e04-full.json", "e04-full.try1.json"]);
+  const state = JSON.parse(fs.readFileSync(path.join(T.TAPES, "state.json"), "utf8"));
+  assert.deepEqual(state.tries, { "survivor/49/e01-quick": 1 });
+  assert.equal(state.pausedUntil, null);
+  assert.deepEqual(T.requeue({ show: "survivor", season: 50 }), []);
 });

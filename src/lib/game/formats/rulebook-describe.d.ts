@@ -25,7 +25,8 @@ export interface PointGroup {
 
 export interface RulebookUpdate {
   episode: number;
-  kind: "start" | "fix" | "showChanged";
+  /** start: where the rules (and a game) start; end: a game over a span's last episode; fix, showChanged: the rulebook's edits. */
+  kind: "start" | "end" | "fix" | "showChanged";
   title?: string;
   detail?: string;
 }

@@ -33,7 +33,7 @@ async function revealNextIn(leagueId: string, userId: string, expectFrom?: numbe
       throw new HttpError(400, "This league isn't catching up — results arrive as soon as they're decided.");
     }
     if (StateLogic.RevealLogic.isComplete(s)) {
-      throw new HttpError(400, "The season is over — there's nothing left to reveal.");
+      throw new HttpError(400, StateLogic.seasonEnded(s) ? "The season is over — there's nothing left to reveal." : "This game is over — there's nothing left to reveal.");
     }
     revealed = StateLogic.RevealLogic.revealNext(s);
 

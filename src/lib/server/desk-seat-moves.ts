@@ -361,6 +361,7 @@ interface MembershipRow {
   role: LeagueRole;
   results_seen_through: number | null;
   explainer_seen_at: Date | null;
+  seat_slot?: number;
 }
 
 /** Commissioners left once `gone` are out and `to` has `role`: never none where there was one (Noticed p). */
@@ -400,7 +401,7 @@ export async function linkSeat(user: SessionUser, leagueId: string, target: { us
   let changeId = "";
   let seatName = "";
   await withLeagueLock(leagueId, async (s, client) => {
-    const { rows } = await client.query<MembershipRow>("SELECT user_id, player_id, role, results_seen_through, explainer_seen_at FROM league_memberships WHERE league_id = $1 FOR UPDATE", [leagueId]);
+    const { rows } = await client.query<MembershipRow>("SELECT user_id, player_id, role, results_seen_through, explainer_seen_at, seat_slot FROM league_memberships WHERE league_id = $1 FOR UPDATE", [leagueId]);
     const mover = target.userId ? rows.find((r) => r.user_id === target.userId) : undefined;
     if (target.userId && !mover) throw new HttpError(409, `${from!.name} isn't signed in to a seat there now`);
     const playerId = mover ? mover.player_id : target.playerId;
@@ -421,8 +422,10 @@ export async function linkSeat(user: SessionUser, leagueId: string, target: { us
     if (problem) throw new HttpError(409, problem);
     seatName = seat.name;
     if (mover) await client.query("DELETE FROM league_memberships WHERE league_id = $1 AND user_id = $2", [leagueId, mover.user_id]);
-    if (mine) await client.query("UPDATE league_memberships SET player_id = $3, role = $4 WHERE league_id = $1 AND user_id = $2", [leagueId, to, playerId, role]);
-    else await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role) VALUES ($1, $2, $3, $4)", [leagueId, to, playerId, role]);
+    // On a team two people share (step A10 part 4b), they take the place of whoever came out (the other stays in theirs).
+    const slot = mover?.seat_slot ?? 0;
+    if (mine) await client.query("UPDATE league_memberships SET player_id = $3, role = $4, seat_slot = $5 WHERE league_id = $1 AND user_id = $2", [leagueId, to, playerId, role, slot]);
+    else await client.query("INSERT INTO league_memberships (league_id, user_id, player_id, role, seat_slot) VALUES ($1, $2, $3, $4, $5)", [leagueId, to, playerId, role, slot]);
     // Named as the account in the tables, as an invite that hands a seat over names it (join-league.ts).
     seat.name = who.name;
     const emptied = mine?.player_id ? [mine.player_id] : [];
@@ -447,6 +450,7 @@ export async function linkSeat(user: SessionUser, leagueId: string, target: { us
           ? {
               userId: mover.user_id,
               role: mover.role,
+              slot: mover.seat_slot ?? 0,
               seen: mover.results_seen_through,
               explainerSeenAt: mover.explainer_seen_at ? new Date(mover.explainer_seen_at).toISOString() : null,
               couchVia: fromVia[0]?.via ?? null,
@@ -643,7 +647,7 @@ export async function restoreSeatMove(user: SessionUser, changeId: string, u: Re
       const to = String(u.to);
       const playerId = String(u.playerId);
       const mine = u.mine as { playerId: string | null; role: LeagueRole } | null;
-      const from = u.from as { userId: string; role: LeagueRole; seen: number | null; explainerSeenAt: string | null; couchVia: string | null } | null;
+      const from = u.from as { userId: string; role: LeagueRole; slot?: number; seen: number | null; explainerSeenAt: string | null; couchVia: string | null } | null;
       if (from && !(await account(from.userId))) throw new HttpError(409, "The account that was in the seat was deleted");
       await withLeagueLock(leagueId, async (s, client) => {
         const { rows } = await client.query<MembershipRow>("SELECT user_id, player_id, role, results_seen_through, explainer_seen_at FROM league_memberships WHERE league_id = $1 FOR UPDATE", [leagueId]);
@@ -660,12 +664,14 @@ export async function restoreSeatMove(user: SessionUser, changeId: string, u: Re
         // Never a game left with no Commissioner by the Undo either.
         const after = rows.filter((r) => r.user_id !== to && r.role === "commissioner").length + (mine?.role === "commissioner" || from?.role === "commissioner" ? 1 : 0);
         if (rows.some((r) => r.role === "commissioner") && !after) throw new HttpError(409, "Every game needs a Commissioner: it can't go back");
-        if (mine) await client.query("UPDATE league_memberships SET player_id = $3, role = $4 WHERE league_id = $1 AND user_id = $2", [leagueId, to, mine.playerId, mine.role]);
+        // Their old seat is empty (checked above): its first place. The account that came out takes back the place it held on a
+        // team two people share (step A10 part 4b), which `to` held until now.
+        if (mine) await client.query("UPDATE league_memberships SET player_id = $3, role = $4, seat_slot = 0 WHERE league_id = $1 AND user_id = $2", [leagueId, to, mine.playerId, mine.role]);
         else await client.query("DELETE FROM league_memberships WHERE league_id = $1 AND user_id = $2", [leagueId, to]);
         if (from)
           await client.query(
-            "INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through, explainer_seen_at) VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, now()))",
-            [leagueId, from.userId, playerId, from.role, from.seen, from.explainerSeenAt]
+            "INSERT INTO league_memberships (league_id, user_id, player_id, role, results_seen_through, explainer_seen_at, seat_slot) VALUES ($1, $2, $3, $4, $5, COALESCE($6::timestamptz, now()), $7)",
+            [leagueId, from.userId, playerId, from.role, from.seen, from.explainerSeenAt, from.slot ?? 0]
           );
         if (seat.name === u.newName) seat.name = String(u.oldName);
         await markBatch(client, batch, user.id);

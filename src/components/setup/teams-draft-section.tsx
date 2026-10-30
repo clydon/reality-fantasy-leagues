@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import type { LeagueState } from "@/lib/game/types";
 import StateLogic from "@/lib/game/state-logic.js";
+import { MAX_BENCH, MAX_STARTERS, MAX_TEAM } from "@/lib/game/game-spec/index.js";
 import { useLeagueStore, useCanManage } from "@/lib/store";
 import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
@@ -90,11 +91,11 @@ function TeamsDraftForm({ state }: { state: LeagueState }) {
         <RowList>
           {type.hasActiveRoster ? (
             <>
-              <StepperRow label="Starters" hint="Score each episode" value={s.activeSlots} min={1} disabled={!canManage} onChange={(n) => update("activeSlots", n)} />
-              <StepperRow label="Bench" hint="Drafted, but score nothing until started" value={s.benchSlots} min={0} disabled={!canManage} onChange={(n) => update("benchSlots", n)} />
+              <StepperRow label="Starters" hint="Score each episode" value={s.activeSlots} min={1} max={Math.max(MAX_STARTERS, s.activeSlots)} disabled={!canManage} onChange={(n) => update("activeSlots", n)} />
+              <StepperRow label="Bench" hint="Drafted, but score nothing until started" value={s.benchSlots} min={0} max={Math.max(MAX_BENCH, s.benchSlots)} disabled={!canManage} onChange={(n) => update("benchSlots", n)} />
             </>
           ) : (
-            <StepperRow label="Roster size" hint={`${terms.Castaways} each player drafts`} value={s.teamSize} min={1} disabled={!canManage} onChange={(n) => update("teamSize", n)} />
+            <StepperRow label="Roster size" hint={`${terms.Castaways} each player drafts`} value={s.teamSize} min={1} max={Math.max(MAX_TEAM, s.teamSize)} disabled={!canManage} onChange={(n) => update("teamSize", n)} />
           )}
         </RowList>
 

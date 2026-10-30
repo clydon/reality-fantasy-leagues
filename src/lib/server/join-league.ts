@@ -3,15 +3,19 @@ import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueState } from "@/lib/game/types";
 import type { SessionUser } from "./auth-helpers";
 import { pool, HttpError } from "./db";
-import { notifyMemberJoined } from "./push-events";
+import { leagueSeason, notifyMemberJoined } from "./push-events";
 import { joinedLeague } from "./couches";
 import { followLeagueProgress } from "./follows";
+import { EVERYTHING, seenThrough } from "./guard";
+import { shareCheck } from "./shared-seats";
 
 export interface JoinLeagueResult {
   league: { id: string; name: string };
   // True when the user's own previously-disabled seat was restored instead of a new player
   // being created -- lets the client say "Welcome back" rather than a generic "You joined!".
   reclaimed: boolean;
+  // A10 part 4b: true when they joined someone's team to share it (an invite to a seat in a game that shares them).
+  shared?: boolean;
 }
 
 // A seat an invite can hand over: still there, not disabled, and nobody's account on it yet. If it
@@ -29,6 +33,12 @@ async function takeableSeat(client: PoolClient, leagueId: string, state: LeagueS
 // land together. If the user left this league (or was disabled) earlier, their old seat is
 // reclaimed -- matched by account id (disabledFromUserId), never by name. `afterJoin` runs
 // inside the same transaction, e.g. to mark an invite accepted atomically with the join.
+//
+// An invite to a seat someone already holds, in a game that shares its seats (step A10 part 4b of
+// docs/PLAN-start-a-game-gpt.md: shared-seats.ts), joins them to that team: the seat keeps its name, team and history, and
+// they take its next seat_slot. Their spoiler mark starts where they are on the season, never past the latest results (as
+// joining a game that's under way does: couch-joins.ts). An invite that can't share any more (the team's full, the game
+// stopped sharing, the seat is catching up) lets them in as a new player, as a hand-over invite whose seat was taken does.
 export async function joinLeague(
   leagueId: string,
   user: SessionUser,
@@ -50,6 +60,24 @@ export async function joinLeague(
     const state: LeagueState = league.state;
     const disabledOwn = state.players.find((p) => p.disabled && p.disabledFromUserId === user.id);
     const seat = seatPlayerId ? await takeableSeat(client, league.id, state, seatPlayerId) : null;
+    // An invite to share a team wins over their own old seat, as one that hands a seat over does (it stays disabled).
+    const share = seatPlayerId && !seat ? await shareCheck(client, league.id, state, seatPlayerId) : null;
+    if (seatPlayerId && share && "slot" in share) {
+      // Sharing someone's team: nothing in the game changes but who can act for it. "How this league works" opens once for them.
+      const { seasonId } = await leagueSeason(league.id);
+      const latest = StateLogic.SpoilerLogic.latestWithResults(state);
+      const mark = seasonId ? await seenThrough(user.id, seasonId, client) : 0;
+      await client.query(
+        "INSERT INTO league_memberships (league_id, user_id, player_id, role, seat_slot, results_seen_through, explainer_seen_at) VALUES ($1, $2, $3, 'member', $4, $5, NULL)",
+        [league.id, user.id, seatPlayerId, share.slot, mark === EVERYTHING ? latest : Math.min(latest, mark)]
+      );
+      if (afterJoin) await afterJoin(client);
+      await client.query("COMMIT");
+      await joinedLeague(league.id, user.id);
+      await followLeagueProgress(user.id, league.id);
+      notifyMemberJoined(league.id, user.id, (user as { username?: string | null }).username || user.name, false);
+      return { league: { id: league.id, name: league.name }, reclaimed: false, shared: true };
+    }
     let playerId: string;
     if (seat) {
       // Taking over a seat (an invite that hands one over): they become that player, team, points and

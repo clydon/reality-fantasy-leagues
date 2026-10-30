@@ -2,11 +2,16 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { Pool, type PoolClient } from "pg";
 import type { LeagueState } from "@/lib/game/types";
 import { HttpError } from "./http-error";
-import { stampAirTimes } from "./air-times";
+import { stampAirTimes, stampSeasonLength } from "./air-times";
 import { runBots } from "./bots";
 import { syncWaivers } from "./waivers";
 import { justProcessed, sendProcessed, snapshot as waiverSnapshot } from "./waiver-pushes";
 import { recordChange, type ChangeOf } from "./change-log";
+import { recordSeatMove, seatRoom } from "./shared-seats";
+import { settleGroupSlots } from "./group-slots";
+import { settleDueAuction } from "./auction";
+import { settleKeepers } from "./keepers";
+import { stampSeatHistory } from "./handicaps";
 import { after } from "next/server";
 
 // Re-exported so route handlers can import { pool, withLeagueLock, HttpError } from one place,
@@ -69,9 +74,44 @@ export async function withLeagueLock(
     // Then the waiver clock, so the mutation sees the week as it stands now: a claim saved after its
     // week processed is refused rather than slipped in (waivers.js).
     await syncWaivers(client, leagueId, state);
+    // A game with group slots (step A10 part 1, group-slots.ts): the season's format groups, so the mutation reads what's on
+    // offer now; settled again after it, for results it applied.
+    const slots = await settleGroupSlots(client, state, true);
+    // A game that keeps castaways from last season's (step A10 part 4, keepers.ts): each seat's options while they're open, and
+    // locked once the draft has started, before a draw deals or anything is picked.
+    const keepers = await settleKeepers(client, leagueId, state, true);
+    StateLogic.KeeperLogic.settle(state);
+    // A draw whose scheduled time has come (step A10 part 3, StateLogic.DrawLogic): drawn now, so the mutation sees the teams.
+    StateLogic.DrawLogic.settle(state);
+    // An auction whose bidding closed with bids still out (step A10 part 3b, auction.ts): settled now, with the bids it has.
+    await settleDueAuction(client, leagueId, state);
+    // Teams of players (step A11 part 5, StateLogic.TeamLogic): kept once the game has started, so the mutation sees who's on which.
+    StateLogic.TeamLogic.settle(state, Date.now());
     const before = change ? structuredClone(state) : null;
     await mutatorFn(state, client);
+    // A mutation that turned group slots on reads them now; one that turned them off clears them (settle keeps none).
+    if (slots) StateLogic.GroupSlotLogic.settle(state, slots);
+    else if (StateLogic.GroupSlotLogic.config(state)) await settleGroupSlots(client, state, true);
+    // A mutation that turned keepers on reads their options; one that started the draft locks them.
+    if (!keepers && StateLogic.KeeperLogic.config(state)) await settleKeepers(client, leagueId, state, true);
+    StateLogic.KeeperLogic.settle(state);
+    // Head to head (step A11 part 4): the season's length for its playoffs, read again in case the mutation turned it on; then when
+    // each seat joined its schedule, and where the playoffs began once their first round has results (or let go when those are
+    // taken back), so neither a seat coming in nor the season's schedule changing rewrites what's been played.
+    await stampSeasonLength(client, state);
+    StateLogic.MatchupLogic.settle(state);
+    // Teams of players (step A11 part 5): a seed for the draw on the write that turns them on; once the game has started, who's on
+    // which kept, a seat new to it placed, a disabled one off its team, from the first episode still to play.
+    StateLogic.TeamLogic.settle(state, Date.now());
+    // A handicap (step A11 part 5b): each seat's history on the couch (handicaps.ts), read after the mutation in case it turned one on
+    // or seated someone; then who's new kept once the game has started, so the history changing mid-season moves nothing.
+    await stampSeatHistory(client, leagueId, state, true);
+    StateLogic.HandicapLogic.settle(state, Date.now());
     const spec = change && before ? (typeof change === "function" ? change(before, state) : change) : null;
+    // A move on a team two people share (step A10 part 4b): who made it, in this transaction. Only where the game shares its
+    // seats, so no other game pays for a query.
+    const move = typeof change === "function" ? change.seatMove : undefined;
+    if (move && seatRoom(state) > 1) await recordSeatMove(client, leagueId, move.playerId, move.userId, move.kind, move.episodeId);
     // Every write leaves the league with an episode to play next (bets and picks always have
     // somewhere to go; nobody creates episodes by hand). See EpisodeLogic.ensureNextEpisode.
     StateLogic.ensureNextEpisode(state);

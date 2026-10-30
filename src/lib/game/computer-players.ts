@@ -31,16 +31,20 @@ export const botsIn = (s: LeagueState): Seat[] => s.players.filter((p) => p.auto
 
 export const levelOf = (p: Seat): BotLevel => LEVEL_OF[p.botLevel ?? "solid"] ?? "normal";
 
-/** Whether bot-logic.js plays this kind of game: a draft or Survival Pool, not a calls or bingo game. */
+/** Whether bot-logic.js plays this kind of game: a draft or Survival Pool, not a calls, bingo or questions game. */
 export function botsPlay(s: LeagueState): boolean {
-  const t = StateLogic.getLeagueType(s) as { hasRoster?: boolean; hasWeeklyPicks?: boolean; hasCalls?: boolean; hasBingo?: boolean };
-  return !t.hasCalls && !t.hasBingo && !!(t.hasRoster || t.hasWeeklyPicks);
+  const t = StateLogic.getLeagueType(s) as { hasRoster?: boolean; hasWeeklyPicks?: boolean; hasCalls?: boolean; hasBingo?: boolean; hasQuestions?: boolean };
+  return !t.hasCalls && !t.hasBingo && !t.hasQuestions && !!(t.hasRoster || t.hasWeeklyPicks);
 }
 
 /** A draft that's open: started, and not yet done (every pick made, or the blind draft revealed). */
 export function draftOpen(s: LeagueState): boolean {
   if (!StateLogic.getLeagueType(s).hasRoster || !StateLogic.isDraftStarted(s)) return false;
-  if (s.settings.ownershipMode === "shared") return !StateLogic.BlindDraftLogic.isRevealed(s);
+  if (StateLogic.BlindDraftLogic.on(s)) return !StateLogic.BlindDraftLogic.isRevealed(s);
+  // A draw (step A10 part 3): open until it's dealt.
+  if (StateLogic.DrawLogic.on(s)) return !StateLogic.DrawLogic.drawn(s);
+  // An auction (step A10 part 3b): open until it settles.
+  if (StateLogic.AuctionLogic.on(s)) return !StateLogic.AuctionLogic.settled(s);
   // currentDraftTurn keeps the order in step with the seats: on a copy, so a read changes nothing.
   const turn = StateLogic.currentDraftTurn(structuredClone(s));
   return !!turn && !turn.isComplete;

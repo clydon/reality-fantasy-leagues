@@ -9,7 +9,9 @@ import { syncLeagueDecisions } from "@/lib/server/season-decisions";
 import { syncLeagueFormat } from "@db/show-formats.js";
 import { syncLeagueChanges } from "@db/season-rule-changes.js";
 import { syncLeagueRulebook } from "@db/rulebooks.js";
+import { syncLeagueGame } from "@db/game-specs.js";
 import { settingsChange } from "@/lib/server/change-log";
+import { refused } from "@/lib/server/game-writes";
 
 // Set by the server from the league's show (below, and the admin show route), never by a request: a
 // league's rules are its show's, and stored format data is validated on approval, not here.
@@ -20,9 +22,10 @@ import { settingsChange } from "@/lib/server/change-log";
 // from a settings request. And rulebook (db/rulebooks.js), which formatOf reads ahead of all of them.
 const SERVER_OWNED = ["showFormat", "showFormatData", "leagueRulesetData", "seasonRuleChanges", "adoptedRuleChanges", "declinedRuleChanges", "rulebook"];
 
-// Port of SurvivorDraft's server/routes/roster.js PATCH /settings -- generic field/value setter,
-// no per-field validation server-side (same as the original; the client only ever sends fields
-// StateLogic.updateSettings already understands).
+// Port of SurvivorDraft's server/routes/roster.js PATCH /settings -- generic field/value setter. A field of
+// the game goes through the game spec's validator (StateLogic.updateSettings -> RosterLogic.setGame, step A2
+// of docs/PLAN-start-a-game-gpt.md): a change that leaves a game nobody can play, or grows a team past the
+// limits, is refused with why, and nothing is written.
 export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
   const { user } = await requireLeagueRole(req, leagueId, "commissioner");
@@ -32,7 +35,7 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
 
   const state = await withLeagueLock(leagueId, async (s, client) => {
     const seasonBefore = `${s.settings.showId ?? ""}|${s.settings.wikiSeason ?? ""}`;
-    StateLogic.updateSettings(s, field, value);
+    refused(StateLogic.updateSettings(s, field, value));
 
     // Applying the waiver suggestion (the create wizard does, before its season's cast may be approved):
     // with no cast in the league yet, the season's own cast size stands in (docs/PLAN-waivers-v2.md).
@@ -75,6 +78,9 @@ export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ league
       // belong to this league).
       await syncLeagueDecisions(client, leagueId, s);
     }
+    // Classic's create wizard sets a new league up through here: one made while the game-specs flag is on carries
+    // its spec from the start (db/game-specs.js).
+    await syncLeagueGame(client, s.settings);
   }, settingsChange(user.id, field));
   return NextResponse.json(state);
 });

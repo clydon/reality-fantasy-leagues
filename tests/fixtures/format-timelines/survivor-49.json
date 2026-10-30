@@ -1,0 +1,362 @@
+{
+ "show": "survivor",
+ "season": 49,
+ "title": "Survivor 49",
+ "source": {
+  "page": "Survivor 49",
+  "site": "en.wikipedia.org",
+  "revision": 1382033354,
+  "sections": [
+   "Contestants",
+   "Season summary"
+  ],
+  "read": "2026-10-28"
+ },
+ "names": "tapes",
+ "episodes": [
+  {
+   "n": 1,
+   "phase": "Tribes",
+   "play": "tribes",
+   "out": [
+    {
+     "name": "Nicole Mazullo",
+     "how": "voted out"
+    }
+   ]
+  },
+  {
+   "n": 2,
+   "phase": "Tribes",
+   "play": "tribes",
+   "out": [
+    {
+     "name": "Annie Davis",
+     "how": "voted out"
+    }
+   ]
+  },
+  {
+   "n": 3,
+   "phase": "Tribes",
+   "play": "tribes",
+   "out": [
+    {
+     "name": "Jake Latimer",
+     "how": "evacuated"
+    },
+    {
+     "name": "Jeremiah Ing",
+     "how": "voted out"
+    }
+   ],
+   "note": "Jake was medically evacuated (a sea krait bite) before the vote."
+  },
+  {
+   "n": 4,
+   "phase": "Tribes",
+   "play": "tribes",
+   "out": [
+    {
+     "name": "Matt Williams",
+     "how": "voted out"
+    }
+   ]
+  },
+  {
+   "n": 5,
+   "phase": "Tribes",
+   "play": "tribes",
+   "out": [
+    {
+     "name": "Jason Treul",
+     "how": "voted out"
+    }
+   ]
+  },
+  {
+   "n": 6,
+   "phase": "Tribes",
+   "play": "tribes",
+   "out": [
+    {
+     "name": "Shannon Fairweather",
+     "how": "voted out"
+    }
+   ]
+  },
+  {
+   "n": 7,
+   "phase": "Merged",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Nate Moore",
+     "how": "voted out"
+    }
+   ]
+  },
+  {
+   "n": 8,
+   "phase": "Merged",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "MC Chukwujekwu",
+     "how": "voted out"
+    }
+   ],
+   "note": "The merged tribe was split into two groups of five for the challenge: the losing five went to Tribal."
+  },
+  {
+   "n": 9,
+   "phase": "Merged",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Alex Moore",
+     "how": "voted out"
+    }
+   ]
+  },
+  {
+   "n": 10,
+   "phase": "Merged",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Jawan Pitts",
+     "how": "voted out"
+    }
+   ]
+  },
+  {
+   "n": 11,
+   "phase": "Merged",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Sophie Segreti",
+     "how": "voted out"
+    }
+   ]
+  },
+  {
+   "n": 12,
+   "phase": "Merged",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Steven Ramm",
+     "how": "voted out"
+    }
+   ]
+  },
+  {
+   "n": 13,
+   "phase": "Merged",
+   "play": "individuals",
+   "out": [
+    {
+     "name": "Kristina Mills",
+     "how": "voted out"
+    },
+    {
+     "name": "Rizo Velovic",
+     "how": "fire"
+    },
+    {
+     "name": "Sage Ahrens-Nichols",
+     "how": "placed"
+    },
+    {
+     "name": "Sophi Balerdi",
+     "how": "placed"
+    },
+    {
+     "name": "Savannah Louie",
+     "how": "won"
+    }
+   ],
+   "note": "The final five and four, fire-making, and the jury's vote."
+  }
+ ],
+ "groupings": {
+  "tribe": {
+   "what": "Tribes, then the merged tribe.",
+   "spells": [
+    {
+     "from": [
+      1,
+      "start"
+     ],
+     "shown": [
+      1,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Hina",
+       "members": [
+        "Jason Treul",
+        "Kristina Mills",
+        "MC Chukwujekwu",
+        "Matt Williams",
+        "Sophie Segreti",
+        "Steven Ramm"
+       ]
+      },
+      {
+       "name": "Kele",
+       "members": [
+        "Alex Moore",
+        "Annie Davis",
+        "Jake Latimer",
+        "Jeremiah Ing",
+        "Nicole Mazullo",
+        "Sophi Balerdi"
+       ]
+      },
+      {
+       "name": "Uli",
+       "members": [
+        "Jawan Pitts",
+        "Nate Moore",
+        "Rizo Velovic",
+        "Sage Ahrens-Nichols",
+        "Savannah Louie",
+        "Shannon Fairweather"
+       ]
+      }
+     ],
+     "how": "Three tribes of six from the start."
+    },
+    {
+     "from": [
+      4,
+      "start"
+     ],
+     "shown": [
+      4,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Hina",
+       "members": [
+        "Jason Treul",
+        "Jawan Pitts",
+        "Matt Williams",
+        "Nate Moore",
+        "Rizo Velovic",
+        "Savannah Louie",
+        "Sophi Balerdi"
+       ]
+      },
+      {
+       "name": "Kele",
+       "members": [
+        "Alex Moore",
+        "Kristina Mills",
+        "MC Chukwujekwu",
+        "Sage Ahrens-Nichols",
+        "Shannon Fairweather",
+        "Sophie Segreti",
+        "Steven Ramm"
+       ]
+      }
+     ],
+     "how": "Day 8: Uli dissolved, two tribes of seven."
+    },
+    {
+     "from": [
+      6,
+      "start"
+     ],
+     "shown": [
+      6,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Hina",
+       "members": [
+        "MC Chukwujekwu",
+        "Rizo Velovic",
+        "Savannah Louie",
+        "Sophi Balerdi"
+       ]
+      },
+      {
+       "name": "Kele",
+       "members": [
+        "Jawan Pitts",
+        "Sage Ahrens-Nichols",
+        "Shannon Fairweather",
+        "Steven Ramm"
+       ]
+      },
+      {
+       "name": "Uli",
+       "members": [
+        "Alex Moore",
+        "Kristina Mills",
+        "Nate Moore",
+        "Sophie Segreti"
+       ]
+      }
+     ],
+     "how": "Day 11: back to three tribes of four."
+    },
+    {
+     "from": [
+      7,
+      "start"
+     ],
+     "shown": [
+      7,
+      "start"
+     ],
+     "groups": [
+      {
+       "name": "Lewatu",
+       "members": [
+        "Alex Moore",
+        "Jawan Pitts",
+        "Kristina Mills",
+        "MC Chukwujekwu",
+        "Nate Moore",
+        "Rizo Velovic",
+        "Sage Ahrens-Nichols",
+        "Savannah Louie",
+        "Sophi Balerdi",
+        "Sophie Segreti",
+        "Steven Ramm"
+       ]
+      }
+     ],
+     "how": "The merge (Day 13): one tribe, Lewatu."
+    }
+   ]
+  }
+ },
+ "twists": [
+  {
+   "kind": "twist",
+   "from": [
+    8,
+    "mid"
+   ],
+   "shown": [
+    8,
+    "mid"
+   ],
+   "what": "Split immunity: two groups of five for one challenge, the losers to Tribal.",
+   "words": [
+    "two groups",
+    "groups of five",
+    "split"
+   ]
+  }
+ ]
+}

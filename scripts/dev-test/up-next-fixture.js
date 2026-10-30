@@ -56,6 +56,7 @@ async function up(pool, { clear = false, member = false, seen = 6, unlink = fals
       const ep7 = state.episodes.find((e) => e.number === 7);
       if (league === classic && !clear) {
         state.settings.bonusEnabled = true;
+        S.syncGame(state); // a league carrying its spec (the game-specs flag) carries what its fields now play
         S.addBet(state, ep7.id, "Who wins immunity?", 1, me);
       }
       if (league === roster) {

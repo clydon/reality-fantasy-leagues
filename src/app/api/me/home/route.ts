@@ -4,6 +4,7 @@ import { apiRoute } from "@/lib/server/api-route";
 import { pool } from "@/lib/server/db";
 import { couchMembers, healCouches } from "@/lib/server/couches";
 import { weeklyCallMoves } from "@/lib/server/calls";
+import { questionMoves } from "@/lib/server/answers";
 import { dueMoves } from "@/lib/server/due-moves";
 import { seenThrough } from "@/lib/server/guard";
 import { followsOf, games, seasonHeaders, type Game } from "@/lib/server/show-space";
@@ -85,7 +86,12 @@ export const GET = apiRoute(async (req) => {
   ]);
   // The couches' planned nights (step 11 part 3), with what's been read already; and Weekly Calls' moves (step 12 part 2), whose
   // calls aren't in a league's state for actionItems to see.
-  const [plans, callMoves] = await Promise.all([plansFor(user.id, couchIds, new Date(), { members, schedules, headers }), weeklyCallMoves(user.id, myGames)]);
+  // A Prediction Sheet's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md) aren't in its state either.
+  const [plans, callMoves, sheetMoves] = await Promise.all([
+    plansFor(user.id, couchIds, new Date(), { members, schedules, headers }),
+    weeklyCallMoves(user.id, myGames),
+    questionMoves(user, myGames),
+  ]);
   // Who's set this week in your games with a weekly move, read after the moves so each state costs a hash; and each
   // game's state again (a hash each) for what its results ask of you.
   const [progress, states, early, seats, keeping] = await Promise.all([
@@ -190,7 +196,7 @@ export const GET = apiRoute(async (req) => {
       })),
     // Leagues with no season in the catalog (a league still being set up), so they're not lost.
     unscheduled: myGames.filter((g) => !g.seasonId).map(gameOut),
-    moves: [...moves.items, ...callMoves],
+    moves: [...moves.items, ...callMoves, ...sheetMoves],
     // The leagues you run's own to-dos: Backstage and the dot on a show's menu (step 5), never Tonight.
     backstage: moves.commish,
     // What you've hidden from the guide (step 11): shows here and TV listings; your own shows always show.

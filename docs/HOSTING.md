@@ -13,7 +13,7 @@ free plan stops being enough, choosing the cheapest fit is arithmetic, not resea
 | **Neon** (project `reality-fanatsy-leagues`, AWS us-east-2, Postgres 18) | Every table, auth included | **Launch since 2026-10-28** (the user upgraded it at 98.3% of the free 5 GB transfer, three days before the reset): usage-based, $0.106 a CU-hour, $0.35 a GB-month, 500 GB of transfer, no minimum | ~$5 a month at today's use |
 | **Oracle Cloud** (`gys-bot`, VM.Standard.E2.1.Micro: x86, 1 GB) | The ChatGPT bot (`C:\Users\conor\llm-browser-api`) and the bot research clock | Always Free | $0 |
 | **Cloudflare** tunnels | `bot.gameyourshow.com` (the VM), `bot-home.gameyourshow.com` (the PC fallback) | Free | $0 |
-| The PC's bot (`127.0.0.1:8765`, local work only) | Since 2026-10-28 its ChatGPT is **signed in to the user's own account** (a Plus trial) and its Gemini to their Google account, and it can ask Claude through the user's Claude Code. **Never list it in production's `LLM_BROWSER_API_URL`** (nor tunnel it for production): production's research would run on the user's personal accounts. The VM's bot stays signed out | – | $0 (the trial renews as paid Plus unless cancelled) |
+| The PC's bot (`127.0.0.1:8765`, local work only) | Since 2026-10-28 its ChatGPT is **signed in to the user's own account** (a Plus trial) and its Gemini to their Google account, and it can ask Claude through the user's Claude Code, and since 2026-10-30 **Codex** through the Codex CLI on the same ChatGPT account (`codex login`; it stays signed in where ChatGPT's web page signed itself out three times on 2026-10-29; locked to web search; the season tapes record on it, from a second copy of the bot at `127.0.0.1:8766` until the main one is restarted on the new code). **Never list it in production's `LLM_BROWSER_API_URL`** (nor tunnel it for production): production's research would run on the user's personal accounts. The VM's bot stays signed out | – | $0 (the trial renews as paid Plus unless cancelled) |
 | **GitHub** (`clydon/reality-fantasy-leagues`, **public since 2026-10-24**) | The code; Actions runs the hourly job (`reminders-waivers.yml`, "Reminders and waivers": `db/reminders.js` then `db/waivers.js`), and nothing else since the desk's step 8 (the nightly wiki sync and paid research's hourly step went) | Free; Actions minutes unlimited while public | $0 |
 | healthchecks.io | Emails when the bot's daily self-test fails | Free | $0 |
 | Resend | Sign-up and password emails, and the desk's Let in ("You're in", one per account let in: docs/PLAN-desk-parity.md step 2) | Free: 3,000 emails a month, 100 a day (third-party sources, 2026; Pro $20 for 50,000) | $0 |
@@ -530,6 +530,16 @@ never handles it: the user does the reset and the pasting.
 
 ## Changelog
 
+- **2026-10-30, local only.** The PC's bot asks **Codex** (the Codex CLI, the user's ChatGPT plan, no API key, no cost beyond
+  the plan): a `codex` provider in llm-browser-api, web search only (the shell, files, browser and computer use, apps, plugins
+  and memories all off; checked: it can't run a command or read a file). Each answer reports the plan's limits in `/health`
+  (`limits.codex`: the 5-hour window and the week, each with used_percent and resets_at). Measured on Plus: a full research
+  question is ~2% of the 5-hour window and ~0.5-1% of the week (OpenAI's estimate for the model, gpt-6.1-sol, is 15-160
+  messages per 5 hours on Plus); the season tapes pause at 90% and 80%. Free includes Codex too, with limits OpenAI doesn't
+  publish ("quick coding tasks"). Production stays on the VM's signed-out ChatGPT: moving it would put production on the
+  user's personal account (see The stack), and OpenAI recommends API keys for automation and warns against exposing Codex to
+  untrusted input, so that's the user's call, later.
+
 - **2026-10-27, deployed.** A site admin's test couch (docs/PLAN-researched-survivor.md; migration 0151): a copy
   of a couch's games on a season, played by test players. Nothing polls and nothing new wakes Neon; its cost is the copy's size:
   for the couch's three Survivor 51 games, three more league rows (~the real ones' state each) and a handful of users, and every
@@ -929,3 +939,17 @@ never handles it: the user does the reset and the pasting.
   per season (a primary-key lookup, for the job, waivers and the bot's plan), and the plan reads 'bot_usual' once. Our
   usual runs: who went home at the episode's end, full results 1 h and 12 h after, trivia, bingo. Nothing else new polls
   or runs on a schedule.
+- **2026-10-30, pushed to master (`df527fe6`, deployed 9:29 AM ET with migrations 0200-0202).** The engine's track A to A11 part 5b and track F
+  (docs/PLAN-start-a-game-gpt.md; docs/STUDY-format-changes.md). **Nothing polls, nothing scheduled, no new pushes, no new
+  service.** Two new tables: `game_answers` (0200, with 0201's two small counters: a player's answer to a question in a game
+  of questions, one row per league, player, question and episode, the answer at most 2,000 bytes, graded on each read and never
+  stored; deleted with its league, backed up with the couch's games) and `seat_moves` (0202: who made a shared seat's latest
+  move of each kind, written only on a seat two or more accounts hold, so empty until someone shares one).
+  `league_memberships` gains `seat_slot` (a small integer, 0 on every existing row) and its seat unique now includes it. **The
+  research prompt is longer for every show:** its format section (who is with whom at the episode's end and what changed,
+  F2) adds about 7,800 characters to each full research ask (1,000 of words, 6,700 of its JSON schema: Survivor 49's episode 6
+  asks 35,000 in all) and its answer a few hundred more, on our bot (no API cost); the
+  format's state over time is built from a season's stored research on read (one query) where the prompt or a group question
+  needs it. The engine lab (`/desk/lab`, site admins only) reads the capability tracker and starts test games on a test couch:
+  by hand, one admin. The game-specs flag stays off in production, so nothing writes `settings.game` there until it's
+  switched on.

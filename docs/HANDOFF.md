@@ -67,6 +67,27 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and pushed 2026-10-30: the engine to A11 part 5b, with F1–F4** (`df527fe6`, merging `e8953d0a`; migrations
+  0200–0202, rehearsed on the Neon branch `rehearse-engine-2026-10-30`; the snapshot to roll back to is `pre-engine-2026-10-30`,
+  auto-deleted after 7 days). Players see **Starts** on Start a game and Game settings (the next episode, any later listed one,
+  or when a phase such as Merged starts, settled by the desk's "When did Merged start?" or the season's results) and the
+  **Prediction Sheet** (a game of questions from the show's moments, private until each locks, graded from the results) with
+  finale predictions in the new design. Finale predictions are graded from the season's results now (classic's enter-the-
+  winner routes answer 409), and side bets show only where they count. **Every show's full research asks the format section**
+  (who is with whom at the episode's end and what changed; about 7,800 characters more a prompt) and Survivor's tribe moves
+  come from it, approved by the user with the push ([STUDY-format-changes.md](STUDY-format-changes.md)). A5–A11 are engine and
+  API only, with no screens: the desk's **engine lab** (`/desk/lab`, site admins) starts them as test games. The game-specs flag
+  stays off; its read-only check passed on the Neon branch (10 of 10 leagues play the same carrying their spec), so **turning
+  it on is the user's call** (`scripts/game-specs-flag.js on`, from their terminal). Checked on the merged tree: unit tests
+  1130, tsc, `next build`; every game read by master's engine and the merged one, as every seat at every mark, the same
+  (production's leagues in the local copy and six taped seasons' replays: 140 games, 18,796 reads; `golden.js` needs A4's
+  `AnswerLogic` on both sides, so from the next merge it does this itself); the screens at 390 (Starts 98, phase starts 57,
+  the Prediction Sheet 98, hub 77, couches 114, way in 86, shell 46, show 81, Start a game 75). On the way:
+  `rehearse-migrations.js` refuses production by its endpoint id, so its pooled host too. The sports lane is synced and
+  migrated; the engine lane syncs itself at its next session. **The live check found two older faults** ([BACKLOG](BACKLOG.md) 29): Backstage
+  and an episode's results answered 500 for Survivor 51's couch since 2026-10-29's Make every game match (fixed the same
+  morning, `rulings.ts`), and **Survivor 51's Episode 7 says 7:00 PM ET** once daylight time ends (an exact start stored at
+  a fixed offset): **waiting on the user's OK** to set it to 8 PM on the desk before Wednesday 2026-11-04.
 - **Merged and pushed 2026-10-29 evening: the app fixes** (the desk lane, `03e12bdc`, migration 0431, a new table): back
   closes a bottom sheet; pages show their loading look once, never content that disappears; early and final results (final
   at 12:00 noon the day after, in the season's zone, said wherever early results are, with an "Episode N final results are
@@ -87,10 +108,16 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   snapshot branch, `pre-s2-2026-10-28`, was made first. Then the **test couch was made in production** (Settings › Test couch:
   "Test · Survivor 51", copied from the couch's three Survivor 51 games, on Today's rules as a rulebook). Tonight's episode is
   the first of the two S3 needs, with every table matching the real games at today's points.
+- **The PC's bot asks Codex** since 2026-10-30 (the Codex CLI on the user's ChatGPT plan: it stays signed in, where the
+  web page signed itself out three times on 2026-10-29; locked to web search; HOSTING.md has the limits). The season tapes
+  record on it from `rfl-playtest` through a second copy of the bot at `127.0.0.1:8766`, pausing at 90% of a 5-hour window
+  and 80% of the week; `tapes.js requeue` put the 98 files that gave up while ChatGPT was signed out back in the queue.
+  **Waiting on the user:** restart the main bot (8765) on the new code, then the tapes move back to it and 8766 goes. The
+  playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** the engine's A1–A9, F1–F4 and A10 so far (`engine`; A1–A4 merge first), the playtests
-  (`playtest`), the sports plan's pointer (`sports`). Waiting on the user: S3 after two matching episodes, A2's game-specs flag on a Neon branch, the
-  rule questions in the plan's "Where the engine is headed", and an engine lab (yes or no).
+- **On branches, not merged:** the engine from A11 part 5c on (`engine`), track L's live sports (`sports`: L5 done, its
+  next session on Monday 2026-11-02 once the weekend's recordings are final). Waiting on the user: S3 after two matching
+  episodes, the game-specs flag on in production, and the rule questions in the plan's "Where the engine is headed".
 
 ## Next: moving the app onto the new design (plan written 2026-10-23)
 Steps can run back to back, unattended: `node scripts/session-loop.js` (its header comment says how: each session hands off to the next, stops only for a question, and can be paused and resumed).

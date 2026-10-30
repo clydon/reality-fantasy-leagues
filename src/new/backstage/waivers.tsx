@@ -644,7 +644,8 @@ function Toggle({ on, onClick, title, line, disabled }: { on: boolean; onClick: 
   );
 }
 
-export function Stepper({ title, line, value, onStep, disabled }: { title: ReactNode; line?: string; value: string; onStep: (d: number) => void; disabled?: boolean }) {
+/** A setting stepped up or down. `atMin`/`atMax`: that way is as far as it goes (the button is off). */
+export function Stepper({ title, line, value, onStep, disabled, atMin, atMax }: { title: ReactNode; line?: string; value: string; onStep: (d: number) => void; disabled?: boolean; atMin?: boolean; atMax?: boolean }) {
   return (
     <div className="flex items-center gap-3 rounded-[3px] bg-background p-2.5">
       <span className="min-w-0 flex-1">
@@ -652,11 +653,11 @@ export function Stepper({ title, line, value, onStep, disabled }: { title: React
         {line && <small className="text-[13px] text-muted-foreground">{line}</small>}
       </span>
       <span className="flex items-center gap-1">
-        <button type="button" aria-label="Fewer" disabled={disabled} onClick={() => onStep(-1)} className="grid size-11 place-items-center rounded-[3px] bg-card text-[20px] font-bold disabled:opacity-40">
+        <button type="button" aria-label="Fewer" disabled={disabled || atMin} onClick={() => onStep(-1)} className="grid size-11 place-items-center rounded-[3px] bg-card text-[20px] font-bold disabled:opacity-40">
           −
         </button>
         <b className="type-num w-11 text-center text-[22px]">{value}</b>
-        <button type="button" aria-label="More" disabled={disabled} onClick={() => onStep(1)} className="grid size-11 place-items-center rounded-[3px] bg-card text-[20px] font-bold disabled:opacity-40">
+        <button type="button" aria-label="More" disabled={disabled || atMax} onClick={() => onStep(1)} className="grid size-11 place-items-center rounded-[3px] bg-card text-[20px] font-bold disabled:opacity-40">
           +
         </button>
       </span>

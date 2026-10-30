@@ -29,7 +29,8 @@ export function BetCard({ ep, bet, state }: { ep: Episode; bet: Bet; state: Leag
 
   const guesses = bet.predictions || [];
   const mine = myPlayerId ? guesses.find((p) => p.playerId === myPlayerId) : null;
-  const canGuessThis = canGuessBets && !mine;
+  // A guess locks when the episode starts, as a lineup does (BetLogic.closed, step A4).
+  const canGuessThis = canGuessBets && !mine && !StateLogic.BetLogic.closed(ep);
   const isCreator = !!myPlayerId && bet.createdByPlayerId === myPlayerId;
   const canDelete = canManage || (isCreator && guesses.length < 2);
   const needsOneMore = guesses.length === 1 && !isBetSettled(bet);

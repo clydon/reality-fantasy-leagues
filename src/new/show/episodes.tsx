@@ -16,6 +16,7 @@ import { useOpenReveal } from "./reveal";
 import { CouchMomentsCard } from "./couch-moments";
 import { openRate, rateLabel, RateRow, VerdictMark, type RateTarget } from "./rate";
 import { CallResults } from "./calls";
+import { SheetResultRow } from "./questions";
 import { BingoResults } from "./bingo";
 import { ShowChangeCard } from "./show-change";
 import { EpisodeCorrections, SomethingWrong } from "./something-wrong";
@@ -48,7 +49,7 @@ function progressLine(show: ShowData): string | null {
 /** An episode row's one line: your night in Weekly Lineup if you play it ("You +6 in Weekly Lineup"), else your first
  *  game's, else how they left. Read-only (`ro`, the desk's Open it: nobody's night), whether the game counted it. */
 function rowLine(e: EpisodeRow, ro?: ReadOnlyLine | null): string {
-  if (ro) return e.number < ro.from ? `Before ${ro.name} started` : ro.to !== null && e.number > ro.to ? `After ${ro.name} ended` : `Scored in ${ro.name}`;
+  if (ro) return ro.from === null || e.number < ro.from ? `Before ${ro.name} started` : ro.to !== null && e.number > ro.to ? `After ${ro.name} ended` : `Scored in ${ro.name}`;
   const l = e.lines?.find((x) => x.gameType === "active-roster") ?? e.lines?.[0];
   if (!l) return e.out?.length ? (e.out[0].method ?? "Out") : "Nothing recorded";
   if (l.line === "Before the game started") return "Before your games started";
@@ -255,7 +256,8 @@ function WaitingRow({ e }: { e: EpisodeRow }) {
 }
 
 /** The game open read-only, for an episode row's line: its name, its first episode and its last (null: the season's end). */
-type ReadOnlyLine = { name: string; from: number; to: number | null };
+/** `from` null: a game waiting for a phase of the season (step A3 of docs/PLAN-start-a-game-gpt.md), not started yet. */
+type ReadOnlyLine = { name: string; from: number | null; to: number | null };
 
 function SeenRow({ e, solo, ro }: { e: EpisodeRow; solo: boolean; ro: ReadOnlyLine | null }) {
   const page = usePushedPage(`ep${e.number}`);
@@ -301,6 +303,7 @@ function EpisodePage({ seasonId, show }: { seasonId: string; show: ShowData }) {
           e={e}
           seasonName={show.header ? `${show.header.show.name} ${show.header.seasonNumber}` : "this season"}
           rate={{ seasonId, couchId: show.couch?.id ?? null, episode: e.number, label: rateLabel(show), solo: show.solo }}
+          sheets={show.games.filter((g) => g.yourRole && g.gameType === "questions" && !g.archived).map((g) => ({ leagueId: g.leagueId, name: g.name }))}
         />
       ) : (
         <p className="px-4 pt-6 text-sm text-muted-foreground">Reveal this episode to see it.</p>
@@ -324,7 +327,21 @@ function GameLine({ l }: { l: GameNight }) {
   );
 }
 
-function EpisodeBody({ seasonId, couchId, e, seasonName, rate }: { seasonId: string; couchId: string | null; e: EpisodeRow; seasonName: string; rate: RateTarget }) {
+function EpisodeBody({
+  seasonId,
+  couchId,
+  e,
+  seasonName,
+  rate,
+  sheets,
+}: {
+  seasonId: string;
+  couchId: string | null;
+  e: EpisodeRow;
+  seasonName: string;
+  rate: RateTarget;
+  sheets: { leagueId: string; name: string }[];
+}) {
   const out = e.out ?? [];
   const results = useEpisodeResults(seasonId, couchId, e.number);
   const finalWords = useFinalLine(e.stage, e.finalAt);
@@ -393,6 +410,10 @@ function EpisodeBody({ seasonId, couchId, e, seasonName, rate }: { seasonId: str
         <RateRow target={rate} verdict={e.verdict} />
       </section>
       <CallResults target={rate} />
+      {/* Each Prediction Sheet of yours here (step A4 part 2): how its questions went on this episode, at your mark. */}
+      {sheets.map((g) => (
+        <SheetResultRow key={g.leagueId} heading target={{ seasonId, leagueId: g.leagueId, episode: e.number, game: g.name }} />
+      ))}
       <BingoResults target={rate} />
       <CouchMomentsCard seasonId={seasonId} couchId={couchId} episode={e.number} />
       <ShowChangeCard seasonId={seasonId} couchId={couchId} episode={e.number} seasonName={seasonName} />

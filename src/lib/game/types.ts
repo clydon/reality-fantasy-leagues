@@ -58,7 +58,8 @@ export interface Castaway {
   exitMethod?: string;
   exitEpisodeId?: string;
   replenishClaimed?: boolean;
-  acquiredVia?: "draft" | "replenish" | "trade" | null;
+  /** Step A10 part 4: "keeper", kept from last season's game before the draft (StateLogic.KeeperLogic). */
+  acquiredVia?: "draft" | "replenish" | "trade" | "keeper" | null;
   formerOwnerId?: string | null;
   departedVia?: "replenish" | "trade" | null;
   /**
@@ -140,6 +141,8 @@ export interface ScoringEvent {
 export interface PickEmPick {
   playerId: string;
   castawayId: string;
+  /** A pool's second pick (step A10 part 2, get.second): counts on a night two or more go home. */
+  second?: string;
 }
 
 export interface Episode {
@@ -200,8 +203,42 @@ export interface Episode {
   scoringEvents: ScoringEvent[];
   lineups: Record<string, string[]>;
   lineupsLocked: boolean;
+  /** A lineup's captain for this episode (step A9 part 2, a game with a captain): castaway id, or null for none. Absent: the
+   *  last one named carries (ActiveRosterLogic.captainFor). */
+  captains?: Record<string, string | null>;
+  /** Step A10 part 1, a game with group slots (the spec's get.groups): each player's slots picked for this episode, by the
+   *  slot's number (null: emptied), carried until a later episode's pick (GroupSlotLogic.standing). Absent: nothing picked here. */
+  groupSlots?: Record<string, Record<string, GroupSlotPick | null>>;
+  /** Step A10 part 1: the format's groups as this episode had them (the season's format state over time, written by the season
+   *  sync for a game with group slots, only on an episode with results: GroupSlotLogic.settle). */
+  formatGroups?: EpisodeFormatGroups;
   /** Kept open past its start by whoever runs the game (Backstage › Settings' lock; StateLogic.closedForPlay). */
   openPastAir?: boolean;
+}
+
+/** A group slot's pick (step A10 part 1): the group as it was offered (its id in the season's format timeline, and its members,
+ *  the league's castaway ids, by which a correction that moved its id still finds it). */
+export interface GroupSlotPick {
+  id: string;
+  members: string[];
+  /** How many the group had as research said (members are only those on the league's cast). */
+  size?: number;
+}
+/** One of the format's groups, as an episode's record has it: its id in the timeline, its name (the show's, or its members'),
+ *  and its members as the league's castaway ids (anyone not on the league's cast left out). */
+export interface FormatGroup {
+  id: string;
+  name: string;
+  members: string[];
+  /** Its people as research has them, those not on the league's cast too. */
+  size: number;
+}
+/** An episode's groups (step A10 part 1, GroupSlotLogic.settle): who is with whom at its end, going into the next (`end`:
+ *  divided when there are two groups or more; sure as the timeline's goingInto says it, `why` when not), and the groups that
+ *  played it (`played`: as they were at its start; apart when it was played without them; null when it isn't known). */
+export interface EpisodeFormatGroups {
+  end: { groups: FormatGroup[]; divided: boolean; sure: boolean; why: string[] };
+  played: { groups: FormatGroup[]; apart: boolean; sure: boolean } | null;
 }
 
 export interface FinalePrediction {
@@ -270,11 +307,53 @@ export interface LeagueSettings {
   /** Lock it down (the new design's competitive mode, step 15 part 4): nobody new joins (GhostLogic.allowed), nobody catches up,
    *  and the rules don't change for the season. Absent means off. */
   lockedDown?: boolean;
+  /** A game of questions' late lock (step A7, the spec's extras.lateLock): hours past an episode's air time someone who
+   *  hasn't seen it can still answer its questions. */
+  lateLockHours?: number;
+  /** A game of questions' parlays (step A9, the spec's score.parlays): someone right on every one of `of` in a window has their
+   *  points on them multiplied by `times`. */
+  parlays?: { of: string[]; times: number }[];
+  /** Points per bingo line (step A9, the spec's score.points on a Weekly Bingo), 1 when it's left out. */
+  linePoints?: number;
+  /** Step A9 part 2, each absent unless a game says it: best ball (a Weekly Lineup's best activeSlots count each episode, no
+   *  lineups: count.best), a lineup's captain's multiplier (score.captain.times), when a draft's points multiply (score.times),
+   *  Outlast in reverse (score.reverse). */
+  bestBall?: boolean;
+  captainTimes?: number;
+  pointsTimes?: import("./game-spec/index.js").SpecWhen[];
+  reverseOrder?: boolean;
+  /** Step A10 part 1, absent unless a game says it: a lineup's or best ball's group slots (the spec's get.groups). */
+  groupSlots?: import("./game-spec/index.js").GroupSlots;
+  /** Step A10 part 3, each absent unless a game says it: a draft dealt by a draw (get.order 'draw'), and one spread across the
+   *  cast's groups (get.across). */
+  draftDraw?: boolean;
+  draftAcross?: import("./game-spec/index.js").DraftAcross;
+  /** Step A10 part 3b, each absent unless a game says it: an auction (get.order 'auction'), and a draft's prices (get.budget: an
+   *  auction's budget, or a salary cap). */
+  draftAuction?: boolean;
+  draftBudget?: import("./game-spec/index.js").DraftBudget;
+  /** Step A10 part 3c, absent unless a game says it: a stock market ranked by worth (rank.by 'worth'; its trading is the
+   *  budget's trade, in draftBudget). */
+  draftRank?: "worth";
+  /** Step A10 part 4, absent unless a game says it: keepers from last season's game (get.keep). */
+  draftKeep?: import("./game-spec/index.js").DraftKeep;
+  /** Step A10 part 2, each absent unless a game says it: a pool's lives (score.lives), buyback (score.buyback), mulligans
+   *  (score.mulligans), second pick (get.second) and last one standing (rank.by 'standing'). */
+  poolLives?: number;
+  poolBuyback?: import("./game-spec/index.js").PoolBuyback;
+  poolMulligans?: number;
+  poolSecond?: { fallback: "void" | "counts" };
+  poolRank?: "standing";
   /**
    * The episode this league starts playing at (default 1): a league formed mid-season drafts and picks
-   * from here, and nothing in earlier episodes scores. Read it through StateLogic.startEpisode.
+   * from here, and nothing in earlier episodes scores. Read it through StateLogic.startEpisode. A game that starts when a
+   * phase of the season's rulebook does (startPhase) has null here while it waits for that phase, then the episode it plays
+   * from once that's settled (docs/PLAN-start-a-game-gpt.md step A3).
    */
-  startEpisode?: number;
+  startEpisode?: number | null;
+  /** The phase of the season's rulebook it starts at (its id), or absent: it starts at startEpisode. Read it through
+   *  StateLogic.startPhase. */
+  startPhase?: string;
   /**
    * The last episode a game over a span plays (docs/PLAN-sports-data.md step 6): one game, a series, a stretch of the
    * season. Nothing after it scores, and the game's over once it has results. Absent or null: to the season's end. Read
@@ -547,6 +626,9 @@ export interface EpisodeResearch {
   rulesNote?: string | null;
   /** Grouped formats: whether the game has merged by the end of the episode. */
   merged?: "yes" | "no" | "unknown";
+  /** How the game is organised at the end of the episode, and what changed in it (F2: src/lib/game/formats/format-state.js;
+   *  docs/STUDY-format-changes.md). Every show's; null or absent on research from before it was asked. */
+  formatState?: EpisodeFormatState | null;
   /** Every page research read, with the dates the page shows (as printed; ISO when it gave a time).
    *  The record of how soon after airing recaps appear. Absent on research from before it was asked. */
   sourcesRead?: { url: string; published: string | null; updated: string | null }[];
@@ -555,6 +637,24 @@ export interface EpisodeResearch {
   betAnswers?: BetAnswer[];
   /** Episode-level questions, per format (Survivor: tribalCouncilHeld). */
   [question: string]: unknown;
+}
+
+/** The format section of an episode's research (F2): the groups at the episode's END, going into the next one. */
+export interface EpisodeFormatState {
+  playedAs: "everyone" | "tribes" | "teams" | "pairs" | "individuals" | "mixed" | "none" | "unknown";
+  phase: string | null;
+  /** Who is with whom; [] everyone for themselves (or as one); null not known. */
+  groups: { name: string | null; members: string[] }[] | null;
+  alone: string[];
+  newcomers: { name: string; replaces: string | null; group: string | null }[];
+  wentHomeAs: "individuals" | "groups" | "nobody" | "unknown";
+  changes: {
+    kind: "teams-formed" | "pairs-formed" | "split-into-individuals" | "merge" | "swap" | "newcomer" | "new-phase" | "twist" | "role";
+    when: "start" | "mid" | "end" | null;
+    from: number | null;
+    what: string;
+    sure: "high" | "low";
+  }[];
 }
 
 /**
@@ -784,6 +884,8 @@ export interface EpisodeProposalPayload {
 export interface BlindDraftState {
   lockedPlayerIds: string[];
   revealedAt: string | null;
+  /** Under a salary cap (step A10 part 3c): what each team cost at the reveal (a stock market's cash reads it). */
+  paid?: Record<string, number>;
 }
 
 /** One pick of a turn-based draft, in its own log (state-logic.js SnakeDraftStrategy.pick). */
@@ -797,6 +899,12 @@ export interface DraftLogEntry {
   by?: string;
   /** The pick timer ran out and it came from their queue. */
   auto?: boolean;
+  /** A10 part 3: dealt by a draw (names out of a hat), nobody's pick. */
+  drawn?: boolean;
+  /** A10 part 3b: what it cost (a snake pick under a salary cap, an auction's winning bid; part 3c: a draw's under a cap). */
+  price?: number;
+  /** A10 part 3b: an auction's place the bids didn't fill, filled at the lowest price. */
+  filled?: boolean;
 }
 
 // A completed pickup (replenish) or add/drop (trade): Transactions. MidSeasonLogic.applyPickup /
@@ -817,6 +925,10 @@ export interface MidSeasonLogEntry {
   via?: "waivers" | "freeAgency" | "auto";
   /** The waiver week it belongs to. */
   periodId?: string;
+  /** A stock market (step A10 part 3c): what the move sold for and paid, at the prices then, and its fee (the cash ledger). */
+  sold?: number;
+  paid?: number;
+  fee?: number;
   /** The castaway fields the move overwrote, as they were (only keys they had), so it can be undone
    * exactly (MidSeasonLogic.revert). */
   prev?: {
@@ -839,8 +951,9 @@ export interface WaiverWindows {
 export interface WaiverPass {
   castawayId: string;
   /** ahead: someone higher in the waiver order took them; yours: your own earlier claim landed them;
-   * gone: not a free agent by then; pickupFirst: pre-v2 runs only (pickups went before add/drops). */
-  reason: "ahead" | "pickupFirst" | "yours" | "gone";
+   * gone: not a free agent by then; pickupFirst: pre-v2 runs only (pickups went before add/drops); cap: it would have taken the
+   * team past its salary cap (step A10 part 3b); cash: a stock market's, not enough cash for it (part 3c). */
+  reason: "ahead" | "pickupFirst" | "yours" | "gone" | "cap" | "cash";
   byPlayerId?: string;
 }
 
@@ -972,6 +1085,46 @@ export interface LeagueState {
   /** Whoever runs the game nudged the player on the clock (one per turn: the next pick clears it). */
   draftNudge?: { n: number; at: string; by: string };
   blindDraft: BlindDraftState;
+  /** A10 part 3: a draw (state-logic.js DrawLogic), once drawn: its seed (the same seed deals the same teams), when, the order it
+   *  dealt in, and the seats it came up short for (an exclusive hat that ran out). */
+  draw?: { seed: string; at: string; order: string[]; short: string[] };
+  /** A10 part 3b: an auction (state-logic.js AuctionLogic): who has locked in their sealed bids (the bids themselves are kept out
+   *  of the state, in blind_draft_picks, as a blind draft's picks are), and once it's settled, when, its seed (the tie-break), the
+   *  order it filled in, what each seat spent, and the seats it left short. */
+  auction?: { lockedPlayerIds: string[]; at?: string; seed?: string; order?: string[]; spent?: Record<string, number>; short?: string[] };
+  /** A10 part 4: keepers from last season's game (state-logic.js KeeperLogic): each seat's options (the server's, keepers.ts) best
+   *  first, the keepers it named (by: the account that named them), and once they lock at the draft's start, what each kept. */
+  keepers?: {
+    options: Record<string, string[]>;
+    chosen: Record<string, { ids: string[]; at: string; by?: string }>;
+    kept?: Record<string, { castawayId: string; price?: number }[]>;
+    at?: string;
+  };
+  /** A game that asks by phase (step A7, StateLogic.settlePhases): the season's phase starts it plays by, and where each later
+   *  phase's window of questions opens. */
+  phaseStarts?: Record<string, number>;
+  phaseWindows?: Record<string, number>;
+  /** A11 part 2b: a game of questions' race, cuts and lives as the server walked them over its answers on exactly this copy
+   *  (StateLogic.AnswerLogic.withWalk): never stored; a copy that hides anything drops it. */
+  answerWalk?: { ends: number | null; out: Record<string, number>; lives: Record<string, number>; shared: string[]; totals: Record<string, number> };
+  /** A11 part 4: head to head's playoffs, placed at the season's end: its length as its schedule says (show_seasons.episode_count,
+   *  stamped by the server on every read and write: air-times.ts), and where they began once their first round had results
+   *  (StateLogic.MatchupLogic.settle), so the schedule changing after that moves nothing. */
+  seasonEpisodes?: number;
+  playoffsFrom?: number;
+  /** A11 part 4: when each seat joined head to head's schedule (playerId -> the first episode it plays), kept on every write
+   *  (MatchupLogic.settle), so a seat coming in later never rewrites the weeks played. */
+  matchupSeats?: Record<string, number>;
+  /** A11 part 5: teams of players. Who's on which (playerId -> spells, each from an episode: team null on none, `left` the team a
+   *  disabled seat left), kept on every write once the game has started (StateLogic.TeamLogic.settle); and the draw's seed, with
+   *  `kept` once the teams are kept for good. */
+  teamSeats?: Record<string, { team: string | null; from: number; left?: string }[]>;
+  teamDraw?: { seed: string; kept?: boolean };
+  /** A11 part 5b: a handicap. Each seat's history on the couch, as the server last read it (src/lib/server/handicaps.ts: how many
+   *  games its accounts had on this couch, and of this show on it, on a season before this game's; absent: not read), and who's new,
+   *  kept once the game has started (StateLogic.HandicapLogic.settle), with the episode a seat kept later counts from. */
+  seatHistory?: Record<string, { couch: number; show: number }>;
+  handicapSeats?: { newTo: "couch" | "show"; seats: Record<string, boolean>; from?: Record<string, number> };
   settings: LeagueSettings;
 }
 
@@ -1039,6 +1192,37 @@ export interface ScoreRow {
   /** Pick'em only: the longest run of correct picks (what players are ranked by), and the run now. */
   longestStreak?: number;
   currentStreak?: number;
+  /** A pool with lives, a buyback, mulligans or a second pick (step A10 part 2): lives left (null without lives), the episode
+   *  they went out in for good (null while in), mulligans and buybacks left. A draft that knocks players out (step A11 part 1:
+   *  KnockoutLogic): `out`, the last episode that counts for them (null while in), their total frozen there; part 2b, a game of
+   *  questions' (AnswerLogic.applyWalk), `shared` for those out together sharing it. */
+  lives?: number | null;
+  out?: number | null;
+  shared?: boolean;
+  mulligans?: number;
+  buybacks?: number;
+  /** A stock market (step A10 part 3c): cash, and worth (cash plus the team at today's prices: what it ranks by, rank worth). */
+  cash?: number | null;
+  worth?: number;
+  /** Head to head (step A11 part 4: MatchupLogic.apply): the record (a tie half a win), the points over the regular season and
+   *  against, the playoff seed (null: not in them, or before they're seeded), how far they went (rankKey's first number), still
+   *  in the playoffs, the champion. */
+  matchups?: MatchupRecord & { seed: number | null; tier: number; alive: boolean; champion: boolean };
+  /** Teams of players (step A11 part 5: TeamLogic.label): the team the seat plays for (its last), the team's points and place (a
+   *  tie "T1"), and whether the seat is on it now; null on none. */
+  team?: { id: string; name: string | null; points: number; place: number; rank: string; now: boolean } | null;
+  /** A handicap (step A11 part 5b: HandicapLogic): the points it has given the seat so far, in `total` already (0 for someone it
+   *  doesn't name); absent in a game without one. */
+  handicap?: number;
+}
+
+/** Head to head's record (step A11 part 4): wins, losses, ties, and the regular season's points for and against. */
+export interface MatchupRecord {
+  wins: number;
+  losses: number;
+  ties: number;
+  for: number;
+  against: number;
 }
 
 export interface DraftTurn {

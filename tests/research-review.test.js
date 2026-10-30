@@ -233,6 +233,9 @@ test("every show's rulebook but a talk show's asks the anything-else question, a
   const not = ER.buildPrompt(ctx(Formats.formatForRulebook(before, "research")));
   assert.doesNotMatch(`${not.system}\n${not.user}`, /notableTwist/);
   assert.match(not.system, /lower the confidence\.$/m);
-  assert.match(not.user, /that is the only place a team change is recorded\./);
+  // F3: a group change goes in the format section (each person's move is worked out from it), newGroup only for whoever moved
+  // and went home the same night.
+  assert.match(not.user, /If teams were swapped, re-divided, dissolved or merged in this episode, say so in formatState below;\nsomeone who moved and then went home in this same episode: the team they went home from, in newGroup\./);
+  assert.match(not.user, /That is where a change of format is recorded\./);
   assert.doesNotMatch(ER.buildPrompt(ctx(ER.onlyFormat(Formats.FORMATS.survivor, ["votesReceived"]))).system, /notableTwist/);
 });

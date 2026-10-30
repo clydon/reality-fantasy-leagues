@@ -92,6 +92,10 @@ A lane that builds to the mock reads it there by full path, read only, and shoot
   times, 4 by default), checking every 5 minutes. It leaves a lane alone that's waiting for the user, was stopped partway or
   is done, and its log is the main folder's `.session-loop/keeper.log`. The loops wait out the 5-hour window themselves, and
   the keeper waits out the weekly one. First used 2026-10-28, when the user went to sleep with three lanes running.
+- **Relaying the lanes** (the user's ask, 2026-10-30): the main session runs `node scripts/lane-watch.js` in the background.
+  It exits as soon as a lane finishes a step (with the session's final message), its sessions look at new screenshots, a
+  loop stops and stays stopped, the keeper says something, or the tapes recorder stops. The session relays what it printed
+  (screenshots sent as files) and runs it again. `lane-watch.js status` shows every lane at a glance.
 - **Steering a running lane:** write the direction in the lane's `.session-loop/notes.md` (gitignored, like the rest of that
   folder). Before every session (a resumed one too) the loop writes `protocol.md`, which the session starts with, as its
   hand-off rules and then that file, so a note reaches the lane's next session and outlives the keeper starting the loop

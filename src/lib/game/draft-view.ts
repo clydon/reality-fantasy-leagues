@@ -16,7 +16,10 @@ import type { LeagueState } from "./types";
 // episodes have results you haven't revealed (a late league) asks you to reveal them first, since who's still
 // available would say who went home.
 
-export type DraftKind = "snake" | "blind";
+// A10 part 3's draw: nobody picks; the teams are dealt at random when it starts (state-logic.js DrawLogic). Its screens are U1's:
+// here it reads as a blind draft does once revealed (the teams, no turns or clock). Part 3b's auction (AuctionLogic): sealed
+// bids, read as a blind draft is (who's locked in; the teams once it settles), with the budget and what each spent.
+export type DraftKind = "snake" | "blind" | "draw" | "auction";
 export type DraftPhase = "waiting" | "live" | "done";
 
 export interface DraftFace {
@@ -103,6 +106,9 @@ export interface DraftGame extends GameRefIn {
   queue: string[];
   /** Blind: who has locked in, your own picks (null: not locked in), and when it revealed. */
   locked: string[];
+  /** An auction (step A10 part 3b): everyone's budget and the lowest bid; once it's settled, what each seat spent and the seats
+   *  it left short (each pick's price is in the draft's log). */
+  auction?: { total: number; floor: number; spent: Record<string, number> | null; short: string[] };
   mine: string[] | null;
   revealedAt: string | null;
 }
@@ -118,14 +124,17 @@ export function snakeOwner(order: string[], index: number): string | undefined {
 
 /** The draft's kind, or null for a game with no draft (Survival Pool). */
 export function draftKind(state: LeagueState): DraftKind | null {
-  if (!StateLogic.getLeagueType(state).hasRoster) return null;
-  return state.settings.ownershipMode === "shared" ? "blind" : "snake";
+  const get = StateLogic.gameOf(state).get;
+  if (get.by !== "draft") return null;
+  if (get.order === "draw") return "draw";
+  if (get.order === "auction") return "auction";
+  return get.own === "shared" ? "blind" : "snake";
 }
 
-/** The pick timer in seconds (0: off), and what happens when it runs out. */
+/** The pick timer in seconds (0: off), and what happens when it runs out: the game spec's draft room. */
 export function draftTimer(state: LeagueState): { timer: number; away: "wait" | "queue" } {
-  const t = Number(state.settings.draftTimer);
-  return { timer: t === 60 || t === 120 ? t : 0, away: state.settings.draftAway === "queue" ? "queue" : "wait" };
+  const room = StateLogic.gameOf(state).extras.draft;
+  return { timer: room ? room.timer : 0, away: room?.away === "queue" ? "queue" : "wait" };
 }
 
 /** Who's on the clock in a live turn-based draft, since when, and when the timer runs out. Mutates nothing it shouldn't:
@@ -150,6 +159,8 @@ export function draftClock(state: LeagueState): DraftClock | null {
 function phaseOf(state: LeagueState, kind: DraftKind): DraftPhase {
   if (!StateLogic.isDraftStarted(state)) return "waiting";
   if (kind === "blind") return StateLogic.BlindDraftLogic.isRevealed(state) ? "done" : "live";
+  if (kind === "draw") return StateLogic.DrawLogic.drawn(state) ? "done" : "live";
+  if (kind === "auction") return StateLogic.AuctionLogic.settled(state) ? "done" : "live";
   const turn = StateLogic.currentDraftTurn(state);
   return !turn || turn.isComplete ? "done" : "live";
 }
@@ -191,8 +202,9 @@ export function draftView(
   const scored = StateLogic.SpoilerLogic.latestWithResults(view) > 0;
   const order = sortByTribe(view.castaways, view).map((c) => c.id);
   // Each team as it was drafted (whatever happened to them since), in the order they were picked where the log says.
-  const log = kind === "snake" ? (full.draftLog ?? []) : [];
-  const pickedAt = new Map(log.map((e) => [e.castawayId, e.n]));
+  const log = kind !== "blind" ? (full.draftLog ?? []) : [];
+  // By seat and castaway: in a shared draw the same castaway is dealt to several (step A10 part 3).
+  const pickedAt = new Map(log.map((e) => [`${e.playerId}|${e.castawayId}`, e.n]));
   const teams =
     phase === "waiting"
       ? []
@@ -201,7 +213,7 @@ export function draftView(
             playerId: p.id,
             castawayIds: StateLogic.originalDraftPicks(full, p.id)
               .map((c) => c.id)
-              .sort((a, b) => (pickedAt.get(a) ?? 1e9) - (pickedAt.get(b) ?? 1e9)),
+              .sort((a, b) => (pickedAt.get(`${p.id}|${a}`) ?? 1e9) - (pickedAt.get(`${p.id}|${b}`) ?? 1e9)),
           }))
           .filter((t) => t.castawayIds.length);
   const onTeams = new Set(teams.flatMap((t) => t.castawayIds));
@@ -247,18 +259,63 @@ export function draftView(
     };
   }
 
+  if (kind === "auction") {
+    const A = StateLogic.AuctionLogic;
+    return {
+      ...base,
+      seats: A.eligiblePlayers(full).map((p) => seat(p.id)),
+      turns: [],
+      picks: [],
+      made: full.draftPicksMade,
+      clock: null,
+      // Nothing about anyone's bids before it settles.
+      teams: phase === "done" ? teams : [],
+      canUndo: false,
+      madeFor: 0,
+      locked: A.lockedPlayerIds(full),
+      mine: null,
+      revealedAt: full.auction?.at ?? null,
+      auction: {
+        total: StateLogic.PriceLogic.config(full)?.total ?? 0,
+        floor: StateLogic.PriceLogic.config(full)?.floor ?? 0,
+        spent: phase === "done" ? (full.auction?.spent ?? {}) : null,
+        short: phase === "done" ? (full.auction?.short ?? []) : [],
+      },
+    };
+  }
+
+  if (kind === "draw") {
+    return {
+      ...base,
+      seats: StateLogic.BlindDraftLogic.eligiblePlayers(full).map((p) => seat(p.id)),
+      turns: [],
+      picks: [],
+      made: full.draftPicksMade,
+      clock: null,
+      teams,
+      canUndo: false,
+      madeFor: 0,
+      locked: [],
+      mine: null,
+      revealedAt: full.draw?.at ?? null,
+    };
+  }
+
   const clock = draftClock(full);
   const draftOrder = [...full.draftOrder];
-  const turns = Array.from({ length: draftOrder.length * size }, (_, i) => snakeOwner(draftOrder, i)!);
+  // Step A10 part 4: with keepers, a seat takes a turn only in the rounds they leave it (the engine's own turns).
+  const kept = StateLogic.KeeperLogic.anyKept(full) ? StateLogic.KeeperLogic.turns(full, draftOrder) : null;
+  const turns = kept ? kept.map((t) => t.playerId) : Array.from({ length: draftOrder.length * size }, (_, i) => snakeOwner(draftOrder, i)!);
   const at = new Map(log.map((e) => [e.n, e]));
   const made = full.draftPicksMade;
   const n = draftOrder.length || 1;
   const picks: DraftPick[] = Array.from({ length: made }, (_, i) => {
     const e = at.get(i + 1);
+    const t = kept?.[i];
     return {
       n: i + 1,
-      round: Math.floor(i / n) + 1,
-      inRound: (i % n) + 1,
+      round: t ? t.round + 1 : Math.floor(i / n) + 1,
+      inRound: t ? kept!.slice(0, i).filter((x) => x.round === t.round).length + 1 : (i % n) + 1,
       playerId: e?.playerId ?? turns[i],
       castawayId: e?.castawayId ?? null,
       by: e?.by ? (nameOfUser(e.by) ?? "someone") : null,
