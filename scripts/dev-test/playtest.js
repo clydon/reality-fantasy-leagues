@@ -777,11 +777,17 @@ async function moves(r, n) {
     did[label] = { kind, act, ids };
   };
   let s = await stateOf(r.leagueId);
-  if (!S.inPlay(s, n)) return week;
+  // Step A11 part 1: nothing after a game ended early (a race won, one left), as nothing after its span.
+  if (!S.inPlay(s, n) || S.KnockoutLogic.endedBefore(s, n)) return week;
   const type = S.getLeagueType(s);
   for (const seat of r.seats) {
     const pid = pidOf(r, seat);
     if (!pid) continue;
+    // A seat knocked out of the game (A11 part 1) has no more moves: the app offers none.
+    if (S.KnockoutLogic.isOut(s, pid)) {
+      say(seat.label, "out of the game", null, "out");
+      continue;
+    }
     const role = ROLES[seat.role];
     const on = movesThisWeek(seat, n);
     s = await stateOf(r.leagueId);
@@ -890,6 +896,11 @@ async function waivers(r, n) {
   for (const seat of r.seats) {
     const pid = pidOf(r, seat);
     if (!pid) continue;
+    // A seat knocked out of the game (A11 part 1) is out of the waivers.
+    if (S.KnockoutLogic.isOut(s, pid)) {
+      out.claims[seat.label] = "out of the game";
+      continue;
+    }
     const habit = ROLES[seat.role].waivers;
     const owed = W.replacementsOwed(s, pid, period);
     out.asks[seat.label] = { card: owed.count > 0, taps: 0 };

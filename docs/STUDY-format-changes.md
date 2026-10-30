@@ -838,6 +838,40 @@ account a seat (the replays' four seats each have their own), so they prove the 
 (The Challenge 41, 40 and 39 69 of 69, Survivor 49 88 of 88, The Traitors 4 67 of 67), not the sharing itself: that is
 `check-shared-seats.js`, through the app's API. A replay with two of its people on one team is the plan's Noticed (A10 part 4b).
 
+## A11 part 1: a race and knockouts, replayed blind (2026-10-29)
+
+A11's part 1 built a draft's race and players knocked out (the spec's `rank.race` and `rank.cut`, state-logic.js `KnockoutLogic`):
+the first to N points wins and the game ends there; the lowest every n episodes is out (the guillotine), or the bottom n or half
+after an episode or before a phase; last one standing, one left ending it; a knocked-out player's castaways back in the pool in an
+exclusive draft. None of it reads the show's groups: it reads the game's own points, episode by episode, each team as it stood
+then. The blind replays played the tracker's four such games on every season they fit: win.race and s36 (a Weekly Lineup, first to
+20), win.guillotine (an exclusive Outlast of three, the lowest every two episodes out), win.cut and s02 (a Weekly Lineup, the
+bottom half cut before Merged: Survivor 49 only, the one season with that phase) and s01 (an exclusive best ball of four, the
+lowest each episode out, with waivers). Every game ended on all five seasons (The Challenge 41, 40 and 39 72 of 72, Survivor 49
+92 of 92, The Traitors 4 70 of 70).
+
+| Season | The race (to 20) | The guillotine, every two | The guillotine, each episode (s01) | The cut before Merged |
+|---|---|---|---|---|
+| The Challenge 41 | never reached (Fan 9 at the end; its scoring runs negative): played to the season's end, 19 | over at 8 | over at 7 | (no Merged) |
+| The Challenge 40 | won in the finale, 19 (Fan 17 to 27) | over at 6 | over at 3 | (no Merged) |
+| The Challenge 39 | won at 10 (Tinkerer 26) | over at 8 | over at 5 | (no Merged) |
+| Survivor 49 | won at 5 (Tinkerer 21.5) | over at 6 | over at 3 | Drive-by and Forgetter cut; played to 13 |
+| The Traitors 4 | won at 6 (Drive-by 23) | over at 8 | over at 4 (Forgetter wins on 11, Tinkerer cut last on 12.5) | (no Merged) |
+
+- **An episode where nothing scored can stay at early results for good.** The first run had The Challenge 39's Episode 3 (who went
+  home, nothing to score) marked early forever, since the season sync marks an episode final only on a scoring moment or the full
+  answers; the walk waited on it, and the season's race and both guillotines never moved again. Now only the newest episode's early
+  results wait: an earlier one counts once a later one has results. The plan's Noticed has the stage itself, for whoever next
+  touches results' stages.
+- **The harness offered moves the engine refused:** the replay's seats tried lineups for a seat already cut and for an episode
+  after a race's finish (Survivor 49's race and cut, The Traitors 4's race); the engine refused each. `playtest.js` now makes no move
+  for a seat that's out or after an early end, as the app will offer none.
+- **Last one standing can beat the most points:** on The Traitors 4 the each-episode guillotine was won by the forgetter on 11, with
+  the tinkerer cut last on 12.5, and on new-fixture.js's couch (`check-knockouts.js`) sam won on 12 to jordan's 13: a guillotine
+  cuts on the episode's points, not the total.
+- **The teams are read as they stood:** a waiver move counts from the episode after it's made (the mid-season log), so a castaway
+  picked up, or a knocked-out player's freed castaway claimed, never reaches back to change who was cut before it.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

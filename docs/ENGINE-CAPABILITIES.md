@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 164 ✅ · 81 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
-**Waiting, by step:** A11 14 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 170 ✅ · 75 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
+**Waiting, by step:** A11 8 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -112,11 +112,11 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | The longest streak | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. Longest streak wins. |
 | ✅ | The last one standing carries you (Outlast) | An Outlast for Survivor 51: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. |
 | ✅ | Last one standing among the players (a pool with lives: a wrong pick costs one, out at none) | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. Three lives: a wrong pick costs one. Last one standing wins. |
-| ⏳ | A race (first to 20 ends it) | A11 |
+| ✅ | A race (first to 20 ends it) | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. First to 20 points wins: the game ends there. |
 | ⏳ | Co-op against the show (shared lives) | A11 |
 | ⏳ | Head to head, with playoffs | A11 |
-| ⏳ | Players knocked out each week (guillotine) | A11 |
-| ⏳ | Players cut at a phase | A11 |
+| ✅ | Players knocked out each week (guillotine) | An Outlast for Survivor 51: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. Every two episodes the lowest scorer over them is out. Last one standing wins. |
+| ✅ | Players cut at a phase | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. Before Merged starts the bottom half is cut. Last one standing wins. |
 | ⏳ | Beat the bot | A14 |
 
 ### Who plays with whom
@@ -178,8 +178,8 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 
 | | Id | On the page of | They type | Dials | Plays as, or needs |
 |---|---|---|---|---|---|
-| ⏳ | s01 | Survivor 51 | Guillotine: everyone drafts 4, the lowest scorer each week is out and their castaways go back in the pool. | win | A11 |
-| ⏳ | s02 | Survivor 51 | Points every week, but at the merge the bottom half of us is cut. | win, shape | A11 |
+| ✅ | s01 | Survivor 51 | Guillotine: everyone drafts 4, the lowest scorer each week is out and their castaways go back in the pool. | win | A game for Survivor 51: everyone drafts 4, and their best 4 count each episode, all season. Scored by Survivor 51's rules. Each episode the lowest scorer is out. Last one standing wins. |
+| ✅ | s02 | Survivor 51 | Points every week, but at the merge the bottom half of us is cut. | win, shape | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. Before Merged starts the bottom half is cut. Last one standing wins. |
 | ✅ | s03 | Survivor 51 | Auction draft: everyone gets $100 to bid on castaways. | answer | A Weekly Lineup for Survivor 51: everyone has 100 to bid on a team of 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. |
 | ✅ | s04 | Dancing with the Stars 35 | Salary cap: couples cost more the better they're doing. | answer | A Weekly Lineup for Dancing with the Stars 35: everyone drafts 4 under a salary cap of 100 and starts 2 each episode, all season. Scored by Dancing with the Stars 35's rules. (Checked against The Amazing Race's rules, a show of its kind.) |
 | ✅ | s05 | Survivor 51 | Everyone drafts one castaway from each tribe. | who | An Outlast for Survivor 51: everyone drafts 3 from across the tribes, all season. Each scores by how long they last: the last one standing carries you. |
@@ -213,7 +213,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ✅ | s33 | Survivor 51 | Spread 10 chips on who wins immunity. | answer | A game for Survivor 51: everyone answers one question before each episode: spread 10 chips on who wins immunity, all season. A point for each right answer. |
 | ✅ | s34 | Survivor 51 | Bet any of your points on your call, double or nothing. | score | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. A point for each right answer. Stake any of your points on it: double or nothing. |
 | ⏳ | s35 | Survivor 51 | Beat the bot: the AI makes its call too; you score when you're right and it's wrong. | win | A14 |
-| ⏳ | s36 | Survivor 51 | First to 20 points wins. | win | A11 |
+| ✅ | s36 | Survivor 51 | First to 20 points wins. | win | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. First to 20 points wins: the game ends there. |
 | ⏳ | s37 | The Traitors (US) 5 | Co-op: together we have 5 lives; every faithful banished we didn't see coming costs one. | win | A11 |
 | ✅ | s38 | Survivor 51 | Names out of a hat: everyone gets a random castaway; last one standing wins. | answer | An Outlast for Survivor 51: everyone gets 1 drawn at random, all season. Each scores by how long they last: the last one standing carries you. |
 | ⏳ | s39 | Survivor 51 | Pre-merge and post-merge are separate games with their own drafts, plus an overall winner. | shape | A12 |

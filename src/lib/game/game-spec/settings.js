@@ -102,6 +102,20 @@ function waiversOf(st, lineup, R) {
   };
 }
 
+/**
+ * A draft's rank, from its settings: by its total, a lineup's stock market by worth (draftRank 'worth', A10 part 3c), or last one
+ * standing (draftRank 'standing'), with a race (draftRace) and players knocked out (draftCut, A11 part 1) as the spec says them.
+ * Each only when it's set, so a draft that has none reads as it always did. `lineup`: a lineup or best ball (worth is theirs).
+ */
+function draftRankOf(st, lineup, copy) {
+  const cut = Array.isArray(st.draftCut) && st.draftCut.length ? (copy ? clone(st.draftCut) : st.draftCut) : null;
+  const by = lineup && st.draftRank === 'worth' ? 'worth' : cut && st.draftRank === 'standing' ? 'standing' : 'total';
+  const rank = { by };
+  if (isObj(st.draftRace)) rank.race = copy ? clone(st.draftRace) : st.draftRace;
+  if (cut) rank.cut = cut;
+  return rank;
+}
+
 /** Today's league types: the five presets', and a game of questions (A4: no preset, its questions in settings.questions). */
 const LEAGUE_TYPES = [...Object.keys(TYPE_PRESETS), 'questions'];
 
@@ -167,7 +181,7 @@ function readSpec(st, copy) {
   if (type === 'classic-draft') {
     R = st.teamSize;
     const score = st.reverseOrder === true ? { by: 'place', reverse: true } : { by: 'place' };
-    Object.assign(spec, { get: drafted(st.teamSize), count: { all: true }, score, rank: { by: 'total' } });
+    Object.assign(spec, { get: drafted(st.teamSize), count: { all: true }, score, rank: draftRankOf(st, false, copy) });
   } else if (type === 'active-roster') {
     const start = st.activeSlots || 0;
     R = start + (st.benchSlots || 0);
@@ -182,7 +196,7 @@ function readSpec(st, copy) {
       count: best ? { best: start } : { start },
       score,
       // A10 part 3c: a stock market ranked by worth (draftRank).
-      rank: { by: st.draftRank === 'worth' ? 'worth' : 'total' },
+      rank: draftRankOf(st, true, copy),
     });
   } else if (type === 'pickem') {
     // A10 part 2: a pool's lives (poolLives), buyback (poolBuyback, as the spec says it), mulligans (poolMulligans), second pick
@@ -313,13 +327,17 @@ function settingsOf(spec) {
   }
   // A10 part 2: a pool's lives, buyback, mulligans, second pick and last one standing.
   const pool = type === 'pickem';
+  const draft = s.get.by === 'draft';
   out.poolLives = pool && s.score.lives !== undefined ? s.score.lives : undefined;
   out.poolBuyback = pool && isObj(s.score.buyback) ? clone(s.score.buyback) : undefined;
   out.poolMulligans = pool && s.score.mulligans !== undefined ? s.score.mulligans : undefined;
   out.poolSecond = pool && isObj(s.get.second) ? clone(s.get.second) : undefined;
   out.poolRank = pool && s.rank.by === 'standing' ? 'standing' : undefined;
-  // A10 part 3c: a lineup's or best ball's stock market ranked by worth.
-  out.draftRank = type === 'active-roster' && s.rank.by === 'worth' ? 'worth' : undefined;
+  // A10 part 3c: a lineup's or best ball's stock market ranked by worth; A11 part 1: a draft's last one standing, its race and its
+  // cuts.
+  out.draftRank = type === 'active-roster' && s.rank.by === 'worth' ? 'worth' : draft && s.rank.by === 'standing' ? 'standing' : undefined;
+  out.draftRace = draft && isObj(s.rank.race) ? clone(s.rank.race) : undefined;
+  out.draftCut = draft && Array.isArray(s.rank.cut) ? clone(s.rank.cut) : undefined;
   if (type === 'questions') out.questions = clone(s.ask);
   out.lateLockHours = type === 'questions' && e.lateLock ? e.lateLock.hours : undefined;
   // A9: a game of questions' parlays; points per bingo line.
@@ -334,7 +352,6 @@ function settingsOf(spec) {
   // A10 part 1: a lineup's or best ball's group slots.
   out.groupSlots = lineup && isObj(s.get.groups) ? clone(s.get.groups) : undefined;
   // A10 part 3: a draw, and a draft spread across the cast's groups.
-  const draft = s.get.by === 'draft';
   out.draftDraw = draft && s.get.order === 'draw' ? true : undefined;
   out.draftAcross = draft && isObj(s.get.across) ? clone(s.get.across) : undefined;
   // A10 part 3b: an auction, and a draft's prices.
@@ -393,7 +410,7 @@ const PARTS = [
   { fields: ['startEpisode', 'startPhase', 'endEpisode'], read: (s) => s.span },
   { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
   { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans'], read: (s) => s.score },
-  { fields: ['poolRank', 'draftRank'], read: (s) => s.rank },
+  { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },
   { fields: ['seatPeople'], read: (s) => seatPeople(s) },

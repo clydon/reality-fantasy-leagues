@@ -1779,7 +1779,21 @@
         {
           "id": "win.race",
           "what": "A race (first to 20 ends it)",
-          "step": "A11"
+          "step": "A11",
+          "spec": {
+            "preset": "weekly-lineup",
+            "rank": {
+              "by": "total",
+              "race": {
+                "to": 20
+              }
+            }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "win.coop",
@@ -1794,12 +1808,56 @@
         {
           "id": "win.guillotine",
           "what": "Players knocked out each week (guillotine)",
-          "step": "A11"
+          "step": "A11",
+          "spec": {
+            "preset": "outlast",
+            "get": {
+              "by": "draft",
+              "each": 3,
+              "order": "snake",
+              "own": "exclusive"
+            },
+            "rank": {
+              "by": "standing",
+              "cut": [
+                {
+                  "at": {
+                    "every": 2
+                  },
+                  "out": 1
+                }
+              ]
+            }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "win.cut",
           "what": "Players cut at a phase",
-          "step": "A11"
+          "step": "A11",
+          "spec": {
+            "preset": "weekly-lineup",
+            "rank": {
+              "by": "standing",
+              "cut": [
+                {
+                  "at": {
+                    "phase": "merged"
+                  },
+                  "out": "half"
+                }
+              ]
+            }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "win.bot",
@@ -2268,7 +2326,46 @@
       "step": "A11",
       "dials": [
         "win"
-      ]
+      ],
+      "spec": {
+        "preset": "weekly-lineup",
+        "get": {
+          "by": "draft",
+          "each": 4,
+          "order": "snake",
+          "own": "exclusive"
+        },
+        "count": {
+          "best": 4
+        },
+        "rank": {
+          "by": "standing",
+          "cut": [
+            {
+              "at": {
+                "every": 1
+              },
+              "out": 1
+            }
+          ]
+        },
+        "extras": {
+          "waivers": {
+            "feel": "balanced",
+            "replace": "always",
+            "short": null,
+            "windows": {
+              "schedule": "everyEpisode",
+              "every": 3,
+              "swaps": 1
+            },
+            "order": "rolling",
+            "hours": 24,
+            "freeAgency": true,
+            "autoFill": true
+          }
+        }
+      }
     },
     {
       "id": "s02",
@@ -2282,7 +2379,21 @@
       "dials": [
         "win",
         "shape"
-      ]
+      ],
+      "spec": {
+        "preset": "weekly-lineup",
+        "rank": {
+          "by": "standing",
+          "cut": [
+            {
+              "at": {
+                "phase": "merged"
+              },
+              "out": "half"
+            }
+          ]
+        }
+      }
     },
     {
       "id": "s03",
@@ -3149,7 +3260,16 @@
       "step": "A11",
       "dials": [
         "win"
-      ]
+      ],
+      "spec": {
+        "preset": "weekly-lineup",
+        "rank": {
+          "by": "total",
+          "race": {
+            "to": 20
+          }
+        }
+      }
     },
     {
       "id": "s37",

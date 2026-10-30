@@ -132,6 +132,14 @@ function waitsForPhase(state){ return startEpisode(state) === null; }
 // stretch of the season (docs/PLAN-sports-data.md step 6) -- ends there. Nothing after it scores, no picks or
 // lineups are made for it, and the game is over once it has results. Null (the default): to the season's end.
 function endEpisode(state){ return gameOf(state).span.to; }
+// The episode the game plays through, as the data has it: its span's end, or earlier where a draft's race was won or its cuts
+// left one (step A11 part 1: KnockoutLogic.endsAt). It's over there (gameOver) and scores as it stood then (spanView); the
+// span's end (endEpisode) stays what the game was made with, for what it says and for Game settings.
+function lastEpisode(state){
+  const to = endEpisode(state);
+  const early = KnockoutLogic.endsAt(state);
+  return early === null ? to : to === null ? early : Math.min(to, early);
+}
 function inPlay(state, episodeNumber){
   const span = gameOf(state).span;
   const from = Spec.spanStart(span);
@@ -142,14 +150,14 @@ function inPlay(state, episodeNumber){
 // -- Outlast's boot order, a pool's streaks and a lineup's points alike. The state itself when there's nothing
 // after it.
 function spanView(state){
-  const end = endEpisode(state);
+  const end = lastEpisode(state);
   if(end === null || !(state.episodes || []).some(e => e.number > end && EpisodeLogic.hasResults(e))) return state;
   return SpoilerLogic.viewThrough(state, end);
 }
 // The game is over: its season is (seasonEnded), or its span's last episode has results.
 function gameOver(state){
   if(seasonEnded(state)) return true;
-  const end = endEpisode(state);
+  const end = lastEpisode(state);
   return end !== null && (state.episodes || []).some(e => e.number >= end && EpisodeLogic.hasResults(e));
 }
 
@@ -226,7 +234,7 @@ function currentEpisode(state){
 // Core.ownersOf (which looks it up by id) would be pointless indirection -- see the ownership
 // comment in Core for which call sites are expected to use the helpers instead.
 function ownerListOf(c){ return (c && c.ownerIds) || []; }
-function leagueGhostOwners(state, c){ const g = ghostIdSet(state); return ownerListOf(c).filter(id => g.has(id)); }
+function leagueGhostOwners(state, c){ const g = ownersAside(state); return ownerListOf(c).filter(id => g.has(id)); }
 
 // Late joiners (GhostLogic, docs/PLAN-late-joiners.md): a ghost's team lives in ownerIds like anyone
 // else's, but it's private -- the rest of the league never sees it -- so it must never take a castaway
@@ -234,9 +242,17 @@ function leagueGhostOwners(state, c){ const g = ghostIdSet(state); return ownerL
 // only; scoring and "is this mine?" keep reading ownerListOf as before.
 function isGhost(p){ return !!(p && p.ghost); }
 function ghostIdSet(state){ return new Set((state.players || []).filter(isGhost).map(p => p.id)); }
-function leagueOwnersOf(state, c){
-  const ghosts = ghostIdSet(state);
-  return ownerListOf(c).filter(id => !ghosts.has(id));
+function leagueOwnersOf(state, c, aside){
+  const skip = aside || ownersAside(state);
+  return ownerListOf(c).filter(id => !skip.has(id));
+}
+// The owners the league's own exclusivity looks past: late joiners (their private teams), and (step A11 part 1) players knocked
+// out of an exclusive draft, whose castaways are back in the pool (KnockoutLogic.frees) while they keep them for their own
+// history. A loop over the cast works it out once and hands it to leagueOwnersOf.
+function ownersAside(state){
+  const set = ghostIdSet(state);
+  if(KnockoutLogic.frees(state)) KnockoutLogic.outs(state).forEach((_, id) => set.add(id));
+  return set;
 }
 // Taking part in the league's shared mechanics: draft order, blind-draft lock-ins, pickup and swap
 // rounds. Ghosts play their own season alongside, so they're left out of all of these.
@@ -364,7 +380,8 @@ class Core {
   // playerId clears ownership entirely (used by undraft and by replenish/trade drops).
   static setOwner(state, castawayId, playerId){
     const c = Core.getCastaway(state, castawayId);
-    // A ghost's private ownership survives the league's own moves (see leagueOwnersOf).
+    // A ghost's private ownership survives the league's own moves (see leagueOwnersOf), and so does a knocked-out player's (A11
+    // part 1: their history; their castaways are free for everyone else).
     if(c) c.ownerIds = [...leagueGhostOwners(state, c), ...(playerId ? [playerId] : [])];
   }
   // Shared-mode primitives: add/remove a single owner without disturbing the others.
@@ -521,6 +538,8 @@ function rankKey(state, r){
   const g = gameOf(state);
   if(g.get.by === 'pick') return g.rank.by === 'standing' ? PickEmScoringStrategy.standingKey(r) : [r.longestStreak || 0, r.total];
   if(g.rank.by === 'worth' && MarketLogic.on(state)) return [r.worth || 0, r.total];
+  // A11 part 1: a draft that knocks players out, last one standing (its rows carry `out`: KnockoutLogic.apply).
+  if(g.get.by === 'draft' && g.rank.by === 'standing') return PickEmScoringStrategy.standingKey(r);
   return [r.total];
 }
 // Weekly Calls (docs/PLAN-new-design.md step 12 part 2): a talk show's season game, scored from each person's calls
@@ -538,8 +557,234 @@ class CallsScoringStrategy {
 // ActiveRosterEventScoringStrategy (Weekly Lineup), PickEmScoringStrategy (Survival Pool) or
 // CallsScoringStrategy (Weekly Calls and Weekly Bingo, scored outside the state).
 class ScoringLogic {
-  // A game over a span scores as it stood at its last episode (spanView).
-  static compute(state){ return getLeagueType(state).scoringStrategy.compute(spanView(state)); }
+  // A game over a span scores as it stood at its last episode (spanView). A11 part 1: a draft that knocks players out freezes
+  // each one's points at their last episode in and ranks last one standing (KnockoutLogic.apply).
+  static compute(state){
+    const view = spanView(state);
+    const rows = getLeagueType(state).scoringStrategy.compute(view);
+    return KnockoutLogic.on(view) ? KnockoutLogic.apply(view, rows) : rows;
+  }
+}
+
+// ---------- KnockoutLogic: a draft's race and players knocked out (docs/PLAN-start-a-game-gpt.md step A11 part 1) ----------
+// The spec's rank.race (the first to `to` points wins, and the game ends after that episode) and rank.cut (players knocked out:
+// every n episodes by their points over them, the guillotine; after an episode, or before a phase starts, by their total).
+// Worked out from the data on every read, as a pool's lives are (PickEmLogic.history): nothing is stored, so a corrected result
+// works everything after it out again, and a viewer's copy (spoiler-trimmed) knocks out only what they've seen.
+//   - Only final results move it: the walk stops at the newest episode while its results are still early (who went home, before
+//     the scoring: EpisodeLogic.resultsStage), so nothing is called on part of an episode; an earlier one still marked early once
+//     a later one has results (nothing scored in it, so nothing marked it final) counts as it stands.
+//   - Who's in it: everyone playing the league's own season, from their own start (GhostLogic.startFor); not a late joiner's
+//     private season (a ghost), nor someone not yet brought in. Someone still catching up is in it but can't be cut or finish a
+//     race until they've caught up (they haven't played those episodes yet). Someone out stays out, and nobody new joins once
+//     someone is (GhostLogic.allowed).
+//   - A cut every n episodes falls after each n of the game's episodes from its start, on each one's points over those n, ties
+//     to the total (the lower goes); a cut after an episode, or before a phase, on the total. A cut before a phase falls after
+//     the episode before it starts (state.phaseStarts, the desk's: RosterLogic.settlePhases), so where that's known only once
+//     the phase has begun, it lands then, its first episode no longer counting for whoever it cut (the fallback).
+//   - How many go: `out`, or the bottom half rounded down, never everyone left. A tie at the line keeps everyone tied there (tie
+//     'keep') or sends them all (tie 'all', unless that's everyone left). A night nobody goes home (ep.noExit) is cut like any
+//     other, or skipped (quiet 'skip').
+//   - The game ends once one is left (of two or more), or after the episode a race was won (the most points then win; a season
+//     that ends first is won on the most points): lastEpisode, so it's over (gameOver) and scores as it stood then (spanView),
+//     as a span's end does.
+//   - Someone out scores nothing after their last episode in (`out`: that episode), makes no more moves (lineups, captains,
+//     group slots, waivers, side bets: KnockoutLogic.moveProblem, isOut), and in an exclusive draft their castaways are back in
+//     the pool for everyone else (leagueOwnersOf; they keep them for their own history, as a late joiner keeps a private team).
+// What it reads is each player's total through each episode as the table counts it, with each team as it stood then: a
+// lineup's points episode by episode, Outlast's points from whoever was held then (the mid-season log), side bets and finale
+// predictions as they settle.
+let knockoutsRunning = false;
+class KnockoutLogic {
+  static parts(state){ return Spec.knockoutParts(gameOf(state)); }
+  static on(state){ return !!KnockoutLogic.parts(state); }
+  // Each scored episode the game plays, in order: { number, quiet, totals, rows } with every player's total through it (Map
+  // playerId -> points) and its parts as a score row has them (Map playerId -> { locked, banked, bonus, finale }). The episodes
+  // from its start to its span's end that have results; one whose results are still early stops it while it's the newest (an
+  // episode where nothing scored can stay early for good: once a later one has results, it's as final as it will be).
+  static series(state){
+    const game = gameOf(state);
+    const from = Spec.spanStart(game.span);
+    if(from === null) return [];
+    const to = game.span.to;
+    const episodes = (state.episodes || []).filter(e => e.number >= from && (to === null || e.number <= to) && EpisodeLogic.hasResults(e)).sort((a,b) => a.number - b.number);
+    const players = state.players || [];
+    const outlast = game.score.by === 'place';
+    const reverse = outlast && EliminationOrderScoringStrategy.reversed(state);
+    const numberOf = new Map((state.episodes || []).map(e => [e.id, e.number]));
+    const log = (state.midSeason && state.midSeason.log) || [];
+    // Who a player held for episode n (Outlast): who they hold now, with every move from that episode on taken back, newest
+    // first (a move made after episode k counts from k + 1, as best ball's teamFor reads it).
+    const heldAt = (playerId, n) => {
+      const held = new Set(Core.ownedCastawayIds(state, playerId));
+      for(let i = log.length - 1; i >= 0; i--){
+        const tx = log[i];
+        if(tx.playerId !== playerId || !Number.isInteger(tx.episode) || tx.episode < n) continue;
+        if(tx.addedCastawayId) held.delete(tx.addedCastawayId);
+        if(tx.droppedCastawayId) held.add(tx.droppedCastawayId);
+      }
+      return [...held].map(id => Core.getCastaway(state, id)).filter(Boolean);
+    };
+    const finaleEp = finaleEpisodeOf(state);
+    const finale = finaleEp ? AnswerLogic.finalePoints(state) : new Map();
+    const slots = !outlast && GroupSlotLogic.config(state) ? GroupSlotLogic.index(state) : undefined;
+    const running = new Map(players.map(p => [p.id, 0]));
+    const bets = new Map(players.map(p => [p.id, 0]));
+    let finaleIn = false;
+    const out = [];
+    const newest = episodes.length ? episodes[episodes.length - 1].number : null;
+    for(const ep of episodes){
+      if(EpisodeLogic.resultsStage(ep) === 'early' && ep.number === newest) break;
+      // Side bets settled in it (addSideLayers' rule: a bet needs company).
+      if(game.extras.bets) (ep.bets || []).forEach(bet => {
+        if((bet.predictions || []).length < 2) return;
+        bet.predictions.forEach(pred => { if(pred.correct === true && bets.has(pred.playerId)) bets.set(pred.playerId, bets.get(pred.playerId) + (bet.points || 0)); });
+      });
+      if(finaleEp && finaleEp.id === ep.id) finaleIn = true;
+      const totals = new Map();
+      const rows = new Map();
+      // Outlast: a castaway out by then counts their place (one with no episode recorded, from the start), anyone still in 1 + the
+      // boots so far.
+      const outBy = c => c.status === 'eliminated' && typeof c.placementOrder === 'number' && (numberOf.has(c.exitEpisodeId) ? numberOf.get(c.exitEpisodeId) : 0) <= ep.number;
+      const size = (state.castaways || []).length;
+      const boots = outlast ? (state.castaways || []).filter(outBy).length : 0;
+      const stillIn = reverse ? size - boots : boots + 1;
+      const pre = outlast ? null : { events: ActiveRosterLogic.episodeEvents(state, ep), times: ActiveRosterLogic.timesFor(state, ep.number), slots };
+      players.forEach(p => {
+        let locked = 0, banked = 0;
+        if(outlast){
+          heldAt(p.id, ep.number).forEach(c => {
+            const placed = outBy(c) ? (reverse ? size + 1 - c.placementOrder : c.placementOrder) : null;
+            locked += placed === null ? stillIn : placed;
+            if(placed !== null) banked += placed;
+          });
+        } else {
+          running.set(p.id, roundPoints(running.get(p.id) + ActiveRosterLogic.episodeScore(state, ep, p.id, pre).total));
+          locked = running.get(p.id);
+        }
+        const bonus = game.extras.bets ? bets.get(p.id) : 0;
+        const fin = finaleIn ? (finale.get(p.id) || 0) : 0;
+        rows.set(p.id, { locked, banked, bonus, finale: fin });
+        totals.set(p.id, roundPoints(locked + bonus + fin));
+      });
+      out.push({ number: ep.number, quiet: !!ep.noExit, totals, rows });
+    }
+    return out;
+  }
+  // The walk: who's out after which episode (Map playerId -> the last episode that counts for them), and where the game ends
+  // (the episode a race was won or one was left, else null), with the series it walked. Nothing while a walk is already under
+  // way (a read inside it sees the game as its span has it).
+  static run(state){
+    const parts = KnockoutLogic.parts(state);
+    if(!parts || knockoutsRunning) return { out: new Map(), ends: null, series: [] };
+    knockoutsRunning = true;
+    try { return KnockoutLogic.walk(state, parts); }
+    finally { knockoutsRunning = false; }
+  }
+  static walk(state, parts){
+    const series = KnockoutLogic.series(state);
+    const start = Spec.spanStart(gameOf(state).span);
+    const everyone = (state.players || []).filter(p => !isGhost(p) && !p.disabled && p.active !== false);
+    const catching = new Set(everyone.filter(p => GhostLogic.isCatchingUp(state, p.id)).map(p => p.id));
+    const startOf = new Map(everyone.map(p => [p.id, GhostLogic.startFor(state, p.id)]));
+    const out = new Map();
+    // Who can be cut, or finish a race, after episode k: in, started by then, and caught up.
+    const inAt = k => everyone.filter(p => !out.has(p.id) && !catching.has(p.id) && (startOf.get(p.id) || start) <= k);
+    let ends = null;
+    for(let i = 0; i < series.length && ends === null; i++){
+      const { number: k, quiet, totals } = series[i];
+      const total = id => totals.get(id) || 0;
+      if(parts.race && inAt(k).some(p => total(p.id) >= parts.race.to)){ ends = k; break; }
+      parts.cuts.forEach(c => {
+        const left = inAt(k);
+        if(left.length < 2) return;
+        let key = null;
+        if(Number.isInteger(c.at.every)){
+          if((k - start + 1) % c.at.every !== 0 || (quiet && c.quiet === 'skip')) return;
+          // The points over the window: through this episode, less through the last one scored before it.
+          const before = series.slice(0, i).filter(x => x.number <= k - c.at.every).pop();
+          key = id => [total(id) - (before ? before.totals.get(id) || 0 : 0), total(id)];
+        } else if(Number.isInteger(c.at.episode)){
+          if(k !== c.at.episode || (quiet && c.quiet === 'skip')) return;
+          key = id => [total(id)];
+        } else if(typeof c.at.phase === 'string'){
+          // After the episode before the phase starts, once data says where (as a phase's multiplier reads it: timesFor).
+          const from = state.phaseStarts && state.phaseStarts[c.at.phase];
+          if(!Number.isInteger(from) || k !== from - 1 || (quiet && c.quiet === 'skip')) return;
+          key = id => [total(id)];
+        }
+        if(!key) return;
+        KnockoutLogic.cut(left, key, c).forEach(id => out.set(id, k));
+      });
+      // One left of everyone (whatever their start; someone catching up counts): it's over.
+      if(parts.cuts.length && everyone.length >= 2 && everyone.filter(p => !out.has(p.id)).length <= 1) ends = k;
+    }
+    return { out, ends, series };
+  }
+  // Who a cut sends home: the bottom `out` (or half, rounded down) of those left by `key` (lowest first), never everyone; a tie
+  // at the line keeps them all, or sends them all (tie 'all') unless that's everyone left.
+  static cut(left, key, c){
+    const n = left.length;
+    const count = Math.min(c.out === 'half' ? Math.floor(n / 2) : c.out, n - 1);
+    if(!(count >= 1)) return [];
+    const ranked = left.map(p => ({ id: p.id, key: key(p.id) })).sort((a,b) => PickEmScoringStrategy.compareKeys(a.key, b.key));
+    const line = ranked[count - 1].key;
+    const below = ranked.filter(r => PickEmScoringStrategy.compareKeys(r.key, line) < 0);
+    const at = ranked.filter(r => PickEmScoringStrategy.compareKeys(r.key, line) === 0);
+    if(below.length + at.length <= count) return [...below, ...at].map(r => r.id);
+    if(c.tie === 'all' && below.length + at.length < n) return [...below, ...at].map(r => r.id);
+    return below.map(r => r.id);
+  }
+  // Where the game ends early: the episode a race was won or one was left, else null.
+  static endsAt(state){ return KnockoutLogic.on(state) ? KnockoutLogic.run(state).ends : null; }
+  // Each player knocked out, and the last episode that counts for them (Map playerId -> episode number).
+  static outs(state){ return KnockoutLogic.on(state) ? KnockoutLogic.run(state).out : new Map(); }
+  // The last episode that counts for someone knocked out, or null while they're in.
+  static outOf(state, playerId){
+    const n = KnockoutLogic.outs(state).get(playerId);
+    return Number.isInteger(n) ? n : null;
+  }
+  static isOut(state, playerId){ return KnockoutLogic.outOf(state, playerId) !== null; }
+  // Whether the game ended early before episode `number` (a race won, one left): nothing is played in it.
+  static endedBefore(state, number){
+    const end = KnockoutLogic.endsAt(state);
+    return end !== null && number > end;
+  }
+  // Why someone can't make a move for episode `number` (a lineup, a captain, a group slot): the game ended before it (a race won,
+  // one left), or they're out. Null when they can, or the game knocks nobody out.
+  static moveProblem(state, playerId, number){
+    if(!KnockoutLogic.on(state)) return null;
+    const { out, ends } = KnockoutLogic.run(state);
+    if(ends !== null && number > ends) return 'This game ended with episode ' + ends;
+    return out.has(playerId) ? 'You’re out of this game' : null;
+  }
+  // Whether a knocked-out player's castaways are back in the pool: an exclusive draft's (a shared draft's were never theirs alone).
+  static frees(state){
+    const g = gameOf(state);
+    return g.get.by === 'draft' && g.get.own === 'exclusive' && Array.isArray(g.rank.cut) && g.rank.cut.length > 0;
+  }
+  // The score rows with each one's `out` (the last episode that counts for them, null while in) and their points frozen there;
+  // ranked last one standing when it cuts (standingKey: whoever's still in by their points, then whoever went out last).
+  static apply(state, rows){
+    const { out, series } = KnockoutLogic.run(state);
+    const at = new Map(series.map(x => [x.number, x]));
+    rows.forEach(r => {
+      const k = out.get(r.playerId);
+      r.out = Number.isInteger(k) ? k : null;
+      if(r.out === null || !at.has(k)) return;
+      // Frozen there, its parts with it: what they had then.
+      const was = at.get(k).rows.get(r.playerId);
+      if(was){
+        r.locked = was.locked;
+        if('banked' in r) r.banked = was.banked;
+        r.bonus = was.bonus;
+        r.finale = was.finale;
+      }
+      r.total = at.get(k).totals.get(r.playerId) || 0;
+    });
+    if(!KnockoutLogic.parts(state).cuts.length) return rows;
+    return rows.sort((a,b) => PickEmScoringStrategy.compareKeys(PickEmScoringStrategy.standingKey(b), PickEmScoringStrategy.standingKey(a)) || b.total - a.total);
+  }
 }
 
 // ---------- SnakeDraftStrategy: the 'classic-draft' league type's draft mechanic ----------
@@ -936,7 +1181,8 @@ class DrawLogic {
     const each = rosterSize(state);
     const shared = gameOf(state).get.own === 'shared';
     // A10 part 4: each team starts with its keepers, and nobody else draws someone kept in an exclusive draw.
-    const kept = new Set((state.castaways || []).filter(c => leagueOwnersOf(state, c).length).map(c => c.id));
+    const aside = ownersAside(state);
+    const kept = new Set((state.castaways || []).filter(c => leagueOwnersOf(state, c, aside).length).map(c => c.id));
     const shuffled = (ids, key) => [...ids].sort((a, b) => hashUnit(`${seed}|${key}|${a}`) - hashUnit(`${seed}|${key}|${b}`) || (a < b ? -1 : a > b ? 1 : 0));
     // The seats in the rotation, in the order the seed deals to (whatever order the league lists them in).
     const order = shuffled((state.players || []).filter(inLeagueRotation).map(p => p.id), 'seat');
@@ -1303,7 +1549,8 @@ class KeeperLogic {
   static draftedAny(state){
     const keep = new Set();
     if(KeeperLogic.locked(state)) Object.entries(state.keepers.kept || {}).forEach(([pid, list]) => (list || []).forEach(k => keep.add(`${pid}|${k.castawayId}`)));
-    return (state.castaways || []).some(c => leagueOwnersOf(state, c).some(pid => !keep.has(`${pid}|${c.id}`)));
+    const aside = ownersAside(state);
+    return (state.castaways || []).some(c => leagueOwnersOf(state, c, aside).some(pid => !keep.has(`${pid}|${c.id}`)));
   }
   // Each seat's options (the server's: keepers.ts), `{ playerId: [castawayId] }` best first, written while the keepers are open:
   // only castaways on this league's cast and still in. What a seat named stays as it named it (one bad read of last season's game
@@ -1561,7 +1808,8 @@ class AuctionLogic {
     const rank = key => hashUnit(`${seed}|${key}`);
     const byRank = prefix => (x, y) => rank(`${prefix}|${x}`) - rank(`${prefix}|${y}`) || (x < y ? -1 : x > y ? 1 : 0);
     const order = AuctionLogic.eligiblePlayers(state).map(p => p.id).sort(byRank('seat'));
-    const free = new Set((state.castaways || []).filter(c => c.status === 'active' && !leagueOwnersOf(state, c).length).map(c => c.id));
+    const aside = ownersAside(state);
+    const free = new Set((state.castaways || []).filter(c => c.status === 'active' && !leagueOwnersOf(state, c, aside).length).map(c => c.id));
     const g = SpreadLogic.groupsNow(state);
     // A10 part 4: each team starts with its keepers, and what they cost.
     const teams = Object.fromEntries(order.map(id => [id, KeeperLogic.keptIds(state, id)]));
@@ -1874,6 +2122,8 @@ class ActiveRosterLogic {
       return ep.number < start ? 'This league starts at episode ' + start : 'This game ended with episode ' + endEpisode(state);
     }
     if(!Core.getPlayer(state, playerId)) return 'No such player';
+    const over = KnockoutLogic.moveProblem(state, playerId, ep.number);
+    if(over) return over;
     const ids = Array.isArray(castawayIds) ? castawayIds : [];
     if(new Set(ids).size !== ids.length) return 'Same castaway listed twice';
     const slots = ActiveRosterLogic.activeSlots(state);
@@ -2091,7 +2341,9 @@ class GroupSlotLogic {
     if(!end.divided) return none(["The show isn't divided into groups going into it"], end.sure);
     if(!end.sure && cfg.fallback !== 'carry-on') return none(end.why.length ? end.why : ["Who is with whom going into it isn't sure"]);
     const groups = end.groups.filter(g => g.members.length);
-    const people = state.players.filter(inLeagueRotation).length;
+    // A11 part 1: nobody knocked out of the game counts (they hold no slot any more).
+    const outs = KnockoutLogic.outs(state);
+    const people = state.players.filter(p => inLeagueRotation(p) && !outs.has(p.id)).length;
     const shared = cfg.own === 'exclusive' && !Spec.covers({ pool: groups.length, people, each: cfg.slots });
     return { groups, sure: end.sure, why: end.sure ? [] : end.why, shared };
   }
@@ -2187,6 +2439,8 @@ class GroupSlotLogic {
       return ep.number < start ? 'This league starts at episode ' + start : 'This game ended with episode ' + endEpisode(state);
     }
     if(!Core.getPlayer(state, playerId)) return 'No such player';
+    const over = KnockoutLogic.moveProblem(state, playerId, ep.number);
+    if(over) return over;
     if(!(Number.isInteger(slot) && slot >= 0 && slot < cfg.slots)) return `A team has ${cfg.slots} group slot${cfg.slots === 1 ? '' : 's'}`;
     const n = ep.number;
     const ix = GroupSlotLogic.index(state);
@@ -2208,7 +2462,8 @@ class GroupSlotLogic {
     // Exclusive while the groups cover every team's slots: one team's at a time, first come. The teams that count are the ones
     // in the game's rotation, as offered counts them: a late joiner's picks are private, as their team is.
     if(cfg.own === 'exclusive' && !offer.shared){
-      const other = state.players.filter(p => p.id !== playerId && inLeagueRotation(p)).find(p => Array.from({ length: cfg.slots }, (_, i) => i).some(i => holds(p.id, i)));
+      const outs = KnockoutLogic.outs(state);
+      const other = state.players.filter(p => p.id !== playerId && inLeagueRotation(p) && !outs.has(p.id)).find(p => Array.from({ length: cfg.slots }, (_, i) => i).some(i => holds(p.id, i)));
       if(other) return `${other.name} has that group`;
     }
     return null;
@@ -2867,7 +3122,7 @@ class RosterLogic {
   // Both of these are EXCLUSIVE-ownership concepts and stay that way: in a shared-ownership league
   // nothing is ever removed from availability (every pick offers the full cast every time), so
   // there is no such thing as a free agent. Shared-mode draft/roster UI simply doesn't call these.
-  static freeAgents(state){ return state.castaways.filter(c=>leagueOwnersOf(state, c).length===0 && c.status==='active'); }
+  static freeAgents(state){ const aside = ownersAside(state); return state.castaways.filter(c=>leagueOwnersOf(state, c, aside).length===0 && c.status==='active'); }
   static activeOwnedCount(state, playerId){ return state.castaways.filter(c=>ownerListOf(c).includes(playerId) && c.status==='active').length; }
   static totalCastCount(state){ return state.castaways.length; }
 
@@ -3423,6 +3678,9 @@ function readsPhases(state){
   const score = gameOf(state).score;
   // A pool's buyback until a phase starts (A10 part 2: PickEmLogic.canBuyBack).
   if(score.by === 'survive' && score.buyback && score.buyback.before && typeof score.buyback.before.phase === 'string') return true;
+  // A draft that cuts players before a phase starts (A11 part 1: KnockoutLogic).
+  const rank = gameOf(state).rank;
+  if(Array.isArray(rank.cut) && rank.cut.some(c => c && c.at && typeof c.at.phase === 'string')) return true;
   return score.by === 'moments' && Array.isArray(score.times) && score.times.some(t => t && typeof t.phase === 'string');
 }
 
@@ -3529,9 +3787,10 @@ function restoreFields(c, was, keys){
 class MidSeasonLogic {
   static isShared(state){ return ownershipModeOf(state) === 'shared'; }
   static availableFor(state, playerId){
+    const aside = MidSeasonLogic.isShared(state) ? null : ownersAside(state);
     return state.castaways.filter(c => c.status === 'active' && (MidSeasonLogic.isShared(state)
       ? !ownerListOf(c).includes(playerId)
-      : leagueOwnersOf(state, c).length === 0));
+      : leagueOwnersOf(state, c, aside).length === 0));
   }
   static isAvailableFor(state, castawayId, playerId){
     return MidSeasonLogic.availableFor(state, playerId).some(c => c.id === castawayId);
@@ -3970,7 +4229,8 @@ class WaiverLogic {
     const p = ps[ps.length - 1];
     return p && p.phase !== 'closed' ? p : null;
   }
-  static rotation(state){ return state.players.filter(inLeagueRotation).map(p => p.id); }
+  // A11 part 1: nobody knocked out of the game (KnockoutLogic): they make no more moves.
+  static rotation(state){ const outs = KnockoutLogic.outs(state); return state.players.filter(p => inLeagueRotation(p) && !outs.has(p.id)).map(p => p.id); }
   // A window opens on its own after episode n of the league's own season: every episode, or every
   // `every`. Not when it would allow nothing (no swaps, and replacements don't wait for windows).
   static isWindowEpisode(state, n){
@@ -4106,8 +4366,9 @@ class WaiverLogic {
       return closing ? 'close' : null;
     }
     if(!WaiverLogic.enabled(state) || last === null || MidSeasonLogic.seasonOver(state)) return null;
-    // A game over a span opens no week after its last episode: nothing's left to play.
-    const end = endEpisode(state);
+    // A game over a span opens no week after its last episode: nothing's left to play (A11 part 1: nor after a race won or one
+    // left).
+    const end = lastEpisode(state);
     if(end !== null && last >= end) return null;
     const ps = WaiverLogic.periods(state);
     const prev = ps[ps.length - 1];
@@ -4251,6 +4512,7 @@ class WaiverLogic {
   static checkClaim(state, period, playerId, input){
     if(!period || period.phase !== 'open') return { error: 'Claims are closed for this week' };
     if(!inLeagueRotation(Core.getPlayer(state, playerId))) return { error: 'Not in this league’s waivers' };
+    if(KnockoutLogic.isOut(state, playerId)) return { error: 'You’re out of this game' };
     const parsed = WaiverLogic.pairsOf(state, period, playerId, input);
     const owed = WaiverLogic.replacementsOwed(state, playerId, period);
     const swapsLeft = WaiverLogic.swapsLeft(state, period, playerId);
@@ -4448,6 +4710,7 @@ class WaiverLogic {
     if(!p || p.phase !== 'processed') return 'Free agency isn’t open';
     if(!WaiverLogic.freeAgencyOn(state)) return 'This league has no free agency';
     if(!inLeagueRotation(Core.getPlayer(state, playerId))) return 'Not in this league’s waivers';
+    if(KnockoutLogic.isOut(state, playerId)) return 'You’re out of this game';
     if(!addId || !MidSeasonLogic.isAvailableFor(state, addId, playerId)) return 'They’re not a free agent any more';
     const meta = { via: 'freeAgency', periodId: p.id, episode: p.episode, at: new Date(now || Date.now()).toISOString() };
     // A10 part 3b and 3c: a salary cap's or a stock market's prices, read once (a market's move records what it sold and paid).
@@ -4870,7 +5133,7 @@ class BetLogic {
   // Never once it's locked.
   static add(state, epId, label, points, createdByPlayerId){
     const ep = state.episodes.find(e=>e.id===epId);
-    if(!ep || !label || !inPlay(state, ep.number) || BetLogic.closed(ep)) return;
+    if(!ep || !label || !inPlay(state, ep.number) || KnockoutLogic.endedBefore(state, ep.number) || BetLogic.closed(ep)) return;
     ep.bets = ep.bets || [];
     const bet = { id: Core.uid('bet'), label, points: clampBetPoints(points), predictions: [], createdByPlayerId: createdByPlayerId || null };
     ep.bets.push(bet);
@@ -4893,7 +5156,7 @@ class BetLogic {
   static addPrediction(state, epId, betId, playerId, guess){
     const ep = state.episodes.find(e=>e.id===epId);
     const bet = ep && (ep.bets||[]).find(b=>b.id===betId);
-    if(!bet || !guess || !inPlay(state, ep.number) || BetLogic.closed(ep)) return;
+    if(!bet || !guess || !inPlay(state, ep.number) || KnockoutLogic.endedBefore(state, ep.number) || BetLogic.closed(ep)) return;
     bet.predictions = bet.predictions || [];
     const pred = { id: Core.uid('pred'), playerId, guess, correct: null };
     bet.predictions.push(pred);
@@ -5496,7 +5759,8 @@ class GhostLogic {
     return !!(turn && turn.isComplete) || (start !== null && SpoilerLogic.latestWithResults(state) >= start);
   }
   // On unless a commissioner switched it off (absent = on, so it covers every league that predates it), or locked the game down.
-  static allowed(state){ return gameOf(state).extras.join !== 'locked' && !GhostLogic.lockedDown(state); }
+  // A11 part 1: nor once someone is knocked out of the game (a newcomer would join a field already cut: the fallback).
+  static allowed(state){ return gameOf(state).extras.join !== 'locked' && !GhostLogic.lockedDown(state) && !KnockoutLogic.outs(state).size; }
   // Lock it down (the new design's competitive mode, step 15 part 4): no late joins, no catch-up, rules frozen for the season.
   // Joining closes here (allowed, so joinMode and classic's join code agree); the rest is the new design's Game settings and
   // Scoring rules refusing changes (backstage-games.ts). Kept apart from allowLateJoiners, so turning it off leaves Who can
@@ -5537,8 +5801,9 @@ class GhostLogic {
   // those nobody in the league owns, for someone let straight into an exclusive game (step 9: they're seen at once).
   static draftPool(state, start, freeAgents){
     const before = SpoilerLogic.viewThrough(state, Math.max(0, start - 1));
+    const aside = freeAgents ? ownersAside(state) : null;
     return before.castaways
-      .filter(c => c.status === 'active' && !(freeAgents && leagueOwnersOf(state, Core.getCastaway(state, c.id) || c).length))
+      .filter(c => c.status === 'active' && !(freeAgents && leagueOwnersOf(state, Core.getCastaway(state, c.id) || c, aside).length))
       .map(c => c.id);
   }
   // How many they draft: the league's roster size, or none for a league type with no draft.
@@ -6035,7 +6300,7 @@ return {
   // ---- constants ----
   PALETTE, SEED_CASTAWAYS,
   LEAGUE_TYPES, SHOWS, getLeagueType, gameOf, replenishAvailable, tradeAvailable, finalePredictionsAvailable, finaleOfGame, betsOn, rosterSize, originalDraftPicks,
-  formatOf, startEpisode, startPhase, waitsForPhase, endEpisode, inPlay, spanView, gameOver, hasAired, closedForPlay, isWinnerExit, seasonWinner, seasonEnded,
+  formatOf, startEpisode, startPhase, waitsForPhase, endEpisode, lastEpisode, inPlay, spanView, gameOver, hasAired, closedForPlay, isWinnerExit, seasonWinner, seasonEnded,
   readsPhases,
 
   // ---- flat API: exact same names as before this reorganization, so no existing call site
@@ -6091,7 +6356,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, draftFits, draftFitsFor, rankKey,
+  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

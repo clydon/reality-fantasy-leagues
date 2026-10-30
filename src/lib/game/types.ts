@@ -1172,7 +1172,8 @@ export interface ScoreRow {
   longestStreak?: number;
   currentStreak?: number;
   /** A pool with lives, a buyback, mulligans or a second pick (step A10 part 2): lives left (null without lives), the episode
-   *  they went out in for good (null while in), mulligans and buybacks left. */
+   *  they went out in for good (null while in), mulligans and buybacks left. A draft that knocks players out (step A11 part 1:
+   *  KnockoutLogic): `out`, the last episode that counts for them (null while in), their total frozen there. */
   lives?: number | null;
   out?: number | null;
   mulligans?: number;

@@ -31,8 +31,11 @@ each keeping up to N of their team there who are on this season's cast, named be
 filling the rest whatever its kind, `KeeperLogic` and `keepers.ts`), and part 4b, a team two people share (2026-10-29: up to N
 accounts on one seat, a second joining by an invite to it, either making its moves, who made each recorded, the lowest mark where the
 seat's state depends on one, one leaving keeping it for the other, each credited on the couch, the exclusive count by teams,
-`shared-seats.ts`, migration 0202), are built. **A10 is done**; A11 is next, then A12 to A14 overnight (the
-user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+`shared-seats.ts`, migration 0202), are built. **A10 is done.** A11 is under way, in five parts (2026-10-29): part 1, a race and
+players knocked out in a draft (first to N points ends it; the guillotine, a cut after an episode or before a phase, last one
+standing, a knocked-out player's castaways back in the pool, `KnockoutLogic`, `lastEpisode`), is built; parts 2 to 5 (a game of
+questions' and a pool's knockouts, co-op, head to head, teams and handicaps) are next, then A12 to A14 overnight (the user's word,
+2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -3114,6 +3117,127 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
 - **A11. Winning, and who plays with whom.** A race (first to N ends the game), co-op (the group against the show, with shared
   lives), head-to-head with playoffs, teams of players, players knocked out each week (guillotine) or cut at a phase,
   handicaps, late joiners.
+
+  **Split in parts (2026-10-29), each its own session, the engine's only (no screens: U1's).** Each piece rides on data with its
+  fallback from the start (a winner or a knockout from results research is unsure of, a tie, a night nobody goes home, a
+  knocked-out player's castaways, late joiners, teams of players on a show whose own groups change); every default and what
+  players are told goes in the part's Noticed for the user.
+  - **Part 1: a race and players knocked out, in a draft** (win.race, win.guillotine, win.cut; s01, s02, s36): `rank.race`
+    (first to N points wins, and the game ends that episode) and `rank.cut` (knocked out every N episodes by the points since,
+    the guillotine, or at an episode or a phase by the total, the bottom N or half), last one standing for a draft (`rank.by
+    'standing'`), the game ending at a race's end or with one left, a knocked-out player's castaways back in the pool (an
+    exclusive draft) and their moves refused.
+  - **Part 2: a race and knockouts in a game of questions and a pool** (s48, w047): a game of questions is scored on the server
+    (its answers: `game_answers`, answers.js), so its race and knockouts read the answers (a wrong guess knocks you out); a pool's
+    pick that never repeats; a pool that ends with one left and a night everyone left goes out (A10 part 2's items 8 and 9, as
+    settings).
+  - **Part 3: co-op against the show** (win.coop, s37): the couch's lives together, a night nobody saw coming costing one, the
+    game won or lost by all.
+  - **Part 4: head to head, with playoffs** (win.h2h): a matchup each episode (`rank.by 'matchups'` for shows; L4 brings it to
+    sports), the schedule, the standings by wins, playoffs at the season's end, a tie and a night nobody scores.
+  - **Part 5: teams of players and handicaps** (who.teams, who.handicap, s19): the couch split into teams that score together
+    (and teams that follow the show's own groups, through a swap), a handicap's points a week for whoever it names (newcomers,
+    from the couch's history), and the late joiners' leftovers (Noticed: computer players and group slots; a late joiner's captain
+    and second pick through `GhostLogic.applyAs`; A10's late-joiner items).
+
+  **As built (A11 part 1, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
+  desk fixes: a season matched, a group corrected; 1064 tests). A race and players knocked out, in a draft. Each piece rides on data
+  with its fallback from the start; every default and everything a person sees is the user's (Noticed, below).
+  - **The spec** (`schema.js`): `rank.race`, `{ to }` (1 to `MAX_RACE`, 1000 points): the first there wins, and the game ends after
+    that episode. `rank.cut`, a list of 1 to `MAX_CUTS` (4), each `{ at, out, tie, quiet }`: `at` `{ every: n }` (every 1 to 10 of
+    the game's episodes, by each one's points over them: the guillotine) | `{ episode: n }` | `{ phase: id }` (by the total, after
+    that episode or the one before the phase starts); `out` 1 to `MAX_CUT_OUT` (20) or `'half'` (the bottom half, rounded down);
+    `tie` keep | all; `quiet` cut | skip. What a cut leaves out is the defaults (`CUT`: one goes, a tie at the line keeps them all, a
+    night nobody goes home cuts like any other), filled by `fullSpec`; a rank that says only its cuts ranks last one standing, which
+    `rank.by 'standing'` now also means for a draft that cuts. Both beside a draft (Outlast, a lineup, best ball): a game of
+    questions' and a pool's are refused, part 2's. Refused besides: a cut at an episode outside the game or at its last (a league's
+    own keeps what it plays), a cut at the phase the game starts at, a race beside a stock market ranked by worth; the data rule
+    (`settleProblems`): a phase of the season, not its first, and `quiet: 'skip'` only where results say who goes home. VOCAB
+    `rank.cut.at`, `.tie`, `.quiet`; `knockoutParts`; `flagsOf`'s `hasRace`, `hasCuts`. The settings: `draftRank` gains
+    `'standing'` (Outlast's too, not only a lineup's), `draftRace`, `draftCut`, both ways (`OWNED`).
+  - **Words** (`describe.js`): the sentence ("Each episode the lowest scorer is out. Last one standing wins.", "Before Merged starts
+    the bottom half is cut.", "First to 20 points wins: the game ends there."), How it works (each cut with its tie and quiet night,
+    a knocked-out player scoring nothing more and making no moves, their castaways back in the pool in an exclusive draft, last one
+    standing and one left ending it, nobody new joining once someone's out, a race's tie and a season it never finishes, waiting
+    for an episode's full results). A draft that cuts is still its preset's game by name.
+  - **The engine** (`state-logic.js` `KnockoutLogic`), worked out from the data on every read, as a pool's lives are: nothing is
+    stored, so a corrected result works everything after it out again, and a viewer's copy knocks out only what they've seen.
+    `series` (each scored episode's totals as the table counts them, each team as it stood then: a lineup's points episode by
+    episode, Outlast's from whoever was held then by the mid-season log, side bets and finale predictions as they settle; the
+    parts with them), `walk`/`run` (who's out after which episode, where it ends; a guard so a read inside the walk sees the span
+    alone), `cut`, `endsAt`, `outs`, `outOf`, `isOut`, `endedBefore`, `moveProblem`, `frees`, `apply` (the rows' `out`, their
+    totals and parts frozen at their last episode in, ranked by `standingKey`). `lastEpisode` (new): the span's end or earlier where a
+    race was won or one is left; `spanView`, `gameOver`, the Games tab's results to reveal (`game-view.ts`) and a waiver week's
+    opening read it, while `endEpisode` stays the span the game was made with (Game settings, couch-joins, what's said). `rankKey`:
+    last one standing for a draft that cuts.
+  - **Someone out:** scores nothing after their last episode in; their lineup, captain and group slot refused (`validateLineup`,
+    `validatePick`: "You’re out of this game"; a move after an early end: "This game ended with episode N"), their claims and free
+    agency refused and out of the waivers' rotation, no side bet on an episode after an early end (`BetLogic`), a computer player
+    out sets no lineup (`bot-logic.js`). In an exclusive draft their castaways are back in the pool: exclusivity looks past them as it
+    looks past a late joiner's private team (`ownersAside` in `leagueOwnersOf`, worked out once a loop), and a claim keeps them on
+    the castaway for their history (`Core.setOwner`). Exclusive group slots stop counting them.
+  - **The fallbacks:** the newest episode with early results (who went home, before the scoring) waits: the walk stops there; an
+    earlier one still marked early once a later one has results counts as it stands (an episode where nothing scored can stay
+    early for good: the season sync marks it final only on a scoring moment or the full answers; the blind replays found The
+    Challenge 39's Episode 3 stopping its guillotines for the rest of the season). A tie at the
+    line keeps everyone tied there or sends them all, never everyone left; a window's tie goes to the total first. A night nobody
+    goes home (`ep.noExit`) cuts like any other, or is skipped. A cut before a phase falls after the episode before it starts, as
+    soon as data says where (`state.phaseStarts`, read as a phase's multiplier reads it); where that's known only once the phase
+    has begun, it lands then and the phase's first episode no longer counts for whoever it cut. A race nobody reaches plays out by
+    the total; two past it at once, the most points first, a tie sharing it. One left of everyone (whatever their start) ends it.
+    Late joiners: a ghost (a private season) is outside it; someone still catching up is in it but can't be cut or finish a race
+    until caught up, and counts as still in; nobody new joins once someone's out (`GhostLogic.allowed`). `readsPhases` for a cut
+    before a phase, and `phase-starts.ts`'s season settle picks such games by `settings.draftCut`.
+  - **The tracker:** win.race (a Weekly Lineup, first to 20), win.guillotine (an exclusive Outlast of three, the lowest every two
+    episodes out), win.cut (a Weekly Lineup, the bottom half cut before Merged), s01 (an exclusive best ball of four, the lowest each
+    episode out, with waivers so their castaways can be claimed), s02, s36 ✅. **Now: 170 ✅** · 75 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271;
+    A11's eight left are parts 2 to 5's (win.coop, win.h2h, who.teams, who.handicap, s19, s37, s48, w047).
+  - **Tests:** `tests/knockouts.test.js` (new, 12): the shape, defaults, words and settings both ways, and what's refused; a plain
+    draft scoring as before (no `out` on its rows); the guillotine (ties to the total, frozen totals, one left ending it, nothing
+    after the end counting, the table following the engine); ties kept or all, never everyone, the bottom half, a quiet night
+    skipped or cut; every two episodes, after an episode by the total, early results waiting (and an earlier episode still early
+    once a later one has results counting), a corrected result working it out again; a cut before a phase known ahead and known only once begun (a viewer behind sees none; the rows' parts adding up); a race
+    (two at once, nobody there, beside cuts); the walk reading the table's points (a lineup's and Outlast's); someone out (no moves,
+    out of the rotation, their castaways free in an exclusive draft, a claim keeping them, a shared draft freeing nothing, a
+    lineup refused); the field (a ghost outside, a late start); each team as it stood (a pickup after a cut not reaching back) and
+    nobody new joining once someone's out; someone catching up immune but counted. `game-spec.test.js`: the draft's rank fields.
+    `npm test` 1076.
+  - **API check:** `scripts/dev-test/check-knockouts.js` (new, on new-fixture.js's couch), 18 PASS: Couch Cup made a guillotine
+    through `setGame` with the show's ctx (alex out after 1, since his loss there stood until his replacement after 4; riley after 2;
+    jordan after 3 on 2 points to sam's 3 though he has more; sam left, over at 3, the span unchanged); the Games tab ranking sam,
+    jordan, riley, alex on 12, 13, 8, 5; their castaways free agents, the rotation sam alone. Lineup League a race to 20 (over at 4,
+    jordan first on 21, a lineup for 6 refused), then a cut every two (sam out after 2, riley after 4; sam's lineup refused, and
+    alex setting it as the commissioner; alex's own accepted; the Games tab as jordan reads it, and as sam does, seen through 3: only
+    his own cut). Episode 6 through the season sync: who went home alone is early results, so no cut; a scoring moment makes it
+    final, the cut leaves one, and the Games tab agrees once alex reveals 6. `check-engine-lab.js --api` ALL PASS. `npx tsc --noEmit
+    -p .` clean.
+  - **Cost:** the walk runs about five times for a Games tab read of a game that cuts (10 players, 13 episodes: under 3 ms more,
+    a scratch benchmark), and not at all for any other game; nothing is memoised (Noticed).
+  - **Code review** (`/code-review` at high, before the long runs; ten findings). Taken: Outlast's walk scored every past episode
+    from today's teams, so a pickup (a knocked-out player's freed castaway above all) reached back and could change who'd been cut
+    (now each team as it stood, by the mid-season log: the fixture's Couch Cup story changed with it, alex's Episode 1 loss standing
+    until his replacement after 4); `endEpisode` had become the early end for every server caller (Game settings, couch-joins,
+    phase-starts' line: now `lastEpisode`, beside it, and `endEpisode` the span as made); a cut before a phase waited for the
+    phase's first episode even when its start was known ahead (now as a phase's multiplier reads it, so it lands ahead when it can);
+    side bets on an episode after an early end; exclusive group slots still counting a knocked-out player (their carried pick held
+    its group); the end counted only those who'd started (a late start could end it early) and someone catching up was left out
+    of it (now in, immune until caught up, counted as still in; nobody new joins once someone's out); a castaway out with no episode
+    recorded counted as still in by the walk; a frozen row's parts not adding up to its total. Not taken (Noticed): the refusals
+    naming a knock-out to someone behind (the routes check the league as it stands; U1's wording), `inPlay` left reading the span
+    (routing it through the walk would walk once an episode inside every score: the move paths check the early end instead), and
+    a memo.
+  - **Golden replays** (`golden.js`, HEAD against the working tree, after the code review's fixes): 7 seasons, 160 games, **19,361
+    reads, every one the same** (no game they play races or cuts).
+  - **The harness** (`playtest.js`, which the blind replays move through): a seat knocked out makes no lineup or claim, and nothing
+    is moved for an episode after a game ended early, as the app will offer nothing (the first blind run had the replay's seats
+    trying both, refused by the engine: Survivor 49's race and its cut before Merged, The Traitors 4's race).
+  - **Blind replays** (`blind.js run`, the five seasons, on the final code): **every game ended on all five seasons**, the tracker's
+    four new games among them (The Challenge 41, 40 and 39 72 of 72, Survivor 49 92 of 92, The Traitors 4 70 of 70; the cut before
+    Merged plays on Survivor 49 only, the one season with that phase). The race: won at 5 (Survivor 49), 6 (The Traitors 4), 10
+    (The Challenge 39) and in 40's finale; never reached on 41 (its scoring runs negative), played to the end. The guillotines ended
+    at 3 to 8. They found the early-results fallback above (The Challenge 39's Episode 3) and the harness's moves. The study doc's
+    "A11 part 1: a race and knockouts, replayed blind". The golden replays ran again on the final code: 160 games, 19,361 reads,
+    every one the same; `check-knockouts.js` ALL PASS again.
 - **A12. Stages.** A game made of phases or mini-games, each with its own rules and an overall: a second draft at the merge, a
   season of mini-games, a game that scores two ways (bingo lines plus answers), one game across two shows.
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
@@ -3817,6 +3941,55 @@ From A10 part 1 (2026-10-29):
 - A slot's group members are matched to the league's cast the forgiving way (`Core.findCastawayByName`), as F3 part 2's group
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
+
+From A11 part 1 (2026-10-29):
+- **For the user, in a design session (with A10's questions), each with a recommendation (built as spec settings or engine rules,
+  the defaults in `CUT` and `KnockoutLogic`):**
+  1. A cut's defaults. Built: one goes, a tie at the line keeps everyone tied there (nobody goes by a tie), a window's tie goes to
+     the total first, a night nobody goes home cuts like any other (it still has points). Options: ties all go; a quiet night
+     skipped. Recommended: as built for points (the guillotine, a cut at the merge); `quiet: 'skip'` is for part 2's knockouts on
+     who goes home (a wrong guess), where a quiet night has nothing to be wrong about.
+  2. One left ends the game. Built: once a cut leaves one of everyone, it's over and they win (a pool with lives doesn't: A10 part 2's
+     item 8). Options: play on to the season's end, the last one's points still growing. Recommended: end it everywhere, pools too,
+     one rule (part 2 can make it the pools' with the user's word).
+  3. A cut before a phase whose start is known only once it's begun. Built: it lands then, after the episode before the phase,
+     and the phase's first episode no longer counts for whoever it cut (their lineup and points there, taken back); known ahead, it
+     lands before. Options: let them keep the phase's first episode (cut after it, still on the totals before it). Recommended: as
+     built, with the desk confirming a merge's start ahead whenever the show has announced it, so it rarely lands late (whether the
+     desk's phase confirmation takes a start before its episode airs wasn't checked here).
+  4. A knocked-out player's castaways. Built: back in the pool in an exclusive draft, always (the request's words), kept on the
+     castaway for the knocked-out player's history. Options: they leave with them (nobody gets them). Recommended: as built; "leave
+     with them" only if a maker asks (a spec setting then).
+  5. Late joiners. Built: nobody new joins once someone's out; before then a late joiner joins as now (someone catching up can't be
+     cut or finish a race until caught up). Options: join with what they score from their start (a cut on the total would likely
+     take them next); join out (watching only). Recommended: as built.
+  6. A race's finish. Built: the game ends after the episode someone reaches the line; the most points then win, a tie shares first
+     (T1); nobody there by the season's end, the most points win. Recommended: keep.
+  7. What players and the maker are told (a cut, a race won, the game over early, a knocked-out player's screens, a push) is U1's.
+- **The refusals name what happened** (the move routes check the league as it stands, as every move did): someone knocked out in
+  an episode they haven't revealed, or behind a race's finish, is told "You’re out of this game" or "This game ended with episode
+  N" when they try a move, which spoils it. A pool's someone out (A10 part 2) has the same shape. Recommended: U1 offers no move
+  past what the player's own view allows, and a refusal for someone behind says only that moves are closed. (U1.)
+- **The game's early end is `lastEpisode`; everything else reads the span** (`endEpisode`): Game settings, the couch's span line,
+  `currentEpisodeNumber`, a question's windows and the draft's finale predictions still treat episodes after a race's finish as
+  the game's (nothing scores there: `spanView`). `over` is right everywhere. (U1: say "ended early" from `over` and `lastEpisode`.)
+- **A corrected result that brings someone back** after one of their freed castaways was claimed: both own it in an exclusive draft
+  (the claim kept the knocked-out player on it, for their history). Rare (a correction after a claim); recommended: keep both, and
+  tell the maker (U1). (Whoever next touches waivers.)
+- **The walk isn't memoised:** about five walks for a Games tab read of a game that cuts, one for every exclusivity check (a
+  claim's `setOwner`, `freeAgents`), each the whole season's scores. Fine at a couch's size; a memo keyed to the state's version
+  if a game grows (or a public pool cuts). (Whoever next profiles the engine.)
+- **Outlast's table reads today's teams** (a pickup's whole placement counts at once, as it always has), while the walk reads each
+  team as it stood: a still-in row's total and the walk's can differ for a move made after the latest results. Only the frozen and
+  the cut read the walk. (R1, if Outlast's pickups ever count from when they're made.)
+- The table's rows (`game-view.ts` `TableRow`) don't carry `out` (a score row does), so nothing says who's out or when. (U1.)
+- **An episode where nothing scored can stay at early results for good** (the season sync marks an episode final on a scoring
+  moment or the full answers: `season-decisions.ts`), as The Challenge 39's Episode 3 does in the blind replays. The walk counts
+  such an episode once a later one has results; anything else that waits for final results (the "final results are in" push, the
+  reveal's wording) may wait on it forever. (Whoever next touches results' stages: mark an episode final when the full results'
+  run finds nothing to score.)
+- Start a game, Game settings and the engine lab offer no race or cut fields (the lab starts the tracker's rows). (U1; the lab
+  when it next changes.)
 
 From A10 part 4b (2026-10-29):
 - **For the user, in a design session (with A10 parts 1 to 4's questions), each with a recommendation (built as spec settings or

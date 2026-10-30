@@ -53,7 +53,17 @@
 //   rank     { by: 'total' } | { by: 'streak' } (longest, ties to the total) | { by: 'standing' } (A10 part 2, a pool with lives:
 //            last one standing, whoever's still in first, then whoever went out last; ties to the total, then lives left)
 //            | { by: 'worth' } (A10 part 3c, a stock market: cash plus the team at today's prices; ties to the total);
-//            sports: matchups | categories | roto
+//            sports: matchups | categories | roto. A11 part 1, beside a draft (Outlast, a lineup, best ball): race { to }, the
+//            first to `to` points wins, and the game ends after the episode someone reached it (the most points then wins; a
+//            season that ends first is won on the most points); cut [{ at, out, tie, quiet }], players knocked out, ranked last
+//            one standing (by 'standing': whoever's still in by their points, then whoever went out last), the game ending once
+//            one is left: at { every: n } (every n episodes of the game, the lowest by their points over those n: the
+//            guillotine; ties to the total) | { episode: n } | { phase: id } (the bottom by their total, after that episode or
+//            the episode before the phase starts); out n (how many go) | 'half' (the bottom half, rounded down); tie keep
+//            (nobody tied at the line goes) | all (everyone tied at it goes, never everyone left); quiet cut (a night nobody
+//            goes home is cut like any other) | skip (no cut that night). A knocked-out player scores nothing after their
+//            last episode in, makes no more moves, and in an exclusive draft their castaways are back in the pool. Only final
+//            results move either (an episode with its early results waits): KnockoutLogic in state-logic.js
 //   ask      questions answered before their lock, each settled by data (A4: the question below). Beside a draft, its
 //            finale predictions (finaleQuestions); a game scored by answers, its own (Weekly Calls': the show's calls,
 //            CALLS)
@@ -126,6 +136,12 @@ const VOCAB = {
   // what happens for someone who names nobody by the draft (they keep their best who are back, or nobody).
   'get.keep.cost': { place: 'now', round: 'now', price: 'now' },
   'get.keep.fallback': { best: 'now', none: 'now' },
+  // A11 part 1: players knocked out of a draft (rank.cut): when (every n episodes, by the points over them: the guillotine; after
+  // an episode, or before a phase of the season starts, by the total), what a tie at the line does (nobody at it goes, or all
+  // of them, never everyone left), and what a night nobody goes home does (cut like any other, or skipped).
+  'rank.cut.at': { every: 'now', episode: 'now', phase: 'now' },
+  'rank.cut.tie': { keep: 'now', all: 'now' },
+  'rank.cut.quiet': { cut: 'now', skip: 'now' },
 };
 
 // A question in `ask` (A4; A6 added who a moment happened to, groups, roles and questions about each person):
@@ -447,6 +463,22 @@ const BETS = { points: 1 };
  *  accounts one seat holds. */
 const SEATS = { people: 2 };
 const MAX_SEAT_PEOPLE = 4;
+// A11 part 1: a race's finish line (rank.race.to), and players knocked out (rank.cut): up to MAX_CUTS of them, each sending
+// 1 to MAX_CUT_OUT (or half); what a cut leaves out are the defaults (CUT: one goes, a tie at the line keeps them all, a night
+// nobody goes home cuts like any other). The defaults are the user's to set (A11 part 1's Noticed).
+const MAX_RACE = 1000;
+const MAX_CUTS = 4;
+const MAX_CUT_OUT = 20;
+const CUT = { out: 1, tie: 'keep', quiet: 'cut' };
+const CUT_AT = ['every', 'episode', 'phase'];
+/** A draft's race and cuts (A11 part 1), read the one way from a whole spec: { race: { to } | null, cuts: [...] }, or null for a
+ *  game with neither (every game before it). */
+function knockoutParts(s) {
+  if (!isObj(s) || !isObj(s.get) || s.get.by !== 'draft' || !isObj(s.rank)) return null;
+  const race = isObj(s.rank.race) && isInt(s.rank.race.to, 1) ? { to: s.rank.race.to } : null;
+  const cuts = Array.isArray(s.rank.cut) ? s.rank.cut.filter((c) => isObj(c) && isObj(c.at)).map((c) => ({ ...CUT, ...c })) : [];
+  return race || cuts.length ? { race, cuts } : null;
+}
 /** How many accounts can hold one of a whole spec's seats (extras.seats): 1 unless it shares them. */
 const seatPeople = (s) => (isObj(s) && isObj(s.extras) && isObj(s.extras.seats) && isInt(s.extras.seats.people, 2) ? s.extras.seats.people : 1);
 
@@ -711,6 +743,14 @@ function fullSpec(spec) {
     }
   }
   if (s.rank === undefined) s.rank = { by: isObj(s.score) && s.score.by === 'survive' ? 'streak' : 'total' };
+  // A11 part 1: a rank that says only its race or its cuts takes its order from them (cuts rank last one standing) or from the
+  // game's; each cut says what it leaves out as the defaults (CUT).
+  if (isObj(s.rank)) {
+    if (s.rank.by === undefined) {
+      s.rank.by = Array.isArray(s.rank.cut) && s.rank.cut.length ? 'standing' : fits ? p.rank.by : isObj(s.score) && s.score.by === 'survive' ? 'streak' : 'total';
+    }
+    if (Array.isArray(s.rank.cut)) s.rank.cut.forEach((c) => { if (isObj(c)) for (const [k, v] of Object.entries(CUT)) if (c[k] === undefined) c[k] = v; });
+  }
   const e = isObj(s.extras) ? s.extras : {};
   // Waivers and the draft room follow the mechanics (a preset's are the same where they fit). The rest are the preset's
   // while the spec still gets its castaways the preset's way, else off: a game with no preset starts with no side bets.
@@ -754,10 +794,12 @@ function playsAs(s) {
   // auction (AuctionLogic) an exclusive draft's.
   const drafted = by('get') === 'draft' && (own(ORDER_OF, s.get.own) === s.get.order || (s.get.order === 'draw' && own(ORDER_OF, s.get.own) !== undefined) || (s.get.order === 'auction' && s.get.own === 'exclusive'));
   if (drafted && (none || finaleOf(s.ask))) {
-    if (count === 'all' && by('score') === 'place' && by('rank') === 'total') return 'classic-draft';
+    // A11 part 1: a draft that knocks players out ranks last one standing (its race and cuts are KnockoutLogic's).
+    const ranks = by('rank') === 'total' || (by('rank') === 'standing' && Array.isArray(s.rank.cut) && s.rank.cut.length > 0);
+    if (count === 'all' && by('score') === 'place' && ranks) return 'classic-draft';
     // Best ball (A9 part 2) is Weekly Lineup's game with no lineups: its best n count (state-logic.js's best ball variant).
     // A10 part 3c: a stock market can rank by worth.
-    if ((count === 'start' || count === 'best') && by('score') === 'moments' && (by('rank') === 'total' || (by('rank') === 'worth' && marketOf(s)))) return 'active-roster';
+    if ((count === 'start' || count === 'best') && by('score') === 'moments' && (ranks || (by('rank') === 'worth' && marketOf(s)))) return 'active-roster';
   }
   // A10 part 2: a pool with lives can rank by who's still standing.
   if (by('get') === 'pick' && s.get.each === 1 && s.get.repeat === 'cycle' && count === 'pick' && by('score') === 'survive' && (by('rank') === 'streak' || by('rank') === 'standing') && none) {
@@ -845,6 +887,9 @@ function flagsOf(s) {
     hasGroupSlots: get.by === 'draft' && isObj(get.groups),
     // A10 part 4: keepers from last season's game.
     hasKeepers: get.by === 'draft' && isObj(get.keep),
+    // A11 part 1: a draft's race (first to N ends it) and players knocked out.
+    hasRace: !!(knockoutParts(s) && knockoutParts(s).race),
+    hasCuts: !!(knockoutParts(s) && knockoutParts(s).cuts.length),
     hasWeeklyPicks: get.by === 'pick',
     hasCalls: score.by === 'answers' && callsAsk(s && s.ask),
     // A game of questions (A4): scored by its answers, not the show's calls.
@@ -1006,7 +1051,12 @@ function specProblems(spec, ctx, opts) {
   const rank = isObj(s.rank) ? s.rank : {};
   if (!one('rank.by', rank.by)) add('rank.by', 'How it ranks: total, streak, standing, worth, matchups, categories or roto');
   if (rank.by === 'streak' && score.by !== 'survive') add('rank.by', 'A streak is a Survival Pool\'s');
-  if (rank.by === 'standing' && !(score.by === 'survive' && score.lives !== undefined)) add('rank.by', 'Last one standing is a pool with lives: a wrong pick costs one, and at none you\'re out');
+  // A11 part 1: last one standing is also a draft's that knocks players out (rank.cut).
+  const cutsSaid = Array.isArray(rank.cut) && rank.cut.length > 0;
+  if (rank.by === 'standing' && !(score.by === 'survive' && score.lives !== undefined) && !(get.by === 'draft' && cutsSaid)) {
+    add('rank.by', "Last one standing is a pool with lives (a wrong pick costs one, and at none you're out) or a draft that knocks players out");
+  }
+  if (rank.race !== undefined || rank.cut !== undefined) knockoutProblems(rank, s, league).forEach(([at, p]) => add(`rank${at}`, p));
   // A10 part 3c: worth is a stock market's: cash plus the team at today's prices.
   if (rank.by === 'worth' && !marketOf(s)) add('rank.by', "Ranking by worth is a stock market's (cash plus your team at today's prices): a budget that trades");
   if (!one('closes', s.closes)) add('closes', 'Moves close at the start, daily or weekly');
@@ -1239,7 +1289,10 @@ const KEYS = {
   captain: ['times'],
   when: ['times', 'episode', 'from', 'to', 'phase', 'finale'],
   shrink: ['points', 'per'],
-  rank: ['by'],
+  rank: ['by', 'race', 'cut'],
+  race: ['to'],
+  cut: ['at', 'out', 'tie', 'quiet'],
+  cutAt: CUT_AT,
   extras: ['waivers', 'bets', 'calls', 'draft', 'join', 'hideStarters', 'lockedDown', 'lateLock', 'seats'],
   lateLock: ['hours'],
   seats: ['people'],
@@ -1285,6 +1338,13 @@ function unknownKeys(s) {
     }
   }
   check(s.rank, KEYS.rank, 'rank');
+  if (isObj(s.rank)) {
+    check(s.rank.race, KEYS.race, 'rank.race');
+    if (Array.isArray(s.rank.cut)) s.rank.cut.forEach((c, i) => {
+      check(c, KEYS.cut, `rank.cut[${i}]`);
+      if (isObj(c)) check(c.at, KEYS.cutAt, `rank.cut[${i}].at`);
+    });
+  }
   (Array.isArray(s.ask) ? s.ask : []).forEach((q, i) => {
     check(q, KEYS.question, `ask[${i}]`);
     if (isObj(q)) {
@@ -1438,6 +1498,48 @@ function poolProblems(score, s, league) {
       if (first !== null && before.episode <= first) out.push(['.buyback.before.episode', "It's before the game's first episode, so nobody could buy back"]);
     }
   }
+  return out;
+}
+
+/**
+ * A draft's race and cuts (A11 part 1: rank.race, rank.cut), as [[at, problem]]. A race { to: 1 to MAX_RACE points }; cuts a list
+ * of 1 to MAX_CUTS, each { at: { every: 1 to MAX_WINDOW } | { episode: n } | { phase: id }, out: 1 to MAX_CUT_OUT | 'half', tie:
+ * keep | all, quiet: cut | skip }, ranked last one standing. Both beside a draft (Outlast, a lineup, best ball): a game of
+ * questions' and a pool's come with A11 part 2. A new game's cut at an episode is one it plays, before its last (a league's own
+ * keeps what it plays, as a span changes); a cut at the phase the game starts at has nobody to cut. Which phases there are is
+ * the data rule's (settleProblems).
+ */
+function knockoutProblems(rank, s, league) {
+  const out = [];
+  const draft = isObj(s.get) && s.get.by === 'draft';
+  if (rank.race !== undefined) {
+    if (!(isObj(rank.race) && isInt(rank.race.to, 1) && rank.race.to <= MAX_RACE)) out.push(['.race', `A race is { to: 1 to ${MAX_RACE} points }: the first there wins`]);
+    else if (!draft) out.push(['.race', "A race is a draft's for now: a game of questions' and a pool's come with A11 part 2"]);
+    else if (rank.by !== 'total' && rank.by !== 'standing') out.push(['.race', 'A race is won on points: it ranks by the total, or last one standing']);
+  }
+  if (rank.cut === undefined) return out;
+  const list = rank.cut;
+  if (!Array.isArray(list) || !list.length || list.length > MAX_CUTS) return [...out, ['.cut', `Players knocked out is a list of 1 to ${MAX_CUTS} cuts`]];
+  if (!draft) out.push(['.cut', "Knocking players out is a draft's for now: a game of questions' and a pool's come with A11 part 2"]);
+  else if (rank.by !== 'standing') out.push(['.by', "A game that knocks players out ranks last one standing: whoever's still in, then whoever went out last"]);
+  const first = isObj(s.span) ? spanStart(s.span) : null;
+  const last = isObj(s.span) ? s.span.to : null;
+  list.forEach((c, i) => {
+    const at = `.cut[${i}]`;
+    if (!isObj(c)) return out.push([at, 'Each cut is { at, out, tie, quiet }']);
+    const keys = isObj(c.at) ? Object.keys(c.at) : [];
+    if (keys.length !== 1 || !CUT_AT.includes(keys[0])) out.push([`${at}.at`, 'When: { every: n } (every n episodes, by the points over them), { episode: n } or { phase: id } (by the total)']);
+    else if (keys[0] === 'every' && !(isInt(c.at.every, 1) && c.at.every <= MAX_WINDOW)) out.push([`${at}.at.every`, `Every 1 to ${MAX_WINDOW} episodes`]);
+    else if (keys[0] === 'episode' && !isInt(c.at.episode, 1)) out.push([`${at}.at.episode`, 'After an episode number, 1 or later']);
+    else if (keys[0] === 'phase' && !(typeof c.at.phase === 'string' && c.at.phase)) out.push([`${at}.at.phase`, 'Before which phase of the season']);
+    else if (keys[0] === 'phase' && spanPhase(s.span) === c.at.phase) out.push([`${at}.at.phase`, 'The game starts at that phase, so nobody has played yet to cut']);
+    else if (keys[0] === 'episode' && !league && ((first !== null && c.at.episode < first) || (last !== null && c.at.episode >= last))) {
+      out.push([`${at}.at.episode`, "It's not one of the game's episodes before its last, so the cut would never matter"]);
+    }
+    if (!(c.out === 'half' || (isInt(c.out, 1) && c.out <= MAX_CUT_OUT))) out.push([`${at}.out`, `How many go: 1 to ${MAX_CUT_OUT}, or 'half' (the bottom half)`]);
+    if (own(VOCAB['rank.cut.tie'], c.tie) === undefined) out.push([`${at}.tie`, 'A tie at the line: keep (nobody tied there goes) or all (they all go, never everyone left)']);
+    if (own(VOCAB['rank.cut.quiet'], c.quiet) === undefined) out.push([`${at}.quiet`, 'A night nobody goes home: cut (like any other) or skip (no cut that night)']);
+  });
   return out;
 }
 
@@ -1637,6 +1739,20 @@ function settleProblems(s, ctx, opts) {
     else if (at === 0) out.push(['score.buyback.before.phase', 'The first phase starts with Episode 1: nobody is out before it']);
   }
   if (get.by === 'pick' && get.second !== undefined && ctx.results === false) out.push(['get.second', "The show's results don't say who goes home, so nothing says a night sent two"]);
+  // A11 part 1: a cut before a phase is one of the season's, never its first (that starts with Episode 1: nobody has played); where
+  // it starts is data (the desk confirms it). A night nobody goes home skipped needs results that say who goes home.
+  if (isObj(s.rank) && Array.isArray(s.rank.cut)) {
+    const ids = Array.isArray(ctx.phases) ? ctx.phases.map((p) => (isObj(p) ? p.id : p)) : null;
+    s.rank.cut.forEach((c, i) => {
+      if (!isObj(c) || !isObj(c.at)) return;
+      if (ids && typeof c.at.phase === 'string' && c.at.phase) {
+        const at = ids.indexOf(c.at.phase);
+        if (at < 0) out.push([`rank.cut[${i}].at.phase`, `"${c.at.phase}" isn't one of the season's phases`]);
+        else if (at === 0) out.push([`rank.cut[${i}].at.phase`, 'The first phase starts with Episode 1: nobody has played yet to cut']);
+      }
+      if (c.quiet === 'skip' && ctx.results === false) out.push([`rank.cut[${i}].quiet`, "The show's results don't say who goes home, so nothing says a night was quiet"]);
+    });
+  }
   // A9 part 2: a phase whose points multiply is one of the season's (where it starts is data: the desk confirms it); the finale
   // is the episode that ends the season, which only a show whose results say who goes home or wins places.
   if (score.by === 'moments' && Array.isArray(score.times)) {
@@ -1741,6 +1857,7 @@ module.exports = {
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
   marketWaivers, marketOf, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
+  MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

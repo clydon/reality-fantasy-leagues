@@ -251,8 +251,9 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
   const seat = playerId !== null;
   const catchingUp = seat && StateLogic.GhostLogic.isCatchingUp(full, me) && Number.isInteger(seen);
   const end = StateLogic.endEpisode(full);
-  // Results after its last episode aren't this game's to reveal.
-  const hidden = StateLogic.SpoilerLogic.hiddenEpisodes(full, seen).filter((e) => end === null || e.number <= end);
+  // Results after its last episode aren't this game's to reveal (step A11 part 1: nor after a race won or one left).
+  const last = StateLogic.lastEpisode(full);
+  const hidden = StateLogic.SpoilerLogic.hiddenEpisodes(full, seen).filter((e) => last === null || e.number <= last);
   const everyone = tableOf(view, me, userOf, calls?.right);
   const isPublic = game.solo === "public";
   const table = isPublic ? poolTop(everyone) : everyone;

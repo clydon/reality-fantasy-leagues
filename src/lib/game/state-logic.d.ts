@@ -30,6 +30,15 @@ export interface GroupSlotLine extends GroupSlotStanding {
 }
 
 /** One pick's outcome on a decided episode (A10 part 2's flags only on a pool with them). */
+/** Step A11 part 1: one scored episode of a draft's knockout walk: every player's total through it, and its parts as a score row
+ *  has them. */
+interface KnockoutEpisode {
+  number: number;
+  quiet: boolean;
+  totals: Map<string, number>;
+  rows: Map<string, { locked: number; banked: number; bonus: number; finale: number }>;
+}
+
 interface PickEmOutcome {
   correct: boolean | null;
   points: number;
@@ -153,7 +162,7 @@ declare const StateLogic: {
     compareKeys(a: number[], b: number[]): number;
   };
   /** The order a game's table ranks a score row in (compareKeys, higher first): a pool's standing or streak, a stock market's
-   *  worth (step A10 part 3c), else the points. */
+   *  worth (step A10 part 3c), a draft that knocks players out by standing (A11 part 1), else the points. */
   rankKey(state: LeagueState, row: Pick<ScoreRow, "total"> & Partial<ScoreRow>): number[];
   /** Step A10 part 2: a pool's lives, buyback, mulligans and second pick. */
   PickEmLogic: {
@@ -394,6 +403,9 @@ declare const StateLogic: {
   waitsForPhase(state: LeagueState): boolean;
   /** The last episode a game over a span plays (settings.endEpisode), or null: to the season's end. */
   endEpisode(state: LeagueState): number | null;
+  /** Step A11 part 1: the episode the game plays through as the data has it: its span's end, or earlier where a draft's race was
+   *  won or its cuts left one (KnockoutLogic.endsAt). gameOver and spanView read it; endEpisode stays the span it was made with. */
+  lastEpisode(state: LeagueState): number | null;
   /** Whether an episode counts for this league -- from its start episode through its end, if it has one. */
   inPlay(state: LeagueState, episodeNumber: number): boolean;
   /** The league as its span saw it: results after its last episode taken out (the state itself when there are none). */
@@ -746,6 +758,22 @@ declare const StateLogic: {
     moveProblem(state: LeagueState, playerId: string, dropId: string | null, addId: string, prices?: Map<string, number>): string | null;
     worth(state: LeagueState, playerId: string, prices?: Map<string, number>): number;
     view(state: LeagueState): { prices: Record<string, number>; cash: Record<string, number>; worth: Record<string, number> } | null;
+  };
+  /** Step A11 part 1: a draft's race (rank.race: the first to N points wins, and the game ends there) and players knocked out
+   *  (rank.cut), worked out from the data on every read. `out`: the last episode that counts for someone knocked out. */
+  KnockoutLogic: {
+    parts(state: LeagueState): { race: { to: number } | null; cuts: { at: { every?: number; episode?: number; phase?: string }; out: number | "half"; tie: "keep" | "all"; quiet: "cut" | "skip" }[] } | null;
+    on(state: LeagueState): boolean;
+    series(state: LeagueState): KnockoutEpisode[];
+    run(state: LeagueState): { out: Map<string, number>; ends: number | null; series: KnockoutEpisode[] };
+    endsAt(state: LeagueState): number | null;
+    outs(state: LeagueState): Map<string, number>;
+    outOf(state: LeagueState, playerId: string): number | null;
+    isOut(state: LeagueState, playerId: string): boolean;
+    moveProblem(state: LeagueState, playerId: string, number: number): string | null;
+    endedBefore(state: LeagueState, number: number): boolean;
+    frees(state: LeagueState): boolean;
+    apply(state: LeagueState, rows: ScoreRow[]): ScoreRow[];
   };
   /** Step A10 part 4: keepers across seasons (the spec's get.keep): options from last season's game (the server's: keepers.ts),
    *  named before the draft, locked as it starts; the draft fills the places they leave. */

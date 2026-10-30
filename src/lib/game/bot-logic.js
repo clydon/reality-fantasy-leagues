@@ -279,7 +279,10 @@ function lineups(state) {
   const slots = ActiveRosterLogic.activeSlots(state);
   if (!slots) return 0;
   let made = 0;
+  // Step A11 part 1: nobody knocked out of the game sets one (validateLineup would refuse it).
+  const outs = StateLogic.KnockoutLogic.outs(state);
   botIds(state).forEach((pid) => {
+    if (outs.has(pid)) return;
     const mine = state.castaways.filter((c) => c.status === "active" && (c.ownerIds || []).includes(pid)).map((c) => c.id);
     if (!mine.length) return;
     const best = ranked(state, pid, mine, "points").slice(0, slots);
