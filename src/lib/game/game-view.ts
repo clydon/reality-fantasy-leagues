@@ -1,6 +1,6 @@
 import type { Castaway, LeagueState, ScoreRow } from "./types";
 import StateLogic from "./state-logic.js";
-import type { AnswerWalk } from "./state-logic.js";
+import type { AnswerWalk, CoopWalk } from "./state-logic.js";
 import { castawayEventStats } from "./active-roster-rows";
 import { castawayPoints, teamOrder } from "./classic-view";
 import { latestScoredEpisode } from "./episode-team-summary";
@@ -236,6 +236,9 @@ export interface GameView extends GameRefIn {
   catchingUp: boolean;
   /** Catching up (step 9): the episode they're on (their week), and the latest the game has results for ("Episode 2 of 4"). */
   catchUp: { week: number; latest: number } | null;
+  /** Step A11 part 3: a co-op game's lives (the couch's together) and its result, won or lost by all, as far as you've seen (its
+   *  walk on your copy); null for any other game. What it shows is U1's. */
+  coop: CoopWalk | null;
 }
 
 /** Whose user a seat is, for faces. */
@@ -288,6 +291,7 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     revealFirst: hidden.length && !catchingUp && seat ? hidden[0].number : null,
     catchingUp,
     catchUp,
+    coop: calls?.walk?.coop ?? null,
   };
 }
 

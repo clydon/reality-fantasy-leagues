@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 172 ✅ · 73 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
-**Waiting, by step:** A11 6 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 174 ✅ · 71 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
+**Waiting, by step:** A11 4 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -113,7 +113,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | The last one standing carries you (Outlast) | An Outlast for Survivor 51: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. |
 | ✅ | Last one standing among the players (a pool with lives: a wrong pick costs one, out at none) | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. Three lives: a wrong pick costs one. Last one standing wins. |
 | ✅ | A race (first to 20 ends it) | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. First to 20 points wins: the game ends there. |
-| ⏳ | Co-op against the show (shared lives) | A11 |
+| ✅ | Co-op against the show (shared lives) | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. A point for each right answer. Together you have three lives: each time none of you gets it right, you lose one. Keep one to the end and you all win. |
 | ⏳ | Head to head, with playoffs | A11 |
 | ✅ | Players knocked out each week (guillotine) | An Outlast for Survivor 51: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. Every two episodes the lowest scorer over them is out. Last one standing wins. |
 | ✅ | Players cut at a phase | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. Before Merged starts the bottom half is cut. Last one standing wins. |
@@ -214,7 +214,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ✅ | s34 | Survivor 51 | Bet any of your points on your call, double or nothing. | score | A game for Survivor 51: everyone answers one question before each episode: who goes home, all season. A point for each right answer. Stake any of your points on it: double or nothing. |
 | ⏳ | s35 | Survivor 51 | Beat the bot: the AI makes its call too; you score when you're right and it's wrong. | win | A14 |
 | ✅ | s36 | Survivor 51 | First to 20 points wins. | win | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. First to 20 points wins: the game ends there. |
-| ⏳ | s37 | The Traitors (US) 5 | Co-op: together we have 5 lives; every faithful banished we didn't see coming costs one. | win | A11 |
+| ✅ | s37 | The Traitors (US) 5 | Co-op: together we have 5 lives; every faithful banished we didn't see coming costs one. | win | A game for The Traitors (US) 5: everyone answers one question before each episode: which Faithful will be banished, all season. A point for each right answer. Together you have five lives: each time none of you gets it right, you lose one. Keep one to the end and you all win. |
 | ✅ | s38 | Survivor 51 | Names out of a hat: everyone gets a random castaway; last one standing wins. | answer | An Outlast for Survivor 51: everyone gets 1 drawn at random, all season. Each scores by how long they last: the last one standing carries you. |
 | ⏳ | s39 | Survivor 51 | Pre-merge and post-merge are separate games with their own drafts, plus an overall winner. | shape | A12 |
 | ⏳ | s40 | Big Brother | Each week's top scorer picks a twist for next week. | who | A14 |

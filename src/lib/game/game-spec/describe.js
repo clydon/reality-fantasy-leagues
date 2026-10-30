@@ -309,6 +309,8 @@ function knockoutPhrases(s, w) {
   const a = answerParts(s);
   const k = knockoutParts(s) || a;
   if (!k) return [];
+  // A11 part 3: co-op, the couch's lives together.
+  if (a && a.coop) return coopPhrases(s, a);
   const out = [];
   if (a && a.lives) out.push(`${cap(say(a.lives))} ${a.lives === 1 ? 'life' : 'lives'}: a wrong answer${livesWhich(s, a)}, or none, costs one.`);
   out.push(...k.cuts.map((c) => cutPhrase(c, w)));
@@ -320,18 +322,51 @@ function knockoutPhrases(s, w) {
   if (a && a.allOut === 'back') out.push("If everyone left goes out together, they're all back in.");
   return out;
 }
+/** A11 part 3: who has to get a question right for a co-op night to cost nothing, in words: "none of you gets it right" is what
+ *  costs one with saves 'one'. `it`: the question, or "it". */
+const coopMiss = (saves, it) => ({ one: `none of you gets ${it} right`, most: `half or more of you get ${it} wrong`, all: `any of you gets ${it} wrong` })[saves];
+/** The sentence's words for co-op (A11 part 3): "Together you have five lives: each time none of you gets it right, you lose one.
+ *  Keep one to the end and you all win." */
+function coopPhrases(s, a) {
+  const asks = livesAsks(s, a);
+  const it = asks ? listOf(asks) : 'it';
+  return [
+    `Together you have ${say(a.lives)} ${a.lives === 1 ? 'life' : 'lives'}: each time ${coopMiss(a.coop.saves, it)}, you lose one.`,
+    'Keep one to the end and you all win.',
+  ];
+}
+/** How co-op works (A11 part 3), a rule a line, as the engine plays it (AnswerLogic.walk's co-op); its last line says who wins. */
+function coopRules(s, a, w) {
+  const asks = livesAsks(s, a);
+  const which = asks ? ` (${listOf(asks)})` : '';
+  const saves = { one: 'one of you gets it right', most: 'more than half of you who answered get it right', all: 'everyone who answered gets it right' }[a.coop.saves];
+  return [
+    `You play together, against the show: ${say(a.lives)} ${a.lives === 1 ? 'life' : 'lives'} for all of you, not each. A question asked each ${w.part}${which} costs one once it's settled, unless ${saves}.`,
+    `Not answering doesn't count against you, but ${article(w.part)} ${w.part} nobody answers costs one.`,
+    `${cap(article(w.part))} ${w.part} where it doesn't count (nobody went home, or nothing settles it) costs nothing.`,
+    'Right answers still earn their points, so the table shows who called the most.',
+    `Nobody is knocked out: lose the last life and you all lose, there and then; reach the end with one left and you all win.`,
+    `A life waits for ${article(w.part)} ${w.part}'s answers to be settled.`,
+  ];
+}
+/** The questions a life rides on as quoted asks, or null when it's every one asked each episode about it alone. */
+function livesAsks(s, a) {
+  const all = s.ask.filter(livesQuestion).map((q) => q.id);
+  if (a.on.length === all.length && a.on.every((id) => all.includes(id))) return null;
+  const asks = a.on.map((id) => s.ask.find((q) => q.id === id)).filter(Boolean).map((q) => `"${q.ask}"`);
+  return asks.length ? asks : null;
+}
 /** Which questions a life rides on, as a phrase (A11 part 2b): "" when it's every one asked each episode, else ' to "Who wins the
  *  elimination?"'. */
 function livesWhich(s, a) {
-  const all = s.ask.filter(livesQuestion).map((q) => q.id);
-  if (a.on.length === all.length && a.on.every((id) => all.includes(id))) return '';
-  const asks = a.on.map((id) => s.ask.find((q) => q.id === id)).filter(Boolean).map((q) => `"${q.ask}"`);
-  return asks.length ? ` to ${listOf(asks)}` : '';
+  const asks = livesAsks(s, a);
+  return asks ? ` to ${listOf(asks)}` : '';
 }
 /** How a game of questions' race, cuts and lives work (A11 part 2b), a rule a line, as the engine plays them (AnswerLogic.walk);
  *  its last line says who wins. */
 function answerKnockoutRules(s, w) {
   const a = answerParts(s);
+  if (a.coop) return coopRules(s, a, w);
   const out = [];
   if (a.lives) {
     const which = livesWhich(s, a);

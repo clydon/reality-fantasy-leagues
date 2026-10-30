@@ -37,7 +37,9 @@ standing, a knocked-out player's castaways back in the pool, `KnockoutLogic`, `l
 pick that never repeats; one or none left ending it, and the night everyone left goes out, as settings: `rank.oneLeft`,
 `rank.allOut`, `PickEmLogic.walk`), and part 2b, a game of questions' race and knockouts (2026-10-30: lives on its answers, its
 race and cuts on their points, walked over the graded answers by the server on each copy it reads and handed to the engine,
-`AnswerLogic.walk`, `answerWalk`), are built; parts 3 to 5 (co-op, head to head, teams and handicaps) are next, then A12 to A14
+`AnswerLogic.walk`, `answerWalk`), and part 3, co-op against the show (2026-10-30: a game of questions whose lives are the couch's
+together, a night none of you saw coming costing one, won or lost by all, `rank.by 'coop'`, `score.saves`), are built; parts 4 and 5
+(head to head, teams and handicaps) are next, then A12 to A14
 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -3440,6 +3442,95 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     first by default) and at 2 on 40 (its premiere had no elimination winner, so nobody lost a life; in 2 only the drive-by was right).
     So one life among four seats ends it at once: item 5's `allOut` 'back' would have kept it going. The study doc's "A11 part 2b:
     a game of questions' knockouts, replayed blind".
+
+  **As built (A11 part 3, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
+  lane-watch.js; 1093 tests). Co-op against the show (win.coop, s37 "Co-op: together we have 5 lives; every faithful banished we
+  didn't see coming costs one"). Every default and everything a person sees is the user's (Noticed, below).
+  - **The spec** (`schema.js`): `rank.by 'coop'`, a game of questions the couch plays together against the show, on its lives
+    (`score.lives`, part 2b's, 1 to `MAX_LIVES`, riding on `score.livesOn` or every question asked each episode about it alone): the
+    couch's together, not each player's. `score.saves`, who saves a night: `one` (one right answer among you), `most` (more than half
+    of those who answered), `all` (all of them); its default `COOP` (one), read by `answerParts` and never filled in. `answerParts`
+    gives `coop: { saves }` (else null) and no `oneLeft` or `allOut` for it (nobody is knocked out). Refused: co-op without lives,
+    co-op on anything but a game of questions (a pool's or a draft's isn't built), `saves` without co-op or with another value, a
+    race, a cut, `oneLeft` or `allOut` beside it (`coopProblems`, with `knockoutProblems` and `endProblems`). `playsAs`: a game of
+    questions ranked co-op with lives. `flagsOf`: `hasCoop` (and `answerParts` read once there: the code review). KEYS, the types.
+    Settings both ways: `questionsRank` 'coop' (said, as last one standing isn't: lives alone imply that) and `questionsSaves`; a
+    co-op rank keeps whatever else its settings say (a race, cuts, an end), so our check refuses it rather than it being lost (the
+    code review).
+  - **Words** (`describe.js`): the sentence ("Together you have five lives: each time none of you gets it right, you lose one. Keep
+    one to the end and you all win."; `most`: "half or more of you get it wrong"; `all`: "any of you gets it wrong"; the questions
+    named when `livesOn` picks some); How it works (five lives for all of you, not each; a question costing one once settled unless
+    enough of you got it right; not answering doesn't count against you, but a night nobody answers costs one; a night that doesn't
+    count costing nothing; right answers still earning their points; nobody knocked out, lost by all at the last life, won by all at
+    the end with one left; a life waiting for the answers to settle).
+  - **The engine** (`state-logic.js` `AnswerLogic.walk`, part 2b's walk, a branch of it): each question a life rides on, settled at
+    an episode, costs the couch one unless enough of it saw it coming. Of those who answered (in it from their start and caught up: a
+    ghost never, a late joiner from their start, someone catching up only once caught up, as answers.ts refuses their answers till
+    then: the code review), a void answer counts as none, a night every answer was void costs nothing (as a void pick does: the code
+    review), silence neither helps nor hurts, and a night nobody answered costs one (nobody saw it coming). Off (nobody went home,
+    only a murder, a Traitor banished, nothing settles it) costs nothing. At none left it ends there (`ends`), lost by all; at its end
+    (the span's last episode, or the season's, walked with nothing still to settle, having played an episode: the code review) with
+    one left, won by all. The walk gives `coop: { lives, of, lost: [{ episode, question }], result: won | lost | null }`, nobody in
+    `out`, everyone in `shared` with the couch's lives (`lives`), the totals as part 2b's. `rankKey`: one shared place for everyone
+    (`[0]`), `applyWalk` listing them by their points within it (who called the most: the code review). Everything part 2b taught
+    reads it unchanged: `lastEpisode`, `gameOver`, `spanView`, `endedBefore`, a copy that hides anything dropping it.
+  - **s37 on The Traitors:** "Which Faithful will be banished?" each episode, settled by the format's own implied moment
+    `banishedAsFaithful` (an exit Banished by someone whose role, as of the episode, isn't a Traitor: traitors.js impliedRules), so a
+    Traitor banished, a murder, a recruit banished (a Traitor by then) and a night nobody goes are off, costing nothing, and only a
+    Faithful banished whom none of you named costs one. The role verdicts answers.js has weren't needed: the moment is the role
+    verdict, on the data every Traitors game already scores. win.coop on Survivor: Who goes home? each episode, three lives.
+  - **The server:** every reader of a game of questions already goes through part 2b's walk (`answer-points.ts` `walked` and
+    `asItStands`, `season-games.ts` `gamesHere`), so a co-op game is walked everywhere; what's new is carrying its result.
+    `game-view.ts` `GameView.coop` (the viewer's walk's lives and result) and the table's one shared place; `answers.ts`
+    `GameQuestions.coop`, and the refusals part 2b built ("This game ended with Episode N" past a lost game's end, nothing asked then;
+    nobody is ever "out"); `couch-hub.ts` `standingOf` and `PlayingGame.coop`; `couch-standings.ts` `GameStanding.coop`: power
+    rankings, head to head, titles, finishes and your numbers' places leave a co-op game out (everyone shares one place in it, so it
+    isn't a finish against each other: `versus`), the seasons you played keep it; the trophy shelf keeps it as a plaque whose winners
+    are everyone when it was won and nobody when it was lost (`Plaque.coop`), never a title, never the earlier win a "Ran it back"
+    counts (the code review).
+  - **The fallbacks:** a night nobody goes home, only a murder or a Traitor banished: off, nothing lost; a role research hasn't said:
+    the format's default, Faithful, as every Traitors moment reads it (Noticed); results still early: the walk waits at the newest
+    episode (the moment needs the full results); an earlier one left early once a later one is in: never settles, costs nothing; a
+    corrected result: worked out again (a lost game back on: `check-coop.js`); someone who never answers: silence doesn't count
+    against the couch, a night nobody answers does; late joiners: from their start, a ghost outside, someone catching up once caught
+    up; the format changing (The Traitors' recruit): the role as of the episode, so a recruit banished is a Traitor; a role the format
+    doesn't know reads as not a Traitor (Noticed).
+  - **The tracker:** win.coop ✅ (Survivor 51, three lives), s37 ✅ (The Traitors (US) 5, five lives on `banishedAsFaithful`). **Now: 174
+    ✅** · 71 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271; A11's four left: win.h2h (part 4), who.teams, who.handicap, s19 (part 5).
+  - **Tests:** `tests/coop.test.js` (new, 6): the shape, defaults, words and settings both ways, what's refused (s37 on The Traitors'
+    rules, win.coop on Survivor's); s37's nights (a Faithful named saves it; a Traitor banished, a murder, a quiet night cost nothing;
+    one nobody named, one nobody answered; lost by all, `lastEpisode`, `gameOver`, `endedBefore`, nobody out, one shared place listed
+    by points); who saves a night (one, most, all, silence); each fallback (early results, an earlier one left early, a corrected
+    result, a recruit, late joiners, a ghost, someone catching up, a night every answer was void); won at the span's end and at the
+    season's, a viewer behind, a game that never played; the Games tab's table and view, the couch's standings, trophies (no Ran it
+    back after a co-op win) and your numbers. `answer-knockouts.test.js`'s parts, `game-spec.test.js`'s fields. `npm test` 1099.
+  - **API check:** `scripts/dev-test/check-coop.js` (new, on new-fixture.js's couch), 22 PASS: jordan's Survival Pool made a co-op game
+    of questions through `setGame` with the show's ctx (Who goes home? each episode, two lives); Episode 6 answered through the answers
+    route (alex right, riley and jordan wrong, sam silent), its result through the season sync: both lives stand; the Games tab as
+    jordan reads it (one shared place, alex's point, `coop`) and as sam does (seen 5: nothing graded); Episode 7, nobody right: one
+    life gone, the questions read says so; Episode 8, nobody right: lost by all, over, the questions read ended with 8, an answer for 9
+    refused, the sheet empty; the hub (the plaque with no winners, its result lost, the power rankings without it); Episode 8's result
+    corrected (re-decided) to the one alex and jordan named: one life left, the game back on. `check-answer-knockouts.js`,
+    `check-questions.js`, `-who`, `-time`, `-scoring`, `-more` (`--api`), `check-knockouts.js`, `check-pool-knockouts.js` and
+    `check-engine-lab.js --api` ALL PASS. `npx tsc --noEmit -p .` clean.
+  - **Code review** (`/code-review` at high, before the long runs; ten findings). Taken: a versus game after a co-op one the couch won
+    handed "Ran it back" to its winner (everyone "won" the co-op one); someone catching up counted on the couch's nights (no answer of
+    theirs can be made then, but a stored one could flip a night after the fact: caught up first, as the rest of the walk has it); a
+    night every answer was void cost a life; a game that never played an episode read as won; the rows not listed by their points;
+    the `most` sentence disagreeing with the engine (half right costs a life); a co-op rank from settings dropping a race or cuts
+    silently; `answerParts` read four times in `flagsOf`; the seasons rule written twice. Not taken (Noticed): a plaque for a co-op
+    game that ended undecided (archived while it played, or its last night still to settle) has no winners and says `result: null`;
+    the shared place "T1" on a lost game's plaque and in the hub's games list (both now carry `coop`, for U1 to say it).
+  - **The harness** (`blind.js`): each episode's record of a co-op game says the couch's lives, the nights lost and the result
+    (`.coop`), instead of each seat's lives.
+  - **Golden replays** (`golden.js`, HEAD against the working tree, after the code review's fixes): 7 seasons, 160 games, **19,361
+    reads, every one the same** (no game they play is co-op).
+  - **Blind replays** (`blind.js run`, the five seasons, on the final code): **every game ended on all five seasons**, win.coop on all
+    five and s37 on The Traitors 4 among them (Survivor 49 94 of 94, The Challenge 41, 40 and 39 75 of 75, The Traitors 4 73 of 73), no
+    answer refused, no problem in the moves. win.coop was lost by all at 4 on Survivor 49 and The Traitors 4, at 3 on The Challenge 41
+    and 39, at 9 on 40 (pairs going home together, so naming either saved a night); s37 at 10 of The Traitors 4's 12 (its premiere, 7
+    and 8 off: no Faithful banished; 2 and 5 saved). Four seats rarely call a boot, so three shared lives go fast: items 1 and 6 are
+    the user's. The study doc's "A11 part 3: co-op against the show, replayed blind".
 - **A12. Stages.** A game made of phases or mini-games, each with its own rules and an overall: a second draft at the merge, a
   season of mini-games, a game that scores two ways (bingo lines plus answers), one game across two shows.
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
@@ -4153,6 +4244,62 @@ From A10 part 1 (2026-10-29):
 - A slot's group members are matched to the league's cast the forgiving way (`Core.findCastawayByName`), as F3 part 2's group
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
+
+From A11 part 3 (2026-10-30):
+- **For the user, in a design session (with parts 1, 2 and 2b's questions and A10's), each with a recommendation (built as spec
+  settings or engine rules, the defaults in `COOP` and `AnswerLogic.walk`, never filled into a spec):**
+  1. Who saves a night. Built: `score.saves`, one (one right answer among you: the default) | most (more than half of those who
+     answered) | all (all of them). Recommended: one, as built (s37's "we didn't see coming" read as none of us named them); most and
+     all for a couch that wants it harder, the wizard saying it in the words the sentence uses.
+  2. Silence. Built: someone who doesn't answer neither helps nor hurts (the field is who answered), but a night nobody answers costs
+     one (nobody saw it coming). Options: silence counts as not seeing it (most and all over everyone in the game); a night nobody
+     answers costs nothing. Recommended: as built (Joanna forgets: the couch shouldn't lose for her, and a couch that stops answering
+     still loses, so the game ends). The second option would also let a couch that walks away "win" at the end with every life.
+  3. Two Faithful banished in one night. Built: one life a question a night at most (naming either saves it; part 2b's "each question
+     its own life"). Options: a life for each one nobody named ("every faithful banished", read literally). Recommended: as built, the
+     seed's own words ("a night nobody saw coming costing one"); a per-person cost as a setting if the GPT finds requests that need it
+     (G1's corpus will show).
+  4. The finale. The Traitors' finale banishments are `banishedInFinale` (traitors.js: in the finale, either role), not
+     `banishedAsFaithful`, so s37's question is off at the finale: a Faithful banished at the last Round Table costs nothing. Options:
+     a settle on who went home by an exit and a role (`{ by: 'results', take: 'out', exit: 'Banished', role: 'Faithful' }`: data
+     already settles both), so the finale counts too. Recommended: build that settle (a small piece, A13 or whichever step next
+     touches settles), s37 moving onto it; until then the finale costing nothing is the safe side.
+  5. How it ends. Built: lost by all the episode the last life goes, won by all at its end (the span's last episode, or the
+     season's) with one left; nothing else ends it. Options: a target to win early ("call eight boots before we lose five lives"), won
+     early on the show's own end (every Traitor banished). Recommended: as built for now; a target as its own setting when a request
+     asks for one (none of the corpus's does yet).
+  6. How many lives. Built: `MAX_LIVES` (5), part 2b's, which s37 asks for exactly. A couch's lives together may want more ("ten lives
+     between us"). Recommended: let co-op go to 10 (one constant), on the user's word.
+  7. What a co-op game shows (the user's, U1): one shared place for everyone (the table's "T1", even when the couch lost; each row's
+     points still there, listed by who called the most), the couch's lives and the nights they went (`GameView.coop`,
+     `GameQuestions.coop`, `PlayingGame.coop`), the result. On the couch: no place in power rankings, head to head or finishes (built:
+     nobody played anyone), the plaque everyone's when it was won and nobody's when it was lost (built), no title for a win (built).
+     Recommended: the lives above the table and "Won together" or "The show won" in place of a place; a co-op win a shared plaque,
+     not a title, as built. What players and the maker are told (a life lost, the game lost or won, a correction bringing it back) is
+     U1's.
+  8. A late lock with co-op (part 2b's item 7, the same here): someone who watches late can still answer within their window after
+     others have the results, so a night already lost (and a game already over) can be saved after the fact. Recommended: pending,
+     as part 2b's item 7 (a night waits until everyone's late window has passed: the server has the clock and each one's mark), when
+     a game has both; not built.
+  9. A corrected result that brings a lost game back: answers were refused while it read as over, so a night in between that nobody
+     could answer reads as nobody answered and costs a life (`check-coop.js` corrected the last night itself, with nothing after
+     it). Recommended: a night whose lock fell while the game read as ended costs nothing (the walk would need when it read as ended:
+     the server could keep the walk's end with the time it was first seen); not built, rare.
+- **A role research hasn't said reads as a Faithful** (traitors.js `roles.default`, as every Traitors moment and its points read it):
+  a Traitor banished whose role research never reported is `banishedAsFaithful`, and costs the couch a life if nobody named them.
+  Research reports a banished person's role with the exit as a rule, so it's rare. Recommended: when the role decisions carry how
+  sure research was (F2's format section has a `sure`; the role questions don't), a banishment with no role said holds the night as
+  waiting. (Whoever next touches The Traitors' research; the user's, with item 4.)
+- **A role the format doesn't know** (a new twist's role, not a Traitor) reads as not a Traitor, so its banishment counts as a
+  Faithful's. (The format's rule, as above; A12's twists if one comes.)
+- **Not walked yet** (part 2b's item, now co-op's too): the couch's game list (`couch-joins.ts`), Game settings' span
+  (`backstage-games.ts`), the desk's games list (`desk-games.ts`) and the join route read a co-op game without its walk: a lost game
+  runs to its span's end there. Recommended: `asItStands` in each, as part 2b's. (Part 5's late joiners for the join; U1 for the lists.)
+- **A plaque for a co-op game that ended undecided** (archived while it played, or its span's last episode in with its night still
+  to settle) has no winners and `coop.result` null, which a screen could read as a loss. (U1, with item 7.)
+- **Co-op is a game of questions' only:** a pool's ("together we have five lives; every wrong boot pick costs one") or a draft's
+  (the couch's points against a target) isn't built; `rank.by 'coop'` elsewhere is refused. (When a request asks: A12 or later.)
+- Start a game, Game settings and the engine lab offer none of part 3's fields (the lab starts the tracker's rows). (U1.)
 
 From A11 part 2b (2026-10-30):
 - **For the user, in a design session (with parts 1 and 2's questions and A10's), each with a recommendation (built as spec

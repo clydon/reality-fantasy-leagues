@@ -54,7 +54,9 @@
 //            on them multiplied: "who goes home AND who wins immunity, triple if both". A11 part 2b, a game of questions': lives
 //            n, a wrong answer, or none, to a question livesOn names (else every one asked each episode about it alone) costs
 //            one on a night it's settled, and at none you're out: "guess every elimination winner; a wrong guess knocks you
-//            out"); sports: { by: 'stats', points: { HR: 5 } } (the Sport's stat keys)
+//            out"); A11 part 3, co-op (rank.by 'coop'): the lives are the couch's together, a night on a question they ride
+//            on costing one unless enough of you saw it coming (saves: one, a right answer among you | most, of those who
+//            answered | all of them; COOP's default one); sports: { by: 'stats', points: { HR: 5 } } (the Sport's stat keys)
 //   rank     { by: 'total' } | { by: 'streak' } (longest, ties to the total) | { by: 'standing' } (A10 part 2, a pool with lives:
 //            last one standing, whoever's still in first, then whoever went out last; ties to the total, then lives left)
 //            | { by: 'worth' } (A10 part 3c, a stock market: cash plus the team at today's prices; ties to the total);
@@ -75,8 +77,10 @@
 //            default) | share (they're all out and share the win, whatever their points) | back (they're all back in for
 //            the next episode, with the lives they had that night). A11 part 2b: a game of questions' race and cuts as a
 //            draft's (on its answers' points), and its lives (score.lives) knock players out too, ranked last one standing,
-//            its oneLeft and allOut as a pool's (their defaults ANSWERS_END). The defaults are the user's (A11 part 2's and
-//            2b's Noticed)
+//            its oneLeft and allOut as a pool's (their defaults ANSWERS_END). A11 part 3: { by: 'coop' }, a game of questions
+//            the couch plays together against the show, on its lives (score.lives, everyone's): lost by all the episode the
+//            last one goes, won by all at its end with one left; nobody is knocked out, so no race, cut, oneLeft or allOut.
+//            The defaults are the user's (A11 part 2's, 2b's and 3's Noticed)
 //   ask      questions answered before their lock, each settled by data (A4: the question below). Beside a draft, its
 //            finale predictions (finaleQuestions); a game scored by answers, its own (Weekly Calls': the show's calls,
 //            CALLS)
@@ -100,7 +104,8 @@ const VOCAB = {
   count: { start: 'now', all: 'now', pick: 'now', best: 'now' },
   'score.by': { moments: 'now', place: 'now', survive: 'now', lines: 'now', answers: 'now', stats: 'sports' },
   'score.means': { staysIn: 'now', scores: 'now' },
-  'rank.by': { total: 'now', streak: 'now', standing: 'now', worth: 'now', matchups: 'sports', categories: 'sports', roto: 'sports' },
+  // A11 part 3: co-op, the couch against the show (a game of questions whose lives are everyone's together: won or lost by all).
+  'rank.by': { total: 'now', streak: 'now', standing: 'now', worth: 'now', coop: 'now', matchups: 'sports', categories: 'sports', roto: 'sports' },
   closes: { start: 'now', daily: 'sports', weekly: 'sports' },
   'pool.where': { stillIn: 'now', teams: 'sports', group: 'later' },
   'ask.answer': {
@@ -161,6 +166,9 @@ const VOCAB = {
   // plays on; a pool's night everyone left goes out together: all out by their points, all out sharing the win, or all back in.
   'rank.oneLeft': { ends: 'now', plays: 'now' },
   'rank.allOut': { points: 'now', share: 'now', back: 'now' },
+  // A11 part 3: a co-op game's night, on a question its lives ride on, costs the couch nothing when enough of it saw it coming:
+  // one of you right, most of those who answered, or all of them.
+  'score.saves': { one: 'now', most: 'now', all: 'now' },
 };
 
 // A question in `ask` (A4; A6 added who a moment happened to, groups, roles and questions about each person):
@@ -501,6 +509,9 @@ const POOL_END = { oneLeft: 'plays', allOut: 'points' };
 // A11 part 2b: a game of questions that knocks players out ends once one is left, as a draft that cuts does; the night everyone
 // left goes out (lives) they're all out, ranked by their points, as a pool's (the user's to set: Noticed).
 const ANSWERS_END = { oneLeft: 'ends', allOut: 'points' };
+// A11 part 3: a co-op game's night costs the couch a life unless one of you saw it coming (the user's to set: Noticed). Read by
+// answerParts, never filled in.
+const COOP = { saves: 'one' };
 /** A rank's said end value, else the default. */
 const endOf = (rank, key, dflt) => (isObj(rank) && own(VOCAB[`rank.${key}`], rank[key]) ? rank[key] : dflt[key]);
 /** A draft's race and cuts (A11 part 1), read the one way from a whole spec: { race: { to } | null, cuts: [...], oneLeft (part 2:
@@ -519,8 +530,10 @@ const livesQuestion = (q) => isObj(q) && q.asked === 'each' && !(Number.isIntege
 /**
  * A game of questions' race, cuts and lives (A11 part 2b: rank.race and rank.cut on its answers' points, score.lives), read the one
  * way from a whole spec: { race: { to } | null, cuts, lives (null: none), on (the questions a wrong answer, or none, costs a life
- * on: score.livesOn, else every one asked each episode about it alone), oneLeft (with lives or cuts), allOut (with lives) },
- * their defaults ANSWERS_END; null for a game of questions with none of them (every one before it) or a game that isn't one.
+ * on: score.livesOn, else every one asked each episode about it alone), oneLeft (with lives or cuts), allOut (with lives), coop
+ * (A11 part 3: rank.by 'coop' with lives, the couch's together: { saves }, its default COOP; else null) }, their defaults
+ * ANSWERS_END; null for a game of questions with none of them (every one before it) or a game that isn't one. A co-op game knocks
+ * nobody out (its lives are everyone's), so it has no oneLeft or allOut.
  */
 function answerParts(s) {
   if (!questionsGame(s)) return null;
@@ -530,10 +543,12 @@ function answerParts(s) {
   const lives = isInt(s.score.lives, 1) ? s.score.lives : null;
   if (!race && !cuts.length && lives === null) return null;
   const on = lives === null ? [] : Array.isArray(s.score.livesOn) ? s.score.livesOn.filter((id) => typeof id === 'string') : s.ask.filter(livesQuestion).map((q) => q.id);
+  const coop = lives !== null && rank.by === 'coop' ? { saves: own(VOCAB['score.saves'], s.score.saves) ? s.score.saves : COOP.saves } : null;
   return {
     race, cuts, lives, on,
-    oneLeft: lives !== null || cuts.length ? endOf(rank, 'oneLeft', ANSWERS_END) : null,
-    allOut: lives !== null ? endOf(rank, 'allOut', ANSWERS_END) : null,
+    oneLeft: !coop && (lives !== null || cuts.length) ? endOf(rank, 'oneLeft', ANSWERS_END) : null,
+    allOut: !coop && lives !== null ? endOf(rank, 'allOut', ANSWERS_END) : null,
+    coop,
   };
 }
 /** How many accounts can hold one of a whole spec's seats (extras.seats): 1 unless it shares them. */
@@ -870,7 +885,8 @@ function playsAs(s) {
     if (callsAsk(s.ask)) return by('rank') === 'total' ? 'weekly-calls' : null;
     // A11 part 2b: a game of questions that knocks players out (lives, cuts) ranks last one standing.
     const knocks = isInt(s.score.lives, 1) || (isObj(s.rank) && Array.isArray(s.rank.cut) && s.rank.cut.length > 0);
-    const ranks = by('rank') === 'total' || (by('rank') === 'standing' && knocks);
+    // A11 part 3: co-op, the couch's lives together.
+    const ranks = by('rank') === 'total' || (by('rank') === 'standing' && knocks) || (by('rank') === 'coop' && isInt(s.score.lives, 1));
     if (ranks && !none && s.ask.length <= MAX_QUESTIONS && s.ask.every(playable)) return 'questions';
   }
   if (by('get') === 'card' && !count && by('score') === 'lines' && by('rank') === 'total' && none) return 'weekly-bingo';
@@ -951,6 +967,9 @@ function flagsOf(s) {
   const get = isObj(s && s.get) ? s.get : {};
   const score = isObj(s && s.score) ? s.score : {};
   const waivers = waiversFit(s);
+  // A11: a draft's race and cuts, or a game of questions' with its lives and co-op, read once.
+  const asks = answerParts(s);
+  const knocks = knockoutParts(s) || asks;
   return {
     hasRoster: get.by === 'draft',
     hasActiveRoster: get.by === 'draft' && countKind(s.count) === 'start',
@@ -961,9 +980,11 @@ function flagsOf(s) {
     // A10 part 4: keepers from last season's game.
     hasKeepers: get.by === 'draft' && isObj(get.keep),
     // A11 part 1: a draft's race (first to N ends it) and players knocked out; part 2b, a game of questions' too, and its lives.
-    hasRace: !!((knockoutParts(s) || answerParts(s) || {}).race),
-    hasCuts: !!((knockoutParts(s) || answerParts(s) || { cuts: [] }).cuts.length),
-    hasAnswerLives: !!(answerParts(s) && answerParts(s).lives),
+    hasRace: !!(knocks && knocks.race),
+    hasCuts: !!(knocks && knocks.cuts.length),
+    hasAnswerLives: !!(asks && asks.lives),
+    // A11 part 3: co-op, the couch against the show (its lives everyone's together).
+    hasCoop: !!(asks && asks.coop),
     hasWeeklyPicks: get.by === 'pick',
     hasCalls: score.by === 'answers' && callsAsk(s && s.ask),
     // A game of questions (A4): scored by its answers, not the show's calls.
@@ -1130,7 +1151,7 @@ function specProblems(spec, ctx, opts) {
   if (score.by === 'lines' && get.by !== 'card') add('score.by', 'Lines are a bingo card\'s: get card');
   if (score.by === 'answers' && !(Array.isArray(s.ask) && s.ask.length)) add('ask', 'A game scored by answers asks at least one question');
   const rank = isObj(s.rank) ? s.rank : {};
-  if (!one('rank.by', rank.by)) add('rank.by', 'How it ranks: total, streak, standing, worth, matchups, categories or roto');
+  if (!one('rank.by', rank.by)) add('rank.by', 'How it ranks: total, streak, standing, worth, coop, matchups, categories or roto');
   if (rank.by === 'streak' && score.by !== 'survive') add('rank.by', 'A streak is a Survival Pool\'s');
   // A11 part 1: last one standing is also a draft's that knocks players out (rank.cut); part 2b, a game of questions' that does
   // (its cuts, or its lives).
@@ -1139,9 +1160,11 @@ function specProblems(spec, ctx, opts) {
   if (rank.by === 'standing' && !(score.by === 'survive' && score.lives !== undefined) && !(get.by === 'draft' && cutsSaid) && !askKnocks) {
     add('rank.by', "Last one standing is a pool with lives (a wrong pick costs one, and at none you're out), or a draft or a game of questions that knocks players out");
   }
-  if (questionsGame(s) && score.lives !== undefined && rank.by !== 'standing') {
-    add('rank.by', "A game that knocks players out ranks last one standing: whoever's still in, then whoever went out last");
+  if (questionsGame(s) && score.lives !== undefined && rank.by !== 'standing' && rank.by !== 'coop') {
+    add('rank.by', "A game that knocks players out ranks last one standing: whoever's still in, then whoever went out last (or it's co-op: the lives are everyone's)");
   }
+  // A11 part 3: co-op, the couch against the show.
+  if (rank.by === 'coop' || (score.by === 'answers' && score.saves !== undefined)) coopProblems(score, rank, s).forEach(([at, p]) => add(at, p));
   if (rank.race !== undefined || rank.cut !== undefined) knockoutProblems(rank, s, league).forEach(([at, p]) => add(`rank${at}`, p));
   if (rank.oneLeft !== undefined || rank.allOut !== undefined) endProblems(rank, s).forEach(([at, p]) => add(`rank${at}`, p));
   // A10 part 3c: worth is a stock market's: cash plus the team at today's prices.
@@ -1369,7 +1392,7 @@ const KEYS = {
   budget: ['total', 'floor', 'ceiling', 'gone', 'fallback', 'trade', 'left'],
   trade: ['fee'],
   second: ['fallback'],
-  score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn'], stats: ['by', 'points'] },
+  score: { moments: ['by', 'points', 'captain', 'times'], place: ['by', 'reverse'], survive: ['by', 'means', 'points', 'lives', 'buyback', 'mulligans'], lines: ['by', 'points'], answers: ['by', 'parlays', 'lives', 'livesOn', 'saves'], stats: ['by', 'points'] },
   buyback: ['times', 'before', 'cost'],
   before: ['phase', 'episode'],
   parlay: ['of', 'times'],
@@ -1677,6 +1700,26 @@ function answerLivesProblems(score, s) {
     });
   } else if (!s.ask.some(livesQuestion)) {
     out.push(['.lives', 'A life rides on a question asked each episode, about that episode alone: this game asks none']);
+  }
+  return out;
+}
+
+/**
+ * Co-op (A11 part 3: rank.by 'coop', score.saves), as [[at, problem]]: a game of questions whose lives (score.lives, as part 2b's:
+ * 1 to MAX_LIVES, riding on score.livesOn or every question asked each episode about it alone) are the couch's together, a night
+ * costing them one unless enough of the couch saw it coming (score.saves: one | most | all, else COOP); won by all with a life left
+ * at its end, lost by all at none. Only a game of questions plays it for now (a pool's or a draft's co-op isn't built). It knocks
+ * nobody out, so a race, a cut, oneLeft and allOut are refused where they're checked (knockoutProblems, endProblems).
+ */
+function coopProblems(score, rank, s) {
+  const out = [];
+  if (rank.by === 'coop') {
+    if (!questionsGame(s)) out.push(['rank.by', 'Co-op is a game of questions for now: the couch answers, together against the show']);
+    else if (score.lives === undefined) out.push(['score.lives', "Co-op needs lives: they're the couch's together, and at none you've all lost"]);
+  }
+  if (score.saves !== undefined) {
+    if (rank.by !== 'coop') out.push(['score.saves', "Who saves a night is co-op's: rank.by 'coop'"]);
+    else if (own(VOCAB['score.saves'], score.saves) === undefined) out.push(['score.saves', 'A night costs the couch nothing when one of you saw it coming (one), most of those who answered (most) or all of them (all)']);
   }
   return out;
 }
@@ -1995,7 +2038,7 @@ module.exports = {
   MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
   marketWaivers, marketOf, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
-  MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END, ANSWERS_END, answerParts, livesQuestion,
+  MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END, ANSWERS_END, COOP, answerParts, livesQuestion,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

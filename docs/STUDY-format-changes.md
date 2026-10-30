@@ -928,6 +928,37 @@ nothing for a seat that's out or after a game ended early, as the app offers not
 - **The walk on what each has seen:** the tables recorded are as the runner sees them once each episode is in; the unit tests and
   `check-answer-knockouts.js` prove that a viewer behind isn't knocked out by what they haven't seen.
 
+## A11 part 3: co-op against the show, replayed blind (2026-10-30)
+
+A11's part 3 gave a game of questions co-op: its lives are the couch's together (`rank.by 'coop'`), a question they ride on costing
+one on a night unless enough of the couch saw it coming (`score.saves`, by default one right answer among those who answered), the
+game lost by all the episode the last one goes and won by all at its end with one left, walked over the graded answers as part 2b's
+lives are (state-logic.js `AnswerLogic.walk`, its co-op branch). Two tracker games: the dial row win.coop (Who goes home? each
+episode, three lives), which plays on all five seasons, and the stretch request s37, "Co-op: together we have 5 lives; every faithful
+banished we didn't see coming costs one" (Which Faithful will be banished? each episode, five lives, settled by The Traitors' own
+implied moment `banishedAsFaithful`), which plays on The Traitors 4 only. The blind replays played them with every other game: every
+game ended on all five seasons (Survivor 49 94 of 94, The Challenge 41, 40 and 39 75 of 75, The Traitors 4 73 of 73), no answer
+refused, no problem in the moves.
+
+| Season | win.coop: lost at | Lives lost | s37: lost at | Lives lost |
+|---|---|---|---|---|
+| Survivor 49 | 4 | 1, 3, 4 (saved 2) | | |
+| The Challenge 41 | 3 | 1, 2, 3 | | |
+| The Challenge 40 | 9 | 3, 5, 9 (the premiere off: nobody went home; the rest saved, pairs going home together) | | |
+| The Challenge 39 | 3 | 1, 2, 3 | | |
+| The Traitors 4 | 4 | 2, 3, 4 (the premiere off) | 10 | 3, 4, 6, 9, 10 (the premiere, 7 and 8 off: no Faithful banished; 2 and 5 saved) |
+
+- **It reads who went home, not the format:** win.coop's question is who goes home, as people, so The Challenge's pairs, teams and
+  each-for-themselves stretches reach it only as who left (on 40's pairs episodes two at once: naming either saves the night). s37's
+  is who was banished as a Faithful, the role as of that episode, so a night only a murder happened, a Traitor was banished or nobody
+  left is off and costs nothing; The Traitors 4's changes (twists at 5, 7 and 9, a role at 9, a new phase at 11) changed nothing it reads.
+- **Four seats rarely call a boot:** two of the four seats answer by habit and two skip weeks, and guessing who goes home among a
+  big cast is hard, so three shared lives last three or four episodes on most seasons; on 40, where pairs go home together, it lasted
+  to 9, and s37's five lives on The Traitors to 10 of 12. Who saves a night and how many lives (A11 part 3's Noticed items 1 and 6)
+  are the user's.
+- **The walk on what each has seen:** the records are the runner's view as each episode came in; the unit tests and `check-coop.js`
+  prove a viewer behind still sees both lives, and a corrected result bringing a lost game back.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

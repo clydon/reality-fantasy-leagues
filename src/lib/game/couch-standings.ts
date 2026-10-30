@@ -49,6 +49,11 @@ export interface GameStanding {
   rows: StandingRow[];
   /** The table one episode earlier, for who moved; null when there wasn't one. */
   before: StandingRow[] | null;
+  /** Step A11 part 3: a co-op game (the couch together against the show, its lives everyone's): its result, won or lost by all
+   *  (null while it plays), and its lives left of how many. Everyone shares one place in it, so it isn't a finish against each
+   *  other: power rankings, head to head, titles and finishes leave it out; the trophy shelf keeps it, everyone winning it or
+   *  nobody. What it shows is U1's (A11 part 3's Noticed). */
+  coop?: { result: "won" | "lost" | null; lives: number; of: number } | null;
 }
 
 export interface Person {
@@ -117,6 +122,10 @@ export function fieldOf(rows: StandingRow[]): number {
 }
 
 const counts = (g: GameStanding) => g.through > 0 && fieldOf(g.rows) >= 2;
+/** A game the couch played against each other (step A11 part 3: not a co-op one, where everyone shares one place). */
+const versus = (g: GameStanding) => counts(g) && !g.coop;
+/** The seasons you've played on the couch (finished or not), co-op games too. */
+const seasonsOf = (games: GameStanding[], me: string) => new Set(games.filter((g) => counts(g) && g.rows.some((r) => r.userId === me)).map((g) => g.seasonId)).size;
 
 function totals(games: GameStanding[], people: Person[], rowsOf: (g: GameStanding) => StandingRow[] | null) {
   const by = new Map(people.map((p) => [p.userId, { ...p, total: 0, games: 0, shows: new Map<string, number>() }]));
@@ -157,7 +166,7 @@ function table(games: GameStanding[], people: Person[], beforeToo: boolean): Ran
 
 /** Power rankings and head to head for `me`, or null before any game has scored. `year`: this calendar year. */
 export function rankingsOf(games: GameStanding[], people: Person[], me: string, year: number): Rankings | null {
-  const all = games.filter(counts);
+  const all = games.filter(versus);
   if (!all.length) return null;
   const thisYear = all.filter((g) => g.year === year || (!g.ended && g.year === null));
   const pts = new Map<string, number>();
@@ -207,6 +216,9 @@ export interface Plaque {
   by: number | null;
   /** The winner also won this show's previous season of this game on the couch. */
   ranItBack: boolean;
+  /** Step A11 part 3: a co-op game's result (everyone its winners when it was won, nobody when it was lost; null when it ended
+   *  undecided: archived while it played, or its last night still to settle), absent otherwise. Its `you` is the shared place. */
+  coop?: { result: "won" | "lost" | null };
 }
 
 export interface CouchRecord {
@@ -242,14 +254,16 @@ export function trophiesOf(games: GameStanding[], people: Person[], me: string):
   const member = new Map(people.map((p) => [p.userId, p]));
   // Newest first: by year, then the season's label (Survivor 50 before Survivor 49), then the span that ended later.
   const order = [...ended].sort((a, b) => (b.year ?? 0) - (a.year ?? 0) || b.label.localeCompare(a.label, undefined, { numeric: true }) || (b.span?.to ?? 0) - (a.span?.to ?? 0));
-  const winnersOf = (g: GameStanding) => g.rows.filter((r) => r.place === 1);
+  // Step A11 part 3: a co-op game's winners are everyone when it was won, nobody when it was lost.
+  const winnersOf = (g: GameStanding) => (g.coop ? (g.coop.result === "won" ? g.rows : []) : g.rows.filter((r) => r.place === 1));
   const plaques: Plaque[] = order.map((g) => {
     const top = winnersOf(g);
     // One winner: one team, though two people sharing it are a row each (step A10 part 4b).
     const one = fieldOf(top) === 1;
     const second = g.rows.find((r) => r.place === 2);
     // The same game's previous run on the couch (the show's previous season, or this season's previous span), if it had ended too.
-    const prev = order.filter((x) => x.showId === g.showId && x.gameType === g.gameType && x.leagueId !== g.leagueId && earlier(x, g))[0];
+    // Step A11 part 3: never a co-op game (its winners are everyone, not someone who beat the couch).
+    const prev = order.filter((x) => x.showId === g.showId && x.gameType === g.gameType && x.leagueId !== g.leagueId && !x.coop && earlier(x, g))[0];
     const prevWinners = prev ? new Set(winnersOf(prev).map((r) => r.userId).filter(Boolean)) : new Set();
     const mine = g.rows.find((r) => r.userId === me);
     return {
@@ -261,15 +275,17 @@ export function trophiesOf(games: GameStanding[], people: Person[], me: string):
       artUrl: g.artUrl,
       you: mine ? { place: mine.place, rank: mine.rank } : null,
       winners: top.map((r) => ({ userId: r.userId, name: r.userId ? (member.get(r.userId)?.name ?? r.name) : r.name })),
-      by: one && second && pointsGame(g) ? Math.round((top[0].total - second.total) * 10) / 10 : null,
-      ranItBack: one && top.some((r) => !!r.userId && prevWinners.has(r.userId)),
+      by: one && second && pointsGame(g) && !g.coop ? Math.round((top[0].total - second.total) * 10) / 10 : null,
+      ranItBack: one && !g.coop && top.some((r) => !!r.userId && prevWinners.has(r.userId)),
+      ...(g.coop ? { coop: { result: g.coop.result } } : {}),
     };
   });
 
+  // Titles and finishes are against each other: a co-op game's (step A11 part 3) is the couch's, not anyone's over the rest.
   const titles = new Map<string, number>();
-  for (const g of ended) for (const r of winnersOf(g)) if (r.userId && member.has(r.userId)) titles.set(r.userId, (titles.get(r.userId) ?? 0) + 1);
+  for (const g of ended.filter((x) => !x.coop)) for (const r of winnersOf(g)) if (r.userId && member.has(r.userId)) titles.set(r.userId, (titles.get(r.userId) ?? 0) + 1);
   const finishes = new Map<string, number[]>();
-  for (const g of ended) for (const r of g.rows) if (r.userId && member.has(r.userId)) finishes.set(r.userId, [...(finishes.get(r.userId) ?? []), r.place]);
+  for (const g of ended.filter((x) => !x.coop)) for (const r of g.rows) if (r.userId && member.has(r.userId)) finishes.set(r.userId, [...(finishes.get(r.userId) ?? []), r.place]);
   const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
   const mostTitles = [...titles].sort((a, b) => b[1] - a[1])[0];
 
@@ -278,7 +294,7 @@ export function trophiesOf(games: GameStanding[], people: Person[], me: string):
   const back = plaques.find((p) => p.ranItBack);
   if (back) {
     const standing = new Map(ended.map((g) => [g.leagueId, g]));
-    const before = (p: Plaque, userId: string | null) => p.leagueId !== back.leagueId && p.gameName === back.gameName && p.winners.some((w) => w.userId === userId) && earlier(standing.get(p.leagueId)!, standing.get(back.leagueId)!);
+    const before = (p: Plaque, userId: string | null) => p.leagueId !== back.leagueId && !p.coop && p.gameName === back.gameName && p.winners.some((w) => w.userId === userId) && earlier(standing.get(p.leagueId)!, standing.get(back.leagueId)!);
     // Of a shared team that won, whichever of them won it before too.
     const winner = back.winners.find((w) => plaques.some((p) => before(p, w.userId))) ?? back.winners[0];
     const prev = plaques.find((p) => before(p, winner.userId));
@@ -295,7 +311,7 @@ export function trophiesOf(games: GameStanding[], people: Person[], me: string):
   const mine = finishes.get(me) ?? [];
   return {
     titles: titles.get(me) ?? 0,
-    seasons: new Set(games.filter((g) => counts(g) && g.rows.some((r) => r.userId === me)).map((g) => g.seasonId)).size,
+    seasons: seasonsOf(games, me),
     average: mine.length ? Math.round(avg(mine)) : null,
     leader: mostTitles && (mostTitles[0] !== me || [...titles.values()].filter((n) => n === mostTitles[1]).length > 1) ? { who: member.get(mostTitles[0])!, titles: mostTitles[1] } : null,
     plaques,
@@ -319,7 +335,8 @@ export interface YourNumbers {
 }
 
 export function yourNumbers(games: GameStanding[], rankings: Rankings | null, trophies: TrophyShelf | null, me: string): YourNumbers {
-  const played = games.filter((g) => counts(g) && g.rows.some((r) => r.userId === me));
+  // Places against each other (step A11 part 3: a co-op game's shared place says nothing of how you did against the couch).
+  const played = games.filter((g) => versus(g) && g.rows.some((r) => r.userId === me));
   const perShow = new Map<string, { pts: number; n: number; g: GameStanding }>();
   for (const g of played) {
     const r = g.rows.find((x) => x.userId === me)!;
@@ -330,14 +347,14 @@ export function yourNumbers(games: GameStanding[], rankings: Rankings | null, tr
     perShow.set(g.showId, s);
   }
   const best = [...perShow.values()].sort((a, b) => b.pts / b.n - a.pts / a.n)[0];
-  const finishes = games.filter((g) => g.ended && counts(g)).flatMap((g) => g.rows.filter((r) => r.userId === me).map((r) => ({ r, g })));
+  const finishes = games.filter((g) => g.ended && versus(g)).flatMap((g) => g.rows.filter((r) => r.userId === me).map((r) => ({ r, g })));
   const top = finishes.sort((a, b) => a.r.place - b.r.place)[0];
   const row = rankings?.year.find((r) => r.userId === me);
   return {
     titles: trophies?.titles ?? 0,
     points: row?.total ?? 0,
     place: row ? row.rank : null,
-    seasons: new Set(played.map((g) => g.seasonId)).size,
+    seasons: seasonsOf(games, me),
     bestShow: best ? { showId: best.g.showId, name: best.g.showName, seasonId: best.g.seasonId, artUrl: best.g.artUrl } : null,
     called: games.reduce((n, g) => n + (g.rows.find((r) => r.userId === me)?.called ?? 0), 0),
     bestFinish: top ? { rank: top.r.rank.replace(/^T/, ""), label: top.g.label, gameName: top.g.gameName } : null,

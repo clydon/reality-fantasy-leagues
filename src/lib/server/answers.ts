@@ -11,7 +11,7 @@ import { isUuid, type SessionUser } from "./auth-helpers";
 import { HttpError, pool, withLeagueLock } from "./db";
 import { seasonSchedules, type SeasonSchedule } from "./schedule";
 import { finaleEpisode, readsTimeline, walked, type AnswerRow } from "./answer-points";
-import type { AnswerWalk } from "@/lib/game/state-logic.js";
+import type { AnswerWalk, CoopWalk } from "@/lib/game/state-logic.js";
 import { seasonBook } from "./calls";
 import { gamesHere, type GameHere } from "./season-games";
 
@@ -120,8 +120,12 @@ export interface GameQuestions {
   /** Step A11 part 2b: in a game that knocks players out, the last episode that counted for you once you're out (as far as you've
    *  seen), else null: you answer nothing more. */
   out: number | null;
-  /** Where the game ended early (a race won, one left), as far as you've seen, else null: nothing after it is asked. */
+  /** Where the game ended early (a race won, one left; step A11 part 3: a co-op game's last life lost), as far as you've seen,
+   *  else null: nothing after it is asked. */
   ended: number | null;
+  /** Step A11 part 3: a co-op game's lives (the couch's together) and its result, won or lost by all, as far as you've seen; null
+   *  for any other game. */
+  coop: CoopWalk | null;
 }
 
 
@@ -413,6 +417,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
     mark: h.mark,
     out: StateLogic.KnockoutLogic.outOf(view, me),
     ended: r.walk && StateLogic.gameOver(view) ? r.walk.ends : null,
+    coop: r.walk?.coop ?? null,
   };
 }
 

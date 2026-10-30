@@ -84,7 +84,7 @@ test("lives, a race and cuts on a game of questions: their shape, defaults, word
   assert.deepEqual(at(S48, CHALLENGE), []);
   assert.equal(G.typeOf(S48), "questions");
   assert.deepEqual(G.specWaitsFor(S48), []);
-  assert.deepEqual(G.answerParts(G.fullSpec(S48)), { race: null, cuts: [], lives: 1, on: ["elimination"], oneLeft: "ends", allOut: "points" });
+  assert.deepEqual(G.answerParts(G.fullSpec(S48)), { race: null, cuts: [], lives: 1, on: ["elimination"], oneLeft: "ends", allOut: "points", coop: null });
   // Lives say last one standing by themselves (fullSpec), and their ends' defaults are read, never filled in.
   assert.deepEqual(G.fullSpec(game([BOOT], { lives: 2 })).rank, { by: "standing" });
   assert.deepEqual(G.fullSpec(game([BOOT], { lives: 2 }, { allOut: "share" })).rank, { allOut: "share", by: "standing" });
@@ -92,7 +92,7 @@ test("lives, a race and cuts on a game of questions: their shape, defaults, word
   assert.deepEqual(G.answerParts(G.fullSpec(game([BOOT, IMMUNE, WINNER, GONE, { ...IDOL, over: 3 }], { lives: 1 }))).on, ["boot", "immune"]);
   assert.deepEqual(G.answerParts(G.fullSpec(game([BOOT, IMMUNE], { lives: 1, livesOn: ["immune"] }))).on, ["immune"]);
   // A race alone ranks by the total; cuts rank last one standing, as a draft's.
-  assert.deepEqual(G.answerParts(G.fullSpec(game([BOOT], {}, { by: "total", race: { to: 5 } }))), { race: { to: 5 }, cuts: [], lives: null, on: [], oneLeft: null, allOut: null });
+  assert.deepEqual(G.answerParts(G.fullSpec(game([BOOT], {}, { by: "total", race: { to: 5 } }))), { race: { to: 5 }, cuts: [], lives: null, on: [], oneLeft: null, allOut: null, coop: null });
   const cut = G.fullSpec(game([BOOT], {}, { cut: [{ at: { every: 2 } }] }));
   assert.deepEqual(cut.rank, { cut: [{ at: { every: 2 }, out: 1, tie: "keep", quiet: "cut" }], by: "standing" });
   assert.equal(G.answerParts(cut).oneLeft, "ends");

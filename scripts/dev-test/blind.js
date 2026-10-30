@@ -505,7 +505,9 @@ async function lookAt(r, n) {
     // A11 part 2b: who's out (the last episode that counted for them), and nothing more to read once it ended early.
     if (st && st.walk) {
       out.out = Object.fromEntries(Object.entries(st.walk.out).map(([pid, k]) => [label(pid), k]));
-      if (Object.keys(st.walk.lives).length) out.lives = Object.fromEntries(Object.entries(st.walk.lives).map(([pid, k]) => [label(pid), k]));
+      // A11 part 3: a co-op game's lives are the couch's together: one number, and its result.
+      if (st.walk.coop) out.coop = { lives: st.walk.coop.lives, of: st.walk.coop.of, lost: st.walk.coop.lost.map((x) => x.episode), result: st.walk.coop.result };
+      else if (Object.keys(st.walk.lives).length) out.lives = Object.fromEntries(Object.entries(st.walk.lives).map(([pid, k]) => [label(pid), k]));
       if (st.walk.ends !== null && n > st.walk.ends) return out;
     }
     try {

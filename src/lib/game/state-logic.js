@@ -548,6 +548,8 @@ function rankKey(state, r){
   // A11 part 1: a draft that knocks players out, last one standing (its rows carry `out`: KnockoutLogic.apply); part 2b, a game of
   // questions' (AnswerLogic.applyWalk).
   if((g.get.by === 'draft' || g.score.by === 'answers') && g.rank.by === 'standing') return PickEmScoringStrategy.standingKey(r);
+  // A11 part 3: co-op, won or lost by all: everyone shares one place, whatever their points.
+  if(g.rank.by === 'coop') return [0];
   return [r.total];
 }
 // Weekly Calls (docs/PLAN-new-design.md step 12 part 2): a talk show's season game, scored from each person's calls
@@ -5664,8 +5666,17 @@ class AnswerLogic {
   //   - Who's in it: as part 1's (a ghost outside; someone catching up in, never losing a life or cut until caught up; a late start
   //     from their start). Someone out answers nothing more (answers.ts refuses it): an answer of theirs for a later episode counts
   //     for nobody (liveAnswers), and their points stay at their last episode in.
+  //   - A11 part 3, co-op (parts.coop: rank.by 'coop'): the lives are the couch's together and nobody is knocked out. Each question
+  //     a life rides on, settled at an episode, costs the couch one unless enough of it saw it coming (coop.saves: one right answer
+  //     among those who answered, more than half of them, or all of them; a void answer counts as none, a night every answer was
+  //     void costs nothing, and silence neither helps nor hurts, though a night nobody answered costs one: nobody saw it coming).
+  //     Off costs nothing, as above. Whoever's answers count: everyone in it from their start and caught up (a late joiner's from
+  //     theirs; a ghost's never). At none
+  //     left the game ends there, lost by all; at its end (the span's last episode, or the season's, walked with nothing still to
+  //     settle) with one left, won by all. Everyone shares the result (`shared`: all of them), each with the couch's lives.
   // Returns { ends, out: { playerId: last episode in }, lives: { playerId: left } (with lives), shared: [playerId] (out together,
-  // sharing it), totals: { playerId: points as the table shows them } }, or null for a game with none of it.
+  // sharing it), totals: { playerId: points as the table shows them }, coop (co-op only: { lives: left, of: lives at the start,
+  // lost: [{ episode, question }], result: 'won' | 'lost' | null while it plays }) }, or null for a game with none of it.
   static walk(state, answers, facts){
     const parts = Spec.answerParts(gameOf(state));
     if(!parts) return null;
@@ -5687,26 +5698,58 @@ class AnswerLogic {
     const live = () => AnswerLogic.liveRows(state, rows, out);
     // Who can lose a life, be cut or finish a race after episode k: in, started by then, and caught up.
     const inAt = k => everyone.filter(p => !out.has(p.id) && !catching.has(p.id) && (startOf.get(p.id) || start) <= k);
+    // A11 part 3: co-op's lives, the couch's together, and the nights they went; whose answers count there at k (in it from their
+    // start and caught up, as everywhere in the walk: someone catching up answers nothing yet, answers.ts refuses it); whether the
+    // walk reached its newest episode with nothing still to settle.
+    const coop = parts.coop;
+    let couch = parts.lives || 0;
+    const nights = [];
+    const counted = k => everyone.filter(p => !catching.has(p.id) && (startOf.get(p.id) || start) <= k);
+    let walkedAll = true;
     for(const ep of eps){
       const k = ep.number;
       const fk = Spec.factsThrough(facts, k);
       // Lives lost at k: each question a life rides on, settled there.
       const lost = new Map();
+      const couchLost = [];
       let waiting = false;
       for(const q of lifeQs){
         const v = Spec.verdictOf(q, k, fk);
         if(v.state === 'waiting'){ waiting = true; continue; }
         if(v.state !== 'known') continue;
         const list = rows.filter(a => a.question === q.id && a.episode === k).map(a => ({ playerId: a.playerId, answer: a.answer }));
+        if(coop){
+          // The couch's night: of those who answered (a void answer is none), how many saw it coming. A night every answer was void
+          // costs nothing, as a void pick does; a night nobody answered at all costs one.
+          let said = 0, right = 0, voids = 0;
+          counted(k).forEach(p => {
+            const mine = list.find(a => a.playerId === p.id);
+            if(!mine) return;
+            const r = Spec.isRight(q, v, mine, list, fk);
+            if(r === null){ voids++; return; }
+            said++;
+            if(r) right++;
+          });
+          if(!said && voids) continue;
+          const saved = coop.saves === 'all' ? said > 0 && right === said : coop.saves === 'most' ? right * 2 > said : right > 0;
+          if(!saved) couchLost.push(q.id);
+          continue;
+        }
         inAt(k).forEach(p => {
           const mine = list.find(a => a.playerId === p.id);
           if((mine ? Spec.isRight(q, v, mine, list, fk) : false) === false) lost.set(p.id, (lost.get(p.id) || 0) + 1);
         });
       }
-      if(k === newest && (waiting || ((parts.race || parts.cuts.length) && EpisodeLogic.resultsStage(ep) === 'early'))) break;
+      if(k === newest && (waiting || ((parts.race || parts.cuts.length) && EpisodeLogic.resultsStage(ep) === 'early'))){ walkedAll = false; break; }
       const totals = AnswerLogic.grade(state, live(), fk).points;
       series.set(k, totals);
       const total = id => totals.get(id) || 0;
+      if(coop){
+        couchLost.forEach(question => nights.push({ episode: k, question }));
+        couch = Math.max(0, couch - couchLost.length);
+        if(couch === 0){ ends = k; break; }
+        continue;
+      }
       if(parts.race && inAt(k).some(p => total(p.id) >= parts.race.to)){ ends = k; break; }
       if(parts.lives && lost.size){
         const left = everyone.filter(p => !out.has(p.id));
@@ -5732,6 +5775,20 @@ class AnswerLogic {
       const k = out.get(p.id);
       totals[p.id] = Number.isInteger(k) && series.has(k) ? series.get(k).get(p.id) || 0 : points.get(p.id) || 0;
     });
+    if(coop){
+      // Won by all once the game is over (its span's last episode in, or the season's end) with a life left and nothing still to
+      // settle, having played at least one episode; lost by all where the last one went; else still playing. Everyone shares it,
+      // each with the couch's lives.
+      const result = ends !== null ? 'lost' : facts && facts.over && walkedAll && eps.length > 0 ? 'won' : null;
+      return {
+        ends,
+        out: {},
+        lives: Object.fromEntries(everyone.map(p => [p.id, couch])),
+        shared: everyone.map(p => p.id),
+        totals,
+        coop: { lives: couch, of: parts.lives, lost: nights, result },
+      };
+    }
     return {
       ends,
       out: Object.fromEntries(out),
@@ -5788,7 +5845,8 @@ class AnswerLogic {
       if(walk.lives && r.playerId in walk.lives) r.lives = walk.lives[r.playerId];
       if(walk.shared.includes(r.playerId)) r.shared = true;
     });
-    return rows.sort((a,b) => PickEmScoringStrategy.compareKeys(rankKey(state, b), rankKey(state, a)));
+    // A11 part 3: co-op's rows share one place, listed by their points (who called the most).
+    return rows.sort((a,b) => PickEmScoringStrategy.compareKeys(rankKey(state, b), rankKey(state, a)) || (walk.coop ? b.total - a.total : 0));
   }
   // How many of the game's episodes had started at `o.now` (A9: when an answer was made, for a call whose points shrink), from
   // its first: each one's lock (closedForPlay, the schedule's air time `o.airAtOf(n)` for one the league hasn't made yet,

@@ -946,6 +946,15 @@ export interface AnswerWalk {
   lives: Record<string, number>;
   shared: string[];
   totals: Record<string, number>;
+  /** A11 part 3: a co-op game's (its lives the couch's together): the lives left and at the start, the nights one went (each
+   *  question's), and the result, won or lost by all (null while it plays). Everyone is in `shared`, each with the couch's lives. */
+  coop?: CoopWalk;
+}
+export interface CoopWalk {
+  lives: number;
+  of: number;
+  lost: { episode: number; question: string }[];
+  result: "won" | "lost" | null;
 }
 
 export default StateLogic;

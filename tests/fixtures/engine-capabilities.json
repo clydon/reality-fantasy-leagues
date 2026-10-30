@@ -1798,7 +1798,37 @@
         {
           "id": "win.coop",
           "what": "Co-op against the show (shared lives)",
-          "step": "A11"
+          "step": "A11",
+          "spec": {
+            "get": {
+              "by": "none"
+            },
+            "score": {
+              "by": "answers",
+              "lives": 3
+            },
+            "rank": {
+              "by": "coop"
+            },
+            "ask": [
+              {
+                "id": "boot",
+                "ask": "Who goes home?",
+                "answer": "person",
+                "points": 1,
+                "asked": "each",
+                "settle": {
+                  "by": "results",
+                  "take": "out"
+                }
+              }
+            ]
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          }
         },
         {
           "id": "win.h2h",
@@ -3282,7 +3312,33 @@
       "step": "A11",
       "dials": [
         "win"
-      ]
+      ],
+      "spec": {
+        "get": {
+          "by": "none"
+        },
+        "score": {
+          "by": "answers",
+          "lives": 5
+        },
+        "rank": {
+          "by": "coop"
+        },
+        "ask": [
+          {
+            "id": "banished",
+            "ask": "Which Faithful will be banished?",
+            "answer": "person",
+            "points": 1,
+            "asked": "each",
+            "settle": {
+              "by": "moment",
+              "moment": "banishedAsFaithful",
+              "take": "who"
+            }
+          }
+        ]
+      }
     },
     {
       "id": "s38",

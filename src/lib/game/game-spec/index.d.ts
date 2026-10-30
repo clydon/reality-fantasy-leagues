@@ -74,8 +74,9 @@ export type SpecScore =
   /** Only the ask's questions (A4): Weekly Calls (the show's calls), a game of questions. A9's parlays: someone right on every
    *  one of `of` in the same window has their points on them multiplied by `times`. A11 part 2b, a game of questions': lives (a
    *  wrong answer, or none, to a question `livesOn` names, else every one asked each episode about it alone, costs one; out at
-   *  none). */
-  | { by: "answers"; parlays?: SpecParlay[]; lives?: number; livesOn?: string[] }
+   *  none). A11 part 3: co-op (rank.by "coop"), the lives the couch's together, a night costing one unless enough of you saw it
+   *  coming (`saves`: one right answer among you, most of those who answered, all of them; COOP's default one). */
+  | { by: "answers"; parlays?: SpecParlay[]; lives?: number; livesOn?: string[]; saves?: "one" | "most" | "all" }
   /** sports: the Sport's stat keys -> points */
   | { by: "stats"; points: Record<string, number> };
 
@@ -87,8 +88,9 @@ export interface SpecParlay {
 
 export interface SpecRank {
   /** total, streak: today; standing (A10 part 2): last one standing, a pool with lives; worth (A10 part 3c): a stock market's,
-   *  cash plus the team at today's prices. sports: matchups, categories, roto. */
-  by: "total" | "streak" | "standing" | "worth" | "matchups" | "categories" | "roto";
+   *  cash plus the team at today's prices; coop (A11 part 3): a game of questions the couch plays together against the show, won
+   *  or lost by all. sports: matchups, categories, roto. */
+  by: "total" | "streak" | "standing" | "worth" | "coop" | "matchups" | "categories" | "roto";
   /** A11 part 1, beside a draft (part 2b, a game of questions too): a race (the first to `to` points wins, the game ending there)
    *  and players knocked out. */
   race?: { to: number };
@@ -529,6 +531,8 @@ export const POOL_END: { oneLeft: "ends" | "plays"; allOut: "points" | "share" |
 /** A11 part 2b: a game of questions' race, cuts and lives, read the one way the engine and the words read them (their ends'
  *  defaults ANSWERS_END); null for a game of questions with none of them, or any other game. */
 export const ANSWERS_END: { oneLeft: "ends" | "plays"; allOut: "points" | "share" | "back" };
+/** A11 part 3: a co-op game's default for who saves a night (one of you seeing it coming). */
+export const COOP: { saves: "one" | "most" | "all" };
 export interface AnswerParts {
   race: { to: number } | null;
   cuts: { at: { every: number } | { episode: number } | { phase: string }; out: number | "half"; tie: "keep" | "all"; quiet: "cut" | "skip" }[];
@@ -537,6 +541,8 @@ export interface AnswerParts {
   on: string[];
   oneLeft: "ends" | "plays" | null;
   allOut: "points" | "share" | "back" | null;
+  /** A11 part 3: co-op (rank.by "coop" with lives: the couch's together), who saves a night; null otherwise. */
+  coop: { saves: "one" | "most" | "all" } | null;
 }
 export function answerParts(spec: GameSpec | SpecInput | null | undefined): AnswerParts | null;
 /** A question a life can ride on: asked each episode, about that episode alone. */
@@ -606,7 +612,7 @@ export function playsAs(spec: GameSpec): LeagueTypeId | null;
 /** The league type's flags, worked out from a whole spec. */
 export function flagsOf(spec: GameSpec): {
   hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasKeepers: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasBingo: boolean;
-  hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean;
+  hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean; hasCoop: boolean;
   supportsReplenish: boolean; supportsTrade: boolean; supportsFinalePredictions: boolean;
 };
 /**

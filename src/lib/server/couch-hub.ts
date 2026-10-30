@@ -53,6 +53,8 @@ export interface PlayingGame {
   through: number;
   /** Its season has ended, as far as you've seen: the place is where you finished. */
   ended: boolean;
+  /** Step A11 part 3: a co-op game's result and lives (everyone shares its place, `rank`); null for any other game. */
+  coop?: GameStanding["coop"];
 }
 
 export interface FeedItem {
@@ -103,7 +105,7 @@ function standingOf(
   userOf: (p: string) => string | null,
   calls?: { right: (p: string) => number; through: number; ended: boolean; walk?: AnswerWalk | null },
   usersOf: (p: string) => string[] = () => []
-): { rows: StandingRow[]; through: number; ended: boolean } {
+): { rows: StandingRow[]; through: number; ended: boolean; coop: GameStanding["coop"] } {
   // Step A11 part 2b: a game of questions' walk on your copy (answer-points.ts answerStanding): who's out, ranked as it ranks.
   const seenView = StateLogic.GhostLogic.viewFor(state, playerId, mark);
   const view = calls?.walk ? StateLogic.AnswerLogic.withWalk(seenView, calls.walk) : seenView;
@@ -127,7 +129,9 @@ function standingOf(
   // A game over a span stands at its last episode (StateLogic.spanView), and is over once that's in (gameOver).
   const end = StateLogic.endEpisode(view);
   const seen = StateLogic.SpoilerLogic.latestWithResults(view);
-  return { rows, through: calls ? calls.through : end === null ? seen : Math.min(seen, end), ended: calls ? calls.ended : StateLogic.gameOver(view) };
+  // Step A11 part 3: a co-op game's result and lives, as far as you've seen (its walk on your copy).
+  const coop = calls?.walk?.coop ? { result: calls.walk.coop.result, lives: calls.walk.coop.lives, of: calls.walk.coop.of } : null;
+  return { rows, through: calls ? calls.through : end === null ? seen : Math.min(seen, end), ended: calls ? calls.ended : StateLogic.gameOver(view), coop };
 }
 
 /** A game over a span (docs/PLAN-sports-data.md step 6), named in the show's own word ("Games 4–6"); null for a season game. */
@@ -222,6 +226,7 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
         ended: now.ended || g.archived,
         rows: now.rows,
         before,
+        coop: now.coop,
       });
     } catch (e) {
       // One unreadable league costs its game, not the hub.
@@ -248,6 +253,7 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
         of: fieldOf(g.rows),
         through: g.through,
         ended: g.ended,
+        coop: g.coop ?? null,
       };
     });
 
