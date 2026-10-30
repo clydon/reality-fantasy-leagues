@@ -19,7 +19,7 @@
 //   asks where you are and stays on the hub), the "you both watch" nudge (the most people first, Not now, then the next),
 //   Add a show (suggestions, the listings as you type, a listing's where you are, Add as a new show, already on your list),
 //   a show with no game (Not a game yet, the spoiler chip, Who's watching without anyone private, Make it a game's
-//   plate (check-new-make-it.js takes it from there), the ⋯ menu's Watch privately, Where you are and Remove from my shows), a show you don't follow (who watches
+//   plate (check-new-make-it.js takes it from there), the ⋯ menu's Everything else: Watch privately and Remove from my shows; Where you are is the chip's Change), a show you don't follow (who watches
 //   it, Add to my shows); then a newcomer's first run picking a listing and a name. Nothing wider than the screen; no page
 //   errors. Screenshots go to <outDir>.
 //
@@ -400,9 +400,14 @@ async function newcomer(pool, who, approved = true) {
       await fits("a show with no game", page);
       await shot("no-game-tonight", page);
       await page.getByRole("button", { name: /^Show menu/ }).click();
-      await sheet(page).getByText("Watch privately").waitFor();
+      await sheet(page).getByRole("button", { name: /^Everything else/ }).waitFor();
       check((await sheet(page).getByText("How it works").count()) === 0, "no How it works for a show that isn't a game");
+      check((await sheet(page).getByText("Add to my shows").count()) === 0 && (await sheet(page).getByText("Make it a game").count()) === 0, "and no Add to my shows or Make it a game: Tonight's card and plate carry them");
       await shot("menu", page);
+      // Watch privately is rarely wanted, so it's one tap down.
+      await sheet(page).getByRole("button", { name: /^Everything else/ }).click();
+      await sheet(page).getByText("Watch privately").waitFor();
+      await shot("menu-else", page);
       await sheet(page).getByText("Watch privately").click();
       check(/Watching privately/.test(await toasted(/privately/, page)), "Watch privately: on");
       await page.locator("[data-private-line]").waitFor();
@@ -411,11 +416,16 @@ async function newcomer(pool, who, approved = true) {
       check(rileySpace.people.find((p) => p.name === "zt_nd_alex")?.watching === false, "riley no longer sees him watch it");
       await shot("private", page);
       await page.getByRole("button", { name: /^Show menu/ }).click();
+      await sheet(page).getByRole("button", { name: /^Everything else/ }).click();
       await sheet(page).getByText("Watch privately").click();
       await toasted(/can see you watch it again/, page);
       check((await follow(fx.users.alex, ss.id))?.private === false, "and off again");
+      // Where you are is the spoiler chip's Change on Tonight, not a menu row.
       await page.getByRole("button", { name: /^Show menu/ }).click();
-      await sheet(page).getByRole("button", { name: /^Where you are/ }).click();
+      await sheet(page).getByRole("button", { name: /^Everything else/ }).waitFor();
+      check((await sheet(page).getByRole("button", { name: /^Where you are/ }).count()) === 0, "the ⋯ menu has no Where you are row: the chip's Change is it");
+      await page.keyboard.press("Escape");
+      await page.locator("[data-following]").getByRole("button", { name: /Change/ }).click();
       await sheet(page).locator("[data-where-ask]").waitFor();
       await sheet(page).getByRole("button", { name: "Earlier in ZT Love Shack 1" }).click();
       await sheet(page).getByRole("button", { name: "Earlier in ZT Love Shack 1" }).click();
@@ -440,6 +450,7 @@ async function newcomer(pool, who, approved = true) {
       await page.goto(`${BASE}/show/${ss.id}/tonight`);
       await page.locator("[data-following]").waitFor({ timeout: 30_000 });
       await page.getByRole("button", { name: /^Show menu/ }).click();
+      await sheet(page).getByRole("button", { name: /^Everything else/ }).click();
       await sheet(page).getByText("Remove from my shows").click();
       check(/removed from your shows/.test(await toasted(/removed/, page)), "Remove from my shows");
       await page.waitForURL("**/home", { timeout: 15000 }).catch(() => {});

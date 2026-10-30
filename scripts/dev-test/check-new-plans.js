@@ -14,7 +14,7 @@
 //     live plan following the schedule when it moves, calling it off (only whoever planned it), Undo, Undo refused once
 //     someone has planned that episode since, and a night that's over.
 //   In a real browser at --width (390 by default): as alex, Tonight's plate (Open stays Preview: watching together is step 13 part 3's),
-//   the ⋯ menu's Plan a watch along (the episode chips, the planned one shown as it stands, the live airing, a shared start's
+//   the ⋯ menu's Everything else › Plan a watch along (the episode chips, the planned one shown as it stands, the live airing, a shared start's
 //   day and time, the invite chips), sending it, the plan's sheet (who's in, Call it off with the toast's Undo), the hub's
 //   guide (an airing tagged Watch along, a shared start as a card of its own that opens the plan, I'm in from it), a couch
 //   show's sheet planning one, a TV listing's Plan a watch along (added to his shows first), the feed's line; as riley, I'm
@@ -289,8 +289,10 @@ function check(ok, what, detail = "") {
       await A.shot("tonight-plate");
       await A.wide("Tonight with a plan");
 
-      // The ⋯ menu: Plan a watch along.
+      // The ⋯ menu's Everything else: Plan a watch along (Tonight offers it only until the next episode has a plan, so this is how a
+      // second night gets planned from the show).
       await pg.locator('button[aria-label^="Show menu"]').click();
+      await A.sheet().getByRole("button", { name: /^Everything else/ }).click();
       await A.sheet().getByRole("button", { name: /Plan a watch along/ }).click();
       const ps = pg.locator("[data-plan-sheet='ready']");
       await ps.waitFor({ timeout: 20_000 });
