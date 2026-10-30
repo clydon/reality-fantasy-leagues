@@ -43,10 +43,11 @@ production's database).
   `AnswerLogic` on both sides, so from the next merge it does this itself); the screens at 390 (Starts 98, phase starts 57,
   the Prediction Sheet 98, hub 77, couches 114, way in 86, shell 46, show 81, Start a game 75). On the way:
   `rehearse-migrations.js` refuses production by its endpoint id, so its pooled host too. The sports lane is synced and
-  migrated; the engine lane syncs itself at its next session. **The live check found two older faults** ([BACKLOG](BACKLOG.md) 29): Backstage
-  and an episode's results answered 500 for Survivor 51's couch since 2026-10-29's Make every game match (fixed the same
-  morning, `rulings.ts`), and **Survivor 51's Episode 7 says 7:00 PM ET** once daylight time ends (an exact start stored at
-  a fixed offset): **waiting on the user's OK** to set it to 8 PM on the desk before Wednesday 2026-11-04.
+  migrated; the engine lane syncs itself at its next session. **The live check found two older faults, both fixed the same morning** ([BACKLOG](BACKLOG.md) 29):
+  Backstage and an episode's results answered 500 for Survivor 51's couch since 2026-10-29's Make every game match
+  (`rulings.ts`, `bc351e48`), and Survivor 51's Episode 7 read 7:00 PM ET once daylight time ends, research having written
+  October's offset for a November night (`3b42dca0`: `Air.exactInZone`, both prompts, `tests/dst.test.js` for every clock-
+  change edge; the schedule check refiled it at 8 PM EST in production).
 - **Merged and pushed 2026-10-29 evening: the app fixes** (the desk lane, `03e12bdc`, migration 0431, a new table): back
   closes a bottom sheet; pages show their loading look once, never content that disappears; early and final results (final
   at 12:00 noon the day after, in the season's zone, said wherever early results are, with an "Episode N final results are
