@@ -9,6 +9,7 @@ import { NavLink } from "../nav";
 import { paths } from "../routes";
 import { useMe } from "../session";
 import { TestSwitches } from "../settings/test-couch";
+import { BackToAdminRow } from "../desk/view-as";
 import { Row } from "../ui/parts";
 import { ShowArt } from "../ui/show-bar";
 import { Sheet } from "../ui/sheet";
@@ -67,7 +68,7 @@ function YourNumbers({ hub }: { hub: CouchHub | undefined }) {
 }
 
 export function ProfileSheet({ open, onOpenChange, me, couch, hub }: { open: boolean; onOpenChange: (open: boolean) => void; me: { name: string }; couch: Couch | null; hub: CouchHub | undefined }) {
-  const admin = useMe().isSuperAdmin;
+  const { isSuperAdmin: admin, viewingAs } = useMe();
   const inbox = useDesk<Inbox>(admin && open ? "/inbox" : null);
   const needs = inbox.data?.items.length ?? 0;
   return (
@@ -120,6 +121,7 @@ export function ProfileSheet({ open, onOpenChange, me, couch, hub }: { open: boo
           <ChevronRight className="size-5 text-muted-foreground" aria-hidden />
         </NavLink>
       )}
+      {viewingAs && <BackToAdminRow as={viewingAs} />}
       <TestSwitches open={open} />
       <NavLink
         href={paths.settings}

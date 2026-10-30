@@ -10,21 +10,28 @@ import type { LeagueState, ReplaceRule, WaiverFeel, WaiverWindows } from "@/lib/
 import { waiverHow, waiverWeek, type WaiverWeek } from "@/lib/game/waiver-view";
 import { windowLine } from "@/lib/game/waiver-words.js";
 import { blocksAt } from "@/lib/game/formats/rulebook-patch.js";
+import { MAX_BENCH, MAX_STARTERS, MAX_TEAM } from "@/lib/game/game-spec/index.js";
 import { inForceEdits, lineage, rulebookForLeague } from "@db/rulebooks.js";
 import { isSuperAdminUser } from "./auth-helpers";
 import type { BackstageScope } from "./backstage";
 import { plainChange, settingsSetChange, type ChangeSpec } from "./change-log";
 import { pool, withLeagueLock, HttpError } from "./db";
+import { refused } from "./game-writes";
 import { EVERYTHING, seenThrough } from "./guard";
 import { readyLeague } from "./league-read";
 import { leagueStates } from "./league-states";
 import { endedThrough } from "./calls";
+import { leaguePhases, seasonBlocks, settleIn, type SeasonPhase } from "./phase-starts";
 import { notifyWaiverWindow } from "./push-events";
 import { latestAired, seasonSchedules, type SeasonSchedule } from "./schedule";
 import type { Game } from "./show-space";
 import { windowSnapshot, type WindowSnapshot } from "./waiver-pushes";
 import { openWindow, processNow, saveClaim } from "./waivers";
 import { ourRules, type OurRules } from "./ours";
+import { contextOf, leagueBook } from "./answers";
+import { questionChoices, questionLine } from "@/lib/game/question-choices";
+import { showWords } from "@/lib/game/show-words";
+import type { Question } from "@/lib/game/game-spec/index.js";
 
 // Backstage II (docs/PLAN-new-design.md step 6a): the game's own pages for whoever runs it. Waivers (the week running,
 // who has picks in, Run now, a window, the feel and Fine-tune), Game settings (lineup size, who can join, each with
@@ -247,12 +254,16 @@ function waiverAdmin(l: Loaded, me: string, mark: number | null, users: Map<stri
   };
 }
 
-/** Who each seat is, by league (for faces and "you"). */
-async function usersByLeague(leagueIds: string[]): Promise<Map<string, Map<string, string>>> {
+/** Who each seat is, by league (for faces and "you"): a team two people share (step A10 part 4b) is its first account's, except
+ *  to `me` when they're on it. */
+async function usersByLeague(leagueIds: string[], me: string | null = null): Promise<Map<string, Map<string, string>>> {
   const out = new Map<string, Map<string, string>>(leagueIds.map((id) => [id, new Map()]));
   if (!leagueIds.length) return out;
-  const { rows } = await pool.query("SELECT league_id, user_id, player_id FROM league_memberships WHERE league_id = ANY($1::uuid[]) AND player_id IS NOT NULL", [leagueIds]);
-  for (const r of rows) out.get(r.league_id)?.set(r.player_id, r.user_id);
+  const { rows } = await pool.query("SELECT league_id, user_id, player_id FROM league_memberships WHERE league_id = ANY($1::uuid[]) AND player_id IS NOT NULL ORDER BY seat_slot, created_at", [leagueIds]);
+  for (const r of rows) {
+    const seats = out.get(r.league_id);
+    if (seats && (!seats.has(r.player_id) || r.user_id === me)) seats.set(r.player_id, r.user_id);
+  }
   return out;
 }
 
@@ -271,7 +282,7 @@ async function runBatches(leagueIds: string[]): Promise<Map<string, string>> {
 export async function waiversAdmin(scope: BackstageScope): Promise<{ games: WaiverAdminGame[] }> {
   const loaded = await load(scope);
   const ids = loaded.map((l) => l.game.leagueId);
-  const [mark, users, batches] = await Promise.all([markOf(scope), usersByLeague(ids), runBatches(ids)]);
+  const [mark, users, batches] = await Promise.all([markOf(scope), usersByLeague(ids, scope.user.id), runBatches(ids)]);
   const games: WaiverAdminGame[] = [];
   for (const l of loaded) {
     const g = waiverAdmin(l, scope.user.id, mark, users.get(l.game.leagueId) ?? new Map(), batches);
@@ -331,7 +342,7 @@ export async function waiverWrite(scope: BackstageScope, leagueId: unknown, body
     if (body.action === "claimView") {
       const state = await readyLeague(id, (await leagueStates([id])).get(id)!);
       check(state);
-      const users = (await usersByLeague([id])).get(id) ?? new Map();
+      const users = (await usersByLeague([id], scope.user.id)).get(id) ?? new Map();
       const week = waiverWeek({ leagueId: id, name: game.name, gameType: game.gameType, gameName: game.gameName, yourRole: game.yourRole }, state, body.playerId, mark, (p) => users.get(p) ?? null, null);
       if (!week) throw new HttpError(409, "Waivers aren't open");
       return { week };
@@ -428,8 +439,8 @@ export async function waiverWrite(scope: BackstageScope, leagueId: unknown, body
     (s) => {
       if (!W.supported(s)) throw new HttpError(400, "This game doesn't use waivers");
       if (feel) {
-        if (!W.applyRecommendation(s, feel)) throw new HttpError(409, "The cast is too small for that");
-      } else for (const [k, v] of Object.entries((body as { set: Record<string, unknown> }).set)) StateLogic.updateSettings(s, k, v);
+        refused(W.writeRecommendation(s, feel), 409);
+      } else for (const [k, v] of Object.entries((body as { set: Record<string, unknown> }).set)) refused(StateLogic.updateSettings(s, k, v));
     },
     (b, a) => {
       const spec = settingsSetChange(user, label, { kind: "settings", batch });
@@ -456,24 +467,105 @@ export interface GameSettings {
   draftStarted: boolean;
   /** The next episode: lineup changes start there. */
   from: number | null;
-  /** Weekly Lineup: who scores each week and the bench (the bench is set at the draft). */
-  lineup: { starters: number; bench: number; rec: { starters: number; bench: number } } | null;
-  /** Outlast: the team's size, set at the draft. */
-  team: { size: number; rec: number } | null;
+  /** Weekly Lineup: who scores each week and the bench (the bench is set at the draft); `max`: the most each can be now (the
+   *  game spec's limits, or the team once it's drafted). */
+  lineup: { starters: number; bench: number; rec: { starters: number; bench: number }; max: { starters: number; bench: number } } | null;
+  /** Outlast: the team's size, set at the draft; `max`: the game spec's limit. */
+  team: { size: number; rec: number; max: number } | null;
   /** Who can join (step 9): anyone on the couch (castaways on several teams: they catch up), ask me first, or nobody new. */
   joining: { mode: "open" | "ask" | "locked"; rec: "open" | "ask" };
   /** Waivers' one line, for the row into its page; null without waivers. */
   waivers: string | null;
   /** Lock it down (step 15 part 4): competitive mode, nobody new, rules frozen for the season. */
   lockedDown: boolean;
-  /** How long it runs (step 6 of docs/PLAN-sports-data.md): from its start to its last episode (null: the season's end); `over`
-   *  once that's in, when its end doesn't change; `ends`: the episodes still to come, from its start, it can end with instead. */
-  span: { from: number; to: number | null; over: boolean; ends: { number: number; title: string | null }[] };
+  /** How long it runs (step 6 of docs/PLAN-sports-data.md) and where it starts (step A3 of docs/PLAN-start-a-game-gpt.md): from
+   *  its start to its last episode (null: the season's end); `over` once that's in, when its end doesn't change; `ends`: the
+   *  episodes still to come, from its start, it can end with instead (none while it waits for its phase); `started` once its
+   *  first episode has aired (or has results), when its start doesn't change; `starts`: until then, the episodes still to come
+   *  it can start with instead (up to its end). Numbers only: a later episode's title can be a quote from it.
+   *
+   *  A game that starts when a phase of the season does (`phase`): `from` is null while it waits for it, then the episode it
+   *  plays from once data says where the phase starts (phase-starts.ts). `phases`: until it's started, the phases still to come
+   *  it can start with instead (never the first: that's Episode 1), each with the episode it would play from when that's known. */
+  span: {
+    from: number | null;
+    to: number | null;
+    over: boolean;
+    ends: { number: number }[];
+    started: boolean;
+    starts: { number: number }[];
+    phase: { id: string; name: string } | null;
+    phases: { id: string; name: string; at: number | null }[];
+  };
   /**
    * The lock on its current episode's lineups or picks (a game with either; else null): closed at its start, unless whoever runs
    * it overrode that (state-logic.js closedForPlay). `why`: its start, by hand, or its results (which no override opens).
    */
   lock: { episode: number; what: "lineups" | "picks"; closed: boolean; why: "air" | "hand" | "results" | null; overridden: boolean; airsAt: string | null } | null;
+  /**
+   * A Prediction Sheet's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md): its own (on), then the rest the show's
+   * moments can ask (question-choices.ts, off). `editable` until the game starts (its first episode's start locks the questions
+   * asked once, and answers are in): by a Commissioner, unless it's locked down; `why` says what stops it. Null for any other game.
+   */
+  questions: { list: { id: string; ask: string; line: string; on: boolean; season: boolean }[]; editable: boolean; why: string | null } | null;
+}
+
+/** A Prediction Sheet's questions for Game settings: its own, then what else the show's moments can ask. */
+async function questionsOf(l: Loaded, seasonId: string, started: boolean, part: string): Promise<GameSettings["questions"]> {
+  const s = l.state;
+  if (!StateLogic.getLeagueType(s).hasQuestions) return null;
+  const { own, offered } = await sheetQuestions(s, l.game.leagueId, seasonId);
+  const ids = new Set(own.map((q) => q.id));
+  const toEnd = StateLogic.endEpisode(s) === null;
+  const list = [
+    ...own.map((q) => ({ id: q.id, ask: q.ask, line: questionLine(q, part), on: true, season: !!offered.find((c) => c.question.id === q.id)?.season })),
+    ...offered.filter((c) => !ids.has(c.question.id) && (toEnd || !c.season)).map((c) => ({ id: c.question.id, ask: c.question.ask, line: questionLine(c.question, part), on: false, season: c.season })),
+  ];
+  const why = !l.commissioner ? "Only a Commissioner changes the questions" : StateLogic.GhostLogic.lockedDown(s) ? FROZEN : started ? "Its questions are set: the game has started, and answers are in" : null;
+  return { list, editable: !why, why };
+}
+
+/** A game of questions' own questions, and what the show's moments can ask (by the rules it plays by), with the show's ctx. */
+async function sheetQuestions(s: LeagueState, leagueId: string, seasonId: string) {
+  const book = await leagueBook(leagueId, seasonId);
+  const ctx = contextOf(book);
+  const own = StateLogic.AnswerLogic.questions(s) as Question[];
+  return { own, offered: questionChoices(book, ctx), ctx };
+}
+
+/**
+ * A Prediction Sheet's questions changed in Game settings (step A4 part 2): `ids` are the ones it asks, of its own and what the
+ * show's moments can ask, in that order. A Commissioner's, until the game starts, not while it's locked down; written through
+ * the game's writer with the show's ctx (RosterLogic.setGame: data settles every question). A line in Recent changes; Undo is the
+ * screen's (the earlier list sent back), since a set of questions can only be written with the show's ctx.
+ */
+export async function questionsWrite(scope: BackstageScope, leagueId: unknown, ids: unknown): Promise<{ questions: string[] }> {
+  if (!Array.isArray(ids) || !ids.every((x) => typeof x === "string")) throw new HttpError(400, "questions is a list of the questions' ids");
+  const game = gameIn(scope, leagueId, { commissioner: true });
+  const schedule = (await seasonSchedules([scope.seasonId])).get(scope.seasonId);
+  let text = "";
+  let out: string[] = [];
+  await withLeagueLock(
+    game.leagueId,
+    async (s) => {
+      if (!StateLogic.getLeagueType(s).hasQuestions) throw new HttpError(409, "Only a Prediction Sheet has questions to change");
+      if (StateLogic.GhostLogic.lockedDown(s)) throw new HttpError(409, FROZEN);
+      if (spanState(s, schedule, []).started) throw new HttpError(409, "Its questions are set: the game has started, and answers are in");
+      const { own, offered, ctx } = await sheetQuestions(s, game.leagueId, scope.seasonId);
+      const toEnd = StateLogic.endEpisode(s) === null;
+      const all = [...own, ...offered.filter((c) => !own.some((q) => q.id === c.question.id) && (toEnd || !c.season)).map((c) => c.question)];
+      const want = new Set(ids as string[]);
+      const unknown = (ids as string[]).find((id) => !all.some((q) => q.id === id));
+      if (unknown) throw new HttpError(400, `"${unknown}" isn't one of its questions`);
+      const ask = all.filter((q) => want.has(q.id));
+      if (!ask.length) throw new HttpError(400, "A Prediction Sheet asks at least one question");
+      refused(StateLogic.setGame(s, { ...StateLogic.gameOf(s), ask }, { ctx }), 409);
+      out = ask.map((q) => q.id);
+      text = `Changed ${game.name}'s questions: ${ask.map((q) => q.ask).join(" · ")}`;
+    },
+    () => plainChange(scope.user.id, "settings", text)
+  );
+  return { questions: out };
 }
 
 /** A game's lock for Game settings (GameSettings.lock). */
@@ -528,24 +620,33 @@ export async function lockWrite(scope: BackstageScope, leagueId: unknown, closed
 /**
  * Where a game is on its season for How long: the latest episode it's played (a game scored outside its state, Weekly Calls and
  * Weekly Bingo, by what's aired), whether it's over, and the episodes it could end with: still to come, from its start, listed.
+ * Whether it's started (its first episode has aired, or has results), and until then the episodes it could start with: still to
+ * come, listed, up to its end, and the phases of the season still to come (`phases`, its rulebook's: step A3). A game waiting for
+ * its phase hasn't started, and has no end to choose until its start is settled.
  */
-function spanState(s: LeagueState, schedule: SeasonSchedule | undefined) {
+function spanState(s: LeagueState, schedule: SeasonSchedule | undefined, phases: SeasonPhase[]): GameSettings["span"] {
   const type = StateLogic.getLeagueType(s);
   const outside = !!type.hasCalls || !!type.hasBingo;
   const played = outside ? latestAired(schedule) : StateLogic.SpoilerLogic.latestWithResults(s);
   const end = StateLogic.endEpisode(s);
   const over = outside ? endedThrough(schedule, played, end) : StateLogic.gameOver(s);
   const from = StateLogic.startEpisode(s);
-  const ends = (schedule?.episodes ?? []).filter((e) => e.number >= from && e.number > played).map((e) => ({ number: e.number, title: e.title ?? null }));
-  return { from, to: end, over, ends };
+  const ends = from === null ? [] : (schedule?.episodes ?? []).filter((e) => e.number >= from && e.number > played).map((e) => ({ number: e.number }));
+  const gone = Math.max(played, latestAired(schedule));
+  const started = from !== null && gone >= from;
+  const starts = started ? [] : (schedule?.episodes ?? []).filter((e) => e.number > gone && (end === null || e.number <= end)).map((e) => ({ number: e.number }));
+  const id = StateLogic.startPhase(s);
+  const phase = id ? { id, name: phases.find((p) => p.id === id)?.name ?? id } : null;
+  const later = started || over ? [] : phases.filter((p) => !p.first && (p.from === null || p.from > gone)).map((p) => ({ id: p.id, name: p.name, at: p.from }));
+  return { from, to: end, over, ends, started, starts, phase, phases: later };
 }
 
 /** A game locked down (step 15 part 4): its rules don't change for the season. */
 export const FROZEN = "Locked down for the season: the rules are frozen. Turn off Lock it down in Game settings first.";
 
 // What Game settings may change, and the limits (the bench and Outlast's team are set at the draft; a game's end only before
-// it's reached).
-const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode", "endEpisode"];
+// it's reached, its start only before it airs: an episode, or a phase of the season, step A3).
+const SETTING_FIELDS = ["activeSlots", "benchSlots", "teamSize", "allowLateJoiners", "joinMode", "endEpisode", "startEpisode", "startPhase"];
 
 /** The settings Lock it down freezes: Game settings' and the points (waivers stay the week's business). Undo asks too. */
 export const FROZEN_FIELDS = new Set([...SETTING_FIELDS, "eventPoints"]);
@@ -553,8 +654,19 @@ export const FROZEN_FIELDS = new Set([...SETTING_FIELDS, "eventPoints"]);
 export async function gameSettings(scope: BackstageScope): Promise<{ games: GameSettings[] }> {
   const [loaded, schedules] = await Promise.all([load(scope), seasonSchedules([scope.seasonId])]);
   const schedule = schedules.get(scope.seasonId);
+  // Each game's phases, from the rulebook it plays by (its couch's own copy, else the season's, read once): Starts' phases.
+  const season = await seasonBlocks(scope.seasonId);
+  const phases = await Promise.all(loaded.map((l) => leaguePhases(pool, l.game.leagueId, scope.seasonId, season)));
+  // A Prediction Sheet's questions (step A4 part 2), switchable until it starts, in the show's word for an episode (as Start a game).
+  const sheets = loaded.some((l) => StateLogic.getLeagueType(l.state).hasQuestions)
+    ? await (async () => {
+        const { rows } = await pool.query("SELECT s.episode_term FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [scope.seasonId]);
+        const part = showWords({ episode: rows[0]?.episode_term ?? null }).episode.toLowerCase();
+        return Promise.all(loaded.map((l, i) => questionsOf(l, scope.seasonId, spanState(l.state, schedule, phases[i]).started, part)));
+      })()
+    : loaded.map(() => null);
   return {
-    games: loaded.map((l) => {
+    games: loaded.map((l, i) => {
       const s = l.state;
       const type = StateLogic.getLeagueType(s);
       const W = StateLogic.WaiverLogic;
@@ -569,17 +681,30 @@ export async function gameSettings(scope: BackstageScope): Promise<{ games: Game
         shared: s.settings.ownershipMode === "shared",
         draftStarted: StateLogic.DraftLogic.isStarted(s),
         from: next?.number ?? null,
-        lineup: type.hasActiveRoster
-          ? { starters: StateLogic.ActiveRosterLogic.activeSlots(s), bench: StateLogic.ActiveRosterLogic.benchSlots(s), rec: { starters: REC.activeSlots, bench: REC.benchSlots } }
-          : null,
-        team: type.hasRoster && !type.hasActiveRoster ? { size: s.settings.teamSize, rec: REC.teamSize } : null,
+        lineup: type.hasActiveRoster ? lineupOf(s) : null,
+        team: type.hasRoster && !type.hasActiveRoster ? { size: StateLogic.rosterSize(s), rec: REC.teamSize, max: MAX_TEAM } : null,
         joining: { mode: StateLogic.GhostLogic.joinMode(s), rec: StateLogic.GhostLogic.recommendedJoinMode(s) },
         waivers: c ? `${RULE_WORDS[c.replaceRule]} · ${c.waiverWindows.swaps > 0 ? `${c.waiverWindows.swaps} optional swap${c.waiverWindows.swaps === 1 ? "" : "s"} per window` : "no optional swaps"}` : null,
         lockedDown: StateLogic.GhostLogic.lockedDown(s),
-        span: spanState(s, schedule),
+        span: spanState(s, schedule, phases[i]),
         lock: lockOf(s),
+        questions: sheets[i],
       };
     }),
+  };
+}
+
+/** A Weekly Lineup's sizes for Game settings: once it's drafted the team is fixed, so starters go up to it. A league already
+ *  past a limit shows its own size as the most (it can come down, never grow: game-spec specProblems' opts.was). */
+function lineupOf(s: LeagueState): NonNullable<GameSettings["lineup"]> {
+  const starters = StateLogic.ActiveRosterLogic.activeSlots(s);
+  const bench = StateLogic.ActiveRosterLogic.benchSlots(s);
+  const drafted = StateLogic.DraftLogic.isStarted(s);
+  return {
+    starters,
+    bench,
+    rec: { starters: REC.activeSlots, bench: REC.benchSlots },
+    max: { starters: Math.min(drafted ? starters + bench : Infinity, Math.max(MAX_STARTERS, starters)), bench: drafted ? bench : Math.max(MAX_BENCH, bench) },
   };
 }
 
@@ -599,26 +724,47 @@ export async function settingsWrite(
           ? { joinMode: "recommended" }
           : (body.set ?? {});
   if (!Object.keys(set).length || Object.keys(set).some((k) => !SETTING_FIELDS.includes(k))) throw new HttpError(400, `set may change ${SETTING_FIELDS.join(", ")}`);
-  const schedule = "endEpisode" in set ? (await seasonSchedules([scope.seasonId])).get(scope.seasonId) : undefined;
+  const spanned = "endEpisode" in set || "startEpisode" in set || "startPhase" in set;
+  const schedule = spanned ? (await seasonSchedules([scope.seasonId])).get(scope.seasonId) : undefined;
   const batch = crypto.randomUUID();
   let changed = false;
   await withLeagueLock(
     game.leagueId,
-    (s) => {
+    async (s, client) => {
       if (StateLogic.GhostLogic.lockedDown(s)) throw new HttpError(409, FROZEN);
       const drafted = StateLogic.DraftLogic.isStarted(s);
+      const phases = spanned ? await leaguePhases(client, game.leagueId, scope.seasonId) : [];
       for (const [k, v] of Object.entries(set)) {
         if (k === "allowLateJoiners") {
-          StateLogic.updateSettings(s, k, v !== false);
+          refused(StateLogic.updateSettings(s, k, v !== false));
           continue;
         }
         // How long it runs (step 6 of docs/PLAN-sports-data.md): only before its end is reached, and only to an episode still
         // to come, from its start, that the listing has (null: the season's end).
         if (k === "endEpisode") {
-          const now = spanState(s, schedule);
+          const now = spanState(s, schedule, phases);
           if (now.over) throw new HttpError(409, "It's over: its last episode is in");
           if (v !== null && !now.ends.some((e) => e.number === v)) throw new HttpError(400, "Pick an episode still to come, from where it starts");
-          StateLogic.updateSettings(s, k, v);
+          refused(StateLogic.updateSettings(s, k, v));
+          continue;
+        }
+        // Where it starts (step A3 of docs/PLAN-start-a-game-gpt.md): only before its first episode airs, and only to an episode
+        // still to come that the listing has, up to its end. Nothing before it scores; its draft can happen first.
+        if (k === "startEpisode") {
+          const now = spanState(s, schedule, phases);
+          if (now.started) throw new HttpError(409, "It's started: its first episode has aired, so its start stays");
+          if (!now.starts.some((e) => e.number === v)) throw new HttpError(400, "Pick an episode still to come, up to where it ends");
+          refused(StateLogic.updateSettings(s, k, v));
+          continue;
+        }
+        // Or when a phase of the season still to come starts (step A3): it waits for it, and plays from where data says it
+        // starts, settled now when that's known (phase-starts.ts). Switching back to an episode is startEpisode's.
+        if (k === "startPhase") {
+          const now = spanState(s, schedule, phases);
+          if (now.started) throw new HttpError(409, "It's started: its first episode has aired, so its start stays");
+          if (typeof v !== "string" || !now.phases.some((p) => p.id === v)) throw new HttpError(400, "Pick a phase of the season still to come");
+          refused(StateLogic.updateSettings(s, k, v));
+          settleIn(s, phases, schedule);
           continue;
         }
         // Who can join (step 9): open, ask or locked; anything else is the recommended one. An exclusive game can't be
@@ -627,7 +773,7 @@ export async function settingsWrite(
           const mode = v === "recommended" ? StateLogic.GhostLogic.recommendedJoinMode(s) : v;
           if (mode !== "open" && mode !== "ask" && mode !== "locked") throw new HttpError(400, "Who can join is open, ask or locked");
           if (mode === "open" && !StateLogic.GhostLogic.sharedJoin(s)) throw new HttpError(400, "Each castaway is on one team here, so new players need your OK");
-          StateLogic.updateSettings(s, k, mode);
+          refused(StateLogic.updateSettings(s, k, mode));
           continue;
         }
         const n = Number(v);
@@ -639,14 +785,17 @@ export async function settingsWrite(
           if (n !== now && !(k === "benchSlots" && "activeSlots" in set)) throw new HttpError(409, "That's set at the draft");
           continue;
         }
+        // The limits are the game spec's (one set, for every write); its validator holds them too, and lets a league already
+        // past one come down.
         if (k === "activeSlots") {
           const roster = StateLogic.rosterSize(s);
-          if (n < 1 || (drafted ? n > roster : n > 8)) throw new HttpError(400, drafted ? `Starters must be 1 to ${roster}, the team's size` : "Starters must be 1 to 8");
-          if (drafted) StateLogic.updateSettings(s, "benchSlots", roster - n);
+          if (n < 1 || (drafted && n > roster)) throw new HttpError(400, drafted ? `Starters must be 1 to ${roster}, the team's size` : `Starters must be 1 to ${MAX_STARTERS}`);
         }
-        if (k === "benchSlots" && (n < 0 || n > 6)) throw new HttpError(400, "Bench must be 0 to 6");
-        if (k === "teamSize" && (n < 1 || n > 10)) throw new HttpError(400, "Team size must be 1 to 10");
-        StateLogic.updateSettings(s, k, n);
+        if (k === "benchSlots" && n < 0) throw new HttpError(400, `Bench must be 0 to ${MAX_BENCH}`);
+        if (k === "teamSize" && n < 1) throw new HttpError(400, `Team size must be 1 to ${MAX_TEAM}`);
+        // Drafted, the team stays as it is and the starters come off its bench: one change to the spec's count.
+        if (k === "activeSlots" && drafted) refused(StateLogic.setGame(s, { ...StateLogic.gameOf(s), count: { start: n } }));
+        else refused(StateLogic.updateSettings(s, k, n));
         // Fewer starters from the next episode: a lineup already set for it (or carried into it) keeps its first ones.
         if (k === "activeSlots" && n < now) {
           for (const ep of s.episodes.filter((e) => !StateLogic.ActiveRosterLogic.isLineupLocked(s, e.id))) {
@@ -681,7 +830,7 @@ export async function lockDownWrite(scope: BackstageScope, on: unknown): Promise
   for (const game of mine) {
     await withLeagueLock(
       game.leagueId,
-      (s) => StateLogic.updateSettings(s, "lockedDown", on),
+      (s) => refused(StateLogic.updateSettings(s, "lockedDown", on)),
       (b, a) => {
         const spec = settingsSetChange(scope.user.id, on ? "Locked the game down for the season: nobody new joins, the rules are frozen" : "Took the game off lock down: back to casual", { batch });
         const out = typeof spec === "function" ? spec(b, a) : spec;
@@ -729,7 +878,7 @@ export async function pointsWrite(
     if (!Number.isFinite(n) || n < -50 || n > 50) throw new HttpError(400, "Points are -50 to 50");
     points[id] = StateLogic.roundPoints(n);
   }
-  const apply = (s: LeagueState) => StateLogic.updateSettings(s, "eventPoints", { ...(s.settings.eventPoints ?? {}), ...points });
+  const apply = (s: LeagueState) => refused(StateLogic.updateSettings(s, "eventPoints", { ...(s.settings.eventPoints ?? {}), ...points }));
   if (body.preview) {
     const after = structuredClone(s0);
     apply(after);

@@ -152,6 +152,95 @@ Last updated 2026-10-27.
     and Outlast 2 reads "Player in Outlast · Commissioner in Outlast". The Computer players section has the same habit
     (it heads each game by `gameName`).
     - **The fix:** use the game's own name (`name`) when two games here share a `gameName`, as games.tsx's `twin` does.
+21. **The session loop: two gaps (noticed 2026-10-28, checking the lanes after a usage reset).**
+    - **Nothing stops a second loop in one lane's folder.** When the keeper starts a lane again, it opens a new window,
+      and the old one stays open saying "Stopped after N sessions. Run it again to carry on." Running it again there
+      starts a second loop on the same worktree and session. The keeper checks first; a person at the old window doesn't.
+      The fix: session-loop.js writes `.session-loop/loop.pid` and refuses to start while that process is alive.
+    - **The 90% pause is only checked before a session.** A session that's already running carries on to the 5-hour
+      limit: on 2026-10-28 both lanes ran the window to 100% at 3:48 PM, so the user's own sessions were blocked until
+      5:40. The fix, if that matters while the user works: pause the running session (the loop's own pause) when a
+      rate-limit event shows the window past `--pause-at`, and resume it after the reset. Overnight, running to 100% is
+      what the user wants.
+    - Either reaches a lane only after a sync and a restart of its loop (lanes run their branch's copy).
+22. **What's New has no place in the new design (noticed 2026-10-28, approving the desk's step 7).** The popup
+    (`whats-new-modal.tsx`) shows only in classic, so once the couch is on the new design a published release reaches
+    nobody. The desk's build moves releases into the database and drafts them on the desk (PLAN-desk-parity.md, decision
+    8); where a player sees them in the new design is player-facing design work, mocked first.
+    - **When:** before What's New's pause ends (the user's call; nothing is announced meanwhile).
+23. **Done 2026-10-29: players' lineup, pick and prediction reminders go for every airing season** (the user's call).
+    `db/reminders.js` sent them only for seasons with `auto_research` on (paid research's old default), which nothing could
+    turn on after step 8, so none went. Now they go for every live airing season, as the commissioners' morning-after
+    nudge does, and each person's own "Reminders before an episode" switch still decides. PLAN-desk-parity.md Noticed co.
+24. **The formats' `wiki` sections outlived the wiki read (noticed 2026-10-29, the desk's step 8).** `castNote`, the
+    episode schema, `derivedEvents`, `rejectEvent` and `roles` are read only by `validateEpisodes` and its regression
+    harness now. PLAN-desk-parity.md Noticed cp.
+    - **When:** the engine lane, as it moves formats onto specs: clear them out or keep them.
+25. **The site's Anthropic key has nothing left to do (2026-10-29, cleaning up after the desk's step 8).** A paste is only
+    ever read as JSON now, never by a paid model (`pastedRun`; one that isn't JSON is refused with a clear message): the
+    user's rule, since our prompts always answer in JSON and nobody pasting should be able to spend the site's key. The last
+    way a paste reached paid Claude was classic admin's "Structured" tick box, which step 8 removed. The paid search
+    providers (episode-research.js `PROVIDERS`: anthropic, gemini, grok; `providerFor` defaults to anthropic) are reachable
+    only from local scripts. GitHub's `ANTHROPIC_API_KEY` Actions secret was deleted 2026-10-29; there was no
+    `GEMINI_API_KEY` on GitHub or Vercel.
+    **Done for production 2026-10-29:** the user removed `ANTHROPIC_API_KEY` from Vercel, so nothing deployed holds a paid
+    key. The key itself stays active for local research (the user's call), and so do the paid providers, for local scripts
+    only.
+26. **Small things the app fixes left (noticed 2026-10-29, the desk lane's four fixes, 03e12bdc).**
+    - `npx eslint src` has one error: src/components/ui/use-sheet-swipe.ts:36 (from d4bf8730).
+    - The research run sheet's "its air time plus 1 hr" names the season's length even when the rail's episode has its own.
+    - `results-ways.ts` reads the season's schedule itself rather than desk-bot.ts `scheduleOf`, so it misses an episode's
+      own runs and our usual.
+    - check-desk-research changes our usual (app-wide) between its "Make this our usual" and the Undo: another check reading
+      our usual at that moment would see it.
+    - The final-results push's "has seen it" is show_follows' mark or seeing everything, not the guard's full seenThrough
+      (keep-up's auto, late joiners); it only picks the push's words and link.
+    - The push doesn't say what changed since the early results: the data has that only per Weekly Lineup seat (the morning
+      update shows it).
+    - Since corrections folded into a closed section (b5766d89), the results API's `rulings` field is read only by checks:
+      one `league_rulings` query per episode page open that nothing shows.
+    - A house ruling's count and plate say "in your games" for the couch's games as a whole, so one kept in only some of
+      them reads as all (the lookup is per decision, not per game). Pre-existing wording.
+    - **When:** whichever session next touches sheets, the desk's Research page, results-ways, the push or corrections.
+27. **View as: what it doesn't cover yet (noticed 2026-10-29, building View as: src/lib/server/view-as.ts).** A site admin
+    viewing as a player or a commissioner loses site admin everywhere (requireSession). As a player, each game reads as a
+    member's through requireLeagueRole and show-space.ts `games()` (the home, show spaces, Backstage), which covers what the
+    screens draw. About 35 other server reads take a league or couch role straight from the database (couch-chat's
+    moderator, a couch owner's rights, couch-joins' "only whoever runs the game answers"), so a few commissioner powers may
+    still answer there. It's not a security gap: the lens only takes power away. As a commissioner it's your own role in
+    each game, not a commissioner everywhere.
+    - Seen while checking it: `GET /api/leagues/<id>/ruleset/shared` answers 500 for any commissioner on the local DB,
+      lens or not (check-view-as.js only asks that it isn't refused).
+    - **When:** if a player's view shows a commissioner tool, route that read through the lens, then fix the 500.
+28. **Survivor 51's games apart (found 2026-10-29; fixed in season-decisions.ts, check-match-season.js).** Switching S51 to
+    "Sources that agree" took all of Episodes 1-3 (122 results, decided by hand on classic's admin, no source) out of the
+    couch's three games; the test couch's copies kept them (no ledger). Episodes 4-5 were never season results: each game took
+    them through classic's per-game "apply research" (src/lib/episode-results.ts, /api/leagues/[id]/episodes/[epId]/research/
+    apply), and Weekly Start/Bench's Episode 5 got four more than the other two. Fixed: a result you decided reaches every
+    game on either setting; only a game's newest episode is news (no push for an old one coming back); the desk's episode
+    page lists games that don't match the season and Make every game match (only kinds the season has settled for the
+    episode come out, so a tribe swap research missed stays). Done in production the same evening: Episode 1's Make every
+    game match put Episodes 1-3 back; full research for Episodes 4 and 5 (Episode 4 twice); decided on the desk, checked
+    against recaps, what the bot missed (Toka's six Episode 4 reward wins as second place, Carter's Episode 4 move to Toka,
+    Maggie's Episode 5 journey); Episode 5 matched (38 of the games' own out: Devin's and Lewis's "zero votes", three
+    "learned of an advantage", Weekly Start/Bench's four contradictions). All six S51 games the same for Episodes 1-6. Left:
+    - "Who decides results" now changes nothing the games get (every desk accept locks, and a locked result reaches them on
+      either setting): fold it into one, or give it a meaning. The episode page's "You decide its results: nothing reaches the
+      games until you accept it" note and Coming up's "you decide too" line still read as if it did. The user's call.
+    - Classic's per-game "apply research" still writes one game only, for a league opened in the classic design: retire it,
+      or send it through the season, or games drift apart again.
+    - The test couch's games have no ledger (copied wholesale), so a season correction never takes anything back out of them.
+    - Make every game match has no Undo (a game's own results aren't kept anywhere): its line in History says what it did.
+    - Done 2026-10-29: S51's Episode 3 said Carter moved to Savu (the tribe he left: he started on Savu and joined Toka in
+      the accidental mutiny). The desk's Correct now changes a move's group ("Moved to", 0765e8d7, check-correct-group.js),
+      and Episode 3 is Carter to Toka in the couch's three games. The test couch's copies still say Savu (no ledger, above).
+    - Make every game match compares a tribe move, a role or who went home by person only, not by its value (applyDecision
+      calls any move a person already has "already there"): a game whose move names another tribe reads as matching. Compare
+      the value too, and take the game's own version out where it differs.
+    - The bot misses a second-place tribe's wins (Episode 4's Toka reward, as Episode 6's Savu immunity before) and a journey
+      (Episode 5's Maggie); two runs count as one source, so a miss the second run fixes still waits for a second source.
+      Worth a line in the full-results prompt about every tribe that won something, first place or not.
+    - **When:** the next session on results or the desk; the first is the user's call.
 
 ## Decided against (don't re-propose without new information)
 

@@ -76,7 +76,7 @@ test("nextEpisodeFrom: what research says, cleaned up", () => {
 });
 
 test("the bot clock counts from a two-hour episode's own end", () => {
-  const schedule = Bot.normalizeSchedule(null);
+  const schedule = Bot.normalizeSchedule([{ kind: "quick", after: 5 }, { kind: "full", after: 60 }]);
   const aired = new Date("2026-11-05T01:00:00Z");
   const at = (min) => new Date(aired.getTime() + min * 60 * 1000);
   const due = (now, minutes) =>

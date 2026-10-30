@@ -1,6 +1,7 @@
 import crypto from "crypto";
 import type { PoolClient } from "pg";
 import StateLogic from "@/lib/game/state-logic.js";
+import type { LeagueState, Player } from "@/lib/game/types";
 import { isSuperAdminUser, isUuid, type SessionUser } from "./auth-helpers";
 import { dropBlindPicksForPlayer } from "./blind-draft";
 import { roleChange, type ChangeSpec, type MemberUndo } from "./change-log";
@@ -11,6 +12,7 @@ import { couchGames } from "./league-changes";
 import { leagueStates } from "./league-states";
 import { LEAGUE_ROLES, lastCommissionerProblem, setLeagueRole, type LeagueRole } from "./roles";
 import type { Game } from "./show-space";
+import { othersOnSeat } from "./shared-seats";
 
 // Backstage › Members & roles (docs/PLAN-new-design.md step 6a; the mock's backstage.js bsMembers and guards.js): who plays
 // the couch's games on a season and who runs each. Commissioner (results, waivers, rules and roles) and Game admin (results
@@ -139,11 +141,34 @@ export async function setMemberRole(
 }
 
 /**
+ * Someone's seat as they go (taken out, leaving, or their account deleted on the desk): before the draft it goes, with any
+ * blind-draft picks; after it, it's disabled (its team and points stay in the standings, nobody plays it). True when it
+ * went. Inside the league's lock (withLeagueLock's state and client). A seat someone else still holds (a team two people share:
+ * step A10 part 4b, shared-seats.ts) stays as it is, theirs: false, and nothing changes but the membership the caller drops.
+ */
+export async function freeSeat(s: LeagueState, client: PoolClient, leagueId: string, seat: Player | null | undefined, userId: string): Promise<boolean> {
+  if (seat && (await othersOnSeat(client, leagueId, seat.id, userId))) return false;
+  const removed = !s.draftPicksMade;
+  if (!seat) return removed;
+  if (removed) {
+    StateLogic.removePlayer(s, seat.id);
+    await dropBlindPicksForPlayer(client, leagueId, seat.id);
+    StateLogic.BlindDraftLogic.setLockedPlayerIds(s, StateLogic.BlindDraftLogic.lockedPlayerIds(s).filter((id) => id !== seat.id));
+  } else StateLogic.disablePlayer(s, seat.id, userId);
+  return removed;
+}
+
+/**
  * Takes `userId` out of `leagueId` (tier 3), as classic's leave does: before the draft the seat goes; after it, it's
  * disabled (its team and points stay in the standings, nobody plays it). Their membership goes; the last Commissioner
- * can't go. The line carries a MemberUndo, open for 30 days.
+ * can't go. The line carries a MemberUndo, open for 30 days. `inside` runs in the same transaction, with the undo (the
+ * desk's History lines: docs/PLAN-desk-parity.md part 6b).
  */
-export async function takeOut(leagueId: string, userId: string, spec: { actor: string; batch: string; text: string }): Promise<boolean> {
+export async function takeOut(
+  leagueId: string,
+  userId: string,
+  spec: { actor: string; batch: string; text: string; inside?: (client: PoolClient, undo: MemberUndo) => Promise<void> }
+): Promise<boolean> {
   let undo: MemberUndo | null = null;
   await withLeagueLock(
     leagueId,
@@ -154,16 +179,12 @@ export async function takeOut(leagueId: string, userId: string, spec: { actor: s
       const problem = lastCommissionerProblem(rows.map((r) => ({ userId: r.user_id, role: r.role })), userId, "member");
       if (problem) throw new HttpError(409, problem);
       const seat = me.player_id ? s.players.find((p) => p.id === me.player_id) : null;
-      const removed = !s.draftPicksMade;
-      if (seat) {
-        if (removed) {
-          StateLogic.removePlayer(s, seat.id);
-          await dropBlindPicksForPlayer(client, leagueId, seat.id);
-          StateLogic.BlindDraftLogic.setLockedPlayerIds(s, StateLogic.BlindDraftLogic.lockedPlayerIds(s).filter((id) => id !== seat.id));
-        } else StateLogic.disablePlayer(s, seat.id, userId);
-      }
+      // A team they share stays with the others on it (step A10 part 4b): Undo puts them back on it.
+      const shared = !!seat && rows.some((r) => r.player_id === seat.id && r.user_id !== userId);
+      const removed = await freeSeat(s, client, leagueId, seat, userId);
       await client.query("DELETE FROM league_memberships WHERE league_id = $1 AND user_id = $2", [leagueId, userId]);
-      undo = { type: "member", userId, playerId: me.player_id ?? "", name: seat?.formerName ?? seat?.name ?? "someone", role: me.role, seen: me.results_seen_through, removed };
+      undo = { type: "member", userId, playerId: me.player_id ?? "", name: seat?.formerName ?? seat?.name ?? "someone", role: me.role, seen: me.results_seen_through, removed, ...(shared ? { shared: true } : {}) };
+      await spec.inside?.(client, undo);
     },
     (): ChangeSpec | null =>
       undo

@@ -48,11 +48,6 @@ export const seasonCastApi = {
       added: { tribes: string[]; castaways: string[]; skipped: string[] };
       roles: { recorded: string[]; unchanged: string[]; unresolved: string[] };
     }>(`/api/leagues/${leagueId}/castaways/import`, { method: "POST", body: JSON.stringify({ proposal, tribesFromEpisode }) }),
-  // Admin > Shows & Seasons: fix one person in a season's cast, in place in every league on it.
-  adminEdit: (
-    seasonId: string,
-    edit: { rename: { id: string; name: string } } | { photo: { id: string; photoUrl: string | null } } | { tribe: { id: string; tribeName: string | null } }
-  ) => call<{ applied: unknown[] }>(`/api/admin/seasons/${seasonId}/cast`, { method: "PATCH", body: JSON.stringify(edit) }),
 };
 
 /**

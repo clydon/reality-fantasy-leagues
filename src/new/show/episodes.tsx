@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { ChevronRight, Clock, Eye } from "lucide-react";
 import { airTime, dayOf } from "../clock";
 import { useEpisodeResults, useSeasonWaivers, type EpisodeRow, type GameNight, type WaiverWeek } from "../data";
+import { midLine, useFinalLine } from "../final-words";
 import { gameInk, ordinal } from "../games";
 import { episodesOf, type ShowData } from "../screens/show-space";
 import { PushedPage, usePushedPage } from "../ui/page";
@@ -15,9 +16,10 @@ import { useOpenReveal } from "./reveal";
 import { CouchMomentsCard } from "./couch-moments";
 import { openRate, rateLabel, RateRow, VerdictMark, type RateTarget } from "./rate";
 import { CallResults } from "./calls";
+import { SheetResultRow } from "./questions";
 import { BingoResults } from "./bingo";
 import { ShowChangeCard } from "./show-change";
-import { CorrectionPlates, CorrectionRow, SomethingWrong } from "./something-wrong";
+import { EpisodeCorrections, SomethingWrong } from "./something-wrong";
 import { playsWaivers, WaiverEpisodeRow } from "./waivers";
 import { RecapsCard } from "./recaps";
 
@@ -26,10 +28,11 @@ import { RecapsCard } from "./recaps";
 // until you reveal (Reveal), one that's aired and waiting for results, and each one you've seen with who went home
 // and your line, opening its own page (?page=ep4: who went home, your games, the top scorers, what happened). Real
 // (GET /api/seasons/[id]/episodes, through the guard). A waiver week sits between the two episodes it falls between
-// (waivers.js's row): open, it goes to the Waivers page; run, to its own page in picking order (step 6a). A correction the
-// shared check made to the couch's games is a line of its own at the top, and a plate on the episode's page, which ends
-// with "Something wrong in this episode?" (step 6b, something-wrong.tsx). Each episode you've seen carries the couch's verdict
-// and your stars (step 12 part 1, rate.tsx): a show you only watch opens Rate it from the row, a show you play from its page.
+// (waivers.js's row): open, it goes to the Waivers page; run, to its own page in picking order (step 6a). The corrections
+// the shared check made to the couch's games are on the episode's page only, closed just above the "Something wrong in
+// this episode?" it ends with (step 6b, something-wrong.tsx), never lines in this list. Each episode you've seen carries
+// the couch's verdict and your stars (step 12 part 1, rate.tsx): a show you only watch opens Rate it from the row, a show
+// you play from its page.
 // A streaming season (step 14; the mock's streaming.js wEpisodes): the drop instead of this week's episode, "All 8 out ·
 // Netflix", and a season you only watch from Episode 1 down, the way you'll watch it.
 
@@ -44,8 +47,9 @@ function progressLine(show: ShowData): string | null {
 }
 
 /** An episode row's one line: your night in Weekly Lineup if you play it ("You +6 in Weekly Lineup"), else your first
- *  game's, else how they left. */
-function rowLine(e: EpisodeRow): string {
+ *  game's, else how they left. Read-only (`ro`, the desk's Open it: nobody's night), whether the game counted it. */
+function rowLine(e: EpisodeRow, ro?: ReadOnlyLine | null): string {
+  if (ro) return ro.from === null || e.number < ro.from ? `Before ${ro.name} started` : ro.to !== null && e.number > ro.to ? `After ${ro.name} ended` : `Scored in ${ro.name}`;
   const l = e.lines?.find((x) => x.gameType === "active-roster") ?? e.lines?.[0];
   if (!l) return e.out?.length ? (e.out[0].method ?? "Out") : "Nothing recorded";
   if (l.line === "Before the game started") return "Before your games started";
@@ -59,8 +63,13 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
   const t = up?.airAt ? Date.parse(up.airAt) : null;
   const eps = show.episodes;
   const openReveal = useOpenReveal();
-  const progress = progressLine(show);
-  const wv = useSeasonWaivers(seasonId, show.couch?.id ?? null, playsWaivers(show));
+  const finalWords = useFinalLine(eps?.reveal?.stage, eps?.reveal?.finalAt);
+  // Read-only: the game open (by its id), who's set in it, or that a game still going has nothing to set (the mock's
+  // "Outlast: nothing to set before it airs").
+  const roGame = show.readOnly ? show.play?.find((g) => g.leagueId === show.readOnly!.leagueId) : undefined;
+  const ro: ReadOnlyLine | null = show.readOnly && roGame ? { name: show.readOnly.name, from: roGame.from, to: roGame.to } : null;
+  const progress = progressLine(show) ?? (ro && roGame && !roGame.over && !roGame.archived ? `${ro.name}: nothing to set before it airs` : null);
+  const wv = useSeasonWaivers(seasonId, show.couch?.id ?? null, playsWaivers(show) && !show.readOnly);
   const rateFor = (n: number): RateTarget => ({ seasonId, couchId: show.couch?.id ?? null, episode: n, label: rateLabel(show), solo: show.solo });
   // Each waiver week after the episode that opened it: in a newest-first list, just above that episode's row.
   const weeks = (n: number) => (wv.data?.games ?? []).filter((w) => (w.run?.episode ?? w.period?.episode) === n && (w.run || (w.stage === "open" && (w.replace.length || w.swapsAllowed))));
@@ -105,8 +114,8 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
               {show.words.ep} {eps.reveal.episode}
             </span>
             <span className="flex flex-1 flex-col justify-center gap-[3px] py-[7px] pl-5 pr-2.5">
-              <span className="type-caption text-[19px]">{eps.reveal.stage === "early" ? "Early results are in" : "Results are in"}</span>
-              <span className="text-[13px] text-plate-muted">Hidden until you reveal</span>
+              <span className="type-caption text-[19px]">{eps.reveal.stage === "early" ? "Early results are in" : "Final results are in"}</span>
+              <span className="text-[13px] text-plate-muted">{eps.reveal.stage === "early" && finalWords ? `Hidden until you reveal · ${midLine(finalWords)}` : "Hidden until you reveal"}</span>
             </span>
             <span className="grid place-items-center px-3">
               <ChevronRight className="size-5" aria-hidden />
@@ -128,9 +137,6 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
           <div aria-busy className="h-56 animate-pulse rounded-[4px] bg-card" />
         ) : (
           <>
-            {(eps.corrections ?? []).map((c) => (
-              <CorrectionRow key={`${c.episode}-${c.decisionId}`} c={c} />
-            ))}
             {list.map((e) => (
               <div key={e.number} className="contents">
                 {waiverRows(weeks(e.number))}
@@ -141,7 +147,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
                 ) : e.status === "aired" ? (
                   <AiredRow e={e} solo={show.solo} streaming={show.streaming} word={show.words.episode} onRate={() => openRate(rateFor(e.number))} />
                 ) : (
-                  <SeenRow e={e} solo={show.solo} />
+                  <SeenRow e={e} solo={show.solo} ro={ro} />
                 )}
               </div>
             ))}
@@ -175,6 +181,7 @@ export function Episodes({ seasonId, show }: { seasonId: string; show: ShowData 
 }
 
 function HiddenRow({ e, onReveal }: { e: EpisodeRow; onReveal: () => void }) {
+  const finalWords = useFinalLine(e.stage, e.finalAt);
   return (
     <button
       type="button"
@@ -187,8 +194,8 @@ function HiddenRow({ e, onReveal }: { e: EpisodeRow; onReveal: () => void }) {
         <Eye className="size-5" aria-hidden />
       </span>
       <span className="min-w-0 flex-1">
-        <b className="block text-base font-semibold">{e.stage === "early" ? "Early results are in" : "Results are in"}</b>
-        <small className="mt-0.5 block text-[13px] text-muted-foreground">Hidden until you reveal</small>
+        <b className="block text-base font-semibold">{e.stage === "early" ? "Early results are in" : "Final results are in"}</b>
+        <small className="mt-0.5 block text-[13px] text-muted-foreground">{e.stage === "early" && finalWords ? `Hidden until you reveal · ${midLine(finalWords)}` : "Hidden until you reveal"}</small>
       </span>
       <span className="text-[15px] font-semibold text-chyron-line">Reveal</span>
     </button>
@@ -248,7 +255,11 @@ function WaitingRow({ e }: { e: EpisodeRow }) {
   );
 }
 
-function SeenRow({ e, solo }: { e: EpisodeRow; solo: boolean }) {
+/** The game open read-only, for an episode row's line: its name, its first episode and its last (null: the season's end). */
+/** `from` null: a game waiting for a phase of the season (step A3 of docs/PLAN-start-a-game-gpt.md), not started yet. */
+type ReadOnlyLine = { name: string; from: number | null; to: number | null };
+
+function SeenRow({ e, solo, ro }: { e: EpisodeRow; solo: boolean; ro: ReadOnlyLine | null }) {
   const page = usePushedPage(`ep${e.number}`);
   const out = e.out ?? [];
   return (
@@ -264,7 +275,7 @@ function SeenRow({ e, solo }: { e: EpisodeRow; solo: boolean }) {
       <span className="min-w-0 flex-1">
         <b className="block truncate text-base font-semibold">{out.length ? `${out.map((c) => first(c.name)).join(" and ")} out` : "No one out"}</b>
         <small className="mt-0.5 block truncate text-[13px] text-muted-foreground">
-          {rowLine(e)}
+          {rowLine(e, ro)}
           {e.stage === "early" ? " · full scores to come" : ""}
         </small>
       </span>
@@ -292,6 +303,7 @@ function EpisodePage({ seasonId, show }: { seasonId: string; show: ShowData }) {
           e={e}
           seasonName={show.header ? `${show.header.show.name} ${show.header.seasonNumber}` : "this season"}
           rate={{ seasonId, couchId: show.couch?.id ?? null, episode: e.number, label: rateLabel(show), solo: show.solo }}
+          sheets={show.games.filter((g) => g.yourRole && g.gameType === "questions" && !g.archived).map((g) => ({ leagueId: g.leagueId, name: g.name }))}
         />
       ) : (
         <p className="px-4 pt-6 text-sm text-muted-foreground">Reveal this episode to see it.</p>
@@ -315,14 +327,28 @@ function GameLine({ l }: { l: GameNight }) {
   );
 }
 
-function EpisodeBody({ seasonId, couchId, e, seasonName, rate }: { seasonId: string; couchId: string | null; e: EpisodeRow; seasonName: string; rate: RateTarget }) {
+function EpisodeBody({
+  seasonId,
+  couchId,
+  e,
+  seasonName,
+  rate,
+  sheets,
+}: {
+  seasonId: string;
+  couchId: string | null;
+  e: EpisodeRow;
+  seasonName: string;
+  rate: RateTarget;
+  sheets: { leagueId: string; name: string }[];
+}) {
   const out = e.out ?? [];
   const results = useEpisodeResults(seasonId, couchId, e.number);
+  const finalWords = useFinalLine(e.stage, e.finalAt);
   return (
-    <div data-episode-page={e.number} className="mb-10 mt-3 px-4 pb-4 pt-4">
-      <CorrectionPlates results={results.data} />
+    <div data-episode-page={e.number} data-results-in={results.data ? "" : undefined} className="mb-10 mt-3 px-4 pb-4 pt-4">
       {e.stage === "early" && (
-        <p className="mb-3 rounded-[3px] bg-card px-3 py-2.5 text-sm text-muted-foreground">Early results: who went home is in. Weekly Lineup&rsquo;s full scores come later.</p>
+        <p className="mb-3 rounded-[3px] bg-card px-3 py-2.5 text-sm text-muted-foreground">Early results: who went home is in. {finalWords ? `${finalWords}.` : "Weekly Lineup’s full scores come later."}</p>
       )}
       <div className="flex flex-col gap-2.5">
         {out.map((c) => (
@@ -384,9 +410,15 @@ function EpisodeBody({ seasonId, couchId, e, seasonName, rate }: { seasonId: str
         <RateRow target={rate} verdict={e.verdict} />
       </section>
       <CallResults target={rate} />
+      {/* Each Prediction Sheet of yours here (step A4 part 2): how its questions went on this episode, at your mark. */}
+      {sheets.map((g) => (
+        <SheetResultRow key={g.leagueId} heading target={{ seasonId, leagueId: g.leagueId, episode: e.number, game: g.name }} />
+      ))}
       <BingoResults target={rate} />
       <CouchMomentsCard seasonId={seasonId} couchId={couchId} episode={e.number} />
       <ShowChangeCard seasonId={seasonId} couchId={couchId} episode={e.number} seasonName={seasonName} />
+      {/* Keyed: the page keeps its body from one episode to the next, and each opens closed. */}
+      <EpisodeCorrections key={e.number} results={results.data} />
       <SomethingWrong seasonId={seasonId} couchId={couchId} episode={e.number} />
     </div>
   );

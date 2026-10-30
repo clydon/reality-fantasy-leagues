@@ -20,6 +20,11 @@
 //
 //   node scripts/dev-test/tapes.js record [--only=<show>:<season>] [--kinds=quick,full] [--pause=60] [--max=N]
 //                                         the queue in the plan's order, resuming where it stopped (skips what's on tape)
+//                                         [--five-hour-cap=90] [--week-cap=80]: with a bot that reports its account's
+//                                         limits (Codex), a wait until the window resets once one is used that far
+//   node scripts/dev-test/tapes.js requeue [--only=<show>:<season>]   what gave up, and the failed tries of what isn't
+//                                         on tape, moved aside into <season>\requeued\<when>\ (nothing deleted), so
+//                                         the queue asks it again: after the bot was down or signed out
 //   node scripts/dev-test/tapes.js plan [--only=...]       what record would ask next, in order (asks nothing)
 //   node scripts/dev-test/tapes.js status                  what's recorded, per show and season, and the last error
 //   node scripts/dev-test/tapes.js one <show> <season> <kind> [<episode>]   one question now (the end-to-end check)
@@ -34,7 +39,8 @@
 //                                                          `answer`, so a check runs the app's real flows on a tape offline
 //
 // Needs: the lane's .env.local (AUTH_DATABASE_URL on localhost, LLM_BROWSER_API_URL naming only a local bot and its key,
-// BOT_PROVIDER to ask other than ChatGPT: gemini is the user's signed-in Gemini, in the mode the bot picks),
+// BOT_PROVIDER to ask other than ChatGPT: gemini is the user's signed-in Gemini, in the mode the bot picks; codex is the
+// user's ChatGPT plan through the Codex CLI, which stays signed in where ChatGPT's web page signs itself out),
 // migrations run, and for record/one the local bot up. No dev server: the app's code runs in this process. Writes to the
 // lane's database the way the app does (shows, seasons, episodes, cast, research, runs); a zt_tapes user owns what needs one.
 // Those rows aren't zt- keyed, by design: they're real seasons of real shows, named as the app's prompts name them, on the
@@ -157,6 +163,22 @@ function backoffMs(failures) {
   return BACKOFF_MIN[Math.min(failures, BACKOFF_MIN.length) - 1] * MIN;
 }
 
+/**
+ * What a failed question does to the queue. Pure. One the bot answered (`answered`: the answer just didn't pass, as Survivor
+ * 49's finale bingo didn't) is the question's failure, not the bot's: it waits its own tries' backoff, and none on its last
+ * try, so the queue moves straight on. Only failures with no answer at all (the bot down or stuck) count in a row, towards the
+ * long backoff.
+ */
+function afterFailure(state, { tries, answered, now = Date.now() }) {
+  const failuresInARow = answered ? 0 : (state.failuresInARow || 0) + 1;
+  const wait = answered ? (tries >= TRIES ? 0 : backoffMs(tries)) : backoffMs(failuresInARow);
+  return {
+    failuresInARow,
+    pausedUntil: wait ? new Date(now + wait).toISOString() : null,
+    pauseWhy: !wait ? null : answered ? `try ${tries} of ${TRIES} didn't pass` : `${failuresInARow} failure(s) in a row`,
+  };
+}
+
 /** Whether an answer or an error reads like ChatGPT's usage limit or a bot check (pause an hour, don't ask again). Pure. */
 function looksLimited(text) {
   const t = String(text || "").toLowerCase();
@@ -177,6 +199,22 @@ function looksLimited(text) {
 }
 
 /** What the queue does next, from the state (failures in a row, a pause) and the time: { wait: ms, why } or null. Pure. */
+/**
+ * Whether the bot's account is near its limits (a provider whose bot reports them, Codex: /health's limits[provider], each
+ * window's used_percent and resets_at): { until: ms, why } for the window at its cap that resets last, or null. A window
+ * whose reset has passed is fresh. Pure.
+ */
+function limitHold(limits, now, caps) {
+  let hold = null;
+  for (const [key, cap, name] of [["five_hour", caps.fiveHour, "5-hour window"], ["week", caps.week, "week"]]) {
+    const w = limits && limits[key];
+    const until = w && w.resets_at ? new Date(w.resets_at).getTime() : 0;
+    if (!(until > now) || !(Number(w.used_percent) >= cap)) continue;
+    if (!hold || until > hold.until) hold = { until, why: `the account's ${name} is ${w.used_percent}% used (the cap is ${cap}%)` };
+  }
+  return hold;
+}
+
 function holdFor(state, now) {
   const until = state.pausedUntil ? new Date(state.pausedUntil).getTime() : 0;
   if (until > now) return { wait: until - now, why: state.pauseWhy || "backing off" };
@@ -368,9 +406,10 @@ async function tapesUser(pool) {
 // on its next try), and a stalled try is a failed one, asked again.
 const BOT_WAIT_S = Number(process.env.BOT_WAIT_S) || 420;
 // Which of the bot's providers answers: chatgpt (the app's own) unless BOT_PROVIDER says gemini, the user's signed-in Gemini
-// (the bot picks its mode and thinking level and says which it answered in). Every tape names the provider and mode.
+// (the bot picks its mode and thinking level and says which it answered in), or codex, the user's ChatGPT plan through the
+// Codex CLI (the plan's model; the bot reports the plan's limits). Every tape names the provider and mode.
 const BOT_PROVIDER = String(process.env.BOT_PROVIDER || "chatgpt").trim().toLowerCase();
-const BOT_NAME = { chatgpt: "ChatGPT", gemini: "Gemini", grok: "Grok" }[BOT_PROVIDER] || BOT_PROVIDER;
+const BOT_NAME = { chatgpt: "ChatGPT", gemini: "Gemini", grok: "Grok", codex: "Codex" }[BOT_PROVIDER] || BOT_PROVIDER;
 const UA = { "User-Agent": "GameYourShow/1.0 (+https://gameyourshow.com)" };
 
 /** One question to the local bot: ask-bot.ts askBot's request (BOT_PROVIDER, search on unless `search: false`, keepalive)
@@ -698,14 +737,14 @@ async function askRecaps(job, rec) {
 }
 
 /**
- * A request from Start a game's words corpus (start-a-game-words.json), asked with the draft request prompt (tapes-words.js:
+ * A request from Start a game's words corpus (the capability tracker's, tapes-words.js wordsCorpus), asked with the draft request prompt (tapes-words.js:
  * no web search, the corpus's own date), read, and judged against its expected reading.
  */
 async function askWords(job, rec) {
   const W = require("./tapes-words.js");
   const corpus = wordsCorpus();
   const req = corpus && corpus.requests.find((r) => r.id === job.id);
-  if (!req) throw Object.assign(new Error(`No request ${job.id} in start-a-game-words.json`), { blocked: true });
+  if (!req) throw Object.assign(new Error(`No request ${job.id} in the words corpus (tests/fixtures/engine-capabilities.json)`), { blocked: true });
   const { answer } = await rec.ask(W.wordsPrompt(req.words, corpus.today), { search: false });
   const parsed = W.parseRequest(answer);
   const judged = W.judge(req.expect, parsed, req.words);
@@ -769,7 +808,14 @@ async function runOne(job, tries = 1) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const wordsCorpus = () => readJson(path.join(__dirname, "start-a-game-words.json"));
+// The capability tracker's corpus (step A5 of the GPT plan: one list, read by tapes-words.js), or null when it can't be read.
+function wordsCorpus() {
+  try {
+    return require("./tapes-words.js").wordsCorpus() ?? null;
+  } catch {
+    return null;
+  }
+}
 function wordsIds() {
   const data = wordsCorpus();
   return data && Array.isArray(data.requests) ? data.requests.map((r) => r.id) : [];
@@ -837,7 +883,8 @@ async function record(opts) {
   const pause = (Number(opts.pause) || 60) * 1000;
   const max = Number(opts.max) || Infinity;
   let asked = 0;
-  journal(`${new Date().toISOString()}  -- recorder started (pid ${process.pid}, commit ${commitOf()}, ${BOT_PROVIDER}, pause ${pause / 1000}s${opts.only ? `, only ${opts.only.show}${opts.only.season ? `:${opts.only.season}` : ""}` : ""})`);
+  const caps = { fiveHour: Number(opts.fiveHourCap) || 90, week: Number(opts.weekCap) || 80 };
+  journal(`${new Date().toISOString()}  -- recorder started (pid ${process.pid}, commit ${commitOf()}, ${BOT_PROVIDER}, pause ${pause / 1000}s${opts.only ? `, only ${opts.only.show}${opts.only.season ? `:${opts.only.season}` : ""}` : ""}${BOT_PROVIDER === "codex" ? `, caps ${caps.fiveHour}% of a 5-hour window and ${caps.week}% of the week` : ""})`);
   let stop = false;
   process.on("SIGINT", () => {
     if (stop) process.exit(1);
@@ -850,6 +897,17 @@ async function record(opts) {
     if (hold) {
       console.log(`${new Date().toISOString()}  waiting ${Math.round(hold.wait / 60000)} min: ${hold.why}`);
       await sleep(Math.min(hold.wait, 5 * MIN));
+      continue;
+    }
+    // The account's limits (Codex's, as the bot last heard them): near a cap, wait until that window resets. The pause is
+    // the state's, so status shows it.
+    const lim = limitHold(await botLimits(), Date.now(), caps);
+    if (lim) {
+      const s = loadState();
+      s.pausedUntil = new Date(lim.until + MIN).toISOString();
+      s.pauseWhy = lim.why;
+      saveState(s);
+      journal(`${new Date().toISOString()}  -- waiting until ${s.pausedUntil}: ${lim.why}`);
       continue;
     }
     const job = nextJob(opts);
@@ -891,7 +949,6 @@ async function record(opts) {
       s.pauseWhy = "the answer reads like a usage limit or a bot check";
     } else {
       s.tries[key] = tries;
-      s.failuresInARow = (s.failuresInARow || 0) + 1;
       s.lastError = { at: new Date().toISOString(), job: key, message: out.message };
       if (out.record) writeRecord(job, out.record, { tryNo: tries });
       // The last try: what it answered is the tape, so the queue moves on.
@@ -903,8 +960,7 @@ async function record(opts) {
         writeJson(path.join(dirOf(job.show, job.season), "season.json"), { show: job.show, number: job.season, ok: false, gaveUp: true, message: out.message, at: new Date().toISOString() });
         delete s.tries[key];
       }
-      s.pausedUntil = new Date(Date.now() + backoffMs(s.failuresInARow)).toISOString();
-      s.pauseWhy = `${s.failuresInARow} failure(s) in a row`;
+      Object.assign(s, afterFailure(s, { tries, answered: !!out.record }));
     }
     saveState(s);
     journal(journalLine(Date.now(), job, { ok: out.ok, seconds: out.seconds, message: out.limited ? `LIMITED, waiting an hour: ${out.message}` : out.message, tries: out.ok || out.limited ? 0 : tries }));
@@ -915,6 +971,63 @@ async function record(opts) {
 }
 
 /** Whether the local bot is up and free (its /health). */
+/** The bot's account limits for BOT_PROVIDER, as its /health last heard them (Codex's), or null. */
+async function botLimits() {
+  const { bots } = appCode();
+  try {
+    const res = await fetch(`${bots[0].replace(/\/$/, "")}/health`, { signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return null;
+    const body = await res.json();
+    return (body.limits && body.limits[BOT_PROVIDER]) || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * What gave up, moved aside so the queue asks it again (after the bot was down or signed out): each question's tape that
+ * gave up (ok: false, with its .prompt.md and .answer.md), a season that couldn't be set up, and the failed tries of
+ * whatever isn't on tape, into <season>\requeued\<when>\; the season's tries in the state cleared. Nothing is deleted.
+ * Returns what moved, as show/season/file.
+ */
+function requeue(only) {
+  const when = new Date().toISOString().replace(/[:.]/g, "-");
+  const state = loadState();
+  const moved = [];
+  for (const show of SHOWS) {
+    if (only && only.show !== show.key) continue;
+    for (const season of show.seasons) {
+      if (only && only.season && only.season !== season) continue;
+      const dir = dirOf(show.key, season);
+      if (!fs.existsSync(dir)) continue;
+      const files = fs.readdirSync(dir).filter((f) => fs.statSync(path.join(dir, f)).isFile());
+      const tapes = files.filter((f) => /^(season(-[a-z-]+)?|e\d+-[a-z-]+)\.json$/.test(f)).map((f) => [f.slice(0, -5), readJson(path.join(dir, f))]);
+      const good = new Set(tapes.filter(([, t]) => t && t.ok !== false && !t.gaveUp).map(([stem]) => stem));
+      const gaveUp = new Set(tapes.filter(([, t]) => t && (t.ok === false || t.gaveUp)).map(([stem]) => stem));
+      const go = files.filter((f) => {
+        const tryOf = /^(.+)\.try[^.]*\.json$/.exec(f);
+        if (tryOf) return !good.has(tryOf[1]);
+        return gaveUp.has(f.replace(/\.(json|prompt\.md|answer\.md)$/, ""));
+      });
+      if (!go.length) continue;
+      const to = path.join(dir, "requeued", when);
+      fs.mkdirSync(to, { recursive: true });
+      for (const f of go) {
+        fs.renameSync(path.join(dir, f), path.join(to, f));
+        moved.push(`${show.key}/${season}/${f}`);
+      }
+      for (const key of Object.keys(state.tries || {})) if (key.startsWith(`${show.key}/${season}/`)) delete state.tries[key];
+    }
+  }
+  if (moved.length) {
+    state.failuresInARow = 0;
+    state.pausedUntil = null;
+    state.pauseWhy = null;
+    saveState(state);
+  }
+  return moved;
+}
+
 async function botFree() {
   const { bots } = appCode();
   try {
@@ -1052,7 +1165,7 @@ function answerer(show, season) {
 async function main() {
   const [cmd, ...argv] = process.argv.slice(2);
   const { flags, rest } = argsOf(argv);
-  const opts = { only: onlyOf(flags.only), kinds: flags.kinds ? String(flags.kinds).split(",") : null, pause: flags.pause, max: flags.max };
+  const opts = { only: onlyOf(flags.only), kinds: flags.kinds ? String(flags.kinds).split(",") : null, pause: flags.pause, max: flags.max, fiveHourCap: flags["five-hour-cap"], weekCap: flags["week-cap"] };
   if (cmd === "record") return record(opts);
   if (cmd === "status") return status();
   if (cmd === "plan") {
@@ -1073,12 +1186,18 @@ async function main() {
     if (!out.ok) process.exitCode = 1;
     return;
   }
+  if (cmd === "requeue") {
+    const moved = requeue(opts.only);
+    for (const m of moved) console.log(`  ${m}`);
+    journal(`${new Date().toISOString()}  -- requeued: ${moved.length} file(s) that gave up or failed moved aside, so the queue asks them again`);
+    return;
+  }
   if (cmd === "load") return load(rest[0], Number(rest[1]));
   if (cmd === "unload") return unload(rest[0], Number(rest[1]));
-  console.log("Usage: node scripts/dev-test/tapes.js record|plan|status|one|load|unload (see the header comment)");
+  console.log("Usage: node scripts/dev-test/tapes.js record|plan|status|one|load|unload|requeue (see the header comment)");
 }
 
-module.exports = { SHOWS, TRIES, planJobs, fullHeld, castHeld, backoffMs, looksLimited, holdFor, journalLine, nameOf, keyOf, asksOf, pickAnswer, hashOf, readTape, answerer, TAPES };
+module.exports = { SHOWS, TRIES, planJobs, fullHeld, castHeld, backoffMs, afterFailure, looksLimited, holdFor, limitHold, requeue, journalLine, nameOf, keyOf, asksOf, pickAnswer, hashOf, readTape, answerer, TAPES };
 
 if (require.main === module) {
   main()

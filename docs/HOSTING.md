@@ -14,17 +14,17 @@ part 1).
 | **Neon** (project `reality-fanatsy-leagues`, AWS us-east-2, Postgres 18) | Every table, auth included | **Launch since 2026-10-28** (the user upgraded it at 98.3% of the free 5 GB transfer, three days before the reset): usage-based, $0.106 a CU-hour, $0.35 a GB-month, 500 GB of transfer, no minimum | ~$5 a month at today's use |
 | **Oracle Cloud** (`gys-bot`, VM.Standard.E2.1.Micro: x86, 1 GB) | The ChatGPT bot (`C:\Users\conor\llm-browser-api`) and the bot research clock | Always Free | $0 |
 | **Cloudflare** tunnels | `bot.gameyourshow.com` (the VM), `bot-home.gameyourshow.com` (the PC fallback) | Free | $0 |
-| The PC's bot (`127.0.0.1:8765`, local work only) | Since 2026-10-28 its ChatGPT is **signed in to the user's own account** (a Plus trial) and its Gemini to their Google account, and it can ask Claude through the user's Claude Code. **Never list it in production's `LLM_BROWSER_API_URL`** (nor tunnel it for production): production's research would run on the user's personal accounts. The VM's bot stays signed out | – | $0 (the trial renews as paid Plus unless cancelled) |
-| **GitHub** (`clydon/reality-fantasy-leagues`, **public since 2026-10-24**) | The code; Actions runs the hourly job (`auto-research.yml`: auto-research, reminders, waivers) and the nightly wiki sync | Free; Actions minutes unlimited while public | $0 |
+| The PC's bot (`127.0.0.1:8765`, local work only) | Since 2026-10-28 its ChatGPT is **signed in to the user's own account** (a Plus trial) and its Gemini to their Google account, and it can ask Claude through the user's Claude Code, and since 2026-10-30 **Codex** through the Codex CLI on the same ChatGPT account (`codex login`; it stays signed in where ChatGPT's web page signed itself out three times on 2026-10-29; locked to web search; the season tapes record on it, from a second copy of the bot at `127.0.0.1:8766` until the main one is restarted on the new code). **Never list it in production's `LLM_BROWSER_API_URL`** (nor tunnel it for production): production's research would run on the user's personal accounts. The VM's bot stays signed out | – | $0 (the trial renews as paid Plus unless cancelled) |
+| **GitHub** (`clydon/reality-fantasy-leagues`, **public since 2026-10-24**) | The code; Actions runs the hourly job (`reminders-waivers.yml`, "Reminders and waivers": `db/reminders.js` then `db/waivers.js`), and nothing else since the desk's step 8 (the nightly wiki sync and paid research's hourly step went) | Free; Actions minutes unlimited while public | $0 |
 | healthchecks.io | Emails when the bot's daily self-test fails | Free | $0 |
-| Resend | Sign-up and password emails | Free: 3,000 emails a month, 100 a day (third-party sources, 2026; Pro $20 for 50,000) | $0 |
+| Resend | Sign-up and password emails, and the desk's Let in ("You're in", one per account let in: docs/PLAN-desk-parity.md step 2) | Free: 3,000 emails a month, 100 a day (third-party sources, 2026; Pro $20 for 50,000) | $0 |
 | **TVmaze** API (`api.tvmaze.com`, new design step 10 part 1, on the branch) | TV listings for Add a show: the show search as you type, a show's seasons and episode air times when someone adds it, and its cast when someone makes a series or talk show a game (step 10 part 2a). Since step 11 part 2, also once a day by the listings job (the week's schedules for the guide's Also on, what changed, new seasons): about 17-20 calls a day, on the bot clock's calls, never on a timer of its own | Free, no key. Data is CC BY-SA (credited with a link back on Add a show and the guide's listing and evening sheets); at least 20 calls every 10 seconds per IP, else HTTP 429 (the job spaces its calls 0.7 s apart); posters hotlinked from its image CDN (allowed) | $0 |
 | Google Cloud OAuth client (**not made yet**: the user's, step 9 part 2) | Continue with Google on the new design's way in. Off until `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` are set (no keys, no button) | Free (sign-in only: the email, profile and openid scopes, no verification review needed) | $0 |
 | **GIPHY** API (**no key yet**: the user's, new design step 13 part 1, on the branch) | GIFs in a watch along: what's trending and a search, asked by our server (`/api/gifs`, kept at the edge an hour per search); the pictures load from GIPHY's media CDN straight into the browser. Off until `GIPHY_API_KEY` is set (no key, no GIF button). Tenor, the other choice, closed its API on 2026-06-30 | Free. A new key is a beta key: 100 calls an hour (each distinct search, and trending, at most once an hour per edge region); past that, GIPHY's production key (applied for from its dashboard, reviewed, and they may talk pricing). "Powered by GIPHY" shown under the picker; ratings PG-13 at most | $0 |
 | **TMDB** API (`api.themoviedb.org`, show art and cast photos, 2026-10-26, on the branch) | Show posters, header images (backdrops) and logos, season posters, and a season's cast photos by name (`src/lib/server/show-art.ts`). Images hotlinked from `image.tmdb.org`, stored as plain URLs. Off until `TMDB_READ_TOKEN` is set (the user's; in `.env.local`, and Vercel needs it too) | Free key, **non-commercial only**: charging users (or ads) needs TMDB's written agreement, price on request. Data kept at most 6 months (the daily job re-asks at 150 days); on a licence ending, everything on `image.tmdb.org` must go: `UPDATE ... WHERE url LIKE 'https://image.tmdb.org/%'`. Attribution: its logo and notice on Settings › Credits. About 40 requests a second allowed | $0 |
 | **Wikipedia / Wikidata** API and **Jolpica** (`api.jolpi.ca`, F1) (2026-10-26, on the branch) | Athletes' photos for sport shows: Wikipedia's page image API returns only freely licensed (Commons) photos; Jolpica gives Formula 1's field with Wikipedia links | Free, no keys. Wikipedia rate-limits bursts (a probe got 429s after ~15 quick calls): batched, one call at a time, at most 30 searches a sweep. Commons photos need their photographer's credit | $0 |
 | **ESPN** (`site.api.espn.com`, `site.web.api.espn.com`, `sports.core.api.espn.com`; sports data, 2026-10-27, local only) | A sport season's games (each day's scoreboard), linked to its episodes; each team's roster with headshots, the Players tab's players (headshots hotlinked from `a.espncdn.com` through ESPN's resizer); a game's box score in the sport's own columns and a player's regular-season line, the Players tab's stats (or a race's places, from its scoreboard); its search (which league a season's teams are in); a team's schedule (a matchup's games, since L1 part 3) and each linked game's final and sportsbook line (`sports_events`) (`src/lib/server/sports/`, docs/PLAN-sports-data.md). Asked by our server, every answer cached in Neon (`sports_cache`); and, live (L2, on the `sports` branch, no screen yet), by phones themselves: a game's summary every 15 s while it's on and the screen's visible, straight from the browser, none of it through our server or Neon (Live games, below; a phone's IP reaches ESPN, no cookies) | Free, no key, but **unofficial and undocumented**: no published terms or rate limit, and it can change without notice. Asked little (cached hard), credited in Settings › Credits and under the Players tab's roster, other sources planned for when it fails (docs/BACKLOG.md). It refuses a User-Agent with a URL in it (403), so ours is a bare `GameYourShow/1.0`; its CDN (Akamai) also refuses a headless browser's (403), not a normal browser's, which gets `Access-Control-Allow-Origin: *` | $0 |
-| Anthropic API | Paid auto-research (Claude), only for seasons switched on | Pay per use | per episode researched |
+| Anthropic API | Nothing since the desk's step 8: paid Claude research (the hourly job's first step) and the nightly wiki read went with classic's admin (docs/PLAN-desk-parity.md, decision 9). The repository's Actions secrets `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` are no longer read: **the user removes them** (GitHub › Settings › Secrets and variables › Actions), and Vercel's `ANTHROPIC_API_KEY`, if it has one, likewise. `db/episode-research.js`'s own CLI can still ask Claude, locally | – | $0 |
 | Domain `gameyourshow.com` | Bought 2026-10-12 | not recorded | yearly |
 
 ## Alerts (open problems)
@@ -52,8 +52,8 @@ the jobs on 2026-10-19 when they ran out). What that means:
   goes anywhere public. GitHub can keep old commits reachable by their old hashes until it cleans up; nobody
   outside had them while the repo was private, and GitHub Support can purge them on request.
 - **Going private again later** (a paid app): one switch (Settings › Danger zone, or `gh repo edit --visibility
-  private`). Actions then counts minutes again: about 775 a month for these jobs (a run takes 35-50 s, billed as
-  a minute; 24 a day plus the nightly sync), inside the free 2,000 unless other private repos share them.
+  private`). Actions then counts minutes again: about 720 a month for the hourly job (a run takes under a minute,
+  billed as one; 24 a day), inside the free 2,000 unless other private repos share them.
   Anything public in the meantime may have been copied.
 
 ## Limits and usage
@@ -73,7 +73,7 @@ Snapshot **2026-10-24**. Neon's numbers are since its period start (Sep 30); Ver
 | Vercel Functions Storage | 10 GB | **14.52 GB** | See Alerts |
 | Vercel cron | once a day on Hobby | unused | Why the bot clock lives on the VM |
 | Vercel Preview builds | | off | Ignored Build Step = "Only build production" since 2026-10-24: Preview shared production's database and every build runs migrations |
-| GitHub Actions | unlimited while public (2,000 min a month if private) | ~775 min a month | See The repo is public |
+| GitHub Actions | unlimited while public (2,000 min a month if private) | ~720 min a month | See The repo is public |
 | Oracle VM | 1 GB RAM, 1/8 OCPU burstable | | One question at a time: ~48 s with web search, ~114 s for a full research prompt |
 
 ## What uses each limit (for estimating)
@@ -528,8 +528,7 @@ people (an episode is researched once for everyone), so the free bot keeps up fa
 **Costs that come with a decision, not with size:**
 - **Charging anything** (the bot tiers, ads): Vercel's Hobby is for non-commercial use only, so **Pro ($20) from day one**,
   whatever the size; and TMDB's free key is non-commercial (a licence, or TheTVDB, free under $50k revenue, plus TVmaze).
-- **Going private again:** GitHub Actions counts minutes (~775 a month: inside the free 2,000).
-- **Paid research** (the Anthropic API, per season switched on): per episode researched, only if used.
+- **Going private again:** GitHub Actions counts minutes (~720 a month: inside the free 2,000).
 
 **What keeps it low, cheapest first:** the Levers above. Polling is what grows with people: it's both Vercel's calls and Neon's
 awake hours. One combined poll, polling only while the window is in front, slowing down when nothing moves, and push for rare
@@ -554,7 +553,7 @@ never handles it: the user does the reset and the pasting.
 - **Neon**: console › project › Overview (compute, storage, history, transfer since the period started);
   Monitoring › Query performance (top queries, but only since the compute last woke). A banner warns near a limit.
 - **Vercel**: dashboard › Usage; Settings › Build and Deployment for the Ignored Build Step.
-- **GitHub**: `gh run list --workflow=auto-research.yml --limit 5` (green hourly; `gh workflow list --all` shows if one
+- **GitHub**: `gh run list --workflow=reminders-waivers.yml --limit 5` (green hourly; `gh workflow list --all` shows if one
   was disabled); Settings › Billing and plans for minutes once private.
 - **The bot clock**: on the VM, `journalctl -u llm-browser-tick -n 20` (one line per call; nothing between).
 - **The listings job** (new design, step 11 part 2): `GET /api/cron/listings` with `Authorization: Bearer <CRON_SECRET>` says its
@@ -562,6 +561,16 @@ never handles it: the user does the reset and the pasting.
   now. Vercel's function logs have one `[listings]` line per run.
 
 ## Changelog
+
+- **2026-10-30, local only.** The PC's bot asks **Codex** (the Codex CLI, the user's ChatGPT plan, no API key, no cost beyond
+  the plan): a `codex` provider in llm-browser-api, web search only (the shell, files, browser and computer use, apps, plugins
+  and memories all off; checked: it can't run a command or read a file). Each answer reports the plan's limits in `/health`
+  (`limits.codex`: the 5-hour window and the week, each with used_percent and resets_at). Measured on Plus: a full research
+  question is ~2% of the 5-hour window and ~0.5-1% of the week (OpenAI's estimate for the model, gpt-6.1-sol, is 15-160
+  messages per 5 hours on Plus); the season tapes pause at 90% and 80%. Free includes Codex too, with limits OpenAI doesn't
+  publish ("quick coding tasks"). Production stays on the VM's signed-out ChatGPT: moving it would put production on the
+  user's personal account (see The stack), and OpenAI recommends API keys for automation and warns against exposing Codex to
+  untrusted input, so that's the user's call, later.
 
 - **2026-10-27, deployed.** A site admin's test couch (docs/PLAN-researched-survivor.md; migration 0151): a copy
   of a couch's games on a season, played by test players. Nothing polls and nothing new wakes Neon; its cost is the copy's size:
@@ -945,3 +954,50 @@ never handles it: the user does the reset and the pasting.
   migration, no pushes.** A flag is one row in `bingo_square_flags` (0146, ~60 bytes); dealing a card adds two small subqueries
   per square of the episode's bank (counted flags, an admin's flag: indexed by the flags' primary key). The hub's read gains one
   query for the couch feed's BINGO lines (couch members' cards with a call, guarded as the notice is).
+- **2026-10-29, pushed to master (deploys with migrations 0420-0430).** The desk, steps 1-7 (docs/PLAN-desk-parity.md): the
+  site admins' pages that take over classic /admin's work (classic stays until step 8). **Nothing runs on a schedule, and a page
+  polls only while something it started is running.** Storage: two new tables, `desk_runs` (a row per Run now, ~200 bytes) and
+  `season_cast_answers` (a row per cast answer, its text and the people read from it: a few KB); nullable columns on
+  `issue_reports`, `show_seasons`, `bingo_squares`, `couches` and `shows`; `admin_changes` takes person, report and game lines.
+  Two triggers: on `leagues` (a game's insert, or a change to its couch or its delete, reads its couch's row by key) and on
+  `shows` (a change to a show's words). **Run now no longer waits inside its request:** it queues a `desk_runs` row and answers at
+  once; the request driving the queue asks the bot (up to 300 s, as classic's Run now did), then hands the next queued run to a
+  request of its own through `/api/desk/runs/next` (Bearer `CRON_SECRET`, which production has): one more short function call
+  per queued run. **While a page shows something running it polls** until it ends: a run's log every 3 s, a bingo bank being
+  written or a cast being asked every 4 s, the rulebooks flag's check every 1 s; one site admin, so under a hundred small reads
+  a run. A deleted couch or game is restorable for 30 days; `purgeDeleted` removes older ones when deletes and the desk's reads
+  run, not on a schedule. Let in sends one Resend email per account let in. Which AI our bot asks (`app_settings` 'bot_ai') is
+  one small row read with each ask; it stays ChatGPT until production's bot has the Claude Code CLI signed in.
+- **2026-10-29, on the desk branch (step 8, not pushed; no migration).** Classic's admin retires (docs/PLAN-desk-parity.md
+  step 8): `/admin` sends a site admin to the desk, and every `/api/admin` route is gone (part 8a). Part 8b: the nightly
+  **wiki sync** (`.github/workflows/wiki-sync.yml`, `db/wiki-sync.js all`) and **paid Claude research's** hourly step
+  (`db/auto-research.js`) are gone; the hourly job is `reminders-waivers.yml` ("Reminders and waivers": `db/reminders.js`, then
+  `db/waivers.js`, as before), on the same schedule. Actions: ~720 runs a month, one a day fewer. Its secrets are
+  `AUTH_DATABASE_URL` and the three VAPID keys; **`ANTHROPIC_API_KEY` and `GEMINI_API_KEY` aren't read any more, for the user to
+  remove**. Nothing new polls or runs. In the database, `wiki_proposals` and the seasons' auto-research columns stay,
+  unread (a few KB); `wiki_extractions` stays and is still read (the episodes' titles and dates it holds: `schedule.ts`,
+  `desk-schedule.ts`, episode research), and the desk's schedule and Clear still prune `auto_research_attempts`.
+- **2026-10-29 evening, pushed to master (deploys with migration 0431).** The app fixes: back closes a bottom sheet, pages
+  show their loading look once, early and final results, the research pattern. **One new table**, `bot_research_episodes`
+  (a row per episode given runs of its own: a few hundred bytes), and `app_settings` 'bot_usual' (our usual runs, once the
+  desk saves them). **The hourly Reminders and waivers job does a little more:** `db/reminders.js` finalResults sends
+  "Episode N final results are in" at 12:00 noon the day after an episode (the season's zone), once per person and episode:
+  for each airing season (or one whose finale was in the last 3 days), the episodes whose final time came in the last day,
+  then one query for the show's name and its members' marks. `season-clock.js` loadSeasons reads `bot_research_episodes`
+  per season (a primary-key lookup, for the job, waivers and the bot's plan), and the plan reads 'bot_usual' once. Our
+  usual runs: who went home at the episode's end, full results 1 h and 12 h after, trivia, bingo. Nothing else new polls
+  or runs on a schedule.
+- **2026-10-30, merged to master (deploys with migrations 0200-0202).** The engine's track A to A11 part 5b and track F
+  (docs/PLAN-start-a-game-gpt.md; docs/STUDY-format-changes.md). **Nothing polls, nothing scheduled, no new pushes, no new
+  service.** Two new tables: `game_answers` (0200, with 0201's two small counters: a player's answer to a question in a game
+  of questions, one row per league, player, question and episode, the answer at most 2,000 bytes, graded on each read and never
+  stored; deleted with its league, backed up with the couch's games) and `seat_moves` (0202: who made a shared seat's latest
+  move of each kind, written only on a seat two or more accounts hold, so empty until someone shares one).
+  `league_memberships` gains `seat_slot` (a small integer, 0 on every existing row) and its seat unique now includes it. **The
+  research prompt is longer for every show:** its format section (who is with whom at the episode's end and what changed,
+  F2) adds about 7,800 characters to each full research ask (1,000 of words, 6,700 of its JSON schema: Survivor 49's episode 6
+  asks 35,000 in all) and its answer a few hundred more, on our bot (no API cost); the
+  format's state over time is built from a season's stored research on read (one query) where the prompt or a group question
+  needs it. The engine lab (`/desk/lab`, site admins only) reads the capability tracker and starts test games on a test couch:
+  by hand, one admin. The game-specs flag stays off in production, so nothing writes `settings.game` there until it's
+  switched on.

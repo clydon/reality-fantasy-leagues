@@ -378,12 +378,14 @@ async function down() {
 // ---------- up: the season's copy, the players ----------
 
 /** A zt- copy of a recorded season: the show (same name and format), the season (moved to start next week), its episodes and cast. */
-async function copySeason(show, season) {
+async function copySeason(show, season, loadedId = null) {
   const { pool } = appCode();
   const Tapes = require("./tapes");
   const tape = Tapes.readTape(show, season);
   if (!tape.season || !tape.season.seasonId) throw new Error(`${show} ${season} has no tape (tapes.js status)`);
-  const realId = tape.season.seasonId;
+  // `loadedId`: this database's own row for the season (blind.js reads the tapes where they are; golden.js points a copy's
+  // season.json at it instead).
+  const realId = loadedId || tape.season.seasonId;
   const real = await one("SELECT ss.*, s.id AS sid FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1", [realId]);
   if (!real) throw new Error(`${show} ${season}: the tape's season isn't in this database (tapes.js load ${show} ${season})`);
   const sh = await one(
@@ -622,8 +624,11 @@ const listOrder = (s) => s.castaways.map((c) => c.id);
 const namesOf = (s) => Object.fromEntries(s.castaways.map((c) => [c.id, c.name]));
 
 /**
- * The draft, through the draft room's writes: the turn-based one turn by turn, the blind one each locking in. Each seat's
- * picks in words (r.draft: "Ann (picked for them)") and as data (r.drafted: [{ id, name, forThem }]).
+ * The draft, through the draft room's writes: the turn-based one turn by turn, the blind one each locking in, a draw (A10 part
+ * 3) dealt by the start alone, an auction (part 3b) each bidding. A draft spread across the cast's groups (A10 part 3) or under a
+ * salary cap (part 3b) takes, by each seat's habit, only who keeps its team spread and within the cap (draftFits: everyone when
+ * neither applies). Each seat's picks in words (r.draft: "Ann (picked for them)")
+ * and as data (r.drafted: [{ id, name, forThem }]).
  */
 async function draft(r) {
   const { draft: D, S, Bots } = appCode();
@@ -631,6 +636,8 @@ async function draft(r) {
   const leadActor = { user: lead, membership: await memberOf(r.leagueId, lead.id) };
   let s = await D.startDraft(leadActor, r.leagueId);
   const shared = s.settings.ownershipMode === "shared";
+  const drawn = S.DrawLogic.on(s);
+  const auction = S.AuctionLogic.on(s);
   const picks = {};
   const drafted = {};
   // A seat's order over `ids` by its habit, and someone away's when they get the room's favourites (--away=favourites: what
@@ -638,13 +645,51 @@ async function draft(r) {
   const orderOf = (seat, ids) => prefer(seat, ids, { ratings: Bots.ratings(s, LEVELS[ROLES[seat.role].level]), listOrder: listOrder(s), names: namesOf(s) });
   const awayOrder = (ids, lists) => favourites(ids, { ratings: Bots.ratings(s, LEVELS.solid), lists, listOrder: listOrder(s) });
   const isAway = (seat) => ROLES[seat.role].draft === "absent";
-  if (!shared) {
+  if (drawn) {
+    // Nobody picks: the start dealt every team (or the hat ran out on some, as the draw records).
+    if (!S.DrawLogic.drawn(s)) r.problems.push("The draw didn't deal the teams when the draft started");
+    for (const seat of r.seats) {
+      const pid = pidOf(r, seat);
+      if (!pid) continue;
+      const ids = s.castaways.filter((c) => (c.ownerIds || []).includes(pid)).map((c) => c.id);
+      picks[seat.label] = ids.map((id) => `${castName(s, id)} (drawn)`);
+      drafted[seat.label] = ids.map((id) => ({ id, name: castName(s, id), forThem: false }));
+    }
+    if (s.draw && s.draw.short.length) r.log.push(`The draw came up short for ${s.draw.short.length} of the teams: the hat ran out`);
+  } else if (auction) {
+    // An auction (A10 part 3b): each seat bids in private by its habit, its budget over the team it wants most (the first the
+    // most), as many again as backups at the lowest price; someone away has an empty sheet locked in for them (filled at the
+    // lowest price). Computer players bid inside each write; the last sheet in settles it.
+    const size = S.rosterSize(s);
+    const free = s.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
+    for (const seat of r.seats.filter((x) => pidOf(r, x) && x !== r.lateSeat)) {
+      const forgot = isAway(seat);
+      // A sheet as computer players make one (AuctionLogic.sheetFor), from the seat's own order.
+      const bids = forgot ? [] : S.AuctionLogic.sheetFor(s, orderOf(seat, free).slice(0, size * 2));
+      const actor = forgot ? leadActor : { user: r.users[seat.username], membership: await memberOf(r.leagueId, r.users[seat.username].id) };
+      s = await D.lockBidsFor(actor, r.leagueId, pidOf(r, seat), bids);
+    }
+    s = await stateOf(r.leagueId);
+    if (!S.AuctionLogic.settled(s)) r.problems.push("The auction didn't settle once everyone had bid");
+    for (const seat of r.seats) {
+      const pid = pidOf(r, seat);
+      if (!pid) continue;
+      const won = (s.draftLog || []).filter((e) => e.playerId === pid);
+      picks[seat.label] = won.map((e) => `${castName(s, e.castawayId)} (${e.filled ? "filled at" : "bid"} ${e.price})`);
+      drafted[seat.label] = won.map((e) => ({ id: e.castawayId, name: castName(s, e.castawayId), forThem: !!e.filled }));
+    }
+    if (s.auction && s.auction.short && s.auction.short.length) r.log.push(`The auction left ${s.auction.short.length} of the teams short`);
+  } else if (!shared) {
     for (let guard = 0; guard < 600; guard++) {
       const turn = S.currentDraftTurn(s);
       if (!turn || turn.isComplete) break;
       const seat = seatOf(r, turn.playerId);
       if (!seat) break; // a computer player's turn not taken (bots.ts takes them inside each write): stop and say so
-      const free = s.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
+      // Who keeps this team spread and within a salary cap (everyone free when neither applies), over every free agent as the
+      // pick's own checks read it.
+      const unowned = s.castaways.filter((c) => c.status === "active" && !(c.ownerIds || []).length).map((c) => c.id);
+      const fits = S.draftFitsFor(s, turn.playerId);
+      const free = unowned.filter((id) => fits.includes(id)).length ? unowned.filter((id) => fits.includes(id)) : fits;
       const habit = ROLES[seat.role].draft;
       const order =
         isAway(seat) && r.opts.away === "favourites"
@@ -667,12 +712,24 @@ async function draft(r) {
     const size = S.rosterSize(s);
     const active = s.castaways.filter((c) => c.status === "active").map((c) => c.id);
     const drafting = r.seats.filter((seat) => pidOf(r, seat) && seat !== r.lateSeat);
+    // A team of `size` by an order over who's left, a pick at a time, each keeping it spread and within a salary cap (the order
+    // itself when neither applies).
+    const spread = (order) => {
+      if (!S.SpreadLogic.groupsNow(s) && S.BudgetLogic.cap(s) === null) return order(active).slice(0, size);
+      const team = [];
+      for (let i = 0; i < size; i++) {
+        const next = order(S.draftFits(s, team, active.filter((id) => !team.includes(id))))[0];
+        if (!next) break;
+        team.push(next);
+      }
+      return team;
+    };
     // Each seat's team, chosen in private (nobody reads another's), then locked in, in seat order.
-    const teams = new Map(drafting.map((seat) => [seat, orderOf(seat, active).slice(0, size)]));
+    const teams = new Map(drafting.map((seat) => [seat, spread((ids) => orderOf(seat, ids))]));
     // --away=favourites: someone away gets the room's favourites (the app knows the others' locked teams; nobody else sees them).
     if (r.opts.away === "favourites") {
       const others = drafting.filter((x) => !isAway(x)).map((x) => teams.get(x));
-      for (const seat of drafting) if (isAway(seat)) teams.set(seat, awayOrder(active, others).slice(0, size));
+      for (const seat of drafting) if (isAway(seat)) teams.set(seat, spread((ids) => awayOrder(ids, others)));
     }
     for (const seat of drafting) {
       const pid = pidOf(r, seat);
@@ -720,11 +777,17 @@ async function moves(r, n) {
     did[label] = { kind, act, ids };
   };
   let s = await stateOf(r.leagueId);
-  if (!S.inPlay(s, n)) return week;
+  // Step A11 part 1: nothing after a game ended early (a race won, one left), as nothing after its span.
+  if (!S.inPlay(s, n) || S.KnockoutLogic.endedBefore(s, n)) return week;
   const type = S.getLeagueType(s);
   for (const seat of r.seats) {
     const pid = pidOf(r, seat);
     if (!pid) continue;
+    // A seat knocked out of the game (A11 part 1) has no more moves: the app offers none.
+    if (S.KnockoutLogic.isOut(s, pid)) {
+      say(seat.label, "out of the game", null, "out");
+      continue;
+    }
     const role = ROLES[seat.role];
     const on = movesThisWeek(seat, n);
     s = await stateOf(r.leagueId);
@@ -791,14 +854,19 @@ async function moves(r, n) {
         continue;
       }
       const ratings = Bots.ratings(s, LEVELS[role.level]);
-      const pick = prefer(seat, available, { ratings, key: "safety", how: lazy ? "list" : role.moves === "best" ? "rank" : role.moves, listOrder: listOrder(s), names: namesOf(s) })[0];
+      const order = prefer(seat, available, { ratings, key: "safety", how: lazy ? "list" : role.moves === "best" ? "rank" : role.moves, listOrder: listOrder(s), names: namesOf(s) });
+      const pick = order[0];
+      // A pool's second pick (step A10 part 2): the next one by the same habit, beside the first; never by a lazy seat.
+      const parts = S.PickEmLogic.parts(s);
+      const second = parts && parts.second && !lazy ? order.find((id) => id !== pick) || null : null;
       ask.taps = TAPS.pick;
       try {
         await withLeagueLock(r.leagueId, (st) => {
           S.setPickEmPick(st, episode.id, pid, pick);
+          if (second) S.setPickEmPick(st, episode.id, pid, second, { second: true });
         });
         const now = S.PickEmLogic.pickFor(await stateOf(r.leagueId), episode.id, pid);
-        if (now && now.castawayId === pick) say(seat.label, `picked ${castName(s, pick)}`, "pick", "picked", [pick]);
+        if (now && now.castawayId === pick) say(seat.label, `picked ${castName(s, pick)}${second && now.second === second ? `, and ${castName(s, second)} second` : ""}`, "pick", "picked", second && now.second === second ? [pick, second] : [pick]);
         else say(seat.label, `tried ${castName(s, pick)}, not taken`, "pick", "notTaken", now ? [now.castawayId] : []);
       } catch (e) {
         say(seat.label, `couldn't pick: ${e.message}`, "pick", "refused", existing ? [existing.castawayId] : []);
@@ -828,6 +896,11 @@ async function waivers(r, n) {
   for (const seat of r.seats) {
     const pid = pidOf(r, seat);
     if (!pid) continue;
+    // A seat knocked out of the game (A11 part 1) is out of the waivers.
+    if (S.KnockoutLogic.isOut(s, pid)) {
+      out.claims[seat.label] = "out of the game";
+      continue;
+    }
     const habit = ROLES[seat.role].waivers;
     const owed = W.replacementsOwed(s, pid, period);
     out.asks[seat.label] = { card: owed.count > 0, taps: 0 };
@@ -858,8 +931,11 @@ async function waivers(r, n) {
     .catch((e) => r.problems.push(`Episode ${n}: Waivers › Run now refused: ${e.message}`));
   const after = await stateOf(r.leagueId);
   const log = (after.midSeason?.log || []).filter((x) => x.periodId === period.id || x.episode === n);
-  out.ran = log.map((x) => `${nameIn(after, x.playerId)}: ${x.addedCastawayId ? `+${castName(after, x.addedCastawayId)}` : ""}${x.droppedCastawayId ? ` -${castName(after, x.droppedCastawayId)}` : ""}${x.via ? ` (${x.via})` : ""}`);
+  // A stock market (A10 part 3c): each trade's price, what it sold for, and the seat's cash after the week.
+  const priced = (x) => (typeof x.paid === "number" ? ` at ${x.paid}${x.droppedCastawayId ? `, sold at ${x.sold}` : ""}${x.fee ? `, fee ${x.fee}` : ""}` : "");
+  out.ran = log.map((x) => `${nameIn(after, x.playerId)}: ${x.addedCastawayId ? `+${castName(after, x.addedCastawayId)}` : ""}${x.droppedCastawayId ? ` -${castName(after, x.droppedCastawayId)}` : ""}${x.via ? ` (${x.via})` : ""}${priced(x)}`);
   out.moved = log.map((x) => ({ seat: seatOf(r, x.playerId)?.label ?? nameIn(after, x.playerId), addId: x.addedCastawayId || null, dropId: x.droppedCastawayId || null, via: x.via || null }));
+  if (S.MarketLogic.on(after)) out.cash = Object.fromEntries(r.seats.filter((seat) => pidOf(r, seat)).map((seat) => [seat.label, S.MarketLogic.cash(after, pidOf(r, seat))]));
   const still = wipedOut(r, after);
   out.backIn = out.wiped.filter((label) => !still.includes(label));
   return out;
@@ -1260,7 +1336,13 @@ const resultsSteps = (mode) => ({
   both: mode === "both-exits",
 });
 
-async function fileResults(season, n, answer, mode = "autopilot") {
+/**
+ * Episode n's results through the bot's own run, its answers from the tape (`answer`), reshaped as `mode` says. `hooks`
+ * (blind.js, F4's blind replays): { quick, full }(text, { ctx, n }) each answer's say as it comes off the tape (the full one
+ * once it's upgraded and its dates moved), before `mode` reshapes and places it, with the research context the run asks with
+ * (who the prompt asks about, the groups going in).
+ */
+async function fileResults(season, n, answer, mode = "autopilot", hooks = null) {
   const { reshape, placed, both } = resultsSteps(mode);
   const { BotResearch, botSend, pool } = appCode();
   const Research = require("../../db/episode-research.js");
@@ -1284,7 +1366,7 @@ async function fileResults(season, n, answer, mode = "autopilot") {
     // that can't be read fails a full answer as before; a quick check keeps its answer as it came, only its order (and
     // --results=both-exits' additions) lost.
     let ctx = null;
-    if ((kind === "full" && (stored || reshape || placed)) || (kind === "quick" && (placed || both))) {
+    if ((kind === "full" && (stored || reshape || placed)) || (kind === "quick" && (placed || both)) || (hooks && hooks[kind])) {
       try {
         ctx = await Research.resolveSeasonResearchContext(pool, SLUG(season.show), season.number, n);
       } catch (e) {
@@ -1293,6 +1375,8 @@ async function fileResults(season, n, answer, mode = "autopilot") {
       }
     }
     const ranks = ctx && { exitMethods: ctx.format.exitMethods || [], endgame: ctx.format.endgameExitMethods || [], winner: ctx.format.winnerExitMethod ?? null };
+    // The hooks' say comes first (before both-exits and the placing), so what they file is ranked as the rest is.
+    if (kind === "quick" && hooks && hooks.quick) a = hooks.quick(a, { ctx, n });
     if (kind === "quick" && ctx && both) {
       const { text, ...did } = bothExits(a, tapedFull(season, n), { cast: ctx.castNames, exitMethods: ranks.exitMethods });
       a = text;
@@ -1304,6 +1388,7 @@ async function fileResults(season, n, answer, mode = "autopilot") {
     if (kind === "quick") quickSaid = a;
     if (kind === "full" && stored) a = upgradeStored(stored.answer, Research.researchSchemaFor(ctx.format)) || a;
     if (kind === "full") a = shiftAnswer(a, season.shiftDays);
+    if (kind === "full" && hooks && hooks.full) a = hooks.full(a, { ctx, n });
     if (kind === "full" && reshape) {
       // The quick check as the app read it; an answer it can't read is one that found nothing.
       let quick = null;
@@ -2841,7 +2926,11 @@ async function main() {
   console.log("Usage: node scripts/dev-test/playtest.js matrix|run|exits|summary|judge|compare|says|down <show> <season> (see the header comment)");
 }
 
-module.exports = { quickExits, reshapeLine, exitRank, rankInPlace, placeExits, placedLine, bothExits, bothLine, castMatcher, catchAll, resultsSteps, tapedFull, partialOf, crownedOf, atCrownOf, goingInOf, sameGoingIn, crownBySeason, stillIns, summaryLine, judgeOf, overAt, endOf, gameEnd, gameEpisodes, gameRecord, roughInItOf, stillInIt, defaultLineupOf, poolFallbackOf, stillInBreakOf, inItOf, asksOf, compareOf, compareByGame, ghostsOf, seasonExits, variantOf, changedBy, favourites, lineupTaps, claimTaps, reviewTaps, TAPS, upgradeStored, shiftAnswer, exitsOf, DIMENSIONS, NA, gamesOf, dimsFor, applies, allConfigs, pairsOf, pairwise, replayName, ROLES, seatsFor, hash01, movesThisWeek, prefer, mergeOf, spanOf, settledAt };
+// The harness itself, for blind.js (F4's blind replays): the season's copy, the players, a game's draft and weekly moves, and
+// the results through the bot's own run.
+const harness = { appCode, tsApp, down, copySeason, userFor, couchFor, join, seatIds, stateOf, memberOf, draft, moves, waivers, fileResults, answerJson, castName, pidOf, SLUG, PASSWORD, COUCH };
+
+module.exports = { harness, quickExits, reshapeLine, exitRank, rankInPlace, placeExits, placedLine, bothExits, bothLine, castMatcher, catchAll, resultsSteps, tapedFull, partialOf, crownedOf, atCrownOf, goingInOf, sameGoingIn, crownBySeason, stillIns, summaryLine, judgeOf, overAt, endOf, gameEnd, gameEpisodes, gameRecord, roughInItOf, stillInIt, defaultLineupOf, poolFallbackOf, stillInBreakOf, inItOf, asksOf, compareOf, compareByGame, ghostsOf, seasonExits, variantOf, changedBy, favourites, lineupTaps, claimTaps, reviewTaps, TAPS, upgradeStored, shiftAnswer, exitsOf, DIMENSIONS, NA, gamesOf, dimsFor, applies, allConfigs, pairsOf, pairwise, replayName, ROLES, seatsFor, hash01, movesThisWeek, prefer, mergeOf, spanOf, settledAt };
 
 if (require.main === module) {
   main()

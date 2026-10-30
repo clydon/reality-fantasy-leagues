@@ -8,7 +8,7 @@ import { api, ApiError } from "@/lib/api";
 import { ChevronDown, Clock, Lock, X } from "lucide-react";
 import { Select } from "@/components/ui/select";
 import { MoreOptions } from "@/components/setup/settings-ui";
-import { ActButton, Notice } from "@/components/admin/admin-ui";
+import { ActButton, Notice } from "@/components/ui/act-ui";
 import { CaptionPlate } from "@/components/ui/caption-plate";
 import { ordinal } from "@/components/scoreboard/scoreboard-tab";
 import { useShowTerms } from "@/lib/use-show-terms";

@@ -51,7 +51,7 @@ async function planOf(seasonId: string, db: Queryable = pool): Promise<Plan> {
   const [schedules, { rows }, { rows: have }] = await Promise.all([
     seasonSchedules([seasonId]),
     db.query(
-      `SELECT s.name, s.kind, s.castaway_term, s.episode_term, ss.season_number, ss.name AS season_name
+      `SELECT s.name, s.kind, s.castaway_term, s.castaway_plural, s.episode_term, ss.season_number, ss.name AS season_name
          FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1`,
       [seasonId]
     ),
@@ -67,7 +67,7 @@ async function planOf(seasonId: string, db: Queryable = pool): Promise<Plan> {
     show,
     seasonLabel: r.season_name || (r.season_number ? `season ${r.season_number}` : "this season"),
     kind: r.kind,
-    words: showWords({ castaway: r.castaway_term, episode: r.episode_term }),
+    words: showWords({ castaway: r.castaway_term, people: r.castaway_plural, episode: r.episode_term }),
     missing: schedule.episodes.filter((e) => e.number <= ended && !done.has(e.number)).map((e) => ({ number: e.number, airAt: e.airAt, title: e.title })),
   };
 }

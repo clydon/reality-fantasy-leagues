@@ -455,6 +455,61 @@ export async function episodeFacts(seasonId: string, episode: number, viewerId: 
   }
 }
 
+/** One fact as settling one episode would leave it: in every league or not, and its status. */
+export interface WhatIf {
+  live: boolean;
+  status: FactStatus;
+  yes: number;
+}
+
+/**
+ * What settling one episode would come to with an answer left out (`without`: the desk's Take it back) or one more added
+ * (`add`: the desk's paste before it's filed, sent by `key`), nothing written: each fact as it stands and as it would,
+ * and the added answer's results that are no fact yet (by kind, person and moment), each as it would settle. A fact an
+ * admin decided stays as decided.
+ */
+export async function settleWhatIf(
+  seasonId: string,
+  episode: number,
+  change: { without?: string; add?: { key: string; covers: Covers; facts: SubmittedFact[] } }
+): Promise<{ now: Map<string, WhatIf>; then: Map<string, WhatIf>; added: { fact: SubmittedFact; existing: string | null; then: WhatIf }[] }> {
+  const client = await pool.connect();
+  try {
+    const key = await seasonKey(client, seasonId);
+    const { facts, submissions, inputs } = await inputsFor(client, seasonId, key, episode, { locked: true });
+    const need = await confirmAt(client);
+    const view = (o: FactOutcome): WhatIf => ({ live: o.live, status: o.factStatus, yes: o.yes });
+    const now = new Map(settleEpisode(inputs, submissions, { confirmAt: need }).map((o) => [o.id, view(o)]));
+    let subs = submissions.filter((s) => s.id !== change.without);
+    let ins = inputs;
+    const added: { fact: SubmittedFact; existing: string | null; id: string }[] = [];
+    if (change.add) {
+      const id = "what-if";
+      subs = [...subs, { id, key: change.add.key, at: Date.now(), covers: change.add.covers }];
+      const castState = await seasonCastState(client, seasonId);
+      const identity = (kind: string, name: string, eventType: string) => `${kind}|${name.toLowerCase()}|${eventType}`;
+      const byIdentity = new Map(facts.map((f) => [identity(f.kind, f.castaway_name, f.event_type), f.id]));
+      ins = inputs.map((f) => ({ ...f, sources: [...f.sources] }));
+      const seen = new Set<string>();
+      for (const one of change.add.facts) {
+        const name = one.kind === "noexit" ? "" : canonicalName(castState, one.castawayName);
+        const k = identity(one.kind, name, one.eventType ?? "");
+        if (seen.has(k)) continue;
+        seen.add(k);
+        const existing = byIdentity.get(k) ?? null;
+        const source = { researchId: id, method: one.method ?? "", confidence: one.confidence ?? "high" };
+        if (existing) ins.find((f) => f.id === existing)!.sources.push(source);
+        else ins.push({ id: `new:${added.length}`, kind: one.kind, castawayName: name, method: one.method ?? "", live: false, factStatus: null, locked: false, sources: [source], flags: [] });
+        added.push({ fact: { ...one, castawayName: name }, existing, id: existing ?? `new:${added.length}` });
+      }
+    }
+    const then = new Map(settleEpisode(ins, subs, { confirmAt: need }).map((o) => [o.id, view(o)]));
+    return { now, then, added: added.map((a) => ({ fact: a.fact, existing: a.existing, then: then.get(a.id)! })) };
+  } finally {
+    client.release();
+  }
+}
+
 /** Every live fact on the season that has only one source or is disputed, by episode and person: the "1 source" marks.
  *  Never a role (the Traitors' faction is a secret while someone's still in). */
 export async function unsettledFacts(seasonId: string, through: number): Promise<Map<number, Map<string, "reported" | "disputed">>> {

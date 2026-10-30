@@ -4,6 +4,7 @@ import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { pool, HttpError } from "@/lib/server/db";
 import { notifyInvite } from "@/lib/server/push-events";
 import { groupLeagueIds } from "@/lib/server/league-groups";
+import { seatRoom, shareCheck } from "@/lib/server/shared-seats";
 
 // Pending invites plus anything answered in the last 30 days -- older accepted/declined rows are
 // just history nobody needs in League Settings.
@@ -25,6 +26,8 @@ export const GET = apiRoute(async (req, { params }: { params: Promise<{ leagueId
 //
 // `playerId` hands over an existing seat instead -- a computer player, or any seat with no account
 // behind it -- so whoever accepts takes over its team and history (joinLeague). Commissioner only.
+// In a game whose teams can be shared (step A10 part 4b of docs/PLAN-start-a-game-gpt.md: shared-seats.ts), `playerId` can
+// also be a seat someone holds, while it has room: whoever accepts shares that team. The commissioner, or anyone on that seat.
 //
 // `allLinked` invites them to every linked league (league-groups.ts) the sender is in too -- the same
 // rule as inviting from each one in turn. Leagues they're already in, or already invited to, are
@@ -40,16 +43,21 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ leagueI
   const trimmed = (identifier || "").trim();
   if (!trimmed) throw new HttpError(400, "Username or email required");
   if (playerId) {
-    if (membership.role !== "commissioner") throw new HttpError(403, "Only the commissioner can hand over a seat");
     const seat = await pool.query(
-      `SELECT EXISTS (SELECT 1 FROM jsonb_array_elements(state->'players') p
+      `SELECT state, EXISTS (SELECT 1 FROM jsonb_array_elements(state->'players') p
                       WHERE p->>'id'=$2 AND coalesce((p->>'disabled')::boolean, false) = false) AS ok
        FROM leagues WHERE id=$1`,
       [leagueId, playerId]
     );
     if (!seat.rows[0]?.ok) throw new HttpError(404, "No such seat");
     const linked = await pool.query("SELECT 1 FROM league_memberships WHERE league_id=$1 AND player_id=$2", [leagueId, playerId]);
-    if (linked.rows.length) throw new HttpError(409, "That seat already belongs to someone");
+    if (linked.rows.length) {
+      // Someone holds it: only a game that shares its teams can offer it, while it has room (joinLeague checks again).
+      if (seatRoom(seat.rows[0].state) < 2) throw new HttpError(409, "That seat already belongs to someone");
+      if (membership.role !== "commissioner" && membership.playerId !== playerId) throw new HttpError(403, "Only the commissioner, or someone on that team, can invite someone to share it");
+      const share = await shareCheck(pool, leagueId, seat.rows[0].state, playerId);
+      if ("problem" in share) throw new HttpError(409, share.problem);
+    } else if (membership.role !== "commissioner") throw new HttpError(403, "Only the commissioner can hand over a seat");
   }
 
   // This league first, then the rest of its group that the sender is a member of. A seat hand-over

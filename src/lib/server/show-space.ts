@@ -1,7 +1,9 @@
+import { cardArtSql, framedCard, framedHeader } from "./art-sql";
 import { pool } from "./db";
 import { gameName } from "./league-season";
 import { sharingOf, visibleFollows, type FollowShare } from "./guard";
 import type { LeagueRole } from "./roles";
+import { viewAsFor } from "./view-as";
 
 // The pieces the new design's read endpoints are built from (/api/me/home, /api/couches/[id],
 // /api/seasons/[id]/space): a season's header, the games (leagues) on a couch or a season, and who follows
@@ -26,12 +28,14 @@ export interface SeasonHeader {
     slug: string;
     name: string;
     kind: string;
-    /** The season's poster, else the show's (cards and tiles); null while the show's art is off. */
+    /** The season's poster, else the show's (cards and tiles; the show's link over both: shows.art_link); null while the show's
+     *  art is off. Its framing rides on it (src/lib/art-frame.ts: ShowArt draws it). */
     artUrl: string | null;
-    /** A landscape image for headers and wide cards (TMDB's backdrop: show-art.ts); null without one. */
+    /** A landscape image for headers and wide cards (TMDB's backdrop or the desk's: show-art.ts), framed as the cards are;
+     *  null without one. */
     backdropUrl: string | null;
     /** What it calls its people, their groups and its episodes (0142: "Game" for a baseball series): lib/game/show-words.ts. */
-    terms: { castaway: string; tribe: string; episode: string };
+    terms: { castaway: string; people: string | null; tribe: string; episode: string };
     tvmazeId: number | null;
     /** Where it airs, from its TV listing: the network, else the streaming service ("Netflix"; step 14); null without one. */
     network: string | null;
@@ -46,8 +50,8 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
   const { rows } = await pool.query(
     `SELECT ss.id, ss.season_number, ss.name, ss.status, ss.episode_count, to_char(ss.premiere_date, 'YYYY-MM-DD') AS premiere_date,
             ss.release, ss.drop_at, s.set_up_at IS NOT NULL AS ready,
-            s.id AS show_id, s.slug, s.name AS show_name, s.kind, CASE WHEN s.art_off THEN NULL ELSE COALESCE(NULLIF(ss.art_url, ''), s.art_url) END AS art_url,
-            CASE WHEN s.art_off THEN NULL ELSE s.backdrop_url END AS backdrop_url, s.castaway_term, s.tribe_term, s.episode_term, s.tvmaze_id, s.listing->>'network' AS network
+            s.id AS show_id, s.slug, s.name AS show_name, s.kind, ${cardArtSql()} AS art_url, s.art_url AS own_art, s.art_style,
+            CASE WHEN s.art_off THEN NULL ELSE s.backdrop_url END AS backdrop_url, s.backdrop_style, s.castaway_term, s.castaway_plural, s.tribe_term, s.episode_term, s.tvmaze_id, s.listing->>'network' AS network
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id
       WHERE ss.id = ANY($1::uuid[])`,
     [ids]
@@ -68,9 +72,9 @@ export async function seasonHeaders(seasonIds: string[]): Promise<Map<string, Se
         slug: r.slug,
         name: r.show_name,
         kind: r.kind,
-        artUrl: r.art_url,
-        backdropUrl: r.backdrop_url ?? null,
-        terms: { castaway: r.castaway_term, tribe: r.tribe_term, episode: r.episode_term },
+        artUrl: framedCard(r.art_url, r.art_style, r.own_art),
+        backdropUrl: framedHeader(r.backdrop_url, r.backdrop_style),
+        terms: { castaway: r.castaway_term, people: r.castaway_plural ?? null, tribe: r.tribe_term, episode: r.episode_term },
         tvmazeId: r.tvmaze_id ?? null,
         network: r.network ?? null,
       },
@@ -98,18 +102,19 @@ export interface Game {
   /** Archived (step 10 part 2b, settings.archivedAt): on the couch and the trophy shelf as it stood; nothing scores it. */
   archived: boolean;
   /** A game over a span (settings.startEpisode through settings.endEpisode; docs/PLAN-sports-data.md step 6), or null: to the
-   *  season's end. */
+   *  season's end (or a game still waiting for its phase: its span isn't known yet). */
   span: { from: number; to: number } | null;
-  /** The episode it starts with (settings.startEpisode): a game started after a span ended is its run back. */
-  start: number;
+  /** The episode it starts with (settings.startEpisode): a game started after a span ended is its run back. Null while a game
+   *  that starts at a phase of the season (settings.startPhase: step A3 of docs/PLAN-start-a-game-gpt.md) waits for it. */
+  start: number | null;
 }
 
 /**
- * Games, filtered by any of: the viewer plays them (`mine`), on these couches, on this season. In each group's
+ * Games, filtered by any of: the viewer plays them (`mine`), on these couches, on this season, this one (`leagueId`). In each group's
  * order (league-groups.ts), then by name. `withSolo`: with `couchIds`, the viewer's own solo games too (a public pool,
  * a practice couch: on no couch, but theirs wherever they look at the season), after the couch's.
  */
-export async function games(viewerId: string, filter: { mine?: boolean; couchIds?: string[]; seasonId?: string; withSolo?: boolean }): Promise<Game[]> {
+export async function games(viewerId: string, filter: { mine?: boolean; couchIds?: string[]; seasonId?: string; withSolo?: boolean; leagueId?: string }): Promise<Game[]> {
   // A deleted game (step 10 part 2b, db/migrations/0123) is nobody's until it's restored from Recent changes.
   const where: string[] = ["l.deleted_at IS NULL"];
   const params: unknown[] = [viewerId];
@@ -119,10 +124,12 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
     where.push(filter.withSolo ? `(${onCouch} OR (l.solo IS NOT NULL AND me.user_id IS NOT NULL))` : onCouch);
   }
   if (filter.seasonId) where.push(`ss.id = $${params.push(filter.seasonId)}`);
+  if (filter.leagueId) where.push(`l.id = $${params.push(filter.leagueId)}`);
   const { rows } = await pool.query(
     `SELECT l.id, l.name, l.couch_id, l.group_id, l.solo, l.state->'settings'->>'leagueTypeId' AS type_id, ss.id AS season_id, me.role AS your_role,
             COALESCE(l.state->'settings'->>'archivedAt', '') <> '' AS archived,
-            l.state->'settings'->'startEpisode' AS start_episode, l.state->'settings'->'endEpisode' AS end_episode
+            l.state->'settings'->'startEpisode' AS start_episode, l.state->'settings'->'endEpisode' AS end_episode,
+            l.state->'settings'->>'startPhase' AS start_phase
        FROM leagues l
        LEFT JOIN shows s ON s.slug = l.state->'settings'->>'showId'
        LEFT JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
@@ -131,6 +138,10 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
       ORDER BY l.solo NULLS FIRST, l.group_id NULLS LAST, l.group_position NULLS LAST, l.name, l.id`,
     params
   );
+  // A phase start with no episode yet waits for its phase (state-logic.js startEpisode); else no start is Episode 1.
+  const startOf = (r: { start_episode: unknown; start_phase: string | null }) => (Number.isInteger(r.start_episode) ? (r.start_episode as number) : r.start_phase ? null : 1);
+  // A site admin viewing as a player (view-as.ts) runs none of them.
+  const asPlayer = (await viewAsFor(viewerId)) === "player";
   return rows.map((r) => ({
     leagueId: r.id,
     name: r.name,
@@ -139,11 +150,11 @@ export async function games(viewerId: string, filter: { mine?: boolean; couchIds
     couchId: r.couch_id,
     seasonId: r.season_id,
     groupId: r.group_id,
-    yourRole: r.your_role,
+    yourRole: asPlayer && r.your_role ? "member" : r.your_role,
     solo: r.solo ?? null,
     archived: !!r.archived,
-    span: Number.isInteger(r.end_episode) ? { from: Number.isInteger(r.start_episode) ? r.start_episode : 1, to: r.end_episode } : null,
-    start: Number.isInteger(r.start_episode) ? r.start_episode : 1,
+    span: Number.isInteger(r.end_episode) && startOf(r) !== null ? { from: startOf(r) as number, to: r.end_episode } : null,
+    start: startOf(r),
   }));
 }
 

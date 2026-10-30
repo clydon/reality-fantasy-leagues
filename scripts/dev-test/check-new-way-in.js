@@ -441,13 +441,14 @@ const toastText = (page) => page.getByRole("status").last().innerText().catch(()
     closers.push(D.close);
     p = D.page;
     await p.goto(`${BASE}/desk/settings`);
-    const row = p.getByRole("button", { name: /Who gets in/ });
+    // By its row: the Settings history row's newest line can say "Who gets in" too.
+    const row = p.locator("[data-desk-row='signups']");
     await row.waitFor();
     check((await row.innerText()).includes("Invites let people in"), "the desk's People › Who gets in: Invites let people in");
     await row.click();
     await dialog(p).locator("[data-signups='approve']").click();
     await dialog(p).waitFor({ state: "hidden" });
-    await p.getByRole("button", { name: /Who gets in/ }).filter({ hasText: "You let each one in" }).waitFor();
+    await p.locator("[data-desk-row='signups']").filter({ hasText: "You let each one in" }).waitFor();
     check(true, "switched back to You let each one in, from the sheet");
     await shot(p, "18-desk-who-gets-in");
     check(D.errors.length === 0, "the desk: no page errors", D.errors.join(" | "));

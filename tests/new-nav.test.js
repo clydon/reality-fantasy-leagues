@@ -71,6 +71,36 @@ test("up from a page: where its own Back leads, on up to the hub (the phone's ba
   assert.equal(R.upFrom("/desk/new?season=abc"), "/desk/library");
   assert.equal(R.upFrom("/desk/fact/42"), "/desk");
   assert.equal(R.upFrom("/desk/castaway/7"), "/desk/find");
+  // A castaway under its season's Cast (docs/PLAN-desk-parity.md part 5b): up is the Cast page.
+  assert.equal(R.upFrom("/desk/season/s1/c/7"), "/desk/season/s1/cast");
+  assert.equal(R.depthOf("/desk/season/s1/c/7"), 4);
+  assert.equal(R.paths.deskCastaway("s1", "7"), "/desk/season/s1/c/7");
+  // Find › People (docs/PLAN-desk-parity.md step 1): a page a level down from Find, searched or filtered from the start.
+  assert.equal(R.upFrom("/desk/people?q=riley&f=waiting"), "/desk/find");
+  assert.equal(R.depthOf("/desk/people"), 2);
+  assert.equal(R.paths.deskPeople(), "/desk/people");
+  assert.equal(R.paths.deskPeople({ q: "kat o", f: "" }), "/desk/people?q=kat+o");
+  assert.equal(R.paths.deskPeople({ f: "waiting" }), "/desk/people?f=waiting");
+  // Find › Games and a game's page (part 6a): Games a level down from Find, a game up to Games.
+  assert.equal(R.upFrom("/desk/games?q=7vma&f=deleted"), "/desk/find");
+  assert.equal(R.depthOf("/desk/games"), 2);
+  assert.equal(R.paths.deskGames({ q: "7vma", f: "", sort: "big" }), "/desk/games?q=7vma&sort=big");
+  assert.equal(R.upFrom("/desk/game/g1"), "/desk/games");
+  assert.equal(R.depthOf("/desk/game/g1"), 2);
+  // Find › Couches and a couch's page (part 6d): Couches a level down from Find, a couch up to Couches.
+  assert.equal(R.upFrom("/desk/couches?f=deleted"), "/desk/find");
+  assert.equal(R.depthOf("/desk/couches"), 2);
+  assert.equal(R.paths.deskCouches({ f: "deleted" }), "/desk/couches?f=deleted");
+  assert.equal(R.paths.deskCouches({ q: "race night", sort: "big" }), "/desk/couches?q=race+night&sort=big");
+  assert.equal(R.upFrom("/desk/couch/c1"), "/desk/couches");
+  // Find › Shows, a show and its Research sites (part 7a): Shows a level down from Find, a show up to Shows, its sites up to it.
+  assert.equal(R.upFrom("/desk/shows?f=archived"), "/desk/find");
+  assert.equal(R.depthOf("/desk/shows"), 2);
+  assert.equal(R.paths.deskShows({ q: "survivor", f: "", sort: "games" }), "/desk/shows?q=survivor&sort=games");
+  assert.equal(R.upFrom("/desk/show/s1"), "/desk/shows");
+  assert.equal(R.paths.deskShowPage("s1", "sites"), "/desk/show/s1/sites");
+  assert.equal(R.depthOf("/desk/show/s1/sites"), 3);
+  assert.equal(R.upFrom("/desk/show/s1/sites"), "/desk/show/s1");
   // Signed out, the top is the landing.
   assert.equal(R.upFrom("/signin"), "/welcome");
   assert.equal(R.upFrom("/start/1", { signedIn: false }), "/welcome");

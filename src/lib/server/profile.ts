@@ -5,6 +5,7 @@ import { realEmail } from "@/lib/no-email";
 import { isPaletteColour } from "@/lib/people";
 import { DEFAULT_THEME, isTheme, type Theme } from "@/lib/appearance";
 import { sharingFrom, SHARE_SWITCHES, type ShareSwitch, type Sharing } from "@/lib/sharing";
+import { USERNAME_RULE } from "@/lib/usernames";
 import { isImpersonating, isSuperAdminUser, type Session, type SessionUser } from "./auth-helpers";
 import { pool, HttpError, withLeagueLock } from "./db";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
@@ -201,7 +202,7 @@ function nameRefused(code: string | undefined, message: string | undefined): str
     case "USERNAME_TOO_SHORT":
     case "USERNAME_TOO_LONG":
     case "INVALID_USERNAME":
-      return "A name is 3 to 30 letters, numbers, underscores or dots.";
+      return USERNAME_RULE;
     default:
       return message || "Couldn't save that name.";
   }
@@ -229,18 +230,29 @@ export async function rename(req: Request, session: Session, raw: unknown): Prom
       throw e;
     }
   }
-  await renameSeats(user.id, name);
-  await pool.query("UPDATE chat_messages SET author_name = $2 WHERE user_id = $1 AND type = 'message' AND author_name IS DISTINCT FROM $2", [user.id, name]);
+  await renameEverywhere(user.id, name);
   return name;
+}
+
+/** A new name reaching everything that carries it: their seat in each league they play, and the messages they wrote. */
+export async function renameEverywhere(userId: string, name: string): Promise<void> {
+  await renameSeats(userId, name);
+  await pool.query("UPDATE chat_messages SET author_name = $2 WHERE user_id = $1 AND type = 'message' AND author_name IS DISTINCT FROM $2", [userId, name]);
 }
 
 /**
  * Your seat in each league you play takes your name: only where it differs, and not where someone else in that league already
  * goes by it (a seat whoever runs the game named, a computer player). Each is a league write like any (withLeagueLock); a
- * league that can't be written keeps the old name, said in the log.
+ * league that can't be written keeps the old name, said in the log. A team you share with someone (step A10 part 4b) keeps its
+ * name: it's theirs too.
  */
 export async function renameSeats(userId: string, name: string): Promise<number> {
-  const { rows } = await pool.query("SELECT league_id, player_id FROM league_memberships WHERE user_id = $1 AND player_id IS NOT NULL", [userId]);
+  const { rows } = await pool.query(
+    `SELECT m.league_id, m.player_id FROM league_memberships m
+      WHERE m.user_id = $1 AND m.player_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM league_memberships o WHERE o.league_id = m.league_id AND o.player_id = m.player_id AND o.user_id <> m.user_id)`,
+    [userId]
+  );
   const states = await leagueStates(rows.map((r) => r.league_id as string));
   const same = (a: string | undefined) => (a ?? "").trim().toLowerCase() === name;
   let renamed = 0;

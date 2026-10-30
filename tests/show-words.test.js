@@ -27,6 +27,13 @@ test("F1: Races and Drivers; a long word falls back", () => {
   assert.equal(showWords({ episode: "Tournament round" }).episodesTab, "Schedule");
 });
 
+test("the show's own word for many (0429): People for Person, else worked out", () => {
+  assert.equal(showWords({ castaway: "Person", people: "People" }).people, "People");
+  assert.equal(showWords({ castaway: "Person" }).people, "Persons");
+  assert.equal(showWords({ castaway: "Islander", people: "islanders" }).people, "Islanders");
+  assert.equal(showWords({ castaway: "Islander", people: " " }).people, "Islanders");
+});
+
 test("plurals, and a word that's already plural", () => {
   assert.deepEqual(["Celebrity", "Match", "Contestants", "Houseguest"].map(pluralWord), ["Celebrities", "Matches", "Contestants", "Houseguests"]);
 });

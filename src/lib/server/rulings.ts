@@ -45,17 +45,18 @@ interface CorrectionRow {
 }
 
 /**
- * The corrections that reached these games, newest first, for episodes up to `seen` (they name who and what). Only one
- * still true: a result taken out that hasn't come back, or one changed that hasn't changed again.
+ * The corrections that reached these games, newest first, for episodes up to `seen` (they name who and what), or for one
+ * `episode` only (its page). Only one still true: a result taken out that hasn't come back, or one changed that hasn't
+ * changed again.
  */
-export async function couchCorrections(leagueIds: string[], seen: number, viewerId: string): Promise<Correction[]> {
+export async function couchCorrections(leagueIds: string[], seen: number, viewerId: string, episode?: number): Promise<Correction[]> {
   if (!leagueIds.length) return [];
   const { rows } = await pool.query<CorrectionRow>(
     `SELECT c.league_id, l.name AS league_name, c.episode, c.created_at, c.detail
        FROM league_changes c JOIN leagues l ON l.id = c.league_id
-      WHERE c.league_id = ANY($1::uuid[]) AND c.kind = 'results.correction' AND c.episode <= $2
+      WHERE c.league_id = ANY($1::uuid[]) AND c.kind = 'results.correction' AND c.episode <= $2 AND ($3::int IS NULL OR c.episode = $3)
       ORDER BY c.created_at DESC LIMIT 100`,
-    [leagueIds, Number.isFinite(seen) ? seen : 100000]
+    [leagueIds, Number.isFinite(seen) ? seen : 100000, episode ?? null]
   );
   if (!rows.length) return [];
   const ids = [...new Set(rows.flatMap((r) => r.detail.facts.map((f) => f.id)))];

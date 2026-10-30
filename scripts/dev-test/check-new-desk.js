@@ -20,7 +20,7 @@
 //      works for jordan (seen 5) counts the update and doesn't tell it; a fix after it's live reaches the games; the
 //      show change undone; Check for changes (prompt, a pasted answer reviewed, its changes put in the draft,
 //      discarded); the suggestion marked fixed; Lock; Save as a starting point; Leagues back on the show's rules.
-//   9. Settings: Confirmed needs 3, and new couches' who-fills-in, both put back.
+//   9. Settings: Sources to confirm a result 3, and new couches' who-fills-in, both put back.
 //  10. Nothing real moved: every real league's state and every real season's results are as they were.
 //  11. Screens at --width: each page and sheet above. Nothing wider than the screen; no page errors.
 // Screenshots go to <outDir>.
@@ -248,7 +248,7 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
       JSON.stringify(item("phase", /ZT Survivor 51/))
     );
     check(!!item("suggestion", /ZT Survivor 51/) && /zt_nd_jordan/.test(item("suggestion", /ZT Survivor 51/).line), "Inbox: jordan's suggested fix");
-    check(!inbox.items.some((i) => /ZT Survivor 51 has no one|ZT Traitors/.test(i.title)), "couch A's games are run, so it isn't stranded");
+    check(!inbox.items.some((i) => i.kind === "stranded" && i.href === `/desk/couch/${fx.couchId}`), "couch A's games are run, so it isn't stranded");
 
     const d = await open({ user: DESK, pass: fixture.PASSWORD, width, height: 844 });
     closers.push(d.close);
@@ -302,12 +302,13 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     check((await as.desk.call("POST", `/api/desk/changes/${editLine.id}/undo`)).status === 409, "an undone change can't be undone twice");
 
     // ---- 5. Find, and a castaway ----
+    // The fixture's Eric, not the local copy's real Survivor 51 one (Find lists both; picking the first was Noticed ab's flake).
     await d.page.goto(`${d.BASE}/desk/find`);
     await d.page.locator("[data-find]").fill("Eric Mack");
-    await d.page.locator("[data-desk-item='castaway']", { hasText: "Eric Macksoud" }).first().waitFor({ timeout: 20000 });
+    await d.page.locator("[data-desk-item='castaway']", { hasText: "Eric Macksoud" }).filter({ hasText: "Cast · ZT" }).first().waitFor({ timeout: 20000 });
     await fits(d.page, "Find");
     await shot(d.page, "find");
-    await d.page.locator("[data-desk-item='castaway']", { hasText: "Eric Macksoud" }).first().click();
+    await d.page.locator("[data-desk-item='castaway']", { hasText: "Eric Macksoud" }).filter({ hasText: "Cast · ZT" }).first().click();
     await d.page.locator("[data-desk-castaway]").waitFor({ timeout: 20000 });
     const castId = d.page.url().split("/").pop();
     await d.page.locator("[data-override='name']").click();
@@ -315,7 +316,7 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     await fits(d.page, "Override");
     await shot(d.page, "override");
     await d.page.locator("[data-override-save]").click();
-    check(/Overridden/.test(await toasted(d.page, /Overridden/)), "Override saved");
+    check(/Renamed Eric Macksoud Jr in \d+ games?/.test(await toasted(d.page, /Renamed/)), "Override saved");
     const named = async (name) => (await Promise.all(zt.map(async (k) => (await stateOf(L[k])).castaways.filter((c) => c.name === name).length))).every((x) => x === 1);
     const ericIn = async () => JSON.stringify(Object.fromEntries(await Promise.all(zt.map(async (k) => [k, (await stateOf(L[k])).castaways.filter((c) => /^Eric/.test(c.name)).map((c) => `${c.name}${c.seasonCastId ? "" : " (unlinked)"}`)]))));
     check(
@@ -358,8 +359,11 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     await d.page.locator(`[data-stranded='${L.extra}']`).waitFor({ timeout: 20000 });
     await fits(d.page, "a couch");
     await shot(d.page, "couch-stranded");
-    await d.page.locator(`[data-stranded='${L.extra}'] [data-hand='${fixture.username("casey")}']`).click();
-    await toasted(d.page, /Handed/);
+    // Hand it on (docs/PLAN-desk-parity.md step 2): the hand-on sheet, with nobody going.
+    await d.page.locator("[data-hand-couch]").click();
+    await d.page.locator(`[data-hand-pick='${fixture.username("casey")}']`).click();
+    await d.page.locator("[data-hand-go]").click();
+    await toasted(d.page, /runs .* now/);
     const role = (await pool.query("SELECT role FROM league_memberships WHERE league_id = $1 AND user_id = $2", [L.extra, fx.users.casey])).rows[0].role;
     check(role === "commissioner", "casey runs couch B's game now", role);
     check(!(await as.desk.call("GET", "/api/desk/inbox")).body.items.some((i) => i.kind === "stranded" && /ZT Extra/.test(i.title)), "and it's off the Inbox");
@@ -373,28 +377,32 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     await d.page.locator("[data-find]").fill("ZT Traitors");
     await d.page.locator("[data-desk-item='season']", { hasText: "ZT Traitors" }).first().click();
     await d.page.locator("[data-desk-season]").waitFor({ timeout: 20000 });
-    check((await d.page.locator("[data-clear-group]").count()) === 2, "the Traitors' season page: both groups are a secret role");
     await fits(d.page, "a season");
+    // Its groups are on its Cast page (docs/PLAN-desk-parity.md part 5a).
+    await d.page.locator("[data-desk-row='cast']").click();
+    await d.page.locator("[data-desk-cast]").waitFor({ timeout: 20000 });
+    check((await d.page.locator("[data-clear-group]").count()) === 2, "the Traitors' Cast page: both groups are a secret role");
     await shot(d.page, "traitors-season");
+    // Not a faction on Traitor takes Faithful with it (docs/PLAN-desk-parity.md part 5b): one left would still give the role away.
     await d.page.locator("[data-clear-group='Traitor']").click();
-    await d.page.locator("[data-clear-preview]").waitFor({ timeout: 15000 });
-    const preview = await d.page.locator("[data-clear-preview]").innerText();
-    check(/2 people start in Traitor\. 1 league loses it/.test(preview), "previewed: 2 people, 1 league", preview);
+    await d.page.locator("[data-moves]").waitFor({ timeout: 15000 });
+    await d.page.waitForTimeout(600);
+    const preview = await d.page.locator("[data-moves]").innerText();
+    check(/8 start in Faithful/.test(preview) && /2 start in Traitor/.test(preview) && /Its 1 game/.test(preview), "previewed together: 8 in Faithful, 2 in Traitor, 1 game", preview);
     await shot(d.page, "clear-group");
     await d.page.locator("[data-guard-confirm]").click();
     await toasted(d.page, /taken out/);
     const tState = await stateOf(traitorsGame);
-    check(!tState.tribes.some((t) => t.name === "Traitor") && tState.tribes.some((t) => t.name === "Faithful"), "the game has no Traitor group (Faithful stays)");
-    check((await pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id = $1 AND tribe_name = 'Traitor'", [tid])).rows[0].n === 0, "and nor does the season's cast");
+    check(!tState.tribes.some((t) => t.name === "Traitor" || t.name === "Faithful"), "the game has neither group");
+    check((await pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id = $1 AND tribe_name IN ('Traitor', 'Faithful')", [tid])).rows[0].n === 0, "and nor does the season's cast");
     const castLine = (await pool.query("SELECT text FROM league_changes WHERE league_id = $1 AND kind = 'cast'", [traitorsGame])).rows;
     check(castLine.filter((l) => /secret role/.test(l.text)).length === 1, "the game's Recent changes say why", JSON.stringify(castLine));
-    const faith = await as.desk.call("POST", `/api/desk/seasons/${tid}`, { clearGroup: "Faithful" });
-    check(faith.status === 200 && faith.body.people === 8 && faith.body.leagues === 1, "Faithful taken out too", JSON.stringify(faith.body));
-    const tSeason = (await as.desk.call("GET", `/api/desk/seasons/${tid}`)).body;
-    check(tSeason.groups.length === 0, "no groups left on the Traitors");
-    await as.desk.call("POST", `/api/desk/changes/${tSeason.history.find((h) => h.undoable && /Faithful/.test(h.text)).id}/undo`);
-    check((await pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id = $1 AND tribe_name = 'Faithful'", [tid])).rows[0].n === 8, "Undo: Faithful back on the same 8 people");
-    await as.desk.call("POST", `/api/desk/seasons/${tid}`, { clearGroup: "Faithful" });
+    const tCast = (await as.desk.call("GET", `/api/desk/seasons/${tid}/cast`)).body;
+    check(tCast.groups.length === 0, "no groups left on the Traitors");
+    await as.desk.call("POST", `/api/desk/changes/${tCast.history.find((h) => h.undoable && /Faithful and Traitor/.test(h.text)).id}/undo`);
+    check((await pool.query("SELECT count(*)::int AS n FROM season_cast WHERE season_id = $1 AND tribe_name = 'Faithful'", [tid])).rows[0].n === 8, "Undo: Faithful and Traitor back on the same people");
+    const again = await as.desk.call("POST", `/api/desk/seasons/${tid}`, { clearGroup: "Faithful" });
+    check(again.status === 200 && again.body.people === 10 && again.body.leagues === 1, "taken out again, from Faithful: Traitor goes with it", JSON.stringify(again.body));
 
     // ---- 8. the rulebook ----
     await d.page.goto(`${d.BASE}/desk/rulebook/${rb}`);
@@ -533,11 +541,11 @@ const REAL_RESULTS = `SELECT md5(string_agg(d.id::text || d.status || COALESCE(d
     await d.page.locator("[data-rulebooks-status]").waitFor({ timeout: 20000 });
     await fits(d.page, "Settings");
     await shot(d.page, "settings");
-    await d.page.getByText("Confirmed needs").click();
+    await d.page.locator("[data-desk-row='confirm']").click();
     await d.page.locator("[data-confirm-at='3']").click();
-    await toasted(d.page, /Confirmed needs 3/);
+    await toasted(d.page, /Sources to confirm a result: 3/);
     check((await pool.query("SELECT value FROM app_settings WHERE key = 'confirm_at'")).rows[0]?.value === 3, "Confirmed needs 3 sources");
-    await d.page.getByText("Who fills in results, for new couches").click();
+    await d.page.locator("[data-desk-row='couches']").click();
     await d.page.locator("[data-new-couches='false']").click();
     await toasted(d.page, /New couches/);
     check((await pool.query("SELECT value FROM app_settings WHERE key = 'new_couch_fill'")).rows[0]?.value === false, "new couches: only people who run games");

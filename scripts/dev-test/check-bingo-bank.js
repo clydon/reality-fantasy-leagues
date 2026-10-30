@@ -1,16 +1,19 @@
-// Bingo's bank, step 1 (docs/PLAN-bingo-bank.md; migration 0146): squares written for each episode before it airs (by hand for
-// now: the admin episode page's prompt and paste), cards dealt from the episode's bank, else the season's, else none, by likelihood
-// (three likely, four maybe, one long shot), two rerolls before your first tick, and a bank's square settled by the couch saying so.
+// Bingo's bank, step 1 (docs/PLAN-bingo-bank.md; migration 0146): squares written for each episode before it airs (by our bot, or
+// pasted on the desk's Bingo bank: docs/PLAN-desk-parity.md part 4c), cards dealt from the episode's bank, else the season's, else
+// none, by likelihood (three likely, four maybe, one long shot), two rerolls before your first tick, and a bank's square settled by
+// the couch saying so.
 //
-//   API: no bank, no card; the admin's prompts (the episode's: when it airs, who's still in, the scoring moments to leave out; the
-//        season's: nobody named; a finale's lean) and who may read them; pastes refused (no JSON, too few passing, a bad scope) and
-//        filed (dropped squares with why); the season's bank, then the episode's own; the mix on every card; rerolls (stable, the
-//        last, refused, the count kept through a new bank); Episode 5 on an eight-square bank (so every card has the same squares):
-//        an untick that keeps nothing, a first tick keeping the card, no reroll after, two on the couch settling a square, a line;
-//        a new bank leaving kept cards alone and dealing the rest afresh.
-//   Browser (390): the desk's admin writes Episode 7's squares on the admin episode page (the paste, the saved line, the list with
-//        what was dropped); jordan's Episode 6 card: New card, the are-you-sure, Keep this one, Deal a new card twice, none left;
-//        alex's Episode 5 card once he's seen it, settled by the couch.
+//   API: no bank, no card; the desk's Paste squares questions (/api/desk/seasons/[id]/bingo/question: the episode's, with when it
+//        airs, who's still in, the scoring moments to leave out; the season's, nobody named; a finale's lean) and who may read them;
+//        pastes (/api/desk/seasons/[id]/bingo) refused (no JSON, too few fitting, nothing pasted) and filed (dropped squares with
+//        why, read back from the bank's page); the season's bank, then the episode's own; the mix on every card; rerolls (stable,
+//        the last, refused, the count kept through a new bank); Episode 5 on an eight-square bank (so every card has the same
+//        squares): an untick that keeps nothing, a first tick keeping the card, no reroll after, two on the couch settling a square,
+//        a line; a new bank leaving kept cards alone and dealing the rest afresh.
+//   Browser (390): the desk's admin pastes Episode 7's squares on the desk's Bingo bank (/desk/season/<id>/bingo: none of its own,
+//        Paste squares, what it keeps and leaves out, saved, the tiers with what was dropped); jordan's Episode 6 card: New card,
+//        the are-you-sure, Keep this one, Deal a new card twice, none left; alex's Episode 5 card once he's seen it, settled by the
+//        couch.
 //   Calling BINGO (step 3): a line made isn't counted until called (refusals: not all ticked, not a line, before airtime, no card,
 //        a card from before the banks); calling twice changes nothing; unticking takes the call back; the notice to the couch
 //        (who hears, who doesn't, once); Did it? (whose list, sam refused before he's seen it, bad says, a square settling yes, two
@@ -19,15 +22,17 @@
 //        answering Did it?; sam told to catch up first.
 //   Flags (step 4): refusals, your flag taking a square off your own card (not ticked) at once and back, one flag leaving it in
 //        everyone else's, two taking it out of new cards, a ticked card keeping it, a square whose bank was written again, the
-//        admin's Hide and Unhide (and a player refused); the couch feed's BINGO line (alex's, not sam's). In the browser: alex's
-//        Tonight row asking Did it happen?, riley flagging a square and undoing it from the toast, the admin hiding one.
+//        desk's Hide it and Show it again (and a player refused); the couch feed's BINGO line (alex's, not sam's). In the browser:
+//        alex's Tonight row asking Did it happen?, riley flagging a square and undoing it from the toast, the desk's admin hiding one
+//        on the Bingo bank and showing it again.
 //   The bot (step 2, db/bot-research.js's bingo run), with stand-ins and never ChatGPT: the planner on a test clock (nothing an hour
 //        before, Episode 6's squares a day before it airs, then the season's own while it has none, nothing once an episode airs),
 //        the scheduled runs through runNext for this season only (the squares written then checked in a second ask, the check's
 //        drops with why, filed with the run; the season's own naming nobody; a check passing 15 fails and leaves no bank, retried
 //        20 minutes on; a short answer fails before the check; an episode written by hand left as it is, without asking), then the
-//        admin's Write squares now through the route and fake-bot.js (an episode not aired yet, the season's own, the run listed
-//        with its squares, the refusals), and in the browser at 390 the desk's admin tapping Write squares now on Episode 11.
+//        desk's Run now (POST /api/desk/seasons/[id]/runs, kind bingo: queued, then asked) through fake-bot.js (an episode not aired
+//        yet, the season's own, the run in Research's runs and its squares on the bank's page, the refusals), and in the browser at
+//        390 the desk's admin tapping Write them now on Episode 11's bank.
 //
 //   node scripts/dev-test/check-bingo-bank.js <outDir> [--width=390] [--keep] [--api]
 //
@@ -129,9 +134,12 @@ function bingoBot({ extra = [], fail = {}, short = false } = {}) {
         await new Promise((res) => setTimeout(res, 300));
       }
     };
-    const adminUrl = (n, scope) => `/api/admin/seasons/${sid}/bingo?episode=${n}&scope=${scope}`;
-    const admin = (n, scope) => as.desk.call("GET", adminUrl(n, scope));
-    const paste = (n, scope, answer) => as.desk.call("POST", `/api/admin/seasons/${sid}/bingo`, { episode: n, scope, answer });
+    // The desk's Bingo bank (desk-bingo.ts): a bank is an episode's number or "season".
+    const BANK = `/api/desk/seasons/${sid}/bingo`;
+    const question = (bank) => as.desk.call("GET", `${BANK}/question?bank=${bank}`);
+    const bankPage = async (bank) => (await as.desk.call("GET", `${BANK}?bank=${bank}`)).body;
+    const paste = (bank, answer) => as.desk.call("POST", BANK, { bank, paste: answer });
+    const dealsFrom = (page, bank) => page.strip.find((s) => s.bank === bank)?.squares ?? null;
     const liveOf = async (episode) =>
       (await pool.query("SELECT id, likelihood FROM bingo_squares WHERE season_id = $1 AND episode IS NOT DISTINCT FROM $2 AND status = 'live'", [sid, episode])).rows.map((r) => ({
         key: `b:${r.id}`,
@@ -156,30 +164,31 @@ function bingoBot({ extra = [], fail = {}, short = false } = {}) {
     r = await tick("alex", 5, 0);
     check(r.status === 409 && /No bingo card for Episode 5/.test(r.body.error), "nothing to tick on Episode 5: 409", JSON.stringify(r.body));
 
-    // ---------- the admin's prompts ----------
-    r = await as.alex.call("GET", adminUrl(6, "episode"));
-    check(r.status === 403, "a player can't read the bank: 403");
-    r = await admin(6, "episode");
-    check(r.status === 200 && r.body.using === null && !r.body.banks.episode.length && !r.body.banks.season.length && r.body.min === 8, "the admin's Episode 6: no squares yet, nothing to deal from", JSON.stringify(r.body).slice(0, 200));
+    // ---------- the desk's Paste squares questions ----------
+    r = await as.alex.call("GET", `${BANK}/question?bank=6`);
+    check(r.status === 403 && (await as.alex.call("GET", `${BANK}?bank=6`)).status === 403, "a player can't read the bank or its question: 403");
+    let page = await bankPage(6);
+    check(page.sel === 6 && page.bank === null && dealsFrom(page, 6) === null && dealsFrom(page, "season") === null, "the desk's Episode 6: no squares yet, nothing to deal from", JSON.stringify(page.strip));
+    r = await question(6);
     const P = r.body.prompt ?? "";
     check(/ZT Survivor season 51\. Episode 6 airs .+\. It hasn't aired yet\./.test(P), "the episode's prompt: the show, the episode, when it airs", P.split("\n")[0]);
     check(P.includes("Cristian Chavez") && !P.includes("Aaliyah Puglia"), "who's still in, by name, and not who's gone");
     check(P.includes("Sat out a challenge") && P.includes("2nd in the Immunity challenge") && /Write 30 squares/.test(P), "the scoring moments, to leave out; thirty squares");
-    r = await admin(6, "season");
+    r = await question("season");
     check(/any regular episode of it/.test(r.body.prompt) && !r.body.prompt.includes("Cristian Chavez") && /no names/.test(r.body.prompt), "the season's prompt: any regular episode, nobody named");
-    r = await admin(13, "episode");
+    r = await question(13);
     check(/It's the finale\./.test(r.body.prompt), "Episode 13's prompt leans to the finale");
-    r = await admin(6, "middle");
+    r = await question("middle");
     check(r.status === 400, "a bank that's neither: 400");
 
     // ---------- pasting: refused, then the season's bank ----------
-    r = await paste(6, "episode", "Sorry, I can't search the web right now.");
+    r = await paste(6, "Sorry, I can't search the web right now.");
     check(r.status === 400 && /no JSON/.test(r.body.error), "an answer with no JSON: 400", JSON.stringify(r.body));
-    r = await paste(6, "episode", bingo.answer(bingo.squares({ likely: 3, maybe: 3 })));
-    check(r.status === 400 && /Only 6 of 6 squares passed: a bank needs at least 8/.test(r.body.error), "six squares: too few for a bank, 400", JSON.stringify(r.body));
-    r = await paste(6, "episode", " ");
+    r = await paste(6, bingo.answer(bingo.squares({ likely: 3, maybe: 3 })));
+    check(r.status === 400 && /Only 6 of 6 squares fit: a bank needs at least 8/.test(r.body.error), "six squares: too few for a bank, 400", JSON.stringify(r.body));
+    r = await paste(6, " ");
     check(r.status === 400 && /Paste/.test(r.body.error), "nothing pasted: 400");
-    r = await as.alex.call("POST", `/api/admin/seasons/${sid}/bingo`, { episode: 6, scope: "episode", answer: bingo.answer(bingo.squares({ likely: 8 })) });
+    r = await as.alex.call("POST", BANK, { bank: 6, paste: bingo.answer(bingo.squares({ likely: 8 })) });
     check(r.status === 403, "a player can't file a bank: 403");
     check((await liveOf(6)).length === 0 && (await liveOf(null)).length === 0, "and nothing was filed");
     const seasonAnswer = [
@@ -188,9 +197,14 @@ function bingoBot({ extra = [], fail = {}, short = false } = {}) {
       { square: "Sat out a challenge", likelihood: "likely" },
       { square: "Cristian builds a fire", likelihood: "maybe" },
     ];
-    r = await paste(6, "season", bingo.answer(seasonAnswer));
-    const notes = (r.body.banks?.season ?? []).filter((s) => s.status === "dropped").map((s) => s.note);
-    check(r.status === 200 && r.body.live === 20 && r.body.dropped === 3 && r.body.using === "season", "the season's bank: 20 squares filed, 3 dropped; Episode 6 deals from it", JSON.stringify({ live: r.body.live, dropped: r.body.dropped, using: r.body.using }));
+    r = await paste("season", bingo.answer(seasonAnswer));
+    page = await bankPage("season");
+    const notes = (page.bank?.squares ?? []).filter((s) => s.state === "dropped").map((s) => s.note);
+    check(
+      r.status === 200 && r.body.text === "Saved · 20 squares for the season" && page.bank?.check === "20 pasted, not checked" && notes.length === 3 && dealsFrom(page, 6) === null && dealsFrom(page, "season") === 20,
+      "the season's bank: 20 squares filed, 3 dropped; Episode 6 deals from it",
+      JSON.stringify({ status: r.status, text: r.body.text, check: page.bank?.check, strip: page.strip })
+    );
     check(
       notes.includes("a question, not something you see") && notes.includes("one of the show's scoring moments") && notes.includes("names someone (the season's squares name nobody)"),
       "each dropped with why: a question, a scoring moment, a name",
@@ -211,9 +225,11 @@ function bingoBot({ extra = [], fail = {}, short = false } = {}) {
       { square: "Devin goes for a swim", likelihood: "likely" },
       { square: "Eric does push-ups", likelihood: "maybe" },
     ];
-    r = await paste(6, "episode", bingo.answer(episodeAnswer));
-    check(r.status === 200 && r.body.live === 33 && r.body.dropped === 1 && r.body.using === "episode", "Episode 6's own bank: 33 filed, the 4th square naming someone dropped", JSON.stringify({ live: r.body.live, dropped: r.body.dropped }));
-    check(r.body.banks.episode.find((s) => s.status === "dropped")?.note === "more than 3 squares name someone", "dropped: more than 3 squares name someone");
+    r = await paste(6, bingo.answer(episodeAnswer));
+    page = await bankPage(6);
+    const dropped6 = (page.bank?.squares ?? []).filter((s) => s.state === "dropped");
+    check(r.status === 200 && r.body.text === "Saved · 33 squares for Episode 6" && dropped6.length === 1 && dealsFrom(page, 6) === 33, "Episode 6's own bank: 33 filed, the 4th square naming someone dropped", JSON.stringify({ text: r.body.text, dropped: dropped6.length, strip: page.strip }));
+    check(dropped6[0]?.note === "more than 3 squares name someone", "dropped: more than 3 squares name someone");
     let ep6 = await liveOf(6);
     const first6 = (await card("alex", 6)).body;
     check(within(first6, ep6) && mixOf(first6, ep6) === MIX, "alex's card now comes from Episode 6's bank, the same mix", mixOf(first6, ep6));
@@ -383,7 +399,8 @@ function bingoBot({ extra = [], fail = {}, short = false } = {}) {
     // ================= "This square's unfair" (step 4) =================
     const flagIt = (who, n, key, on = true) => as[who].call("POST", `/api/seasons/${sid}/bingo/${n}${q}`, { flag: key, on });
     const flagsOn = async (key) => (await pool.query("SELECT count(*)::int AS n FROM bingo_square_flags WHERE square_id = $1", [key.slice(2)])).rows[0].n;
-    const adminSquare = async (key) => (await admin(6, "episode")).body.banks.episode.find((s) => s.id === key.slice(2));
+    // The square as the desk's bank lists it: players' flags (an admin's hide isn't one), and its state.
+    const adminSquare = async (key) => (await bankPage(6)).bank?.squares.find((s) => s.id === key.slice(2));
     ep6 = await liveOf(6);
     const s6 = (await card("sam", 6)).body;
     const X = keysOf(s6)[0];
@@ -397,7 +414,7 @@ function bingoBot({ extra = [], fail = {}, short = false } = {}) {
     r = await flagIt("sam", 6, X);
     check(r.status === 200 && !keysOf(r.body).includes(X) && within(r.body, ep6) && (await flagsOn(X)) === 1, "sam flags a square on his card (not ticked): it's off his card at once", JSON.stringify(keysOf(r.body)));
     let sq = await adminSquare(X);
-    check(sq?.flags === 1 && !sq.hidden, "one flag: still in everyone else's new cards", JSON.stringify(sq));
+    check(sq?.flags.length === 1 && sq.state === "live", "one flag: still in everyone else's new cards", JSON.stringify(sq));
     r = await flagIt("sam", 6, X, false);
     check(r.status === 200 && JSON.stringify(r.body.squares) === JSON.stringify(s6.squares) && (await flagsOn(X)) === 0, "he takes it back (off his card, still his to take back): the card he had");
     // Two people: a square on two cards.
@@ -417,7 +434,7 @@ function bingoBot({ extra = [], fail = {}, short = false } = {}) {
       check(keysOf((await card(two.p2, 6)).body).includes(two.key), `one flag (${two.p1}'s): still on ${two.p2}'s card`);
       await flagIt(two.p2, 6, two.key);
       sq = await adminSquare(two.key);
-      check(sq?.flags === 2 && sq.hidden, "a second flag: out of new cards", JSON.stringify(sq));
+      check(sq?.flags.length === 2 && sq.state === "flagged", "a second flag: out of new cards", JSON.stringify(sq));
       check(!keysOf((await card("sam", 6)).body).includes(two.key) && within((await card("sam", 6)).body, ep6.filter((s) => s.key !== two.key)), "sam's card is dealt without it");
     }
     // A card already ticked keeps a square, flagged or not.
@@ -430,15 +447,15 @@ function bingoBot({ extra = [], fail = {}, short = false } = {}) {
     await tick("jordan", 5, 0, false);
     r = await flagIt("alex", 5, a5.squares[0].key === "free" ? a5.squares[1].key : a5.squares[0].key);
     check(r.status === 409 && /written again/.test(r.body.error), "a square on a kept card whose bank was written again: nothing to flag (409)", JSON.stringify(r.body));
-    // The admin's Hide: out of new cards at once, and back.
+    // The desk's Hide it: out of new cards at once; Show it again: back.
     const H = keysOf((await card("riley", 6)).body).find((k) => k !== two?.key);
-    r = await as.desk.call("POST", `/api/admin/seasons/${sid}/bingo`, { episode: 6, flag: H.slice(2), on: true });
-    sq = r.body.banks?.episode.find((s) => s.id === H.slice(2));
-    check(r.status === 200 && sq?.hidden && sq.mine && sq.flags === 1, "the admin hides a square: one flag, out of new cards", JSON.stringify(sq));
+    r = await as.desk.call("POST", BANK, { square: H.slice(2), hide: true });
+    sq = await adminSquare(H);
+    check(r.status === 200 && r.body.text === "Hidden · out of new cards" && sq?.state === "hidden" && sq.hiddenBy === "you" && sq.flags.length === 0, "the desk hides a square: hidden by you, out of new cards", JSON.stringify({ r: r.body, sq }));
     check(!keysOf((await card("riley", 6)).body).includes(H), "riley's card (not ticked) is dealt without it");
-    r = await as.desk.call("POST", `/api/admin/seasons/${sid}/bingo`, { episode: 6, flag: H.slice(2), on: false });
-    check(!r.body.banks.episode.find((s) => s.id === H.slice(2)).hidden && keysOf((await card("riley", 6)).body).includes(H), "Unhide: back in her deal");
-    r = await as.alex.call("POST", `/api/admin/seasons/${sid}/bingo`, { episode: 6, flag: H.slice(2), on: true });
+    r = await as.desk.call("POST", BANK, { square: H.slice(2), hide: false });
+    check(r.status === 200 && (await adminSquare(H))?.state === "live" && keysOf((await card("riley", 6)).body).includes(H), "Show it again: back in her deal", JSON.stringify(r.body));
+    r = await as.alex.call("POST", BANK, { square: H.slice(2), hide: true });
     check(r.status === 403, "a player can't hide one: 403");
 
     // ================= the browser =================
@@ -474,36 +491,50 @@ function bingoBot({ extra = [], fail = {}, short = false } = {}) {
     };
 
     if (!apiOnly) {
-      // ---------- the desk's admin writes Episode 7's squares ----------
+      // ---------- the desk's admin pastes Episode 7's squares on the Bingo bank ----------
       const D = await browse("desk");
       const dp = D.pg;
-      await dp.goto(`${BASE}/admin/seasons/${sid}/episodes/7`, { waitUntil: "load" });
-      const epRow = dp.locator('[data-bank-row="episode"]');
-      await dp.locator('[data-bank-ready="yes"]').waitFor({ timeout: 30_000 });
-      await dp.waitForTimeout(400);
-      const section = dp.locator("section", { has: epRow });
-      check(/No squares yet · cards use the season's/.test(await section.innerText()) && /20 squares, 3 dropped/.test(await section.innerText()), "the admin's Episode 7: none of its own, cards use the season's (20, 3 dropped)", await section.innerText());
-      await section.scrollIntoViewIfNeeded();
-      await D.shot("admin-bingo");
-      await epRow.getByRole("button", { name: "Write" }).click();
-      const panel = dp.locator('[data-bank-write="episode"]');
-      await panel.waitFor({ timeout: 10_000 });
-      await dp.waitForFunction(() => !document.querySelector("[data-bank-write]")?.textContent?.includes("Building the prompt"), null, { timeout: 30_000 });
-      await panel.locator("textarea").fill(bingo.answer([...bingo.squares({ likely: 10, maybe: 14, longshot: 6 }), { square: "Will it rain?", likelihood: "maybe" }, { square: "Voted out", likelihood: "likely" }]));
-      await panel.scrollIntoViewIfNeeded();
-      await D.shot("admin-bingo-write");
-      await panel.getByRole("button", { name: "Save squares" }).click();
-      await dp.getByText("30 squares saved, 2 dropped.").waitFor({ timeout: 20_000 });
-      const listed = dp.locator("[data-bank-squares]");
-      await listed.waitFor({ timeout: 10_000 });
-      check((await listed.locator('[data-bank-square="live"]').count()) === 30 && (await listed.locator('[data-bank-square="dropped"]').count()) === 2, "saved: 30 squares and the 2 dropped, listed");
-      check(/Dropped: a question, not something you see/.test(await listed.innerText()) && /Dropped: one of the show's scoring moments/.test(await listed.innerText()), "the dropped ones say why");
-      check(/30 squares, 2 dropped · cards use these/.test(await section.innerText()), "the row: 30 squares, cards use these", await epRow.innerText());
+      await dp.context().grantPermissions(["clipboard-read", "clipboard-write"], { origin: BASE });
+      const dialog = () => dp.locator("[role=dialog][data-open]").last().innerText();
+      await dp.goto(`${BASE}/desk/season/${sid}/bingo?bank=7`, { waitUntil: "load" });
+      const none7 = dp.locator("[data-desk-bingo='7'] [data-bank-empty]");
+      await none7.waitFor({ timeout: 30_000 });
+      check(
+        /No squares for Episode 7 yet/i.test(await none7.innerText()) && /its cards use the season's bank/.test(await none7.innerText()) && /20/.test(await dp.locator("[data-bank-chip='season']").innerText()),
+        "the desk's Episode 7: none of its own, cards use the season's (20)",
+        await none7.innerText()
+      );
+      await D.shot("desk-bingo");
+      await dp.locator("[data-bank-paste]").click();
+      await dp.locator("[data-ai-copy]").first().waitFor({ timeout: 20_000 });
+      check(/Squares for Episode 7/i.test(await dialog()), "Paste squares: Ask an AI, for Episode 7", (await dialog()).slice(0, 200));
+      await dp.locator("[data-ai-copy]").first().click();
+      await dp.locator("[data-ai-answer]").waitFor({ timeout: 10_000 });
+      await dp.locator("[data-ai-answer]").fill(bingo.answer([...bingo.squares({ likely: 10, maybe: 14, longshot: 6 }), { square: "Will it rain?", likelihood: "maybe" }, { square: "Voted out", likelihood: "likely" }]));
+      await D.shot("desk-bingo-paste");
+      await dp.locator("[data-ai-use]").click();
+      await dp.locator("[data-moves]").waitFor({ timeout: 30_000 });
+      const pre = await dialog();
+      check(
+        /32 squares pasted/.test(pre) && /30 fit on cards/.test(pre) && /1 a question, not something you see/.test(pre) && /1 one of the show's scoring moments/.test(pre) && !/Replaced/.test(pre),
+        "what it keeps and leaves out, before it's saved",
+        pre.slice(0, 400)
+      );
+      await D.shot("desk-bingo-preview");
+      await dp.locator("[data-guard-confirm]").click();
+      await dp.locator("[data-toast]", { hasText: "Saved · 30 squares for Episode 7" }).waitFor({ timeout: 20_000 });
+      const line7 = dp.locator("[data-desk-bingo='7'] [data-bank-line]", { hasText: "30 pasted, not checked" });
+      await line7.waitFor({ timeout: 15_000 });
+      check(/You pasted them/.test(await line7.innerText()), "saved: pasted by you, 30 not checked", await line7.innerText());
+      check((await dp.locator("[data-bank] [data-square-state='live']").count()) === 30 && (await dp.locator("[data-tier='out'] [data-square-state='dropped']").count()) === 2, "30 squares on cards and the 2 dropped, listed");
+      await dp.locator("[data-tier='out'] [data-square-state='dropped']").first().click();
+      await dp.locator("[data-square-sheet]").waitFor({ timeout: 10_000 });
+      check(/Left out of the paste: (a question, not something you see|one of the show's scoring moments)\./.test(await dp.locator("[data-square-sheet]").innerText()), "a dropped one says why", await dp.locator("[data-square-sheet]").innerText());
+      await dp.keyboard.press("Escape");
       check((await liveOf(7)).length === 30, "and they're in the database");
-      await D.wide("the admin's Bingo");
-      await section.scrollIntoViewIfNeeded();
-      await D.shot("admin-bingo-saved");
-      check(D.errors().length === 0, "no page errors (the admin)", D.errors().join(" | "));
+      await D.wide("the desk's Bingo bank");
+      await D.shot("desk-bingo-saved");
+      check(D.errors().length === 0, "no page errors (the desk, pasting)", D.errors().join(" | "));
 
       // ---------- jordan's Episode 6 card: New card, twice ----------
       const J = await browse("jordan");
@@ -680,26 +711,29 @@ function bingoBot({ extra = [], fail = {}, short = false } = {}) {
       await R.wide("the flag list");
       check(R.errors().length === 0, "no page errors (riley, flagging)", R.errors().join(" | "));
 
-      // ---------- the admin hides a square on Episode 6 ----------
+      // ---------- the desk's admin hides a square on Episode 6, and shows it again ----------
       const AD = await browse("desk");
-      await AD.pg.goto(`${BASE}/admin/seasons/${sid}/episodes/6`, { waitUntil: "load" });
-      await AD.pg.locator('[data-bank-ready="yes"]').waitFor({ timeout: 30_000 });
-      await AD.pg.locator('[data-bank-row="episode"]').getByRole("button", { name: "See" }).click();
-      const live = AD.pg.locator('[data-bank-squares] [data-bank-square="live"]');
-      await live.first().waitFor({ timeout: 10_000 });
-      const out = AD.pg.locator('[data-bank-squares] [data-hidden="yes"]');
-      check((await out.count()) >= 1 && /Flagged by 2 · out of new cards/.test(await out.first().innerText()), "the admin's list: the square two people flagged, out of new cards", await out.first().innerText().catch(() => ""));
-      const target = live.filter({ hasNot: AD.pg.locator("text=out of new cards") }).first();
-      await target.getByRole("button", { name: "Hide" }).click();
-      await AD.pg.getByText("Hidden by you · out of new cards").first().waitFor({ timeout: 10_000 });
-      check(true, "Hide: hidden by you, out of new cards");
-      await AD.pg.getByText("Hidden by you · out of new cards").first().scrollIntoViewIfNeeded();
-      await AD.shot("admin-hide");
-      await AD.pg.locator('[data-bank-squares] li', { hasText: "Hidden by you" }).getByRole("button", { name: "Unhide" }).click();
-      await AD.pg.getByText("Hidden by you").waitFor({ state: "detached", timeout: 10_000 });
-      check(true, "Unhide: back");
-      await AD.wide("the admin's squares with flags");
-      check(AD.errors().length === 0, "no page errors (the admin, hiding)", AD.errors().join(" | "));
+      await AD.pg.goto(`${BASE}/desk/season/${sid}/bingo?bank=6`, { waitUntil: "load" });
+      await AD.pg.locator("[data-desk-bingo='6'] [data-bank]").waitFor({ timeout: 30_000 });
+      const flaggedOut = AD.pg.locator("[data-tier='out'] [data-square-state='flagged']");
+      check((await flaggedOut.count()) >= 1 && /Two flags/i.test(await flaggedOut.first().innerText()), "the desk's bank: the square two people flagged, out of new cards", await flaggedOut.first().innerText().catch(() => ""));
+      const target = AD.pg.locator("[data-tier='likely'] [data-square-state='live']").first();
+      const targetId = await target.getAttribute("data-square");
+      await target.click();
+      await AD.pg.locator("[data-square-toggle]").click({ timeout: 10_000 });
+      await AD.pg.locator("[data-toast]", { hasText: "Hidden · out of new cards" }).waitFor({ timeout: 15_000 });
+      const hidden = AD.pg.locator(`[data-tier='out'] [data-square='${targetId}'][data-square-state='hidden']`);
+      await hidden.waitFor({ timeout: 15_000 });
+      check(/Hidden by you/i.test(await hidden.innerText()), "Hide it: hidden by you, out of new cards", await hidden.innerText());
+      await hidden.scrollIntoViewIfNeeded();
+      await AD.shot("desk-hide");
+      await hidden.click();
+      await AD.pg.locator("[data-square-toggle]").click({ timeout: 10_000 });
+      await AD.pg.locator("[data-toast]", { hasText: "Shown again · back on new cards" }).waitFor({ timeout: 15_000 });
+      await AD.pg.locator(`[data-tier='likely'] [data-square='${targetId}'][data-square-state='live']`).waitFor({ timeout: 15_000 });
+      check(true, "Show it again: back on new cards");
+      await AD.wide("the desk's bank with flags");
+      check(AD.errors().length === 0, "no page errors (the desk, hiding)", AD.errors().join(" | "));
       check(J.errors().length === 0, "no page errors (jordan, calling)", J.errors().join(" | "));
     }
 
@@ -782,55 +816,86 @@ function bingoBot({ extra = [], fail = {}, short = false } = {}) {
       await pool.query("UPDATE show_seasons SET bot_research_on = false WHERE id = $1", [sid]);
     }
 
-    // ---------- Write squares now: the admin route, through the stand-in bot ----------
+    // ---------- Run now, kind bingo: the desk's queue, through the stand-in bot ----------
     const B6 = bingoBot();
     const fb = await fakeBot.start({ answer: (prompt) => B6.reply(prompt) });
     closers.push(fb.close);
     const deskBot = await api({ user: DESK, pass: PASSWORD, headers: { "x-gys-bot": fb.url } });
-    const runNow = (who, body) => who.call("POST", `/api/admin/seasons/${sid}/bot-research`, body);
+    const runNow = (who, body) => who.call("POST", `/api/desk/seasons/${sid}/runs`, body);
+    // Run now answers at once and asks after (desk-research.ts drainDeskRuns): wait for this season's queue to empty.
+    const drained = async (ms = 120_000) => {
+      const until = Date.now() + ms;
+      while (Date.now() < until) {
+        if (!(await pool.query("SELECT 1 FROM desk_runs WHERE season_id = $1 AND done_at IS NULL", [sid])).rows.length) return true;
+        await new Promise((res) => setTimeout(res, 500));
+      }
+      return false;
+    };
+    // Research's runs (Runs' All N). The bot's scheduled tries above have test-clock start times, so find a run by what it is.
+    const runsNow = async () => (await as.desk.call("GET", `/api/desk/seasons/${sid}/runs`)).body.runs ?? [];
+    const byHand = (runs, episode, forSeason) => runs.find((x) => x.kind === "bingo" && x.episode === episode && x.forSeason === forSeason && /^Run now, by /.test(x.line));
     r = await runNow(deskBot, { episode: 10, kind: "bingo" });
-    check(r.status === 200 && r.body.ok && r.body.message === "Episode 10's squares: 30 of 32 passed their checks", "Write squares now, Episode 10 (not aired yet): 30 of 32", JSON.stringify(r.body).slice(0, 200));
+    check(r.status === 200 && /^(Asking ChatGPT|Queued): .+, Episode 10$/.test(r.body.text), "Run now, bingo, Episode 10 (not aired yet): queued", JSON.stringify(r.body));
+    check(await drained(), "it ran");
     check(fb.asked.map((x) => x.kind).join() === "bingo,bingoCheck" && (await liveOf(10)).length === 30, "the stand-in asked to write, then to check; 30 filed", fb.asked.map((x) => x.kind).join());
-    const listed = (await as.desk.call("GET", `/api/admin/seasons/${sid}/bot-research?episode=10`)).body.runs ?? [];
+    let run10 = byHand(await runsNow(), 10, false);
+    check(run10?.ok === true && run10.result === "Episode 10's squares: 30 of 32 passed their checks" && run10.line.startsWith(`Run now, by ${DESK} · `), "in Research's runs: Run now by the desk's admin, 30 of 32", JSON.stringify(run10 ?? null));
+    page = await bankPage(10);
     check(
-      listed[0]?.kind === "bingo" && listed[0].slot === "now" && listed[0].ok && listed[0].result?.squares?.length === 32 && listed[0].result.squares.filter((s) => s.status === "dropped").length === 2,
-      "listed with the episode's runs, every square with it",
-      JSON.stringify(listed[0] ?? null).slice(0, 200)
+      page.bank?.by === "Our bot, Run now by you" && page.bank.check === "30 of 32 passed its check" && page.bank.squares.length === 32 && page.bank.squares.filter((s) => s.state === "dropped").length === 2,
+      "its bank's page: every square, by our bot's Run now",
+      JSON.stringify({ by: page.bank?.by, check: page.bank?.check, n: page.bank?.squares.length })
     );
     r = await runNow(deskBot, { episode: 10, kind: "bingo", scope: "season" });
-    check(r.status === 200 && r.body.ok && r.body.message === "the season's own squares: 30 of 32 passed their checks" && r.body.result?.forSeason === true, "the season's own, by hand", JSON.stringify(r.body).slice(0, 200));
+    check(r.status === 200 && /the season's bank$/.test(r.body.text), "the season's own, by hand: queued", JSON.stringify(r.body));
+    check(await drained(), "it ran");
+    run10 = byHand(await runsNow(), 10, true);
+    check(run10?.ok === true && run10.result === "the season's own squares: 30 of 32 passed their checks", "the season's own: 30 of 32", JSON.stringify(run10 ?? null));
+    r = await runNow(deskBot, { episode: 5, kind: "bingo" });
+    check(r.status === 400 && /Episode 5 has aired/.test(r.body.error), "an episode that has aired: 400", JSON.stringify(r.body));
     r = await runNow(deskBot, { episode: 10, kind: "quick", scope: "season" });
     check(r.status === 400 && /scope is bingo's/.test(r.body.error), "a scope on another kind: 400", JSON.stringify(r.body));
     r = await runNow(as.alex, { episode: 10, kind: "bingo" });
     check(r.status === 403, "a player can't run it: 403");
 
     if (!apiOnly) {
-      // ---------- the desk's admin taps Write squares now on Episode 11 ----------
+      // ---------- the desk's admin taps Write them now on Episode 11's bank ----------
       const W = await browse("desk", { "x-gys-bot": fb.url });
       const wp = W.pg;
-      await wp.goto(`${BASE}/admin/seasons/${sid}/episodes/11`, { waitUntil: "load" });
-      await wp.locator('[data-bank-ready="yes"]').waitFor({ timeout: 30_000 });
-      const write = wp.locator("[data-bank-bot]").getByRole("button", { name: "Write squares now" });
-      await write.scrollIntoViewIfNeeded();
-      await W.shot("admin-bot-before");
+      await wp.goto(`${BASE}/desk/season/${sid}/bingo?bank=11`, { waitUntil: "load" });
+      await wp.locator("[data-desk-bingo='11'] [data-bank-empty]").waitFor({ timeout: 30_000 });
+      const write = wp.locator("[data-bank-write]");
+      check(/Write them now/.test(await write.innerText()), "Episode 11: none yet, Write them now");
+      await W.shot("desk-bot-before");
       await write.click();
-      // The Bingo section's notice (the run listed under Bot research says it too).
-      await wp.getByRole("status").filter({ hasText: "Episode 11's squares: 30 of 32 passed their checks" }).waitFor({ timeout: 30_000 });
-      const sec = wp.locator("section", { has: wp.locator('[data-bank-row="episode"]') });
-      await wp
-        .waitForFunction(() => /30 squares, 2 dropped · cards use these/.test(document.querySelector('[data-bank-row="episode"]')?.closest("section")?.textContent ?? ""), null, { timeout: 15_000 })
-        .catch(() => {});
-      check(/30 squares, 2 dropped · cards use these/.test(await sec.innerText()), "the row now: 30 squares, 2 dropped, cards use these", await sec.innerText());
-      await sec.scrollIntoViewIfNeeded();
-      await W.shot("admin-bot-written");
-      const runsList = wp.locator("[data-run-squares]");
-      await runsList.waitFor({ timeout: 20_000 });
-      check((await runsList.locator('[data-run-square="live"]').count()) === 30 && (await runsList.locator('[data-run-square="dropped"]').count()) === 2, "Bot research lists the run and its 32 squares");
-      check(/Bingo squares/.test(await wp.locator("section", { has: runsList }).innerText()) && /Dropped: a question, not something you see/.test(await runsList.innerText()), "as Bingo squares, the dropped ones saying why");
-      await runsList.scrollIntoViewIfNeeded();
-      await W.shot("admin-bot-run");
-      await W.wide("the admin episode page with a bingo run");
-      check(W.errors().length === 0, "no page errors (the admin, Write squares now)", W.errors().join(" | "));
+      const ep11 = wp.locator("[data-now-episode='11']");
+      await ep11.waitFor({ timeout: 30_000 });
+      check((await ep11.getAttribute("aria-checked")) === "true", "Run now's sheet: Bingo squares for Episode 11");
+      await W.shot("desk-bot-now");
+      await wp.locator("[data-now-go]").click();
+      // The bank lands as it's written (the page polls while our bot writes for the season).
+      const line = wp.locator("[data-desk-bingo='11'] [data-bank-line]", { hasText: "30 of 32 passed its check" });
+      await line.waitFor({ timeout: 120_000 });
+      check(/Our bot, Run now by you/.test(await line.innerText()), "the bank now: by our bot's Run now, 30 of 32 passed", await line.innerText());
+      check(
+        (await wp.locator("[data-bank] [data-square-state='live']").count()) === 30 && (await wp.locator("[data-tier='out'] [data-square-state='dropped']").count()) === 2,
+        "30 squares on cards, the 2 dropped out of new cards"
+      );
+      await wp.locator("[data-tier='out'] [data-square-state='dropped']").first().click();
+      await wp.locator("[data-square-sheet]").waitFor({ timeout: 10_000 });
+      check(/Its check dropped it: (a question, not something you see|one of the show's scoring moments)\./.test(await wp.locator("[data-square-sheet]").innerText()), "a dropped one says why", await wp.locator("[data-square-sheet]").innerText());
+      await wp.keyboard.press("Escape");
+      await W.shot("desk-bot-written");
+      check(await drained(), "and its run is done");
+      const runId = (await pool.query("SELECT id FROM bot_research_runs WHERE season_id = $1 AND kind = 'bingo' AND episode_number = 11 AND slot = 'now' ORDER BY started_at DESC LIMIT 1", [sid])).rows[0]?.id;
+      await wp.goto(`${BASE}/desk/season/${sid}/research`, { waitUntil: "load" });
+      await wp.locator(`[data-run='${runId}']`).click({ timeout: 30_000 });
+      const runRow = wp.locator("[data-desk-row='run-bingo']");
+      await runRow.waitFor({ timeout: 10_000 });
+      check(/Episode 11's squares/.test(await runRow.innerText()), "Research lists the run, its sheet opening Episode 11's squares", await runRow.innerText());
+      await W.shot("desk-bot-run");
+      await W.wide("Research with a bingo run");
+      check(W.errors().length === 0, "no page errors (the desk, Write them now)", W.errors().join(" | "));
     }
   } catch (e) {
     failures++;

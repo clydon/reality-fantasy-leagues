@@ -8,12 +8,14 @@ import { NavLink, useNav } from "../nav";
 import { paths, type ShowTab } from "../routes";
 import type { ShowData } from "../screens/show-space";
 import { useNow } from "../ui/bars";
+import { useFinalLine } from "../final-words";
 import { Btn, Chip } from "../ui/parts";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { ordinal } from "../games";
 import { closeMoves, dockWords, faceIn, first, moveCard, openMoves, sheetTabs, tabOf, useMovesSheet, type MovesTab, type SheetTab } from "./moves";
 import { openCall } from "./calls";
+import { openSheet } from "./questions";
 import { rateLabel } from "./rate";
 import { Face, IconBox } from "./parts";
 import { useOpenMorning, useOpenReveal } from "./reveal";
@@ -58,6 +60,7 @@ export function Dock({ show }: { show: ShowData }) {
   const dues = show.moves.map((m) => (m.deadline ? Date.parse(m.deadline) : null)).filter((d): d is number => d != null);
   const t = dues.length ? Math.min(...dues) : airs;
   const now = useNow(t != null && ticks(t));
+  const finalWords = useFinalLine(show.episodes?.reveal?.stage, show.episodes?.reveal?.finalAt);
   const openReveal = useOpenReveal();
   const openMorning = useOpenMorning();
   const nav = useNav();
@@ -92,8 +95,8 @@ export function Dock({ show }: { show: ShowData }) {
       <button type="button" data-dock="reveal" onClick={() => openReveal(n)} className={`${base} nd-press bg-plate text-plate-foreground`}>
         {mark(<Eye className="size-4" aria-hidden />, "bg-plate-foreground text-chyron")}
         <span className="min-w-0 flex-1 leading-tight">
-          <b className="block truncate text-sm">{eps.reveal.stage === "early" ? "Early results are in" : `Episode ${n} results are in`}</b>
-          <small className="block text-[11.5px] text-plate-muted">{eps.reveal.stage === "early" ? "Who went home · Pool · Outlast" : "Everything stays hidden until you reveal"}</small>
+          <b className="block truncate text-sm">{eps.reveal.stage === "early" ? "Early results are in" : `Episode ${n} final results are in`}</b>
+          <small className="block truncate text-[11.5px] text-plate-muted">{eps.reveal.stage === "early" ? (finalWords ?? "Who went home · Pool · Outlast") : "Everything stays hidden until you reveal"}</small>
         </span>
         <span className="grid h-[38px] place-items-center rounded-[3px] bg-chyron px-3.5 text-sm font-extrabold text-chyron-foreground">Reveal</span>
       </button>
@@ -116,7 +119,7 @@ export function Dock({ show }: { show: ShowData }) {
       <button type="button" data-dock="final" onClick={() => openMorning(n)} className={`${base} nd-press bg-plate text-plate-foreground`}>
         {mark(<Trophy className="size-4" aria-hidden />, "bg-plate-foreground text-chyron")}
         <span className="min-w-0 flex-1 leading-tight">
-          <b className="block truncate text-sm">Final scores are in</b>
+          <b className="block truncate text-sm">Final results are in</b>
           <small className="block text-[11.5px] text-plate-muted">Episode {n} · every point counted</small>
         </span>
         <span className="grid h-[38px] place-items-center rounded-[3px] bg-background px-3.5 text-sm font-extrabold text-foreground">See</span>
@@ -134,7 +137,10 @@ export function Dock({ show }: { show: ShowData }) {
           : show.moves[0]?.kind === "calls" && show.header
             ? // Weekly Calls' calls are Call it's sheet (step 12 part 2).
               openCall({ seasonId: show.header.seasonId, couchId: show.couch?.id ?? null, episode: show.moves[0].episode ?? up.number, label: rateLabel(show), solo: show.solo })
-            : openMoves(tabOf(show.moves[0]), show.moves[0]?.leagueId ?? null)
+            : show.moves[0]?.kind === "questions" && show.header
+              ? // A Prediction Sheet's questions are its own sheet (step A4 part 2).
+                openSheet({ seasonId: show.header.seasonId, leagueId: show.moves[0].leagueId, episode: null, game: show.moves[0].leagueName })
+              : openMoves(tabOf(show.moves[0]), show.moves[0]?.leagueId ?? null)
       }
       className={`${base} nd-press bg-plate text-plate-foreground`}
     >

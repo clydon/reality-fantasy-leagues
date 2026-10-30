@@ -4,6 +4,7 @@ import { apiRoute, stateResponse } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
 import { withLeagueLock, HttpError } from "@/lib/server/db";
 import { notifyBetResult } from "@/lib/server/push-events";
+import { refuseLockedBet } from "@/lib/server/game-writes";
 
 type RouteParams = { leagueId: string; epId: string; betId: string; predId: string };
 
@@ -20,6 +21,7 @@ export const DELETE = apiRoute(async (req, { params }: { params: Promise<RoutePa
     if (pred && membership.role !== "commissioner" && pred.playerId !== membership.playerId) {
       throw new HttpError(403, "You can only remove your own guess");
     }
+    refuseLockedBet(s, epId);
     StateLogic.removeBetPrediction(s, epId, betId, predId);
   });
   return stateResponse(req, state);

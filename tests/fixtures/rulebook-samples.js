@@ -1,8 +1,9 @@
 // Sample rulebooks for the kinds of show the built-ins don't cover, written to the schema
 // (src/lib/game/formats/rulebook-schema.js) from the site mock's rulebook.js shows: a reality series (Below
-// Deck), a scripted series (Pluribus), a talk show (Saturday Night Live), a sport (Formula 1) and a competition
-// of pairs (The Amazing Race). Used by tests/rulebooks.test.js; reusable as fixtures for How it works (step 1)
-// and the compiler (R2, the implementation plan's T-16).
+// Deck), a scripted series (Pluribus), a talk show (Saturday Night Live), a sport (Formula 1), a competition
+// of pairs (The Amazing Race) and one judged by scores (Dancing with the Stars, from the playtest tapes). Used by
+// tests/rulebooks.test.js; reusable as fixtures for How it works (step 1), the compiler (R2, the implementation
+// plan's T-16) and the capability tracker's pages (src/lib/game/capability-rows.ts).
 module.exports = {
   belowDeck: {
     schema: 1, kind: 'series', start: 'reality', show: 'Below Deck Mediterranean',
@@ -153,5 +154,38 @@ module.exports = {
     ],
     customMoments: [],
     leftOut: ['Non-elimination legs: the last team stays, with a penalty on the next leg.'],
+  },
+
+  // A competition judged by scores, trimmed from the rulebook the bot wrote for Dancing with the Stars 34 (the playtest lane's
+  // tapes, 2026-10-28; its viewers' vote "decided a score", which a vote can't, so it puts couples at risk here). The judges'
+  // score is a per-unit moment (each point a unit, research's number for each couple): what a question about each couple's
+  // score is settled by (step A6).
+  dancing: {
+    schema: 1, kind: 'competition', show: 'Dancing with the Stars',
+    tagline: 'Celebrities and their pro partners dance for the judges and the viewers',
+    premise: "Each celebrity dances with a professional partner. The judges score every dance, the viewers vote, and together they decide which couple goes home, until the finale's couples dance for the Mirrorball Trophy.",
+    cast: { unit: 'pairs', singular: 'couple', plural: 'couples', usualSize: 13, groups: null },
+    season: {
+      phases: [{ id: 'theSeason', name: 'The season', starts: { type: 'episode', n: 1 }, changes: ['viewersVote'] }],
+      finale: { decidedBy: 'viewersVote', finalists: 5, summary: "The judges' scores and the viewers' votes decide the finishing order and the Mirrorball Trophy." },
+    },
+    segments: [
+      { id: 'judgesScoring', name: "Judges' scores", summary: 'Each couple dances, and the judges score it.', decidedBy: 'judges', takesPart: 'everyone', decides: 'score', onTheLine: 'points', often: 'everyEpisode' },
+      { id: 'viewersVoting', name: 'Live viewer voting', summary: "The viewers' votes and the judges' scores put couples in danger.", decidedBy: 'vote', voters: 'viewers', takesPart: 'everyone', onTheLine: 'atRisk', often: 'everyEpisode' },
+    ],
+    waysOut: [
+      { id: 'eliminated', name: 'Eliminated', means: 'out', cause: { segment: 'viewersVoting' } },
+      { id: 'withdrew', name: 'Withdrew', means: 'out', cause: 'ownChoice' },
+      { id: 'runnerUp', name: 'Runner-up', means: 'finalist' },
+      { id: 'winner', name: 'Won the Mirrorball', means: 'winner' },
+    ],
+    twists: [],
+    customMoments: [
+      { id: 'perfectScore', label: "Received a perfect judges' score", during: { segment: 'judgesScoring' }, counted: 'eachTime', answeredBy: 'research', reliability: 'reliable' },
+      { id: 'highestScore', label: "Earned the highest judges' score of the episode", during: { segment: 'judgesScoring' }, counted: 'yesNo', answeredBy: 'research', reliability: 'reliable' },
+      { id: 'lowestScore', label: "Earned the lowest judges' score of the episode", during: { segment: 'judgesScoring' }, counted: 'yesNo', answeredBy: 'research', reliability: 'reliable' },
+    ],
+    points: { winner: 10, runnerUp: 6, withdrew: -5, eliminated: -3, highestScore: 2, perfectScore: 3 },
+    leftOut: ["The exact formula combining the judges' scores and the viewers' votes isn't public, and some weeks nobody goes home."],
   },
 };

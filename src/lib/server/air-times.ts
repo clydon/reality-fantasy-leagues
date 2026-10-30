@@ -13,6 +13,8 @@ import * as Air from "@/lib/game/air-schedule.js";
 // nothing to it -- its episodes lock when their results are revealed. So is a league whose season
 // isn't in the catalog or has no schedule.
 export async function stampAirTimes(db: Pool | PoolClient, state: LeagueState): Promise<void> {
+  // Step A11 part 4: head to head's playoffs at the season's end read its length (stampSeasonLength, below).
+  await stampSeasonLength(db, state);
   const clear = () => state.episodes.forEach((ep) => delete ep.airsAt);
   const { showId, wikiSeason } = state.settings;
   if (!showId || wikiSeason == null || StateLogic.RevealLogic.isCatchingUp(state)) return clear();
@@ -33,4 +35,25 @@ export async function stampAirTimes(db: Pool | PoolClient, state: LeagueState): 
     if (at) ep.airsAt = at.toISOString();
     else delete ep.airsAt;
   }
+}
+
+/**
+ * Step A11 part 4: a head-to-head game whose playoffs sit at the season's end (StateLogic.MatchupLogic.readsSeasonLength) carries the
+ * season's length as its schedule says it (state.seasonEpisodes, show_seasons.episode_count: public, not a spoiler, so a league
+ * catching up gets it too), for the engine to place them (MatchupLogic.playoffsFrom); any other league carries none. Stamped with
+ * the air times, and again after a write's mutation (db.ts withLeagueLock), so a write that turns head to head on saves it.
+ */
+export async function stampSeasonLength(db: Pool | PoolClient, state: LeagueState): Promise<void> {
+  const { showId, wikiSeason } = state.settings;
+  if (!StateLogic.MatchupLogic.readsSeasonLength(state) || !showId || wikiSeason == null) {
+    delete state.seasonEpisodes;
+    return;
+  }
+  const { rows } = await db.query(
+    "SELECT ss.episode_count FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE s.slug = $1 AND ss.season_number = $2",
+    [showId, wikiSeason]
+  );
+  const n = rows[0]?.episode_count;
+  if (Number.isInteger(n) && n > 0) state.seasonEpisodes = n;
+  else delete state.seasonEpisodes;
 }

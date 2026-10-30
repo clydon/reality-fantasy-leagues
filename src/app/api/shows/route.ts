@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireAuth } from "@/lib/server/auth-helpers";
+import { classicArtStyle } from "@/lib/art-frame";
 import { pool } from "@/lib/server/db";
 
 // The show/season catalog as a COMMISSIONER sees it, for the Show and Season pickers in League
-// Settings. Deliberately not under /api/admin: managing the catalog is a super-admin job, but
+// Settings. Deliberately not the desk's: managing the catalog is a super-admin job, but
 // choosing from it is an ordinary commissioner one, so this is readable by any signed-in user and
 // returns only what's usable (archived shows excluded, and a show someone added to follow that isn't a game yet: step 10's
 // shows.set_up_at, so nobody starts a classic league on one before its rulebook and cast are set up).
@@ -46,5 +47,7 @@ export const GET = apiRoute(async (req) => {
       ORDER BY s.name`,
     [user.id]
   );
+  // A framing the desk set on another image (a season's poster) isn't the show's poster's (art-frame.ts).
+  for (const r of rows) r.art_style = classicArtStyle(r.art_style, r.art_url);
   return NextResponse.json({ shows: rows });
 });

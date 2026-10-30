@@ -189,11 +189,11 @@ function ReadView({
   const exits = episodeExits(state, ep);
   const inPlay = StateLogic.inPlay(state, ep.number);
   const type = StateLogic.getLeagueType(state);
-  const hasBets = state.settings.bonusEnabled && (ep.bets || []).length > 0;
+  const hasBets = !!StateLogic.betsOn(state) && (ep.bets || []).length > 0;
   // New predictions go on the episode about to be played (the one the server adds them to), until it
-  // has results -- the same window Overview's old "Propose a Prediction" box had.
+  // starts (BetLogic.closed: its lock, as a lineup's, step A4).
   const canPropose =
-    state.settings.bonusEnabled && !!me && (status === "upcoming" || status === "waiting") && StateLogic.currentEpisode(state)?.id === ep.id;
+    !!StateLogic.betsOn(state) && !!me && (status === "upcoming" || status === "waiting") && StateLogic.currentEpisode(state)?.id === ep.id && !StateLogic.BetLogic.closed(ep);
   // Classic (the canvas's Classic "Episode 3" board): where each one finished, what every team earned
   // (+1 per elimination for each castaway still in), and the boot order so far.
   const classic = type.hasRoster && !type.hasActiveRoster;

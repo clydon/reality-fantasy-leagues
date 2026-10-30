@@ -163,7 +163,8 @@ function recordTransitions() {
     // "in 3 days" by the database's date (the fixture's), "in 4" by the browser's once it's past midnight UTC.
     check(await page.getByText(/^Ep 6 · in \d days$/).first().isVisible(), "the show bar's calm clock: Ep 6 · in N days");
     const tabs = (await page.locator("nav[aria-label=Show] a").allTextContents()).map((t) => t.replace(/\d+$/, ""));
-    check(tabs.join(",") === "Tonight,Episodes,Games,Cast,Chat", "five tabs on a couch's show", tabs.join(","));
+    // The people's tab takes the show's own word (show words): the fixture's show calls them Castaways.
+    check(tabs.join(",") === "Tonight,Episodes,Games,Castaways,Chat", "five tabs on a couch's show", tabs.join(","));
     // The moves due in this show's games, as the home counts them (how many depends on the day the fixture runs, and
     // the league clocks can add one after the hub first read it): a reload reads it fresh, then the API agrees.
     await page.reload({ waitUntil: "networkidle" });

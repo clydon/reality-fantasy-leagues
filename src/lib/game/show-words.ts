@@ -36,12 +36,14 @@ export function pluralWord(word: string): string {
   return `${word}s`;
 }
 
-export function showWords(terms: { castaway?: string | null; episode?: string | null } | null | undefined): ShowWords {
+/** `people`: the show's own word for many of them, when the desk set one (shows.castaway_plural, 0429: "People" for "Person"). */
+export function showWords(terms: { castaway?: string | null; people?: string | null; episode?: string | null } | null | undefined): ShowWords {
   const episode = cap((terms?.episode ?? "").trim()) || "Episode";
   const said = cap((terms?.castaway ?? "").trim()) || "Cast member";
   const person = COLLECTIVE.test(said) ? `${said} member` : said;
   const episodes = pluralWord(episode);
-  const people = COLLECTIVE.test(said) ? said : pluralWord(person);
+  const own = cap((terms?.people ?? "").trim());
+  const people = own || (COLLECTIVE.test(said) ? said : pluralWord(person));
   return {
     episode,
     episodes,

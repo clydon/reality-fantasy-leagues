@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { slotFour } from "@/lib/game/league-tabs";
 import { parentOf } from "@/lib/nav-trail";
+import { floor, FLOOR, putEntry, unmarked } from "@/lib/history-entries";
 import { isStandalone } from "@/lib/push-client";
 import { useLeagueStore } from "@/lib/store";
 import { markNav } from "@/new/nav";
@@ -32,7 +33,6 @@ import { QUIET_MS, toast } from "@/new/ui/toast";
 //
 // scripts/dev-test/check-phone-back.js checks it in a browser.
 
-const FLOOR = "gysFloor";
 const EXIT_HINT = "Press back again to exit";
 
 type Watcher = { onclose: (() => void) | null; destroy(): void };
@@ -43,17 +43,10 @@ function isFloor(state: unknown) {
   return typeof state === "object" && state !== null && FLOOR in state;
 }
 
-/** Next's own state for an entry (its router tree), without ours; null on an entry Next hasn't written. */
+/** Next's own state for an entry (its router tree), without ours or a sheet's; null on an entry Next hasn't written. */
 function routerState(state: unknown) {
   if (typeof state !== "object" || state === null || !("__NA" in state)) return null;
-  const rest = { ...(state as Record<string, unknown>) };
-  delete rest[FLOOR];
-  return rest;
-}
-
-/** History's own pushState and replaceState, not Next's wrappers on window.history. */
-function putEntry(push: boolean, state: unknown, url: string) {
-  (push ? History.prototype.pushState : History.prototype.replaceState).call(window.history, state, "", url);
+  return unmarked(state);
 }
 
 const here = () => window.location.pathname + window.location.search;
@@ -111,6 +104,7 @@ export function PhoneBack({ signedIn }: { signedIn: boolean }) {
 
     const land = (from: string) => {
       clearTimeout(exitTimer);
+      floor.lift = () => {};
       // The floor takes the address you left, so the page up from it is a push above it, not a replace of it.
       putEntry(false, { [FLOOR]: 1 }, from);
       const to = up(from);
@@ -123,7 +117,9 @@ export function PhoneBack({ signedIn }: { signedIn: boolean }) {
       if (isNewDesignRoute(from)) toast.quiet(EXIT_HINT);
       else setHintOn(window.location.pathname);
       const state = screenState;
-      exitTimer = setTimeout(() => {
+      const lift = () => {
+        clearTimeout(exitTimer);
+        floor.lift = () => {};
         setHintOn(null);
         // Still on the floor: the page goes back above it, so a back says it again.
         if (!isFloor(window.history.state)) return;
@@ -131,7 +127,10 @@ export function PhoneBack({ signedIn }: { signedIn: boolean }) {
         // Next's wrapper copies its state over.
         else window.history.pushState(null, "", from);
         guard();
-      }, QUIET_MS);
+      };
+      exitTimer = setTimeout(lift, QUIET_MS);
+      // A sheet opening while the hint is up goes above the page, not the floor.
+      floor.lift = lift;
     };
 
     track.current = () => {
@@ -170,6 +169,7 @@ export function PhoneBack({ signedIn }: { signedIn: boolean }) {
       nav?.removeEventListener("currententrychange", onEntry);
       watcher?.destroy();
       clearTimeout(exitTimer);
+      floor.lift = () => {};
       track.current = () => {};
     };
   }, [router, signedIn]);

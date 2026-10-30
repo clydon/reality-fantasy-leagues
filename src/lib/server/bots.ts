@@ -1,6 +1,7 @@
 import type { PoolClient } from "pg";
 import type { LeagueState } from "@/lib/game/types";
 import Bots from "@/lib/game/bot-logic.js";
+import { lockAuctionBids } from "./auction";
 import { lockBlindPicks } from "./blind-draft";
 
 // Computer players' moves (src/lib/game/bot-logic.js), made inside the caller's league lock so they
@@ -13,6 +14,10 @@ import { lockBlindPicks } from "./blind-draft";
 export async function runBots(client: PoolClient, leagueId: string, state: LeagueState): Promise<void> {
   for (const s of Bots.blindSubmissions(state)) {
     await lockBlindPicks(client, leagueId, state, s.playerId, s.castawayIds);
+  }
+  // An auction's sealed bids (step A10 part 3b), the same way: kept out of `state`, and the last sheet in settles it.
+  for (const s of Bots.auctionBids(state)) {
+    await lockAuctionBids(client, leagueId, state, s.playerId, s.bids);
   }
   Bots.run(state);
 }

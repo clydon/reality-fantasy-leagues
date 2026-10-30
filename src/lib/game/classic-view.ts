@@ -94,7 +94,7 @@ export function keepsLine(state: LeagueState, c: Castaway, me: string | null): s
 /** This player's predictions on this episode that were right and paid (the scoring's own rule). */
 export function predictionsRight(state: LeagueState, ep: Episode, playerId: string | null) {
   const right: { label: string; points: number }[] = [];
-  if (playerId && state.settings.bonusEnabled) {
+  if (playerId && StateLogic.betsOn(state)) {
     (ep.bets || []).forEach((bet) => {
       if ((bet.predictions || []).length < 2) return;
       if ((bet.predictions || []).some((p) => p.playerId === playerId && p.correct === true)) {

@@ -4,6 +4,7 @@ import type { LeagueState } from "@/lib/game/types";
 import { syncLeagueFormat } from "@db/show-formats.js";
 import { syncLeagueChanges } from "@db/season-rule-changes.js";
 import { syncLeagueRulebook } from "@db/rulebooks.js";
+import { syncLeagueGame } from "@db/game-specs.js";
 import { pool, withLeagueLock, HttpError } from "./db";
 import { genJoinCode, slugify } from "./league-codes";
 import { approvedCastFor, applyCastToState } from "./season-cast";
@@ -80,6 +81,8 @@ export async function makeLeague(row: SeasonRef, opts: MakeOpts): Promise<string
     await syncLeagueDecisions(client, leagueId, s);
     await opts.after(s, client, leagueId);
     StateLogic.updateSettings(s, "setupComplete", true);
+    // Made while the game-specs flag is on: it carries its spec from the start (db/game-specs.js).
+    await syncLeagueGame(client, s.settings);
   });
   return leagueId;
 }

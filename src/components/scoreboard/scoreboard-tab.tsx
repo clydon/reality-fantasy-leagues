@@ -154,7 +154,7 @@ function Rank({ label, first }: { label: string; first: boolean }) {
 function ClassicBoard({ state, scores }: { state: LeagueState; scores: ScoreRow[] }) {
   const me = useMyPlayerId();
   const ranks = rankLabels(scores, classicKey);
-  const bonus = state.settings.bonusEnabled;
+  const bonus = !!StateLogic.betsOn(state);
   return (
     <div className="flex flex-col">
       <div className="flex flex-col border-b border-border">

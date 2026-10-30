@@ -57,8 +57,8 @@ export const auth = betterAuth({
   user: {
     additionalFields: {
       // Early access gate (db/migrations/0058_user_approval.sql): `input: false` keeps a signup
-      // request from setting this itself -- only an admin's approve action (raw SQL, see
-      // /api/admin/users/[userId]/approve) flips it. defaultValue:false here overrides the
+      // request from setting this itself -- only an admin's Let in (raw SQL, see
+      // desk-person-actions.ts) flips it. defaultValue:false here overrides the
       // column's own DEFAULT true on every signup through this app, so an existing/seeded
       // account stays approved but a genuinely new one starts pending.
       approved: { type: "boolean", defaultValue: false, input: false },
@@ -130,14 +130,16 @@ export const auth = betterAuth({
     // set-password, impersonate/stop-impersonating, ban, sessions, remove -- see that endpoint
     // list in node_modules/better-auth/dist/plugins/admin/routes.mjs. League-scoped admin actions
     // (leagues/memberships) still need custom routes; this plugin has no concept of a league.
-    admin(),
+    // A stopped account (the desk's Stop them signing in: its ban) is told so plainly at sign-in.
+    admin({ bannedUserMessage: "This account can't sign in right now." }),
   ],
 });
 
 // Dev-mode fallback: without a real RESEND_API_KEY, reset links are logged to the server
 // console instead of emailed -- lets the whole flow be exercised locally with zero external
-// dependency, while staying a one-line swap away from actually sending mail.
-async function sendAuthEmail({ to, subject, text }: { to: string; subject: string; text: string }) {
+// dependency, while staying a one-line swap away from actually sending mail. Also the desk's
+// Let in (desk-person-actions.ts: "You're in", to someone who was waiting).
+export async function sendAuthEmail({ to, subject, text }: { to: string; subject: string; text: string }) {
   if (!process.env.RESEND_API_KEY) {
     console.log(`\n[auth email -- no RESEND_API_KEY set, logging instead of sending]\nTo: ${to}\nSubject: ${subject}\n${text}\n`);
     return;

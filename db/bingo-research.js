@@ -203,26 +203,33 @@ function parseBingoAnswer(text, { avoid = [], names = [], anyone = true } = {}) 
 // and would the same moment tick another square. It can also say how likely a square really is. Only a square every check passes
 // stays live; the rest are kept as dropped, with why.
 
-/** The check's prompt: the squares the parse kept, numbered from 1 (`squares`), for an episode or (`episode` null) the season. */
-function buildCheckPrompt({ showName, season, part = { singular: "episode", plural: "episodes" }, episode = null, squares, avoid = [] }) {
+/**
+ * The check's prompt: the squares the parse kept, numbered from 1 (`squares`), for an episode or (`episode` null) the season.
+ * A premiere, finale or reunion (episodeKind, from `count`, `title` and `note`) is judged against others of its kind: the writer
+ * was told to lean on its moments, which against regular episodes would all look rare (Survivor 49's finale: 4 of 30 passed).
+ */
+function buildCheckPrompt({ showName, season, part = { singular: "episode", plural: "episodes" }, episode = null, count = null, title = null, note = null, squares, avoid = [] }) {
   const ep = part.singular;
+  const which = episode == null ? "regular" : episodeKind({ n: episode, count, title, note });
+  const one = which === "regular" ? ep : which;
   return [
     `These are bingo squares for people watching ${showName} season ${season} together, ${episode == null ? `for any ${ep} of the season` : `for ${ep} ${episode}`}. Someone else wrote them; check every one.`,
     `Use what you know about the show, and search the web about it if you need to.${episode == null ? "" : ` ${cap(ep)} ${episode} hasn't aired yet: never look for what happens in it.`}`,
+    which === "regular" ? null : `It's the season's ${which}, so judge each square against ${which}s of a show like this, not its regular ${part.plural}.`,
     "",
     ...squares.map((s, i) => `${i + 1}. ${s.label} (${s.likelihood})`),
     "",
     "For each square:",
     "- seen: true if anyone half-watching would see it on screen: it happens, is said or is shown in the episode itself. False if",
     "  only recaps, exit interviews, social media or the next morning's news would tell you.",
-    `- likely: true if it comes up in about every ${ep} or every other one of a show like this. False if it happens in every single`,
-    `  ${ep} (certain, so not worth a square) or hardly ever (rare).`,
+    `- likely: true if it comes up in about every ${one} or every other one of a show like this. False if it happens in every single`,
+    `  ${one} (certain, so not worth a square) or hardly ever (rare).`,
     "- scoring: true if it's one of the game's scoring moments listed below, or means the same; else false.",
     "- spoiler: true if it gives anything away or predicts an outcome (who wins, who goes home, a twist that's coming, leaked",
     "  footage); else false.",
     "- sameAs: the number of an EARLIER square that the same moment on screen would also tick (\"It rains\" and \"Rain at camp\"),",
     "  else null.",
-    `- likelihood: how often it really comes up: likely (most ${part.plural}), maybe (about every other), longshot (now and then).`,
+    `- likelihood: how often it really comes up: likely (most ${which === "regular" ? part.plural : `${which}s`}), maybe (about every other), longshot (now and then).`,
     "- note: when seen or likely is false, scoring or spoiler is true, or sameAs is set, a few words on why; else an empty string.",
     avoid.length ? "" : null,
     avoid.length ? `The game's scoring moments: ${avoid.join("; ")}` : null,

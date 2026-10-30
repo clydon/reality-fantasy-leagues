@@ -1,4 +1,6 @@
 import { randomFrom, shuffled } from "./seeded";
+import StateLogic from "./state-logic.js";
+import type { LeagueState } from "./types";
 
 // Bingo (docs/PLAN-new-design.md step 12 part 3, docs/PLAN-bingo-bank.md; the mock's index.html bingoSheet, show.js's bingo job,
 // episode.js "sam got a line first", rulebook.js Weekly Bingo): a card per person and episode, three by three with the centre free,
@@ -37,6 +39,13 @@ const STAND_IN: Record<Likelihood, Likelihood[]> = { likely: ["maybe", "longshot
 
 /** The seed a person's card for an episode is dealt from: the first deal's, then one per reroll. */
 export const seedOf = (userId: string, seasonId: string, n: number, rerolls = 0) => `bingo|${userId}|${seasonId}|${n}${rerolls ? `|r${rerolls}` : ""}`;
+
+/** What a Weekly Bingo line is worth (step A9 of docs/PLAN-start-a-game-gpt.md: its spec's score.points), 1 when it says none:
+ *  its table's and the hub's standings are lines times this. */
+export function pointsPerLine(state: LeagueState): number {
+  const score = StateLogic.gameOf(state).score;
+  return score.by === "lines" && typeof score.points === "number" ? score.points : 1;
+}
 
 export const FREE_KEY = "free";
 export const FREE: BingoSquare = { key: FREE_KEY, label: "Free" };

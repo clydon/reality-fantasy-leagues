@@ -60,6 +60,23 @@ export function HowItWorksPage({
 }
 
 /** A section's heading; `jump`: the jump bar's key for it (the page scrolls to the heading). */
+/** One line of the rulebook's timeline: the episode, what changed (or where the game starts or ends), and its tag. */
+function UpdateRow({ u }: { u: HowItWorksPage["how"]["updates"]["shown"][number] }) {
+  return (
+    <div className="flex items-start gap-4 border-t border-border py-3">
+      <span className="w-9 flex-none text-center">
+        <small className="type-caption block text-[11px] text-muted-foreground">Ep</small>
+        <b className="type-num text-[26px] leading-none">{u.episode}</b>
+      </span>
+      <span className="min-w-0 flex-1">
+        <b className="block text-[16px]">{u.title}</b>
+        <small className="block text-[14px] leading-snug text-muted-foreground">{u.detail}</small>
+      </span>
+      {u.tag && <span className="type-caption rounded-[2px] bg-good px-2 py-0.5 text-[12px] tracking-[0.08em] text-good-foreground">{u.tag}</span>}
+    </div>
+  );
+}
+
 function Head({ jump, title, aside }: { jump?: string; title: string | null; aside?: string | null }) {
   return (
     <div data-jump-to={jump} className="mb-3 mt-[26px] flex scroll-mt-16 items-baseline justify-between gap-3 px-2">
@@ -298,18 +315,9 @@ export function HowItWorksBody({
         <>
           <Head title="Updates" />
           <div className="px-2">
-            {how.updates.shown.map((u) => (
-              <div key={`${u.episode}-${u.title}`} className="flex items-start gap-4 border-t border-border py-3">
-                <span className="w-9 flex-none text-center">
-                  <small className="type-caption block text-[11px] text-muted-foreground">Ep</small>
-                  <b className="type-num text-[26px] leading-none">{u.episode}</b>
-                </span>
-                <span className="min-w-0 flex-1">
-                  <b className="block text-[16px]">{u.title}</b>
-                  <small className="block text-[14px] leading-snug text-muted-foreground">{u.detail}</small>
-                </span>
-                {u.tag && <span className="type-caption rounded-[2px] bg-good px-2 py-0.5 text-[12px] tracking-[0.08em] text-good-foreground">{u.tag}</span>}
-              </div>
+            {/* In episode order: what's hidden sits where it happens, before a game's end that's always shown. */}
+            {how.updates.shown.filter((u) => !how.updates.hidden || u.episode < how.updates.hidden.from).map((u) => (
+              <UpdateRow key={`${u.episode}-${u.title}`} u={u} />
             ))}
             {how.updates.hidden && (
               <div className="flex items-start gap-4 border-t border-border py-3 text-muted-foreground">
@@ -323,6 +331,8 @@ export function HowItWorksBody({
                 </span>
               </div>
             )}
+            {how.updates.hidden &&
+              how.updates.shown.filter((u) => u.episode >= how.updates.hidden!.from).map((u) => <UpdateRow key={`${u.episode}-${u.title}`} u={u} />)}
           </div>
         </>
       )}

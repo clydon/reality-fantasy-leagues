@@ -54,6 +54,20 @@ test("a day out with an empty lineup slot: one 24h reminder, and a rerun sends n
   assert.equal((await runReminders(pool, { now: new Date(now.getTime() + HOUR) })).sent, 0);
 });
 
+test("players are reminded on every airing season, not only one auto-research ran (the user, 2026-10-29)", async () => {
+  const base = fakePool(league());
+  // A season with auto-research's switch off: only the query for airing seasons finds it.
+  const pool = {
+    ...base,
+    async query(sql, params) {
+      if (sql.includes("FROM show_seasons") && !sql.includes("status = 'airing'")) return { rows: [] };
+      return base.query(sql, params);
+    },
+  };
+  assert.equal((await runReminders(pool, { now: new Date(EP2_AIRS.getTime() - 20 * HOUR) })).sent, 1);
+  assert.deepEqual([...base.logged], ["u1|L1|lineup|2|24h"]);
+});
+
 test("two hours out it reminds again, once", async () => {
   const pool = fakePool(league());
   await runReminders(pool, { now: new Date(EP2_AIRS.getTime() - 20 * HOUR) });
@@ -70,14 +84,6 @@ test("nothing when the lineup is full, too far out, already aired, or the league
   const catchingUp = league();
   catchingUp.settings.revealedThroughEpisode = 1;
   assert.equal((await runReminders(fakePool(catchingUp), { now: new Date(EP2_AIRS.getTime() - 3 * HOUR) })).sent, 0);
-});
-
-test("auto-research timing: N hours after it airs takes over from the weekly slot", () => {
-  const aired = Air.zonedToUtc("2026-09-30", "20:00", "America/New_York");
-  const weekly = { airTz: "America/New_York", researchWeekday: 4, researchTime: "12:00" };
-  assert.equal(Air.nextResearchSlot(aired, { ...weekly, researchDelayHours: 12 }).getTime(), aired.getTime() + 12 * HOUR);
-  assert.equal(Air.nextResearchSlot(aired, weekly).getTime(), Air.zonedToUtc("2026-10-01", "12:00", "America/New_York").getTime());
-  assert.equal(Air.nextResearchSlot(aired, { airTz: "America/New_York" }), null);
 });
 
 // The commissioner's results nudge (the morning after an episode airs with nothing recorded).

@@ -245,4 +245,4 @@ async function start(opts = {}) {
   return tv;
 }
 
-module.exports = { start, shows, oneNight, daily, eastern, worldSeries };
+module.exports = { start, shows, weekly, oneNight, daily, eastern, worldSeries };

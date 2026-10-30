@@ -204,7 +204,8 @@ export function RankedBy({
 export function useRanking(state: LeagueState) {
   const [window, setWindow] = useState<Window>("season");
   const [rankBy, setRankBy] = useState<string | null>(null);
-  const aired = useMemo(() => airedEpisodes(state, StateLogic.startEpisode(state) <= 1), [state]);
+  // A game waiting for its phase (step A3) has nothing in play yet: every episode is before it, as before a first one.
+  const aired = useMemo(() => airedEpisodes(state, (StateLogic.startEpisode(state) ?? 1) <= 1), [state]);
   const windows = WINDOWS.filter(([w]) => w === "season" || Number(w) < aired.length);
   const shownWindow = windows.some(([w]) => w === window) ? window : "season";
   const rows = useMemo(() => buildRows(state, aired, shownWindow), [state, aired, shownWindow]);

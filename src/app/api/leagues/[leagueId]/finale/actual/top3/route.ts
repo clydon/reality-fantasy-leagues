@@ -1,20 +1,12 @@
-import { NextResponse } from "next/server";
-import StateLogic from "@/lib/game/state-logic.js";
 import { apiRoute } from "@/lib/server/api-route";
 import { requireLeagueRole } from "@/lib/server/auth-helpers";
-import { withLeagueLock, HttpError } from "@/lib/server/db";
-import { plainChange } from "@/lib/server/change-log";
+import { HttpError } from "@/lib/server/db";
 
-// Port of SurvivorDraft's server/routes/finale.js PATCH /actual/top3 -- commissioner-only.
+// Was: whoever ran the game typed in the finale's final three by hand, and finale predictions were graded against it. Since step A4
+// of docs/PLAN-start-a-game-gpt.md the results settle them (StateLogic.AnswerLogic: the season's winner, and the order
+// everyone finished in), never anyone's word, so there's nothing to enter.
 export const PATCH = apiRoute(async (req, { params }: { params: Promise<{ leagueId: string }> }) => {
   const { leagueId } = await params;
-  const { user, membership } = await requireLeagueRole(req, leagueId, "member");
-  if (membership.role !== "commissioner") throw new HttpError(403, "Commissioner only");
-  const { idx, value } = (await req.json().catch(() => ({}))) as { idx?: number; value?: string | null };
-  if (typeof idx !== "number") throw new HttpError(400, "idx required");
-
-  const state = await withLeagueLock(leagueId, (s) => {
-    StateLogic.setActualTop3(s, idx, value ?? null);
-  }, plainChange(user.id, "results", "Entered the finale's results", 2));
-  return NextResponse.json(state);
+  await requireLeagueRole(req, leagueId, "member");
+  throw new HttpError(409, "The results settle the finale now: there's nothing to enter");
 });

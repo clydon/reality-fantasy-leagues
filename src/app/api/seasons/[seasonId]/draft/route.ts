@@ -5,6 +5,7 @@ import { HttpError, pool } from "@/lib/server/db";
 import { requireCouch } from "@/lib/server/couches";
 import {
   expireTurn,
+  lockBidsFor,
   lockBlindFor,
   nudgeDraft,
   pickInDraft,
@@ -13,6 +14,7 @@ import {
   setDraftSettings,
   startDraft,
   undoLastPick,
+  unlockBidsFor,
   unlockBlindFor,
 } from "@/lib/server/draft";
 import { leagueState } from "@/lib/server/league-states";
@@ -51,6 +53,8 @@ type Body = {
   n?: unknown;
   playerId?: unknown;
   castawayIds?: unknown;
+  /** An auction's sealed bids (step A10 part 3b): [{ castawayId, bid }]. */
+  bids?: unknown;
   order?: unknown;
   timer?: unknown;
   away?: unknown;
@@ -80,6 +84,13 @@ export const POST = apiRoute(async (req, { params }: { params: Promise<{ seasonI
       return NextResponse.json({ ok: true });
     case "unlock":
       await unlockBlindFor(actor, leagueId, typeof body.playerId === "string" ? body.playerId : (actor.membership.playerId ?? ""));
+      return NextResponse.json({ ok: true });
+    // An auction's sealed bids (step A10 part 3b): lock a sheet in, or withdraw it.
+    case "bid":
+      await lockBidsFor(actor, leagueId, body.playerId ?? actor.membership.playerId, body.bids);
+      return NextResponse.json({ ok: true });
+    case "unbid":
+      await unlockBidsFor(actor, leagueId, typeof body.playerId === "string" ? body.playerId : (actor.membership.playerId ?? ""));
       return NextResponse.json({ ok: true });
     case "queue": {
       const state = await leagueState(leagueId);

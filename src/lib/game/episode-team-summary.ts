@@ -48,7 +48,7 @@ export function weekInRace(state: LeagueState, epId: string, playerId: string): 
   const weekOf = (pid: string, number: number) => {
     const e = scored.find((x) => x.number === number);
     const events = e ? (episodePlayerPoints(state, e.id).find((f) => f.player.id === pid)?.points ?? 0) : 0;
-    const bets = state.settings.bonusEnabled ? playerBetRows(state, pid).filter((b) => b.episode === number).reduce((t, b) => t + b.points, 0) : 0;
+    const bets = StateLogic.betsOn(state) ? playerBetRows(state, pid).filter((b) => b.episode === number).reduce((t, b) => t + b.points, 0) : 0;
     return events + bets;
   };
   const totals = (upTo: number) =>

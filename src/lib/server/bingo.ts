@@ -1,5 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
-import { countLines, dealCard, firstLineAt, fullLines, seedOf, truthOf, FREE_KEY, LINES, MIN_MOMENTS, SQUARES, type BankSquare, type BingoSquare, type CalledLine, type Likelihood, type LineCount, type Truth } from "@/lib/game/bingo";
+import { countLines, dealCard, firstLineAt, fullLines, pointsPerLine, seedOf, truthOf, FREE_KEY, LINES, MIN_MOMENTS, SQUARES, type BankSquare, type BingoSquare, type CalledLine, type Likelihood, type LineCount, type Truth } from "@/lib/game/bingo";
 import { settleSays, type CallBook, type EpisodeFacts } from "@/lib/game/calls";
 import { PRESENT_MS } from "@/lib/game/watch-along";
 import { kindOf } from "@/lib/game/formats/rulebook-schema.js";
@@ -160,10 +160,13 @@ export const MAX_REROLLS = 2;
 const BANK = "b:";
 const fromBank = (key: string) => key.startsWith(BANK);
 
-/** SQL: a bank's square (`sq`, its id) is out of new deals: flagged as unfair by two people, or by an admin (step 4). */
-export const FLAGGED_OUT = (sq: string) =>
+/**
+ * SQL: a bank's square (`sq`, its id) is out of new deals: flagged as unfair by two people, or by an admin (step 4). An admin's
+ * Show it again (the desk's Bingo bank, 0425 shown_at) overrules the flags it had then: only two since take it out again.
+ */
+export const FLAGGED_OUT = (sq: string, shownAt: string = `(SELECT s_.shown_at FROM bingo_squares s_ WHERE s_.id = ${sq})`) =>
   `(EXISTS (SELECT 1 FROM bingo_square_flags f_ JOIN "user" u_ ON u_.id = f_.user_id WHERE f_.square_id = ${sq} AND u_.role = 'admin')
-    OR (SELECT count(*) FROM bingo_square_flags f_ WHERE f_.square_id = ${sq}) >= 2)`;
+    OR (SELECT count(*) FROM bingo_square_flags f_ WHERE f_.square_id = ${sq} AND f_.flagged_at > COALESCE(${shownAt}, '-infinity')) >= 2)`;
 
 /**
  * What an episode's cards are dealt from: its own bank's live squares, else the season's own bank's (no episode), else nothing
@@ -173,7 +176,7 @@ export const FLAGGED_OUT = (sq: string) =>
 export async function bankFor(seasonId: string, n: number, viewer: string | null = null): Promise<{ from: "episode" | "season" | null; squares: BankSquare[] }> {
   const { rows } = await pool.query(
     `SELECT s.id, s.episode, s.label, s.likelihood FROM bingo_squares s
-      WHERE s.season_id = $1 AND s.status = 'live' AND (s.episode = $2 OR s.episode IS NULL) AND NOT ${FLAGGED_OUT("s.id")}
+      WHERE s.season_id = $1 AND s.status = 'live' AND (s.episode = $2 OR s.episode IS NULL) AND NOT ${FLAGGED_OUT("s.id", "s.shown_at")}
         AND ($3::text IS NULL OR NOT EXISTS (SELECT 1 FROM bingo_square_flags f WHERE f.square_id = s.id AND f.user_id = $3))
       ORDER BY s.created_at, s.id`,
     [seasonId, n, viewer]
@@ -764,14 +767,17 @@ export async function leagueBingo(o: {
   // A game over a span counts its own episodes only (settings.endEpisode), and hands no card past its last.
   const end = StateLogic.endEpisode(o.state);
   const through = Math.min(mark, latestAired(schedule, now), end ?? Number.POSITIVE_INFINITY);
+  // A game waiting for its phase (step A3 of docs/PLAN-start-a-game-gpt.md) counts no lines yet, and hands no card.
   const from = StateLogic.startEpisode(o.state);
   const userIds = o.state.players.map((p) => o.userOf(p.id)).filter((id): id is string => !!id);
   const [lines, move] = await Promise.all([
-    bingoLines(o.seasonId, userIds, { from, through, couchId: o.couchId, book: o.book }),
-    o.playerId ? bingoMove(o.userId, o.seasonId, mark, from, schedule, now) : Promise.resolve(null),
+    from === null ? new Map<string, number>() : bingoLines(o.seasonId, userIds, { from, through, couchId: o.couchId, book: o.book }),
+    o.playerId && from !== null ? bingoMove(o.userId, o.seasonId, mark, from, schedule, now) : Promise.resolve(null),
   ]);
+  // Points per line (step A9 of docs/PLAN-start-a-game-gpt.md), 1 when the game says none.
+  const each = pointsPerLine(o.state);
   return {
-    right: (p) => lines.get(o.userOf(p) ?? "") ?? 0,
+    right: (p) => (lines.get(o.userOf(p) ?? "") ?? 0) * each,
     move: null,
     bingo: move && (end === null || move.episode <= end) ? move : null,
     through,

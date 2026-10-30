@@ -500,13 +500,13 @@ export async function leagueCalls(o: {
   const through = Math.min(o.mark ?? Number.POSITIVE_INFINITY, end ?? Number.POSITIVE_INFINITY);
   const book = o.book ?? (await seasonBook(o.seasonId));
   const userIds = o.state.players.map((p) => o.userOf(p.id)).filter((id): id is string => !!id);
-  const rights = await callRights(o.seasonId, userIds, {
-    from: StateLogic.startEpisode(o.state),
-    through,
-    couchId: type.hasCalls ? o.couchId : null,
-    only: pooled ? (k) => k === "out" : undefined,
-    book,
-  });
+  // A game waiting for its phase (step A3 of docs/PLAN-start-a-game-gpt.md) has no calls of its own yet: nothing counts, and
+  // there's nothing to call for it.
+  const start = StateLogic.startEpisode(o.state);
+  const rights =
+    start === null
+      ? new Map<string, number>()
+      : await callRights(o.seasonId, userIds, { from: start, through, couchId: type.hasCalls ? o.couchId : null, only: pooled ? (k) => k === "out" : undefined, book });
   const right = (p: string) => rights.get(o.userOf(p) ?? "") ?? 0;
   if (pooled) {
     if (!o.playerId) return { right, move: null };
@@ -536,7 +536,7 @@ export async function leagueCalls(o: {
     through: Math.min(through, aired),
     ended: endedThrough(schedule, Math.min(through, aired), end),
     // Past a span's last show there's nothing left to call for this game.
-    move: made && (end === null || made.episode <= end) ? { epId: "", episode: made.episode, airsAt: made.airAt, open: true, call: null, available: [], made: made.made, of: made.of, right: o.playerId ? right(o.playerId) : 0 } : null,
+    move: start !== null && made && (end === null || made.episode <= end) ? { epId: "", episode: made.episode, airsAt: made.airAt, open: true, call: null, available: [], made: made.made, of: made.of, right: o.playerId ? right(o.playerId) : 0 } : null,
   };
 }
 

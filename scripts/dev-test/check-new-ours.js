@@ -34,6 +34,7 @@ const path = require("path");
 const { Pool } = require("pg");
 const { open, api } = require("./browser");
 const { settle } = require("./motion");
+const { openCorrections, noCorrections } = require("./corrections");
 const fixture = require("./new-fixture");
 const S = require("../../src/lib/game/state-logic.js");
 
@@ -226,6 +227,7 @@ const REAL_LEAGUES = "SELECT slug, md5(state::text) AS h FROM leagues WHERE slug
       await j.page.locator(`[data-episode-page='${ep}']`).waitFor({ timeout: 20000 });
     };
     await episodePage(3);
+    await noCorrections(j.page, check, "jordan's Episode 3 (nothing corrected)");
     await j.page.locator("[data-couch-moments='3']").waitFor({ timeout: 20000 });
     await j.page.locator(`[data-couch-answer='${mid}']`).click();
     await j.page.locator("[data-answer-sheet]").waitFor();
@@ -360,7 +362,9 @@ const REAL_LEAGUES = "SELECT slug, md5(state::text) AS h FROM leagues WHERE slug
     await a.page.goto(`${a.BASE}/show/${sid}/backstage/results?ep=5`);
     await a.page.locator(`[data-correction='${ori}']`).waitFor({ timeout: 20000 });
     await a.page.locator(`[data-correction='${ori}']`).scrollIntoViewIfNeeded();
-    check(/Added: Ori · Idol/.test(await a.page.locator(`[data-correction='${ori}']`).innerText()) && /Don't count it in our games/.test(await a.page.locator(`[data-correction='${ori}'] [data-keep-old]`).innerText()), "the card: Added, and Don't count it in our games");
+    // innerText applies the button's text-transform: matched in any case.
+    const oriCard = await a.page.locator(`[data-correction='${ori}']`).innerText();
+    check(/Added: Ori · /i.test(oriCard) && /Don't count it in our games/i.test(await a.page.locator(`[data-correction='${ori}'] [data-keep-old]`).innerText()), "the card: Added, and Don't count it in our games", oriCard);
     await fits(a.page, "a correction that adds");
     await shot(a.page, "correction-added");
     await a.page.locator(`[data-correction='${ori}'] [data-keep-old]`).click();
@@ -376,6 +380,7 @@ const REAL_LEAGUES = "SELECT slug, md5(state::text) AS h FROM leagues WHERE slug
     const plate = ep5.corrections.find((c) => c.decisionId === ori);
     check(plate && plate.change === "added" && plate.ruling, "jordan's Episode 5: added, with the house ruling", JSON.stringify(plate).slice(0, 200));
     await episodePage(5);
+    await openCorrections(j.page, check, { count: ep5.corrections.length, rulings: ep5.corrections.filter((c) => c.ruling).length, where: "jordan's Episode 5" });
     await j.page.locator("[data-house-ruling]").waitFor({ timeout: 20000 });
     check(/doesn't count in your games/.test(await j.page.locator("[data-house-ruling]").innerText()), "the episode page: it doesn't count in your games");
     await fits(j.page, "the episode page");

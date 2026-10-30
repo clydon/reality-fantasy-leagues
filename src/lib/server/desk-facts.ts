@@ -45,7 +45,7 @@ export interface DeskFact {
   leagues: number;
   rulings: number;
   /** For editing it: the season's cast and the show's ways out and moments. */
-  choices: { cast: string[]; methods: string[]; events: { id: string; label: string }[] };
+  choices: { cast: string[]; methods: string[]; events: { id: string; label: string }[]; groups: string[] };
   history: DeskLine[];
 }
 
@@ -103,7 +103,10 @@ export async function deskFact(id: string): Promise<DeskFact> {
             (SELECT count(*)::int FROM league_rulings r WHERE r.decision_id = $3) AS rulings`,
     [d.slug, String(d.season_number), id]
   );
-  const { rows: cast } = await pool.query("SELECT name FROM season_cast WHERE season_id = $1 ORDER BY sort_order, name", [d.season_id]);
+  const [{ rows: cast }, groups] = await Promise.all([
+    pool.query("SELECT name FROM season_cast WHERE season_id = $1 ORDER BY sort_order, name", [d.season_id]),
+    seasonGroups(d.season_id),
+  ]);
   const status = (d.fact_status ?? (d.status === "accepted" ? "canonical" : d.status === "rejected" ? "removed" : "reported")) as FactStatus;
   const locked = d.locked_at || (d.fact_status === null && d.status !== "pending") ? { by: d.locked_name, at: (d.locked_at ?? d.decided_at ?? d.created_at).toISOString() } : null;
 
@@ -137,19 +140,33 @@ export async function deskFact(id: string): Promise<DeskFact> {
       cast: cast.map((c) => c.name),
       methods: format.data.exitMethods,
       events: format.data.events.filter((e: { implied?: boolean }) => !e.implied).map((e: { id: string; label: string }) => ({ id: e.id, label: e.label })),
+      groups,
     },
     history: byNewest(lines),
   };
 }
 
-type Before = { status: string; fact_status: string | null; locked_at: string | null; locked_by: string | null; applied: unknown; decided_at: string | null; decided_by: string | null };
+/** A season's groups (tribes, teams), for correcting a move: the cast's starting ones, then any its moves name. */
+export async function seasonGroups(seasonId: string): Promise<string[]> {
+  const { rows } = await pool.query<{ name: string }>(
+    `SELECT name FROM (
+       SELECT tribe_name AS name, 0 AS o FROM season_cast WHERE season_id = $1 AND COALESCE(tribe_name, '') <> ''
+       UNION SELECT COALESCE(applied->>'method', method), 1 FROM season_decisions
+        WHERE season_id = $1 AND kind = 'group' AND status = 'accepted' AND COALESCE(applied->>'method', method) <> ''
+     ) g GROUP BY name ORDER BY min(o), name`,
+    [seasonId]
+  );
+  return rows.map((r) => r.name);
+}
+
+export type Before = { status: string; fact_status: string | null; locked_at: string | null; locked_by: string | null; applied: unknown; decided_at: string | null; decided_by: string | null };
 
 /**
  * The admin decides a fact: `yes` (it happened) or `no` (it didn't) makes it canonical and locked; `edit` decides it
  * happened as given; `reopen` unlocks a community fact and settles it again from its sources. Every league on the
  * season follows (the sync, with a correction line where it came out); the flags on it are answered.
  */
-export async function decideFact(user: SessionUser, id: string, body: { decide?: unknown; edit?: { castawayName?: unknown; method?: unknown; eventType?: unknown }; reopen?: unknown }): Promise<DeskFact> {
+export async function decideFact(user: SessionUser, id: string, body: { decide?: unknown; edit?: { castawayName?: unknown; method?: unknown; eventType?: unknown }; reopen?: unknown }): Promise<DeskFact & { changeId: string }> {
   const fact = await deskFact(id);
   const { rows } = await pool.query("SELECT status, fact_status, locked_at, locked_by, applied, decided_at, decided_by, kind FROM season_decisions WHERE id = $1", [id]);
   const before: Before = rows[0];
@@ -182,6 +199,11 @@ export async function decideFact(user: SessionUser, id: string, body: { decide?:
       const t = typeof e.eventType === "string" && e.eventType.trim() ? e.eventType.trim() : fact.eventType;
       if (!fact.choices.events.some((x) => x.id === t)) throw new HttpError(400, `"${t}" isn't a moment on this show`);
       applied.eventType = t;
+    } else if (fact.kind === "group") {
+      // A move to the group they went to (Survivor 51's Episode 3 had Carter "to Savu", the tribe he left).
+      const g = typeof e.method === "string" && e.method.trim() ? e.method.trim() : fact.method;
+      if (!fact.choices.groups.includes(g)) throw new HttpError(400, `"${g}" isn't one of ${fact.season.name}'s groups`);
+      applied.method = g;
     }
     await pool.query(`UPDATE season_decisions SET applied = $3::jsonb, status = 'accepted', fact_status = 'canonical', ${lockSql} WHERE id = $1`, [id, user.id, JSON.stringify(applied)]);
     text = `Overrode it: ${castawayName}${applied.method ? ` · ${applied.method}` : ""}${applied.eventType ? ` · ${readable(applied.eventType)}` : ""} · canonical, locked`;
@@ -189,14 +211,35 @@ export async function decideFact(user: SessionUser, id: string, body: { decide?:
   } else throw new HttpError(400, "decide yes or no, edit, or reopen");
 
   if (flagsTo) await pool.query("UPDATE fact_disputes SET status = $2, settled_at = now() WHERE decision_id = $1 AND status = 'open'", [id, flagsTo]);
-  await logDesk(pool, { entity: "fact", entityId: id, action: body.reopen ? "reopen" : body.edit ? "edit" : "decide", text, before, undo: { type: "fact", before }, userId: user.id });
+  const changeId = await logDesk(pool, { entity: "fact", entityId: id, action: body.reopen ? "reopen" : body.edit ? "edit" : "decide", text, before, undo: { type: "fact", before }, userId: user.id });
   if (body.reopen === true) await settleNow(fact.season.id, fact.episode);
   await syncSeasonLeagues(fact.season.id, user.id);
-  return deskFact(id);
+  // The change's id, for a toast's Undo (an episode's page decides from its rows).
+  return { ...(await deskFact(id)), changeId };
 }
 
 /** Puts a fact back the way it was before the desk's change (History's Undo), then every league follows. */
 export async function restoreFact(id: string, before: Before, userId: string): Promise<void> {
+  const at = await putBack(id, before);
+  if (!before.locked_at && before.fact_status) await settleNow(at.season_id, at.episode_number);
+  await syncSeasonLeagues(at.season_id, userId);
+}
+
+/** Puts several facts of one season back (Accept all's Undo, an episode's page), then every league follows once. */
+export async function restoreFacts(list: { id: string; before: Before }[], userId: string): Promise<void> {
+  const settled = new Map<string, { season_id: string; episode_number: number }>();
+  let season: string | null = null;
+  for (const { id, before } of list) {
+    const at = await putBack(id, before).catch((e) => (e instanceof HttpError && e.status === 404 ? null : Promise.reject(e)));
+    if (!at) continue;
+    season = at.season_id;
+    if (!before.locked_at && before.fact_status) settled.set(`${at.season_id}:${at.episode_number}`, at);
+  }
+  for (const at of settled.values()) await settleNow(at.season_id, at.episode_number);
+  if (season) await syncSeasonLeagues(season, userId);
+}
+
+async function putBack(id: string, before: Before): Promise<{ season_id: string; episode_number: number }> {
   const { rows } = await pool.query(
     `UPDATE season_decisions SET status = $2, fact_status = $3, locked_at = $4, locked_by = $5, applied = $6::jsonb, decided_at = COALESCE($7, decided_at), decided_by = $8
       WHERE id = $1 RETURNING season_id, episode_number`,
@@ -205,6 +248,5 @@ export async function restoreFact(id: string, before: Before, userId: string): P
   if (!rows.length) throw new HttpError(404, "Fact not found");
   // Its decided_at moved with the desk's change; the leagues compare it, so a fresh one makes them take it again.
   await pool.query("UPDATE season_decisions SET decided_at = clock_timestamp() WHERE id = $1", [id]);
-  if (!before.locked_at && before.fact_status) await settleNow(rows[0].season_id, rows[0].episode_number);
-  await syncSeasonLeagues(rows[0].season_id, userId);
+  return rows[0];
 }

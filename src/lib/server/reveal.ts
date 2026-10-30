@@ -5,6 +5,7 @@ import { pool, HttpError, withLeagueLock } from "./db";
 import { switchOn } from "./guard";
 import { revealAcrossGroup } from "./late-join";
 import { markResultsSeen } from "./results-seen";
+import { seatMark } from "./shared-seats";
 
 // One member's "Reveal": they've now seen results through episode n in a league (StateLogic.SpoilerLogic). Forward
 // only. Classic's results-seen route and the new design's reveal (season-episodes.ts: one reveal per episode for
@@ -38,10 +39,14 @@ export async function markRevealed(user: SessionUser, leagueId: string, playerId
     }
     if (n <= seen) return;
     await markResultsSeen(user.id, leagueId, n);
+    // The seat's own state follows the lowest mark on it (a team two people share, step A10 part 4b: shared-seats.ts), so
+    // one of them revealing never carries the other past what they've seen.
+    const seat = (await seatMark(pool, leagueId, playerId, late.startEpisode - 1)) ?? n;
     await withLeagueLock(leagueId, (s) => {
-      StateLogic.GhostLogic.markCaughtUp(s, playerId, n);
+      StateLogic.GhostLogic.markCaughtUp(s, playerId, seat);
       const lj = StateLogic.GhostLogic.lateJoinOf(s, playerId);
-      if (lj) lj.seenThrough = n;
+      // Forward only: someone behind on the team never takes it back.
+      if (lj && !((lj.seenThrough ?? -1) >= seat)) lj.seenThrough = seat;
     });
     await revealAcrossGroup(user.id, leagueId, seen, n, late.catchingUp && jump);
     if (StateLogic.getPlayer(current, playerId)?.ghost) return;

@@ -13,6 +13,7 @@ const LEAGUE_TABLES = [
   "blind_draft_picks", "episode_team_notes", "league_applied_decisions", "chat_messages", "chat_reactions",
   "chat_reads", "couch_chat_reads", "wiki_proposals", "wiki_proposal_items", "league_changes", "league_rulings", "couch_answers",
   "results_plans", "draft_queues", "game_join_requests", "watch_plans", "watch_plan_people", "couch_polls", "couch_poll_votes",
+  "game_answers",
 ];
 const SEASON_TABLES = [
   "shows", "show_formats", "show_seasons", "season_cast", "season_cast_changes", "season_decisions",
@@ -60,6 +61,7 @@ const LATER_TABLES = {
   bingo_marks: { since: "0130", fill: null },
   trivia_plays: { since: "0130", fill: null },
   watch_reactions: { since: "0131", fill: null },
+  game_answers: { since: "0200", fill: null },
 };
 
 /** Whether the database has this table. */

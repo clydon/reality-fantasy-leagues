@@ -203,7 +203,7 @@ const RULEBOOKS = "SELECT id, version, is_template, status, review_status, md5(b
     const yBook = await seasonBook(yacht);
     check(yBook.review_status === "unreviewed" && yBook.provenance.from === "made" && yBook.created_by === fx.users.alex, "alex made ZT Yacht Life a game: its rulebook is new (unreviewed), alex its first maker");
     let items = await inbox();
-    check(items.some((i) => i.kind === "made" && i.title === "ZT Yacht Life 2: a new rulebook" && /Made with ChatGPT by zt_nd_alex · nobody on another couch/.test(i.line) && i.href === `/desk/rulebook/${yBook.id}`), "the Inbox: a new rulebook nobody's checked", JSON.stringify(items.filter((i) => i.kind === "made")));
+    check(items.some((i) => i.kind === "made" && i.title === "ZT Yacht Life 2's rulebook needs a second look" && /Made with ChatGPT by zt_nd_alex · it needs another couch's Looks right/.test(i.line) && i.href === `/desk/rulebook/${yBook.id}`), "the Inbox: a new rulebook nobody's checked", JSON.stringify(items.filter((i) => i.kind === "made")));
     lib = await library();
     check(lib.made.some((m) => m.id === yBook.id && m.review === "unreviewed" && /^Made with ChatGPT by zt_nd_alex · new/.test(m.line)), "the library: under Made by players", JSON.stringify(lib.made));
     check(!lib.kinds.flatMap((k) => k.templates).some((t) => /ZT Yacht/.test(t.name)), "its stored format isn't a template");
@@ -320,13 +320,13 @@ const RULEBOOKS = "SELECT id, version, is_template, status, review_status, md5(b
     const nextSeason = (await pool.query("SELECT rulebook_live, rulebook_id, season_number FROM show_seasons WHERE id = $1", [next])).rows[0];
     check(r.status === 200 && nextSeason.season_number === 3 && nextBook && nextBook.parent_id === yBook.id && nextBook.provenance.sameAsLastSeason && nextSeason.rulebook_live && nextSeason.rulebook_id === nextBook.id, "New season 3 of a set-up show: last season's rulebook, playing by it", JSON.stringify({ s: r.status, n: nextSeason.season_number, parent: nextBook?.parent_id === yBook.id }));
     check(nextBook.compiled_source === "blocks" && nextBook.blocks.segments.length === yBook.blocks.segments.length && !(await pool.query("SELECT 1 FROM rulebooks WHERE owner_kind = 'library' AND parent_id LIKE 'made-zt-%'")).rows.length, "compiled for itself; still no template from its stored format");
-    check(r.body.history.some((l) => /Added season 3, playing by last season's rulebook/.test(l.text)), "the show's History says so");
+    check(r.body.history.some((l) => /^Added .+ 3 \(Upcoming\), playing by last season's rulebook$/.test(l.text)), "the show's History says so");
 
     // ---------- a show added by name ----------
     r = await as.alex.call("POST", "/api/me/shows", { name: "ZT Mystery Hour" });
     const mysteryShow = (await pool.query("SELECT show_id FROM show_seasons WHERE id = $1", [r.body.seasonId])).rows[0].show_id;
     items = await inbox();
-    check(items.some((i) => i.kind === "show" && i.title === "ZT Mystery Hour: added by name" && /By zt_nd_alex · not in the TV listings · 1 following/.test(i.line)), "the Inbox: a show added by name", JSON.stringify(items.filter((i) => i.kind === "show")));
+    check(items.some((i) => i.kind === "show" && i.title === "ZT Mystery Hour was added by name" && /By zt_nd_alex · 1 following · not in the TV listings/.test(i.line)), "the Inbox: a show added by name", JSON.stringify(items.filter((i) => i.kind === "show")));
     let sp = (await desk("GET", `/shows/${mysteryShow}`)).body;
     check(sp.added?.by === "zt_nd_alex" && sp.added.listing === false && !sp.reviewed && !sp.setUp, "its page: added by alex by name, not looked at", JSON.stringify(sp.added));
     r = await desk("POST", `/shows/${mysteryShow}`, { action: "reviewed" });
@@ -390,10 +390,10 @@ const RULEBOOKS = "SELECT id, version, is_template, status, review_status, md5(b
         check(over <= 1, `${what}: nothing wider than the screen`, `${over}px`);
       };
 
-      // Find: Library and New show
+      // Find › Browse › Library (New show is the library's own, below)
       await pg.goto(`${BASE}/desk/find`, { waitUntil: "load" });
       await pg.locator("[data-desk-library-link]").waitFor();
-      check((await pg.locator("[data-desk-new-link]").count()) === 1, "Find: Library and New show");
+      check((await pg.locator("[data-browse] [data-desk-library-link]").count()) === 1, "Find › Browse: the Library");
       // A screenshot before the page has hydrated hides the caret on its input, which React then calls a mismatch.
       await pg.waitForTimeout(800);
       await shot("find");

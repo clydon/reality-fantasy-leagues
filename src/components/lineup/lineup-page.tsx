@@ -274,10 +274,10 @@ function EveryonesLineups({
   myPlayerId: string | null;
   locked: boolean;
 }) {
-  // A courtesy the commissioner can switch on (settings.hideStartersUntilLock): while the episode is
+  // A courtesy the commissioner can switch on (the game spec's extras.hideStarters): while the episode is
   // open, other players' rows say only whether they're set. Not a secret -- every lineup is in the
   // league state the client already holds.
-  const hideOthers = !locked && !!state.settings.hideStartersUntilLock;
+  const hideOthers = !locked && StateLogic.gameOf(state).extras.hideStarters;
   const ordered = [...players.filter((p) => p.id === myPlayerId), ...players.filter((p) => p.id !== myPlayerId)];
   const scored = StateLogic.ActiveRosterLogic.episodeEvents(state, ep).length > 0;
   const top = topStarters(state);

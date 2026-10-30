@@ -1,6 +1,6 @@
 // Dev-only test bank: bot research (db/bot-research.js), end to end. Drives the real schedule through
-// the cron route with a test clock, so the real bot asks the real ChatGPT about a real episode, then
-// checks the admin pages at phone width: the season's schedule and the episode's runs.
+// the cron route with a test clock, so the real bot asks the real ChatGPT about a real episode. (It also checked
+// classic admin's screens until they retired: the desk's are check-desk-research.js's.)
 //
 //   node scripts/dev-test/check-bot-research.js up [show=survivor] [season=51]
 //   node scripts/dev-test/check-bot-research.js run <outDir> [width=390] [episode=5] [--quick-only]
@@ -117,37 +117,8 @@ async function run(pool, out, width, episode, flags) {
     expect(rows[0]?.via === "bot", "the stored research says the bot pasted it");
   }
 
-  // The admin pages, at phone width.
-  const { open } = require("./browser");
-  const { page, errors, close } = await open({ user: ADMIN, pass: PASSWORD, width });
-  await page.goto(`${BASE}/admin/seasons/${f.season_id}/setup`, { waitUntil: "networkidle" });
-  const section = page.locator("section", { hasText: "Ask ChatGPT after each episode airs" });
-  await section.scrollIntoViewIfNeeded();
-  expect(await section.getByText("Experimental").isVisible(), "Setup has the Bot research section, marked experimental");
-  expect(await section.getByText("Quick check, 5 min after it ends").isVisible(), "the schedule lists the quick check");
-  expect(await section.getByText("Full research, 9 h after it ends").isVisible(), "and the 9-hour full research");
-  await page.screenshot({ path: `${out}/bot-setup-${width}.png`, fullPage: true });
-
-  await page.goto(`${BASE}/admin/seasons/${f.season_id}/episodes/${episode}`, { waitUntil: "networkidle" });
-  const runs = page.locator("section", { hasText: "Run quick now" });
-  await runs.scrollIntoViewIfNeeded();
-  expect(await runs.getByText(/ left\./).first().isVisible(), "the episode page shows the quick check's answer");
-  await page.screenshot({ path: `${out}/bot-episode-${width}.png`, fullPage: true });
-
-  await page.getByRole("button", { name: "Start" }).click();
-  await page.getByRole("button", { name: "Ask ChatGPT for me" }).waitFor({ timeout: 15000 });
-  expect(await page.getByText("Experimental").first().isVisible(), "the paste panel's primary is the experimental bot button");
-  // A link once the prompt is built and parked as a brief; a disabled button until then.
-  const chatgpt = page.getByRole("link", { name: /Open in ChatGPT/ });
-  await chatgpt.waitFor({ timeout: 20000 }).catch(() => {});
-  expect(await chatgpt.isVisible(), "with Open in ChatGPT beside Copy");
-  expect((await page.getByRole("link", { name: /Claude|Gemini|Perplexity|Copilot/ }).count()) === 0, "and none of the other chats' test links");
-  await page.screenshot({ path: `${out}/bot-paste-${width}.png`, fullPage: true });
-
-  const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
-  expect(!overflow, "no horizontal scroll");
-  expect(errors.length === 0, `no page errors${errors.length ? `: ${errors.join(" | ")}` : ""}`);
-  await close();
+  // The screens (Setup's schedule, an episode's runs, Run now) were classic admin's, retired at docs/PLAN-desk-parity.md
+  // step 8: the desk's Research page and an episode's page are check-desk-research.js's and check-desk-episode.js's.
   if (failures.length) {
     console.log(`\n${failures.length} failed`);
     process.exitCode = 1;

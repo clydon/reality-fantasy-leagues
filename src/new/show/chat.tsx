@@ -8,6 +8,7 @@ import { chatEarlier, useChatActions, useCouchChat, type ChatLine, type CouchCha
 import type { ShowData } from "../screens/show-space";
 import { Avatar } from "../ui/bars";
 import { Btn, CaptionPlate, EmptyState } from "../ui/parts";
+import { useShown } from "../ui/loaded";
 import { Sheet } from "../ui/sheet";
 import { toast } from "../ui/toast";
 import { useOpenReveal } from "./reveal";
@@ -134,11 +135,13 @@ export function Chat({ seasonId, show }: { seasonId: string; show: ShowData }) {
     return () => window.removeEventListener("scroll", onScroll);
   }, []);
   const newest = messages[messages.length - 1]?.at ?? null;
+  // Once it's on screen (ui/loaded.tsx: hidden, the page has none of its height).
+  const shown = useShown();
   useLayoutEffect(() => {
-    if (!data) return;
+    if (!data || !shown) return;
     if (!placed.current || atBottom.current) window.scrollTo({ top: document.documentElement.scrollHeight, behavior: placed.current ? "smooth" : "instant" });
     placed.current = true;
-  }, [data, messages.length]);
+  }, [data, messages.length, shown]);
 
   // What's on screen is read: the badge clears here and in classic.
   const readUpTo = useRef<string | null>(null);

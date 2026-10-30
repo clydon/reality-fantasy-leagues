@@ -26,13 +26,34 @@ production's database).
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and pushed 2026-10-29 evening: the app fixes** (the desk lane, `03e12bdc`, migration 0431, a new table): back
+  closes a bottom sheet; pages show their loading look once, never content that disappears; early and final results (final
+  at 12:00 noon the day after, in the season's zone, said wherever early results are, with an "Episode N final results are
+  in" push from the hourly job and the reveal to watch again); the research pattern (runs for one episode only, our usual
+  runs as data with "Make this our usual", run times on the hour, no usual run quietly missing; our usual is now who went
+  home at the episode's end, full results 1 h and 12 h after). Players' reminders go for every airing season (`666123fe`).
+  **Waiting on the user:** Survivor 51 keeps its own saved schedule (with a schedule check), so the desk lists the usual runs
+  it differs from until they're added there, or the schedule is reset to our usual. Leftovers: [BACKLOG](BACKLOG.md) 26.
+- **Merged and pushed 2026-10-29: the desk, steps 1–8** ([PLAN-desk-parity.md](PLAN-desk-parity.md); built in the desk lane;
+  steps 1–7 `ce42872b` with migrations 0420–0430, rehearsed on a Neon branch; step 8 `77b817a1`, no migration). `/desk` does
+  classic `/admin`'s work, and `/admin` now sends a site admin to the desk's page for the same thing. Step 8 also retired the
+  nightly wiki read and paid Claude research's hourly step (the job is now Reminders and waivers). What's New as data (part 7d)
+  is postponed (the user: too few players yet); players on the classic design keep its popup. Which AI our bot asks stays
+  ChatGPT: production's bot (the VM) has no Claude Code CLI signed in. **Waiting on the user:** removing the
+  `ANTHROPIC_API_KEY` and `GEMINI_API_KEY` Actions secrets (nothing reads them now), and which seasons get players' lineup
+  reminders ([BACKLOG](BACKLOG.md) 23).
 - **Merged and deployed 2026-10-28** (`eb1e19f0`): S1 and S2 (Survivor's blocks and research's checks as rulebook data). A Neon
   snapshot branch, `pre-s2-2026-10-28`, was made first. Then the **test couch was made in production** (Settings › Test couch:
   "Test · Survivor 51", copied from the couch's three Survivor 51 games, on Today's rules as a rulebook). Tonight's episode is
   the first of the two S3 needs, with every table matching the real games at today's points.
+- **The PC's bot asks Codex** since 2026-10-30 (the Codex CLI on the user's ChatGPT plan: it stays signed in, where the
+  web page signed itself out three times on 2026-10-29; locked to web search; HOSTING.md has the limits). The season tapes
+  record on it from `rfl-playtest` through a second copy of the bot at `127.0.0.1:8766`, pausing at 90% of a 5-hour window
+  and 80% of the week; `tapes.js requeue` put the 98 files that gave up while ChatGPT was signed out back in the queue.
+  **Waiting on the user:** restart the main bot (8765) on the new code, then the tapes move back to it and 8766 goes. The
+  playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** A1–A3 and A4 part 1 (`engine`; A4 part 2 in progress), the playtests (`playtest`), the sports
-  plan's pointer (`sports`). Waiting on the user: S3 after two matching episodes, A2's game-specs flag on a Neon branch, the
+- **On branches, not merged:** the engine's A1–A9, F1–F4 and A10 so far (`engine`; A1–A4 merge first), the sports plan's pointer (`sports`). Waiting on the user: S3 after two matching episodes, A2's game-specs flag on a Neon branch, the
   rule questions in the plan's "Where the engine is headed", and an engine lab (yes or no).
 
 ## Next: moving the app onto the new design (plan written 2026-10-23)
@@ -124,7 +145,12 @@ waits for a reveal unless someone left in what you haven't seen (a sport's games
 `scripts/dev-test/check-episode-lock.js` 22 PASS at 390 (its `b.settle()` crashed headless Chromium on the Start sheet,
 the page itself fine: waits instead); tests/episode-lock.test.js; unit tests 752.
 
-**The desk catches up with classic's admin (planned 2026-10-27): [PLAN-desk-parity.md](PLAN-desk-parity.md).** The gap audit, the user's decisions (Act as them = classic's impersonation, logged; every gap designed now; phone first), eight steps (people and Act as first), and the design brief; the mock designs come next, after the brief is confirmed.
+**The desk catches up with classic's admin (planned 2026-10-27): [PLAN-desk-parity.md](PLAN-desk-parity.md).** The gap audit, the user's decisions (Act as them = classic's impersonation, logged; every gap designed now; phone first), eight steps (people and Act as first), and the design brief. **The design pass (2026-10-28):** every step's screens are in the
+site mock, and the user approved steps 1-7 that evening with two changes: What's New becomes data, drafted on the desk (one
+screen still to mock, before part 7c), and no wiki (so no paid Claude research either); plus a standing rule, classic isn't the
+spec (decisions 8-10). **The build runs in the desk lane** (`C:\Users\conor\rfl-desk`, branch `desk`, port 3003, migrations
+0420-0449; made and checked) from the weekly reset, Thursday 2026-10-29 at 4 PM ET, in 17 parts: the plan's "The build lane"
+has the parts, the rules and the switch's four commands.
 
 **The Start-a-game GPT, on games as data (planned 2026-10-27): [PLAN-start-a-game-gpt.md](PLAN-start-a-game-gpt.md).**
 Someone types the game they want. Our ChatGPT bot turns the words into a request, our code turns that into a game spec (every

@@ -5,6 +5,7 @@ import { groupLeagueIds, groupOrder } from "./league-groups";
 import { leagueState, leagueStates } from "./league-states";
 import { markResultsSeen, resultsSeenThrough } from "./results-seen";
 import { leftOutOfBroadcasts } from "./push-targets";
+import { seatMark } from "./shared-seats";
 
 // Late joiners' server half (StateLogic.GhostLogic, docs/PLAN-late-joiners.md).
 
@@ -16,11 +17,8 @@ export async function catchingUpMark(leagueId: string, state: LeagueState, playe
   if (!playerId || !StateLogic.GhostLogic.isCatchingUp(state, playerId)) return null;
   const late = StateLogic.GhostLogic.lateJoinOf(state, playerId);
   if (!late || late.startEpisode === null) throw new HttpError(400, "Choose where to start first");
-  const { rows } = await pool.query("SELECT results_seen_through FROM league_memberships WHERE league_id=$1 AND player_id=$2", [
-    leagueId,
-    playerId,
-  ]);
-  return rows[0]?.results_seen_through ?? late.startEpisode - 1;
+  // A team two people share (step A10 part 4b): the lowest of their marks, so neither is carried past what they've seen.
+  return (await seatMark(pool, leagueId, playerId, late.startEpisode - 1)) ?? late.startEpisode - 1;
 }
 
 /** For the moves a late joiner sits out until they've caught up (side bets, finale predictions). */

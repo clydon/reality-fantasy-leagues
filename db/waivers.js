@@ -5,7 +5,7 @@
 //   node db/waivers.js          # do whatever is due now
 //   node db/waivers.js --dry    # say what would happen; change, record and send nothing
 //
-// Run hourly by .github/workflows/auto-research.yml, after reminders.js. The app runs the same clock
+// Run hourly by .github/workflows/reminders-waivers.yml, after reminders.js. The app runs the same clock
 // lazily (withLeagueLock in src/lib/server/db.ts, on any write or a load with a step due), with the same
 // code (src/lib/server/waivers.js syncWaivers) under the same row lock, so a week processes exactly
 // once whichever gets there first, and whoever processed it announces it (waiver-pushes.js
@@ -21,7 +21,7 @@ const Air = require("../src/lib/game/air-schedule.js");
 const StateLogic = require("../src/lib/game/state-logic.js");
 const { syncWaivers } = require("../src/lib/server/waivers.js");
 const WP = require("../src/lib/server/waiver-pushes.js");
-const { loadSeasons } = require("./auto-research.js");
+const { loadSeasons } = require("./season-clock.js");
 
 // Each episode's air time from the league's season (air-times.ts's rule, on seasons loaded once).
 function stampAirTimes(state, seasons) {

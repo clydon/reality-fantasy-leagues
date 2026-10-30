@@ -41,7 +41,7 @@ const RESEARCH_OPTIONAL_CODE = ['episodeProblems'];
 const ROLES_DATA = ['default', 'values', 'becomes'];
 const ROLES_CODE = ['roleFor'];
 // Keys research's episode-level answer already has (db/episode-research.js researchSchemaFor).
-const EPISODE_RESERVED = ['episodeTitle', 'airDate', 'summary', 'rulesNote', 'castaways', 'betAnswers', 'merged', 'sourcesRead'];
+const EPISODE_RESERVED = ['episodeTitle', 'airDate', 'summary', 'rulesNote', 'castaways', 'betAnswers', 'merged', 'sourcesRead', 'formatState'];
 
 const isText = (v) => typeof v === 'string' && v.trim() !== '';
 const isTextList = (v, { empty = true } = {}) => Array.isArray(v) && (empty || v.length > 0) && v.every(isText);

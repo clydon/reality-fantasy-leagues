@@ -34,6 +34,7 @@ const S = require("../../src/lib/game/state-logic.js");
     // (and its "League start" mark). --tribes: split the cast into two tribes for the tribe filter.
     const start = Number(flags.find((f) => f.startsWith("--start="))?.slice(8) || 0);
     if (start > 1) state.settings.startEpisode = start;
+    S.syncGame(state); // a league carrying its spec (the game-specs flag) carries what its fields now play
     if (flags.includes("--tribes")) {
       state.tribes = [{ id: "zt-tribe-a", name: "Savu", color: "#7b5cd6" }, { id: "zt-tribe-b", name: "Toka", color: "#f5c518" }];
       state.castaways.forEach((c, i) => (c.tribeId = i % 2 ? "zt-tribe-b" : "zt-tribe-a"));

@@ -20,7 +20,6 @@ import { LeagueMenu, LeagueMenuActions } from "@/components/league-menu";
 import { LeagueStrip, useLinkedGroup } from "@/components/league-strip";
 import { ThemePicker } from "@/components/theme-picker";
 import { useWhatsNewCount, useWhatsNewPreview } from "@/components/whats-new-modal";
-import { useAdminWaiting } from "@/components/admin/admin-shell";
 import {
   TvIcon,
   ChatIcon,
@@ -133,7 +132,7 @@ export function Sidebar() {
       </nav>
 
       <div className="mt-auto flex flex-col gap-2">
-        {isSuperAdmin && <AdminRow active={pathname.startsWith("/admin")} />}
+        {isSuperAdmin && <AdminRow />}
         <AccountRow />
       </div>
     </aside>
@@ -269,10 +268,9 @@ function NavRow({
   );
 }
 
-// Super-admins only, with a dot while Admin's To do has anything (the admin tab bar's own check).
-function AdminRow({ active }: { active: boolean }) {
-  const waiting = useAdminWaiting();
-  return <NavRow href="/admin" label="Admin" icon={ShieldIcon} active={active} badge={waiting ? { kind: "dot" } : null} />;
+// Super-admins only: the desk (classic's admin retired at docs/PLAN-desk-parity.md step 8).
+function AdminRow() {
+  return <NavRow href="/desk" label="Admin" icon={ShieldIcon} active={false} />;
 }
 
 // The guided tour from wherever you are (docs/PLAN-guided-tour.md): its league replaces the one

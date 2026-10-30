@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
+import { classicArtStyle } from "@/lib/art-frame";
 import { pool } from "@/lib/server/db";
 
 // The art an admin chose for the curated shows (shows.art_url and art_style), for the front door's
@@ -13,5 +14,7 @@ export const GET = apiRoute(async () => {
       WHERE archived = false AND created_by IS NULL AND COALESCE(art_url, '') <> ''
       ORDER BY name`
   );
+  // A framing the desk set on another image (a season's poster) isn't this one's (art-frame.ts).
+  for (const r of rows) r.artStyle = classicArtStyle(r.artStyle, r.artUrl);
   return NextResponse.json({ shows: rows }, { headers: { "Cache-Control": "public, max-age=300" } });
 });

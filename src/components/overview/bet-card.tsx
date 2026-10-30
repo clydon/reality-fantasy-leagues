@@ -10,7 +10,7 @@ import { useMutate } from "@/lib/use-mutate";
 import { api } from "@/lib/api";
 import { BottomSheet, SheetAction } from "@/components/ui/bottom-sheet";
 import { MoreButton, fieldCls } from "@/components/setup/settings-ui";
-import { ActButton } from "@/components/admin/admin-ui";
+import { ActButton } from "@/components/ui/act-ui";
 import { GuessLine, QuestionLine } from "@/components/predictions/prediction-ui";
 
 // One open prediction on Overview (renderBetCard() in public/app.js, restyled for direction A): the
@@ -29,7 +29,8 @@ export function BetCard({ ep, bet, state }: { ep: Episode; bet: Bet; state: Leag
 
   const guesses = bet.predictions || [];
   const mine = myPlayerId ? guesses.find((p) => p.playerId === myPlayerId) : null;
-  const canGuessThis = canGuessBets && !mine;
+  // A guess locks when the episode starts, as a lineup does (BetLogic.closed, step A4).
+  const canGuessThis = canGuessBets && !mine && !StateLogic.BetLogic.closed(ep);
   const isCreator = !!myPlayerId && bet.createdByPlayerId === myPlayerId;
   const canDelete = canManage || (isCreator && guesses.length < 2);
   const needsOneMore = guesses.length === 1 && !isBetSettled(bet);

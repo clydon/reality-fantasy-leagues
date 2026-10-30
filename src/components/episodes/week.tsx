@@ -180,7 +180,7 @@ function YourWeek({ ep, state, now }: { ep: Episode; state: LeagueState; now: nu
     }
   }
 
-  if (state.settings.bonusEnabled) {
+  if (StateLogic.betsOn(state)) {
     const bets = ep.bets || [];
     const open = bets.filter((b) => !(b.predictions || []).some((p) => p.playerId === me)).length;
     if (bets.length > 0 || !locked) {

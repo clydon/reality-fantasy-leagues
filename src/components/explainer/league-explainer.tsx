@@ -197,7 +197,7 @@ function Explainer() {
       detail: `The longer they last, the more they earn. The winner of ${pool.length} ends on ${pool.length}.`,
       visual: <Ladder sample={sample} size={pool.length} onShuffle={shuffle} />,
     });
-    if (settings.bonusEnabled) {
+    if (StateLogic.betsOn(raw)) {
       cards.push({
         id: "bets",
         fake: true,

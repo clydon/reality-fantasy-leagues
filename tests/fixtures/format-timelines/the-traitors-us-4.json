@@ -1,0 +1,342 @@
+{
+ "show": "the-traitors-us",
+ "season": 4,
+ "title": "The Traitors (US) season 4",
+ "source": {
+  "page": "The Traitors (American TV series) season 4",
+  "site": "en.wikipedia.org",
+  "revision": 1382036898,
+  "sections": [
+   "Format",
+   "Contestants",
+   "Voting history"
+  ],
+  "read": "2026-10-28"
+ },
+ "names": "tapes",
+ "episodes": [
+  {
+   "n": 1,
+   "phase": "Game",
+   "play": "everyone",
+   "out": [],
+   "note": "Alan picks three Traitors (Lisa, Candiace, Rob R.) and, in secret, a Secret Traitor (Donna) who shortlists the murders."
+  },
+  {
+   "n": 2,
+   "phase": "Game",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Ian Terry",
+     "how": "murdered"
+    },
+    {
+     "name": "Porsha Williams",
+     "how": "banished"
+    }
+   ]
+  },
+  {
+   "n": 3,
+   "phase": "Game",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Rob Cesternino",
+     "how": "murdered"
+    },
+    {
+     "name": "Donna Kelce",
+     "how": "banished"
+    }
+   ],
+   "note": "Donna, the Secret Traitor, banished before meeting the Traitors."
+  },
+  {
+   "n": 4,
+   "phase": "Game",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Caroline Stanbury",
+     "how": "murdered"
+    },
+    {
+     "name": "Tiffany Mitchell",
+     "how": "banished"
+    }
+   ]
+  },
+  {
+   "n": 5,
+   "phase": "Game",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Monét X Change",
+     "how": "murdered"
+    },
+    {
+     "name": "Michael Rapaport",
+     "how": "banished"
+    }
+   ]
+  },
+  {
+   "n": 6,
+   "phase": "Game",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Ron Funches",
+     "how": "banished"
+    }
+   ],
+   "note": "Nobody took a shield, so no murder that night."
+  },
+  {
+   "n": 7,
+   "phase": "Game",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Yamil “Yam Yam” Arocho",
+     "how": "murdered"
+    },
+    {
+     "name": "Lisa Rinna",
+     "how": "banished"
+    }
+   ]
+  },
+  {
+   "n": 8,
+   "phase": "Game",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Colton Underwood",
+     "how": "murdered"
+    },
+    {
+     "name": "Candiace Dillard Bassett",
+     "how": "banished"
+    }
+   ],
+   "note": "After Candiace's banishment Rob R. gives Eric an ultimatum: become a Traitor or be murdered."
+  },
+  {
+   "n": 9,
+   "phase": "Game",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Dorinda Medley",
+     "how": "murdered"
+    },
+    {
+     "name": "Stephen Colletti",
+     "how": "banished"
+    }
+   ],
+   "note": "Eric accepts and joins the Traitors."
+  },
+  {
+   "n": 10,
+   "phase": "Game",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Kristen Kish",
+     "how": "murdered"
+    },
+    {
+     "name": "Natalie Anderson",
+     "how": "banished"
+    }
+   ]
+  },
+  {
+   "n": 11,
+   "phase": "Endgame",
+   "play": "everyone",
+   "out": [
+    {
+     "name": "Mark Ballas",
+     "how": "murdered"
+    },
+    {
+     "name": "Johnny Weir",
+     "how": "banished"
+    },
+    {
+     "name": "Tara Lipinski",
+     "how": "banished"
+    },
+    {
+     "name": "Eric Nam",
+     "how": "banished"
+    },
+    {
+     "name": "Maura Higgins",
+     "how": "placed"
+    },
+    {
+     "name": "Rob Rausch",
+     "how": "won"
+    }
+   ],
+   "note": "The endgame: the Fire of Truth, banished without a reveal."
+  },
+  {
+   "n": 12,
+   "phase": "Reunion",
+   "play": "none",
+   "out": []
+  }
+ ],
+ "groupings": {},
+ "roles": [
+  {
+   "from": [
+    1,
+    "start"
+   ],
+   "shown": [
+    1,
+    "start"
+   ],
+   "role": "Traitor",
+   "members": [
+    "Candiace Dillard Bassett",
+    "Lisa Rinna",
+    "Rob Rausch"
+   ]
+  },
+  {
+   "from": [
+    1,
+    "start"
+   ],
+   "shown": [
+    3,
+    "mid"
+   ],
+   "role": "Secret Traitor",
+   "members": [
+    "Donna Kelce"
+   ]
+  },
+  {
+   "from": [
+    9,
+    "start"
+   ],
+   "shown": [
+    8,
+    "end"
+   ],
+   "role": "Traitor",
+   "members": [
+    "Eric Nam"
+   ],
+   "how": "recruited by ultimatum"
+  }
+ ],
+ "twists": [
+  {
+   "kind": "twist",
+   "from": [
+    1,
+    "start"
+   ],
+   "shown": [
+    1,
+    "start"
+   ],
+   "what": "The Secret Traitor: hidden from the Traitors (and the audience), shortlists the murders.",
+   "words": [
+    "secret traitor"
+   ]
+  },
+  {
+   "kind": "twist",
+   "from": [
+    2,
+    "mid"
+   ],
+   "shown": [
+    2,
+    "mid"
+   ],
+   "what": "A murder in plain sight: burn a shortlisted Faithful's card in the breakfast room.",
+   "words": [
+    "plain sight"
+   ]
+  },
+  {
+   "kind": "twist",
+   "from": [
+    5,
+    "mid"
+   ],
+   "shown": [
+    5,
+    "mid"
+   ],
+   "what": "A collective shield: if nobody takes one, nobody can be murdered that night.",
+   "words": [
+    "shield"
+   ]
+  },
+  {
+   "kind": "twist",
+   "from": [
+    7,
+    "mid"
+   ],
+   "shown": [
+    7,
+    "mid"
+   ],
+   "what": "The Dagger: two votes at one of the next four Round Tables.",
+   "words": [
+    "dagger"
+   ]
+  },
+  {
+   "kind": "role",
+   "from": [
+    9,
+    "start"
+   ],
+   "shown": [
+    8,
+    "end"
+   ],
+   "what": "Recruitment by ultimatum: Eric becomes a Traitor.",
+   "words": [
+    "ultimatum",
+    "recruit"
+   ]
+  },
+  {
+   "kind": "new-phase",
+   "from": [
+    11,
+    "mid"
+   ],
+   "shown": [
+    11,
+    "mid"
+   ],
+   "what": "The endgame: the Fire of Truth, banishments without a reveal.",
+   "words": [
+    "fire of truth",
+    "end the game",
+    "endgame"
+   ]
+  }
+ ]
+}

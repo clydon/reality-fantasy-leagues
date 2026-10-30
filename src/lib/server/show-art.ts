@@ -1,4 +1,8 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+import type { PoolClient } from "pg";
 import { after } from "next/server";
+import { frameFor, type Frame } from "@/lib/art-frame";
+export { cleanArtLink } from "@/lib/art-frame";
 import {
   artCandidates,
   isFormulaOne,
@@ -31,8 +35,9 @@ import { applyApprovedCastToLeagues, seasonCastRows } from "./season-cast";
 //   * Wikipedia (no key) for a sport's athletes: only freely licensed photos, through Jolpica's links for Formula 1, else a
 //     search by name and the sport. Wikimedia rate-limits bursts, so it's asked in batches, one call at a time.
 //
-// An admin's choice is never changed (shows.art_by_hand, show_seasons.art_by_hand, a photo the finder didn't bring:
-// replaceablePhoto), and a show with art_off gets nothing. Spoilers: only names and photos are read from a season's credits.
+// An admin's choice is never changed (each frame's own: shows.art_by_hand for the poster, backdrop_by_hand for the header,
+// show_seasons.art_by_hand; a photo the finder didn't bring: replaceablePhoto), and a show with art_off gets nothing.
+// Spoilers: only names and photos are read from a season's credits.
 
 const TMDB = "https://api.themoviedb.org/3";
 const WIKI = "https://en.wikipedia.org/w/api.php?format=json&formatversion=2";
@@ -43,7 +48,27 @@ const TIMEOUT_MS = 8000;
 /** TMDB's data may be kept six months; re-ask a little before. */
 export const RECHECK_DAYS = 150;
 
-export const tmdbOn = () => !!process.env.TMDB_READ_TOKEN;
+/** A check's TMDB stand-in for what runs inside withTmdbFor (scripts/dev-test/fake-tmdb.js). */
+const standIn = new AsyncLocalStorage<string>();
+
+/**
+ * Runs `fn` asking TMDB, or (`next dev` only, a loopback address) a check's stand-in named by the request's `x-gys-tmdb`
+ * header, so checks never depend on TMDB. Production never reads the header.
+ */
+export function withTmdbFor<T>(req: Request, fn: () => Promise<T>): Promise<T> {
+  const asked = process.env.NODE_ENV === "development" ? req.headers.get("x-gys-tmdb") : null;
+  if (asked) {
+    try {
+      const u = new URL(asked);
+      if (u.protocol === "http:" && (u.hostname === "127.0.0.1" || u.hostname === "localhost")) return standIn.run(u.origin, fn);
+    } catch {
+      /* not a URL: TMDB, as for anyone */
+    }
+  }
+  return fn();
+}
+
+export const tmdbOn = () => !!standIn.getStore() || !!process.env.TMDB_READ_TOKEN;
 
 async function getJson<T>(url: string, headers: Record<string, string> = {}): Promise<T | null> {
   try {
@@ -59,7 +84,11 @@ async function getJson<T>(url: string, headers: Record<string, string> = {}): Pr
   }
 }
 
-const tmdb = <T>(path: string) => (tmdbOn() ? getJson<T>(TMDB + path, { Authorization: `Bearer ${process.env.TMDB_READ_TOKEN}` }) : Promise.resolve(null));
+const tmdb = <T>(path: string) => {
+  const base = standIn.getStore();
+  if (base) return getJson<T>(base + path);
+  return tmdbOn() ? getJson<T>(TMDB + path, { Authorization: `Bearer ${process.env.TMDB_READ_TOKEN}` }) : Promise.resolve(null);
+};
 
 // ---------- the show on TMDB ----------
 
@@ -120,7 +149,7 @@ export async function linkTmdb(show: ShowRow, listingsBase?: string): Promise<nu
 
 // ---------- art ----------
 
-/** A show's art from TMDB (poster, backdrop, logo), unless an admin chose it or it's off. */
+/** A show's art from TMDB (poster, backdrop, logo), each unless an admin chose it, or none while it's off. */
 export async function fillShowArt(showId: string, listingsBase?: string): Promise<boolean> {
   const show = await showRow(showId);
   if (!show || show.art_off || !tmdbOn()) return false;
@@ -128,8 +157,8 @@ export async function fillShowArt(showId: string, listingsBase?: string): Promis
   const picked = tmdbId ? pickArt(await tmdb<TmdbImages>(`/tv/${tmdbId}/images?include_image_language=en,null`)) : null;
   await pool.query(
     `UPDATE shows SET art_url = CASE WHEN art_by_hand THEN art_url ELSE COALESCE($2, art_url) END,
-            backdrop_url = CASE WHEN art_by_hand THEN backdrop_url ELSE COALESCE($3, backdrop_url) END,
-            logo_url = CASE WHEN art_by_hand THEN logo_url ELSE COALESCE($4, logo_url) END,
+            backdrop_url = CASE WHEN backdrop_by_hand THEN backdrop_url ELSE COALESCE($3, backdrop_url) END,
+            logo_url = COALESCE($4, logo_url),
             art_checked_at = now()
       WHERE id = $1`,
     [showId, picked?.poster ?? null, picked?.backdrop ?? null, picked?.logo ?? null]
@@ -527,7 +556,27 @@ export async function artChoices(showId: string, seasonId: string | null, listin
   return { tmdb: true, linked: true, show: artCandidates(showImages), season: artCandidates({ posters: seasonImages?.posters }) };
 }
 
-// ---------- the desk: what a show has, Choose art, back to automatic, the off switch ----------
+// ---------- the desk: what a show has, per frame; Choose art, TMDB on its own, a link, framing, the off switch ----------
+
+/** The header (shows.backdrop_url: its page and Up next) and the cards (a season's poster, else the show's: Your shows and the
+ *  guide), each with where it's from and its framing (docs/PLAN-desk-parity.md part 7b, Noticed x). */
+export type ArtFrameKey = "header" | "cards";
+export const ART_FRAMES: readonly ArtFrameKey[] = ["header", "cards"];
+
+/** TMDB's or TVmaze's, found on their own; chosen from TMDB by hand; a link by hand; or nothing. */
+export type ArtSource = "tmdb" | "tvmaze" | "chosen" | "link" | "none";
+
+export interface DeskFrame {
+  /** The image drawn: the header's backdrop (null: its page shows the cards' instead), the newest season's cards. */
+  url: string | null;
+  source: ArtSource;
+  /** Its framing; null is as it comes (art-frame.ts UNFRAMED). */
+  frame: Frame | null;
+  /** The cards': the season whose own poster it is ("Survivor 51"), null for the show's own. */
+  season: string | null;
+  /** Something in it is chosen or linked by hand, so the finder leaves it alone (TMDB, on its own lets it go). */
+  held: boolean;
+}
 
 export interface DeskArt {
   /** TMDB_READ_TOKEN is set (else only TVmaze's posters arrive). */
@@ -540,51 +589,224 @@ export interface DeskArt {
   off: boolean;
   checkedAt: string | null;
   seasons: { id: string; poster: string | null; byHand: boolean }[];
+  header: DeskFrame;
+  cards: DeskFrame;
+  /** Each season's cast photos, newest first: how many of its cast have one. */
+  photos: { id: string; name: string; number: number; cast: number; with: number }[];
 }
 
-export async function deskArt(showId: string): Promise<DeskArt> {
-  const { rows } = await pool.query("SELECT tmdb_id, art_url, backdrop_url, art_by_hand, art_off, art_checked_at FROM shows WHERE id = $1", [showId]);
-  const s = rows[0];
-  const { rows: seasons } = await pool.query("SELECT id, art_url, art_by_hand FROM show_seasons WHERE show_id = $1 ORDER BY season_number DESC", [showId]);
+const onTmdb = (url: string | null | undefined) => !!url && /^https:\/\/image\.tmdb\.org\//.test(url);
+const onTvmaze = (url: string | null | undefined) => !!url && /^https:\/\/static\.tvmaze\.com\//.test(url);
+const found = (url: string): ArtSource => (onTvmaze(url) ? "tvmaze" : "tmdb");
+const handPicked = (url: string): ArtSource => (onTmdb(url) ? "chosen" : "link");
+
+interface ArtShow {
+  name: string;
+  tmdb_id: number | null;
+  art_url: string | null;
+  backdrop_url: string | null;
+  art_by_hand: boolean;
+  backdrop_by_hand: boolean;
+  art_link: boolean;
+  art_off: boolean;
+  art_style: unknown;
+  backdrop_style: unknown;
+  art_checked_at: Date | null;
+}
+interface ArtSeason {
+  id: string;
+  name: string;
+  season_number: number;
+  art_url: string | null;
+  art_by_hand: boolean;
+}
+
+/** The header as the app draws it: the show's backdrop, framed. */
+function headerOf(s: ArtShow): DeskFrame {
+  const url = s.art_off ? null : s.backdrop_url || null;
   return {
-    tmdb: tmdbOn(),
-    linked: !!s?.tmdb_id,
-    poster: s?.art_url || null,
-    backdrop: s?.backdrop_url || null,
-    byHand: !!s?.art_by_hand,
-    off: !!s?.art_off,
-    checkedAt: s?.art_checked_at ? s.art_checked_at.toISOString() : null,
-    seasons: seasons.map((x) => ({ id: x.id, poster: x.art_url || null, byHand: !!x.art_by_hand })),
+    url,
+    source: !url ? "none" : s.backdrop_by_hand ? handPicked(url) : found(url),
+    frame: frameFor(s.backdrop_style, url, url),
+    season: null,
+    held: s.backdrop_by_hand,
   };
 }
 
-/** Only TMDB's own image host may be chosen through Choose art (a pasted URL goes through the classic admin's field). */
+/** The cards as the app draws them for the newest season (art-sql.ts cardArtSql): the show's link over every season's own
+ *  poster, else the season's own, else the show's. */
+function cardsOf(s: ArtShow, newest: ArtSeason | undefined, seasons: ArtSeason[] = []): DeskFrame {
+  const own = s.art_off ? null : s.art_url || null;
+  const season = !s.art_off && !s.art_link && newest?.art_url ? newest : null;
+  const url = season ? season.art_url : own;
+  const source: ArtSource = !url
+    ? "none"
+    : s.art_link
+      ? "link"
+      : season
+        ? season.art_by_hand
+          ? "chosen"
+          : found(url)
+        : s.art_by_hand
+          ? handPicked(url)
+          : found(url);
+  return { url, source, frame: frameFor(s.art_style, url, s.art_url), season: season?.name ?? null, held: s.art_by_hand || s.art_link || seasons.some((x) => x.art_by_hand) };
+}
+
+const ART_COLUMNS = "name, tmdb_id, art_url, backdrop_url, art_by_hand, backdrop_by_hand, art_link, art_off, art_style, backdrop_style, art_checked_at";
+
+async function artRows(showId: string, db: Pick<PoolClient, "query"> = pool, lock = false): Promise<{ show: ArtShow; seasons: ArtSeason[] }> {
+  const { rows } = await db.query(`SELECT ${ART_COLUMNS} FROM shows WHERE id = $1${lock ? " FOR UPDATE" : ""}`, [showId]);
+  if (!rows.length) throw new Error("Show not found");
+  const { rows: seasons } = await db.query(
+    `SELECT ss.id, COALESCE(ss.name, s.name || ' ' || ss.season_number) AS name, ss.season_number, ss.art_url, ss.art_by_hand
+       FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.show_id = $1 ORDER BY ss.season_number DESC`,
+    [showId]
+  );
+  return { show: rows[0], seasons };
+}
+
+export async function deskArt(showId: string): Promise<DeskArt> {
+  const [{ show: s, seasons }, { rows: photos }] = await Promise.all([
+    artRows(showId),
+    pool.query(
+      `SELECT ss.id, count(sc.id)::int AS cast_n, count(sc.id) FILTER (WHERE COALESCE(sc.photo_url, '') <> '')::int AS with_n
+         FROM show_seasons ss LEFT JOIN season_cast sc ON sc.season_id = ss.id WHERE ss.show_id = $1 GROUP BY ss.id`,
+      [showId]
+    ),
+  ]);
+  const castOf = new Map(photos.map((p) => [p.id as string, p]));
+  return {
+    tmdb: tmdbOn(),
+    linked: !!s.tmdb_id,
+    poster: s.art_url || null,
+    backdrop: s.backdrop_url || null,
+    byHand: s.art_by_hand || s.backdrop_by_hand,
+    off: s.art_off,
+    checkedAt: s.art_checked_at ? s.art_checked_at.toISOString() : null,
+    seasons: seasons.map((x) => ({ id: x.id, poster: x.art_url || null, byHand: x.art_by_hand })),
+    header: headerOf(s),
+    cards: cardsOf(s, seasons[0], seasons),
+    photos: seasons.map((x) => ({ id: x.id, name: x.name, number: x.season_number, cast: castOf.get(x.id)?.cast_n ?? 0, with: castOf.get(x.id)?.with_n ?? 0 })),
+  };
+}
+
+/** Everything the desk's art changes touch, to put back on Undo (desk-show-art.ts) and to tell whether it moved since. */
+export interface ArtSnapshot {
+  show: Omit<ArtShow, "name" | "tmdb_id" | "art_checked_at"> & { logo_url: string | null };
+  seasons: [string, string | null, boolean][];
+}
+
+export async function artSnapshot(showId: string, db: Pick<PoolClient, "query"> = pool): Promise<ArtSnapshot> {
+  const { rows } = await db.query(
+    "SELECT art_url, backdrop_url, logo_url, art_by_hand, backdrop_by_hand, art_link, art_off, art_style, backdrop_style FROM shows WHERE id = $1",
+    [showId]
+  );
+  const { rows: seasons } = await db.query("SELECT id, art_url, art_by_hand FROM show_seasons WHERE show_id = $1 ORDER BY id", [showId]);
+  return { show: rows[0], seasons: seasons.map((x) => [x.id, x.art_url, x.art_by_hand]) };
+}
+
+export async function putArtBack(showId: string, was: ArtSnapshot, db: Pick<PoolClient, "query"> = pool) {
+  const w = was.show;
+  await db.query(
+    `UPDATE shows SET art_url = $2, backdrop_url = $3, logo_url = $4, art_by_hand = $5, backdrop_by_hand = $6, art_link = $7, art_off = $8,
+            art_style = $9::jsonb, backdrop_style = $10::jsonb, updated_at = now() WHERE id = $1`,
+    [showId, w.art_url, w.backdrop_url, w.logo_url, w.art_by_hand, w.backdrop_by_hand, w.art_link, w.art_off, w.art_style == null ? null : JSON.stringify(w.art_style), w.backdrop_style == null ? null : JSON.stringify(w.backdrop_style)]
+  );
+  for (const [id, url, byHand] of was.seasons) await db.query("UPDATE show_seasons SET art_url = $3, art_by_hand = $4 WHERE id = $2 AND show_id = $1", [showId, id, url, byHand]);
+}
+
+/** Only TMDB's own image host may be chosen through Choose art (a link is the frame's own: setArtLink). */
 const chosen = (url: unknown) => (typeof url === "string" && /^https:\/\/image\.tmdb\.org\/t\/p\/[a-z0-9_]+\/[\w.-]+$/i.test(url) ? url : null);
 
-/** Choose art: the show's poster or header image, or a season's poster, chosen by hand (the finder leaves it alone after). */
+/** The cards' style without any framing (classic's colour and strength stay), as SQL: a new show poster starts unframed,
+ *  classic's framing of the old one too. */
+const CARDS_UNFRAMED = "NULLIF(COALESCE(art_style, '{}'::jsonb) - 'frame' - 'x' - 'y' - 'zoom', '{}'::jsonb)";
+/** Without the desk's framing only (art_style.frame): the show's own poster is unchanged, so classic's framing of it stays. */
+const DESK_UNFRAMED = "NULLIF(COALESCE(art_style, '{}'::jsonb) - 'frame', '{}'::jsonb)";
+
+/** Choose art: the header's image, the show's poster or a season's, chosen by hand (the finder leaves that frame alone after;
+ *  a poster chosen puts the cards back on posters, from a link). Its framing starts over. */
 export async function chooseArt(showId: string, body: { poster?: unknown; backdrop?: unknown; seasonId?: unknown; seasonPoster?: unknown }): Promise<string> {
   const poster = chosen(body.poster);
   const backdrop = chosen(body.backdrop);
   const seasonPoster = chosen(body.seasonPoster);
-  if (poster || backdrop) {
-    await pool.query(
-      "UPDATE shows SET art_url = COALESCE($2, art_url), backdrop_url = COALESCE($3, backdrop_url), art_by_hand = true, art_off = false, updated_at = now() WHERE id = $1",
-      [showId, poster, backdrop]
-    );
-    return poster ? "the cards' poster" : "the header's image";
+  if (backdrop) {
+    await pool.query("UPDATE shows SET backdrop_url = $2, backdrop_by_hand = true, backdrop_style = NULL, art_off = false, updated_at = now() WHERE id = $1", [showId, backdrop]);
+    return "the header's image";
   }
-  if (seasonPoster && typeof body.seasonId === "string") {
+  if (poster) {
+    await pool.query(`UPDATE shows SET art_url = $2, art_by_hand = true, art_link = false, art_style = ${CARDS_UNFRAMED}, art_off = false, updated_at = now() WHERE id = $1`, [showId, poster]);
+    return "the cards' poster";
+  }
+  if (seasonPoster && typeof body.seasonId === "string" && /^[0-9a-f-]{36}$/i.test(body.seasonId)) {
     const { rowCount } = await pool.query("UPDATE show_seasons SET art_url = $3, art_by_hand = true WHERE id = $2 AND show_id = $1", [showId, body.seasonId, seasonPoster]);
-    if (rowCount) return "the season's poster";
+    if (rowCount) {
+      await pool.query(`UPDATE shows SET art_link = false, art_style = ${DESK_UNFRAMED}, updated_at = now() WHERE id = $1`, [showId]);
+      return "the season's poster";
+    }
   }
   throw new Error("Pick one of TMDB's images");
 }
 
-/** Back to automatic: nothing chosen by hand any more, and the finder looks again now. */
-export async function artAutomatic(showId: string, listingsBase?: string) {
-  await pool.query("UPDATE shows SET art_by_hand = false, updated_at = now() WHERE id = $1", [showId]);
+/** TMDB, on its own, for one frame: nothing in it chosen or linked by hand any more (a link goes), and the finder looks now.
+ *  Throws when the frame is on its own already. */
+export async function artFromTmdb(showId: string, key: ArtFrameKey, listingsBase?: string) {
+  if (key === "header") {
+    const { rowCount } = await pool.query(
+      // A link goes; a backdrop chosen from TMDB stays until TMDB's own pick replaces it (as the cards' poster does), so a TMDB
+      // that doesn't answer never leaves the header empty.
+      `UPDATE shows SET backdrop_by_hand = false, backdrop_url = CASE WHEN backdrop_url ~ '^https://image\\.tmdb\\.org/' THEN backdrop_url END,
+              updated_at = now() WHERE id = $1 AND backdrop_by_hand`,
+      [showId]
+    );
+    if (!rowCount) throw new Error("Its header is on TMDB, on its own already");
+    await fillShowArt(showId, listingsBase);
+    return;
+  }
+  const { rows } = await pool.query(
+    "SELECT art_by_hand OR art_link OR EXISTS (SELECT 1 FROM show_seasons ss WHERE ss.show_id = s.id AND ss.art_by_hand) AS held FROM shows s WHERE s.id = $1",
+    [showId]
+  );
+  if (!rows[0]?.held) throw new Error("Its cards are on TMDB, on its own already");
+  // A link (anything not TMDB's or TVmaze's) goes; a poster chosen from TMDB stays until TMDB's own pick replaces it.
+  await pool.query(
+    `UPDATE shows SET art_by_hand = false, art_link = false,
+            art_url = CASE WHEN art_url ~ '^https://(image\\.tmdb\\.org|static\\.tvmaze\\.com)/' THEN art_url END, updated_at = now() WHERE id = $1`,
+    [showId]
+  );
   await pool.query("UPDATE show_seasons SET art_by_hand = false WHERE show_id = $1", [showId]);
-  return findArtForShow(showId, listingsBase);
+  await fillShowArt(showId, listingsBase);
+  const { rows: seasons } = await pool.query("SELECT id FROM show_seasons WHERE show_id = $1 ORDER BY season_number DESC LIMIT 5", [showId]);
+  for (const ss of seasons) await fillSeasonArt(ss.id, listingsBase);
+}
+
+/** A link for one frame (art-frame.ts cleanArtLink: the desk loaded it before sending it): the header's image, or the cards'
+ *  on every season over their own posters. Kept as the frame's, so TMDB never changes it, and its framing starts over. */
+export async function setArtLink(showId: string, key: ArtFrameKey, url: string) {
+  await pool.query(
+    key === "header"
+      ? "UPDATE shows SET backdrop_url = $2, backdrop_by_hand = true, backdrop_style = NULL, updated_at = now() WHERE id = $1"
+      : `UPDATE shows SET art_url = $2, art_by_hand = true, art_link = true, art_style = ${CARDS_UNFRAMED}, updated_at = now() WHERE id = $1`,
+    [showId, url]
+  );
+}
+
+/** The framing of one frame, on the image it's drawn with now (`url`, as the desk saw it: refused when it changed since).
+ *  The cards' sits in art_style beside classic's colour and strength, which stay. */
+export async function setArtFrame(showId: string, key: ArtFrameKey, f: Frame, url: string): Promise<void> {
+  const { show, seasons } = await artRows(showId);
+  const now = key === "header" ? headerOf(show) : cardsOf(show, seasons[0]);
+  if (!now.url || now.url !== url) throw new Error("Its art changed since: look again");
+  if (key === "header") {
+    await pool.query("UPDATE shows SET backdrop_style = $2::jsonb, updated_at = now() WHERE id = $1", [showId, JSON.stringify({ ...f, url })]);
+    return;
+  }
+  // Under `frame`, beside classic's own (its framing of the show's poster, drawn wherever that poster is) and its look.
+  await pool.query("UPDATE shows SET art_style = COALESCE(art_style, '{}'::jsonb) || jsonb_build_object('frame', $2::jsonb), updated_at = now() WHERE id = $1", [
+    showId,
+    JSON.stringify({ ...f, url }),
+  ]);
 }
 
 /** A photo a finder brought (TMDB, TVmaze, the wiki, Wikipedia): what the off switch takes down. Chosen ones stay. */
@@ -601,7 +823,7 @@ export async function setArtOff(showId: string, off: boolean, listingsBase?: str
     return { photos: 0 };
   }
   await pool.query(
-    "UPDATE shows SET art_off = true, art_url = NULL, backdrop_url = NULL, logo_url = NULL, art_by_hand = false, updated_at = now() WHERE id = $1",
+    "UPDATE shows SET art_off = true, art_url = NULL, backdrop_url = NULL, logo_url = NULL, art_by_hand = false, backdrop_by_hand = false, art_link = false, updated_at = now() WHERE id = $1",
     [showId]
   );
   await pool.query("UPDATE show_seasons SET art_url = NULL, art_by_hand = false WHERE show_id = $1", [showId]);

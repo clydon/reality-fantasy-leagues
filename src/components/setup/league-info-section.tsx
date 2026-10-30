@@ -51,7 +51,10 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
 
   const revealedThrough = StateLogic.RevealLogic.revealedThrough(state);
   const catchingUp = revealedThrough !== null;
-  const startEp = StateLogic.startEpisode(state);
+  // A game that starts when a phase of the season does (step A3) is changed in the new design's Game settings; here it's
+  // said, and counted from Episode 1 while it waits.
+  const phaseStart = StateLogic.startPhase(state);
+  const startEp = StateLogic.startEpisode(state) ?? 1;
   // Episodes before the start count as already watched, so a catching-up league that has revealed
   // only those hasn't really begun yet.
   const revealedPastStart = catchingUp && (revealedThrough ?? 0) > startEp - 1;
@@ -168,7 +171,13 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
   // scored, and no picks or lineups for them). Locked once the league has started playing.
   const startAt = hasSeason && (
     <>
-      {!canManage || seasonUnderway || revealedPastStart ? (
+      {phaseStart ? (
+        <LockedValue
+          label="Starts"
+          value={StateLogic.waitsForPhase(state) ? "When its phase of the season starts" : `At episode ${startEp}, with its phase of the season`}
+          lock={canManage}
+        />
+      ) : !canManage || seasonUnderway || revealedPastStart ? (
         <LockedValue label="Starts at episode" value={startEp} lock={canManage} />
       ) : (
         <StepperRow
@@ -291,7 +300,8 @@ export function LeagueSetupForm({ state }: { state: LeagueState }) {
         ) : (
           <Field label="League type" htmlFor="ls-type" hint={leagueType.description}>
             <select id="ls-type" className={fieldCls} value={leagueType.id} onChange={(e) => updateSetting("leagueTypeId", e.target.value)}>
-              {Object.values(StateLogic.LEAGUE_TYPES).map((lt) => (
+              {/* A game of questions is made with its questions (step A4), never by switching a league to it. */}
+              {Object.values(StateLogic.LEAGUE_TYPES).filter((lt) => lt.id !== "questions").map((lt) => (
                 <option key={lt.id} value={lt.id}>
                   {lt.name}
                 </option>

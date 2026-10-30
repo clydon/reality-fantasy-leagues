@@ -59,7 +59,7 @@ export async function episodeResults(user: SessionUser, seasonId: string, couchI
   }
   const ids = here.map((g) => g.leagueId);
   const names = new Map(here.map((g) => [g.leagueId, g.name]));
-  const corrections = (await couchCorrections(ids, seen, user.id)).filter((c) => c.episode === episode);
+  const corrections = await couchCorrections(ids, seen, user.id, episode);
   const rulings = (await rulingsFor(ids, episode)).map((r) => ({ decisionId: r.decisionId, game: names.get(r.leagueId) ?? "a game", by: r.by, name: r.name, label: r.label }));
   return { episode, people: [...people.values()], missing: { open: missing, yours: yoursMissing }, corrections, rulings };
 }

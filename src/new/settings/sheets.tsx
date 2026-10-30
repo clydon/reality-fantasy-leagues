@@ -292,7 +292,7 @@ export function ReportSheet({ open, onOpenChange }: { open: boolean; onOpenChang
       const res = await fetch("/api/reports", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ type, message: text.trim(), route: window.location.pathname, leagueId: null, leagueName: null }),
+        body: JSON.stringify({ type, message: text.trim(), route: window.location.pathname, leagueId: null, leagueName: null, installed: window.matchMedia("(display-mode: standalone)").matches }),
       });
       if (!res.ok) throw new Error(((await res.json().catch(() => ({}))) as { error?: string }).error || "Couldn't send it. Try again.");
       setText("");

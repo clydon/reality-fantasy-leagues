@@ -166,9 +166,13 @@ export function episodePlayerPoints(state: LeagueState, epId: string) {
   const ep = state.episodes.find((e) => e.id === epId);
   if (!ep || !StateLogic.inPlay(state, ep.number)) return [];
   const evs = StateLogic.ActiveRosterLogic.episodeEvents(state, ep);
+  // A captain, best ball or points that multiply by when (step A9 part 2): the engine's own count of the episode.
+  const combines = StateLogic.ActiveRosterLogic.combines(state);
+  const times = combines ? StateLogic.ActiveRosterLogic.timesFor(state, ep.number) : 1;
   return state.players
     .filter((p) => p.active !== false)
     .map((p) => {
+      if (combines) return { player: p, points: StateLogic.ActiveRosterLogic.episodeScore(state, ep, p.id, { events: evs, times }).total };
       const lineup = StateLogic.activeRosterLineupFor(state, ep.id, p.id);
       const points = StateLogic.roundPoints(
         evs.filter((e) => lineup.includes(e.castawayId)).reduce((t, e) => t + StateLogic.ActiveRosterLogic.eventPoints(state, e), 0)

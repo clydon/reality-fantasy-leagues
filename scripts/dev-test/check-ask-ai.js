@@ -1,4 +1,5 @@
-// Dev-only test bank: the "Ask an AI" step (components/ask-ai.tsx), on Admin > New show. Types a show
+// Dev-only test bank: the "Ask an AI" step (components/ask-ai.tsx), on the classic design's Start a league › My show
+// isn't here (the research panel classic admin's New show shared, until docs/PLAN-desk-parity.md step 8). Types a show
 // name, waits for the brief to be parked, checks the one "Open in ChatGPT" link carries the one-liner
 // pointing at /b/<code> (and no other chat's link is left), fetches that page the way ChatGPT's fetcher
 // would (its user agent) and checks the read was logged as ChatGPT's. Also checks the brief's JSON twin
@@ -52,7 +53,8 @@ async function run(out, width, flags) {
 
   const { page, errors, close } = await open({ user: ADMIN, pass: PASSWORD, width });
   await page.addInitScript((t) => localStorage.setItem("rfl.theme", t), flags.includes("--dark") ? "dark" : "light");
-  await page.goto(`${BASE}/admin/shows/new`, { waitUntil: "networkidle" });
+  await page.goto(`${BASE}/new-league`, { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: /My show isn.t here/ }).click();
   // A fresh name each run: the same prompt is the same brief, which an earlier run has already read.
   await page.getByLabel("Show name").fill(`zt Ask Show ${Date.now() % 100000}`);
   await page.getByRole("link", { name: /Open in ChatGPT/ }).waitFor({ timeout: 20000 });

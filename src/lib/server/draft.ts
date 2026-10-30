@@ -3,9 +3,11 @@ import StateLogic from "@/lib/game/state-logic.js";
 import { draftClock, draftKind, draftTimer } from "@/lib/game/draft-view";
 import type { LeagueState } from "@/lib/game/types";
 import type { LeagueMembership, SessionUser } from "./auth-helpers";
+import { lockAuctionBids, unlockAuctionBids, type Bid } from "./auction";
 import { lockBlindPicks, unlockBlindPicks } from "./blind-draft";
-import { plainChange, settingsSetChange, type ChangeSpec } from "./change-log";
+import { plainChange, seatMoveOf, settingsSetChange, type ChangeOf, type ChangeSpec } from "./change-log";
 import { pool, withLeagueLock, HttpError } from "./db";
+import { refused } from "./game-writes";
 import { notifyDraftNudge, notifyDraftTurn } from "./push-events";
 import { roleAtLeast } from "./roles";
 
@@ -44,6 +46,20 @@ function requireSnake(s: LeagueState) {
 export async function pickInDraft(a: DraftActor, leagueId: string, castawayId: string, n?: number | null): Promise<{ state: LeagueState; batch: string | null }> {
   const batch = crypto.randomUUID();
   let forOther = false;
+  const line = (_before: LeagueState, after: LeagueState): ChangeSpec | null => {
+    if (!forOther) return null;
+    const e = after.draftLog?.[after.draftLog.length - 1];
+    if (!e) return null;
+    return {
+      userId: a.user.id,
+      kind: "draft",
+      tier: 1,
+      text: `Drafted ${castName(after, e.castawayId)} for ${nameOf(after, e.playerId)}`,
+      batch,
+      undo: { type: "draftPick", castawayId: e.castawayId, playerId: e.playerId, n: e.n },
+    };
+  };
+  const change: ChangeOf = line;
   const state = await withLeagueLock(
     leagueId,
     (s) => {
@@ -53,23 +69,19 @@ export async function pickInDraft(a: DraftActor, leagueId: string, castawayId: s
       if (n != null && turn.overallPickNumber !== n) throw new HttpError(409, "That pick was just made: have another look");
       forOther = turn.playerId !== a.membership.playerId;
       if (forOther && !runs(a)) throw new HttpError(403, "It's not your turn");
+      // Their own pick, on a team two people share (step A10 part 4b): who made it is recorded (withLeagueLock reads it after).
+      if (!forOther) Object.assign(change, { seatMove: { userId: a.user.id, playerId: turn.playerId, kind: "draft" } });
+      // A draft spread across the cast's groups (step A10 part 3): a pick that doesn't keep the team spread, and why.
+      const spread = StateLogic.SpreadLogic.pickProblem(s, turn.playerId, castawayId);
+      if (spread) throw new HttpError(400, spread);
+      // A salary cap (step A10 part 3b): a pick that takes the team past it, and why.
+      const cap = StateLogic.BudgetLogic.pickProblem(s, turn.playerId, castawayId);
+      if (cap) throw new HttpError(400, cap);
       const made = s.draftPicksMade;
       StateLogic.draftToCurrentTurn(s, castawayId, forOther ? { by: a.user.id } : undefined);
       if (s.draftPicksMade === made) throw new HttpError(409, "Someone already has them");
     },
-    (before, after): ChangeSpec | null => {
-      if (!forOther) return null;
-      const e = after.draftLog?.[after.draftLog.length - 1];
-      if (!e) return null;
-      return {
-        userId: a.user.id,
-        kind: "draft",
-        tier: 1,
-        text: `Drafted ${castName(after, e.castawayId)} for ${nameOf(after, e.playerId)}`,
-        batch,
-        undo: { type: "draftPick", castawayId: e.castawayId, playerId: e.playerId, n: e.n },
-      };
-    }
+    change
   );
   notifyDraftTurn(leagueId, state, a.user.id);
   return { state, batch: forOther ? batch : null };
@@ -147,15 +159,15 @@ export async function setDraftSettings(
         const at = body.scheduledAt === null || body.scheduledAt === "" ? null : String(body.scheduledAt);
         if (at !== null && !Number.isFinite(Date.parse(at))) throw new HttpError(400, "That isn't a time");
         if (at !== null && Date.parse(at) < Date.now() - 60_000) throw new HttpError(400, "Pick a time that hasn't passed");
-        StateLogic.updateSettings(s, "draftScheduledAt", at === null ? null : new Date(at).toISOString());
+        refused(StateLogic.updateSettings(s, "draftScheduledAt", at === null ? null : new Date(at).toISOString()));
       }
       if (body.timer !== undefined) {
         requireSnake(s);
-        StateLogic.updateSettings(s, "draftTimer", body.timer);
+        refused(StateLogic.updateSettings(s, "draftTimer", body.timer));
       }
       if (body.away !== undefined) {
         requireSnake(s);
-        StateLogic.updateSettings(s, "draftAway", body.away);
+        refused(StateLogic.updateSettings(s, "draftAway", body.away));
       }
       changed = JSON.stringify([s.settings.draftTimer, s.settings.draftAway, s.settings.draftScheduledAt]) !== before;
       // The timer counts this turn from now, not from when it began without one.
@@ -197,7 +209,10 @@ export async function expireTurn(leagueId: string, n: unknown): Promise<{ picked
       if (draftTimer(s).away !== "queue") return;
       const queued = await queueOf(client, leagueId, clock.playerId);
       const free = new Set(StateLogic.freeAgents(s).map((c) => c.id));
-      const next = queued.find((id) => free.has(id));
+      // The first of theirs still free that keeps their team spread (step A10 part 3) and within a salary cap (part 3b): everyone
+      // free when neither applies.
+      const fits = new Set(StateLogic.draftFitsFor(s, clock.playerId));
+      const next = queued.find((id) => free.has(id) && fits.has(id));
       if (!next) return;
       StateLogic.draftToCurrentTurn(s, next, { auto: true });
       picked = true;
@@ -234,8 +249,8 @@ export async function lockBlindFor(a: DraftActor, leagueId: string, playerId: un
       if (StateLogic.BlindDraftLogic.hasLocked(s, playerId)) throw new HttpError(400, "Already locked in — withdraw first to change your picks");
       await lockBlindPicks(client, leagueId, s, playerId, castawayIds as string[]);
     },
-    // Never who they picked: only that someone locked in for them.
-    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Locked in ${nameOf(after, playerId)}'s draft picks`) : undefined
+    // Never who they picked: only that someone locked in for them. Their own, on a team they share: who did (step A10 part 4b).
+    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Locked in ${nameOf(after, playerId)}'s draft picks`) : seatMoveOf(a.user.id, a.membership.playerId, playerId, { kind: "sheet" })
   );
 }
 
@@ -246,11 +261,57 @@ export async function unlockBlindFor(a: DraftActor, leagueId: string, playerId: 
   return withLeagueLock(
     leagueId,
     async (s, client) => {
+      // Its own kind only: an auction's sheets share blind_draft_picks (step A10 part 3b, auction.ts).
+      if (!StateLogic.BlindDraftLogic.on(s)) throw new HttpError(400, "This game is not running a blind draft");
       if (StateLogic.BlindDraftLogic.isRevealed(s)) throw new HttpError(400, "The draft has already been revealed");
       await unlockBlindPicks(client, leagueId, s, playerId);
     },
-    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Opened ${nameOf(after, playerId)}'s draft picks again`) : undefined
+    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Opened ${nameOf(after, playerId)}'s draft picks again`) : seatMoveOf(a.user.id, a.membership.playerId, playerId, { kind: "sheet" })
   );
+}
+
+// ---- the auction (step A10 part 3b: StateLogic.AuctionLogic, auction.ts) ----
+
+/** Locks in sealed bids, [{ castawayId, bid }]: your own, or someone's when you run the game (who can't read theirs; an empty
+ *  sheet has them filled from what's left at the lowest price). The last sheet in settles the auction. */
+export async function lockBidsFor(a: DraftActor, leagueId: string, playerId: unknown, bids: unknown): Promise<LeagueState> {
+  if (typeof playerId !== "string" || !Array.isArray(bids)) throw new HttpError(400, "playerId and bids required");
+  const forOther = playerId !== a.membership.playerId;
+  if (forOther && !runs(a)) throw new HttpError(403, "You can only lock in your own bids");
+  const sheet: Bid[] = bids.map((b) => ({ castawayId: String((b as Bid | null)?.castawayId ?? ""), bid: Number((b as Bid | null)?.bid) }));
+  return withLeagueLock(
+    leagueId,
+    async (s, client) => {
+      const problem = StateLogic.AuctionLogic.validateBids(s, playerId, sheet);
+      if (problem) throw new HttpError(400, problem);
+      if (StateLogic.AuctionLogic.hasLocked(s, playerId)) throw new HttpError(400, "Already locked in — withdraw first to change your bids");
+      await lockAuctionBids(client, leagueId, s, playerId, sheet);
+    },
+    // Never what they bid: only that someone locked in for them. Their own, on a team they share: who did (step A10 part 4b).
+    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Locked in ${nameOf(after, playerId)}'s bids`) : seatMoveOf(a.user.id, a.membership.playerId, playerId, { kind: "sheet" })
+  );
+}
+
+/** Withdraws a sheet before the auction settles, so it can be done again (your own, or someone's when you run the game). */
+export async function unlockBidsFor(a: DraftActor, leagueId: string, playerId: string): Promise<LeagueState> {
+  const forOther = playerId !== a.membership.playerId;
+  if (forOther && !runs(a)) throw new HttpError(403, "You can only withdraw your own bids");
+  return withLeagueLock(
+    leagueId,
+    async (s, client) => {
+      // Its own kind only: a blind draft's picks share the table.
+      if (!StateLogic.AuctionLogic.on(s)) throw new HttpError(400, "This game is not an auction");
+      if (StateLogic.AuctionLogic.settled(s)) throw new HttpError(400, "The auction is over");
+      await unlockAuctionBids(client, leagueId, s, playerId);
+    },
+    forOther ? (_b, after) => plainChange(a.user.id, "draft", `Opened ${nameOf(after, playerId)}'s bids again`) : seatMoveOf(a.user.id, a.membership.playerId, playerId, { kind: "sheet" })
+  );
+}
+
+/** Your own locked-in bids (null: none), self only, as a blind draft's picks (blind-draft.ts readOwnPicks says why). */
+export async function readOwnBids(leagueId: string, playerId: string): Promise<Bid[] | null> {
+  const { rows } = await pool.query("SELECT castaway_ids FROM blind_draft_picks WHERE league_id=$1 AND player_id=$2", [leagueId, playerId]);
+  return rows.length ? (rows[0].castaway_ids as Bid[]) : null;
 }
 
 // ---- the queue: yours alone ----

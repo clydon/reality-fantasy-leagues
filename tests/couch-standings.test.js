@@ -154,12 +154,13 @@ test("results due: the next episode to reveal by stage, and the morning update o
   const lineup = S.migrateLeagueState(JSON.parse(JSON.stringify(buildDemoState(data, "active-roster", 5))));
   const pool = S.migrateLeagueState(JSON.parse(JSON.stringify(buildDemoState(data, "pickem", 5))));
   assert.deepEqual(resultsDue([lineup, pool], 5, null), { reveal: null, final: null });
-  assert.deepEqual(resultsDue([lineup, pool], 3, null), { reveal: { episode: 4, stage: "final" }, final: null });
+  assert.deepEqual(resultsDue([lineup, pool], 3, null), { reveal: { episode: 4, stage: "final", finalAt: null }, final: null });
   assert.deepEqual(resultsDue([lineup, pool], Infinity, null), { reveal: null, final: null }, "seeing everything: nothing to reveal");
   lineup.episodes.find((e) => e.number === 5).resultsStage = "early";
-  assert.deepEqual(resultsDue([lineup, pool], 4, null).reveal, { episode: 5, stage: "early" }, "early if any game is early");
+  assert.deepEqual(resultsDue([lineup, pool], 4, null).reveal, { episode: 5, stage: "early", finalAt: null }, "early if any game is early");
   assert.equal(resultsDue([lineup, pool], 5, 5).final, null, "still early: no morning update");
   delete lineup.episodes.find((e) => e.number === 5).resultsStage;
-  assert.deepEqual(resultsDue([lineup, pool], 5, 5).final, { episode: 5 });
+  assert.deepEqual(resultsDue([lineup, pool], 5, 5).final, { episode: 5, finalAt: null });
+  assert.deepEqual(resultsDue([lineup, pool], 5, 5, (n) => `final-${n}`).final, { episode: 5, finalAt: "final-5" }, "with its final time");
   assert.equal(resultsDue([lineup, pool], 4, 5).final, null, "never ahead of your mark");
 });

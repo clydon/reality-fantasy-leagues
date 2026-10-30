@@ -5,8 +5,9 @@
 //      linked league (the season's cast is approved).
 //   2. What players see (alex): the show's tall header filled by the wide image, a compact bar (Backstage), the hub, and
 //      Settings › Credits (TMDB's logo and notice, TVmaze, Wikimedia, "Ask for something to come down").
-//   3. The desk (its own zt_nd_ admin): the show's Art section, Choose art (pick another header image: chosen by hand),
-//      Back to automatic, and No art or photos (the art and found photos come down, in leagues too) and back on.
+//   3. The desk (its own zt_nd_ admin): the show's Art and photos page (part 7b), the header's Choose one from TMDB (pick
+//      another header image: chosen by hand), TMDB, on its own, and No art or photos (the art and found photos come down,
+//      in leagues too) and back on. check-desk-art.js covers the rest of the page on TMDB's stand-in.
 //   4. Nothing wider than the screen; no page errors; every real league's state as it was.
 //
 //   node scripts/dev-test/check-show-art-ui.js <outDir> [--width=390] [--keep]
@@ -74,7 +75,7 @@ const TMDB = /^https:\/\/image\.tmdb\.org\//;
     await pool.query(`INSERT INTO user_settings (user_id, ui) SELECT unnest($1::text[]), 'new' ON CONFLICT (user_id) DO UPDATE SET ui = 'new'`, [[...Object.values(fx.users), deskId]]);
 
     // ---- 1. the finder ----
-    await pool.query("UPDATE shows SET tmdb_id = $2, art_url = NULL, art_by_hand = false WHERE id = $1", [showId, SURVIVOR_TMDB]);
+    await pool.query("UPDATE shows SET tmdb_id = $2, art_url = NULL, art_by_hand = false, backdrop_by_hand = false, art_link = false WHERE id = $1", [showId, SURVIVOR_TMDB]);
     await pool.query("UPDATE season_cast SET photo_url = NULL WHERE season_id = $1", [sid]);
     const art = jiti("../../src/lib/server/show-art.ts");
     const found = await art.findArtForShow(showId);
@@ -140,12 +141,12 @@ const TMDB = /^https:\/\/image\.tmdb\.org\//;
     const d = await open({ user: DESK, pass: fixture.PASSWORD, width, height: 844 });
     closers.push(d.close);
     await hide(d.page);
-    await d.page.goto(`${process.env.BASE || "http://localhost:3000"}/desk/show/${showId}`);
+    await d.page.goto(`${process.env.BASE || "http://localhost:3000"}/desk/show/${showId}/art`);
     await d.page.locator("[data-desk-art]").waitFor({ timeout: 60000 });
-    await d.page.locator("[data-desk-art]").scrollIntoViewIfNeeded();
     await shot(d.page, "desk-art");
-    await fits(d.page, "the desk's show");
-    await d.page.locator("[data-art-choose]").click();
+    await fits(d.page, "the desk's show art");
+    await d.page.locator("[data-desk-row='art-header-source']").click();
+    await d.page.locator("[role=dialog][data-open] [data-src='choose']").click();
     await d.page.locator("[data-art-pick=backdrop]").first().waitFor({ timeout: 60000 });
     await shot(d.page, "choose-art");
     await fits(d.page, "Choose art");
@@ -155,14 +156,16 @@ const TMDB = /^https:\/\/image\.tmdb\.org\//;
     const pickIdx = (await backdrops.first().getAttribute("aria-pressed")) === "true" ? 1 : 0;
     await backdrops.nth(pickIdx).click();
     await d.page.waitForTimeout(2500);
-    const { rows: [picked] } = await pool.query("SELECT backdrop_url, art_by_hand FROM shows WHERE id = $1", [showId]);
-    check(picked.art_by_hand && picked.backdrop_url !== show.backdrop_url, "a chosen header image is kept, chosen by hand");
-    check((await backdrops.nth(pickIdx).getAttribute("aria-pressed")) === "true", "the chosen one is marked");
+    const { rows: [picked] } = await pool.query("SELECT backdrop_url, backdrop_by_hand FROM shows WHERE id = $1", [showId]);
+    check(picked.backdrop_by_hand && picked.backdrop_url !== show.backdrop_url, "a chosen header image is kept, chosen by hand");
+    await d.page.locator("[data-desk-row='art-header-source']").filter({ hasText: "Chosen from TMDB" }).waitFor({ timeout: 15000 }).catch(() => {});
+    check(/Chosen from TMDB/.test(await d.page.locator("[data-desk-row='art-header-source']").innerText()), "the header's row says it's chosen");
     await shot(d.page, "chosen");
-    await d.page.locator("[data-art-automatic]").click();
+    await d.page.locator("[data-desk-row='art-header-source']").click();
+    await d.page.locator("[role=dialog][data-open] [data-src='tmdb']").click();
     await d.page.waitForTimeout(4000);
-    const { rows: [auto] } = await pool.query("SELECT backdrop_url, art_by_hand FROM shows WHERE id = $1", [showId]);
-    check(!auto.art_by_hand && auto.backdrop_url === show.backdrop_url, "Back to automatic: the finder's pick again");
+    const { rows: [auto] } = await pool.query("SELECT backdrop_url, backdrop_by_hand FROM shows WHERE id = $1", [showId]);
+    check(!auto.backdrop_by_hand && auto.backdrop_url === show.backdrop_url, "TMDB, on its own: the finder's pick again");
 
     await d.page.locator('[data-switch="art-off"]').click();
     await d.page.waitForTimeout(3500);
@@ -171,7 +174,6 @@ const TMDB = /^https:\/\/image\.tmdb\.org\//;
     const { rows: [lgOff] } = await pool.query("SELECT state FROM leagues WHERE id = $1", [fx.leagues.lineup]);
     check(off.art_off && !off.art_url && !off.backdrop_url, "No art or photos: the show's art is down");
     check(offCast[0].n === 0 && !lgOff.state.castaways.some((c) => TMDB.test(c.photoUrl ?? "")), "…and the found photos, in the games too");
-    await d.page.locator("[data-desk-art]").scrollIntoViewIfNeeded();
     await shot(d.page, "art-off");
     await al.page.goto(`${process.env.BASE || "http://localhost:3000"}/show/${sid}/tonight?couch=${fx.couchId}`);
     await al.page.locator(".nd-showbar").first().waitFor({ timeout: 60000 });

@@ -55,12 +55,13 @@ export async function leagueName(leagueId: string): Promise<string> {
 // the design they're on); `seasonId` is the season it's about, for that show's own switches and the bell's art.
 export function notifyAfter(
   type: NotificationType,
-  resolve: () => Promise<{ userIds: string[]; message: PushWords; seasonId?: string | null; bell?: boolean } | null>
+  // `type`: the moment it turned out to be, when that's only known once resolved (final results before their time are early).
+  resolve: () => Promise<{ userIds: string[]; message: PushWords; seasonId?: string | null; bell?: boolean; type?: NotificationType } | null>
 ): void {
   after(async () => {
     try {
       const target = await resolve();
-      if (target && target.userIds.length) await sendPush(pool, target.userIds, type, target.message, { seasonId: target.seasonId ?? null, bell: target.bell });
+      if (target && target.userIds.length) await sendPush(pool, target.userIds, target.type ?? type, target.message, { seasonId: target.seasonId ?? null, bell: target.bell });
     } catch (e) {
       console.error(`[push] ${type} notification failed:`, e);
     }

@@ -9,8 +9,8 @@ import type { Proposal } from "@/lib/game/formats/proposal";
 type RouteParams = { id: string };
 
 // Ownership check shared by every verb below: a format's creator (not necessarily an admin) is the
-// only one who may read or change their own draft/approved format through this self-serve route --
-// an admin manages every format, owned or not, through /api/admin/formats instead.
+// only one who may read or change their own draft/approved format through this self-serve route
+// (classic admin's own format routes retired at docs/PLAN-desk-parity.md step 8; rulebooks replace formats).
 async function requireOwnFormat(id: string, userId: string) {
   const format = await getFormat(pool, id);
   if (!format) throw new HttpError(404, "Format not found");

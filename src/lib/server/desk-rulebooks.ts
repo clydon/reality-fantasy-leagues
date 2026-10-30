@@ -7,6 +7,7 @@ import { parseRulebookAnswer, reviewRulebook } from "@/lib/game/formats/rulebook
 import { buildRulebookPrompt } from "@/lib/game/formats/rulebook-research";
 import { blocksProblems, labelOf, type BlocksProblem, type RulebookBlocks } from "@/lib/game/formats/rulebook-schema";
 import { ensureSeasonRulebook, getRulebook, inForceEdits, leaguesUsing, lineage, saveChain, setPhaseStart, syncLeagueRulebook, type Rulebook } from "@db/rulebooks.js";
+import { cardArtSql } from "./art-sql";
 import { isUuid, type SessionUser } from "./auth-helpers";
 import { restageSeason } from "./community-results";
 import { requireCouch } from "./couches";
@@ -14,6 +15,8 @@ import { pool, withLeagueLock, HttpError } from "./db";
 import { byNewest, deskLines, logDesk, type DeskLine } from "./desk";
 import { madeLine, saveTemplate } from "./desk-library";
 import { reachCopies } from "./ours";
+import { settleSeasonStarts } from "./phase-starts";
+import { leagueSeason } from "./push-events";
 import { deskNotices } from "./show-changes";
 import { latestAired, seasonSchedules } from "./schedule";
 
@@ -93,7 +96,7 @@ async function row(id: string): Promise<Rulebook> {
 async function seasonOf(r: Rulebook) {
   if (!r.seasonId) return null;
   const { rows } = await pool.query(
-    `SELECT ss.id, COALESCE(ss.name, s.name || ' ' || ss.season_number) AS name, s.name AS show, COALESCE(NULLIF(ss.art_url, ''), s.art_url) AS art_url, ss.episode_count, ss.rulebook_live, ss.status, ss.season_number
+    `SELECT ss.id, COALESCE(ss.name, s.name || ' ' || ss.season_number) AS name, s.name AS show, ${cardArtSql()} AS art_url, ss.episode_count, ss.rulebook_live, ss.status, ss.season_number
        FROM show_seasons ss JOIN shows s ON s.id = ss.show_id WHERE ss.id = $1`,
     [r.seasonId]
   );
@@ -361,6 +364,10 @@ export async function writePhase(userId: string, r: Rulebook, phaseId: string, e
   }
   await pushRulebook(r.id);
   if (r.seasonId && episode != null) await restageSeason(r.seasonId, episode, userId);
+  // Every game on the season that starts when a phase does (step A3 of docs/PLAN-start-a-game-gpt.md) plays from where it
+  // starts now, or waits for it again once it's cleared (phase-starts.ts); never one whose first episode has aired.
+  const season = r.seasonId ?? (r.leagueId ? (await leagueSeason(r.leagueId)).seasonId : null);
+  if (season) await settleSeasonStarts(season);
 }
 
 /** Locked: only the desk changes it; couches' suggestions still reach the Inbox. */

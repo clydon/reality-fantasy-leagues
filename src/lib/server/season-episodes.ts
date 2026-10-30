@@ -1,5 +1,5 @@
 import StateLogic from "@/lib/game/state-logic.js";
-import { episodesSeen, revealIn, seasonEpisodesSeen, type EpisodeSeen, type Happened, type OutFace, type RevealGame, type RevealPart, type RevealTable } from "@/lib/game/episode-view";
+import { episodesSeen, revealIn, seasonEpisodesSeen, type EpisodeSeen, type Happened, type OutFace, type RevealGame, type RevealPart, type RevealSheet, type RevealTable } from "@/lib/game/episode-view";
 import { publicMediaSrc } from "@/lib/game/selectors";
 import { latestIn, resultsDue, stageAcross } from "@/lib/game/results-due";
 import type { SessionUser } from "./auth-helpers";
@@ -8,10 +8,11 @@ import { pool, HttpError } from "./db";
 import { EVERYTHING } from "./guard";
 import { markRevealed } from "./reveal";
 import { seasonVerdicts, type EpisodeVerdictLine } from "./ratings";
-import { couchCorrections, type Correction } from "./rulings";
-import { DEFAULT_RUNTIME_MIN, seasonSchedules } from "./schedule";
+import { DEFAULT_RUNTIME_MIN, finalAtOf, seasonSchedules } from "./schedule";
+import type { ReadOnly } from "./read-only";
 import { gamesHere, type GameHere } from "./season-games";
 import { seasonFactsFor } from "./season-stats";
+import { leagueAnswers, sheetNights, storedAnswers } from "./answer-points";
 
 // A season's episodes and its one reveal, for the new design's show space (docs/PLAN-new-design.md step 2):
 //   GET  /api/seasons/[id]/episodes   every episode as far as you've seen (who went home, what happened, the top
@@ -38,6 +39,8 @@ export interface EpisodeRow extends Partial<Omit<EpisodeSeen, "number" | "stage"
    *  you've seen it (by where you are). */
   status: EpisodeStatus;
   stage: "early" | "final" | null;
+  /** When its final results are in for players (12:00 noon the day after it airs, the season's zone: final-results.js). */
+  finalAt?: string | null;
   watched?: boolean;
   /** Its title from the listings, once you've seen it (a title can give an episode away). */
   title?: string | null;
@@ -52,27 +55,41 @@ export interface SeasonEpisodes {
   seenThrough: number | null;
   /** Newest first: hidden ones, the one waiting, then every one you've seen. */
   episodes: EpisodeRow[];
-  /** The next episode to reveal (the first whose results are in past your mark), and how far its results are. */
-  reveal: { episode: number; stage: "early" | "final" } | null;
-  /** An episode that's finished airing with nothing in yet. */
-  waiting: { episode: number; airAt: string | null } | null;
+  /** The next episode to reveal (the first whose results are in past your mark), how far its results are, and when its
+   *  final results are in. */
+  reveal: { episode: number; stage: "early" | "final"; finalAt: string | null } | null;
+  /** An episode that's finished airing with nothing in yet, and when its final results are due. */
+  waiting: { episode: number; airAt: string | null; finalAt?: string | null } | null;
   /** The morning update: the episode you revealed early whose final scores are in now. */
-  final: { episode: number } | null;
+  final: { episode: number; finalAt: string | null } | null;
   stillIn: number | null;
   toAir: { from: number; to: number | null } | null;
   /** A player's quiet "Full scores need one paste" (step 6b): the newest episode you've seen with only its early results, when the couch lets anyone fill them in. */
   fill: { episode: number } | null;
-  /** Corrections the shared check made to the couch's games, for episodes you've seen (step 6b). */
-  corrections: Correction[];
 }
 
 /** A game you joined late and are still catching up in (StateLogic.GhostLogic). */
 const catchingUpIn = (h: GameHere) => StateLogic.GhostLogic.isCatchingUp(h.state, h.playerId);
 
-/** The episodes you may be told about, merged across your games here (or, playing none, the season's own results). */
-export async function seasonEpisodes(user: SessionUser, seasonId: string, couchId: string | null): Promise<SeasonEpisodes> {
+/** A Prediction Sheet's points around episode n and its nights, for the reveal (step A4 part 2); undefined for any other game. */
+async function revealSheet(h: GameHere, n: number): Promise<RevealSheet | undefined> {
+  if (!StateLogic.getLeagueType(h.state).hasQuestions) return undefined;
+  try {
+    const o = { leagueId: h.game.leagueId, state: h.state, playerId: h.playerId, rows: h.answers ?? (await storedAnswers(h.game.leagueId)) };
+    const [was, now, nights] = await Promise.all([leagueAnswers({ ...o, mark: n - 1 }), leagueAnswers({ ...o, mark: n }), sheetNights({ ...o, mark: n })]);
+    return { was, now, nights };
+  } catch (e) {
+    // The mark has moved already: the reveal goes on without the sheet's points rather than failing.
+    console.error(`[season-episodes] reveal sheet ${h.game.leagueId}:`, e);
+    return undefined;
+  }
+}
+
+/** The episodes you may be told about, merged across your games here (or, playing none, the season's own results). `ro`:
+ *  told from the game open read-only (read-only.ts), as its couch has it: nobody's own line, and no Fill it in. */
+export async function seasonEpisodes(user: SessionUser, seasonId: string, couchId: string | null, ro: ReadOnly | null = null): Promise<SeasonEpisodes> {
   const [{ seen, here: all }, schedules, follow, recapRows] = await Promise.all([
-    gamesHere(user, seasonId, couchId),
+    gamesHere(user, seasonId, couchId, ro),
     seasonSchedules([seasonId]),
     pool.query("SELECT early_seen FROM show_follows WHERE user_id = $1 AND season_id = $2", [user.id, seasonId]),
     pool.query("SELECT number, summary FROM season_episodes WHERE season_id = $1 AND summary IS NOT NULL", [seasonId]),
@@ -83,6 +100,7 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   const here = all.filter((h) => !StateLogic.getLeagueType(h.state).hasCalls && !StateLogic.getLeagueType(h.state).hasBingo);
   const schedule = schedules.get(seasonId);
   const airAt = (n: number) => schedule?.episodes.find((e) => e.number === n)?.airAt ?? null;
+  const finalAt = finalAtOf(schedule);
   const now = Date.now();
   const finished = (n: number) => {
     const ep = schedule?.episodes.find((e) => e.number === n);
@@ -98,7 +116,14 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   const seenRows = new Map<number, EpisodeSeen>();
   const order = [...here].sort((a, b) => Number(b.game.gameType === "active-roster") - Number(a.game.gameType === "active-roster"));
   for (const h of order) {
-    for (const ep of episodesSeen(h.ref, h.state, h.playerId, h.mark)) {
+    // A Prediction Sheet's nights come from its answers (step A4 part 2: answer-points.ts sheetNights); read-only, nobody's.
+    const sheet = !h.readOnly && StateLogic.getLeagueType(h.state).hasQuestions
+      ? await sheetNights({ leagueId: h.game.leagueId, state: h.state, playerId: h.playerId, mark: h.mark, rows: h.answers }).catch((e) => {
+          console.error(`[season-episodes] sheet nights ${h.game.leagueId}:`, e);
+          return undefined;
+        })
+      : undefined;
+    for (const ep of episodesSeen(h.ref, h.state, h.readOnly ? null : h.playerId, h.mark, sheet)) {
       const had = seenRows.get(ep.number);
       if (!had) seenRows.set(ep.number, ep);
       else {
@@ -116,7 +141,7 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   }
   if (!here.length) for (const ep of await notPlaying(user, seasonId, couchId, mark)) seenRows.set(ep.number, ep);
 
-  const rows: EpisodeRow[] = [...seenRows.values()].map((ep) => ({ ...ep, airAt: airAt(ep.number), status: "seen" as const }));
+  const rows: EpisodeRow[] = [...seenRows.values()].map((ep) => ({ ...ep, airAt: airAt(ep.number), finalAt: finalAt(ep.number), status: "seen" as const }));
   // A show you only watch (step 10): every episode that's aired is listed, with results or not, seen by you or not yet.
   if (!here.length) {
     for (const e of schedule?.episodes ?? []) {
@@ -130,23 +155,23 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
   const hiddenFrom = Number.isFinite(mark) ? mark + 1 : latest + 1;
   for (let n = hiddenFrom; n <= latest; n++) {
     const stage = stageAcross(states, n);
-    if (stage && !seenRows.has(n)) rows.push({ number: n, airAt: airAt(n), status: "hidden", stage });
+    if (stage && !seenRows.has(n)) rows.push({ number: n, airAt: airAt(n), finalAt: finalAt(n), status: "hidden", stage });
   }
   // The latest episode that's finished airing with no results in any of your games yet.
   const aired = (schedule?.episodes ?? []).filter((e) => finished(e.number)).map((e) => e.number);
   const last = aired.length ? Math.max(...aired) : 0;
-  const waiting = here.length && last > latestIn(here.map((h) => h.state)) && !rows.some((r) => r.number === last) ? { episode: last, airAt: airAt(last) } : null;
+  const waiting = here.length && last > latestIn(here.map((h) => h.state)) && !rows.some((r) => r.number === last) ? { episode: last, airAt: airAt(last), finalAt: finalAt(last) } : null;
   if (waiting) rows.push({ number: waiting.episode, airAt: waiting.airAt, status: "waiting", stage: null });
   rows.sort((a, b) => b.number - a.number);
 
-  const due = resultsDue(states, mark, follow.rows[0]?.early_seen as number | null | undefined);
+  const due = resultsDue(states, mark, follow.rows[0]?.early_seen as number | null | undefined, finalAt);
   const count = schedule?.episodeCount ?? null;
   const highest = Math.max(0, ...rows.map((r) => r.number), last);
   const view = here[0] ? StateLogic.GhostLogic.viewFor(here[0].state, here[0].playerId, here[0].mark) : null;
   // Whoever runs a game fills results in from Backstage; anyone else gets the quiet ask, once they've seen the episode.
   const runs = here.some((h) => h.game.yourRole === "commissioner" || h.game.yourRole === "admin");
   const earlySeen = rows.filter((r) => r.status === "seen" && r.stage === "early").map((r) => r.number);
-  const fill = couchId && here.length && !runs && earlySeen.length && (await couchFillsResults(couchId)) ? { episode: Math.max(...earlySeen) } : null;
+  const fill = couchId && here.length && !runs && !ro && earlySeen.length && (await couchFillsResults(couchId)) ? { episode: Math.max(...earlySeen) } : null;
   // Each episode you've seen with its verdict (only through your mark: seasonVerdicts reads nothing past it).
   const verdicts = await seasonVerdicts(user.id, seasonId, couchId, mark);
   for (const r of rows) if (r.status === "seen" || (r.status === "aired" && r.watched)) r.verdict = verdicts.get(r.number) ?? { avg: null, n: 0, mine: null };
@@ -159,7 +184,6 @@ export async function seasonEpisodes(user: SessionUser, seasonId: string, couchI
     stillIn: view ? view.castaways.filter((c) => c.status !== "eliminated").length : null,
     toAir: count === null || highest < count ? { from: highest + 1, to: count } : null,
     fill,
-    corrections: couchId && here.length ? await couchCorrections(here.map((h) => h.game.leagueId), mark, user.id) : [],
   };
 }
 
@@ -194,6 +218,8 @@ async function seasonResults(seasonId: string, mark: number): Promise<EpisodeSee
 export interface SeasonReveal {
   episode: number;
   stage: "early" | "final";
+  /** When its final results are in for players (final-results.js), for the early reveal's word on it. */
+  finalAt: string | null;
   /** Revealed before: watching it again (or, early_seen, its final scores). */
   again: boolean;
   out: OutFace[];
@@ -263,7 +289,7 @@ export async function revealSeason(user: SessionUser, seasonId: string, couchId:
 
   // The beats, from each game as it stands now (at the new mark): only games that have reached episode n.
   const { here } = await gamesHere(user, seasonId, couchId);
-  const parts = here.filter((h) => h.mark === null || h.mark >= n).map((h: GameHere) => revealIn(h.ref, h.state, h.playerId, n, h.userOf)).filter((p) => !!p);
+  const parts = (await Promise.all(here.filter((h) => h.mark === null || h.mark >= n).map(async (h: GameHere) => revealIn(h.ref, h.state, h.playerId, n, h.userOf, await revealSheet(h, n))))).filter((p) => !!p);
   if (!parts.length) throw new HttpError(400, "Nothing to reveal for that episode yet");
   const stage = parts.some((p) => p.stage === "early") ? "early" : "final";
   const states = here.map((h) => h.state);
@@ -291,9 +317,11 @@ export async function revealSeason(user: SessionUser, seasonId: string, couchId:
   }
   const first = parts.find((p) => p.out.length || p.happened.length) ?? parts[0];
   const nextUp = latestIn(states) > n ? n + 1 : null;
+  const finalAt = finalAtOf((await seasonSchedules([seasonId])).get(seasonId))(n);
   return {
     episode: n,
     stage,
+    finalAt,
     again,
     out: first.out,
     happened: first.happened,
@@ -331,7 +359,7 @@ export async function catchUpReveal(user: SessionUser, seasonId: string, couchId
   await markRevealed(user, h.game.leagueId, h.playerId, n);
   const after = (await gamesHere(user, seasonId, couchId)).here.find((x) => x.game.leagueId === h.game.leagueId);
   if (!after) throw new HttpError(404, "You don't play that game here");
-  const part = revealIn(after.ref, after.state, after.playerId, n, after.userOf);
+  const part = revealIn(after.ref, after.state, after.playerId, n, after.userOf, await revealSheet(after, n));
   const still = StateLogic.GhostLogic.isCatchingUp(after.state, after.playerId);
   return { episode: n, leagueId: h.game.leagueId, out: part?.out ?? [], game: part?.game ?? null, lineup: part?.lineup ?? null, next: still ? n + 1 : null };
 }

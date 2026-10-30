@@ -73,8 +73,8 @@ export function RulebookPage({ id }: { id: string }) {
     : page?.ownerKind === "library"
       ? { label: "Library", href: paths.desk("library") }
       : { label: "Find", href: paths.desk("find") };
-  if (q.error) return <><DeskHeader title="Rulebook" back={backTo} /><p className="px-4 pt-6 text-sm text-muted-foreground">{(q.error as Error).message}</p></>;
-  if (!page || !draft) return <><DeskHeader title="Rulebook" back={backTo} /><div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" /></>;
+  if (q.error) return <><DeskHeader title="Rulebook" back={backTo} name={null} /><p className="px-4 pt-6 text-sm text-muted-foreground">{(q.error as Error).message}</p></>;
+  if (!page || !draft) return <><DeskHeader title="Rulebook" back={backTo} name={null} /><div aria-busy className="mx-4 mt-6 h-64 animate-pulse rounded-[4px] bg-card" /></>;
 
   const post = async (body: Obj, done: string) => {
     try {
@@ -95,7 +95,7 @@ export function RulebookPage({ id }: { id: string }) {
 
   return (
     <div className={`pb-16 ${ops.length ? "pb-44" : ""}`} data-desk-rulebook={page.version}>
-      <DeskHeader title="Rulebook" back={backTo} />
+      <DeskHeader title="Rulebook" back={backTo} name={page.season ? `${page.season.name}'s rulebook` : page.name} kind="Rulebook" />
       <Section>
         <div className="flex items-center gap-3">
           {page.season?.art ? (
@@ -628,7 +628,7 @@ function CastSheet({ draft, title, onDone, onClose }: { draft: RulebookBlocks; t
   const [groupChange, setGroupChange] = useState(g ? str(g.change) : "never");
   const q = QUESTIONS.cast;
   return (
-    <Sheet open onOpenChange={(o) => !o && onClose()} title={title} subtitle="Used everywhere in the app, and to find the cast on a wiki">
+    <Sheet open onOpenChange={(o) => !o && onClose()} title={title} subtitle="This season's How it works, stats and research questions. The show's Its words sets them for every season">
       <Choice data="unit" label={q.unit} value={unit} options={opts("unit")} onChange={setUnit} />
       <div className="grid grid-cols-2 gap-2">
         <Text data="singular" label={q.singular} value={singular} onChange={setSingular} placeholder="castaway" />

@@ -3,6 +3,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import showcase from "@/components/landing/showcase.json";
 import { colourTag } from "@/components/ui/caption-plate";
+import { frameStyle, splitFrame } from "@/lib/art-frame";
 import { useCatalog, type CatalogSeason } from "../data";
 import { GAME_STYLE } from "../games";
 import { NavLink, useNav } from "../nav";
@@ -307,22 +308,26 @@ function ThreeTaps({ catalog, onStart }: { catalog: CatalogSeason[] | null; onSt
             <p>Survivor, The Traitors and The Challenge come ready with the cast and scoring. Anything else, follow it now and make it a game when you like.</p>
             <div className="vis">
               <div className="lp-shows" data-lp-shows>
-                {tiles.map((s) => (
-                  <button key={s.seasonId} type="button" className="lp-show" data-pick={s.label} onClick={() => onStart(s.seasonId)}>
-                    {s.artUrl && (
-                      // eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL
-                      <img src={s.artUrl} alt="" style={{ objectPosition: s.artPosition }} />
-                    )}
-                    <span className="go">
-                      <PlusIcon />
-                    </span>
-                    <b className="cap">{s.show}</b>
-                    <small>
-                      {s.season}
-                      {s.airsOn ? ` · ${s.airsOn}` : ""}
-                    </small>
-                  </button>
-                ))}
+                {tiles.map((s) => {
+                  // Its framing rides on its address (src/lib/art-frame.ts); the tile clips a zoom.
+                  const art = splitFrame(s.artUrl);
+                  return (
+                    <button key={s.seasonId} type="button" className="lp-show" data-pick={s.label} onClick={() => onStart(s.seasonId)}>
+                      {art.src && (
+                        // eslint-disable-next-line @next/next/no-img-element -- art_url can be an arbitrary external URL
+                        <img src={art.src} alt="" style={art.frame ? frameStyle(art.frame) : { objectPosition: s.artPosition }} />
+                      )}
+                      <span className="go">
+                        <PlusIcon />
+                      </span>
+                      <b className="cap">{s.show}</b>
+                      <small>
+                        {s.season}
+                        {s.airsOn ? ` · ${s.airsOn}` : ""}
+                      </small>
+                    </button>
+                  );
+                })}
                 <button type="button" className="lp-show add" data-pick="any" onClick={() => onStart()}>
                   <b className="cap" style={{ fontSize: 16 }}>
                     + Any show

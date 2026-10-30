@@ -4,11 +4,12 @@ import { useRef, type ReactNode } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { X } from "lucide-react";
 import { useSheetSwipe } from "@/components/ui/use-sheet-swipe";
+import { useSheetHistory } from "./sheet-history";
 
 // The new design's sheet (the mock's .sheet): rises from the bottom of the phone column over a scrim, a grab
 // handle, a condensed caps title with one line under it, and a close button. Base UI's Dialog traps focus and
-// closes on Escape or a scrim tap; a swipe down closes it too (classic's use-sheet-swipe.ts). Reduced motion: no
-// slide, the scrim still fades.
+// closes on Escape or a scrim tap; a swipe down closes it too (classic's use-sheet-swipe.ts), and so does the phone's
+// back (./sheet-history.ts). Reduced motion: no slide, the scrim still fades.
 
 export function Sheet({
   open,
@@ -26,6 +27,7 @@ export function Sheet({
   const popupRef = useRef<HTMLDivElement>(null);
   const scrimRef = useRef<HTMLDivElement>(null);
   const swipe = useSheetSwipe({ sheetRef: popupRef, scrimRef, onClose: () => onOpenChange(false) });
+  useSheetHistory(open, () => onOpenChange(false));
   return (
     <Dialog.Root open={open} onOpenChange={onOpenChange}>
       <Dialog.Portal>

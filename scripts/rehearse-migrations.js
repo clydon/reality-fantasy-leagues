@@ -22,16 +22,18 @@ const { describeUrl } = require("./backup-common");
 const url = process.env.REHEARSE_DATABASE_URL;
 if (!url) throw new Error("set REHEARSE_DATABASE_URL to the Neon branch's connection string");
 const host = new URL(url).hostname;
+// A Neon compute by its endpoint id (ep-...), so its pooled host (ep-...-pooler) is the same compute as its direct one.
+const endpoint = (h) => h.split(".")[0].replace(/-pooler$/, "");
 const backups = path.join(__dirname, "..", "backups");
 const production = new Set();
 for (const dir of fs.existsSync(backups) ? fs.readdirSync(backups) : []) {
   const file = path.join(backups, dir, "manifest.json");
   if (!fs.existsSync(file)) continue;
   const at = JSON.parse(fs.readFileSync(file, "utf8")).source?.at || "";
-  if (/neon\.tech/.test(at)) production.add(at.split("/")[0].split(":")[0]);
+  if (/neon\.tech/.test(at)) production.add(endpoint(at.split("/")[0].split(":")[0]));
 }
 console.log(`[rehearse] ${describeUrl(url)}`);
-if (production.has(host)) throw new Error("that's production (a backup in backups/ was read from it): use a branch's connection string");
+if (production.has(endpoint(host))) throw new Error("that's production (a backup in backups/ was read from it): use a branch's connection string");
 if (!production.size && !process.argv.includes("--yes")) {
   throw new Error("no production backup in backups/ to tell production apart: check the host above is the branch's, then add --yes");
 }

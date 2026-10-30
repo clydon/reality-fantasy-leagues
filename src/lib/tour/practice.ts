@@ -112,7 +112,9 @@ export function buildPracticeState(raw: LeagueState, botNames: string[], myName:
   state.draftForceStarted = true;
   state.settings = {
     ...JSON.parse(JSON.stringify(raw.settings)),
+    // Its own Episodes 1 and 2, whatever span the real game plays (a bet outside it is refused).
     startEpisode: 1,
+    endEpisode: null,
     revealedThroughEpisode: null,
     draftScheduledAt: null,
     setupComplete: true,
@@ -123,6 +125,8 @@ export function buildPracticeState(raw: LeagueState, botNames: string[], myName:
     finalePredictionsEnabled: false,
     hideStartersUntilLock: false,
   };
+  // Written straight in: a copy carrying its league's spec (the game-specs flag) carries what these play.
+  StateLogic.syncGame(state);
   StateLogic.ensureEpisodeNumber(state, 1, false);
   return state;
 }

@@ -14,7 +14,7 @@ import { cn } from "cn";
 // free-agent pickers (see free-agents-panel.tsx). `selected` holds ordered slot values (nulls for
 // empty slots); clicking an already-picked card clears its slot, clicking an empty card fills the
 // first empty slot, and a card can't be picked into two slots at once (state-logic.js's
-// FinaleLogic.setPick/setActualTop3 enforce the same rule server-side).
+// FinaleLogic.setPick enforces the same rule server-side).
 function CastPickGrid({
   pool,
   selected,
@@ -72,9 +72,10 @@ function CastPickGrid({
   );
 }
 
-// Port of renderFinalePanel() (public/app.js): each player's Top-3 + Winner prediction, plus the
-// commissioner-only Actual Result used to grade them all via ScoringLogic.compute. Cast-photo
-// cards (CastPickGrid above) replace the original's plain <select> dropdowns.
+// Port of renderFinalePanel() (public/app.js): each player's Top-3 + Winner prediction, graded by the results (step A4 of
+// docs/PLAN-start-a-game-gpt.md: the season's winner and the order everyone finished in, StateLogic.AnswerLogic; whoever
+// ran the game used to type the real result in). Predictions lock when the season's last episode starts (the routes say
+// so). Cast-photo cards (CastPickGrid above) replace the original's plain <select> dropdowns.
 export function FinalePanel({ state }: { state: LeagueState }) {
   const terms = useShowTerms();
   const leagueId = useLeagueStore((s) => s.leagueId);
@@ -86,6 +87,9 @@ export function FinalePanel({ state }: { state: LeagueState }) {
   const maxBonus = s.finaleTop3Points * 3 + s.finaleWinnerPoints;
   const scores = StateLogic.computeScores(state);
   const finaleOf = (playerId: string) => scores.find((sc) => sc.playerId === playerId)?.finale ?? 0;
+  // The results' answer, once the season's over (null while it runs); nothing to pick once it's in.
+  const actual = StateLogic.AnswerLogic.finaleActual(state);
+  const settled = !!actual.winner || actual.top3.some(Boolean);
 
   async function setPick(playerId: string, idx: number, value: string | null) {
     await mutate(
@@ -99,18 +103,6 @@ export function FinalePanel({ state }: { state: LeagueState }) {
       () => api.setFinaleWinnerPick(leagueId!, playerId, value)
     );
   }
-  async function setActualTop3(idx: number, value: string | null) {
-    await mutate(
-      (st) => StateLogic.setActualTop3(st, idx, value),
-      () => api.setActualTop3(leagueId!, idx, value)
-    );
-  }
-  async function setActualWinner(value: string | null) {
-    await mutate(
-      (st) => StateLogic.setActualWinner(st, value),
-      () => api.setActualWinner(leagueId!, value)
-    );
-  }
 
   // Toggling a card: clear its slot if already picked, otherwise fill the first empty slot.
   function toggleTop3(playerId: string, top3: (string | null)[], castawayId: string) {
@@ -118,12 +110,6 @@ export function FinalePanel({ state }: { state: LeagueState }) {
     if (idx !== -1) return setPick(playerId, idx, null);
     const empty = top3.indexOf(null);
     if (empty !== -1) return setPick(playerId, empty, castawayId);
-  }
-  function toggleActualTop3(top3: (string | null)[], castawayId: string) {
-    const idx = top3.indexOf(castawayId);
-    if (idx !== -1) return setActualTop3(idx, null);
-    const empty = top3.indexOf(null);
-    if (empty !== -1) return setActualTop3(empty, castawayId);
   }
 
   return (
@@ -156,7 +142,7 @@ export function FinalePanel({ state }: { state: LeagueState }) {
         {state.players.map((p) => {
           const fp = state.finalePredictions.find((f) => f.playerId === p.id) || { playerId: p.id, top3: [null, null, null], winner: null };
           const pool = s.finalePredictionScope === "ownPicksOnly" ? state.castaways.filter((c) => c.ownerIds.includes(p.id)) : state.castaways;
-          const editable = canManage || p.id === myPlayerId;
+          const editable = (canManage || p.id === myPlayerId) && !settled;
           return (
             <div key={p.id} className="rounded-lg border border-border bg-card p-3">
               <div className="mb-2 flex items-center justify-between">
@@ -194,30 +180,26 @@ export function FinalePanel({ state }: { state: LeagueState }) {
       </div>
       <p className="mt-2.5 text-xs text-muted-foreground">
         Best set once, {StateLogic.formatOf(state).hasMerge ? "right after the merge" : "once the field has narrowed"} — edit anytime
-        before the finale airs.
+        until the finale starts.
       </p>
 
       <h4 className="mb-2 mt-4 text-sm font-bold">
-        Actual Result <span className="ml-1 rounded bg-secondary px-1.5 py-0.5 text-[0.65rem] font-normal">Commissioner only</span>
+        The result <span className="ml-1 rounded bg-secondary px-1.5 py-0.5 text-[0.65rem] font-normal">From the results</span>
       </h4>
-      <div className="mb-3">
-        <div className="mb-1 text-xs font-semibold text-muted-foreground">Top 3</div>
-        <CastPickGrid
-          pool={state.castaways}
-          selected={state.finaleActual.top3}
-          editable={canManage}
-          onToggle={(id) => toggleActualTop3(state.finaleActual.top3, id)}
-        />
-      </div>
-      <div>
-        <div className="mb-1 text-xs font-semibold text-muted-foreground">Winner</div>
-        <CastPickGrid
-          pool={state.castaways}
-          selected={[state.finaleActual.winner]}
-          editable={canManage}
-          onToggle={(id) => setActualWinner(state.finaleActual.winner === id ? null : id)}
-        />
-      </div>
+      {settled ? (
+        <>
+          <div className="mb-3">
+            <div className="mb-1 text-xs font-semibold text-muted-foreground">Top 3</div>
+            <CastPickGrid pool={state.castaways} selected={actual.top3} editable={false} onToggle={() => {}} />
+          </div>
+          <div>
+            <div className="mb-1 text-xs font-semibold text-muted-foreground">Winner</div>
+            <CastPickGrid pool={state.castaways} selected={[actual.winner]} editable={false} onToggle={() => {}} />
+          </div>
+        </>
+      ) : (
+        <p className="text-xs text-muted-foreground">Once the season&apos;s results are in, the final three and the winner score here on their own.</p>
+      )}
     </div>
   );
 }

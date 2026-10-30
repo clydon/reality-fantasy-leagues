@@ -43,7 +43,7 @@ function PlayerView({ state, scores, i }: { state: LeagueState; scores: ScoreRow
   const latest = ar ? latestScoredEpisode(state) : null;
   const sources = [
     !pool && [ar ? "Lineups" : "Castaways", r.locked],
-    state.settings.bonusEnabled && r.bonus !== 0 && ["Predictions", r.bonus],
+    !!StateLogic.betsOn(state) && r.bonus !== 0 && ["Predictions", r.bonus],
     r.finale !== 0 && ["Finale", r.finale],
   ].filter((x): x is [string, number] => !!x);
 
@@ -96,7 +96,7 @@ function PlayerView({ state, scores, i }: { state: LeagueState; scores: ScoreRow
         <Team state={state} r={r} />
       )}
 
-      {state.settings.bonusEnabled && <Predictions state={state} playerId={r.playerId} />}
+      {!!StateLogic.betsOn(state) && <Predictions state={state} playerId={r.playerId} />}
     </SettingsPage>
   );
 }

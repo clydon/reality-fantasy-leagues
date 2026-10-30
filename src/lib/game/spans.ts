@@ -2,8 +2,9 @@
 // (settings.endEpisode; StateLogic.endEpisode, inPlay, spanView, gameOver), instead of to the season's end. The choices are
 // read from the season itself, for any show: the rest of the season (as before), just the next one, any later episode the
 // listing has, and, for a sport whose episodes are linked to the provider's games (season_events), "this series": the run of
-// consecutive games between the same teams. Nothing here knows a sport. A span that starts later (post-merge, the playoffs)
-// is a game started when it's next.
+// consecutive games between the same teams. Nothing here knows a sport. A game can also start later
+// (settings.startEpisode; step A3 of docs/PLAN-start-a-game-gpt.md): any later listed episode, from Start a game's Starts or
+// Game settings until it airs; the choices here then count from there.
 
 /** One of the season's episodes, as the choices read it. `teams`: its linked game's teams' ids and names, when it has one. */
 export interface SpanEpisode {

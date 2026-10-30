@@ -74,8 +74,9 @@ export function ResearchTab() {
     }
   }, [who, hideOut, perEpisode]);
 
-  // Every revealed episode with results, before the league started too; the range picks from these.
-  const startEp = StateLogic.startEpisode(state);
+  // Every revealed episode with results, before the league started too; the range picks from these. A game waiting for its
+  // phase (step A3) ranges over all of them.
+  const startEp = StateLogic.startEpisode(state) ?? 1;
   const allAired = useMemo(() => airedEpisodes(state, true), [state]);
   const lastIdx = allAired.length - 1;
   const firstInPlay = allAired.findIndex((e) => e.number >= startEp);

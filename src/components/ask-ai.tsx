@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Bot, ExternalLink } from "lucide-react";
 import { api } from "@/lib/api";
-import { ActButton, CopyButton } from "@/components/admin/admin-ui";
+import { ActButton, CopyButton } from "@/components/ui/act-ui";
 import { cn } from "cn";
 import { chatLink } from "@/lib/ai-brief";
 
