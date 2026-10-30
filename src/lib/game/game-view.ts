@@ -1,6 +1,6 @@
 import type { Castaway, LeagueState, ScoreRow } from "./types";
 import StateLogic from "./state-logic.js";
-import type { AnswerWalk, CoopWalk, MatchupView } from "./state-logic.js";
+import type { AnswerWalk, CoopWalk, MatchupView, TeamView } from "./state-logic.js";
 import { castawayEventStats } from "./active-roster-rows";
 import { castawayPoints, teamOrder } from "./classic-view";
 import { latestScoredEpisode } from "./episode-team-summary";
@@ -61,6 +61,9 @@ export interface TableRow {
   /** Step A11 part 4: head to head's record (wins, losses, ties: what it ranks by, then the regular season's points), the playoff
    *  seed (null: not in them, or not seeded yet), still in them, the champion; null for any other game. */
   record: { wins: number; losses: number; ties: number; for: number; against: number; seed: number | null; alive: boolean; champion: boolean } | null;
+  /** Step A11 part 5: teams of players, the team the seat plays for (its points and place: every member shares it; `now`, whether
+   *  the seat is on it now); null for any other game, or a seat on no team. */
+  side: { id: string; name: string | null; points: number; place: number; rank: string; now: boolean } | null;
 }
 
 export interface LineupMove {
@@ -245,6 +248,9 @@ export interface GameView extends GameRefIn {
   /** Step A11 part 4: head to head, as far as you've seen: your record, this week's matchup and the last one, the playoffs (the
    *  seeds, the bracket so far, the champion); null for any other game, or with no seat. What it shows is U1's. */
   matchups: MatchupView | null;
+  /** Step A11 part 5: teams of players, as far as you've seen: how they're made and scored, whether they're set, yours, and each
+   *  team (its members now, its points, its place); null for any other game. What it shows is U1's. */
+  teams: TeamView | null;
 }
 
 /** Whose user a seat is, for faces. */
@@ -299,6 +305,8 @@ export function gameView(game: GameRefIn, full: LeagueState, playerId: string | 
     catchUp,
     coop: calls?.walk?.coop ?? null,
     matchups: seat ? StateLogic.MatchupLogic.view(view, me) : null,
+    // The teams as the table ranked them (each row's side), not worked out again.
+    teams: StateLogic.TeamLogic.view(view, seat ? me : null, everyone.map((r) => ({ playerId: r.playerId, total: r.points, team: r.side }))),
   };
 }
 
@@ -361,6 +369,7 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
       bot: bots.has(r.playerId),
       calls: calls ? right(r.playerId) : 0,
       record: r.matchups ? { wins: r.matchups.wins, losses: r.matchups.losses, ties: r.matchups.ties, for: r.matchups.for, against: r.matchups.against, seed: r.matchups.seed, alive: r.matchups.alive, champion: r.matchups.champion } : null,
+      side: r.team ? { ...r.team } : null,
     };
   });
 }

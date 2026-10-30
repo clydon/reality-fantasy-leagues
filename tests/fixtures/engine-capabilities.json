@@ -1944,7 +1944,17 @@
         {
           "id": "who.teams",
           "what": "Teams of players",
-          "step": "A11"
+          "step": "A11",
+          "spec": {
+            "preset": "weekly-lineup",
+            "rank": { "by": "total", "teams": { "of": 2 } }
+          },
+          "page": {
+            "show": "Survivor",
+            "season": 51,
+            "rulebook": "survivor"
+          },
+          "note": "teams of players (A11 part 5): the couch split into teams that score together, drawn at the game's start, each of you playing your own game; a team's points its members' mean, episode by episode, of whoever was on it then; every member shares its place"
         },
         {
           "id": "who.handicap",

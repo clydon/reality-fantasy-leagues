@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 175 ✅ · 70 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
-**Waiting, by step:** A11 3 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 176 ✅ · 69 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
+**Waiting, by step:** A11 2 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -125,7 +125,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 |---|---|---|
 | ✅ | Everyone against everyone | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. |
 | ✅ | Late joiners (anyone on the couch can join) | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. |
-| ⏳ | Teams of players | A11 |
+| ✅ | Teams of players | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. Played in two teams, drawn at random at the start: a team's points are its members' average. |
 | ⏳ | Handicaps (newcomers get a head start) | A11 |
 | ✅ | Two people share one team | An Outlast for The Challenge 41: everyone drafts 3, all season. Each scores by how long they last: the last one standing carries you. Up to two of you can share a team. |
 | ✅ | Group slots: a solo draft, plus a +1 or +2 slot for a pair or team the show forms, riding with it while it lasts | A Weekly Lineup for The Challenge 41: everyone drafts 5 and starts 3 each episode, plus two slots for a pair or team the show forms, all season. Scored by The Challenge 41's rules. |

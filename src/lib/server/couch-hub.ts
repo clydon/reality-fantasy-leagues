@@ -105,7 +105,7 @@ function standingOf(
   userOf: (p: string) => string | null,
   calls?: { right: (p: string) => number; through: number; ended: boolean; walk?: AnswerWalk | null },
   usersOf: (p: string) => string[] = () => []
-): { rows: StandingRow[]; through: number; ended: boolean; coop: GameStanding["coop"]; matchups: boolean } {
+): { rows: StandingRow[]; through: number; ended: boolean; coop: GameStanding["coop"]; matchups: boolean; teams: boolean } {
   // Step A11 part 2b: a game of questions' walk on your copy (answer-points.ts answerStanding): who's out, ranked as it ranks.
   const seenView = StateLogic.GhostLogic.viewFor(state, playerId, mark);
   const view = calls?.walk ? StateLogic.AnswerLogic.withWalk(seenView, calls.walk) : seenView;
@@ -113,15 +113,22 @@ function standingOf(
   const called = new Map<string, number>();
   // Side bets called right, where they count (beside a draft: a pool's or Weekly Calls' never scored).
   if (StateLogic.betsOn(view)) for (const ep of view.episodes) for (const b of ep.bets || []) for (const p of b.predictions || []) if (p.correct === true) called.set(p.playerId, (called.get(p.playerId) ?? 0) + 1);
-  const rows = tableOf(view, playerId ?? "", userOf, calls?.right).map((r) => ({
+  // Step A11 part 5: teams of players: each member's place is their team's (every one of them shares it), and a team is one in the
+  // field (couch-standings.ts fieldOf: the rows' `side`); someone on no team after every team, in the table's order.
+  const table = tableOf(view, playerId ?? "", userOf, calls?.right);
+  const teamsGame = StateLogic.TeamLogic.on(view);
+  const teamPlaces = teamsGame ? Math.max(0, ...table.map((r) => r.side?.place ?? 0)) : 0;
+  let lone = 0;
+  const rows = table.map((r) => ({ r, place: r.side ? r.side.place : teamsGame ? teamPlaces + ++lone : r.place })).map(({ r, place }) => ({
     userId: r.userId,
     name: r.name,
-    place: r.place,
-    rank: r.rank,
+    place,
+    rank: r.side ? r.side.rank : teamsGame ? String(place) : r.rank,
     total: r.total,
     ...(pool ? { best: r.total, streak: r.week ?? 0 } : {}),
     called: called.get(r.playerId) ?? 0,
     seat: r.playerId,
+    ...(r.side ? { side: r.side.id } : {}),
   })).flatMap((row) => {
     const on = usersOf(row.seat);
     return on.length > 1 ? on.map((u) => ({ ...row, userId: u })) : [row];
@@ -134,7 +141,9 @@ function standingOf(
   const coop = calls?.walk?.coop ? { result: calls.walk.coop.result, lives: calls.walk.coop.lives, of: calls.walk.coop.of } : null;
   // Step A11 part 4: a head-to-head game ranks by its playoffs and record (its table's order), so no margin in points.
   const matchups = StateLogic.MatchupLogic.on(view);
-  return { rows, through: calls ? calls.through : end === null ? seen : Math.min(seen, end), ended: calls ? calls.ended : StateLogic.gameOver(view), coop, matchups };
+  // Step A11 part 5: teams of players rank by their teams (its points, or its record), so no margin in anyone's own points.
+  const teams = StateLogic.TeamLogic.on(view);
+  return { rows, through: calls ? calls.through : end === null ? seen : Math.min(seen, end), ended: calls ? calls.ended : StateLogic.gameOver(view), coop, matchups, teams };
 }
 
 /** A game over a span (docs/PLAN-sports-data.md step 6), named in the show's own word ("Games 4–6"); null for a season game. */
@@ -231,6 +240,7 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
         before,
         coop: now.coop,
         ...(now.matchups ? { matchups: true } : {}),
+        ...(now.teams ? { teams: true } : {}),
       });
     } catch (e) {
       // One unreadable league costs its game, not the hub.

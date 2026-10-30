@@ -511,6 +511,9 @@ async function lookAt(r, n) {
       // A11 part 4b: head to head on a game of questions, on the league walked as its table reads it.
       const m = S.MatchupLogic.on(s) ? matchupLine(S, S.AnswerLogic.withWalk(s, st.walk), label) : null;
       if (m) out.matchups = m;
+      // A11 part 5: teams of players, on the league walked as its table reads it.
+      const t = S.TeamLogic.on(s) ? teamLine(S, S.AnswerLogic.withWalk(s, st.walk), label) : null;
+      if (t) out.teams = t;
       if (st.walk.ends !== null && n > st.walk.ends) return out;
     }
     try {
@@ -541,8 +544,19 @@ async function lookAt(r, n) {
     // A11 part 4: head to head's records, as the app reads the league (its season length as its last write stamped it).
     const m = S.MatchupLogic.on(s) ? matchupLine(S, s, label, rows) : null;
     if (m) out.matchups = m;
+    // A11 part 5: teams of players, as the app reads the league.
+    const t = S.TeamLogic.on(s) ? teamLine(S, s, label, rows) : null;
+    if (t) out.teams = t;
   }
   return out;
+}
+
+/** A11 part 5: a game played in teams of players after an episode: each team's points, place and who's on it now, on `v` (a game of
+ *  questions' carrying its walk); `rows`, its score rows when they're read already. */
+function teamLine(S, v, label, rows = S.computeScores(v)) {
+  const st = S.TeamLogic.standings(S.spanView(v), rows);
+  if (!st) return null;
+  return Object.fromEntries(st.map((t) => [t.id, { points: t.points, place: t.place, members: t.members.map(label) }]));
 }
 
 /** A11 part 4: a head-to-head game's record after an episode: the records (wins-losses-ties), where the playoffs are, the seeds once

@@ -42,7 +42,9 @@ together, a night none of you saw coming costing one, won or lost by all, `rank.
 with playoffs, a draft's (2026-10-30: a round robin of the seats each episode on that episode's points, the standings by wins, the
 playoffs over the game's last episodes, `rank.by 'matchups'`, `rank.playoffs`, `MatchupLogic`), and part 4b, head to head on a game
 of questions (2026-10-30: each episode's points what its answers settled by then add, the walk handing them over, `answerWalk.series`,
-`MatchupLogic.series`), are built; part 5 (teams and handicaps) is next, then A12 to A14
+`MatchupLogic.series`), and part 5, teams of players (2026-10-30: the couch split into teams that score together, drawn or chosen,
+summed or their mean, by their points or head to head between the teams, `rank.teams`, `TeamLogic`), are built; part 5b (handicaps,
+teams that follow the show's own groups, the late joiners' leftovers) is next, then A12 to A14
 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -3171,7 +3173,14 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   - **Part 5: teams of players and handicaps** (who.teams, who.handicap, s19): the couch split into teams that score together
     (and teams that follow the show's own groups, through a swap), a handicap's points a week for whoever it names (newcomers,
     from the couch's history), and the late joiners' leftovers (Noticed: computer players and group slots; a late joiner's captain
-    and second pick through `GhostLogic.applyAs`; A10's late-joiner items).
+    and second pick through `GhostLogic.applyAs`; A10's late-joiner items). **Split (2026-10-30), as its seed allowed:** part 5 is
+    teams of players (who.teams: drawn or chosen, summed or their mean, a draft's or a game of questions', by their points or head to
+    head between the teams, the Games tab's, the hub's and the couch's numbers' readers, the route, every fallback), built; **part 5b
+    is handicaps** (who.handicap, s19: a handicap's points a week for whoever it names, newcomers from the couch's history, its
+    fallbacks: someone new to the couch, a couch with no seasons, a late joiner), **teams that follow the show's own groups**
+    (`rank.teams.made` 'group', VOCAB 'later' now: each team tied to one of the show's groups, on F3's grouping lifetimes, through a
+    swap, a merge, each for themselves) **and the late joiners' leftovers** (above, with part 5's: a late joiner's team when the
+    game is drawn, `GhostLogic.allowed` for a game in teams).
 
   **As built (A11 part 1, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
   desk fixes: a season matched, a group corrected; 1064 tests). A race and players knocked out, in a draft. Each piece rides on data
@@ -3739,6 +3748,128 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     questions head to head (above); win.h2h, a draft's, played as part 4's did, the same records, seeds and champions on all five (the
     week after the finale now skipped changes nothing there: on The Challenge the playoffs sat on the reunion, on The Traitors 4 the
     regular season ended before its finale). The study doc's "A11 part 4b: head to head on a game of questions, replayed blind".
+  **As built (A11 part 5, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  up to date; 1115 tests). Teams of players (who.teams). **Split** (above, as the seed allowed): handicaps (who.handicap, s19), teams
+  that follow the show's own groups and the late joiners' leftovers are part 5b. Every default and everything a person sees is the
+  user's (Noticed, below).
+  - **The spec** (`schema.js`): `rank.teams` `{ of, made, score, unplaced, names? }`: the couch split into `of` teams (2 to
+    `MAX_PLAYER_TEAMS`, 6) that score together, each of you still playing your own game (your own draft, lineup or answers). `made`
+    draw (at random at the game's start, seeded and recorded) | choose (each picks theirs before it starts) | group (the show's own
+    groups: VOCAB 'later', part 5b; said, `specWaitsFor` names it and nothing plays it); `score` sum | mean (of the members on it,
+    episode by episode); `unplaced` smallest | none (where someone on no team goes once they count: a late joiner, someone who didn't
+    choose by the start); `names` up to one a team, each 1 to `MAX_TEAM_NAME` (24) characters, none twice. The defaults `TEAMS` (draw,
+    mean, smallest), read by `teamParts`, never filled in. `teamParts` (null unless it plays: a draft or a game of questions, ranked
+    by its total or head to head, with no race). Refused (`teamProblems`): a pool ("a pool's streak is one person's run of right
+    picks"), Weekly Calls and Weekly Bingo (counted outside the game), co-op ("the whole couch on one side already"), last one
+    standing ("a team knocked out isn't built"), a race, a stock market's worth; `of`, `made`, `score`, `unplaced` or `names` out of
+    range; the playoffs taking more teams than `of`; with ctx, more teams than the couch has seats (`teamsOf`: a shared seat once:
+    "2 of you can't fill 3 teams"), and the playoffs counted against the teams of players in place of the seats. `answerParts` carries
+    `teams` and is non-null for it, so a game of questions in teams is walked everywhere it's read. `flagsOf` `hasTeams`. Settings
+    both ways: `rankTeams` (a draft's and a game of questions'). The exclusive count is unchanged: each seat still drafts its own
+    team of castaways (a team that drafts together is A10 part 4b's shared seat).
+  - **Words** (`describe.js`): the sentence ("Played in two teams, drawn at random at the start: a team's points are its members'
+    average." / "(Red, Blue and Gold), each of you picking yours before it starts" / "added up"); head to head between teams ("Each
+    episode your team plays another head to head", "The top two teams by wins make the playoffs"); How it works (the split, a team's
+    points, where a late joiner goes, a seat that leaves, "The team with the most points wins: everyone on it shares the win", and
+    head to head's rules in teams' words: an odd number of teams, the top N teams). A game of questions in teams says "No draft."
+    (not "no team").
+  - **The engine** (`state-logic.js` `TeamLogic`), worked out from the data on every read, as the knockouts are, so a corrected result
+    works it out again and a viewer's copy counts only what they've seen; what's kept is who's on which team. `ids` ('t1'...),
+    `teamAt` (a seat's team at an episode: its kept spell, else a draw's provisional team), `sideOf` (the team a seat plays for: its
+    last), `membersAt`, `teamsAt`, `drawn` (the seats in the rotation there from the start, not catching up, in the seed's order, a
+    team each in turn: sizes one apart at most), `started` (the game's first episode locked or with results), `series` and
+    `standings` (each episode the game has played, its series `MatchupLogic.seatSeries`: a draft's own scoring, a game of questions'
+    walk; each team's points what its members on it then earned in it, summed or their mean; then what they've earned since the last
+    episode walked as the table has it, on the team they're on now: results still early, a question settled since), `label` (each
+    row's `team`: id, name, points, place, rank, `now`), `apply`, `view` (made, score, of, set, yours, each team's members now, points,
+    place; `fromRows`, the same read from the table's labelled rows, so the Games tab doesn't work them out twice),
+    `chooseProblem`/`choose` (a seat picks before the start in a chosen game; whoever runs the game puts anyone on one then, and moves
+    anyone once it's started, from the first episode not played or locked: `openEpisode`, `openFor`), `seed`, `settle` (on every
+    write, db.ts, before and after the mutation). The standings place the teams as the game ranks them: by their points, or head to
+    head by the team's record (how far in the playoffs, wins, the regular season's points, the seed), so a champion team with fewer
+    points is first. `rankKey`: the team's points (every member shares its place, listed by their own points), someone never on a team
+    after every team; head to head between teams, the team's record. `RosterLogic.setGame` gives a game made in teams its draw's seed
+    at once (`state.teamDraw.seed`, `TeamLogic.seed`, as settle does for a state without one), so the same seats give the same teams
+    from its first read; the draw before it's kept is memoised by state (its seats, start and seed).
+  - **Who's on which, over time** (`state.teamSeats`: each seat's spells `[{ team, from, left? }]`): nothing kept for a drawn game
+    until it starts (its draw from its seed on every read); kept once started (`state.teamDraw.kept`), the draw as it stood or the
+    choices, each from their own start; a game made in teams mid-season keeps it at once, counting its past; a seat new to it (a
+    late joiner once caught up, one brought in) from the first episode not played or locked. Before the start the draw is dealt over
+    the seats there, so someone joining or leaving then can deal others onto other teams (`GameView.teams.set` false until kept).
+  - **Head to head between teams** (`MatchupLogic`): the sides are the teams with someone on them (`seatsAt`, `series` from
+    `TeamLogic.series`, `sideOf`), so the round robin, the median for an odd number of teams, the standings, the playoffs (their seeds
+    teams) and the champion are the teams'; each row's `matchups` is its team's record (every member a champion), `MatchupLogic.view`
+    says the seat's `side` and plays its team's matchups; a seat on no team plays nobody.
+  - **The fallbacks:** someone who didn't choose by the start, or a late joiner once caught up, or a seat brought in later: onto the
+    smallest team then (a tie: the first), or none (`unplaced` 'none': they play for nobody, ranked after every team); a ghost (a late
+    joiner's private season) on none; someone still catching up placed once caught up; a disabled seat off its team from the first
+    episode still to play (its points before staying with it; its row still plays for that team), back on it when reclaimed; a seat
+    removed outright gone, its points with it; a team the spec no longer has (fewer teams): its seats placed again from the next
+    episode; a team nobody's on scores nothing and plays nobody; a tie between teams shares the place (head to head: half a win, the
+    better seed in the playoffs); results still early (counted as the table has them; head to head's matchups wait, as part 4's); a
+    corrected result; a viewer behind; a shared seat (A10 part 4b) on a team is one member, credited for each account; a format change
+    nobody announced reaches a team through each member's own game (nothing in teams reads the show's format: part 5b's teams that
+    follow a group will); a state without a seed draws from a fixed one; a game of questions read without its walk counts everyone
+    level (the safe fallback a reader not taught yet gets).
+  - **The server:** the Games tab (`game-view.ts`): `TableRow.side` (the team the seat plays for: points, place, rank, `now`) and
+    `GameView.teams` (`TeamLogic.view` on your copy, from the table's own points). The route `PUT /api/leagues/[leagueId]/player-teams/
+    [playerId]` `{ team }` (a member their own before the start in a chosen game; the commissioner anyone's, and moves once it has
+    started; a refusal a 400 with the reason). `db.ts` settles the teams on every write. The hub (`couch-hub.ts` `standingOf`): each
+    member's place is their team's, each row's `side`, `GameStanding.teams`; `couch-standings.ts`: `fieldOf` counts a team of players
+    once, head to head never pairs teammates, the plaque's winners are the winning team's members (each credited a title) with no
+    margin in anyone's own points. A game of questions in teams is walked by `answer-points.ts` as any with `answerParts`, and the walk
+    hands its episodes over (`answerWalk.series`, for teams as for head to head).
+  - **The tracker:** who.teams ✅ (a Weekly Lineup on Survivor 51 in two teams, drawn). **Now: 176 ✅** · 69 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of
+    271; A11's two left: who.handicap and s19 (part 5b).
+  - **Tests:** `tests/teams.test.js` (new, 9): the shape, defaults, words and settings both ways, what's refused (a pool, Weekly Calls,
+    Weekly Bingo, co-op, last one standing, a race, each part out of range, the playoffs over `of`, the couch's count, a shared seat
+    once, a league's own), `made` 'group' waiting for its step; the draw (balanced, seeded at setGame, the same on every read, kept at
+    the start or the first lock, a ghost, a late joiner and a disabled seat not dealt, made mid-season counting its past, everything
+    gone when teams are off); choosing (before the start, changing your mind, the unplaced onto the smallest at the start, a move from
+    the next episode, back again, a drawn game's refusals, a ghost, someone catching up, a disabled seat); a team's points (sum and
+    mean, every member sharing the place, the table's sides, the view, a tie); who's on a team over time (a late joiner caught up, a
+    disabled seat and one reclaimed, `unplaced` 'none', a team the spec drops); results still early, a corrected result, a viewer
+    behind; head to head between teams (the records, the seeds, the view's side, the final's champion team, three teams and the
+    median, someone on no team); a game of questions in teams from its walk (and without it); the couch (one team in the field, a
+    shared seat's two rows, the place points, head to head without teammates, the plaque's winners, a title each). The answer
+    parts' shape in `answer-knockouts.test.js`, `coop.test.js` and `answer-matchups.test.js` (`teams: null`); `game-spec.test.js`'s
+    fields (`rankTeams`). `npm test` 1124.
+  - **API check:** `scripts/dev-test/check-teams.js` (new, on new-fixture.js's couch), 26 PASS: Lineup League made a game for Episodes 6
+    and 7 in two chosen teams, the Reds and the Blues, summed, through `setGame` with the show's ctx; the Games tab before the start
+    (not set, nobody on one); each picks through the route (a team that isn't one refused; riley can't pick for jordan); jordan's
+    Survival Pool made a game of questions in two drawn teams (its seed set as it's made; a pick refused: drawn), the answers through
+    the answers route; Episode 6 through the season sync: both games' teams kept (as chosen from 6; as drawn, the teams the Games tab
+    showed before the start), each team's points its members' (the lineup's from their own points, the pool's the walk's right calls),
+    every member sharing the team's place; sam's switch refused (set); alex moves riley to the Blues from 7; Episode 7: riley's points
+    to the Blues, Episode 6's staying with the Reds, over; the hub's plaque the winning team's members, no margin; the hub's rankings
+    read; Episode 7 corrected (re-decided): worked out again. `check-h2h.js`, `check-answer-h2h.js`, `check-coop.js`,
+    `check-answer-knockouts.js`, `check-knockouts.js`, `check-pool-knockouts.js`, `check-questions.js`, `-who` (`--api`) and
+    `check-engine-lab.js --api` ALL PASS; `check-teams.js`, `check-h2h.js` and `check-answer-h2h.js` again after the code review's
+    fixes. `npx tsc --noEmit -p .` clean.
+  - **Cost:** a read of a game in teams walks its series once more than a game without them (the table's, then the view's); nothing is
+    memoised (with part 4's memo item).
+  - **Code review** (`/code-review` at high, before the long runs; nine findings, all taken). Head to head between teams placed the
+    teams by their points on the table's sides, the Games tab's teams and the couch (the plaque could go to a team with more points
+    that lost the final): the standings now place them as head to head ranks them (a unit test: the champion team with fewer points
+    first). A seat on no team kept its seat's place on the couch beside team places (7th of a field of 3): placed after every team now.
+    A move made while an episode was locked, before its results, counted for that episode: from the first episode not played or locked
+    now (`openEpisode`; a unit test). The words said someone who didn't choose goes onto a team "from the next episode" (they go on from
+    the start). The draw was worked out again on every call before it's kept (memoised by state now); the Games tab worked the
+    standings out twice (`fromRows`); a re-entrancy guard that guarded nothing (gone); the seed set in two places (`TeamLogic.seed`);
+    a comment that said the teams shown before the start are always the ones kept (someone joining before the start can deal others
+    elsewhere: said so now, and Noticed).
+  - **The harness** (`blind.js`): each episode's record of a game in teams says each team's points, place and who's on it now
+    (`.teams`, `teamLine`), as the app reads the league (a game of questions' on the league walked as its table reads it).
+  - **Golden replays** (`golden.js`, HEAD against the working tree, after the code review's fixes): 7 seasons, 160 games, **19,361
+    reads, every one the same** (no game they play is in teams).
+  - **Blind replays** (`blind.js run`, the five seasons, on the final code): **every game ended on all five seasons**, who.teams among
+    them (Survivor 49 96 of 96, The Challenge 41, 40 and 39 77 of 77, The Traitors 4 75 of 75), no problem in the moves. who.teams, a
+    Weekly Lineup in two teams drawn from the four seats (two and two, a draw of its own on each season), each team's points the mean
+    of its members' at every episode, as the table has them: Survivor 49 the tinkerer and the forgetter 56.25 to 45.5 (106 and 6.5
+    against 22 and 69), The Challenge 41 the drive-by and the fan 2.5 to -3.5, 40 the drive-by and the fan 10 to 2.5, 39 the tinkerer
+    and the fan 31.5 to 17.5, The Traitors 4 the tinkerer and the drive-by 41.5 to 23; level at the premiere on 39 and The Traitors 4
+    (both teams T1). Nothing in teams reads the show's format, so The Challenge's re-pairings reach it only through each member's
+    lineup. The study doc's "A11 part 5: teams of players, replayed blind".
 - **A12. Stages.** A game made of phases or mini-games, each with its own rules and an overall: a second draft at the merge, a
   season of mini-games, a game that scores two ways (bingo lines plus answers), one game across two shows.
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
@@ -4452,6 +4583,64 @@ From A10 part 1 (2026-10-29):
 - A slot's group members are matched to the league's cast the forgiving way (`Core.findCastawayByName`), as F3 part 2's group
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
+
+From A11 part 5 (2026-10-30):
+- **For the user, in a design session (with part 4b's six questions and parts 1 to 4's), each with a recommendation (built as spec
+  settings or engine rules, the defaults `TEAMS`, read by `teamParts`, never filled into a spec):**
+  1. How the teams are made. Built: `made` draw (at random at the game's start, seeded and recorded: the default) | choose (each picks
+     theirs before the start; whoever runs the game can put anyone on one). Options: the maker sets them (choose already lets the
+     commissioner do it); balanced by the couch's history (the strongest split up). Recommended: draw by default ("split us into two
+     teams"), choose when the words name the teams ("boys against girls", "couples"), the GPT reading which from the words (G1).
+  2. When they're set. Built: at the game's start (its first episode locked, or with results); before it a drawn game's teams are dealt
+     over whoever's there, so someone joining before the start can deal others onto other teams (`GameView.teams.set` says when they're
+     kept). Options: drawn at the draft's start, so teammates can plan their picks; drawn when the maker says. Recommended: as built for
+     a game of questions; for a draft, drawn when the draft starts (a small setting, `at: 'draft'`), since a couch drafting as teams
+     will want to know its teammates; U1 shows provisional teams as "drawn at the start", never as fixed.
+  3. A team's points. Built: the mean of its members' points, episode by episode, of whoever was on it then (the default) | sum.
+     Recommended: mean (a team of three and a team of two weigh the same; with equal teams it ranks as the sum does), the Games tab
+     showing both; sum when a request says "added up".
+  4. Someone on no team when they start counting (a late joiner caught up, someone who didn't choose by the start, a seat brought in).
+     Built: `unplaced` smallest (onto the smallest team, a tie to the first: the default) | none (they play for nobody, ranked after
+     every team). Options: a tie to the team behind on points; the maker places them; they choose within a window. Recommended:
+     smallest, a tie to the team behind on points (a small change: the settle has the series), U1 telling them which team.
+  5. A late joiner's points before they join a team (catching up, they play episodes the team already played). Built: they count for
+     no team (a team's past points never change after the fact); placed from the first episode not played or locked. Recommended:
+     keep.
+  6. A seat that leaves (disabled). Built: off its team from the first episode not played or locked, its points before staying with
+     it; reclaimed, back on that team from then; a seat removed outright is gone, its points with it (every episode worked out again
+     without it). Options: it stays on its team (as head to head keeps a disabled seat: its draft plays on by itself), which helps with
+     sum and hurts with mean in a game of questions (it answers nothing). Recommended: as built; a removal once the game has results
+     made a disable (part 4's item 8, the same).
+  7. A seat moved to another team mid-season. Built: by whoever runs the game only, from the next episode; its row, the couch's
+     numbers and the plaque credit it with the team it ended on. Options: credited with the team it played the most episodes for, or
+     with both. Recommended: as built, the move in Recent changes (it is: "Put riley on a team").
+  8. The couch's numbers. Built: each member credited with the team's place, one team in the field (`fieldOf`), teammates never in each
+     other's head to head (as a shared seat's), the plaque the winning team's members (a title each), no margin in anyone's own points.
+     Options: a team game's margin in the teams' points on the plaque; team games counted apart ("team wins"). Recommended: as built,
+     plus the teams' margin on the plaque (`GameStanding` carrying the teams' points: small).
+  9. Head to head between teams. Built: the teams play each other (a round robin of the teams, the median for an odd number of teams,
+     the standings by wins, the playoffs over teams, the champion team's members all champions); a seat on no team plays nobody.
+     Recommended: keep; with two teams every week is the same matchup, so the wizard offers head to head between teams from three.
+  10. Balance in a chosen game. Built: nothing stops a lopsided split (five on one team, one on the other); the mean keeps it fair on
+     points. Options: refuse a choice that makes a team more than one bigger than another (`balanced: true`). Recommended: a setting
+     if a couch asks; the mean is enough by default.
+  11. Names. Built: the spec's names (up to one a team) or none (the words say "two teams"; U1 "Team 1"). Options: a team names itself
+     (a move). Recommended: the spec's or "Team 1", a rename on the team's screen in U1.
+  12. What players are told (U1): their team and teammates, the team's points and place beside their own, being placed on one (a late
+     joiner, the unplaced), a move, the draw at the start; on the episode night, how the team did.
+- **The Games tab's seat `rank` in a game in teams** is the seat's place among seats ("T1", "T1", "3"); the team's place is
+  `TableRow.side` (the hub reads it). (U1: show the team's place.)
+- **The draw is worked out on every read before the start** (memoised per state object) and the standings walk the game's series once
+  more than a game without teams (head to head walks the matchups again inside them). Nothing at a couch's size. (With part 4's memo
+  item.)
+- **Readers not taught teams:** the couch's game list (`couch-joins.ts`), Game settings (`backstage-games.ts`), the desk's games list
+  and Start a game show nothing of them; a game of questions read without its walk counts every team level. (U1.)
+- **Teams of players don't read the show's format:** a change nobody announced reaches a team through each member's own game (its
+  pieces' fallbacks). Teams that follow one of the show's groups (`made` 'group', VOCAB 'later') are part 5b's, on F3's grouping
+  lifetimes, with their fallbacks (a swap, a merge, each for themselves). (Part 5b.)
+- **No request in the corpus asks for teams of players** (who.teams is the dial's row): G1's corpus could add "split us into two
+  teams" and "boys against girls". (G1.)
+- Start a game, Game settings and the engine lab offer none of it (the lab starts the tracker's rows). (U1.)
 
 From A11 part 4b (2026-10-30):
 - **For the user, in a design session (with part 4's twelve questions and parts 1 to 3's), each with a recommendation (built as engine

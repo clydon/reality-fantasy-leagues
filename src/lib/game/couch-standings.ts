@@ -23,6 +23,9 @@ export interface StandingRow {
   /** A10 part 4b: the seat (its player id) the row is for. A team two people share is one row a person, each credited with the
    *  team's place, and one team in the field (fieldOf). */
   seat?: string;
+  /** A11 part 5: the team of players the row's seat plays for. Its members are one team in the field (fieldOf), each credited with
+   *  the team's place, and never in each other's head to head (they played on the same side). */
+  side?: string;
 }
 
 export interface GameStanding {
@@ -57,6 +60,9 @@ export interface GameStanding {
   /** Step A11 part 4: a head-to-head game: its places are its playoffs' and its record's, not its points, so its plaque gives no
    *  margin in points (`by`); its winner is the playoffs' champion (first in its table). */
   matchups?: boolean;
+  /** Step A11 part 5: a game played in teams of players: its places are its teams' (every member shares their team's), so its plaque
+   *  gives no margin in anyone's own points; its winners are the winning team's members, each credited. */
+  teams?: boolean;
 }
 
 export interface Person {
@@ -113,12 +119,14 @@ export interface Rankings {
   counted: { year: number; all: number };
 }
 
-/** How many teams a game's rows are: a team two people share counts once (its rows share a `seat`). */
+/** How many teams a game's rows are: a team two people share counts once (its rows share a `seat`), and so does a team of players
+ *  (step A11 part 5: its rows share a `side`). */
 export function fieldOf(rows: StandingRow[]): number {
   const seats = new Set<string>();
   let lone = 0;
   for (const r of rows) {
-    if (r.seat) seats.add(r.seat);
+    if (r.side) seats.add(`side:${r.side}`);
+    else if (r.seat) seats.add(r.seat);
     else lone++;
   }
   return seats.size + lone;
@@ -182,8 +190,8 @@ export function rankingsOf(games: GameStanding[], people: Person[], me: string, 
       for (const g of all) {
         const mine = g.rows.find((r) => r.userId === me);
         const theirs = g.rows.find((r) => r.userId === p.userId);
-        // Two on one team (step A10 part 4b) didn't play each other.
-        if (!mine || !theirs || (mine.seat && mine.seat === theirs.seat)) continue;
+        // Two on one team (step A10 part 4b), or on one team of players (A11 part 5), didn't play each other.
+        if (!mine || !theirs || (mine.seat && mine.seat === theirs.seat) || (mine.side && mine.side === theirs.side)) continue;
         out.games++;
         if (mine.place < theirs.place) out.won++;
         else if (mine.place > theirs.place) out.lost++;
@@ -278,7 +286,7 @@ export function trophiesOf(games: GameStanding[], people: Person[], me: string):
       artUrl: g.artUrl,
       you: mine ? { place: mine.place, rank: mine.rank } : null,
       winners: top.map((r) => ({ userId: r.userId, name: r.userId ? (member.get(r.userId)?.name ?? r.name) : r.name })),
-      by: one && second && pointsGame(g) && !g.coop && !g.matchups ? Math.round((top[0].total - second.total) * 10) / 10 : null,
+      by: one && second && pointsGame(g) && !g.coop && !g.matchups && !g.teams ? Math.round((top[0].total - second.total) * 10) / 10 : null,
       ranItBack: one && !g.coop && top.some((r) => !!r.userId && prevWinners.has(r.userId)),
       ...(g.coop ? { coop: { result: g.coop.result } } : {}),
     };

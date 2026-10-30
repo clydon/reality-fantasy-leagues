@@ -102,7 +102,7 @@ test("head to head on a game of questions: its shape, defaults, words and settin
   assert.equal(flags.hasRace, false);
   // The walk's parts carry head to head (so the server walks it); its defaults are read, never filled in.
   assert.deepEqual(G.matchupParts(G.fullSpec(specs[0])), { odd: "median", quiet: "skip", playoffs: null });
-  assert.deepEqual(G.answerParts(G.fullSpec(specs[1])), { race: null, cuts: [], lives: null, on: [], oneLeft: null, allOut: null, coop: null, matchups: { odd: "median", quiet: "skip", playoffs: { teams: 2, rounds: 1, from: null } } });
+  assert.deepEqual(G.answerParts(G.fullSpec(specs[1])), { race: null, cuts: [], lives: null, on: [], oneLeft: null, allOut: null, coop: null, matchups: { odd: "median", quiet: "skip", playoffs: { teams: 2, rounds: 1, from: null } }, teams: null });
   assert.equal(G.fullSpec(specs[0]).rank.odd, undefined);
   assert.deepEqual(G.fullSpec({ ...h2h(), rank: { playoffs: { teams: 2 } } }).rank, { playoffs: { teams: 2 }, by: "matchups" }, "a rank that says only its playoffs");
   // Its settings: questionsRank 'matchups', and what it says beyond that in rankMatchups (as a draft's).

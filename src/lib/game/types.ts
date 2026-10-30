@@ -1115,6 +1115,11 @@ export interface LeagueState {
   /** A11 part 4: when each seat joined head to head's schedule (playerId -> the first episode it plays), kept on every write
    *  (MatchupLogic.settle), so a seat coming in later never rewrites the weeks played. */
   matchupSeats?: Record<string, number>;
+  /** A11 part 5: teams of players. Who's on which (playerId -> spells, each from an episode: team null on none, `left` the team a
+   *  disabled seat left), kept on every write once the game has started (StateLogic.TeamLogic.settle); and the draw's seed, with
+   *  `kept` once the teams are kept for good. */
+  teamSeats?: Record<string, { team: string | null; from: number; left?: string }[]>;
+  teamDraw?: { seed: string; kept?: boolean };
   settings: LeagueSettings;
 }
 
@@ -1198,6 +1203,9 @@ export interface ScoreRow {
    *  against, the playoff seed (null: not in them, or before they're seeded), how far they went (rankKey's first number), still
    *  in the playoffs, the champion. */
   matchups?: MatchupRecord & { seed: number | null; tier: number; alive: boolean; champion: boolean };
+  /** Teams of players (step A11 part 5: TeamLogic.label): the team the seat plays for (its last), the team's points and place (a
+   *  tie "T1"), and whether the seat is on it now; null on none. */
+  team?: { id: string; name: string | null; points: number; place: number; rank: string; now: boolean } | null;
 }
 
 /** Head to head's record (step A11 part 4): wins, losses, ties, and the regular season's points for and against. */

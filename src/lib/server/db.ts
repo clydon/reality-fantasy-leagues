@@ -84,6 +84,8 @@ export async function withLeagueLock(
     StateLogic.DrawLogic.settle(state);
     // An auction whose bidding closed with bids still out (step A10 part 3b, auction.ts): settled now, with the bids it has.
     await settleDueAuction(client, leagueId, state);
+    // Teams of players (step A11 part 5, StateLogic.TeamLogic): kept once the game has started, so the mutation sees who's on which.
+    StateLogic.TeamLogic.settle(state, Date.now());
     const before = change ? structuredClone(state) : null;
     await mutatorFn(state, client);
     // A mutation that turned group slots on reads them now; one that turned them off clears them (settle keeps none).
@@ -97,6 +99,9 @@ export async function withLeagueLock(
     // taken back), so neither a seat coming in nor the season's schedule changing rewrites what's been played.
     await stampSeasonLength(client, state);
     StateLogic.MatchupLogic.settle(state);
+    // Teams of players (step A11 part 5): a seed for the draw on the write that turns them on; once the game has started, who's on
+    // which kept, a seat new to it placed, a disabled one off its team, from the first episode still to play.
+    StateLogic.TeamLogic.settle(state, Date.now());
     const spec = change && before ? (typeof change === "function" ? change(before, state) : change) : null;
     // A move on a team two people share (step A10 part 4b): who made it, in this transaction. Only where the game shares its
     // seats, so no other game pays for a query.

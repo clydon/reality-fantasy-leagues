@@ -1016,6 +1016,33 @@ its full results and for any question about it alone still to settle; nothing af
   fallback) earn nothing either way, so the rest of the night decides the matchup; and an episode research gives no scoring moment
   stays at early results, so its matchup waits for the next episode (Noticed item 2).
 
+## A11 part 5: teams of players, replayed blind (2026-10-30)
+
+A11's part 5 split the couch into teams that score together (`rank.teams`, state-logic.js `TeamLogic`): each of you still plays your
+own game, and your points go to your team while you're on it, each episode, summed or their mean; the teams are drawn at the game's
+start (or chosen before it), kept once it starts, and the game ranks the teams (by their points, or head to head between them).
+
+- **who.teams played on all five seasons:** a Weekly Lineup in two teams drawn from the four seats, two and two, its own draw on each
+  season. Every game ended on all five (Survivor 49 96 of 96, The Challenge 41, 40 and 39 77 of 77, The Traitors 4 75 of 75), nothing
+  refused.
+
+| Season | The winning team | Its points | The other | Their points |
+|---|---|---|---|---|
+| Survivor 49 | the tinkerer and the forgetter (106, 6.5) | 56.25 | the drive-by and the fan (22, 69) | 45.5 |
+| The Challenge 41 | the drive-by and the fan (-4, 9) | 2.5 | the tinkerer and the forgetter (2, -9) | -3.5 |
+| The Challenge 40 | the drive-by and the fan (-7, 27) | 10 | the tinkerer and the forgetter (4, 1) | 2.5 |
+| The Challenge 39 | the tinkerer and the fan (40, 23) | 31.5 | the forgetter and the drive-by (12, 23) | 17.5 |
+| The Traitors 4 | the tinkerer and the drive-by (65, 18) | 41.5 | the forgetter and the fan (16, 30) | 23 |
+
+- **A team's points are its members' mean, episode by episode:** with two on each team every season it's half their sum, so the table
+  above adds up from each member's own total; a team carrying a member who forgets (Survivor 49's forgetter, 6.5) can still win on its
+  other member's points, which the mean doesn't hide (Noticed item 3: mean or sum).
+- **Teams of players don't read the show's format:** The Challenge's re-pairings every episode and Survivor 49's swaps reach a team only
+  through each member's own lineup (its own fallbacks), so nothing in teams waited, voided or moved on a format change. Teams that
+  follow one of the show's own groups through a swap (`made` 'group') are part 5b's, on F3's grouping lifetimes.
+- **Not on these replays:** a seat that leaves, a late joiner, a move between teams and head to head between teams (the four seats stay
+  for the whole season, and win.h2h plays the seats); the unit tests (`tests/teams.test.js`) and `check-teams.js` cover them.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

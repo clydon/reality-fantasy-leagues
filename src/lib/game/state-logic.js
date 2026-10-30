@@ -550,6 +550,9 @@ function rankKey(state, r){
   if((g.get.by === 'draft' || g.score.by === 'answers') && g.rank.by === 'standing') return PickEmScoringStrategy.standingKey(r);
   // A11 part 3: co-op, won or lost by all: everyone shares one place, whatever their points.
   if(g.rank.by === 'coop') return [0];
+  // A11 part 5: teams of players ranked by their points, every member sharing their team's place (TeamLogic.apply puts it on its
+  // rows); someone never on a team after every team, by their own points. Head to head between teams ranks by the team's record.
+  if(g.rank.by === 'total' && TeamLogic.on(state)) return r.team ? [1, r.team.points] : [0, r.total || 0];
   // A11 part 4: head to head, how far you went in the playoffs, then the standings: wins (a tie half), then the regular season's
   // points (MatchupLogic.apply puts them on its rows).
   // The playoffs' seats, level on all of it, by their seed (the one tie the seeding broke by who joined first).
@@ -582,9 +585,15 @@ class ScoringLogic {
     if(KnockoutLogic.on(view)) return KnockoutLogic.apply(view, rows);
     // A11 part 2b: a game of questions' walk, its points and who's out, as the server worked them out (AnswerLogic.walk).
     const walk = AnswerLogic.walkOf(view);
-    // A11 part 4: head to head's records and playoffs (MatchupLogic); part 4b, on a game of questions' points from its walk.
-    if(MatchupLogic.on(view)) return MatchupLogic.apply(view, walk ? AnswerLogic.walkRows(rows, walk) : rows);
-    return walk ? AnswerLogic.applyWalk(view, rows, walk) : rows;
+    // A11 part 4: head to head's records and playoffs (MatchupLogic); part 4b, on a game of questions' points from its walk. Part 5:
+    // between teams of players, each row carrying its team (TeamLogic.label) and its team's record.
+    if(MatchupLogic.on(view)){
+      const own = walk ? AnswerLogic.walkRows(rows, walk) : rows;
+      return MatchupLogic.apply(view, TeamLogic.on(view) ? TeamLogic.label(view, own) : own);
+    }
+    const scored = walk ? AnswerLogic.applyWalk(view, rows, walk) : rows;
+    // A11 part 5: teams of players, ranked by their teams' points.
+    return TeamLogic.on(view) ? TeamLogic.apply(view, scored) : scored;
   }
 }
 
@@ -928,6 +937,8 @@ class MatchupLogic {
   // its schedule by k (state.matchupSeats: from when it joined; without them, from its own start, and not while catching up). A
   // disabled seat stays: its team plays on, its points counting (disablePlayer).
   static seatsAt(state, k){
+    // A11 part 5: between teams of players, the sides are the teams with someone on them then.
+    if(TeamLogic.on(state)) return TeamLogic.teamsAt(state, k);
     const start = startEpisode(state);
     const kept = MatchupLogic.kept(state);
     return (state.players || []).filter(p => {
@@ -939,7 +950,12 @@ class MatchupLogic {
   // Each episode the game has played, in order, with everyone's points through it ({ number, totals: Map playerId -> points }): a
   // draft's from its own scoring (KnockoutLogic.series), a game of questions' from its answers' walk (A11 part 4b: AnswerLogic.walk's
   // series, on the copy the server walked; none without it, so nobody has played).
+  // A11 part 5: between teams of players, each team's (TeamLogic.series: what its members on it earned).
   static series(state){
+    return TeamLogic.on(state) ? TeamLogic.series(state) : MatchupLogic.seatSeries(state);
+  }
+  // Each seat's points through each episode played, whatever the sides: a draft's, or a game of questions' walk's.
+  static seatSeries(state){
     if(!Spec.questionsGame(gameOf(state))) return KnockoutLogic.series(state);
     const walk = AnswerLogic.walkOf(state);
     return walk && Array.isArray(walk.series) ? walk.series.map(x => ({ number: x.number, totals: new Map(Object.entries(x.totals)) })) : [];
@@ -1005,7 +1021,8 @@ class MatchupLogic {
     // Nothing after the season's finale plays (a schedule that counts a reunion), the playoffs' rounds nor a regular-season week.
     const ended = seasonEnded(state);
     const finale = ended ? finaleEpisodeOf(state) : null;
-    const players = state.players || [];
+    // The sides: the seats, or (A11 part 5) the teams of players.
+    const sides = TeamLogic.on(state) ? TeamLogic.ids(state) : (state.players || []).map(p => p.id);
     const records = new Map();
     const rec = id => {
       if(!records.has(id)) records.set(id, { wins: 0, losses: 0, ties: 0, for: 0, against: 0 });
@@ -1023,7 +1040,7 @@ class MatchupLogic {
     let before = null;
     for(const x of series){
       const k = x.number;
-      const pts = new Map(players.map(p => [p.id, roundPoints((x.totals.get(p.id) || 0) - (before ? before.totals.get(p.id) || 0 : 0))]));
+      const pts = new Map(sides.map(id => [id, roundPoints((x.totals.get(id) || 0) - (before ? before.totals.get(id) || 0 : 0))]));
       before = x;
       if(from !== null && k >= from){ playoff.set(k, pts); continue; }
       if(finale && k > finale.number) continue;
@@ -1103,15 +1120,22 @@ class MatchupLogic {
   static apply(state, rows){
     const w = MatchupLogic.run(state);
     if(!w) return rows;
-    // A row that's no seat (a ghost's own, on their copy) has no record: it's in nobody's schedule.
+    // A row that's no seat (a ghost's own, on their copy) has no record: it's in nobody's schedule. A11 part 5: between teams of
+    // players, a row's record is its team's (the one it plays for: TeamLogic.sideOf), none for someone on no team.
     const seats = new Set(MatchupLogic.seatsAt(state, Number.MAX_SAFE_INTEGER));
+    const sideOf = MatchupLogic.sideOf(state);
     rows.forEach(r => {
-      if(!seats.has(r.playerId) && !w.records.has(r.playerId)){ r.matchups = null; return; }
-      const rec = w.records.get(r.playerId) || { wins: 0, losses: 0, ties: 0, for: 0, against: 0 };
-      const seed = w.seeds ? w.seeds.indexOf(r.playerId) + 1 : 0;
-      r.matchups = { ...rec, seed: seed || null, tier: w.tiers.get(r.playerId) || 0, alive: w.alive.has(r.playerId), champion: w.champion === r.playerId };
+      const side = sideOf(r.playerId);
+      if(side === null || (!seats.has(side) && !w.records.has(side))){ r.matchups = null; return; }
+      const rec = w.records.get(side) || { wins: 0, losses: 0, ties: 0, for: 0, against: 0 };
+      const seed = w.seeds ? w.seeds.indexOf(side) + 1 : 0;
+      r.matchups = { ...rec, seed: seed || null, tier: w.tiers.get(side) || 0, alive: w.alive.has(side), champion: w.champion === side };
     });
     return rows.sort((a,b) => PickEmScoringStrategy.compareKeys(rankKey(state, b), rankKey(state, a)) || b.total - a.total);
+  }
+  // Whose side a seat is on (playerId -> side): itself, or (A11 part 5) the team of players it plays for (null: none).
+  static sideOf(state){
+    return TeamLogic.on(state) ? (id => TeamLogic.sideOf(state, id)) : (id => id);
   }
   // Who a seat plays at episode n, from a walk: { episode, round (the playoffs' round, 1 the first; null in the regular season),
   // opponent (a seat, or null), stand ('median' | 'bye' with no opponent in the regular season; 'bye' in the playoffs) }, or null
@@ -1137,19 +1161,21 @@ class MatchupLogic {
   // What a seat sees of it (the Games tab's, game-view.ts), from their own copy: their record; their next matchup (the first of the
   // game's episodes without its full results) and the latest played, with its points and result; the playoffs (where they are,
   // the seeds once known, the bracket so far, the champion). Null for a game that isn't head to head.
-  static view(state, playerId){
+  static view(state, seatId){
     const w = MatchupLogic.run(state);
     if(!w) return null;
     const parts = MatchupLogic.parts(state);
-    const record = w.records.get(playerId) || { wins: 0, losses: 0, ties: 0, for: 0, against: 0 };
+    // A11 part 5: between teams of players, the seat's team is what plays (its record, its matchups); a seat on none plays nobody.
+    const playerId = MatchupLogic.sideOf(state)(seatId);
+    const record = (playerId !== null && w.records.get(playerId)) || { wins: 0, losses: 0, ties: 0, for: 0, against: 0 };
     const played = [...w.weeks.map(x => x.number), ...w.rounds.filter(r => r.played).map(r => r.number)];
     const start = startEpisode(state);
     const newest = played.length ? Math.max(...played) : null;
     const n = newest !== null ? newest + 1 : start;
-    const next = n === null || gameOver(state) ? null : MatchupLogic.gameAt(state, w, parts, playerId, n);
+    const next = n === null || gameOver(state) || playerId === null ? null : MatchupLogic.gameAt(state, w, parts, playerId, n);
     // Their latest matchup played: the newest episode they were in one (someone out of the playoffs, their last game).
     let last = null;
-    for(const k of played.slice().sort((a,b) => b - a)){
+    for(const k of playerId === null ? [] : played.slice().sort((a,b) => b - a)){
       const week = w.weeks.find(x => x.number === k);
       const round = w.rounds.find(r => r.number === k && r.played);
       const g = (week || round).games.find(x => x.a === playerId || x.b === playerId);
@@ -1170,7 +1196,7 @@ class MatchupLogic {
       bracket: w.rounds.map(r => ({ episode: r.number, played: r.played, games: r.games.map(g => ({ ...g })) })),
       champion: w.champion,
     };
-    return { record, next, last, playoffs };
+    return { record, next, last, playoffs, side: TeamLogic.on(state) ? playerId : null };
   }
   // On every write (db.ts withLeagueLock): keeps when each seat joined the schedule (state.matchupSeats: the first time, everyone
   // there from their own start; after that, a seat new to it, or caught up, from the first episode still to play, never one
@@ -1215,6 +1241,380 @@ class MatchupLogic {
       if(from !== null && resultsAt(from)){ state.playoffsFrom = from; return from !== had; }
     }
     return had !== undefined;
+  }
+}
+
+// ---------- TeamLogic: teams of players (docs/PLAN-start-a-game-gpt.md step A11 part 5) ----------
+// The spec's rank.teams (Spec.teamParts): the couch split into teams that score together. Each of you still plays your own game
+// (your own draft, lineup or answers); your points go to your team while you're on it, and the game ranks the teams: by their points
+// (rank.by 'total'), or head to head between them (rank.by 'matchups': MatchupLogic plays the teams in place of the seats). Worked
+// out from the data on every read, as the knockouts are, so a corrected result works it all out again and a viewer's copy counts
+// only what they've seen; what's kept is who's on which team.
+//   - Who's on which team (state.teamSeats, kept on every write: settle): each seat's spells, [{ team, from }] (team null: on none),
+//     the latest at or before an episode its team then. Nothing is kept for a drawn game until it starts: its draw is worked out on
+//     every read from its seed (state.teamDraw.seed, set as it's made in teams: setGame; a state without one draws from a fixed
+//     one), over the seats in the game's rotation there from its start, dealt in the seed's order a team each in turn (sizes one
+//     apart at most), so the same seats give the same teams on every read, and someone joining or leaving before the start can
+//     deal others onto other teams. Once the game has started (its first episode locked, or with results) the draw as it stood is
+//     kept, each from their own start. A game made in teams mid-season keeps it at once, counting its past.
+//   - Chosen (made 'choose'): each seat picks its team before the game starts (choose: the seat, or whoever runs the game); kept as
+//     chosen, from their start.
+//   - Someone on no team when they start counting (unplaced): a seat that didn't choose by the start, a late joiner once caught up,
+//     a seat brought in later, one whose team the spec no longer has: onto the smallest team then (the first of them on a tie),
+//     from their start at the game's start and from the first episode still to play after it; or onto none (unplaced 'none': they
+//     play for nobody, ranked after every team). A ghost (a late joiner's private season) never joins one; someone still catching up
+//     joins once caught up.
+//   - A disabled seat leaves its team from the first episode still to play, its points before staying with the team; reclaimed, it
+//     goes back to that team from the first episode still to play then. A seat removed outright is gone, its points with it.
+//   - Whoever runs the game can move a seat to another team (choose): before the start, as chosen; after it, from the first episode
+//     still to play (not locked, nor with results: openFor), so nothing played or in play changes. A late joiner, a disabled seat
+//     and one reclaimed are placed from there too.
+//   - A team's points: each episode the game has played (its series: MatchupLogic.seatSeries, a draft's from its own scoring, a
+//     game of questions' from its answers' walk), what its members on it then earned in it, summed (score 'sum') or their mean
+//     (score 'mean': over the members on it that episode, so a team of three and one of two weigh the same); then what they've
+//     earned since the last episode walked as the table has it (results still early, a question settled since), on the team
+//     they're on now. A team nobody's on scores nothing.
+//   - Ranked: every member shares their team's place (rankKey: its points; head to head, its record and how far it went in the
+//     playoffs, as MatchupLogic ranks it), listed by their own points; a seat's team is the last it played for. Someone never on a
+//     team ranks after every team.
+// A draw before it's kept, memoised by state: its seats, start and seed say whether it's still the one worked out.
+const teamDraws = new WeakMap();
+class TeamLogic {
+  static parts(state){ return Spec.teamParts(gameOf(state)); }
+  static on(state){ return !!TeamLogic.parts(state); }
+  // The teams' ids, in order ('t1', 't2', ...), and each one's name as the spec gives it (null: none given; the words call it Team N).
+  static ids(state){ const p = TeamLogic.parts(state); return p ? Array.from({ length: p.of }, (_, i) => 't' + (i + 1)) : []; }
+  static nameOf(state, id){
+    const p = TeamLogic.parts(state);
+    const i = typeof id === 'string' && /^t\d+$/.test(id) ? Number(id.slice(1)) - 1 : -1;
+    return p && i >= 0 && i < p.of ? p.names[i] : null;
+  }
+  // The kept spells (state.teamSeats: playerId -> [{ team, from, left? }]), or null.
+  static kept(state){ const m = state.teamSeats; return m && typeof m === 'object' && !Array.isArray(m) ? m : null; }
+  // Whether the teams are kept for good (the game has started and settle kept them): anyone with no spell is on none yet.
+  static fixed(state){ return !!(state.teamDraw && state.teamDraw.kept); }
+  // Whether the game has started: its first episode has results, or has locked (closedForPlay, its air time stamped).
+  static started(state, now){
+    const start = startEpisode(state);
+    if(start === null) return false;
+    if(SpoilerLogic.latestWithResults(state) >= start) return true;
+    const ep = (state.episodes || []).find(e => e.number === start);
+    return !!ep && closedForPlay(ep, now);
+  }
+  // The seats a team can hold: in the game's rotation playing the league's own season (not a ghost, not one still to be brought in),
+  // in the order they joined; `all` keeps a disabled one.
+  static seats(state, all){
+    return (state.players || []).filter(p => !isGhost(p) && p.active !== false && (all || !p.disabled));
+  }
+  // The draw's seed, set once (setGame, as a game is made in teams; settle, for a state without one): true when it was set now.
+  static seed(state){
+    if(state.teamDraw && typeof state.teamDraw.seed === 'string') return false;
+    state.teamDraw = { ...(state.teamDraw || {}), seed: Core.uid('teams') };
+    return true;
+  }
+  // A draw's teams before it's kept (Map playerId -> team): the seats there from the game's start, not catching up, in the order the
+  // seed deals them, a team each in turn. Worked out once for the same seats, start and seed.
+  static drawn(state){
+    const ids = TeamLogic.ids(state);
+    const start = startEpisode(state);
+    const seed = state.teamDraw && typeof state.teamDraw.seed === 'string' ? state.teamDraw.seed : 'teams';
+    const seats = TeamLogic.seats(state).filter(p => !GhostLogic.isCatchingUp(state, p.id) && (start === null || (GhostLogic.startFor(state, p.id) || start) <= start)).map(p => p.id);
+    const sig = `${seed}|${start}|${ids.length}|${seats.join(',')}`;
+    const was = teamDraws.get(state);
+    if(was && was.sig === sig) return was.map;
+    const order = [...seats].sort((a, b) => hashUnit(`${seed}|team|${a}`) - hashUnit(`${seed}|team|${b}`) || (a < b ? -1 : a > b ? 1 : 0));
+    const map = new Map(ids.length ? order.map((id, i) => [id, ids[i % ids.length]]) : []);
+    teamDraws.set(state, { sig, map });
+    return map;
+  }
+  // A seat's team at episode n: its kept spell then (none before its first), else, before they're kept, a draw's provisional team.
+  static teamAt(state, playerId, n){
+    if(!TeamLogic.on(state)) return null;
+    const ids = TeamLogic.ids(state);
+    const spells = (TeamLogic.kept(state) || {})[playerId];
+    if(Array.isArray(spells) && spells.length){
+      let t = null;
+      for(const s of spells) if(Number.isInteger(s.from) && s.from <= n) t = s.team;
+      return ids.includes(t) ? t : null;
+    }
+    if(TeamLogic.fixed(state) || TeamLogic.parts(state).made !== 'draw') return null;
+    return TeamLogic.drawn(state).get(playerId) || null;
+  }
+  // The team a seat plays for: the last one it was on (a disabled seat's, the one it left), or null for none.
+  static sideOf(state, playerId){
+    if(!TeamLogic.on(state)) return null;
+    const ids = TeamLogic.ids(state);
+    const spells = (TeamLogic.kept(state) || {})[playerId];
+    if(Array.isArray(spells) && spells.length){
+      const last = spells.filter(s => ids.includes(s.team)).pop();
+      return last ? last.team : null;
+    }
+    return TeamLogic.teamAt(state, playerId, Number.MAX_SAFE_INTEGER);
+  }
+  // Who's on each team at episode n (Map team -> [playerId]), every team listed.
+  static membersAt(state, n){
+    const out = new Map(TeamLogic.ids(state).map(t => [t, []]));
+    (state.players || []).forEach(p => { const t = TeamLogic.teamAt(state, p.id, n); if(t) out.get(t).push(p.id); });
+    return out;
+  }
+  // The teams with someone on them at episode n, in order: head to head's sides (MatchupLogic.seatsAt).
+  static teamsAt(state, n){
+    return [...TeamLogic.membersAt(state, n)].filter(([, m]) => m.length).map(([t]) => t);
+  }
+  // Adds one step's points to each team (`run`, Map team -> points): each member on a team at episode k, what they earned since
+  // `before` (Map playerId -> points; null: from nothing), summed or their mean.
+  static addStep(state, parts, now, before, k, run){
+    const by = new Map();
+    (state.players || []).forEach(p => {
+      const t = TeamLogic.teamAt(state, p.id, k);
+      if(!t || !run.has(t)) return;
+      const grown = roundPoints((now.get(p.id) || 0) - (before ? before.get(p.id) || 0 : 0));
+      if(!by.has(t)) by.set(t, []);
+      by.get(t).push(grown);
+    });
+    by.forEach((gs, t) => {
+      const sum = gs.reduce((a, b) => a + b, 0);
+      run.set(t, roundPoints(run.get(t) + (parts.score === 'sum' ? sum : sum / gs.length)));
+    });
+  }
+  // Each episode the game has played, with each team's points through it ({ number, totals: Map team -> points }): head to head's
+  // series between the teams (MatchupLogic.series), an episode's points a team's growth.
+  static series(state){
+    const parts = TeamLogic.parts(state);
+    if(!parts) return [];
+    const run = new Map(TeamLogic.ids(state).map(t => [t, 0]));
+    const out = [];
+    let before = null;
+    for(const x of MatchupLogic.seatSeries(state)){
+      TeamLogic.addStep(state, parts, x.totals, before, x.number, run);
+      before = x.totals;
+      out.push({ number: x.number, totals: new Map(run) });
+    }
+    return out;
+  }
+  // The teams as they stand, given the score rows (each one's points as the table shows them): [{ id, name, points, place, rank,
+  // members: [playerId] (on it now), played: [playerId] (whose team it is: sideOf) }], best first, ties sharing a place: by their
+  // points, or head to head (MatchupLogic) as it ranks them (how far in the playoffs, then wins, then the regular season's points,
+  // then the seed).
+  static standings(state, rows){
+    const parts = TeamLogic.parts(state);
+    if(!parts) return null;
+    const ids = TeamLogic.ids(state);
+    const run = new Map(ids.map(t => [t, 0]));
+    const base = MatchupLogic.seatSeries(state);
+    let before = null;
+    for(const x of base){
+      TeamLogic.addStep(state, parts, x.totals, before, x.number, run);
+      before = x.totals;
+    }
+    // What's been earned since the last episode walked, as the table has it, on the team each is on then.
+    const start = startEpisode(state);
+    const last = base.length ? base[base.length - 1].number : null;
+    const k = last !== null ? last + 1 : start !== null ? start : 1;
+    const now = new Map((rows || []).map(r => [r.playerId, Number(r.total) || 0]));
+    TeamLogic.addStep(state, parts, now, before, k, run);
+    const members = TeamLogic.membersAt(state, k);
+    const played = new Map(ids.map(t => [t, []]));
+    (state.players || []).forEach(p => { const t = TeamLogic.sideOf(state, p.id); if(t && played.has(t)) played.get(t).push(p.id); });
+    const w = MatchupLogic.on(state) ? MatchupLogic.run(state) : null;
+    const keyOf = t => {
+      if(!w) return [t.points];
+      const r = w.records.get(t.id) || { wins: 0, ties: 0, for: 0 };
+      const seed = w.seeds ? w.seeds.indexOf(t.id) + 1 : 0;
+      return [w.tiers.get(t.id) || 0, r.wins * 2 + r.ties, r.for, seed ? -seed : 0];
+    };
+    const list = ids.map((id, i) => ({ id, name: parts.names[i], points: run.get(id) || 0, members: members.get(id) || [], played: played.get(id) || [] }));
+    const keys = new Map(list.map(t => [t.id, keyOf(t)]));
+    const cmp = (a, b) => PickEmScoringStrategy.compareKeys(keys.get(b.id), keys.get(a.id));
+    const sorted = [...list].sort((a, b) => cmp(a, b) || ids.indexOf(a.id) - ids.indexOf(b.id));
+    return sorted.map(t => {
+      const place = 1 + sorted.filter(x => cmp(x, t) < 0).length;
+      const tied = sorted.filter(x => cmp(x, t) === 0).length > 1;
+      return { ...t, place, rank: `${tied ? 'T' : ''}${place}` };
+    });
+  }
+  // Each score row's team (`team`: { id, name, points, place, rank, now (on it at the next episode to play) }, or null on none), from the
+  // standings; not ranked (head to head ranks them itself).
+  static label(state, rows, standings){
+    const st = standings || TeamLogic.standings(state, rows);
+    if(!st) return rows;
+    const byId = new Map(st.map(t => [t.id, t]));
+    rows.forEach(r => {
+      const t = byId.get(TeamLogic.sideOf(state, r.playerId));
+      r.team = t ? { id: t.id, name: t.name, points: t.points, place: t.place, rank: t.rank, now: t.members.includes(r.playerId) } : null;
+    });
+    return rows;
+  }
+  // The score rows with their teams, ranked as the game ranks (rankKey: the team's points), then by their own points.
+  static apply(state, rows){
+    TeamLogic.label(state, rows);
+    return rows.sort((a, b) => PickEmScoringStrategy.compareKeys(rankKey(state, b), rankKey(state, a)) || b.total - a.total);
+  }
+  // What a seat sees of the teams (the Games tab's, game-view.ts), from their own copy: how they're made and scored, whether
+  // they're set yet, their own, and every team as it stands (its members now, its points, its place). Null for a game without them.
+  // `rows`: the score rows the table ranked (each with its `team`, label's: the standings read from them, not worked out again),
+  // or rows of points alone ({ playerId, total }); left out, the scores.
+  static view(state, playerId, rows){
+    const parts = TeamLogic.parts(state);
+    if(!parts) return null;
+    const list = rows || ScoringLogic.compute(state);
+    const st = (list.some(r => r && 'team' in r) ? TeamLogic.fromRows(state, list) : TeamLogic.standings(state, list)) || [];
+    return {
+      made: parts.made, score: parts.score, of: parts.of,
+      set: TeamLogic.fixed(state),
+      yours: playerId ? TeamLogic.sideOf(state, playerId) : null,
+      teams: st.map(t => ({ id: t.id, name: t.name, members: t.members.slice(), points: t.points, place: t.place, rank: t.rank })),
+    };
+  }
+  // The teams as labelled rows say them (label's `team` on each, as compute ranked them): each team its points, place and rank,
+  // whose team it is and who's on it now; a team nobody plays for, its points 0, after the rest.
+  static fromRows(state, rows){
+    const parts = TeamLogic.parts(state);
+    if(!parts) return null;
+    const ids = TeamLogic.ids(state);
+    const seen = new Map();
+    rows.forEach(r => {
+      const t = r && r.team;
+      if(!t || !ids.includes(t.id)) return;
+      if(!seen.has(t.id)) seen.set(t.id, { id: t.id, name: t.name, points: t.points, place: t.place, rank: t.rank, members: [], played: [] });
+      const x = seen.get(t.id);
+      x.played.push(r.playerId);
+      if(t.now) x.members.push(r.playerId);
+    });
+    const after = seen.size ? Math.max(...[...seen.values()].map(x => x.place)) + 1 : 1;
+    const empty = ids.filter(id => !seen.has(id));
+    empty.forEach((id) => seen.set(id, { id, name: parts.names[ids.indexOf(id)], points: 0, place: after, rank: `${empty.length > 1 ? 'T' : ''}${after}`, members: [], played: [] }));
+    return [...seen.values()].sort((a, b) => a.place - b.place || ids.indexOf(a.id) - ids.indexOf(b.id));
+  }
+  // The first episode that hasn't been played or locked: from the latest with results on, past any that has locked (closedForPlay),
+  // never before the game's start. Null while it waits for its phase.
+  static openEpisode(state, now){
+    const start = startEpisode(state);
+    if(start === null) return null;
+    let n = Math.max(start, SpoilerLogic.latestWithResults(state) + 1);
+    for(;;){
+      const ep = (state.episodes || []).find(e => e.number === n);
+      if(!ep || !(EpisodeLogic.hasResults(ep) || closedForPlay(ep, now))) return n;
+      n++;
+    }
+  }
+  // The first episode a move made now counts from: the seat's own start before the game has started, else the first not played or
+  // locked (openEpisode), never before the seat's own start.
+  static openFor(state, playerId, now){
+    const start = startEpisode(state);
+    if(start === null) return null;
+    const own = GhostLogic.startFor(state, playerId) || start;
+    if(!TeamLogic.started(state, now)) return own;
+    return Math.max(own, TeamLogic.openEpisode(state, now));
+  }
+  // Why a seat can't be put on `team` now, or null: by itself (`opts.by` 'self': only in a game whose teams are chosen, before it
+  // starts) or by whoever runs the game ('runs': before the start in a chosen game, and from the next episode once it's started).
+  static chooseProblem(state, playerId, team, opts){
+    const parts = TeamLogic.parts(state);
+    if(!parts) return "This game isn't played in teams";
+    const p = Core.getPlayer(state, playerId);
+    if(!p) return 'No such player';
+    if(isGhost(p)) return 'A late joiner playing their own season is on no team';
+    if(p.active === false) return "They aren't in the game yet";
+    if(p.disabled) return "They've left the game";
+    if(!TeamLogic.ids(state).includes(team)) return 'No such team';
+    if(startEpisode(state) === null) return "This game hasn't started: it waits for its phase of the season";
+    const now = opts && opts.now;
+    const started = TeamLogic.started(state, now);
+    const self = !opts || opts.by !== 'runs';
+    if(self){
+      if(parts.made !== 'choose') return "The teams are drawn at the game's start";
+      if(started) return 'The teams are set: the game has started';
+    } else if(!started && parts.made !== 'choose') return "The teams are drawn at the game's start: move someone once it has";
+    if(GhostLogic.isCatchingUp(state, playerId)) return "They're still catching up: they join a team once they have";
+    const over = KnockoutLogic.moveProblem(state, playerId, TeamLogic.openFor(state, playerId, now));
+    return over;
+  }
+  // Puts a seat on `team` (chooseProblem's rules): before the start, from its start; after, from the first episode still to play.
+  static choose(state, playerId, team, opts){
+    if(TeamLogic.chooseProblem(state, playerId, team, opts)) return false;
+    const from = TeamLogic.openFor(state, playerId, opts && opts.now);
+    const kept = { ...(TeamLogic.kept(state) || {}) };
+    kept[playerId] = TeamLogic.withSpell(kept[playerId], team, from);
+    state.teamSeats = kept;
+    return true;
+  }
+  // A seat's spells with `team` from `from` on: a spell from then or later is replaced, the same team as before changes nothing.
+  static withSpell(spells, team, from, extra){
+    const list = (Array.isArray(spells) ? spells : []).filter(s => Number.isInteger(s.from) && s.from < from);
+    const prev = list.length ? list[list.length - 1] : null;
+    if(prev && prev.team === team && !extra) return list;
+    return [...list, { team, from, ...(extra || {}) }];
+  }
+  // On every write (db.ts withLeagueLock): a seed for the draw; once the game has started, the teams kept (the draw as it stood, or
+  // the choices, everyone unplaced placed by the spec's fallback), a seat new to the game (a late joiner caught up, one brought in)
+  // placed from the first episode still to play, a disabled seat off its team from then and back on reclaimed, a seat whose team the
+  // spec no longer has placed again. Everything goes when the game isn't played in teams. True when anything changed.
+  static settle(state, now){
+    const parts = TeamLogic.parts(state);
+    if(!parts){
+      const had = state.teamSeats !== undefined || state.teamDraw !== undefined;
+      delete state.teamSeats;
+      delete state.teamDraw;
+      return had;
+    }
+    let changed = TeamLogic.seed(state);
+    const start = startEpisode(state);
+    if(start === null || !TeamLogic.started(state, now)) return changed;
+    const ids = TeamLogic.ids(state);
+    const first = !TeamLogic.fixed(state);
+    const draw = first && parts.made === 'draw' ? TeamLogic.drawn(state) : null;
+    const kept = { ...(TeamLogic.kept(state) || {}) };
+    const open = TeamLogic.openEpisode(state, now);
+    // Who's on each team at `open`, as the spells stand so far: the smallest is counted on them.
+    const size = () => {
+      const n = new Map(ids.map(t => [t, 0]));
+      TeamLogic.seats(state).forEach(p => {
+        const spells = kept[p.id];
+        let t = null;
+        if(Array.isArray(spells)) for(const s of spells) if(s.from <= open) t = s.team;
+        if(n.has(t)) n.set(t, n.get(t) + 1);
+      });
+      return n;
+    };
+    const place = () => {
+      if(parts.unplaced === 'none') return null;
+      const n = size();
+      return ids.reduce((best, t) => (best === null || n.get(t) < n.get(best) ? t : best), null);
+    };
+    // Those with a team already (kept, or the draw's) first, so whoever's placed is counted against them.
+    const all = TeamLogic.seats(state, true);
+    const has = p => (Array.isArray(kept[p.id]) && kept[p.id].length > 0) || (!!draw && draw.has(p.id));
+    [...all.filter(has), ...all.filter(p => !has(p))].forEach(p => {
+      if(GhostLogic.isCatchingUp(state, p.id)) return;
+      const own = GhostLogic.startFor(state, p.id) || start;
+      const from = first ? own : Math.max(own, open);
+      const spells = Array.isArray(kept[p.id]) ? kept[p.id] : [];
+      const last = spells.length ? spells[spells.length - 1] : null;
+      let want;
+      if(p.disabled){
+        // Off their team from the first episode still to play (their points before stay with it).
+        if(!last || last.team === null) return;
+        kept[p.id] = TeamLogic.withSpell(spells, null, from, { left: last.team });
+        changed = true;
+        return;
+      }
+      if(last && last.team === null && last.left){
+        // Reclaimed: back to the team they left (or placed, if the spec no longer has it).
+        want = ids.includes(last.left) ? last.left : place();
+      } else if(last && (last.team === null || ids.includes(last.team))){
+        return;
+      } else if(!last && draw && draw.has(p.id)){
+        want = draw.get(p.id);
+      } else {
+        want = place();
+      }
+      const next = TeamLogic.withSpell(spells, want, from);
+      if(JSON.stringify(next) !== JSON.stringify(spells)){ kept[p.id] = next; changed = true; }
+    });
+    if(first){ state.teamDraw = { ...state.teamDraw, kept: true }; changed = true; }
+    if(changed) state.teamSeats = kept;
+    return changed;
   }
 }
 
@@ -4127,6 +4527,9 @@ class RosterLogic {
     RosterLogic.syncGame(state);
     const first = Spec.spanStart(want.span);
     if(first !== null && first !== Spec.spanStart(was.span)) EpisodeLogic.ensureEpisodeNumber(state, first, false);
+    // A11 part 5: a game made in teams gets its draw's seed now (a league made outside a write's settle has one too), so the same
+    // seats give the same teams from its first read.
+    if(TeamLogic.on(state)) TeamLogic.seed(state);
     return [];
   }
   // Where a game that starts at a phase plays from (step A3: docs/PLAN-start-a-game-gpt.md, "The phase start, decided"),
@@ -6209,8 +6612,8 @@ class AnswerLogic {
       lives: parts.lives ? Object.fromEntries(lives) : {},
       shared: [...shared],
       totals,
-      // A11 part 4b: head to head's episodes, for MatchupLogic.series.
-      ...(parts.matchups ? { series: [...series].map(([number, t]) => ({ number, totals: Object.fromEntries(t) })) } : {}),
+      // A11 part 4b: head to head's episodes, for MatchupLogic.series; part 5, teams of players' (TeamLogic, through seatSeries).
+      ...(parts.matchups || parts.teams ? { series: [...series].map(([number, t]) => ({ number, totals: Object.fromEntries(t) })) } : {}),
     };
   }
   // A copy of `state` carrying a game of questions' walk (AnswerLogic.walk, worked out on exactly this state's data): never the
@@ -7139,7 +7542,7 @@ return {
   // EliminationOrderScoringStrategy/PickEmScoringStrategy are their registered implementations,
   // exported directly for code that wants to bypass the dispatch.
   Core, ScoringLogic, DraftLogic, RosterLogic, WaiverLogic, EpisodeLogic, BetLogic, FinaleLogic, AnswerLogic, PickEmLogic, BlindDraftLogic, ActiveRosterLogic, GroupSlotLogic, SetupLogic, RevealLogic, SpoilerLogic, GhostLogic, Migrations,
-  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, draftFits, draftFitsFor, rankKey,
+  SpreadLogic, DrawLogic, PriceLogic, BudgetLogic, MarketLogic, AuctionLogic, KeeperLogic, KnockoutLogic, MatchupLogic, TeamLogic, draftFits, draftFitsFor, rankKey,
   SnakeDraftStrategy, EliminationOrderScoringStrategy, NoDraftStrategy, PickEmScoringStrategy, BlindDraftStrategy, ActiveRosterEventScoringStrategy, DrawDraftStrategy, AuctionDraftStrategy
 };
 

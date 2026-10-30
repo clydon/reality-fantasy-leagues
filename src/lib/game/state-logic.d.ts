@@ -818,15 +818,44 @@ declare const StateLogic: {
     round(ids: string[], r: number): [string, string | null][];
     median(values: number[]): number;
     bracket(size: number): number[];
-    /** Each episode the game has played with everyone's points through it: a draft's from its scoring, a game of questions' from its
-     *  answers' walk (A11 part 4b; none without it). */
+    /** Each episode the game has played with every side's points through it: a draft's from its scoring, a game of questions' from
+     *  its answers' walk (A11 part 4b; none without it); between teams of players (A11 part 5), each team's. */
     series(state: LeagueState): { number: number; totals: Map<string, number> }[];
+    /** Each seat's points through each episode played, whatever the sides. */
+    seatSeries(state: LeagueState): { number: number; totals: Map<string, number> }[];
+    /** Whose side a seat is on: itself, or (A11 part 5) the team of players it plays for (null: none). */
+    sideOf(state: LeagueState): (playerId: string) => string | null;
     run(state: LeagueState): MatchupWalk | null;
     apply(state: LeagueState, rows: ScoreRow[]): ScoreRow[];
     view(state: LeagueState, playerId: string): MatchupView | null;
     settle(state: LeagueState): boolean;
     settleSeats(state: LeagueState): boolean;
     settlePlayoffs(state: LeagueState): boolean;
+  };
+  /** Step A11 part 5: teams of players (rank.teams): the couch split into teams that score together, each of you playing your own
+   *  game; who's on which kept on every write once the game has started (settle), the rest worked out from the data on every read. */
+  TeamLogic: {
+    parts(state: LeagueState): import("./game-spec/index.js").TeamParts | null;
+    on(state: LeagueState): boolean;
+    ids(state: LeagueState): string[];
+    nameOf(state: LeagueState, id: string): string | null;
+    kept(state: LeagueState): Record<string, { team: string | null; from: number; left?: string }[]> | null;
+    fixed(state: LeagueState): boolean;
+    started(state: LeagueState, now?: number): boolean;
+    drawn(state: LeagueState): Map<string, string>;
+    teamAt(state: LeagueState, playerId: string, n: number): string | null;
+    sideOf(state: LeagueState, playerId: string): string | null;
+    membersAt(state: LeagueState, n: number): Map<string, string[]>;
+    teamsAt(state: LeagueState, n: number): string[];
+    series(state: LeagueState): { number: number; totals: Map<string, number> }[];
+    standings(state: LeagueState, rows: { playerId: string; total: number }[]): TeamStanding[] | null;
+    label(state: LeagueState, rows: ScoreRow[], standings?: TeamStanding[] | null): ScoreRow[];
+    apply(state: LeagueState, rows: ScoreRow[]): ScoreRow[];
+    view(state: LeagueState, playerId: string | null, rows?: { playerId: string; total: number }[]): TeamView | null;
+    openFor(state: LeagueState, playerId: string, now?: number): number | null;
+    chooseProblem(state: LeagueState, playerId: string, team: string, opts?: { by?: "self" | "runs"; now?: number }): string | null;
+    choose(state: LeagueState, playerId: string, team: string, opts?: { by?: "self" | "runs"; now?: number }): boolean;
+    settle(state: LeagueState, now?: number): boolean;
   };
   /** Step A10 part 4: keepers across seasons (the spec's get.keep): options from last season's game (the server's: keepers.ts),
    *  named before the draft, locked as it starts; the draft fills the places they leave. */
@@ -1018,10 +1047,34 @@ export interface MatchupGame {
  *  points, the other side's, the result), and the playoffs (where they are, the seeds once known, the bracket so far, the
  *  champion). What it shows is U1's. */
 export interface MatchupView {
+  /** A11 part 5: between teams of players, the seat's team (what plays); null otherwise. */
+  side: string | null;
   record: import("./types").MatchupRecord;
   next: MatchupGame | null;
   last: (MatchupGame & { points: number | null; against: number | null; result: "win" | "loss" | "tie" | null }) | null;
   playoffs: { from: number; rounds: number; teams: number; seeds: string[] | null; bracket: { episode: number; played: boolean; games: MatchupRound["games"] }[]; champion: string | null } | null;
+}
+
+/** A11 part 5: a team of players as it stands (TeamLogic.standings): its points (summed or the mean, episode by episode, of its
+ *  members on it then), its place (a tie shares it), who's on it now and whose team it is (every seat that plays for it). */
+export interface TeamStanding {
+  id: string;
+  name: string | null;
+  points: number;
+  place: number;
+  rank: string;
+  members: string[];
+  played: string[];
+}
+/** A11 part 5: what a seat sees of teams of players (the Games tab's): how they're made and scored, whether they're set (kept, once
+ *  the game has started), the seat's own (null: none, or no seat), and each team as it stands. What it shows is U1's. */
+export interface TeamView {
+  made: "draw" | "choose";
+  score: "sum" | "mean";
+  of: number;
+  set: boolean;
+  yours: string | null;
+  teams: { id: string; name: string | null; members: string[]; points: number; place: number; rank: string }[];
 }
 
 export default StateLogic;

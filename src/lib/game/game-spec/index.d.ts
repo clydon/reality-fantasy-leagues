@@ -108,6 +108,9 @@ export interface SpecRank {
   odd?: "median" | "bye";
   /** A night nobody scores: counts for nobody (MATCHUPS' default) or ties everyone. */
   quiet?: "skip" | "tie";
+  /** A11 part 5, teams of players: the couch split into `of` teams (2 to 6) that score together, each of you playing your own game;
+   *  drawn at the game's start or chosen before it (TEAMS' defaults: drawn, the mean, the smallest team); "group" is part 5b's. */
+  teams?: { of: number; made?: "draw" | "choose" | "group"; score?: "sum" | "mean"; unplaced?: "smallest" | "none"; names?: string[] };
 }
 
 /** A10 part 2: a pool's buyback. before: a phase of the season or an episode (someone out before it can buy back), or null (any
@@ -554,8 +557,26 @@ export interface AnswerParts {
   coop: { saves: "one" | "most" | "all" } | null;
   /** A11 part 4b: head to head (rank.by "matchups"), as matchupParts reads it; null otherwise. */
   matchups: MatchupParts | null;
+  /** A11 part 5: teams of players, as teamParts reads them; null otherwise. */
+  teams: TeamParts | null;
 }
 export function answerParts(spec: GameSpec | SpecInput | null | undefined): AnswerParts | null;
+/** A11 part 5: teams of players' defaults (drawn at the game's start, a team's points its members' mean, someone unplaced onto the
+ *  smallest team), the most teams, a name's most characters. */
+export const TEAMS: { made: "draw" | "choose"; score: "sum" | "mean"; unplaced: "smallest" | "none" };
+export const MAX_PLAYER_TEAMS: number;
+export const MAX_TEAM_NAME: number;
+export interface TeamParts {
+  of: number;
+  made: "draw" | "choose";
+  score: "sum" | "mean";
+  unplaced: "smallest" | "none";
+  /** One a team: the spec's name, else null. */
+  names: (string | null)[];
+}
+/** Teams of players as the engine plays them, read the one way from a whole spec; null for a game that isn't played in teams (or
+ *  one the engine doesn't play them on: a draft or a game of questions, ranked by its total or head to head, with no race). */
+export function teamParts(spec: GameSpec | SpecInput | null | undefined): TeamParts | null;
 /** A11 part 4: head to head's defaults (the one the round robin leaves out plays the median; a night nobody scores counts for
  *  nobody), the playoffs' most, and how many rounds the top `teams` take, one an episode. */
 export const MATCHUPS: { odd: "median" | "bye"; quiet: "skip" | "tie" };
@@ -641,7 +662,7 @@ export function playsAs(spec: GameSpec): LeagueTypeId | null;
 /** The league type's flags, worked out from a whole spec. */
 export function flagsOf(spec: GameSpec): {
   hasRoster: boolean; hasActiveRoster: boolean; hasBestBall: boolean; hasGroupSlots: boolean; hasKeepers: boolean; hasWeeklyPicks: boolean; hasCalls: boolean; hasQuestions: boolean; hasBingo: boolean;
-  hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean; hasCoop: boolean; hasMatchups: boolean;
+  hasRace: boolean; hasCuts: boolean; hasAnswerLives: boolean; hasCoop: boolean; hasMatchups: boolean; hasTeams: boolean;
   supportsReplenish: boolean; supportsTrade: boolean; supportsFinalePredictions: boolean;
 };
 /**
