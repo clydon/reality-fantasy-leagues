@@ -431,8 +431,8 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   WNBA; then golf and racing (FieldSport); then MMA and tennis (BoutSport).
   - **Part 3 split in two (2026-10-30):** 3a, golf (FieldSport and Golf: built 2026-10-30, As built below); 3b, racing (F1,
     NASCAR's three series, IndyCar on FieldSport: built 2026-10-30, As built below).
-  - **Part 4 split in two (2026-10-30):** 4a, MMA (BoutSport and MMA: built 2026-10-30, As built below); 4b, tennis (next: on
-    BoutSport, a draw of matches over days).
+  - **Part 4 split in two (2026-10-30):** 4a, MMA (BoutSport and MMA: built 2026-10-30, As built below); 4b, tennis (Tennis on
+    BoutSport, an event's draws of matches over days: built 2026-10-30, As built below). **L5 is done.**
   - **Part 2 split in three (2026-10-28):** 2a, college basketball and the WNBA (built: As built below); 2b, college football
     (its own grammar of plays, on Football's vocabulary and box reader: built 2026-10-30, As built below); 2c, college baseball
     (its own box and two feeds: built 2026-10-30, As built below). **College hockey isn't readable from ESPN** (looked at in
@@ -1024,6 +1024,12 @@ UI.
   handed on. One more being recorded, a detached process that stops itself at the final: the UFC's Fight Night, Moicano vs. Nolan
   (`mma/ufc` 600061420, 10-31 from 21:00 UTC, its main card from 11-01 00:00 UTC; `record-espn-live.js`'s card recorder: L5 part
   4a's As built; its log `mma-ufc-600061420.out2.txt`, restarted at 11:22 UTC on the reviewed recorder), MMA's first live card.
+  **L5 part 4b (2026-10-30, from 07:30 ET):** still none final (Baylor at UCF and Tulane at Charlotte that evening, the WNBA's Game
+  7 on 10-31, the Ravens at Bills on 11-01; golf's round 2 under way, F1's FP1 from 18:30 UTC, the UFC's card from 10-31 21:00 UTC,
+  Martinsville on 11-01): handed on. Two more being recorded, detached processes that stop themselves once every match is over:
+  tennis's first live answers, the ATP's Swiss Indoors Basel (`tennis/atp` 23-2026) and the WTA's Guangzhou Open (`tennis/wta`
+  232-2026), from 11:44 UTC 10-30 to their finals on 11-01 (`record-espn-live.js`'s draw recorder: L5 part 4b's As built; logs
+  `tennis-atp-23-2026.out.txt` and `tennis-wta-232-2026.out.txt`).
 - **A phone's data**: an estimated 15-30 MB a game at 15 s, since every answer is the whole summary (no ETag, so no 304s).
   ESPN's core API pages a game's plays (`sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}/events/{id}/competitions/
   {id}/plays?limit=&page=`, CORS `*`, cached 15 minutes once final), so a poll could fetch only the newest page and a small
@@ -1988,16 +1994,180 @@ still hadn't A1-A4 (the main session's order). Part 4 is split in two: 4a MMA (t
 - **Odds per bout are in the core** (`competitions/<id>/odds`: ESPN BET's moneyline): a pick'em's favourite and an upset bonus could
   read them as L1 part 3 reads a game's line. (L4, A4.)
 - **A one-night tournament's fighter is on a card twice**: the box adds both bouts (`people[id].bouts`); a game scoring a fighter
-  per bout (tennis's per match, 4b) would want lines per bout as well.
+  per bout (tennis's per match, 4b) would want lines per bout as well. **Done** in 4b: `BoutState.byBout`, each bout's own lines.
 - **A decision before the last scheduled round** (the PFL's, five cards of 2026): a technical decision or ESPN's rounds wrong; the
   reader keeps ESPN's rounds, and the result's round is the status's either way.
 - **DraftKings' MMA table is from guides** (its rules page answers a 403; a 2026 guide agrees with the 2021 change). Fight and
   Performance of the Night bonuses would need a source ESPN isn't (HOSTING.md first, the decision's "vetted sources").
 - **No season was held out**: the reader was written against 2025 and 2026; Saturday's card is the first it wasn't.
 
+**L5 part 4b as built: tennis (2026-10-30, `sports`, not merged; no migration, no ESPN calls from the app, nothing stored).** Master
+still hadn't A1-A4 (the main session's order). With it, L5 is done: soccer, college and the WNBA, golf, racing, MMA and tennis.
+- **What ESPN gives for tennis** (checked 2026-10-30 on every ATP and WTA event of 2025 and 2026: 318 boards, 278 events over,
+  24,594 matches; ~360 calls, ~93 MB unpacked, cached):
+  - **One answer per event: its board** (`site.api.espn.com/apis/site/v2/sports/tennis/<tour>/scoreboard/<event>`, the event's id
+    the tournament's and the year's, "23-2026"; `max-age` 1-7 s, CORS `*`; 12 KB over the wire for an ATP 500 or a WTA 250, ~150 KB
+    unpacked; a Grand Slam's ~1.7 MB unpacked). Every draw's matches in `groupings` (men's and women's singles and doubles, mixed,
+    each with its qualifying; a combined event, a Grand Slam, Indian Wells or Miami, on both tours' boards), each with its round
+    ("Round 1" to "Round 4", "Quarterfinal", "Semifinal", "Final", "Qualifying 1st Round", "Qualifying 2nd Round", "Qualifying
+    Final", "Group Stage"), its start (`date`, always on the five minutes; `timeValid` false for one not yet scheduled, at the day's
+    04:00 UTC), its court, its status (STATUS_FINAL, STATUS_RETIRED, STATUS_WALKOVER, STATUS_CANCELED, STATUS_IN_PROGRESS,
+    STATUS_SCHEDULED; `period` the set it's in or ended in, equal to the sets listed in all 24,293 finished and retired matches),
+    its two sides (`order` 1 and 2; a player, or a doubles pair typed "team" whose id is its players' joined, "1627-2695", its
+    people in `roster`; "TBD", ids -3 and -4, for a place not yet known), each side's `winner`, seed (`curatedRank.current`) and
+    sets (`linescores`: the games, the set's `winner`, a tiebreak's points), and ESPN's result in words (`notes`: "Jerome Kym (SUI)
+    bt (1) Ben Shelton (USA) 6-3 6-7 (4-7) 7-6 (7-1)", "... 7-5 ret", "... w/o"). **A phone could poll it**: one call every 30 s
+    while a match is on, 1.4 MB an hour (2.9 at 15 s), 12 KB an answer for a 250 or 500 (the recordings below).
+  - **Nothing else has more.** No summary (`tennis/<tour>/summary?event=` is a 400: ESPN asks its own core for the match as an event
+    of its own); the core API's match (`sports.core.api.espn.com/v2/sports/tennis/leagues/<tour>/events/<event>/competitions/
+    <match>`: its competitors with `tournamentSeed`, their `linescores`, its `status`, a court) is the board's numbers again, its
+    `statsSource` "none": a competitor's `statistics` is a 404 ("No competitor stats found"), its `plays` and `odds` empty, even for
+    the 2026 US Open's men's final. **So no aces, double faults, break points, serve or return numbers, durations, or times for a
+    set or a game, anywhere in ESPN's answers**: a match is its score. ESPN carries two tennis leagues, `atp` and `wta`: **no team
+    events** (the Davis Cup, the United Cup, the Laver Cup), as boxing isn't carried. Each tour's season is 61 events in ESPN's core
+    list (`seasons/<year>/types/2/events`).
+  - **What has a time**: a match's listed start, nothing else. A live answer's sets and games are ESPN's as it goes (one recorded
+    today: below), so a set's or a match's end is known only by when a phone saw it. **A match ends before either side's next match
+    starts**: in all but 2 of 34,216 consecutive pairs (a player's, any draw), the next listed start is 40 minutes or more after
+    (median 27 hours); the 2 under 40 minutes are ESPN's own (a walkover listed 25 minutes on).
+  - **Where ESPN's data is its own** (each read in its data): `format` isn't the match's (5 sets for nearly every ATP match, 3 or 5
+    for the WTA's), so a round's format is its finished matches' (the sets their winners won, the most common: a Grand Slam's men's
+    singles best of five, and Wimbledon's qualifying final round, 16 matches each year; the Next Gen ATP Finals' short sets best of five; the
+    rest best of three); a doubles match tiebreak written "1-0 (10-8)" or as games, "10-8" (a few dozen), a few "0-0 (10-6)"
+    flagged nowhere; a winner flagged nowhere (5 finished matches, 12 retirements, 1 walkover: the sets, or ESPN's note, say who); 5
+    finished matches whose note still says "leads"; every retirement's last listed set unflagged, the one it stopped in, but for 87
+    of 585 whose last set is complete (a retirement between sets: ESPN's note "6-3 7-6 (9-7) 0-0 ret"); 290 matches of 2025 doubles
+    draws with no round; 6 matches called off (the 2026 Samsun Open's qualifying finals, both sides TBD); its 2025 boards of five ATP
+    events (Canada, Cincinnati, Winston-Salem, Washington, Beijing) missing later-round matches, ABN Amro's 2025 listing its main
+    singles draw only; a winner of three sets in a best of three twice (Rublev's 6-3 6-4 6-4 at ABN Amro 2025).
+- **`BoutSport` grows what tennis needs, MMA unchanged** (`sport.ts`): `Bout.place` (a `DrawPlace`: its draw, its round as ESPN
+  names it, how many rounds from the final, qualifying, a group stage) and `Bout.seeds`; `BoutResult.sets` (each a `SetScore`:
+  games and tiebreak points by side, who won it, a match tiebreak); `BoutState.byBout`, **each bout's own lines** (a player in
+  several matches of an event: the reduce adds a play's deltas to its bout's as well; the final's correction is the card's, no
+  bout's) and `BoutBox.byBout`, ESPN's; `EspnBoutCard.groupings`, `major`, `endDate` and a match's tennis fields; `EspnLinescore`'s
+  set `winner` and `tiebreak`. The reduce, correction and timeline are the same code for both sports.
+- **`Tennis`** (`src/lib/sports/tennis.ts`; `sportOf` for `tennis/atp` and `tennis/wta`): two groups (players, doubles pairs), the
+  draws as positions (MS, WS, MD, WD, XD, from ESPN's slug or name), sets as its periods (each match says its format: `Bout.rounds`
+  3 or 5), a lineup a day (`daily`, as DraftKings' slates). **Its vocabulary**: a match (MP played, W, L, WPCT a rate, STR straight
+  sets, WRET a win by the opponent's retirement and WRET1-WRET5 its set, RET, WWO and LWO a walkover won and given: a walkover isn't
+  a match played, won or lost, as the tours' records have it; a retirement is), sets and games (SW, SL, GW, GL, TBW, TBL, CS a set
+  won without losing a game, CSL, SPCT and GPCT rates; a match tiebreak a set of one game; a set a retirement stopped counts its
+  games, not the set), the draw (QLF through qualifying, R16, QF, SF, FNL reached, TTL the title: counted from the final, whatever
+  the draw's size). `setOf` reads a set (a match tiebreak however it's written), `setComplete` whether its games end it (a
+  retirement between sets), `noteWinner` who ESPN's note says won (by each side's names before "bt" against after, so a name the
+  note spells otherwise, "Daria" for "Darya", still reads). **Its plays**: each match's sets (a `set` play each, in its `period`),
+  its end (MP) and its result (the win, how, the round its win reached), **all at the moment it's known by**: when the answers were
+  had (`_asked`) or the next listed start of a match either side plays (a pair's players apart: Mertens's singles), whichever's
+  first; else, for an event read over with neither (a final, a side's last match), 12 hours after its start; a live answer's with
+  neither only at the end. A match on, live: its sets over and the set on's games (`so-far`) at `_asked`. A round reached by a win
+  comes with the win's result; reached otherwise (a bye, a round robin's semifinal, a lucky loser) at the match's start (`reached`,
+  or `_asked` if earlier). A round's format from its finished matches; a draw ESPN names no rounds of read from its matches (each
+  winner's next match, one final), named down to its first full round, the matches before it (qualifying or a first round with
+  byes, which its shape can't tell apart) unnamed. **Its standings**: each result (`BoutState.results`), and `draws(state, card)`,
+  each draw's entries as of the moment (the furthest round they're in, still in qualifying, out, the champion; a round robin's
+  non-qualifiers out once every semifinal place is known).
+- **Defaults** (`src/lib/sports/defaults/tennis.json`): **DraftKings' tennis** (rotowire.com's table, 2018-07-24; actionnetwork's
+  Wimbledon guide agrees on aces and breaks; DraftKings' own page answers a 403), best of three in `points` (a match played 30, a
+  game won 2.5 and lost -2, a set won 6 and lost -3, a match won 6, a clean set 4, straight sets 6, a win by retirement in the 1st
+  set 20 with the match won, the 2nd 15, the 3rd 10) and **best of five apart** (`scoring.byFormat["5"]`, a new optional field of
+  `SportDefaults`: 30, 2, -1.6, 5, -2.5, 5, 2.5, 5; retirement 20, 16, 12, 8, 8). **Left out, ESPN having no match statistics**: an
+  ace (0.4; 0.25), a double fault (-1), a break (0.75; 0.5), no double fault (2.5; 5), 10 or more aces (2; 15 or more). A walkover
+  scores nothing (not a match played; DraftKings' rule for it unread). Six players, no positions; no categories; daily; specs
+  `season` (draft six, each scores in every match they play) and `short` (one event, draft three each).
+- **Fixtures** (`record-espn.js` records a tennis event: its board, trimmed by DRAW_KEEP to what the reader reads, a match a line):
+  the 2026 US Open (`atp-189-2026.json`, 469 KB from 1.7 MB: five draws and their qualifying, 625 matches, men's singles best of
+  five, mixed doubles' short sets and match tiebreaks written both ways, walkovers ESPN never scheduled, retirements in the 1st, 2nd
+  and 3rd sets), the 2025 Nitto ATP Finals (`atp-339-2025.json`, 25 KB: round robins to semifinals), the 2025 Qatar ExxonMobil Open
+  (`atp-119-2025.json`, 45 KB: a doubles draw with no rounds and three qualifying matches) and the 2026 Nordea Open
+  (`wta-306-2026.json`, 75 KB: an ATP 250 and a WTA 250 on one board, a semifinal flagged nowhere).
+- **Checks.**
+  - `tests/sports-tennis.test.js` (9): the vocabulary, the draws and both tours; a set's reading (flags, tiebreaks, a match tiebreak
+    "1-0 (10-8)", "0-0 (10-6)" and "10-7", complete or under way) and ESPN's note's winner; **the proof** on all four (each side's
+    plays come to ESPN's own numbers over the event and match by match, set by set; the final's correction nothing; every result's
+    winner ESPN's flag; a match's sets, end and result at one moment, in time order); the US Open read (formats, Zverev's line and
+    his final's, a pair's, the walkover known by the pair's next start, retirements in each set, one between sets as ESPN writes
+    them, the mixed's short sets, 34 qualifiers); **the moments** (Mertens and Shnaider's first round pre a moment before Mertens's
+    next start and done at it; a final 12 hours on; as of every 50th result, every match known by then done and none after; read
+    when asked); a draw's rounds (the ATP Finals' semifinals reached at their starts, the standings during the groups, once the
+    semifinals are set and at the end; a knockout win reaching the next round; Doha's doubles named from its matches); ESPN's own
+    (a winner flagged nowhere, from the sets or the note; a stale note; a match called off; a place TBD); live (a match on: its set
+    and the set on's games at `_asked`, a later watch seeing none of it, one to come nothing, no final's correction); the defaults
+    (Zverev's final 66.7 points by best of five, Rybakina's 61.5 by best of three, a 1st-set retirement 20).
+  - `scripts/dev-test/check-draw-reduce.js` (new, reusable, check-bout-reduce.js's sibling for a draw: `--league --season --max` or
+    `--events`, `--verbose`; caches each finished board through `espn-tennis-board.js`, new): each event's plays against ESPN's
+    numbers over the event and match by match, the timeline, each result against the winner flag and ESPN's note (who beat whom,
+    each set's games and tiebreak, "ret" and "w/o" against its status), each match's format against its winner's sets, each round
+    against the draw (a winner's next match the next round; the final's plays no more), one champion a draw and everyone else out,
+    and the moments (none before its start; as of every 7th result, every match known by then done and none after); ESPN's own apart.
+    **ATP 2026 54 of 54 events, 2025 59 of 59; WTA 2026 100 of 100, 2025 102 of 102** (a combined event on both lists: 278
+    unique, **24,588 matches, every one of ESPN's 522,472 numbers and every result**; 223 with nothing of ESPN's own apart). Apart:
+    78 main-draw winners with no next match on ESPN's board (its five 2025 ATP boards missing rounds), 18 winners flagged nowhere, 11
+    qualifiers with no next match, 20 draws with no rounds read from their matches (5 with matches before their first full round
+    unnamed) and 7 that don't make one final (left unnamed), 5 stale notes, 5 winners of more sets than the format has, 2 rounds
+    missing between (De Minaur's Indian Wells 2026), 2 winners into a round on none of its matches, 1 note's score not the sets'.
+    The moments (each tour's list): 34,808 matches known by a next start, 849 only 12 hours after their start (finals, and a
+    side's last match), none only at the end. The reader was written against both seasons: none was held out (Noticed).
+  - `check-sport-reduce.js` and `check-bout-reduce.js` point tennis at its sibling. 1004 unit tests; `tsc` clean; eslint clean on
+    `src/lib/sports`; `check-bout-reduce.js` still reads the UFC's 99 cards of 2025-26 (52 and 47, every number and result but
+    ESPN's own); `check-live-clock.js` at 30x, 22 of 22.
+  - `/code-review` on the diff (its fixes: a main-draw player before their first match read as in qualifying, now in the round they
+    enter, and a qualifier into the main draw once through; a round's distance from the final counted from the rounds the board
+    listed, so a board not yet listing its later rounds would make a quarterfinal the final, now from ESPN's round ids (5, 6, 7 the
+    quarterfinal, semifinal and final, "Round N" back from them); a match never scheduled sorted first in a no-rounds draw's chain
+    and last elsewhere, now last in both; the check's dead dedup and a message's precedence; the recorder's own copy of the board's
+    matches, now `espn-tennis-board.js`'s; the fixture writer's splice. Checked and kept, Noticed: a live match tiebreak under 8
+    points read as a set's games; a live answer's moments moving on with each poll).
+  - `record-espn-live.js` records a tennis event (its board every 30 s while a match is on, every 5 minutes otherwise, until every
+    match is over; an answer kept only when a match changed) and **compares** one (each match as it went: on, its games answer by
+    answer, over, a result shown otherwise, whether ESPN moved its start once it began; matches called off or added; how soon after
+    its listed start a match showed on, its result after the last ask with it on; a phone's data). Two recorded live from 11:44 UTC
+    (detached, to their finals on 11-01): the ATP's Swiss Indoors Basel (`tennis/atp` 23-2026) and the WTA's Guangzhou Open
+    (`tennis/wta` 232-2026). Their first 25 minutes compared (the rest is the next session's): a doubles quarterfinal's games
+    changed in 8 of 9 answers kept, Sun over Liu in Guangzhou's quarterfinal showed over 30 s after the last ask with it on, no start
+    moved, no result shown otherwise, 12 KB an answer.
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data (the dev checks asked ESPN ~400 times,
+    every finished answer cached).
+
+**L5 part 4b (tennis) noticed, not fixed:**
+- **ESPN has no match statistics** (aces, double faults, breaks of serve, first serves, points won, a match's length): DraftKings'
+  table's statistical parts can't be scored, nor "most aces" or "a break in the first game" as a question. The wizard should say
+  what tennis can score (the score's parts and the draw). A source with them (the tours' own match stats) would need HOSTING.md first
+  and the decision's vetted sources. (G3, U0.)
+- **Nothing is timed but a match's listed start**: a later watch moves match by match, known by the next listed start of either
+  side's next match (median 27 hours on: a later watch of a day's play sees its results only the next day, or 12 hours on for a
+  final); a live phone knows a set or a match when it sees it (`_asked`). Never early but for the 2 of 34,216 ESPN listed under
+  40 minutes on. Live calls on tennis: A15's window per match, or per set by first sight.
+- **ESPN's start is on the five minutes, the same court's matches as little as 0-5 minutes apart**: a scheduled time, not when one
+  began. Whether ESPN moves it once a match begins is the live recordings' to say (none moved in their first 25 minutes).
+- **A tennis event has no live poller yet** (a field's and a card's haven't either): the board every 30 s while a match is on (12 KB,
+  1.4 MB an hour), nothing between days. A live answer stamps a match nothing later lists at its `_asked`, so each poll moves a
+  just-finished match's moment on: the poller's merge keeps the moment it first saw each one (golf's holes and MMA's untimed bouts
+  the same). (L3 or U1, with the recordings' numbers.)
+- **A short set (to 4 games: the Next Gen ATP Finals', the US Open's mixed doubles) isn't told complete by its games**, so a
+  retirement between short sets would read its last set as unfinished: never seen. And a live match tiebreak ESPN writes as points
+  ("7-5" while under way) would read as a set's games until it reaches 8 or ends, so live game points swing and then settle: none
+  recorded live yet (the recordings' doubles will say how ESPN writes one under way).
+- **A match never scheduled** (a walkover at ESPN's placeholder start) sorts last in the order played (`Bout.order`), and last in a
+  no-rounds draw's chain of each winner's next match, which can misplace its round there: never seen.
+- **A round robin's semifinal places are known at the semifinals' starts** (`reached`): ESPN's board fills a semifinal's sides once
+  the groups end, which only a live recording of the WTA Finals (from 2026-11-07) or the ATP Finals (from 11-14) can time. Its
+  group standings (wins, then sets and games won) aren't worked out: who advanced is the semifinal's sides.
+- **A draw ESPN names no rounds of** (20 of 2025's doubles draws read from their matches, 7 left unnamed) can't tell qualifying from
+  a first round with byes; its matches before the first full round are unnamed (no QLF for their qualifiers).
+- **Seeds are read** (`Bout.seeds`, ESPN's `curatedRank`) but nothing scores an upset; ESPN's per-match odds are empty. (L4, A4.)
+- **A player's doubles is a pair's line** (ESPN's pair id), not their own: a game scoring a player's doubles too would add the pair's
+  lines to each of its people (`FieldEntry.members`). (L4.)
+- **A bracket game** (pick each round's winners) reads `Bout.place` and `draws()`: A8's piece with tennis's data. (L4.)
+- **DraftKings' tennis table is from rotowire's 2018 copy** (DraftKings' page answers a 403; actionnetwork's 2021 guide agrees on
+  aces and breaks): its walkover rule unread, so a walkover scores nothing here.
+- **The US Open fixture is 469 KB** (625 matches; Bermuda's golf is 516 KB): a Grand Slam's whole board, trimmed to what's read.
+- **No season was held out**: the reader was written against 2025 and 2026; Basel's and Guangzhou's live recordings are the first
+  it wasn't.
+
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;
-tennis's draw, and how a bracket reads ESPN's. **Noticed:** golf, racing, MMA and tennis can sync a later watch only by round,
+tennis's draw, and how a bracket reads ESPN's (tennis's draw is read: L5 part 4b's `Bout.place` and `draws()`; a bracket game is
+A8's piece). **Noticed:** golf, racing, MMA and tennis can sync a later watch only by round,
 session or bout.
 
 ## The wizard (U0 designs it, last, with impeccable)

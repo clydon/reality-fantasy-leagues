@@ -54,7 +54,7 @@ Decisions (the user's answers):
 | Golf (PGA, LIV) | scoreboard: the leaderboard, scores by round (`linescores`) | no | field |
 | F1, NASCAR, IndyCar | scoreboard: each session's finishing order | no | field, in parts |
 | UFC / MMA | scoreboard: the card, each bout's two fighters and winner | no | bouts |
-| Tennis (ATP, WTA) | scoreboard: matches in `groupings` (not read yet) | no | bouts, a draw |
+| Tennis (ATP, WTA) | an event's board: every draw's matches in `groupings`, their sets and games (read since L5 part 4b; no statistics anywhere) | no | bouts, a draw |
 | Boxing, esports, horse racing | not in the site API (400) | - | out |
 
 So "live and replayable" is exact for the team sports (every play has its real time), round-by-round for golf, and

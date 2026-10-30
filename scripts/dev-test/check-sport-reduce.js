@@ -41,7 +41,7 @@ if (!sport) {
   process.exit(2);
 }
 if (sport instanceof BoutSport) {
-  console.error(`${league} is a card of bouts (its results, not a box score): check-bout-reduce.js checks it.`);
+  console.error(`${league} is ${league.startsWith("tennis/") ? "a tennis event's draws (their results, not a box score): check-draw-reduce.js" : "a card of bouts (its results, not a box score): check-bout-reduce.js"} checks it.`);
   process.exit(2);
 }
 if (sport instanceof FieldSport) {

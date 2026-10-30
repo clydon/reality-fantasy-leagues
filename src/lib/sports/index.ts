@@ -7,8 +7,9 @@
 // "soccer/uefa.champions"); and the field sports (FieldSport: a field and its standings): "golf" of its stroke-play tours, "golf/pga",
 // "golf/lpga", "golf/eur", "golf/liv", "golf/champions-tour", "golf/ntw" and the Olympics' (golf.ts; not TGL's match play); "racing" of
 // its five series, an instance a series ("racing/f1", "racing/nascar-premier", "racing/nascar-secondary", "racing/nascar-truck",
-// "racing/irl": racing.ts); and the bout sports (BoutSport: a card of bouts): "mma" of every promotion ESPN carries, which it writes
-// alike ("mma/ufc", "mma/pfl", "mma/lfa": mma.ts; only the UFC's have statistics and timed plays). Tennis comes next in L5.
+// "racing/irl": racing.ts); and the bout sports (BoutSport: one-on-one bouts): "mma" of every promotion ESPN carries, which it
+// writes alike ("mma/ufc", "mma/pfl", "mma/lfa": mma.ts; only the UFC's have statistics and timed plays), and "tennis" of both
+// tours, all ESPN carries ("tennis/atp", "tennis/wta": tennis.ts; an event's draws of matches, their scores alone).
 // A game's clock for someone (clock.ts) and a game live on the phone (live.ts) are L2's.
 import { Baseball } from "./baseball";
 import { CollegeBaseball } from "./college-baseball";
@@ -20,6 +21,7 @@ import { Soccer } from "./soccer";
 import { Golf } from "./golf";
 import { RACING_SERIES, Racing } from "./racing";
 import { MMA } from "./mma";
+import { Tennis } from "./tennis";
 import baseballDefaults from "./defaults/baseball.json";
 import basketballDefaults from "./defaults/basketball.json";
 import footballDefaults from "./defaults/football.json";
@@ -28,6 +30,7 @@ import soccerDefaults from "./defaults/soccer.json";
 import golfDefaults from "./defaults/golf.json";
 import racingDefaults from "./defaults/racing.json";
 import mmaDefaults from "./defaults/mma.json";
+import tennisDefaults from "./defaults/tennis.json";
 import type { BoutSport, FieldSport, LockCadence, TeamSport } from "./sport";
 
 export * from "./sport";
@@ -43,13 +46,14 @@ export { Soccer, plainName } from "./soccer";
 export { Golf, GOLF_LEAGUES, boardCounts, holeKind, roundStats, toParOf } from "./golf";
 export { Racing, RACING_SERIES, coreStats, type Series } from "./racing";
 export { MMA, methodOf, coreFighterStats, mmaCoreStats, mmaCenterStats } from "./mma";
+export { Tennis, noteWinner, setComplete, setOf, type DrawEntry, type DrawStanding } from "./tennis";
 
 /** A sport of any shape: a team sport's box score and plays, a field's standings, or a card's bouts. */
 export type AnySport = TeamSport | FieldSport | BoutSport;
 
 // A sport's own leagues first: a sport slug can have more than one (basketball's NBA and WNBA, and college's two), each naming
 // the leagues it reads; sportById gives the first, the sport's own.
-const SPORTS: AnySport[] = [new Baseball(), new CollegeBaseball(), new Basketball(), new CollegeBasketball("mens-college-basketball", "Men's college basketball", HALVES), new CollegeBasketball("womens-college-basketball", "Women's college basketball"), new Football(), new CollegeFootball(), new Hockey(), new Soccer(), new Golf(), ...RACING_SERIES.map((s) => new Racing(s)), new MMA()];
+const SPORTS: AnySport[] = [new Baseball(), new CollegeBaseball(), new Basketball(), new CollegeBasketball("mens-college-basketball", "Men's college basketball", HALVES), new CollegeBasketball("womens-college-basketball", "Women's college basketball"), new Football(), new CollegeFootball(), new Hockey(), new Soccer(), new Golf(), ...RACING_SERIES.map((s) => new Racing(s)), new MMA(), new Tennis()];
 
 /** The sport by its id ("baseball"): its first, the one for its pro leagues ("basketball": the NBA's and WNBA's), or null for
  *  one not built yet. */
@@ -87,8 +91,10 @@ export interface SportDefaults {
   /** `byPosition`: a stat's points by the sport's position groups, where its standard table says so (FPL's goal is 10 to a
    *  keeper, 4 to a forward); `points` has one of them (soccer's: a midfielder's) until the spec scores by position. `byPlace`:
    *  a place stat's points by place or range ("1", "4-10"), for each place stat the standard table scores (golf's POS, the tied
-   *  each taking the place's; racing's POS, SPR, QUAL); none of them are in `points` until the spec scores places. */
-  scoring: { source: string; points: Record<string, number>; byPosition?: Record<string, Record<string, number>>; byPlace?: Record<string, Record<string, number>> };
+   *  each taking the place's; racing's POS, SPR, QUAL); none of them are in `points` until the spec scores places. `byFormat`:
+   *  a stat's points in a bout of another format, by its rounds (tennis's best of five: `{ "5": { GW: 2 } }`), where its standard
+   *  table says so; `points` is the usual format's (best of three) until the spec scores by a bout's format. */
+  scoring: { source: string; points: Record<string, number>; byPosition?: Record<string, Record<string, number>>; byPlace?: Record<string, Record<string, number>>; byFormat?: Record<string, Record<string, number>> };
   categories: { source: string; stats: string[] };
   /** `squad`: how many of each position group a roster holds (FPL's 2 goalkeepers, 5 defenders, 5 midfielders, 3 forwards). */
   slots: { source: string; lineup: DefaultSlot[]; bench: number; squad?: Record<string, number> };
@@ -108,6 +114,7 @@ const DEFAULTS: Record<string, SportDefaults> = {
   golf: golfDefaults as SportDefaults,
   racing: racingDefaults as SportDefaults,
   mma: mmaDefaults as SportDefaults,
+  tennis: tennisDefaults as SportDefaults,
 };
 
 /** A sport's defaults, or null for one that has none yet; with a league ("f1", or "racing/f1"), that league's own parts in

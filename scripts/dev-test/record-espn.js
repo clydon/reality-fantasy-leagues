@@ -23,11 +23,16 @@
 // bout's status, plays and fighters' statistics (espn-mma-card.js: check-bout-reduce.js's cache, else asked), trimmed by
 // CARD_KEEP below to what mma.ts reads, each bout on a line.
 //   node scripts/dev-test/record-espn.js --league=mma/ufc --event=600057024 [--note=...]
+// A tennis event (L5 part 4b) is its board alone (espn-tennis-board.js: check-draw-reduce.js's cache, else asked; every draw's
+// matches), trimmed by DRAW_KEEP below to what tennis.ts reads, each match on a line; it refuses an event with a match still to
+// come or on.
+//   node scripts/dev-test/record-espn.js --league=tennis/atp --event=189-2026 [--note=...]
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { cachedRaceCore } = require("./espn-race-core");
 const { cachedMmaCard } = require("./espn-mma-card");
+const { cachedTennisBoard, drawOver } = require("./espn-tennis-board");
 
 const args = Object.fromEntries(process.argv.slice(2).map((a) => a.replace(/^--/, "").split("=")).map(([k, ...v]) => [k, v.length ? v.join("=") : true]));
 const league = args.league;
@@ -298,6 +303,51 @@ async function recordCard() {
   console.log(`${path.relative(process.cwd(), out)}: ${(competitions ?? []).length} bouts, ${plays} plays, ${(body.length / 1024).toFixed(0)} KB (from ${(JSON.stringify(card).length / 1024).toFixed(0)} KB)`);
 }
 
+// A tennis event's (src/lib/sports/tennis.ts): its board's draws, each match's round, start, status, ESPN's note and its
+// sides (a player's name and flag, a pair's people, the seed, the winner, the sets).
+const DRAW_KEEP = {
+  id: true,
+  name: true,
+  date: true,
+  endDate: true,
+  major: true,
+  groupings: [
+    {
+      grouping: { slug: true, displayName: true },
+      competitions: [
+        {
+          id: true,
+          date: true,
+          timeValid: true,
+          status: { period: true, type: { state: true, name: true } },
+          round: { id: true, displayName: true },
+          notes: [{ text: true }],
+          competitors: [{ id: true, type: true, order: true, winner: true, curatedRank: { current: true }, linescores: [{ value: true, winner: true, tiebreak: true }], athlete: { displayName: true, flag: { alt: true } }, roster: { displayName: true, athletes: [{ displayName: true }] } }],
+        },
+      ],
+    },
+  ],
+};
+
+/** A tennis event's fixture: its board (check-draw-reduce.js's cache, else asked), trimmed, each match on a line. */
+async function recordDraw() {
+  const [, tour] = league.split("/");
+  const board = await cachedTennisBoard(cacheDir, { tour, event });
+  if (!board || !drawOver(board)) {
+    console.error(`${event} isn't over (a match still to come or on): a fixture is a whole event.`);
+    process.exit(1);
+  }
+  const { groupings = [], ...head } = trim(board, DRAW_KEEP);
+  const draws = groupings.map((g) => `  { "grouping": ${JSON.stringify(g.grouping)}, "competitions": [\n${(g.competitions ?? []).map((c) => `    ${JSON.stringify(c)}`).join(",\n")}\n  ] }`);
+  const rec = { league, event, from: `site.api.espn.com/apis/site/v2/sports/${league}/scoreboard/${event}`, at: new Date().toISOString().slice(0, 10), ...(args.note ? { note: args.note } : {}), by: "scripts/dev-test/record-espn.js" };
+  const body = `{\n "_recorded": ${JSON.stringify(rec)},\n "board": ${JSON.stringify({ ...head, groupings: "@@" }).replace('"@@"}', "[")}\n${draws.join(",\n")}\n ]}\n}\n`;
+  JSON.parse(body);
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, body);
+  const matches = groupings.reduce((n, g) => n + (g.competitions ?? []).length, 0);
+  console.log(`${path.relative(process.cwd(), out)}: ${matches} matches, ${(body.length / 1024).toFixed(0)} KB (from ${(JSON.stringify(board).length / 1024).toFixed(0)} KB)`);
+}
+
 /** A field's fixture: its answers (cached by check-field-reduce.js's names, else asked), trimmed, each competitor on a line. */
 async function recordField() {
   const [slug, tour] = league.split("/");
@@ -346,6 +396,7 @@ async function recordField() {
   fs.mkdirSync(cacheDir, { recursive: true });
   if (/^(golf|racing)\//.test(league)) return recordField();
   if (/^mma\//.test(league)) return recordCard();
+  if (/^tennis\//.test(league)) return recordDraw();
   const cached = path.join(cacheDir, `${league.replace("/", "-")}-summary-${event}.json`);
   const final = (s) => s?.header?.competitions?.[0]?.status?.type?.completed === true;
   let summary = fs.existsSync(cached) ? JSON.parse(fs.readFileSync(cached, "utf8")) : null;

@@ -38,6 +38,10 @@ if (!(sport instanceof BoutSport)) {
   console.error(`${league} isn't a bout sport built yet (team sports: check-sport-reduce.js; fields: check-field-reduce.js).`);
   process.exit(2);
 }
+if (league.startsWith("tennis/")) {
+  console.error(`${league} is a tennis event's draws: check-draw-reduce.js checks it.`);
+  process.exit(2);
+}
 const [, promotion] = league.split("/");
 const cacheDir = args.cache || path.join(os.tmpdir(), "rfl-espn-cache");
 fs.mkdirSync(cacheDir, { recursive: true });
