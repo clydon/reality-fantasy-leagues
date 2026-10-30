@@ -580,10 +580,10 @@ class ScoringLogic {
     const view = spanView(state);
     const rows = getLeagueType(state).scoringStrategy.compute(view);
     if(KnockoutLogic.on(view)) return KnockoutLogic.apply(view, rows);
-    // A11 part 4: head to head's records and playoffs (MatchupLogic).
-    if(MatchupLogic.on(view)) return MatchupLogic.apply(view, rows);
     // A11 part 2b: a game of questions' walk, its points and who's out, as the server worked them out (AnswerLogic.walk).
     const walk = AnswerLogic.walkOf(view);
+    // A11 part 4: head to head's records and playoffs (MatchupLogic); part 4b, on a game of questions' points from its walk.
+    if(MatchupLogic.on(view)) return MatchupLogic.apply(view, walk ? AnswerLogic.walkRows(rows, walk) : rows);
     return walk ? AnswerLogic.applyWalk(view, rows, walk) : rows;
   }
 }
@@ -835,7 +835,9 @@ class KnockoutLogic {
 // ---------- MatchupLogic: head to head, with playoffs (docs/PLAN-start-a-game-gpt.md step A11 part 4) ----------
 // The spec's rank.by 'matchups' (Spec.matchupParts), a draft's: each episode the game plays, everyone plays one of the others on
 // that episode's points by the game's own scoring (KnockoutLogic.series: a lineup's or best ball's points that episode, Outlast's
-// growth, side bets and finale predictions as they settle, each team as it stood then), and more points wins it. Worked out from
+// growth, side bets and finale predictions as they settle, each team as it stood then), and more points wins it. Part 4b, a game
+// of questions': each episode's points what its answers settled by then add (its walk's series, the server's: AnswerLogic.walk;
+// a state without the walk plays nobody, the safe fallback a reader not taught yet gets). Both through MatchupLogic.series. Worked out from
 // the data on every read, as the knockouts are, so a corrected result works everything after it out again and a viewer's copy
 // plays only what they've seen; the one thing kept is where the playoffs began, once they have (settle, below).
 //   - The schedule: a round robin (the circle method) over the seats in the game at each episode, in the order they joined, a
@@ -861,7 +863,8 @@ class KnockoutLogic {
 //     a season longer than it said ends the game with its final, and one that ends first (the season over with rounds still to
 //     play, its finale earlier than its schedule said, or a schedule that counts a reunion) is won by the best seed still in:
 //     nothing after the finale plays. Where nothing says the game's end (no span's end, no schedule), there are no
-//     playoffs until something does, and a season that ends first is the standings'.
+//     playoffs until something does, and a season that ends first is the standings'. Nor does a regular-season week after the
+//     season's finale (a schedule that counts a reunion: part 4b).
 //   - The game ends with its final (endsAt, through KnockoutLogic.endsAt and lastEpisode): over there (gameOver), scored as it
 //     stood then (spanView), and no move is made for an episode after it (moveProblem).
 // Its rows (apply) carry `matchups`: { wins, losses, ties, for, against, seed, tier, alive, champion }, ranked by rankKey: how far
@@ -904,6 +907,18 @@ class MatchupLogic {
     const from = parts ? MatchupLogic.playoffsFrom(state, parts) : null;
     return from === null ? null : from + parts.playoffs.rounds - 1;
   }
+  // Where the game ended, once it has (A11 part 4b, for what says so: answers.ts): its final played, or the season over before it
+  // (nothing after the finale plays: the finale's episode); null while it plays (its final's results still early, or a question
+  // about it still to settle), or with nothing placing its end.
+  static endedAt(state){
+    const end = MatchupLogic.endsAt(state);
+    const w = end === null ? null : MatchupLogic.run(state);
+    if(!w) return null;
+    const last = w.rounds[w.rounds.length - 1];
+    if(last && last.number === end && last.played) return end;
+    const finale = seasonEnded(state) ? finaleEpisodeOf(state) : null;
+    return finale && finale.number < end ? finale.number : null;
+  }
   // Why a move for episode `number` can't be made: the game ended with its final before it. Null when it can.
   static moveProblem(state, number){
     const end = MatchupLogic.endsAt(state);
@@ -920,6 +935,14 @@ class MatchupLogic {
       if(kept) return Number.isInteger(kept[p.id]) && kept[p.id] <= k;
       return !GhostLogic.isCatchingUp(state, p.id) && (GhostLogic.startFor(state, p.id) || start) <= k;
     }).map(p => p.id);
+  }
+  // Each episode the game has played, in order, with everyone's points through it ({ number, totals: Map playerId -> points }): a
+  // draft's from its own scoring (KnockoutLogic.series), a game of questions' from its answers' walk (A11 part 4b: AnswerLogic.walk's
+  // series, on the copy the server walked; none without it, so nobody has played).
+  static series(state){
+    if(!Spec.questionsGame(gameOf(state))) return KnockoutLogic.series(state);
+    const walk = AnswerLogic.walkOf(state);
+    return walk && Array.isArray(walk.series) ? walk.series.map(x => ({ number: x.number, totals: new Map(Object.entries(x.totals)) })) : [];
   }
   // When each seat joined the schedule (state.matchupSeats, settle's: playerId -> the first episode it plays), or null.
   static kept(state){ const m = state.matchupSeats; return m && typeof m === 'object' && !Array.isArray(m) ? m : null; }
@@ -976,9 +999,12 @@ class MatchupLogic {
   //   alive     Set of the seeds still in; champion, the final's winner (or the best seed still in, the season over first), or null
   //   tiers     Map playerId -> how far they went (rankKey's first number)
   static walk(state, parts){
-    const series = KnockoutLogic.series(state);
+    const series = MatchupLogic.series(state);
     const start = startEpisode(state);
     const from = MatchupLogic.playoffsFrom(state, parts);
+    // Nothing after the season's finale plays (a schedule that counts a reunion), the playoffs' rounds nor a regular-season week.
+    const ended = seasonEnded(state);
+    const finale = ended ? finaleEpisodeOf(state) : null;
     const players = state.players || [];
     const records = new Map();
     const rec = id => {
@@ -1000,6 +1026,7 @@ class MatchupLogic {
       const pts = new Map(players.map(p => [p.id, roundPoints((x.totals.get(p.id) || 0) - (before ? before.totals.get(p.id) || 0 : 0))]));
       before = x;
       if(from !== null && k >= from){ playoff.set(k, pts); continue; }
+      if(finale && k > finale.number) continue;
       const seats = MatchupLogic.seatsAt(state, k);
       seats.forEach(id => { const r = rec(id); r.for = roundPoints(r.for + (pts.get(id) || 0)); });
       const quiet = seats.length > 0 && seats.every(id => !pts.get(id));
@@ -1019,7 +1046,6 @@ class MatchupLogic {
     const out = { weeks, records, from, seeds: null, rounds: [], alive: new Set(), champion: null, tiers: new Map() };
     // Seeded once every episode before the playoffs has been played (the series reached the one before their first), or once the
     // season ended first: the standings as they are.
-    const ended = seasonEnded(state);
     const reached = series.length ? series[series.length - 1].number : null;
     if(from === null || !((reached !== null && reached >= from - 1) || ended)) return out;
     const key = id => { const r = records.get(id); return r ? [r.wins * 2 + r.ties, r.for] : [0, 0]; };
@@ -1032,7 +1058,6 @@ class MatchupLogic {
     seeds.forEach(id => out.tiers.set(id, 1));
     // A bracket of the spec's size; a seed past the field's is a bye. Nothing after the season's finale plays (a schedule that counts
     // a reunion, or a finale earlier than it said): the season over first, the best seed still in wins.
-    const finale = ended ? finaleEpisodeOf(state) : null;
     let alive = MatchupLogic.bracket(2 ** parts.playoffs.rounds).map(s => (s <= n ? s : null));
     for(let j = 0; j < parts.playoffs.rounds; j++){
       const number = from + j;
@@ -6047,9 +6072,15 @@ class AnswerLogic {
   //     theirs; a ghost's never). At none
   //     left the game ends there, lost by all; at its end (the span's last episode, or the season's, walked with nothing still to
   //     settle) with one left, won by all. Everyone shares the result (`shared`: all of them), each with the couch's lives.
+  //   - A11 part 4b, head to head (parts.matchups: rank.by 'matchups'): nobody is knocked out; the walk hands over its series, each
+  //     episode's points through it, for MatchupLogic (an episode's points are what the answers settled by then add: a question about
+  //     the whole game, or over several episodes, in the one it settles in). The newest episode waits while its results are early or
+  //     a question asked about it alone is still to settle (research unsure); nothing after the game's final (MatchupLogic.endsAt), or
+  //     the season's finale once it's over, plays, and the totals stand there once it's walked.
   // Returns { ends, out: { playerId: last episode in }, lives: { playerId: left } (with lives), shared: [playerId] (out together,
   // sharing it), totals: { playerId: points as the table shows them }, coop (co-op only: { lives: left, of: lives at the start,
-  // lost: [{ episode, question }], result: 'won' | 'lost' | null while it plays }) }, or null for a game with none of it.
+  // lost: [{ episode, question }], result: 'won' | 'lost' | null while it plays }), series (head to head only: [{ number, totals:
+  // { playerId: points through it } }], each episode walked) }, or null for a game with none of it.
   static walk(state, answers, facts){
     const parts = Spec.answerParts(gameOf(state));
     if(!parts) return null;
@@ -6079,8 +6110,15 @@ class AnswerLogic {
     const nights = [];
     const counted = k => everyone.filter(p => !catching.has(p.id) && (startOf.get(p.id) || start) <= k);
     let walkedAll = true;
+    // A11 part 4b: head to head's last episode, its final's (MatchupLogic.endsAt), or the season's finale once it's over if that came
+    // first (a schedule that counts a reunion); the questions asked each episode about it alone, which its newest episode waits on.
+    const finale = parts.matchups && seasonEnded(state) ? finaleEpisodeOf(state) : null;
+    const endAt = parts.matchups ? MatchupLogic.endsAt(state) : null;
+    const stop = finale && (endAt === null || finale.number < endAt) ? finale.number : endAt;
+    const aboutOne = parts.matchups ? [...qs.values()].filter(Spec.livesQuestion) : [];
     for(const ep of eps){
       const k = ep.number;
+      if(stop !== null && k > stop) break;
       const fk = Spec.factsThrough(facts, k);
       // Lives lost at k: each question a life rides on, settled there.
       const lost = new Map();
@@ -6113,8 +6151,10 @@ class AnswerLogic {
           if((mine ? Spec.isRight(q, v, mine, list, fk) : false) === false) lost.set(p.id, (lost.get(p.id) || 0) + 1);
         });
       }
-      if(k === newest && (waiting || ((parts.race || parts.cuts.length) && EpisodeLogic.resultsStage(ep) === 'early'))){ walkedAll = false; break; }
-      const totals = AnswerLogic.grade(state, live(), fk).points;
+      if(parts.matchups && k === newest && !waiting) waiting = aboutOne.some(q => Spec.verdictOf(q, k, fk).state === 'waiting');
+      if(k === newest && (waiting || ((parts.race || parts.cuts.length || parts.matchups) && EpisodeLogic.resultsStage(ep) === 'early'))){ walkedAll = false; break; }
+      // Head to head's final is the game's end: its questions about the game settle there, as the table's totals have them.
+      const totals = AnswerLogic.grade(state, live(), k === stop ? { ...fk, over: true } : fk).points;
       series.set(k, totals);
       const total = id => totals.get(id) || 0;
       if(coop){
@@ -6139,9 +6179,10 @@ class AnswerLogic {
       KnockoutLogic.cutAfter(state, parts.cuts, { k, start, quiet: !!ep.noExit, inAt, total, before, out });
       if((parts.lives || parts.cuts.length) && parts.oneLeft === 'ends' && everyone.length >= 2 && everyone.filter(p => !out.has(p.id)).length <= 1){ ends = k; break; }
     }
-    // The points the table shows: at the game's end (a race won, one left: its questions about the game settle there), or as they
-    // stand; someone out, as they stood at their last episode in.
-    const final = ends === null ? facts : { ...Spec.factsThrough(facts, ends), over: true };
+    // The points the table shows: at the game's end (a race won, one left, head to head's final walked: its questions about the game
+    // settle there), or as they stand; someone out, as they stood at their last episode in.
+    const at = ends !== null ? ends : stop !== null && series.has(stop) ? stop : null;
+    const final = at === null ? facts : { ...Spec.factsThrough(facts, at), over: true };
     const points = AnswerLogic.grade(state, live(), final).points;
     const totals = {};
     (state.players || []).forEach(p => {
@@ -6168,6 +6209,8 @@ class AnswerLogic {
       lives: parts.lives ? Object.fromEntries(lives) : {},
       shared: [...shared],
       totals,
+      // A11 part 4b: head to head's episodes, for MatchupLogic.series.
+      ...(parts.matchups ? { series: [...series].map(([number, t]) => ({ number, totals: Object.fromEntries(t) })) } : {}),
     };
   }
   // A copy of `state` carrying a game of questions' walk (AnswerLogic.walk, worked out on exactly this state's data): never the
@@ -6211,6 +6254,13 @@ class AnswerLogic {
   // The score rows with a game of questions' walk on them: each one's `out`, their points as the walk has them (frozen once out),
   // lives left, and `shared` for those who went out together sharing it; ranked as the game ranks (rankKey).
   static applyWalk(state, rows, walk){
+    AnswerLogic.walkRows(rows, walk);
+    // A11 part 3: co-op's rows share one place, listed by their points (who called the most).
+    return rows.sort((a,b) => PickEmScoringStrategy.compareKeys(rankKey(state, b), rankKey(state, a)) || (walk.coop ? b.total - a.total : 0));
+  }
+  // The walk's fields on each score row (its `out`, points, lives left, `shared`), not ranked: applyWalk ranks them, head to head
+  // ranks them itself (A11 part 4b: MatchupLogic.apply).
+  static walkRows(rows, walk){
     rows.forEach(r => {
       const k = walk.out[r.playerId];
       r.out = Number.isInteger(k) ? k : null;
@@ -6218,8 +6268,7 @@ class AnswerLogic {
       if(walk.lives && r.playerId in walk.lives) r.lives = walk.lives[r.playerId];
       if(walk.shared.includes(r.playerId)) r.shared = true;
     });
-    // A11 part 3: co-op's rows share one place, listed by their points (who called the most).
-    return rows.sort((a,b) => PickEmScoringStrategy.compareKeys(rankKey(state, b), rankKey(state, a)) || (walk.coop ? b.total - a.total : 0));
+    return rows;
   }
   // How many of the game's episodes had started at `o.now` (A9: when an answer was made, for a call whose points shrink), from
   // its first: each one's lock (closedForPlay, the schedule's air time `o.airAtOf(n)` for one the league hasn't made yet,

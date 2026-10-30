@@ -113,22 +113,31 @@ function draftRankOf(st, lineup, copy) {
   const by = lineup && st.draftRank === 'worth' ? 'worth' : cut && st.draftRank === 'standing' ? 'standing' : st.draftRank === 'matchups' ? 'matchups' : 'total';
   const rank = { by };
   // A11 part 4: head to head's playoffs and fallbacks (rankMatchups), as the spec says them.
-  if (by === 'matchups' && isObj(st.rankMatchups)) for (const k of MATCHUP_KEYS) if (st.rankMatchups[k] !== undefined) rank[k] = copy ? clone(st.rankMatchups[k]) : st.rankMatchups[k];
+  if (by === 'matchups') matchupsOf(st, rank, copy);
   if (isObj(st.draftRace)) rank.race = copy ? clone(st.draftRace) : st.draftRace;
   if (cut) rank.cut = cut;
   // A11 part 2: whether one left ends it (rankOneLeft), beside last one standing.
   if (by === 'standing') endsOf(st, rank, false);
   return rank;
 }
+/** A11 part 4: head to head's playoffs and fallbacks as its settings say them (rankMatchups: a draft's and, part 4b, a game of
+ *  questions'), each only when it's set. */
+function matchupsOf(st, rank, copy) {
+  if (isObj(st.rankMatchups)) for (const k of MATCHUP_KEYS) if (st.rankMatchups[k] !== undefined) rank[k] = copy ? clone(st.rankMatchups[k]) : st.rankMatchups[k];
+}
 /**
  * A11 part 2b: a game of questions' rank, from its settings: by its total, or last one standing once it knocks players out (lives,
  * or players knocked out by their points: questionsCut), with a race (questionsRace) as the spec says it, and last one standing's
  * end (its allOut with lives). Each only when it's set. A11 part 3: co-op (questionsRank 'coop', with lives: the couch's together).
+ * Part 4b: head to head (questionsRank 'matchups'), its playoffs and fallbacks in rankMatchups, as a draft's.
  */
 function questionsRankOf(st, lives, copy) {
   const cut = Array.isArray(st.questionsCut) && st.questionsCut.length ? (copy ? clone(st.questionsCut) : st.questionsCut) : null;
-  // A co-op game keeps whatever else its settings say (a race, cuts, an end), so our check refuses them rather than losing them.
-  const rank = { by: lives && st.questionsRank === 'coop' ? 'coop' : cut || lives ? 'standing' : 'total' };
+  // A co-op or head-to-head game keeps whatever else its settings say (a race, cuts, lives, an end), so our check refuses them
+  // rather than losing them.
+  const by = st.questionsRank === 'matchups' ? 'matchups' : lives && st.questionsRank === 'coop' ? 'coop' : cut || lives ? 'standing' : 'total';
+  const rank = { by };
+  if (by === 'matchups') matchupsOf(st, rank, copy);
   if (isObj(st.questionsRace)) rank.race = copy ? clone(st.questionsRace) : st.questionsRace;
   if (cut) rank.cut = cut;
   if (rank.by !== 'total') endsOf(st, rank, lives);
@@ -388,15 +397,16 @@ function settingsOf(spec) {
   out.questionsLivesOn = askLives && Array.isArray(s.score.livesOn) ? clone(s.score.livesOn) : undefined;
   // A11 part 3: co-op (lives the couch's together) is said, as last one standing isn't (lives alone imply it), with who saves a night.
   const coop = askLives && s.rank.by === 'coop';
-  out.questionsRank = coop ? 'coop' : undefined;
+  // A11 part 4b: head to head is said too (its playoffs and fallbacks in rankMatchups, as a draft's).
+  out.questionsRank = coop ? 'coop' : asks && s.rank.by === 'matchups' ? 'matchups' : undefined;
   out.questionsSaves = coop && s.score.saves !== undefined ? s.score.saves : undefined;
   out.questionsRace = asks && isObj(s.rank.race) ? clone(s.rank.race) : undefined;
   out.questionsCut = asks && Array.isArray(s.rank.cut) ? clone(s.rank.cut) : undefined;
   // A10 part 3c: a lineup's or best ball's stock market ranked by worth; A11 part 1: a draft's last one standing, its race and its
   // cuts.
-  // A11 part 4: a draft played head to head, its playoffs and fallbacks as the spec says them.
+  // A11 part 4: a draft played head to head, its playoffs and fallbacks as the spec says them; part 4b, a game of questions'.
   out.draftRank = type === 'active-roster' && s.rank.by === 'worth' ? 'worth' : draft && s.rank.by === 'standing' ? 'standing' : draft && s.rank.by === 'matchups' ? 'matchups' : undefined;
-  const h2h = draft && s.rank.by === 'matchups' ? Object.fromEntries(MATCHUP_KEYS.filter((k) => s.rank[k] !== undefined).map((k) => [k, clone(s.rank[k])])) : null;
+  const h2h = (draft || asks) && s.rank.by === 'matchups' ? Object.fromEntries(MATCHUP_KEYS.filter((k) => s.rank[k] !== undefined).map((k) => [k, clone(s.rank[k])])) : null;
   out.rankMatchups = h2h && Object.keys(h2h).length ? h2h : undefined;
   out.draftRace = draft && isObj(s.rank.race) ? clone(s.rank.race) : undefined;
   out.draftCut = draft && Array.isArray(s.rank.cut) ? clone(s.rank.cut) : undefined;

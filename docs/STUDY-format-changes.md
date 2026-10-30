@@ -995,6 +995,27 @@ of 95, The Challenge 41, 40 and 39 76 of 76, The Traitors 4 74 of 74), no proble
   prove a viewer behind sees the records only through what they've seen, a corrected final changing the champion, and a seat
   brought in later playing from the next episode with the weeks played unchanged.
 
+## A11 part 4b: head to head on a game of questions, replayed blind (2026-10-30)
+
+A11's part 4b gave a game of questions part 4's head to head: each episode everyone plays one of the others on that episode's points,
+which are what the answers settled by then add (its own questions in it; one over several episodes in the episode its window ends;
+one about the whole game at the game's end), handed to the engine by the server's walk over the graded answers (state-logic.js
+`AnswerLogic.walk`'s series, read by `MatchupLogic.series`, where a draft's come from its own scoring). The newest episode waits for
+its full results and for any question about it alone still to settle; nothing after the game's final, or the season's finale, plays.
+
+- **No row plays it yet:** the capability tracker's corpus has no request for a game of questions played head to head (win.h2h is a
+  Weekly Lineup's), so the blind replays don't start one; `blind.js` records one's matchups (`.matchups`) the day a row does. The
+  proof is the unit tests (`tests/answer-matchups.test.js`) and `check-answer-h2h.js` on the fixture's couch.
+- **Everything else played as before:** every game ended on all five seasons (Survivor 49 95 of 95, The Challenge 41, 40 and 39 76 of
+  76, The Traitors 4 74 of 74), nothing refused, and win.h2h's records, seeds and champions are part 4's table above, unchanged.
+- **Nothing after the finale plays, a week nor a round:** part 4 kept the playoffs off the reunion; part 4b keeps a regular-season
+  week off it too (a draft's and a game of questions'). On these five seasons it changes nothing: The Challenge's playoffs sat on the
+  reunion (20 and 21, after the final at 19), and The Traitors 4's regular season ended before its finale.
+- **What it would meet on these seasons:** a game of questions' nights are often nobody's (everyone wrong, or nobody went home), which
+  count for nobody by default (part 4's `quiet` skip: Noticed item 4); on The Challenge a pair question's void picks (F3 part 2's
+  fallback) earn nothing either way, so the rest of the night decides the matchup; and an episode research gives no scoring moment
+  stays at early results, so its matchup waits for the next episode (Noticed item 2).
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

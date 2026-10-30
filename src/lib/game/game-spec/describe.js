@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -426,11 +426,20 @@ function matchupPhrase(h, w) {
   const p = h.playoffs;
   return `${play} The top ${say(p.teams)} by wins make the playoffs, ${p.from !== null ? playoffWhen(p, w) : `over ${playoffWhen(p, w)}`}.`;
 }
-/** How it works for head to head (A11 part 4: schema.js matchupParts), as the engine plays it (state-logic.js MatchupLogic). */
+/** How it works for head to head (A11 part 4: schema.js matchupParts), as the engine plays it (state-logic.js MatchupLogic). Part 4b:
+ *  a game of questions' episodes' points are what its answers settled by then add (AnswerLogic.walk's series). */
 function matchupRules(s, w) {
   const h = matchupParts(s);
   if (!h) return [];
+  const asks = questionsGame(s);
   const out = [`Each ${w.part} you play one of the others head to head, everyone in turn: more points that ${w.part} wins it, and the same points is a tie (half a win).`];
+  if (asks) {
+    // Only what this game asks: a question over more than one episode (a run, a phase), or about the whole game.
+    const longer = s.ask.some((q) => q.asked !== 'once' && !livesQuestion(q));
+    const whole = s.ask.some((q) => q.asked === 'once');
+    const counts = [longer ? `one about more than one ${w.part} counts in the ${w.part} it's settled in` : '', whole ? `one about the whole game counts in the ${w.part} it's settled in, at the end` : ''].filter(Boolean);
+    out.push(`Your points in ${article(w.part)} ${w.part} are what your answers settled by then earn${counts.length ? `: ${counts.join(', and ')}` : ''}.`);
+  }
   out.push(h.odd === 'bye' ? `With an odd number of you, one of you sits each ${w.part} out, in turn.` : `With an odd number of you, whoever has nobody to play that ${w.part} plays the middle score of everyone else's.`);
   out.push(`${cap(article(w.part))} ${w.part} where nobody scores ${h.quiet === 'tie' ? 'is a tie for everyone' : 'counts for nobody'}.`);
   out.push('The standings: the most wins (a tie is half), then the most points.');
@@ -441,7 +450,7 @@ function matchupRules(s, w) {
   } else {
     out.push('Most wins at the end wins.');
   }
-  out.push(`${cap(article(w.part))} ${w.part}'s matchups wait for its full results.`);
+  out.push(asks ? `${cap(article(w.part))} ${w.part}'s matchups wait for its full results, and for its questions to be settled.` : `${cap(article(w.part))} ${w.part}'s matchups wait for its full results.`);
   return out;
 }
 
@@ -696,11 +705,14 @@ function rulesOf(s, w) {
     rules.push(each ? `Change an answer until its ${w.part} starts. Nobody sees them until then.` : 'Change your answers until it starts. Nobody sees them until then.');
     // A late lock (A7).
     if (isObj(s.extras.lateLock)) rules.push(`Watching late? Answer before you watch: until you've seen it, up to ${s.extras.lateLock.hours} hours after it airs.`);
-    // A11 part 2b: a race, cuts and lives say who wins.
-    if (answerParts(s)) rules.push(...answerKnockoutRules(s, w));
+    // A11 part 2b: a race, cuts and lives say who wins; part 4b, head to head.
+    const asks = answerParts(s);
+    if (asks && asks.matchups) rules.push(...matchupRules(s, w));
+    else if (asks) rules.push(...answerKnockoutRules(s, w));
     else rules.push('Most points wins.');
   }
-  // A11 part 4: a draft's head to head says itself (matchupRules); a sports spec's, which the engine doesn't play yet, its name.
+  // A11 part 4: a draft's head to head, and a game of questions' (part 4b), say themselves (matchupRules); a sports spec's, which
+  // the engine doesn't play yet, its name.
   const rank = {
     matchups: matchupParts(s) ? null : `You play someone head to head each ${w.part}: the most points wins it.`,
     categories: 'Ranked by category: the most in each stat earns the most.',

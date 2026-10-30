@@ -120,8 +120,8 @@ export interface GameQuestions {
   /** Step A11 part 2b: in a game that knocks players out, the last episode that counted for you once you're out (as far as you've
    *  seen), else null: you answer nothing more. */
   out: number | null;
-  /** Where the game ended early (a race won, one left; step A11 part 3: a co-op game's last life lost), as far as you've seen,
-   *  else null: nothing after it is asked. */
+  /** Where the game ended early (a race won, one left; step A11 part 3: a co-op game's last life lost; part 4b: head to head's
+   *  final played), as far as you've seen, else null: nothing after it is asked. */
   ended: number | null;
   /** Step A11 part 3: a co-op game's lives (the couch's together) and its result, won or lost by all, as far as you've seen; null
    *  for any other game. */
@@ -260,6 +260,15 @@ async function stakeRoom(r: Read): Promise<{ points: number; held: Map<string, n
   const all = StateLogic.getLeagueType(r.h.state).hasQuestions ? r.rows : [];
   const graded = StateLogic.AnswerLogic.grade(r.view, all, r.facts);
   return { points: yourPoints(r, graded.points), held: heldStakes(questionsOf(r.h.state), all, graded.verdicts, r.h.playerId) };
+}
+
+/** Where a game that ends early ended, once it has (step A11 part 2b: a race won, one left, a co-op game's last life, as its walk has
+ *  it), else null. Part 4b, head to head: its end is known from the start (its final's episode), reached once the final is played,
+ *  or where the season ended before it (MatchupLogic.endedAt). */
+function endedAt(state: LeagueState): number | null {
+  if (StateLogic.MatchupLogic.on(state)) return StateLogic.MatchupLogic.endedAt(state);
+  const end = StateLogic.KnockoutLogic.endsAt(state);
+  return end !== null && StateLogic.gameOver(state) ? end : null;
 }
 
 /** Your points as they stand for you: a game's walk's (step A11 part 2b: frozen once you're out), else graded. */
@@ -416,7 +425,7 @@ async function readQuestions(r: Read, episodeIn?: unknown): Promise<GameQuestion
     groups,
     mark: h.mark,
     out: StateLogic.KnockoutLogic.outOf(view, me),
-    ended: r.walk && StateLogic.gameOver(view) ? r.walk.ends : null,
+    ended: r.walk ? endedAt(view) : null,
     coop: r.walk?.coop ?? null,
   };
 }
@@ -432,7 +441,12 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
   // (a race won, one left), nor about the whole game then, as the league stands (h.state carries its walk over every answer:
   // season-games.ts gamesHere). An episode up to it can still be answered while it's open for you (a late lock): your answer
   // there is what decides it.
-  const ended = StateLogic.KnockoutLogic.endsAt(h.state);
+  // Step A11 part 4b: head to head's end is its final's episode, known from the start (`ends`); it has ended once that's played,
+  // or the season ended before it (`ended`).
+  const ends = StateLogic.KnockoutLogic.endsAt(h.state);
+  const ended = endedAt(h.state);
+  const limit = ended ?? ends;
+  const endWords = ended !== null ? `This game ended with Episode ${ended}` : `This game ends with Episode ${ends}`;
   const outAt = StateLogic.KnockoutLogic.outOf(h.state, h.playerId);
   const qs = questionsOf(h.state);
   const thisWeek = weekOf(r);
@@ -454,12 +468,12 @@ export async function answerQuestions(user: SessionUser, seasonId: string, leagu
       const asked = body.episode === undefined || body.episode === null ? thisWeek : Number(body.episode);
       // Step A11 part 2b: the episode it's for, as said (none this week: the game ended, as far as you've seen).
       const named = asked ?? at;
-      if (ended !== null && (named === null || named > ended)) throw new HttpError(409, `This game ended with Episode ${ended}`);
+      if (limit !== null && (named === null ? ended !== null : named > limit)) throw new HttpError(409, endWords);
       if (outAt !== null && (named === null || named > outAt)) throw new HttpError(409, "You’re out of this game");
       if (thisWeek === null || at === null || (asked !== thisWeek && asked !== at)) throw new HttpError(409, thisWeek === null || at === null ? "There's nothing to answer for yet" : `Answers are open for Episode ${thisWeek}`);
       ep = at;
     }
-    if (ended !== null && (q.asked === "once" || ep > ended)) throw new HttpError(409, `This game ended with Episode ${ended}`);
+    if (limit !== null && ((q.asked === "once" && ended !== null) || ep > limit)) throw new HttpError(409, endWords);
     if (outAt !== null && (q.asked === "once" || ep > outAt)) throw new HttpError(409, "You’re out of this game");
     if (isClosed(r, q, ep)) {
       const { at } = closing(r, q, ep);

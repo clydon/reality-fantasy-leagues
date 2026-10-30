@@ -810,12 +810,17 @@ declare const StateLogic: {
     lastOf(state: LeagueState): number | null;
     playoffsFrom(state: LeagueState, parts?: import("./game-spec/index.js").MatchupParts | null): number | null;
     endsAt(state: LeagueState): number | null;
+    /** A11 part 4b: where it ended, once it has: its final played, or the season's finale if the season ended first. */
+    endedAt(state: LeagueState): number | null;
     moveProblem(state: LeagueState, number: number): string | null;
     seatsAt(state: LeagueState, k: number): string[];
     kept(state: LeagueState): Record<string, number> | null;
     round(ids: string[], r: number): [string, string | null][];
     median(values: number[]): number;
     bracket(size: number): number[];
+    /** Each episode the game has played with everyone's points through it: a draft's from its scoring, a game of questions' from its
+     *  answers' walk (A11 part 4b; none without it). */
+    series(state: LeagueState): { number: number; totals: Map<string, number> }[];
     run(state: LeagueState): MatchupWalk | null;
     apply(state: LeagueState, rows: ScoreRow[]): ScoreRow[];
     view(state: LeagueState, playerId: string): MatchupView | null;
@@ -959,6 +964,7 @@ declare const StateLogic: {
     liveRows<T extends { playerId: string; question: string; episode: number }>(state: LeagueState, rows: T[], out: Map<string, number> | Record<string, number>): T[];
     liveAnswers<T extends { playerId: string; question: string; episode: number }>(state: LeagueState, rows: T[]): T[];
     applyWalk(state: LeagueState, rows: ScoreRow[], walk: AnswerWalk): ScoreRow[];
+    walkRows(rows: ScoreRow[], walk: AnswerWalk): ScoreRow[];
   };
 };
 /** A11 part 2b: a game of questions' walk (AnswerLogic.walk): where it ends early, who's out after which episode, lives left (with
@@ -972,6 +978,9 @@ export interface AnswerWalk {
   /** A11 part 3: a co-op game's (its lives the couch's together): the lives left and at the start, the nights one went (each
    *  question's), and the result, won or lost by all (null while it plays). Everyone is in `shared`, each with the couch's lives. */
   coop?: CoopWalk;
+  /** A11 part 4b: head to head on a game of questions, each episode walked with everyone's points through it (MatchupLogic.series:
+   *  an episode's points are their growth). */
+  series?: { number: number; totals: Record<string, number> }[];
 }
 export interface CoopWalk {
   lives: number;

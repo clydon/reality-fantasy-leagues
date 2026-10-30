@@ -81,7 +81,7 @@ test("co-op on a game of questions: its shape, defaults, words and settings; wha
   assert.deepEqual(at(S37), []);
   assert.equal(G.typeOf(S37), "questions");
   assert.deepEqual(G.specWaitsFor(S37), []);
-  assert.deepEqual(G.answerParts(G.fullSpec(S37)), { race: null, cuts: [], lives: 5, on: ["banished"], oneLeft: null, allOut: null, coop: { saves: "one" } });
+  assert.deepEqual(G.answerParts(G.fullSpec(S37)), { race: null, cuts: [], lives: 5, on: ["banished"], oneLeft: null, allOut: null, coop: { saves: "one" }, matchups: null });
   assert.deepEqual(G.fullSpec(S37).score, { by: "answers", lives: 5 }, "who saves a night is read, never filled in");
   assert.equal(G.answerParts(G.fullSpec(game([BANISHED], { lives: 2, saves: "most" }))).coop.saves, "most");
   // win.coop on Survivor: who goes home, three lives.

@@ -59,9 +59,11 @@ test("head to head: its shape, defaults, words and settings; what's refused", ()
   assert.equal(G.withSpec(S.defaultState().settings, h2h()).rankMatchups, undefined);
   // Beside the wrong game, out of range, or beside a race or cuts.
   assert.deepEqual(at({ preset: "survival-pool", rank: { by: "matchups" } }), ["rank.by"], "a pool's picks don't score an episode against someone");
+  // A game of questions' is part 4b's (tests/answer-matchups.test.js); Weekly Calls' calls are counted outside the game.
   const questions = { get: { by: "none" }, score: { by: "answers" }, rank: { by: "matchups" }, ask: [{ id: "boot", ask: "Who goes home?", answer: "person", points: 1, asked: "each", settle: { by: "results", take: "out" } }] };
-  assert.deepEqual(at(questions), ["rank.by"], "a game of questions' is part 4b's");
-  assert.equal(G.typeOf(questions), null);
+  assert.deepEqual(at(questions), []);
+  assert.equal(G.typeOf(questions), "questions");
+  assert.deepEqual(at({ preset: "weekly-calls", rank: { by: "matchups" } }), ["rank.by"], "Weekly Calls' calls");
   for (const teams of [1, 9, 2.5, "four"]) assert.deepEqual(at(h2h({ playoffs: { teams } })), ["rank.playoffs.teams"], `teams ${teams}`);
   assert.deepEqual(at(h2h({ playoffs: null })), [], "null: no playoffs");
   assert.deepEqual(at(h2h({ playoffs: { teams: 4, at: 3 } })), ["rank.playoffs.at"], "an unknown key");
@@ -394,6 +396,15 @@ test("the season over first: the best seed still in, or the standings when nothi
   assert.equal(M.playoffsFrom(reunion), 9);
   assert.equal(M.run(reunion).champion, "bo", "seed 1, the final on the reunion not played");
   assert.equal(S.gameOver(reunion), true);
+  // A11 part 4b: nor does a regular-season week after the finale (a reunion with points: no playoffs, nothing after the finale).
+  const after = league(h2h());
+  points(after, 1, { bo: 5 });
+  for (let i = 1; i < 12; i++) S.addElimination(after, ep(after, 2).id, cid(after, i), "Voted Out");
+  S.addElimination(after, ep(after, 2).id, cid(after, 0), "Sole Survivor");
+  points(after, 3, { ann: 5 });
+  assert.deepEqual(M.run(after).weeks.map((x) => x.number), [1, 2], "the reunion's week doesn't play");
+  // 1: bo beats cy, ann and di tie; 2 (the finale, which plays): ann beats cy, bo beats di; 3 (ann's 5 against bo) doesn't count.
+  assert.deepEqual(record(after), { ann: "1-0-1", bo: "1-0-1", di: "0-0-2", cy: "0-2-0" });
   // Nothing ever said the season's end: no playoffs; the standings decide.
   const none = league(h2h({ playoffs: { teams: 2 } }));
   points(none, 1, { ann: 5 });

@@ -552,6 +552,8 @@ export interface AnswerParts {
   allOut: "points" | "share" | "back" | null;
   /** A11 part 3: co-op (rank.by "coop" with lives: the couch's together), who saves a night; null otherwise. */
   coop: { saves: "one" | "most" | "all" } | null;
+  /** A11 part 4b: head to head (rank.by "matchups"), as matchupParts reads it; null otherwise. */
+  matchups: MatchupParts | null;
 }
 export function answerParts(spec: GameSpec | SpecInput | null | undefined): AnswerParts | null;
 /** A11 part 4: head to head's defaults (the one the round robin leaves out plays the median; a night nobody scores counts for
@@ -567,8 +569,11 @@ export interface MatchupParts {
   /** `from`: its first round when the spec says it, else null (the game's last `rounds` episodes). */
   playoffs: { teams: number; rounds: number; from: number | null } | null;
 }
-/** Head to head as the engine plays it, read the one way from a whole spec; null for a game that isn't (a draft's only, for now). */
+/** Head to head as the engine plays it, read the one way from a whole spec; null for a game that isn't (a draft's, and a game of
+ *  questions' since A11 part 4b). */
 export function matchupParts(spec: GameSpec | SpecInput | null | undefined): MatchupParts | null;
+/** A game of questions: nothing held, scored by its own questions (not Weekly Calls' calls). */
+export function questionsGame(spec: unknown): boolean;
 /** A question a life can ride on: asked each episode, about that episode alone. */
 export function livesQuestion(q: unknown): boolean;
 /** A10 part 2: a pool's lives (null: none, nobody's out), mulligans (0: none), buyback (with lives, its defaults filled), second

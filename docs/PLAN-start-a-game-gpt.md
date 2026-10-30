@@ -40,8 +40,9 @@ race and cuts on their points, walked over the graded answers by the server on e
 `AnswerLogic.walk`, `answerWalk`), and part 3, co-op against the show (2026-10-30: a game of questions whose lives are the couch's
 together, a night none of you saw coming costing one, won or lost by all, `rank.by 'coop'`, `score.saves`), and part 4, head to head
 with playoffs, a draft's (2026-10-30: a round robin of the seats each episode on that episode's points, the standings by wins, the
-playoffs over the game's last episodes, `rank.by 'matchups'`, `rank.playoffs`, `MatchupLogic`), are built; parts 4b and 5 (head to
-head on a game of questions; teams and handicaps) are next, then A12 to A14
+playoffs over the game's last episodes, `rank.by 'matchups'`, `rank.playoffs`, `MatchupLogic`), and part 4b, head to head on a game
+of questions (2026-10-30: each episode's points what its answers settled by then add, the walk handing them over, `answerWalk.series`,
+`MatchupLogic.series`), are built; part 5 (teams and handicaps) is next, then A12 to A14
 overnight (the user's word, 2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
@@ -3646,6 +3647,98 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     code before it, played those rounds on the reunion's results after the game read over at 19 (all ties, so the same champions):
     nothing after the finale plays now (a unit test), and Noticed item 12 is the user's. The study doc's "A11 part 4: head to head,
     replayed blind".
+
+  **As built (A11 part 4b, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  up to date; 1109 tests). Head to head on a game of questions (part 4's matchups, its episodes' points from the answers). Every
+  default and everything a person sees is the user's (Noticed, below).
+  - **The spec** (`schema.js`): `matchupParts` now reads a game of questions ranked `matchups` as well as a draft (`questionsGame`,
+    now exported); `answerParts` carries it (`matchups`: matchupParts' or null) and is non-null for it, so everything that walks a
+    game of questions (the server's `walked` and `asItStands`, `walkOf`) walks a head-to-head one. `playsAs`: a game of questions
+    ranked by matchups with nobody racing, cut or losing a life (`questions`). `matchupProblems` no longer refuses it; it refuses a
+    pool's ("a pool's picks don't score an episode's points against someone") and Weekly Calls' ("counted outside the game"). Beside
+    it on a game of questions, lives (the lives' rank: last one standing or co-op), cuts (last one standing), a race (won on points),
+    `oneLeft`, `allOut` and co-op's `saves` are refused by their own checks, as a draft's are. `flagsOf` `hasMatchups` for it. Settings
+    both ways: `questionsRank` 'matchups' (said, as co-op is) and `rankMatchups` (the draft's field, `matchupsOf` shared); settings that
+    say head to head and lives keep both, so our check refuses them rather than one being lost.
+  - **Words** (`describe.js`): the sentence as a draft's ("Each episode you play one of the others head to head: more points wins it.
+    The top two by wins make the playoffs, over the last episode."); How it works is part 4's `matchupRules` (in place of "Most points
+    wins."), plus what an episode's points are ("Your points in an episode are what your answers settled by then earn", with, only
+    when the game asks one, "one about more than one episode counts in the episode it's settled in" and "one about the whole game
+    counts in the episode it's settled in, at the end") and what its matchups wait for ("its full results, and for its questions to be
+    settled").
+  - **The engine** (`state-logic.js`): `AnswerLogic.walk` (part 2b's), for head to head, hands over its series: each episode walked,
+    with everyone's points through it as plain data (`answerWalk.series: [{ number, totals }]`, never stored, on the copy the server
+    walked), so an episode's points are what the answers settled by then add (its own questions; a run or a phase in the episode its
+    window ends; one about the whole game at the game's end). The newest episode waits while its results are early or a question asked
+    about it alone is still to settle (research unsure: a pair with no report); an earlier one, once a later one is in, counts as it
+    stands. Nothing after the game's final (`MatchupLogic.endsAt`), or the season's finale once it's over if that came first, is
+    walked, and the final's step is graded with the game over (its questions about the game settle there, as the table's totals,
+    graded through it, have them: the code review). `MatchupLogic.series` is the one reader for both kinds: a draft's from
+    `KnockoutLogic.series`, a game of questions' from the walk (none without it: nobody has played, the safe fallback a reader not
+    taught yet gets). `ScoringLogic.compute` puts the walk's points on the rows (`AnswerLogic.walkRows`, `applyWalk` without its sort)
+    and `MatchupLogic.apply` ranks them; `rankKey`, `lastEpisode`, `gameOver`, `spanView`, `view` read it as a draft's.
+    `MatchupLogic.endedAt`: where it ended, once it has (its final played, or the season's finale when the season ended first; null
+    while the final's results are early). Nothing after the season's finale plays now for a draft either: a regular-season week after
+    it (a schedule that counts a reunion, with points) is skipped, as part 4 skipped its playoff rounds.
+  - **The server:** every reader of a game of questions already goes through part 2b's walk (`answer-points.ts` `walked` and
+    `asItStands`, `season-games.ts` `gamesHere`), so a head-to-head one is walked everywhere and part 4's readers read it: the Games
+    tab's `TableRow.record` and `GameView.matchups` (`game-view.ts`, from the walked copy), the hub's standings and plaque
+    (`couch-hub.ts` `standingOf`, `GameStanding.matchups`: no margin in points), the season's length stamped for its playoffs
+    (`air-times.ts`), where the playoffs began and the seats kept on every write (`db.ts`). `answers.ts`: head to head's end is known
+    from the start (its final's episode), so the refusals tell "This game ends with Episode N" (an answer past the final before it's
+    played) from "This game ended with Episode N" (once it's played, or the season ended first: `endedAt`), and an answer about the
+    whole game is refused only once it has ended (before, part 2b's refusal would have refused it from the start); `GameQuestions.ended`
+    says where it ended.
+  - **The fallbacks:** results still early (the matchups wait; the table's points as they stand); a verdict research is unsure of
+    (waits at the newest, then counts as it stands); a corrected result (worked out again, a champion changed); a night nobody
+    answers, or nobody gets right, or the question doesn't count (nobody went home): nobody scores, so it counts for nobody (`quiet`
+    skip) or ties everyone (tie); a void pick (F3 part 2's group fallback) earns nothing either way, the rest decide the night; late
+    joiners (from their start, someone catching up once caught up, a ghost never, kept on every write: part 4's `state.matchupSeats`);
+    a final before the season's end (the game ends there, nothing after it counted); the season's count counting a reunion (nothing
+    after the finale plays, a week nor a round; the best seed still in wins); a state without the walk (nobody has played).
+  - **Not done (the user's):** the couch's head to head counted from the matchups themselves (part 4's item 9): left as it is (by
+    places), since it changes what every couch's numbers say and item 9 is still open.
+  - **The tracker:** no new row: the corpus has no request for a game of questions played head to head (win.h2h is a Weekly
+    Lineup's); regenerated, unchanged: 175 ✅ · 70 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271; A11's three left: who.teams, who.handicap, s19
+    (part 5).
+  - **Tests:** `tests/answer-matchups.test.js` (new, 6): the shape, defaults, words and settings both ways, what's refused (lives,
+    cuts, a race, `oneLeft`, `saves`, settings saying head to head with lives, more playoff teams than the couch); the walk's series and
+    the matchups over it, the records, the table and the view, a state without the walk; an episode's points (a two-episode window in
+    the episode it ends, a question about the game at the finale); each fallback (early results, a corrected result, a quiet night
+    skipped or tied, a question off, a void pick, a verdict still waiting then counting as it stands); who plays (a late joiner, someone
+    catching up, a ghost, the seats kept); the playoffs (seeded, the final, the champion first, `endedAt` null while the final's
+    results are early, the plaque), a final before the season's end (its question about the game settling at the final, nothing after
+    it), a schedule that counts a reunion. `matchups.test.js`: a game of questions no longer refused, Weekly Calls' is, a draft's
+    regular-season week after the finale skipped; `answer-knockouts.test.js` and `coop.test.js`'s parts (`matchups: null`);
+    `game-spec.test.js`'s fields (`rankMatchups` for a game of questions). `npm test` 1115.
+  - **API check:** `scripts/dev-test/check-answer-h2h.js` (new, on new-fixture.js's couch), 28 PASS: jordan's Survival Pool made a
+    game of questions played head to head through `setGame` with the show's ctx (Who goes home? each episode, Who wins the most
+    immunities? asked once, Episodes 6 to 8, the top two in the final at 8); answers about the whole game before 6 accepted, one for
+    Episode 9 refused ("ends with Episode 8"); Episode 6 through the answers route and the season sync: who went home alone (early)
+    leaves the matchups waiting, the table's points as they stand; a scoring moment makes them final (jordan beats sam, alex beats
+    riley); as sam reads it (seen 5), nothing played; Episode 7 (a tie, an upset), seeded jordan and alex, the final next; Episode 8,
+    the final: alex's call about the whole game settling there makes alex the champion 2-1, first; over; the questions read ended
+    with 8, nothing open; an answer for 9 refused ("ended with Episode 8"); the hub's plaque alex's, no margin; Episode 8's immunity
+    corrected (re-decided): jordan's call comes good, 3-0, jordan the champion. `check-h2h.js`, `check-answer-knockouts.js`,
+    `check-coop.js`, `check-knockouts.js`, `check-pool-knockouts.js`, `check-questions.js`, `-who`, `-time`, `-scoring`, `-more`
+    (`--api`) and `check-engine-lab.js --api` ALL PASS, again after the code review's fixes. `npx tsc --noEmit -p .` clean.
+  - **Code review** (`/code-review` at high, before the long runs; nine findings). Taken: the final's series step graded without the
+    game over (a question about the whole game left out of the final's points while the table's totals had it, so a final before the
+    season's end could crown the other seat); `endedAt` saying ended once the final had early results (the matchup still waiting), and
+    not saying it where the season ended before the final; a unit test for a draft's week after the finale; `applyWalk`'s sort thrown
+    away before `MatchupLogic.apply`'s (`walkRows`); blind.js walking the matchups twice; `matchupsOf`'s unused return. Not taken
+    (Noticed): an earlier episode still early once a later one is in counts as it stands even at the final (the established fallback,
+    worked out again on every read, so a final that later gets its full results is played again); `MatchupLogic.series` building its
+    Maps on each read (with part 4's memo item).
+  - **The harness** (`blind.js`): its per-episode record of a head-to-head game (`.matchups`, `matchupLine`) reads a game of questions
+    too, on the league walked as its table reads it; no tracker row plays one yet (above).
+  - **Golden replays** (`golden.js`, HEAD against the working tree, after the code review's fixes): 7 seasons, 160 games, **19,361
+    reads, every one the same** (no game they play is head to head).
+  - **Blind replays** (`blind.js run`, the five seasons, on the final code): **every game ended on all five seasons** (Survivor 49 95 of
+    95, The Challenge 41, 40 and 39 76 of 76, The Traitors 4 74 of 74), nothing refused, no problem in the moves. No row plays a game of
+    questions head to head (above); win.h2h, a draft's, played as part 4's did, the same records, seeds and champions on all five (the
+    week after the finale now skipped changes nothing there: on The Challenge the playoffs sat on the reunion, on The Traitors 4 the
+    regular season ended before its finale). The study doc's "A11 part 4b: head to head on a game of questions, replayed blind".
 - **A12. Stages.** A game made of phases or mini-games, each with its own rules and an overall: a second draft at the merge, a
   season of mini-games, a game that scores two ways (bingo lines plus answers), one game across two shows.
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
@@ -4360,6 +4453,50 @@ From A10 part 1 (2026-10-29):
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
 
+From A11 part 4b (2026-10-30):
+- **For the user, in a design session (with part 4's twelve questions and parts 1 to 3's), each with a recommendation (built as engine
+  rules; the defaults are part 4's `MATCHUPS`, read by `matchupParts`, never filled into a spec):**
+  1. What an episode's points are, in a game of questions played head to head. Built: what the answers settled by then add: each
+     episode's own questions in it; a question over several episodes (every N, over N, a phase) in the episode its window ends; one
+     about the whole game at the game's end (the final, or the season's finale), so it lands on the last week's matchup (with playoffs,
+     the final's). Options: only questions asked each episode about that episode count in the matchups (the rest only in the points,
+     the standings' tiebreak and the table); a question about the whole game left out of the matchups; its points spread over the
+     weeks. Recommended: as built: one rule for both kinds (a draft's finale predictions count at the finale the same way), every point
+     the game gives counts in the week it's settled, and nothing waits on a rule of its own; the wizard says it when a game asks
+     something about the whole game ("Who wins? is worth 5 in the final's matchup"). If a couch wants each week to be that week's
+     answers alone, a spec setting for both kinds (the draft's finale predictions too) is small: a rank key such as `weekly: 'episode'
+     | 'settled'`.
+  2. What a week waits for. Built: its full results (early results wait, as a draft's do) and any question asked about it alone still
+     to settle (research unsure); once a later episode is in, it counts as it stands. Options: the verdicts only (a game of who goes
+     home only would decide on the early results, right after the episode); a fixed time (the final results at noon). Recommended: as
+     built: a matchup decided once, at the final results (noon the next day), never flipping when the full results land; the
+     episode night says when it's decided (U1). Risk: an episode research never gives a scoring moment stays early, and its matchup
+     waits for the next episode's results (the season sync marks an episode final only on a scoring moment).
+  3. A question only the season's end can settle (who wins, the final three) in a game whose final comes before it (playoffs `from`
+     with no span end): it never settles and counts for nobody. Our check refuses such questions beside a span end, but can't tell
+     where the season ends beside a `from`. Recommended: refuse them there once ctx carries the season's length (G1's context pack, or
+     the desk's count); until then the fallback holds.
+  4. A night nobody scores is common in a game of questions (everyone wrong, or nobody went home). Built: part 4's `quiet` skip by
+     default (it counts for nobody). Recommended: skip, as built; `tie` for a couch that wants everyone's record to move every week.
+  5. The couch's head to head (part 4's item 9) for a game of questions too: left by places, as part 4 built it. Recommended: part 4's
+     (count the matchups themselves), the same rule for both kinds.
+  6. What players are told (U1): the refusals' words ("This game ends with Episode 8" before the final, "ended with" after), that the
+     matchups wait for the final results while the table's points already move, and the record beside the points.
+- **No blind replay plays one:** no tracker row asks for a game of questions played head to head (the corpus has no such request), so
+  `blind.js` never starts one; its `.matchups` record reads one (`matchupLine`) the day a row does. (G1's corpus, or whoever adds a
+  request for one.)
+- **`GameQuestions.ended` reports the season's end only for head to head** (its final's episode, or the finale when the season ended
+  first); a race nobody won or a co-op game won at the season's end reports null there and is over by `over`. (U1, saying "ended" for
+  every game from `over`.)
+- **An earlier episode still early once a later one is in counts as it stands, even at the final** (the code review): a final decided
+  then is played again on every read once its full results land, but a champion shown in between can change. (The user's, with item
+  2; the season sync marking an episode final.)
+- **`MatchupLogic.series` builds its Maps from the walk on each read** (episodes × seats, small). (With part 4's memo item.)
+- **Nothing after the season's finale plays for a draft either now:** a regular-season week after it (a schedule that counts a
+  reunion, with points) is skipped, as part 4 skipped its playoff rounds. A draft played head to head without playoffs on such a
+  season counted those weeks before. (None known; noted.)
+- Start a game, Game settings and the engine lab offer none of it (the lab starts the tracker's rows). (U1.)
+
 From A11 part 4 (2026-10-30):
 - **For the user, in a design session (with parts 1, 2, 2b and 3's questions and A10's), each with a recommendation (built as spec
   settings or engine rules, the defaults in `MATCHUPS` and `MatchupLogic`, never filled into a spec):**
@@ -4427,7 +4564,7 @@ From A11 part 4 (2026-10-30):
 - **The early ends branch in `KnockoutLogic`:** `endsAt` and `moveProblem` dispatch to each kind (a draft's knockouts, a pool's, a
   game of questions' walk, head to head's final). One dispatcher each logic registers with would keep the order from mattering.
   (A12, which adds stages that end.)
-- **A game of questions' head to head** is refused until part 4b (its episodes' points are the walk's, on the server).
+- **A game of questions' head to head** was refused until part 4b: built there (its episodes' points the walk's, handed over).
 - **Sports:** L4 brings head to head to sports on this engine (a sport's stats score each matchup); categories and roto stay the
   sports branch's (VOCAB 'sports').
 - Start a game, Game settings and the engine lab offer none of part 4's fields (the lab starts the tracker's rows). (U1.)

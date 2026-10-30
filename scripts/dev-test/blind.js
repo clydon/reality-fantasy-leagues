@@ -508,6 +508,9 @@ async function lookAt(r, n) {
       // A11 part 3: a co-op game's lives are the couch's together: one number, and its result.
       if (st.walk.coop) out.coop = { lives: st.walk.coop.lives, of: st.walk.coop.of, lost: st.walk.coop.lost.map((x) => x.episode), result: st.walk.coop.result };
       else if (Object.keys(st.walk.lives).length) out.lives = Object.fromEntries(Object.entries(st.walk.lives).map(([pid, k]) => [label(pid), k]));
+      // A11 part 4b: head to head on a game of questions, on the league walked as its table reads it.
+      const m = S.MatchupLogic.on(s) ? matchupLine(S, S.AnswerLogic.withWalk(s, st.walk), label) : null;
+      if (m) out.matchups = m;
       if (st.walk.ends !== null && n > st.walk.ends) return out;
     }
     try {
@@ -535,20 +538,26 @@ async function lookAt(r, n) {
     for (const x of rows) out.table[label(x.playerId)] = Math.round(x.total * 10) / 10;
     const slots = slotLines(r, s, n);
     if (slots) out.slots = slots;
-    // A11 part 4: head to head's records (wins-losses-ties), where the playoffs are, the seeds once known, the rounds played and
-    // the champion, as the app reads the league (its season length as its last write stamped it).
-    const w = S.MatchupLogic.on(s) ? S.MatchupLogic.run(S.spanView(s)) : null;
-    if (w) {
-      out.matchups = {
-        records: Object.fromEntries(rows.filter((x) => x.matchups).map((x) => [label(x.playerId), `${x.matchups.wins}-${x.matchups.losses}-${x.matchups.ties}`])),
-        from: w.from,
-        seeds: w.seeds ? w.seeds.map(label) : null,
-        played: w.rounds.filter((x) => x.played).map((x) => x.number),
-        champion: w.champion ? label(w.champion) : null,
-      };
-    }
+    // A11 part 4: head to head's records, as the app reads the league (its season length as its last write stamped it).
+    const m = S.MatchupLogic.on(s) ? matchupLine(S, s, label, rows) : null;
+    if (m) out.matchups = m;
   }
   return out;
+}
+
+/** A11 part 4: a head-to-head game's record after an episode: the records (wins-losses-ties), where the playoffs are, the seeds once
+ *  known, the rounds played and the champion, on `v` (a game of questions' carrying its walk: part 4b); `rows`, its score rows when
+ *  they're read already. */
+function matchupLine(S, v, label, rows = S.computeScores(v)) {
+  const w = S.MatchupLogic.run(S.spanView(v));
+  if (!w) return null;
+  return {
+    records: Object.fromEntries(rows.filter((x) => x.matchups).map((x) => [label(x.playerId), `${x.matchups.wins}-${x.matchups.losses}-${x.matchups.ties}`])),
+    from: w.from,
+    seeds: w.seeds ? w.seeds.map(label) : null,
+    played: w.rounds.filter((x) => x.played).map((x) => x.number),
+    champion: w.champion ? label(w.champion) : null,
+  };
 }
 
 /**
