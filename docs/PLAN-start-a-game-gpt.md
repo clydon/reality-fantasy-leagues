@@ -4132,7 +4132,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 
 **Suggested order** (revised 2026-10-28): S1 → S2 → A1 → A2 → A3 → A4 (all built or building), S3 once proven, then A5 (the
-tracker) → A6 → … → A13 (A14 if allowed) → A15 → R1 → R2 → R3 → U0 → U1. Alongside: G1 from A5, G4 between A14 and U0, track V from A12 (V1's research any time; V3 adds G4's rolls once built); track L in the Sports lane
+tracker) → A6 → … → A12 part 1 → R1 → R2 → R3 → A12's other parts → A13 (A14 if allowed) → A15 → U0 → U1 (R pulled ahead, 2026-10-30). Alongside: G1 from A5, G4 between A14 and U0, track V from A12 (V1's research any time; V3 adds G4's rolls once built); track L in the Sports lane
 (L1 and L2 any time; L3 and L4 as master gets A2 and each format's engine piece; L6 releases it), then G3. Run in lanes (next
 section), it takes about half the calendar time.
 
@@ -4202,6 +4202,15 @@ three days. The loops stop at 90% of the week, so the user's own sessions keep t
   ET). The A1–A4 merge moved to 2026-10-29, after that night's results are accepted and the test couch is compared. A small
   push that's been checked is the user's call: that evening, before the episode, they pushed four small app files (no
   migrations).
+- **R ahead of the rest of the engine** (the user, 2026-10-30, 11 AM: "the sooner we know the game data structure is stable
+  the sooner we can move away from the stored game rules and structure"). Today's games go onto the spec first, starting with
+  the couch's Survivor 51 games: the Engine lane finishes A12 part 1 and goes to R1 (Survivor 51's three kinds first), then
+  A12's other parts, A13, A14. The **Survivor lane** (`rfl-survivor`, port 3001) builds the proof both need, the Survivor 51
+  season-forward rehearsal (`scripts/dev-test/season-forward.js`: the couch's real games from a production backup played
+  past Episode 6 through swaps, the merge, a medevac, idols, a double boot, the daylight-saving week and the finale; flag off
+  against on, old engine against new, screens at 390), seeded from `.session-loop/seed-s51-forward.md` in its folder. Then:
+  the main folder merges it, turns the game-specs flag on in production (R2) with the user once it passes with the flag on
+  (not on a Wednesday), and merges R1 only after it passes the rehearsal too. Sports stays stopped until Monday, as planned.
 The main session records each switch here.
 
 **The rules that keep the quality:**
