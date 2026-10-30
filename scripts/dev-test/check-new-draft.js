@@ -7,7 +7,8 @@
 //   2. As alex in a browser at --width: the order and Start, a star that queues someone, Draft settings, Start, then
 //      Pick for riley (the for-bar, the bar's "For riley", the toast's Undo, the line in Recent changes), riley picking for
 //      himself, alex up four seconds later (the room polls), Tonight's "Your turn to draft" into the room, the queue
-//      (taken by riley, Draft from it), and the ⋯ menu's Draft room and Blind draft rows.
+//      (taken by riley, Draft from it), and the ⋯ menu's Draft room and Blind draft rows (on his turn, Everything else has
+//      the needs-you dot).
 //   3. The rules: not your turn, someone already has them, a stale pick, classic's /draft/pick still drafting.
 //   4. The pick timer: 60 seconds and "pick from their queue" (nothing before it runs out, their first still free after,
 //      a line nobody made; an empty queue waits), riley's Nudge (once a turn) and Pick for sam, Undo last pick.
@@ -169,6 +170,12 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const moves = (await as.alex.call("GET", "/api/me/home")).body.moves ?? [];
     check(moves.some((m) => m.kind === "draftTurn" && m.leagueId === L.outlast), "alex's moves: your turn to draft");
     await page.goto(`${BASE}/show/${sid}/tonight`, { waitUntil: "networkidle" });
+    // His turn: the ⋯ menu's Everything else carries the needs-you dot, for the Draft room under it (once the drafts load).
+    await page.locator('button[aria-label^="Show menu"]').click();
+    const elseRow = page.locator("[data-menu-main]").getByRole("button", { name: /^Everything else/ });
+    check(await elseRow.locator("[aria-label='Needs you']").waitFor({ timeout: 8000 }).then(() => true, () => false), "his turn: the ⋯ menu's Everything else has the needs-you dot");
+    await page.keyboard.press("Escape");
+    await page.locator("[data-menu-main]").waitFor({ state: "detached", timeout: 5000 }).catch(() => {});
     const card = page.locator(`[data-move="draftTurn-${L.outlast}"]`);
     check(await card.waitFor({ timeout: 8000 }).then(() => true, () => false), "Tonight: Your turn to draft");
     await card.getByRole("link").click();

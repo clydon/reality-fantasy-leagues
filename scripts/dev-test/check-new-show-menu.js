@@ -1,16 +1,17 @@
 // Dev-only check for the show's ⋯ menu (the casual-player redesign): the menu holds only what has no other home, in a real
 // browser against the dev server, on new-fixture.js's zt Survivor 51:
-//   - sam (plays three games, runs none): the menu leads with the spoiler card (a player's Tonight has no chip), then
-//     Notifications, Invite a friend, How it works and Everything else. Nothing the tabs already carry is repeated: no Start a
-//     game, Make it a game, Add to my shows or Where you are row; no Backstage, no Admin; and what's rarely wanted (Plan a watch
-//     along, Recent changes, Watch privately, Leave) isn't on the first sheet;
-//   - Notifications says what this phone really does (never a flat "On"), with the needs-you dot only when no phone of his gets
-//     them, and its sheet leads with Turn on in that case (never tapped here: the permission prompt isn't ours to answer);
-//   - Everything else: Plan a watch along, Recent changes, Watch privately and Leave these games, a back arrow to the menu, and
-//     Leave opens its hold (a preview: nothing is left);
+//   - sam (plays three games, runs none): Notifications, Invite a friend, How it works, Where you are (a plain row: a player's
+//     Tonight has no chip; it opens where you are, read-only for a player) and Everything else. Nothing the tabs already carry is repeated: no Start a
+//     game, Make it a game or Add to my shows row; no Backstage, no Admin; and what's rarely wanted (Plan a watch along, Recent
+//     changes, Watch privately, Leave) isn't on the first sheet;
+//   - Notifications says what this phone really does (never a flat "On"), never with a dot (it would stay for good for someone
+//     who chose not to), and its sheet leads with Turn on while no phone of his gets them (never tapped here: the permission
+//     prompt isn't ours to answer);
+//   - Everything else: Plan a watch along, Recent changes, Watch privately and Leave these games, a back arrow to the menu, no dot
+//     with his drafts done (check-new-draft.js has the dot on his turn), and Leave opens its hold (a preview: nothing is left);
 //   - alex (runs them): Backstage is a plate naming the job while something needs him (the fixture leaves Episode 6 open), with
-//     the dot on ⋯, and it opens Backstage; a show he doesn't play (the fixture's Traitors) has no spoiler card and none of what
-//     its Tonight carries;
+//     the dot on ⋯, and it opens Backstage; a show he doesn't play (the fixture's Traitors) has no Where you are row (its Tonight
+//     has the chip or the Add card) and none of what its Tonight carries;
 //   - an admin (jordan, given the admin role): This season in Admin, to the desk's season page; not on sam's or alex's menu;
 //   - nothing wider than the screen at --width; no page errors.
 // Screenshots of each state go to <outDir>.
@@ -41,9 +42,10 @@ function check(ok, what, detail = "") {
 }
 
 // What the first sheet must not repeat from the tabs, and what only Everything else holds.
-const FROM_THE_TABS = [/^Start a game/, /^Make it a game/, /^Add to my shows/, /^Where you are/];
+const FROM_THE_TABS = [/^Start a game/, /^Make it a game/, /^Add to my shows/];
 const THE_REST = [/^Plan a watch along/, /^Recent changes/, /^Watch privately/, /^Leave these games/];
-const PHONE_LINES = /^(On for this phone|On for your other phone|Off on this phone|Add it to your Home Screen first|Blocked on this phone|Not available in this browser)/;
+const PHONE_LINES = /^(On for this phone|On for another device|On for the Home Screen app or another device|Off on this phone|Add to Home Screen to get them|Blocked on this phone|Not available in this browser)/;
+const DOT = "[aria-label='Needs you']";
 
 (async () => {
   const pool = new Pool({ connectionString: DB });
@@ -97,26 +99,33 @@ const PHONE_LINES = /^(On for this phone|On for your other phone|Off on this pho
     const sam = await as("sam");
     await sam.menu(sid);
     const samRows = await sam.rows();
-    check(await sam.page.locator("[data-menu-main] [data-guard-card]").isVisible(), "sam: the menu leads with the spoiler card");
-    check(/Spoiler-safe/.test(await sam.page.locator("[data-guard-card]").innerText()) && /You're on Ep 3/.test(await sam.page.locator("[data-guard-card]").innerText()), "the card says where he is (Episode 3)", await sam.page.locator("[data-guard-card]").innerText());
-    check(["Notifications", "Invite a friend", "How it works", "Everything else"].every((t) => has(samRows, new RegExp(`^${t}`))), "then Notifications, Invite a friend, How it works and Everything else", samRows.join(" | "));
-    check(FROM_THE_TABS.every((re) => !has(samRows, re)), "nothing the tabs already carry: no Start a game, Make it a game, Add to my shows or Where you are row", samRows.join(" | "));
+    const order = ["Notifications", "Invite a friend", "How it works", "Where you are", "Everything else"].map((t) => samRows.findIndex((r) => r.startsWith(t)));
+    check(order.every((i, k) => i >= 0 && (k === 0 || i > order[k - 1])), "sam: Notifications, Invite a friend, How it works, Where you are, Everything else", samRows.join(" | "));
+    const whereRow = samRows.find((r) => /^Where you are/.test(r)) ?? "";
+    check(/Spoiler-safe · you're on Ep 3$/.test(whereRow), "Where you are is a plain row saying where he is (Episode 3)", whereRow);
+    check((await sam.page.locator("[data-guard-card]").count()) === 0, "no spoiler card any more");
+    check(FROM_THE_TABS.every((re) => !has(samRows, re)), "nothing the tabs already carry: no Start a game, Make it a game or Add to my shows row", samRows.join(" | "));
     check(!has(samRows, /^Backstage/) && !has(samRows, /This season in Admin/) && (await sam.page.locator("[data-backstage-plate]").count()) === 0, "a player: no Backstage, no Admin");
     check(THE_REST.every((re) => !has(samRows, re)), "what's rarely wanted isn't on the first sheet", samRows.join(" | "));
     const elseLine = samRows.find((r) => /^Everything else/.test(r)) ?? "";
     check(/Watch along/.test(elseLine) && /history/.test(elseLine) && /privacy/.test(elseLine) && /leave/.test(elseLine), "Everything else says what's in it", elseLine);
     // Notifications: this phone's own state, once the profile has said whether any phone of his gets them.
     await sam.page
-      .waitForFunction(() => /turn on|other phone|^On for this phone|Blocked|Not available|Home Screen/.test(document.querySelector("[data-menu-main]")?.textContent?.match(/Notifications(.*?)Invite/)?.[1] ?? ""), null, { timeout: 15_000 })
+      .waitForFunction(() => /turn on|another device|^On for this phone|Blocked|Not available|Home Screen/.test(document.querySelector("[data-menu-main]")?.textContent?.match(/Notifications(.*?)Invite/)?.[1] ?? ""), null, { timeout: 15_000 })
       .catch(() => {});
     const noteRow = (await sam.rows()).find((r) => /^Notifications/.test(r)) ?? "";
     const phoneLine = noteRow.replace(/^Notifications\s*/, "");
     check(PHONE_LINES.test(phoneLine), "Notifications says what this phone does", noteRow);
     const off = /^Off on this phone · turn on/.test(phoneLine);
-    const dot = await sam.page.locator("[data-menu-main] [aria-label='Needs you']").count();
-    check(off ? dot === 1 : dot === 0, off ? "no phone of his gets them: the needs-you dot is on" : "a phone gets them: no dot", `${phoneLine} · dots ${dot}`);
+    const dot = await sam.page.locator(`[data-menu-main] ${DOT}`).count();
+    check(dot === 0, off ? "no phone of his gets them: the line says turn on, and there's no dot" : "no dot", `${phoneLine} · dots ${dot}`);
     await sam.fits("the menu");
     await sam.shot("player");
+    await sam.page.locator("[data-menu-main]").getByRole("button", { name: /^Where you are/ }).click();
+    // A player's is read-only: it moves as he reveals each episode on Tonight.
+    check(await sam.page.locator("[role=dialog][data-open] [data-where-plays]").waitFor({ timeout: 15_000 }).then(() => true, () => false), "Where you are opens where he is (it moves as he reveals)");
+    await sam.page.keyboard.press("Escape");
+    await sam.menu(sid);
     await sam.page.locator("[data-menu-main]").getByRole("button", { name: /^Notifications/ }).click();
     await sam.page.locator("[data-show-notify] [data-setting]").first().waitFor({ timeout: 15_000 });
     await sam.page.waitForTimeout(500);
@@ -140,6 +149,8 @@ const PHONE_LINES = /^(On for this phone|On for your other phone|Off on this pho
     await sam.page.locator("[data-menu-main]").waitFor({ timeout: 15_000 });
     await sam.page.locator("[data-menu-else]").waitFor({ state: "detached", timeout: 15_000 }).catch(() => {});
     check((await sam.page.locator("[data-menu-else]").count()) === 0, "the back arrow returns to the menu");
+    // His drafts have loaded by now (Everything else listed them), and they're done: nothing waits under it.
+    check((await sam.page.locator("[data-menu-main]").getByRole("button", { name: /^Everything else/ }).locator(DOT).count()) === 0, "his drafts are done: no dot on Everything else");
     await sam.page.locator("[data-menu-main]").getByRole("button", { name: /^Everything else/ }).click();
     await sam.page.locator("[data-menu-else]").waitFor({ timeout: 15_000 });
     await sam.page.waitForTimeout(500);
@@ -174,7 +185,7 @@ const PHONE_LINES = /^(On for this phone|On for your other phone|Off on this pho
     // A show he doesn't play.
     await alex.menu(fx.traitorsSeasonId);
     const trRows = await alex.rows();
-    check((await alex.page.locator("[data-guard-card]").count()) === 0, "a show he doesn't play: no spoiler card (its Tonight has the chip or the Add card)");
+    check(!has(trRows, /^Where you are/), "a show he doesn't play: no Where you are row (its Tonight has the chip or the Add card)", trRows.join(" | "));
     check(FROM_THE_TABS.every((re) => !has(trRows, re)), "and none of what its Tonight and Games tab carry", trRows.join(" | "));
     // Only Plan a watch along is left for him there: one row doesn't earn an Everything else, so it sits in the menu.
     check(has(trRows, /^Plan a watch along/) && !has(trRows, /^Everything else/), "one row left over sits in the menu itself, with no Everything else to open for it", trRows.join(" | "));

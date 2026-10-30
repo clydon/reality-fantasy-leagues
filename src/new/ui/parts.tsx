@@ -121,40 +121,9 @@ export function EmptyState({ icon: Icon, title, line, action }: { icon?: LucideI
  * The one spoiler chip, on every guarded surface: "Spoiler-safe · you're on Ep N · Change". `seenThrough` null:
  * spoiler protection is off (Account settings), so there's nothing to guard.
  */
-export function GuardChip({
-  seenThrough,
-  onChange,
-  ep = "Ep",
-  card,
-  className = "",
-}: {
-  seenThrough: number | null;
-  onChange?: () => void;
-  ep?: string;
-  /** The bigger one the show's ⋯ menu leads with (a player's Tonight has no chip): the same words and colour, set to be read. */
-  card?: boolean;
-  className?: string;
-}) {
+export function GuardChip({ seenThrough, onChange, ep = "Ep", className = "" }: { seenThrough: number | null; onChange?: () => void; ep?: string; className?: string }) {
   if (seenThrough == null) {
     return <p className={`flex h-9 items-center px-0.5 text-xs font-semibold text-muted-foreground ${className}`}>Spoiler protection is off: you see results as they come</p>;
-  }
-  if (card) {
-    return (
-      <button
-        type="button"
-        data-guard-card
-        onClick={onChange}
-        className={`nd-press flex min-h-[64px] w-full items-center gap-3 rounded-[3px] bg-good/10 px-3.5 py-3 text-left outline-1 -outline-offset-1 outline-good/40 ${className}`}
-        style={{ color: inkOf("var(--good)") }}
-      >
-        <ShieldCheck className="size-6 flex-none" aria-hidden />
-        <span className="min-w-0 flex-1">
-          <b className="block text-[16px] leading-tight">Spoiler-safe</b>
-          <small className="mt-0.5 block text-[14px] text-foreground">{seenThrough ? `You're on ${ep} ${seenThrough}` : "Not started yet"}</small>
-        </span>
-        {onChange && <b className="text-[15px] text-foreground">Change</b>}
-      </button>
-    );
   }
   return (
     <button

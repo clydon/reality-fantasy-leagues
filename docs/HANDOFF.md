@@ -28,7 +28,8 @@ canvas; this is what was built. **The rule it follows, and the rule for the next
 it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per old row:
 - **Left the menu, a tab carries it:** Start a game (Tonight's tile when not solo; the Games tab's Start a game / Run it back /
   Play it plate), Make it a game (that plate, on Tonight and Games), Add to my shows (Tonight's card for a show you don't follow),
-  Where you are as a row (the spoiler chip with Change on every tab, but **not on a player's Tonight**, hence the card below).
+  Where you are for anyone who doesn't play (the spoiler chip with Change on every tab, but **not on a player's Tonight**, so a
+  player keeps a plain Where you are row).
 - **Stays, nothing else has it:** Backstage (Tonight carries no commissioner job on purpose; tonight.tsx's header says so), Invite
   (a show's players have it only here; the couch pages and Backstage › Members are elsewhere), Notifications (the per-show
   moments), How it works (the Games tab has a row, Tonight and the rest don't), Recent changes (players: only here; runners also
@@ -38,14 +39,15 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   night is planned from the show (check-new-plans.js plans Episode 7 that way). The hub's guide can too.
 **What it is now** (`ShowMenu` in `src/new/screens/show-space.tsx`; the rule and rows are in DESIGN.md › The new design):
 - First sheet: Backstage for whoever runs a game (a caption plate naming the first job while something needs them, with the dot on
-  ⋯; else a quiet row), This season in Admin for a site admin (`paths.deskItem("season", …)`), the **spoiler card** for a player
-  (`GuardChip card`), **Notifications** saying what *this phone* does (`reminderLine`, from `usePhone`/`useReach` in
-  `show/remind.tsx`: never a flat "On"; the needs-you dot while no phone of yours gets them and you play), **Invite a friend**,
-  **How it works**, then **Everything else** (second sheet with a back arrow: `Sheet`'s new `back` prop): Plan a watch along, Draft
-  room, Blind draft (a dot when it's your turn), Recent changes, Watch privately, Remove from my shows, Leave (red). One or two such
-  rows sit in the first sheet instead (counted from what's known when it opens, so rows never jump when the drafts load).
+  ⋯; else a quiet row), This season in Admin for a site admin (`paths.deskItem("season", …)`), **Notifications** saying what
+  *this phone* does (`reminderLine`, from `usePhone`/`useReach` in `show/remind.tsx`: never a flat "On", no dot), **Invite a
+  friend**, **How it works**, **Where you are** for a player (a plain row, "Spoiler-safe · you're on Ep N"), then **Everything
+  else** (second sheet with a back arrow: `Sheet`'s new `back` prop; the needs-you dot while a draft in it waits on you): Plan a
+  watch along, Draft room, Blind draft (a dot when it's your turn), Recent changes, Watch privately, Remove from my shows, Leave
+  (red). One or two such rows sit in the first sheet instead (counted from what's known when it opens, so rows never jump when
+  the drafts load).
 - The Notifications sheet (`show/notify-sheet.tsx`) leads with **Turn on** while no phone of yours gets them (blocked and
-  Add-to-Home-Screen say so too), so the menu's dot has somewhere to go.
+  Add-to-Home-Screen say so too).
 - **Checks:** new `scripts/dev-test/check-new-show-menu.js` (player, commissioner with a real job, admin, a show he doesn't play).
   Updated for the moved rows: check-new-watching (Where you are is the chip's Change; Watch privately and Remove are under
   Everything else), -draft, -backstage, -backstage-ii, -couches ("Invite a friend"), -make-it (Tonight's plate), -plans,
@@ -64,18 +66,16 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   cloud run's failure was its database's missing catalog. check-sheet-back hangs about one run in four, on master's code as well
   (BACKLOG 30); it passes when it doesn't.
 - **No What's New entry:** What's New is paused (2026-10-27) and the new design has no popup.
-- **Waiting on the user:** whether planning a *second* night should stay only in Everything else; phone-back from Everything else
-  closes the whole menu (it's one history entry, like every sheet) rather than stepping back to the first sheet; and the review's
-  suggestions (2026-10-30), none made yet:
-  - The Notifications row's yellow dot never goes away for a player who chooses not to turn them on (the reminder ask respects
-    Not now; the dot doesn't), yellow is for what you must do, and a commissioner's menu then carries three yellows. Drop the dot;
-    "Off on this phone · turn on" already says it.
-  - The spoiler card leads a player's menu, though the chip with Change is on every tab past Tonight and a player's place moves
-    on its own as they reveal; under a Backstage plate it makes two heavy blocks. A plain Where you are row lower down.
-  - Wording: "On for your other phone" is wrong on an iPhone whose Home Screen app gets them (Safari reads as "install" there):
-    "On for another device or the Home Screen app"; "Add it to your Home Screen first" reads oddly as a row's line: "Add to Home
-    Screen to get them". check-new-show-menu.js's PHONE_LINES lists the lines.
-  - A draft row's dot sits under Everything else with no dot on that row (the dock's Draft button carries a live turn already).
+- **Decided with the user (2026-10-30):** planning a *second* night stays only in Everything else (and the hub's guide);
+  phone-back from Everything else closes the whole menu (one history entry, like every sheet).
+- **The review's suggestions, made the same day (the user: "Do all your suggested items"):** the Notifications row's yellow dot is
+  gone (it never went away for someone who chose not to turn them on; the reminder ask respects Not now; yellow is for what you
+  must do, and a commissioner's menu carried three); the spoiler card is a plain Where you are row after How it works (the chip
+  with Change is on every tab past Tonight, a player's place moves on its own, and the card stacked under the Backstage plate;
+  `GuardChip`'s `card` size went with it); "On for your other phone" is "On for another device" (and "On for the Home Screen app
+  or another device" on an iPhone in Safari, whose Home Screen app is a device of its own), and "Add it to your Home Screen first"
+  is "Add to Home Screen to get them"; Everything else carries the needs-you dot while a draft in it waits on you
+  (check-new-draft.js checks it on alex's turn).
 
 ## Now (2026-10-28): the Start-a-game GPT plan, run in lanes
 - **Read [PLAN-start-a-game-gpt.md](PLAN-start-a-game-gpt.md) first.** Hardened with the user on 2026-10-28: the engine to its

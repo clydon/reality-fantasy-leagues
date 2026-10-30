@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { BookOpen, Ellipsis, EyeOff, Eye, KeyRound, Bell, Lock, LogOut, RotateCcw, Tv, UserPlus, Users, X } from "lucide-react";
+import { BookOpen, Ellipsis, EyeOff, Eye, KeyRound, Bell, Lock, LogOut, RotateCcw, ShieldCheck, Tv, UserPlus, Users, X } from "lucide-react";
 import { airTime, calm, justAired, ticks } from "../clock";
 import { chatCouch, gameAdmin, useAfterReveal, useAfterWatching, watching, useBackstage, useChatBadge, useCouchForSeason, useHome, useSeasonDraft, useSeasonEpisodes, useSeasonGames, useSpace, type Couch, type DraftGame, type GameRef, type GameView, type Need, type OutPreview, type SeasonEpisodes, type SeasonHeader, type Space } from "../data";
 import { leaveToDesk, ReadOnlyPanel, useReadOnly, type ReadOnlyGame } from "../read-only";
@@ -357,16 +357,18 @@ function draftNeedsYou(g: DraftGame | undefined): boolean {
 }
 
 /** What Notifications says about this phone, in Settings' words for it, shorter. A phone that doesn't get them says so
- *  here rather than "On": the Fan Who Forgets' trap is reminders that look on and aren't (docs/ARCHETYPES.md). */
+ *  here rather than "On": the Fan Who Forgets' trap is reminders that look on and aren't (docs/ARCHETYPES.md). The line is all
+ *  of it: no dot, which would stay for good on the phone of someone who chose not to (the reminder ask takes Not now). */
 function reminderLine(phone: PhoneState, reaches: boolean | null): string {
   switch (phone) {
     case "on":
       return "On for this phone";
     case "off":
-      // "Turn on" only once the profile says no phone of yours gets them, the same moment the dot appears.
-      return reaches ? "On for your other phone" : reaches === false ? "Off on this phone · turn on" : "Off on this phone";
+      // "Turn on" only once the profile says no phone of yours gets them.
+      return reaches ? "On for another device" : reaches === false ? "Off on this phone · turn on" : "Off on this phone";
     case "install":
-      return reaches ? "On for your other phone" : "Add it to your Home Screen first";
+      // An iPhone in Safari: its own Home Screen app is a device of its own, as far as notifications go.
+      return reaches ? "On for the Home Screen app or another device" : "Add to Home Screen to get them";
     case "blocked":
       return "Blocked on this phone";
     case "unsupported":
@@ -379,10 +381,11 @@ function reminderLine(phone: PhoneState, reaches: boolean | null): string {
 /** The show's ⋯ menu: what has no other home. What a show offers is on its tabs already, so it isn't repeated here: Start a game
  *  (Tonight's tile, the Games tab), Make it a game (their plate), Add to my shows (Tonight's card), and Where you are for anyone
  *  who isn't playing (the spoiler chip on every tab). Up top, for whoever runs a game, Backstage (a plate while something needs
- *  them; Tonight carries no commissioner job) and, for a site admin, this season in Admin. Then for everyone: Where you are, as a
- *  card, for a player (a player's Tonight has no chip), Notifications with the truth about this phone, Invite a friend and How it
- *  works. What's rarely wanted is one tap down, under Everything else: Plan a watch along (Tonight offers it only until the next
- *  episode has a plan), the drafts, Recent changes, Watch privately, Remove from my shows and Leave. */
+ *  them; Tonight carries no commissioner job) and, for a site admin, this season in Admin. Then for everyone: Notifications with
+ *  the truth about this phone, Invite a friend, How it works and, for a player, Where you are as a plain row (a player's Tonight has
+ *  no chip, and their place moves on its own as they reveal, so it's rarely changed). What's rarely wanted is one tap down, under
+ *  Everything else: Plan a watch along (Tonight offers it only until the next episode has a plan), the drafts, Recent changes,
+ *  Watch privately, Remove from my shows and Leave. */
 function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const [open, setOpen] = useState(false);
   const [more, setMore] = useState(false);
@@ -417,8 +420,6 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
   const inline = rest.length <= 2;
   // Closing whichever sheet the rows are in, for a row that opens something else.
   const gone = () => (inline ? setOpen(false) : setMore(false));
-  // A phone of yours that doesn't get reminders, while you play: the dot says so, as it does for Backstage.
-  const nag = playing && phone === "off" && reaches === false;
   // What's rarely wanted, in Everything else's sheet or (one or two of them) in the menu itself.
   const elseRows = (
     <>
@@ -490,24 +491,10 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
           {me.isSuperAdmin && (
             <Row href={paths.deskItem("season", seasonId)} icon={Tv} iconClass="bg-foreground text-background" title="This season in Admin" detail="Cast, episodes and rules" />
           )}
-          {playing && show.seenThrough != null && (
-            <div className="mb-1 mt-1">
-              <GuardChip
-                card
-                seenThrough={show.seenThrough}
-                ep={show.words.ep}
-                onChange={() => {
-                  setOpen(false);
-                  openWhere(show);
-                }}
-              />
-            </div>
-          )}
           <Row
             icon={Bell}
             title="Notifications"
             detail={reminderLine(phone, reaches)}
-            dot={nag}
             onClick={() => {
               setOpen(false);
               setNotify(true);
@@ -535,6 +522,17 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
               }}
             />
           )}
+          {playing && show.seenThrough != null && (
+            <Row
+              icon={ShieldCheck}
+              title="Where you are"
+              detail={`Spoiler-safe · ${show.seenThrough ? `you're on ${show.words.ep} ${show.seenThrough}` : "not started yet"}`}
+              onClick={() => {
+                setOpen(false);
+                openWhere(show);
+              }}
+            />
+          )}
           {inline
             ? elseRows
             : rest.length > 0 && (
@@ -542,6 +540,8 @@ function ShowMenu({ seasonId, show }: { seasonId: string; show: ShowData }) {
                   icon={Ellipsis}
                   title="Everything else"
                   detail={restLine}
+                  // A draft that waits on you is in there (the dock's Draft button has it too).
+                  dot={draftNeedsYou(lead(room)) || draftNeedsYou(lead(blind))}
                   onClick={() => {
                     setOpen(false);
                     setMore(true);
