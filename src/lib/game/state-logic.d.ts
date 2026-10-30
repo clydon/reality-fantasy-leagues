@@ -208,6 +208,9 @@ declare const StateLogic: {
     endsAt(state: LeagueState): number | null;
     /** Whether two or more went home in an episode (a winner's exit isn't one): a night a second pick counts. */
     double(state: LeagueState, ep: Episode): boolean;
+    /** R1 part 3: whether a pick went home in an episode, as a pool that stays in grades it (on the finale, anyone but the
+     *  winner did; false before its results). */
+    wentHome(state: LeagueState, ep: Episode, castawayId: string): boolean;
     secondCounted(state: LeagueState, ep: Episode, parts?: PoolParts | null): boolean;
     canBuyBack(state: LeagueState, buyback: PoolParts["buyback"], number: number): boolean;
   };

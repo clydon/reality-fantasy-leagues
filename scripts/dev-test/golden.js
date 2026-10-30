@@ -104,6 +104,18 @@ function read(S, st) {
   });
 }
 
+/** Where two reads part (before → after): the first few paths whose values differ, each value cut short, a name never shown. */
+function whereApart(x, y, at = "", out = []) {
+  if (out.length >= 6 || JSON.stringify(x) === JSON.stringify(y)) return out;
+  if (x && y && typeof x === "object" && typeof y === "object") {
+    for (const k of [...new Set([...Object.keys(x), ...Object.keys(y)])]) whereApart(x[k], y[k], `${at}.${k}`, out);
+    return out;
+  }
+  const show = (v) => (/\.name$/.test(at) ? "(a name)" : JSON.stringify(v ?? null).slice(0, 80));
+  out.push(`${at.slice(1)}: ${show(x)} → ${show(y)}`);
+  return out;
+}
+
 module.exports = { tree, untree, read, setWork: (dir) => (work = dir) };
 
 if (MAIN) (async () => {
@@ -171,7 +183,7 @@ if (MAIN) (async () => {
             const a = read(SB, SB.GhostLogic.viewFor(JSON.parse(JSON.stringify(state)), seat, mark));
             const b = read(SA, SA.GhostLogic.viewFor(JSON.parse(JSON.stringify(state)), seat, mark));
             n++;
-            if (a !== b) diffs.push(`${name} (${id}) seat ${seat} mark ${mark}:\n      before ${a.slice(0, 300)}\n      after  ${b.slice(0, 300)}`);
+            if (a !== b) diffs.push(`${name} (${id}) seat ${seat} mark ${mark}: ${whereApart(JSON.parse(a), JSON.parse(b)).join("; ")}`);
           }
         }
       }
@@ -188,7 +200,7 @@ if (MAIN) (async () => {
       }
       if (diffs.length) failures++;
       console.log(`${diffs.length ? "FAIL" : "PASS"}  ${key}: ${rows.length} games, ${n} reads${diffs.length ? `, ${diffs.length} differ` : ", every one the same"} (${Math.round((Date.now() - t0) / 1000)}s)`);
-      for (const d of diffs.slice(0, 10)) console.log(`      ${d}`);
+      for (const d of diffs.slice(0, 30)) console.log(`      ${d}`);
       spawnSync("node", ["scripts/dev-test/playtest.js", "down"], { cwd: afterTree, env, encoding: "utf8" });
     }
     console.log(`\n${seasons.length} seasons, ${games} games, ${reads} reads: ${failures ? `${failures} FAILED` : "every one the same"}`);

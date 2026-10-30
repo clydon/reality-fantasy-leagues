@@ -58,8 +58,9 @@ way, in parts: part 1, Survivor 51's three kinds as compositions of the pieces (
 and waivers, Weekly Lineup and Survival Pool drafted and scored by the pieces their spec names, never a league type: `piecesOf`; the
 league type only names a game for the screens now), and part 2, the games scored outside the state (2026-10-30: Weekly Calls,
 Weekly Bingo and the game of questions chosen by their pieces wherever they're read, the home's moves and classic's list included, nothing
-in scoring reading a league type or filtering the stored type by one), are built, so R1 is built (it merges once the Survivor 51
-rehearsal passes); A12's other parts next: part 2, a stage a format change starts (2026-10-30: a later stage's `on`, a copy
+in scoring reading a league type or filtering the stored type by one), are built, so R1 is built and merged (live since 2026-10-30, 2:59 PM),
+and part 3, a pool's finale (2026-10-30, the user's decision: only the winner survives it, every game's one reading of a night, `nightOf`;
+proven on the Survivor 51 rehearsal and the golden replays), is built, to merge before Survivor 51's finale on Dec 16; A12's other parts next: part 2, a stage a format change starts (2026-10-30: a later stage's `on`, a copy
 of it made mid-season, a league of its own, each time research is sure the format changed that way, by itself or with the maker's OK,
 taken away when the report is corrected; `StageLogic.changePlan`, `change-stages.ts`, from the season sync), is built; part 2b (the
 'next-stage' fallbacks) next, then parts 3 and 4. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
@@ -4390,7 +4391,8 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   the three kinds Survivor 51's couch plays (Outlast with finale predictions, side bets and waivers; Weekly Lineup; Survival Pool), in
   the engine and everything that scores them or reads what they hold; **part 2**, Weekly Calls, Weekly Bingo and the game of questions
   (the games scored outside the state: `answer-points.ts`, `answers.ts`, `calls.ts`, `bingo.ts`, `season-games.ts`'s calls, the me
-  route), which empties tests/pieces.test.js's list of part 2's files. R3 takes the rest of that list (the type field's writers and the
+  route), which empties tests/pieces.test.js's list of part 2's files; **part 3**, a pool's finale (the user's decision, 2026-10-30, 3:35
+  PM: the Decisions table's "A pool's finale", only the winner survives it). R3 takes the rest of that list (the type field's writers and the
   screens' readers). Its proof beyond the golden replays: the Survivor lane's Survivor 51 season-forward rehearsal
   (`scripts/dev-test/season-forward.js`), which has to pass before R1 merges (never on a Wednesday; the main folder merges).
 
@@ -4493,6 +4495,41 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     off the league type (the label stays the league type's, R3's); the guard's SQL check missing a filter split across lines (it reads
     the query whole). Kept, said here: the two moves each taking the states map (each chooses its own games, as before; the map covers
     every game with a season, the only ones either ever made a move for); a desk search by the stored type's ids (R3's, above).
+
+  **As built (R1 part 3, a pool's finale, 2026-10-30, on `engine`, not merged; no migration).** One session, with A12 part 2b after it,
+  after `lane.js sync engine` (master's R1 merge, the season-forward rehearsal and the decision; 1177 tests).
+  - **The rule** (the Decisions table, "A pool's finale": only the winner survives the finale): one reading of a night for every game,
+    `state-logic.js nightOf(state, ep)` { gone, won }: the exits its results record as going home and as winning (each winner's, on a show
+    with several). On a night with a winner, everyone else in it went home, a losing finalist's exit or none (a finalist the results
+    missed went home with the rest: "right only when its person is who the results record as winning"); on any other night, and every
+    night of a show nobody wins (`winnerExitMethod` null), whoever isn't among its exits stayed (`wentHome`). Before the winner is
+    recorded, a finale is a night like any other.
+  - **What reads it:** a pool's grading (`PickEmLogic.stepper`: every pool, with lives, a buyback, mulligans, a second pick, a pick that
+    never repeats or last one standing, all through the one walk), `PickEmLogic.double` (the exits recorded but a winner's: as before),
+    a game of questions' facts (`AnswerLogic.facts`' `out`, so "who goes home" and "who stays" grade the finale the same way: the winner
+    stays, everyone else in it went home), and classic's three screens that worked out a pick's night themselves (the reveal's "Your pick
+    went home", an episode's line, the episode page's plates: `PickEmLogic.wentHome`). The new design's views read the history's rows, and
+    a pool's Who goes home? (`calls.ts`) already left a winner out. A pool that survives by scoring (a sport) is graded by its points, as
+    before.
+  - **What reads differently:** a pick on the winner at the finale is right (it was wrong: the winner's exit read as going home); a pick
+    on a finalist the results missed is wrong. Nothing else.
+  - **Proof:** `tests/pool-finale.test.js` (7: the Sole Survivor's pick right, the fire's loser's and a losing finalist's wrong, a
+    correction taking the winner back and giving them a losing finalist's exit; several winners (The Traitors); a show nobody wins; a
+    pool with lives (a life lost on a losing finalist, out at none, the winner's pick standing); a second pick on a finale night; a finale
+    whose results miss a finalist; a game of questions' "who stays" and "who goes home" through its grader), four of them failing on the
+    code before; `npm test` 1184; `tsc` clean. **The Survivor 51 rehearsal** (`season-forward.js rehearse --from=backups/prod-2026-10-30
+    --scenario=realistic,rough,dst --before=master`, this lane's tree): every invariant holds in all three, flag off and on read the same
+    (2,856 reads each), and against master's engine realistic and dst read the same, rough differs in **4 reads, all one seat whose pick
+    at the finale (Episode 13) was the Sole Survivor**: master graded it wrong, this tree right (total 9 → 10, current streak 0 → 7,
+    longest 6 → 7, at the early and the final results, marks 13 and everything). **The golden replays** (`golden.js`, HEAD against the
+    working tree): 7 seasons, 160 games, 19,361 reads, every one the same but **20 reads of one game, The Challenge 40's Survival Pool**,
+    one seat whose pick at the final (Episode 19) was a winner (total 16 → 17, current streak 0 → 7, longest 6 → 7), as nobody and as
+    each of the four seats at marks 19, 20, 21 and everything. `golden.js` now prints where two reads part (the fields, before → after,
+    a name never shown), not their first 300 characters.
+  - **The code review** (`/code-review` at medium, before the long runs). Fixed: classic's reveal, episode line and episode page still
+    said a winner's pick went home (and hid the winner's plate); a finale whose results recorded the winner but missed a finalist graded
+    that finalist's pick right; the night's rule written out three times (a pool's grade, `double`, the answers' facts: one `nightOf` now)
+    and `formatOf` read for every exit of every pick (once a night now); a test that didn't touch a game of questions (it grades one now).
 - **R2.** The game-specs flag on in production (the user's OK), then a week of watching every table.
 - **R3.** The old type code goes: `LEAGUE_TYPES`, the literal comparisons (45 files), and the UI's flags, read from the spec.
 
@@ -5235,6 +5272,22 @@ From R1 part 1 (2026-10-30):
 - **`LEAGUE_TYPES`' names are classic's** ("Classic", "Active Roster", "Eliminator Pool"): the me route and classic's setup show them.
   (R3: the preset's name, `PRESET_LABELS`; R1 part 2 left the me route's label on it, which games it lists going by the pieces.)
 
+From R1 part 3 (2026-10-30):
+- **For the main folder: it changes Survivor 51's Survival Pool on Dec 16** (the 3:35 PM note): a pick on the Sole Survivor at the finale
+  scores. It goes out in a main-folder merge before then, never on a Wednesday; the rehearsal's and golden's numbers are in the As built.
+  (The main folder, at the next merge.)
+- **For the user: telling the players.** How it works for a pool says "everyone picks one castaway to stay in each episode" and says
+  nothing of the finale. Recommended: a line ("At the finale, only the winner survives it: a pick on a finalist who loses is out"), in
+  How it works and on the pool's finale lock, before Dec 16; What's New stays paused (the user's). (U0's words, or whoever next touches
+  How it works's pool lines, with the user's OK.)
+- **A finalist the results miss goes home with the rest** once the winner is recorded (the Decisions table's "right only when its person
+  is who the results record as winning"; the 3:35 PM note's wording, every other exit that night going home, reads the same whenever the
+  results are whole). Before the winner is recorded the finale is graded as any night, so early results that name the winner and not
+  every finalist grade the finalists' picks wrong, and ones that miss the winner grade the night as usual until they're corrected.
+  (Nothing to do; said for the design session.)
+- **A lineup's "left the game" line** (classic's `episode-active-roster-section.tsx`) still counts the winner's exit as leaving: a lineup
+  scores moments, not survival, so it's left. (R3 or U1, if that line should say "won".)
+
 From R1 part 2 (2026-10-30):
 - **The Survivor 51 season-forward rehearsal still has to pass before R1 merges** (R1 part 1's item, for both parts):
   `scripts/dev-test/season-forward.js` still isn't on master. Part 2 moves no score (the golden replays, `--before=master` too), but R1
@@ -5244,7 +5297,8 @@ From R1 part 2 (2026-10-30):
   sees (under (a), a new Weekly Lineup on a show with moments the couch answers starts with those at 0 on its points page). The
   recommendation stands: (a), said as an assumption in the wizard. (Whoever next touches Start a game's spec, or U0, with the user's word.)
 - **Still the user's: a pick of the season's winner is wrong at the finale** (R1 part 1's item): part 2 doesn't touch pool grading. The
-  recommendation stands, ideally decided before Survivor 51's finale. (Whoever next touches pool grading, with the user's word.)
+  recommendation stands, ideally decided before Survivor 51's finale. (Whoever next touches pool grading, with the user's word.) **Decided
+  (the user, 2026-10-30, 3:35 PM: only the winner survives it) and built: R1 part 3.**
 - **`Game.gameType` is still the stored type field** (`show-space.ts` `games()`, read in SQL), carried on every game the screens get:
   nothing that scores or chooses a game reads it now, but the screens' readers do (Start a game's Run it back and counts, `start-game.ts`
   `KEY_OF`; End a game's words, `end-game.ts`; the trophy shelf's "same kind of game", `couch-standings.ts`; the desk's search by a game's

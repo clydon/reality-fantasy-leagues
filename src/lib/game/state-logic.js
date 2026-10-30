@@ -181,6 +181,17 @@ function isWinnerExit(state, method){
   return w != null && method === w;
 }
 function seasonWinner(state){ return (state.castaways || []).find(c => isWinnerExit(state, c.exitMethod)) || null; }
+// An episode's night as the games grade it (R1 part 3: the Decisions table's "A pool's finale", only the winner survives the
+// finale): { gone, won }, Sets of castaway ids, the exits its results record as going home and as winning (each winner, on a
+// show with several). On a night with a winner everyone else in it went home, a losing finalist's exit or none; on any other
+// night (every night, on a show nobody wins) whoever isn't among its exits stayed (wentHome).
+function nightOf(state, ep){
+  const w = formatOf(state).winnerExitMethod;
+  const gone = new Set(), won = new Set();
+  ((ep && ep.events) || []).forEach(ev => (w != null && ev.method === w ? won : gone).add(ev.castawayId));
+  return { gone, won };
+}
+function wentHome(night, castawayId){ return night.won.size ? !night.won.has(castawayId) : night.gone.has(castawayId); }
 function seasonEnded(state){
   if(formatOf(state).winnerExitMethod != null) return !!seasonWinner(state);
   const cast = state.castaways || [];
@@ -3807,10 +3818,10 @@ class PickEmLogic {
   static parts(state){ return Spec.poolParts(gameOf(state)); }
   // Whether two or more went home in an episode: a night a second pick counts. Known only from its results (nothing at a lock
   // says a night is a double: the schedule doesn't, nor does a rulebook); a winner's exit isn't one going home.
-  static double(state, ep){
-    const gone = new Set((ep.events||[]).filter(ev => !isWinnerExit(state, ev.method)).map(ev => ev.castawayId));
-    return gone.size >= 2;
-  }
+  static double(state, ep){ return nightOf(state, ep).gone.size >= 2; }
+  // Whether a pick went home in an episode, as the pool grades it (nightOf: on the finale, anyone but the winner did). False
+  // before its results; a pool that survives by scoring grades by points instead (scored), so this is a staying-in pool's.
+  static wentHome(state, ep, castawayId){ return wentHome(nightOf(state, ep), castawayId); }
   // Whether an episode's second picks counted: it's decided, and two or more went home in it (or the pool's second pick counts
   // every night: fallback 'counts'). `parts`: the pool's, when the caller has them (a walk over every episode reads them once).
   static secondCounted(state, ep, parts){
@@ -3922,8 +3933,10 @@ class PickEmLogic {
         return row;
       }
       // Correct = the picked person isn't among this episode's eliminations (or, surviving by scoring, scored in it). Derived
-      // live from the episode rather than stored, so logging or undoing a result can't leave it stale.
-      const survived = (id) => !!id && (byScore ? PickEmLogic.scored(state, ep, id) : !ep.events.some(ev => ev.castawayId === id));
+      // live from the episode rather than stored, so logging or undoing a result can't leave it stale. R1 part 3: only the
+      // winner survives the finale (nightOf); a show nobody wins keeps the rule of every night.
+      const night = byScore ? null : nightOf(state, ep);
+      const survived = (id) => !!id && (byScore ? PickEmLogic.scored(state, ep, id) : !wentHome(night, id));
       const row = { episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick ? pick.castawayId : null, correct: false, points: 0, streak: 0 };
       const counts = !!second && PickEmLogic.secondCounted(state, ep, parts);
       if(pick) used.add(pick.castawayId);
@@ -6746,7 +6759,6 @@ class AnswerLogic {
     const span = gameOf(state).span;
     const from = Spec.spanStart(span);
     const episodes = new Map();
-    const winnerOut = (method) => isWinnerExit(state, method);
     const eps = [...(state.episodes || [])].sort((a, b) => a.number - b.number);
     const epNo = new Map(eps.map(e => [e.id, e.number]));
     const cast = state.castaways || [];
@@ -6762,9 +6774,12 @@ class AnswerLogic {
       if(!inPlay(state, ep.number)) return;
       const stage = EpisodeLogic.resultsStage(ep);
       if(!stage) return;
-      const out = (ep.events || []).filter(ev => !winnerOut(ev.method)).map(ev => ev.castawayId);
       // Still in at its start: nobody who left in an episode before it.
       const stillIn = cast.filter(c => !(c.status === 'eliminated' && (epNo.get(c.exitEpisodeId) || 0) < ep.number)).map(c => c.id);
+      // Who went home in it, as a pool grades it (R1 part 3, nightOf): its exits but a winner's, and on the winner's night
+      // anyone else still in whose exit isn't recorded.
+      const night = nightOf(state, ep);
+      const out = [...night.gone, ...(night.won.size ? stillIn.filter(id => !night.won.has(id) && !night.gone.has(id)) : [])];
       let events = null;
       let who = null;
       let roleOf = null;
