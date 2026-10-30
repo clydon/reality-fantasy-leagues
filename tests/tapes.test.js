@@ -380,3 +380,39 @@ test("a series whose cast is its TV listing's (every season's crew) holds its qu
   assert.equal(T.castHeld(null, "series"), false);
   assert.equal(T.castHeld({ kind: "cast", ok: false, parsed: { fromListing: true } }, "series"), false);
 });
+
+test("an account near its limits waits for its window to reset; under its cap, or once the reset has passed, it doesn't", () => {
+  const now = Date.parse("2026-10-30T05:00:00Z");
+  const caps = { fiveHour: 90, week: 80 };
+  const w = (used, at) => ({ used_percent: used, resets_at: at });
+  assert.equal(T.limitHold(null, now, caps), null);
+  assert.equal(T.limitHold({ five_hour: w(89, "2026-10-30T06:00:00Z"), week: w(79, "2026-11-04T12:25:42Z") }, now, caps), null);
+  assert.equal(T.limitHold({ five_hour: w(90, "2026-10-30T06:00:00Z") }, now, caps).until, Date.parse("2026-10-30T06:00:00Z"));
+  // Both at their caps: the later reset, the week's.
+  const both = T.limitHold({ five_hour: w(95, "2026-10-30T06:00:00Z"), week: w(81, "2026-11-04T12:25:42Z") }, now, caps);
+  assert.equal(both.until, Date.parse("2026-11-04T12:25:42Z"));
+  assert.match(both.why, /week is 81% used \(the cap is 80%\)/);
+  assert.equal(T.limitHold({ five_hour: w(100, "2026-10-30T04:59:00Z") }, now, caps), null);
+});
+
+test("requeue moves aside what gave up and the failed tries of what isn't on tape, and clears their tries", () => {
+  const season = path.join(T.TAPES, "survivor", "50");
+  fs.mkdirSync(season, { recursive: true });
+  const put = (f, v) => fs.writeFileSync(path.join(season, f), typeof v === "string" ? v : JSON.stringify(v));
+  put("e04-full.json", { ok: true });
+  put("e04-full.try1.json", { ok: false });
+  put("e05-full.json", { ok: false, gaveUp: true });
+  put("e05-full.prompt.md", "p");
+  put("e05-full.answer.md", "a");
+  put("e05-full.try1.json", { ok: false });
+  put("e06-quick.try2-limited.json", { ok: false });
+  put("season-recaps.json", { ok: false });
+  fs.writeFileSync(path.join(T.TAPES, "state.json"), JSON.stringify({ failuresInARow: 3, pausedUntil: "2099-01-01T00:00:00Z", pauseWhy: "x", tries: { "survivor/50/e06-quick": 2, "survivor/49/e01-quick": 1 }, lastError: null }));
+  const moved = T.requeue({ show: "survivor", season: 50 }).map((m) => m.replace("survivor/50/", "")).sort();
+  assert.deepEqual(moved, ["e05-full.answer.md", "e05-full.json", "e05-full.prompt.md", "e05-full.try1.json", "e06-quick.try2-limited.json", "season-recaps.json"]);
+  assert.deepEqual(fs.readdirSync(season).filter((f) => f !== "requeued").sort(), ["e04-full.json", "e04-full.try1.json"]);
+  const state = JSON.parse(fs.readFileSync(path.join(T.TAPES, "state.json"), "utf8"));
+  assert.deepEqual(state.tries, { "survivor/49/e01-quick": 1 });
+  assert.equal(state.pausedUntil, null);
+  assert.deepEqual(T.requeue({ show: "survivor", season: 50 }), []);
+});
