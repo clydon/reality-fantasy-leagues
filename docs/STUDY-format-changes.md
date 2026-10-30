@@ -872,6 +872,34 @@ lowest each episode out, with waivers). Every game ended on all five seasons (Th
 - **The teams are read as they stood:** a waiver move counts from the episode after it's made (the mid-season log), so a castaway
   picked up, or a knocked-out player's freed castaway claimed, never reaches back to change who was cut before it.
 
+## A11 part 2: a pool's knockouts, replayed blind (2026-10-30)
+
+A11's part 2 built a pool's knockouts beyond A10 part 2's lives: a pick that never repeats (`get.repeat` 'never', a night with
+nobody left a missed pick by default), and last one standing's end as settings (`rank.oneLeft`: one or none left ends the game;
+`rank.allOut`: the night everyone left goes out, by points, shared or all back in), walked everyone together (state-logic.js
+`PickEmLogic.walk`). Like A10's pool it reads who went home, never the show's groups, so a swap, a merge or The Challenge's pairs
+reach it only as exits. The blind replays played the tracker's new game, the corpus row w047 (a Survival Pool that never repeats,
+one life, last one standing, none or one left ending it, a shared win), on every season, with all the others: every game ended on
+all five seasons (The Challenge 41, 40 and 39 73 of 73, Survivor 49 93 of 93, The Traitors 4 71 of 71), no move refused.
+
+| Season | w047: over at | Its winner | Who was out when |
+|---|---|---|---|
+| The Challenge 41 | 1 | Drive-by, on 1 | Tinkerer's premiere pick went home; Forgetter and Fan made none |
+| The Challenge 40 | 7 | Tinkerer, on 7 | Drive-by's pick went home in 7 (6); Forgetter and Fan out at 1 |
+| The Challenge 39 | 5 | Tinkerer, on 5 | Drive-by out in 5 (4); Forgetter and Fan out at 1 |
+| Survivor 49 | 2 | Tinkerer, on 2 | Drive-by out in 2 (1); Forgetter and Fan out at 1 |
+| The Traitors 4 | 10 | Tinkerer, on 10 | Drive-by out in 10 (9); Forgetter and Fan out at 1 |
+
+- **One life ends a forgetter's game at once:** the forgetter picks every third week and the fan every other one (the harness's
+  habits), so neither picks for the premiere, and a missed pick costs the only life: both are out after Episode 1 on every season,
+  as in A10 part 2's pools with lives. It's A10 part 2's Noticed item 2 seen live (a missed pick filled at the lock, or a first
+  missed pick forgiven, would keep Joanna in).
+- **None or one left ends it, early:** every season's w047 was over well before its finale (at 1 on The Challenge 41, whose premiere
+  sent the tinkerer's pick home), so nobody reached the end of the cast, and no night sent everyone left out together: the shared
+  win and a night with nobody left to pick are proven by the unit tests and `check-pool-knockouts.js`, not by the tapes.
+- **Nothing reads a format change:** a pool's picks name people as the cast has them at each lock (who's still in), so The Challenge's
+  re-pairings, Survivor 49's swaps and merge and The Traitors 4's twists change nothing for it, which the replays bear out.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

@@ -3534,6 +3534,7 @@
       },
       "words": "Guess every elimination winner; a wrong guess knocks you out.",
       "step": "A11",
+      "note": "part 2b: a game of questions' knockouts, walked over its answers",
       "dials": [
         "win"
       ]
@@ -5405,6 +5406,22 @@
         "words": "survivor pool but you can't pick the same person twice, and if your pick goes home you're out, last one standing wins, ties split",
         "step": "A11",
         "note": "out on a wrong pick, last one standing: players knocked out",
+        "spec": {
+          "preset": "survival-pool",
+          "get": {
+            "by": "pick",
+            "repeat": "never"
+          },
+          "score": {
+            "by": "survive",
+            "lives": 1
+          },
+          "rank": {
+            "by": "standing",
+            "oneLeft": "ends",
+            "allOut": "share"
+          }
+        },
         "expect": {
           "about": {
             "show": "Survivor",

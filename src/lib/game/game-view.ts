@@ -85,7 +85,8 @@ export interface PickMove {
   /** Who you may pick. */
   available: string[];
   /** Still in, but not pickable this time, and why. */
-  blocked: { id: string; episode: number; reason: "cycle" | "backToBack" }[];
+  /** Step A11 part 2: "used", a pick that never repeats: picked before. */
+  blocked: { id: string; episode: number; reason: "cycle" | "backToBack" | "used" }[];
   streak: number;
 }
 
@@ -305,6 +306,8 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
   const worth = !pool && !callsGame && StateLogic.gameOf(view).rank.by === "worth";
   const key = (r: ScoreRow): number[] => (callsGame ? [right(r.playerId)] : StateLogic.rankKey(view, r));
   const rows = [...StateLogic.computeScores(view)].sort((a, b) => StateLogic.PickEmScoringStrategy.compareKeys(key(b), key(a)));
+  // A pool's seasons, read once (step A11 part 2: a pool that walks everyone together walks once for the table).
+  const histories = pool ? StateLogic.PickEmLogic.histories(view) : null;
   const keys = rows.map((r) => key(r).join(","));
   // Best ball (step A9 part 2) has a week as a lineup does; its "last" is who counted, as it has no lineups.
   const lastEp = type.hasActiveRoster || type.hasBestBall ? latestScoredEpisode(view) : null;
@@ -332,7 +335,7 @@ export function tableOf(view: LeagueState, me: string, userOf: UserOf, right: (p
       last: lastOf(r.playerId),
       // Someone else's pick stays theirs until it's decided.
       picks: pool
-        ? StateLogic.pickEmHistory(view, r.playerId)
+        ? (histories?.get(r.playerId) ?? StateLogic.pickEmHistory(view, r.playerId))
             .rows.filter((p) => you || p.correct !== null)
             .map((p) => ({ episode: p.episode, castawayId: p.castawayId, correct: p.correct }))
         : [],

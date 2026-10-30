@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 170 ✅ · 75 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
-**Waiting, by step:** A11 8 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 171 ✅ · 74 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271.
+**Waiting, by step:** A11 7 · A12 11 · A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -225,7 +225,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ⏳ | s45 | Survivor 51 | A season of mini-games: bingo one week, a draft the next. | shape | A12 |
 | ✅ | s46 | Survivor 51 | For 10 random pairs, who outlasts whom? | what | A game for Survivor 51: everyone answers one question before it starts: who outlasts whom, all season. A point for each right answer. |
 | ✅ | s47 | Survivor 51 | Predict the final tribal vote split. | what | A game for Survivor 51: everyone answers one question before it starts: the final jury vote split, all season. 5 points for each right answer. |
-| ⏳ | s48 | The Challenge 42 | Guess every elimination winner; a wrong guess knocks you out. | win | A11 |
+| ⏳ | s48 | The Challenge 42 | Guess every elimination winner; a wrong guess knocks you out. | win | A11: part 2b: a game of questions' knockouts, walked over its answers |
 | ⏳ | s49 | Survivor 51 | At the halfway mark everyone calls who goes home; it locks at minute 30 of the episode. | live | A15 |
 | ⏳ | s50 | Survivor 51 | Lock in your boot call any time during the episode; the earlier you call it, the more it's worth. | live | A15 |
 | ⏳ | s51 | Survivor 51 | With 10 minutes left you get one chance to change your call, for half points. | live | A15 |
@@ -294,7 +294,7 @@ Start a game's eval set (the playtest lane's P2, 2026-10-28), each request now t
 | ✅ | w044 | Survivor 51 | Survivor 51 from episode 7: draft 4 each, start 2, 3 points for an idol find, 5 for winning immunity, minus 2 for a vote against | A Weekly Lineup for Survivor 51: everyone drafts 4 and starts 2 each episode, Episode 7 to the finale. Scored by Survivor 51's rules, with two moments' points changed. |
 | ✅ | w045 | The Traitors (US) 5 | Traitors draft, 3 each, a point for each round table survived, 10 if your player is a traitor who wins, -5 if they get banished | A Weekly Lineup for The Traitors (US) 5: everyone drafts 3 and starts 3 each episode, all season. Scored by The Traitors (US) 5's rules, with one moment's points changed. |
 | ✅ | w046 | Dancing with the Stars 35 | dwts: everyone drafts 2 couples, points equal to their judges score each week, double in the finale | A Weekly Lineup for Dancing with the Stars 35: everyone drafts 2 and starts 2 each episode, all season. Scored by Dancing with the Stars 35's rules, with ten moments' points changed. Points in the finale count double. |
-| ⏳ | w047 | Survivor 51 | survivor pool but you can't pick the same person twice, and if your pick goes home you're out, last one standing wins, ties split | A11: out on a wrong pick, last one standing: players knocked out |
+| ✅ | w047 | Survivor 51 | survivor pool but you can't pick the same person twice, and if your pick goes home you're out, last one standing wins, ties split | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, never the same one twice, all season. One life: a wrong pick costs one. Last one standing wins. Once one of you is left, it's over. If everyone left goes out together, they share the win. |
 | ⏳ | w048 | Below Deck 13 | Below Deck: draft 3 crew, 2 points every time they're on charter, 5 if they get fired, 3 for a hookup, minus 1 for crying | G1: on charter and a hookup aren't moments research answers: the new-moment path |
 | ✅ | w049 | The Challenge 42 | blind draft for the challenge 42 finale only, 2 each, whoever has the winner gets 10 | A Weekly Lineup for The Challenge 42: everyone drafts 2 and starts 2 each episode, just Episode 13. Scored by The Challenge 42's rules. |
 | ✅ | w050 | Survivor 51 | weekly lineup with a bench of 2, waivers every tuesday, survivor 51, no trades | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. |

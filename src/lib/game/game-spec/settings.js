@@ -18,7 +18,7 @@
 const {
   SPEC_VERSION, TYPE_PRESETS, REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS,
   MAX_BET_POINTS, ORDER_OF, CALLS, fullSpec, typeOf, playsAs, specProblems, waiversFit, sameValue, spanStart, spanPhase,
-  finaleQuestions, finaleOf, LATE_HOURS, MAX_SEAT_PEOPLE, seatPeople,
+  finaleQuestions, finaleOf, LATE_HOURS, MAX_SEAT_PEOPLE, seatPeople, NEVER, VOCAB,
 } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
@@ -113,6 +113,14 @@ function draftRankOf(st, lineup, copy) {
   const rank = { by };
   if (isObj(st.draftRace)) rank.race = copy ? clone(st.draftRace) : st.draftRace;
   if (cut) rank.cut = cut;
+  // A11 part 2: whether one left ends it (rankOneLeft), beside last one standing.
+  if (by === 'standing') endsOf(st, rank, false);
+  return rank;
+}
+/** A11 part 2: last one standing's end as its settings say it (rankOneLeft; a pool's rankAllOut too), each only when it's set. */
+function endsOf(st, rank, pool) {
+  if (Object.prototype.hasOwnProperty.call(VOCAB['rank.oneLeft'], st.rankOneLeft)) rank.oneLeft = st.rankOneLeft;
+  if (pool && Object.prototype.hasOwnProperty.call(VOCAB['rank.allOut'], st.rankAllOut)) rank.allOut = st.rankAllOut;
   return rank;
 }
 
@@ -205,13 +213,19 @@ function readSpec(st, copy) {
     if (Number.isInteger(st.poolLives) && st.poolLives >= 1) score.lives = st.poolLives;
     if (isObj(st.poolBuyback)) score.buyback = copy ? clone(st.poolBuyback) : st.poolBuyback;
     if (Number.isInteger(st.poolMulligans) && st.poolMulligans >= 1) score.mulligans = st.poolMulligans;
-    const get = { by: 'pick', each: 1, repeat: 'cycle' };
+    // A11 part 2: a pick that never repeats (poolRepeat), its fallback (poolFallback, else the default), and last one standing's
+    // end (rankOneLeft, rankAllOut).
+    const never = st.poolRepeat === 'never';
+    const get = { by: 'pick', each: 1, repeat: never ? 'never' : 'cycle' };
     if (isObj(st.poolSecond)) get.second = copy ? clone(st.poolSecond) : st.poolSecond;
+    if (never) get.fallback = st.poolFallback === 'skip' ? 'skip' : NEVER.fallback;
+    const rank = { by: st.poolRank === 'standing' ? 'standing' : 'streak' };
+    if (rank.by === 'standing') endsOf(st, rank, true);
     Object.assign(spec, {
       get,
       count: { pick: true },
       score,
-      rank: { by: st.poolRank === 'standing' ? 'standing' : 'streak' },
+      rank,
     });
   } else if (type === 'weekly-calls' || type === 'questions') {
     // A game of questions' parlays (A9: settings.parlays, as its spec says them).
@@ -333,6 +347,11 @@ function settingsOf(spec) {
   out.poolMulligans = pool && s.score.mulligans !== undefined ? s.score.mulligans : undefined;
   out.poolSecond = pool && isObj(s.get.second) ? clone(s.get.second) : undefined;
   out.poolRank = pool && s.rank.by === 'standing' ? 'standing' : undefined;
+  // A11 part 2: a pick that never repeats and its fallback; last one standing's end (a pool's or a draft's that cuts).
+  out.poolRepeat = pool && s.get.repeat === 'never' ? 'never' : undefined;
+  out.poolFallback = pool && s.get.repeat === 'never' ? s.get.fallback : undefined;
+  out.rankOneLeft = s.rank.by === 'standing' && s.rank.oneLeft !== undefined ? s.rank.oneLeft : undefined;
+  out.rankAllOut = pool && s.rank.by === 'standing' && s.rank.allOut !== undefined ? s.rank.allOut : undefined;
   // A10 part 3c: a lineup's or best ball's stock market ranked by worth; A11 part 1: a draft's last one standing, its race and its
   // cuts.
   out.draftRank = type === 'active-roster' && s.rank.by === 'worth' ? 'worth' : draft && s.rank.by === 'standing' ? 'standing' : undefined;
@@ -408,9 +427,9 @@ const WAIVER_FIELDS = ['replaceRule', 'replenishAt', 'waiverWindows', 'waiverFee
 const PARTS = [
   { fields: ['leagueTypeId'], read: (s) => typeOf(s) },
   { fields: ['startEpisode', 'startPhase', 'endEpisode'], read: (s) => s.span },
-  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
+  { fields: ['ownershipMode', 'teamSize', 'activeSlots', 'benchSlots', 'bestBall', 'groupSlots', 'poolSecond', 'poolRepeat', 'poolFallback', 'draftDraw', 'draftAcross', 'draftAuction', 'draftBudget', 'draftKeep'], read: (s) => [s.get, s.count] },
   { fields: ['eventPoints', 'pickemCorrectPoints', 'poolSurvive', 'parlays', 'linePoints', 'captainTimes', 'pointsTimes', 'reverseOrder', 'poolLives', 'poolBuyback', 'poolMulligans'], read: (s) => s.score },
-  { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut'], read: (s) => s.rank },
+  { fields: ['poolRank', 'draftRank', 'draftRace', 'draftCut', 'rankOneLeft', 'rankAllOut'], read: (s) => s.rank },
   { fields: ['allowLateJoiners', 'joinMode'], read: (s) => s.extras.join },
   { fields: ['lockedDown'], read: (s) => s.extras.lockedDown },
   { fields: ['seatPeople'], read: (s) => seatPeople(s) },

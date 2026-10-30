@@ -163,7 +163,7 @@ test("a plain pool scores as it always did: no parts, the same rows and table", 
 
 test("lives: a wrong pick, or none, costs one; at none you're out, with no more picks; last one standing", () => {
   const s = league(pool({ lives: 2 }, null, STANDING));
-  assert.deepEqual(S.PickEmLogic.parts(s), { lives: 2, mulligans: 0, buyback: null, second: null, standing: true });
+  assert.deepEqual(S.PickEmLogic.parts(s), { lives: 2, mulligans: 0, buyback: null, second: null, standing: true, never: null, oneLeft: "plays", allOut: "points" });
   picks(s, 1, { ann: [0], bo: [1] });
   gone(s, 1, 0);
   assert.equal(H(s, "ann").lives, 1);

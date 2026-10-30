@@ -506,11 +506,15 @@ class PickEmScoringStrategy {
   static compute(state){
     const results = {};
     const parts = PickEmLogic.parts(state);
+    // A11 part 2: a pool whose end is the pool's walks everyone together, once.
+    const all = PickEmLogic.histories(state);
     state.players.forEach(p=> {
-      const h = PickEmLogic.history(state, p.id);
+      const h = all.get(p.id);
       results[p.id] = {playerId:p.id, name:p.name, color:p.color, locked:h.total, bonus:0, finale:0, total:h.total,
         longestStreak:h.longestStreak, currentStreak:h.currentStreak, roster:[], formerRoster:[]};
       if(parts) Object.assign(results[p.id], { lives: h.lives, out: h.out, mulligans: h.mulligans, buybacks: h.buybacks });
+      // A11 part 2: out the night everyone left went out, sharing the win (allOut 'share').
+      if(h.shared) results[p.id].shared = true;
     });
     const rows = Object.values(results);
     if(parts && parts.standing) return rows.sort((a,b) => PickEmScoringStrategy.compareKeys(PickEmScoringStrategy.standingKey(b), PickEmScoringStrategy.standingKey(a)));
@@ -518,9 +522,10 @@ class PickEmScoringStrategy {
   }
   // Last one standing's order, as a key compared from its first number on (higher first): whoever's still in before whoever's
   // out; those in by their points, then lives left; those out by the episode they went out in (later first), then their points.
+  // A11 part 2: those who share the win (out the night everyone left went out, allOut 'share') tie, whatever their points.
   static standingKey(r){
     const out = Number.isInteger(r.out) ? r.out : null;
-    return out === null ? [1, r.total, r.lives || 0] : [0, out, r.total];
+    return out === null ? [1, r.total, r.lives || 0] : [0, out, r.shared ? 0 : r.total];
   }
   static compareKeys(a, b){
     for(let i = 0; i < Math.max(a.length, b.length); i++){
@@ -716,8 +721,9 @@ class KnockoutLogic {
         if(!key) return;
         KnockoutLogic.cut(left, key, c).forEach(id => out.set(id, k));
       });
-      // One left of everyone (whatever their start; someone catching up counts): it's over.
-      if(parts.cuts.length && everyone.length >= 2 && everyone.filter(p => !out.has(p.id)).length <= 1) ends = k;
+      // One left of everyone (whatever their start; someone catching up counts): it's over, unless the game plays on (A11 part
+      // 2: oneLeft 'plays', the last one's points still growing).
+      if(parts.cuts.length && parts.oneLeft === 'ends' && everyone.length >= 2 && everyone.filter(p => !out.has(p.id)).length <= 1) ends = k;
     }
     return { out, ends, series };
   }
@@ -735,8 +741,9 @@ class KnockoutLogic {
     if(c.tie === 'all' && below.length + at.length < n) return [...below, ...at].map(r => r.id);
     return below.map(r => r.id);
   }
-  // Where the game ends early: the episode a race was won or one was left, else null.
-  static endsAt(state){ return KnockoutLogic.on(state) ? KnockoutLogic.run(state).ends : null; }
+  // Where the game ends early: the episode a race was won or one was left, else null. A11 part 2: a pool's too, where one or none
+  // left ends it (PickEmLogic.endsAt), so lastEpisode, gameOver, spanView and endedBefore read both.
+  static endsAt(state){ return KnockoutLogic.on(state) ? KnockoutLogic.run(state).ends : PickEmLogic.endsAt(state); }
   // Each player knocked out, and the last episode that counts for them (Map playerId -> episode number).
   static outs(state){ return KnockoutLogic.on(state) ? KnockoutLogic.run(state).out : new Map(); }
   // The last episode that counts for someone knocked out, or null while they're in.
@@ -2700,12 +2707,18 @@ class PickEmLogic {
   // A pool's second pick (A10 part 2) counts in the cycle, and blocks back to back, once its episode is decided and it counted
   // (a night two went home, or always with fallback 'counts'): a void one never played. Someone out of a pool with lives
   // (history's `out`, before this episode) can pick nobody: { available: [], blocked: {}, out }.
+  //
+  // A11 part 2: a pick that never repeats (parts.never) blocks everyone they've picked in their own season (reason 'used'), with no
+  // fallback here: once they've picked everyone still in there's nobody to pick (its fallback is history's: a miss, or a night
+  // that doesn't count). After a pool's early end (one or none left) nobody picks: { available: [], blocked: {}, ended }.
   static eligibility(state, epId, playerId){
     const ep = PickEmLogic.findEpisode(state, epId);
     const remaining = state.castaways.filter(c => c.status === 'active').map(c => c.id);
     const blocked = {};
     if(!ep) return { available: remaining, blocked };
     const parts = PickEmLogic.parts(state);
+    const ended = parts && parts.oneLeft === 'ends' ? PickEmLogic.endsAt(state) : null;
+    if(ended !== null && ep.number > ended) return { available: [], blocked, ended };
     if(parts && parts.lives !== null){
       const out = PickEmLogic.history(state, playerId, parts).out;
       if(out !== null && out < ep.number) return { available: [], blocked, out };
@@ -2720,6 +2733,13 @@ class PickEmLogic {
         if(pick.second && PickEmLogic.secondCounted(state, e, parts)) made.push({ number: e.number, castawayId: pick.second });
         return made;
       });
+    if(parts && parts.never){
+      // Only the picks their own season played (from their start, in the game's span), as history counts them.
+      const from = GhostLogic.startFor(state, playerId);
+      const picked = new Map(prior.filter(x => from !== null && x.number >= from && inPlay(state, x.number)).map(x => [x.castawayId, x.number]));
+      remaining.forEach(id => { if(picked.has(id)) blocked[id] = { episode: picked.get(id), reason: 'used' }; });
+      return { available: remaining.filter(id => !picked.has(id)), blocked };
+    }
     const covers = (cycle) => remaining.every(id => cycle.has(id));
     let cycle = new Map(); // castawayId -> episode number picked in, this cycle
     prior.forEach(x => {
@@ -2783,45 +2803,80 @@ class PickEmLogic {
   // when it didn't count) is judged with the first: a night's right picks count first, then its wrong ones, so a night with a
   // wrong pick ends the streak whichever it was; a missing second pick is nothing, never a miss (nobody knew it was a double).
   // `parts`: the pool's, when the caller has them.
+  //
+  // A11 part 2: a pick that never repeats (parts.never), on a night they'd picked everyone still in at its start: with its
+  // fallback 'miss' it's a missed pick, as any night without one; with 'skip' nothing counts that night (a row with `skipped`,
+  // correct null: no points, no life lost, the streak holds). And a pool whose end is the pool's, not each player's (together:
+  // one left ends it, or the night everyone left goes out isn't all of them out by their points) reads each one's season from
+  // the pool's walk (PickEmLogic.walk): nothing after the episode it ended, and a night everyone left went out spared (`spared`
+  // on its row: back with the lives they had that night) or shared (`shared` on the history: they share the win).
   static history(state, playerId, parts){
+    if(parts === undefined) parts = PickEmLogic.parts(state);
+    if(!PickEmLogic.together(parts)) return PickEmLogic.solo(state, playerId, parts, null);
+    const w = PickEmLogic.walk(state, parts);
+    return w.of.has(playerId) ? w.of.get(playerId) : PickEmLogic.solo(state, playerId, parts, w.ends);
+  }
+  // One player's season on its own: every episode it plays, in order, through `to` (null: its span's end).
+  static solo(state, playerId, parts, to){
+    const st = PickEmLogic.stepper(state, playerId, parts, to);
+    [...state.episodes].sort((a,b) => a.number - b.number).forEach(st.step);
+    return st.result();
+  }
+  // One player's season walked an episode at a time (history's): `step(ep)` plays an episode, in order; `t` what it carries
+  // (lives, out, ...); `spare(n, was)` takes back the night that sent them out (the lives and mulligans they had before it);
+  // `result()` the history. `to`: the episode the pool ended at, nothing after it played (null: its span's end).
+  static stepper(state, playerId, parts, to){
     const score = gameOf(state).score;
     const perCorrect = score.by === 'survive' && typeof score.points === 'number' ? score.points : 1;
-    if(parts === undefined) parts = PickEmLogic.parts(state);
     const byScore = PickEmLogic.byScore(state);
-    const rows = [];
-    let current = 0, longest = 0, total = 0;
-    let lives = parts ? parts.lives : null, mulligans = parts ? parts.mulligans : 0;
-    let buybacks = parts && parts.buyback ? parts.buyback.times : 0, cost = 0, out = null;
+    const t = { rows: [], current: 0, longest: 0, total: 0, lives: parts ? parts.lives : null, mulligans: parts ? parts.mulligans : 0,
+      buybacks: parts && parts.buyback ? parts.buyback.times : 0, cost: 0, out: null, shared: false };
     // One pick's outcome: right (the streak grows), or wrong: a mulligan forgives it, else the streak resets and, with lives
     // left, it costs one.
     const settle = (right) => {
-      if(right){ current++; total += perCorrect; longest = Math.max(longest, current); return { correct: true, points: perCorrect }; }
-      if(mulligans > 0){ mulligans--; return { correct: false, points: 0, forgiven: true }; }
-      current = 0;
-      if(lives === null || lives === 0) return { correct: false, points: 0 };
-      lives--;
+      if(right){ t.current++; t.total += perCorrect; t.longest = Math.max(t.longest, t.current); return { correct: true, points: perCorrect }; }
+      if(t.mulligans > 0){ t.mulligans--; return { correct: false, points: 0, forgiven: true }; }
+      t.current = 0;
+      if(t.lives === null || t.lives === 0) return { correct: false, points: 0 };
+      t.lives--;
       return { correct: false, points: 0, lifeLost: true };
     };
     // Episodes before the league started are history, not missed picks (settings.startEpisode).
     // A late joiner's season starts at their own episode (GhostLogic.startFor).
     const from = GhostLogic.startFor(state, playerId);
-    [...state.episodes].filter(ep => ep.number >= from && inPlay(state, ep.number)).sort((a,b) => a.number - b.number).forEach(ep => {
-      if(out !== null) return;
+    // A pick that never repeats: who they've used (a first pick once made, a second once it counted), and who was still in at an
+    // episode's start (nobody who'd left in one before it).
+    const never = parts && parts.never;
+    const used = new Set();
+    const epNo = never ? new Map((state.episodes || []).map(e => [e.id, e.number])) : null;
+    const spent = (ep) => !(state.castaways || []).some(c => !used.has(c.id) && !(c.status === 'eliminated' && (epNo.get(c.exitEpisodeId) || 0) < ep.number));
+    const step = (ep) => {
+      if(t.out !== null || from === null || ep.number < from || !inPlay(state, ep.number) || (Number.isInteger(to) && ep.number > to)) return null;
       const pick = (ep.picks||[]).find(pk => pk.playerId === playerId) || null;
       const second = parts && parts.second && pick && pick.second ? pick.second : null;
       if(!PickEmLogic.decided(ep, state)){
         if(pick){
-          const row = { episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick.castawayId, correct: null, points: 0, streak: current };
+          const row = { episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick.castawayId, correct: null, points: 0, streak: t.current };
           if(second) row.second = { castawayId: second, correct: null, points: 0 };
-          rows.push(row);
+          t.rows.push(row);
+          used.add(pick.castawayId);
         }
-        return;
+        return null;
+      }
+      // Nobody left they could pick (a pick that never repeats, skipped): nothing counts that night.
+      if(!pick && never && never.fallback === 'skip' && spent(ep)){
+        const row = { episode: ep.number, postMerge: !!ep.postMerge, castawayId: null, correct: null, points: 0, streak: t.current, skipped: true };
+        if(t.lives !== null) row.lives = t.lives;
+        t.rows.push(row);
+        return row;
       }
       // Correct = the picked person isn't among this episode's eliminations (or, surviving by scoring, scored in it). Derived
       // live from the episode rather than stored, so logging or undoing a result can't leave it stale.
       const survived = (id) => !!id && (byScore ? PickEmLogic.scored(state, ep, id) : !ep.events.some(ev => ev.castawayId === id));
       const row = { episode: ep.number, postMerge: !!ep.postMerge, castawayId: pick ? pick.castawayId : null, correct: false, points: 0, streak: 0 };
       const counts = !!second && PickEmLogic.secondCounted(state, ep, parts);
+      if(pick) used.add(pick.castawayId);
+      if(counts) used.add(second);
       const judged = [['first', survived(pick && pick.castawayId)]];
       if(counts) judged.push(['second', survived(second)]);
       const outcome = {};
@@ -2830,23 +2885,91 @@ class PickEmLogic {
       judged.filter(([, right]) => !right).forEach(([k]) => { outcome[k] = settle(false); });
       Object.assign(row, outcome.first);
       if(second) row.second = counts ? { castawayId: second, ...outcome.second } : { castawayId: second, correct: null, points: 0, void: true };
-      row.streak = current;
+      row.streak = t.current;
       // A night that emptied their lives: bought back from the next episode, or out for good.
-      if(lives === 0){
-        if(buybacks > 0 && PickEmLogic.canBuyBack(state, parts.buyback, ep.number)){
-          buybacks--; lives = 1; cost += parts.buyback.cost; total -= parts.buyback.cost;
+      if(t.lives === 0){
+        if(t.buybacks > 0 && PickEmLogic.canBuyBack(state, parts.buyback, ep.number)){
+          t.buybacks--; t.lives = 1; t.cost += parts.buyback.cost; t.total -= parts.buyback.cost;
           row.boughtBack = parts.buyback.cost;
         } else {
-          out = ep.number;
+          t.out = ep.number;
           row.out = true;
         }
       }
-      if(lives !== null) row.lives = lives;
-      rows.push(row);
-    });
-    const h = { rows, total, longestStreak: longest, currentStreak: current };
-    if(parts) Object.assign(h, { lives, out, mulligans, buybacks, cost });
-    return h;
+      if(t.lives !== null) row.lives = t.lives;
+      t.rows.push(row);
+      return row;
+    };
+    // The night taken back: its lives, mulligans and streak as they were before it (a right second pick's points stay).
+    const spare = (n, was) => {
+      const row = t.rows[t.rows.length - 1];
+      if(t.out !== n || !row || row.episode !== n) return;
+      t.out = null;
+      t.lives = was.lives;
+      t.mulligans = was.mulligans;
+      t.current = was.current;
+      for(const r of [row, row.second]) if(r){ delete r.lifeLost; delete r.forgiven; }
+      delete row.out;
+      row.streak = was.current;
+      row.lives = was.lives;
+      row.spared = true;
+    };
+    const result = () => {
+      const h = { rows: t.rows, total: t.total, longestStreak: t.longest, currentStreak: t.current };
+      if(parts) Object.assign(h, { lives: t.lives, out: t.out, mulligans: t.mulligans, buybacks: t.buybacks, cost: t.cost });
+      if(t.shared) h.shared = true;
+      return h;
+    };
+    return { t, step, spare, result };
+  }
+  // A11 part 2: whether a pool's end is the pool's, not each player's: one left ends it, or the night everyone left goes out
+  // isn't all of them out by their points (parts.oneLeft, parts.allOut, a pool with lives ranked by who's still standing).
+  static together(parts){ return !!(parts && parts.oneLeft && (parts.oneLeft === 'ends' || parts.allOut !== 'points')); }
+  // The pool's walk (A11 part 2), everyone together an episode at a time, worked out from the data on every read as a draft's
+  // knockouts are: { of: Map playerId -> history, ends: the episode the game ended at (one or none left), else null }.
+  //   - Who's in it: everyone playing the league's own season (not a late joiner's private one, a ghost, nor someone not yet
+  //     brought in), as KnockoutLogic's. Someone still catching up counts as still in (their season isn't played yet), so they
+  //     hold the end off and nobody else's night is everyone's.
+  //   - The night everyone left goes out (two or more still in at its start, none catching up, all of them out after it): allOut
+  //     'back', they're all back in for the next episode with the lives, mulligans and streak they had before it; 'share', all
+  //     out, sharing the win (standingKey ties them); 'points', all out, ranked by their points. One left going out is just
+  //     going out.
+  //   - oneLeft 'ends': once one or none of everyone is left (of two or more), the game ends after that episode (lastEpisode,
+  //     through KnockoutLogic.endsAt): it's over (gameOver), scores as it stood then (spanView), and nothing after it is played.
+  //   - It reads who went home, as every pool pick is graded (A10 part 2): an episode's early results (who went home, before the
+  //     scoring) decide its picks, so they can end the game too; a correction at its final results works it out again.
+  static walk(state, parts){
+    const everyone = (state.players || []).filter(p => !isGhost(p) && !p.disabled && p.active !== false);
+    const catching = new Set(everyone.filter(p => GhostLogic.isCatchingUp(state, p.id)).map(p => p.id));
+    const steps = new Map(everyone.map(p => [p.id, PickEmLogic.stepper(state, p.id, parts)]));
+    const isIn = p => catching.has(p.id) || steps.get(p.id).t.out === null;
+    let ends = null;
+    const episodes = [...(state.episodes || [])].filter(ep => inPlay(state, ep.number)).sort((a,b) => a.number - b.number);
+    for(const ep of episodes){
+      const before = everyone.filter(isIn);
+      const was = new Map(before.map(p => { const t = steps.get(p.id).t; return [p.id, { lives: t.lives, mulligans: t.mulligans, current: t.current }]; }));
+      steps.forEach(st => st.step(ep));
+      if(!PickEmLogic.decided(ep, state)) continue;
+      const went = before.filter(p => !catching.has(p.id) && steps.get(p.id).t.out === ep.number);
+      if(went.length >= 2 && went.length === before.length){
+        if(parts.allOut === 'back') went.forEach(p => steps.get(p.id).spare(ep.number, was.get(p.id)));
+        else if(parts.allOut === 'share') went.forEach(p => { steps.get(p.id).t.shared = true; });
+      }
+      if(parts.oneLeft === 'ends' && everyone.length >= 2 && everyone.filter(isIn).length <= 1){ ends = ep.number; break; }
+    }
+    const of = new Map([...steps].map(([id, st]) => [id, st.result()]));
+    return { of, ends };
+  }
+  // Every player's history at once (Map playerId -> history), one walk for a pool that walks everyone together: the table's.
+  static histories(state){
+    const parts = PickEmLogic.parts(state);
+    const w = PickEmLogic.together(parts) ? PickEmLogic.walk(state, parts) : null;
+    return new Map((state.players || []).map(p => [p.id, w ? (w.of.get(p.id) || PickEmLogic.solo(state, p.id, parts, w.ends)) : PickEmLogic.solo(state, p.id, parts, null)]));
+  }
+  // Where a pool ends early (A11 part 2: one or none left, with oneLeft 'ends'), else null.
+  static endsAt(state){
+    const parts = PickEmLogic.parts(state);
+    return parts && parts.oneLeft === 'ends' ? PickEmLogic.walk(state, parts).ends : null;
   }
 
   // Silently no-ops on an invalid request (unknown episode/castaway/player, an already-eliminated

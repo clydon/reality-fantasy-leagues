@@ -31,7 +31,10 @@
 //            second? } (one an episode, nobody again until everyone still in is used, never twice running. A10 part 2's second:
 //            { fallback: void | counts }, a second pick beside the first, open every episode, that counts on a night two or more
 //            go home: nothing at a lock says a night is a double, only its results do; on a night only one goes, void (no
-//            points either way) or counts (scored like the first)) | { by: 'card' }
+//            points either way) or counts (scored like the first). A11 part 2: repeat 'never', nobody picked twice in the game
+//            (a second pick that counted included), and its fallback for a night you've picked everyone still in: miss (it's a
+//            missed pick: the streak breaks and, with lives, it costs one) | skip (nothing counts that night for you: no
+//            points, no life lost, the streak holds)) | { by: 'card' }
 //            (bingo) | { by: 'none' }; sports: { by: 'squares' }
 //   count    what of yours counts each episode: { start: n } (your lineup) | { all: true } | { pick: true } | { best: n }
 //            (A9 part 2: best ball, your best n each episode, no lineups; shows and sports) | null (nothing held)
@@ -63,7 +66,12 @@
 //            (nobody tied at the line goes) | all (everyone tied at it goes, never everyone left); quiet cut (a night nobody
 //            goes home is cut like any other) | skip (no cut that night). A knocked-out player scores nothing after their
 //            last episode in, makes no more moves, and in an exclusive draft their castaways are back in the pool. Only final
-//            results move either (an episode with its early results waits): KnockoutLogic in state-logic.js
+//            results move either (an episode with its early results waits): KnockoutLogic in state-logic.js. A11 part 2, beside
+//            last one standing (a pool with lives, or a draft that cuts): oneLeft ends (once one or none of you is left, the
+//            game ends there: a draft's default) | plays (it runs to its end: a pool's default, as A10 part 2 built it); and a
+//            pool's allOut, the night everyone left goes out together: points (they're all out, ranked by their points: the
+//            default) | share (they're all out and share the win, whatever their points) | back (they're all back in for
+//            the next episode, with the lives they had that night). The defaults are the user's (A11 part 2's Noticed)
 //   ask      questions answered before their lock, each settled by data (A4: the question below). Beside a draft, its
 //            finale predictions (finaleQuestions); a game scored by answers, its own (Weekly Calls': the show's calls,
 //            CALLS)
@@ -81,7 +89,9 @@ const VOCAB = {
   'get.by': { draft: 'now', pick: 'now', card: 'now', none: 'now', squares: 'sports' },
   'get.order': { snake: 'now', blind: 'now', draw: 'now', auction: 'now' },
   'get.own': { exclusive: 'now', shared: 'now' },
-  'get.repeat': { cycle: 'now' },
+  'get.repeat': { cycle: 'now', never: 'now' },
+  // A11 part 2: a pick that never repeats, on a night you've picked everyone still in: a missed pick, or nothing that night.
+  'get.fallback': { miss: 'now', skip: 'now' },
   count: { start: 'now', all: 'now', pick: 'now', best: 'now' },
   'score.by': { moments: 'now', place: 'now', survive: 'now', lines: 'now', answers: 'now', stats: 'sports' },
   'score.means': { staysIn: 'now', scores: 'now' },
@@ -142,6 +152,10 @@ const VOCAB = {
   'rank.cut.at': { every: 'now', episode: 'now', phase: 'now' },
   'rank.cut.tie': { keep: 'now', all: 'now' },
   'rank.cut.quiet': { cut: 'now', skip: 'now' },
+  // A11 part 2: last one standing's end (a pool with lives, a draft that cuts): once one or none is left, the game ends there or
+  // plays on; a pool's night everyone left goes out together: all out by their points, all out sharing the win, or all back in.
+  'rank.oneLeft': { ends: 'now', plays: 'now' },
+  'rank.allOut': { points: 'now', share: 'now', back: 'now' },
 };
 
 // A question in `ask` (A4; A6 added who a moment happened to, groups, roles and questions about each person):
@@ -298,6 +312,9 @@ const MAX_MULLIGANS = 3;
 const MAX_BUYBACK_COST = 20;
 const BUYBACK = { times: 1, before: null };
 const SECOND_PICK = { fallback: 'void' };
+/** A11 part 2: a pick that never repeats, its fallback when the spec leaves it out (the user's to set: Noticed): a night you've
+ *  picked everyone still in is a missed pick (the request's words, read strictly). */
+const NEVER = { fallback: 'miss' };
 /** A10 part 3: a spread draft's defaults when the spec leaves them out, and a draw's ownership (names out of a hat: each one
  *  different; the exclusive-or-shared count makes it shared where the pool doesn't cover it). The user's to set (Noticed). */
 const DRAFT_ACROSS = { then: 'keep' };
@@ -471,13 +488,20 @@ const MAX_CUTS = 4;
 const MAX_CUT_OUT = 20;
 const CUT = { out: 1, tie: 'keep', quiet: 'cut' };
 const CUT_AT = ['every', 'episode', 'phase'];
-/** A draft's race and cuts (A11 part 1), read the one way from a whole spec: { race: { to } | null, cuts: [...] }, or null for a
- *  game with neither (every game before it). */
+// A11 part 2: last one standing's end when the spec leaves it out (the user's to set: Noticed), as each was built: a draft that
+// cuts ends once one is left (part 1); a pool with lives plays to its end, and the night everyone left goes out they're all out,
+// ranked by their points (A10 part 2). Read by knockoutParts and poolParts, never filled in (a stored spec reads the same).
+const DRAFT_END = { oneLeft: 'ends' };
+const POOL_END = { oneLeft: 'plays', allOut: 'points' };
+/** A rank's said end value, else the default. */
+const endOf = (rank, key, dflt) => (isObj(rank) && own(VOCAB[`rank.${key}`], rank[key]) ? rank[key] : dflt[key]);
+/** A draft's race and cuts (A11 part 1), read the one way from a whole spec: { race: { to } | null, cuts: [...], oneLeft (part 2:
+ *  ends | plays, for a draft that cuts) }, or null for a game with neither (every game before it). */
 function knockoutParts(s) {
   if (!isObj(s) || !isObj(s.get) || s.get.by !== 'draft' || !isObj(s.rank)) return null;
   const race = isObj(s.rank.race) && isInt(s.rank.race.to, 1) ? { to: s.rank.race.to } : null;
   const cuts = Array.isArray(s.rank.cut) ? s.rank.cut.filter((c) => isObj(c) && isObj(c.at)).map((c) => ({ ...CUT, ...c })) : [];
-  return race || cuts.length ? { race, cuts } : null;
+  return race || cuts.length ? { race, cuts, oneLeft: endOf(s.rank, 'oneLeft', DRAFT_END) } : null;
 }
 /** How many accounts can hold one of a whole spec's seats (extras.seats): 1 unless it shares them. */
 const seatPeople = (s) => (isObj(s) && isObj(s.extras) && isObj(s.extras.seats) && isInt(s.extras.seats.people, 2) ? s.extras.seats.people : 1);
@@ -728,6 +752,8 @@ function fullSpec(spec) {
     if (s.get.repeat === undefined) s.get.repeat = 'cycle';
     // A10 part 2: a second pick says what it leaves out as the defaults (SECOND_PICK).
     if (isObj(s.get.second)) for (const [k, v] of Object.entries(SECOND_PICK)) if (s.get.second[k] === undefined) s.get.second[k] = v;
+    // A11 part 2: a pick that never repeats says its fallback, else the default (NEVER).
+    if (s.get.repeat === 'never' && s.get.fallback === undefined) s.get.fallback = NEVER.fallback;
   }
   // The mechanics' own: a pick counts the pick; nothing held counts nothing; a draft says what counts (no default).
   if (s.count === undefined) s.count = by === 'pick' ? { pick: true } : null;
@@ -801,8 +827,8 @@ function playsAs(s) {
     // A10 part 3c: a stock market can rank by worth.
     if ((count === 'start' || count === 'best') && by('score') === 'moments' && (ranks || (by('rank') === 'worth' && marketOf(s)))) return 'active-roster';
   }
-  // A10 part 2: a pool with lives can rank by who's still standing.
-  if (by('get') === 'pick' && s.get.each === 1 && s.get.repeat === 'cycle' && count === 'pick' && by('score') === 'survive' && (by('rank') === 'streak' || by('rank') === 'standing') && none) {
+  // A10 part 2: a pool with lives can rank by who's still standing. A11 part 2: a pick that never repeats.
+  if (by('get') === 'pick' && s.get.each === 1 && (s.get.repeat === 'cycle' || s.get.repeat === 'never') && count === 'pick' && by('score') === 'survive' && (by('rank') === 'streak' || by('rank') === 'standing') && none) {
     return 'pickem';
   }
   if (by('get') === 'none' && !count && by('score') === 'answers' && by('rank') === 'total') {
@@ -851,7 +877,9 @@ const spanPhase = (span) => (isObj(span) && isObj(span.from) && typeof span.from
  * A pool's lives, buyback, mulligans and second pick (A10 part 2), as the engine plays them (state-logic.js PickEmLogic.parts)
  * and the words say them (describe.js), read the one way from a spec: { lives (null: none, nobody's out), mulligans (0: none),
  * buyback ({ times, before, cost }, only with lives; what it leaves out its defaults), second ({ fallback }), standing (last
- * one standing) }, or null for a pool with none of them (today's) or a game that isn't a pool.
+ * one standing), never (A11 part 2: a pick that never repeats, { fallback }, else null), oneLeft and allOut (A11 part 2: last
+ * one standing's end, with lives ranked standing, their defaults POOL_END; null otherwise) }, or null for a pool with none of
+ * them (today's) or a game that isn't a pool.
  */
 function poolParts(s) {
   if (!isObj(s) || !isObj(s.get) || !isObj(s.score) || s.get.by !== 'pick' || s.score.by !== 'survive') return null;
@@ -859,14 +887,21 @@ function poolParts(s) {
   const lives = isInt(sc.lives, 1) ? sc.lives : null;
   const mulligans = isInt(sc.mulligans, 1) ? sc.mulligans : 0;
   const second = isObj(s.get.second) ? { fallback: own(VOCAB['get.second.fallback'], s.get.second.fallback) ? s.get.second.fallback : SECOND_PICK.fallback } : null;
-  if (lives === null && !mulligans && !second) return null;
+  const never = s.get.repeat === 'never' ? { fallback: own(VOCAB['get.fallback'], s.get.fallback) ? s.get.fallback : NEVER.fallback } : null;
+  if (lives === null && !mulligans && !second && !never) return null;
   let buyback = null;
   if (lives !== null && isObj(sc.buyback)) {
     const b = sc.buyback;
     const points = isNum(sc.points) ? Math.min(Math.max(sc.points, 0), MAX_BUYBACK_COST) : 1;
     buyback = { times: isInt(b.times, 1) ? b.times : BUYBACK.times, before: isObj(b.before) ? b.before : null, cost: isNum(b.cost) && b.cost >= 0 ? b.cost : points };
   }
-  return { lives, mulligans, buyback, second, standing: isObj(s.rank) && s.rank.by === 'standing' };
+  const standing = isObj(s.rank) && s.rank.by === 'standing';
+  const ends = lives !== null && standing;
+  return {
+    lives, mulligans, buyback, second, standing, never,
+    oneLeft: ends ? endOf(s.rank, 'oneLeft', POOL_END) : null,
+    allOut: ends ? endOf(s.rank, 'allOut', POOL_END) : null,
+  };
 }
 
 /**
@@ -1007,7 +1042,12 @@ function specProblems(spec, ctx, opts) {
   }
   if (get.by === 'pick') {
     if (get.each !== 1) add('get.each', 'A pick is one an episode');
-    if (!one('get.repeat', get.repeat)) add('get.repeat', "A pick's repeats: cycle");
+    if (!one('get.repeat', get.repeat)) add('get.repeat', "A pick's repeats: cycle (nobody again until you've picked everyone still in) or never (nobody twice)");
+    // A11 part 2: only a pick that never repeats can run out of people to pick.
+    if (get.fallback !== undefined) {
+      if (get.repeat !== 'never') add('get.fallback', "Only a pick that never repeats runs out of people to pick: repeat 'never'");
+      else if (!one('get.fallback', get.fallback)) add('get.fallback', "A night you've picked everyone still in: miss (a missed pick) or skip (nothing counts that night)");
+    }
     if (count !== 'pick') add('count', 'A pick counts the pick: { pick: true }');
     if (get.second !== undefined) secondPickProblems(get.second, s).forEach(([at, p]) => add(`get.second${at}`, p));
   }
@@ -1057,6 +1097,7 @@ function specProblems(spec, ctx, opts) {
     add('rank.by', "Last one standing is a pool with lives (a wrong pick costs one, and at none you're out) or a draft that knocks players out");
   }
   if (rank.race !== undefined || rank.cut !== undefined) knockoutProblems(rank, s, league).forEach(([at, p]) => add(`rank${at}`, p));
+  if (rank.oneLeft !== undefined || rank.allOut !== undefined) endProblems(rank, s).forEach(([at, p]) => add(`rank${at}`, p));
   // A10 part 3c: worth is a stock market's: cash plus the team at today's prices.
   if (rank.by === 'worth' && !marketOf(s)) add('rank.by', "Ranking by worth is a stock market's (cash plus your team at today's prices): a budget that trades");
   if (!one('closes', s.closes)) add('closes', 'Moves close at the start, daily or weekly');
@@ -1275,7 +1316,7 @@ const KEYS = {
   span: ['from', 'to'],
   from: ['phase', 'at'],
   pool: ['of', 'where'],
-  get: { draft: ['by', 'each', 'order', 'own', 'groups', 'across', 'budget', 'keep'], pick: ['by', 'each', 'repeat', 'second'], card: ['by'], none: ['by'], squares: ['by'] },
+  get: { draft: ['by', 'each', 'order', 'own', 'groups', 'across', 'budget', 'keep'], pick: ['by', 'each', 'repeat', 'second', 'fallback'], card: ['by'], none: ['by'], squares: ['by'] },
   groups: ['slots', 'own', 'swap', 'fallback', 'points'],
   keep: ['each', 'from', 'cost', 'fallback'],
   across: ['of', 'then'],
@@ -1289,7 +1330,7 @@ const KEYS = {
   captain: ['times'],
   when: ['times', 'episode', 'from', 'to', 'phase', 'finale'],
   shrink: ['points', 'per'],
-  rank: ['by', 'race', 'cut'],
+  rank: ['by', 'race', 'cut', 'oneLeft', 'allOut'],
   race: ['to'],
   cut: ['at', 'out', 'tie', 'quiet'],
   cutAt: CUT_AT,
@@ -1505,7 +1546,8 @@ function poolProblems(score, s, league) {
  * A draft's race and cuts (A11 part 1: rank.race, rank.cut), as [[at, problem]]. A race { to: 1 to MAX_RACE points }; cuts a list
  * of 1 to MAX_CUTS, each { at: { every: 1 to MAX_WINDOW } | { episode: n } | { phase: id }, out: 1 to MAX_CUT_OUT | 'half', tie:
  * keep | all, quiet: cut | skip }, ranked last one standing. Both beside a draft (Outlast, a lineup, best ball): a game of
- * questions' and a pool's come with A11 part 2. A new game's cut at an episode is one it plays, before its last (a league's own
+ * questions' come with A11 part 2b; a pool knocks players out with its lives (A10 part 2). A new game's cut at an episode is one
+ * it plays, before its last (a league's own
  * keeps what it plays, as a span changes); a cut at the phase the game starts at has nobody to cut. Which phases there are is
  * the data rule's (settleProblems).
  */
@@ -1514,13 +1556,13 @@ function knockoutProblems(rank, s, league) {
   const draft = isObj(s.get) && s.get.by === 'draft';
   if (rank.race !== undefined) {
     if (!(isObj(rank.race) && isInt(rank.race.to, 1) && rank.race.to <= MAX_RACE)) out.push(['.race', `A race is { to: 1 to ${MAX_RACE} points }: the first there wins`]);
-    else if (!draft) out.push(['.race', "A race is a draft's for now: a game of questions' and a pool's come with A11 part 2"]);
+    else if (!draft) out.push(['.race', "A race is a draft's for now: a game of questions' comes with A11 part 2b"]);
     else if (rank.by !== 'total' && rank.by !== 'standing') out.push(['.race', 'A race is won on points: it ranks by the total, or last one standing']);
   }
   if (rank.cut === undefined) return out;
   const list = rank.cut;
   if (!Array.isArray(list) || !list.length || list.length > MAX_CUTS) return [...out, ['.cut', `Players knocked out is a list of 1 to ${MAX_CUTS} cuts`]];
-  if (!draft) out.push(['.cut', "Knocking players out is a draft's for now: a game of questions' and a pool's come with A11 part 2"]);
+  if (!draft) out.push(['.cut', isObj(s.get) && s.get.by === 'pick' ? "A pool knocks players out with its lives (a wrong pick costs one, and at none you're out): score.lives" : "Knocking players out by their points is a draft's for now: a game of questions' comes with A11 part 2b"]);
   else if (rank.by !== 'standing') out.push(['.by', "A game that knocks players out ranks last one standing: whoever's still in, then whoever went out last"]);
   const first = isObj(s.span) ? spanStart(s.span) : null;
   const last = isObj(s.span) ? s.span.to : null;
@@ -1540,6 +1582,27 @@ function knockoutProblems(rank, s, league) {
     if (own(VOCAB['rank.cut.tie'], c.tie) === undefined) out.push([`${at}.tie`, 'A tie at the line: keep (nobody tied there goes) or all (they all go, never everyone left)']);
     if (own(VOCAB['rank.cut.quiet'], c.quiet) === undefined) out.push([`${at}.quiet`, 'A night nobody goes home: cut (like any other) or skip (no cut that night)']);
   });
+  return out;
+}
+
+/**
+ * Last one standing's end (A11 part 2: rank.oneLeft, rank.allOut), as [[at, problem]]. oneLeft ends | plays, beside last one
+ * standing: a pool with lives or a draft that cuts. allOut points | share | back, a pool's with lives ranked last one standing:
+ * a wrong pick can send everyone left at once, where a draft's cut never takes everyone.
+ */
+function endProblems(rank, s) {
+  const out = [];
+  const pool = isObj(s.get) && s.get.by === 'pick' && isObj(s.score) && s.score.by === 'survive' && s.score.lives !== undefined;
+  const cuts = isObj(s.get) && s.get.by === 'draft' && Array.isArray(rank.cut) && rank.cut.length > 0;
+  const standing = rank.by === 'standing' && (pool || cuts);
+  if (rank.oneLeft !== undefined) {
+    if (own(VOCAB['rank.oneLeft'], rank.oneLeft) === undefined) out.push(['.oneLeft', 'Once one of you is left: ends (the game ends there) or plays (it runs to its end)']);
+    else if (!standing) out.push(['.oneLeft', 'One left is last one standing\'s: a pool with lives, or a draft that knocks players out, ranked by who\'s still standing']);
+  }
+  if (rank.allOut !== undefined) {
+    if (own(VOCAB['rank.allOut'], rank.allOut) === undefined) out.push(['.allOut', 'The night everyone left goes out: points (all out, ranked by their points), share (all out, sharing the win) or back (all back in)']);
+    else if (!(pool && rank.by === 'standing')) out.push(['.allOut', cuts ? "A cut never sends everyone left, so a draft's night can't empty the game" : 'Everyone left going out at once is a pool\'s with lives, ranked by who\'s still standing']);
+  }
   return out;
 }
 
@@ -1854,10 +1917,10 @@ function specWaitsFor(spec) {
 module.exports = {
   SPEC_VERSION, VOCAB, TAKES, SETTLES_FOR, SEASON_TAKES, EACH_SETTLES_FOR, NAMES, NUMBERS, MAX_WINDOW, LATE_HOURS, windowed,
   RANKS, MAX_ORDER, MAX_WITHIN, MAX_CHIPS, MAX_PAIRS, WAGERS, WAGER_TOTAL, SHARES, SHRINK_PER, LEGS, MAX_LEGS, MAX_TIMES, MAX_WHEN, WHEN, PRESETS, PRESET_TYPES, TYPE_PRESETS, PRESET_LABELS, NO_WAIVERS, DRAFT_ROOM,
-  MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, poolParts,
+  MAX_GROUP_SLOTS, GROUP_SLOTS, covers, MAX_LIVES, MAX_BUYBACKS, MAX_MULLIGANS, MAX_BUYBACK_COST, BUYBACK, SECOND_PICK, NEVER, poolParts,
   DRAFT_ACROSS, DRAW_OWN, spreadBounds, MAX_BUDGET, BUDGET, CAP, AUCTION, MAX_BIDS, ceilingFor, budgetParts, TRADE, MARKET_LEFT,
   marketWaivers, marketOf, KEEP, keepParts, SEATS, MAX_SEAT_PEOPLE, seatPeople, teamsOf,
-  MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts,
+  MAX_RACE, MAX_CUTS, MAX_CUT_OUT, CUT, CUT_AT, knockoutParts, DRAFT_END, POOL_END,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
   CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,

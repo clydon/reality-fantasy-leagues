@@ -46,7 +46,9 @@ interface PickEmOutcome {
   lifeLost?: boolean;
 }
 /** A row of a pool's season (PickEmLogic.history): one episode, its pick (and a second pick), the streak after it; with lives,
- *  the lives left, `boughtBack` (its cost) or `out` (for good) when it emptied them. */
+ *  the lives left, `boughtBack` (its cost) or `out` (for good) when it emptied them. Step A11 part 2: `skipped`, a night a pick
+ *  that never repeats had nobody left to pick, skipped by its fallback (nothing counts); `spared`, the night everyone left went
+ *  out, taken back (allOut 'back'). */
 export interface PickEmHistoryRow extends PickEmOutcome {
   episode: number;
   postMerge: boolean;
@@ -56,6 +58,22 @@ export interface PickEmHistoryRow extends PickEmOutcome {
   lives?: number;
   boughtBack?: number;
   out?: boolean;
+  skipped?: boolean;
+  spared?: boolean;
+}
+/** A player's pool season (PickEmLogic.history, pickEmHistory): its rows and streaks; a pool's parts (A10 part 2) add their
+ *  fields only when it has them; A11 part 2's `shared`, out the night everyone left went out, sharing the win. */
+export interface PickEmHistory {
+  rows: PickEmHistoryRow[];
+  total: number;
+  longestStreak: number;
+  currentStreak: number;
+  lives?: number | null;
+  out?: number | null;
+  mulligans?: number;
+  buybacks?: number;
+  cost?: number;
+  shared?: boolean;
 }
 
 /** One question in guided first-time setup, in the order it should be asked. */
@@ -164,9 +182,16 @@ declare const StateLogic: {
   /** The order a game's table ranks a score row in (compareKeys, higher first): a pool's standing or streak, a stock market's
    *  worth (step A10 part 3c), a draft that knocks players out by standing (A11 part 1), else the points. */
   rankKey(state: LeagueState, row: Pick<ScoreRow, "total"> & Partial<ScoreRow>): number[];
-  /** Step A10 part 2: a pool's lives, buyback, mulligans and second pick. */
+  /** Step A10 part 2: a pool's lives, buyback, mulligans and second pick. A11 part 2: a pick that never repeats, and last one
+   *  standing's end (one left ending it, the night everyone left goes out), walked everyone together (walk: each one's history,
+   *  and the episode it ended at). */
   PickEmLogic: {
     parts(state: LeagueState): PoolParts | null;
+    together(parts: PoolParts | null): boolean;
+    walk(state: LeagueState, parts: PoolParts): { of: Map<string, PickEmHistory>; ends: number | null };
+    /** Every player's history at once, one walk where the pool walks everyone together (the table's). */
+    histories(state: LeagueState): Map<string, PickEmHistory>;
+    endsAt(state: LeagueState): number | null;
     /** Whether two or more went home in an episode (a winner's exit isn't one): a night a second pick counts. */
     double(state: LeagueState, ep: Episode): boolean;
     secondCounted(state: LeagueState, ep: Episode, parts?: PoolParts | null): boolean;
@@ -762,7 +787,7 @@ declare const StateLogic: {
   /** Step A11 part 1: a draft's race (rank.race: the first to N points wins, and the game ends there) and players knocked out
    *  (rank.cut), worked out from the data on every read. `out`: the last episode that counts for someone knocked out. */
   KnockoutLogic: {
-    parts(state: LeagueState): { race: { to: number } | null; cuts: { at: { every?: number; episode?: number; phase?: string }; out: number | "half"; tie: "keep" | "all"; quiet: "cut" | "skip" }[] } | null;
+    parts(state: LeagueState): { race: { to: number } | null; cuts: { at: { every?: number; episode?: number; phase?: string }; out: number | "half"; tie: "keep" | "all"; quiet: "cut" | "skip" }[]; oneLeft: "ends" | "plays" } | null;
     on(state: LeagueState): boolean;
     series(state: LeagueState): KnockoutEpisode[];
     run(state: LeagueState): { out: Map<string, number>; ends: number | null; series: KnockoutEpisode[] };
@@ -842,23 +867,13 @@ declare const StateLogic: {
     state: LeagueState,
     epId: string,
     playerId: string
-  ): { available: string[]; blocked: Record<string, { episode: number; reason: "cycle" | "backToBack" }>; out?: number };
+  ): { available: string[]; blocked: Record<string, { episode: number; reason: "cycle" | "backToBack" | "used" }>; out?: number; ended?: number };
   /** A player's Pick'em season with streaks: a row per episode that happened, plus any pending pick. A pool's parts (step A10
    *  part 2: lives, a buyback, mulligans, a second pick) add their fields to the rows and the history, only when it has them. */
   pickEmHistory(
     state: LeagueState,
     playerId: string
-  ): {
-    rows: PickEmHistoryRow[];
-    total: number;
-    longestStreak: number;
-    currentStreak: number;
-    lives?: number | null;
-    out?: number | null;
-    mulligans?: number;
-    buybacks?: number;
-    cost?: number;
-  };
+  ): PickEmHistory;
   /** The episode picks are being made for (the next to reveal when catching up, else the latest). */
   pickEmUpcomingEpisode(state: LeagueState): Episode | null;
   /** A Pool episode is decided once someone went home in it, or it's known nobody did (step 6c); a pool that survives by

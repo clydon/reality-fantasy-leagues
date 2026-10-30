@@ -31,11 +31,13 @@ each keeping up to N of their team there who are on this season's cast, named be
 filling the rest whatever its kind, `KeeperLogic` and `keepers.ts`), and part 4b, a team two people share (2026-10-29: up to N
 accounts on one seat, a second joining by an invite to it, either making its moves, who made each recorded, the lowest mark where the
 seat's state depends on one, one leaving keeping it for the other, each credited on the couch, the exclusive count by teams,
-`shared-seats.ts`, migration 0202), are built. **A10 is done.** A11 is under way, in five parts (2026-10-29): part 1, a race and
+`shared-seats.ts`, migration 0202), are built. **A10 is done.** A11 is under way, in parts (2026-10-29): part 1, a race and
 players knocked out in a draft (first to N points ends it; the guillotine, a cut after an episode or before a phase, last one
-standing, a knocked-out player's castaways back in the pool, `KnockoutLogic`, `lastEpisode`), is built; parts 2 to 5 (a game of
-questions' and a pool's knockouts, co-op, head to head, teams and handicaps) are next, then A12 to A14 overnight (the user's word,
-2026-10-28), stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+standing, a knocked-out player's castaways back in the pool, `KnockoutLogic`, `lastEpisode`), and part 2, a pool's knockouts (a
+pick that never repeats; one or none left ending it, and the night everyone left goes out, as settings: `rank.oneLeft`,
+`rank.allOut`, `PickEmLogic.walk`), are built; part 2b (a game of questions' race and knockouts, walked over its answers), then
+parts 3 to 5 (co-op, head to head, teams and handicaps) are next, then A12 to A14 overnight (the user's word, 2026-10-28),
+stopping before A15. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -3130,7 +3132,14 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   - **Part 2: a race and knockouts in a game of questions and a pool** (s48, w047): a game of questions is scored on the server
     (its answers: `game_answers`, answers.js), so its race and knockouts read the answers (a wrong guess knocks you out); a pool's
     pick that never repeats; a pool that ends with one left and a night everyone left goes out (A10 part 2's items 8 and 9, as
-    settings).
+    settings). **Split (2026-10-29), as its seed allowed:** part 2 is the pool's (w047) and last one standing's end as settings
+    (the shapes 2b reuses), built; **part 2b is the game of questions'** (s48): its race (`rank.race`), its cuts (`rank.cut`) and
+    a wrong answer, or none, knocking you out (lives on the answers), walked over the graded answers on every server read of the
+    game (answer-points.ts, answers.ts, game-view.ts's table, couch-standings, the hub), its end reaching `lastEpisode` and
+    `gameOver` though the state doesn't hold the answers, answers refused for someone out or after the end, `oneLeft` and
+    `allOut` as the pool's, each fallback from the start (a question voided by a format change or F3 part 2's group fallback, an
+    answer research is unsure of, a night nobody goes home skipped by default, a tie, late joiners), and the harness answering
+    nothing for a seat that's out.
   - **Part 3: co-op against the show** (win.coop, s37): the couch's lives together, a night nobody saw coming costing one, the
     game won or lost by all.
   - **Part 4: head to head, with playoffs** (win.h2h): a matchup each episode (`rank.by 'matchups'` for shows; L4 brings it to
@@ -3238,6 +3247,81 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     at 3 to 8. They found the early-results fallback above (The Challenge 39's Episode 3) and the harness's moves. The study doc's
     "A11 part 1: a race and knockouts, replayed blind". The golden replays ran again on the final code: 160 games, 19,361 reads,
     every one the same; `check-knockouts.js` ALL PASS again.
+
+  **As built (A11 part 2, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  current; 1076 tests). **Split** (above): the game of questions' race and knockouts (s48) are part 2b, since a game of questions is
+  scored on the server from `game_answers`, so its walk is over the graded answers on every server read and its end has to reach
+  a state that doesn't hold them: with the pool's pieces, more than a session. Part 2 is the pool's (w047), and last one standing's
+  end as settings, the shapes 2b reuses. Every default and everything a person sees is the user's (Noticed, below).
+  - **The spec** (`schema.js`): `get.repeat` 'never' (VOCAB), nobody picked twice in the game (a second pick that counted
+    included; one that was void never played), and `get.fallback` for a night you've picked everyone still in: miss (a missed
+    pick: the streak breaks, and with lives it costs one; the default, `NEVER`, filled by `fullSpec` only beside 'never') | skip
+    (nothing counts that night). `rank.oneLeft` ends | plays, beside last one standing (a pool with lives, a draft that cuts):
+    once one or none is left, the game ends there or plays on. `rank.allOut` points | share | back, a pool's with lives ranked
+    standing: the night everyone left goes out, all out by their points, all out sharing the win whatever their points, or all
+    back in. Their defaults are as each was built (`DRAFT_END` ends, `POOL_END` plays and points), read by `knockoutParts` and
+    `poolParts`, never filled into a spec (a stored spec reads the same). Refused (`endProblems`, the pick's checks): a fallback
+    beside a pick that cycles (it never runs out), `oneLeft` without last one standing, `allOut` on a draft (a cut never takes
+    everyone) or a pool ranked by its streak; a race or cut beside a pool says a pool knocks players out with its lives, a game of
+    questions' says part 2b. `poolParts` gains `never`, `oneLeft`, `allOut`; `knockoutParts` `oneLeft`. KEYS; the types
+    (index.d.ts: the pick's repeat and fallback, `SpecRank`'s race, cut, oneLeft, allOut). Settings both ways: `poolRepeat`,
+    `poolFallback`, `rankOneLeft` (a pool's or a draft's), `rankAllOut` (`OWNED`).
+  - **Words** (`describe.js`): the sentence ("never the same one twice", "Once one of you is left, it's over.", "If everyone left
+    goes out together, they share the win." or "they're all back in."); How it works: "You can't pick the same castaway twice, all
+    season." and its fallback in place of the cycle's rule, one left ending it, sharing or all back in; a draft that plays on with
+    one left says so. The default `allOut` has no line of its own: the standing rule's "Ties go to the most points" is it.
+  - **The engine** (`state-logic.js` `PickEmLogic`), worked out from the data on every read, as A10 part 2's lives are. `history`
+    became a `stepper` (one player's season an episode at a time: `step`, `spare`, `result`), walked alone (`solo`) or with
+    everyone together (`walk`) when the pool's end is the pool's (`together`: oneLeft 'ends', or allOut other than 'points').
+    The walk: nothing after the episode it ended at; the night everyone left goes out (two or more still in at its start, none
+    catching up, all of them out after it) spared (allOut 'back': the lives, mulligans and streak they had before it, `spared` on
+    the row, its lost life taken off the row) or shared (`shared` on the history and the score row: `standingKey` ties them).
+    `histories` (one walk for the table: `compute` and game-view.ts `tableOf`), `endsAt`. `KnockoutLogic.endsAt` reads a pool's
+    end too, so `lastEpisode`, `gameOver`, `spanView` and `endedBefore` (side bets, the harness) all read it. `eligibility`: after
+    the end nobody picks (`{ available: [], blocked: {}, ended }`, so `setPick` refuses); with 'never', everyone used in their own
+    season blocked (reason 'used'; picks before their start don't count, as history's don't), and nobody left is an empty list
+    (no cycle fallback). A draft's walk ends with one left only with oneLeft 'ends'.
+  - **The fallbacks:** a night with nobody left to pick (miss or skip; a forgotten pick with someone left is a miss either way); a
+    night nobody goes home (every pick survives, as A10 part 2 built: nothing to be wrong about); a tie (points: by points; share:
+    shared); everyone out the same night and one left (the settings); a lone survivor going out is just going out, never spared;
+    late joiners: someone catching up counts as still in (holds the end off, never part of an everyone-out night), a ghost is
+    outside the walk and their season stops at the game's end, a late start counts as in until it starts; a corrected result
+    works the end out again (the game back on, or a shared win become one winner); early results, which say who went home, decide
+    a pool's picks and so can end it (Noticed).
+  - **The tracker:** w047 ✅ (a Survival Pool for Survivor 51 that never repeats, one life, last one standing, none or one left
+    ending it, a shared win); s48 ⏳ A11 part 2b. **Now: 171 ✅** · 74 ⏳ · 1 🆕 · 2 ❓ · 23 💬, of 271; A11's seven left: s48 (2b),
+    win.coop, s37 (part 3), win.h2h (part 4), who.teams, who.handicap, s19 (part 5).
+  - **Tests:** `tests/pool-knockouts.test.js` (new, 6): the shape, defaults, words and settings both ways, and what's refused; a
+    pick that never repeats (a void second unused, a counted one used, a repeat not stored, nobody left a miss or a skipped night,
+    a forgotten pick still a miss, picks before the game's start unused); one left ending it (over, nobody picks after, nothing
+    after it counts, the span unchanged, a corrected result putting it back on) and a pool playing on by default; everyone out
+    the same night by points, shared (the table's T1s) and all back in (lives and streak restored, again the next time, a lone
+    survivor never spared), and not everyone; the field (someone catching up, a ghost); a draft that cuts playing on with one left.
+    `game-spec.test.js`'s fields, `pool-parts.test.js`'s parts. `npm test` 1082.
+  - **API check:** `scripts/dev-test/check-pool-knockouts.js` (new, on new-fixture.js's couch), 19 PASS: the couch's Survival Pool
+    made w047's game through `setGame` with the show's ctx (its fields); Episodes 1 to 5 as each played (sam's pick home in 2, out);
+    the Games tab as jordan reads it (three tied first, sam last); through the pick route, jordan's repeat of her Episode 2 pick
+    not stored (eligibility: used in 2), sam's pick refused; Episode 6 through the season sync, two home, riley out; Episode 7,
+    alex's repeat refused, both picks home: everyone left out together, sharing the win, none left, over at 7 (the Games tab: T1,
+    T1, riley, sam, over), nobody picks for 8; the desk's decision for 7 corrected (re-decided): jordan alone the last one
+    standing, alex second, still over at 7, the Games tab agreeing. `check-pool-parts.js`, `check-knockouts.js` and
+    `check-engine-lab.js --api` ALL PASS. `npx tsc --noEmit -p .` clean.
+  - **Code review** (`/code-review` at high, before the long runs; ten findings). Taken: under allOut 'back' a lone survivor was
+    spared every time (an everyone-out night now needs two or more); never's eligibility counted picks before a player's own
+    season, which history doesn't (a 'skip' night could have read as a miss); a spared night kept its lost life and broken streak
+    on the row (now taken back: lives, mulligans, streak); the sentence read the spec's raw `oneLeft` where the rules read the
+    engine's; the default `allOut` had a redundant line in every pool with lives ranked standing (dropped: "Ties go to the most
+    points" says it); the eligibility types ('used', `ended`, game-view.ts `PickMove`); the table walking the pool once a row (now
+    `histories`, once). Not taken (Noticed): the pick screens reading only `blocked` and a skipped row's `correct: null` (U1's);
+    a pool's end on early results (as its picks are graded); no memo.
+  - **Golden replays** (`golden.js`, HEAD against the working tree, after the code review's fixes): 7 seasons, 160 games, **19,361
+    reads, every one the same** (no game they play repeats never or ends a pool).
+  - **Blind replays** (`blind.js run`, the five seasons, on the final code): **every game ended on all five seasons**, w047 among
+    them (The Challenge 41, 40 and 39 73 of 73, Survivor 49 93 of 93, The Traitors 4 71 of 71), no move refused. w047 was over at
+    1 (The Challenge 41: the premiere sent the tinkerer's pick home), 7, 5, 2 and 10, one left each time; the forgetter and the
+    fan, who don't pick every week, went out after Episode 1 on every season (one life: A10 part 2's item 2 seen live). No night
+    sent everyone left out together and nobody ran out of people to pick: the unit tests and the API check prove those. The study
+    doc's "A11 part 2: a pool's knockouts, replayed blind".
 - **A12. Stages.** A game made of phases or mini-games, each with its own rules and an overall: a second draft at the merge, a
   season of mini-games, a game that scores two ways (bingo lines plus answers), one game across two shows.
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
@@ -3942,6 +4026,50 @@ From A10 part 1 (2026-10-29):
   questions are, not by the season-cast link (`seasonCastId`); someone it can't place scores nothing and still counts in the
   mean. (Whoever next touches the cast link: match by `findSeasonCastaway` with the season's cast rows.)
 
+From A11 part 2 (2026-10-29):
+- **For the user, in a design session (with part 1's and A10's questions), each with a recommendation (built as spec settings,
+  the defaults in `NEVER`, `DRAFT_END` and `POOL_END`, never filled into a spec):**
+  1. A pick that never repeats, once you've picked everyone still in. Built: a missed pick (`get.fallback` 'miss', the default:
+     with one life you're out), or nothing that night ('skip': no points, no life lost, the streak holds). Options: picks open
+     again from then (that's the cycle's rule, `repeat` 'cycle'). Recommended: 'miss' (the request's words read strictly; saving
+     your safest picks for late is the game), the wizard saying it up front ("once you've used everyone still in, you're out of
+     picks").
+  2. One left ends a pool (A10 part 2's item 8, part 1's item 2). Built: `rank.oneLeft`, ends | plays, its default as each was
+     built: a draft that cuts ends, a pool with lives plays on (the last one's points still growing, nobody left to pick for
+     once they go). Recommended: ends everywhere, one rule (flip `POOL_END.oneLeft`), on the user's word.
+  3. The night everyone left goes out (A10 part 2's item 9). Built: `rank.allOut`, points (the default, as built: all out,
+     ranked by their points, a tie sharing it) | share (all out, sharing the win whatever their points: "ties split", w047) |
+     back (all back in for the next episode with the lives, mulligans and streak they had before it; its right second pick's
+     points kept). Only when two or more were left: one left going out is just going out (else a lone survivor under 'back'
+     could never go out: the code review). Recommended: back as the default (the classic pool's rule), share when the maker
+     says ties split.
+  4. The finale: every pool pick is wrong at the finale (A10 part 2's noticed winner bug: the winner's exit is one of its
+     exits), so with one life everyone left goes out together at every finale, and `allOut` decides the winner there: 'back'
+     brings them all back with nothing after it (ranked by points, still in), 'share' ties them all, 'points' ranks them by
+     points. Recommended: fix the finale's grading first (the winner and finalists survive it), so `allOut` only meets real nights.
+  5. What players and the maker are told (a repeat refused, nobody left to pick, the game over early, a shared win, everyone back
+     in) is U1's.
+- **The pick screens read only `blocked`** (game-view.ts `pickOf`, pick-page.tsx): after a pool's early end eligibility is
+  `{ available: [], blocked: {}, ended }`, so the page offers everyone and a refused pick still says "Locked in"; the new 'used'
+  reason has no sentence; a skipped night's row is `correct: null`, which the grid reads as a pick still to be decided. (U1, with
+  A10 part 2's "the screens don't know a pool's parts".)
+- **A pool's end reads early results** (who went home, before the scoring), as every pool pick is graded since A10 part 2: the
+  game can be over, and a winner named, right after an episode, a correction at its final results working it out again. A
+  draft's cuts wait for final results (part 1) because its points come with them; a pool's don't. Recommended: keep; if the user
+  wants "over" to wait for final results, stop the walk's end checks at the newest early episode. (The user's, with item 2.)
+- A catching-up player in a pool with lives reads, in everyone else's copy, as missing the picks they haven't made yet (A10 part
+  2's walk), while the end counts them as still in. (Part 5's late joiners.)
+- Nobody new joins once someone's out is a draft's only (`GhostLogic.allowed` reads `KnockoutLogic.outs`): a pool with lives
+  still lets a late joiner in with all their lives after someone's out. (Part 5's late joiners; the user's, with part 1's item 5.)
+- The pool's walk isn't memoised: a read walks it a few times (lastEpisode, the table's scores and histories, eligibility), each
+  every player through every episode. Nothing at a couch's size; a public pool of hundreds with these settings would want a memo
+  before it's offered. (Whoever next profiles the engine, with part 1's.)
+- Start a game, Game settings and the engine lab offer none of part 2's fields (the lab starts the tracker's rows). (U1.)
+- `tests/status-plate.test.js`'s "weekly default after the draft" fails when `NOW + 3 days` crosses a daylight-saving change: run
+  at 12:24 AM Eastern on 2026-10-30, three days on is 11:24 PM on 1 November (the fall-back hour), two calendar days, so it reads
+  "In 2 days". Nothing in this part touches it; it passes again once the change is behind. (Whoever next touches the status plate:
+  count from a fixed hour of the day, or compare calendar days in the season's zone.)
+
 From A11 part 1 (2026-10-29):
 - **For the user, in a design session (with A10's questions), each with a recommendation (built as spec settings or engine rules,
   the defaults in `CUT` and `KnockoutLogic`):**
@@ -4296,9 +4424,9 @@ From A10 part 2 (2026-10-29):
      joker, a different piece: A14's, if asked for).
   8. Everyone out. Built: the game runs to the season's end with nothing to pick (`gameOver` unchanged), and nobody is named
      the winner early. Recommended: once at most one player is left in (of two or more), the game ends and names them; the
-     user's call, with what the table says then.
+     user's call, with what the table says then. (A11 part 2 built it as a setting, `rank.oneLeft`: its item 2.)
   9. Everyone left goes out on the same night. Built: all out, ranked by their points. Recommended: the classic pool's rule,
-     all of them back for the next episode (not built).
+     all of them back for the next episode. (A11 part 2 built it as a setting, `rank.allOut`, back among its values: its item 3.)
 - **A pick of the season's winner is wrong at the finale** (today's pools too, before this step): `history` grades a pick
   right when its person isn't among the episode's exits, and the winner's "Sole Survivor" is one. So every finale pick is
   wrong, and with lives the finale costs everyone a life. Recommended: the winner (and, by the rulebook, the finalists) survive

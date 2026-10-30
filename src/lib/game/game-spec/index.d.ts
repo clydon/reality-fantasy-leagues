@@ -35,7 +35,9 @@ export type SpecGet =
   | { by: "draft"; each: number; order: "snake" | "blind" | "draw" | "auction"; own: "exclusive" | "shared"; groups?: GroupSlots; across?: DraftAcross; budget?: DraftBudget; keep?: DraftKeep }
   /** A10 part 2's second: a second pick beside the first, open every episode, counting on a night two or more go home (void, or
    *  counts like the first, on a night only one goes). */
-  | { by: "pick"; each: 1; repeat: "cycle"; second?: { fallback: "void" | "counts" } }
+  /** A11 part 2: repeat "never", nobody picked twice in the game, and its fallback for a night you've picked everyone still in
+   *  (miss: a missed pick; skip: nothing counts that night). */
+  | { by: "pick"; each: 1; repeat: "cycle" | "never"; second?: { fallback: "void" | "counts" }; fallback?: "miss" | "skip" }
   | { by: "card" }
   | { by: "none" }
   /** sports */
@@ -85,6 +87,13 @@ export interface SpecRank {
   /** total, streak: today; standing (A10 part 2): last one standing, a pool with lives; worth (A10 part 3c): a stock market's,
    *  cash plus the team at today's prices. sports: matchups, categories, roto. */
   by: "total" | "streak" | "standing" | "worth" | "matchups" | "categories" | "roto";
+  /** A11 part 1, beside a draft: a race (the first to `to` points wins, the game ending there) and players knocked out. */
+  race?: { to: number };
+  cut?: { at: { every: number } | { episode: number } | { phase: string }; out?: number | "half"; tie?: "keep" | "all"; quiet?: "cut" | "skip" }[];
+  /** A11 part 2, beside last one standing: once one or none is left, the game ends there or plays on (a draft's default ends, a
+   *  pool's plays); a pool's night everyone left goes out (all out by points, the default; all out sharing the win; all back). */
+  oneLeft?: "ends" | "plays";
+  allOut?: "points" | "share" | "back";
 }
 
 /** A10 part 2: a pool's buyback. before: a phase of the season or an episode (someone out before it can buy back), or null (any
@@ -506,6 +515,10 @@ export const MAX_MULLIGANS: number;
 export const MAX_BUYBACK_COST: number;
 export const BUYBACK: { times: number; before: null };
 export const SECOND_PICK: { fallback: "void" | "counts" };
+/** A11 part 2: a pick that never repeats, its fallback's default; last one standing's end defaults, a draft's and a pool's. */
+export const NEVER: { fallback: "miss" | "skip" };
+export const DRAFT_END: { oneLeft: "ends" | "plays" };
+export const POOL_END: { oneLeft: "ends" | "plays"; allOut: "points" | "share" | "back" };
 /** A10 part 2: a pool's lives (null: none, nobody's out), mulligans (0: none), buyback (with lives, its defaults filled), second
  *  pick and last one standing, read the one way the engine and the words read them; null for a pool with none, or no pool. */
 export interface PoolParts {
@@ -514,6 +527,11 @@ export interface PoolParts {
   buyback: PoolBuyback | null;
   second: { fallback: "void" | "counts" } | null;
   standing: boolean;
+  /** A11 part 2: a pick that never repeats (its fallback), else null; last one standing's end, with lives ranked standing (else
+   *  null). */
+  never: { fallback: "miss" | "skip" } | null;
+  oneLeft: "ends" | "plays" | null;
+  allOut: "points" | "share" | "back" | null;
 }
 export function poolParts(spec: GameSpec | SpecInput | null | undefined): PoolParts | null;
 /** A10 part 3: a spread draft's defaults, a draw's ownership said alone, and a spread's bounds for a team of `each` over

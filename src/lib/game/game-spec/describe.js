@@ -161,6 +161,8 @@ function sentenceParts(s, w) {
     // A10 part 2: a second pick.
     const second = secondPickOf(s);
     if (second) put(second.fallback === 'counts' ? ', and a second' : ', and a second that counts when two go home', 'get');
+    // A11 part 2: a pick that never repeats.
+    if (poolOf(s).never) put(', never the same one twice', 'get');
   } else if (by === 'card') {
     put(`a new bingo card every ${w.part}`, 'get');
   } else if (by === 'squares') {
@@ -197,6 +199,11 @@ function sentenceParts(s, w) {
     // A10 part 2: lives, a buyback, mulligans; last one standing.
     for (const said of poolPhrases(s, w)) put(` ${said}`, 'score');
     put(s.rank.by === 'standing' ? ' Last one standing wins.' : ' Longest streak wins.', 'rank');
+    // A11 part 2: last one standing's end, as far as the spec says it.
+    const { oneLeft, allOut } = poolOf(s);
+    if (oneLeft === 'ends') put(" Once one of you is left, it's over.", 'rank');
+    if (allOut === 'share') put(' If everyone left goes out together, they share the win.', 'rank');
+    if (allOut === 'back') put(" If everyone left goes out together, they're all back in.", 'rank');
   }
   else if (sc.by === 'answers' && callsAsk(s.ask)) put(' Most right by the finale wins.', 'score');
   else if (sc.by === 'lines') put(isNum(sc.points) && sc.points !== 1 ? ` ${cap(pointsWord(sc.points))} a line; most points by the finale wins.` : ' Most lines by the finale wins.', 'score');
@@ -320,7 +327,8 @@ function knockoutRules(s, w) {
   }
   if (k.cuts.length) {
     out.push(`Once you're out you score nothing more and make no more moves: your points stay where they were.${s.get.own === 'exclusive' ? ` Your ${w.castaways} go back in the pool for everyone else.` : ''}`);
-    out.push("Last one standing wins: whoever's still in by their points, then whoever went out last. Once one of you is left, it's over.");
+    // A11 part 2: or it plays on to its end with one left (oneLeft 'plays').
+    out.push(`Last one standing wins: whoever's still in by their points, then whoever went out last. ${k.oneLeft === 'plays' ? 'With one of you left it plays on to the end, their points still growing.' : "Once one of you is left, it's over."}`);
     out.push("Nobody new joins once someone's out.");
   }
   if (k.race) out.push(`First to ${pointsWord(k.race.to)} wins: the game ends after that ${w.part}, and the most points then win (a tie shares it). If nobody gets there, the most points at the end win.`);
@@ -329,7 +337,7 @@ function knockoutRules(s, w) {
 }
 
 /** A pool's lives, buyback, mulligans and second pick (A10 part 2), as the engine plays them (schema.js poolParts). */
-const poolOf = (s) => poolParts(s) || { lives: null, mulligans: 0, buyback: null, second: null, standing: false };
+const poolOf = (s) => poolParts(s) || { lives: null, mulligans: 0, buyback: null, second: null, standing: false, never: null, oneLeft: null, allOut: null };
 /** A pool's second pick (A10 part 2: get.second), or null. */
 const secondPickOf = (s) => poolOf(s).second;
 /** Until when a buyback holds, as a phrase: " before Merged starts", " before Episode 7", or "" (any time). */
@@ -535,10 +543,22 @@ function rulesOf(s, w) {
     }
     rules.push('Right: your streak grows. Wrong, or no pick: it resets. Your best streak still counts.');
     rules.push(...poolRules(s, w));
-    rules.push(`You can't pick the same ${w.castaway} again until you've used everyone still in, and never two ${w.parts} in a row.`);
+    // A11 part 2: a pick that never repeats, and what a night with nobody left to pick does.
+    const never = poolOf(s).never;
+    if (never) {
+      rules.push(`You can't pick the same ${w.castaway} twice, all season.`);
+      rules.push(never.fallback === 'skip'
+        ? `Once you've picked everyone still in, ${article(w.part)} ${w.part} you've nobody left to pick doesn't count for you, either way.`
+        : `Once you've picked everyone still in, you've nobody left to pick: that counts as a missed pick.`);
+    } else rules.push(`You can't pick the same ${w.castaway} again until you've used everyone still in, and never two ${w.parts} in a row.`);
     rules.push(s.rank.by === 'standing'
       ? "Last one standing wins: whoever's still in, then whoever went out last. Ties go to the most points."
       : 'Longest streak wins; ties go to the most right picks.');
+    // A11 part 2: last one standing's end (the default, all out by points, is the line above's "Ties go to the most points").
+    const { oneLeft, allOut } = poolOf(s);
+    if (oneLeft === 'ends') rules.push(`Once one of you is left, or none, it's over: nobody picks after that ${w.part}.`);
+    if (allOut === 'share') rules.push(`If everyone still in goes out the same ${w.part}, you're all out and share the win, whatever your points.`);
+    if (allOut === 'back') rules.push(`If everyone still in goes out the same ${w.part}, you're all back in for the next, with the lives you had.`);
   } else if (s.score.by === 'answers' && callsAsk(s.ask)) {
     rules.push('No draft, no team. Before each show starts, make two calls about what will happen in it.');
     rules.push('The couch says what happened as it watches: two of you agreeing settles a call.');
