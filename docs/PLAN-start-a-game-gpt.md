@@ -1015,7 +1015,8 @@ UI.
   round 2 from 13:05 UTC, F1's FP1 from 18:30 UTC): handed on. F1's and NASCAR's recorders were restarted at 09:56 UTC, to the same
   ends, to record the core API's session on too (`record-espn-live.js`: L5 part 3b's As built); a field's `--compare` is written,
   so golf's, F1's and NASCAR's compare once final (golf's against the event's final, Sunday; before it, against the round's last
-  answer, which the compare says).
+  answer, which the compare says). No NFL game was on: Sunday's Ravens at Bills (`football/nfl` 401873026, 11-01 18:00 UTC) is
+  being recorded for its `drives.current` (a detached recorder started 10-30, waiting for the kickoff).
 - **A phone's data**: an estimated 15-30 MB a game at 15 s, since every answer is the whole summary (no ETag, so no 304s).
   ESPN's core API pages a game's plays (`sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}/events/{id}/competitions/
   {id}/plays?limit=&page=`, CORS `*`, cached 15 minutes once final), so a poll could fetch only the newest page and a small
