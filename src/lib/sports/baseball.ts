@@ -1,8 +1,9 @@
 import { TeamSport, addStats, count, headerTeams, idOf, inOrder, isFinal, num, ordinal, position as pos, ratio, str, val as n, type Box, type BoxPerson, type EspnPlay, type EspnSummary, type LockCadence, type Periods, type Play, type Position, type PositionGroup, type StatDef, type Stats } from "./sport";
 
-// Baseball (MLB; college baseball reads the same, thinner): its vocabulary and ESPN's readers. ESPN's per-player batting lines
-// have no doubles, triples or total bases (its labels are H-AB AB R H RBI HR BB K #P AVG OBP SLG; only the team totals have
-// them), but its plays do, so they're counted here play by play: a single 1 total base, a double 2, a triple 3, a home run 4.
+// Baseball (the MLB; college baseball is CollegeBaseball, on its vocabulary and this reader): its vocabulary and ESPN's
+// readers. ESPN's per-player batting lines have no doubles, triples or total bases (its labels are H-AB AB R H RBI HR BB K #P
+// AVG OBP SLG; only the team totals have them), but its plays do, so they're counted here play by play: a single 1 total
+// base, a double 2, a triple 3, a home run 4.
 //
 // How ESPN records a game (checked on the 2026 Wild Card and World Series games, 2026-10-28): every pitch is a play
 // ("summaryType" P) with the pitcher and batter, and each at-bat ends in a play-result (N, S when a run scores, C for a
@@ -112,7 +113,7 @@ export function inningsOf(outs: number): string {
 
 /* ---- The play reader's text helpers. ---- */
 
-const SUFFIX = /^(?:jr\.?|sr\.?|ii|iii|iv|v)$/;
+export const SUFFIX = /^(?:jr\.?|sr\.?|ii|iii|iv|v)$/;
 /** For matching a name in ESPN's words: no accents ("Díaz" is "Diaz" in the box score), lower case, one space. */
 export const plain = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
 
@@ -201,7 +202,7 @@ export function clausesOf(text: string, who: (clause: string) => Subject): { id:
   return out;
 }
 
-type Outcome = "single" | "double" | "triple" | "home-run" | "walk" | "intentional-walk" | "hit-by-pitch" | "strikeout" | "sac-fly" | "sac-bunt" | "interference" | "fielders-choice" | "error" | "double-play" | "out";
+export type Outcome = "single" | "double" | "triple" | "home-run" | "walk" | "intentional-walk" | "hit-by-pitch" | "strikeout" | "sac-fly" | "sac-bunt" | "interference" | "fielders-choice" | "error" | "double-play" | "out";
 
 /** What the batter did, from the clause that starts with them ("singled to right", "reached on infield single to shortstop",
  *  "safe at first on throwing error by shortstop Pratt"). */
@@ -225,9 +226,36 @@ export function outcomeOf(rest: string): Outcome {
   return "out";
 }
 
-const HITS: Partial<Record<Outcome, string | null>> = { single: null, double: "2B", triple: "3B", "home-run": "HR" };
+export const HITS: Partial<Record<Outcome, string | null>> = { single: null, double: "2B", triple: "3B", "home-run": "HR" };
 /** Outcomes that aren't an at-bat. */
-const NOT_AB = new Set<Outcome>(["walk", "intentional-walk", "hit-by-pitch", "sac-fly", "sac-bunt", "interference"]);
+export const NOT_AB = new Set<Outcome>(["walk", "intentional-walk", "hit-by-pitch", "sac-fly", "sac-bunt", "interference"]);
+
+/** What a batter's outcome adds to his line and his pitcher's (not a GIDP or RBIs: those are the play's to say). */
+export function batterLines(outcome: Outcome): { batter: Stats; pitcher: Stats } {
+  const b: Stats = { PA: 1 };
+  const pt: Stats = {};
+  if (!NOT_AB.has(outcome)) b.AB = 1;
+  if (outcome in HITS) {
+    b.H = 1;
+    pt.PH = 1;
+    const extra = HITS[outcome];
+    if (extra) b[extra] = 1;
+    if (outcome === "home-run") pt.PHR = 1;
+  }
+  if (outcome === "walk" || outcome === "intentional-walk") {
+    b.BB = 1;
+    pt.PBB = 1;
+    if (outcome === "intentional-walk") b.IBB = 1;
+  }
+  if (outcome === "hit-by-pitch") b.HBP = 1;
+  if (outcome === "strikeout") {
+    b.K = 1;
+    pt.PK = 1;
+  }
+  if (outcome === "sac-fly") b.SF = 1;
+  if (outcome === "sac-bunt") b.SH = 1;
+  return { batter: b, pitcher: pt };
+}
 /** A runner's clause that says they're out. */
 const RUNNER_OUT = /^(?:out\b|thrown out|doubled off|tripled off|caught stealing|picked off|was out|out stretching|tagged out|forced out|called out)/i;
 /** A runner's clause that says they stole a base: ESPN's "stole second", MLB's "steals (6) 2nd base". */
@@ -251,13 +279,30 @@ function pitchCall(type: string): "ball" | "strike" | "automatic" {
   return "strike";
 }
 
-const BASES = ["onFirst", "onSecond", "onThird"] as const;
+export const BASES = ["onFirst", "onSecond", "onThird"] as const;
+const BASE_NAMES: Record<string, number> = { first: 0, "1st": 0, second: 1, "2nd": 1, third: 2, "3rd": 2 };
+
+/** Who's on after a runner's play, from who was on before and what its text says each did: the base each last reaches ("to
+ *  third", "stole second", "safe at third"), gone once they score or are out; anyone it doesn't name stays. */
+export function movedBy(before: (string | null)[], clauses: { id: string | null; rest: string }[]): (string | null)[] {
+  const out = [...before];
+  for (const c of clauses) {
+    if (!c.id) continue;
+    const at = out.indexOf(c.id);
+    if (at >= 0) out[at] = null;
+    if (SCORED.test(c.rest) || RUNNER_OUT.test(c.rest) || /\bto home\b/i.test(c.rest)) continue;
+    const bases = [...c.rest.matchAll(/\b(?:to|at|stole|steals(?: \(\d+\))?) (first|second|third|1st|2nd|3rd)\b/gi)];
+    const to = bases.length ? BASE_NAMES[bases[bases.length - 1][1].toLowerCase()] : at;
+    if (to != null && to >= 0) out[to] = c.id;
+  }
+  return out;
+}
 /** The verbs a batter's clause starts with, for a clause whose name didn't match anyone ("Martin walked"). */
 const BATTER_VERB = /\b(?:singled|singles|doubled|doubles|tripled|triples|homered|homers|hit|walked|walks|intentionally|struck|strikes|called|grounded|grounds|flied|flies|lined|lines|popped|pops|fouled|fouls|bunted|reached|safe)\b/;
 
 export class Baseball extends TeamSport {
   readonly id = "baseball";
-  readonly name = "Baseball";
+  readonly name: string = "Baseball";
   readonly groups = GROUPS;
   readonly positions = POSITIONS;
   readonly statGroups = [
@@ -267,9 +312,27 @@ export class Baseball extends TeamSport {
   readonly stats = STATS;
   readonly periods: Periods = { word: "inning", plural: "innings", regulation: 9, extra: "extra innings" };
   readonly lock: LockCadence = "daily";
-  // College baseball's box is ESPN's other (no pitches seen, a pitcher's name as "Hunter - P Elliott"), so it isn't read as the
-  // MLB's: L5 part 2c.
-  readonly leagues = ["mlb"];
+  // College baseball's box and feeds are ESPN's others: CollegeBaseball.
+  readonly leagues: string[] = ["mlb"];
+  /** Extra innings start with a runner on second (the MLB's since 2020): a runner nobody put on base is the half's first
+   *  pitcher's, unearned. College has none (CollegeBaseball). */
+  protected readonly runnerOnSecond: boolean = true;
+
+  /** Whether a runner's play-result that lists no one on base moves them as its text says (college's list no one); the MLB's
+   *  list who's on after them. */
+  protected readonly basesFromText: boolean = false;
+
+  /** Whether runners the text names scoring, each on base before the play, stand when ESPN's scoreValue says fewer (college's
+   *  can); the MLB's count stands. */
+  protected readonly namedRunsStand: boolean = false;
+
+  /** The outs ESPN says a batter's play-result leaves, which settles a play whose text doesn't say who was out; null to count
+   *  the text's alone. The MLB's are the outs after it (`read`: the text's count, `before`: the outs before it). */
+  protected outsSaid(p: EspnPlay, before: number, read: number): number | null {
+    void before;
+    void read;
+    return num(p.outs);
+  }
 
   /** "Top 3rd", "Bottom 10th". */
   where(play: Pick<Play, "period" | "half" | "clock" | "shootout">): string {
@@ -470,7 +533,7 @@ export class Baseball extends TeamSport {
         if (!id || bases.includes(id)) continue;
         const was = bases[b];
         const from = was && !on.includes(was) ? runners.get(was) : null;
-        runners.set(id, from ? { ...from } : { pitcher: pitcherOf.get(fielding()) ?? null, unearned: !was });
+        runners.set(id, from ? { ...from } : { pitcher: pitcherOf.get(fielding()) ?? null, unearned: !was && this.runnerOnSecond });
       }
       for (const id of bases) if (id && !on.includes(id)) runners.delete(id);
       bases = on;
@@ -592,7 +655,10 @@ export class Baseball extends TeamSport {
       }
 
       const before = bases;
-      const after = basesOf(p);
+      // Who's on after it, as ESPN lists them (a play-result lists the bases after it); in a feed whose runner's play-results list
+      // nobody (college's wild pitch or balk), as its text moves them (below).
+      const listsBases = !!listed || BASES.some((b) => p.participants?.some((x) => x.type === b));
+      let after = basesOf(p);
       const onBefore = before.filter((x): x is string => !!x);
       const was = new Map(runners);
       // The at-bat's batter, listed or not.
@@ -602,6 +668,7 @@ export class Baseball extends TeamSport {
       const cast = new Set<string>([...onBefore, ...after.filter((x): x is string => !!x), ...(atBatter ? [atBatter] : [])]);
       const side = [...teamOf.entries()].filter(([, t]) => t === batting()).map(([id]) => id);
       const clauses = clausesOf(text, (c) => whoStarts(cast)(c) ?? whoStarts(side)(c) ?? whoStarts(names.keys())(c));
+      if (!listsBases && this.basesFromText) after = movedBy(before, clauses);
       const deltas: Record<string, Stats> = {};
 
       // The batter: the one listed, or the at-bat's when a clause starts with them doing a batter's thing (a strikeout they
@@ -631,12 +698,17 @@ export class Baseball extends TeamSport {
       }
       if (batter && outcome === "home-run" && !scored.includes(batter)) scored.push(batter);
       if (scored.length !== runs) {
+        // The text named more: not someone who wasn't on base (who'd scored already: college's "J. Pyne scored" again after his
+        // run on a balk).
+        for (const id of [...scored]) if (scored.length > runs && id !== batter && !before.includes(id)) scored.splice(scored.indexOf(id), 1);
         // The text didn't name them all: the runners who aren't on base after it and weren't put out, lead runner first.
         const outNamed = new Set(clauses.filter((c) => c.id && RUNNER_OUT.test(c.rest)).map((c) => c.id!));
         const gone = [...before].reverse().filter((x): x is string => !!x && !after.includes(x) && !outNamed.has(x) && !scored.includes(x));
         while (scored.length < runs && gone.length) scored.push(gone.shift()!);
         if (scored.length !== runs) issues?.push(`${idOf(p.id)}: ${runs} run(s), read ${scored.length} scoring: ${text}`);
-        scored.length = Math.min(scored.length, runs);
+        // More than ESPN's count, every one on base before it, stand when the text is the truth (college's scoreValue can say
+        // fewer: "J. Walk and C. Johnson scored" for 1).
+        if (!this.namedRunsStand) scored.length = Math.min(scored.length, runs);
       }
       /** Whether the batter drove a run in (the rules' 9.04): not on a ground ball's double play (a force); on reaching by an
        *  error, only a run from third with fewer than two outs (it would have scored on the out); else unless it scored on a
@@ -689,28 +761,7 @@ export class Baseball extends TeamSport {
 
       // The batter.
       if (batter && outcome) {
-        const b: Stats = { PA: 1 };
-        const pt: Stats = {};
-        if (!NOT_AB.has(outcome)) b.AB = 1;
-        if (outcome in HITS) {
-          b.H = 1;
-          pt.PH = 1;
-          const extra = HITS[outcome];
-          if (extra) b[extra] = 1;
-          if (outcome === "home-run") pt.PHR = 1;
-        }
-        if (outcome === "walk" || outcome === "intentional-walk") {
-          b.BB = 1;
-          pt.PBB = 1;
-          if (outcome === "intentional-walk") b.IBB = 1;
-        }
-        if (outcome === "hit-by-pitch") b.HBP = 1;
-        if (outcome === "strikeout") {
-          b.K = 1;
-          pt.PK = 1;
-        }
-        if (outcome === "sac-fly") b.SF = 1;
-        if (outcome === "sac-bunt") b.SH = 1;
+        const { batter: b, pitcher: pt } = batterLines(outcome);
         if (outcome === "double-play" && /^grounded into (?:a )?double play/i.test(mine?.rest ?? "") && forcedOut()) b.GIDP = 1;
         b.RBI = scored.filter(driven).length;
         add(deltas, batter, b);
@@ -745,7 +796,7 @@ export class Baseball extends TeamSport {
         add(deltas, id, { R: 1 });
         // A runner nobody put on (extra innings' runner on second) counts as reaching on an error: the half's first pitcher's,
         // unearned.
-        const r = id === batter ? { pitcher: charged, unearned: missed > 0 } : (was.get(id) ?? { pitcher: openedBy ?? pitcher, unearned: period > this.periods.regulation });
+        const r = id === batter ? { pitcher: charged, unearned: missed > 0 } : (was.get(id) ?? { pitcher: openedBy ?? pitcher, unearned: this.runnerOnSecond && period > this.periods.regulation });
         const helped = !!(r as Runner | undefined)?.helped && !(outcome && outcome in HITS);
         const earned = !r?.unearned && !helped && chances + missed + missedOuts < 3 && !/\bpassed ball\b/i.test(scoredClause(id)?.rest ?? "");
         add(deltas, r?.pitcher ?? pitcher, { PR: 1, ER: earned ? 1 : 0 });
@@ -756,7 +807,7 @@ export class Baseball extends TeamSport {
       // text doesn't say who was out ("Adell grounded into fielder's choice to third, Soler to second"); a steal's, in the
       // middle of an at-bat, carries the at-bat's, so there the text's count stands (and so does a strikeout's whose batter
       // isn't listed).
-      const said = listed ? num(p.outs) : null;
+      const said = listed ? this.outsSaid(p, outs, made) : null;
       if (said != null && said >= outs && said <= 3 && said !== Math.min(3, outs + made)) {
         issues?.push(`${idOf(p.id)}: read ${made} out(s), ESPN says ${said - outs}: ${text}`);
         made = said - outs;

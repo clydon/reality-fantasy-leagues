@@ -8,7 +8,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("path");
 const jiti = require("jiti")(__filename, { alias: { "@": path.join(__dirname, "..", "src") } });
-const { sportOf, sportById, defaultsFor, allSports } = jiti("../src/lib/sports/index.ts");
+const { sportOf, sportById, defaultsFor, allSports, CollegeBaseball } = jiti("../src/lib/sports/index.ts");
 const { callNames, clausesOf, outcomeOf, outsOf, inningsOf, plain } = jiti("../src/lib/sports/baseball.ts");
 const examples = require("./fixtures/sports-examples.js");
 
@@ -19,7 +19,7 @@ const nameOf = (box, name) => Object.values(box.people).find((p) => p.name === n
 
 test("Baseball's vocabulary: unique stat keys in its groups, positions in its groups, nine innings, daily locks", () => {
   assert.equal(baseball.id, "baseball");
-  assert.equal(sportOf("baseball/college-baseball"), null, "college's box is another (no pitches seen; names otherwise): L5 part 2c");
+  assert.ok(sportOf("baseball/college-baseball") instanceof CollegeBaseball, "college's box and feeds are another: CollegeBaseball (L5 part 2c)");
   assert.equal(sportById("baseball"), baseball);
   assert.equal(sportOf("curling/olympics"), null, "not a sport here");
   assert.ok(allSports().includes(baseball));

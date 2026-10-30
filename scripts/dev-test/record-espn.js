@@ -34,6 +34,8 @@ const KEEP = {
     season: { year: true, type: true },
     competitions: [
       {
+        // When it started (its scheduled time: college baseball's stat crew's clock is read against it).
+        date: true,
         // The period it ended in and its detail ("Final/SO"), and a hockey game's goalies of record.
         status: { period: true, type: { state: true, completed: true, detail: true }, featuredAthletes: [{ name: true, athlete: { id: true }, team: { id: true } }] },
         // A soccer match's shootout is its own score.
@@ -72,8 +74,9 @@ const KEEP = {
 const PLAY = { id: true, type: { type: true }, text: true, period: { type: true, number: true }, wallclock: true, participants: [{ athlete: { id: true }, type: true }] };
 const CLOCKED = { id: true, text: true, period: { number: true, displayValue: true }, clock: { displayValue: true }, wallclock: true, team: { id: true }, scoringPlay: true, scoreValue: true };
 const PLAYS = {
-  // Baseball counts runs from scoreValue and outs from outs, never a play's score (an at-bat's start carries its end's).
-  baseball: { ...PLAY, scoreValue: true, atBatId: true, summaryType: true, atBatPitchNumber: true, outs: true },
+  // Baseball counts runs from scoreValue and outs from outs, never a play's score (an at-bat's start carries its end's); college's
+  // types have no slug, only their text ("Strike Looking"), and its stat crew's games are checked against the score after each.
+  baseball: { ...PLAY, type: { type: true, text: true }, scoreValue: true, atBatId: true, summaryType: true, atBatPitchNumber: true, outs: true, awayScore: true, homeScore: true },
   // Basketball reads a play by its type's text and its shot flags; its people have no roles.
   basketball: { ...CLOCKED, type: { id: true, text: true }, participants: [{ athlete: { id: true } }], shootingPlay: true, pointsAttempted: true },
   // Hockey by its type's abbreviation (a penalty's minutes), its people's roles, and a goal's strength and net.

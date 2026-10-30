@@ -1,5 +1,5 @@
 // The sports (docs/PLAN-start-a-game-gpt.md track L): one class per sport, found by ESPN's sport slug, the first half of a
-// league's path ("baseball" of "baseball/mlb", not yet college baseball, whose box is another; "basketball" of
+// league's path ("baseball" of "baseball/mlb", and, its box and feeds another, "baseball/college-baseball"; "basketball" of
 // "basketball/nba" and "basketball/wnba"; a sport can name the leagues it reads, so a slug can have more than one: college
 // basketball is its own feed, an instance a league, the men's halves and the women's quarters; "football" of "football/nfl"
 // and, its plays written otherwise, "football/college-football" (college-football.ts); "hockey" of "hockey/nhl", not college
@@ -7,6 +7,7 @@
 // "soccer/uefa.champions"). Golf, racing, MMA and tennis come in L5.
 // A game's clock for someone (clock.ts) and a game live on the phone (live.ts) are L2's.
 import { Baseball } from "./baseball";
+import { CollegeBaseball } from "./college-baseball";
 import { Basketball, CollegeBasketball, HALVES } from "./basketball";
 import { Football } from "./football";
 import { CollegeFootball } from "./college-football";
@@ -23,6 +24,7 @@ export * from "./sport";
 export * from "./clock";
 export * from "./live";
 export { Baseball } from "./baseball";
+export { CollegeBaseball } from "./college-baseball";
 export { Basketball, CollegeBasketball } from "./basketball";
 export { Football, defenseId } from "./football";
 export { CollegeFootball } from "./college-football";
@@ -31,7 +33,7 @@ export { Soccer, plainName } from "./soccer";
 
 // A sport's own leagues first: a sport slug can have more than one (basketball's NBA and WNBA, and college's two), each naming
 // the leagues it reads; sportById gives the first, the sport's own.
-const SPORTS: TeamSport[] = [new Baseball(), new Basketball(), new CollegeBasketball("mens-college-basketball", "Men's college basketball", HALVES), new CollegeBasketball("womens-college-basketball", "Women's college basketball"), new Football(), new CollegeFootball(), new Hockey(), new Soccer()];
+const SPORTS: TeamSport[] = [new Baseball(), new CollegeBaseball(), new Basketball(), new CollegeBasketball("mens-college-basketball", "Men's college basketball", HALVES), new CollegeBasketball("womens-college-basketball", "Women's college basketball"), new Football(), new CollegeFootball(), new Hockey(), new Soccer()];
 
 /** The sport by its id ("baseball"): its first, the one for its pro leagues ("basketball": the NBA's and WNBA's), or null for
  *  one not built yet. */

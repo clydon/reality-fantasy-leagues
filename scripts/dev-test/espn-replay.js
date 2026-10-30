@@ -4,7 +4,9 @@
 // (virtual time) and scripts/dev-test/check-live-clock.js. Pure: no server, no database.
 //
 //   const { asOf, bounds, replayClock } = require("./espn-replay");
-//   bounds(summary)                 { first, last, end } in ms: its first play, its last, and when it turns final (a minute after)
+//   bounds(summary, sport)          { first, last, end } in ms: its first play, its last, and when it turns final (a minute after);
+//                                   with its sport, by the sport's own play times (sport.playTimes: college baseball's stat crew
+//                                   stamps its plays 12 hours early, and a live feed answers them when they happen)
 //   asOf(summary, at, { sport })    the summary at `at` (ms), `sport` its TeamSport (src/lib/sports, through jiti):
 //     - plays: ESPN's up to then, in ESPN's order, cut where their times (which never go back: inOrder) pass `at`, as a live
 //       feed lists them; football's: the drives finished by then in drives.previous, the one going on (its plays so far) in
@@ -42,7 +44,7 @@ const isSoccer = (summary) => !summary.plays && !summary.drives && !!(summary.co
 /** The recording's plays in ESPN's order, each with its drive's index (football's) or null; a play listed twice once. Soccer's:
  *  its commentary entries (an entry's play, or nothing for one with none: it's at the time of the one before), then its key
  *  events. */
-function flat(summary) {
+function flat(summary, sport) {
   if (isSoccer(summary)) return { drives: null, list: [...(summary.commentary ?? []).map((c) => ({ p: c.play ?? {}, entry: c })), ...(summary.keyEvents ?? []).map((e) => ({ p: e, key: true }))] };
   if (summary.drives) {
     const drives = [...(summary.drives.previous ?? []), ...(summary.drives.current ? [summary.drives.current] : [])];
@@ -57,21 +59,22 @@ function flat(summary) {
     });
     return { drives, list: out };
   }
-  return { drives: null, list: (summary.plays ?? []).map((p) => ({ p, drive: null })) };
+  const at = sport?.playTimes ? sport.playTimes(summary) : [];
+  return { drives: null, list: (summary.plays ?? []).map((p, i) => ({ p, drive: null, t: at[i] })) };
 }
 
 /** Each play's time as a live feed reaches it: its own, or the latest before it when that's later (or when it has none). */
 function times(list) {
   let last = -Infinity;
-  return list.map(({ p }) => {
-    const t = ms(p.wallclock);
+  return list.map(({ p, t: when }) => {
+    const t = ms(when ?? p.wallclock);
     if (t != null && t > last) last = t;
     return last;
   });
 }
 
-function bounds(summary) {
-  const { list } = flat(summary);
+function bounds(summary, sport) {
+  const { list } = flat(summary, sport);
   const t = (isSoccer(summary) ? list.map(({ p }) => ms(p.wallclock)).filter((x) => x != null).sort((a, b) => a - b) : times(list)).filter((x) => Number.isFinite(x));
   if (!t.length) throw new Error("the recording has no timed plays to replay");
   const last = t[t.length - 1];
@@ -82,10 +85,10 @@ function bounds(summary) {
 const zero = (v) => (typeof v === "number" ? 0 : typeof v === "string" ? v.replace(/\d+/g, "0") : v);
 
 function asOf(summary, at, { sport } = {}) {
-  const b = bounds(summary);
+  const b = bounds(summary, sport);
   if (at >= b.end) return summary;
   const soccer = isSoccer(summary);
-  const { drives, list } = soccer ? { drives: null, list: [] } : flat(summary);
+  const { drives, list } = soccer ? { drives: null, list: [] } : flat(summary, sport);
   const t = times(list);
   let n = 0;
   while (n < list.length && t[n] <= at) n++;

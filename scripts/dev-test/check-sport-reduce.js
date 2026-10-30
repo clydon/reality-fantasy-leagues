@@ -13,13 +13,17 @@
 //   node scripts/dev-test/check-sport-reduce.js --league=football/nfl --weeks=1-5 --season=2025 --seasontype=3
 //        [--cache=<dir>] [--verbose]
 //   node scripts/dev-test/check-sport-reduce.js --league=basketball/mens-college-basketball --from=2026-01-17 --groups=50
+//   node scripts/dev-test/check-sport-reduce.js --league=baseball/college-baseball --from=2026-03-14 --pbp --apart=PC,PST
 //   (any league a sport reads: basketball/nba, basketball/wnba, basketball/womens-college-basketball, hockey/nhl, soccer/eng.1,
 //   soccer/usa.1, soccer/fifa.world ...)
 //
 // --from/--days: the finished games on those days' scoreboards (ESPN's days), at most --max; --weeks: football's weeks instead
 // (its scoreboards go by week; --season and --seasontype with it); --groups: a college board's group (ESPN's own lists only its
-// featured games: --groups=50 is every Division I basketball game that day, --groups=80 college football's FBS); --events: just
-// these. --cache keeps
+// featured games: --groups=50 is every Division I basketball game that day, --groups=80 college football's FBS); --pbp: only the
+// games the board says have play by play; --events: just these. --apart=PC,PST: those stats' differences listed apart (they
+// don't fail a game: college baseball's pitch counts, where ESPN's box and its plays disagree by a pitch now and then). A game
+// whose plays have no one in them (a box and only innings: an empty feed) is listed apart too. Also says the share of ESPN's
+// numbers the plays come to. --cache keeps
 // each finished answer as a file (default: rfl-espn-cache in the OS temp folder: a final game, a day whose games are all over),
 // so running it again asks ESPN nothing. Prints each game
 // OK or its differences (with the reader's notes under --verbose), then a total; exits 1 on any difference.
@@ -56,6 +60,11 @@ const dayOver = (b) => (b.events ?? []).length > 0 && b.events.every((e) => e.st
 /** A college board's group (--groups): its query and its cache file's suffix. */
 const group = args.groups ? { query: `&groups=${args.groups}`, file: `-g${args.groups}` } : { query: "", file: "" };
 
+/** --pbp: only the games the board says have play by play (college baseball's: ESPN's networks' games and the College World
+ *  Series; the rest are a score only). */
+const playable = (e) => !args.pbp || e.competitions?.[0]?.playByPlayAvailable === true;
+const apartKeys = new Set(String(args.apart || "").split(",").filter(Boolean));
+
 async function events() {
   if (args.events) return String(args.events).split(",").filter(Boolean);
   const out = [];
@@ -67,7 +76,7 @@ async function events() {
     const type = args.seasontype || "2";
     for (let w = a; w <= (b || a) && out.length < Number(args.max || 40); w++) {
       const board = await get(`${SITE}/${league}/scoreboard?dates=${season}&seasontype=${type}&week=${w}${group.query}&limit=300`, `${league.replace("/", "-")}-board-${season}-${type}-${w}${group.file}.json`, dayOver);
-      for (const e of board.events ?? []) if (e.status?.type?.completed) out.push(String(e.id));
+      for (const e of board.events ?? []) if (e.status?.type?.completed && playable(e)) out.push(String(e.id));
     }
     return out.slice(0, Number(args.max || 40));
   }
@@ -76,7 +85,7 @@ async function events() {
     const day = new Date(from.getTime() + d * 86400000).toISOString().slice(0, 10).replace(/-/g, "");
     // A day's scoreboard changes until its games are over; only then is it cached.
     const board = await get(`${SITE}/${league}/scoreboard?dates=${day}&limit=300${group.query}`, `${league.replace("/", "-")}-board-${day}${group.file}.json`, dayOver);
-    for (const e of board.events ?? []) if (e.status?.type?.completed) out.push(String(e.id));
+    for (const e of board.events ?? []) if (e.status?.type?.completed && playable(e)) out.push(String(e.id));
   }
   return out.slice(0, Number(args.max || 40));
 }
@@ -89,13 +98,24 @@ function differences(summary) {
   const state = sport.reduce(plays);
   const out = [];
   const judged = [];
-  if (!box) return { out: ["no box score"], judged, notes, plays };
+  const apart = [];
+  const numbers = { all: 0, same: 0 };
+  const bucket = (k) => (apartKeys.has(k) ? apart : sport.stat(k)?.judged ? judged : out);
+  if (!box) return { out: ["no box score"], judged, apart, notes, plays, numbers };
+  // An empty feed (innings and no at-bats: no play with anyone in it): nothing to read. A reader that reads plays with people and
+  // credits none of them still fails.
+  if (!plays.some((p) => p.people.length)) return { out: [], judged, apart, notes, plays, numbers, empty: true };
   for (const [id, p] of Object.entries(box.people)) {
     const have = state.lines[id] ?? {};
     for (const [k, v] of Object.entries(p.stats)) {
       const stat = sport.stat(k);
-      if (stat?.known === "final" || (have[k] ?? 0) === v) continue;
-      (stat?.judged ? judged : out).push(`${p.name} ${k}: ESPN ${v}, plays ${have[k] ?? 0}`);
+      if (stat?.known === "final") continue;
+      numbers.all++;
+      if ((have[k] ?? 0) === v) {
+        numbers.same++;
+        continue;
+      }
+      bucket(k).push(`${p.name} ${k}: ESPN ${v}, plays ${have[k] ?? 0}`);
     }
   }
   for (const [id, have] of Object.entries(state.lines)) {
@@ -108,8 +128,14 @@ function differences(summary) {
       if (p.team !== t.id) continue;
       for (const [k, v] of Object.entries(sport.full(state.lines[id] ?? {}))) sum[k] = (sum[k] ?? 0) + v;
     }
-    for (const [k, v] of Object.entries(t.stats)) if (Math.abs((sum[k] ?? 0) - v) > 1e-9) (sport.stat(k)?.judged ? judged : out).push(`${t.abbreviation} total ${k}: ESPN ${v}, plays ${sum[k] ?? 0}`);
+    for (const [k, v] of Object.entries(t.stats)) {
+      numbers.all++;
+      if (Math.abs((sum[k] ?? 0) - v) > 1e-9) bucket(k).push(`${t.abbreviation} total ${k}: ESPN ${v}, plays ${sum[k] ?? 0}`);
+      else numbers.same++;
+    }
+    numbers.all++;
     if ((state.score[t.id] ?? 0) !== t.score) out.push(`${t.abbreviation} score: ESPN ${t.score}, plays ${state.score[t.id] ?? 0}`);
+    else numbers.same++;
   }
   // The timeline (the plays, then the final's correction) comes to the box score whatever the plays missed.
   const end = sport.reduce(sport.timeline(summary));
@@ -117,7 +143,7 @@ function differences(summary) {
     for (const [k, v] of Object.entries(p.stats)) if ((end.lines[id]?.[k] ?? 0) !== v) out.push(`timeline: ${p.name} ${k}: ESPN ${v}, ${end.lines[id]?.[k] ?? 0}`);
     if (!Object.keys(p.stats).length && end.lines[id]) out.push(`timeline: ${p.name} didn't play but has ${Object.keys(end.lines[id]).join(" ")}`);
   }
-  return { out, judged, notes, plays };
+  return { out, judged, apart, notes, plays, numbers };
 }
 
 (async () => {
@@ -125,6 +151,9 @@ function differences(summary) {
   let bad = 0;
   let plays = 0;
   let calls = 0;
+  let empty = 0;
+  let butApart = 0;
+  const numbers = { all: 0, same: 0 };
   const queue = [...ids];
   const results = new Map();
   await Promise.all(
@@ -148,14 +177,24 @@ function differences(summary) {
       continue;
     }
     const name = r.summary.header?.competitions?.[0]?.competitors?.map((c) => `${c.team?.abbreviation} ${c.score}`).join(" - ");
+    if (r.empty) {
+      empty++;
+      console.log(`NONE  ${id}  ${name}  (${r.plays.length} plays, none crediting anyone: an empty feed)`);
+      continue;
+    }
     plays += r.plays.length;
+    numbers.all += r.numbers.all;
+    numbers.same += r.numbers.same;
     if (r.out.length) bad++;
+    else if (r.apart.length) butApart++;
     if (r.judged.length) calls++;
-    console.log(`${r.out.length ? "FAIL" : "OK  "}  ${id}  ${name}  (${r.plays.length} plays${r.judged.length ? `; the scorer judged ${r.judged.length} otherwise` : ""})`);
+    console.log(`${r.out.length ? "FAIL" : r.apart.length ? "OK*" : "OK  "}  ${id}  ${name}  (${r.plays.length} plays${r.judged.length ? `; the scorer judged ${r.judged.length} otherwise` : ""}${r.apart.length ? `; ${r.apart.length} apart` : ""})`);
     for (const d of r.out) console.log(`        ${d}`);
     for (const d of r.judged) console.log(`        judged: ${d}`);
+    for (const d of r.apart) console.log(`        apart: ${d}`);
     if (args.verbose || r.out.length) for (const n of r.notes) console.log(`        note: ${n}`);
   }
-  console.log(`\n${ids.length - bad} of ${ids.length} games reduce to ESPN's box score (${plays} plays read); in ${calls}, the scorer judged a count otherwise (the final's correction settles it).`);
+  const read = ids.length - empty;
+  console.log(`\n${read - bad - butApart} of ${read} games reduce to ESPN's box score${apartKeys.size ? `, ${read - bad} but for ${[...apartKeys].join(", ")}` : ""} (${plays} plays read; ${numbers.same} of ${numbers.all} numbers, ${((100 * numbers.same) / Math.max(1, numbers.all)).toFixed(1)}%); in ${calls}, the scorer judged a count otherwise (the final's correction settles it).${empty ? ` ${empty} more had an empty feed.` : ""}`);
   process.exit(bad ? 1 : 0);
 })();

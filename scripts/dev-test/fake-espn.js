@@ -59,8 +59,10 @@ async function start(opts = {}) {
     const { league, event } = summary._recorded ?? {};
     const sport = sportsCode().sportOf(league);
     if (!sport) throw new Error(`no sport reads ${league}`);
-    const b = replay.bounds(summary);
-    const clock = replay.replayClock({ from: from ?? b.first - 5 * 60_000, speed });
+    const b = replay.bounds(summary, sport);
+    // From 5 minutes before the game: its first play, or its scheduled start when that's earlier (a recording that keeps it).
+    const starts = Date.parse(summary.header?.competitions?.[0]?.date ?? "");
+    const clock = replay.replayClock({ from: from ?? Math.min(b.first, Number.isFinite(starts) ? starts : b.first) - 5 * 60_000, speed });
     const r = { ...clock, ...b, league, event: String(event), summary, sport };
     espn.replays.push(r);
     return r;

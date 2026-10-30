@@ -138,7 +138,7 @@ test("a clock's game: the plays up to its moment, the last play at or before it 
 test("GameState.score is seeded from the header's sides before the first play, in every recorded game (L1's Noticed)", () => {
   for (const { file, summary } of games) {
     const sport = sportFor(summary);
-    const state = sport.stateAt(summary, bounds(summary).first - 1);
+    const state = sport.stateAt(summary, bounds(summary, sport).first - 1);
     assert.deepEqual(Object.keys(state.score).sort(), sidesOf(summary).sort(), file);
     assert.ok(Object.values(state.score).every((v) => v === 0), file);
   }
@@ -426,7 +426,8 @@ test("every recorded game through the poller, in virtual time: each answer's sta
   const expected = { "nfl-401872958.json": 1, "nhl-401892582.json": 1 };
   for (const { file, summary } of games) {
     const sport = sportFor(summary);
-    const b = bounds(summary);
+    // By the sport's own play times (college baseball's stat crew stamps its plays 12 hours early).
+    const b = bounds(summary, sport);
     const vt = virtual(b.first - 20 * MIN);
     const fetch = replayFetch(summary, vt, sport);
     const truth = known(sport, summary);

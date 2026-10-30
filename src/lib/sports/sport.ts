@@ -490,6 +490,12 @@ export abstract class TeamSport extends Sport {
     return plays;
   }
 
+  /** When each of ESPN's plays (`summary.plays`, in its order) happened: its wallclock, unless a feed's stamps aren't the time
+   *  (college baseball's stat crew's). A recording's replay (scripts/dev-test/espn-replay.js) cuts it by them. */
+  playTimes(summary: EspnSummary): (string | null)[] {
+    return (summary.plays ?? []).map((p) => str(p.wallclock));
+  }
+
   /** The game as of a moment, from ESPN's summary: `reduce(timeline(summary), at)`, its score 0-0 before the first play. */
   stateAt(summary: EspnSummary, at?: string | number | Date | null): GameState {
     return this.reduce(this.timeline(summary), at, headerTeams(summary).map((t) => t.id));

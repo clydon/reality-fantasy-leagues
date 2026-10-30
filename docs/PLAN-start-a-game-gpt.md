@@ -431,7 +431,8 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
   WNBA; then golf and racing (FieldSport); then MMA and tennis (BoutSport).
   - **Part 2 split in three (2026-10-28):** 2a, college basketball and the WNBA (built: As built below); 2b, college football
     (its own grammar of plays, on Football's vocabulary and box reader: built 2026-10-30, As built below); 2c, college baseball
-    (its own box and names, below). **College hockey isn't readable from ESPN** (looked at in 2a, below): left out, as boxing is.
+    (its own box and two feeds: built 2026-10-30, As built below). **College hockey isn't readable from ESPN** (looked at in
+    2a, below): left out, as boxing is.
 - **L6. Release:** `sports` merges into master at once (migrations checked against a production backup first), then G3
   teaches the GPT these formats.
 - Its screens (the scorebug, the live box score, the couch's play feed, players organised, the matchup, sync, each format's
@@ -1000,6 +1001,8 @@ UI.
     three-hour game: more than the 15-30 MB estimated above; HOSTING.md updated).
   - Still to record live: the NFL's `drives.current` (Sunday's games), college football (two FBS games of 2026-10-30 being
     recorded, below) and the WNBA's first live game (its Finals' Game 7, 2026-10-31, being recorded).
+  **L5 part 2c (2026-10-30, from 02:30 ET):** none of the three was final (Baylor at UCF and Tulane at Charlotte start that
+  evening, the WNBA's Game 7 the next): their `--compare` is handed on. No NFL game was on during the session.
 - **A phone's data**: an estimated 15-30 MB a game at 15 s, since every answer is the whole summary (no ETag, so no 304s).
   ESPN's core API pages a game's plays (`sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}/events/{id}/competitions/
   {id}/plays?limit=&page=`, CORS `*`, cached 15 minutes once final), so a poll could fetch only the newest page and a small
@@ -1375,6 +1378,152 @@ stored).** Master still hadn't A1-A4 (the main session's order).
 - **Tackles are the crew's calls, ±1 on many lines**: an IDP game on college football would move at the final. (L3.)
 - Live: two FBS games of 2026-10-30 (Baylor at UCF 401856844, Tulane at Charlotte 401862813) are being recorded by detached recorders
   that stop themselves at each final (`rfl-espn-live/`, a log beside each): the next session runs `--compare` on each.
+
+**L5 part 2c as built: college baseball (2026-10-30, `sports`, not merged; no migration, no ESPN calls from the app, nothing
+stored).** Master still hadn't A1-A4 (the main session's order). With it, L5 part 2 (college and the WNBA) is done.
+- **What ESPN gives** (checked on the 2026 season, February to June, 476 games' summaries, 2026-10-30):
+  - **Every game ESPN lists has its score; a box and play by play only where its scoreboard says `playByPlayAvailable`**: its
+    networks' games (SEC Network, ACC Network, B1G+, ESPN+: 13 of 94 on March 14, 7 of 81 on April 18, 50 on May 9) and every
+    NCAA tournament game (the regionals, super regionals and College World Series). The rest are a score alone, no box lines
+    (152 of 155 such games). The scoreboard with no `groups` lists every game ESPN has (`groups=26` the same; its groups list
+    names 15 Division I conferences).
+  - **Two feeds.** The tournament's is the MLB's shape (every pitch a play, play-results in MLB's words), but its types have no
+    slug, only their text ("Strike Looking"), so the MLB's reader saw no inning start and no pitch's call: 2a's "a starter's 14
+    outs read as 3". The regular season's is **the NCAA stat crew's**: each at-bat a start (its pitcher and batter, who's on and
+    the outs before it) and a result whose text is the official scorer's ("Rylen Stockt doubled to left field, RBI (2-0 BB);
+    David Mendez scored.", "TarpleyJr,Derrick walked (3-1 FBBBB)."): names cut to 12 characters, or last, or last then first,
+    whole or cut ("Rasmu,Cooper", "Allen, He.", "Duplantier J", once the other way round, "M,ILGENFRITZ"); the pitches as
+    letters (B, K called, S swinging, F foul: a strikeout's and a walk's include their last pitch, a ball in play or a hit
+    batter is one more, a signalled intentional walk none); the RBIs ("RBI", "2 RBI", "3RBI") and unearned runs ("scored,
+    unearned") the scorer's own; a steal or a wild pitch in the middle of an at-bat a result of its own; substitutions, notes
+    ("UK mound visit.", the weather) and reviews (12 seen, every call stood) results too. Every regular-season game with plays
+    is the crew's (188 of 188 cached), nearly every tournament game the MLB's shape (130 of 133).
+  - **The crew's wallclocks are its Eastern time on a 12-hour clock, read as the morning but for the noon hour**: 159 of 191
+    games' first plays 12 hours before their start, wherever the game is (California's 24 games and Oregon's 7 as Alabama's), and
+    a game crossing noon steps back 12 hours at 1 PM ("16:04Z" for its first pitch, "06:35Z" for its last). The tournament
+    feed's are right (127 of 130 games within the hour of the start).
+  - **ESPN's box**: #P 0 for every batter (the team's pitches seen too), some pitchers named with their position ("Hunter - P
+    Elliott": 108 of 108 such names a pitcher's " - P "), the team's `pitchCount` 0 (its `pitches` right), its GIDPs, sacrifice
+    flies and bunts always 0. **Its quirks**: the crew's `scoreValue` is 1 for a three-run homer; the tournament's says fewer
+    runs than the text names now and then ("J. Walk and C. Johnson scored" for 1: its box has both), or the text names a runner
+    again after his run on a balk; ESPN's college outs on a play-result count one out at most (a double play's says 1); a
+    runner's play-result in the tournament feed lists no one on base after it, and can say only "." (its words on its typed
+    twin); a college intentional walk is signalled (three "Automatic Ball"s and an "Intentional Ball", none in the box's count);
+    the crew's substitutions and pitching changes list 0 outs, a half can come without its "Start Inning", and an "End Inning"
+    can be filed before the half's last at-bat, or with the next day's time; ids the box hasn't (C. James 95613 in the plays,
+    45549 in the box; Alabama's starter Tyler Adams in the box and "Z. Adams" in the plays, in two games); people the box leaves
+    out (a pinch hitter, a pinch runner).
+  - **College's rules, from the data**: no runner on second in extra innings (every extra inning's first batter came up with the
+    bases empty, 7 games); seven-inning games by the 10-run rule (13-2, 19-3, 10-0 after seven: "Final/7"); the designated
+    hitter as a position (DH), a two-way pitcher listed P in the batting table (1 game): nothing more to read.
+- **`CollegeBaseball`** (`src/lib/sports/college-baseball.ts`, a subclass of `Baseball`; `sportOf("baseball/college-baseball")`,
+  `id` "baseball", so its defaults are baseball's): Baseball's vocabulary. **Its box**: names without their position, no pitches
+  seen (people's or team's), the team's pitches from `pitches`, no team GIDPs, sacrifice flies or bunts. **Its plays, by the feed**:
+  - **The tournament's: Baseball's reader** on the answer normalized (type slugs from their text, "Intentional Ball" automatic,
+    a "." result given its typed twin's words, before or after it), with four hooks in `Baseball`, each the MLB's as before:
+    `runnerOnSecond` (college: none), `outsSaid` (ESPN's college outs settle only an out the text doesn't say), `namedRunsStand`
+    (college: the text's runners, each on base before it, stand when `scoreValue` says fewer) and `basesFromText` (college: a
+    runner's play-result that lists no one on base moves them as its text says, `movedBy`); and one fix for both leagues: a
+    runner the text says scored who wasn't on base (he'd scored already) isn't counted again. `batterLines(outcome)`, the
+    outcome vocabulary (`Outcome`, `HITS`, `NOT_AB`) and `BASES` are exported for both readers. **The MLB's 341 cached games
+    read exactly as before**, every count of every line.
+  - **The stat crew's: its own reader** (`readCrew`): ESPN's bases, outs and pitcher from each start and result, the rest from the
+    text: its clauses (`crewClauses`), the batter's outcome (`crewOutcome`: catcher's interference puts him on, a batter's or a
+    runner's is an out), the pitches (`crewPitches`), each name by `crewNameFit` (the forms above); the batter the one ESPN lists
+    however the crew spells him ("Stanford" for Cole Standford); an id the box hasn't is the one on his side the at-bat's start
+    names ("Z. Adams pitches to C. James"; by the last name when only one there has it); someone the box leaves out kept under
+    ESPN's id (his run is still a run, his strikeout the pitcher's; the final's correction takes his own line back); runs charged
+    to the pitcher who put the runner on (a pinch runner takes his runner's, listed in the box or not; a batter safe on a
+    fielder's choice the forced runner's); the outs the text's (ESPN's only check them: they lag it now and then, a sacrifice's
+    out missing from the next start), never more than three a half, and a half the game went on from ending on three (the
+    pitcher on the mound getting any the text didn't say), each half by its plays' own inning; notes and reviews nothing (one
+    overturned is noted for the checks).
+  - **The crew's clock put right** (`crewTimes`): each play its stamp, or 12 hours more (or past midnight, "12:15" read as noon
+    on the new date, 12 hours less): the first the one nearest the scheduled start, each after it the earliest not before the
+    play before it, never between 2 and 9 in the morning Eastern (a game suspended at night resumes the next afternoon: 4 such
+    games read right); only an at-bat's start and results set it, any other row at the clock's time. **`TeamSport.playTimes
+    (summary)`** (new): when each of ESPN's plays happened (its wallclock, but the crew's put right), by which `espn-replay.js`
+    now cuts a recording (`bounds(summary, sport)`; `fake-espn.js` and `sports-live.test.js` pass the sport, and a replay starts
+    5 minutes before the earlier of the first play and the scheduled start).
+- **Defaults: baseball's file, unchanged.** A college box's positions (C, 1B, 2B, 3B, SS, LF, CF, RF, DH, PH, PR, P) each fill a
+  default slot; neither Yahoo nor ESPN runs a college baseball game to take other defaults from.
+- **Fixtures** (`record-espn.js` now keeps a play type's text, a play's score after it and the header's start time, which the
+  crew's clock is read against; 102-285 KB from 292-745 KB): the 2026 College World Series final's Game 3, Oklahoma 13 North
+  Carolina 2 (`college-baseball-401874453.json`: the tournament feed, "J. Walk and C. Johnson scored" for a `scoreValue` of 1),
+  Georgia 26 at Arkansas 14, 2026-04-18 (`college-baseball-401847137.json`: the crew's, its clock 12 hours early, "OShaughnessy",
+  "Allen, He.", unearned runs) and LSU at Ole Miss, 12-2 in seven innings, 2026-04-11 (`college-baseball-401847368.json`).
+- **Checks.**
+  - `tests/sports-college-baseball.test.js` (12): the vocabulary (the MLB's still the slug's own); the defaults' slots filled by
+    a college box's positions; the box (names, no pitches seen, the team's pitches); **the proof** on all three fixtures (every
+    number but one of LJ Mercurius's pitches, ESPN's own; the team totals and the score); the tournament feed (types by their
+    text, the text's runners standing); the crew's text (clauses, outcomes, pitches from the letters, 16 name forms and 5 that
+    aren't a fit); the crew's plays (RBIs and unearned runs the scorer's, runs charged to whoever put the runner on, a runner's
+    play of its own); the clock (12 hours early, noon, a Pacific game, past midnight, a late start, a suspension, an "End
+    Inning" filed late; the recorded games at their start); college's rules (seven innings by the run rule; a tenth inning's
+    runner nobody put on is earned, the MLB's reader has him unearned); `stateAt` at moments and the final's correction (only
+    final-only stats and ESPN's pitch count; with it every number; none live; a cut answer reads as the whole's first so many);
+    and on made-up games the crew's quirks (a misspelled batter, ids the box hasn't, a pinch runner it leaves out, notes, "picked
+    off, stole third", batter's interference, a sacrifice safe on an error, a fielder's choice's pitcher, an out the text didn't
+    say) and the tournament's (a "." result with its twin before or after it, a run named again, a signalled intentional walk, a
+    double play ESPN's outs call one). `sports-baseball.test.js` now says college is CollegeBaseball's.
+  - `check-sport-reduce.js` takes `--pbp` (only the games the board says have play by play) and `--apart=PC,PST` (those stats'
+    differences listed apart, not failing a game), lists an empty feed apart (a box and only innings: one game), and says the
+    share of ESPN's numbers the plays come to. On real games, **the days it was tuned on**: the crew's March 14, 21 and 28, April
+    11 and 18 and May 9, **32 of 97** every number and **79** every number but pitch counts; the tournament's super regionals
+    (June 5-8) and College World Series (June 12-22), **3 of 34** and **25**. **Then on their first run after the reader's last
+    change** (before the review): the crew's February 21 **4 of 14** every number, **8** but for pitch counts (98.5% of numbers),
+    April 25 **4 of 9**, **6** (99.1%), May 16 **3 of 68**, **46** (97.2%); the tournament's regionals (May 29-June 1) **21 of
+    105**, **51** (97.6%). After the review's fixes and what their data showed (a half with no "Start Inning", "popped up to 1b,
+    interference", the weather as a play): 5 of 14 and 10 (98.7%), 6 of 9 and 9 (99.5%), 3 of 68 and 50 (97.4%), 21 of 105 and
+    52 (97.6%). **Every cached game**: the crew's **45 of 190** every number and **150** but for pitch counts (97.9% of ~52,000
+    numbers, ~38,000 plays); the tournament's **24 of 130** and **71** (97.8% of ~35,000 numbers, ~68,000 plays). **Pitch counts
+    are ESPN's**: 1,171 of the crew's 1,518 pitcher lines exact, 1,381 within one (Jordan Stephens's five at-bats have 19 pitches
+    in the letters, his box line 20, his change between innings); a hit batter's pitch is in some crews' counts and not others'
+    (pitchers one over hit 0.93 batters each, exact ones 0.13; leaving it out moves them under: 1,170 exact). What's left is
+    ESPN's own, each kind read in its data: a box that leaves someone out (Mershon, C. James, Turner), a team total of 30 outs for
+    eight innings, a result the plays never list (a walk of Jarren Purify's), a run ESPN's `scoreValue` and the text disagree on
+    that its bases don't settle, a runner's charged pitcher, and **walks a relief pitcher came in to at 2-0 and the like**:
+    ESPN's college box charges them to the reliever in some games and the pitcher before him in others (the MLB's rule 9.16(h)),
+    23 walks off either way, so the reader keeps the MLB's. The final's correction settles them all.
+  - `check-live-clock.js` replays the three new fixtures unchanged (3 of 3 at 60x, every number of ESPN's box score at the end;
+    each recording's every 15 s, cut and read whole, is the recording as known then: the crew's clock looks only back), and every
+    recorded game at once at 30x, 22 of 22 (at 60x, with the other lanes' sessions on the machine, all 22
+    fail only on the gaps between asks: Noticed).
+  - 963 unit tests; `tsc` clean; eslint clean on `src/lib/sports`.
+  - `/code-review` on the diff (its fixes: a batter safe on a fielder's choice charged to the forced runner's pitcher, which the
+    runner's line being dropped first had lost; a "." result's twin looked for before and after it; the crew's clock Eastern
+    whatever the venue (ESPN's data: a late start had read an hour early) and past midnight; outs per half, at most three, a half
+    ending on three; an overturned review noted; `movedBy` only where a feed's runner plays list no bases (the MLB's stay as
+    before); a play's people by the box's ids; the batter's line and outcome vocabulary shared, not copied, and the roster from
+    `rosterOf`; the box read without copying the plays; the empty-feed rule only for plays with no one in them; the tests'
+    `bounds` with the sport and `instanceof CollegeBaseball`. Kept, after ESPN's data: a runner nobody put on charged to the
+    half's first pitcher (the pitcher on the mound read 2 tournament games worse); 9.16(h) for the crew's walks, which can't be
+    read from its letters).
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data (the dev checks asked ESPN ~500 times,
+    every finished answer cached).
+
+**L5 part 2c noticed, not fixed:**
+- **Most college baseball games have no play by play on ESPN** (85% of a regular-season day's; every tournament game has it): a
+  stats game on college baseball can only use the games the board says `playByPlayAvailable`, the rest a score. L1 part 3's
+  games from ESPN's schedule should carry the flag, and a game's maker see which games count. (L3 and L4.)
+- **A crew game's pitch counts can be a pitch off** (9% of pitcher lines by more than one, mostly ESPN's own): live pitch-count
+  points move at the final. (L3.)
+- **The crew's live answers are untested**: no college baseball is on in November (its season starts in February), so the
+  crew's clock and its results as they come are checked on recordings only. Record a crew game with `record-espn-live.js` in
+  February: what the crew files live (a result before its start? its letters as the at-bat goes?), ESPN's lag, and whether a
+  12:xx AM play is stamped as the clock reads it. `record-espn-live.js`'s lag is from a play's raw wallclock: for a crew game it
+  would read 12 hours; measure it from `playTimes`.
+- **A tournament game's first moments** (an at-bat's start, no pitch yet) read through the crew's reader, since the reader picks
+  the feed by whether any play is a pitch: the same start, nothing counted, then the MLB's reader from the first pitch. Fine;
+  noted for the live recording.
+- **Earned runs and RBIs in the tournament feed are the reader's reconstruction** (as the MLB's; its walks by 9.16(h) ESPN's
+  either way, above); the crew's are the scorer's own words. The final's correction settles them.
+- **A crew walk after a mid-at-bat pitching change** is the pitcher's on the result: the letters don't say where the change came,
+  so 9.16(h) can't be read, nor each pitcher's share of that at-bat's pitches. Rare. (L3.)
+- **A pitcher ESPN's plays name by an id and a name its box hasn't** ("B. Alcock", in no box line) keeps his line under ESPN's id
+  until the final takes it back.
+- **The live-clock check's rhythm needs a quiet machine**: with the other lanes' sessions running, all 22 recordings at once at
+  60x fail only on gaps between asks (every answer, every later watch and every end right); the three new ones alone pass.
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;
