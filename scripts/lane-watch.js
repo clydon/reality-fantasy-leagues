@@ -53,7 +53,8 @@ function lanes() {
   return out
     .split(/\r?\n\r?\n/)
     .map((block) => ({ dir: (block.match(/^worktree (.*)$/m) || [])[1], branch: (block.match(/^branch refs\/heads\/(.*)$/m) || [])[1] }))
-    .filter((w) => w.dir && path.resolve(w.dir) !== path.resolve(ROOT) && fs.existsSync(path.join(w.dir, ".session-loop", "state.json")))
+    // Windows paths compare without case: the drive letter can come either way (c:\ from one shell, C:\ from another).
+    .filter((w) => w.dir && path.resolve(w.dir).toLowerCase() !== path.resolve(ROOT).toLowerCase() && fs.existsSync(path.join(w.dir, ".session-loop", "state.json")))
     .map((w) => ({ name: w.branch || path.basename(w.dir), dir: path.normalize(w.dir) }));
 }
 
@@ -152,9 +153,10 @@ function look(state, now) {
   const shots = [];
   const procs = processes();
   for (const l of lanes()) {
-    const mem = (state.lanes[l.name] ||= { history: 0, shots: [], lastRunningAt: null, stopSaid: false });
     const st = readJson(path.join(l.dir, ".session-loop", "state.json")) || {};
     const history = st.history || [];
+    // A lane first seen now (a new worktree) starts from now, as the first watch does: its past isn't news.
+    const mem = (state.lanes[l.name] ||= { history: history.length, shots: screenshots(l), lastRunningAt: null, stopSaid: false });
     for (const e of history.slice(mem.history)) {
       events.push(
         `STEP ${l.name} | ${e.name} | done ${when(e.at)} | $${Number(e.cost || 0).toFixed(2)} | next: ${st.next?.name || st.pending?.name || "none"} | log: ${path.join(l.dir, e.log || "")}\n` +
