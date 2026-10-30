@@ -250,12 +250,13 @@ Last updated 2026-10-27.
     - `check-questions.js`'s browser half hadn't run since A9 (the engine lane ran its `--api` half): its This week row
       check didn't wait for the Games read (fixed in the merge, 555e6c1e). The engine's other browser checks may want a run
       on a cold dev server too. **When:** the engine lane, at R or U1.
-    - **Survivor 51's Episode 7 says Wed 7:00 PM ET** (production, seen at the merge's live check): its exact start is stored
-      as 00:00 UTC, right while daylight time lasted (8 PM EDT) and an hour early once it ends on Sunday 2026-11-01 (7 PM
-      EST); an exact start wins over the season's 8 PM America/New_York (`air-schedule.js episodeAirTime`). The Traitors 5's
-      next episode moved to 01:00 UTC as it should. Wednesday's lineups would lock an hour early. Set Episode 7 on (and any
-      later exact start) to 8 PM on the desk's season schedule, then find what wrote the fixed-offset times. **When:** before
-      Wednesday 2026-11-04's episode; the production edit is the user's OK.
+    - **Survivor 51's Episode 7 said Wed 7:00 PM ET** (fixed 2026-10-30, the merge's live check): research of Episode 6 filed
+      its start as `20:00-04:00`, daylight time's offset, for a night after the clocks go back (Sunday 2026-11-01), and an exact
+      start wins over the season's 8 PM America/New_York, so lineups would have locked an hour early. `Air.exactInZone` now
+      reads an offset that is the zone's other one as the announced time in the season's zone (`nextEpisodeFrom`, which the
+      full research and the schedule check both file through), both prompts ask for the offset in force on that date, and
+      `tests/dst.test.js` covers every schedule edge a clock change touches. In production, the desk's Run now of the
+      schedule check refiled it: "Episode 7: Wed, Nov 4, 8:00 PM EST, 90 min"; the hub says Wed 8:00 PM.
     - **Backstage and an episode's results answered 500 for Survivor 51's couch from 2026-10-29 to 10-30** (fixed at the merge's
       live check): Make every game match records a game's own result it took out as `own:<kind>:<id>` (season-decisions.ts),
       and `couchCorrections` read every correction's id as a season decision's uuid. It reads only decision ids now, and such a
