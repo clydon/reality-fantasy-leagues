@@ -2349,7 +2349,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     name each episode, whose points multiply (more than 1, up to 10; "scores double" is 2), negatives too.
     - Stored per episode like the lineup it's one of (`episode.captains[playerId]`, null for none) and locked with it
       (`ActiveRosterLogic.validateCaptain`, through `validateLineup`'s checks: the episode, its lock, the span, the player).
-    - **Decided: nobody named carries the last captain**, as a lineup carries (Joanna forgets), and only while they're
+    - **Decided: nobody named carries the last captain**, as a lineup carries (the Fan Who Forgets), and only while they're
       starting. Benching your captain takes the armband off (`setLineup` sets it to none), and a captain benched or gone
       counts as none.
     - Written through the engine (`setCaptain`) and the lineup route: `PUT .../lineups/:playerId` takes an optional
@@ -4718,7 +4718,7 @@ From A10 part 1 (2026-10-29):
   6. Who gets a group first in an exclusive opening. Built: first come (each pick under the league's lock). Recommended: keep
      first come while shared is the default; if exclusive matters, the waiver order (least points first) is the fairer one,
      not built.
-  7. An empty slot for someone who doesn't pick (Joanna forgets). Built: it stays empty and scores nothing. Recommended: fill
+  7. An empty slot for someone who doesn't pick (the Fan Who Forgets). Built: it stays empty and scores nothing. Recommended: fill
      it for them at the lock with the group holding most of their team, as a lineup carries; the player can change it before
      the lock.
 - **On a season that draws its groups at each episode's start, a slot never holds** (the blind replay of The Challenge 39: its
@@ -4945,7 +4945,7 @@ From A11 part 4 (2026-10-30):
      `from`; the desk's count is the source, so a wrong count (item 11) is the risk.
   6. Seats out of the playoffs (never in them, or knocked out). Built: no matchup, their moves still open (their points still show;
      a lineup set changes nothing that counts). Options: their moves refused, as a knocked-out player's are (part 1); a consolation
-     bracket. Recommended: as built (harmless, and Andrew's drive-by lineup isn't refused for nothing); a consolation bracket only if a
+     bracket. Recommended: as built (harmless, and the Drive-By's lineup isn't refused for nothing); a consolation bracket only if a
      request asks for one.
   7. A seat that comes in later (brought in mid-season, a late joiner once caught up). Built: from the first episode still to play,
      with no record before (behind on wins), the weeks played unchanged (`state.matchupSeats`). Options: a record to start from (the
@@ -4998,7 +4998,7 @@ From A11 part 3 (2026-10-30):
      all for a couch that wants it harder, the wizard saying it in the words the sentence uses.
   2. Silence. Built: someone who doesn't answer neither helps nor hurts (the field is who answered), but a night nobody answers costs
      one (nobody saw it coming). Options: silence counts as not seeing it (most and all over everyone in the game); a night nobody
-     answers costs nothing. Recommended: as built (Joanna forgets: the couch shouldn't lose for her, and a couch that stops answering
+     answers costs nothing. Recommended: as built (the Fan Who Forgets: the couch shouldn't lose for her, and a couch that stops answering
      still loses, so the game ends). The second option would also let a couch that walks away "win" at the end with every life.
   3. Two Faithful banished in one night. Built: one life a question a night at most (naming either saves it; part 2b's "each question
      its own life"). Options: a life for each one nobody named ("every faithful banished", read literally). Recommended: as built, the
@@ -5053,7 +5053,7 @@ From A11 part 2b (2026-10-30):
      a missed answer forgiven (nothing that night); filled at the lock with the most-picked answer. Recommended: as built for the rule,
      with A10 part 2's item 2 deciding a fill or a forgiven first miss for pools and games of questions together (in the blind
      replays the forgetter and the fan, who don't answer every week, were out at the premiere on The Challenge 41 and 39 for
-     answering nothing: Joanna forgets).
+     answering nothing: the Fan Who Forgets).
   2. Several questions a night. Built: each wrong (or missing) answer to a question a life rides on costs its own life. Options: one
      life a night at most, however many are wrong. Recommended: as built (each guess is a guess), the wizard saying it where a game
      asks more than one.
@@ -5191,7 +5191,7 @@ From A10 part 4b (2026-10-29):
   2. Whether both must agree. Built: either of them makes the team's moves, the last one counts, who made each recorded
      (`seat_moves`). Options: a move one makes waits for the other's OK; one of them the team's captain whose word wins; a push to the
      other when one changes something ("casey changed your lineup"). Recommended: as built, with U1 showing who made each move on the
-     team's own screens and no push (Joanna forgets: a lineup waiting for an OK would sit unset at airtime).
+     team's own screens and no push (the Fan Who Forgets: a lineup waiting for an OK would sit unset at airtime).
   3. What the couch shows, and who's credited. Built: each person on a shared team is credited with its place (their own row in the
      couch's standings, the field counting the team once, a trophy each, head to head between the two a tie). Options: one team,
      credited once (a row "riley & casey", which isn't a person the couch's tables know: rankings, trophies and your numbers are by
@@ -5252,7 +5252,7 @@ From A10 part 4 (2026-10-29):
      best castaways costs your top picks, as in a keeper league; `place` there makes keeping a pure edge), `place` for a shared draft
      and a draw (nobody's pick is taken, so nothing to pay), `price` for a market (as built).
   3. Someone who names nobody by the draft (`fallback`). Built: `best`, they keep their best who are back; or `none`. Recommended:
-     `best` (Joanna forgets; Andrew drives by).
+     `best` (the Fan Who Forgets; the Drive-By).
   4. Two wanting the same keeper in an exclusive game (only when last season's game was shared). Built: first come (whoever named
      them first has them; the fallback's seats go after everyone who named theirs, in the draft's order). Options: neither (back in
      the pool); last season's lower finisher first. Recommended: first come, said up front ("whoever names them first has them").
@@ -5360,7 +5360,7 @@ From A10 part 3b (2026-10-29):
   2. A sealed auction or a live room. Built: sealed (everyone bids in private, settled at once, as the blind draft is), the only
      one the engine can run without everyone there at once. Options: a live room (someone nominates, a clock, bids in real time),
      a different engine piece (a nomination order, a bid clock, someone away) and screens. Recommended: sealed as the default
-     (Joanna forgets, Andrew drives by: nobody has to be at a draft night); a live room only if a couch asks for a draft night,
+     (the Fan Who Forgets, the Drive-By: nobody has to be at a draft night); a live room only if a couch asks for a draft night,
      after U1, as its own step.
   3. What a winning bid pays. Built: what was bid (first price). Option: one more than the next bid on them (second price: bidding
      what someone's worth to you is safe). Recommended: first price (one sentence to explain: "you pay what you bid").
@@ -5469,7 +5469,7 @@ From A10 part 2 (2026-10-29):
      has no more picks and their season stops at the episode they went out. Recommended: last one standing whenever a pool has
      lives (a knockout pool is about who lasts; a streak with lives breaks while you still have some), so the GPT writes it.
   2. A missed pick. Built: it costs a life (as it breaks a streak today), and a mulligan forgives it. Recommended: keep, and
-     pair it with A10 part 1's item 7 (fill a missed pick at the lock: the safest one still eligible), or Joanna forgets her way
+     pair it with A10 part 1's item 7 (fill a missed pick at the lock: the safest one still eligible), or the Fan Who Forgets misses her way
      out of a pool with lives.
   3. A buyback. Built: automatic (out before its deadline, while one's left: back in), back with one life, its cost one right
      pick's points (up to 20) off the total, which can go below 0. Recommended: keep automatic (nobody waits for someone; under
