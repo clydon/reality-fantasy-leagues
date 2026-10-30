@@ -88,6 +88,15 @@ test("backing off: 5, 15, then 60 minutes", () => {
   assert.equal(T.backoffMs(9), 60 * 60_000);
 });
 
+test("a question the bot answered but that didn't pass waits only its own tries; no answer at all counts in a row", () => {
+  const now = Date.parse("2026-10-28T17:22:42Z");
+  const after = (failuresInARow, tries, answered) => T.afterFailure({ failuresInARow }, { tries, answered, now });
+  assert.deepEqual(after(2, 1, true), { failuresInARow: 0, pausedUntil: new Date(now + 5 * 60_000).toISOString(), pauseWhy: `try 1 of ${T.TRIES} didn't pass` });
+  assert.equal(after(0, 2, true).pausedUntil, new Date(now + 15 * 60_000).toISOString());
+  assert.deepEqual(after(0, T.TRIES, true), { failuresInARow: 0, pausedUntil: null, pauseWhy: null }, "gave up: the queue moves straight on");
+  assert.deepEqual(after(2, 1, false), { failuresInARow: 3, pausedUntil: new Date(now + 60 * 60_000).toISOString(), pauseWhy: "3 failure(s) in a row" });
+});
+
 test("a pause holds the queue until it's over", () => {
   const now = Date.parse("2026-10-28T05:00:00Z");
   assert.equal(T.holdFor({ pausedUntil: null }, now), null);
@@ -258,6 +267,20 @@ test("judging: the kinds the corpus lists, a show's whole season as a default, n
     assert.deepEqual([x.about, x.flagged], [false, false], JSON.stringify(about));
   }
   assert.deepEqual(W.judge(nothing, W.parseRequest("{}"), "draft the moon landing").flagged, true, "nothing it's about");
+  // Where the corpus expects a contradiction's halves quoted, reading nothing isn't raising it.
+  const solo = { about: {}, when: null, flag: "question", why: "solo and seven people", said: { unsure: ["solo", "6 friends"] } };
+  assert.equal(W.judge(solo, W.parseRequest('{"game": {"named": "solo league"}}'), "solo league for me and 6 friends").flagged, false);
+  assert.equal(W.judge(solo, W.parseRequest('{"unsure": ["solo", "6 friends"]}'), "solo league for me and 6 friends").flagged, true);
+
+  // A sport by its name or its league, either way round, word for word.
+  const f1 = { about: { sport: "racing", league: "F1" }, when: "one", flag: null };
+  for (const [about, ok] of [[{ sport: "Formula 1", league: "F1" }, true], [{ sport: "F1" }, true], [{ sport: "racing" }, true], [{ sport: "Formula 1", league: "F10" }, false]]) {
+    assert.equal(W.judge(f1, W.parseRequest(JSON.stringify({ about })), "F1 season finale pick the podium").about, ok, JSON.stringify(about));
+  }
+  assert.equal(W.judge({ about: { sport: "basketball", league: "NBA" }, when: null, flag: null }, W.parseRequest('{"about": {"sport": "hoops", "league": "WNBA"}}'), "nba").about, false, "NBA isn't WNBA");
+  assert.equal(W.judge({ about: { sport: "soccer", league: "Premier League" }, when: null, flag: null }, W.parseRequest('{"about": {"league": "English Premier League"}}'), "premier league").about, true);
+  // An empty season is none.
+  assert.equal(W.judge({ about: { show: "Survivor", season: null }, when: null, flag: null }, W.parseRequest('{"about": {"show": "Survivor", "season": ""}}'), "survivor").season, true);
 
   // The resolver's question (it needs the listing): not judged; `raised`: whether the bot put anything in unsure anyway.
   const late = { about: { show: "The Challenge", season: null }, when: null, flag: "question", flagBy: "resolver", why: "the finale airs today" };

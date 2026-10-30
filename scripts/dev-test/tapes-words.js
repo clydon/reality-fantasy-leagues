@@ -128,15 +128,17 @@ function carriedOf(said, parsed) {
  * anything in unsure anyway), and `carried` (everything said that has a place in the shape, carried over: carriedOf;
  * `missed` names what didn't) null when nothing said has one. What wasn't said must come back empty: a season or a show
  * the words don't name is a miss, not a pass.
- *   - about: the show (the app's sameShow), else the sport or a team; for a request about nothing, nothing read (no show,
- *     sport, league, team or event: aboutSomething).
+ *   - about: the show (the app's sameShow), else the sport or its league, either way round and word for word ("F1" for
+ *     "Formula 1", sameTerm), or a team; for a request about nothing, nothing read (no show, sport, league, team or event:
+ *     aboutSomething).
  *   - when: the expected kind, or any of a list of them (the corpus lists the kinds that read right where the words leave
  *     it open: "this season" is "rest" or "season", "tonight's" "next" or "one"; null in a list: none is fine too). A plain
  *     null (nobody said a span) on a request about a show or a sport also takes "season" or "rest": a game for a show is a
  *     game for its season, so that's a default the bot filled in, listed by assumedOf.
  *   - invented: a number in the game that the words don't say. Number words and commas count, and so does a number the
  *     corpus expects at its own key (`said.players` 1 for "just me"; a 1 under another key isn't).
- *   - flagged: an expected question or refusal shows as something unsure, or as nothing it's about.
+ *   - flagged: an expected question or refusal shows as something unsure, or as nothing it's about (not where the corpus
+ *     expects words quoted in unsure: a contradiction's halves).
  * Pure.
  */
 function judge(expect, parsed, words) {
@@ -144,10 +146,11 @@ function judge(expect, parsed, words) {
   const got = parsed.about || {};
   const checks = {};
   if (want.show) checks.about = sameName(want.show, got.show);
-  else if (want.sport) checks.about = sameWords(want.sport, got.sport) || (want.teams || []).some((t) => (got.teams || []).some((g) => sameWords(t, g)));
+  // A sport by its name or its league, either way round ("Formula 1" and "F1"), word for word (NBA isn't WNBA).
+  else if (want.sport) checks.about = [want.sport, want.league].some((w) => [got.sport, got.league].some((g) => sameTerm(w, g))) || (want.teams || []).some((t) => (got.teams || []).some((g) => sameWords(t, g)));
   else checks.about = !aboutSomething(got);
   const season = /\d+/.exec(String(got.season ?? ""));
-  checks.season = want.season ? !!season && season[0] === String(want.season) : got.season == null;
+  checks.season = want.season ? !!season && season[0] === String(want.season) : got.season == null || String(got.season).trim() === "";
   const read = kindOf(parsed.when.kind);
   const wants = expect.when == null ? [null] : Array.isArray(expect.when) ? expect.when : [expect.when];
   // Nobody said a span, on a request about a show or a sport: the whole season is the bot's default, not a miss.
@@ -161,7 +164,10 @@ function judge(expect, parsed, words) {
     .map(({ n }) => n);
   checks.invented = invented.length === 0;
   const byResolver = !!expect.flag && expect.flagBy === "resolver";
-  checks.flagged = expect.flag && !byResolver ? parsed.unsure.length > 0 || !aboutSomething(got) : null;
+  // Reading nothing is a refusal of a request about nothing; where the corpus expects words quoted (a contradiction's two
+  // halves), only unsure raises it.
+  const quote = Array.isArray(expected.unsure) && expected.unsure.length > 0;
+  checks.flagged = expect.flag && !byResolver ? parsed.unsure.length > 0 || (!quote && !aboutSomething(got)) : null;
   const carried = carriedOf(expect.said, parsed);
   const missed = Object.keys(carried).filter((k) => !carried[k]);
   checks.carried = Object.keys(carried).length ? missed.length === 0 : null;
@@ -173,6 +179,13 @@ function judge(expect, parsed, words) {
 const kindOf = (k) => (k == null ? null : String(k).trim().toLowerCase() || null);
 /** The two kinds that are a whole season's game. */
 const whole = (k) => k === "season" || k === "rest";
+/** Whether two names are the same term, word for word: every word of the shorter is one of the longer's ("F1" is "F1",
+ *  "Premier League" is "English Premier League", "NBA" isn't "WNBA"). Pure. */
+const sameTerm = (a, b) => {
+  const words = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[^a-z0-9 ]/g, " ").split(/\s+/).filter(Boolean);
+  const [x, y] = [words(a), words(b)].sort((p, q) => p.length - q.length);
+  return x.length > 0 && x.every((w) => y.includes(w));
+};
 /** Whether a reading is about anything: a show, a sport, a league, a team or an event. Pure. */
 const aboutSomething = (a) => !!(a && (a.show || a.sport || a.league || (a.teams || []).length || a.event));
 
@@ -256,7 +269,7 @@ function reportMarkdown(r) {
   const lines = [
     `# Start a game's words corpus: how well the bot understood`,
     ``,
-    `${n("asked")} of ${n("of")} request(s) on tape; ${n("passed")} of ${n("checks")} checks as expected (tapes-words.js judge, today's). Checks: about (the show, else the sport or a team), season (as said, else none), when (the span's kind, else none; "season" and "rest" read as one, and either for a span nobody said is assumed), invented (no number they didn't say), flagged (an expected question or refusal the request can raise shows as unsure; the resolver's are listed below, not judged), carried (what they said, where the draft shape has a place for it).`,
+    `${n("asked")} of ${n("of")} request(s) on tape; ${n("passed")} of ${n("checks")} checks as expected (tapes-words.js judge, today's). Checks: about (the show, else the sport, its league or a team), season (as said, else none), when (the span's kind, or one of the kinds the corpus lists where the words leave it open, else none; a whole season for a show or a sport that said none is assumed), invented (no number they didn't say), flagged (an expected question or refusal the request can raise shows as unsure; the resolver's are listed below, not judged), carried (what they said, where the draft shape has a place for it).`,
     ``,
     `| Group | On tape | Checks as expected | Misses |`,
     `|---|---|---|---|`,

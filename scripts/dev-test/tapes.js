@@ -157,6 +157,22 @@ function backoffMs(failures) {
   return BACKOFF_MIN[Math.min(failures, BACKOFF_MIN.length) - 1] * MIN;
 }
 
+/**
+ * What a failed question does to the queue. Pure. One the bot answered (`answered`: the answer just didn't pass, as Survivor
+ * 49's finale bingo didn't) is the question's failure, not the bot's: it waits its own tries' backoff, and none on its last
+ * try, so the queue moves straight on. Only failures with no answer at all (the bot down or stuck) count in a row, towards the
+ * long backoff.
+ */
+function afterFailure(state, { tries, answered, now = Date.now() }) {
+  const failuresInARow = answered ? 0 : (state.failuresInARow || 0) + 1;
+  const wait = answered ? (tries >= TRIES ? 0 : backoffMs(tries)) : backoffMs(failuresInARow);
+  return {
+    failuresInARow,
+    pausedUntil: wait ? new Date(now + wait).toISOString() : null,
+    pauseWhy: !wait ? null : answered ? `try ${tries} of ${TRIES} didn't pass` : `${failuresInARow} failure(s) in a row`,
+  };
+}
+
 /** Whether an answer or an error reads like ChatGPT's usage limit or a bot check (pause an hour, don't ask again). Pure. */
 function looksLimited(text) {
   const t = String(text || "").toLowerCase();
@@ -891,7 +907,6 @@ async function record(opts) {
       s.pauseWhy = "the answer reads like a usage limit or a bot check";
     } else {
       s.tries[key] = tries;
-      s.failuresInARow = (s.failuresInARow || 0) + 1;
       s.lastError = { at: new Date().toISOString(), job: key, message: out.message };
       if (out.record) writeRecord(job, out.record, { tryNo: tries });
       // The last try: what it answered is the tape, so the queue moves on.
@@ -903,8 +918,7 @@ async function record(opts) {
         writeJson(path.join(dirOf(job.show, job.season), "season.json"), { show: job.show, number: job.season, ok: false, gaveUp: true, message: out.message, at: new Date().toISOString() });
         delete s.tries[key];
       }
-      s.pausedUntil = new Date(Date.now() + backoffMs(s.failuresInARow)).toISOString();
-      s.pauseWhy = `${s.failuresInARow} failure(s) in a row`;
+      Object.assign(s, afterFailure(s, { tries, answered: !!out.record }));
     }
     saveState(s);
     journal(journalLine(Date.now(), job, { ok: out.ok, seconds: out.seconds, message: out.limited ? `LIMITED, waiting an hour: ${out.message}` : out.message, tries: out.ok || out.limited ? 0 : tries }));
@@ -1078,7 +1092,7 @@ async function main() {
   console.log("Usage: node scripts/dev-test/tapes.js record|plan|status|one|load|unload (see the header comment)");
 }
 
-module.exports = { SHOWS, TRIES, planJobs, fullHeld, castHeld, backoffMs, looksLimited, holdFor, journalLine, nameOf, keyOf, asksOf, pickAnswer, hashOf, readTape, answerer, TAPES };
+module.exports = { SHOWS, TRIES, planJobs, fullHeld, castHeld, backoffMs, afterFailure, looksLimited, holdFor, journalLine, nameOf, keyOf, asksOf, pickAnswer, hashOf, readTape, answerer, TAPES };
 
 if (require.main === module) {
   main()

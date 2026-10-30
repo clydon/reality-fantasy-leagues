@@ -1081,6 +1081,180 @@ Unit tests (`tests/playtest.test.js`):
 
 The second run above was played after them.
 
+### P2, part 3: the words corpus on tape; the judge tuned; what G1 should change, from the tapes (2026-10-28, the same session as P5 part 6)
+
+**On tape: all 104.** 102 were asked of signed-in ChatGPT (the user's Plus trial: GPT-6 at Instant, temporary chats; each
+tape's `bot.model` says so) from 13:17 to 15:34 UTC, about 20 seconds an answer. w002 and w084 are from signed-out ChatGPT at
+04:57. `w001.try1.json` is a try from the capped hours and is kept. The table is `node scripts/dev-test/tapes-words.js
+report` (also `rfl-tapes\words\REPORT.md`).
+
+**How well it understood:** 476 of 489 checks as expected, 93 of the 104 requests without a miss (today's judge, after the
+fixes below; 473 of 490 before them).
+
+| Group | On tape | Checks as expected | Misses |
+|---|---|---|---|
+| example | 3 of 3 | 15 of 15 | |
+| casual | 10 of 10 | 43 of 43 | |
+| solo | 5 of 5 | 22 of 22 | |
+| small | 7 of 7 | 34 of 35 | invented 1 |
+| big | 5 of 5 | 23 of 24 | about 1 |
+| popular | 7 of 7 | 31 of 32 | when 1 |
+| niche | 8 of 8 | 34 of 36 | when 2 |
+| custom | 8 of 8 | 38 of 38 | |
+| sports | 8 of 8 | 37 of 38 | when 1 |
+| not-competition | 6 of 6 | 26 of 26 | |
+| span | 6 of 6 | 26 of 26 | |
+| predictions | 5 of 5 | 24 of 25 | about 1 |
+| typos | 6 of 6 | 25 of 25 | |
+| two-games | 3 of 3 | 15 of 15 | |
+| contradictory | 5 of 5 | 27 of 30 | invented 1, flagged 1, carried 1 |
+| nonsense | 6 of 6 | 31 of 31 | |
+| no-such-season | 6 of 6 | 25 of 28 | flagged 2, when 1 |
+
+**The misses, quoted** (the bot's own, as taped):
+- **w023** (small) "couples game: each of us picks a traitor we think won't get caught": 2 players, from "couples" (invented).
+- **w027** (big) "a 20 team survivor league, everyone drafts 2, no duplicates": no show. "survivor league" went into the game's name
+  (`named`), and `about` came back empty.
+- **w029** (popular) "NFL pick'em for week 9" and **w055** (sports) "Premier League this weekend, draft 3 strikers each, goals 5
+  assists 3": "through" (a stretch) for one named round (when). Under the draft's own kinds a week of games is neither one
+  game nor quite a stretch: the vocabulary's gap (G1's item 10), kept as a miss so the eval shows when G1 closes it.
+- **w039** (niche) "Married at First Sight UK, predict which couples stay at the commitment ceremony" and **w041** (niche)
+  "Terrace House game where you guess who leaves the house next": the next episode only, for a game whose question comes
+  every week (when). The words say which ceremony, or who's next, not how long the game runs.
+- **w073** (predictions) "over under on number of idols played this season, line is 6.5": no show, though idols are
+  Survivor's (about). Arguable: the show is implied, not said, and the resolver could ask.
+- **w086** (contradictory) "solo league for me and 6 friends": 7 players (me and 6 friends), and "solo" against seven not
+  in unsure (invented, flagged, carried). It settled a contradiction by arithmetic instead of asking.
+- **w095** (no-such-season) "survivor 63 league" and **w096** "the traitors season 12 draft": the seasons read as real, nothing
+  unsure (flagged). The prompt asks the bot to flag a season that isn't one, which without the listing it can only guess
+  (G1's item 6). w099 "Survivor: Antarctica draft" it did flag.
+- **w100** (no-such-season) "a league for the show my friend is making next year": a whole season, for a show that isn't
+  one (when). It did refuse: "the show my friend is making" is in unsure.
+
+Not judged, but wrong: w087 "only the finale of survivor 51, starting episode 3" put "episode 3" into `count.start` (3
+starters). The invented check only asks whether a number was said, not where it went.
+
+Everything else read as expected:
+- the show, by the app's own `sameShow`, in every request that named one but w027 (Australian Survivor and Married at First
+  Sight UK among them), and every season said;
+- every number said, and both teams;
+- the second game of two in one message, in unsure (3 of 3), and 4 of the 5 contradictions (w084, w085, w087, w088; not
+  w086);
+- the injection attempt (w093): nothing it's about, the words in unsure.
+
+**Expected readings fixed** (`start-a-game-words.json`), where the tapes showed the corpus wrong, not the bot:
+- **A list of kinds where the words leave the span open.** `expect.when` can now list the kinds that read right (the corpus's
+  header says so):
+  - "this season" is rest or season, since a request can't tell whether it has begun (w013, w072, w073);
+  - a day named, "tonight's", "this weekend" or "Sunday", is next or one (w010, w060, w064, w083, w103; w051, w055, w057);
+  - "before episode 2" is one or through (w102);
+  - "keep the same person all season" says season, and none is fine too (w085, about no show);
+  - two spans at once, either or none (w087).
+
+  Null in a list means none only; a plain null alone also takes a show's whole season as the default (below).
+
+  A kind the words name stays the one kind ("the rest of the way" rest, "the next season" season, "the finale" one).
+- **No span word, no span:** w026 ("each episode": a cadence), w062, w070, w071 and w074 (a prediction that settles at the
+  end) now expect none, and a whole season counts as the default (below). w062 "white lotus who dies pool" read none, which
+  the prompt asks for, and was a miss.
+- **w078 "survivor 5I draft" asks nothing:** "5I" plainly means 51, which the bot read, and the wizard's sentence shows
+  "Survivor 51". The corpus expected a question.
+- **Whose question it is** (`expect.flagBy: "resolver"`, 26 of the 46 questions and refusals). They need the listing, the
+  schedule, the cast or what the app can do, which a request with no web search can't know (the GPT plan's resolver section
+  says so for a past event):
+  - whether a season is over, airing or months away (w007, w022, w032, w033, w041, w049, w056, w062, w063, w097, w098, w102,
+    w104);
+  - an event's date (w003 the 76ers' home opener, w057 a Knicks game tonight);
+  - a cast's size against a draft's (w025, w027);
+  - a rule or a moment the app can express or research (w023, w029, w030, w046, w048, w054, w061, w074, w101).
+
+  The request's own 20 are the ones its prompt asks it to flag: it doesn't fit the shape, contradicts itself, or isn't a
+  show, a season or a sport (w012, w081 to w096, w099, w100, w103). A season that doesn't exist stays the request's because
+  the draft prompt asks for it, though without the listing the bot can only guess (w095 and w096 missed it). The report lists
+  the resolver's apart, with whatever the bot put in unsure: something in 5 of the 26. Two are on point (w046's finale rule,
+  w101's merge rule) and three are asides (w022 "most points wins", w030 "with my coworkers", w102 "my book club").
+
+**The judge tuned** (`tapes-words.js`; unit tests in `tests/tapes.test.js`):
+- **when:** the expected kind or any listed; a plain null (nobody said a span) on a request about a show or a sport also
+  takes "season" or "rest", a game for a show being a game for its season. It's listed under Assumed ("when season"), as
+  "own exclusive" is, not a miss. About nothing (w100), it's a miss. Kinds compare in lower case.
+- **invented:** a number the corpus expects counts as said at its own key only ("just me" is `said.players` 1; a start of 1
+  is still invented).
+- **about:** a sport reads right by its name or its league, either way round and word for word (w053's "Formula 1", league
+  "F1"; NBA isn't WNBA); a request about nothing reads nothing (no show, sport, league, team or event).
+- **flagged:** only the request's own questions are judged; the resolver's are listed (`raised`: anything in unsure).
+  Reading nothing raises a refusal of a request about nothing, but not a contradiction the corpus expects quoted (w086).
+- **season:** an empty one is none.
+
+`npm test` passes (806).
+- The miss lines show `flagBy`; `reportOf` returns `assumed` and `resolver` beside the groups.
+
+Three code reviews ran over it. The second found the judge's word-sniffing for "rest of" and "all season" fragile, and the
+corpus's lists replaced it. The third found that some of this part's corpus fixes only turned the bot's misses into passes,
+and they were put back: w029 and w055 (a round, G1's item 10), w041 (as w039), w086 (its 7 players) and w095, w096 and w099
+(the request's to flag, as its prompt says).
+
+**What G1 should change, from the tapes** (P2 part 2's list, with the tapes' evidence; the request prompt in `tapes-words.js`
+stays G1's draft):
+1. **The span's bounds:** w087 "only the finale of survivor 51, starting episode 3" read "one" and quoted the whole request
+   in unsure; w065 "survivor 51 starting after the merge" read "from", with nowhere to put the merge.
+2. **Who plays:** "against the computer" (w014), "me vs everyone" (w015), "the whole dorm floor" (w028), "for our aussie
+   mates" (w038) and "my book club" (w102) all went to unsure.
+3. **A pick's repeat rule** and **5. the extras:** w047 put all four of its rules in unsure ("you can't pick the same person
+   twice", "if your pick goes home you're out", "last one standing wins", "ties split"); w050 all three ("a bench of 2",
+   "waivers every tuesday", "no trades").
+4. **The bench:** w050, as above.
+6. **A doubt that says which, and whose:** of the 26 questions only data can raise, the bot put something in unsure for 5,
+   two on point. The resolver's checks (past, airing, over, cast size, what the app can express) are the resolver's; the
+   request's `doubt` is for what its words say. And the prompt shouldn't ask the bot to flag a season that doesn't exist,
+   which it can only guess without the listing (w095 Survivor 63 and w096 Traitors 12 read as real): that's the resolver's
+   too.
+7. **More than one game:** w081 to w083 put the second game in unsure, 3 of 3.
+8. **Choices not said:** 15 ownerships filled in (11 exclusive, 4 shared).
+
+New:
+
+9. **Say what a span nobody said is.** Of the 60 requests about a show or a sport that said none, the bot left it empty in 32
+   and filled in "season" in 24, "rest" in 3 and "next" in 1 (w039). The prompt says null, so half the time it doesn't follow
+   it. Say null and let the resolver offer the rest of the season, or say the whole season is the default. And "season"
+   against "rest" can't be told apart without knowing whether the season has begun: one kind, or the resolver's.
+10. **A sport's round:** "week 9" (w029) and "this weekend" (w055) read as "through" (a stretch). A round, an NFL week or a
+    matchweek, wants its own kind, or "one" defined as one round; the corpus keeps expecting "one" until it has one.
+14. **A contradiction is a doubt, not a sum:** w086 "solo league for me and 6 friends" became 7 players, nothing unsure.
+15. **Where a number goes:** w087's "starting episode 3" became 3 starters (`count.start`).
+11. **A win condition:** "whoever's last one standing wins" (w019, w047) and "most points wins" (w022) went to unsure. It's
+    the game's own (Outlast against points), so it could pick the preset.
+12. **A filter on who can be picked:** "strikers" (w055) went to unsure. A position (or a group, a tribe) to draft from wants
+    a place: `get.from`.
+13. **The show inside the game's name:** w027's "survivor league" lost the show. The prompt could say the show goes in
+    `about` even when it's part of what they call the game.
+
+The corpus's `expect.said` keys for these (computer, public, finale, repeat, ties, bench, waivers, from, to) are what the judge
+would check once G1 gives them a place (`tapes-words.js CARRIED`), as before.
+
+### Below Deck 12's cast, staged by hand (2026-10-28, the same session; finding 10)
+
+The words corpus all on tape, Below Deck 12's cast was staged by hand, as `tapes.js status` says, so its full research, trivia
+and bingo are asked about this season's crew, not the TV listing's 40 from every season (finding 10):
+- the recorder stopped at 15:35 UTC (pid 63768, between questions: the bot idle);
+- `season-cast.json` (and its two `.md`) moved to `season-cast.listing.*` (the tape reader skips that name);
+- the season's 40 listing-cast rows deleted from `season_cast` in rfl_playtest (a one-off, checked it was the lane's database
+  and 40 rows; nothing points at them);
+- `node scripts/dev-test/tapes.js one below-deck 12 cast`: signed-in ChatGPT (GPT-6, Instant) in 24 s, 10 crew staged for
+  review (Kerry Titheradge, Fraser Olender, Kyle Stillie, Lawrence Snowden, Caio Poltronieri, Jess Theron, Damo Yörg, Bárbara
+  Kulaif, Rainbeau de Roos, Solène Favreau). The quick checks' own names are in it now (episode 2's Lawrence Snowden, 5's
+  Caio Poltronieri, which matched nobody before). One gap: the chef the quick checks mention ("Chef Anthony", episode 15)
+  isn't;
+- the two full research tapes asked about the listing's cast (`e01-full`, `e02-full`) moved into
+  `below-deck\12\listing-cast-full\` rather than deleted (the reader skips subfolders, as with `gave-up-capped-bot\`), so
+  they're asked again;
+- the recorder restarted at 15:36 (pid 31960, commit f2a41b2d, window "Tapes: recording"), asking Below Deck 12's full
+  research from episode 1, then its trivia, bingo and recaps.
+
+Why by hand: the app has no per-season cast for a series made from a listing (finding 10, `make-game.ts listingCast`), and the
+cast import (`CastPrompt.buildCastPrompt`) is the path a league's own import takes. Its 20 Weekly Lineup replays, their judge
+and a look at 390 wait for the full research on tape (P5's next part).
+
 ## Noticed, not fixed
 
 (Each step adds what it saw and left alone, with the step that could take it.)
@@ -1304,3 +1478,14 @@ From P5 part 6 (2026-10-28):
 - **The base's names at the crown.** Placed's files are from before `stillInNames`, so beside them `compare` counts only the
   replays with anyone in. P5 part 5's report names them (Rizo Velovic, Rob Cesternino, Cara Maria Sorbello, Gabe Wai, Leonardo
   Dionicio). Harness only.
+
+From P2 part 3 and Below Deck's cast (2026-10-28):
+- **The journal's words lines are the recorder's own judge.** "4 of 5 as expected" is judged by the code the recorder started
+  with (133d35d7 for most of the corpus), so it disagrees with `status` and `report`, which judge again with today's. Harness
+  only; read the report.
+- **Below Deck 12's cast import missed the chef.** Episode 15's quick check names "Chef Anthony"; the 10 staged don't include
+  them, so the full research can't ask about the galley. For the cast prompt's owner (`cast-prompt`, the survivor lane), with
+  finding 10: a series' crew includes its heads of department.
+- **The draft prompt and the judge now agree on less than they did.** The prompt still says "null whatever they didn't say"
+  and lists season and rest apart; the judge takes a whole season as the default for a show, and the corpus lists both where
+  the words leave it open. That's G1's item 9 to settle in the prompt itself; the draft stays as it is here.
