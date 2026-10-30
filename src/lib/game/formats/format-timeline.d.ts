@@ -43,3 +43,11 @@ export const MAJOR: string[];
 export const TRIGGER_KINDS: string[];
 /** A12: the changes of `kinds` (MAJOR by default) a stage starts on: `act` the ones research is sure of, `held` the rest (flagged). */
 export function stageTriggers(tl: Timeline, kinds?: string[]): { act: import("../state-logic.js").StageTrigger[]; held: import("../state-logic.js").StageTrigger[] };
+/** A12 part 2b: where the groups are gone going into an episode (a 'next-stage' fallback's start of the next stage): `act` where
+ *  research is sure of it, `held` the rest; each the change that ended them (else `<episode>:groups-gone`), `gone` true. */
+export function groupsGone(tl: Timeline): { act: import("../state-logic.js").StageTrigger[]; held: import("../state-logic.js").StageTrigger[] };
+/** A12 part 2b: a stage's triggers with where the groups are gone added (one per change, a sure one taking a held one's place). */
+export function withGone(
+  t: { act: import("../state-logic.js").StageTrigger[]; held: import("../state-logic.js").StageTrigger[] },
+  gone: { act: import("../state-logic.js").StageTrigger[]; held: import("../state-logic.js").StageTrigger[] }
+): { act: import("../state-logic.js").StageTrigger[]; held: import("../state-logic.js").StageTrigger[] };

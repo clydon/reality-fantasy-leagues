@@ -155,7 +155,8 @@ test("the readers: a group question's choices, group slots, side stages, with th
   assert.deepEqual([at9.void, at9.sure], [true, false]);
   assert.match(at9.why.join(" "), /nothing is known since episode 7/);
   assert.equal(TL.groupChoices(tl, 9, { fallback: "carry-on" }).choices.length, 3);
-  assert.equal(TL.groupChoices(tl, 9, { fallback: "next-stage" }).nextStage, true);
+  // A12 part 2b: next-stage reads as void here (where its stage ends is groupsGone's, read by the game's plan).
+  assert.deepEqual(TL.groupChoices(tl, 9, { fallback: "next-stage" }), at9);
   // A10: a slot on a re-drawn pair opens after the episode that showed it and scores the next one; one shown and never
   // played (Joy & Hal) is void for the episode after (Q2); a locked pair scores until it goes home or changes.
   const slots = Object.fromEntries(TL.groupSlots(tl).map((x) => [x.members.join("+"), x]));

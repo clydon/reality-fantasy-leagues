@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts, stageOn, ON_CHANGE } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -54,7 +54,8 @@ function wordsOf(ctx) {
     // A12 part 2, inside a game in stages: a stage a format change starts says where it starts in these words, and the stage
     // before it runs until then.
     fromChange: typeof c.fromChange === 'string' ? c.fromChange : null,
-    untilChange: c.untilChange === true,
+    // A12 part 2b: the words for where the stage ends ("until there are no more teams"), else true: until the format changes.
+    untilChange: typeof c.untilChange === 'string' && c.untilChange ? c.untilChange : c.untilChange === true,
   };
 }
 // A12 part 2: the kinds of format change in words ("teams form", "everyone goes on alone"); a list that's F3's MAJOR is "a major
@@ -95,7 +96,7 @@ function spanWords(span, w) {
   if (w.untilChange && span.to === null) {
     const first = spanStart(span);
     const start = isObj(span.from) ? (first === null ? `from when ${phaseWord(span.from.phase, w)} starts ` : `${w.Part} ${first} `) : span.from === 1 ? '' : `${w.Part} ${span.from} `;
-    return `${start}until the format changes`;
+    return `${start}${typeof w.untilChange === 'string' ? w.untilChange : 'until the format changes'}`;
   }
   const endPhase = spanEndPhase(span);
   if (endPhase) {
@@ -937,9 +938,20 @@ function placesWords(o) {
 function describeStages(s, ctx) {
   const w = wordsOf(ctx);
   const stages = s.stages.filter((x) => isObj(x) && isObj(x.game));
+  // A12 part 2b: a stage the one before's 'next-stage' fallback starts begins once there are no more groups (and on its own kinds'
+  // change, when it has any: whichever comes first); the stage with the fallback runs until then.
+  const noGroups = `once there are no more ${w.group}s`;
+  const fromWords = (st, i) => {
+    const on = stageOn(st);
+    if (!on) return null;
+    if (!fallsTo(stages, i)) return onWords(on);
+    return on.change.length ? `${onWords(on)}, or ${noGroups}` : noGroups;
+  };
   const each = stages.map((st, i) => {
     const next = stages[i + 1];
-    const d = describeSpec(st.game, { ...(isObj(ctx) ? ctx : {}), show: null, fromChange: stageOn(st) ? onWords(stageOn(st)) : null, untilChange: !!(next && stageOn(next)) });
+    const nextOn = next ? stageOn(next) : null;
+    const until = !nextOn ? false : !fallsTo(stages, i + 1) ? true : nextOn.change.length ? `until the format changes, or there are no more ${w.group}s` : `until there are no more ${w.group}s`;
+    const d = describeSpec(st.game, { ...(isObj(ctx) ? ctx : {}), show: null, fromChange: fromWords(st, i), untilChange: until });
     return { label: st.name || `Stage ${i + 1}`, d, sentence: d.sentence.replace(/^An? /, (m) => m.toLowerCase()).replace(/\.$/, '') };
   });
   const parts = [{ text: `A game in ${say(stages.length)} stages`, at: 'preset' }];
@@ -958,6 +970,11 @@ function describeStages(s, ctx) {
     rules.push("A change of format counts once research is sure of it: from the episode it takes effect, or the next still to play.");
     rules.push(ch.ok === 'maker' ? `Whoever runs the game says whether a new stage starts; if nobody does by its first episode, ${ch.unanswered === 'start' ? 'it starts anyway' : 'the game carries on as it is'}.` : 'The new stage starts by itself; whoever runs the game can call it off.');
   }
+  // A12 part 2b: where a 'next-stage' fallback ends its stage.
+  stages.forEach((st, i) => {
+    if (!nextStageAts(st.game).length || !stages[i + 1]) return;
+    rules.push(`${each[i].label}: once research is sure nobody is in a ${w.group} going into ${article(w.part)} ${w.part}, it ends and ${each[i + 1].label} starts; until it's sure, ${article(w.part)} ${w.part} it can't play doesn't count.`);
+  });
   each.forEach((x) => rules.push(`${x.label}: ${x.d.sentence}`, ...x.d.rules.map((r) => `${x.label}: ${r}`)));
   const e = isObj(s.extras) ? s.extras : {};
   const details = [

@@ -2,7 +2,7 @@ import StateLogic from "@/lib/game/state-logic.js";
 import type { ChangePlan, ChangePlanEntry, ChangePlanInput, StageTrigger } from "@/lib/game/state-logic.js";
 import * as Spec from "@/lib/game/game-spec/index.js";
 import type { GameSpec, SpecStage } from "@/lib/game/game-spec/index.js";
-import { at, stageTriggers } from "@/lib/game/formats/format-timeline.js";
+import { at, groupsGone, stageTriggers, withGone } from "@/lib/game/formats/format-timeline.js";
 import type { Timeline } from "@/lib/game/formats/format-timeline.js";
 import { showWords } from "@/lib/game/show-words";
 import type { LeagueState } from "@/lib/game/types";
@@ -50,7 +50,11 @@ const CHANGE_WORDS: Record<string, string> = {
   newcomer: "someone new came in",
   "new-phase": "a new phase began",
 };
-const changeWords = (t: StageTrigger) => (t.kind === "swap" && t.allNew ? "a swap that left no group as it was" : CHANGE_WORDS[t.kind] ?? t.kind);
+/** A change in words; where the groups are gone with no change recorded (groupsGone), in the show's word for its groups. */
+const wordsOfChange = (t: StageTrigger, group: string) =>
+  t.kind === "swap" && t.allNew ? "a swap that left no group as it was" : t.kind === "groups-gone" ? `nobody was in a ${group} any more` : (CHANGE_WORDS[t.kind] ?? t.kind);
+/** The game's word for its groups ("team", "tribe"), for wordsOfChange. */
+const groupOf = (state: LeagueState) => (StateLogic.formatOf(state).terms?.tribe || "group").toLowerCase();
 
 interface Stage {
   id: string;
@@ -83,13 +87,19 @@ export interface ChangeSettled {
 }
 
 /**
- * The changes each stage a change starts reads: the timeline's (stageTriggers, of its kinds), and, for a live copy whose change came
- * from an episode research has no report for now (withdrawn, or being asked again), its change as the copy has it, so missing research
- * takes nothing away (only a report that says something else does).
+ * The changes each stage a change starts reads: the timeline's (stageTriggers, of its kinds; A12 part 2b, for a stage the one before's
+ * 'next-stage' fallback starts, also where the groups are gone: groupsGone, one trigger per change), and, for a live copy whose change
+ * came from an episode research has no report for now (withdrawn, or being asked again), its change as the copy has it, so missing
+ * research takes nothing away (only a report that says something else does).
  */
 function triggersFor(parent: LeagueState, tl: Timeline | null, live: Stage[]): ChangePlanInput["triggers"] {
   const out: ChangePlanInput["triggers"] = {};
-  for (const s of StateLogic.StageLogic.onStages(parent)) out[s.id] = tl ? stageTriggers(tl, Spec.stageOn(s)?.change) : { act: [], held: [] };
+  const falls = StateLogic.StageLogic.fallbackStarts(parent);
+  const gone = tl && falls.size ? groupsGone(tl) : null;
+  for (const s of StateLogic.StageLogic.onStages(parent)) {
+    const t = tl ? stageTriggers(tl, Spec.stageOn(s)?.change) : { act: [], held: [] };
+    out[s.id] = gone && falls.has(s.id) ? withGone(t, gone) : t;
+  }
   for (const c of live) {
     const stage = StateLogic.StageLogic.copyOf(c.key);
     const id = c.key.slice(c.key.indexOf("@") + 1);
@@ -163,6 +173,8 @@ const stageName = (state: LeagueState, id: string) => StateLogic.StageLogic.stag
 function linesFor(g: Read, state: LeagueState, plan: ChangePlan, gone: string[]): { tell: string; episode: number | null; text: string }[] {
   const told = new Set(StateLogic.StageLogic.changeRecord(state).told);
   const ep = g.episodeWord;
+  const group = groupOf(state);
+  const changeWords = (t: StageTrigger) => wordsOfChange(t, group);
   const out: { tell: string; episode: number | null; text: string }[] = [];
   const say = (tell: string, t: StageTrigger | null, text: string) => {
     if (!told.has(tell)) out.push({ tell, episode: t ? t.episode : null, text });
@@ -233,7 +245,7 @@ async function makeCopy(g: Read, e: ChangePlanEntry): Promise<boolean> {
   const { rows: had } = await pool.query("SELECT 1 FROM leagues WHERE stage_of = $1 AND stage_key = $2", [g.parentId, e.key]);
   if (had.length) return false;
   const st = StateLogic.StageLogic.stages(g.parent).find((x: SpecStage) => x.id === e.stage) as SpecStage;
-  const base = Spec.stageGame(st, e.from as number);
+  const base = Spec.stageLeagueGame(st, e.from as number);
   const game = { ...base, span: { ...base.span, from: e.from as number, to: (e.to ?? null) as GameSpec["span"]["to"] } } as GameSpec;
   const kind = Spec.playsAs(Spec.fullSpec(game));
   if (!kind) throw new Error(`stage ${st.id} plays as no game`);
@@ -263,7 +275,7 @@ async function makeCopy(g: Read, e: ChangePlanEntry): Promise<boolean> {
         kind: "game.start",
         tier: 1,
         episode: t.episode,
-        text: `${st.name || "A new stage"} of ${g.name}, from ${g.episodeWord} ${e.from}: the format changed (${changeWords(t)})`,
+        text: `${st.name || "A new stage"} of ${g.name}, from ${g.episodeWord} ${e.from}: the format changed (${wordsOfChange(t, groupOf(g.parent))})`,
         detail: { stageOf: g.parentId, change: t },
       });
     },
@@ -406,7 +418,7 @@ export async function answerChange(parentId: string, key: string, what: string, 
     const problem = StateLogic.StageLogic.decide(s, key, what, user.id, now.toISOString());
     if (problem) throw new HttpError(400, problem);
     const name = stageName(s, StateLogic.StageLogic.copyOf(key) ?? "");
-    await recordChange(client, parentId, s, { userId: user.id, kind: "game.settled", tier: 1, episode: t.episode, text: `${user.name} said ${what === "start" ? "start" : "no to"} ${name} for ${changeWords(t)} at ${t.from}` });
+    await recordChange(client, parentId, s, { userId: user.id, kind: "game.settled", tier: 1, episode: t.episode, text: `${user.name} said ${what === "start" ? "start" : "no to"} ${name} for ${wordsOfChange(t, groupOf(s))} at ${t.from}` });
   });
   return settleChanges(parentId, now);
 }

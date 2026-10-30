@@ -4401,6 +4401,13 @@ class StageLogic {
   static copyKey(stageId, changeId){ return `${stageId}@${changeId}`; }
   // The stages a format change starts (their `on` whole).
   static onStages(state){ return StageLogic.stages(state).filter(st => !!Spec.stageOn(st)); }
+  // A12 part 2b: the stages the one before's 'next-stage' fallback starts (Spec.nextStageAts): that stage ends where its group
+  // question or its group slots can't be played as the groups stand, and this one starts then (format-timeline.js groupsGone,
+  // one more of its triggers: the server's, change-stages.ts).
+  static fallbackStarts(state){
+    const list = StageLogic.stages(state);
+    return new Set(list.filter((st, i) => !!Spec.stageOn(st) && Spec.fallsTo(list, i)).map(st => st.id));
+  }
   // How the game takes a format change (extras.changes, its defaults Spec.CHANGES), or null for a game no change moves.
   static changesOf(state){
     if(!StageLogic.onStages(state).length) return null;

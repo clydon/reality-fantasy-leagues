@@ -919,6 +919,8 @@ declare const StateLogic: {
     copyOf(key: string): string | null;
     copyKey(stageId: string, changeId: string): string;
     onStages(state: LeagueState): { id: string; name: string | null; game: import("./game-spec/index.js").GameSpec; on?: { change: string[]; again: boolean } }[];
+    /** A12 part 2b: the ids of the stages the one before's 'next-stage' fallback starts (groupsGone is one more of their triggers). */
+    fallbackStarts(state: LeagueState): Set<string>;
     changesOf(state: LeagueState): { ok: "auto" | "maker" | "vote"; unanswered: "start" | "carry-on" } | null;
     changeRecord(state: LeagueState): ChangeRecord;
     decide(state: LeagueState, key: string, what: string, by?: string | null, at?: string | null): string | null;
@@ -1099,6 +1101,8 @@ export interface StageTrigger {
   when: string | null;
   episode: number;
   what: string;
+  /** A12 part 2b: where the groups are gone (format-timeline.js groupsGone), a 'next-stage' fallback's start of the next stage. */
+  gone?: boolean;
 }
 /** A12 part 2: what a game in stages remembers of its format changes (state.changeStages). */
 export interface ChangeRecord {

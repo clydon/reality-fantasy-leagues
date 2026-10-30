@@ -62,8 +62,9 @@ in scoring reading a league type or filtering the stored type by one), are built
 and part 3, a pool's finale (2026-10-30, the user's decision: only the winner survives it, every game's one reading of a night, `nightOf`;
 proven on the Survivor 51 rehearsal and the golden replays), is built, to merge before Survivor 51's finale on Dec 16; A12's other parts next: part 2, a stage a format change starts (2026-10-30: a later stage's `on`, a copy
 of it made mid-season, a league of its own, each time research is sure the format changed that way, by itself or with the maker's OK,
-taken away when the report is corrected; `StageLogic.changePlan`, `change-stages.ts`, from the season sync), is built; part 2b (the
-'next-stage' fallbacks) next, then parts 3 and 4. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+taken away when the report is corrected; `StageLogic.changePlan`, `change-stages.ts`, from the season sync), is built, and so is part 2b, the 'next-stage' fallbacks (2026-10-30: a stage whose group question or group slots
+can't be played as the groups stand ends there and the next starts, once research is sure nobody is in a group going into an episode;
+unsure, void and held; `format-timeline.js groupsGone`, through part 2's plan); parts 3 and 4 next. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -4134,7 +4135,8 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     Challenge's three seasons and Survivor 49's swaps and merge, replayed blind: built (below).
   - **Part 2b: the 'next-stage' fallbacks** VOCAB marks 'later' (`ask.fallback`, `get.groups.fallback`; split off part 2, 2026-10-30): a
     stage whose group question or group slot can't be played as the groups stand (not sure at the lock, or not divided) ends there and
-    the game's next stage starts, through part 2's machinery (the plan, the copies, the undo).
+    the game's next stage starts, through part 2's machinery (the plan, the copies, the undo): built (below; only a sure "nobody is in a
+    group going in" moves the game, an unsure state is void and held).
   - **Part 3: when a grouping lasts** (p8): a side stage that opens once a grouping has held N episodes (F3's `sideStages`), scores from
     then on and closes when it changes (its points kept), follow the people, a pick each episode from the groupings on screen, and a
     decision point for the game's people with the game's default if nobody answers by the next lock (the maker's OK now, A14's vote
@@ -4348,6 +4350,68 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     research); The Challenge 39 eleven (ten of one episode, 6 to 15, then the split from 16); Survivor 49 three (the swaps, each at an
     episode's start and so from the next, 5 and 7, then the merge from 8, its later drafts shared as 4 × 3 no longer fit who was left);
     The Traitors 4 none (no major change: its first stage plays the season). The study doc's "A12 part 2".
+  **As built (A12 part 2b, the 'next-stage' fallbacks, 2026-10-30, on `engine`, not merged; no migration).** The same session as R1
+  part 3, after it. A stage whose group question or group slots can't be played as the groups stand ends there, and the game's next
+  stage starts, through part 2's machinery. Every default and everything a person sees is the user's (Noticed, below).
+  - **The shape (decided):** 'next-stage' is a stage's, in a game in stages with a stage after it (`schema.js nextStageAts`, `fallsTo`):
+    a group question asked each episode (`ask[].fallback`) or group slots (`get.groups.fallback`), VOCAB 'now' for both. Alone, or in
+    the last stage, our check refuses it with why ("it's for a stage with another after it in a game in stages (else void, or
+    carry-on)"), a league's own spec too. The stage after starts on it: a stage a change starts, its `on` left out (`{ change: [] }` in
+    the whole form: nothing else starts it) or with kinds of its own (whichever comes first; an empty list is allowed only there); never
+    at an episode or a phase of its own (refused, with why); the stage with the fallback has no end of its own (refused).
+  - **Which states move it (`format-timeline.js groupsGone`), the 8:15 PM rule:** going into an episode nobody is in a group (everyone
+    on their own, or the merge's one group of everyone) after groups. Once a spell without groups, at the first episode whose research is
+    sure of it going into the next (that end sure, nothing announced for the next unsure; at the episode they went, the change that ended
+    them sure too, as `stageTriggers` counts it), from the episode it takes effect, or the first still open. A spell research isn't sure
+    of is held (flagged in the plan, said once in Recent changes, never acted on) and its episodes are void, the safe fallback; a later
+    sure report acts on it under the same key. A re-draw (a re-pairing, a swap) leaves the game divided and moves nothing: the question
+    offers the new groups, the slots drop and open again. Keyed by the change that ended the groups (so a stage its own kinds start too
+    starts once), else `<episode>:groups-gone`; `gone` on the trigger.
+  - **Through part 2's machinery:** `StageLogic.fallbackStarts` names the stages a fallback starts; `change-stages.ts triggersFor` adds
+    groupsGone's triggers to theirs (`format-timeline.js withGone`: one per change, a sure one taking a held one's place); the plan
+    (`changePlan`), the copies, the maker's OK, the undo when the report is corrected and the lines are part 2's, unchanged. A stage's
+    own league plays 'next-stage' as void (`schema.js stageLeagueGame`, for the lab's stages and change-stages' copies): where the stage
+    ends is the game's plan, never its own league's, so `groupChoices` and the slots read it as void and nothing else reads it.
+  - **Words** (`describe.js`): "Pairs, ..., until there are no more teams; then Solo, ..., once there are no more teams" (with kinds of
+    its own: "until the format changes, or there are no more teams", "from the first time teams form, or once there are no more teams");
+    How it works: "Pairs: once research is sure nobody is in a team going into an episode, it ends and Solo starts; until it's sure, an
+    episode it can't play doesn't count." Recent changes says "nobody was in a <group> any more" where no change is recorded (the game's
+    own word for its groups).
+  - **The tracker:** no request words it, so no row; 184 ✅ · 63 ⏳ · 1 🆕 · 2 ❓ · 23 💬, unchanged, and `--check`.
+  - **`blind.js`:** each episode's format record has `groupsGone` (act and held, as triggers): where a stage with the fallback would
+    end, as if live (the study doc's "A12 part 2b").
+  - **Tests:** `tests/next-stage.test.js` (new, 3): the spec (whole, its problems alone, in the last stage, with a start or an end of its
+    own, an empty `on.change` only after it, a void fallback starting nothing, a league of its own refused and a stage's league playing
+    it as void, its settings both ways, `fallbackStarts`, its words); where the groups are gone on made-up research (a sure split, unsure
+    then sure the next episode under the same key, before the research, a merge, a season never in groups, the re-pairing moving nothing,
+    `groupChoices` reading it as void, `withGone`); and the plan (from where the groups are gone, held while unsure, seen late, a copy
+    never moving once aired, with kinds of its own, the maker's OK, a corrected report taking it away and another starting it later).
+    `format-timeline-reads`, `group-slots` and `format-timeline` tests: 'next-stage' plays (refused alone), no longer waits. `npm test`
+    1187; `tsc` clean. `game-specs-flag.js check`: PASS (this lane's database, the flag on).
+  - **API check:** `scripts/dev-test/check-next-stage.js` (new, on new-fixture.js's couch, its season in pairs from Episode 4 as research
+    stores it), 21 PASS, twice: the desk's admin starts a pair each episode, then a solo draft once the pairs are gone, from the lab (only
+    Pairs made, its own league playing the question as void, from 6); alex, riley, jordan and sam join; Episode 6's research says the
+    split unsure: held, said, nothing made; Episode 7's research sure nobody's in a pair going into 8: Solo made by the season sync (its
+    own league, tied, the five seats under the same ids) from 8, keyed by the split, Pairs ending with 7, said on the game and on Pairs,
+    its draft open at once and drafted; Episodes 6 and 7 corrected (still in pairs): Solo taken away, Pairs playing on; corrected back:
+    Solo back with its team from 8; GET stage-changes listing it for alex once he's seen 7. Also ALL PASS: `check-change-stages.js`,
+    `check-format-groups.js`, `check-group-slots.js`, `check-stages.js`.
+  - **The code review** (`/code-review` at high, before the long runs; ten findings, all taken): an unsure split was held for ever even
+    when later episodes were sure (once a spell now, at its first sure episode); the refusal skipped any league's own spec, so a standalone
+    league could carry it (refused everywhere now, a stage's league playing it as void); `groupChoices` said the game moved on where
+    nothing would (it reads 'next-stage' as void); the stage before said only "until the format changes" beside a next stage that also
+    starts when the groups go; `fallsTo` worked out every stage's whole spec on the hot path (it reads them as written, once a list); the
+    kinds that end the groups written three times (`ENDS`); two checks that could never be true; Recent changes' word "group" hard-coded
+    (the game's own); `gone` missing from the trigger's type; the next stage's label worked out twice.
+  - **Golden replays:** `golden.js` (HEAD, R1 part 3, against the working tree, on the final code): 7 seasons, 160 games, **19,361
+    reads, every one the same**. Against master's (production's engine, `--before=master`): the same 7 seasons, 160 games and 19,361
+    reads, every one the same but R1 part 3's 20 (The Challenge 40's Survival Pool, one seat's pick of a winner at the final), nothing else.
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game ended on all five seasons**, as after part 2
+    (Survivor 49 115 of 115, The Challenge 41 90 of 90, 40 85 of 85, 39 94 of 94, The Traitors 4 81 of 81; nothing refused; the questions
+    waiting on early results finding 20's 3, 2 and 2). Where 'next-stage' would end a stage, as if live (each episode's `groupsGone`):
+    Survivor 49 from 8 (the merge, known from 7's research), The Challenge 40 from 11 (the split said ahead at 9, sure at 10), 39 from 16
+    (the split at 15's end), 41 not in the season (the split at the final, held unsure at 19, sure at 20's research: from 21), The
+    Traitors 4 never (no groups); the re-pairings and re-draws move nothing. The study doc's "A12 part 2b".
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
   and checked as now); episode facts (who said the title quote) through new research questions rated reliable (Our check).
 - **A14. The players' own mechanics** (allowed 2026-10-28, with the Decisions table's guardrails): votes among the players,
@@ -5310,6 +5374,38 @@ From R1 part 2 (2026-10-30):
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
 
+From A12 part 2b (2026-10-30):
+- **For the user, in the format-change design session (after A12), with A12 part 2's items, each with a recommendation (built as spec
+  rules):**
+  1. Which states end a stage with 'next-stage'. Built: research sure that nobody is in a group going into an episode, after groups
+     (everyone on their own, the merge); an unsure state is void and held (said once, flagged), a sure report later acting on it; a
+     re-draw (pairs re-paired, a swap) moves nothing. Options: also end it at a re-draw of every group (a game whose slots or question
+     were about the groups it started with); end it on an unsure state too. Recommended: as built (the 8:15 PM rule: only a reliable
+     report moves a game's structure; a re-draw is still a game in groups).
+  2. 'next-stage' alone or in the last stage. Built: refused with why (nothing to start), the wizard offering void or carry-on. Options:
+     read it as void. Recommended: refused.
+  3. What starts the next stage. Built: the fallback alone when it says nothing (`on` left out), or with kinds of its own, whichever
+     comes first. Options: the fallback only. Recommended: as built.
+  4. A stage that starts without groups (never divided while it plays, or the groups gone at its first episode): nothing moves; its
+     episodes are void until groups form and go again. Options: start the next stage at once when the stage starts sure there are no
+     groups. Recommended: as built, the builder saying up front, from the show's history (F1's lifetimes), when a season starts without
+     groups.
+  5. The edge cases: groups that come back after the next stage started (the next plays on, the stage before doesn't come back:
+     recommended, as built); the groups gone at the final (a start past the season's last episode never comes: part 2's `late`; one at
+     the final itself a stage of one episode, as part 2's item 9c); with the maker's OK, the fallback's start waits for the maker too
+     (part 2's item 1).
+  6. What players and the maker are told. Built: part 2's lines ("The format changed (everyone went on to play on their own, from
+     Episode 8): Solo starts with Episode 8"; "Research isn't sure ..., so the game carries on as it is"), "nobody was in a <group> any
+     more" where no change is recorded; the stage's own league's How it works says void words (true for it alone); the game's says the
+     structure. Recommended: the game's page says it in its stages block (track V), behind each viewer's mark.
+- **No request words it** (the corpus), so no tracker row plays it and the blind replays only record where it would end (each episode's
+  `groupsGone`). (G1, when a request does: a row for it.)
+- **GET stage-changes' change has id, kind, from and what, not `gone`**: a screen tells a fallback's start by its stage
+  (`fallbackStarts`) or the kind `groups-gone`. (U1.)
+- **`setGame` returns no problems and writes nothing for a whole spec its league's type can't hold** (a game of questions on a league
+  made as a classic draft: `withSpec` gives null, and `specProblems` finds nothing): the lab and the copies make a game of questions as a
+  pool, so nothing hits it, but a caller that doesn't is told nothing. (Whoever next touches `setGame`: say why.)
+
 From A12 part 2 (2026-10-30):
 - **The Survivor 51 season-forward rehearsal still isn't on master** (looked for at this part's sync): R1's line stands, and R1 merges
   only once it passes (the main folder).
@@ -5350,7 +5446,7 @@ From A12 part 2 (2026-10-30):
      recommended). (c) One in the finale: a change taking effect at the season's last episode starts a copy of that one episode; one
      past it never starts (`late`), and the finale's own split is held anyway (F4); recommended: no copy for a change taking effect at
      the finale itself (a one-episode stage isn't a game), a rule the plan can carry. (d) One that comes back: as 8.
-- **The 'next-stage' fallbacks** (`ask.fallback`, `get.groups.fallback`, VOCAB 'later'): part 2b, next.
+- **The 'next-stage' fallbacks** (`ask.fallback`, `get.groups.fallback`, VOCAB 'later'): part 2b, next. **Built: A12 part 2b.**
 - **A copy is a game on the couch's lists**, as part 1's stages are, named "<game> · <stage> 2" for the second; the hub counts the game
   only (part 1's item 7 holds). (U1 and track V.)
 - **Recent changes lines carry an episode but the feed doesn't hide a line by it** (as results' lines today): a player behind can read

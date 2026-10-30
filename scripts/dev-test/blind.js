@@ -759,6 +759,8 @@ async function formatAfter(copy, n, E) {
   const tl = got ? got.timeline : null;
   const e = tl ? Timeline.at(tl, n) : null;
   const trig = tl ? Timeline.stageTriggers(tl) : { act: [], held: [] };
+  // A12 part 2b: where a stage with a 'next-stage' fallback would end, the groups gone going into an episode (sure, or held).
+  const gone = tl ? Timeline.groupsGone(tl) : { act: [], held: [] };
   const out = {
     episode: n,
     sure: e ? e.sure : null,
@@ -768,6 +770,7 @@ async function formatAfter(copy, n, E) {
     changes: e ? e.changes.map((c) => ({ kind: c.kind, allNew: !!c.allNew, from: Timeline.effective(c, n), sure: c.sure, by: c.by, ahead: !!c.ahead, what: c.what || "" })) : [],
     wentHomeAs: e ? e.wentHomeAs : null,
     triggers: { act: trig.act.filter((x) => x.episode === n).map((x) => `${x.kind} from ${x.from}`), held: trig.held.filter((x) => x.episode === n).map((x) => `${x.kind} from ${x.from}`) },
+    groupsGone: { act: gone.act.filter((x) => x.episode === n).map((x) => `${x.kind} from ${x.from}`), held: gone.held.filter((x) => x.episode === n).map((x) => `${x.kind} from ${x.from}`) },
     slots: tl ? Timeline.groupSlots(tl).filter((x) => x.opensAfter === n).length : 0,
     sideStages: tl ? Timeline.sideStages(tl).filter((x) => x.opens && x.opensAfter === n).map((x) => ({ groups: x.groups.length, scores: x.scores })) : [],
     newcomers: tl ? tl.newcomers.filter((x) => x.episode === n).map((x) => x.name) : [],

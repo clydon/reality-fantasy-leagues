@@ -127,6 +127,13 @@
 // phase after it comes with A12's later parts). The game's extras.changes { ok: 'auto' (the stage starts by itself, with an undo)
 // | 'maker' (it waits for the maker's OK), unanswered: 'start' | 'carry-on' (what happens with 'maker' when nobody answers by the
 // lock the stage would start with) }, CHANGES its defaults (the user's: Noticed). StageLogic.changePlan, change-stages.ts.
+// A12 part 2b, the 'next-stage' fallback (a group question asked each episode's `fallback`, group slots' `get.groups.fallback`):
+// only in a stage with a stage after it (alone, or in the last stage, it's refused: nothing to start; a stage's own league plays
+// it as void, stageLeagueGame, the game in stages' plan saying where the stage ends). That stage ends where it
+// can't be played as the groups stand, research sure that nobody is in a group going into an episode (format-timeline.js
+// groupsGone; unsure, the episode is void and nothing moves), and the next starts then: it's a stage a change starts, its `on` (left
+// out, { change: [] }: nothing else starts it; with kinds, whichever comes first), never at an episode or a phase of its own, and
+// the stage with the fallback has no end of its own (nextStageAts, fallsTo; StageLogic.fallbackStarts, change-stages.ts).
 //
 // Who builds each value is in VOCAB: 'now' the engine plays it today (after A2, through the spec; a phase start since A3;
 // questions since A4), 'sports' the sports branch, 'later' no step yet. specProblems says what's wrong with a spec, specWaitsFor what
@@ -170,7 +177,7 @@ const VOCAB = {
   // F3 part 2: what a group question asked each episode does when its groups (a season played in pairs, read from the format's
   // state over time) aren't sure at the lock or as played: void that episode's question, no points either way, or follow the
   // people (a group graded by who was in it as offered). A12 adds starting the game's next stage.
-  'ask.fallback': { void: 'now', 'carry-on': 'now', 'next-stage': 'later' },
+  'ask.fallback': { void: 'now', 'carry-on': 'now', 'next-stage': 'now' },
   // A9 part 2: when a draft's points multiply (score.times): an episode, a run of them, a phase of the season, its finale.
   'score.times': { episode: 'now', from: 'now', phase: 'now', finale: 'now' },
   // A10 part 1: group slots (get.groups), a draft's +1 or +2 slot that holds a pair or a team the show forms, read from the
@@ -178,7 +185,7 @@ const VOCAB = {
   // the episode was played aren't sure (void that episode for the slot, or follow the people), and how a group's points are
   // its members' (their mean: the slot scores like one more person; or their sum).
   'get.groups.own': { shared: 'now', exclusive: 'now' },
-  'get.groups.fallback': { void: 'now', 'carry-on': 'now', 'next-stage': 'later' },
+  'get.groups.fallback': { void: 'now', 'carry-on': 'now', 'next-stage': 'now' },
   'get.groups.points': { mean: 'now', sum: 'now' },
   // A10 part 2: what a pool's second pick does on a night only one goes home (void: no points either way; counts: scored like
   // the first, so two picks every episode).
@@ -289,8 +296,10 @@ const VOCAB = {
 //           read from the format's state over time, format-timeline.js groupFacts): what it does when the groups at the lock,
 //           or as the episode was played, aren't sure. void (the default, the safe one; the default is the user's to set):
 //           that episode's question doesn't count, no points either way | carry-on: follow the people, a group graded by
-//           who was in it as offered | next-stage (A12). A group offered that didn't play the episode as offered (re-drawn
-//           at its start) is void for whoever picked it, whatever the fallback but carry-on
+//           who was in it as offered | next-stage (A12 part 2b, a stage's with a stage after it): as void, and once research is
+//           sure nobody is in a group going into an episode (everyone on their own, the merge) the stage ends and the game's
+//           next starts (nextStageAts). A group offered that didn't play the episode as offered (re-drawn at its start) is void
+//           for whoever picked it, whatever the fallback but carry-on
 //   each    'person': one question about each person still in when it closes, an answer for each ("each couple's
 //           score"), still one question of the 12: a yes or no, a number, an over/under or a choice, settled for each
 //           person by their own moment (happened, count) or whether they go home (out) or stay (stays)
@@ -710,6 +719,38 @@ const STAGE_KINDS = ['classic-draft', 'active-roster', 'pickem', 'questions'];
 const ON_CHANGE = { change: MAJOR, again: false };
 const CHANGES = { ok: 'auto', unanswered: 'start' };
 const MAX_COPIES = 12;
+/** A12 part 2b: where a game says 'next-stage' (its group slots' fallback, a group question's asked each episode), as paths: the
+ *  stage it's in ends where it can't be played as the groups stand and the game's next stage starts. As written or whole (it's
+ *  never a default, and a question left without `asked` is asked once). */
+function nextStageAts(s) {
+  if (!isObj(s)) return [];
+  const out = [];
+  if (isObj(s.get) && isObj(s.get.groups) && s.get.groups.fallback === 'next-stage') out.push('get.groups.fallback');
+  (Array.isArray(s.ask) ? s.ask : []).forEach((q, i) => {
+    if (isObj(q) && q.fallback === 'next-stage' && q.answer === 'group' && q.asked === 'each' && q.over === undefined) out.push(`ask[${i}].fallback`);
+  });
+  return out;
+}
+/** Whether stage i of a game's stages (as written or whole) is the one the stage before's 'next-stage' fallback starts. */
+function fallsTo(list, i) {
+  const prev = Array.isArray(list) && i > 0 ? list[i - 1] : null;
+  return isObj(prev) && isObj(prev.game) && prev.game.stages === undefined && nextStageAts(prev.game).length > 0;
+}
+/** A stage given a start of its own (an episode or a phase), as written. */
+const ownStart = (st) => isObj(st) && isObj(st.game) && isObj(st.game.span) && st.game.span.from !== undefined && st.game.span.from !== null;
+/** A12 part 2b: the game a stage's own league plays (stageGame), its 'next-stage' fallbacks read as 'void' there: what its readers
+ *  do, and where the stage ends is the game in stages' plan (changePlan), never the stage's own league. */
+function stageLeagueGame(st, from) {
+  const g = stageGame(st, from);
+  const at = nextStageAts(g);
+  if (!at.length) return g;
+  const out = clone(g);
+  if (at.includes('get.groups.fallback')) out.get.groups.fallback = 'void';
+  (out.ask || []).forEach((q, i) => {
+    if (at.includes(`ask[${i}].fallback`)) q.fallback = 'void';
+  });
+  return out;
+}
 /** A stage's `on` whole ({ change, again }), or null for a stage that starts at an episode or a phase. */
 function stageOn(st) {
   if (!isObj(st) || !isObj(st.on)) return null;
@@ -1081,6 +1122,7 @@ function fullStaged(s) {
  * from who's still in then: a second draft at the merge). Never changes what a stage says.
  */
 function stageGames(list) {
+  const falls = list.map((_, i) => fallsTo(list, i));
   return list.map((st, i) => {
     if (!isObj(st)) return st;
     const out = { ...st };
@@ -1090,14 +1132,17 @@ function stageGames(list) {
     const next = list[i + 1];
     const nextFrom = isObj(next) && isObj(next.game) && isObj(next.game.span) ? next.game.span.from : undefined;
     if (g.span === undefined) g.span = {};
+    // A12 part 2b: a stage the one before's 'next-stage' fallback starts, with no start of its own, starts on that alone.
+    const on = isObj(st.on) ? st.on : falls[i] && !ownStart(st) ? { change: [] } : null;
+    const nextOn = isObj(next) && (isObj(next.on) || (falls[i + 1] && !ownStart(next)));
     // A12 part 2: a stage a change starts plays from where each change takes effect (null: the server writes it in each copy);
     // the stage before it runs on until then (no end of its own).
-    if (isObj(st.on) && isObj(g.span) && g.span.from === undefined) g.span.from = null;
-    if (isObj(g.span) && g.span.to === undefined && !(isObj(next) && isObj(next.on))) {
+    if (on && isObj(g.span) && g.span.from === undefined) g.span.from = null;
+    if (isObj(g.span) && g.span.to === undefined && !nextOn) {
       if (isInt(nextFrom, 2)) g.span.to = nextFrom - 1;
       else if (phaseFrom(nextFrom)) g.span.to = { phase: nextFrom.phase };
     }
-    if (isObj(st.on)) out.on = { ...ON_CHANGE, ...st.on, change: Array.isArray(st.on.change) ? st.on.change.slice() : ON_CHANGE.change.slice() };
+    if (on) out.on = { ...ON_CHANGE, ...on, change: Array.isArray(on.change) ? on.change.slice() : ON_CHANGE.change.slice() };
     const said = isObj(st.game.extras) && isObj(st.game.extras.draft) && st.game.extras.draft.opens !== undefined;
     const full = fullSpec(g);
     if (i > 0 && !said && isObj(full.get) && full.get.by === 'draft' && isObj(full.extras) && isObj(full.extras.draft)) full.extras.draft = { ...full.extras.draft, opens: 'start' };
@@ -1532,6 +1577,9 @@ function specProblems(spec, ctx, opts) {
     }
   }
 
+  // A12 part 2b: 'next-stage' starts the game's next stage, so it's a stage's with a stage after it (stagedProblems: opts.nextStage).
+  // A stage's own league plays it as void (stageLeagueGame): where the stage ends is the game in stages' plan.
+  if (!(opts && opts.nextStage)) nextStageAts(s).forEach((at) => add(at, "'next-stage' starts the game's next stage: it's for a stage with another after it in a game in stages (else void, or carry-on)"));
   unknownKeys(s).forEach((at) => add(at, `"${at.split('.').pop()}" isn't part of a game spec`));
   if (ctx) settleProblems(s, ctx, opts || {}).forEach(([at, p]) => add(at, p));
   return out;
@@ -1658,7 +1706,7 @@ function questionProblems(q, at, s, ids, league) {
   // F3 part 2: a group question asked each episode about one episode reads its groups from the format's state over time on a
   // season played in groups the league doesn't hold (pairs); `fallback` says what it does when they aren't sure.
   if (q.fallback !== undefined) {
-    if (!one('ask.fallback', q.fallback)) add('fallback', "When its groups aren't sure, it is void or follows the people: void, or carry-on");
+    if (!one('ask.fallback', q.fallback)) add('fallback', "When its groups aren't sure, it is void, follows the people or (a stage's) starts the next stage once they're gone: void, carry-on or next-stage");
     else if (q.answer !== 'group' || q.asked !== 'each' || q.over !== undefined) add('fallback', 'Only a group question asked about each episode has a fallback');
   }
   // Who outlasts whom and the boot order come from who went home; an order of the boot order asked each episode is one boot.
@@ -1815,7 +1863,7 @@ function groupSlotProblems(g, s) {
   if (!(isInt(g.slots, 1) && g.slots <= MAX_GROUP_SLOTS)) out.push(['.slots', `A team has 1 to ${MAX_GROUP_SLOTS} group slots`]);
   if (!one('get.groups.own', g.own)) out.push(['.own', 'A group slot is shared (anyone can hold the same group) or exclusive']);
   if (typeof g.swap !== 'boolean') out.push(['.swap', 'swap is true or false: whether a slot can change its group while it lasts']);
-  if (!one('get.groups.fallback', g.fallback)) out.push(['.fallback', "When its groups aren't sure, a slot is void for that episode or follows the people: void, or carry-on"]);
+  if (!one('get.groups.fallback', g.fallback)) out.push(['.fallback', "When its groups aren't sure, a slot is void for that episode, follows the people or (a stage's) starts the next stage once they're gone: void, carry-on or next-stage"]);
   if (!one('get.groups.points', g.points)) out.push(['.points', "A group's points are its members': their mean, or their sum"]);
   if (!(isObj(s.score) && s.score.by === 'moments')) out.push(['', 'A group scores what its members do: group slots go with a draft scored by moments']);
   return out;
@@ -2493,7 +2541,6 @@ function specWaitsFor(spec) {
   const where = isObj(s.pool) && isObj(s.pool.where) ? Object.keys(s.pool.where)[0] : null;
   if (where) val('pool.where', 'pool.where', where, where === 'teams' ? 'Picking from teams' : 'Picking from a group');
   if (isObj(s.get)) val('get.by', 'get.by', s.get.by, 'Squares');
-  if (isObj(s.get) && isObj(s.get.groups)) val('get.groups.fallback', 'get.groups.fallback', s.get.groups.fallback, "Starting the game's next stage when a slot's groups aren't sure");
   if (isObj(s.get) && isObj(s.get.across)) val('get.across.of', 'get.across.of', s.get.across.of, 'A draft of a guy and a girl each');
   if (isObj(s.get) && isObj(s.get.budget)) val('get.budget.left', 'get.budget.left', s.get.budget.left, "Bidding on waivers with the draft's money left over");
   const count = countKind(s.count);
@@ -2555,6 +2602,7 @@ function stagedProblems(spec, s, ctx, opts, add) {
   }
   const ids = new Set();
   const stageOpts = { league: !!(opts && opts.league) };
+  const raws = Array.isArray(spec.stages) ? spec.stages : [];
   list.forEach((st, i) => {
     const at = `stages[${i}]`;
     if (!isObj(st)) return add(at, 'Each stage is { id, name, game }');
@@ -2574,18 +2622,25 @@ function stagedProblems(spec, s, ctx, opts, add) {
       else {
         for (const k of Object.keys(rawOn)) if (!KEYS.on.includes(k)) add(`${at}.on.${k}`, `"${k}" isn't part of a stage a format change starts`);
         const kinds = rawOn.change;
-        if (kinds !== undefined && !(Array.isArray(kinds) && kinds.length && kinds.every((x) => own(VOCAB['on.change'], x) !== undefined) && new Set(kinds).size === kinds.length)) {
+        // A12 part 2b: an empty list after a stage whose 'next-stage' fallback starts it: nothing else does.
+        if (kinds !== undefined && !(Array.isArray(kinds) && (kinds.length || fallsTo(raws, i)) && kinds.every((x) => own(VOCAB['on.change'], x) !== undefined) && new Set(kinds).size === kinds.length)) {
           add(`${at}.on.change`, `The kinds of change that start it, each once: ${TRIGGER_KINDS.join(', ')} (left out: a major one, ${MAJOR.join(', ')})`);
         }
         if (rawOn.again !== undefined && typeof rawOn.again !== 'boolean') add(`${at}.on.again`, 'again is true (a new copy at every such change) or false (the first only)');
       }
       if (isObj(raw.span) && raw.span.from !== undefined && raw.span.from !== null) add(`${at}.game.span.from`, 'It starts where its format change takes effect: leave its start out');
+    } else if (fallsTo(raws, i)) {
+      // A12 part 2b: the stage before's 'next-stage' fallback starts it.
+      if (ownStart(raws[i])) add(`${at}.game.span.from`, "It starts when the stage before can't be played as the groups stand (its 'next-stage' fallback): leave its start out");
     } else if (i > 0 && !(isObj(raw.span) && raw.span.from !== undefined)) add(`${at}.game.span.from`, 'A stage after the first says where it starts: an episode, a phase of the season, or a format change (on)');
-    const nextRaw = Array.isArray(spec.stages) ? spec.stages[i + 1] : undefined;
-    if (isObj(nextRaw) && nextRaw.on !== undefined && isObj(raw.span) && raw.span.to !== undefined && raw.span.to !== null) add(`${at}.game.span.to`, 'It ends where the next stage starts, on its format change: leave its end out');
-    // A later stage drafts where it starts, from who's still in then: its exclusive count waits for its draft to open.
+    const nextRaw = raws[i + 1];
+    if (isObj(nextRaw) && (nextRaw.on !== undefined || fallsTo(raws, i + 1)) && isObj(raw.span) && raw.span.to !== undefined && raw.span.to !== null) {
+      add(`${at}.game.span.to`, nextRaw.on !== undefined ? 'It ends where the next stage starts, on its format change: leave its end out' : "It ends where it can't be played as the groups stand and the next stage starts (its 'next-stage' fallback): leave its end out");
+    }
+    // A later stage drafts where it starts, from who's still in then: its exclusive count waits for its draft to open. A12 part
+    // 2b: 'next-stage' is a stage's with a stage after it.
     const c = ctx && i > 0 ? { ...ctx, pool: undefined } : ctx;
-    specProblems(stageGame(st), c, stageOpts).forEach((p) => add(`${at}.game${p.at ? `.${p.at}` : ''}`, p.problem));
+    specProblems(stageGame(st), c, { ...stageOpts, nextStage: i + 1 < list.length }).forEach((p) => add(`${at}.game${p.at ? `.${p.at}` : ''}`, p.problem));
   });
   // One after another: each starts where the one before ends.
   for (let i = 0; i + 1 < list.length; i++) {
@@ -2650,5 +2705,5 @@ module.exports = {
   fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, specWaitsFor, waiversFit, finaleFits, betsFit, countKind, presetOf, sameValue, own,
   spanStart, spanPhase, spanEnd, spanEndPhase, phaseTo,
   MAX_STAGES, MAX_STAGE_NAME, MAX_PLACES, OVERALL, STAGE_KINDS, stageGames, stagesOverlap,
-  ON_CHANGE, CHANGES, MAX_COPIES, stageOn, stageGame, madeAs,
+  ON_CHANGE, CHANGES, MAX_COPIES, stageOn, stageGame, stageLeagueGame, madeAs, nextStageAts, fallsTo,
 };

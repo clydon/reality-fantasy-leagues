@@ -583,6 +583,11 @@ export const CHANGES: SpecChanges;
 export const MAX_COPIES: number;
 export function stageOn(stage: unknown): SpecOn | null;
 export function stageGame(stage: SpecStage, from?: number): GameSpec;
+/** A12 part 2b: the game a stage's own league plays (stageGame), its 'next-stage' fallbacks read as 'void' there. */
+export function stageLeagueGame(stage: SpecStage, from?: number): GameSpec;
+/** A12 part 2b: where a game says 'next-stage' (paths); whether stage i is the one the stage before's fallback starts. */
+export function nextStageAts(game: unknown): string[];
+export function fallsTo(stages: unknown[], i: number): boolean;
 /** The league type a game is made as before its spec is written: a game of questions as a pool, any other as itself. */
 export function madeAs(kind: LeagueTypeId): LeagueTypeId;
 

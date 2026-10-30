@@ -1171,6 +1171,42 @@ plays it from there as a game of its own, its draft at its start, from who's lef
 - **Not on these replays:** the maker's OK, a corrected report taking a copy away and bringing it back, research missing for a while, the
   game deleted and restored: `tests/change-stages.test.js` and `scripts/dev-test/check-change-stages.js` cover them.
 
+## R1 part 3: a pool's finale, replayed blind (2026-10-30)
+
+R1's part 3 grades a pool's finale by the user's decision (only the winner survives it: state-logic.js `nightOf`, every game's one
+reading of a night). Nothing about a format change reads differently. Replayed blind with A12 part 2b (below): every game ended on all
+five seasons. The golden replays found one game changed: The Challenge 40's Survival Pool, one seat whose pick at the final (Episode 19)
+was a winner, now right.
+
+## A12 part 2b: the 'next-stage' fallbacks, replayed blind (2026-10-30)
+
+A12's part 2b ends a stage whose group question or group slots can't be played as the groups stand, and starts the game's next stage,
+once research is sure nobody is in a group going into an episode (format-timeline.js `groupsGone`: everyone on their own, or the
+merge's one group of everyone, after groups; an unsure state is void and held; a re-draw moves nothing), through part 2's plan. No
+request in the corpus words it, so no tracker row plays it; `blind.js` now records, at each episode, where such a stage would end (its
+format record's `groupsGone`), as if live.
+
+- **Every game ended on all five seasons**, as after part 2: Survivor 49 115 of 115, The Challenge 41 90 of 90, 40 85 of 85, 39 94 of
+  94, The Traitors 4 81 of 81; nothing refused; the questions waiting on early results are finding 20's 3, 2 and 2, as before.
+
+| Season | Where 'next-stage' would end a stage (the next from) | What ends the groups |
+|---|---|---|
+| Survivor 49 | 8 | the merge, at 7's start (one group of everyone at 7's end): known from 7's research, so the next stage starts with 8 |
+| The Challenge 40 | 11 | everyone on their own: said for 10 at 9 (ahead, so unsure going in), sure at 10's research |
+| The Challenge 39 | 16 | everyone on their own at 15's end, sure |
+| The Challenge 41 | none in the season | the split at the final (19's end), held unsure at 19 and sure at 20's research: from 21, past the final (18 and 19) |
+| The Traitors 4 | none | never in groups |
+
+- **The same episodes part 2's split copies start at** (The Challenge 40's 11, 39's 16; Survivor 49's merge copy at 8): the fallback and a
+  stage's own `split-into-individuals` or `merge` kinds read the same change, under the same key, so a stage named by both starts once.
+- **The re-pairings and re-draws that make p7's one-episode copies move nothing here** (The Challenge 41's pairs re-drawn at the ends of
+  2 to 7, 39's teams nearly every week): the game is still in groups, so the question offers the new ones and the slots drop and open
+  again. The Challenge 41's individual Episode 9 between paired ones ends in pairs again: nothing moves.
+- **The Challenge 41 shows the finale's edge:** the groups go only at the final itself, so the next stage would start after the season
+  (the schedule's 21 episodes past the final's 19). The plan's Noticed (A12 part 2b, item 5) has it with part 2's edge cases.
+- **Not on these replays:** an unsure state turned sure later, a corrected report taking the next stage away and bringing it back, the
+  maker's OK: `tests/next-stage.test.js` and `scripts/dev-test/check-next-stage.js` cover them.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

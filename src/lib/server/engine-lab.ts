@@ -303,7 +303,7 @@ async function makeStages(user: SessionUser, parentId: string, name: string, spe
           for (const p of parent.players.filter((x) => !x.ghost && !x.disabled)) seatIn(s, p);
         },
         after: async (s, client, id) => {
-          refused(StateLogic.setGame(s, stage.game, { ctx: stageCtx }), 409);
+          refused(StateLogic.setGame(s, Spec.stageLeagueGame(stage), { ctx: stageCtx }), 409);
           await client.query("UPDATE leagues SET stage_of = $2, stage_key = $3 WHERE id = $1", [id, parentId, stage.id]);
           if (StateLogic.readsPhases(s) || StateLogic.startPhase(s) || StateLogic.endPhase(s)) settleIn(s, await leaguePhases(client, id, season.id), await scheduleOf(season.id));
           await recordChange(client, id, s, { userId: user.id, kind: "game.start", tier: 1, text: `${stage.name || `Stage ${i + 1}`} of ${name}, from the engine lab`, detail: { lab: true, stageOf: parentId } });
