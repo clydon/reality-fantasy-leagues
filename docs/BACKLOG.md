@@ -231,10 +231,12 @@ Last updated 2026-10-27.
       or send it through the season, or games drift apart again.
     - The test couch's games have no ledger (copied wholesale), so a season correction never takes anything back out of them.
     - Make every game match has no Undo (a game's own results aren't kept anywhere): its line in History says what it did.
-    - S51's Episode 3 (hand-accepted in October) says Carter moved to Savu: backwards. He started on Savu and joined Toka in
-      Episode 3 (the accidental mutiny), then stayed on Toka through Episode 4's swap. The games show him on Savu for Episode
-      3 only; no points depend on it (tribe wins are per person). Fixing it needs the desk's Correct to change a tribe move's
-      tribe (decideFact's edit only takes a name for a group), then Episode 3: Carter to Toka. Offered to the user.
+    - Done 2026-10-29: S51's Episode 3 said Carter moved to Savu (the tribe he left: he started on Savu and joined Toka in
+      the accidental mutiny). The desk's Correct now changes a move's group ("Moved to", 0765e8d7, check-correct-group.js),
+      and Episode 3 is Carter to Toka in the couch's three games. The test couch's copies still say Savu (no ledger, above).
+    - Make every game match compares a tribe move, a role or who went home by person only, not by its value (applyDecision
+      calls any move a person already has "already there"): a game whose move names another tribe reads as matching. Compare
+      the value too, and take the game's own version out where it differs.
     - The bot misses a second-place tribe's wins (Episode 4's Toka reward, as Episode 6's Savu immunity before) and a journey
       (Episode 5's Maggie); two runs count as one source, so a miss the second run fixes still waits for a second source.
       Worth a line in the full-results prompt about every tribe that won something, first place or not.
