@@ -2,7 +2,7 @@ import crypto from "crypto";
 import type { PoolClient } from "pg";
 import StateLogic from "@/lib/game/state-logic.js";
 import type { LeagueDecisionSync, LeagueState } from "@/lib/game/types";
-import { applyDecision, orderPlacementsByEpisode, undoDetail, unitsOf, type CastRef, type DecisionRow, type LedgerDetail } from "@/lib/game/decision-apply";
+import { applyDecision, orderPlacementsByEpisode, ownResults, removeOwn, undoDetail, unitsOf, type CastRef, type DecisionRow, type LedgerDetail, type OwnResult } from "@/lib/game/decision-apply";
 import { resultsDiff } from "@/lib/game/results-changes";
 import { recordChange, type ChangeUndo } from "./change-log";
 import { pool, withLeagueLock } from "./db";
@@ -21,11 +21,17 @@ import { notifyBingoLines, notifyEpisodeResults, notifyFlagsSettled } from "./pu
 //
 // One mode since step 6b (docs/PLAN-new-design.md; db/migrations/0112): every league receives the season's shared
 // facts, wherever they came from. Accepted means "in every league": an admin's decision, or a fact the community's
-// submissions settled (community-results.ts). On a season whose commissioners entered their own results before
-// (show_seasons.results_by = 'leagues'), what an admin only curated there stays out of the leagues, as it always did:
-// only facts somebody submitted (fact_sources) reach them. A season switched from league-decided to admin-decided has a
-// cutoff (results_admin_since): only decisions settled at or after it are in scope, and anything settled before it is
-// left as each league has it, never pushed and never undone.
+// submissions settled (community-results.ts). On a season whose results come from sources that agree
+// (show_seasons.results_by = 'leagues'), a fact reaches the leagues once somebody submitted it (fact_sources) or an admin
+// decided it (locked, or accepted before 0112 gave facts a status): what the desk calls "You decided" is in every game on
+// either setting. (Until 2026-10-29 an admin's decision with no source stayed out there, as classic's commissioner-entered
+// seasons needed; switching Survivor 51 to sources took all of Episodes 1-3, decided by hand, out of its games.) A season
+// switched from league-decided to admin-decided has a cutoff (results_admin_since): only decisions settled at or after it
+// are in scope, and anything settled before it is left as each league has it, never pushed and never undone.
+//
+// Making every game match (opts.match, the desk's episode page): a league's own results for an episode, ones no season
+// decision gave it or found there (a commissioner's, classic's per-game research), are taken out, so every game on the
+// season has the same results. Who went home is only taken out where the season has settled it for that episode.
 //
 // A house ruling (league_rulings) is the one exception: that league keeps a result the shared check corrected, applied
 // here in place of the shared one. A correction that reaches a league (something it had taken out, or changed) leaves a
@@ -76,6 +82,8 @@ export interface SyncOptions {
   correctionBatch?: string;
   /** A house ruling going on or coming off: it has its own line, and isn't a correction of the shared facts. */
   noCorrections?: boolean;
+  /** Episodes every game makes match the season: each league's own results there are taken out (a correction line). */
+  match?: number[];
 }
 
 type SyncResult = { applied: number; undone: number; skipped: { name: string; why: string }[]; eliminatedEpisodeIds: string[]; episodes: number[] };
@@ -142,7 +150,8 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
                 EXISTS (SELECT 1 FROM fact_sources f WHERE f.decision_id = season_decisions.id) AS sourced
            FROM season_decisions WHERE season_id=$1 AND status='accepted' AND ($2::int IS NULL OR episode_number <= $2)
             AND ($3::timestamptz IS NULL OR decided_at >= $3)
-            AND ($4 OR EXISTS (SELECT 1 FROM fact_sources f WHERE f.decision_id = season_decisions.id))
+            AND ($4 OR locked_at IS NOT NULL OR fact_status IS NULL
+                 OR EXISTS (SELECT 1 FROM fact_sources f WHERE f.decision_id = season_decisions.id))
           ORDER BY episode_number ASC, (kind = 'elimination') DESC, created_at ASC`,
         [seasonId, gate, since, season!.resultsBy === "admin"]
       )
@@ -272,6 +281,28 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
     if (ep && ev && (ev.units ?? 1) !== unitsOf(d)) StateLogic.ActiveRosterLogic.setEventUnits(state, ep.id, ev.id, unitsOf(d));
   }
 
+  if (opts.match?.length) {
+    const { rows: now } = await client.query<{ detail: LedgerDetail }>("SELECT detail FROM league_applied_decisions WHERE league_id=$1", [leagueId]);
+    const details = now.map((r) => r.detail);
+    for (const n of opts.match) {
+      // Who went home comes out only where the season says who did (an elimination or nobody): never on a guess.
+      const settled = decisions.some((d) => d.episode_number === n && (d.kind === "elimination" || d.kind === "noexit"));
+      const own = ownResults(state, details, n).filter((o) => settled || (o.kind !== "elimination" && o.kind !== "noexit"));
+      if (!own.length) continue;
+      const name = (id: string) => state.castaways.find((c) => c.id === id)?.name ?? "";
+      const list = corrected.get(n) ?? [];
+      for (const o of own) {
+        const row = { ...ownRow(state, n, o), castaway_name: name(o.castawayId) };
+        removeOwn(state, n, o);
+        if (o.kind === "elimination") eliminationsChanged = true;
+        list.push({ id: `own:${o.kind}:${o.eventId ?? o.castawayId}`, name: row.castaway_name, label: labelOf(state, row), change: "removed", to: null, was: row });
+      }
+      corrected.set(n, list);
+      touched.add(n);
+      result.undone += own.length;
+    }
+  }
+
   if (eliminationsChanged) orderPlacementsByEpisode(state);
   // Where each episode this changed stands: final once any scoring moment is in, or once someone sent the full results
   // (an episode where nothing scored is still finished); early while only who went home is.
@@ -289,6 +320,103 @@ export async function syncLeagueDecisions(client: PoolClient, leagueId: string, 
   result.episodes = [...touched].sort((a, b) => a - b);
   await logSync(client, leagueId, before, state, result.episodes, corrected, opts);
   return result;
+}
+
+/** One of a league's own results as a fact, for its correction line (its name filled in by the caller). */
+function ownRow(state: LeagueState, n: number, o: OwnResult): KeptFact {
+  const ep = state.episodes.find((e) => e.number === n);
+  const method =
+    o.kind === "elimination"
+      ? (ep?.events.find((e) => e.castawayId === o.castawayId)?.method ?? "")
+      : o.kind === "role"
+        ? (ep?.roles?.find((r) => r.castawayId === o.castawayId)?.role ?? "")
+        : o.kind === "group"
+          ? (state.tribes?.find((t) => t.id === ep?.groups?.find((g) => g.castawayId === o.castawayId)?.tribeId)?.name ?? "")
+          : "";
+  return { episode_number: n, post_merge: !!ep?.postMerge, kind: o.kind, castaway_name: "", method, event_type: o.eventType ?? "", jury_votes: null, units: null, applied: null };
+}
+
+/** One game whose results for an episode aren't the season's (gamesApart). */
+export interface GameApart {
+  leagueId: string;
+  name: string;
+  couch: string | null;
+  /** Its own results there, beyond the season's: what making every game match takes out. */
+  own: { name: string; label: string }[];
+  /** The season's results there it doesn't have yet (its next sync brings them; making them match runs one). */
+  missing: number;
+}
+
+/**
+ * The games on a season whose results for episode `n` aren't the season's, for the desk's episode page: each one's own
+ * results (ownResults) and how many of the season's it's missing. Games that match aren't listed. Who went home is listed
+ * as its own only where the season has settled it, as making them match takes it out only then.
+ */
+export async function gamesApart(seasonId: string, n: number): Promise<GameApart[]> {
+  const { rows: leagues } = await pool.query(
+    `SELECT l.id, l.name, c.name AS couch, l.state FROM leagues l
+       JOIN shows s ON s.slug = l.state->'settings'->>'showId'
+       JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
+       LEFT JOIN couches c ON c.id = l.couch_id
+      WHERE ss.id = $1 AND l.deleted_at IS NULL AND COALESCE(l.state->'settings'->>'archivedAt', '') = ''
+      ORDER BY c.name NULLS LAST, l.name`,
+    [seasonId]
+  );
+  if (!leagues.length) return [];
+  const ids = leagues.map((l) => l.id);
+  const [{ rows: ledger }, { rows: rulings }, { rows: season }] = await Promise.all([
+    pool.query<{ league_id: string; decision_id: string; detail: LedgerDetail }>(
+      "SELECT league_id, decision_id, detail FROM league_applied_decisions WHERE league_id = ANY($1::uuid[])",
+      [ids]
+    ),
+    pool.query<{ league_id: string; decision_id: string }>("SELECT league_id, decision_id FROM league_rulings WHERE league_id = ANY($1::uuid[])", [ids]),
+    pool.query<{ results_by: string; since: Date | null }>("SELECT results_by, results_admin_since AS since FROM show_seasons WHERE id = $1", [seasonId]),
+  ]);
+  // The season's results for the episode, as the sync reads them (syncLeagueDecisions' query, for one episode).
+  const { rows: facts } = await pool.query<DecisionRow>(
+    `SELECT id, episode_number, post_merge, kind, castaway_name, method, event_type, jury_votes, units, applied, decided_at
+       FROM season_decisions WHERE season_id=$1 AND episode_number=$2 AND status='accepted'
+        AND ($3::timestamptz IS NULL OR decided_at >= $3)
+        AND ($4 OR locked_at IS NOT NULL OR fact_status IS NULL
+             OR EXISTS (SELECT 1 FROM fact_sources f WHERE f.decision_id = season_decisions.id))`,
+    [seasonId, n, season[0]?.since ?? null, season[0]?.results_by === "admin"]
+  );
+  const { rows: cast } = await pool.query<{ id: string; name: string }>("SELECT id, name FROM season_cast WHERE season_id=$1", [seasonId]);
+  const settled = facts.some((f) => f.kind === "elimination" || f.kind === "noexit");
+  const out: GameApart[] = [];
+  for (const l of leagues) {
+    const state = l.state as LeagueState;
+    const gate = StateLogic.RevealLogic.revealedThrough(state);
+    if (gate !== null && n > gate) continue;
+    const mine = ledger.filter((r) => r.league_id === l.id);
+    const has = new Set(mine.map((r) => r.decision_id));
+    const ruled = new Set(rulings.filter((r) => r.league_id === l.id).map((r) => r.decision_id));
+    // A season result the game hasn't been given yet: already there (its next sync files it as found), or missing. Tried on a
+    // copy, as the sync would apply it.
+    const trial = structuredClone(state);
+    const found: LedgerDetail[] = [];
+    let missing = 0;
+    for (const f of facts) {
+      if (has.has(f.id) || ruled.has(f.id)) continue;
+      const { detail } = applyDecision(trial, f, cast);
+      if (detail?.preexisting) found.push(detail);
+      else if (detail) missing++;
+    }
+    const name = (id: string) => state.castaways.find((c) => c.id === id)?.name ?? "";
+    const own = ownResults(state, [...mine.map((r) => r.detail), ...found], n)
+      .filter((o) => settled || (o.kind !== "elimination" && o.kind !== "noexit"))
+      .map((o) => ({ name: name(o.castawayId), label: labelOf(state, ownRow(state, n, o)) }));
+    if (own.length || missing) out.push({ leagueId: l.id, name: l.name, couch: l.couch, own, missing });
+  }
+  return out;
+}
+
+/**
+ * Makes every game on a season match its results for these episodes (the desk's episode page): the sync, taking each game's
+ * own results there out (opts.match) and bringing in any of the season's it's missing. Answers what each game changed.
+ */
+export async function matchSeasonGames(seasonId: string, episodes: number[], actorUserId: string | null) {
+  return syncSeasonLeagues(seasonId, actorUserId, { match: episodes });
 }
 
 /** The episodes that have a full answer in (someone sent every result, not just who went home). */
@@ -363,11 +491,14 @@ export async function syncSeasonLeagues(seasonId: string, actorUserId: string | 
         out = await syncLeagueDecisions(client, league.id, s, sync);
       });
       const r = out as unknown as SyncResult;
+      // Only the game's newest episode with results is news: an older one coming in or back (results put back, research
+      // catching up on past episodes) pushes nothing, and has no bingo line to tell.
+      const newest = Math.max(0, ...state.episodes.filter((e) => StateLogic.resultsStage(e)).map((e) => e.number));
       for (const ep of state.episodes) {
         const stage = StateLogic.resultsStage(ep);
-        if (stage && stage !== (before.get(ep.number) ?? null)) notifyEpisodeResults(league.id, state, ep.id, actorUserId);
+        if (stage && ep.number === newest && stage !== (before.get(ep.number) ?? null)) notifyEpisodeResults(league.id, state, ep.id, actorUserId);
       }
-      for (const n of r.episodes) bingoAfter.add(n);
+      for (const n of r.episodes) if (n === newest) bingoAfter.add(n);
       results.push({ leagueId: league.id, leagueName: league.name, couchId: league.couch_id, applied: r.applied, undone: r.undone, skipped: r.skipped, episodes: r.episodes });
     } catch (e) {
       results.push({

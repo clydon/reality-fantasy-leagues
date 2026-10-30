@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import { apiRoute } from "@/lib/server/api-route";
 import { HttpError } from "@/lib/server/db";
 import { requireDesk } from "@/lib/server/desk";
-import { acceptAll, clearEpisode, deskEpisode, pasteAnswer, setTriviaOut, takeBack } from "@/lib/server/desk-episode";
+import { acceptAll, clearEpisode, deskEpisode, matchGames, pasteAnswer, setTriviaOut, takeBack } from "@/lib/server/desk-episode";
 
 // An episode's page on the desk (docs/PLAN-desk-parity.md step 4, part 4b): GET its results, answers, trivia and History.
 // POST `{ acceptAll: [ids] }` (tier 2: the waiting results its sheet showed, with a name in the cast, canonical); `{ takeBack: <answer id>,
 // preview? }` (tier 2: what moves, or the answer withdrawn); `{ paste: <the AI's answer>, preview?, confirmed? }` (what it
 // adds, or filed as the desk's own submission; a 409 asks whether it really is this episode); `{ trivia: <question id>,
-// out }` (Take it out, Put it back). Each change answers `{ changeId, text }` for the toast's Undo. DELETE `?scope=waiting`
+// out }` (Take it out, Put it back); `{ match: true }` (Make every game match: each game's own results out, the season's
+// missing ones in). Each change answers `{ changeId, text }` for the toast's Undo. DELETE `?scope=waiting`
 // with `{ ids }`, the ones it showed (tier 1, Undo), or `?scope=everything` (tier 3). Deciding one result is the fact's own route (/api/desk/facts/[id]).
 export const maxDuration = 120;
 
@@ -23,12 +24,13 @@ export const GET = apiRoute(async (req, { params }: Params) => {
 export const POST = apiRoute(async (req, { params }: Params) => {
   const user = await requireDesk(req);
   const { id, n } = await params;
-  const body = (await req.json().catch(() => ({}))) as { acceptAll?: unknown; takeBack?: unknown; paste?: unknown; preview?: unknown; confirmed?: unknown; trivia?: unknown; out?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { acceptAll?: unknown; takeBack?: unknown; paste?: unknown; preview?: unknown; confirmed?: unknown; trivia?: unknown; out?: unknown; match?: unknown };
   if (body.acceptAll !== undefined) return NextResponse.json(await acceptAll(user, id, n, body.acceptAll));
   if (body.takeBack !== undefined) return NextResponse.json(await takeBack(user, id, n, body.takeBack, body.preview === true));
   if (body.paste !== undefined) return NextResponse.json(await pasteAnswer(user, id, n, { answer: body.paste, preview: body.preview, confirmed: body.confirmed }));
   if (body.trivia !== undefined) return NextResponse.json(await setTriviaOut(user, id, n, body.trivia, body.out === true));
-  throw new HttpError(400, "acceptAll, takeBack, paste or trivia");
+  if (body.match === true) return NextResponse.json(await matchGames(user, id, n));
+  throw new HttpError(400, "acceptAll, takeBack, paste, trivia or match");
 });
 
 export const DELETE = apiRoute(async (req, { params }: Params) => {

@@ -449,11 +449,15 @@ export async function setSeasonStatus(user: SessionUser, id: string, body: { sta
   return out;
 }
 
-/** Results only the desk accepted since its "You decide" began: what leaves its games when it goes back to sources. */
+/**
+ * Results only the desk accepted since its "You decide" began, with no source and not decided by you (a decided one reaches
+ * the games on either setting, season-decisions.ts): what leaves its games when it goes back to sources.
+ */
 async function onlyYoursCount(db: Pick<PoolClient, "query">, id: string, since: Date | null): Promise<number> {
   const { rows } = await db.query(
     `SELECT count(*)::int AS n FROM season_decisions d
       WHERE d.season_id = $1 AND d.status = 'accepted' AND ($2::timestamptz IS NULL OR d.decided_at >= $2)
+        AND d.locked_at IS NULL AND d.fact_status IS NOT NULL
         AND NOT EXISTS (SELECT 1 FROM fact_sources f WHERE f.decision_id = d.id)`,
     [id, since]
   );

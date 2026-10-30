@@ -125,6 +125,39 @@ export function undoDetail(state: LeagueState, detail: LedgerDetail) {
   }
 }
 
+/** One result in a league's episode that no season decision gave it or found there (its own: a commissioner's, classic's). */
+export interface OwnResult {
+  kind: DecisionRow["kind"];
+  castawayId: string;
+  eventType?: string;
+  eventId?: string;
+}
+
+/**
+ * The results in episode `n` of a league that its ledger (the details the sync recorded, preexisting ones too) doesn't
+ * cover: what the league has of its own, beyond the season's. Making every game match the season takes these out.
+ */
+export function ownResults(state: LeagueState, details: LedgerDetail[], n: number): OwnResult[] {
+  const ep = state.episodes.find((e) => e.number === n);
+  if (!ep) return [];
+  const mine = details.filter((d) => d.episodeNumber === n);
+  const has = (kind: LedgerDetail["kind"], castawayId: string) => mine.some((d) => d.kind === kind && d.castawayId === castawayId);
+  const eventIds = new Set(mine.filter((d) => d.kind === "event" && d.eventId).map((d) => d.eventId));
+  const out: OwnResult[] = [];
+  if (ep.noExit && !mine.some((d) => d.kind === "noexit")) out.push({ kind: "noexit", castawayId: "" });
+  for (const e of ep.events || []) if (!has("elimination", e.castawayId)) out.push({ kind: "elimination", castawayId: e.castawayId });
+  for (const e of ep.scoringEvents || []) if (!eventIds.has(e.id)) out.push({ kind: "event", castawayId: e.castawayId, eventType: e.type, eventId: e.id });
+  for (const x of ep.exiled || []) if (!has("exiled", x.castawayId)) out.push({ kind: "exiled", castawayId: x.castawayId });
+  for (const r of ep.roles || []) if (!has("role", r.castawayId)) out.push({ kind: "role", castawayId: r.castawayId });
+  for (const g of ep.groups || []) if (!has("group", g.castawayId)) out.push({ kind: "group", castawayId: g.castawayId });
+  return out;
+}
+
+/** Takes one of a league's own results out (as undoDetail takes out what a decision gave it). */
+export function removeOwn(state: LeagueState, n: number, own: OwnResult) {
+  undoDetail(state, { episodeNumber: n, castawayId: own.castawayId, kind: own.kind, eventType: own.eventType, eventId: own.eventId });
+}
+
 // Placement is "order of elimination", and addElimination hands out the next number -- so a season
 // whose episodes were accepted out of order (episode 3 before 2) would rank the episode-3 boot above
 // the episode-2 one. Re-deriving it from episode order after a sync keeps it right whatever order

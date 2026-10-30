@@ -9,12 +9,13 @@ import { SEASON_NAME, logDesk, readable, type DeskLine } from "./desk";
 import { bankBrief } from "./desk-bingo";
 import { seasonBot } from "./desk-bot";
 import { mdIn, plural, whenAt, timeIn } from "./desk-dates";
+import { andList } from "./desk-seats";
 import { finalResultsAt } from "@/lib/game/final-results.js";
 import type { Before } from "./desk-facts";
 import { seenThrough } from "./guard";
 import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { DEFAULT_RUNTIME_MIN, seasonSchedules } from "./schedule";
-import { syncSeasonLeagues } from "./season-decisions";
+import { gamesApart, matchSeasonGames, syncSeasonLeagues, type GameApart } from "./season-decisions";
 
 // An episode's page on the desk (docs/PLAN-desk-parity.md step 4, part 4b; the mock's desk-research.js rsEpPage): its lower
 // third (Early, Final or Waiting, and who went home), its Results read from the new design's shared facts (fact-status.ts:
@@ -118,6 +119,8 @@ export interface DeskEpisode {
   bingo: number | null;
   /** Who wrote them, and when: "Our bot, Run now by alex · Yesterday, 8:13 PM". */
   bingoBy: string | null;
+  /** The games whose results for it aren't the season's (season-decisions.ts gamesApart): Make every game match. */
+  apart: GameApart[];
   history: DeskLine[];
 }
 
@@ -457,6 +460,7 @@ export async function deskEpisode(user: SessionUser, id: string, nIn: unknown, n
     endsAt,
     finalAt: ((f) => (f ? { when: whenAt(f, tz, now), passed: f.getTime() <= now.getTime() } : null))(airAt ? finalResultsAt(airAt, tz) : null),
     seen: seen >= n,
+    apart: aired ? await gamesApart(id, n) : [],
     resultsBy: s.results_by === "admin" ? "admin" : "leagues",
     confirmAt: need,
     games: games[0].n,
@@ -547,6 +551,25 @@ export async function acceptAll(user: SessionUser, id: string, nIn: unknown, see
   const changeId = await logEpisode(user, id, n, text, { type: "facts", list: befores.map(({ id: fid, ...before }) => ({ id: fid, before })) });
   await syncSeasonLeagues(id, user.id);
   return { changeId, text: `Accepted ${take.length} · in every game as each player reveals Episode ${n}`, accepted: take.length };
+}
+
+/**
+ * Make every game match (tier 3, no Undo: a game's own results aren't kept anywhere to put back): each game on the season
+ * takes out its own results for the episode, the ones the season doesn't have, and brings in any of the season's it's
+ * missing (season-decisions.ts matchSeasonGames). Each game it changed gets an "Episode N corrected" line.
+ */
+export async function matchGames(user: SessionUser, id: string, nIn: unknown): Promise<{ changeId: string; text: string }> {
+  await seasonRow(id);
+  const n = episodeOf(nIn);
+  const apart = await gamesApart(id, n);
+  if (!apart.length) throw new HttpError(409, `Every game has the season's results for Episode ${n} already`);
+  const out = await matchSeasonGames(id, [n], user.id);
+  const failed = out.filter((r) => r.error);
+  const taken = apart.reduce((t, g) => t + g.own.length, 0);
+  const added = apart.reduce((t, g) => t + g.missing, 0);
+  const text = `Episode ${n}: every game matches the season${[taken && `${plural(taken, "result")} of games' own out`, added && `${plural(added, "missing result")} in`].filter(Boolean).map((t) => ` · ${t}`).join("")}${failed.length ? ` · ${andList(failed.map((r) => r.leagueName))} couldn't be changed` : ""}`;
+  const changeId = await logEpisode(user, id, n, text, null, { apart });
+  return { changeId, text };
 }
 
 /** One line of what a change moves, for its sheet: a result (its face) or a thing (an icon's name). */

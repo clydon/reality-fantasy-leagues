@@ -212,6 +212,21 @@ Last updated 2026-10-27.
     - Seen while checking it: `GET /api/leagues/<id>/ruleset/shared` answers 500 for any commissioner on the local DB,
       lens or not (check-view-as.js only asks that it isn't refused).
     - **When:** if a player's view shows a commissioner tool, route that read through the lens, then fix the 500.
+28. **Survivor 51's games apart (found 2026-10-29; fixed in season-decisions.ts, check-match-season.js).** Switching S51 to
+    "Sources that agree" took all of Episodes 1-3 (122 results, decided by hand on classic's admin, no source) out of the
+    couch's three games; the test couch's copies kept them (no ledger). Episodes 4-5 were never season results: each game took
+    them through classic's per-game "apply research" (src/lib/episode-results.ts, /api/leagues/[id]/episodes/[epId]/research/
+    apply), and Weekly Start/Bench's Episode 5 got four more than the other two. Fixed: a result you decided reaches every
+    game on either setting; only a game's newest episode is news (no push for an old one coming back); the desk's episode
+    page lists games that don't match the season and Make every game match. Left:
+    - "Who decides results" now changes nothing the games get (every desk accept locks, and a locked result reaches them on
+      either setting): fold it into one, or give it a meaning. The episode page's "You decide its results: nothing reaches the
+      games until you accept it" note and Coming up's "you decide too" line still read as if it did. The user's call.
+    - Classic's per-game "apply research" still writes one game only, for a league opened in the classic design: retire it,
+      or send it through the season, or games drift apart again.
+    - The test couch's games have no ledger (copied wholesale), so a season correction never takes anything back out of them.
+    - Make every game match has no Undo (a game's own results aren't kept anywhere): its line in History says what it did.
+    - **When:** the next session on results or the desk; the first is the user's call.
 
 ## Decided against (don't re-propose without new information)
 
