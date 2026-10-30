@@ -953,3 +953,11 @@ never handles it: the user does the reset and the pasting.
   needs it. The engine lab (`/desk/lab`, site admins only) reads the capability tracker and starts test games on a test couch:
   by hand, one admin. The game-specs flag stays off in production, so nothing writes `settings.game` there until it's
   switched on.
+- **2026-10-30, the game-specs flag on in production** (2:39 PM ET, `scripts/game-specs-flag.js on` from the user's terminal,
+  after its read-only check passed on all 10 leagues). Every league row now carries its game as a spec (`settings.game`, a
+  small JSON object, written once under each league's row lock); reads are unchanged. Nothing polls or runs on a schedule.
+- **2026-10-30, pushed to master (`46b77bba`, migration 0203).** The engine's A11 part 5c, A12 part 1 and R1. **Nothing polls,
+  nothing scheduled, no new service.** `leagues` gains `stage_of` and `stage_key` (null on every existing row: a game in stages
+  keeps each stage as a league of its own, deleted with it) and a partial unique index on them. Classic's me route
+  (`classic-list.ts`) now reads only each league's settings, not its whole state (20-40 KB a league), so it moves less from
+  the database than before.

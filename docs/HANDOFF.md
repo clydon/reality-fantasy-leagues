@@ -82,6 +82,21 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   full target first (A5, the capability tracker, then A6–A15), today's games rebuilt on it (R1–R3), the UI last (U0–U1), the
   GPT's words alongside (G1), and live sports folded in as track L. Lanes (worktree + branch + database + port + session loop):
   [PARALLEL-SESSIONS.md](PARALLEL-SESSIONS.md); season tapes and playtests: [PLAN-playtests.md](PLAN-playtests.md).
+- **Merged and pushed 2026-10-30 afternoon: the engine's A11 part 5c, A12 part 1 and R1, and the game-specs flag on**
+  (`46b77bba`, merging `3f5c6488`; migration 0203, rehearsed on the Neon branch `rehearse-r1-2026-10-30`; the snapshot to
+  roll back to is `pre-r1-2026-10-30`, auto-deleted after 7 days). **The flag is on in production** (2:39 PM, the user's Copy
+  and Enter in the main folder's `.session-loop/flag-on-prod.ps1`: the read-only check passed on all 10 leagues first, then
+  10 of 10 carry their spec). R1: today's five games are drafted and scored by the pieces their spec names (`piecesOf`), with
+  no league type in scoring (the type still names a game and gives the screens their flags until R3). A11 part 5c refuses
+  teams that follow the show's own groups and finishes the late joiners' leftovers; A12 part 1 adds games in stages (engine
+  and API only: each stage a league of its own, `stage_of` and `stage_key`). Checked on the merged tree (rfl-merge, branch
+  merge-r1): unit tests 1172, eslint on the 43 changed source files, `next build` with its type-check, the Survivor 51
+  rehearsal (`season-forward.js rehearse --scenario=realistic,rough,dst --before=origin/master`: every invariant holds, and
+  flag off against on and production's engine against the merge give 2,856 reads a scenario, every one the same),
+  `golden.js --before=origin/master` (7 seasons, 160 games, 19,361 reads, every one the same) and the Neon rehearsal (0203
+  applied, `[check] all good`, rulebooks backfilled with only the test couch's known FAILs, the game-specs check PASS on all
+  10 with the merged engine). Still the user's: R1 part 1's two questions (which rule a preset meets; a Survival Pool pick
+  of the season's winner graded wrong at the finale, before Dec 16).
 - **Merged and pushed 2026-10-30 afternoon: Survivor 51's season-forward rehearsal and its fixes** (the survivor lane,
   `b09ed2a5`, merging `e9d0cbd9`; no migration). `scripts/dev-test/season-forward.js` clones the couch's three Survivor 51
   games from a production backup and plays them forward from Episode 6 to a 13-episode finale in three scenarios
@@ -148,10 +163,9 @@ it doesn't go in the menu.** The audit (checked in the code, 2026-10-30), per ol
   **Waiting on the user:** restart the main bot (8765) on the new code, then the tapes move back to it and 8766 goes. The
   playtest branch is merged into master (`2c945d31`).
 - **Neon is on Launch** since 2026-10-28 (the user upgraded it at 98.3% of the free transfer; about $5 a month; HOSTING.md).
-- **On branches, not merged:** the engine from A11 part 5c on (`engine`: A11 part 5c, A12 part 1 with migration 0203,
-  R1 parts 1-2, then A12 part 2 under way), track L's live sports (`sports`: L5 done, its
+- **On branches, not merged:** the engine from A12 part 2 on (`engine`), track L's live sports (`sports`: L5 done, its
   next session on Monday 2026-11-02 once the weekend's recordings are final). Waiting on the user: S3 after two matching
-  episodes, the game-specs flag on in production, R1 part 1's two (which rule a preset meets; a Survival Pool pick of the
+  episodes, R1 part 1's two (which rule a preset meets; a Survival Pool pick of the
   season's winner graded wrong at the finale, before Dec 16), and the rule questions in the plan's "Where the engine is headed".
 
 ## Next: moving the app onto the new design (plan written 2026-10-23)
