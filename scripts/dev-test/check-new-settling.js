@@ -14,7 +14,8 @@
 //      (source tiebreak, nobody's) settles it: Cristian out everywhere, "nobody went home" removed with a correction line.
 //      A flag raised after it gets its own tie-break, a day later.
 //   4. Something the rulebook doesn't have: casey's research said Episode 6 brought a Block a Vote advantage. alex sees it
-//      (another couch reported it; one more yes adds it), sam can't before he's seen it; jordan says Not new in the
+//      (another couch reported it; one more yes adds it), sam can't before he's seen it; jordan, a player, sees nothing and
+//      is refused (the rulebook is a Commissioner's), then is made a Commissioner of the lineup game and says Not new in the
 //      browser (a split, in the Inbox); alex says It's new: our bot works out what to add (only the twist, not its other
 //      edits), the season's rulebook has it from Episode 6 (a 'community' edit, History with Undo), the card says so.
 //      Undo takes it out. Episode 5, the rulebook locked: confirmed goes to the desk, which puts it away. Episode 4: two
@@ -336,6 +337,10 @@ function rulebookAnswer(prompt) {
     check(c?.status === "open" && c.note === NOTE && c.yes === 1 && c.no === 0 && c.need === 2 && !c.reportedHere, "alex sees it: another couch's research reported it, one more yes adds it", JSON.stringify(c));
     check((await change("alex", B, 6))?.reportedHere === true, "on couch B, its own research found it");
     check((await change("sam", A, 6)) === null && (await sayNew("sam", A, 6, true)).status === 403, "sam hasn't seen Episode 6: nothing, and refused");
+    check((await change("jordan", A, 6)) === null && (await sayNew("jordan", A, 6, false)).status === 403, "jordan, a player who's seen it: nothing, and refused (a Commissioner's call)");
+    // From here jordan runs couch A's lineup game with alex, and casey couch B's game with alex: both Commissioners, asked.
+    await pool.query("UPDATE league_memberships SET role = 'commissioner' WHERE league_id = $1 AND user_id = $2", [fx.leagues.lineup, fx.users.jordan]);
+    await pool.query("UPDATE league_memberships SET role = 'commissioner' WHERE league_id = $1 AND user_id = $2", [fx.leagues.extra, fx.users.casey]);
     const j = await open({ user: fixture.username("jordan"), pass: fixture.PASSWORD, width, height: 844 });
     closers.push(j.close);
     await j.page.context().setExtraHTTPHeaders(H);
