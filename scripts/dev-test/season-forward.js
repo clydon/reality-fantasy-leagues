@@ -15,15 +15,28 @@
 //                              and not before, every score finite, nothing scored past a game's span, no move refused that the
 //                              app offered (a move after the lock is refused and wasn't offered: that's right)
 //
-//   node scripts/dev-test/season-forward.js up --from=backups/<dir>      the shadow couch on a zt- copy of the season
-//   node scripts/dev-test/season-forward.js play [--scenario=realistic] [--through=N] [--out=<dir>]
-//                                                 from the episode after the backup's last, to the scenario's finale
+//   node scripts/dev-test/season-forward.js up --from=backups/<dir> [--results-by=leagues|admin]
+//                                                 the shadow couch on a zt- copy of the season (checked faithful: a season
+//                                                 sync on it changes nothing); --results-by overrides who decides results
+//   node scripts/dev-test/season-forward.js play [--scenario=realistic] [--through=N] [--label=x | --out=<dir>] [--look=7,9]
+//                                                 from the episode after the backup's last to the scenario's finale (or N;
+//                                                 play again to carry on); kept in .session-loop/season-forward/<scenario>-<label>
 //   node scripts/dev-test/season-forward.js compare <run dir> [<run dir>] [--before=<ref>]
-//   node scripts/dev-test/season-forward.js rehearse --from=backups/<dir> [--scenario=realistic,...] [--before=<ref>]
-//                                                 each scenario: up, play with the flag off, up, play with it on, compare
-//                                                 (and through --before's engine); the flag is left off
-//   node scripts/dev-test/season-forward.js look <run dir> --episodes=7,9 [--width=390] [--as=1]   (see look's comment)
+//                                                 two runs' reads (and the screens' words) side by side, and/or every kept
+//                                                 state read by <ref>'s engine against this tree's; exit 1 on any difference
+//   node scripts/dev-test/season-forward.js rehearse --from=backups/<dir> [--scenario=realistic,rough,dst] [--before=master]
+//                                                 [--look=7,9,12,13]: each scenario up, played with the flag off, up again,
+//                                                 played with it on, compared (and through --before's engine); the flag
+//                                                 is left off. About a minute a scenario; a look adds about a minute each
 //   node scripts/dev-test/season-forward.js down
+//
+// --look=<episodes>: at each, after the final results and before anyone reveals, the screens at 390 (--width) as the
+// Tinkerer: Tonight, the reveal beat by beat, Tonight after it, the Games tab, Your moves (or the page the dock leads to),
+// the episode's page, Backstage, How it works; again after the scenario's corrections there. Screenshots and each page's
+// words in .session-loop/screens/season-forward/<run>/ep<N>/ (gitignored: real people's names are on them). Needs this
+// lane's dev server carrying the run's clock, started from this folder (stop any other first):
+//   NODE_OPTIONS="--require <this folder>/scripts/dev-test/sim-clock.js" SIM_CLOCK_FILE=<this folder>/.session-loop/season-forward/clock.txt npm run dev -- -p <port>
+// (the browser's clock is set to the same moment).
 //
 // Scenarios are data: scripts/dev-test/season-forward/<name>.json (what each one covers is in its "about"). Castaways are
 // never named in them: who goes home, wins immunity or finds an idol is drawn (a fixed hash of the scenario's seed, the
@@ -833,6 +846,12 @@ async function play(scenarioName, o = {}) {
     }
     ep.revealed = await reveals(games, n);
     for (const step of sc.after[n] || []) ep.notes.push(await afterStep(step, { n, season, desk, games, sc }));
+    // After a correction: the episode's page, Tonight and Backstage again ("after-" shots).
+    if ((o.look || []).includes(n) && (sc.after[n] || []).length) {
+      const again = await lookAt(n, games[0], { shots: o.shots || path.join(ROOT, ".session-loop", "screens", "season-forward", path.basename(out)), width: o.width, only: ["tonight-after", "episode", "backstage"], prefix: "after-" });
+      ep.look.pages.push(...again.pages.map((x) => ({ ...x, name: `after-${x.name}` })));
+      console.log(`  look after its corrections: ${again.pages.map((x) => `${x.name}${x.missing ? ` MISSING (${x.missing})` : ""}`).join(", ")}`);
+    }
     await keep(rec, n, "final");
     for (const r of games) for (const p of r.problems.splice(0)) (ep.problems ||= []).push({ game: r.kind, ...p });
     const line = `Episode ${n}: ${answers.lines.join(" ")}${ep.results.held ? ` | held: ${ep.results.held}` : ""}${ep.notes.length ? ` | after: ${ep.notes.join("; ")}` : ""} | early ${ep.results.quick.ok ? "ok" : `FAILED ${ep.results.quick.message}`} (${ep.results.quickDesk.accepted} accepted), final ${ep.results.full.ok ? "ok" : `FAILED ${ep.results.full.message}`} (${ep.results.fullDesk.accepted} accepted)${ep.late.length ? `, late moves ${ep.late.map((l) => (l.right ? "right" : "WRONG")).join("/")}` : ""}${ep.problems?.length ? `, ${ep.problems.length} refused` : ""}`;
@@ -895,9 +914,13 @@ async function afterStep(step, { n, season, desk, games }) {
   if (step.do === "correct") {
     const boot = facts.find((f) => f.kind === "elimination");
     if (!boot) return `correct: nobody went home in Episode ${n}`;
+    // Where everyone finished, in every game, before and after: a correction of how one left moves nobody else.
+    const places = async () => new Map((await shadowGames()).flatMap((g) => g.state.castaways.filter((c) => typeof c.placementOrder === "number").map((c) => [`${g.state.settings.leagueTypeId}|${c.name}`, c.placementOrder])));
+    const was = await places();
     await F.decideFact(desk, boot.id, { edit: { method: step.exit } });
     const now = (await resultsOf(season.id, n)).find((f) => f.id === boot.id);
-    return `correct: ${boot.name} ${boot.method} → ${now?.method} (the desk's correction)`;
+    const moved = [...(await places())].filter(([k, v]) => was.has(k) && was.get(k) !== v).map(([k, v]) => `${k.replace("|", ": ")} ${was.get(k)} → ${v}`);
+    return `correct: ${boot.name} ${boot.method} → ${now?.method} (the desk's correction)${moved.length ? `; PLACES MOVED (placementOrder): ${moved.join(", ")}` : ""}`;
   }
   if (step.do === "own") {
     const { S, withLeagueLock } = app();
@@ -962,13 +985,14 @@ async function lookAt(n, r, o) {
     await page.evaluate(() => document.fonts.ready).catch(() => {});
     await page.waitForTimeout(1200);
     const wide = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
-    await page.screenshot({ path: path.join(dir, `${name}-${width}.png`), fullPage });
-    const text = await page.evaluate(() => (document.querySelector("main") || document.body).innerText);
-    fs.writeFileSync(path.join(dir, `${name}.txt`), text);
+    await page.screenshot({ path: path.join(dir, `${o.prefix || ""}${name}-${width}.png`), fullPage });
+    // The words on screen: an open dialog's (the reveal, a sheet), else the page's.
+    const text = await page.evaluate(() => (document.querySelector("[role=dialog]") || document.querySelector("main") || document.body).innerText);
+    fs.writeFileSync(path.join(dir, `${o.prefix || ""}${name}.txt`), text);
     found.push({ name, wide: wide > 1 ? wide : 0 });
   };
   try {
-    for (const [name, url, sel] of LOOK_PAGES(r.seasonId, n)) {
+    for (const [name, url, sel] of LOOK_PAGES(r.seasonId, n).filter(([x]) => !o.only || o.only.includes(x))) {
       try {
         if (name === "reveal") {
           const btn = page.locator(`[data-results-in='${n}']`).getByRole("button", { name: new RegExp(`Reveal Episode ${n}`) });
@@ -1002,9 +1026,18 @@ async function lookAt(n, r, o) {
             found.push({ name, missing: "no dock button" });
             continue;
           }
+          // It opens Your moves (a sheet), or the page its first move is on (a waiver to make: the waivers page).
+          const from = page.url();
           await dock.click();
-          await page.locator("[data-sheet-handle]").first().waitFor({ timeout: 15000 });
-          await save(name, false);
+          const opened = await Promise.race([
+            page.locator("[data-sheet-handle]").first().waitFor({ timeout: 15000 }).then(() => "sheet"),
+            page.waitForURL((u) => u.toString() !== from, { timeout: 15000 }).then(() => "page"),
+          ]).catch(() => null);
+          if (!opened) {
+            found.push({ name, missing: "the dock opened nothing" });
+            continue;
+          }
+          await save(opened === "sheet" ? name : `${name}-page`, false);
           await page.keyboard.press("Escape").catch(() => {});
           continue;
         }
@@ -1119,6 +1152,11 @@ function invariants(rec, sc) {
     }
     add("no move refused that the app offered; none taken after the lock", why);
   }
+  // A correction moves nobody's finishing place (afterStep "correct" reads every game's before and after).
+  add(
+    "a correction moves nobody's finishing place",
+    Object.entries(rec.episodes).flatMap(([n, ep]) => (ep.notes || []).filter((x) => /PLACES MOVED/.test(x)).map((x) => `Episode ${n}: ${x.replace(/^.*PLACES MOVED \(placementOrder\): /, "")}`))
+  );
   // Results reached the games: every episode's early and final runs worked.
   {
     const why = [];
@@ -1138,14 +1176,14 @@ const readRun = (dir) => JSON.parse(fs.readFileSync(path.join(dir, "run.json"), 
 /**
  * Every read of a run's kept states (golden.js's read through `S`): key "<episode> <stage> <game> seat <id> mark <m>" ->
  * the read. As nobody and as each seat, at every mark (nothing seen, each episode with results, everything), each on the
- * clock of the moment it was kept (`at`: what this week's episode and a lock read). `only` keeps a key list's reads.
+ * clock of the moment it was kept (`at`: what this week's episode and a lock read).
  */
 function readsOfRun(S, rec, { at = null } = {}) {
   const out = new Map();
   for (const [n, stages] of Object.entries(rec.kept)) {
     for (const [stage, kept] of Object.entries(stages)) {
       Clock.set((at && at[n]?.[stage]) || kept.at);
-      for (const [src, state] of Object.entries(kept.games)) {
+      for (const state of Object.values(kept.games)) {
         const marks = [null, 0, ...new Set((state.episodes || []).filter((e) => S.EpisodeLogic.resultsStage(e)).map((e) => e.number))];
         for (const seat of [null, ...(state.players || []).map((p) => p.id)]) {
           for (const mark of marks) out.set(`Episode ${n} ${stage} ${state.settings.leagueTypeId} seat ${seat ?? "nobody"} mark ${mark ?? "all"}`, golden.read(S, S.GhostLogic.viewFor(clone(state), seat, mark)));
