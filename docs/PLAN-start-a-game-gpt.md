@@ -56,8 +56,10 @@ to 4 next (a stage a format change starts, when a grouping lasts, mini-games and
 overnight (the user's word, 2026-10-28), stopping before A15. **R pulled ahead of A12's other parts** (the user, 2026-10-30): R1 is under
 way, in parts: part 1, Survivor 51's three kinds as compositions of the pieces (2026-10-30: Outlast with its finale predictions, side bets
 and waivers, Weekly Lineup and Survival Pool drafted and scored by the pieces their spec names, never a league type: `piecesOf`; the
-league type only names a game for the screens now), is built; part 2 (Weekly Calls, Weekly Bingo and the game of questions) next, then
-A12's other parts. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+league type only names a game for the screens now), and part 2, the games scored outside the state (2026-10-30: Weekly Calls,
+Weekly Bingo and the game of questions chosen by their pieces wherever they're read, the home's moves and classic's list included, nothing
+in scoring reading a league type or filtering the stored type by one), are built, so R1 is built (it merges once the Survivor 51
+rehearsal passes); A12's other parts next (part 2, a stage a format change starts). **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -4335,6 +4337,54 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     (by how the game scores); the guard's hand-picked list (a scan of every file, with what's left named). Kept, said here: the
     scoring-event route's wider gate (above); How it works and the stats loading every one of the viewer's games on the season to find
     the one scored by moments (cached by hash, a handful of games).
+
+  **As built (R1 part 2, 2026-10-30, on `engine`, not merged; no migration).** One session.
+  - **The games scored outside the state read their pieces:** Weekly Calls, Weekly Bingo and a game of questions are chosen by
+    `StateLogic.piecesOf` (`hasCalls`, `hasBingo`, `hasQuestions`: game-spec `flagsOf`, from how the spec scores and what it asks), never
+    a league type or a type id compared by name. A game of questions' answers, its walk, its standing and its stages' walk
+    (`answer-points.ts`: `walked`, `stageWalk`, `leagueAnswers`, `answerStanding`), what a wager can stake and the sheet's answers
+    (`answers.ts`), a Weekly Bingo game's lines (`bingo.ts` `leagueBingo`), Weekly Calls' table and a pool's Who goes home? (`calls.ts`
+    `leagueCalls`), which of them a game on the Games tab reads (`season-games.ts` `viewWithCalls`) and, beyond the list, whether a game
+    scored outside its state is over for joining and the desk (`couch-joins.ts` `gameOver`, the one line that kept it on R3's list).
+  - **Where a reader needed the kind before the state (decided: load the states, carry no new field).** The home's moves for Weekly
+    Calls and a sheet of questions (`weeklyCallMoves`, `questionMoves`) chose a game by `Game.gameType`, the stored type field read in
+    SQL (`show-space.ts` `games()`). They now take each game's state and choose by its pieces: the home reads your games' states
+    (`leagueStates`, cached by md5, so a hash each) after `dueMoves` has read them, as it already did for Up next and results due, and
+    hands them over. A spec-derived field on `Game` would have meant `games()` sending every league's settings on every couch page and
+    show space for a field only the home's two moves need, and it would be a second copy of the kind beside the stored one R3 removes.
+    Classic's list (`/api/me`) left Weekly Calls, Weekly Bingo and games of questions out by the type field in SQL (`NOT IN (...)`); it
+    now reads each league's settings (only them: `jsonb_build_object('settings', ...)`, all the route ever read of a state) and leaves
+    them out by their pieces (`classic-list.ts` `inClassicList`). That sends less than before: the route sent every listed league's
+    whole state (20-40 KB) and now sends settings only, the three kinds' included. Its label for each game ("Active Roster") is still
+    the league type's name: a screen's words, R3's (the preset's name), so the me route moved from part 2's lines to R3's.
+  - **What reads differently:** nothing on today's games. One edge, said here: a league whose settings can't be read at all now lists
+    in classic (as any such league did), where a broken one with one of the three types was left out by the SQL.
+  - **The guard** (tests/pieces.test.js): part 2's lines are gone; R3's list is seventeen files (couch-joins.ts off it, the me route's
+    label on it). It also fails on a type id written into a SQL filter on the stored type (`->>'leagueTypeId' ... NOT IN ('weekly-calls',
+    ...)`, on one line or across a query's lines); a filter by ids passed in (the desk's search by a game's name) is the screens', R3's.
+  - **Proof:** `tests/pieces.test.js` (7: Weekly Calls, Weekly Bingo and two games of questions through the pieces, each scoring nobody
+    in the state; every kind of league and every game the tracker plays, by its fields and carrying its spec, chosen by its pieces exactly
+    as its stored type chose it, for the home's moves, the Games tab and classic's list, from its settings alone too; the guard shorter);
+    `npm test` 1156; `tsc` and `eslint` clean; the tracker regenerated (183 ✅, unchanged) and `--check`. `game-specs-flag.js check`:
+    PASS, 9 of 9 (this lane's database, the flag on). The golden replays against the code before the part (`golden.js`,
+    `--before=HEAD`, after the review's fixes): 7 seasons, 160 games, 19,361 reads, every one the same; against master's (production's
+    engine, `--before=master`): the same, 7 seasons, 160 games, 19,361 reads. The blind replays (`blind.js run`): every game played through and over on all five seasons, as after part 1 (Survivor 49 110 of
+    110, The Challenge 41, 40 and 39 81 of 81 each, The Traitors 4 79 of 79; the questions waiting on early results finding 20's 3, 2
+    and 2). Every league in
+    this lane's database read as `/api/me` reads it now (settings only, by the pieces) and as it did (whole states, the SQL filter, the
+    league type's name): 9 of 9 the same. On the zt_nd_ fixture through the app (this lane's server, `--api`
+    where a check has it): the episode's games (189: Weekly Calls' move on the home and its going once made, classic's list leaving
+    Weekly Calls and Weekly Bingo out, Weekly Calls' and Weekly Bingo's tables, over at the season's last show), the Prediction Sheet
+    (70: the home's sheet moves, its table and finale predictions), the desk's bingo (79), the bingo bank (127), more questions (24),
+    head to head on answers (28), co-op (22) and the hub (77: its standings and Up next), all passed. (Two of the hub's browser steps
+    timed out once while golden ran beside it, a page's slide-in and a deck's fill; 76 then 77 of 77 on the runs after, the last on a
+    quiet machine.)
+  - **The code review** (`/code-review` at high, on the diff before the long runs). Fixed: the home reading the states beside
+    `dueMoves` (both could fetch the same states in full on a cold cache: now after it, a hash each); `/api/me` fetching the three kinds'
+    whole states to throw them away (settings only now, for every league); classic's names copied into a second table to keep the label
+    off the league type (the label stays the league type's, R3's); the guard's SQL check missing a filter split across lines (it reads
+    the query whole). Kept, said here: the two moves each taking the states map (each chooses its own games, as before; the map covers
+    every game with a season, the only ones either ever made a move for); a desk search by the stored type's ids (R3's, above).
 - **R2.** The game-specs flag on in production (the user's OK), then a week of watching every table.
 - **R3.** The old type code goes: `LEAGUE_TYPES`, the literal comparisons (45 files), and the UI's flags, read from the spec.
 
@@ -4416,7 +4466,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
 **L. Live sports:** the steps are in "Live sports in the same engine", above (L1–L6, the Sports lane).
 
 **Suggested order** (revised 2026-10-28): S1 → S2 → A1 → A2 → A3 → A4 (all built or building), S3 once proven, then A5 (the
-tracker) → A6 → … → A12 part 1 → R1 → R2 → R3 → A12's other parts → A13 (A14 if allowed) → A15 → U0 → U1 (R pulled ahead, 2026-10-30). Alongside: G1 from A5, G4 between A14 and U0, track V from A12 (V1's research any time; V3 adds G4's rolls once built); track L in the Sports lane
+tracker) → A6 → … → A12 part 1 → R1 → R2 → R3 → A12's other parts → A13 (A14 if allowed) → A15 → U0 → U1 (R pulled ahead, 2026-10-30; R2 and R3 wait on the user, so the Engine lane goes on to A12's other parts once R1 is built). Alongside: G1 from A5, G4 between A14 and U0, track V from A12 (V1's research any time; V3 adds G4's rolls once built); track L in the Sports lane
 (L1 and L2 any time; L3 and L4 as master gets A2 and each format's engine piece; L6 releases it), then G3. Run in lanes (next
 section), it takes about half the calendar time.
 
@@ -5065,17 +5115,38 @@ From R1 part 1 (2026-10-30):
   Options: (a) presets meet the same data-can-settle rule as any spec (Start a game passes the show's ctx; a couch-answered moment scores
   0 in a new game, said as an assumption); (b) presets keep today's rule (the rulebook's own points, couch-answered moments included);
   (c) (a) for new games, today's kept for Run it back. Recommended: (a), since the taps and the GPT must make the same game from the
-  same words (product principle 2); no couch plays a show with couch-answered moments today, so nothing running changes. (R1 part 2, or
-  whoever next touches Start a game's spec.)
+  same words (product principle 2); no couch plays a show with couch-answered moments today, so nothing running changes. (Still the
+  user's after R1 part 2: see its item.)
 - **Still the user's: a pick of the season's winner is wrong at the finale** (F's item, "R1, or whoever next touches pool grading"):
   not changed here, since R1 keeps every score as it was; the recommendation stands (the winner and finalists survive the finale). It
   changes today's pools' finales (Survivor 51's Survival Pool among them), so it goes in with the user's word, ideally before Survivor
-  51's finale. (R1 part 2 or whoever next touches pool grading.)
+  51's finale. (Whoever next touches pool grading, with the user's word: R1 part 2 didn't.)
 - **The stats' facts league still writes the type field** (`season-stats.ts`: `leagueTypeId: "active-roster"` with the game's points, so
   the facts read the moments as the lineup reads them): it now chooses that game by its spec, but the league it builds is made of fields.
   (R3, when the fields go: build it from the game's spec.)
 - **`LEAGUE_TYPES`' names are classic's** ("Classic", "Active Roster", "Eliminator Pool"): the me route and classic's setup show them.
-  (R3: the preset's name, `PRESET_LABELS`.)
+  (R3: the preset's name, `PRESET_LABELS`; R1 part 2 left the me route's label on it, which games it lists going by the pieces.)
+
+From R1 part 2 (2026-10-30):
+- **The Survivor 51 season-forward rehearsal still has to pass before R1 merges** (R1 part 1's item, for both parts):
+  `scripts/dev-test/season-forward.js` still isn't on master. Part 2 moves no score (the golden replays, `--before=master` too), but R1
+  as a whole changes how live games are scored, so the main folder merges it only after the rehearsal passes, never on a Wednesday.
+  (The main folder, at R1's merge.)
+- **Still the user's: which rule a preset meets** (R1 part 1's item): not settled here, since every option changes something a person
+  sees (under (a), a new Weekly Lineup on a show with moments the couch answers starts with those at 0 on its points page). The
+  recommendation stands: (a), said as an assumption in the wizard. (Whoever next touches Start a game's spec, or U0, with the user's word.)
+- **Still the user's: a pick of the season's winner is wrong at the finale** (R1 part 1's item): part 2 doesn't touch pool grading. The
+  recommendation stands, ideally decided before Survivor 51's finale. (Whoever next touches pool grading, with the user's word.)
+- **`Game.gameType` is still the stored type field** (`show-space.ts` `games()`, read in SQL), carried on every game the screens get:
+  nothing that scores or chooses a game reads it now, but the screens' readers do (Start a game's Run it back and counts, `start-game.ts`
+  `KEY_OF`; End a game's words, `end-game.ts`; the trophy shelf's "same kind of game", `couch-standings.ts`; the desk's search by a game's
+  name, `desk-games.ts`; the test couch). (R3: the kind from the spec, where the screens need one, or the preset's name.)
+- **Backstage's Game settings reads the games scored outside the state through the league type** (`backstage-games.ts`: a game of
+  questions' questions, whether a game scored outside its state has started or is over, the lock), beside the screens' other flags in
+  the same file. Each is a one-line move to `piecesOf` (the flags are the same: tests/pieces.test.js), left with the rest of the file.
+  (R3, or whoever next works in Game settings.)
+- **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
+  whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
 
 From A12 part 1 (2026-10-30):
 - **For the user, in the format-change design session (after A12), each with a recommendation (built as spec settings or engine rules):**

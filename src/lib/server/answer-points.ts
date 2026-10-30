@@ -59,7 +59,7 @@ export interface Walked {
 export async function walked(o: { leagueId: string; state: LeagueState; playerId: string | null; mark: number | null; rows?: AnswerRow[] }): Promise<Walked> {
   const A = StateLogic.AnswerLogic;
   const seen = StateLogic.GhostLogic.viewFor(o.state, o.playerId, o.mark);
-  const all = o.rows ?? (StateLogic.getLeagueType(o.state).hasQuestions ? await storedAnswers(o.leagueId) : []);
+  const all = o.rows ?? (StateLogic.piecesOf(o.state).hasQuestions ? await storedAnswers(o.leagueId) : []);
   // The format's groups, read once (the seen copy and the one cut at the game's end have the same cast).
   const formatGroups = await formatGroupsFor(o.state, seen);
   const factsOf = (v: LeagueState): AnswerFacts => {
@@ -104,7 +104,7 @@ export async function stageWalk(parentId: string, parent: LeagueState): Promise<
   // Each stage's walk side by side.
   const stages: StageWalk["stages"] = await Promise.all(
     (await stagesOf(pool, parentId)).map(async (r) => {
-      const questions = StateLogic.getLeagueType(r.state).hasQuestions;
+      const questions = StateLogic.piecesOf(r.state).hasQuestions;
       const answers = questions ? await storedAnswers(r.id) : undefined;
       const { state } = await asItStands(r.id, r.state, answers);
       const from = StateLogic.startEpisode(state);
@@ -160,7 +160,7 @@ export async function answerFacts(state: LeagueState, view: LeagueState): Promis
  * draft's finale predictions are in its own scores.
  */
 export async function leagueAnswers(o: { leagueId: string; state: LeagueState; playerId: string | null; mark: number | null; rows?: AnswerRow[] }): Promise<GameCalls | null> {
-  if (!StateLogic.getLeagueType(o.state).hasQuestions) return null;
+  if (!StateLogic.piecesOf(o.state).hasQuestions) return null;
   const w = await walked(o);
   // Step A11 part 2b: a game that races or knocks players out has its points in its walk (frozen once someone's out), and the
   // table reads who's out from the walk (gameView puts it on its copy of the league).
@@ -182,7 +182,7 @@ function pointsOf(w: Walked): (playerId: string) => number {
  * the game's answers when they've been read already (the hub reads its standing now and one episode back).
  */
 export async function answerStanding(o: { leagueId: string; state: LeagueState; playerId: string | null; mark: number | null; rows?: AnswerRow[] }) {
-  if (!StateLogic.getLeagueType(o.state).hasQuestions) return undefined;
+  if (!StateLogic.piecesOf(o.state).hasQuestions) return undefined;
   const w = await walked(o);
   // Through its last episode: its span's end, or where it ended early (step A11 part 2b).
   const end = StateLogic.lastEpisode(w.view);

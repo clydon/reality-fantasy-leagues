@@ -312,8 +312,9 @@ export interface JoinGame {
 /** It's over: a winner, or nobody left, or its span's last episode is in (StateLogic.gameOver); for a game scored outside its
  *  state, its season's (or span's) last episode has aired. */
 export function gameOver(s: LeagueState, schedule: SeasonSchedule | undefined): boolean {
-  const type = StateLogic.getLeagueType(s);
-  return type.hasCalls || type.hasBingo ? endedThrough(schedule, latestAired(schedule), StateLogic.endEpisode(s)) : StateLogic.gameOver(s);
+  // Step R1 part 2: a game scored outside its state by its pieces (the show's calls, bingo lines), never a league type.
+  const pieces = StateLogic.piecesOf(s);
+  return pieces.hasCalls || pieces.hasBingo ? endedThrough(schedule, latestAired(schedule), StateLogic.endEpisode(s)) : StateLogic.gameOver(s);
 }
 
 /** Every game on a couch with who may join it, in the couch's order. */

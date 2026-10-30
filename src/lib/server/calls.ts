@@ -491,9 +491,10 @@ export async function leagueCalls(o: {
   book?: CallBook;
   now?: Date;
 }): Promise<GameCalls | null> {
-  const type = StateLogic.getLeagueType(o.state);
+  // Step R1 part 2: Weekly Calls by its pieces (a game scored by the show's calls), never a league type.
+  const calls = StateLogic.piecesOf(o.state).hasCalls;
   const pooled = StateLogic.pickEmCallsOn(o.state);
-  if (!type.hasCalls && !pooled) return null;
+  if (!calls && !pooled) return null;
   const now = o.now ?? new Date();
   // A game over a span counts its own shows only (settings.endEpisode).
   const end = StateLogic.endEpisode(o.state);
@@ -506,7 +507,7 @@ export async function leagueCalls(o: {
   const rights =
     start === null
       ? new Map<string, number>()
-      : await callRights(o.seasonId, userIds, { from: start, through, couchId: type.hasCalls ? o.couchId : null, only: pooled ? (k) => k === "out" : undefined, book });
+      : await callRights(o.seasonId, userIds, { from: start, through, couchId: calls ? o.couchId : null, only: pooled ? (k) => k === "out" : undefined, book });
   const right = (p: string) => rights.get(o.userOf(p) ?? "") ?? 0;
   if (pooled) {
     if (!o.playerId) return { right, move: null };
@@ -549,16 +550,19 @@ export async function seasonCastIdOf(seasonId: string, castaway: { name: string;
 
 /**
  * Weekly Calls' move on the home (/api/me/home), beside actionItems' (whose league states don't hold calls): for each of your
- * Weekly Calls games, the next show's calls while you haven't made them all.
+ * Weekly Calls games, the next show's calls while you haven't made them all. Step R1 part 2: a game is Weekly Calls by its pieces
+ * (`states`: each game's, as the home read them, a hash each), never by its stored type; a game whose state wasn't read has none.
  */
 export async function weeklyCallMoves(
   userId: string,
-  games: { leagueId: string; name: string; gameType: string; seasonId: string | null; archived?: boolean; span?: { from: number; to: number } | null }[],
+  games: { leagueId: string; name: string; seasonId: string | null; archived?: boolean; span?: { from: number; to: number } | null }[],
+  states: Map<string, LeagueState>,
   now = new Date()
 ): Promise<{ kind: "calls"; text: string; href: string; leagueId: string; leagueName: string; episode: number; deadline: string; who: "you" }[]> {
   const out = [];
   for (const g of games) {
-    if (g.gameType !== "weekly-calls" || !g.seasonId || g.archived) continue;
+    const state = states.get(g.leagueId);
+    if (!state || !StateLogic.piecesOf(state).hasCalls || !g.seasonId || g.archived) continue;
     const made = await callsMade(userId, g.seasonId, now).catch(() => null);
     if (!made || !made.of || made.made >= made.of) continue;
     // A game over a span asks for no calls past its last show.

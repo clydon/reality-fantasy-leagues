@@ -152,11 +152,12 @@ export async function seasonGames(user: SessionUser, seasonId: string, couchId: 
 export async function viewWithCalls(user: SessionUser, seasonId: string, h: GameHere): Promise<GameView> {
   // Read-only: the couch's calls and lines, and no card, call or sheet of yours (none is dealt).
   const o = { state: h.state, couchId: h.game.couchId, seasonId, playerId: h.readOnly ? null : h.playerId, userId: user.id, mark: h.mark, userOf: h.userOf };
-  const type = StateLogic.getLeagueType(h.state);
+  // Step R1 part 2: which it reads is in the game's pieces (how it scores: its answers, bingo lines or the show's calls).
+  const pieces = StateLogic.piecesOf(h.state);
   // A game of questions (step A4) ranks by its answers' points, graded at your mark (answer-points.ts); its answers are
   // read once for its table and its sheet.
-  const rows = type.hasQuestions ? (h.answers ?? (await storedAnswers(h.game.leagueId).catch(() => undefined))) : undefined;
-  const calls = await (type.hasQuestions ? leagueAnswers({ ...o, leagueId: h.game.leagueId, rows }) : type.hasBingo ? leagueBingo(o) : leagueCalls(o)).catch((e) => {
+  const rows = pieces.hasQuestions ? (h.answers ?? (await storedAnswers(h.game.leagueId).catch(() => undefined))) : undefined;
+  const calls = await (pieces.hasQuestions ? leagueAnswers({ ...o, leagueId: h.game.leagueId, rows }) : pieces.hasBingo ? leagueBingo(o) : leagueCalls(o)).catch((e) => {
     console.error(`[season-games] calls ${h.game.leagueId}:`, e);
     return null;
   });
@@ -165,7 +166,7 @@ export async function viewWithCalls(user: SessionUser, seasonId: string, h: Game
   const phase = StateLogic.startPhase(h.state);
   if (phase) view.phase = (await leaguePhases(pool, h.game.leagueId, seasonId)).find((p) => p.id === phase)?.name ?? phase;
   // A sheet of questions to answer now (step A4 part 2): a game of questions', or a draft's finale predictions (answers.ts).
-  if (!h.readOnly && (type.hasQuestions || StateLogic.finaleOfGame(h.state))) {
+  if (!h.readOnly && (pieces.hasQuestions || StateLogic.finaleOfGame(h.state))) {
     view.sheet = await sheetOf(user, seasonId, h, undefined, rows).catch((e) => {
       console.error(`[season-games] sheet ${h.game.leagueId}:`, e);
       return null;

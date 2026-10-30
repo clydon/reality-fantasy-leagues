@@ -2,8 +2,10 @@
 // it has come from its spec's own parts (state-logic.js piecesOf: get.order, score.by, game-spec flagsOf), never a league type,
 // which only names a game for the screens now (getLeagueType: its words and flags, until R3). Each kind of league Start a game and
 // classic make, and every game the tracker plays, plays the pieces its spec names, with the flags the screens read; the waivers'
-// recommendation reads how a game scores; and nothing in scoring reads a league type or compares one by name, outside a list
-// of what R1 part 2 and R3 still take. That the scores didn't move is the golden replays' (scripts/dev-test/golden.js) and the
+// recommendation reads how a game scores; the games scored outside the state (Weekly Calls, Weekly Bingo, a game of questions: part
+// 2) play theirs too, and what reads them (the home's moves, classic's list) chooses them by their pieces, as their stored type
+// chose them; and nothing in scoring reads a league type or compares one by name (nor filters the stored type by one in SQL),
+// outside a list of what R3 still takes. That the scores didn't move is the golden replays' (scripts/dev-test/golden.js) and the
 // game-specs flag check's. Run with `npm test`.
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -14,6 +16,7 @@ const S = require("../src/lib/game/state-logic.js");
 const G = require("../src/lib/game/game-spec/index.js");
 const T = require("../scripts/engine-capabilities.js");
 const { buildDemoState } = jiti("../src/lib/game/demo-season-builder.ts");
+const { inClassicList } = jiti("../src/lib/game/classic-list.ts");
 
 const clone = (v) => JSON.parse(JSON.stringify(v));
 // The flags the screens read off the league type (state-logic.d.ts LeagueType), which the pieces carry too.
@@ -132,21 +135,81 @@ test("the waivers' recommendation reads how the game scores: the boot order or m
   assert.equal(W.recommendFor(made("pickem")), null);
 });
 
+// Weekly Calls, Weekly Bingo and a game of questions (R1 part 2): scored outside the state (the show's calls, bingo lines and the
+// game's answers live in their own tables, and the server's game view counts them), so the state ranks everyone level at 0.
+const QUESTIONS_CTX = { moments: [{ id: "idolPlayed", label: "Played an idol", defaultPoints: 1, answeredBy: "research" }], results: true, winner: true, calls: "results" };
+const OUT = { id: "out", ask: "Who goes home?", answer: "person", points: 2, asked: "each", settle: { by: "results", take: "out" } };
+const WINS = { id: "wins", ask: "Who wins?", answer: "person", points: 5, settle: { by: "results", take: "winner" } };
+const questions = (ask, extra) => {
+  const s = made("pickem");
+  assert.deepEqual(S.setGame(s, { spec: 1, get: { by: "none" }, score: { by: "answers", ...extra }, ask }, { ctx: QUESTIONS_CTX }), []);
+  return s;
+};
+
+test("the games scored outside the state play the pieces their spec names: Weekly Calls, Weekly Bingo, a game of questions", () => {
+  const kinds = [
+    ["Weekly Calls", made("weekly-calls"), "answers", "hasCalls"],
+    ["Weekly Bingo", made("weekly-bingo"), "lines", "hasBingo"],
+    ["a game of questions", questions([OUT, WINS]), "answers", "hasQuestions"],
+    ["a game of questions with lives", questions([OUT], { lives: 2 }), "answers", "hasQuestions"],
+  ];
+  for (const [label, state, scores, has] of kinds) {
+    const p = S.piecesOf(state);
+    assert.deepEqual([p.draft.name, p.scorer.name, p.holds, p.counts, p.scores], ["NoDraftStrategy", "CallsScoringStrategy", scores === "lines" ? "card" : "none", null, scores], label);
+    // Exactly one of the three, and nothing held.
+    assert.deepEqual(["hasCalls", "hasBingo", "hasQuestions"].filter((f) => p[f]), [has], label);
+    assert.deepEqual([p.hasRoster, p.hasWeeklyPicks, p.supportsReplenish, p.supportsFinalePredictions].map(Boolean), [false, false, false, false], label);
+    assert.deepEqual(flags(p), flags(S.getLeagueType(state)), `${label}: the screens' flags`);
+    // The state scores nobody: the server's game view ranks the table by what's counted outside it.
+    state.players = ["ann", "bo"].map((id) => ({ id, name: id, color: "#000" }));
+    assert.deepEqual(S.computeScores(state).map((r) => r.total), [0, 0], label);
+  }
+  assert.deepEqual([S.piecesOf(kinds[3][1]).hasAnswerLives, S.piecesOf(kinds[3][1]).ranks], [true, "standing"]);
+});
+
+test("what reads the games scored outside the state chooses them by their pieces, as their stored type chose them", () => {
+  // Every kind of league, as its fields say it (the stored type among them), and every game the tracker plays, by its fields and
+  // carrying its spec whole (the game-specs flag).
+  const leagues = [
+    ...["classic-draft", "active-roster", "pickem", "weekly-calls", "weekly-bingo"].map((t) => [t, made(t)]),
+    ["questions", questions([OUT, WINS])],
+    ["Outlast, shared", made("classic-draft", (s) => S.updateSettings(s, "ownershipMode", "shared"))],
+  ];
+  for (const x of T.statusRows(JSON.parse(fs.readFileSync(T.TRACKER, "utf8")))) {
+    if (x.st.state !== "yes" || !x.row.spec) continue;
+    const game = G.fullSpec(x.row.spec);
+    const settings = G.withSpec(S.defaultState().settings, game);
+    leagues.push([x.row.id, { ...S.defaultState(), settings }], [`${x.row.id}, carried`, { ...S.defaultState(), settings: { ...settings, game } }]);
+  }
+  const OUTSIDE = ["weekly-calls", "weekly-bingo", "questions"];
+  const kinds = new Set();
+  for (const [label, state] of leagues) {
+    const type = state.settings.leagueTypeId;
+    kinds.add(type);
+    const p = S.piecesOf(state);
+    // The home's moves (calls.ts weeklyCallMoves, answers.ts questionMoves), the Games tab and the hub, which chose a game by its
+    // stored type or the league type's flags.
+    assert.equal(!!p.hasCalls, type === "weekly-calls", `${label}: Weekly Calls`);
+    assert.equal(!!p.hasQuestions, type === "questions", `${label}: a game of questions`);
+    assert.equal(!!p.hasBingo, type === "weekly-bingo", `${label}: Weekly Bingo`);
+    // Classic's list (/api/me), which left those three out by the stored type in SQL; it reads a league's settings only.
+    assert.equal(inClassicList(state), !OUTSIDE.includes(type), `${label}: in classic's list`);
+    assert.equal(inClassicList({ settings: state.settings }), !OUTSIDE.includes(type), `${label}: in classic's list, from its settings`);
+  }
+  assert.deepEqual([...kinds].sort(), ["active-roster", "classic-draft", "pickem", "questions", "stages", "weekly-bingo", "weekly-calls"]);
+});
+
 // What still reads a league type or compares one by name, outside the spec's own vocabulary (game-spec/) and the screens
 // (src/components, src/new): each file and the step that takes it. Everything else under src/lib and src/app/api reads the
-// pieces. A file that no longer needs its line fails this test until the line goes, so the list only shrinks.
+// pieces. A file that no longer needs its line fails this test until the line goes, so the list only shrinks. R1 part 2 took
+// the games scored outside the state (answer-points.ts, answers.ts, bingo.ts, calls.ts, season-games.ts, the me route's list,
+// and couch-joins.ts's end of a game scored outside it).
 const STILL = {
-  // R1 part 2: Weekly Calls, Weekly Bingo and the game of questions (the games scored outside the state).
-  "src/lib/server/answer-points.ts": "R1 part 2",
-  "src/lib/server/answers.ts": "R1 part 2",
-  "src/lib/server/bingo.ts": "R1 part 2",
-  "src/lib/server/calls.ts": "R1 part 2",
-  "src/lib/server/season-games.ts": "R1 part 2",
-  "src/app/api/me/route.ts": "R1 part 2",
-  // R3: the type field's writers (Start a game, the lab, the practice couch, the tours, classic's setup) and the screens' readers.
+  // R3: the type field's writers (Start a game, the lab, the practice couch, the tours, classic's setup) and the screens' readers:
+  // the me route's label for each game in classic's list among them ("Active Roster": the league type's name).
+  "src/app/api/me/route.ts": "R3",
   "src/lib/server/backstage-games.ts": "R3",
   "src/lib/server/backstage.ts": "R3",
-  "src/lib/server/couch-joins.ts": "R3",
   "src/lib/server/end-game.ts": "R3",
   "src/lib/server/engine-lab.ts": "R3",
   "src/lib/server/start-game.ts": "R3",
@@ -167,7 +230,11 @@ const COMPARED = new RegExp(`[!=]==\\s*["'](${TYPE_IDS})["']|["'](${TYPE_IDS})["
 const code = (text) => text.split(/\r?\n/).filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l));
 // A spec's own part compared (score.by === 'stages', by('get') === 'none') is the spec, not a league type.
 const named = (l) => COMPARED.test(l.replace(/(\.by|by\(["']\w+["']\))\s*[!=]==\s*["'][\w-]+["']/g, ""));
-const reads = (lines) => lines.filter((l) => /getLeagueType\(/.test(l) || named(l));
+// R1 part 2: nor a type id written into a SQL filter on the stored type (`->>'leagueTypeId', '') NOT IN ('weekly-calls', ...)`), on
+// one line or across several of one query (nothing between them ends it: a backtick or a semicolon). A filter by ids passed in
+// (the desk's search by a game's name) reads the stored type as the screens do: R3's.
+const FILTERED = new RegExp(`->>\\s*'leagueTypeId'[^;\`]*?(\\bIN\\b|=|<>)\\s*\\(?\\s*'(${TYPE_IDS})'`, "i");
+const reads = (lines) => [...lines.filter((l) => /getLeagueType\(/.test(l) || named(l)), ...(FILTERED.test(lines.join("\n")) ? ["a SQL filter"] : [])];
 
 test("nothing in scoring reads a league type or compares one by name (what's left is named, with its step)", () => {
   const root = path.join(__dirname, "..");

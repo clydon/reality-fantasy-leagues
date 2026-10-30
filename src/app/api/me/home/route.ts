@@ -84,19 +84,20 @@ export const GET = apiRoute(async (req) => {
     dueMoves(user.id),
     hiddenFor(user.id),
   ]);
+  // Your games' states, read after dueMoves read them so each costs a hash (league-states.ts): which games the moves below are
+  // for is in each one's pieces (step R1 part 2 of docs/PLAN-start-a-game-gpt.md), and what its results ask of you further down.
+  const states = await leagueStates(myGames.filter((g) => g.seasonId).map((g) => g.leagueId));
   // The couches' planned nights (step 11 part 3), with what's been read already; and Weekly Calls' moves (step 12 part 2), whose
   // calls aren't in a league's state for actionItems to see.
   // A Prediction Sheet's questions (step A4 part 2 of docs/PLAN-start-a-game-gpt.md) aren't in its state either.
   const [plans, callMoves, sheetMoves] = await Promise.all([
     plansFor(user.id, couchIds, new Date(), { members, schedules, headers }),
-    weeklyCallMoves(user.id, myGames),
-    questionMoves(user, myGames),
+    weeklyCallMoves(user.id, myGames, states),
+    questionMoves(user, myGames, states),
   ]);
-  // Who's set this week in your games with a weekly move, read after the moves so each state costs a hash; and each
-  // game's state again (a hash each) for what its results ask of you.
-  const [progress, states, early, seats, keeping] = await Promise.all([
+  // Who's set this week in your games with a weekly move, read after the moves so each state costs a hash.
+  const [progress, early, seats, keeping] = await Promise.all([
     progressOf(user, myGames),
-    leagueStates(myGames.filter((g) => g.seasonId).map((g) => g.leagueId)),
     pool.query(
       "SELECT season_id, early_seen, nudge_off_at IS NOT NULL AS nudge_off FROM show_follows WHERE user_id = $1 AND (early_seen IS NOT NULL OR nudge_off_at IS NOT NULL)",
       [user.id]
