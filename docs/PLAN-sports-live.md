@@ -5,7 +5,9 @@ same engine": that's the plan now, and its order wins. The formats are built onc
 with L bringing each sport's data to them; the screens wait for its UI track (U0, U1); the steps here are renumbered there
 (0 → U0, 1 → L1, 2 → L2, 4 → L3, 5 and 6 → L4, 7 → L5, 8 → L6; 3, the Players tab, → U). This file keeps the details.
 
-Status: **L5 part 2b, college football, built 2026-10-30** (`src/lib/sports/college-football.ts`: the home crews' play text on
+Status: **L5 part 3a, golf, built 2026-10-30** (`FieldSport` in `src/lib/sports/sport.ts`, `src/lib/sports/golf.ts`: a field and its
+standings, every stroke-play tour ESPN carries, read from its board's holes and its leaderboard; racing next, 3b; As built under track
+L in `docs/PLAN-start-a-game-gpt.md`), after **L5 part 2c, college baseball**, and **L5 part 2b, college football, built 2026-10-30** (`src/lib/sports/college-football.ts`: the home crews' play text on
 Football's vocabulary, what the NCAA counts otherwise; As built under track L in `docs/PLAN-start-a-game-gpt.md`), after **L5 part 2a,
 college basketball and the WNBA**, and **L5 part 1, soccer, built 2026-10-28** (`src/lib/sports/soccer.ts`: every soccer league ESPN carries, read from its
 match sheets, key events and commentary; As built under track L in `docs/PLAN-start-a-game-gpt.md`), after **L2, the live clock, built 2026-10-28** (`GameClock` and the phone's poller, `src/lib/sports/clock.ts` and `live.ts`;

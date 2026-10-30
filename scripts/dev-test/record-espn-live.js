@@ -27,6 +27,16 @@
 //    goalies who hadn't played yet; soccer's answers whose commentary came cut short (fewer entries than the answer before);
 //  - a phone's data: the bytes over the wire per answer and per hour at 15 s.
 // Exits 1 if it can't compare (no final answer kept).
+//
+// A field (golf, racing: L5 part 3) has no summary: each ask is ESPN's answers for the event, kept together in one file
+// ({ _asked, board, leaderboard }): golf's event board (`golf/<tour>/scoreboard/<event>`: every hole, in the order played) and
+// its leaderboard (`golf/leaderboard?event=`: places, thru, tee times, who's cut or withdrew); racing's event board
+// (`racing/<series>/scoreboard/<event>`: each session's order). It waits until play is on (a golf tournament between rounds is
+// "post", "Round 1 - Play Complete"), then records until play stops again: the round's play complete, suspended, or the final
+// (--until=final records on through the next rounds or sessions, waiting between them, until the event's final: at most --hours,
+// 18 a round or 120 to the final). Between rounds it asks every 5 minutes and keeps only the first answer after play stops.
+//   node scripts/dev-test/record-espn-live.js --league=golf/pga --event=401850978 [--every=60] [--hours=18] [--until=final]
+// Its --compare (each live answer against the final's) is still to write: L5 part 3's Noticed.
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -83,6 +93,76 @@ async function record() {
     await sleep(st.state === "pre" ? Math.min(5 * 60_000, EVERY * 10) : EVERY);
   }
   console.log("Stopped at --hours before the final.");
+}
+
+// A field's event (golf, racing): the answers asked together, and where play is.
+const FIELD = /^(golf|racing)\//.test(String(league));
+const fieldUrls = () =>
+  league.startsWith("golf/")
+    ? { board: `${base}/apis/site/v2/sports/${league}/scoreboard/${event}`, leaderboard: `${base}/apis/site/v2/sports/golf/leaderboard?event=${event}` }
+    : { board: `${base}/apis/site/v2/sports/${league}/scoreboard/${event}` };
+/** Where a field's play is: golf's competition status ("Round 2 - In Progress"; "post" between rounds, "Round 1 - Play
+ *  Complete"), racing's session on (the first not over), and whether the event's final. */
+function fieldState(answer) {
+  const board = answer.board ?? {};
+  const ev = answer.leaderboard?.events?.[0] ?? board;
+  const final = ev.status?.type?.state === "post" || board.status?.type?.state === "post";
+  const comps = board.competitions ?? ev.competitions ?? [];
+  const on = league.startsWith("golf/") ? comps[0] : comps.find((c) => c.status?.type?.state === "in") ?? comps.find((c) => c.status?.type?.state === "pre") ?? comps[comps.length - 1];
+  const st = (league.startsWith("golf/") ? answer.leaderboard?.events?.[0]?.competitions?.[0]?.status : null) ?? on?.status ?? {};
+  const holes = (comps[0]?.competitors ?? []).reduce((n, c) => n + (c.linescores ?? []).reduce((m, r) => m + (r.linescores ?? []).length, 0), 0);
+  return { final, state: st.type?.state, detail: st.type?.detail ?? st.type?.shortDetail, name: st.type?.name, session: on?.type?.abbreviation ?? null, holes };
+}
+
+async function recordField() {
+  fs.mkdirSync(dir, { recursive: true });
+  const urls = fieldUrls();
+  const toFinal = args.until === "final";
+  const hours = Number(args.hours || (toFinal ? 120 : 18));
+  const until = Date.now() + hours * 3600_000;
+  let played = false;
+  let wasOn = false;
+  console.log(`Recording ${Object.values(urls).join(" and ")} every ${EVERY / 1000} s into ${dir} (at most ${hours} h, until ${toFinal ? "the final" : "play stops"})...`);
+  while (Date.now() < until) {
+    const at = Date.now();
+    const answer = { _asked: new Date(at).toISOString() };
+    let bytes = 0;
+    let raw = 0;
+    try {
+      for (const [k, url] of Object.entries(urls)) {
+        const res = await fetch(url, { headers: { "User-Agent": "GameYourShow/1.0", "Accept-Encoding": "gzip" } });
+        bytes += Number(res.headers.get("content-length")) || 0;
+        if (!res.ok) throw new Error(`ESPN answered ${res.status} for ${k}`);
+        const text = await res.text();
+        raw += text.length;
+        answer[k] = JSON.parse(text);
+      }
+    } catch (e) {
+      fs.appendFileSync(path.join(dir, "log.jsonl"), JSON.stringify({ at: answer._asked, error: e.message }) + "\n");
+      console.log(`${answer._asked}  ${e.message}`);
+      await sleep(EVERY);
+      continue;
+    }
+    const st = fieldState(answer);
+    const on = st.state === "in";
+    // While on, the first answer after (where play stopped), and the final: not the same answer every 5 minutes between rounds.
+    if (on || wasOn || st.final) fs.writeFileSync(path.join(dir, `${at}.json.gz`), zlib.gzipSync(JSON.stringify(answer)));
+    wasOn = on;
+    const line = { at: answer._asked, state: st.state, name: st.name, detail: st.detail, session: st.session, final: st.final, holes: st.holes, bytes: bytes || null, raw };
+    fs.appendFileSync(path.join(dir, "log.jsonl"), JSON.stringify(line) + "\n");
+    console.log(`${line.at}  ${st.state} ${st.detail ?? ""}${st.session ? ` (${st.session})` : ""}  ${st.holes} holes  ${bytes ? `${Math.round(bytes / 1024)} KB over the wire` : ""} (${Math.round(raw / 1024)} KB)`);
+    if (st.final) {
+      console.log("Final: done. Compare with --compare (still to write for a field).");
+      return;
+    }
+    if (on) played = true;
+    else if (played && !toFinal) {
+      console.log(`Play stopped (${st.detail}): done.`);
+      return;
+    }
+    await sleep(on ? EVERY : Math.min(5 * 60_000, EVERY * 10));
+  }
+  console.log("Stopped at --hours before play stopped.");
 }
 
 function quantile(xs, q) {
@@ -220,7 +300,7 @@ Soccer: ${cut.length} of ${live.length} live answers came with fewer commentary 
   }
 }
 
-(args.compare ? Promise.resolve().then(compare) : record()).catch((e) => {
+(args.compare ? Promise.resolve().then(() => (FIELD ? Promise.reject(new Error("A field's --compare is still to write (L5 part 3's Noticed): its answers are kept.")) : compare())) : FIELD ? recordField() : record()).catch((e) => {
   console.error(e.message);
   process.exit(1);
 });

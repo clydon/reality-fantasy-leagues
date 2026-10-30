@@ -429,6 +429,8 @@ engine track; L brings each sport's data to it. Its screens wait for the UI trac
 - **L5. More of ESPN:** soccer; college and the WNBA; golf, racing, MMA and tennis (the field and bout shapes). A part per
   session: part 1, soccer (built 2026-10-28: As built below); part 2, college (basketball, football, baseball, hockey) and the
   WNBA; then golf and racing (FieldSport); then MMA and tennis (BoutSport).
+  - **Part 3 split in two (2026-10-30):** 3a, golf (FieldSport and Golf: built 2026-10-30, As built below); 3b, racing (F1,
+    NASCAR, IndyCar on FieldSport: what ESPN gives is in 3a's As built).
   - **Part 2 split in three (2026-10-28):** 2a, college basketball and the WNBA (built: As built below); 2b, college football
     (its own grammar of plays, on Football's vocabulary and box reader: built 2026-10-30, As built below); 2c, college baseball
     (its own box and two feeds: built 2026-10-30, As built below). **College hockey isn't readable from ESPN** (looked at in
@@ -1003,6 +1005,12 @@ UI.
     recorded, below) and the WNBA's first live game (its Finals' Game 7, 2026-10-31, being recorded).
   **L5 part 2c (2026-10-30, from 02:30 ET):** none of the three was final (Baylor at UCF and Tulane at Charlotte start that
   evening, the WNBA's Game 7 the next): their `--compare` is handed on. No NFL game was on during the session.
+  **L5 part 3a (2026-10-30, from 04:00 ET):** still none final (the college games that evening, the WNBA's Game 7 on 10-31): handed
+  on again. Three more being recorded, each a detached process that stops itself (in `rfl-espn-live/`, a `.out.txt` beside each):
+  the PGA Tour's Mexico Open round 2 (`golf/pga` 401850978, 10-30 from 13:05 UTC to its play complete), F1's Mexico City Grand Prix
+  weekend (`racing/f1` 600057447, FP1 10-30 to the race 11-01, `--until=final`) and NASCAR's Cup race at Martinsville
+  (`racing/nascar-premier` 202611010020, 11-01 19:00 UTC): a field's `--compare` is still to write (L5 part 3a's Noticed), so
+  their answers wait for it (golf's and F1's final answers: the event's final, Sunday).
 - **A phone's data**: an estimated 15-30 MB a game at 15 s, since every answer is the whole summary (no ETag, so no 304s).
   ESPN's core API pages a game's plays (`sports.core.api.espn.com/v2/sports/{sport}/leagues/{league}/events/{id}/competitions/
   {id}/plays?limit=&page=`, CORS `*`, cached 15 minutes once final), so a poll could fetch only the newest page and a small
@@ -1524,6 +1532,168 @@ stored).** Master still hadn't A1-A4 (the main session's order). With it, L5 par
   until the final takes it back.
 - **The live-clock check's rhythm needs a quiet machine**: with the other lanes' sessions running, all 22 recordings at once at
   60x fail only on gaps between asks (every answer, every later watch and every end right); the three new ones alone pass.
+
+**L5 part 3a as built: golf (2026-10-30, `sports`, not merged; no migration, no ESPN calls from the app, nothing stored).**
+Master still hadn't A1-A4 (the main session's order). Part 3 is split in two: 3a golf (this), 3b racing (next: what ESPN gives
+for it is below, looked at in this session).
+- **What ESPN gives for golf** (checked 2026-10-30 on every finished event of the 2025 and 2026 seasons of six tours, ~340):
+  - **No summary** (`golf/<tour>/summary?event=` is a 404): a tournament is two answers. Its **board**
+    (`site.api.espn.com/apis/site/v2/sports/golf/<tour>/scoreboard/<event>`, the event itself; `.../scoreboard` lists the week's):
+    each competitor's rounds (strokes, score to par) and, on the PGA Tour, PGA Tour Champions and the Korn Ferry Tour, **every hole
+    in the order played** (a back-nine start's 10 to 18 then 1 to 9), its strokes and its score to par typed "E", "-1" ... "+3",
+    "OTHER" for four over or worse; the round's counts unnamed and in order (birdies, bogeys, bunkers, double bogeys, eagles or
+    better, pars, the tee time in Eastern time labelled PDT), all 0 in some events (the U.S. Open's, The Open's, the Zurich's).
+    The LPGA's, the DP World Tour's and LIV's boards have rounds only. Its **leaderboard** (`.../sports/golf/leaderboard?event=`,
+    any tour's): places ("T9", "-"), statuses (finished; cut, withdrawn or disqualified all `STATUS_CUT`, told apart by
+    `shortDetail` CUT, WD, DQ; `STATUS_MDF`, made the cut but didn't finish; `playoff`), each round's ISO tee time, its nines
+    (`outScore`, `inScore`) and two places: `startPosition` (the places after the round before, as the round began) and
+    `currentPosition` (in some events the place when each player finished the round: at the 2026 U.S. Open an early finisher at
+    -2 is 4th, passed later that day); earnings, the tour's season points (`cupPoints`), the courses with each hole's par; the
+    tournament's rounds, its cut (after which round, a score, how many made it, 0 until made) and its scoring ("Medal";
+    "Teamstroke", the Zurich Classic's pairs as one competitor with a roster; "Match", the Presidents Cup's and Solheim Cup's;
+    "Modified Stableford", PGA Tour Champions' Mitsubishi Electric Classic, scored in points); a playoff as a round of its own
+    (`isPlayoff`). A player's summary (`site.web.api.espn.com/.../golf/pga/leaderboard/<event>/playersummary?player=`) names the
+    round's counts and gives each hole's par, one player a call. ESPN carries ten golf leagues: pga, lpga, eur, liv,
+    champions-tour, ntw (Korn Ferry), mens- and womens-olympics-golf (stroke play) and tgl, wtgl (team match play: a bout's shape,
+    left out).
+  - **No hole has a time, anywhere** (board, leaderboard, player summary, core API): a round's tee times are the only clock. **A
+    round is over before the next one starts**: in every event, a round's last tee time was 2.8 to 23 hours before the next
+    round's first (LIV Indianapolis's third round, suspended and resumed on the Sunday morning, included).
+  - **Where ESPN's data is wrong or uneven** (each read in its data): a hole's type wrong in some events (the 2026 Chubb
+    Classic's 2 on a par 3 "+2", a 7 on a par 5 "-3"), where the course's par is right; two courses and which a round was on not
+    said (the PURE Insurance Championship's), its types wrong too; the round's counts take a double eagle as an eagle; the cut
+    score isn't always the line (the 2026 Turkish Airlines Open's says +2 and cut everyone at +2; the Soudal Open's and Tulum's
+    otherwise again), so who's cut is its statuses'; a playoff's holes listed in some events (Bermuda's three), only the winner's
+    or none in others (the WM Phoenix Open's, the LPGA's JM Eagle's): its places say who won; the DP World Tour's feed gives a
+    playoff's losers "2", "2" (not tied; the LPGA's "T2"); a withdrawal's unfinished round a hole off its holes either way in its
+    round's score (Séamus Power's 2025 Canadian Open leaves his tenth out, Mark Calcavecchia's 2025 Insperity counts a ninth it
+    doesn't list), its nines the holes; a status for the round the event was in when a withdrawal was flagged, not the one played
+    (Greyserman's, 10 holes into the second, says the third); MDF typed on someone who played all four (the 2026 Volvo China
+    Open's), placed by his score; the leaderboard's `startPosition` its leaderboard as the round began, a place or two lower for
+    everyone below someone it then listed and later dropped; an ESPN 500 for one 2025 LPGA board.
+- **`FieldSport`** (in `sport.ts`): a field of competitors and its standings. `FieldAnswer` (`{ _asked, board, leaderboard }`:
+  `_asked` is when the answers were had, a live poll's or a recording's), `FieldEntry` (an athlete or a team and its members),
+  `Standing` (`place`, null when out; `tied`; `status` in, cut, wd or dq; `madeCut` once a cut's made), `FieldEvent` (the field,
+  how many parts, the cut: the team sports' sides), `FieldBox` (ESPN's own numbers, parts and standings), `FieldPlay` (a `Play`
+  with its `who`, golf's `hole`, and on the final's correction ESPN's `places`), `FieldState` (lines, numbers part by part, each
+  one's score, standings). `reduce(plays, at, event)` adds up the plays to a moment (no moment or Infinity the end, one that isn't
+  a moment nothing), then the standings as the sport ranks them (`rank`), or after the final's correction ESPN's own (a copy),
+  and each place in the line of whoever's played (`placeStats`: before anything's known nobody's placed or won). `correction`,
+  `timeline` and `stateAt` as TeamSport's: the final's correction is what only the final says (golf: the earnings), with ESPN's
+  places. `fieldEventOf` picks the event from a tour's list by the leaderboard's id (an opposite-field week lists two).
+  `sportOf` returns `AnySport` (TeamSport or FieldSport); nothing in the app called it. `LiveGame` stays TeamSport's (Noticed).
+- **`Golf`** (`src/lib/sports/golf.ts`; `sportOf` for its eight stroke-play leagues, not TGL's): one golfer group (G, and TEAM for
+  a pair), rounds as its periods (a playoff its extra), locks per event. **Its vocabulary**: holes (STR strokes, TOPAR, HOLES,
+  ALB double eagles, EAG, BIR, PAR, BOG, DBL, WORSE triple bogey or worse, HIO), rounds on their 18th hole (RND, BFR bogey-free,
+  U70, UPAR, the longest birdie-or-better streak BS3, BS4, BS5, BS6 six or more, BS derived), a playoff (PO, POW won, POH holes,
+  POSTR strokes: never the tournament's), the finish (POS, W, TOP5, TOP10, TOP20, TOP25, CUT made: the standings'; MC, WD, DQ,
+  MDF: ESPN's statuses, as plays), money (EARN, CUPPTS: known at the final). **Its plays**: each competitor's holes in the order
+  played (where the board has none, each round whole: strokes and to par, RND, U70 and UPAR, no kinds of holes; a withdrawal's
+  last round counted a round only from 55 strokes up, no tour round having been under 57), each hole's score to par from a
+  course's pars or ESPN's types, whichever comes to ESPN's round score (the course first where there's one, ESPN's first where
+  there are more, and between two that both do, the one the board's own counts of the kinds agree with; one hole left unknown is
+  what the round leaves); a missed cut at the cut round's end, a withdrawal or disqualification at the end of the last round
+  played (before teeing off, the first's), MDF (only for someone who didn't play the last round anyone played); then a playoff
+  (its holes where ESPN lists them, the leaderboard's with par, else the board's round past the tournament's own, else its
+  strokes; then who was in it and, once final, who won it by ESPN's place). **Each at the moment it's known by**: a round's holes
+  at the next round's first tee time (or `_asked` if earlier), the last round's and the playoff's at `_asked`, or for a finished
+  event with none 12 hours after its last tee time; a live answer with none only at the end. So a later watch moves round by
+  round. **Its standings** (`rank`): everyone in by score to par, the tied sharing a place; after everyone who finished, MDF; a
+  playoff's winner by its place (live, by holes survived and strokes), everyone beaten tied for second; out (no place) the cut, the
+  withdrawn, the disqualified, ESPN's order kept among equals. `placesAfter(state, round, among)`: the places after a round as
+  ESPN starts the next one (its `startPosition`).
+- **Defaults** (`src/lib/sports/defaults/golf.json`): **Yahoo's daily fantasy golf** (2018's table; its official rules: the tied
+  each take the place's points, playoff holes score nothing, a withdrawal keeps its holes' points but has no place): a hole in one
+  5 (on top of its eagle), a double eagle 15, an eagle 9, a birdie 3.5, a par 0.5, a bogey -1.3, a double bogey or worse -5, a
+  bogey-free round 5, a round's longest streak 3, 5, 10, 18 for three, four, five, six or more; **the places beside** (`byPlace`,
+  a new optional field of `SportDefaults`: 1st 25, 2nd 12, 3rd 10, 4th-10th 8, 11th-20th 3), since the spec's points are one
+  number a stat; no categories (Yahoo's and DraftKings' golf are points); six golfers (Yahoo's lineup; its salary cap isn't a
+  slot); locks per event; specs `season` (draft six, all six play each tournament, total) and `short` (one tournament, draft
+  three each, all count).
+- **Fixtures** (`record-espn.js` records a field: its board and leaderboard together, trimmed by FIELD_KEEP, each competitor on a
+  line): the 2026 Butterfield Bermuda Championship (`pga-401850917.json`, 516 KB from 802: cut to 54 holes, Smotherman beat Power
+  in a three-hole playoff on the Monday, Greyserman withdrew 10 holes into round 2, 47 cut, holes four and five over), the 2026
+  TOUR Championship (`pga-401811964.json`, 177 KB: 30 players, Scheffler at -16, Justin Rose's hole in one, Spaun withdrew after 5
+  holes) and the 2026 Buick LPGA Shanghai (`lpga-401835172.json`, 144 KB: rounds only, five withdrawals, one before teeing off).
+- **Checks.**
+  - `tests/sports-golf.test.js` (14): the vocabulary and leagues; a hole's kind and a round's stats; the leaderboard in Golf's keys;
+    **the proof** on all three fixtures (the plays alone come to every number of ESPN's, round by round, the nines, the board's
+    counts, and its final places; the final's correction only the earnings; with it every number); the plays (the order played,
+    a hole's deltas, a round's on its 18th, OTHER from the course, a hole in one, the cut, a withdrawal, the playoff); **the
+    moments** (each round known at the next one's first tee, ESPN's start places after round 1 and 2 exactly, the cut and the
+    withdrawal with round 2, Smotherman and Power tied until the playoff's known, the end; a finished answer read months later;
+    nobody placed before anything's known); the LPGA's rounds; a live round (`_asked`, thru, places now, a later watch at round
+    2's start); playoffs (the winner by place, live by holes, losers tied, a lone loser second, only flagged); the cut from
+    ESPN's statuses, MDF; wrong types, two courses chosen by the board's counts, an OTHER left to the round; a tour's board
+    listing two events; not stroke play; the defaults.
+  - `scripts/dev-test/check-field-reduce.js` (new, reusable, check-sport-reduce.js's sibling for a field: `--league --season
+    --max` or `--events`, `--verbose`; caches finished answers): each event's plays against ESPN's numbers, nines, the board's
+    counts and final places (failing an event), ESPN's own differences listed apart (a withdrawal's round a hole off its nines,
+    a tie ESPN doesn't mark), and the places after each round against ESPN's start places: in ESPN's order (the tied tied) and
+    how many exactly. **The 2026 seasons** (what the reader was written against): PGA Tour 41 of 41 events every number and
+    place, LPGA 26 of 26, DP World Tour 32 of 33 (33 but for Bahrain's "2", "2"), LIV 12 of 12, PGA Tour Champions 25 of 25, Korn
+    Ferry 25 of 25 (619,445 plays; 463,888 numbers, all ESPN's but Bahrain's two apart). **The 2025 seasons, never tuned on, on their first run**: 45
+    of 47, 29 of 31, 32 of 35, 14 of 14, 26 of 28 and 24 of 26 (170 of 181; 100.0% of each tour's numbers): the rest the
+    withdrawals' rounds a hole off, the DP World Tour's untied losers, the 2025 PURE Insurance's MDF places "52" untied, an ESPN
+    500, and Bailey Tardy (2025 FM Championship), typed MDF after two rounds and placed 123rd, after the cut (the 2026 PURE's
+    MDFs come right after the finishers): **179 of 181 but for ESPN's own**. The places after a round are in ESPN's start order
+    in 94% of rounds (896 of 950; the rest a withdrawal ESPN listed then and dropped, and LIV Hong Kong's Varner, at -17 by his rounds and
+    7th by ESPN's start of round 4, his final place right).
+  - `check-sport-reduce.js` points a field at its sibling; `sports-live.test.js` and `check-live-clock.js` replay the team sports'
+    recordings only (a field's has no timed plays): **check-live-clock.js at 30x, 22 of 22**, every number of ESPN's box scores.
+  - `record-espn-live.js` records a field (golf's board and leaderboard every 60 s from play on to play stopped, `--until=final`
+    on through the rounds or sessions; racing's event board); its `--compare` for a field is still to write (Noticed).
+  - 977 unit tests; `tsc` clean; eslint clean on `src/lib/sports`.
+  - `/code-review` on the diff (its fixes: a finished answer read with no `_asked` saw its last round only at the end, now 12 hours
+    after its last tee time; a withdrawal before teeing off ranked at even par all week (ESPN's status says the round it was
+    flagged in), now out from round 1; nobody placed, or winning, before anything's known; a withdrawal's partial round on a
+    rounds-only tour counted a round under 70; a board's playoff read as a round where the leaderboard only flags it; a tour's list
+    picked by the leaderboard's id; the season spec's draft equal to its slots; ESPN's places copied, not shared; the cut check out
+    of the loop, `lastPlayed`, `ORDER` and `inOrder` shared; the field recorder's `--until=final` 120 hours by default, keeping one
+    answer between rounds, not one every 5 minutes. Checked against the data and kept: the fake replay already refuses a field's
+    recording; a withdrawal between the cut and the next round's tee isn't told apart from one before the cut, ESPN's status saying
+    neither: noted on `madeCut`).
+  - No HOSTING.md change: nothing calls ESPN from the app, adds a table or stores data (the dev checks asked ESPN ~700 times, every
+    finished answer cached).
+- **Racing, looked at for 3b** (2026-10-30): the site API has **no summary** (404 for F1, 502 for NASCAR and IndyCar) and its event
+  board (`racing/<series>/scoreboard/<event>`) gives each session in finishing order only (`order`, `winner`, the driver's name and
+  flag; the session's `status.period` its laps): F1 its five sessions (FP1-3, Qual, Race), NASCAR and IndyCar the race alone; no
+  laps, times, points, pit stops or DNFs. The **core API** has them: the competition's competitors in one call
+  (`sports.core.api.espn.com/v2/sports/racing/leagues/<series>/events/<id>/competitions/<id>/competitors?limit=100`: order,
+  `startOrder` (the grid), winner, the car's number, maker, team color, NASCAR's sponsor), each driver's
+  `.../competitors/<id>/statistics` one call each (laps led, laps completed, championship points, bonus, penalty points, pits
+  taken, place, wins, pole, top 5 and 10, total time, Q1-Q3 times; NASCAR's laps behind, fastest lap, highest position), and F1's
+  `.../status` ("Classified"; NASCAR's a 400), and the competition's `statistics` (laps, length, average speed, margin, pole
+  speed). F1's feed is "scrubbed, full", NASCAR's "basic/manual". Series: f1, irl (IndyCar), nascar-premier (Cup),
+  nascar-secondary (O'Reilly), nascar-truck. Recording live now (below): F1's Mexico City weekend and NASCAR's Cup at Martinsville.
+
+**L5 part 3a (golf) noticed, not fixed:**
+- **A field has no live poller yet**: `LiveGame` takes a TeamSport (one summary, plays with times). A field's needs its two answers
+  each ask (golf's board and leaderboard: 27 KB over the wire together after round 1, ~60 KB by the end, ESPN's `max-age` 1-4 s,
+  CORS `*`), every 60 s is plenty (a group plays a hole in ~13 minutes), and the holes it sees for the first time stamped with
+  the ask's moment (`_asked`). (L3 or U1, with the recording's compare.)
+- **What a live golf answer has as it goes is still to see**: no golf was on during the session (the Mexico Open's round 2 from
+  13:05 UTC, the LPGA's Maybank round 3 from 23:15). The PGA's round 2 is being recorded (below): whether the board lists each
+  hole as it's played, how `thru` and `hole` move, whether `currentPosition` is filled as each player finishes, and how far
+  behind the course ESPN runs (no hole time to measure it by: the order holes appear in). `record-espn-live.js --compare` for a
+  field is to write: the holes each answer showed against the final's (a hole rescored), places as they went.
+- **Hole times can't come from ESPN**, so a later watch of a golf broadcast moves round by round, and a game's "live" moment for a
+  hole is when a phone first saw it (live calls on golf: A15's window per round, or per hole by first sight).
+- **A round's known-by is the next round's first tee time**: right in every event looked at, but a round finished early the next
+  morning after a delay, while the next round's early wave tees off, would be stamped a little early (a spoiler of minutes for a
+  later watch synced to those hours). And with no `_asked`, a finished event's last round counts 12 hours after its last tee time.
+- **The kinds of holes need a feed with holes**: on the LPGA, the DP World Tour and LIV a game can score strokes, to par, rounds
+  under 70 or par and places, not birdies or streaks; the wizard should say so for those tours. (G3, U0.)
+- **The playoff's losers' tie and MDF's place are ESPN's to say**: the plays give the losers tied for second (the PGA Tour's way;
+  the DP World Tour's feed doesn't mark it), and MDF after the finishers (ESPN once placed one after the cut); the final's
+  correction takes ESPN's places either way.
+- **A withdrawal between the cut and the next round's tee** isn't told apart from one before the cut (ESPN's status says neither):
+  no CUT for them.
+- **Bermuda's fixture is 516 KB**, the biggest (120 players' holes); trimming a hole further would leave ESPN's shape.
+- **ESPN's season points (`cupPoints`) are 0 in the fall events** (Bermuda's, the TOUR Championship's): known at the final, so
+  read then; whether they're filled later is unchecked.
+- **Match play (the Presidents Cup, Solheim Cup, TGL) and Stableford** aren't read: match play with the bouts (BoutSport, MMA and
+  tennis's part), Stableford if ever asked for (its points are its own table).
 
 **Open, from the sports plan:** head-to-head's schedule over a span, and playoffs; whether a sport's moves follow Weekly
 Lineup's waivers or need their own rhythm for daily sports; what a live call is worth, and how fast they open and close;

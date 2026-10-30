@@ -11,6 +11,11 @@
 //
 // It refuses a game that isn't final (a fixture is a whole game). Re-run it to re-record; the file says when and from where.
 // When a sport's reader starts reading a new field, add it to KEEP below and record again.
+//
+// A field (golf: L5 part 3) has no summary: its fixture is ESPN's answers for the event together, trimmed by FIELD_KEEP below:
+// golf's event board (`golf/<tour>/scoreboard/<event>`, every hole) and its leaderboard (`golf/leaderboard?event=`), each
+// competitor on a line of its own.
+//   node scripts/dev-test/record-espn.js --league=golf/pga --event=401850917 [--note=...]
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
@@ -120,8 +125,110 @@ function trim(value, shape) {
   return o;
 }
 
+// A field's answers, as golf's readers read them (src/lib/sports/golf.ts).
+const STATUS = { type: { state: true, completed: true, name: true, detail: true } };
+const HOLE = { value: true, period: true, par: true, scoreType: { displayValue: true } };
+const FIELD_KEEP = {
+  golf: {
+    // The board: each competitor's rounds and their holes in the order played, and ESPN's counts of the round's kinds of holes.
+    board: {
+      id: true,
+      name: true,
+      date: true,
+      endDate: true,
+      status: STATUS,
+      competitions: [
+        {
+          id: true,
+          status: { period: true, ...STATUS },
+          competitors: [{ id: true, type: true, order: true, athlete: { displayName: true, flag: { alt: true } }, team: { id: true, displayName: true }, score: true, linescores: [{ value: true, displayValue: true, period: true, linescores: [HOLE], statistics: { categories: [{ stats: [{ value: true }] }] } }] }],
+        },
+      ],
+    },
+    // The leaderboard: places, statuses, the rounds' tee times and places, the cut, a playoff, earnings and season points.
+    leaderboard: {
+      events: [
+        {
+          id: true,
+          name: true,
+          date: true,
+          endDate: true,
+          status: STATUS,
+          tournament: { numberOfRounds: true, cutRound: true, cutScore: true, cutCount: true, scoringSystem: { name: true }, major: true },
+          playoffType: { description: true },
+          courses: [{ id: true, shotsToPar: true, holes: [{ number: true, shotsToPar: true }] }],
+          competitions: [
+            {
+              id: true,
+              status: { period: true, ...STATUS },
+              competitors: [
+                {
+                  id: true,
+                  type: true,
+                  earnings: true,
+                  athlete: { id: true, displayName: true, flag: { alt: true } },
+                  team: { id: true, displayName: true },
+                  roster: [{ athlete: { id: true, displayName: true } }],
+                  score: { value: true, displayValue: true },
+                  linescores: [{ value: true, displayValue: true, period: true, inScore: true, outScore: true, startPosition: true, currentPosition: true, teeTime: true, isPlayoff: true, linescores: [HOLE] }],
+                  statistics: [{ name: true, value: true, displayValue: true }],
+                  status: { period: true, thru: true, teeTime: true, playoff: true, type: { name: true, state: true, completed: true, description: true, shortDetail: true }, position: { displayName: true, isTie: true } },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  },
+};
+
+/** A field's fixture: its answers (cached by check-field-reduce.js's names, else asked), trimmed, each competitor on a line. */
+async function recordField() {
+  const [slug, tour] = league.split("/");
+  const keep = FIELD_KEEP[slug];
+  if (!keep) throw new Error(`no field shape for ${slug} yet`);
+  const urls = { board: `https://site.api.espn.com/apis/site/v2/sports/${league}/scoreboard/${event}`, leaderboard: `https://site.api.espn.com/apis/site/v2/sports/golf/leaderboard?event=${event}` };
+  const answers = {};
+  for (const [k, url] of Object.entries(urls)) {
+    const cached = path.join(cacheDir, `${slug}-${tour}-${k}-${event}.json`);
+    let a = fs.existsSync(cached) ? JSON.parse(fs.readFileSync(cached, "utf8")) : null;
+    if (!a) {
+      const res = await fetch(url, { headers: { "User-Agent": "GameYourShow/1.0" } });
+      if (!res.ok) throw new Error(`ESPN answered ${res.status} for ${k}`);
+      a = await res.json();
+    }
+    answers[k] = a;
+  }
+  const ev = answers.leaderboard?.events?.[0];
+  if (!(ev?.status?.type?.state === "post" && ev?.status?.type?.completed)) {
+    console.error(`${event} isn't final (${ev?.status?.type?.name}): a fixture is a whole event.`);
+    process.exit(1);
+  }
+  for (const [k] of Object.entries(urls)) fs.writeFileSync(path.join(cacheDir, `${slug}-${tour}-${k}-${event}.json`), JSON.stringify(answers[k]));
+  const board = trim(answers.board, keep.board);
+  const lb = trim(answers.leaderboard, keep.leaderboard);
+  const lines = (comps) => `[\n${comps.map((c) => `      ${JSON.stringify(c)}`).join(",\n")}\n     ]`;
+  const bComps = board.competitions[0].competitors ?? [];
+  const lComps = lb.events[0].competitions[0].competitors ?? [];
+  delete board.competitions[0].competitors;
+  delete lb.events[0].competitions[0].competitors;
+  const head = { _recorded: { league, event, from: Object.values(urls).map((u) => u.replace("https://", "")), at: new Date().toISOString().slice(0, 10), ...(args.note ? { note: args.note } : {}), by: "scripts/dev-test/record-espn.js" } };
+  const boardText = JSON.stringify({ ...board, competitions: [{ ...board.competitions[0], competitors: "@@" }] }).replace('"@@"', lines(bComps));
+  const lbEvent = lb.events[0];
+  const lbText = JSON.stringify({ events: [{ ...lbEvent, competitions: [{ ...lbEvent.competitions[0], competitors: "@@" }] }] }).replace('"@@"', lines(lComps));
+  const body = `{\n "_recorded": ${JSON.stringify(head._recorded)},\n "board": ${boardText},\n "leaderboard": ${lbText}\n}\n`;
+  JSON.parse(body);
+  fs.mkdirSync(path.dirname(out), { recursive: true });
+  fs.writeFileSync(out, body);
+  const raw = JSON.stringify(answers.board).length + JSON.stringify(answers.leaderboard).length;
+  const holes = bComps.reduce((n, c) => n + (c.linescores ?? []).reduce((m, r) => m + (r.linescores ?? []).length, 0), 0);
+  console.log(`${path.relative(process.cwd(), out)}: ${lComps.length} competitors, ${holes} holes, ${(body.length / 1024).toFixed(0)} KB (from ${(raw / 1024).toFixed(0)} KB)`);
+}
+
 (async () => {
   fs.mkdirSync(cacheDir, { recursive: true });
+  if (/^(golf|racing)\//.test(league)) return recordField();
   const cached = path.join(cacheDir, `${league.replace("/", "-")}-summary-${event}.json`);
   const final = (s) => s?.header?.competitions?.[0]?.status?.type?.completed === true;
   let summary = fs.existsSync(cached) ? JSON.parse(fs.readFileSync(cached, "utf8")) : null;

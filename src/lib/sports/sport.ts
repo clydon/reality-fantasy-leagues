@@ -329,8 +329,8 @@ export const msOf = (t: string | number | Date | null | undefined): number | nul
 
 /**
  * A sport: its vocabulary (groups, positions, stats, periods, locks) and its readers. One subclass per sport (Baseball,
- * Basketball, Football, Hockey), grouped by shape: TeamSport for a box score and timestamped plays; FieldSport (golf, racing)
- * and BoutSport (MMA, tennis) when L5 brings them.
+ * Basketball, Football, Hockey), grouped by shape: TeamSport for a box score and timestamped plays; FieldSport for a field of
+ * competitors and its standings (golf; racing next); BoutSport (MMA, tennis) when L5 brings it.
  */
 export abstract class Sport {
   /** ESPN's sport slug, the first half of its league paths ("baseball" of "baseball/mlb"): its defaults' key. A slug's sports
@@ -522,4 +522,244 @@ export function headerTeams(summary: EspnSummary): BoxTeam[] {
 export function isFinal(summary: EspnSummary): boolean {
   const st = summary.header?.competitions?.[0]?.status?.type;
   return st?.state === "post" && st?.completed === true;
+}
+
+/* ---- A field: golf's tournament, racing's race weekend (L5 part 3). ---- */
+
+/** ESPN's answers for a field's event, asked together: a field has no summary (golf's `summary?event=` is a 404). Golf's are its
+ *  event board (`golf/<tour>/scoreboard/<event>`: every hole, in the order played, where the tour's feed has them) and its
+ *  leaderboard (`golf/leaderboard?event=`: places, tee times, who's cut or withdrew, the cut, a playoff). `_asked`: when they
+ *  were had (a live answer's poll, a recording's), which is when anything ESPN gives no time for became known. */
+export interface FieldAnswer {
+  _asked?: string;
+  board?: EspnFieldEvent | { events?: EspnFieldEvent[] };
+  leaderboard?: { events?: EspnFieldEvent[] };
+}
+
+/** ESPN's event on a field's board or leaderboard, only the parts the readers read. */
+export interface EspnFieldEvent {
+  id?: string | number;
+  name?: string;
+  date?: string;
+  endDate?: string;
+  status?: { type?: { state?: string; completed?: boolean; name?: string; detail?: string } };
+  /** Golf's: how many rounds, which one the field is cut after and at what (cutCount 0: not made yet), and how it's scored
+   *  ("Medal", "Teamstroke"; "Match" is match play, not a field). */
+  tournament?: { numberOfRounds?: number; cutRound?: number; cutScore?: number; cutCount?: number; scoringSystem?: { name?: string }; major?: boolean };
+  courses?: { id?: string | number; shotsToPar?: number; holes?: { number?: number; shotsToPar?: number }[] }[];
+  competitions?: {
+    id?: string | number;
+    date?: string;
+    type?: { abbreviation?: string };
+    status?: { period?: number; type?: { state?: string; completed?: boolean; name?: string; detail?: string } };
+    scoringSystem?: { name?: string };
+    competitors?: EspnFieldCompetitor[];
+  }[];
+}
+
+/** One line of a competitor's: golf's round (its holes in `linescores`), or a hole (its strokes, and its score to par as ESPN
+ *  types it). */
+export interface EspnLinescore {
+  value?: number;
+  displayValue?: string;
+  period?: number;
+  linescores?: EspnLinescore[];
+  scoreType?: { name?: string; displayValue?: string };
+  par?: number;
+  inScore?: number;
+  outScore?: number;
+  startPosition?: number;
+  currentPosition?: number;
+  teeTime?: string;
+  isPlayoff?: boolean;
+  statistics?: { categories?: { stats?: { name?: string; value?: number; displayValue?: string }[] }[] };
+}
+
+export interface EspnFieldCompetitor {
+  id?: string | number;
+  type?: string;
+  order?: number;
+  winner?: boolean;
+  amateur?: boolean;
+  earnings?: number;
+  athlete?: { id?: string | number; displayName?: string; shortName?: string; flag?: { alt?: string } };
+  team?: { id?: string | number; displayName?: string };
+  roster?: { athlete?: { id?: string | number; displayName?: string } }[];
+  /** The board's: the score to par as text ("-9"); the leaderboard's: the total strokes and their score to par. */
+  score?: string | { value?: number; displayValue?: string };
+  linescores?: EspnLinescore[];
+  statistics?: { name?: string; value?: number; displayValue?: string }[];
+  status?: {
+    period?: number;
+    thru?: number;
+    teeTime?: string;
+    playoff?: boolean;
+    type?: { name?: string; state?: string; completed?: boolean; description?: string; shortDetail?: string };
+    position?: { id?: string | number; displayName?: string; isTie?: boolean };
+  };
+}
+
+/** One of a field's competitors: a golfer, a pair playing as one (golf's team events), a driver. */
+export interface FieldEntry {
+  id: string;
+  name: string;
+  type: "athlete" | "team";
+  /** A team's people, by ESPN's athlete ids. */
+  members: string[];
+  /** As ESPN's flag says ("Australia"), or null. */
+  country: string | null;
+}
+
+/** Still in it, or out of it: golf's cut, a withdrawal, a disqualification. */
+export type FieldStatus = "in" | "cut" | "wd" | "dq";
+
+/** A competitor's place in the standings at a moment. */
+export interface Standing {
+  id: string;
+  /** 1-based; the tied share it (T9: 9). Null when out of the places (cut, withdrew, disqualified). */
+  place: number | null;
+  tied: boolean;
+  status: FieldStatus;
+  /** Once a cut's been made: whether they made it (golf's; a withdrawal who played on after it made it too, one between the
+   *  cut and the next round's tee isn't told apart from one before it: ESPN's status says neither). */
+  madeCut?: boolean;
+}
+
+/** What a field's standings need besides the plays: its competitors, how many parts make it (golf's rounds) and its cut (after
+ *  which part, at what score; a null score: not made yet). The team sports' sides, for a field. */
+export interface FieldEvent {
+  event: string;
+  field: string[];
+  parts: number;
+  cut: { after: number; score: number | null } | null;
+}
+
+/** A field event in ESPN's own numbers (a box score's like, FieldSport.readBox): each competitor's counts and parts (golf's
+ *  rounds) as ESPN gives them, and its standings. */
+export interface FieldBox extends FieldEvent {
+  final: boolean;
+  people: Record<string, FieldEntry & { stats: Stats; parts: Record<number, Stats>; standing: Standing }>;
+  standings: Standing[];
+}
+
+/** A field's play: one competitor's (golf's hole), in its part (`period`: the round), and golf's hole. The final's correction
+ *  carries ESPN's final standings (`places`), which then stand. */
+export interface FieldPlay extends Play {
+  who: string;
+  hole?: number;
+  places?: Standing[];
+}
+
+/** A field as of a moment (FieldSport.reduce): everyone's counts, their numbers part by part, their score (golf's to par) and
+ *  the standings, each one's place in their line too (POS and the like: placeStats). */
+export interface FieldState {
+  plays: number;
+  last: FieldPlay | null;
+  lines: Record<string, Stats>;
+  parts: Record<string, Record<number, Stats>>;
+  score: Record<string, number>;
+  standings: Standing[];
+}
+
+/**
+ * A field sport: competitors in a field and their standings (golf; racing next). ESPN times nothing in a field, so a play's `at`
+ * is when it was known by at the latest (golf: a round's holes by the next round's first tee time; the last round's at the
+ * final, or at a live answer's `_asked`), and a later watch moves part by part. A subclass reads ESPN's answers into a FieldBox
+ * and plays and says how its standings rank; reducing, the final's correction and the timeline are the same for all of them.
+ */
+export abstract class FieldSport extends Sport {
+  /** ESPN's own numbers for the event; null when the answers have no field. */
+  abstract readBox(answer: FieldAnswer): FieldBox | null;
+  /** The event's plays in order (times that never go back: inOrder). `issues` collects what the reader couldn't read as it
+   *  should, for checks. */
+  abstract readPlays(answer: FieldAnswer, issues?: string[]): FieldPlay[];
+  /** The field, its parts and its cut, from the answers; null when they have no field. */
+  abstract fieldEvent(answer: FieldAnswer): FieldEvent | null;
+  /** The standings from everyone's lines and parts, as the sport ranks them. */
+  abstract rank(state: Omit<FieldState, "standings">, event: FieldEvent): Standing[];
+  /** What a place puts in someone's line (golf's POS, W, TOP10, CUT). */
+  abstract placeStats(standing: Standing, event: FieldEvent): Stats;
+  /** The stats placeStats puts in a line: the final's correction leaves them to the standings (`places`). */
+  abstract readonly placeKeys: string[];
+
+  /** The field as of `at` (as TeamSport.reduce: no `at` or Infinity the end, a moment that isn't one nothing): the plays up to
+   *  it added up, part by part, and the standings, which after the final's correction are ESPN's own. */
+  reduce(plays: FieldPlay[], at: string | number | Date | null | undefined, event: FieldEvent): FieldState {
+    const end = at == null || at === Infinity;
+    const until = end ? null : msOf(at);
+    const state: FieldState = { plays: 0, last: null, lines: {}, parts: {}, score: Object.fromEntries(event.field.map((id) => [id, 0])), standings: [] };
+    let places: Standing[] | null = null;
+    if (end || until != null) {
+      for (const p of plays) {
+        const t = msOf(p.at);
+        if (until != null && (t == null || t > until)) break;
+        state.plays++;
+        state.last = p;
+        Object.assign(state.score, p.score);
+        if (p.places) places = p.places;
+        for (const [who, d] of Object.entries(p.deltas)) {
+          state.lines[who] = addStats(state.lines[who] ?? {}, d);
+          if (p.final) continue;
+          const parts = (state.parts[who] ??= {});
+          parts[p.period] = addStats(parts[p.period] ?? {}, d);
+        }
+      }
+    }
+    // ESPN's final places as a copy (a consumer sorting them mustn't change the timeline's); a place in the line of whoever's
+    // played (before anything's known everyone's level, and nobody's won).
+    state.standings = places ? places.map((s) => ({ ...s })) : this.rank(state, event);
+    for (const s of state.standings) if (state.lines[s.id]) addStats(state.lines[s.id], this.placeStats(s, event));
+    for (const [who, s] of Object.entries(state.lines)) if (!Object.keys(s).length) delete state.lines[who];
+    return state;
+  }
+
+  /** What ESPN's numbers say that the plays don't: for each competitor, every count ESPN gives (not a place's: the standings
+   *  carry those), less what the plays added up to; and someone the plays credited who isn't in ESPN's field, taken back. */
+  correction(state: FieldState, box: FieldBox): Record<string, Stats> {
+    const out: Record<string, Stats> = {};
+    const placed = new Set(this.placeKeys);
+    for (const [who, have] of Object.entries(state.lines)) {
+      if (box.people[who]) continue;
+      const d = Object.fromEntries(Object.entries(have).filter(([k]) => !placed.has(k)).map(([k, v]) => [k, -v]));
+      if (Object.keys(d).length) out[who] = d;
+    }
+    for (const [who, person] of Object.entries(box.people)) {
+      const have = state.lines[who] ?? {};
+      const d: Stats = {};
+      for (const [k, v] of Object.entries(person.stats)) {
+        if (placed.has(k)) continue;
+        const diff = v - (have[k] ?? 0);
+        if (Math.abs(diff) > 1e-9) d[k] = diff;
+      }
+      if (Object.keys(d).length) out[who] = d;
+    }
+    return out;
+  }
+
+  /** The event's plays and, once it's final, the final's correction after them (at the last play's time, with ESPN's final
+   *  standings), so a finished event reduces to ESPN's own numbers and places. Live, the plays: provisional until the final. */
+  timeline(answer: FieldAnswer): FieldPlay[] {
+    const plays = this.readPlays(answer);
+    const box = this.readBox(answer);
+    if (!box?.final) return plays;
+    const deltas = this.correction(this.reduce(plays, null, box), box);
+    const last = plays[plays.length - 1] ?? null;
+    plays.push({ id: `${box.event}:final`, who: "", at: last?.at ?? null, period: last?.period ?? box.parts, half: null, clock: null, text: "Final", kind: "final", team: null, unit: null, people: Object.keys(deltas), score: {}, deltas, final: true, places: box.standings });
+    return plays;
+  }
+
+  /** The event as of a moment, from ESPN's answers. */
+  stateAt(answer: FieldAnswer, at?: string | number | Date | null): FieldState {
+    return this.reduce(this.timeline(answer), at, this.fieldEvent(answer) ?? { event: "", field: [], parts: 0, cut: null });
+  }
+}
+
+/** A field's event from ESPN's answers: the board's or the leaderboard's (golf's `scoreboard/<event>` is the event itself; a
+ *  tour's `scoreboard` a list of them, two in a week with an opposite-field event: the leaderboard's, by its id). */
+export function fieldEventOf(answer: FieldAnswer, which: "board" | "leaderboard"): EspnFieldEvent | null {
+  const a = answer[which] as (EspnFieldEvent & { events?: EspnFieldEvent[] }) | undefined;
+  if (!a) return null;
+  if (!a.events) return a;
+  const id = which === "board" ? answer.leaderboard?.events?.[0]?.id : null;
+  return (id != null ? a.events.find((e) => String(e.id) === String(id)) : null) ?? a.events[0] ?? null;
 }
