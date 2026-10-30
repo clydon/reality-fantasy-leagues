@@ -893,7 +893,7 @@ all five seasons (The Challenge 41, 40 and 39 73 of 73, Survivor 49 93 of 93, Th
 - **One life ends a forgetter's game at once:** the forgetter picks every third week and the fan every other one (the harness's
   habits), so neither picks for the premiere, and a missed pick costs the only life: both are out after Episode 1 on every season,
   as in A10 part 2's pools with lives. It's A10 part 2's Noticed item 2 seen live (a missed pick filled at the lock, or a first
-  missed pick forgiven, would keep Joanna in).
+  missed pick forgiven, would keep the Fan Who Forgets in).
 - **None or one left ends it, early:** every season's w047 was over well before its finale (at 1 on The Challenge 41, whose premiere
   sent the tinkerer's pick home), so nobody reached the end of the cast, and no night sent everyone left out together: the shared
   win and a night with nobody left to pick are proven by the unit tests and `check-pool-knockouts.js`, not by the tapes.

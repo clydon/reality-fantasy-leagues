@@ -84,6 +84,26 @@ function exactAirTime(text) {
 }
 
 /**
+ * An exact start as someone wrote it (research's next episode), read in the season's zone `tz` when its offset is the
+ * zone's other one: a daylight-saving slip, "2026-11-04T20:00:00-04:00" for an evening after the clocks go back, written with
+ * the offset in force when it was announced. The time on the clock is what was announced, so it's that time in the zone
+ * (8 PM EST). An offset that's neither of the zone's (announced in another zone) is taken as it is. Null when `text` isn't
+ * an exact start.
+ */
+function exactInZone(text, tz) {
+  const at = exactAirTime(text);
+  if (!at || !tz) return at;
+  const [, date, time, off] = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})$/.exec(String(text).trim());
+  const said = off === "Z" ? 0 : (off[0] === "-" ? -1 : 1) * (Number(off.slice(1, 3)) * 60 + Number(off.slice(-2))) * 60000;
+  const onClock = zonedToUtc(date, time, tz);
+  if (said === offsetAt(onClock, tz)) return at;
+  // The zone's two offsets that year (winter and summer, whichever hemisphere): the other one is the slip.
+  const year = Number(date.slice(0, 4));
+  const zones = [Date.UTC(year, 0, 15, 12), Date.UTC(year, 6, 15, 12)].map((t) => offsetAt(new Date(t), tz));
+  return zones.includes(said) ? onClock : at;
+}
+
+/**
  * When episode `n` airs, or null when there's nothing to go on. An exact start research confirmed wins
  * (a special at another time), then the wiki's printed date (it knows about double episodes and weeks
  * off); otherwise weekly from the latest dated episode before it, else from the premiere. A season that
@@ -135,4 +155,4 @@ function formatInTz(instant, tz) {
   }).format(instant);
 }
 
-module.exports = { zonedToUtc, parseAirDate, exactAirTime, episodeAirTime, formatInTz, localDate, addDays, WEEKDAYS, DEFAULT_AIR_TIME };
+module.exports = { zonedToUtc, parseAirDate, exactAirTime, exactInZone, episodeAirTime, formatInTz, localDate, addDays, WEEKDAYS, DEFAULT_AIR_TIME };

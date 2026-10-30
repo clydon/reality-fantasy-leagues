@@ -939,3 +939,17 @@ never handles it: the user does the reset and the pasting.
   per season (a primary-key lookup, for the job, waivers and the bot's plan), and the plan reads 'bot_usual' once. Our
   usual runs: who went home at the episode's end, full results 1 h and 12 h after, trivia, bingo. Nothing else new polls
   or runs on a schedule.
+- **2026-10-30, pushed to master (`df527fe6`, deployed 9:29 AM ET with migrations 0200-0202).** The engine's track A to A11 part 5b and track F
+  (docs/PLAN-start-a-game-gpt.md; docs/STUDY-format-changes.md). **Nothing polls, nothing scheduled, no new pushes, no new
+  service.** Two new tables: `game_answers` (0200, with 0201's two small counters: a player's answer to a question in a game
+  of questions, one row per league, player, question and episode, the answer at most 2,000 bytes, graded on each read and never
+  stored; deleted with its league, backed up with the couch's games) and `seat_moves` (0202: who made a shared seat's latest
+  move of each kind, written only on a seat two or more accounts hold, so empty until someone shares one).
+  `league_memberships` gains `seat_slot` (a small integer, 0 on every existing row) and its seat unique now includes it. **The
+  research prompt is longer for every show:** its format section (who is with whom at the episode's end and what changed,
+  F2) adds about 7,800 characters to each full research ask (1,000 of words, 6,700 of its JSON schema: Survivor 49's episode 6
+  asks 35,000 in all) and its answer a few hundred more, on our bot (no API cost); the
+  format's state over time is built from a season's stored research on read (one query) where the prompt or a group question
+  needs it. The engine lab (`/desk/lab`, site admins only) reads the capability tracker and starts test games on a test couch:
+  by hand, one admin. The game-specs flag stays off in production, so nothing writes `settings.game` there until it's
+  switched on.

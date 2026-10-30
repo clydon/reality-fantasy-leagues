@@ -292,6 +292,8 @@ function check(ok, what, detail = "") {
       await page.waitForTimeout(800);
       check(/your sheet/i.test((await dock.textContent()) ?? ""), "the dock says the sheet's due", (await dock.textContent()) ?? "");
       const row = page.locator(`[data-sheet-row="${QS}"]`);
+      // This week's row comes from the Games read, which can land after the dock (a dev server compiling the route first).
+      await row.waitFor({ state: "visible", timeout: 20000 }).catch(() => {});
       check(await row.isVisible(), "  and This week has its row");
       // The dock opens the first move due (here a lineup's); This week's row opens the sheet.
       await row.scrollIntoViewIfNeeded();

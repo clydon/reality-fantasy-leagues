@@ -3170,7 +3170,7 @@ class ActiveRosterLogic {
 
   // ---- a lineup's captain (A9 part 2: the spec's score.captain) ----
   // Stored per episode like the lineup it's one of (`episode.captains[playerId] = castawayId`, null for none), and locked with
-  // it. Nobody named for an episode: the last one they named before it carries, as a lineup does (Joanna forgets), and either
+  // it. Nobody named for an episode: the last one they named before it carries, as a lineup does (the Fan Who Forgets), and either
   // way only while they're in that episode's lineup (a captain benched or gone counts as none).
   static captainFor(state, epId, playerId){
     if(!ActiveRosterLogic.captainTimes(state)) return null;

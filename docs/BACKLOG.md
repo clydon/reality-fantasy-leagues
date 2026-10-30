@@ -242,6 +242,28 @@ Last updated 2026-10-27.
       Worth a line in the full-results prompt about every tribe that won something, first place or not.
     - **When:** the next session on results or the desk; the first is the user's call.
 
+29. **Things the engine merge noticed and left (2026-10-30, the A1-A11 part 5b merge, df527fe6).**
+    - `tapes.js load below-deck 12` fails on a database where Below Deck 12 is already set up (a production copy: rfl-merge's):
+      the tape's answers are parsed against that season's rulebook, which asks `notableTwist` of every crew member, and the
+      tape's first episode leaves it out. The engine lane's database loaded it before that rulebook. Either load parses
+      against the tape's own rules, or the rulebook's field is optional. **When:** the playtest lane's next session.
+    - `check-questions.js`'s browser half hadn't run since A9 (the engine lane ran its `--api` half): its This week row
+      check didn't wait for the Games read (fixed in the merge, 555e6c1e). The engine's other browser checks may want a run
+      on a cold dev server too. **When:** the engine lane, at R or U1.
+    - **Survivor 51's Episode 7 said Wed 7:00 PM ET** (fixed 2026-10-30, the merge's live check): research of Episode 6 filed
+      its start as `20:00-04:00`, daylight time's offset, for a night after the clocks go back (Sunday 2026-11-01), and an exact
+      start wins over the season's 8 PM America/New_York, so lineups would have locked an hour early. `Air.exactInZone` now
+      reads an offset that is the zone's other one as the announced time in the season's zone (`nextEpisodeFrom`, which the
+      full research and the schedule check both file through), both prompts ask for the offset in force on that date, and
+      `tests/dst.test.js` covers every schedule edge a clock change touches. In production, the desk's Run now of the
+      schedule check refiled it: "Episode 7: Wed, Nov 4, 8:00 PM EST, 90 min"; the hub says Wed 8:00 PM.
+    - **Backstage and an episode's results answered 500 for Survivor 51's couch from 2026-10-29 to 10-30** (fixed at the merge's
+      live check): Make every game match records a game's own result it took out as `own:<kind>:<id>` (season-decisions.ts),
+      and `couchCorrections` read every correction's id as a season decision's uuid. It reads only decision ids now, and such a
+      correction offers no ruling to keep (`keepable`); `check-match-season.js` reads both after Make every game match.
+
+
+
 ## Decided against (don't re-propose without new information)
 
 - **An AI draft/lineup/pick advisor for players** ("Coach"): rejected. Feels like pay-to-win inside

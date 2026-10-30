@@ -34,7 +34,14 @@ export interface Correction {
   games: { leagueId: string; name: string; deltas: { name: string; delta: number }[] }[];
   /** The house ruling that keeps the old result, if one does. */
   ruling: { by: string | null; at: string } | null;
+  /** Whether a ruling can keep the old result: not for a game's own result that Make every game match took out. */
+  keepable: boolean;
 }
+
+// A correction's fact is a season decision (its id), or a game's own result that Make every game match took out
+// (`own:<kind>:<id>`, season-decisions.ts): no decision to read, and nothing a ruling can keep.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const isDecision = (id: string) => UUID.test(id);
 
 interface CorrectionRow {
   league_id: string;
@@ -59,7 +66,7 @@ export async function couchCorrections(leagueIds: string[], seen: number, viewer
     [leagueIds, Number.isFinite(seen) ? seen : 100000, episode ?? null]
   );
   if (!rows.length) return [];
-  const ids = [...new Set(rows.flatMap((r) => r.detail.facts.map((f) => f.id)))];
+  const ids = [...new Set(rows.flatMap((r) => r.detail.facts.map((f) => f.id)))].filter(isDecision);
   const { rows: now } = await pool.query<{ id: string; status: string; method: string; castaway_name: string }>(
     "SELECT id, status, method, castaway_name FROM season_decisions WHERE id = ANY($1::uuid[])",
     [ids]
@@ -100,6 +107,7 @@ export async function couchCorrections(leagueIds: string[], seen: number, viewer
           you: [],
           games: [],
           ruling: ruled ? { by: ruled.who, at: ruled.created_at.toISOString() } : null,
+          keepable: isDecision(f.id),
         };
         out.set(key, c);
       }
