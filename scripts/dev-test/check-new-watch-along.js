@@ -56,7 +56,7 @@
 //   node scripts/dev-test/check-new-watch-along.js <outDir> [--width=390] [--keep] [--api]
 //
 // --api: the API half only. Brings new-fixture.js and solo-fixture.js up and takes them down (--keep leaves them); touches zt
-// rows only; refuses a non-local database, and a KLIPY_API_KEY in .env.local (it would answer instead of the stand-in). Prints
+// rows only; refuses a non-local database (a KLIPY_API_KEY in .env.local is fine: it sends `x-gys-gifs: off` where it means none). Prints
 // PASS/FAIL.
 require("dotenv").config({ path: ".env.local", quiet: true });
 const fs = require("fs");
@@ -69,7 +69,6 @@ const fakeGifs = require("./fake-gifs");
 
 const DB = process.env.AUTH_DATABASE_URL || "";
 if (!/@(localhost|127\.0\.0\.1|\[::1\])[:/]/.test(DB)) throw new Error("check-new-watch-along runs against a local database only");
-if (process.env.KLIPY_API_KEY) throw new Error("check-new-watch-along needs KLIPY_API_KEY unset (the stand-in answers instead)");
 
 const args = process.argv.slice(2);
 const out = args.find((a) => !a.startsWith("--"));
@@ -108,7 +107,7 @@ const MIN = 60_000;
     const as = {};
     const withGifs = {};
     for (const who of ["alex", "riley", "jordan", "sam", "casey"]) {
-      as[who] = await api({ user: u(who), pass: PASSWORD });
+      as[who] = await api({ user: u(who), pass: PASSWORD, headers: { "x-gys-gifs": "off" } });
       withGifs[who] = await api({ user: u(who), pass: PASSWORD, headers: { "x-gys-gifs": gifs.url } });
     }
     const q = (couch, extra = {}) => {
@@ -768,7 +767,7 @@ const MIN = 60_000;
       check(errs.length === 0, "sam: no page errors", errs.join(" | "));
 
       // ---------- riley: the Traitors (a show she only watches), no GIFs ----------
-      const R = await browse(u("riley"), "riley");
+      const R = await browse(u("riley"), "riley", { "x-gys-gifs": "off" });
       const rp = R.pg;
       await rp.goto(`${BASE}/show/${tsid}/tonight`, { waitUntil: "load" });
       const tcard = rp.locator('[data-watch-card="3"]');

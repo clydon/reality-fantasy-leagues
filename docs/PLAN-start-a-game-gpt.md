@@ -1126,7 +1126,8 @@ in `PLAN-researched-survivor.md`'s "What the switch needs", with this plan's dec
     names: `tribalGroupProblems`' key, `notableTwist`, and the episode editor's finalist exits); part 2, the shared-code
     clean-up (moment tags, stored answers by rulebook, `ensureSeasonRulebook`, maker scoring).
 - **S3. The switch.** After two episodes with every table matching at today's points, the three real games move onto the data
-  rules (with the user's OK). Then `survivor.js`'s code half, `BUILT_IN_READERS` and legacy freezing go, and Traitors' and the
+  rules (with the user's OK). **2026-10-31:** production's test couch was removed (the user), so the proof moves to the local
+  shadow leagues after Episode 7 airs (the user's pick); the three games carry the rulebook with `reader: "survivor"` until then. Then `survivor.js`'s code half, `BUILT_IN_READERS` and legacy freezing go, and Traitors' and the
   Challenge's built-ins with them once nothing plays them.
 
 **S1 as built (2026-10-27, `survivor-data`; merged and live 2026-10-28, `eb1e19f0`; no migration).** Survivor's blocks, compiled with no base and the generic

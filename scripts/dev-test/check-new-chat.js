@@ -66,7 +66,8 @@ function check(ok, what, detail = "") {
       fx.users.alex, fx.users.sam, fx.users.riley,
     ]);
     const as = {};
-    for (const who of ["alex", "sam", "riley", "jordan", "casey"]) as[who] = await api({ user: fixture.username(who), pass: fixture.PASSWORD });
+    // `x-gys-gifs: off`: no GIFs for these, whatever .env.local says (gifs.ts); the GIF steps name the stand-in instead.
+    for (const who of ["alex", "sam", "riley", "jordan", "casey"]) as[who] = await api({ user: fixture.username(who), pass: fixture.PASSWORD, headers: { "x-gys-gifs": "off" } });
     const chat = (who, season, q = "") => as[who].call("GET", `/api/seasons/${season}/chat?couch=${fx.couchId}${q}`);
     const airOf = async (season, n) =>
       (await pool.query(`SELECT (((premiere_date + $2::int * 7) + air_time) AT TIME ZONE air_tz) AS t FROM show_seasons WHERE id = $1`, [season, n - 1])).rows[0].t;
@@ -165,7 +166,7 @@ function check(ok, what, detail = "") {
     check(alexT.fold && alexT.fold.episode === 1 && alexT.messages.filter((m) => m.folded).length === 3, "alex (not following it) has everyone's folded from Episode 1", JSON.stringify(alexT.fold));
 
     // ---- in a browser, as alex ----
-    const b = await open({ user: fixture.username("alex"), pass: fixture.PASSWORD, width, height: 844 });
+    const b = await open({ user: fixture.username("alex"), pass: fixture.PASSWORD, width, height: 844, headers: { "x-gys-gifs": "off" } });
     closers.push(b.close);
     const { page, BASE, errors } = b;
     const hideBadge = () =>

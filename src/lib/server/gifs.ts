@@ -10,7 +10,8 @@ import { HttpError } from "./db";
 // "Powered by KLIPY" goes under the picker (their attribution). /api/gifs is kept at the edge an hour per search (docs/HOSTING.md).
 //
 // Checks never ask KLIPY: under `next dev`, a request from a loopback address naming a stand-in in its `x-gys-gifs` header
-// (scripts/dev-test/fake-gifs.js) is asked instead, and its pictures' host is allowed too. Production never reads the header.
+// (scripts/dev-test/fake-gifs.js) is asked instead, and its pictures' host is allowed too; `x-gys-gifs: off` is no GIFs at all, so
+// a check can see that even with a KLIPY_API_KEY in .env.local. Production never reads the header.
 
 const KLIPY = "https://api.klipy.com";
 const TIMEOUT_MS = 6000;
@@ -29,6 +30,7 @@ export interface GifSource {
 export function gifsFor(req: Request): GifSource | null {
   if (process.env.NODE_ENV === "development") {
     const asked = req.headers.get("x-gys-gifs");
+    if (asked === "off") return null;
     if (asked) {
       try {
         const u = new URL(asked);
