@@ -94,7 +94,8 @@ const seatedIds = (parent: LeagueState, stage: LeagueState) => {
 /**
  * A stage's memberships as the game's, for the seats it holds of the game's (`seated`): one the game no longer has (someone who
  * left, a seat handed over, a seat the stage doesn't hold) goes; a role or a shared seat's slot changed on the game changes here; one
- * the game has and the stage doesn't is copied, spoiler mark and all.
+ * the game has and the stage doesn't is copied, spoiler mark and all (step A12 part 4b: a late joiner's own mark is an episode of the
+ * game's own season, so a stage on another season starts without one).
  */
 export async function mirrorMemberships(client: Queryable, parentId: string, stageId: string, seated: string[]): Promise<void> {
   await client.query(
@@ -109,7 +110,10 @@ export async function mirrorMemberships(client: Queryable, parentId: string, sta
   );
   await client.query(
     `INSERT INTO league_memberships (league_id, user_id, player_id, role, seat_slot, results_seen_through, explainer_seen_at)
-     SELECT $1, p.user_id, p.player_id, p.role, p.seat_slot, p.results_seen_through, p.explainer_seen_at FROM league_memberships p
+     SELECT $1, p.user_id, p.player_id, p.role, p.seat_slot,
+            CASE WHEN (SELECT (a.state->'settings'->>'showId', a.state->'settings'->>'wikiSeason') IS NOT DISTINCT FROM (b.state->'settings'->>'showId', b.state->'settings'->>'wikiSeason')
+                         FROM leagues a, leagues b WHERE a.id = $1 AND b.id = $2) THEN p.results_seen_through END,
+            p.explainer_seen_at FROM league_memberships p
       WHERE p.league_id = $2 AND p.player_id = ANY($3::text[]) ON CONFLICT DO NOTHING`,
     [stageId, parentId, seated]
   );

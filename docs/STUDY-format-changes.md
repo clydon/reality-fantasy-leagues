@@ -1255,6 +1255,25 @@ season with a game of answers, "Who goes home?" each episode, alongside it).
   and the overall is the Draft's points (shape.minis) or the answers' (shape.twoWays: Survivor 49 the Tinkerer and the Drive-By 2 each).
   Lines and calls counted into the overall are `tests/mini-stages.test.js`'s and `scripts/dev-test/check-mini-stages.js`'s.
 
+## A12 part 4b: one game across two shows, replayed blind (2026-10-30)
+
+A12's part 4b lets a later stage play on another season (a stage's `season`: another show's, or another season of the same show), as a
+league on that season, checked on that season's rules and cut at each viewer's mark there; and refuses two stages of bingo, or of Weekly
+Calls, on one season at the same time. A blind replay plays one season at a time, so the two tracker games on two seasons (shape.twoShows:
+an Outlast on Survivor 51, then a Survival Pool on The Traitors 5; s20: a Weekly Lineup on each) are left out of it (`blind.js` says so)
+and proven by `tests/two-shows.test.js` and `scripts/dev-test/check-two-shows.js` instead. A format change in a game on two seasons isn't
+read at all (a stage a change starts, a side stage and 'next-stage' are refused there: each reads the game's own season's format), so this
+part moves nothing the study's format readers do; these replays show every game the tracker played before still plays through and ends.
+
+- **Every game played through and over on all five seasons**, part 4a's numbers exactly: Survivor 49 126 of 126, The Challenge 41 101
+  of 101, 40 95 of 95, 39 103 of 103, The Traitors 4 90 of 90; nothing refused; the questions waiting on early results finding 20's 3, 2
+  and 2.
+- **No game the tracker plays changed** (the golden replays agree: every read the same against the step before; against production's
+  engine only R1 part 3's 20 on The Challenge 40), and the refusal of two stages of bingo or Calls at once touches none of them.
+- **On two seasons** (the unit tests and the check, not the tapes): The Traitors' stage counts its own episodes past Survivor's latest, a
+  viewer behind on one season sees that season's stage as far as they've seen it, Survivor's Sole Survivor doesn't end a game whose
+  Traitors stage plays on, and a stage's results come only through its own season's sync.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

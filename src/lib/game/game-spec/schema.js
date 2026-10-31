@@ -148,6 +148,17 @@
 // first, never starting or ending another, never with `on` or `side`; its span the game's own unless it says (inside it: from the
 // game's start on, ending by where the game ends), its draft opening at its start; the game's own stages one after another, never
 // overlapping (refused: "make it alongside").
+// A12 part 4b, one game across two shows: a later stage's `season` { show: the show's id, number: the season's number } plays it on
+// another season (another show's, or another season of the same show), as a league of its own on that season (its rulebook, cast,
+// schedule and results: the season sync reaches it there), checked with that season's ctx (ctx.seasons, keyed by seasonKey: the
+// data-can-settle rule per stage). The first stage plays on the game's own season (where the game is made and listed). Episode
+// numbers are each season's own, so nothing is compared across seasons: a stage before one on another season keeps the end it says
+// (else its season's end), a stage on another season says its own start there (left out, the engine lab starts it with the next
+// episode to air on its season), a stage alongside on another season plays its own span there, and the game's span is its own stages'
+// on its own season. A game on more than one season has no stage a format change starts, no side stage and no 'next-stage' (they read
+// the game's own season's format). Its end is its stages' (StageLogic: every own stage over), never its season's. And (4a's Noticed
+// item 5) two stages of bingo, or of Weekly Calls, on one season that can play at the same time are refused, as is a side stage of
+// either: a card and a call are each person's for the season's episode, so both would count the same lines or calls.
 //
 // Who builds each value is in VOCAB: 'now' the engine plays it today (after A2, through the spec; a phase start since A3;
 // questions since A4), 'sports' the sports branch, 'later' no step yet. specProblems says what's wrong with a spec, specWaitsFor what
@@ -738,6 +749,30 @@ const MAX_COPIES = 12;
 // opens only for one that held; the user's to decide), and the most a grouping can be asked to hold.
 const SIDE = { held: 2 };
 const MAX_HELD = 6;
+// A12 part 4b: a show's id (its slug, as a league's settings.showId), and the highest season number a stage can name.
+const SHOW_ID = /^[a-z0-9][a-z0-9-]{0,79}$/;
+const MAX_SEASON = 999;
+/** A12 part 4b: the season a stage plays on when it isn't the game's own ({ show, number }), or null for the game's own. */
+function stageSeason(st) {
+  if (!isObj(st) || !isObj(st.season)) return null;
+  return { show: st.season.show, number: st.season.number };
+}
+/** A12 part 4b: a season's key, "<show>/<number>" (ctx.seasons is keyed by it), or null when it isn't one. */
+const seasonKey = (x) => (isObj(x) && typeof x.show === 'string' && x.show && Number.isInteger(x.number) ? `${x.show}/${x.number}` : null);
+/** A12 part 4b: two stages on the same season (both the game's own, or both the same other one). */
+const sameSeason = (a, b) => seasonKey(stageSeason(a)) === seasonKey(stageSeason(b));
+/** A12 part 4b: a game in stages any of whose stages plays on another season. */
+const onSeasons = (list) => Array.isArray(list) && list.some((st) => stageSeason(st) !== null);
+/** A12 part 4b: a game in stages one of whose own stages plays on another season: its end is its stages' (StageLogic), never its
+ *  season's, and its span its own stages' on its own season. */
+const crosses = (list) => Array.isArray(list) && list.slice(0, mainCount(list)).some((st) => stageSeason(st) !== null);
+/** A12 part 4b: the index of the stage before stage k on the same season (a stage on another season in between counts its own
+ *  episodes), or -1: what the one-after-another rule compares it with. */
+function prevOnSeason(list, k) {
+  let i = k - 1;
+  while (i >= 0 && !sameSeason(list[i], list[k])) i--;
+  return i;
+}
 /** A12 part 3: a stage's `side` whole ({ held }), or null for one of the game's own stages. */
 function stageSide(st) {
   if (!isObj(st) || !isObj(st.side)) return null;
@@ -1136,8 +1171,9 @@ function fullSpec(spec) {
  */
 function fullStaged(s) {
   if (Array.isArray(s.stages)) s.stages = stageGames(s.stages);
-  // Its span is its own stages' (A12 part 3: a side stage plays inside it).
-  const games = Array.isArray(s.stages) ? s.stages.slice(0, mainCount(s.stages)).filter((x) => isObj(x) && isObj(x.game) && isObj(x.game.span)).map((x) => x.game) : [];
+  // Its span is its own stages' (A12 part 3: a side stage plays inside it; part 4b: those on its own season, episode numbers being each
+  // season's own).
+  const games = Array.isArray(s.stages) ? s.stages.slice(0, mainCount(s.stages)).filter((x) => isObj(x) && isObj(x.game) && isObj(x.game.span) && !stageSeason(x)).map((x) => x.game) : [];
   if (s.span === undefined) s.span = games.length ? { from: clone(games[0].span.from), to: clone(games[games.length - 1].span.to) } : clone(DEFAULTS.span);
   for (const k of ['pool', 'ask', 'closes']) if (s[k] === undefined) s[k] = clone(DEFAULTS[k]);
   if (isObj(s.span)) {
@@ -1184,13 +1220,15 @@ function stageGames(list) {
       if (isObj(g.span) && g.span.from === undefined) g.span.from = null;
       if (isObj(g.span) && g.span.to === undefined && lastTo !== undefined) g.span.to = clone(lastTo);
     }
-    // A12 part 4a: a stage alongside the game's own plays its span unless it says: from the game's start to where the game ends.
-    if (!side && isAlongside(st) && i >= mains) {
+    // A12 part 4a: a stage alongside the game's own plays its span unless it says: from the game's start to where the game ends (part
+    // 4b: on the game's own season; one on another season plays its own span there).
+    if (!side && isAlongside(st) && i >= mains && !stageSeason(st)) {
       if (g.span === undefined) g.span = {};
       if (isObj(g.span) && g.span.from === undefined && firstFrom !== undefined) g.span.from = clone(firstFrom);
       if (isObj(g.span) && g.span.to === undefined && lastTo !== undefined) g.span.to = clone(lastTo);
     }
-    const next = i + 1 < mains ? list[i + 1] : undefined;
+    // A12 part 4b: a stage ends where the next starts only on the same season (episode numbers are each season's own).
+    const next = i + 1 < mains && sameSeason(st, list[i + 1]) ? list[i + 1] : undefined;
     const nextFrom = isObj(next) && isObj(next.game) && isObj(next.game.span) ? next.game.span.from : undefined;
     if (g.span === undefined) g.span = {};
     // A12 part 2b: a stage the one before's 'next-stage' fallback starts, with no start of its own, starts on that alone.
@@ -1208,7 +1246,8 @@ function stageGames(list) {
     const full = fullSpec(g);
     if (i > 0 && !said && isObj(full.get) && full.get.by === 'draft' && isObj(full.extras) && isObj(full.extras.draft)) full.extras.draft = { ...full.extras.draft, opens: 'start' };
     out.game = full;
-    if (i === mains - 1 && isObj(full.span)) lastTo = full.span.to;
+    // Where the game ends: its last own stage's end (A12 part 4b: its last own stage on its own season).
+    if (i < mains && !stageSeason(st) && isObj(full.span)) lastTo = full.span.to;
     if (i === 0 && isObj(full.span)) firstFrom = full.span.from;
     return out;
   });
@@ -1236,7 +1275,7 @@ function playsAs(s) {
     const mains = mainCount(list);
     const ok = Array.isArray(list) && list.length >= 2 && list.length <= MAX_STAGES && isObj(s.get) && s.get.by === 'none' && isObj(s.score) && s.score.by === 'stages'
       && list.every((st) => isObj(st) && isObj(st.game) && STAGE_KINDS.includes(playsAs(stageGame(st))))
-      && list.every((st, i) => i === 0 || i >= mains || !stagesOverlap(list[i - 1], st));
+      && list.every((st, i) => i === 0 || i >= mains || prevOnSeason(list, i) < 0 || !stagesOverlap(list[prevOnSeason(list, i)], st));
     return ok ? 'stages' : null;
   }
   const by = (k) => (isObj(s[k]) ? s[k].by : undefined);
@@ -1809,8 +1848,10 @@ const isInstant = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2
 const KEYS = {
   top: ['spec', 'preset', 'span', 'pool', 'get', 'count', 'score', 'rank', 'ask', 'closes', 'extras', 'stages', 'overall'],
   // A12 part 1: a stage of a game in stages, and its overall.
-  stage: ['id', 'name', 'game', 'on', 'side', 'alongside'],
+  stage: ['id', 'name', 'game', 'on', 'side', 'alongside', 'season'],
   overall: ['by', 'places'],
+  // A12 part 4b: the season a stage plays on, when it isn't the game's own.
+  season: ['show', 'number'],
   // A12 part 2: a stage a format change starts, and how the game takes a change.
   on: ['change', 'again'],
   changes: ['ok', 'unanswered'],
@@ -2672,6 +2713,8 @@ function stagedProblems(spec, s, ctx, opts, add) {
   const raws = Array.isArray(spec.stages) ? spec.stages : [];
   // A12 part 3: the game's own stages first, its side stages after them.
   const mains = mainCount(raws);
+  // A12 part 4b: a game on more than one season (a stage's `season`).
+  const multi = onSeasons(raws);
   list.forEach((st, i) => {
     const at = `stages[${i}]`;
     if (!isObj(st)) return add(at, 'Each stage is { id, name, game }');
@@ -2689,6 +2732,31 @@ function stagedProblems(spec, s, ctx, opts, add) {
     const rawSide = Array.isArray(spec.stages) && isObj(spec.stages[i]) ? spec.stages[i].side : undefined;
     // A12 part 4a: a stage alongside the game's own, at the same time.
     const rawWith = Array.isArray(spec.stages) && isObj(spec.stages[i]) ? spec.stages[i].alongside : undefined;
+    // A12 part 4b: a stage on another season, checked with that season's ctx (ctx.seasons); a later stage drafts where it starts, from
+    // who's still in then: its exclusive count waits for its draft to open.
+    const rawSeason = Array.isArray(spec.stages) && isObj(spec.stages[i]) ? spec.stages[i].season : undefined;
+    let c = ctx && i > 0 ? { ...ctx, pool: undefined } : ctx;
+    if (rawSeason !== undefined) {
+      const key = seasonKey(rawSeason);
+      if (!isObj(rawSeason) || Object.keys(rawSeason).some((k) => !KEYS.season.includes(k)) || typeof rawSeason.show !== 'string' || !SHOW_ID.test(rawSeason.show) || !isInt(rawSeason.number, 1) || rawSeason.number > MAX_SEASON) {
+        add(`${at}.season`, "The season a stage plays on: { show: the show's id, number: the season's number } (left out: the game's own)");
+        c = null;
+      } else if (i === 0) add(`${at}.season`, "The first stage plays on the game's own season (where the game is made): a later stage can play on another");
+      else if (isObj(ctx) && ctx.season === key) add(`${at}.season`, "That's the game's own season: leave season out");
+      else if (isObj(ctx)) {
+        const other = isObj(ctx.seasons) ? ctx.seasons[key] : undefined;
+        if (isObj(other)) c = { ...other, pool: undefined };
+        else {
+          // A league's own spec was checked on its seasons when it was made: its stage on another season stays as it is.
+          if (!(opts && opts.league)) add(`${at}.season`, `${rawSeason.show} ${rawSeason.number} isn't a season set up as a game here`);
+          c = null;
+        }
+      }
+    }
+    // A12 part 4b: a format change, a grouping that lasts and 'next-stage' read the game's own season's format: one season only.
+    if (multi && rawOn !== undefined) add(`${at}.on`, "A stage a format change starts reads the game's own season's format: a game on more than one season gives each stage its start");
+    if (multi && rawSide !== undefined) add(`${at}.side`, "A side stage reads the game's own season's groupings: a game on more than one season doesn't have one");
+    if (multi && isObj(raw) && nextStageAts(raw).length) add(`${at}.game`, "'next-stage' reads the game's own season's groups: a game on more than one season gives each stage its end (void, or carry-on)");
     let lateStart = false;
     if (rawSide === undefined && rawWith === undefined && i >= mains) add(at, "The game's own stages come first, the stages beside them (side or alongside) after them");
     if (rawWith !== undefined) {
@@ -2696,7 +2764,8 @@ function stagedProblems(spec, s, ctx, opts, add) {
       if (i === 0) add(`${at}.alongside`, "The first stage is the game's own: a stage alongside plays at the same time as the game's own stages");
       if (rawSide !== undefined) add(`${at}.alongside`, "A side stage opens when a grouping lasts: it isn't alongside the game too");
       if (rawOn !== undefined) add(`${at}.on`, "A stage alongside plays at the same time as the game's own: it doesn't start on a format change");
-      lateStart = alongsideSpan(raws, i, list, add);
+      // A12 part 4b: one on another season plays its own span there (episode numbers are each season's own).
+      lateStart = rawSeason === undefined ? alongsideSpan(raws, i, list, add) : false;
     } else if (rawSide !== undefined) {
       if (i === 0) add(`${at}.side`, "The first stage is the game's own: a side stage plays beside the game's own stages");
       if (!isObj(rawSide)) add(`${at}.side`, 'A side stage: { held: the episodes a grouping holds before it opens }');
@@ -2722,37 +2791,41 @@ function stagedProblems(spec, s, ctx, opts, add) {
     } else if (fallsTo(raws, i)) {
       // A12 part 2b: the stage before's 'next-stage' fallback starts it.
       if (ownStart(raws[i])) add(`${at}.game.span.from`, "It starts when the stage before can't be played as the groups stand (its 'next-stage' fallback): leave its start out");
-    } else if (i > 0 && !(isObj(raw.span) && raw.span.from !== undefined)) add(`${at}.game.span.from`, 'A stage after the first says where it starts: an episode, a phase of the season, or a format change (on); or plays alongside the game\'s own (alongside: true)');
+    } else if (i > 0 && rawSeason === undefined && !(isObj(raw.span) && raw.span.from !== undefined)) add(`${at}.game.span.from`, 'A stage after the first says where it starts: an episode, a phase of the season, or a format change (on); or plays alongside the game\'s own (alongside: true)');
     const nextRaw = i + 1 < mains ? raws[i + 1] : undefined;
     if (isObj(nextRaw) && (nextRaw.on !== undefined || fallsTo(raws, i + 1)) && isObj(raw.span) && raw.span.to !== undefined && raw.span.to !== null) {
       add(`${at}.game.span.to`, nextRaw.on !== undefined ? 'It ends where the next stage starts, on its format change: leave its end out' : "It ends where it can't be played as the groups stand and the next stage starts (its 'next-stage' fallback): leave its end out");
     }
     // A later stage drafts where it starts, from who's still in then: its exclusive count waits for its draft to open. A12 part
     // 2b: 'next-stage' is a stage's with a stage after it.
-    const c = ctx && i > 0 ? { ...ctx, pool: undefined } : ctx;
     // A12 part 4a: a stage alongside that starts after the game ends is said once, at its start (its end, the game's, is before it).
-    specProblems(stageGame(st), c, { ...stageOpts, nextStage: i + 1 < mains })
+    // A12 part 4b: 'next-stage' on a game on more than one season is said once, above.
+    specProblems(stageGame(st), c, { ...stageOpts, nextStage: multi || i + 1 < mains })
       .filter((p) => !(lateStart && /^span/.test(p.at)))
       .forEach((p) => add(`${at}.game${p.at ? `.${p.at}` : ''}`, p.problem));
   });
-  // One after another: each of the game's own starts where the one before ends (a side stage plays beside them).
-  for (let i = 0; i + 1 < Math.min(mains, list.length); i++) {
+  // One after another: each of the game's own starts where the one before ends (a side stage plays beside them). A12 part 4b: on its
+  // own season, the one before on the same season (a stage on another season in between counts its own episodes).
+  for (let k = 1; k < Math.min(mains, list.length); k++) {
+    const i = prevOnSeason(list, k);
+    if (i < 0) continue;
     const a = list[i];
-    const b = list[i + 1];
+    const b = list[k];
     if (!isObj(a) || !isObj(b) || !isObj(a.game) || !isObj(b.game) || !isObj(a.game.span) || !isObj(b.game.span)) continue;
     // A12 part 2: a stage a format change starts begins where it takes effect, and the one before runs on until then.
     if (isObj(b.on) || isObj(a.on)) continue;
     const end = a.game.span.to;
     const from = b.game.span.from;
-    const at = `stages[${i + 1}].game.span.from`;
+    const at = `stages[${k}].game.span.from`;
     if (end === null) add(`stages[${i}].game.span.to`, 'A stage before another ends where the next starts: give it an end (an episode, or the phase the next starts at)');
     else if (phaseTo(end)) {
       if (!(phaseFrom(from) && from.phase === end.phase)) add(at, `It starts where the stage before ends: when ${end.phase} starts`);
     } else if (isInt(end, 1) && phaseFrom(from)) add(at, `It starts where the stage before ends, after its last episode (${end}): or end that one before ${from.phase}`);
     else if (isInt(end, 1) && isInt(from, 1) && from > end + 1) add(at, `It starts where the stage before ends: ${end + 1}, the episode after its last (nothing plays between them)`);
     // A12 part 4a: the game's own stages never overlap; one that plays at the same time is alongside them.
-    else if (stagesOverlap(a, b) && ownStart(raws[i + 1])) add(at, `It starts where the stage before ends: ${end + 1}, the episode after its last; to play at the same time, put it after the game's own stages with alongside: true`);
+    else if (stagesOverlap(a, b) && ownStart(raws[k])) add(at, `It starts where the stage before ends: ${end + 1}, the episode after its last; to play at the same time, put it after the game's own stages with alongside: true`);
   }
+  outsideOverlaps(list, mains, add);
   const o = s.overall;
   if (!isObj(o)) return add('overall', 'The overall is { by: points | places | wins, places? }');
   for (const k of Object.keys(o)) if (!KEYS.overall.includes(k)) add(`overall.${k}`, `"${k}" isn't part of the overall`);
@@ -2766,6 +2839,39 @@ function stagedProblems(spec, s, ctx, opts, add) {
   }
 }
 /**
+ * A12 part 4b (4a's Noticed item 5): a bingo card and a call are each person's for the season's episode, not a stage's, so two stages
+ * of bingo (or of Weekly Calls) on one season that can play at the same time would both count the same lines (or calls), and a side
+ * stage of either would count them in every copy. Refused, with why: stages beside the game's own (alongside) against any other of
+ * the same kind on the same season, unless both spans are episodes that don't meet (the game's own stages one after another never
+ * do; a phase can't be told until it's known). `list` whole.
+ */
+function outsideOverlaps(list, mains, add) {
+  const kindOf = (st) => {
+    const k = isObj(st) && isObj(st.game) && st.game.stages === undefined ? playsAs(stageGame(st)) : null;
+    return k === 'weekly-bingo' || k === 'weekly-calls' ? k : null;
+  };
+  const words = (k) => (k === 'weekly-bingo' ? { game: 'bingo', one: 'card', many: 'lines' } : { game: 'Weekly Calls', one: 'call', many: 'calls' });
+  const span = (st) => (isObj(st.game.span) ? st.game.span : {});
+  const apart = (a, b) => {
+    const [x, y] = [span(a), span(b)];
+    const end = (v) => (v === null || v === undefined ? Infinity : isInt(v, 1) ? v : null);
+    if (!isInt(x.from, 1) || !isInt(y.from, 1) || end(x.to) === null || end(y.to) === null) return false;
+    return end(x.to) < y.from || end(y.to) < x.from;
+  };
+  list.forEach((st, i) => {
+    const k = kindOf(st);
+    if (!k) return;
+    const w = words(k);
+    // (One that says alongside too is refused for that already.)
+    if (isSide(st)) return isAlongside(st) ? undefined : add(`stages[${i}].side`, `A side stage makes a copy for each grouping that lasts, and a ${w.one} is each person's for the episode, not a grouping's: every copy would count the same ${w.many}. Make it another kind`);
+    for (let j = 0; j < i; j++) {
+      if (kindOf(list[j]) !== k || isSide(list[j]) || !sameSeason(list[j], st) || (j < mains && i < mains) || apart(list[j], st)) continue;
+      add(`stages[${i}]`, `Two stages of ${w.game} on one season can't play at the same time: a ${w.one} is each person's for the episode, so both would count the same ${w.many}. Play them one after another, or make one another kind`);
+      return;
+    }
+  });
+}
+/**
  * A12 part 4a: a stage alongside the game's own plays inside the game: from its start on, ending by where it ends (both as episodes,
  * or the same phase it ends before; an episode end against a phase end can't be told until the phase is known). `raws` as written,
  * `list` whole. Whether it starts after the game ends (said here: its own span's problems then aren't said again).
@@ -2776,7 +2882,9 @@ function alongsideSpan(raws, i, list, add) {
   const mains = mainCount(raws);
   const spanOf = (st) => (isObj(st) && isObj(st.game) && isObj(st.game.span) ? st.game.span : {});
   const gFrom = spanOf(list[0]).from;
-  const gTo = mains > 0 ? spanOf(list[mains - 1]).to : undefined;
+  // A12 part 4b: where the game ends on its own season: its last own stage there.
+  const homes = list.slice(0, mains).filter((x) => !stageSeason(x));
+  const gTo = homes.length ? spanOf(homes[homes.length - 1]).to : undefined;
   const at = `stages[${i}].game.span`;
   if (isInt(span.from, 1) && isInt(gFrom, 1) && span.from < gFrom) add(`${at}.from`, `It plays inside the game: from Episode ${gFrom} on`);
   if (isInt(span.from, 1) && isInt(gTo, 1) && span.from > gTo) {
@@ -2823,4 +2931,5 @@ module.exports = {
   MAX_STAGES, MAX_STAGE_NAME, MAX_PLACES, OVERALL, STAGE_KINDS, stageGames, stagesOverlap,
   ON_CHANGE, CHANGES, MAX_COPIES, stageOn, stageGame, stageLeagueGame, madeAs, nextStageAts, fallsTo,
   SIDE, MAX_HELD, stageSide, mainCount, stageAlongside, isBeside,
+  SHOW_ID, MAX_SEASON, stageSeason, seasonKey, sameSeason, onSeasons, crosses,
 };

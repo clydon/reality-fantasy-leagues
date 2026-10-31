@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 187 ✅ · 59 ⏳ · 1 🆕 · 3 ❓ · 23 💬, of 273.
-**Waiting, by step:** A12 2 · A13 4 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 189 ✅ · 57 ⏳ · 1 🆕 · 3 ❓ · 23 💬, of 273.
+**Waiting, by step:** A13 4 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -144,7 +144,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | Stages by episode: the season's two halves, each its own game, plus an overall | A game in two stages for Survivor 51: First half, a Weekly Lineup: everyone drafts 5 and starts 3 each episode, Episodes 1–6. Scored by the show's rules; then Second half, a Survival Pool: everyone picks one person to stay in each episode, Episode 7 to the finale. Longest streak wins. Overall, each stage you finish scores by your place: one point for each of you below you, plus one. |
 | ✅ | A season of mini-games | A game in three stages for Survivor 51: Bingo, a Weekly Bingo: a new bingo card every episode, Episodes 1–4. Most lines by the finale wins; then Draft, an Outlast: everyone drafts 2, Episodes 5–8. Each scores by how long they last: the last one standing carries you; then Calls, a Weekly Calls: two calls before every episode, Episode 9 to the finale. Most right by the finale wins. Overall, each stage's points add up. |
 | ✅ | A game that scores two ways (bingo lines plus answers) | A game in two stages for Survivor 51: Bingo, a Weekly Bingo: a new bingo card every episode, all season. Most lines by the finale wins; and beside it, Who goes home, a game: everyone answers one question before each episode: who goes home, all season. A point for each right answer. Overall, each stage's points add up. |
-| ⏳ | One game across two shows | A12 |
+| ✅ | One game across two shows | A game in two stages for Survivor 51 and The Traitors 5: Survivor, an Outlast: everyone drafts 2, all season. Each scores by how long they last: the last one standing carries you; then The Traitors on The Traitors 5, a Survival Pool: everyone picks one person to stay in each episode, all season. Longest streak wins. Overall, each stage you finish scores by your place: one point for each of you below you, plus one. |
 | ✅ | Keepers across seasons | A Weekly Lineup for Survivor 51: everyone drafts 4 and starts 3 each episode, keeping one of last season's team if they come back, all season. Scored by Survivor 51's rules. |
 
 ### Live (watching together, now or later in sync)
@@ -199,7 +199,7 @@ Requests that push the dials, from fantasy leagues, beyond them, and live with t
 | ✅ | s17 | The Challenge 42 | Dynasty: keep 2 of your players when they come back next season. | shape | An Outlast for The Challenge 42: everyone drafts 3, keeping up to two of last season's team who come back, all season. Each scores by how long they last: the last one standing carries you. |
 | ✅ | s18 | Survivor 51 | My partner and I share one team. | who | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. Up to two of you can share a team. |
 | ✅ | s19 | Survivor 51 | Newcomers get 5 bonus points a week. | who | A Weekly Lineup for Survivor 51: everyone drafts 5 and starts 3 each episode, all season. Scored by Survivor 51's rules. Newcomers get 5 points an episode: anyone with no game on this couch from an earlier season. |
-| ⏳ | s20 | Survivor 51 | One league across Survivor and The Traitors. | shape | A12 |
+| ✅ | s20 | Survivor 51 | One league across Survivor and The Traitors. | shape | A game in two stages for Survivor 51 and The Traitors 5: Survivor, a Weekly Lineup: everyone drafts 5 and starts 3 each episode, all season. Scored by the show's rules; then The Traitors on The Traitors 5, a Weekly Lineup: everyone drafts 5 and starts 3 each episode, all season. Scored by the show's rules. Overall, each stage's points add up. |
 | 🆕 | s21 | Survivor 51 | A kids' version, no points shown. | shape | how a game shows, not what it is: a setting for the UI track |
 | ✅ | s22 | Survivor 51 | Stock market: buy and sell castaways each week. | answer | A Weekly Lineup for Survivor 51: everyone drafts 5 with 100 to spend, then buys and sells after every episode and starts 3 each episode, all season. Scored by Survivor 51's rules. Most worth wins: cash plus the team at today's prices. |
 | ✅ | s23 | Survivor 51 | One mulligan a season. | answer | A Survival Pool for Survivor 51: everyone picks one person to stay in each episode, all season. One wrong pick forgiven. Longest streak wins. |

@@ -341,9 +341,10 @@ async function couchGameList(viewer: SessionUser | null, couchId: string): Promi
   ]);
   // A game of questions that knocks players out or ends early (step A11 part 2b of docs/PLAN-start-a-game-gpt.md) as it stands: walked
   // over its answers, so who may join (nobody new once someone's out: part 5c) and whether it's over read the walk. One answers read
-  // per such game, side by side; any other game, its state as it is.
+  // per such game, side by side; any other game, its state as it is. Step A12 part 4b: a game in stages' stage on another season at your
+  // mark there (whether it's ended would tell you how that stage went), read whole when nobody's signed in.
   const stands = new Map(
-    await Promise.all(list.filter((g) => states.has(g.leagueId)).map(async (g) => [g.leagueId, (await asItStands(g.leagueId, states.get(g.leagueId) as LeagueState)).state] as const))
+    await Promise.all(list.filter((g) => states.has(g.leagueId)).map(async (g) => [g.leagueId, (await asItStands(g.leagueId, states.get(g.leagueId) as LeagueState, undefined, viewer ? { userId: viewer.id } : "all")).state] as const))
   );
   const out: JoinGame[] = [];
   for (const g of list) {

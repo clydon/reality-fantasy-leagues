@@ -18,7 +18,7 @@
 //
 // Pure CommonJS, like ./schema.js.
 /* eslint-disable @typescript-eslint/no-require-imports -- CommonJS on purpose, see ./schema.js */
-const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside } = require('./schema.js');
+const { PRESET_LABELS, NAMES, fullSpec, countKind, presetOf, sameValue, own, spanStart, spanEnd, spanEndPhase, playsAs, callsAsk, finaleOf, betsFit, poolParts, budgetParts, keepParts, seatPeople, knockoutParts, answerParts, livesQuestion, matchupParts, questionsGame, teamParts, handicapParts, stageOn, ON_CHANGE, nextStageAts, fallsTo, stageSide, mainCount, stageAlongside, stageSeason, seasonKey } = require('./schema.js');
 /* eslint-enable @typescript-eslint/no-require-imports */
 
 const NUMBER_WORDS = ['no', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten'];
@@ -952,17 +952,26 @@ function describeStages(s, ctx) {
     if (!fallsTo(stages, i)) return onWords(on);
     return on.change.length ? `${onWords(on)}, or ${noGroups}` : noGroups;
   };
+  // A12 part 4b: a stage on another season said in its season's words (ctx.seasons), and named there.
+  const seasonOf = (st) => {
+    const sn = stageSeason(st);
+    if (!sn) return null;
+    const c = isObj(ctx) && isObj(ctx.seasons) ? ctx.seasons[seasonKey(sn)] : undefined;
+    return { ctx: isObj(c) ? c : {}, label: isObj(c) && c.show ? c.show : `season ${sn.number} of ${sn.show}` };
+  };
   const each = stages.map((st, i) => {
     const next = stages[i + 1];
     const nextOn = next ? stageOn(next) : null;
     const until = !nextOn ? false : !fallsTo(stages, i + 1) ? true : nextOn.change.length ? `until the format changes, or there are no more ${w.group}s` : `until there are no more ${w.group}s`;
-    const d = describeSpec(st.game, { ...(isObj(ctx) ? ctx : {}), show: null, fromChange: fromWords(st, i), untilChange: until });
-    return { label: st.name || `Stage ${i + 1}`, d, sentence: d.sentence.replace(/^An? /, (m) => m.toLowerCase()).replace(/\.$/, '') };
+    const there = seasonOf(st);
+    const d = describeSpec(st.game, { ...(there ? there.ctx : isObj(ctx) ? ctx : {}), show: null, fromChange: fromWords(st, i), untilChange: until });
+    return { label: st.name || `Stage ${i + 1}`, on: there ? there.label : null, d, sentence: d.sentence.replace(/^An? /, (m) => m.toLowerCase()).replace(/\.$/, '') };
   });
   const parts = [{ text: `A game in ${say(stages.length)} stages`, at: 'preset' }];
-  if (w.show) parts.push({ text: ` for ${w.show}`, at: 'about' });
+  const others = [...new Set(each.map((x) => x.on).filter(Boolean))];
+  if (w.show) parts.push({ text: ` for ${[w.show, ...others].join(' and ')}`, at: 'about' });
   parts.push({ text: ': ', at: null });
-  each.forEach((x, i) => parts.push({ text: `${!i ? '' : i < mains ? '; then ' : i === mains ? `; and beside ${mains > 1 ? 'them' : 'it'}, ` : '; and '}${x.label}, ${x.sentence}`, at: 'span' }));
+  each.forEach((x, i) => parts.push({ text: `${!i ? '' : i < mains ? '; then ' : i === mains ? `; and beside ${mains > 1 ? 'them' : 'it'}, ` : '; and '}${x.label}${x.on ? ` on ${x.on}` : ''}, ${x.sentence}`, at: 'span' }));
   const o = isObj(s.overall) ? s.overall : { by: 'points' };
   const overall = o.by === 'places' ? `${OVERALL_WORDS.places}${placesWords(o)}` : OVERALL_WORDS[o.by] || OVERALL_WORDS.points;
   parts.push({ text: `. ${overall}`, at: 'rank' });
@@ -993,7 +1002,9 @@ function describeStages(s, ctx) {
     if (!nextStageAts(st.game).length || !stages[i + 1]) return;
     rules.push(`${each[i].label}: once research is sure nobody is in a ${w.group} going into ${article(w.part)} ${w.part}, it ends and ${each[i + 1].label} starts; until it's sure, ${article(w.part)} ${w.part} it can't play doesn't count.`);
   });
-  each.forEach((x) => rules.push(`${x.label}: ${x.d.sentence}`, ...x.d.rules.map((r) => `${x.label}: ${r}`)));
+  // A12 part 4b: a stage on another season counts its own episodes, and the game ends with its own stages wherever they play.
+  if (others.length) rules.push(`A stage on ${others.join(' or ')} plays that season's episodes, each counted as you've seen them there; the game ends once its own stages are over, wherever they play.`);
+  each.forEach((x) => rules.push(`${x.label}${x.on ? ` (${x.on})` : ''}: ${x.d.sentence}`, ...x.d.rules.map((r) => `${x.label}: ${r}`)));
   const e = isObj(s.extras) ? s.extras : {};
   const details = [
     { id: 'join', label: 'Who can join', recommended: e.join === null, value: e.lockedDown ? "Nobody new while it's locked down" : own(JOIN_WORDS, e.join) || JOIN_WORDS.open },

@@ -317,7 +317,10 @@ function app() {
  */
 async function gamesFor(seasonId, show = null) {
   const { lab, C, rows: R, tracker } = app();
-  const yes = C.rowsOf(tracker).filter((r) => C.statusOf(r, R.pageCtx(r.page)).state === "yes");
+  // A12 part 4b: a game across two shows (a stage's `season`) plays a season this replay doesn't: left out (tests/two-shows.test.js
+  // and check-two-shows.js prove it), as is anything made on a real season's league beside the tapes' copy.
+  const G = require("../../src/lib/game/game-spec/index.js");
+  const yes = C.rowsOf(tracker).filter((r) => C.statusOf(r, R.pageCtx(r.page)).state === "yes" && !(r.spec && G.onSeasons(r.spec.stages)));
   const bySpec = new Map();
   for (const r of yes) {
     const key = JSON.stringify(r.spec);

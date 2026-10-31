@@ -83,9 +83,10 @@ export async function walked(o: { leagueId: string; state: LeagueState; playerId
  * out or the game has ended (answers.ts refuses their answers; the questions close), and which results are its to reveal. Any
  * other game, the state as it is. `rows`: the answers read (to reuse), when it read them.
  */
-export async function asItStands(leagueId: string, state: LeagueState, rows?: AnswerRow[]): Promise<{ state: LeagueState; rows?: AnswerRow[] }> {
-  // Step A12 part 1: a game in stages, its stages' tables (stageWalk), so its own table is the overall.
-  if (StateLogic.StageLogic.on(state)) return { state: StateLogic.StageLogic.withWalk(state, await stageWalk(leagueId, state)), rows };
+export async function asItStands(leagueId: string, state: LeagueState, rows?: AnswerRow[], viewer?: StageViewer): Promise<{ state: LeagueState; rows?: AnswerRow[] }> {
+  // Step A12 part 1: a game in stages, its stages' tables (stageWalk), so its own table is the overall (part 4b: a stage on another
+  // season at `viewer`'s mark there).
+  if (StateLogic.StageLogic.on(state)) return { state: StateLogic.StageLogic.withWalk(state, await stageWalk(leagueId, state, viewer)), rows };
   if (!Spec.answerParts(StateLogic.gameOf(state))) return { state, rows };
   const all = rows ?? (await storedAnswers(leagueId));
   const walk = StateLogic.AnswerLogic.walk(state, all, await answerFacts(state, state));
@@ -96,6 +97,17 @@ export async function asItStands(leagueId: string, state: LeagueState, rows?: An
 const STAGE_REF = { leagueId: "", name: "", gameType: "", gameName: "", yourRole: null };
 
 /**
+ * Step A12 part 4b: whose marks a stage on another season is cut at (its episodes are that season's, so the game's own mark can't
+ * cut it): a person's (`userId`: their mark on that season, guard.ts seenThrough), or "all", the server's own read (everything, as a
+ * game's own state is before a viewer's cut). Left out, nothing of such a stage is in the walk (spoiler-safe: a reader that forgot
+ * to say whose read it is shows it not started).
+ */
+export type StageViewer = { userId: string } | "all";
+
+/** A league's season as its settings say it ("<show>/<number>", Spec.seasonKey's), or null. */
+const seasonKeyOf = (s: LeagueState): string | null => (s.settings?.showId && s.settings.wikiSeason != null ? `${s.settings.showId}/${s.settings.wikiSeason}` : null);
+
+/**
  * A game in stages' stages' tables (step A12 part 1: StateLogic.StageLogic reads them): each stage league as it stands (a game of
  * questions graded and walked on its answers, as its own table is; part 4a: bingo's lines and Weekly Calls' right calls counted as
  * their own tables count them, outsideCounts), its table as it stood after each episode it played, the table anyone on its couch sees
@@ -103,33 +115,74 @@ const STAGE_REF = { leagueId: "", name: "", gameType: "", gameName: "", yourRole
  * query for the stages, one for each game of questions' answers and a few for each stage of bingo or Calls (each season's schedule
  * and calls book read once); worked out on read, never stored.
  */
-export async function stageWalk(parentId: string, parent: LeagueState): Promise<StageWalk | null> {
+export async function stageWalk(parentId: string, parent: LeagueState, viewer?: StageViewer): Promise<StageWalk | null> {
   if (!StateLogic.StageLogic.on(parent)) return null;
   const seasons = new Map<string, Promise<SeasonReads>>();
+  // Step A12 part 4b: a game on more than one season: each stage's season (`season` on one that isn't the game's own), when each of its
+  // episodes aired (`at`, from its season's schedule: stampAirTimes), and the viewer's mark there.
+  const multi = Spec.onSeasons(StateLogic.StageLogic.stages(parent));
+  const home = seasonKeyOf(parent);
+  const marks = new Map<string, Promise<number | null>>();
+  const all = await stagesOf(pool, parentId);
+  const { seasonIds, airs } = multi ? await stageSeasons(all.map((r) => r.id)) : { seasonIds: new Map<string, string>(), airs: new Map<string, Map<number, string>>() };
   // Each stage's walk side by side.
   const stages: StageWalk["stages"] = await Promise.all(
-    (await stagesOf(pool, parentId)).map(async (r) => {
+    all.map(async (r) => {
       const questions = StateLogic.piecesOf(r.state).hasQuestions;
       const answers = questions ? await storedAnswers(r.id) : undefined;
       const { state } = await asItStands(r.id, r.state, answers);
       const from = StateLogic.startEpisode(state);
       const latest = StateLogic.SpoilerLogic.latestWithResults(state);
+      const there = multi && seasonKeyOf(state) !== home ? seasonKeyOf(state) : null;
+      const seasonId = seasonIds.get(r.id) ?? null;
+      const aired = seasonId ? airs.get(seasonId) : undefined;
+      // A stage on another season, through the viewer's mark there (null: everything).
+      if (there && !marks.has(there)) marks.set(there, markThere(seasonId, viewer));
+      const cut = there ? await (marks.get(there) as Promise<number | null>) : null;
       const entries: StageWalk["stages"][number]["entries"] = [];
       // Step A12 part 4a: a stage of bingo or Weekly Calls, scored outside its state: an entry at each episode with results or aired
       // (a talk show's lines and calls are the couch's say, with no results).
       const outside = await outsideCounts(r.id, state, seasons);
-      const through = outside ? Math.max(latest, outside.aired) : latest;
+      const through = Math.min(outside ? Math.max(latest, outside.aired) : latest, cut ?? Number.POSITIVE_INFINITY);
       for (let n = from ?? through + 1; n <= through; n++) {
         if (!state.episodes.some((e) => e.number === n && StateLogic.episodeHasResults(e)) && !(outside && n <= outside.aired)) continue;
         const calls = questions ? await leagueAnswers({ leagueId: r.id, state, playerId: null, mark: n, rows: answers }) : outside ? outside.at(n) : null;
         const v = gameView(STAGE_REF, state, null, n, () => null, calls ?? undefined);
-        entries.push({ episode: n, over: v.over, rows: v.table.map((t) => ({ playerId: t.playerId, points: t.total, place: t.place })) });
+        const at = aired?.get(n);
+        entries.push({ episode: n, ...(at ? { at } : {}), over: v.over, rows: v.table.map((t) => ({ playerId: t.playerId, points: t.total, place: t.place })) });
         if (v.over) break;
       }
-      return { key: r.key, leagueId: r.id, from, to: StateLogic.lastEpisode(state), ...(outside ? { outside: true } : {}), entries };
+      return { key: r.key, leagueId: r.id, from, to: StateLogic.lastEpisode(state), ...(outside ? { outside: true } : {}), ...(there ? { season: there } : {}), entries };
     })
   );
   return { stages };
+}
+
+/** Step A12 part 4b: each stage league's season (one query) and when each of each season's episodes airs (its schedule, read once a
+ *  season: schedule.ts seasonSchedules). */
+async function stageSeasons(ids: string[]): Promise<{ seasonIds: Map<string, string>; airs: Map<string, Map<number, string>> }> {
+  const { rows } = await pool.query(
+    `SELECT l.id, ss.id AS season_id FROM leagues l
+       JOIN shows s ON s.slug = l.state->'settings'->>'showId'
+       JOIN show_seasons ss ON ss.show_id = s.id AND ss.season_number::text = l.state->'settings'->>'wikiSeason'
+      WHERE l.id = ANY($1::uuid[])`,
+    [ids]
+  );
+  const seasonIds = new Map(rows.map((x) => [x.id as string, x.season_id as string]));
+  const { seasonSchedules } = await import("./schedule");
+  const schedules = await seasonSchedules([...new Set(seasonIds.values())]);
+  const airs = new Map([...schedules].map(([id, s]) => [id, new Map((s?.episodes ?? []).filter((e) => e.airAt).map((e) => [e.number, e.airAt as string]))]));
+  return { seasonIds, airs };
+}
+
+/** Step A12 part 4b: how far a viewer may see a stage on another season (`seasonId`, its league's): nothing without a viewer, everything
+ *  for the server's own read (null), else their mark there (null when they see everything). */
+async function markThere(seasonId: string | null, viewer: StageViewer | undefined): Promise<number | null> {
+  if (viewer === "all") return null;
+  if (!viewer || !seasonId) return 0;
+  const { EVERYTHING, seenThrough } = await import("./guard");
+  const seen = await seenThrough(viewer.userId, seasonId);
+  return seen === EVERYTHING ? null : seen;
 }
 
 /** A season's schedule and calls book, read once for every stage of bingo or Calls on it (stageWalk). */

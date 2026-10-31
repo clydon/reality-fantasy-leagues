@@ -206,7 +206,8 @@ export async function couchHub(user: SessionUser, couchId: string): Promise<Couc
     // the one the couch's standings read.
     if (g.stageOf) continue;
     const stored = states.get(g.leagueId);
-    const state = stored && StateLogic.StageLogic.on(stored) ? (await asItStands(g.leagueId, stored)).state : stored;
+    // Step A12 part 4b: a stage on another season at your mark there.
+    const state = stored && StateLogic.StageLogic.on(stored) ? (await asItStands(g.leagueId, stored, undefined, { userId: user.id })).state : stored;
     const header = headers.get(g.seasonId);
     if (!state || !header) continue;
     const seen = marks.get(g.seasonId) ?? 0;

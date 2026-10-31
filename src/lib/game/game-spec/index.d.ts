@@ -35,6 +35,13 @@ export interface SpecStage {
   side?: SpecSide;
   /** A12 part 4a: a stage alongside the game's own, at the same time (two ways of scoring at once). */
   alongside?: true;
+  /** A12 part 4b: the season it plays on when it isn't the game's own (never the first stage's): a show's id and a season's number. */
+  season?: SpecSeason;
+}
+/** A12 part 4b: a season a stage plays on: its show's id (a league's settings.showId) and its number. */
+export interface SpecSeason {
+  show: string;
+  number: number;
 }
 /** A12 part 3: a side stage. */
 export interface SpecSide {
@@ -365,7 +372,7 @@ export interface GameSpec {
 }
 
 /** A spec as written: anything left out is the preset's, or the defaults (fullSpec). */
-export type SpecInput = Partial<Omit<GameSpec, "extras" | "ask" | "stages">> & { extras?: Partial<SpecExtras>; ask?: SpecQuestion[]; stages?: { id: string; name?: string | null; game: SpecInput; on?: Partial<SpecOn>; side?: Partial<SpecSide>; alongside?: true }[] };
+export type SpecInput = Partial<Omit<GameSpec, "extras" | "ask" | "stages">> & { extras?: Partial<SpecExtras>; ask?: SpecQuestion[]; stages?: { id: string; name?: string | null; game: SpecInput; on?: Partial<SpecOn>; side?: Partial<SpecSide>; alongside?: true; season?: SpecSeason }[] };
 
 /** A10 part 1: a draft's group slots (get.groups): a slot holds a pair or a team the show forms, picked after the episode that
  *  showed it, riding with it while it lasts and dropping when it changes (state-logic.js GroupSlotLogic). */
@@ -463,6 +470,10 @@ export interface SpecContext {
   poolGroups?: number[];
   /** A10 part 3: what the show calls one of its groups, lower case ("tribe"), for the words. */
   group?: string;
+  /** A12 part 4b: the game's own season's key (seasonKey: "<show>/<number>"), so a stage naming it is told to leave it out. */
+  season?: string;
+  /** A12 part 4b: each other season a stage can play on, by its key, with its own ctx (a stage there is checked and said with it). */
+  seasons?: Record<string, SpecContext>;
 }
 
 export interface SpecProblem {
@@ -605,6 +616,15 @@ export function mainCount(stages: unknown[]): number;
 /** A12 part 4a: a stage alongside the game's own stages (true), or null; and a stage beside them, side or alongside. */
 export function stageAlongside(stage: unknown): true | null;
 export function isBeside(stage: unknown): boolean;
+/** A12 part 4b: a show's id, the highest season number, the season a stage plays on (null: the game's own), a season's key
+ *  ("<show>/<number>"), two stages on the same season, a game with a stage on another season, and one with an own stage there. */
+export const SHOW_ID: RegExp;
+export const MAX_SEASON: number;
+export function stageSeason(stage: unknown): SpecSeason | null;
+export function seasonKey(season: unknown): string | null;
+export function sameSeason(a: unknown, b: unknown): boolean;
+export function onSeasons(stages: unknown): boolean;
+export function crosses(stages: unknown): boolean;
 /** The league type a game is made as before its spec is written: a game of questions as a pool, any other as itself. */
 export function madeAs(kind: LeagueTypeId): LeagueTypeId;
 

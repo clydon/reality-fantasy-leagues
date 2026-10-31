@@ -908,11 +908,16 @@ declare const StateLogic: {
     walkOf(state: LeagueState): StageWalk | null;
     withWalk(state: LeagueState, walk: StageWalk | null): LeagueState;
     cutWalk(walk: StageWalk, n: number): StageWalk;
-    /** A12 part 2: `stage` the spec's stage, `copy` 1, 2, ... for a copy a format change started (null for a stage's own). */
-    standings(state: LeagueState): { key: string; stage: string; copy: number | null; side: boolean; alongside: boolean; name: string | null; leagueId: string | null; from: number | null; to: number | null; started: boolean; over: boolean; rows: StageRow[] }[];
+    /** A12 part 4b: an own stage of the game plays on another season. */
+    crosses(state: LeagueState): boolean;
+    /** A12 part 2: `stage` the spec's stage, `copy` 1, 2, ... for a copy a format change started (null for a stage's own). A12 part 4b:
+     *  `season` the key of the season it plays on when it isn't the game's own, `at` when its last entry aired. */
+    standings(state: LeagueState): { key: string; stage: string; copy: number | null; side: boolean; alongside: boolean; season: string | null; name: string | null; leagueId: string | null; from: number | null; to: number | null; started: boolean; over: boolean; rows: StageRow[]; at?: string }[];
     overall(state: LeagueState): { playerId: string; overall: number; points: number; placePoints: number; wins: number; stages: { key: string; points: number | null; place: number | null; over: boolean }[] }[];
     over(state: LeagueState): boolean;
     endsAt(state: LeagueState): number | null;
+    /** A12 part 4b: a game with an own stage on another season is over once every own stage is. */
+    overAcross(state: LeagueState): boolean;
     started(state: LeagueState): boolean;
     /** A12 part 2: a stage a format change starts (its copies keyed `<stage id>@<change id>`), how the game takes a change, what it
      *  remembers of them, the maker's answer, and where each copy plays (changePlan, from the format's state over time). */
@@ -1092,8 +1097,10 @@ export interface StageRow {
   place: number;
 }
 export interface StageWalk {
-  /** A12 part 4a: `outside`, a stage scored outside the game (bingo, Weekly Calls): an entry for each episode as it airs. */
-  stages: { key: string; leagueId: string; from: number | null; to: number | null; outside?: boolean; entries: { episode: number; over: boolean; rows: StageRow[] }[] }[];
+  /** A12 part 4a: `outside`, a stage scored outside the game (bingo, Weekly Calls): an entry for each episode as it airs. A12 part 4b:
+   *  `season`, the key of the season a stage plays on when it isn't the game's own (its entries that season's episodes, cut at the
+   *  viewer's mark there by the server), and each entry's `at`, when that episode aired (where known). */
+  stages: { key: string; leagueId: string; from: number | null; to: number | null; outside?: boolean; season?: string; entries: { episode: number; at?: string; over: boolean; rows: StageRow[] }[] }[];
 }
 /** A12 part 2: a format change as a stage's trigger (format-timeline.js stageTriggers). */
 export interface StageTrigger {

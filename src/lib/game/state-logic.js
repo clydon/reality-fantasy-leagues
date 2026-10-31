@@ -164,8 +164,10 @@ function spanView(state){
   // A11 part 2b: a game of questions' walk holds for its copy cut at the game's end (nothing it read is after it).
   return state.answerWalk && view !== state ? AnswerLogic.withWalk(view, state.answerWalk) : view;
 }
-// The game is over: its season is (seasonEnded), or its span's last episode has results.
+// The game is over: its season is (seasonEnded), or its span's last episode has results. A12 part 4b: a game in stages with an own
+// stage on another season once every own stage is (StageLogic.overAcross), never at its own season's end.
 function gameOver(state){
+  if(StageLogic.crosses(state)) return StageLogic.overAcross(state);
   if(seasonEnded(state)) return true;
   const end = lastEpisode(state);
   return end !== null && (state.episodes || []).some(e => e.number >= end && EpisodeLogic.hasResults(e));
@@ -4375,17 +4377,28 @@ class DraftLogic {
 // grouping changed (the later of its last episode and the one whose research said so: a side stage carries on while research isn't
 // sure), or its own end. The game's own stages are untouched by it; its copies count in the overall as any stage's, and the game ends
 // with its own last stage. Taken as a format change is (extras.changes), through the same record.
+//
+// A12 part 4b, one game across two shows (a stage's `season`): a stage on another season is a league on that season, its entries that
+// season's episodes, so the walk says which (`season`, its key, on such a stage only) and when each aired (`at`, where known). Nothing
+// is compared across seasons by episode number: a viewer's copy cuts the game's own season's stages at their mark (cutWalk) and the
+// server cuts each other season's at the viewer's mark there (answer-points.ts stageWalk, spoiler-safe: nothing of it without one);
+// the standings read such a stage as the walk has it. A game with an own stage on another season (Spec.crosses) is over once every own
+// stage is (overAcross: never at its own season's end, gameOver), ends on its own season where its last own stage there does (endsAt),
+// and a stage beside it on another season counts what aired by the time the game ended (its entries' `at`).
 class StageLogic {
   static on(state){ return !!state && scorePiece(state) === StagesScoringStrategy; }
   static stages(state){ return StageLogic.on(state) ? gameOf(state).stages : []; }
   static overallOf(state){ const o = gameOf(state).overall; return o && typeof o === 'object' ? o : Spec.OVERALL; }
   static walkOf(state){ return state && state.stageWalk && Array.isArray(state.stageWalk.stages) ? state.stageWalk : null; }
   static withWalk(state, walk){ return walk ? { ...state, stageWalk: walk } : state; }
-  // The walk as a viewer through episode n sees it: each stage's tables through n.
+  // The walk as a viewer through episode n sees it: each stage's tables through n (A12 part 4b: a stage on another season is cut at
+  // the viewer's mark there, by the server: n is the game's own season's).
   static cutWalk(walk, n){
     if(!walk || !Array.isArray(walk.stages) || !Number.isInteger(n)) return walk;
-    return { ...walk, stages: walk.stages.map(st => ({ ...st, entries: (st.entries || []).filter(e => e.episode <= n) })) };
+    return { ...walk, stages: walk.stages.map(st => (st.season ? st : { ...st, entries: (st.entries || []).filter(e => e.episode <= n) })) };
   }
+  // A12 part 4b: an own stage of the game plays on another season.
+  static crosses(state){ return StageLogic.on(state) && Spec.crosses(StageLogic.stages(state)); }
   // Each stage as it stood after the latest episode this copy has results for: { key, name, leagueId, from, to, started, over,
   // rows }, in the spec's order.
   static standings(state){
@@ -4394,26 +4407,44 @@ class StageLogic {
     // A12 part 4a: a stage scored outside the game (its walk says `outside`: bingo, Weekly Calls) counts each episode as it airs,
     // results or not (a talk show's lines and calls are the couch's say).
     const aired = Math.max(latest, ...(state.episodes || []).filter(e => hasAired(e)).map(e => e.number));
-    const row = (st, w, copy, cap) => {
-      const upTo = Math.min(w && w.outside ? aired : latest, cap);
-      const entries = w ? (w.entries || []).filter(e => e.episode <= upTo) : [];
+    // A12 part 4b: a stage on another season as the walk has it (its own season's results, cut at the viewer's mark there); `atCap`,
+    // only what aired by then (a stage beside a game that ended on another season).
+    const row = (st, w, copy, cap, atCap) => {
+      const season = Spec.seasonKey(Spec.stageSeason(st));
+      const upTo = season ? Infinity : Math.min(w && w.outside ? aired : latest, cap);
+      const entries = w ? (w.entries || []).filter(e => e.episode <= upTo && !(atCap !== undefined && e.at && Date.parse(e.at) > atCap)) : [];
       const last = entries.length ? entries[entries.length - 1] : null;
-      return { key: w ? w.key : st.id, stage: st.id, copy, side: !!Spec.stageSide(st), alongside: !!Spec.stageAlongside(st), name: st.name || null, leagueId: w ? w.leagueId : null, from: w ? w.from : null, to: w ? w.to : null, started: !!last, over: !!(last && last.over), rows: last ? last.rows : [] };
+      return { key: w ? w.key : st.id, stage: st.id, copy, side: !!Spec.stageSide(st), alongside: !!Spec.stageAlongside(st), season, name: st.name || null, leagueId: w ? w.leagueId : null, from: w ? w.from : null, to: w ? w.to : null, started: !!last, over: !!(last && last.over), rows: last ? last.rows : [], ...(last && last.at ? { at: last.at } : {}) };
     };
     // A12 part 2: a stage a format change starts is its copies, in the order they start (none until its change comes); A12 part 3: a
     // side stage too (none until a grouping lasts).
-    const rowsOf = (st, cap) => {
-      if(!Spec.stageOn(st) && !Spec.stageSide(st)) return [row(st, walk ? walk.stages.find(x => x.key === st.id) : null, null, cap)];
+    const rowsOf = (st, cap, atCap) => {
+      if(!Spec.stageOn(st) && !Spec.stageSide(st)) return [row(st, walk ? walk.stages.find(x => x.key === st.id) : null, null, cap, atCap)];
       const mine = (walk ? walk.stages : []).filter(x => StageLogic.copyOf(x.key) === st.id).sort((a, b) => (a.from ?? Infinity) - (b.from ?? Infinity));
-      return mine.map((w, i) => row(st, w, i + 1, cap));
+      return mine.map((w, i) => row(st, w, i + 1, cap, atCap));
     };
     const stages = StageLogic.stages(state);
     const own = stages.filter(st => !Spec.isBeside(st)).flatMap(st => rowsOf(st, Infinity));
     // A12 part 4a: once the game's own last stage is over, each stage beside it (side or alongside) counts as it stood there and is
-    // over too (a game that ended early, its race won or one left standing: by places or wins it still counts).
+    // over too (a game that ended early, its race won or one left standing: by places or wins it still counts). A12 part 4b: a game
+    // with an own stage on another season once every own stage is over; a stage beside it on another season (or any, in such a game)
+    // counts what aired by the time the last of them ended.
+    const crossing = Spec.crosses(stages);
     const last = own[own.length - 1];
-    const end = last && last.over && Number.isInteger(last.to) ? last.to : null;
-    const beside = stages.filter(st => Spec.isBeside(st)).flatMap(st => rowsOf(st, end ?? Infinity)).map(x => (end !== null ? { ...x, over: true } : x));
+    const done = crossing ? own.length > 0 && own.every(x => x.over) : !!(last && last.over);
+    // Where the game's own stages on its own season end, once the last of them there is over (part 4b: a stage beside them there plays
+    // inside that, schema.js alongsideSpan).
+    const homes = own.filter(x => !x.season);
+    const lastHome = homes[homes.length - 1];
+    const end = lastHome && lastHome.over && Number.isInteger(lastHome.to) ? lastHome.to : null;
+    // When the game ended, for a stage beside it on another season: the latest of its own stages' last airings, once every one is known
+    // (else, as it stands: Noticed).
+    const ats = own.map(x => (x.at ? Date.parse(x.at) : NaN));
+    const endAt = done && ats.length && ats.every(t => !Number.isNaN(t)) ? Math.max(...ats) : undefined;
+    const beside = stages.filter(st => Spec.isBeside(st)).flatMap(st => {
+      if(!Spec.stageSeason(st)) return rowsOf(st, end ?? Infinity).map(x => ((crossing ? done : end !== null) ? { ...x, over: true } : x));
+      return rowsOf(st, Infinity, endAt).map(x => (done ? { ...x, over: true } : x));
+    });
     return [...own, ...beside];
   }
   // A12 part 2: the stage a copy's key is of (`<stage id>@<change id>`), or null for a stage's own key.
@@ -4644,10 +4675,17 @@ class StageLogic {
   // The episode the game ends with once its last stage is over (where that stage ended: early, if it did), else null.
   static endsAt(state){
     if(!StageLogic.on(state)) return null;
-    // A12 part 3: the game's own last stage (a side stage plays inside it; part 4a: a stage alongside it too).
-    const st = StageLogic.standings(state).filter(x => !x.side && !x.alongside);
+    // A12 part 3: the game's own last stage (a side stage plays inside it; part 4a: a stage alongside it too). A12 part 4b: on its own
+    // season, its last own stage there (gameOver reads overAcross for the rest).
+    const st = StageLogic.standings(state).filter(x => !x.side && !x.alongside && !x.season);
     const last = st[st.length - 1];
     return last && last.over && Number.isInteger(last.to) ? last.to : null;
+  }
+  // A12 part 4b: a game with an own stage on another season is over once every own stage is, as far as this copy has seen (never at
+  // its own season's end: a stage on another season plays on).
+  static overAcross(state){
+    const st = StageLogic.standings(state).filter(x => !x.side && !x.alongside);
+    return st.length > 0 && st.every(x => x.over);
   }
   // Its first stage has started: the game's first episode has results, or has aired. Nobody new joins then (GhostLogic.allowed).
   static started(state){

@@ -72,8 +72,10 @@ stage beside the game's own, a copy of it for each grouping research is sure has
 is sure it changed, its points kept; `side` { held }, `format-timeline.js sideTriggers`, `StageLogic.sidePlan`, through part 2's
 machinery), and part 4 is under way, in parts: 4a, mini-games and two ways of scoring (2026-10-30: a stage of bingo or Weekly Calls, its
 table the server's own counts of each seat's lines or right calls; a season of mini-games one after another; a stage `alongside` the
-game's own, at the same time, bingo lines plus answers added up; `answer-points.ts outsideCounts`, `schema.js stageAlongside`), is built;
-4b (a stage on another show's season) and 4c (late joiners) next. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
+game's own, at the same time, bingo lines plus answers added up; `answer-points.ts outsideCounts`, `schema.js stageAlongside`), is built,
+and so is 4b, one game across two shows (2026-10-30: a stage's `season`, a league on another season checked on that season's rules and
+cut at each viewer's mark there, the game over once its own stages are, never at its season's end; two stages of bingo or of Weekly
+Calls on one season at once refused; `schema.js stageSeason`, `StageLogic.crosses`, `stageWalk`'s viewer); 4c (late joiners) next. **Waiting on the user (A2):** the game-specs flag in production (a Neon branch check from
 your terminal, then on), after the merge. The live-sports plan is
 folded in as track L (2026-10-28): one engine and one plan for shows and sports. Each step is its own session (Opus 5.5 at
 xhigh). Siblings: `docs/PLAN-sports-live.md` (on the `sports` branch: folded in here as track L; its file keeps the details)
@@ -4161,7 +4163,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
       with two shows): built (below).
     - **4b: one game across two shows** (shape.twoShows, s20): a stage league on another season (the season sync, the couch, spoiler
       marks per season, the overall at each viewer's marks), and 4a's Noticed item 5 first (two stages of bingo, or of Weekly Calls, at
-      the same time refused).
+      the same time refused): built (below).
     - **4c: late joiners** (A12 part 1's item 6): someone joining a game in stages once it has started joins the stage in play as its own
       late joiner and every later stage from its start; a seat that left a begun stage and comes back; seats reaching the stages only
       from `withLeagueLock` and `joinLeague`.
@@ -4594,6 +4596,103 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     there, the overall the three added up (the Draft's points alone, since nobody ticks a card or makes a call on the tapes); shape.twoWays:
     Bingo and Who goes home side by side all season, both over at the season's end, the overall
     the answers' points (Survivor 49: the Tinkerer and the Drive-By 2 each). The study doc's "A12 part 4a".
+
+  **As built (A12 part 4b, one game across two shows, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js
+  sync engine` (already up to date; 1197 tests). 4a's Noticed item 5 first, then a stage on another season, each stage a league on its own
+  season. Every default and everything a person sees is the user's (Noticed, below).
+  - **4a's item 5: two stages of bingo, or of Weekly Calls, on one season at the same time are refused** (`schema.js outsideOverlaps`): a
+    card and a call are each person's for the season's episode, not a stage's, so both would count the same lines or calls. A stage beside
+    the game's own (alongside) against any other of the same kind on the same season is refused unless both spans are episodes that don't
+    meet (a phase can't be told until it's known); the game's own one after another never meet; on two seasons they're two cards. A side
+    stage of either is refused too (every copy would read the same card), with why.
+  - **The spec: a stage's `season` { show: the show's id (its slug, a league's settings.showId), number }** (`KEYS.stage`, `KEYS.season`;
+    `stageSeason`, `seasonKey` "<show>/<number>", `sameSeason`, `onSeasons`, `crosses`), the smallest the GPT can write and our check can
+    verify: left out, the game's own season; never the first stage's (the game is made and listed on its first stage's season: the page
+    it's typed on); never the game's own named again (`ctx.season`: "leave season out"). With ctx, the season must be one of `ctx.seasons`
+    (each other season's own ctx, by its key: "the-traitors-us 5 isn't a season set up as a game here" otherwise) and the stage is checked
+    with that season's ctx, so the data-can-settle rule is each stage's own (a Traitors stage scoring Survivor's immunity is refused; a
+    league's own spec, `opts.league`, keeps a stage it was made with when a later write's ctx doesn't carry its season). Episode numbers
+    are each season's own, so nothing is compared across seasons: a stage ends where the next starts only on the same season
+    (`stageGames`), a stage on another season may leave its start out (the lab starts it with the next episode to air there), the
+    one-after-another rule compares each own stage with the one before it on the same season (`prevOnSeason`, in `stagedProblems` and
+    `playsAs` alike, so a stage on another season between two of the game's own doesn't hide an overlap), a stage alongside on another
+    season plays its own span there (never the game's; `alongsideSpan` only on the game's own season), and the game's span is its own
+    stages' on its own season (`fullStaged`). A game on more than one season has no stage a format change starts, no side stage and no
+    'next-stage' (each reads the game's own season's format): refused, with why. Its words (`describe.js`): "A game in two stages for
+    Survivor 51 and The Traitors 5: Survivor, an Outlast ...; then The Traitors on The Traitors 5, a Survival Pool ...", How it works "A
+    stage on The Traitors 5 plays that season's episodes, each counted as you've seen them there; the game ends once its own stages are
+    over, wherever they play." The stage's `season` rides inside settings.stages, so the round trip needs nothing new.
+  - **The engine** (`state-logic.js StageLogic`): the walk says which stages are on another season (`season`, its key) and when each entry
+    aired (`at`, on a game on more than one season). `cutWalk` cuts only the game's own season's stages at the viewer's mark (a stage on
+    another season is cut by the server, at their mark there), and the standings read such a stage as the walk has it (never capped at the
+    game's own season's latest). A game with an own stage on another season (`StageLogic.crosses`) is over once every own stage is
+    (`overAcross`, in `gameOver` ahead of the season's end: Survivor's Sole Survivor doesn't end a game whose Traitors stage plays on;
+    without the walk it's never over, as nothing says the other stage is), ends on its own season where its last own stage there does
+    (`endsAt`, so `lastEpisode` and `spanView` stay on its own season's episodes), and a stage beside it counts as it stood at the game's
+    end: on the game's own season by episode (part 4a's rule, where its own stages there end), on another season by air time (what aired
+    by the latest of the own stages' last airings, once every one is known; else as it stands: Noticed).
+  - **The server.** `answer-points.ts stageWalk(parentId, parent, viewer?)`: each stage league's season (one query) and its schedule (once
+    a season, `seasonSchedules`: the entries' `at`), and a stage on another season cut at the viewer's mark there (`StageViewer`: a
+    person's, `guard.ts seenThrough` on that season; "all", the server's own read; left out, nothing of it: spoiler-safe, a reader that
+    forgot whose read it is shows it not started). `asItStands` passes it on: the Games tab, the reveal and the episodes (`season-games.ts
+    standingHere`, the viewer's), the couch's standings (`couch-hub.ts`, the viewer's), the couch's game list (`couch-joins.ts`, the
+    viewer's, so "ended" says nothing of a stage they haven't seen; "all" when nobody's signed in) and the desk's game list
+    (`desk-games.ts`, "all": a game in stages over as its stages stand). A stage on another season is a league there (its settings'
+    showId and wikiSeason), so the season sync reaches it with nothing new: that season's results reach its stage league and never the
+    game or its other stages, and the game's season's never reach it (`syncSeasonLeagues` picks leagues by their settings' season; the
+    walk reads each stage as it stands); its phase starts settle on its season (`settleSeasonStarts`) and its draft opening at its start
+    counts its exclusive draft from its own season's cast as it opens (the 9:10 PM decision: in the check, 4 of you × 2 outgrew The
+    Traitors' 7 still in, where Survivor's 13 would have fit). `stages.ts mirrorMemberships`: a membership's own mark (a late joiner's
+    week, an episode of the game's own season) is copied only to a stage on the same season.
+  - **The engine lab** (`engine-lab.ts`): `withSeasons` finds each other season a stage names (set up as a game: `seasonByKey`) with the
+    rules a game plays by there on the couch, and hands the check `ctx.season` and `ctx.seasons`; `withStart` starts each stage on another
+    season that doesn't say with the next episode to air there; `makeStages` makes each stage league on its own season (its rulebook,
+    cast, schedule and results, `makeLeague`'s season; its phases settled from that season).
+  - **The couch.** The game is on its own season's lists (its first stage's), each stage league on its own season's as a game of its own
+    (part 1's item 7): the Traitors stage is on The Traitors' Games tab, the game on Survivor's only. Which season shows the game is the
+    user's (Noticed item 1).
+  - **The tracker:** shape.twoShows (an Outlast on Survivor 51, then a Survival Pool on The Traitors 5, by places) and s20 ("One league
+    across Survivor and The Traitors.": a Weekly Lineup on each, by points) play, ✅; a page names the other seasons its stages play on
+    (`page.also`: each with its show's id and rulebook; `capability-rows.ts pageCtx` hands them over as `ctx.seasons`). **189 ✅** · 57 ⏳
+    · 1 🆕 · 3 ❓ · 23 💬, of 273, and `--check`.
+  - **Tests:** `tests/two-shows.test.js` (new, 4): a stage on another season (whole, nothing defaulted across seasons, the game's span its
+    own season's, checked with that season's rules, every problem, one after another per season, an overlap with a stage on another season
+    between, no format change, side stage or 'next-stage', its words, its settings, a stage alongside on another season); 4a's item 5 (two of
+    bingo or of Calls at once refused, with why; different kinds, two seasons, one after another and the game's own fine; a phase that might
+    meet; a side stage of bingo); the engine over two seasons (The Traitors' stage past Survivor's latest, a viewer's cut on Survivor only,
+    the game not over at Survivor's Sole Survivor and over once The Traitors' stage is, by points and places, never over without the walk);
+    a stage beside the game on another season (what aired by the game's end, as it stands with no air time, one on the game's own season
+    by episode in a game across two). `npm test` 1201; `tsc` clean; eslint clean on the server files. `game-specs-flag.js check`: PASS.
+  - **API check:** `scripts/dev-test/check-two-shows.js` (new, on new-fixture.js's couch: ZT Survivor 51 and ZT Traitors 5), 37 PASS:
+    the lab's check passes the game on each season's rules (in words, on each season) and refuses a season that isn't set up and a Traitors
+    stage scoring a Survivor moment; the desk's admin starts it (an Outlast of 2 each on Survivor to 13, then one on The Traitors 5): the
+    game on Survivor's season, its Survivor stage there from 6, its Traitors stage on The Traitors' season with The Traitors' cast (three
+    gone by its 3) from 4, the next to air there; the four join, seated in both; a mark of the game's own copied to its Survivor stage, never
+    The Traitors'; The Traitors' draft counted there and made shared, with its line; Survivor's drafted through the pick route, The
+    Traitors' through the blind lock route; The Traitors' Episode 4 through its own season's sync reaches its stage only, Survivor's 6 the
+    game and its Survivor stage only; on Survivor's Games tab the game's table at each viewer's marks (alex through Survivor 6 following no
+    Traitors: the Survivor stage alone; at The Traitors 4: both added up; riley at The Traitors 2: none of its 4; sam behind at Survivor 3
+    but through The Traitors 4: The Traitors' alone); read with no viewer, nothing of The Traitors'; whole, each stage from its own start;
+    not over; the Traitors stage on The Traitors' Games tab, the game on Survivor's; the flag's check on all three. Also ALL PASS:
+    `check-mini-stages.js`, `check-stages.js`, `check-side-stages.js`, `check-change-stages.js`, `check-next-stage.js`.
+  - **The code review** (`/code-review` at high, before the long runs; ten findings, six taken): a game across two seasons was never over
+    in the desk's list (it reads the stored state: now as its stages stand); a stage beside it was capped by air time even on the game's
+    own season, and too early when only some air times were known (now by episode there, and by time only once every own stage's last
+    airing is known); the couch's game list read every stage whole, so "ended" told someone behind on The Traitors how its stage went (now at
+    their marks); `playsAs` compared only neighbours, so an overlap on the game's own season with a stage on another season between them
+    played (now the one before on the same season, as the check does); air times were stamped per stage (now each season's schedule once);
+    a dead condition in `overAcross`. Left, in Noticed: `lastEpisode` on the game's own season, the tracker's pages naming no show id, the
+    words without a show.
+  - **Golden replays:** `golden.js` (HEAD, A12 part 4a, against the working tree, on the final code): 7 seasons, 160 games, **19,361 reads,
+    every one the same** (no game they play is in stages on two seasons, and none has two stages of bingo or Calls). Against master's
+    (production's engine, `--before=master`): every one the same but R1 part 3's 20 (The Challenge 40's Survival Pool, one seat's pick of a
+    winner at the final), nothing else. A game on two seasons and the refusal change no game that doesn't have them, so the Survivor 51
+    rehearsal isn't run for this part (golden is the proof).
+  - **Blind replays:** (`blind.js run`, the five seasons, on the final code): **every game played through and over on all five seasons**,
+    part 4a's numbers exactly: Survivor 49 126 of 126, The Challenge 41 101 of 101, 40 95 of 95, 39 103 of 103, The Traitors 4 90 of 90;
+    nothing refused; the questions waiting on early results finding 20's 3, 2 and 2. `blind.js` now leaves out a tracker game on more than
+    one season (a replay plays one season, and the other stage's league would be made on a real season beside the tapes' copy):
+    shape.twoShows and s20 are the unit tests' and `check-two-shows.js`'s. The study doc's "A12 part 4b".
 - **A13. Trivia and episode facts.** Trivia questions settled by the episode's trivia key (the bot's trivia research, written
   and checked as now); episode facts (who said the title quote) through new research questions rated reliable (Our check).
 - **A14. The players' own mechanics** (allowed 2026-10-28, with the Decisions table's guardrails): votes among the players,
@@ -5558,6 +5657,50 @@ From R1 part 2 (2026-10-30):
 - **For the hosting notes, at the merge:** `/api/me` (classic's sign-in and every classic load) now sends each league's settings, not its
   whole state (20-40 KB each): less Neon transfer than before. (The main folder: docs/HOSTING.md, with the merge.)
 
+From A12 part 4b (2026-10-30):
+- **For the user, in the format-change design session (after A12), with A12 parts 1's to 4a's items, each with a recommendation (built as
+  spec rules or engine rules):**
+  1. **Which season's lists show a game across two shows.** Built: the game on its own season's (its first stage's), each stage league on
+     its own season's as a game of its own (part 1's item 7): the Traitors stage on The Traitors' Games tab, the game on Survivor's only.
+     Option: the game on both seasons' lists, read at each season's marks. Recommended: both (U1 and track V: the game's page on each, its
+     own season the first stage's, each stage's moves reached from it).
+  2. **The game's span across two seasons.** Built: its span is its own stages' on its own season; it ends once every own stage is over,
+     wherever they play, never at its season's end; on its own season it ends where its last own stage there does. Option: a span said in
+     dates for the game as a whole. Recommended: as built, the game's page saying where each stage plays and when (by date, where the
+     schedules know).
+  3. **The order.** Built: one after another in the spec, and alongside; stages on two seasons may air at the same time even one after
+     another (Survivor's spring season and The Traitors both run January to May), since episode numbers aren't compared across seasons.
+     Recommended: as built, the wizard saying when each stage's season airs (from the schedules) so the maker sees an overlap.
+  4. **The first stage is on the game's own season.** Built: refused otherwise (the game is made and listed where its first stage plays).
+     Option: a game made on one show's page whose first stage is another's ("on The Traitors' page, Survivor first"). Recommended: as
+     built; the GPT makes it from the first stage's show page, or Start a game moves to it.
+  5. **A stage beside the game on another season once the game ends.** Built: what aired by the latest of the own stages' last airings;
+     with an own stage's air time unknown (no schedule), as it stands (it counts on, marked over). Recommended: as built, the fallback
+     said on the game's page.
+  6. **A format change, a side stage or 'next-stage' in a game on two seasons.** Built: refused (each reads the game's own season's
+     format). Option: each reads its own stage's season's format (change-stages per season). Recommended: refused until a request asks.
+  7. **Spoiler marks per season.** Built: a stage on another season at the viewer's mark there; read with no viewer, nothing of it; the
+     couch's list says "ended" at the viewer's marks. Recommended: keep; the game's page says "you're behind on The Traitors" (track V).
+  8. **A stage on another season that never starts** (its season ends before its start, or never airs): the game never ends (it waits on
+     every own stage). Option: over once that stage's season is over, its stage counting nothing. Recommended: that, a small engine rule
+     (the walk carries whether a stage's league is over), in 4c or the next part that touches the end.
+- **Backstage's Game settings and the phase-start settle call `gameOver` on the stored state** (`backstage-games.ts spanState`,
+  `phase-starts.ts`): a game across two seasons is never over there (safe: nothing is decided from it; the desk's list now reads it as its
+  stages stand). (U1, with Game settings for games in stages: read it as it stands, "all".)
+- **`lastEpisode` and `spanView` on a game across two seasons stay on its own season** (where its last own stage there ends): a reader that
+  takes `lastEpisode` as the game's end (a span's text, "plays through") would say it ended at Survivor 13 while The Traitors' stage plays;
+  `gameOver` reads `overAcross`. (U1 and track V: the game's page words, where each stage plays.)
+- **The tracker's pages name no show id**, so `pageCtx` can't set `ctx.season`: a row whose stage names its page's own season is told the
+  season isn't set up, not "leave it out" (the lab says it right: `withSeasons`). (G1, with the context pack: give a page its show id.)
+- **Without a show, the words don't name the other season up front** ("A game in two stages: ...; then The Traitors on The Traitors 5,
+  ..."), and without that season's rules a stage says "on season 5 of the-traitors-us". (U0, with the wizard's words.)
+- **`stageWalk` on a game across two seasons** adds a query for the stages' seasons, each season's schedule once and, for a viewer, their
+  mark on each other season. (The merge: a line in HOSTING.md beside part 1's.)
+- **The blind replays don't play a game across two shows** (`blind.js` replays one season at a time; it leaves out a tracker game on more
+  than one season, saying so): shape.twoShows and s20 are proven by `tests/two-shows.test.js` and `check-two-shows.js`. (P5, if the
+  playtests ever replay two seasons side by side.)
+- **4a's item 5 is built** (two stages of bingo, or of Weekly Calls, on one season at the same time refused, and a side stage of either).
+
 From A12 part 4a (2026-10-30):
 - **For the user, in the format-change design session (after A12), with A12 parts 1's to 3's items, each with a recommendation (built as
   spec rules or engine rules):**
@@ -5581,7 +5724,7 @@ From A12 part 4a (2026-10-30):
   5. **Two stages of bingo (or of Weekly Calls) at the same time in one game** count the same lines twice: a card is each person's for the
      season's episode, not the stage's, so both stages read the same card. Built: allowed (nothing refuses it). Recommended: our check
      refuses two stages of the same kind scored outside the game whose spans can overlap (a stage alongside, or the game's own and one
-     alongside), with why; a small schema rule, first in part 4b.
+     alongside), with why; a small schema rule, first in part 4b. **Built: A12 part 4b** (on one season; a side stage of either too).
   6. **What players and the maker are told.** Built: the words above; each stage a game on the couch's lists (part 1's item 7). Recommended:
      the game's page shows the stages side by side where they play at the same time (track V's stages block).
 - **Weekly Bingo's and Weekly Calls' own tables say over only by the schedule's episode count** (`leagueBingo`, `leagueCalls`:

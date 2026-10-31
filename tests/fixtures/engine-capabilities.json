@@ -2118,7 +2118,16 @@
         {
           "id": "shape.twoShows",
           "what": "One game across two shows",
-          "step": "A12"
+          "step": "A12",
+          "spec": {
+            "stages": [
+              { "id": "survivor", "name": "Survivor", "game": { "preset": "outlast", "get": { "by": "draft", "each": 2, "order": "snake", "own": "exclusive" } } },
+              { "id": "traitors", "name": "The Traitors", "season": { "show": "the-traitors-us", "number": 5 }, "game": { "preset": "survival-pool" } }
+            ],
+            "overall": { "by": "places" }
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor", "also": [{ "id": "the-traitors-us", "show": "The Traitors", "season": 5, "rulebook": "traitors" }] },
+          "note": "a stage on another show's season (A12 part 4b): an Outlast on Survivor 51, then a Survival Pool on The Traitors 5, each a league on its own season, by places"
         },
         {
           "id": "shape.keepers",
@@ -2960,13 +2969,22 @@
       "page": {
         "show": "Survivor",
         "season": 51,
-        "rulebook": "survivor"
+        "rulebook": "survivor",
+        "also": [{ "id": "the-traitors-us", "show": "The Traitors", "season": 5, "rulebook": "traitors" }]
       },
       "words": "One league across Survivor and The Traitors.",
       "step": "A12",
       "dials": [
         "shape"
-      ]
+      ],
+      "spec": {
+        "stages": [
+          { "id": "survivor", "name": "Survivor", "game": { "preset": "weekly-lineup" } },
+          { "id": "traitors", "name": "The Traitors", "season": { "show": "the-traitors-us", "number": 5 }, "game": { "preset": "weekly-lineup" } }
+        ],
+        "overall": { "by": "points" }
+      },
+      "note": "a game across two shows (A12 part 4b): a Weekly Lineup on Survivor 51, then one on The Traitors 5, each scored on its own season and added up"
     },
     {
       "id": "s21",
