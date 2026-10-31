@@ -5,8 +5,9 @@ is headed", then today's games recreated on it, then the UI last; the GPT's word
 and S2 (both parts, 2026-10-28) are built and merged into master** (their As built is under track S); the test couch plays
 them next (the user's, in production). **Merged and live in production (2026-10-30):** A1–A11 part 5b with F1–F4 (9:29 AM,
 `df527fe6`, migrations 0200–0202), then A11 part 5c, A12 part 1 and R1 parts 1–2 (2:59 PM, `46b77bba`, migration 0203), and
-**the game-specs flag is on** (R2, 2:39 PM: every league carries its spec); later parts stay on `engine` until the main folder
-merges them, after each lettered step. A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
+**the game-specs flag is on** (R2, 2:39 PM: every league carries its spec), then the rest of A12 (parts 2–4c) and R1 part 3
+(2026-10-31, 12:31 AM, `075d193e`, no migration); later parts (A13 on) stay on `engine` until the main folder merges them, after each
+lettered step. A1–A4 are built on `engine` (A4 in two parts: the engine and storage, then the Prediction Sheet's screens, built before
 the screens moved to U1), merged and live since 2026-10-30 (above).
 A5 to A9 built on `engine` (2026-10-28: the tracker and the engine lab; questions about who and about each; time; more
 answers; scoring that combines, per question and points per bingo line, then per lineup: a captain, best ball, Outlast in
@@ -477,7 +478,7 @@ teams read the format's state rather than guess it), the engine track does the f
   for each change, what that episode's research said, where, and whether the engine could act on it. Written up as its own
   doc for the user.
 
-  **As built (F1, 2026-10-28, on `engine`, not merged; no migration, no engine change).** One session, after `lane.js sync
+  **As built (F1, 2026-10-28, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration, no engine change).** One session, after `lane.js sync
   engine` (already up to date; 906 tests).
   - **The doc:** [STUDY-format-changes.md](STUDY-format-changes.md), for the user: how it was made, nine findings, each
     season's changes and what research said, the proposals for F2 (the change vocabulary, the format state's shape, the
@@ -527,7 +528,7 @@ teams read the format's state rather than guess it), the engine track does the f
   it took effect, and how sure. Proven by asking recorded episodes again with it, through the local bot only, and scoring the
   answers against F1's timelines, as the bingo check was proven.
 
-  **As built (F2, 2026-10-29, on `engine`, not merged; no migration, no engine change; the vocabulary, the state's shape and
+  **As built (F2, 2026-10-29, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration, no engine change; the vocabulary, the state's shape and
   the prompt section are the user's to approve at F2's merge, as the study says).** One session, after `lane.js sync engine`
   (already up to date; 919 tests).
   - **The section** (`db/episode-research.js`; its vocabulary, loose read, checks and our comparison in the new
@@ -609,7 +610,7 @@ teams read the format's state rather than guess it), the engine track does the f
   episode's state with the one before (our code, not the bot's labels), what reads it (A6's choices, A10's slots per group,
   A11's teams, A12's stages and triggers) and each piece's fallback. A corrected report works out everything after it again.
 
-  **As built (F3 part 1, 2026-10-29, on `engine`, not merged; no migration; the engine's games don't read it yet).** One
+  **As built (F3 part 1, 2026-10-29, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration; the engine's games don't read it yet).** One
   session, after `lane.js sync engine` (already up to date; 932 tests). Two parts: this one the state over time, its readers
   and `newGroup`; the second (next) newcomers into the cast and research, the timeline from the database and what reads it
   first, with a zt- fixture.
@@ -708,7 +709,7 @@ teams read the format's state rather than guess it), the engine track does the f
     reached a cut-down ask (gone: the schema keeps `newGroup`); the scorer crashed on an episode the fixture lacks; the test
     stubbed the embeddings after the module had bound them. Declined: none.
 
-  **As built (F3 part 2, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  **As built (F3 part 2, 2026-10-29, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (already
   up to date; 947 tests). Where the engine first reads the state, and newcomers.
   - **The season's timeline from the database** (`db/format-timeline.js`, new): `seasonFormatTimeline` builds it from the
     season's stored combined research (one query, `REPORTS`: each answer's format section, `merged`, and the names of who it
@@ -816,7 +817,7 @@ teams read the format's state rather than guess it), the engine track does the f
 - **F4. Blind replays:** a taped season replayed as if live (above), every game the tracker says it plays, The Challenge's
   seasons first.
 
-  **As built (F4, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already up to
+  **As built (F4, 2026-10-29, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (already up to
   date; 956 tests). The local bot didn't answer during the step (no reply after 210 s, the recorder's asks too, from 07:15 UTC),
   so nothing was asked of it: the replays run on what's on tape.
   - **The Challenge 39 loaded** (`tapes.js load the-challenge 39`, no bot) and its fixture moved to the tapes' cast names (190
@@ -1128,7 +1129,7 @@ in `PLAN-researched-survivor.md`'s "What the switch needs", with this plan's dec
   rules (with the user's OK). Then `survivor.js`'s code half, `BUILT_IN_READERS` and legacy freezing go, and Traitors' and the
   Challenge's built-ins with them once nothing plays them.
 
-**S1 as built (2026-10-27, `survivor-data`, not merged; no migration).** Survivor's blocks, compiled with no base and the generic
+**S1 as built (2026-10-27, `survivor-data`; merged and live 2026-10-28, `eb1e19f0`; no migration).** Survivor's blocks, compiled with no base and the generic
 reader (`compileRulebook(blocks, { aliases, reader: 'research' })`), now give `survivor.js`'s events, questions and rules.
 - **The refinements** (`rulebook-schema.js`; each optional, and leaving one out is what the blocks always did):
   - a segment's `groupWin: 'won'`: a group's win counts as winning it, so one moment scores on either answer and both are asked
@@ -1197,7 +1198,7 @@ reader (`compileRulebook(blocks, { aliases, reader: 'research' })`), now give `s
 - **The desk editor has no controls for the refinements or the research block.** They're kept through edits and dropped when an
   edit makes one not fit, but nobody can set them by hand. (The desk-parity plan, or after S2.)
 
-**S2 part 1 as built (2026-10-28, `survivor-data`, not merged; no migration).** Research's review is the rulebook's data:
+**S2 part 1 as built (2026-10-28, `survivor-data`; merged and live 2026-10-28, `eb1e19f0`; no migration).** Research's review is the rulebook's data:
 Survivor's blocks with the generic reader review research exactly as `survivor.js`'s code half does (its problems, its
 repairs, its notes and sentences), and so can any show's.
 - **`src/lib/game/formats/research-review.js`** (new, browser-safe): the words and the checks, their runner and their
@@ -1275,7 +1276,7 @@ repairs, its notes and sentences), and so can any show's.
 - The desk editor has no controls for the research block's words or checks (S1's noticed item, now bigger). (The desk-parity
   plan.)
 
-**S2 part 2 as built (2026-10-28, `survivor-data`, not merged; no migration).** No shared code names Survivor's, The
+**S2 part 2 as built (2026-10-28, `survivor-data`; merged and live 2026-10-28, `eb1e19f0`; no migration).** No shared code names Survivor's, The
 Traitors' or The Challenge's ids any more: what the computer players and the Safety ranking read is data, stored answers are
 matched by the rulebook that asked them, and a new Survivor season's rulebook is Survivor's blocks compiled, never frozen.
 Nothing scores differently on any league today, and the computer players choose exactly as before.
@@ -1380,7 +1381,7 @@ Nothing scores differently on any league today, and the computer players choose 
   - `specProblems`, with the data-can-settle rule in it.
   - Tests: every league in the local copy round-trips, and the three examples are fixtures.
 
-  **As built (A1, 2026-10-27, on `engine`, not merged; no migration, no engine change).** `src/lib/game/game-spec/`, plain
+  **As built (A1, 2026-10-27, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration, no engine change).** `src/lib/game/game-spec/`, plain
   CommonJS like `formats/` so `state-logic.js` can require it in A2 (types in `index.d.ts`):
   - **`schema.js`**: the schema with every field. `VOCAB` says who builds each value: `now` (today's engine), `A3`, `A4`,
     `sports` (marked as the branch's: `get.by` squares, `count.best`, `score.by` stats, `rank` matchups / categories / roto,
@@ -1435,7 +1436,7 @@ Nothing scores differently on any league today, and the computer players choose 
     check: every league scores the same with it on, on the local copy and on a Neon branch of production (from the user's
     terminal). Then it goes on in production, with the user's OK.
 
-  **As built (A2, 2026-10-28, on `engine`, not merged; no migration).** One session.
+  **As built (A2, 2026-10-28, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session.
   - **The engine reads specs.** `StateLogic.gameOf(state)` is the game a league plays: game-spec's `gameOf(settings)`, its
     carried `settings.game` while that's whole, a game plays it and nothing's wrong with it as a league's own (checked once
     per spec, since a league's spec is replaced, never changed in place), else `specOf(settings)` (read only; the points
@@ -1521,7 +1522,7 @@ Nothing scores differently on any league today, and the computer players choose 
   on the desk), never in a league's state, so a phase start needs a server write to settle it and its own engine, fields, Start
   a game and Game settings work. Part 1 is everything with an episode number. Part 2 is the phase start, designed below.
 
-  **As built (A3 part 1, 2026-10-28, on `engine`, not merged; no migration).** One session.
+  **As built (A3 part 1, 2026-10-28, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session.
   - **Starts on Start a game** (`start-game.ts`, `start-game.tsx` `Starts`): "With the next one · Episode 6" (when it airs)
     or Later, any listed episode after it, from a list by date ("Episode 9 · Sat, Nov 21"), with "It waits for Episode 9:
     nothing before it counts, and the draft can happen any time before then." Choosing one reads the options again from there
@@ -1607,7 +1608,7 @@ Nothing scores differently on any league today, and the computer players choose 
     settling it, a correction moving it, a clear sending it back, the season sync settling one the desk walk missed, and the
     flag's check over a waiting and a settled league.
 
-  **As built (A3 part 2, 2026-10-28, on `engine`, not merged; no migration).** One session, as decided above. Master merged in
+  **As built (A3 part 2, 2026-10-28, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, as decided above. Master merged in
   first (`lane.js sync engine`: the playtest lane's docs, `scripts/lane.js` and `keep-awake.ps1`); 781 then.
   - **The spec** (`schema.js`): `span.from` is an episode or `{ phase, at? }`; `spanStart(span)` is the episode it plays from
     (null while it waits) and `spanPhase(span)` its phase. `specProblems`: the phase named, `at` 1 or more, `to` from `at` on
@@ -1697,7 +1698,7 @@ Nothing scores differently on any league today, and the computer players choose 
   answering and results, designed with impeccable at 390 first, finale predictions in the new design, and starting a game
   of questions.
 
-  **As built (A4 part 1, 2026-10-28, on `engine`, not merged; migration 0200).** One session. Master hadn't moved since A3
+  **As built (A4 part 1, 2026-10-28, on `engine`; merged and live 2026-10-30, `df527fe6`; migration 0200).** One session. Master hadn't moved since A3
   part 2's merge (783 tests then).
   - **The question** (`schema.js`): `{ id, ask, answer, points, settle, asked, closes, pick?, from?, line?, options? }`.
     - `asked`: `once` (the default) or `each` episode the game plays.
@@ -1842,7 +1843,7 @@ Nothing scores differently on any league today, and the computer players choose 
       and Backstage's view of it.
     - The home's due moves for it.
 
-  **As built (A4 part 2, 2026-10-28, on `engine`, not merged; no migration).** Built before the hardened plan moved
+  **As built (A4 part 2, 2026-10-28, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** Built before the hardened plan moved
   answering and results on screen to the UI track (U1): U1 takes these screens as built. One session. Master hadn't moved since A4 part 1
   (791 tests then).
   - **Designed first** (impeccable `shape`, at 390, in the Lower Third system; the session loop can't ask, so the brief's
@@ -1956,7 +1957,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   paste a spec or pick a tracker request: it shows the validator's verdict (`specProblems`, `specWaitsFor`), the sentence and How
   it works (`describeSpec`), the tracker row's status, and "Start it as a test game" on a zt- fixture or the test couch. G1 plugs
   the GPT into it later (words, the draft, our check, the spec), so every piece can be tried as it lands, long before U.
-  **As built (A5, 2026-10-28, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` brought this
+  **As built (A5, 2026-10-28, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` brought this
   plan in (877 tests then).
   - **The tracker:** `tests/fixtures/engine-capabilities.json`, kept by hand. Its rows:
     - the nine dials' values (91);
@@ -2048,7 +2049,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   asked of each person still in, an answer per person ("each couple's score"), counting as one of the 12; a person's number
   from research (`judgesScore`) for number and over/under answers.
 
-  **As built (A6, 2026-10-28, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` brought in
+  **As built (A6, 2026-10-28, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` brought in
   master's desk-parity and bingo work (882 tests then).
   - **What research records, mapped first.**
     - A moment reaches a league as a scoring event on a person (`{ type, castawayId, units? }`). A per-unit moment carries
@@ -2139,7 +2140,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
 - **A7. Time.** Windows instead of only "each episode" or "once": every N episodes, within N, by phase; which episode something
   happens in (settled by phases and results); a person's own lock time when they watch late (spoiler-safe).
 
-  **As built (A7, 2026-10-28, on `engine`, not merged; no migration).** The same session as A6, after its commit.
+  **As built (A7, 2026-10-28, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** The same session as A6, after its commit.
   - **Windows** (`schema.js`): a question is asked `once`, `each` episode (and with `over: N`, about that episode and the next
     N - 1: "within the next three"), `every` N episodes (`every: N`, each run of N from the game's first), or once a `phase`.
     An answer is for its window: the episode it opens at (`game_answers.episode`; 0 asked once), and it closes as that episode
@@ -2212,7 +2213,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
 - **A8. More answers.** An order (the boot order, a leaderboard), confidence (a ranking with weights), spreading chips, a wager,
   pairs (who outlasts whom), a vote split (5-2-1).
 
-  **As built (A8, 2026-10-28, on `engine`, not merged; no migration).** The same session as A6 and A7, after A7's commit (paused
+  **As built (A8, 2026-10-28, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** The same session as A6 and A7, after A7's commit (paused
   once by the usage limit during its code review, and picked up after).
   - **Answers** (`schema.js`):
     - `order`: `pick` people in order (2 to 24, a whole cast's boot order), its points for each in its place, or within
@@ -2298,7 +2299,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   finale counting double) is a multiplier by when, part 2's, since it's the same dial for a lineup ("double in the finale").
   A15 moves the same `late` from episodes to the runtime.
 
-  **As built (A9 part 1, 2026-10-28, on `engine`, not merged; migration 0201).** One session, after `lane.js sync engine`
+  **As built (A9 part 1, 2026-10-28, on `engine`; merged and live 2026-10-30, `df527fe6`; migration 0201).** One session, after `lane.js sync engine`
   brought in master's desk-parity plan and the lanes' keeper (893 tests then).
   - **A question's ways of combining** (`schema.js`; a wager plays alone, as A8 has it):
     - `share: 'split'`: its points are a pot for each window, split between everyone right, by what each would have earned (a
@@ -2383,7 +2384,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     - Declined: one read of the answers for a POST with a wager of any of your points. The stake is checked against the
       answers before the write, and the response reads them after it.
 
-  **As built (A9 part 2, 2026-10-28, on `engine`, not merged; no migration).** One session, after `lane.js sync engine`
+  **As built (A9 part 2, 2026-10-28, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine`
   brought in master's format-foundation plan (898 tests then). Every part is off unless a spec says it, and none adds a default
   to a stored spec (`fullSpec`), so today's leagues and the nine carried specs read exactly as before.
   - **A captain** (`score.captain: { times }`, on a game scored by moments with a lineup: `count.start`): one of your starters you
@@ -2520,7 +2521,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   person through a seat-to-account map that keeps one, the change log treating a co-owner's move as someone else's, and leaving a
   seat, a session of its own.
 
-  **As built (A10 part 1, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  **As built (A10 part 1, 2026-10-29, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (already
   up to date; 964 tests).
   - **The spec** (`schema.js`): a draft's `get.groups`, `{ slots, own, swap, fallback, points }`, beside a draft scored by
     moments (a lineup or best ball: what a group scores is what its people do; Outlast, a pick or no draft refuse it). `slots` 1
@@ -2622,7 +2623,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     `ctx.pool` check having no caller (Noticed: G1's context pack and the lab). After it, by hand: the replay's habit could put
     the group a seat's other slot rides with into its second slot (fixed in `blind.js`), and its header.
 
-  **As built (A10 part 2, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  **As built (A10 part 2, 2026-10-29, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (already
   up to date; 974 tests). A pool's pieces, each riding on data with its fallback from the start; every default the user's
   (Noticed, below).
   - **The spec** (`schema.js`): a Survival Pool's `score` takes `lives` (1 to `MAX_LIVES`, 5: a wrong pick, or none, costs one;
@@ -2714,7 +2715,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
   3b, a draft's prices (an auction with a budget, a salary cap whose prices follow the data, buying and selling each week: s03,
   s04, s22, answer.bid, answer.trade), next, before part 4.
 
-  **As built (A10 part 3, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  **As built (A10 part 3, 2026-10-29, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (already
   up to date; 985 tests). A draft spread across the cast's groups and a draw, each riding on data with its fallbacks from the
   start; every default the user's (Noticed, below).
   - **The spec** (`schema.js`): a draft's `get.across`, `{ of: group | gender, then: keep }`, beside any draft (a snake, a blind
@@ -2816,7 +2817,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     draft order and then shuffled anyway (now the rotation); owned ids by hand beside `Core.ownedCastawayIds`; the count counting
     an empty group. Partly: `ctx.poolGroups` has no caller (Noticed, with part 1's `ctx.pool`). Not taken here: the classic draft
     board and grid that read shared as blind (U1's screens, Noticed).
-  **As built (A10 part 3b, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
+  **As built (A10 part 3b, 2026-10-29, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (master's
   48 commits: the desk's read-only games met A4's question sheets and A3's phase starts in five files, both kept; 1019 tests). A
   draft's prices, each riding on data with its fallbacks from the start; every default the user's (Noticed, below). Buying and
   selling each week was split off as part 3c (it builds on these prices: cash a sale refills, what someone gone home is worth,
@@ -2936,7 +2937,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     budget or what each spent. Not taken: nothing. After it, by hand: `golden.js` failing a season that made no game, and the API
     check's two cross-kind withdrawals.
 
-  **As built (A10 part 3c, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
+  **As built (A10 part 3c, 2026-10-29, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (master's
   64 files, its migration 0431 applied to the lane's database with `npm run migrate`; 1041 tests). Buying and selling each week, a
   stock market, on part 3b's prices, each piece riding on data with its fallback from the start; every default the user's
   (Noticed, below).
@@ -3034,7 +3035,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     free-agency move working out prices twice (now once, a free-agency move recording what it read); the 'cash' pass's words
     starting with who it was, as the others do; the rank message naming worth. Not taken, as screens (Noticed, for U1): the
     classic Standings card, Scoreboard, player page, season results card and the reveal ranking by points.
-  **As built (A10 part 4, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
+  **As built (A10 part 4, 2026-10-29, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (master's
   ten files: the corrections fold, no migration; 1049 tests). Keepers across seasons; a team two people share split off as part 4b
   (above). Each piece rides on data with its fallback from the start; every default the user's (Noticed, below).
   - **The spec** (`schema.js`): a draft's `get.keep`, `{ each, from, cost, fallback }`: a game that continues `from` (the couch's
@@ -3116,7 +3117,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     reads while keepers are open (Noticed, cost). Part 3c's optional item 3 (a shared market straight to free agency) wasn't taken:
     it goes with part 4b or U1.
 
-  **As built (A10 part 4b, 2026-10-29, on `engine`, not merged; migration 0202).** One session, after `lane.js sync engine` (master's
+  **As built (A10 part 4b, 2026-10-29, on `engine`; merged and live 2026-10-30, `df527fe6`; migration 0202).** One session, after `lane.js sync engine` (master's
   view-as, one conflict in `show-space.ts` kept both sides; 1055 tests). A team two people share, the last of A10. Each piece rides
   on data with its fallback from the start; every default and everything a person sees is the user's (Noticed, below).
   - **The spec** (`schema.js`): `extras.seats`, `{ people }`: how many accounts can hold one seat, 2 to `MAX_SEAT_PEOPLE` (4); `{}`
@@ -3260,7 +3261,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     5c built (2026-10-30), in one session, no 5d:** teams that follow the show's own groups refused (they don't fit as a team of
     players: below, with the recommendation for A12), and the late joiners' leftovers, every one. A11 is done.
 
-  **As built (A11 part 1, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
+  **As built (A11 part 1, 2026-10-29, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (master's
   desk fixes: a season matched, a group corrected; 1064 tests). A race and players knocked out, in a draft. Each piece rides on data
   with its fallback from the start; every default and everything a person sees is the user's (Noticed, below).
   - **The spec** (`schema.js`): `rank.race`, `{ to }` (1 to `MAX_RACE`, 1000 points): the first there wins, and the game ends after
@@ -3359,7 +3360,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     "A11 part 1: a race and knockouts, replayed blind". The golden replays ran again on the final code: 160 games, 19,361 reads,
     every one the same; `check-knockouts.js` ALL PASS again.
 
-  **As built (A11 part 2, 2026-10-29, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  **As built (A11 part 2, 2026-10-29, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (already
   current; 1076 tests). **Split** (above): the game of questions' race and knockouts (s48) are part 2b, since a game of questions is
   scored on the server from `game_answers`, so its walk is over the graded answers on every server read and its end has to reach
   a state that doesn't hold them: with the pool's pieces, more than a session. Part 2 is the pool's (w047), and last one standing's
@@ -3434,7 +3435,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     sent everyone left out together and nobody ran out of people to pick: the unit tests and the API check prove those. The study
     doc's "A11 part 2: a pool's knockouts, replayed blind".
 
-  **As built (A11 part 2b, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
+  **As built (A11 part 2b, 2026-10-30, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (master's
   edits to the words corpus carried into the tracker's fixture, where A5 moved it; 1085 tests). A game of questions' race and
   knockouts (s48, "Guess every elimination winner; a wrong guess knocks you out"). Every default and everything a person sees is the
   user's (Noticed, below).
@@ -3538,7 +3539,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     So one life among four seats ends it at once: item 5's `allOut` 'back' would have kept it going. The study doc's "A11 part 2b:
     a game of questions' knockouts, replayed blind".
 
-  **As built (A11 part 3, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
+  **As built (A11 part 3, 2026-10-30, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (master's
   lane-watch.js; 1093 tests). Co-op against the show (win.coop, s37 "Co-op: together we have 5 lives; every faithful banished we
   didn't see coming costs one"). Every default and everything a person sees is the user's (Noticed, below).
   - **The spec** (`schema.js`): `rank.by 'coop'`, a game of questions the couch plays together against the show, on its lives
@@ -3627,7 +3628,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     and 8 off: no Faithful banished; 2 and 5 saved). Four seats rarely call a boot, so three shared lives go fast: items 1 and 6 are
     the user's. The study doc's "A11 part 3: co-op against the show, replayed blind".
 
-  **As built (A11 part 4, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (master's
+  **As built (A11 part 4, 2026-10-30, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (master's
   lane-watch.js; 1099 tests). Head to head, with playoffs (win.h2h), a draft's. **Split** (above): a game of questions' head to head
   is part 4b. Every default and everything a person sees is the user's (Noticed, below).
   - **The spec** (`schema.js`): `rank.by 'matchups'` now plays on a show (VOCAB `now`; categories and roto stay the sports
@@ -3735,7 +3736,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     nothing after the finale plays now (a unit test), and Noticed item 12 is the user's. The study doc's "A11 part 4: head to head,
     replayed blind".
 
-  **As built (A11 part 4b, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  **As built (A11 part 4b, 2026-10-30, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (already
   up to date; 1109 tests). Head to head on a game of questions (part 4's matchups, its episodes' points from the answers). Every
   default and everything a person sees is the user's (Noticed, below).
   - **The spec** (`schema.js`): `matchupParts` now reads a game of questions ranked `matchups` as well as a draft (`questionsGame`,
@@ -3826,7 +3827,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     questions head to head (above); win.h2h, a draft's, played as part 4's did, the same records, seeds and champions on all five (the
     week after the finale now skipped changes nothing there: on The Challenge the playoffs sat on the reunion, on The Traitors 4 the
     regular season ended before its finale). The study doc's "A11 part 4b: head to head on a game of questions, replayed blind".
-  **As built (A11 part 5, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  **As built (A11 part 5, 2026-10-30, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (already
   up to date; 1115 tests). Teams of players (who.teams). **Split** (above, as the seed allowed): handicaps (who.handicap, s19), teams
   that follow the show's own groups and the late joiners' leftovers are part 5b. Every default and everything a person sees is the
   user's (Noticed, below).
@@ -3948,7 +3949,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     and the fan 31.5 to 17.5, The Traitors 4 the tinkerer and the drive-by 41.5 to 23; level at the premiere on 39 and The Traitors 4
     (both teams T1). Nothing in teams reads the show's format, so The Challenge's re-pairings reach it only through each member's
     lineup. The study doc's "A11 part 5: teams of players, replayed blind".
-  **As built (A11 part 5b, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  **As built (A11 part 5b, 2026-10-30, on `engine`; merged and live 2026-10-30, `df527fe6`; no migration).** One session, after `lane.js sync engine` (already
   up to date; 1124 tests). Handicaps (who.handicap, s19). **Split again** (A11's bullet, as the seed allowed): teams that follow the
   show's own groups and the late joiners' leftovers are part 5c. Every default and everything a person sees is the user's (Noticed,
   below).
@@ -4053,7 +4054,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     49's tinkerer, 106 on their own, still first). On The Challenge, where a lineup's season is -9 to 27 points, the handicap decides
     the game (Noticed item 8). The study doc's "A11 part 5b: handicaps, replayed blind".
 
-  **As built (A11 part 5c, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already
+  **As built (A11 part 5c, 2026-10-30, on `engine`; merged and live 2026-10-30, `46b77bba`; no migration).** One session, after `lane.js sync engine` (already
   up to date; 1130 tests). Teams that follow the show's own groups, refused; and the late joiners' leftovers. Not split (the seed's
   5d wasn't needed: the refusal is small). Every default and everything a person sees is the user's (Noticed, below).
   - **Teams that follow the show's own groups: refused** (`schema.js`: `rank.teams.made` 'group' is out of VOCAB, so the manual never
@@ -4178,7 +4179,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
       late joiner and every later stage from its start; a seat that left a begun stage and comes back; seats reaching the stages only
       from `withLeagueLock` and `joinLeague`: built (below), with part 4b's item 8. **A12 is done.**
 
-  **As built (A12 part 1, 2026-10-30, on `engine`, not merged; migration 0203).** One session, after `lane.js sync engine` (master's
+  **As built (A12 part 1, 2026-10-30, on `engine`; merged and live 2026-10-30, `46b77bba`; migration 0203).** One session, after `lane.js sync engine` (master's
   daylight-saving fixes and handoff; 1141 tests). A game in stages, on episodes and phases, with its overall. Every default and
   everything a person sees is the user's (Noticed, below).
   - **The shape: a stage is a league of its own.** A stage that's bingo one week and a draft the next, two ways of scoring at once and
@@ -4282,7 +4283,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     by points, the Tinkerer 45 + 64 = 109; s39 by stages won, one each for the Fan and the Tinkerer). The season's halves (shape.episodes)
     played on all five. The study doc's "A12 part 1: stages, replayed blind".
 
-  **As built (A12 part 2, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine` (already up to
+  **As built (A12 part 2, 2026-10-30, on `engine`; merged and live 2026-10-31, `075d193e`; no migration).** One session, after `lane.js sync engine` (already up to
   date; 1156 tests; `season-forward.js` not on master yet, so R1's line stands). A stage a format change starts: a copy of it, a league of
   its own, each time research is sure the format changed that way, by itself or with the maker's OK, taken away when the report is
   corrected. The 'next-stage' fallbacks split off as part 2b. Every default and everything a person sees is the user's (Noticed, below).
@@ -4383,7 +4384,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     research); The Challenge 39 eleven (ten of one episode, 6 to 15, then the split from 16); Survivor 49 three (the swaps, each at an
     episode's start and so from the next, 5 and 7, then the merge from 8, its later drafts shared as 4 × 3 no longer fit who was left);
     The Traitors 4 none (no major change: its first stage plays the season). The study doc's "A12 part 2".
-  **As built (A12 part 2b, the 'next-stage' fallbacks, 2026-10-30, on `engine`, not merged; no migration).** The same session as R1
+  **As built (A12 part 2b, the 'next-stage' fallbacks, 2026-10-30, on `engine`; merged and live 2026-10-31, `075d193e`; no migration).** The same session as R1
   part 3, after it. A stage whose group question or group slots can't be played as the groups stand ends there, and the game's next
   stage starts, through part 2's machinery. Every default and everything a person sees is the user's (Noticed, below).
   - **The shape (decided):** 'next-stage' is a stage's, in a game in stages with a stage after it (`schema.js nextStageAts`, `fallsTo`):
@@ -4446,7 +4447,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     (the split at 15's end), 41 not in the season (the split at the final, held unsure at 19, sure at 20's research: from 21), The
     Traitors 4 never (no groups); the re-pairings and re-draws move nothing. The study doc's "A12 part 2b".
 
-  **As built (A12 part 3, when a grouping lasts, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync
+  **As built (A12 part 3, when a grouping lasts, 2026-10-30, on `engine`; merged and live 2026-10-31, `075d193e`; no migration).** One session, after `lane.js sync
   engine` (master's plan edits only; 1187 tests). A side stage: a copy of it beside the game's own stages for each grouping research is
   sure has held N episodes and goes on, from the episode after, until research is sure the grouping changed, its points kept. Every
   default and everything a person sees is the user's (Noticed, below).
@@ -4534,7 +4535,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     4 and 5: from 6, the second swap at 6's start, so just 6; the merged tribe is no grouping); The Traitors 4 none (never in groups).
     Every side draft's 4 × 2 fitted who was left as it opened (exclusive). The study doc's "A12 part 3".
 
-  **As built (A12 part 4a, mini-games and two ways of scoring, 2026-10-30, on `engine`, not merged; no migration).** One session, after
+  **As built (A12 part 4a, mini-games and two ways of scoring, 2026-10-30, on `engine`; merged and live 2026-10-31, `075d193e`; no migration).** One session, after
   `lane.js sync engine` (already up to date; 1192 tests). Part 4 split in three (above): this part is the stages scored outside the game
   and the stages at the same time; two shows (4b) and late joiners (4c) next. Every default and everything a person sees is the user's
   (Noticed, below).
@@ -4607,7 +4608,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     Bingo and Who goes home side by side all season, both over at the season's end, the overall
     the answers' points (Survivor 49: the Tinkerer and the Drive-By 2 each). The study doc's "A12 part 4a".
 
-  **As built (A12 part 4b, one game across two shows, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js
+  **As built (A12 part 4b, one game across two shows, 2026-10-30, on `engine`; merged and live 2026-10-31, `075d193e`; no migration).** One session, after `lane.js
   sync engine` (already up to date; 1197 tests). 4a's Noticed item 5 first, then a stage on another season, each stage a league on its own
   season. Every default and everything a person sees is the user's (Noticed, below).
   - **4a's item 5: two stages of bingo, or of Weekly Calls, on one season at the same time are refused** (`schema.js outsideOverlaps`): a
@@ -4704,7 +4705,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     one season (a replay plays one season, and the other stage's league would be made on a real season beside the tapes' copy):
     shape.twoShows and s20 are the unit tests' and `check-two-shows.js`'s. The study doc's "A12 part 4b".
 
-  **As built (A12 part 4c, late joiners, 2026-10-30, on `engine`, not merged; no migration).** One session, after `lane.js sync engine`
+  **As built (A12 part 4c, late joiners, 2026-10-30, on `engine`; merged and live 2026-10-31, `075d193e`; no migration).** One session, after `lane.js sync engine`
   (master's Games tab insight; 1202 tests). Someone joining a game in stages once it has started joins each stage underway as that
   stage's own late joiner, live, and every stage still to start from its start; a seat that left and comes back is the same seat in every
   stage; seats reach the stages after every membership write; and part 4b's item 8. Every default and everything a person sees is the
@@ -4938,7 +4939,7 @@ since A8); and a zt- fixture played through the engine's own API, no screens. Ea
     the query whole). Kept, said here: the two moves each taking the states map (each chooses its own games, as before; the map covers
     every game with a season, the only ones either ever made a move for); a desk search by the stored type's ids (R3's, above).
 
-  **As built (R1 part 3, a pool's finale, 2026-10-30, on `engine`, not merged; no migration).** One session, with A12 part 2b after it,
+  **As built (R1 part 3, a pool's finale, 2026-10-30, on `engine`; merged and live 2026-10-31, `075d193e`; no migration).** One session, with A12 part 2b after it,
   after `lane.js sync engine` (master's R1 merge, the season-forward rehearsal and the decision; 1177 tests).
   - **The rule** (the Decisions table, "A pool's finale": only the winner survives the finale): one reading of a night for every game,
     `state-logic.js nightOf(state, ep)` { gone, won }: the exits its results record as going home and as winning (each winner's, on a show
@@ -5720,6 +5721,7 @@ From R1 part 3 (2026-10-30):
 - **For the main folder: it changes Survivor 51's Survival Pool on Dec 16** (the 3:35 PM note): a pick on the Sole Survivor at the finale
   scores. It goes out in a main-folder merge before then, never on a Wednesday; the rehearsal's and golden's numbers are in the As built.
   (The main folder, at the next merge.)
+  **Done:** merged and live 2026-10-31, 12:31 AM (`075d193e`), before the finale.
 - **For the user: telling the players.** How it works for a pool says "everyone picks one castaway to stay in each episode" and says
   nothing of the finale. Recommended: a line ("At the finale, only the winner survives it: a pick on a finalist who loses is out"), in
   How it works and on the pool's finale lock, before Dec 16; What's New stays paused (the user's). (U0's words, or whoever next touches
