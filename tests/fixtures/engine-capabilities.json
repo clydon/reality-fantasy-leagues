@@ -1210,6 +1210,19 @@
           }
         },
         {
+          "id": "settle.trivia",
+          "what": "The episode's trivia key (the bot's trivia research)",
+          "step": "A13",
+          "spec": {
+            "get": { "by": "none" },
+            "score": { "by": "answers" },
+            "rank": { "by": "total" },
+            "ask": [ { "id": "trivia", "ask": "Trivia about the episode before", "answer": "trivia", "points": 1, "asked": "each", "settle": { "by": "trivia" } } ]
+          },
+          "page": { "show": "Survivor", "season": 51, "rulebook": "survivor" },
+          "note": "the round before each episode, from the batch the bot's trivia research wrote and checked after the one before it (A13 part 1): a point for each one right, void with no key"
+        },
+        {
           "id": "settle.phase",
           "what": "A phase of the season (the merge happened)",
           "step": "A7",
@@ -2204,7 +2217,14 @@
         "score",
         "what"
       ],
-      "note": "A13 trivia questions; its bingo half plays since A12 part 4a (a stage of bingo at 5 points a line, A9's, with a stage of trivia alongside it, the game's two ways of scoring added up in the overall: shape.twoWays), its trivia half A13's"
+      "spec": {
+        "stages": [
+          { "id": "bingo", "name": "Bingo", "game": { "preset": "weekly-bingo", "span": { "from": 1 }, "score": { "by": "lines", "points": 5 } } },
+          { "id": "trivia", "name": "Trivia", "alongside": true, "game": { "get": { "by": "none" }, "score": { "by": "answers" }, "rank": { "by": "total" }, "ask": [ { "id": "trivia", "ask": "Trivia about the episode before", "answer": "trivia", "points": 1, "asked": "each", "settle": { "by": "trivia" } } ] } }
+        ],
+        "overall": { "by": "points" }
+      },
+      "note": "a stage of bingo at 5 points a line (A9's points per line, A12 part 4a's stage of bingo) with a stage of trivia alongside it (A13 part 1: the round before each episode from the bot's trivia research, a point for each one right), the game's two ways of scoring added up in the overall (shape.twoWays)"
     },
     {
       "id": "p2",

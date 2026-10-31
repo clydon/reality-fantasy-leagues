@@ -779,7 +779,10 @@ async function runJob(pool, job, { ask, send = null, dry = false } = {}) {
       const result = { live, questions, dropped: parsed.dropped };
       const line = `${live} of ${questions.length + parsed.dropped.length} trivia question(s) passed their checks`;
       if (dry) return finish(live > 0, `${line} (dry run: not filed)`, result);
-      await Trivia.storeTrivia(pool, season.id, episode, questions, runId);
+      // A13: once the episode after it has aired, the batch is the key of a game's trivia round that has locked: added to, never
+      // replaced, so that round keeps what it was graded on.
+      const next = episodeAirTimes(season).find((e) => e.episode === episode + 1);
+      await Trivia.storeTrivia(pool, season.id, episode, questions, runId, { keep: !!next && next.at.getTime() <= Date.now() });
       // None passing is a failed try, asked again (a new batch replaces this one).
       return finish(live > 0, line, result);
     }

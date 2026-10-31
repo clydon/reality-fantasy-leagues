@@ -9,8 +9,8 @@ A row plays now when its spec passes the validator (`specProblems`, with what it
 needs waits (`specWaitsFor`); it then says the game in the engine's own words (`describeSpec`). A show the tracker has no
 rules for is checked against a show of its kind, and says so.
 
-**Now:** 189 ✅ · 57 ⏳ · 1 🆕 · 3 ❓ · 23 💬, of 273.
-**Waiting, by step:** A13 4 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
+**Now:** 191 ✅ · 56 ⏳ · 1 🆕 · 3 ❓ · 23 💬, of 274.
+**Waiting, by step:** A13 3 · A14 14 · A15 15 · L3 7 · L4 13 · G1 4.
 
 ## The dials
 
@@ -76,6 +76,7 @@ Every watch-along game is a setting on these dials (the plan's "Where the engine
 | ✅ | The results (who went home, who won) | A game for Survivor 51: everyone answers two questions before each episode: who goes home and who wins, all season. Points for each right answer. |
 | ✅ | A moment research answers | A game for Survivor 51: everyone answers one question before each episode: an idol played, all season. A point for each right answer. |
 | ✅ | The show's calls (Weekly Calls) | A Weekly Calls for Survivor 51: two calls before every episode, all season. Most right by the finale wins. |
+| ✅ | The episode's trivia key (the bot's trivia research) | A game for Survivor 51: everyone answers one question before each episode: trivia about the episode before, all season. A point for each right answer. |
 | ✅ | A phase of the season (the merge happened) | A game for Survivor 51: everyone answers one question before each episode: will the merge happen within the next two, all season. A point for each right answer. |
 | ⏳ | Episode facts (the title quote) | A13 |
 | ⏳ | The group's own answers (match the majority) | A14 |
@@ -164,7 +165,7 @@ The plan's worked examples, as people would type them on a show's page.
 
 | | Id | On the page of | They type | Dials | Plays as, or needs |
 |---|---|---|---|---|---|
-| ⏳ | p1 | Survivor 51 | bingo cards and trivia every episode, bingo lines are worth 5 points, correct trivia questions earn one point | shape, score, what | A13: A13 trivia questions; its bingo half plays since A12 part 4a (a stage of bingo at 5 points a line, A9's, with a stage of trivia alongside it, the game's two ways of scoring added up in the overall: shape.twoWays), its trivia half A13's |
+| ✅ | p1 | Survivor 51 | bingo cards and trivia every episode, bingo lines are worth 5 points, correct trivia questions earn one point | shape, score, what | A game in two stages for Survivor 51: Bingo, a Weekly Bingo: a new bingo card every episode, all season. 5 points a line; most points by the finale wins; and beside it, Trivia, a game: everyone answers one question before each episode: trivia about the episode before, all season. A point for each right answer. Overall, each stage's points add up. |
 | ⏳ | p2 | baseball: Red Sox–Yankees series | a homer draft: everyone picks 3 players they think gets a home run | settle | L3: a shared draft, 3 each, scored by stats |
 | ✅ | p3 | Survivor 51 | each week you must correctly predict the tribe winner and who goes home | what | A game for Survivor 51: everyone answers two questions before each episode: which tribe wins immunity and who goes home, all season. Points for each right answer. |
 | ✅ | p4 | Survivor 51 | a single episode game where we must predict different things, most correct wins | when, what | A game for Survivor 51: everyone answers three questions before Episode 6: who goes home, an idol played and how many idols get played this episode. Points for each right answer. |

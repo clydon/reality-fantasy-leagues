@@ -190,8 +190,10 @@ const VOCAB = {
   'ask.answer': {
     person: 'now', group: 'now', yesNo: 'now', number: 'now', overUnder: 'now', choice: 'now', calls: 'now',
     order: 'now', confidence: 'now', chips: 'now', split: 'now', pairs: 'now', side: 'sports',
+    // A13: the episode's trivia, settled by its key (the bot's trivia research).
+    trivia: 'now',
   },
-  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', final: 'sports', stat: 'sports' },
+  'ask.settle': { results: 'now', moment: 'now', role: 'now', phase: 'now', points: 'now', calls: 'now', trivia: 'now', final: 'sports', stat: 'sports' },
   'ask.asked': { once: 'now', each: 'now', every: 'now', phase: 'now' },
   'ask.closes': { start: 'now', finale: 'now' },
   'ask.from': { cast: 'now', team: 'now' },
@@ -292,6 +294,18 @@ const VOCAB = {
 //             split       a vote split, numbers ("5-2-1"): right when it's the split exactly
 //             pairs       `pairs` pairs drawn from who's in at the game's start (the same every time), { "a|b" (the pair's
 //                         ids, sorted): castawayId }: who outlasts whom, its points for each pair right
+//           A13:
+//             trivia      the round before each episode, from the episode's trivia key (the bot's trivia research, db/trivia-
+//                         research.js: a few questions about the episode before it and the season so far, written a day before
+//                         this one airs and checked by a second ask; trivia_questions, those that passed, less any pulled by two
+//                         flags or an admin's): answered { [trivia question id]: one of its options }, its points for each
+//                         one right. Asked each episode, closing as it starts, its window's answers about the episode before
+//                         it (the batch written after that one), so nobody answers what they haven't seen; graded once its
+//                         episode has results, as every question asked each episode is. Its fallback is void, from the start:
+//                         a round with no key (research wrote none: the premiere, a run that failed) doesn't count either way,
+//                         and neither does a question pulled after it was asked, or an answer naming none of the key's
+//                         questions (the batch was written again after it was answered). The server reads the key
+//                         (answer-points.ts, facts.trivia), never the state
 //   wager   (A8) a yes or no, a choice, an over/under, or one person or group: stake up to `wager` of your points on it,
 //           { answer, stake }: right, its points and the stake; wrong, the stake lost. A9: 'total', any of your points (the
 //           game's, as they stand for you when you answer: "bet any of your points, double or nothing")
@@ -349,6 +363,7 @@ const VOCAB = {
 //               { by: 'points', take: most | order } each person's points in it by the game's rules (their moments at the
 //               rulebook's points): who scored most, the leaderboard
 //             { by: 'calls' } (Call it's)
+//             { by: 'trivia' } (A13: the episode's trivia key; a trivia answer only)
 //           sports: { by: 'final', take: winner | total | margin } | { by: 'stat', stat, take: most | least | value }
 const TAKES = {
   results: ['winner', 'out', 'placed', 'top', 'stays', 'order', 'split', 'outlast'],
@@ -357,6 +372,7 @@ const TAKES = {
   phase: ['starts', 'happened'],
   points: ['most', 'order'],
   calls: [],
+  trivia: [],
   final: ['winner', 'total', 'margin'],
   stat: ['most', 'least', 'value'],
 };
@@ -382,6 +398,7 @@ const SETTLES_FOR = {
   overUnder: [...NUMBERS, 'moment:first'],
   choice: null,
   calls: ['calls:'],
+  trivia: ['trivia:'],
 };
 /** A window's most episodes (asked every N; over N). */
 const MAX_WINDOW = 10;
@@ -898,6 +915,10 @@ function finaleOf(ask) {
 }
 /** Weekly Calls' question (the show's calls). */
 const isCalls = (q) => isObj(q) && q.answer === 'calls';
+/** A13: a question answered from the episode's trivia key. */
+const isTrivia = (q) => isObj(q) && q.answer === 'trivia';
+/** The settles that settle themselves, with no take: the show's calls, the episode's trivia key (A13). */
+const NO_TAKE = ['calls', 'trivia'];
 /** An ask that's exactly the show's calls (Weekly Calls). */
 const callsAsk = (ask) => Array.isArray(ask) && ask.length === 1 && sameValue(ask[0], CALLS);
 
@@ -1706,7 +1727,7 @@ function questionProblems(q, at, s, ids, league) {
   else ids.add(q.id);
   if (typeof q.ask !== 'string' || !q.ask.trim()) add('ask', 'A question asks something');
   else if (q.ask.length > 200) add('ask', 'A question is 200 characters at most');
-  if (!one('ask.answer', q.answer)) add('answer', 'The answer is a person, group, side, yesNo, number, overUnder, choice, calls, order, confidence, chips, split or pairs');
+  if (!one('ask.answer', q.answer)) add('answer', 'The answer is a person, group, side, yesNo, number, overUnder, choice, calls, order, confidence, chips, split, pairs or trivia');
   if (!(isNum(q.points) && q.points >= 0 && (league || q.points <= MAX_QUESTION_POINTS))) add('points', `A right answer is worth 0 to ${MAX_QUESTION_POINTS}`);
   if (!one('ask.asked', q.asked)) add('asked', 'A question is asked once, each episode, every few episodes, or once a phase');
   // A7's windows: every N episodes (asked every), over the next N (asked each).
@@ -1721,19 +1742,20 @@ function questionProblems(q, at, s, ids, league) {
   else if (q.closes === 'finale' && q.asked !== 'once') add('closes', 'Only a question asked once waits for the finale: one asked each episode closes as it starts');
   const st = isObj(q.settle) ? q.settle : {};
   let settled = false;
-  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, phase, points, calls, final or stat');
-  else if (st.by === 'calls') {
-    if (st.take !== undefined) add('settle.take', 'The calls settle themselves: no take');
+  if (!one('ask.settle', st.by)) add('settle', 'Data settles every question: results, moment, role, phase, points, calls, trivia, final or stat');
+  else if (NO_TAKE.includes(st.by)) {
+    if (st.take !== undefined) add('settle.take', st.by === 'calls' ? 'The calls settle themselves: no take' : 'The trivia key settles it: no take');
     else settled = true;
   } else if (!TAKES[st.by].includes(st.take)) add('settle.take', `${st.by} takes ${TAKES[st.by].join(', ')}`);
   else settled = true;
-  const how = `${st.by}:${st.by === 'calls' ? '' : st.take}`;
+  const how = `${st.by}:${NO_TAKE.includes(st.by) ? '' : st.take}`;
   // A question about each person is graded for each of them: their own answer kind and settle (below).
   const each = q.each !== undefined;
   if (settled && !each && one('ask.answer', q.answer) && SETTLES_FOR[q.answer] && !SETTLES_FOR[q.answer].includes(how)) {
-    add('settle', `A ${q.answer} answer isn't graded by ${st.by}${st.by === 'calls' ? '' : ` ${st.take}`}`);
+    add('settle', `A ${q.answer} answer isn't graded by ${st.by}${NO_TAKE.includes(st.by) ? '' : ` ${st.take}`}`);
   }
   if (q.answer !== 'calls' && st.by === 'calls') add('answer', "Only the show's calls are settled as calls");
+  if (q.answer !== 'trivia' && st.by === 'trivia') add('answer', "Only trivia is settled by the episode's trivia key");
   if (st.by === 'moment' && (typeof st.moment !== 'string' || !st.moment)) add('settle.moment', 'Which moment settles it');
   if (st.moment !== undefined && st.by !== 'moment') add('settle.moment', 'Only a moment settles by a moment');
   if (st.by === 'role' && (typeof st.role !== 'string' || !st.role)) add('settle.role', 'Which role settles it');
@@ -1832,6 +1854,12 @@ function questionProblems(q, at, s, ids, league) {
     else if (yesNo && !opts.every((o) => YES_NO.includes(o.trim().toLowerCase()))) add('options', 'Whether it happened is Yes or No');
     else if ((how === 'moment:count' || how === 'role:count') && !opts.every((o) => optionRange(o))) add('options', 'A count\'s options are numbers or ranges: "0", "1-2", "3+"');
   } else if (q.options !== undefined) add('options', 'Only a choice has options');
+  // A13: the episode's trivia, a round before every episode about the one before it, its answers' window that episode's (the batch
+  // written after the one before), closing as it starts: so nobody answers what they haven't seen, and it's graded with the rest.
+  if (q.answer === 'trivia') {
+    if (q.asked !== 'each' || q.over !== undefined) add('asked', 'Trivia is a round before each episode, about the one before it: ask it each episode');
+    if (q.wager !== undefined) add('wager', 'Trivia is a few questions: nothing to stake on one answer');
+  }
   // The show's calls: Weekly Calls' one question.
   if (q.answer === 'calls') {
     if (!(isObj(s.get) && s.get.by === 'none' && isObj(s.score) && s.score.by === 'answers' && s.ask.length === 1)) add('', "The show's calls are a game of their own: nothing held, scored by them alone");
@@ -2617,6 +2645,9 @@ function settleProblems(s, ctx, opts) {
     }
     // A talk show's calls are what the couch says happened: its word, which only a league's own keeps (Weekly Calls).
     if (st.by === 'calls' && ctx.calls === 'couch' && !opts.league) out.push([`ask[${i}].settle`, "The show's calls are settled by the couch's word here, not its results"]);
+    // A13: the trivia key is the season's research's (its trivia run, on in our usual): a season whose research writes none
+    // (ctx.trivia false: the desk switched its trivia run off) has nothing to settle it. Unsaid, it's written.
+    if (st.by === 'trivia' && ctx.trivia === false) out.push([`ask[${i}].settle`, "This season's research writes no trivia, so nothing settles it"]);
   });
   return out;
 }
@@ -2925,7 +2956,7 @@ module.exports = {
   HANDICAP, MAX_HANDICAP, handicapParts,
   REPLACE_RULES, WINDOW_SCHEDULES, WAIVER_FEELS, WAIVER_ORDERS, WAIVER_HOURS, DRAFT_TIMERS, MAX_BET_POINTS, JOINS, ORDER_OF,
   MAX_TEAM, MAX_STARTERS, MAX_BENCH, MAX_LINEUP_TEAM, MAX_QUESTIONS, MAX_PICK, MAX_QUESTION_POINTS, MAX_OPTIONS, YES_NO,
-  CALLS, finaleQuestions, finaleOf, isCalls, callsAsk, fullQuestion, optionRange, playable,
+  CALLS, finaleQuestions, finaleOf, isCalls, isTrivia, callsAsk, fullQuestion, optionRange, playable,
   fullSpec, typeOf, playsAs, flagsOf, sizesOf, specProblems, specWaitsFor, waiversFit, finaleFits, betsFit, countKind, presetOf, sameValue, own,
   spanStart, spanPhase, spanEnd, spanEndPhase, phaseTo,
   MAX_STAGES, MAX_STAGE_NAME, MAX_PLACES, OVERALL, STAGE_KINDS, stageGames, stagesOverlap,

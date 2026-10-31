@@ -10,6 +10,7 @@ import { LEAGUE_SEASON_JOIN } from "./league-season";
 import { latestAired, seasonSchedules } from "./schedule";
 import { seasonFactsFor } from "./season-stats";
 import { seasonHeaders, type SeasonHeader } from "./show-space";
+import { heldFromSheet, TRIVIA_PULLED } from "./trivia-key";
 
 // Trivia (docs/PLAN-new-design.md step 12 part 3; migrations 0130 trivia_plays, 0140 trivia_questions; the questions are trivia.ts's):
 //   GET  /api/seasons/[id]/trivia?couch=   the round on the season's show: three questions, your score once you've played, and
@@ -28,7 +29,8 @@ import { seasonHeaders, type SeasonHeader } from "./show-space";
 // season so far, and a second ask checks them) are asked first, each once you've seen the episode it's about. A batch written in
 // the last week about where you are is a round of its own (`round` '<season>:<made_after>', played once), so a show that airs
 // most nights has one before each episode; otherwise the week's round asks the researched ones you haven't been asked, and the
-// facts' questions fill what's left.
+// facts' questions fill what's left. A13: a batch that's the key of a game's trivia round you play is held back from you here until
+// that round has locked (trivia-key.ts heldFromSheet): this sheet shows each answer as it's tapped.
 
 export interface TriviaRound {
   showId: string;
@@ -132,8 +134,7 @@ async function researchedFor(user: SessionUser, subjects: Subject[], yours = fal
        FROM trivia_questions q
       WHERE q.season_id = ANY($1::uuid[]) AND q.status = 'live'
         AND ($3 OR NOT EXISTS (SELECT 1 FROM trivia_flags f WHERE f.question_id = q.id AND f.user_id = $2))
-        AND NOT EXISTS (SELECT 1 FROM trivia_flags f JOIN "user" u ON u.id = f.user_id WHERE f.question_id = q.id AND u.role = 'admin')
-        AND (SELECT count(*) FROM trivia_flags f WHERE f.question_id = q.id) < 2`,
+        AND NOT ${TRIVIA_PULLED}`,
     [subjects.map((p) => p.season.seasonId), user.id, yours]
   );
   const through = new Map(subjects.map((p) => [p.season.seasonId, p.through]));
@@ -240,7 +241,9 @@ async function roundFor(user: SessionUser, showId: string, couchId: string | nul
   const couch = await scopeOf(user, couchId);
   const week = weekOf(now);
   const [{ seasons, subjects }, past] = await Promise.all([subjectsOf(user, showId, couchId, now), pastOf(user, showId)]);
-  const researched = await researchedFor(user, subjects, grading);
+  // A13: less any batch a game of yours asks as its trivia round, until that round has locked.
+  const [written, held] = await Promise.all([researchedFor(user, subjects, grading), heldFromSheet(user.id, subjects.map((p) => p.season.seasonId), now)]);
+  const researched = written.filter((q) => !held(q.seasonId, q.madeAfter));
   const batch = batchOf(researched, subjects, now);
   const round = batch ? `${batch.seasonId}:${batch.madeAfter}` : "";
   const [{ rows: plays }, { rows: theirs }] = await Promise.all([

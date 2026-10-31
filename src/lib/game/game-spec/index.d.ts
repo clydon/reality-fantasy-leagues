@@ -184,6 +184,8 @@ export type SpecSettle =
   | { by: "role"; role: string; take: "who" | "end" | "count" }
   /** The show's calls (Call it's: calls.ts), Weekly Calls' one question. */
   | { by: "calls" }
+  /** A13: the episode's trivia key (the bot's trivia research), a trivia answer's. */
+  | { by: "trivia" }
   /** sports */
   | { by: "final"; take: "winner" | "total" | "margin" }
   /** sports */
@@ -195,8 +197,8 @@ export interface SpecQuestion {
   id: string;
   ask: string;
   /** group: a tribe or team (A6). order, confidence, chips, split, pairs (A8). side: sports. calls: the show's calls (Weekly
-   *  Calls'). */
-  answer: "person" | "group" | "side" | "yesNo" | "number" | "overUnder" | "choice" | "calls" | "order" | "confidence" | "chips" | "split" | "pairs";
+   *  Calls'). trivia (A13): the round before each episode, from its trivia key, answered { [trivia question id]: option }. */
+  answer: "person" | "group" | "side" | "yesNo" | "number" | "overUnder" | "choice" | "calls" | "order" | "confidence" | "chips" | "split" | "pairs" | "trivia";
   /** A8: an order scores each one within this many places of right (0: exactly). */
   within?: number;
   /** A8: a chips answer's chips to spread. */
@@ -284,6 +286,24 @@ export interface AnswerFacts {
   /** F3 part 2: the groups a group question asked each episode reads from the format's state over time, by episode, on a
    *  season played in groups the league doesn't hold (format-timeline.js groupFacts). */
   formatGroups?: Map<number, FormatGroups>;
+  /** A13: the trivia key of the round before each episode (the batch written after the one before it), by episode: the server's
+   *  (answer-points.ts triviaKeyFor). A round with none has no entry; no map at all, a trivia question waits. */
+  trivia?: Map<number, TriviaKeyItem[]>;
+}
+/** A13: one question of a round's trivia key (trivia_questions, live and not pulled): what the grader reads (id, answer) and what
+ *  the round shows (the rest). */
+export interface TriviaKeyItem {
+  id: string;
+  answer: string;
+  /** The season the batch is on (trivia_questions.season_id). */
+  seasonId: string;
+  /** The episode it's about (never later than the one before the round's), its kind and words, its options in order. */
+  episode: number;
+  kind: "cast" | "number" | "text";
+  question: string;
+  options: string[];
+  why: string | null;
+  source: string | null;
 }
 /** One episode's groups from the format's state over time (F3 part 2): those offered at its lock (going into it), each person's,
  *  whether that was sure, and once it has a report, how it was played (sure, and the offered groups that played it as offered). */
@@ -457,6 +477,8 @@ export interface SpecContext {
   grouped?: boolean;
   /** false when no jury decides the finale: no jury vote split (A8). */
   jury?: boolean;
+  /** A13: false when the season's research writes no trivia (its trivia run off): no trivia question. Left out: it's written. */
+  trivia?: boolean;
   /** A10 part 1: how many can be drafted where the game drafts, and how many people are on its couch: an exclusive draft has to
    *  cover every pick (covers), else it's shared. Either left out: not counted. */
   pool?: number;
@@ -524,6 +546,8 @@ export const NUMBERS: readonly string[];
 /** A question about each person (A6), by its answer: what settles it for each of them ("by:take"). */
 export const EACH_SETTLES_FOR: Partial<Record<SpecQuestion["answer"], string[]>>;
 export function isCalls(q: unknown): boolean;
+/** A13: a question answered from the episode's trivia key. */
+export function isTrivia(q: unknown): boolean;
 export function callsAsk(ask: unknown): boolean;
 export function fullQuestion(q: SpecQuestion): Question;
 /** A choice option as the range a count falls in ("2", "3+", "0-1"), else null. */

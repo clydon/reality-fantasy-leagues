@@ -27,6 +27,10 @@
 //     formatGroups  (F3 part 2) Map episode -> the groups a group question asked each episode reads from the format's state over
 //                   time, on a season played in pairs the league doesn't hold (format-timeline.js groupFacts: offered at the
 //                   lock, each person's, whether that was sure, and how the episode was played); the server's, never the state's
+//     trivia        (A13) Map episode -> the trivia key of the round before it: [{ id, answer }] (and what the server shows of
+//                   each), the questions the bot's trivia research wrote after the episode before and a second ask passed, less
+//                   any pulled (two flags, or an admin's); a round with none has no entry. The server's (answer-points.ts
+//                   triviaKeyFor), never the state's: without it, a trivia question waits
 //   }
 //   and each episode's `points` (A8): each person's points in it by the game's rules, once its full results are in
 //
@@ -295,10 +299,28 @@ function overWindow(q, w, facts) {
   return m.who.length ? known(m.who, m.best) : off(NOBODY);
 }
 
+/**
+ * A13: the round of trivia before an episode, by its key (facts.trivia: the batch written after the episode before). Graded once
+ * its episode has results as far as the viewer has seen (it locked as that episode started, so nothing changes after), each of the
+ * key's questions its own verdict, by id, as a question about each person's are. Its fallback is void: a round with no key (the
+ * premiere's, a run that wrote nothing, every question pulled) is off, no points either way. No key read at all (a reader that
+ * isn't the server's): waiting.
+ */
+function triviaVerdict(episode, facts) {
+  if (!facts.episodes.has(episode)) return WAITING;
+  if (!(facts.trivia instanceof Map)) return WAITING;
+  const key = facts.trivia.get(episode) || [];
+  if (!key.length) return off("There was no trivia for it: it doesn't count either way");
+  const each = {};
+  for (const t of key) each[t.id] = known([t.answer]);
+  return { state: 'known', right: [], each };
+}
+
 /** How a question stands for the window it opens at `episode` (asked each, every N or by phase) or the game (asked once;
  *  `episode` ignored). */
 function verdictOf(q, episode, facts) {
   const st = q && q.settle;
+  if (st && st.by === 'trivia') return triviaVerdict(episode, facts);
   if (!st || !['results', 'moment', 'role', 'phase', 'points'].includes(st.by)) return WAITING; // the sports branch's settles, and the calls
   if (q.each) return eachVerdict(q, episode, facts);
   if (st.by === 'results' && st.take === 'outlast') return pairsVerdict(q, facts);
@@ -340,8 +362,11 @@ function onTimeline(q, v, fg, facts) {
   return { ...v, groups: groups.filter((g) => fg.played.held.has(g)), held };
 }
 
-/** Whether an answer is void (A6 on F3): a group answer whose every pick is a group that didn't play the episode as offered. */
+/** Whether an answer is void (A6 on F3): a group answer whose every pick is a group that didn't play the episode as offered. A13:
+ *  a trivia answer naming none of the key's questions (the batch was written again after it was answered, or every one it named
+ *  was pulled). */
 function voided(q, v, a) {
+  if (q.answer === 'trivia') return !!v && isObj(v.each) && !triviaNamed(v, a).length;
   if (q.answer !== 'group' || !v || !Array.isArray(v.held)) return false;
   const mine = picks(q, a);
   return mine.length > 0 && mine.every((x) => !v.held.includes(x));
@@ -459,6 +484,11 @@ function eachVerdict(q, episode, facts) {
   return { state: 'known', right: [], each };
 }
 
+/** A13: the key's questions a trivia answer ({ id: option }) named, by id. */
+const triviaNamed = (v, a) => (isObj(a) ? Object.keys(v.each).filter((id) => Object.prototype.hasOwnProperty.call(a, id)) : []);
+/** A13: how many of a trivia answer's questions are right (exactly one of its options, the key's). */
+const triviaRight = (v, a) => triviaNamed(v, a).filter((id) => a[id] === v.each[id].right[0]).length;
+
 /** A number the verdict is about (a count), else null. */
 const valueOf = (v) => (v && v.state === 'known' && isNum(v.value) ? v.value : null);
 
@@ -550,6 +580,16 @@ const MORE = ['order', 'confidence', 'chips', 'split'];
 function pointsFor(q, v, answers, facts) {
   const out = new Map();
   if (!v || v.state !== 'known') return out;
+  // A13: trivia, its points for each of the key's questions answered right.
+  if (q.answer === 'trivia') {
+    if (!isObj(v.each)) return out;
+    const pts = isNum(q.points) ? q.points : 0;
+    for (const a of answers) {
+      const n = triviaRight(v, a.answer);
+      if (n) out.set(a.playerId, (out.get(a.playerId) || 0) + n * pts);
+    }
+    return out;
+  }
   if (q.each || q.answer === 'pairs') {
     if (!isObj(v.each)) return out;
     const base = baseOf(q);
@@ -606,6 +646,8 @@ function isRight(q, v, mine, answers, facts) {
   if (!v || v.state !== 'known') return null;
   // A void answer (A6 on F3: a group that didn't play the episode as it was offered) is neither right nor wrong.
   if (voided(q, v, q.wager ? (betOf(q, mine.answer) || {}).answer : mine.answer)) return null;
+  // A13: trivia is right when any of its questions are (a life rides on getting one).
+  if (q.answer === 'trivia') return isObj(v.each) && triviaRight(v, mine.answer) > 0;
   if (q.each || q.answer === 'pairs') {
     if (!isObj(v.each) || !isObj(mine.answer)) return false;
     const base = baseOf(q);
@@ -769,6 +811,14 @@ function answerProblem(q, value, faces, o) {
       // { "a|b": who outlasts } (the pair's two ids, sorted), `faces` each pair's "a|b:id" for each one in it.
       if (!isObj(value) || !Object.keys(value).length) return 'Who outlasts whom: { pair: who }';
       if (faces && Object.entries(value).some(([k, id]) => !faces.has(`${k}:${id}`))) return 'Name one of the pair';
+      return null;
+    }
+    case 'trivia': {
+      // A13: { [trivia question id]: one of its options }, `faces` each of the round's questions' "id:option" (none: no round yet).
+      if (!isObj(value) || !Object.keys(value).length) return 'Answer one of its questions: { question: option }';
+      if (Object.values(value).some((o) => typeof o !== 'string' || !o)) return 'Each answer is one of its options';
+      if (faces && !faces.size) return 'There are no trivia questions for this round';
+      if (faces && Object.entries(value).some(([id, o]) => !faces.has(`${id}:${o}`))) return "Answer this round's questions, each with one of its options";
       return null;
     }
     default: return "This question isn't answered here";

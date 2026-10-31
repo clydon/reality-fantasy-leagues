@@ -1293,6 +1293,27 @@ for the games the tracker plays; the late joiners themselves are `tests/late-sta
 - **Part 4b's item 8** (a stage on another season that never starts no longer keeps the game from ending: over once its league is) is
   the unit tests' (a replay plays one season, so no tracker game on two seasons is replayed: part 4b).
 
+## A13 part 1: trivia in a game, replayed blind (2026-10-30)
+
+A13's part 1 adds a trivia question to a game of questions: the round before each episode, from the episode's trivia key (the bot's
+trivia research, a batch written and checked after the episode before), graded with that episode's results, a point for each one
+right, void with no key. It reads no format state (a trivia question names nobody's group; its options are the bot's), so a format change
+reaches it only through the questions the bot writes about it; these replays show the two new tracker games (settle.trivia: a round
+before each episode; p1: a stage of Bingo at 5 a line with a stage of trivia alongside it) play through every season and end. Each
+episode's trivia comes from its tape (written and checked when the season was recorded, filed after the episode's results as the trivia
+run files it), and every question of a round is answered by each seat's habit.
+
+- **Every game played through and over on all five seasons**: Survivor 49 130 of 130, The Challenge 41 105 of 105, 40 99 of 99, 39 107
+  of 107, The Traitors 4 94 of 94 (part 4c's numbers plus four each: the two games and p1's two stages); nothing refused; the questions
+  waiting on early results finding 20's 3, 2 and 2.
+- **Every round has its key but the premiere's** (nothing is written before Episode 1: void, no points either way), five or six questions
+  a round; on The Challenge the reunions' rounds (20 and 21) are graded with nobody left answering, 0.
+- **The bot writes the right answer first far more often than not** (221 of the 350 live questions that aren't numbers, on these five
+  seasons; last only 9). The first run, with each round's options in the order written, had the Drive-By (who takes the first option)
+  at 51 on The Challenge 41, nearly twice the chance rate; the round now shuffles each question's options the same for everyone, as the
+  trivia sheet does, and the seats score about chance (The Challenge 41: the Drive-By 25, the Tinkerer 20; Survivor 49: 22 and 18).
+- **p1's overall is its two stages added up**; nobody ticks a bingo card on the tapes, so it equals the trivia stage's table.
+
 ## Appendix: the timelines
 
 Generated with `node scripts/dev-test/format-study.js --md`. "Brought in" is when viewers learned of a change, against when it

@@ -11,6 +11,7 @@ import type { CallBook } from "@/lib/game/calls";
 import { timelineForShow } from "@db/format-timeline.js";
 import { HttpError, pool } from "./db";
 import { stagesOf } from "./stages";
+import { triviaKeyFor } from "./trivia-key";
 import type { SeasonSchedule } from "./schedule";
 
 // A game of questions' points, for its tables (step A4 of docs/PLAN-start-a-game-gpt.md; answers.ts reads and writes the
@@ -62,12 +63,9 @@ export async function walked(o: { leagueId: string; state: LeagueState; playerId
   const A = StateLogic.AnswerLogic;
   const seen = StateLogic.GhostLogic.viewFor(o.state, o.playerId, o.mark);
   const all = o.rows ?? (StateLogic.piecesOf(o.state).hasQuestions ? await storedAnswers(o.leagueId) : []);
-  // The format's groups, read once (the seen copy and the one cut at the game's end have the same cast).
-  const formatGroups = await formatGroupsFor(o.state, seen);
-  const factsOf = (v: LeagueState): AnswerFacts => {
-    const f = A.facts(v);
-    return formatGroups ? { ...f, formatGroups } : f;
-  };
+  // The format's groups and the trivia key (A13), read once (the seen copy and the one cut at the game's end have the same cast).
+  const extra = await serverFacts(o.state, seen);
+  const factsOf = (v: LeagueState): AnswerFacts => ({ ...A.facts(v), ...extra });
   if (!Spec.answerParts(StateLogic.gameOf(seen))) {
     const view = StateLogic.spanView(seen);
     return { view, facts: factsOf(view), rows: all, walk: null };
@@ -271,11 +269,17 @@ export async function formatGroupsFor(state: LeagueState, view: LeagueState): Pr
   return map.size ? map : undefined;
 }
 
-/** The facts a game's questions are graded on as a viewer sees them (StateLogic.AnswerLogic.facts), the timeline's groups in. */
+/** What only the server knows of a game's facts: the timeline's groups (F3 part 2) and, for a game that asks trivia, each round's
+ *  trivia key (A13: trivia-key.ts triviaKeyFor). Each only when the game reads it. */
+async function serverFacts(state: LeagueState, view: LeagueState): Promise<Pick<AnswerFacts, "formatGroups" | "trivia">> {
+  const [formatGroups, trivia] = await Promise.all([formatGroupsFor(state, view), triviaKeyFor(state)]);
+  return { ...(formatGroups ? { formatGroups } : {}), ...(trivia ? { trivia } : {}) };
+}
+
+/** The facts a game's questions are graded on as a viewer sees them (StateLogic.AnswerLogic.facts), the timeline's groups and the
+ *  trivia key in. */
 export async function answerFacts(state: LeagueState, view: LeagueState): Promise<AnswerFacts> {
-  const formatGroups = await formatGroupsFor(state, view);
-  const facts = StateLogic.AnswerLogic.facts(view);
-  return formatGroups ? { ...facts, formatGroups } : facts;
+  return { ...StateLogic.AnswerLogic.facts(view), ...(await serverFacts(state, view)) };
 }
 
 /**

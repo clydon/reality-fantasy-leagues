@@ -27,7 +27,9 @@
 //     earlier game on its couch for the tinkerer and the fan first (earlierGame), so the drive-by and the forgetter are its
 //     newcomers, and each episode's record says who it names and what it has given each so far; a game in stages (A12), each
 //     stage played as a game of its own beside it, and a stage a format change starts (A12 part 2) found as the season sync makes
-//     each copy mid-season (its draft at its start, from who's left), its record ended where a corrected report takes it away.
+//     each copy mid-season (its draft at its start, from who's left), its record ended where a corrected report takes it away; a
+//     game that asks trivia (A13), each episode's trivia as its tape has it (written and checked then) filed after its results,
+//     the key of the round before the next episode, every question of a round answered by each seat's habit.
 // Nothing asks a bot. The local bot's answers are F2's, kept beside the tapes; the stand-ins are marked as such in the record.
 //
 //   node scripts/dev-test/blind.js run [<show> <season>] [--only=3,7] [--through=N] [--keep]
@@ -229,6 +231,11 @@ function answerFor(seat, q, n) {
         return h("s") < 0.5 ? [5, 3] : [4, 3, 1];
       case "pairs":
         return q.pairs && q.pairs.length ? Object.fromEntries(q.pairs.map((p) => [p.key, p.faces[h(p.key) < 0.5 ? 0 : 1].id])) : undefined;
+      // A13: each of the round's questions (but one played in the trivia sheet), an option by habit.
+      case "trivia": {
+        const open = (q.trivia || []).filter((t) => !t.played);
+        return open.length ? Object.fromEntries(open.map((t) => [t.id, orderFor(seat, q, n, t.options, (o) => `${t.id}|${o}`)[0]])) : undefined;
+      }
       default:
         return undefined;
     }
@@ -301,6 +308,7 @@ function app() {
     answers: H.tsApp("lib/server/answers"),
     points: H.tsApp("lib/server/answer-points"),
     Research: require("../../db/episode-research.js"),
+    Trivia: require("../../db/trivia-research.js"),
     DBT: require("../../db/format-timeline.js"),
     C: require("../../src/lib/game/game-spec/capabilities.js"),
     rows: H.tsApp("lib/game/capability-rows"),
@@ -594,6 +602,8 @@ async function lookAt(r, n) {
         const v = q.verdict || {};
         if (q.answer !== "group") {
           out.verdicts[q.id] = { state: v.state || null, right: (v.right || []).slice(0, 6).map((id) => (gq.cast.find((c) => c.id === id) || {}).name || id), earned: Object.fromEntries(q.people.filter((p) => p.earned).map((p) => [label(p.playerId), p.earned])), answered: q.people.filter((p) => p.answer != null).length };
+          // A13: how many questions its round's key had (none: void).
+          if (q.answer === "trivia") out.verdicts[q.id].key = (q.trivia || []).length;
           continue;
         }
         out.verdicts[q.id] = {
@@ -838,7 +848,9 @@ async function run(show, season, opts = {}) {
     if (r.problems.length) console.log(`  ${g.n}. ${g.label}: ${r.problems[0]}`);
   }
   const live = () => replays.filter((r) => r.leagueId && !r.dead);
-  const record = { show, season, title: t.title, episodes: E, at: new Date().toISOString(), games: all.map(({ spec, ...g }) => ({ ...g, spec })), premiere: {}, format: [], sources: {}, exits: {}, replays: [] };
+  const record = { show, season, title: t.title, episodes: E, at: new Date().toISOString(), games: all.map(({ spec, ...g }) => ({ ...g, spec })), premiere: {}, format: [], sources: {}, exits: {}, trivia: {}, replays: [] };
+  // A13: each episode's trivia as the tape has it, written and checked then (bot research's 'trivia' run: db/trivia-research.js).
+  const triviaTapes = Tapes.readTape(show, season).files.filter((f) => f.kind === "trivia" && f.ok && f.result && Array.isArray(f.result.questions));
   for (const r of live()) {
     const p = await premiere(r);
     if (p.length) record.premiere[r.game.n] = p;
@@ -893,6 +905,10 @@ async function run(show, season, opts = {}) {
       },
     };
     const filed = await H.fileResults(copy, ep, tapeAnswer, "placed", hooks);
+    // A13: the trivia the bot's research wrote after this episode, filed as its run files it (storeTrivia), in before the next
+    // episode's answers, as it lands a day before that one airs: the key of the round before it. None on tape: that round is void.
+    const tt = triviaTapes.find((f) => f.episode === ep);
+    if (tt) record.trivia[ep] = { live: await app().Trivia.storeTrivia(pool, copy.seasonId, ep, tt.result.questions, null), of: tt.result.questions.length };
     await pool.query("UPDATE season_episodes SET air_at = air_at + make_interval(days => $2::int) WHERE season_id = $1 AND air_at < now()", [copy.seasonId, copy.shiftDays]);
     if (reshaped && (reshaped.left.length || reshaped.stayed.length || reshaped.added.length)) record.exits[ep] = { left: reshaped.left, stayed: reshaped.stayed, added: reshaped.added };
     const fmt = await formatAfter(copy, ep, E);
