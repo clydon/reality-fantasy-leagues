@@ -145,8 +145,9 @@ export function safeNext(next: string | null | undefined): string | null {
  *   channel      the hub and a show: the show's art grows from its card into the header (or back), the rest crossfades
  *   fade         same depth, no order: a crossfade
  *   calm         reduced motion: a short crossfade, nothing moves
+ *   tune         the hub and a show, under the Tune in bumper (tune-in.tsx): the page just swaps, the bumper does the moving
  */
-export type NavKind = "push" | "pop" | "left" | "right" | "channel" | "fade" | "calm";
+export type NavKind = "push" | "pop" | "left" | "right" | "channel" | "fade" | "calm" | "tune";
 
 function parse(href: string): string[] {
   const path = href.split(/[?#]/)[0];

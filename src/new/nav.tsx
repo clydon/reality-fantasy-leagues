@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, ViewTransition, type ComponentProps, type MouseEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, ViewTransition, type ComponentProps, type MouseEvent } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { navKind, type NavKind } from "./routes";
 import { leaveThroughSheets, navigating } from "./ui/sheet-history";
+import { startTuneIn } from "./tune-in";
 
 // Motion that grounds navigation (docs/PLAN-new-design.md step 0c; the mock's nav.js): every move says where you
 // went. The rules are in routes.ts (navKind); the animations are CSS in src/app/(new)/new.css, keyed on
@@ -16,7 +17,8 @@ import { leaveThroughSheets, navigating } from "./ui/sheet-history";
 // show's art on a channel change: the card you tapped grows into the show bar (named here at the tap; the show
 // bar's art by new.css while data-nav is "channel"), and coming back, the show bar shrinks into that show's card
 // on the hub (named when the hub commits). The hub shows a show in several places, so it's by hand, not React's
-// <ViewTransition name>, which allows one element per name.
+// <ViewTransition name>, which allows one element per name. Since 2026-10-30 the Tune in bumper (tune-in.tsx) does a
+// channel change wherever it can run, and the page swaps under it ("tune"); the art morph stays for when it can't.
 //
 // Going somewhere (a NavLink, nav.push): React runs the transition. It only starts one when a <ViewTransition>
 // boundary changes, so <NavMotion> keeps a tiny boundary keyed on the path; React also waits for the new page
@@ -39,12 +41,14 @@ function reducedMotion() {
  *  goes nowhere, a browser without View Transitions). */
 export function markNav(kind: NavKind): number {
   const seq = ++navSeq;
-  document.documentElement.dataset.nav = reducedMotion() ? "calm" : kind;
+  // (The Tune in's bumper has its own reduced-motion version; its mark only stops a view transition, NavMotion.)
+  document.documentElement.dataset.nav = reducedMotion() && kind !== "tune" ? "calm" : kind;
   setTimeout(() => clearNav(seq), 4000);
   return seq;
 }
 
-function clearNav(seq: number) {
+/** Clears a mark (the Tune in's, once its bumper has gone). */
+export function clearNav(seq: number) {
   if (seq !== navSeq) return;
   delete document.documentElement.dataset.nav;
   document.querySelectorAll<HTMLElement>("[data-art]").forEach(unnameArt);
@@ -84,6 +88,11 @@ export function NavLink({ channel, onClick, ...props }: ComponentProps<typeof Li
       onClick={(e) => {
         onClick?.(e);
         if (e.defaultPrevented || !isPlainClick(e) || typeof props.href !== "string") return;
+        // Into a show from its card: the Tune in bumper (tune-in.tsx), which goes there itself once it covers the screen.
+        if (channel && startTuneIn(props.href, e.currentTarget.closest<HTMLElement>("[data-art-scope]") ?? e.currentTarget)) {
+          e.preventDefault();
+          return;
+        }
         markNav(navKind(pathname, props.href, { channel }));
         navigating();
         replacing = !!props.replace;
@@ -119,7 +128,8 @@ function historyBack(kind: NavKind) {
   const seq = markNav(kind);
   backing = true;
   const by = -1 - leaveThroughSheets();
-  if (!document.startViewTransition) {
+  // The Tune in's reverse moves the screen itself (see NavMotion).
+  if (!document.startViewTransition || kind === "tune") {
     window.history.go(by);
     return;
   }
@@ -156,12 +166,13 @@ export function useNav() {
     /**
      * Up to `parent`: the browser's back when the page you came from is it (or is one `accepts`, e.g. any tab of the
      * show), else a navigation there. A page opened from a link or a reload has nothing of this visit to go back to.
+     * `kind`: how it moves, when something else does the moving (the Tune in's reverse: "tune").
      */
-    back(parent: string, accepts?: (prev: string) => boolean) {
+    back(parent: string, accepts?: (prev: string) => boolean, kind?: NavKind) {
       if (previousPath && (previousPath === parent || accepts?.(previousPath))) {
-        historyBack(navKind(pathname, previousPath));
+        historyBack(kind ?? navKind(pathname, previousPath));
       } else {
-        markNav(navKind(pathname, parent));
+        markNav(kind ?? navKind(pathname, parent));
         navigating();
         router.push(parent);
       }
@@ -173,8 +184,16 @@ export function useNav() {
 export function NavMotion() {
   const pathname = usePathname();
   const last = useRef(pathname);
+  // The boundary's key: a new one starts React's view transition (it starts one whenever a boundary enters, whatever
+  // its class). Under the Tune in it keeps the old one, so none starts: the bumper moves the screen itself, a snapshot
+  // would freeze it mid-move and then blend the frozen copy over the live one, and React would hold the screen still
+  // while the show's pictures load.
+  const [mark, setMark] = useState(pathname);
+  if (mark !== pathname && !(typeof document !== "undefined" && document.documentElement.dataset.nav === "tune")) setMark(pathname);
   useLayoutEffect(() => {
     if (last.current === pathname) return;
+    // After the Tune in's move (which kept the old key), the key catches up outside the transition: no view transition.
+    setMark(pathname);
     if (!replacing) previousPath = last.current;
     replacing = false;
     // A channel change back to the hub: the art it shrinks into (inside the transition, before the new screen is
@@ -197,7 +216,7 @@ export function NavMotion() {
   }, []);
   return (
     <ViewTransition
-      key={pathname}
+      key={mark}
       enter="nd-mark"
       exit="nd-mark"
       default="none"

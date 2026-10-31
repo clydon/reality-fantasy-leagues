@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { BookOpen, Ellipsis, EyeOff, Eye, KeyRound, Bell, Lock, LogOut, RotateCcw, ShieldCheck, Tv, UserPlus, Users, X } from "lucide-react";
 import { airTime, calm, justAired, ticks } from "../clock";
@@ -10,6 +10,7 @@ import { READ_ONLY_SAYS } from "@/lib/read-only";
 import { movesByDue } from "../hub/sections";
 import { useNav } from "../nav";
 import { isShowTab, paths, SHOW_TABS, type ShowTab } from "../routes";
+import { startTuneBack, tunedIn } from "../tune-in";
 import { Cast } from "../show/cast";
 import { Chat } from "../show/chat";
 import { Dock, dockShows, MovesSheet } from "../show/dock";
@@ -221,6 +222,11 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
   // The Chat tab's badge, every 30 s (the open chat polls its own instead, and reading it clears this). Read-only: the
   // couch's chat is theirs, so not even its count.
   const badge = useChatBadge(seasonId, ro ? null : chatCouch(show), show.episodes?.reveal?.episode ?? null, tab !== "chat");
+  // The Tune in bumper holds until what Tonight shows is in (its own read and the episodes), then folds into the header.
+  const settled = !!show.header && !!show.space && !!show.episodes;
+  useEffect(() => {
+    if (settled) tunedIn(seasonId);
+  }, [settled, seasonId]);
 
   if (show.notFound) {
     return <EmptyState icon={Tv} title="Show not found" line="It may have been removed." />;
@@ -235,7 +241,12 @@ export function SpaceFrame({ seasonId, children }: { seasonId: string; children:
         <ShowBar
           show={{ seasonId, name: show.header.show.name, seasonNumber: show.header.seasonNumber, artUrl: show.header.show.artUrl, backdropUrl: show.header.show.backdropUrl }}
           tall={tab === "tonight"}
-          back={ro ? { label: "Desk", onClick: () => leaveToDesk(nav, ro) } : { label: "Home", onClick: () => nav.back(paths.home) }}
+          back={
+            ro
+              ? { label: "Desk", onClick: () => leaveToDesk(nav, ro) }
+              : // Home: the Tune in's reverse, the header dropping into the show's card (else the usual move).
+                { label: "Home", onClick: () => (startTuneBack(seasonId) ? nav.back(paths.home, undefined, "tune") : nav.back(paths.home)) }
+          }
           status={status}
           menu={ro ? <ReadOnlyMenu /> : <ShowMenu seasonId={seasonId} show={show} />}
           below={<CouchLine show={show} />}
